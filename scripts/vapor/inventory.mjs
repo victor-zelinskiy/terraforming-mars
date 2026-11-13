@@ -46,7 +46,7 @@ export const RECIPES = {
   // the instance
   'this:$emit': 'R3', 'this:$nextTick': 'R10', 'this:$refs': 'R11', 'this:$el': 'R12', 'this:$slots': 'R13', 'this:$attrs': 'R13',
   'this:$props': 'R2', 'this:$watch': 'R6', 'this:$forceUpdate': 'R14', 'this:$options': 'R14', 'this:$parent': 'R14',
-  'this:$root': 'R14', 'this:$t': 'R19', 'this:$data': 'R14', 'this:$': 'R14',
+  'this:$root': 'R14', 'this:$t': 'R19', 'this:$data': 'R14', 'this:$': 'R14', 'this:vueRoot': 'R26',
   // watchers
   'watch:path-key': 'R6', 'watch:immediate': 'R6', 'watch:deep': 'R6', 'watch:flush': 'R6', 'watch:string-handler': 'R6',
   'watch:array': 'R6', 'computed:setter': 'R5', 'data:reads-this': 'R4', 'data:not-literal': 'R4', 'props:array': 'R2', 'emits:object': 'R3',
@@ -58,13 +58,14 @@ export const RECIPES = {
   'tpl:teleport': 'R21', 'tpl:keep-alive': 'R22', 'tpl:component-is': 'R21', 'tpl:slot': 'R13', 'tpl:v-html': 'R0',
   'tpl:v-memo': 'R23', 'tpl:global-component': 'R1', 'tpl:leading-comment': 'R24', 'tpl:multi-root': 'R24',
   'tpl:v-once': 'R0', 'tpl:suspense': 'R22', 'tpl:key-remount': 'R0', 'tpl:trailing-comment': 'R24',
+  'tpl:inter-root-comment': 'R24', 'tpl:component-is-string': 'R21',
   // the script's MODULE level (outside the component)
   'script:module-code': 'R25', 'script:module-state': 'R25', 'script:type-export': 'R25', 'script:value-export': 'R25',
   // an already converted script (`<script setup>`): the same rows, read off the Composition API
   'setup:defineProps': 'R2', 'setup:defineEmits': 'R3', 'setup:ref': 'R4', 'setup:computed': 'R5', 'setup:watch': 'R6',
   'setup:function': 'R7', 'setup:composable': 'R8', 'setup:hook': 'R9', 'setup:nextTick': 'R10', 'setup:useTemplateRef': 'R11',
   'setup:defineExpose': 'R11', 'setup:useSlots': 'R13', 'setup:useAttrs': 'R13', 'setup:provide': 'R16', 'setup:inject': 'R16',
-  'setup:directive-import': 'R17', 'setup:$t-import': 'R19', 'setup:defineOptions': 'R1',
+  'setup:directive-import': 'R17', 'setup:$t-import': 'R19', 'setup:defineOptions': 'R1', 'setup:useAppRoot': 'R26',
 };
 
 const HOOKS = new Set(['beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdate', 'updated', 'beforeUnmount', 'unmounted',
@@ -89,6 +90,7 @@ function walkFiles(dir, out = []) {
 
 const rel = (file) => path.relative(ROOT, file).split(path.sep).join('/');
 const pascal = (tag) => tag.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('');
+const kebab = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 
 function blocks(text) {
   const script = /<script\b([^>]*)>([\s\S]*?)<\/script>/.exec(text);
@@ -265,8 +267,28 @@ function readScript(script, uses, detail) {
         detail.ownRefs.add(node.parent.name.text);
       }
     }
+    // `vueRoot(this)` IS the app root reached through the instance (`components/vueRoot.ts` reads `$root`) — a row of its
+    // own, because it HAS a conversion: the app root's port (R26).
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'vueRoot') {
+      bump(uses, 'this:vueRoot');
+    }
     ts.forEachChild(node, walk);
   })(options);
+  // The `typedRefs` idiom — a member that returns `this.$refs` under a cast: `this.<alias>.<ref>` is a ref read too.
+  detail.refAliases = [...script.matchAll(/(\w+)\s*\(\s*\)\s*(?::[^{;]+)?\{\s*return\s+this\.\$refs\b/g)].map((m) => m[1]);
+  for (const alias of detail.refAliases) {
+    for (const m of script.matchAll(new RegExp(`\\bthis\\.${alias}\\.(\\w+)`, 'g'))) {
+      detail.ownRefs.add(m[1]);
+    }
+  }
+  // `<component :is>` fed a STRING resolved through the `components:` registration; `<script setup>` registers nothing
+  // by name, so the string becomes the imported component itself (R21).
+  const imported = [...script.matchAll(/^import\s+(\w+)\s+from\s+'[^']+\.vue';?$/gm)].map((m) => m[1]);
+  const body = script.replace(/^import\b.*$/gm, '').replace(/\bname:\s*'[^']*'/g, '');
+  const named = imported.filter((name) => new RegExp(`['"\`](?:${name}|${kebab(name)})['"\`]`).test(body));
+  if (named.length > 0) {
+    detail.isStrings = named;
+  }
 }
 
 /** The template: the constructs with a recipe of their own, and the refs it stands. */
@@ -287,6 +309,13 @@ function readTemplate(template, uses, detail) {
   const lastRoot = ast.children.findLastIndex((n) => n.type === NodeTypes.ELEMENT);
   if (lastRoot !== -1 && ast.children.slice(lastRoot + 1).some((n) => n.type === NodeTypes.COMMENT)) {
     bump(uses, 'tpl:trailing-comment');
+  }
+  // …and one BETWEEN two roots (the branches of a root `v-if` chain, the roots of a multi-root template): a development
+  // build folds it into the branch after it, which becomes a fragment.
+  const firstRoot = ast.children.findIndex((n) => n.type === NodeTypes.ELEMENT);
+  const between = firstRoot === -1 ? 0 : ast.children.slice(firstRoot + 1, lastRoot).filter((n) => n.type === NodeTypes.COMMENT).length;
+  if (between > 0) {
+    bump(uses, 'tpl:inter-root-comment', between);
   }
   if (roots.length > 1 && !roots.slice(1).every((n) => n.props.some((p) => p.type === NodeTypes.DIRECTIVE && (p.name === 'else' || p.name === 'else-if')))) {
     bump(uses, 'tpl:multi-root');
@@ -337,12 +366,20 @@ function readTemplate(template, uses, detail) {
           if (isComponent) {
             bump(uses, 'tpl:ref-on-component');
             detail.childRefs.push({ref: prop.value?.content ?? '', child: pascal(tag)});
+          } else if (tag === 'component') {
+            // a ref on `<component :is>`: the child is whichever component stands there — every one this file imports
+            detail.childRefs.push({ref: prop.value?.content ?? '', child: '*'});
           }
         }
         continue;
       }
       const exp = prop.exp?.content ?? '';
       expressions.push(exp);
+      // a surface of the shell's registry: `:ref="surfaces.bind.<name>"` — read by NAME from the controllers
+      const surface = prop.name === 'bind' && prop.arg?.content === 'ref' ? /^surfaces\.bind\.(\w+)$/.exec(exp.trim()) : null;
+      if (surface !== null && (isComponent || tag === 'component')) {
+        detail.childRefs.push({ref: `@surface:${surface[1]}`, child: isComponent ? pascal(tag) : '*'});
+      }
       if (prop.name === 'bind' && prop.arg?.content === 'key' && !hasFor && node.tag !== 'template') {
         bump(uses, 'tpl:key-remount');
       }
@@ -383,6 +420,47 @@ function readTemplate(template, uses, detail) {
   }
 }
 
+/** The keys of a script's `defineExpose({…})` — `undefined` when it has none. */
+function exposeKeysOf(code) {
+  const at = code.indexOf('defineExpose(');
+  if (at === -1) {
+    return undefined;
+  }
+  const open = code.indexOf('{', at);
+  const close = open === -1 ? -1 : matchingClose(code, open);
+  if (open === -1 || close === -1) {
+    return [];
+  }
+  // top-level keys only: `a, b: c, d() {…}` — cut what stands inside nested brackets first
+  let depth = 0;
+  let flat = '';
+  for (const ch of code.slice(open + 1, close)) {
+    if (ch === '(' || ch === '{' || ch === '[') {
+      depth++;
+    } else if (ch === ')' || ch === '}' || ch === ']') {
+      depth--;
+    } else if (depth === 0) {
+      flat += ch;
+    }
+  }
+  return flat.split(',').map((part) => part.split(':')[0].trim()).filter((key) => /^\w+$/.test(key));
+}
+
+/** The index of the bracket that closes the one at `open` (`-1` when the text ends first). */
+function matchingClose(text, open) {
+  const pairs = {'{': '}', '(': ')', '[': ']'};
+  const closer = pairs[text[open]];
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === text[open]) {
+      depth++;
+    } else if (text[i] === closer && --depth === 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /** A `<script setup>` script: the constructs of the SAME recipes, read off the Composition API it calls. */
 function readSetupScript(script, uses, detail) {
   const code = script.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -409,6 +487,13 @@ function readSetupScript(script, uses, detail) {
   count('setup:provide', /\bprovide\(/g);
   count('setup:inject', /\binject[<(]/g);
   count('setup:$t-import', /import\s*\{[^}]*\$t\b[^}]*\}\s*from\s*'@\/client\/directives\/i18n'/g);
+  count('setup:useAppRoot', /\buseAppRoot\(/g);
+  // what the script declares at its top level — the members a parent's ref could name (the filter of MUST EXPOSE)
+  const declared = [...code.matchAll(/^(?:const|let|var|function|async function)\s+(\w+)/gm)].map((m) => m[1]);
+  const destructured = [...code.matchAll(/^(?:const|let)\s+\{([^}]+)\}\s*=/gm)].flatMap((m) => m[1].split(',').map((part) => part.split(':').pop().trim()));
+  const exposedKeys = exposeKeysOf(code) ?? [];
+  detail.names = {props: [], data: [], computed: [], methods: [], setup: [...declared, ...destructured, ...exposedKeys]};
+  detail.exposes = exposeKeysOf(code);
   for (const m of code.matchAll(/import\s*\{([^}]*)\}\s*from\s*'([^']+)'/g)) {
     const directives = m[1].split(',').map((name) => name.trim()).filter((name) => /^v[A-Z]/.test(name));
     if (directives.length > 0) {
@@ -436,9 +521,15 @@ function readComponent(file) {
     readSetupScript(script, uses, detail);
   }
   readTemplate(template, uses, detail);
+  if (form === 'options' && uses['tpl:component-is'] !== undefined && detail.isStrings !== undefined) {
+    bump(uses, 'tpl:component-is-string');
+  }
   // What stands between this component and step B (`vapor`) — every construct has a ✔ row; these are the «at B» notes.
-  if (uses['tpl:leading-comment'] !== undefined || uses['tpl:trailing-comment'] !== undefined) {
-    detail.stepB.push('a comment outside the root (before or after it) — move it into the script (R24)');
+  if (uses['tpl:leading-comment'] !== undefined || uses['tpl:trailing-comment'] !== undefined || uses['tpl:inter-root-comment'] !== undefined) {
+    detail.stepB.push('a comment outside the root (before, after or between the roots) — move it into the script (R24)');
+  }
+  if (uses['this:vueRoot'] !== undefined) {
+    detail.stepB.push('`vueRoot(this)` — the app root through the instance: `useAppRoot()` (R26)');
   }
   if (uses['tpl:v-memo'] !== undefined) {
     detail.stepB.push('`v-memo` — delete it at B (R23)');
@@ -457,13 +548,128 @@ function readComponent(file) {
     unknown: detail.unknown, children: [...detail.children].sort(), childRefs: detail.childRefs, directives: [...detail.directives].sort(),
     names: detail.names, script, valueExports: detail.valueExports, moduleState: detail.moduleState, injects: detail.injects, stepB: detail.stepB,
     templateRefs: [...detail.templateRefs].sort(), ownRefs: [...detail.ownRefs].sort(),
+    refAliases: detail.refAliases ?? [], isStrings: detail.isStrings ?? [], exposes: detail.exposes, template,
+    // where the two blocks start in the FILE — a line of the script is printed as a line of the file
+    scriptLine: script === '' ? 0 : text.slice(0, text.indexOf(script)).split('\n').length - 1,
+    templateLine: template === '' ? 0 : text.slice(0, text.indexOf(template)).split('\n').length - 1,
   };
 }
 
-/** What each component's PARENTS reach into it for: `this.$refs.<ref>.<member>` / `(… as InstanceType<typeof X>).<member>`. */
+/**
+ * What stands right after a ref's name: the MEMBER read off it, through whatever may stand between the two —
+ * `[i]`, `?? undefined`, a closing parenthesis, a cast (`as {handleIntent?: (i: X) => boolean} | undefined`), `!`.
+ * `member` is `undefined` when the expression ends there (the ref is HELD — a local, a return value, an argument).
+ */
+function chainAfter(text, from) {
+  let i = from;
+  for (;;) {
+    const rest = text.slice(i, i + 400);
+    let m;
+    if ((m = /^\s+/.exec(rest)) !== null || (m = /^\[[^\]\n]*\]/.exec(rest)) !== null || (m = /^\?\?\s*(?:undefined|null)\b/.exec(rest)) !== null ||
+      (m = /^\.value\b/.exec(rest)) !== null || (m = /^\)/.exec(rest)) !== null || (m = /^!(?!=)/.exec(rest)) !== null) {
+      i += m[0].length;
+      continue;
+    }
+    if ((m = /^as\s+/.exec(rest)) !== null) {
+      // the cast's type runs to the bracket that closes the parenthesis round the cast, or to the statement's end
+      i += m[0].length;
+      let depth = 0;
+      for (; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === '(' || ch === '{' || ch === '[' || ch === '<') {
+          depth++;
+        } else if (ch === '>' && text[i - 1] === '=') {
+          continue; // the arrow of a function type
+        } else if (ch === ')' || ch === '}' || ch === ']' || ch === '>') {
+          if (depth === 0) {
+            break;
+          }
+          depth--;
+        } else if ((ch === ';' || ch === ',' || ch === '\n') && depth === 0) {
+          break;
+        }
+      }
+      continue;
+    }
+    m = /^\??\.(\$?[A-Za-z_]\w*)/.exec(rest);
+    return m !== null ? {member: m[1]} : {member: undefined};
+  }
+}
+
+/** Where the block that encloses `from` ends (the first `}` that closes more than was opened after `from`). */
+function blockEnd(text, from) {
+  let depth = 0;
+  for (let i = from; i < text.length; i++) {
+    if (text[i] === '{') {
+      depth++;
+    } else if (text[i] === '}' && --depth < 0) {
+      return i;
+    }
+  }
+  return text.length;
+}
+
+/** The function a `return` at `lineStart` belongs to: a method / computed of the options, a `function`, a `const x = computed(`. */
+function enclosingFunction(text, lineStart) {
+  const indent = /^[ \t]*/.exec(text.slice(lineStart))[0].length;
+  const lines = text.slice(0, lineStart).split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (line.trim() === '' || /^[ \t]*/.exec(line)[0].length >= indent) {
+      continue;
+    }
+    const m = /^\s*(?:async\s+)?(?:function\s+)?(\w+)\s*\([^)]*\)\s*(?::[^{]+)?\{\s*$/.exec(line) ?? /^\s*const\s+(\w+)\s*=\s*computed\(/.exec(line);
+    return m !== null && !['if', 'for', 'while', 'switch', 'catch'].includes(m[1]) ? m[1] : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Every member read off the ref that stands at `text[start…end)`: directly, off a LOCAL that holds it
+ * (`const picker = (this.$refs.language ?? undefined) as {…} | undefined; picker?.handleIntent?.(…)`), or off the
+ * member that RETURNS it (`sheetEl() { return this.$refs.sheet as …; }` … `this.sheetEl()?.heroEl()`).
+ */
+function followRef(text, start, end, note, depth = 0) {
+  const chain = chainAfter(text, end);
+  if (chain.member !== undefined) {
+    note(chain.member);
+    return;
+  }
+  if (depth > 2) {
+    return;
+  }
+  const lineStart = text.lastIndexOf('\n', start) + 1;
+  const head = text.slice(lineStart, start);
+  const local = /(?:const|let)\s+(\w+)\s*(?::[^=]+)?=\s*[(\s]*(?:await\s+)?(?:this\.)?$/.exec(head);
+  if (local !== null) {
+    const block = text.slice(end, blockEnd(text, end));
+    for (const use of block.matchAll(new RegExp(`(?<![\\w.$])${local[1]}\\b`, 'g'))) {
+      followRef(block, use.index, use.index + local[1].length, note, depth + 1);
+    }
+    return;
+  }
+  if (/\breturn\s+[(\s]*(?:this\.)?$/.test(head)) {
+    const fn = enclosingFunction(text, lineStart);
+    if (fn !== undefined) {
+      for (const use of text.matchAll(new RegExp(`(?<![\\w$])(?:this\\.)?${fn}\\b(?:\\(\\s*\\))?`, 'g'))) {
+        followRef(text, use.index, use.index + use[0].length, note, depth + 1);
+      }
+    }
+  }
+}
+
+/**
+ * What each component's PARENTS reach into it for through a ref. THREE answers, and the third is the complete one:
+ * `reached` — the members the tool could FOLLOW (`this.$refs.<ref>…<member>` through a cast, a `?? undefined`, a local,
+ * the `typedRefs` idiom, a member that returns the ref, `surfaces.at('<name>')`, `InstanceType<typeof X>`);
+ * `holds` — which parents stand a ref on it at all; `touches` — EVERY line that names that ref. A read the tool cannot
+ * follow is still one of those lines: the sheet prints them, and the converter reads them.
+ */
 function exposeLists(components) {
   const byName = new Map(components.map((c) => [c.name, c]));
   const reached = new Map();
+  const holds = new Map();
+  const touches = new Map();
   const note = (child, member, from) => {
     if (!byName.has(child)) {
       return;
@@ -472,16 +678,65 @@ function exposeLists(components) {
     list.set(member, [...(list.get(member) ?? []), from]);
     reached.set(child, list);
   };
-  const sources = [...components.map((c) => ({file: c.file, text: c.script, childRefs: c.childRefs})),
-    ...tsFiles(CLIENT).map((file) => ({file: rel(file), text: fs.readFileSync(file, 'utf8'), childRefs: []}))];
+  const modules = tsFiles(CLIENT).map((file) => ({file: rel(file), text: fs.readFileSync(file, 'utf8'), childRefs: []}));
+  const sources = [...components.map((c) => ({file: c.file, text: c.script, childRefs: c.childRefs, component: c})), ...modules];
+  const touch = (child, file, text, index, offset) => {
+    if (!byName.has(child)) {
+      return;
+    }
+    const line = text.slice(0, index).split('\n').length;
+    const row = `${file}:${line + offset}  ${text.split('\n')[line - 1].trim().slice(0, 150)}`;
+    const rows = touches.get(child) ?? new Set();
+    rows.add(row);
+    touches.set(child, rows);
+  };
   for (const source of sources) {
     for (const {ref, child} of source.childRefs) {
       if (ref === '') {
         continue;
       }
-      const id = ref.replace(/[$]/g, '\\$');
-      for (const m of source.text.matchAll(new RegExp(`\\$refs\\.${id}\\b(?:\\s+as\\s+[^)]+\\))?\\)?\\??\\.(\\$?\\w+)`, 'g'))) {
-        note(child, m[1], source.file);
+      // a ref on `<component :is>` may hold any component this file imports
+      const children = child === '*' ? [...source.text.matchAll(/^import\s+(\w+)\s+from\s+'[^']+\.vue';?$/gm)].map((m) => m[1]) : [child];
+      for (const name of children) {
+        const held = holds.get(name) ?? new Set();
+        held.add(`${path.basename(source.file)} ref="${ref.replace('@surface:', 'surfaces.bind.')}"`);
+        holds.set(name, held);
+      }
+      // every place the ref is named, and the text it is named in
+      const reads = [];
+      if (ref.startsWith('@surface:')) {
+        // the shell's surface registry: read by NAME from the controllers — `surfaces.at<T>('<name>')`
+        const at = new RegExp(`\\.at(?:<[^(\\n]*>)?\\(\\s*'${ref.slice(9)}'\\s*\\)`, 'g');
+        for (const where of [...modules, {file: source.file, text: source.text, offset: source.component?.scriptLine}]) {
+          for (const m of where.text.matchAll(at)) {
+            reads.push({file: where.file, text: where.text, start: m.index, end: m.index + m[0].length, offset: where.offset ?? 0});
+          }
+        }
+      } else {
+        const id = ref.replace(/[$]/g, '\\$');
+        const aliases = source.component?.refAliases ?? [];
+        const forms = [`\\$refs\\.${id}\\b`, ...aliases.map((alias) => `\\b${alias}\\.${id}\\b`)];
+        // a `<script setup>` parent: the ref's variable — `const v = useTemplateRef<…>('<ref>')`, or a `ref()` of that name
+        for (const m of source.text.matchAll(new RegExp(`(?:const|let)\\s+(\\w+)\\s*=\\s*useTemplateRef\\b[^\\n]*?\\(\\s*'${id}'\\s*\\)`, 'g'))) {
+          forms.push(`(?<![\\w.$])${m[1]}\\.value\\b`);
+        }
+        if (new RegExp(`^(?:const|let)\\s+${id}\\s*=\\s*(?:shallowRef|ref)\\b`, 'm').test(source.text)) {
+          forms.push(`(?<![\\w.$])${id}\\.value\\b`);
+        }
+        const pattern = new RegExp(forms.join('|'), 'g');
+        for (const m of source.text.matchAll(pattern)) {
+          reads.push({file: source.file, text: source.text, start: m.index, end: m.index + m[0].length, offset: source.component?.scriptLine ?? 0});
+        }
+        const template = source.component?.template ?? '';
+        for (const m of template.matchAll(new RegExp(`\\$refs\\.${id}\\b`, 'g'))) {
+          reads.push({file: source.file, text: template, start: m.index, end: m.index + m[0].length, offset: source.component?.templateLine ?? 0});
+        }
+      }
+      for (const read of reads) {
+        for (const name of children) {
+          touch(name, read.file, read.text, read.start, read.offset);
+          followRef(read.text, read.start, read.end, (member) => note(name, member, read.file));
+        }
       }
     }
     for (const m of source.text.matchAll(/InstanceType<typeof (\w+)>/g)) {
@@ -517,7 +772,7 @@ function exposeLists(components) {
       reached.delete(child);
     }
   }
-  return reached;
+  return {reached, holds, touches};
 }
 
 function tsFiles(dir, out = []) {
@@ -545,7 +800,13 @@ function weightOf(component, exposed) {
 }
 
 const components = walkFiles(CLIENT).sort().map(readComponent);
-const exposed = exposeLists(components);
+const {reached: exposed, holds: refHolds, touches: refTouches} = exposeLists(components);
+/** A CONVERTED component that does not expose a member its parents read through a ref: the read is `undefined` at run time. */
+const exposeGaps = components.filter((c) => c.form !== 'options').flatMap((c) => {
+  const need = [...(exposed.get(c.name)?.keys() ?? [])].filter((member) => !member.startsWith('$'));
+  const missing = need.filter((member) => !(c.exposes ?? []).includes(member));
+  return missing.length === 0 ? [] : [`${c.file}: parents read ${missing.map((m) => `\`${m}\``).join(', ')} through a ref — not in its defineExpose (R11)`];
+});
 const mountedBy = new Map();
 for (const c of components) {
   for (const child of c.children) {
@@ -566,12 +827,34 @@ if (one !== undefined) {
     console.log(`  ${(RECIPES[key] ?? 'UNKNOWN').padEnd(7)} ${key.padEnd(26)} ×${count}`);
   }
   const reach = exposed.get(target.name);
-  console.log(reach === undefined ? '  MUST EXPOSE (R11): nothing — no parent reaches it through a ref (write no `defineExpose`)' :
-    `  MUST EXPOSE (R11): ${[...reach].map(([member, from]) => `${member} ← ${[...new Set(from)].map((f) => path.basename(f)).join(', ')}`).join(' · ')}`);
+  const held = [...(refHolds.get(target.name) ?? [])];
+  const lines = [...(refTouches.get(target.name) ?? [])];
+  console.log(reach !== undefined ?
+    `  MUST EXPOSE (R11): ${[...reach].map(([member, from]) => `${member} ← ${[...new Set(from)].map((f) => path.basename(f)).join(', ')}`).join(' · ')}` :
+    held.length === 0 ? '  MUST EXPOSE (R11): nothing — no parent stands a ref on it (write no `defineExpose`)' :
+      lines.length === 0 ? `  MUST EXPOSE (R11): nothing — a ref is held and never read (${held.join(', ')})` :
+        '  MUST EXPOSE (R11): nothing the tool could follow — READ the lines below, they decide');
+  if (lines.length > 0) {
+    console.log('  every line that names a ref standing on it (the list above is what the tool followed; these lines WIN):');
+    for (const line of lines) {
+      console.log(`    ${line}`);
+    }
+  }
+  if (target.form !== 'options' && target.exposes !== undefined) {
+    console.log(`  exposes today: ${target.exposes.join(', ')}`);
+  }
   console.log(`  mounted by: ${(mountedBy.get(target.name) ?? ['(nobody by tag — a lazy / dynamic mount)']).join(', ')}`);
-  const specs = tsFiles(path.join(ROOT, 'tests', 'client')).filter((file) => file.endsWith('.spec.ts') &&
-    new RegExp(`/${target.name}\\.vue'`).test(fs.readFileSync(file, 'utf8'))).map(rel);
+  const specTexts = tsFiles(path.join(ROOT, 'tests', 'client')).filter((file) => file.endsWith('.spec.ts')).map((file) => ({file: rel(file), text: fs.readFileSync(file, 'utf8')}));
+  const specs = specTexts.filter(({text}) => new RegExp(`/${target.name}\\.vue'`).test(text)).map(({file}) => file);
   console.log(`  unit specs that import it (re-run them): ${specs.length === 0 ? 'none — it gets one in its conversion (RECIPES § 3)' : specs.join(', ')}`);
+  // …and the specs of its PARENTS that stub it or find it by name: they mount it too
+  const naming = specTexts.filter(({file, text}) => !specs.includes(file) && new RegExp(`\\b${target.name}\\b`).test(text)).map(({file}) => file);
+  if (naming.length > 0) {
+    console.log(`  specs that NAME it (a parent's — they stub it or find it; re-run them too): ${naming.join(', ')}`);
+  }
+  if (target.isStrings.length > 0 && target.uses['tpl:component-is'] !== undefined) {
+    console.log(`  \`<component :is>\` may be fed a STRING naming ${target.isStrings.join(', ')} (R21 — the string becomes the imported component)`);
+  }
   if (target.templateRefs.length > 0) {
     const unread = target.form === 'options' ? target.templateRefs.filter((name) => !target.ownRefs.includes(name)) : [];
     console.log(`  template refs: ${target.templateRefs.join(', ')}${unread.length > 0 ? ` — never read in this script: ${unread.join(', ')} (a parent / a setup ref of that name may bind them)` : ''}`);
@@ -583,7 +866,8 @@ if (one !== undefined) {
   if (target.moduleState.length > 0) {
     console.log(`  MODULE STATE (R25 — move to a sibling .ts: inside <script setup> it would be PER INSTANCE): ${target.moduleState.join(' · ')}`);
   }
-  const clash = target.templateRefs.filter((name) => target.names !== undefined &&
+  // (an Options component only: in a converted one the const of that name IS the template ref)
+  const clash = target.templateRefs.filter((name) => target.form === 'options' && target.names !== undefined &&
     [...target.names.props, ...target.names.data, ...target.names.computed, ...target.names.methods, ...target.names.setup].includes(name));
   if (clash.length > 0) {
     console.log(`  REF KEY = MEMBER NAME (R11 — one scope in <script setup>): ${clash.join(', ')} — the template ref keeps the name, the member takes another`);
@@ -638,8 +922,16 @@ const json = flag('--json');
 if (json !== undefined && json !== '') {
   fs.writeFileSync(json, JSON.stringify({
     forms, totals, files,
-    components: components.map(({script: _script, ...c}) => ({...c, expose: [...(exposed.get(c.name)?.keys() ?? [])].sort(), mountedBy: mountedBy.get(c.name) ?? []})),
+    components: components.map(({script: _script, template: _template, ...c}) => ({...c, expose: [...(exposed.get(c.name)?.keys() ?? [])].sort(),
+      refLines: [...(refTouches.get(c.name) ?? [])], mountedBy: mountedBy.get(c.name) ?? []})),
   }, null, 1));
+}
+if (exposeGaps.length > 0) {
+  console.error(`\nA CONVERTED COMPONENT HIDES WHAT A PARENT READS (${exposeGaps.length}) — add the member to its defineExpose:`);
+  for (const row of exposeGaps) {
+    console.error(`  ${row}`);
+  }
+  process.exitCode = 1;
 }
 if (unknown.length > 0 || unrecipied.length > 0) {
   console.error(`\nNO RECIPE for ${unknown.length + unrecipied.length} construct(s) — add the row to RECIPES.md and to RECIPES here:`);

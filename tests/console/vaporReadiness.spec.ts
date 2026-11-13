@@ -74,6 +74,12 @@ export const CONSTRUCTS: Readonly<Record<string, Construct>> = {
     what: '`$parent` / `$root` — a component reaching up its tree by position',
     instead: 'a prop, an emit, or `provide` / `inject`',
   },
+  'root-through-instance': {
+    where: 'any',
+    count: (code) => uses(/\bvueRoot\(/g, code),
+    what: '`vueRoot(this)` — the app root reached through the component\'s own instance (`$root` behind a helper)',
+    instead: '`useAppRoot()` — the app root\'s port comes down by injection (`components/appRoot.ts`; RECIPES.md § R26)',
+  },
   'mixin': {
     where: 'any',
     count: (code) => uses(/^\s*mixins\s*:/gm, code),

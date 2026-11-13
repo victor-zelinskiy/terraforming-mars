@@ -381,26 +381,14 @@ import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
+import {APP_ROOT, AppRoot, AppScreen} from '@/client/components/appRoot';
 import {Color} from '@/common/Color';
 import {hasShowModal, showModal, windowHasHTMLDialogElement} from './HTMLDialogElementCompatibility';
 
 import dialogPolyfill from 'dialog-polyfill';
 import {setDocumentTitle} from '../utils/documentTitle';
 
-type Screen = 'admin' |
-            'campaign' |
-            'cards' |
-            'empty' |
-            'game-home' |
-            'games-overview' |
-            'help' |
-            'load' |
-            'login-home' |
-            'main-menu' |
-            'premium-create-game' |
-            'player-home' |
-            'start-screen' |
-            'the-end';
+type Screen = AppScreen;
 export type MainAppData = {
     screen: Screen;
     /**
@@ -444,6 +432,13 @@ function getLastPathSegment() {
 
 export default defineComponent({
   name: 'App',
+  // THE APP ROOT'S PORT (`appRoot.ts`): what the tree may ask of its root comes DOWN by injection — a
+  // `<script setup>` / Vapor component has no `$root` to climb to. The assignment is the proof that this
+  // instance provides every member of the port.
+  provide() {
+    const root: AppRoot = this;
+    return {[APP_ROOT as symbol]: root};
+  },
   data(): MainAppData {
     return {
       screen: 'empty',

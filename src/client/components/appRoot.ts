@@ -1,0 +1,59 @@
+/*
+ * THE APP ROOT'S PORT — what a component may ask of the application's root.
+ *
+ * Nine components reached the root through their own instance (`vueRoot(this)` → `this.$root`): the busy flag of the
+ * server request, the game the lobby just loaded, the screen switch, in-app navigation, the panels' visibility
+ * memory. `<script setup>` has no instance to start from, and a Vapor component has none at all
+ * (`getCurrentInstance()` is `null` there) — so the root comes DOWN: `App` provides this port, a component takes it
+ * with `useAppRoot()` (docs/claude/vapor/RECIPES.md § R26).
+ *
+ * The port is an INTERFACE, never the App component's type. Today `App` (Options API) provides its own public
+ * instance, which satisfies it structurally; when `App` itself is rewritten it provides an object composed of its refs
+ * and functions — and no consumer changes. A member is added here when a component needs it, typed as narrowly as the
+ * need: the port is the list of what the tree may ask of its root, and it should stay short enough to read.
+ *
+ * `undefined` OUTSIDE the application — a unit mount, a playground, a stand: the component says what it does with no
+ * root above it (a button is simply not busy), where `$root` of a bare mount used to answer `undefined` field by field.
+ */
+import {inject, InjectionKey} from 'vue';
+import type {SimpleGameModel} from '@/common/models/SimpleGameModel';
+import type {PlayerViewModel} from '@/common/models/PlayerModel';
+
+/** The screens the root switches between (`App.vue` renders one per value). */
+export type AppScreen = 'admin' |
+  'campaign' |
+  'cards' |
+  'empty' |
+  'game-home' |
+  'games-overview' |
+  'help' |
+  'load' |
+  'login-home' |
+  'main-menu' |
+  'premium-create-game' |
+  'player-home' |
+  'start-screen' |
+  'the-end';
+
+export interface AppRoot {
+  /** The screen on stage — WRITTEN by a flow that lands on another one (the lobby's «load a game»). */
+  screen: AppScreen;
+  /** The game the lobby opened — WRITTEN by the same flow. */
+  game: SimpleGameModel | undefined;
+  /** The applied view of the running game (absent outside one). */
+  readonly playerView?: PlayerViewModel;
+  /** A request to the server is in flight — the transport's mirror (never written by a component). */
+  readonly isServerSideRequestInProgress: boolean;
+  /** In-app navigation: the URL, the history entry and the screen in one step. */
+  navigateInApp(path: string): void;
+  /** The per-panel «is it open» memory the root keeps across screens. */
+  setVisibilityState(targetVar: string, isVisible: boolean): void;
+  getVisibilityState(targetVar: string): boolean;
+}
+
+export const APP_ROOT: InjectionKey<AppRoot> = Symbol('app-root');
+
+/** The app root's port, or `undefined` when the component stands outside the application. */
+export function useAppRoot(): AppRoot | undefined {
+  return inject(APP_ROOT, undefined);
+}

@@ -4,8 +4,6 @@
       <span class="pprq__pill"></span>
     </span>
   </span>
-  <!-- «A card with ANY requirement» is NOT this plate: it is the card cover carrying the face's banner
-       (`CARD_REQUIREMENT_ICON`, PL-1691) — one mark for that concept, no «MIN» word. -->
 </template>
 
 <script setup lang="ts">
@@ -29,6 +27,11 @@
  * own units; every part is a share of that one size.
  *
  * (This comment opened the template; the template starts with its root now.)
+ *
+ * «A card with ANY requirement» is NOT this plate: it is the card cover carrying the face's banner
+ * (`CARD_REQUIREMENT_ICON`, PL-1691) — one mark for that concept, no «MIN» word.
+ *
+ * (This comment closed the template, after its root; the template ends with that root now.)
  */
 defineOptions({name: 'PremiumPartyRequirementGlyph'});
 </script>

@@ -38,6 +38,7 @@ import VaporIfRoot from './fixtures/VaporIfRoot.vue';
 import VaporShellProbe from './fixtures/VaporShellProbe.vue';
 import VaporDirectivesProbe from './fixtures/VaporDirectivesProbe.vue';
 import SetupDirectivesProbe from './fixtures/SetupDirectivesProbe.vue';
+import SetupElProbe from './fixtures/SetupElProbe.vue';
 import VaporRefsProbe from './fixtures/VaporRefsProbe.vue';
 import VaporContextProbe from './fixtures/VaporContextProbe.vue';
 import VaporKeyProbe from './fixtures/VaporKeyProbe.vue';
@@ -424,6 +425,30 @@ describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, throu
     wrapper.unmount();
     await nextTick();
     expect(seen.fn, '…and with `null` when the element leaves').to.deep.equal(['B', 'null']);
+  });
+
+  /*
+   * WHAT A PARENT'S REF SEES OF A `<script setup>` CHILD AT STEP A (RECIPES.md § R11 · R12). The members it exposes —
+   * and `$el`, which twelve parents read through a ref (`(this.$refs.dock as {$el?: HTMLElement})?.$el`): the ref of a
+   * virtual-DOM `<script setup>` child still answers it, so a child's step A changes nothing for such a parent. (At
+   * step B the ref is the exposed object alone — the row above.)
+   */
+  it('the ref of a `<script setup>` child on the virtual DOM: what it exposes, nothing else of its state — and `$el`, its root element', async () => {
+    type ChildRef = {toggle?: () => boolean, open?: unknown, label?: unknown, $el?: HTMLElement};
+    const Host = defineComponent({
+      components: {SetupElProbe},
+      template: '<div class="host"><SetupElProbe ref="child" label="dock" /></div>',
+    });
+    const wrapper = mount(Host, {attachTo: document.body});
+    const child = (wrapper.vm.$refs as {child: ChildRef}).child;
+    expect(Object.keys(child), 'the ref\'s own keys are the exposed names').to.deep.equal(['toggle']);
+    expect(child.open, 'a ref of the setup state is not reachable').to.equal(undefined);
+    expect(child.label, '…nor a prop').to.equal(undefined);
+    expect(child.$el, '`$el` is still the root element').to.equal((wrapper.element as Element).querySelector('.sel'));
+    expect(child.toggle!()).to.equal(true);
+    await nextTick();
+    expect(child.$el!.getAttribute('data-open')).to.equal('true');
+    wrapper.unmount();
   });
 
   /*

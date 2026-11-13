@@ -353,6 +353,18 @@
   "parent-root": {
    "src/client/components/vueRoot.ts": 1
   },
+  "root-through-instance": {
+   "src/client/components/BugReportDialog.vue": 1,
+   "src/client/components/LoadGameForm.vue": 2,
+   "src/client/components/common/AppButton.vue": 1,
+   "src/client/components/console/ConsoleActionComposer.vue": 1,
+   "src/client/components/console/ConsoleBoardBinder.vue": 1,
+   "src/client/components/console/campaign/ConsoleCampaignMap.vue": 1,
+   "src/client/components/console/menu/ConsoleCreateGame.vue": 1,
+   "src/client/components/console/menu/ConsoleMainMenu.vue": 1,
+   "src/client/components/turmoil/Turmoil.vue": 2,
+   "src/client/components/vueRoot.ts": 1
+  },
   "mixin": {
    "src/client/components/payment/StandardProjectPaymentContent.vue": 1
   },
