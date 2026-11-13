@@ -1,5 +1,5 @@
 <template>
-  <span class="con-rstatus":data-lifecycle="status.lifecycle" :data-access="accessKindOf(status)" :data-mine="status.access?.mine ?? ''" :data-vote-access="status.access?.unlocksWithVote ? 'unlocks' : undefined">
+  <span class="con-rstatus" :data-lifecycle="status.lifecycle" :data-access="accessKindOf(status)" :data-mine="status.access?.mine ?? ''" :data-vote-access="status.access?.unlocksWithVote ? 'unlocks' : undefined">
     <span class="con-rstatus__cell">
       <span v-for="(entry, i) in entries" :key="'life-' + i"
             class="con-rstatus__life"

@@ -26,7 +26,8 @@ way on every run: a CONVERTED component that does not expose a member a parent r
 `tests/console/vaporRecipes.spec.ts`). Then:
 
 1. **Convert the script** — the block order of § 1, each construct by its row. The TEMPLATE does not change (the
-   exceptions are rows: a comment outside a root R24, a root ref for `$el` R12, `v-memo` R23). The component's public surface — props,
+   exceptions are rows: a comment outside a root R24, a root ref for `$el` R12, the guard vue-tsc asks of a branch R2,
+   `v-memo` R23 — and `scripts/vapor/template-diff.mjs` shows every other line that moved). The component's public surface — props,
    emits, what it exposes, every `data-*` / class / RU string an e2e spec waits for (`CLAUDE.md` invariant 14) — does
    not change.
 2. **Types and lint**: `npm run lint:client` (vue-tsc — the only checker of template types), `npm run build:test`
@@ -588,6 +589,7 @@ component has none at all, so the root comes DOWN:
 | `node scripts/vapor/inventory.mjs` | every construct of every component, with its recipe id — fails on one with no row, and on a CONVERTED component that does not expose a member its parents read through a ref |
 | `node scripts/vapor/inventory.mjs --component <path>` | ONE component's sheet: constructs, MUST EXPOSE + every parent line that names its ref, who mounts it, the specs that import it and the specs that name it |
 | `node scripts/vapor/inventory.mjs --wave` | the worklist, lightest first |
+| `node scripts/vapor/template-diff.mjs <base rev>` | «the template does not change», checked: every template line that differs — comments aside — in a component converted since `<base>`; exits 1 on a file not named with `--allow`. Run once per wave, before its commits: each line is one of the three licensed edits (R24 · R12 · R2's guard) or a mistake to put back |
 | `npm run ready:vapor` · `tests/console/vaporReadiness.spec.ts` | what the target has no place for — frozen per file, a new file starts at zero, a Vapor component stays Vapor |
 | `tests/client/vapor/vaporCapability.spec.ts` | what Vapor TAKES on the pinned release — every ✔ above; re-read on every bump (ROADMAP § 3.8) |
 | `tests/console/vaporRecipes.spec.ts` | the book is complete: no construct without a recipe, no recipe id without its section |

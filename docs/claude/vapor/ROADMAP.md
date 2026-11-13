@@ -336,7 +336,10 @@ inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many inst
      table by the member's SHAPE, a body's local named like its member, a `data()` with statements, the type that
      only annotated `data()`, a comment between two roots, `<component :is>` fed a string, a spec named after its
      component that only asserts «mounts».
-  4. *A gap is closed in the SAME wave*: the nine components the agents skipped by rule were converted by the
+  4. *«The template does not change» is CHECKED* — `node scripts/vapor/template-diff.mjs <the wave's base>` compares
+     every converted template with what it was, comments aside: wave 1 — nothing; wave 2 — the one licensed guard and
+     one space an agent lost between two attributes of a root, which nothing else would have shown.
+  5. *A gap is closed in the SAME wave*: the nine components the agents skipped by rule were converted by the
      extended book before the wave was verified — a skip that waits for the next wave is a recipe nobody tested.
   What wave 3 takes: the next quarter by weight — the components with a `$refs` / `$el` reach or a few watchers
   (weight 4–9) — opening with the neighbours two waves left for it: module state out to sibling modules
