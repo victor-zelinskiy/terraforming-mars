@@ -1,27 +1,4 @@
 <template>
-  <!--
-    «ТАЙЛ ПЛАТИТ КАРТЕ» — the shell-level stage of a card reward a PLACED TILE
-    pays (TR21 Arboretum — the cities beside it; TR30 Red Museum, Pets, Martian
-    Census — the tile itself; the director: cityDataPayoutBeat.ts). Mounted
-    beside the tile-placement layer and never inside a teleported surface, so a
-    fixed flight resolves against the viewport.
-
-     - the WAKES: one per token a sender sends — the ocean's shoreline swell in
-       the city's register (`--city`); a stack answers twice;
-     - the TOKENS: a card-resource token (data, an animal) condensing at its
-       sender's edge, a pixel twin of the Resource Transfer Framework's own
-       chip (the handoff is invisible);
-     - the RECEIVING CARD (own scene only): the chosen card's premium face, its
-       capsule counting the touchdowns (`before + landed`), one contact flash
-       per token.
-
-    `con-flight-to-board`: every piece here lands on the board's own story (the
-    card stands by the field); a workspace over the board covers it. EXCEPT the
-    answer of a live «on which card» pick (`inPrompt` — TR53 iteration): the
-    card the player chose steps OUT OF the plate it was chosen on, so it flies
-    over that plate while the plate dissolves under it — demoted, it rose
-    hidden behind the very glass it was leaving (an empty slot frame on 4K).
-  -->
   <div v-if="cityPayoutState.phase !== 'idle' || cityPayoutState.degraded"
        class="con-citypay" :class="{'con-flight-to-board': !cityPayoutState.inPrompt}" data-flight-lands="board" aria-hidden="true"
        :data-city-payout="cityPayoutState.phase"
@@ -70,8 +47,34 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * «ТАЙЛ ПЛАТИТ КАРТЕ» — the shell-level stage of a card reward a PLACED TILE
+ * pays (TR21 Arboretum — the cities beside it; TR30 Red Museum, Pets, Martian
+ * Census — the tile itself; the director: cityDataPayoutBeat.ts). Mounted
+ * beside the tile-placement layer and never inside a teleported surface, so a
+ * fixed flight resolves against the viewport.
+ *
+ *  - the WAKES: one per token a sender sends — the ocean's shoreline swell in
+ *    the city's register (`--city`); a stack answers twice;
+ *  - the TOKENS: a card-resource token (data, an animal) condensing at its
+ *    sender's edge, a pixel twin of the Resource Transfer Framework's own
+ *    chip (the handoff is invisible);
+ *  - the RECEIVING CARD (own scene only): the chosen card's premium face, its
+ *    capsule counting the touchdowns (`before + landed`), one contact flash
+ *    per token.
+ *
+ * `con-flight-to-board`: every piece here lands on the board's own story (the
+ * card stands by the field); a workspace over the board covers it. EXCEPT the
+ * answer of a live «on which card» pick (`inPrompt` — TR53 iteration): the
+ * card the player chose steps OUT OF the plate it was chosen on, so it flies
+ * over that plate while the plate dissolves under it — demoted, it rose
+ * hidden behind the very glass it was leaving (an empty slot frame on 4K).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, onBeforeUnmount, onMounted, ref, useTemplateRef} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {
   CityTokenProxy, CityWake, CityPayoutStageEls, abortCityPayoutBeat, cityPayoutState, registerCityPayoutStage,
@@ -80,91 +83,84 @@ import {OCEAN_COIN_SPARKS} from '@/client/console/tilePlacement/tilePlacementMod
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 
-export default defineComponent({
-  name: 'ConsoleCityPayoutLayer',
-  components: {ConsoleCardFaceLite},
-  data() {
-    return {
-      cityPayoutState,
-      wakeEls: new Map<number, HTMLElement>(),
-      tokenEls: new Map<number, HTMLElement>(),
-      sparks: Array.from({length: OCEAN_COIN_SPARKS}, (_, i) => i),
-      unregister: undefined as (() => void) | undefined,
-    };
-  },
-  computed: {
-    /** The capsule's count: the payout's start plus every token that has TOUCHED it — never ahead of the contact. */
-    presentedCount(): number {
-      const card = cityPayoutState.card;
-      return card === undefined ? 0 : card.before + cityPayoutState.landed;
-    },
-    /** The card's own committed model with its count frozen at the scene's presented value. */
-    presentedModel(): CardModel | undefined {
-      const card = cityPayoutState.card;
-      return card?.model === undefined ? undefined : {...card.model, resources: this.presentedCount};
-    },
-    /** The token's substance — the framework's own chip of the resource (named classes: a probe waits for them). */
-    coinClass(): Record<string, boolean> {
-      return {
-        'con-tileplace__oceancoin--data': cityPayoutState.resource === 'data',
-        'con-tileplace__oceancoin--animal': cityPayoutState.resource === 'animal',
-      };
-    },
-    /** The resource the payout moves, as the shared icon vocabulary (data, an animal). */
-    resourceIconClass(): string {
-      return iconClassFor(cityPayoutState.resource);
-    },
-    cardStyle(): Record<string, string> {
-      const plate = cityPayoutState.card?.plate;
-      return plate === undefined ? {} : {left: `${Math.round(plate.x)}px`, top: `${Math.round(plate.y)}px`};
-    },
-  },
-  methods: {
-    wakeStyle(w: CityWake): Record<string, string> {
-      return {
-        left: `${Math.round(w.pulseAt.x - w.pulseSize / 2)}px`,
-        top: `${Math.round(w.pulseAt.y - w.pulseSize / 2)}px`,
-        width: `${w.pulseSize}px`,
-        height: `${w.pulseSize}px`,
-      };
-    },
-    tokenStyle(t: CityTokenProxy): Record<string, string> {
-      return {left: `${Math.round(t.at.x)}px`, top: `${Math.round(t.at.y)}px`};
-    },
-    setRef(map: Map<number, HTMLElement>, id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        map.delete(id);
-      } else {
-        map.set(id, el);
+defineOptions({name: 'ConsoleCityPayoutLayer'});
+
+const card = useTemplateRef<HTMLElement>('card');
+const wakeEls = ref(new Map<number, HTMLElement>());
+const tokenEls = ref(new Map<number, HTMLElement>());
+const sparks = ref(Array.from({length: OCEAN_COIN_SPARKS}, (_, i) => i));
+let unregister: (() => void) | undefined;
+
+/** The capsule's count: the payout's start plus every token that has TOUCHED it — never ahead of the contact. */
+const presentedCount = computed((): number => {
+  const card = cityPayoutState.card;
+  return card === undefined ? 0 : card.before + cityPayoutState.landed;
+});
+/** The card's own committed model with its count frozen at the scene's presented value. */
+const presentedModel = computed((): CardModel | undefined => {
+  const card = cityPayoutState.card;
+  return card?.model === undefined ? undefined : {...card.model, resources: presentedCount.value};
+});
+/** The token's substance — the framework's own chip of the resource (named classes: a probe waits for them). */
+const coinClass = computed((): Record<string, boolean> => {
+  return {
+    'con-tileplace__oceancoin--data': cityPayoutState.resource === 'data',
+    'con-tileplace__oceancoin--animal': cityPayoutState.resource === 'animal',
+  };
+});
+/** The resource the payout moves, as the shared icon vocabulary (data, an animal). */
+const resourceIconClass = computed((): string => {
+  return iconClassFor(cityPayoutState.resource);
+});
+const cardStyle = computed((): Record<string, string> => {
+  const plate = cityPayoutState.card?.plate;
+  return plate === undefined ? {} : {left: `${Math.round(plate.x)}px`, top: `${Math.round(plate.y)}px`};
+});
+
+function wakeStyle(w: CityWake): Record<string, string> {
+  return {
+    left: `${Math.round(w.pulseAt.x - w.pulseSize / 2)}px`,
+    top: `${Math.round(w.pulseAt.y - w.pulseSize / 2)}px`,
+    width: `${w.pulseSize}px`,
+    height: `${w.pulseSize}px`,
+  };
+}
+function tokenStyle(t: CityTokenProxy): Record<string, string> {
+  return {left: `${Math.round(t.at.x)}px`, top: `${Math.round(t.at.y)}px`};
+}
+function setRef(map: Map<number, HTMLElement>, id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    map.delete(id);
+  } else {
+    map.set(id, el);
+  }
+}
+
+onMounted(() => {
+  unregister = registerCityPayoutStage({
+    els: (): CityPayoutStageEls | undefined => {
+      const wakes: Array<HTMLElement> = [];
+      const tokens: Array<HTMLElement> = [];
+      for (const w of cityPayoutState.wakes) {
+        const el = wakeEls.value.get(w.id);
+        if (el !== undefined && el.isConnected) {
+          wakes.push(el);
+        }
       }
+      for (const t of cityPayoutState.tokens) {
+        const el = tokenEls.value.get(t.id);
+        if (el !== undefined && el.isConnected) {
+          tokens.push(el);
+        }
+      }
+      const cardNow = card.value ?? undefined;
+      return {wakes, tokens, card: cardNow && cardNow.isConnected ? cardNow : undefined};
     },
-  },
-  mounted() {
-    this.unregister = registerCityPayoutStage({
-      els: (): CityPayoutStageEls | undefined => {
-        const wakes: Array<HTMLElement> = [];
-        const tokens: Array<HTMLElement> = [];
-        for (const w of cityPayoutState.wakes) {
-          const el = this.wakeEls.get(w.id);
-          if (el !== undefined && el.isConnected) {
-            wakes.push(el);
-          }
-        }
-        for (const t of cityPayoutState.tokens) {
-          const el = this.tokenEls.get(t.id);
-          if (el !== undefined && el.isConnected) {
-            tokens.push(el);
-          }
-        }
-        const card = (this.$refs.card ?? undefined) as HTMLElement | undefined;
-        return {wakes, tokens, card: card && card.isConnected ? card : undefined};
-      },
-    });
-  },
-  beforeUnmount() {
-    this.unregister?.();
-    // Shell teardown / game switch mid-scene: every owed hold is paid at once.
-    abortCityPayoutBeat();
-  },
+  });
+});
+onBeforeUnmount(() => {
+  unregister?.();
+  // Shell teardown / game switch mid-scene: every owed hold is paid at once.
+  abortCityPayoutBeat();
 });
 </script>
