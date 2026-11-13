@@ -26,6 +26,8 @@ const SHELL = path.join(ROOT, 'src', 'client', 'components', 'console', 'Console
 const COMPOSITION = path.join(ROOT, 'src', 'client', 'console', 'shell', 'useConsoleShell.ts');
 const PORT = path.join(ROOT, 'src', 'client', 'console', 'shell', 'shellPort.ts');
 const read = (file: string) => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+/** The shell is `<script setup>` (V3 wave 4): its script is imports, its props and ONE composition. */
+const SCRIPT_OPEN = '<script setup lang="ts">';
 
 type Controller = {file: string, factory: string, members: ReadonlyArray<string>};
 
@@ -55,7 +57,7 @@ type ShellOwn = {props: Array<string>, mirrors: Array<string>, refs: Array<strin
 
 /** What the shell declares ITSELF: the SFC's props, the mirrors of module state, the composition's own refs, the reactions. */
 function shellOwn(): ShellOwn {
-  const script = read(SHELL).slice(read(SHELL).indexOf('<script lang="ts">'));
+  const script = read(SHELL).slice(read(SHELL).indexOf(SCRIPT_OPEN));
   const members = read(SHELL_MEMBERS);
   const rowsOf = (text: string, open: string, close: string, row: RegExp): Array<string> => {
     const from = text.indexOf(open);
@@ -74,7 +76,7 @@ function shellOwn(): ShellOwn {
   const compose = members.slice(members.indexOf('\nexport function composeShellMembers('));
   const returned = /\n {2}return \{\.\.\.shellMirrors\(\), ([^}]*)\};/.exec(compose)?.[1] ?? '';
   return {
-    props: rowsOf(script, '\n  props: {\n', '\n  },\n', /^ {4}(\w+): \{/),
+    props: rowsOf(script, '\nconst props = defineProps({\n', '\n});\n', /^ {2}(\w+): \{/),
     mirrors: rowsOf(members, '\nfunction shellMirrors() {\n', '\n  };\n', /^ {4}(\w+)[,:]/),
     refs: returned.split(',').map((name) => name.trim()).filter((name) => name !== '' && !name.startsWith('...')),
     reactions: codeOnly(read(SHELL_REACTIONS)).split('\n').filter((line) => /^ {2}watch\(/.test(line)),
@@ -93,7 +95,7 @@ function shellOwnNames(): ReadonlyArray<string> {
  * new row is a domain member in the wrong place: it belongs in a controller (`.claude/rules/console-flow.md` § The
  * shell is layout). When one LEAVES, lower its bound in the same diff.
  */
-const SHELL_BOUNDS = {mirrors: 34, reactions: 145, lines: 1860};
+const SHELL_BOUNDS = {mirrors: 34, reactions: 145, lines: 1820};
 
 describe('the shell is a composition root — its controllers', () => {
   const shell = read(SHELL);
@@ -126,7 +128,7 @@ describe('the shell is a composition root — its controllers', () => {
   });
 
   it('③ no template ref shares its name with a returned member (Vue would write the element into it)', () => {
-    const template = shell.slice(0, shell.indexOf('<script lang="ts">'));
+    const template = shell.slice(0, shell.indexOf(SCRIPT_OPEN));
     const refs = new Set([...template.matchAll(/(?<![:\w])ref="([\w$]+)"/g)].map((m) => m[1]));
     // The surfaces a controller reaches stand in the REGISTRY (`:ref="surfaces.bind.<name>"` — S3); a string ref is
     // what is left for a setup ref of the shell's own (its root, the three hull members the band geometry measures,
@@ -171,14 +173,17 @@ describe('the shell is a composition root — its controllers', () => {
     expect(offenders, 'move the type into the SFC\'s sibling `<component>Types.ts` and import it from there').to.deep.equal([]);
   });
 
-  it('THE SHELL IS LAYOUT: the SFC declares no data, computed, methods, watch or hooks — its setup() is ONE composition', () => {
-    const script = codeOnly(shell.slice(shell.indexOf('<script lang="ts">'), shell.lastIndexOf('</script>')));
-    const options = [...script.matchAll(/^ {2}(\w+)(?:\(\w*\) \{|: \{|: )/gm)].map((m) => m[1]);
-    expect(options, 'the component\'s options — new behaviour is a controller member, a new reaction a row of the table')
-      .to.deep.equal(['name', 'components', 'props', 'setup']);
-    const setup = script.slice(script.indexOf('\n  setup(props) {\n'));
-    expect(setup.slice(0, setup.indexOf('\n  },')).split('\n').map((line) => line.trim()).filter((line) => line !== ''))
-      .to.deep.equal(['setup(props) {', 'return useConsoleShell(props);']);
+  it('THE SHELL IS LAYOUT: the SFC is <script setup> — imports, its props and ONE composition taken apart into what the template reads', () => {
+    expect(shell.indexOf(SCRIPT_OPEN), 'the shell is <script setup lang="ts">').to.be.greaterThan(0);
+    const script = codeOnly(shell.slice(shell.indexOf(SCRIPT_OPEN), shell.lastIndexOf('</script>')));
+    // Every top-level statement of the script that is not an import, by its first line…
+    const statements = script.split('\n').slice(1).filter((line) => /^[^\s}]/.test(line) && !/^import\b/.test(line));
+    expect(statements, 'the script\'s statements — new behaviour is a controller member, a new reaction a row of the table')
+      .to.deep.equal(['defineOptions({name: \'ConsoleShell\'});', 'const props = defineProps({', 'const {']);
+    // …and by its last: the props close, and the ONE destructure closes on the composition.
+    expect(script.split('\n').filter((line) => /^\}/.test(line))).to.deep.equal(['});', '} = useConsoleShell(props);']);
+    expect(script, 'the shell declares no state, no derivation, no reaction, no hook and no surface of its own')
+      .to.not.match(/\b(?:ref|shallowRef|reactive|computed|watch|watchEffect|provide|inject|defineExpose|defineEmits|useTemplateRef|on[A-Z]\w+)\(/);
     expect(script, 'nothing in the shell asks for the instance').to.not.match(/\bthis\b|getCurrentInstance/);
   });
 

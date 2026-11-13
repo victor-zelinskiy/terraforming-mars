@@ -15,7 +15,7 @@
  * A controller never takes this object — it takes its PORT (`port.as<XPort>()`, `shellPort.ts`), and
  * `shellPortsConform` below is the proof (plain tsc AND vue-tsc) that the composed shell provides every port.
  */
-import {ref} from 'vue';
+import {computed, useTemplateRef} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
@@ -187,12 +187,19 @@ export function composeShellMembers(port: ShellPortSource<ShellProps>) {
   // the shade can never grey one out. The two RAILS are measured too: the
   // right one is board-home only, and a `v-show` flip that hides it moves the
   // opening's edge without resizing the column.
-  // The shell's own root — what `this.$el` was (a `<script setup>` / Vapor component has no `$el`).
-  const conRootEl = ref<HTMLElement>();
-  const conMainEl = ref<HTMLElement>();
+  // THE SHELL'S OWN FOUR TEMPLATE REFS — its root (what `this.$el` was: a `<script setup>` / Vapor component has no
+  // `$el`) and the three hull members. The template NAMES each (`ref="conRootEl"` …) and the composition takes it BY
+  // THAT NAME (`useTemplateRef`): no binding of the SFC stands between them, so the SFC's script names none of the
+  // four. Each is handed on as `T | undefined` — the absent value every reader already tests for.
+  const rootRef = useTemplateRef<HTMLElement>('conRootEl');
+  const mainRef = useTemplateRef<HTMLElement>('conMainEl');
   // Component instances, not elements — the mirror resolves `$el` itself.
-  const conRailEl = ref<StageHost>();
-  const conStratEl = ref<StageHost>();
+  const railRef = useTemplateRef<StageHost>('conRailEl');
+  const stratRef = useTemplateRef<StageHost>('conStratEl');
+  const conRootEl = computed(() => rootRef.value ?? undefined);
+  const conMainEl = computed(() => mainRef.value ?? undefined);
+  const conRailEl = computed(() => railRef.value ?? undefined);
+  const conStratEl = computed(() => stratRef.value ?? undefined);
   useWorkspaceBandGeometry(
     {main: conMainEl, left: conRailEl, right: conStratEl},
     () => `${consoleState.section}|${consoleState.sheet ?? ''}`);

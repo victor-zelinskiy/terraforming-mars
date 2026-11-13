@@ -1607,7 +1607,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * ConsoleShell — the console-first TV shell (docs/CONSOLE_MODE_CONCEPT.md;
  * feedback iteration 2 = the console COMMAND MODEL):
@@ -1634,16 +1634,12 @@
  * P0: everything ends in gameTransport.submitInput()/submitBatch() with payloads
  * byte-identical to the desktop dedicated buttons (turnIntents walkers).
  */
-import {defineComponent, PropType} from 'vue';
+import {PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
-
-
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
-
 import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
 import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue';
-
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
 import ConsoleTerraformedTitle from '@/client/components/console/ConsoleTerraformedTitle.vue';
 import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
@@ -1654,7 +1650,6 @@ import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
 import ConsoleMaCeremony from '@/client/components/console/ConsoleMaCeremony.vue';
 import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelector.vue';
 import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
-
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import ConsoleStrategyRail from '@/client/components/console/ConsoleStrategyRail.vue';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
@@ -1702,14 +1697,11 @@ import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.v
 import ConsoleTargetDossierPanel from '@/client/components/console/played/ConsoleTargetDossierPanel.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import ConsoleArmedFlightLayer from '@/client/components/console/ConsoleArmedFlightLayer.vue';
-import Card from '@/client/components/card/CardFace.vue';
 import ConsoleBotDividendLedger from '@/client/components/console/ConsoleBotDividendLedger.vue';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
-
-
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
@@ -1726,124 +1718,98 @@ import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/Con
 import ConsoleColonyCityLayer from '@/client/components/console/colonyCity/ConsoleColonyCityLayer.vue';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-
 // Only as the DEGRADE default for a player model that predates `maCosts` (an
 // old save, a test fixture) — the live price always comes from the server.
 import ConsoleMandatoryAnnounce from '@/client/components/console/ConsoleMandatoryAnnounce.vue';
 import ConsoleActionConfirm from '@/client/components/console/ConsoleActionConfirm.vue';
 import {useConsoleShell} from '@/client/console/shell/useConsoleShell';
-
+import {$t} from '@/client/directives/i18n';
 
 /* (The terminal std-project beat's length is the PHRASE's own now — press,
  * sweep and the post-chip read live in `consoleStdProjectCommit.ts`, so the
  * dismiss can never disagree with the animation it is waiting for.) */
-
-
-export default defineComponent({
-  name: 'ConsoleShell',
-  components: {
-    ConsoleTeleport,
-    ConsoleCountedWhy,
-    ConsoleActionConfirm,
-    ConsoleDrawSearchRule,
-    ConsoleStatusStrip,
-    ConsoleMandatoryAnnounce,
-    ConsoleTerraformedTitle,
-    ConsoleBotTurnReview,
-    ConsoleCommandBar,
-    ConsoleHandDock,
-    ConsoleSheet,
-    ConsoleMaScreen,
-    ConsoleMaCeremony,
-    ConsoleQuickSelector,
-    ConsoleStdProjectsScreen,
-    ConsoleContextPanel,
-    ConsoleStrategyRail,
-    ConsoleSystemAlert,
-    ConsoleBoardSection,
-    ConsoleHandSection,
-    ConsoleResourcePanel,
-    ConsoleColoniesSection,
-    ConsoleParliamentSection,
-    ConsoleResolutionAside,
-    ConsolePartyAccessPanel,
-    ConsoleInfoMode,
-    ConsoleCardRulesPanel,
-    ConsoleBotDividendLedger,
-    ConsoleInspectSide,
-    ConsoleTargetDossierPanel,
-    ConsoleCardAvailabilityPanel,
-    ConsoleStrandedPrompt,
-    ConsoleTaskHost,
-    ConsoleGovernmentSupport,
-    ConsoleEffectDecision,
-    ConsoleProductionLoss,
-    ConsoleDeckPick,
-    ConsoleDeckPickLayer,
-    ConsoleSpendHeat,
-    ConsoleVenusBonus,
-    ConsoleBotAttack,
-    ConsoleAresGlobals,
-    ConsoleStartScene,
-    ConsoleEndgameWorkspace,
-    ConsoleRevealOverlay,
-    ConsolePlayCardConfirm,
-    ConsoleCorpFirstActionConfirm,
-    ConsoleCardExitLayer,
-    ConsoleCardDiscardLayer,
-    ConsoleDiscardPile,
-    ConsoleHandRevealLayer,
-    ConsoleHandDeliveryLayer,
-    ConsoleParliamentFlightLayer,
-    ConsoleDraftTray,
-    ConsoleDraftWorkspace,
-    ConsoleExternalDrawWorkspace,
-    ConsoleHydroMarkerLayer,
-    ConsoleBoardCardBonusLayer,
-    ConsoleDeckDrawLayer,
-    ConsoleTradeFleetLayer,
-    ConsoleColonyTradeLayer,
-    ConsoleColonyInspect,
-    ConsolePlayedOverlay,
-    ConsolePlayedHeroLayer,
-    ConsolePatentSaleLayer,
-    ConsoleResourceTransferLayer,
-    ConsoleArmedFlightLayer,
-    ConsoleTilePlacementLayer,
-    ConsoleCityPayoutLayer,
-    ConsoleScaleStepRewardLayer,
-    ConsoleCardReactionLayer,
-    ConsoleScaleSwingLayer,
-    ConsoleNomadMoveLayer,
-    ConsoleColonyBuildLayer,
-    ConsoleColonyCityLayer,
-    CardZoomModal,
-    CardZoomCard,
-    Card,
-    ConsoleCardActions,
-    ConsoleHydroSection,
-    ConsoleJournalPanel,
-    GamepadGlyph,
-    'console-board-binder': ConsoleBoardBinder,
-    'console-board-input': ConsoleBoardInput,
-  },
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    /**
-     * The LIVE list of players the server is waiting on (App-level, refreshed
-     * by the game transport's `/api/waitingFor` poll — mirrors what the
-     * desktop DraftFlowOverlay / StartGameFlowOverlay receive). Load-bearing
-     * while the viewer holds a prompt: the playerView is NOT refreshed then
-     * (it would drop their partial input), so this is the only signal that
-     * another player has since submitted.
-     */
-    waitingOnPlayers: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
-  },
-  setup(props) {
-    // THE SHELL IS LAYOUT (architecture v2 — S-last): the template above, the components it renders, the props it
-    // takes — and ONE composition (`console/shell/useConsoleShell.ts`) that returns every member the template reads.
-    // No `data`, no `computed`, no `methods`, no `watch`, no hooks: new behaviour is a controller member.
-    return useConsoleShell(props);
-  },
+defineOptions({name: 'ConsoleShell'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  /**
+   * The LIVE list of players the server is waiting on (App-level, refreshed
+   * by the game transport's `/api/waitingFor` poll — mirrors what the
+   * desktop DraftFlowOverlay / StartGameFlowOverlay receive). Load-bearing
+   * while the viewer holds a prompt: the playerView is NOT refreshed then
+   * (it would drop their partial input), so this is the only signal that
+   * another player has since submitted.
+   */
+  waitingOnPlayers: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
 });
+
+// THE SHELL IS LAYOUT (architecture v2 — S-last): the template above, the components it renders, the props it
+// takes — and ONE composition (`console/shell/useConsoleShell.ts`) that returns every member the template reads,
+// taken apart here into exactly those names (a `<script setup>` template resolves a name against a binding of the
+// script and nothing else). No state, no derivation, no reaction, no hook: new behaviour is a controller member.
+// (The template's own four refs — `conRootEl`, `conMainEl`, `conRailEl`, `conStratEl` — are taken by the composition
+// BY NAME, `useTemplateRef`: the script names none of them.)
+const {
+  actionBlockedReason, aresGlobalsActive, awaitingInput, awardFundingActive, bannerText, boardPeekUi, botAttackActive,
+  botAttackVm, botExtrasCtx, cancelStagedPlay, cardActionsLeaveHook, cardsPlayableCount, cellInfoLoading,
+  closeColonyInspect, closeJournal, closePlayedOverlay, closeZoomViewer, collapseWorkspace, coloniesForRail,
+  coloniesLeaving, colonyDocks, colonyGrantColony, colonyInspectModel, colonyPick, colonyPickLatch,
+  colonyRailIsCatalog, colonySectionTarget, colonyTradeBlockReason, commandContext, commands, confirmBody,
+  confirmEffects, confirmForecast, confirmQuiet, confirmWarnings, conMainClasses, conRootClasses, consoleCardZoom,
+  consoleRevealMode, consoleState, consoleSystemAlertState, contextOverlayMode, convertHeatFutile, convertHeatReady,
+  convertPlantsPrompt, convertPlantsReady, corpFirstActionNames, corpFirstActionOpen, deckPickActive,
+  deckPickEmbedTarget, deckPickHeldForWorkspace, discardInOverlay, discardMeta, dockArmedEffects, dockBehindWorkspace,
+  dockHeld, dockHover, dockInspection, dockIntakeAccent, draftTrayMounted, draftWaitActive, draftWorkspaceMounted,
+  effectDecisionEmbedTarget, effectDecisionRendered, effectDecisionVm, endgameCollapsed, endgameWorkspaceMounted,
+  externalDrawEmbedTarget, externalDrawWorkspaceMounted, finalePanel, finalGreeneryPickPending, finishHydroFlow,
+  footerUnderScene, footerVars, game, govScaleFocusState, govSupportActive, handActiveFilter, handBodyCards,
+  handCardPayouts, handCoveredByHydro, handDockAlbum, handDockCards, handDockCompact, handDockInteractive,
+  handDockVisible, handEmbedTarget, handEntries, handHiddenByFilter, handLeaveHook, handPacketExtras, handPackPose,
+  handPickOverlays, handPickPhrased, handRevealState, handRevealTransit, handSelectProps, handSoftReason, handStage,
+  handTagFilterOptions, handTurnWindowClosed, hostTask, hudAwardZone, hudMilestoneZone, hydroActionAvailable,
+  hydroBlockadeExecution, hydroBlockadeOffer, hydroBonusOfferLive, hydroBonusOfferRaw, hydroCacheKey, hydroCardOffer,
+  hydroEspionageOffer, hydroFollowUpLive, hydroInstrumentOut, hydroRevealEmbedded, hydroRewardOffer, infoModeState,
+  inspectFleetDock, inspectParliament, inspectParliamentSource, journalPanelVisible, leakDetectorState,
+  leaveWorkspace, maAwardSponsors, maBillNames, maFocusAvailable, maFocusBlockReason, maFocusInspect, maFocusView,
+  mandatoryAnnounceView, mandatoryAnnounceVisible, mandatoryChipAttention, maPayFocusUnit, maPayView, maScreenItems,
+  maScreenKind, maScreenPriceWaiver, myTurn, notice, onAuxCellPressed, onCardActionsClose, onCardActionsCollapse,
+  onCardActionsColonyStep, onCardActionsDeltaStep, onCardActionsFlowComplete, onCardActionsRevealAck,
+  onCardActionsStagedLawPlay, onCardActionsStagedPlacement, onCardActionsStagedVote, onCardActionsSubmitBatch,
+  onCardZoomClosed, onCardZoomNavigate, onColonyBuildConfirm, onColonyFlowComplete, onColonyInspectEnter,
+  onColonyPickConfirm, onColonyTradeComposerConfirm, onConvertPlantsSpacePicked, onCorpFirstActionConfirm,
+  onCorpFirstActionDefer, onDismissRevealResult, onDockPage, onDraftDefer, onDraftSubmit, onEmbeddedDrawnComplete,
+  onExternalDrawSubmit, onFleetDockConfirm, onFleetDockFlowComplete, onGovSupportLeafConfirm, onHandDockOpen,
+  onHydroBlockadePicked, onHydroClose, onHydroEspionagePicked, onHydroRewardPicked, onInfoModeLeaveSettled,
+  onMaCeremonyDone, onMaPick, onParliamentAfterLeave, onParliamentFlowComplete, onParliamentLeaveCancelled,
+  onPlayCardCancel, onPlayCardConfirmNative, onRepeatPickClose, onRepeatPickEntered, onRevealDiscardPick,
+  onStagedPlaySpacePicked, onTaskDefer, onTaskHandPick, onTaskSpacePick, onTaskSpacePicked, onTaskSubmit,
+  onTaskSubmitBatch, onWorkspaceResultDetached, openHydroRepeatPick, openJournalColonyInspect,
+  openParliamentBoardDoor, openParliamentPartyAction, openParliamentResolutionAction, openSheet,
+  parliamentEmbedActive, parliamentEmbedTeleportTo, parliamentLeaving, parliamentMounted, parliamentStagedFlow,
+  parliamentStagedReceipt, parliamentStagedVote, parliamentWarm, passLeftBehind, pendingClientPayment,
+  pendingClientPick, pendingPlayCard, pickBridgeActive, pickResumeFreeze, placementActive, placementChosenTarget,
+  placementFlowState, placementKickerKey, placementMoveFrom, placementMoveLevelNow, placementShape,
+  placementSourceView, placementSpaceModel, placementStaged, placementStagedPlate, placementTitle, plantConversion,
+  plantExchangePrice, playedHeroComposerView, playedHeroHolds, playedHeroIncoming, playedHeroState,
+  playedTableVisible, playEmbedTarget, playHeldForWorkspace, productionLossActive, quickEntries, quickTitle,
+  quickTrigger, railAutoma, railPlayer, railPristarMark, railRatingSkipMark, railShowsSelf, railTrVeto, railVpHidden,
+  repeatPickHandoff, repeatPickSceneOut, revealEmbedTarget, revealOverlayMode, revealSourceSeatStands,
+  salePatentModel, sceneOverHand, selectedCellIllegalReason, selectedCellInfo, selectedCellLegal, selectedCellLore,
+  selectedCellPreview, seriesHeldDecision, seriesHeldVisit, settlementTableParked, sheetRows, sheetTitle, showNotice,
+  spendHeatActive, stagedHandCard, stagedPlayLevelPrompt, startSceneMounted, startSceneVisible, startTask,
+  stdBackLabel, stdpGhostParam, stdProjectItems, stdpStepUp, strategyRailCovered, strategyRailReplaced,
+  submitHydroAdvance, submitHydroBonus, submitHydroCardAdvance, submitParliament, surfaceEnterCancelledHook,
+  surfaceEnterHook, surfaceLeaveCancelledHook, surfaceLeaveHook, surfaces, surfaceShadeClear, surfaceShadeVeil,
+  surfaceShadeVisible, taskEmbedTarget, taskHostRendered, taskSpacePending, taskSpacePrompt, thisPlayer, trackInfo,
+  trackScaleOverview, tradeableColonyNames, tradeColonyContext, tradeFleetState, venusBonusActive,
+  venusBonusEmbedTarget, wheelControl, wheelInput, workspaceCollapsed, workspaceFrameRenders, zoomActionLabel,
+  zoomAvailabilityView, zoomBotCorpAnnotations, zoomBotCorpHolding, zoomBotDividendGroupId, zoomBotDividendReading,
+  zoomCardForYouAnnotations, zoomClosing, zoomCoveredRequirements, zoomDeselectLabel, zoomDiscardsAvailable,
+  zoomDiscardVerdict, zoomExecuteAction, zoomFlight, zoomHasRules, zoomOpenProxy, zoomParliamentAnnotations,
+  zoomPartyAccess, zoomPartyOpen, zoomProvenance, zoomReasons, zoomReceivedCount, zoomReceiveLabel,
+  zoomRejectedTagClasses, zoomResolutionContextKey, zoomResolutionId, zoomResolutionParty, zoomResolutionSupport,
+  zoomResolutionTier, zoomRulesCardName, zoomSelectable, zoomSelected, zoomSelectLabel, zoomSendVote, zoomSideVisible,
+  zoomSourceInfo, zoomStatusLabel, zoomSwapLabel, zoomSwapOtherName, zoomTakeAllLabel, zoomTakeReceived,
+  zoomTargetDossier, zoomTenderAnnotations, zoomToggleSelect, zoomVerdictTagName, zoomVerdictTagStyle,
+  zoomVoteDetailLines, zoomVoteNudge, zoomVoteVerb,
+} = useConsoleShell(props);
 </script>
