@@ -1,37 +1,4 @@
 <template>
-  <!--
-    THE PARTY PLAQUE (Turmoil Redux) — the ONE visual family of a party, in
-    four sizes. A party is not a project card: it has no cost, no art window
-    and no play; what identifies it is its SEAL (the emblem), and what matters
-    about it is its printed MECHANIC and its STATE for the viewer. So the
-    plaque is a dark alloy plate with ONE anatomy in every size:
-
-      ┌──────────────────────────────────┐
-      │ (seal)  NAME              [act]  │   the seal with its STATE RING, the
-      │                                  │   name in bright tracked caps, the
-      │       [ mechanic module ]        │   action's badge; the MECHANIC owns
-      │                                  │   the plate's centre at reading
-      │ ○○ 1/2 · state       [support]   │   size; the foot is the viewer's
-      └──────────────────────────────────┘   compact state + popular support.
-
-    Three facts about the viewer are three DIFFERENT objects, never a row of
-    look-alike dots: ACCESS BY DELEGATES is the mint ring + the viewer's own
-    cubes in the two places of the threshold; POPULAR SUPPORT is the steel
-    neutral cubes in the party's three places; a USED ACTION is the action
-    badge itself, stamped. Colour discipline: the party's ACCENT is a
-    material (the plate's seam, the seal's rim); the STATE colours are the
-    console's (gold / mint / cyan); a PLAYER's colour appears only as a cube.
-    A party the viewer does NOT hold keeps its mechanic READABLE — the state
-    is what dims (ring, foot), never the formula.
-
-      · `tile` — the Parliament's parties row (the mechanic in the centre);
-      · `hero` — the action composer's source column;
-      · `aside` — the party BESIDE a resolution in the fullscreen inspector:
-        the tile's anatomy at reading size (rem-authored like the tile), the
-        viewer's state replaced by ONE context line the host hands in
-        (`note` — «if enacted, every player gets its effect»): the personal
-        access is the footer's, never repeated on the plate.
-  -->
   <div class="con-pseal"
        :class="[
          'con-pseal--' + size,
@@ -178,9 +145,44 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE PARTY PLAQUE (Turmoil Redux) — the ONE visual family of a party, in
+ * four sizes. A party is not a project card: it has no cost, no art window
+ * and no play; what identifies it is its SEAL (the emblem), and what matters
+ * about it is its printed MECHANIC and its STATE for the viewer. So the
+ * plaque is a dark alloy plate with ONE anatomy in every size:
+ *
+ *   ┌──────────────────────────────────┐
+ *   │ (seal)  NAME              [act]  │   the seal with its STATE RING, the
+ *   │                                  │   name in bright tracked caps, the
+ *   │       [ mechanic module ]        │   action's badge; the MECHANIC owns
+ *   │                                  │   the plate's centre at reading
+ *   │ ○○ 1/2 · state       [support]   │   size; the foot is the viewer's
+ *   └──────────────────────────────────┘   compact state + popular support.
+ *
+ * Three facts about the viewer are three DIFFERENT objects, never a row of
+ * look-alike dots: ACCESS BY DELEGATES is the mint ring + the viewer's own
+ * cubes in the two places of the threshold; POPULAR SUPPORT is the steel
+ * neutral cubes in the party's three places; a USED ACTION is the action
+ * badge itself, stamped. Colour discipline: the party's ACCENT is a
+ * material (the plate's seam, the seal's rim); the STATE colours are the
+ * console's (gold / mint / cyan); a PLAYER's colour appears only as a cube.
+ * A party the viewer does NOT hold keeps its mechanic READABLE — the state
+ * is what dims (ring, foot), never the formula.
+ *
+ *   · `tile` — the Parliament's parties row (the mechanic in the centre);
+ *   · `hero` — the action composer's source column;
+ *   · `aside` — the party BESIDE a resolution in the fullscreen inspector:
+ *     the tile's anatomy at reading size (rem-authored like the tile), the
+ *     viewer's state replaced by ONE context line the host hands in
+ *     (`note` — «if enacted, every player gets its effect»): the personal
+ *     access is the footer's, never repeated on the plate.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {defineComponent, PropType} from 'vue';
+import {computed, onMounted, PropType, ref} from 'vue';
 import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
@@ -190,7 +192,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import {bannerCubeJustLanded, bannerCubesShown, forgetBannerCubeLanding} from '@/client/console/parliament/bannerCubeScene';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {PARTY_EFFECT_PLACES, PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /**
  * `row` and `ruler` are the MEDALLION sizes of «Зал» v7 (the overview's party object: the seal, the name, the
@@ -203,149 +205,135 @@ export type PartyPlaqueSize = 'tile' | 'hero' | 'aside' | 'row' | 'ruler';
 /** The seal name's LENGTH TIER: a word longer than this (11 letters — «Марс вперёд» wraps by its space) is a long word. */
 const PSEAL_NAME_LONG_WORD = 11;
 
-export default defineComponent({
-  name: 'ConsolePartyPlaque',
-  components: {ConsolePartyFormula, ConsoleSupportPlaces, PlayerDelegate, PlayerCube},
-  props: {
-    party: {type: String as PropType<ReduxParty>, required: true},
-    /** The seats whose cube stands on this party's BANNER (Septem Tribus:redux — `ParliamentPartyVm.bannerCubes`). */
-    bannerCubes: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
-    /** The banner mode's GHOST — the viewer's cube as it will stand here (Septem Tribus:redux's pick, before A). */
-    bannerGhost: {type: String as PropType<Color | undefined>, default: undefined},
-    size: {type: String as PropType<PartyPlaqueSize>, default: 'tile'},
-    /** The viewer's access state (undefined = a plain identity plaque). */
-    state: {type: Object as PropType<PartyStateVm | undefined>, default: undefined},
-    /** The party action's state for the viewer (undefined = not shown). */
-    actionState: {type: Object as PropType<PartyActionStateVm | undefined>, default: undefined},
-    /** Popular support (0–3); undefined hides the places. */
-    support: {type: Number as PropType<number | undefined>, default: undefined},
-    /** The viewer's colour — their own delegate cubes in the threshold places. */
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** Draw the printed mechanic module. */
-    formula: {type: Boolean, default: true},
-    focused: {type: Boolean, default: false},
-    /** ONE translated context line under the name (the `aside` size) — undefined draws none. */
-    note: {type: String as PropType<string | undefined>, default: undefined},
-    /** The ONE translated reason the party's action cannot be taken right now (the focused tile's foot); '' draws the state. */
-    reason: {type: String, default: ''},
-    reasonTone: {type: String as PropType<'dim' | 'warn'>, default: 'dim'},
-    /**
-     * This tile WEARS the ruler's state: it is the ruling party's, so its state row says «правит» instead
-     * of an access counter (v4 §2.5) and its EMPTY support sockets are void (they could never fill). During
-     * the government's swap this deliberately lags the tile's PLACE by the length of the flight — the host
-     * passes «the ruler as settled», so a plaque changes state in the frame it arrives, never in flight.
-     */
-    ruling: {type: Boolean, default: false},
-    /**
-     * The ruler's state is BY AN ENACTED CARD — its empty sockets are void (nothing can pay it while it
-     * rules; a stock a card paid before it came to power stays drawn). False for the one ruler without a
-     * card, generation 1's starting-rule Greens, whose empty sockets stay drawn in the government. Read
-     * with `ruling`, lagging the swap the same way.
-     */
-    rulesByCard: {type: Boolean, default: true},
-    /**
-     * THE ROLL CALL's status for this party while the support scene runs (v3 В3; `SupportStatus`, '' outside it) — Парламент
-     * v8 Р2: a MARK on the seal (`con-pseal--roll-*`), never a phrase in the foot; the foot keeps its live content.
-     */
-    roll: {type: String, default: ''},
-    /**
-     * THE SUPPORT-AREA MODE's reading of this plaque (TR12): what the pick leaves in its area — or its ONE
-     * refusal — in the state row; undefined outside the mode.
-     */
-    pick: {type: Object as PropType<{current: number, resulting: number, available: boolean, reason?: string} | undefined>, default: undefined},
-    /** …and how many of its standing cubes the press under the cursor would send away (outlines on the places). */
-    supportOutgoing: {type: Number, default: 0},
-    /** THE RECOUNT'S MARKS on this plaque's places (TR31): the first N standing cubes counted so far. */
-    supportCounted: {type: Number, default: 0},
-  },
-  data() {
-    return {
-      /** Was the effect the viewer's when this tile MOUNTED? The held word's entry plays only for a change the tile witnessed. */
-      heldAtMount: undefined as boolean | undefined,
-    };
-  },
-  mounted() {
-    this.heldAtMount = this.state?.held === true;
-  },
-  methods: {
-    /** The socket's ONE answer on the touchdown of a cube that just flew in (a one-shot, never a standing state). */
-    justLanded(color: Color): boolean {
-      return bannerCubeJustLanded(this.party, color);
-    },
-    onSeated(color: Color): void {
-      forgetBannerCubeLanding(this.party, color);
-    },
-    partyNameKey(party: string): string {
-      return partyNameKey(party);
-    },
-  },
-  computed: {
-    /** The banner's cubes as drawn: the table's, minus one whose landing is still in the air (`bannerCubeScene`). */
-    shownBannerCubes(): Array<Color> {
-      return bannerCubesShown(this.party, this.bannerCubes);
-    },
-    accent(): string {
-      return partyAccent(this.party);
-    },
-    /**
-     * THE NAME IS ONE LONG WORD (the length tier of the seal's name — «ИНДУСТРИАЛИСТЫ», «Industrialists»): a word does
-     * not wrap, so the ruler's seat (as wide as its seal plus two lines of a SHORT name — the stability law: one box for
-     * whoever rules) cannot hold it at the name's size, and an ancestor cut it («…ДУСТРИАЛИСТЫ» on the dais, PL-801).
-     * Such a word takes the tier's tighter size instead — read off the TRANSLATED name's longest word, never a party.
-     */
-    longName(): boolean {
-      const words = translateText(partyNameKey(this.party)).split(/\s+/);
-      return words.some((word) => word.length > PSEAL_NAME_LONG_WORD);
-    },
-    /** The party's accent — and, under an alliance (TR62), the PARTNER's for the borrowed ring and the badge. */
-    sealStyle(): Record<string, string> {
-      const partner = this.state?.ally?.partner;
-      return partner === undefined ? {'--parl-accent': this.accent} : {'--parl-accent': this.accent, '--pseal-ally-accent': partyAccent(partner)};
-    },
-    emblemUrl(): string {
-      return partyEmblemUrl(this.party);
-    },
-    /** The threshold places show while the party is IN the vote and the effect is not yet the viewer's by other means. */
-    showPlaces(): boolean {
-      const state = this.state;
-      // A tile STANDING IN THE GOVERNMENT is the ruling party's: its state is «правит» and its support
-      // sockets, never the access counter of an opposition tile (v4 §2.5 — «0/2» стояло на месте правителя).
-      return !this.ruling && state !== undefined && (state.kind === 'progress' || state.kind === 'in-area' || state.kind === 'delegates' || state.kind === 'alliance');
-    },
-    /** The PRINTED places (always drawn, in the flow). */
-    placesCount(): number {
-      return PARTY_EFFECT_PLACES;
-    },
-    /** …and how many of them are LIVE for this viewer — the state's own threshold (the model's number, never a constant here). */
-    liveCount(): number {
-      return Math.max(1, Math.min(PARTY_EFFECT_PLACES, this.state?.effectDelegates ?? PARTY_EFFECT_PLACES));
-    },
-    /**
-     * ONE short word where a word says more than the places: the ruling
-     * party, a held effect. A party in the vote is said by its places and
-     * their count alone; a party outside the vote says nothing (its dim ring
-     * is the state) — the fewest marks a glance can read.
-     */
-    stateText(): string {
-      const state = this.state;
-      if (state === undefined) {
-        return '';
-      }
-      switch (state.kind) {
-      // «ПРАВИТ» alone: the government block beside the tile already names the basis («СТАРТОВОЕ ПРАВИЛО» /
-      // the enacted card) — saying it twice on one screen was registry row R-03.
-      case 'ruling-default': return translateText('Ruling');
-      case 'ruling': return translateText('Ruling');
-      // The same word order as the voting columns' «ЭФФЕКТ ВАШ» (glossary §3, R-04) — the keys' RU line.
-      // «Зал» v7: a MEDALLION row says «yours» by its mint ring, its plate and its filled places — the words stay
-      // for the plaque's larger sizes (the dossier, the composer) and for the reading line.
-      case 'delegates': return this.size === 'row' ? '' : translateText('Your effect');
-      case 'granted': return this.size === 'row' ? '' : translateText(state.label);
-      // TR62 — the BORROWED effect: the row says it by its ring (the partner's accent, the link); the larger faces name the partner.
-      case 'alliance': return this.size === 'row' ? '' : translateTextWithParams(state.label, [...state.params]);
-      default: return '';
-      }
-    },
-  },
+defineOptions({name: 'ConsolePartyPlaque'});
+const props = defineProps({
+  party: {type: String as PropType<ReduxParty>, required: true},
+  /** The seats whose cube stands on this party's BANNER (Septem Tribus:redux — `ParliamentPartyVm.bannerCubes`). */
+  bannerCubes: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
+  /** The banner mode's GHOST — the viewer's cube as it will stand here (Septem Tribus:redux's pick, before A). */
+  bannerGhost: {type: String as PropType<Color | undefined>, default: undefined},
+  size: {type: String as PropType<PartyPlaqueSize>, default: 'tile'},
+  /** The viewer's access state (undefined = a plain identity plaque). */
+  state: {type: Object as PropType<PartyStateVm | undefined>, default: undefined},
+  /** The party action's state for the viewer (undefined = not shown). */
+  actionState: {type: Object as PropType<PartyActionStateVm | undefined>, default: undefined},
+  /** Popular support (0–3); undefined hides the places. */
+  support: {type: Number as PropType<number | undefined>, default: undefined},
+  /** The viewer's colour — their own delegate cubes in the threshold places. */
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** Draw the printed mechanic module. */
+  formula: {type: Boolean, default: true},
+  focused: {type: Boolean, default: false},
+  /** ONE translated context line under the name (the `aside` size) — undefined draws none. */
+  note: {type: String as PropType<string | undefined>, default: undefined},
+  /** The ONE translated reason the party's action cannot be taken right now (the focused tile's foot); '' draws the state. */
+  reason: {type: String, default: ''},
+  reasonTone: {type: String as PropType<'dim' | 'warn'>, default: 'dim'},
+  /**
+   * This tile WEARS the ruler's state: it is the ruling party's, so its state row says «правит» instead
+   * of an access counter (v4 §2.5) and its EMPTY support sockets are void (they could never fill). During
+   * the government's swap this deliberately lags the tile's PLACE by the length of the flight — the host
+   * passes «the ruler as settled», so a plaque changes state in the frame it arrives, never in flight.
+   */
+  ruling: {type: Boolean, default: false},
+  /**
+   * The ruler's state is BY AN ENACTED CARD — its empty sockets are void (nothing can pay it while it
+   * rules; a stock a card paid before it came to power stays drawn). False for the one ruler without a
+   * card, generation 1's starting-rule Greens, whose empty sockets stay drawn in the government. Read
+   * with `ruling`, lagging the swap the same way.
+   */
+  rulesByCard: {type: Boolean, default: true},
+  /**
+   * THE ROLL CALL's status for this party while the support scene runs (v3 В3; `SupportStatus`, '' outside it) — Парламент
+   * v8 Р2: a MARK on the seal (`con-pseal--roll-*`), never a phrase in the foot; the foot keeps its live content.
+   */
+  roll: {type: String, default: ''},
+  /**
+   * THE SUPPORT-AREA MODE's reading of this plaque (TR12): what the pick leaves in its area — or its ONE
+   * refusal — in the state row; undefined outside the mode.
+   */
+  pick: {type: Object as PropType<{current: number, resulting: number, available: boolean, reason?: string} | undefined>, default: undefined},
+  /** …and how many of its standing cubes the press under the cursor would send away (outlines on the places). */
+  supportOutgoing: {type: Number, default: 0},
+  /** THE RECOUNT'S MARKS on this plaque's places (TR31): the first N standing cubes counted so far. */
+  supportCounted: {type: Number, default: 0},
+});
+
+/** Was the effect the viewer's when this tile MOUNTED? The held word's entry plays only for a change the tile witnessed. */
+const heldAtMount = ref<boolean | undefined>(undefined);
+/** The banner's cubes as drawn: the table's, minus one whose landing is still in the air (`bannerCubeScene`). */
+const shownBannerCubes = computed((): Array<Color> => {
+  return bannerCubesShown(props.party, props.bannerCubes);
+});
+const accent = computed((): string => {
+  return partyAccent(props.party);
+});
+/**
+ * THE NAME IS ONE LONG WORD (the length tier of the seal's name — «ИНДУСТРИАЛИСТЫ», «Industrialists»): a word does
+ * not wrap, so the ruler's seat (as wide as its seal plus two lines of a SHORT name — the stability law: one box for
+ * whoever rules) cannot hold it at the name's size, and an ancestor cut it («…ДУСТРИАЛИСТЫ» on the dais, PL-801).
+ * Such a word takes the tier's tighter size instead — read off the TRANSLATED name's longest word, never a party.
+ */
+const longName = computed((): boolean => {
+  const words = translateText(partyNameKey(props.party)).split(/\s+/);
+  return words.some((word) => word.length > PSEAL_NAME_LONG_WORD);
+});
+/** The party's accent — and, under an alliance (TR62), the PARTNER's for the borrowed ring and the badge. */
+const sealStyle = computed((): Record<string, string> => {
+  const partner = props.state?.ally?.partner;
+  return partner === undefined ? {'--parl-accent': accent.value} : {'--parl-accent': accent.value, '--pseal-ally-accent': partyAccent(partner)};
+});
+const emblemUrl = computed((): string => {
+  return partyEmblemUrl(props.party);
+});
+/** The threshold places show while the party is IN the vote and the effect is not yet the viewer's by other means. */
+const showPlaces = computed((): boolean => {
+  const state = props.state;
+  // A tile STANDING IN THE GOVERNMENT is the ruling party's: its state is «правит» and its support
+  // sockets, never the access counter of an opposition tile (v4 §2.5 — «0/2» стояло на месте правителя).
+  return !props.ruling && state !== undefined && (state.kind === 'progress' || state.kind === 'in-area' || state.kind === 'delegates' || state.kind === 'alliance');
+});
+/** The PRINTED places (always drawn, in the flow). */
+const placesCount = PARTY_EFFECT_PLACES;
+/** …and how many of them are LIVE for this viewer — the state's own threshold (the model's number, never a constant here). */
+const liveCount = computed((): number => {
+  return Math.max(1, Math.min(PARTY_EFFECT_PLACES, props.state?.effectDelegates ?? PARTY_EFFECT_PLACES));
+});
+/**
+ * ONE short word where a word says more than the places: the ruling
+ * party, a held effect. A party in the vote is said by its places and
+ * their count alone; a party outside the vote says nothing (its dim ring
+ * is the state) — the fewest marks a glance can read.
+ */
+const stateText = computed((): string => {
+  const state = props.state;
+  if (state === undefined) {
+    return '';
+  }
+  switch (state.kind) {
+  // «ПРАВИТ» alone: the government block beside the tile already names the basis («СТАРТОВОЕ ПРАВИЛО» /
+  // the enacted card) — saying it twice on one screen was registry row R-03.
+  case 'ruling-default': return translateText('Ruling');
+  case 'ruling': return translateText('Ruling');
+  // The same word order as the voting columns' «ЭФФЕКТ ВАШ» (glossary §3, R-04) — the keys' RU line.
+  // «Зал» v7: a MEDALLION row says «yours» by its mint ring, its plate and its filled places — the words stay
+  // for the plaque's larger sizes (the dossier, the composer) and for the reading line.
+  case 'delegates': return props.size === 'row' ? '' : translateText('Your effect');
+  case 'granted': return props.size === 'row' ? '' : translateText(state.label);
+  // TR62 — the BORROWED effect: the row says it by its ring (the partner's accent, the link); the larger faces name the partner.
+  case 'alliance': return props.size === 'row' ? '' : translateTextWithParams(state.label, [...state.params]);
+  default: return '';
+  }
+});
+/** The socket's ONE answer on the touchdown of a cube that just flew in (a one-shot, never a standing state). */
+function justLanded(color: Color): boolean {
+  return bannerCubeJustLanded(props.party, color);
+}
+function onSeated(color: Color): void {
+  forgetBannerCubeLanding(props.party, color);
+}
+
+onMounted(() => {
+  heldAtMount.value = props.state?.held === true;
 });
 </script>
