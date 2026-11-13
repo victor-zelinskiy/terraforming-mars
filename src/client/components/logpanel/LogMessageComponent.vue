@@ -46,9 +46,11 @@
    </li>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {Color} from '@/common/Color';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {CardName} from '@/common/cards/CardName';
@@ -81,116 +83,93 @@ const cardTypeToCss: Record<CardType, string | undefined> = {
   resolution: undefined,
 };
 
-export default defineComponent({
-  name: 'LogMessageComponent',
-  props: {
-    message: {
-      type: Object as () => LogMessage,
-      required: true,
-    },
-    viewModel: {
-      type: Object as () => ViewModel,
-      required: true,
-    },
+defineOptions({name: 'LogMessageComponent'});
+const props = defineProps({
+  message: {
+    type: Object as () => LogMessage,
+    required: true,
   },
-  methods: {
-    cardToHtml(data: LogMessageData & {type: LogMessageDataType.CARD, value: CardName}) {
-      return this.innerCardToHtml(data.value, data.attrs);
-    },
-    cardsToHtml(data: LogMessageData & {type: LogMessageDataType.CARDS, value: ReadonlyArray<CardName>}) {
-      if (data.attrs?.ellipsis) {
-        return '<span class="log-card background-color-standard-project">...</span>';
-      }
-      const cardHtmls = data.value.map((cardName) => this.innerCardToHtml(cardName, data.attrs));
-      const htmlsAsIndexes = range(cardHtmls.length).map(String);
-      // These parts will be either type 'element', or type 'literal'.
-      // The 'element' parts represent the indexes of the cards (which will be filled in later)
-      // The 'literal' parts represent the text that combines everything together.
-      //
-      // So for English, if the cards are Algae , Birds, and Celestic, it returns
-      // ["Algae, ", "Birds, ", "and ", "Celestic"] with types ["element", "element", "literal", "element"]
-      //
-      // The tests show what this produces.
-      const parts = this.formatter.formatToParts(htmlsAsIndexes);
-      return parts
-        .map((part) => part.type === 'element' ? cardHtmls[Number(part.value)] : part.value)
-        .join('');
-    },
-    innerCardToHtml(cardName: CardName, attrs?: LogMessageDataAttrs) {
-      const card = getCard(cardName);
-      if (card === undefined) {
-        return '';
-      }
-
-      const suffixFreeCardName = card.name.split(':')[0];
-      const className = cardTypeToCss[card.type];
-
-      if (className === undefined) {
-        return suffixFreeCardName;
-      }
-      let tagHTML = '';
-      if (attrs?.tags === true) {
-        tagHTML = '&nbsp;' + (card.tags.map((tag) => `<div class="log-tag tag-${tag}"></div>`).join(' '));
-      }
-
-      let costHTML = '';
-      if (attrs?.cost === true) {
-        costHTML = `<span>&nbsp;<div class="log-resource-megacredits">${card.cost}</div></span>`;
-      }
-      return '<span class="log-card '+ className + '">' + this.$t(suffixFreeCardName) + tagHTML + costHTML +'</span>';
-    },
-    getPlayerName(color: Color) {
-      const player = this.viewModel.players.find((player) => player.color === color);
-      return player !== undefined ? participantDisplayName(player) : color;
-    },
-    resourceIconClass(value: string): string {
-      return logResourceIconClass(value);
-    },
-    resourceLabelKey(value: string): string {
-      return logResourceLabelKey(value);
-    },
-  },
-  computed: {
-    entries() {
-      if (this.message === undefined) {
-        return [];
-      }
-      const e = {
-        message: this.$t(this.message.message),
-        data: this.message.data,
-      };
-      return Log.parse(e);
-    },
-    when() {
-      return new Date(this.message.timestamp).toLocaleString();
-    },
-    icon() {
-      return this.message.playerId === undefined ? '&#x1f551;' : '&#x1f4ac;';
-    },
-    LogMessageType(): typeof LogMessageType {
-      return LogMessageType;
-    },
-    LogMessageDataType(): typeof LogMessageDataType {
-      return LogMessageDataType;
-    },
-    getSpaceName(): typeof getSpaceName {
-      return getSpaceName;
-    },
-    isMoonSpace(): typeof isMoonSpace {
-      return isMoonSpace;
-    },
-    undergroundResourceTokenDescription(): typeof undergroundResourceTokenDescription {
-      return undergroundResourceTokenDescription;
-    },
-    tileTypeToString(): typeof tileTypeToString {
-      return tileTypeToString;
-    },
-    formatter(): Intl.ListFormat {
-      return new Intl.ListFormat(gameLocaleToIntlLocale(getPreferences().lang), {type: 'conjunction', style: 'long'});
-    },
-    maybeAnnouncement(): string {
-      return this.message.type === LogMessageType.ANNOUNCEMENT ? 'log-announcement' : '';
-    },
+  viewModel: {
+    type: Object as () => ViewModel,
+    required: true,
   },
 });
+
+const entries = computed(() => {
+  if (props.message === undefined) {
+    return [];
+  }
+  const e = {
+    message: $t(props.message.message),
+    data: props.message.data,
+  };
+  return Log.parse(e);
+});
+const when = computed(() => {
+  return new Date(props.message.timestamp).toLocaleString();
+});
+const icon = computed(() => {
+  return props.message.playerId === undefined ? '&#x1f551;' : '&#x1f4ac;';
+});
+const formatter = computed((): Intl.ListFormat => {
+  return new Intl.ListFormat(gameLocaleToIntlLocale(getPreferences().lang), {type: 'conjunction', style: 'long'});
+});
+const maybeAnnouncement = computed((): string => {
+  return props.message.type === LogMessageType.ANNOUNCEMENT ? 'log-announcement' : '';
+});
+function cardToHtml(data: LogMessageData & {type: LogMessageDataType.CARD, value: CardName}) {
+  return innerCardToHtml(data.value, data.attrs);
+}
+function cardsToHtml(data: LogMessageData & {type: LogMessageDataType.CARDS, value: ReadonlyArray<CardName>}) {
+  if (data.attrs?.ellipsis) {
+    return '<span class="log-card background-color-standard-project">...</span>';
+  }
+  const cardHtmls = data.value.map((cardName) => innerCardToHtml(cardName, data.attrs));
+  const htmlsAsIndexes = range(cardHtmls.length).map(String);
+  // These parts will be either type 'element', or type 'literal'.
+  // The 'element' parts represent the indexes of the cards (which will be filled in later)
+  // The 'literal' parts represent the text that combines everything together.
+  //
+  // So for English, if the cards are Algae , Birds, and Celestic, it returns
+  // ["Algae, ", "Birds, ", "and ", "Celestic"] with types ["element", "element", "literal", "element"]
+  //
+  // The tests show what this produces.
+  const parts = formatter.value.formatToParts(htmlsAsIndexes);
+  return parts
+    .map((part) => part.type === 'element' ? cardHtmls[Number(part.value)] : part.value)
+    .join('');
+}
+function innerCardToHtml(cardName: CardName, attrs?: LogMessageDataAttrs) {
+  const card = getCard(cardName);
+  if (card === undefined) {
+    return '';
+  }
+
+  const suffixFreeCardName = card.name.split(':')[0];
+  const className = cardTypeToCss[card.type];
+
+  if (className === undefined) {
+    return suffixFreeCardName;
+  }
+  let tagHTML = '';
+  if (attrs?.tags === true) {
+    tagHTML = '&nbsp;' + (card.tags.map((tag) => `<div class="log-tag tag-${tag}"></div>`).join(' '));
+  }
+
+  let costHTML = '';
+  if (attrs?.cost === true) {
+    costHTML = `<span>&nbsp;<div class="log-resource-megacredits">${card.cost}</div></span>`;
+  }
+  return '<span class="log-card '+ className + '">' + $t(suffixFreeCardName) + tagHTML + costHTML +'</span>';
+}
+function getPlayerName(color: Color) {
+  const player = props.viewModel.players.find((player) => player.color === color);
+  return player !== undefined ? participantDisplayName(player) : color;
+}
+function resourceIconClass(value: string): string {
+  return logResourceIconClass(value);
+}
+function resourceLabelKey(value: string): string {
+  return logResourceLabelKey(value);
+}
 </script>
