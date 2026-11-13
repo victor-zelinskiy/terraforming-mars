@@ -1,5 +1,5 @@
 <template>
-  <div class="cm-overlay cm-devcards" role="dialog" :aria-label="$t('Guaranteed cards')">
+  <div ref="root" class="cm-overlay cm-devcards" role="dialog" :aria-label="$t('Guaranteed cards')">
     <div class="cm-overlay__card cm-overlay__card--wide">
       <div class="cm-overlay__title">
         <span class="cm-devcards__devtag" aria-hidden="true">DEV</span>
@@ -117,7 +117,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * CONSOLE-NATIVE DEV CARD PICKER — the «Тестовый режим» sub-setting.
  *
@@ -137,7 +137,7 @@
  *
  * Host-routed pad intents via `handleIntent`, mirroring ConsoleAdminRollback.
  */
-import {defineComponent} from 'vue';
+import {computed, nextTick, onBeforeUnmount, ref, useTemplateRef} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {Expansion, GameModule} from '@/common/cards/GameModule';
@@ -172,290 +172,282 @@ type PickerView = 'picked' | 'modules' | 'cards';
 /** ◄ / ► page step through a long card list. */
 const PAGE_ROWS = 10;
 
-export default defineComponent({
-  name: 'ConsoleDevCardPicker',
-  components: {GamepadGlyph, ConsoleScrollArea},
-  emits: ['close'],
-  data() {
-    return {
-      view: 'picked' as PickerView,
-      pickedCursor: 0,
-      moduleCursor: 0,
-      cardCursor: 0,
-      module: 'base' as GameModule,
-      /** True while the shared fullscreen viewer was opened FROM this picker. */
-      zoomOpenedHere: false,
-    };
-  },
-  computed: {
-    picks() {
-      return createGameState.config.guaranteedCards;
-    },
-    chosenNames(): ReadonlySet<CardName> {
-      return guaranteedNames(this.picks);
-    },
-    picked(): ReadonlyArray<GuaranteedCardEntry> {
-      return guaranteedChosenEntries(this.picks);
-    },
-    modules(): ReadonlyArray<{id: GameModule, labelKey: string, total: number, chosen: number, enabled: boolean}> {
-      const selected = createGameState.config.selectedExpansions;
-      const chosen = this.chosenNames;
-      return GUARANTEED_MODULES.map((m) => ({
-        ...m,
-        ...guaranteedModuleCounts(m.id, chosen),
-        // Base is always in; an expansion that is OFF still works (the server
-        // adds a guaranteed card to the pool), but the dev should see it.
-        enabled: m.id === 'base' || selected[m.id as keyof typeof selected] === true,
-      }));
-    },
-    cardRows(): ReadonlyArray<GuaranteedPickRow> {
-      return guaranteedPickRows(this.module, this.chosenNames);
-    },
-    /** Row-parallel selectability — headers are walked past, never landed on. */
-    cardSelectable(): ReadonlyArray<boolean> {
-      return this.cardRows.map((row) => row.kind === 'card');
-    },
-    currentEntry(): GuaranteedCardEntry | undefined {
-      const row = this.cardRows[this.cardCursor];
-      return row !== undefined && row.kind === 'card' ? row.entry : undefined;
-    },
-    currentCardChosen(): boolean {
-      return this.currentEntry?.chosen === true;
-    },
-    crumb(): string {
-      if (this.view === 'modules') {
-        return $t('Add card');
-      }
-      if (this.view === 'cards') {
-        const meta = GUARANTEED_MODULES.find((m) => m.id === this.module);
-        return meta === undefined ? '' : $t(meta.labelKey);
-      }
-      return '';
-    },
-  },
-  methods: {
-    /** The expansion this card's deal waits for (not selected in the creator), or undefined. */
-    gateOf(name: CardName): Expansion | undefined {
-      return guaranteedGateOf(name, createGameState.config.selectedExpansions);
-    },
-    /** «Требует «Венера»» — the gate in words; '' for a dealable card. */
-    gateText(name: CardName): string {
-      const gate = this.gateOf(name);
-      return gate === undefined ? '' : translateTextWithParams('Requires ${0}', [$t(expansionLabelKey(gate))]);
-    },
-    typeLabelKey(type: CardType): string {
-      return guaranteedTypeLabelKey(type);
-    },
-    themeClass(type: CardType): string {
-      const theme = guaranteedThemeOf(type);
-      return theme === undefined ? '' : `cm-drow--${theme}`;
-    },
+defineOptions({name: 'ConsoleDevCardPicker'});
+const emit = defineEmits(['close']);
 
-    // ── Input ────────────────────────────────────────────────────────────
-    /** Host-routed pad intents. Always consumes — this overlay is modal. */
-    handleIntent(intent: GamepadIntent): boolean {
-      // While the shared fullscreen viewer is open, its HOST owns the pad
-      // (the pre-game carve-out runs before this handler) — swallow defensively.
-      if (consoleCardZoom.card !== undefined) {
-        return true;
-      }
-      // No `secondary` override: X keeps its DEFAULT meaning here — the
-      // console-wide inspect verb — rather than the create screen's «Запуск».
-      const action = consoleActionOf(intent);
-      switch (this.view) {
-      case 'picked': return this.handlePickedIntent(intent, action);
-      case 'modules': return this.handleModulesIntent(intent, action);
-      default: return this.handleCardsIntent(intent, action);
-      }
-    },
-    handlePickedIntent(intent: GamepadIntent, action: string | undefined): boolean {
-      const rows = this.picked.length + 1;
-      if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-        this.pickedCursor = stepIndex(this.pickedCursor, intent.dir === 'down' ? 1 : -1, rows);
-        this.keepCursorVisible();
-        return true;
-      }
-      if (action === 'primary') {
-        if (this.pickedCursor === 0) {
-          this.openModules();
-        } else {
-          this.removeAt(this.pickedCursor - 1);
-        }
-        return true;
-      }
-      if (action === 'fullscreen') {
-        // Y — the create screen's established «удалить» verb.
-        if (this.pickedCursor > 0) {
-          this.removeAt(this.pickedCursor - 1);
-        }
-        return true;
-      }
-      if (action === 'inspect') {
-        const entry = this.picked[this.pickedCursor - 1];
-        if (entry !== undefined) {
-          this.openZoom(this.picked.map((e) => e.name), this.pickedCursor - 1);
-        }
-        return true;
-      }
-      if (action === 'reset') {
-        clearGuaranteedCards(this.picks);
-        this.pickedCursor = 0;
-        return true;
-      }
-      if (action === 'back') {
-        this.$emit('close');
-      }
-      return true;
-    },
-    handleModulesIntent(intent: GamepadIntent, action: string | undefined): boolean {
-      if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-        this.moduleCursor = stepIndex(this.moduleCursor, intent.dir === 'down' ? 1 : -1, this.modules.length);
-        this.keepCursorVisible();
-        return true;
-      }
-      if (action === 'primary') {
-        this.openModule(this.moduleCursor);
-        return true;
-      }
-      if (action === 'back') {
-        this.view = 'picked';
-        this.keepCursorVisible();
-      }
-      return true;
-    },
-    handleCardsIntent(intent: GamepadIntent, action: string | undefined): boolean {
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          this.cardCursor = stepSelectable(this.cardCursor, intent.dir === 'down' ? 1 : -1, this.cardSelectable);
-          this.keepCursorVisible();
-          return true;
-        }
-        // ◄ ► page through a long list without holding the stick.
-        const step = intent.dir === 'right' ? PAGE_ROWS : -PAGE_ROWS;
-        const target = stepIndex(this.cardCursor, step, this.cardRows.length);
-        this.cardCursor = stepSelectable(target, 0, this.cardSelectable);
-        this.keepCursorVisible();
-        return true;
-      }
-      if (action === 'primary') {
-        this.toggleAt(this.cardCursor);
-        return true;
-      }
-      if (action === 'inspect') {
-        const names = this.cardRows.flatMap((row) => row.kind === 'card' ? [row.entry.name] : []);
-        const at = names.indexOf(this.currentEntry?.name as CardName);
-        if (at >= 0) {
-          this.openZoom(names, at);
-        }
-        return true;
-      }
-      if (action === 'prevSection' || action === 'nextSection') {
-        this.jumpGroup(action === 'nextSection' ? 1 : -1);
-        return true;
-      }
-      if (action === 'back') {
-        this.view = 'modules';
-        this.keepCursorVisible();
-      }
-      return true;
-    },
+const scroll = useTemplateRef<{ensureVisible?: (el: Element | null) => void}>('scroll');
+const root = useTemplateRef<HTMLElement>('root');
+const view = ref('picked' as PickerView);
+const pickedCursor = ref(0);
+const moduleCursor = ref(0);
+const cardCursor = ref(0);
+const module = ref('base' as GameModule);
+/** True while the shared fullscreen viewer was opened FROM this picker. */
+const zoomOpenedHere = ref(false);
 
-    // ── Navigation ───────────────────────────────────────────────────────
-    openModules(): void {
-      this.view = 'modules';
-      this.keepCursorVisible();
-    },
-    openModule(i: number): void {
-      const meta = this.modules[i];
-      if (meta === undefined) {
-        return;
-      }
-      this.moduleCursor = i;
-      this.module = meta.id;
-      this.view = 'cards';
-      // Land on the first real card, never on a group heading.
-      this.cardCursor = stepSelectable(0, 0, this.cardSelectable);
-      this.keepCursorVisible();
-    },
-    /** LB / RB — jump to the previous/next card-TYPE group heading. */
-    jumpGroup(step: 1 | -1): void {
-      const rows = this.cardRows;
-      const headers = rows.flatMap((row, i) => row.kind === 'header' ? [i] : []);
-      if (headers.length === 0) {
-        return;
-      }
-      const currentGroup = headers.filter((i) => i <= this.cardCursor).length - 1;
-      const next = Math.min(headers.length - 1, Math.max(0, currentGroup + step));
-      this.cardCursor = stepSelectable(headers[next], 1, this.cardSelectable);
-      this.keepCursorVisible();
-    },
-    keepCursorVisible(): void {
-      void this.$nextTick(() => {
-        const scroll = (this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
-        scroll?.ensureVisible?.(this.$el.querySelector('.cm-drow--cursor'));
-      });
-    },
-
-    // ── Picks ────────────────────────────────────────────────────────────
-    toggleAt(i: number): void {
-      const row = this.cardRows[i];
-      if (row === undefined || row.kind !== 'card') {
-        return;
-      }
-      this.cardCursor = i;
-      // A gated card is refused — unless it is already chosen (taking it back is always allowed).
-      if (!row.entry.chosen && this.gateOf(row.entry.name) !== undefined) {
-        return;
-      }
-      toggleGuaranteedCard(this.picks, row.entry.name);
-    },
-    removeAt(i: number): void {
-      const entry = this.picked[i];
-      if (entry === undefined) {
-        return;
-      }
-      removeGuaranteedCard(this.picks, entry.name);
-      this.pickedCursor = Math.min(this.pickedCursor, this.picked.length);
-    },
-
-    // ── Fullscreen inspect — the ONE console zoom pipeline ───────────────
-    /**
-     * X opens the SHARED fullscreen viewer via `consoleCardZoom`; the
-     * App-level ConsoleMenuZoomHost serves presentation + input. The rows
-     * here are plain LIST rows (no card face on screen), so the origin is
-     * TEXTUAL — the inspector rise, never a fake lift out of a text row.
-     * A in fullscreen toggles the pick through the select bridge.
-     */
-    openZoom(names: ReadonlyArray<CardName>, at: number): void {
-      const list = names.map((name) => ({name} as CardModel));
-      if (list[at] === undefined) {
-        return;
-      }
-      this.zoomOpenedHere = true;
-      openConsoleCardZoom(list, at, {
-        isSelected: (name) => this.chosenNames.has(name),
-        toggle: (name) => {
-          if (!this.chosenNames.has(name) && this.gateOf(name) !== undefined) {
-            return;
-          }
-          toggleGuaranteedCard(this.picks, name);
-          if (this.view === 'picked') {
-            this.pickedCursor = Math.min(this.pickedCursor, this.picked.length);
-          }
-        },
-      }, undefined, {
-        contextLabel: 'Guaranteed cards',
-        origin: {kind: 'textual'},
-      });
-    },
-  },
-  beforeUnmount() {
-    // Leaving with the viewer still up: close the module viewer we opened —
-    // the mounted zoom host observes the clear and unwinds its own state.
-    if (this.zoomOpenedHere && consoleCardZoom.card !== undefined) {
-      closeConsoleCardZoom();
-    }
-    this.zoomOpenedHere = false;
-  },
+const picks = computed(() => {
+  return createGameState.config.guaranteedCards;
 });
+const chosenNames = computed((): ReadonlySet<CardName> => {
+  return guaranteedNames(picks.value);
+});
+const picked = computed((): ReadonlyArray<GuaranteedCardEntry> => {
+  return guaranteedChosenEntries(picks.value);
+});
+const modules = computed((): ReadonlyArray<{id: GameModule, labelKey: string, total: number, chosen: number, enabled: boolean}> => {
+  const selected = createGameState.config.selectedExpansions;
+  const chosen = chosenNames.value;
+  return GUARANTEED_MODULES.map((m) => ({
+    ...m,
+    ...guaranteedModuleCounts(m.id, chosen),
+    // Base is always in; an expansion that is OFF still works (the server
+    // adds a guaranteed card to the pool), but the dev should see it.
+    enabled: m.id === 'base' || selected[m.id as keyof typeof selected] === true,
+  }));
+});
+const cardRows = computed((): ReadonlyArray<GuaranteedPickRow> => {
+  return guaranteedPickRows(module.value, chosenNames.value);
+});
+/** Row-parallel selectability — headers are walked past, never landed on. */
+const cardSelectable = computed((): ReadonlyArray<boolean> => {
+  return cardRows.value.map((row) => row.kind === 'card');
+});
+const currentEntry = computed((): GuaranteedCardEntry | undefined => {
+  const row = cardRows.value[cardCursor.value];
+  return row !== undefined && row.kind === 'card' ? row.entry : undefined;
+});
+const currentCardChosen = computed((): boolean => {
+  return currentEntry.value?.chosen === true;
+});
+const crumb = computed((): string => {
+  if (view.value === 'modules') {
+    return $t('Add card');
+  }
+  if (view.value === 'cards') {
+    const meta = GUARANTEED_MODULES.find((m) => m.id === module.value);
+    return meta === undefined ? '' : $t(meta.labelKey);
+  }
+  return '';
+});
+
+/** The expansion this card's deal waits for (not selected in the creator), or undefined. */
+function gateOf(name: CardName): Expansion | undefined {
+  return guaranteedGateOf(name, createGameState.config.selectedExpansions);
+}
+/** «Требует «Венера»» — the gate in words; '' for a dealable card. */
+function gateText(name: CardName): string {
+  const gate = gateOf(name);
+  return gate === undefined ? '' : translateTextWithParams('Requires ${0}', [$t(expansionLabelKey(gate))]);
+}
+function typeLabelKey(type: CardType): string {
+  return guaranteedTypeLabelKey(type);
+}
+function themeClass(type: CardType): string {
+  const theme = guaranteedThemeOf(type);
+  return theme === undefined ? '' : `cm-drow--${theme}`;
+}
+// ── Input ────────────────────────────────────────────────────────────
+/** Host-routed pad intents. Always consumes — this overlay is modal. */
+function handleIntent(intent: GamepadIntent): boolean {
+  // While the shared fullscreen viewer is open, its HOST owns the pad
+  // (the pre-game carve-out runs before this handler) — swallow defensively.
+  if (consoleCardZoom.card !== undefined) {
+    return true;
+  }
+  // No `secondary` override: X keeps its DEFAULT meaning here — the
+  // console-wide inspect verb — rather than the create screen's «Запуск».
+  const action = consoleActionOf(intent);
+  switch (view.value) {
+  case 'picked': return handlePickedIntent(intent, action);
+  case 'modules': return handleModulesIntent(intent, action);
+  default: return handleCardsIntent(intent, action);
+  }
+}
+function handlePickedIntent(intent: GamepadIntent, action: string | undefined): boolean {
+  const rows = picked.value.length + 1;
+  if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+    pickedCursor.value = stepIndex(pickedCursor.value, intent.dir === 'down' ? 1 : -1, rows);
+    keepCursorVisible();
+    return true;
+  }
+  if (action === 'primary') {
+    if (pickedCursor.value === 0) {
+      openModules();
+    } else {
+      removeAt(pickedCursor.value - 1);
+    }
+    return true;
+  }
+  if (action === 'fullscreen') {
+    // Y — the create screen's established «удалить» verb.
+    if (pickedCursor.value > 0) {
+      removeAt(pickedCursor.value - 1);
+    }
+    return true;
+  }
+  if (action === 'inspect') {
+    const entry = picked.value[pickedCursor.value - 1];
+    if (entry !== undefined) {
+      openZoom(picked.value.map((e) => e.name), pickedCursor.value - 1);
+    }
+    return true;
+  }
+  if (action === 'reset') {
+    clearGuaranteedCards(picks.value);
+    pickedCursor.value = 0;
+    return true;
+  }
+  if (action === 'back') {
+    emit('close');
+  }
+  return true;
+}
+function handleModulesIntent(intent: GamepadIntent, action: string | undefined): boolean {
+  if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+    moduleCursor.value = stepIndex(moduleCursor.value, intent.dir === 'down' ? 1 : -1, modules.value.length);
+    keepCursorVisible();
+    return true;
+  }
+  if (action === 'primary') {
+    openModule(moduleCursor.value);
+    return true;
+  }
+  if (action === 'back') {
+    view.value = 'picked';
+    keepCursorVisible();
+  }
+  return true;
+}
+function handleCardsIntent(intent: GamepadIntent, action: string | undefined): boolean {
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'up' || intent.dir === 'down') {
+      cardCursor.value = stepSelectable(cardCursor.value, intent.dir === 'down' ? 1 : -1, cardSelectable.value);
+      keepCursorVisible();
+      return true;
+    }
+    // ◄ ► page through a long list without holding the stick.
+    const step = intent.dir === 'right' ? PAGE_ROWS : -PAGE_ROWS;
+    const target = stepIndex(cardCursor.value, step, cardRows.value.length);
+    cardCursor.value = stepSelectable(target, 0, cardSelectable.value);
+    keepCursorVisible();
+    return true;
+  }
+  if (action === 'primary') {
+    toggleAt(cardCursor.value);
+    return true;
+  }
+  if (action === 'inspect') {
+    const names = cardRows.value.flatMap((row) => row.kind === 'card' ? [row.entry.name] : []);
+    const at = names.indexOf(currentEntry.value?.name as CardName);
+    if (at >= 0) {
+      openZoom(names, at);
+    }
+    return true;
+  }
+  if (action === 'prevSection' || action === 'nextSection') {
+    jumpGroup(action === 'nextSection' ? 1 : -1);
+    return true;
+  }
+  if (action === 'back') {
+    view.value = 'modules';
+    keepCursorVisible();
+  }
+  return true;
+}
+// ── Navigation ───────────────────────────────────────────────────────
+function openModules(): void {
+  view.value = 'modules';
+  keepCursorVisible();
+}
+function openModule(i: number): void {
+  const meta = modules.value[i];
+  if (meta === undefined) {
+    return;
+  }
+  moduleCursor.value = i;
+  module.value = meta.id;
+  view.value = 'cards';
+  // Land on the first real card, never on a group heading.
+  cardCursor.value = stepSelectable(0, 0, cardSelectable.value);
+  keepCursorVisible();
+}
+/** LB / RB — jump to the previous/next card-TYPE group heading. */
+function jumpGroup(step: 1 | -1): void {
+  const rows = cardRows.value;
+  const headers = rows.flatMap((row, i) => row.kind === 'header' ? [i] : []);
+  if (headers.length === 0) {
+    return;
+  }
+  const currentGroup = headers.filter((i) => i <= cardCursor.value).length - 1;
+  const next = Math.min(headers.length - 1, Math.max(0, currentGroup + step));
+  cardCursor.value = stepSelectable(headers[next], 1, cardSelectable.value);
+  keepCursorVisible();
+}
+function keepCursorVisible(): void {
+  void nextTick(() => {
+    const scrollNow = scroll.value ?? undefined;
+    scrollNow?.ensureVisible?.(root.value?.querySelector('.cm-drow--cursor') ?? null);
+  });
+}
+// ── Picks ────────────────────────────────────────────────────────────
+function toggleAt(i: number): void {
+  const row = cardRows.value[i];
+  if (row === undefined || row.kind !== 'card') {
+    return;
+  }
+  cardCursor.value = i;
+  // A gated card is refused — unless it is already chosen (taking it back is always allowed).
+  if (!row.entry.chosen && gateOf(row.entry.name) !== undefined) {
+    return;
+  }
+  toggleGuaranteedCard(picks.value, row.entry.name);
+}
+function removeAt(i: number): void {
+  const entry = picked.value[i];
+  if (entry === undefined) {
+    return;
+  }
+  removeGuaranteedCard(picks.value, entry.name);
+  pickedCursor.value = Math.min(pickedCursor.value, picked.value.length);
+}
+// ── Fullscreen inspect — the ONE console zoom pipeline ───────────────
+/**
+ * X opens the SHARED fullscreen viewer via `consoleCardZoom`; the
+ * App-level ConsoleMenuZoomHost serves presentation + input. The rows
+ * here are plain LIST rows (no card face on screen), so the origin is
+ * TEXTUAL — the inspector rise, never a fake lift out of a text row.
+ * A in fullscreen toggles the pick through the select bridge.
+ */
+function openZoom(names: ReadonlyArray<CardName>, at: number): void {
+  const list = names.map((name) => ({name} as CardModel));
+  if (list[at] === undefined) {
+    return;
+  }
+  zoomOpenedHere.value = true;
+  openConsoleCardZoom(list, at, {
+    isSelected: (name) => chosenNames.value.has(name),
+    toggle: (name) => {
+      if (!chosenNames.value.has(name) && gateOf(name) !== undefined) {
+        return;
+      }
+      toggleGuaranteedCard(picks.value, name);
+      if (view.value === 'picked') {
+        pickedCursor.value = Math.min(pickedCursor.value, picked.value.length);
+      }
+    },
+  }, undefined, {
+    contextLabel: 'Guaranteed cards',
+    origin: {kind: 'textual'},
+  });
+}
+
+onBeforeUnmount(() => {
+  // Leaving with the viewer still up: close the module viewer we opened —
+  // the mounted zoom host observes the clear and unwinds its own state.
+  if (zoomOpenedHere.value && consoleCardZoom.card !== undefined) {
+    closeConsoleCardZoom();
+  }
+  zoomOpenedHere.value = false;
+});
+defineExpose({handleIntent});
 </script>

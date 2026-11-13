@@ -1,4 +1,4 @@
-import {defineComponent, nextTick} from 'vue';
+import {defineComponent, h, nextTick} from 'vue';
 import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
 import {globalConfig} from '../getLocalVue';
@@ -21,6 +21,11 @@ const B: GamepadIntent = {kind: 'press', button: 'back'};
  * are tested TOGETHER over the shared module state — the exact wiring the
  * app runs (the local-mount pattern this replaced shipped desktop chrome, a
  * second card copy and a dead gamepad B).
+ *
+ * The picker is a `<script setup>` component (step A of docs/claude/vapor/RECIPES.md). The creator stands it under
+ * `ref="devCards"` and hands it the pad THROUGH THAT REF — so its contract with its parent (`handleIntent` and nothing
+ * else) is read off a host's ref; `openZoom` is reached through `wrapper.vm`, which sees the setup state in a test
+ * build and is no part of that contract.
  */
 
 const CardZoomModalStub = defineComponent({
@@ -62,9 +67,15 @@ const ConsoleCardRulesPanelStub = defineComponent({
   template: '<aside class="console-rules-stub" />',
 });
 
+/** Every row the picker asked its scroll area to keep in view — through its `scroll` ref. */
+const kept: Array<Element | null> = [];
 const ConsoleScrollAreaStub = defineComponent({
   name: 'ConsoleScrollArea',
-  methods: {ensureVisible(): void {}},
+  methods: {
+    ensureVisible(el: Element | null): void {
+      kept.push(el);
+    },
+  },
   template: '<div><slot /></div>',
 });
 
@@ -192,5 +203,65 @@ describe('ConsoleDevCardPicker fullscreen (module pipeline + pre-game host)', ()
     picker.unmount();
     await nextTick();
     expect(consoleCardZoom.card, 'module viewer closed with its opener').to.eq(undefined);
+  });
+
+  it('a PARENT\'s ref sees `handleIntent` and nothing else; through it the pad walks the levels, the cursored row is kept in view, and B on the top level asks to close', async () => {
+    const closed = {count: 0};
+    // Mounted the way the creator mounts it: under a host with a string ref, the pad handed over through that ref.
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleDevCardPicker, {
+        ref: 'devCards',
+        onClose: () => {
+          closed.count++;
+        },
+      })]),
+    });
+    const host = mount(Host, {global: {...globalConfig.global, stubs: SHARED_STUBS}});
+    /** Exactly the creator's read: `devCards.value ?? undefined`, typed by the one member it calls. */
+    const picker = (host.vm.$refs.devCards ?? undefined) as {handleIntent(intent: GamepadIntent): boolean} | undefined;
+    if (picker === undefined) {
+      throw new Error('the host holds no ref to the picker');
+    }
+    expect(Object.keys(picker), 'exactly what the picker exposes').to.deep.eq(['handleIntent']);
+    const leaked = ['view', 'pickedCursor', 'moduleCursor', 'cardCursor', 'module', 'openZoom', 'openModules', 'toggleAt', 'removeAt', 'root', 'scroll']
+      .filter((key) => (picker as unknown as Record<string, unknown>)[key] !== undefined);
+    expect(leaked).to.deep.eq([]);
+
+    // PICKED: nothing rigged — the one row is «＋ Add card», and it wears the cursor.
+    expect(host.findAll('.cm-drow').map((row) => row.classes().includes('cm-drow--cursor'))).to.deep.eq([true]);
+    expect(host.find('.cm-devcards__empty').exists()).to.eq(true);
+    expect(host.find('.cm-devcards__crumb').exists(), 'the top level has no crumb').to.eq(false);
+
+    // A → MODULES; ▼ moves the cursor, and the row that wears it — found inside the picker's own root — is kept in view.
+    expect(picker.handleIntent(A)).to.eq(true);
+    await nextTick();
+    await nextTick();
+    const modules = () => host.findAll('.cm-drow--module');
+    expect(modules().length).to.be.greaterThan(1);
+    expect(host.find('.cm-devcards__crumb').exists()).to.eq(true);
+    kept.length = 0;
+    expect(picker.handleIntent({kind: 'nav', dir: 'down', repeat: false})).to.eq(true);
+    await nextTick();
+    await nextTick();
+    expect(modules().map((row) => row.classes().includes('cm-drow--cursor')).indexOf(true)).to.eq(1);
+    expect(kept).to.have.length(1);
+    expect(kept[0], 'the cursored module row').to.eq(modules()[1].element);
+
+    // A → that module's CARDS: the cursor lands on a card, never on a group heading.
+    picker.handleIntent(A);
+    await nextTick();
+    expect(host.find('.cm-devcards__group').exists()).to.eq(true);
+    expect(host.findAll('.cm-drow--cursor')).to.have.length(1);
+
+    // B is one level per press — and only the top level's B asks the creator to close.
+    picker.handleIntent(B);
+    await nextTick();
+    expect(modules().length).to.be.greaterThan(1);
+    picker.handleIntent(B);
+    await nextTick();
+    expect(host.find('.cm-drow--add').exists()).to.eq(true);
+    expect(closed.count, 'the inner levels never close the picker').to.eq(0);
+    expect(picker.handleIntent(B)).to.eq(true);
+    expect(closed.count).to.eq(1);
   });
 });
