@@ -195,7 +195,7 @@
         <div class="fsr__tiebreak-row">
           <div v-for="c in reveal.tieBreak.contenders" :key="c"
                class="fsr__tiebreak-cell"
-               :class="{'fsr__tiebreak-cell--win': reveal.tieBreak.winner === c}">
+               :class="{'fsr__tiebreak-cell--win': reveal.tieBreak?.winner === c}">
             <span class="fsr__lane-dot" :class="'player_bg_color_' + c" aria-hidden="true"></span>
             <span class="fsr__tiebreak-name">{{ nameOf(c) }}</span>
             <span class="fsr__tiebreak-mc">{{ reveal.tieBreak.values[c] }} <span class="fsr__tiebreak-mc-unit">M€</span></span>

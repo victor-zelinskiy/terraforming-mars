@@ -34,8 +34,8 @@
                 class="con-hydro__choice-card"
                 :class="{
                   'con-hydro__choice-card--focused': stage === 'options' && focus === i,
-                  'con-hydro__choice-card--selected': active.chosen === i,
-                  'con-hydro__choice-card--muted': stage === 'confirm' && active.chosen !== i,
+                  'con-hydro__choice-card--selected': active?.chosen === i,
+                  'con-hydro__choice-card--muted': stage === 'confirm' && active?.chosen !== i,
                 }"
                 @click="$emit('pick', i)">
           <template v-if="opt.line !== undefined">
@@ -60,7 +60,7 @@
                M€ production for the heat step, nothing for the energy step — read before the pick. -->
           <ConsoleForecastReactions v-if="opt.reaction !== undefined && (opt.reaction.chips.length > 0 || opt.reaction.more > 0)"
                                     :reaction="opt.reaction" class="con-hydro__choice-fx" data-hydro-choice-fx />
-          <span class="con-hydro__choice-mark" :class="{'con-hydro__choice-mark--on': active.chosen === i}" aria-hidden="true"></span>
+          <span class="con-hydro__choice-mark" :class="{'con-hydro__choice-mark--on': active?.chosen === i}" aria-hidden="true"></span>
         </button>
       </template>
     </div>

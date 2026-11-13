@@ -66,7 +66,7 @@
         <span class="eg-score__legend-dot" :class="'vp-accent--' + tip.accent" aria-hidden="true"></span>
         <span v-i18n>{{ tip.label }}</span>
       </div>
-      <div v-for="row in tipRows" :key="row.color" class="eg-score__tip-row" :class="{'eg-score__tip-row--hot': row.color === tip.color}">
+      <div v-for="row in tipRows" :key="row.color" class="eg-score__tip-row" :class="{'eg-score__tip-row--hot': row.color === tip?.color}">
         <span class="eg-score__tip-dot" :style="{background: hex(row.color)}"></span>
         <span class="eg-score__tip-name">{{ row.name }}</span>
         <span class="eg-score__tip-val">{{ formatVp(row.value) }}</span>

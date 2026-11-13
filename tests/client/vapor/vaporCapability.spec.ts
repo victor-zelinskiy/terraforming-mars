@@ -43,6 +43,7 @@ import VaporRefsProbe from './fixtures/VaporRefsProbe.vue';
 import VaporContextProbe from './fixtures/VaporContextProbe.vue';
 import VaporKeyProbe from './fixtures/VaporKeyProbe.vue';
 import VaporTeleportLate from './fixtures/VaporTeleportLate.vue';
+import VaporSelectorProbe from './fixtures/VaporSelectorProbe.vue';
 import {embedZoneMounted, resetEmbedZones} from '@/client/console/embedZoneRegistry';
 import {lendFrames} from './lendFrames';
 
@@ -601,6 +602,40 @@ describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, throu
     ]);
     expect(errors, 'no patch of a teleport with an absent target throws').to.deep.equal([]);
     expect(warned.some((line) => line.includes('Failed to locate Teleport target')), 'the runtime SAYS the target is missing (a development build)').to.equal(true);
+  });
+
+  /*
+   * THE SELECTOR (RECIPES.md § R27 · scripts/vapor/selector-audit.mjs). A row binding compared with an OUTER value —
+   * `:class="{hot: row === tip.color}"` — is lifted by the Vapor compiler into `createSelector(() => tip.color)`, whose
+   * source is watched SYNCHRONOUSLY: it runs inside the assignment that changes it, before the `v-if` around the list
+   * has had its turn. So closing the guard (`tip = null`) THROWS out of that very assignment — the virtual DOM, which
+   * re-renders top-down, never did. The null-safe spelling (`tip?.color`) is what a template writes; the audit holds
+   * the client's selectors at zero that can throw. The day the FIRST half of this row is red, the runtime guards it.
+   */
+  it('a `v-for` row compared with a GUARDED outer value: closing the guard throws out of the assignment — unless the comparison is null-safe', async () => {
+    const reach = (wrapper: {vm: unknown}): {close(): void, open(color: string): void} => (wrapper.vm as {$refs: {probe: {close(): void, open(color: string): void}}}).$refs.probe;
+    const stand = (safe: boolean) => {
+      const Host = defineComponent({render: () => h('div', [h(VaporSelectorProbe as never, {ref: 'probe', safe})])});
+      return mount(Host, {global: {stubs: {'transition': false, 'transition-group': false}}});
+    };
+    const hot = (wrapper: {element: Element}): Array<string> =>
+      Array.from(wrapper.element.querySelectorAll('.vp-sel__row--hot')).map((row) => row.textContent ?? '');
+
+    const raw = stand(false);
+    expect(hot(raw)).to.deep.equal(['a']);
+    expect(() => reach(raw).close(), 'the selector\'s source runs inside the assignment (vue 3.6.0-rc.15)').to.throw(TypeError);
+
+    const safe = stand(true);
+    expect(hot(safe)).to.deep.equal(['a']);
+    reach(safe).open('b');
+    await nextTick();
+    expect(hot(safe), 'the selector re-points two rows').to.deep.equal(['b']);
+    expect(() => reach(safe).close()).to.not.throw();
+    await nextTick();
+    expect(safe.element.querySelector('.vp-sel__tip'), 'the guard closed').to.equal(null);
+    reach(safe).open('a');
+    await nextTick();
+    expect(hot(safe)).to.deep.equal(['a']);
   });
 
   /*

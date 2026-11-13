@@ -506,6 +506,16 @@ render; under a virtual-DOM parent the interop fails that parent's patch with a 
 from its mount and renders nothing. **The branches of ONE `v-if` chain carry different key EXPRESSIONS** (the Vapor
 compiler refuses two branches with the same one): lead the key with the branch's name. ✔ both runtimes.
 
+### R27 — a `v-for` row compared with an OUTER value (the selector)
+`:class="{hot: row.id === tip.id}"` inside a `v-for` is not one effect per row under Vapor: the compiler lifts the
+outer side into a SELECTOR (`createSelector(() => tip.id)`) whose source is watched SYNCHRONOUSLY — it runs inside the
+assignment that changes `tip`, before a `v-if` around the list has had its turn. A source that dereferences what that
+`v-if` guards throws out of the line that closes the guard (`tip.value = null` → `Cannot read properties of null`),
+in the middle of whatever was assigning. The template writes the outer side NULL-SAFE — `row.id === tip?.id` — or
+names it in the script (`const tipId = computed(() => tip.value?.id)`). Nothing changes on the virtual DOM.
+`node scripts/vapor/selector-audit.mjs` lists every selector of the client and fails on one that can throw (guard
+`tests/console/vaporSelectorAudit.spec.ts`); the fact is a row of the capability table. ✔ both runtimes.
+
 ### R13 — slots and attrs (`$slots`, `$attrs`, `inheritAttrs`)
 `$slots.x` / `$attrs` in the TEMPLATE stay as they are (✔ both runtimes). In the script: `const slots = useSlots()`,
 `const attrs = useAttrs()`. `inheritAttrs: false` → `defineOptions({inheritAttrs: false})` and the template's own
