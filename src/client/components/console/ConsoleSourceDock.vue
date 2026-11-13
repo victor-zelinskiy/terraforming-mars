@@ -1,25 +1,4 @@
 <template>
-  <!--
-    THE SOURCE DOCK — the console's ONE answer to «почему этот промт пришёл?».
-
-    Every decision surface that can name an origin renders THIS, so the answer
-    always looks the same and always sits in the same place:
-
-      ИСТОЧНИК
-      [ the real premium card face ]        ← the source IS a card
-        …or…
-      [ ◈ КОЛОНИЯ · Ганимед ]              ← the source is not a card
-
-    Two sizes, one grammar. `full` is for a surface whose SUBJECT is the card
-    (a contextual choice — the decision is about that card). `compact` is for a
-    surface whose subject is something else — a resource dial, a production
-    row, a list — which the card merely PRODUCED; there the card must be
-    recognisable and never out-weigh the thing being answered.
-
-    It draws NO inspect affordance of its own: the verb lives in the ONE bottom
-    command bar (X on a choice, L3 everywhere else), and a second badge under
-    the art said the same thing in a different word.
-  -->
   <div class="con-src" :class="{
          'con-src--compact': compact,
          'con-src--chip': chip,
@@ -85,21 +64,44 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE SOURCE DOCK — the console's ONE answer to «почему этот промт пришёл?».
+ *
+ * Every decision surface that can name an origin renders THIS, so the answer
+ * always looks the same and always sits in the same place:
+ *
+ *   ИСТОЧНИК
+ *   [ the real premium card face ]        ← the source IS a card
+ *     …or…
+ *   [ ◈ КОЛОНИЯ · Ганимед ]              ← the source is not a card
+ *
+ * Two sizes, one grammar. `full` is for a surface whose SUBJECT is the card
+ * (a contextual choice — the decision is about that card). `compact` is for a
+ * surface whose subject is something else — a resource dial, a production
+ * row, a list — which the card merely PRODUCED; there the card must be
+ * recognisable and never out-weigh the thing being answered.
+ *
+ * It draws NO inspect affordance of its own: the verb lives in the ONE bottom
+ * command bar (X on a choice, L3 everywhere else), and a second badge under
+ * the art said the same thing in a different word.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * Presentation only. WHICH source a prompt has and how to describe it is
  * decided by the pure model (`promptSource.ts`), so this file contains no
  * marker knowledge and no text heuristics — and a new server marker is wired
  * in exactly one place.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import {BonusCardId} from '@/common/automa/AutomaTypes';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText} from '@/client/directives/i18n';
 import {PromptSourceView} from '@/client/console/promptSource';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
@@ -108,74 +110,70 @@ import {cardNumberDisplayState} from '@/client/components/premiumCard/cardNumber
 import {BoardName} from '@/common/boards/BoardName';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 
-export default defineComponent({
-  name: 'ConsoleSourceDock',
-  components: {Card, BonusCardFace, PremiumCard},
-  props: {
-    view: {type: Object as PropType<PromptSourceView>, required: true},
-    /** The card is CONTEXT, not the subject (a dial / a list / a distribution). */
-    compact: {type: Boolean, default: false},
-    /**
-     * ONE LINE instead of a dock — for a host with no room for a card face
-     * (the board's placement-context panel, which is ~17rem wide and already
-     * carries a variable-height consequences preview). The card is named, not
-     * drawn; the command bar still opens the real face fullscreen.
-     */
-    chip: {type: Boolean, default: false},
-    /**
-     * The surface-motion anchor id (`card:<name>`) this dock's card face
-     * ANSWERS TO — set by a host whose card TRAVELS into it from another
-     * surface (the Hydronetwork's card-action door). Opt-in: a dock nobody
-     * carries into stays unmarked, so no unrelated phase FLIP can claim it.
-     */
-    motionAnchor: {type: String, default: undefined},
-    /**
-     * The board in play — lets a CELL source be named by its proper name («Место посадки «Викинга-1»») where the
-     * map prints one (`specialCellInfo`). Without it a cell reads by its kind and its printed icons alone.
-     */
-    boardName: {type: String as PropType<BoardName>, default: undefined},
-  },
-  computed: {
-    /** The printed catalog number is an opt-in (`cardNumberDisplay.ts`) — the face's stamp and this plate follow one flag. */
-    showCardNumber(): boolean {
-      return cardNumberDisplayState.enabled;
-    },
-    /** The plate is the CHIP's only body, and a non-card source's always. */
-    plateOnly(): boolean {
-      return this.cardName === undefined && this.bonusCard === undefined && (this.chip || this.resolutionVm === undefined);
-    },
-    /** The resolution face to draw (Turmoil Redux) — built from the parliament manifest, never a card. */
-    resolutionVm(): PremiumCardVM | undefined {
-      return this.view.resolution === undefined ? undefined : resolutionPremiumVmById(this.view.resolution);
-    },
-    /** The card face to draw — none in chip mode (it names, never draws). */
-    cardName(): CardName | undefined {
-      return this.chip ? undefined : this.view.card;
-    },
-    /** The MarsBot bonus card face to draw — same rule as `cardName`. */
-    bonusCard(): {id: BonusCardId, ctx: BonusCardContext} | undefined {
-      return this.chip ? undefined : this.view.bonusCard;
-    },
-    /** A cell's proper name, when the map prints one (Viking 1, MSL Curiosity) — an English key. */
-    cellName(): string | undefined {
-      const cell = this.view.cell;
-      return cell === undefined || this.boardName === undefined ? undefined : getSpecialCellInfo(cell.space, this.boardName)?.title;
-    },
-    /** The cell's printed icons (`resource_icon--*`), when the source is a cell. */
-    cellIcons(): ReadonlyArray<string> {
-      return this.view.cell?.icons ?? [];
-    },
-    nameText(): string {
-      // The chip is ONE line, so its value must always say something: the card
-      // when there is one, else the source's own name, else its kind. A chip
-      // reading a bare «ИСТОЧНИК» with nothing after it is worse than none.
-      const name: string | Message | undefined =
-        this.chip && this.view.card !== undefined ? this.view.card : (this.cellName ?? this.view.name);
-      if (name === undefined) {
-        return this.chip ? translateText(this.view.kindKey) : '';
-      }
-      return typeof name === 'string' ? translateText(name) : translateMessage(name);
-    },
-  },
+defineOptions({name: 'ConsoleSourceDock'});
+const props = defineProps({
+  view: {type: Object as PropType<PromptSourceView>, required: true},
+  /** The card is CONTEXT, not the subject (a dial / a list / a distribution). */
+  compact: {type: Boolean, default: false},
+  /**
+   * ONE LINE instead of a dock — for a host with no room for a card face
+   * (the board's placement-context panel, which is ~17rem wide and already
+   * carries a variable-height consequences preview). The card is named, not
+   * drawn; the command bar still opens the real face fullscreen.
+   */
+  chip: {type: Boolean, default: false},
+  /**
+   * The surface-motion anchor id (`card:<name>`) this dock's card face
+   * ANSWERS TO — set by a host whose card TRAVELS into it from another
+   * surface (the Hydronetwork's card-action door). Opt-in: a dock nobody
+   * carries into stays unmarked, so no unrelated phase FLIP can claim it.
+   */
+  motionAnchor: {type: String, default: undefined},
+  /**
+   * The board in play — lets a CELL source be named by its proper name («Место посадки «Викинга-1»») where the
+   * map prints one (`specialCellInfo`). Without it a cell reads by its kind and its printed icons alone.
+   */
+  boardName: {type: String as PropType<BoardName>, default: undefined},
+});
+
+/** The printed catalog number is an opt-in (`cardNumberDisplay.ts`) — the face's stamp and this plate follow one flag. */
+const showCardNumber = computed((): boolean => {
+  return cardNumberDisplayState.enabled;
+});
+/** The plate is the CHIP's only body, and a non-card source's always. */
+const plateOnly = computed((): boolean => {
+  return cardName.value === undefined && bonusCard.value === undefined && (props.chip || resolutionVm.value === undefined);
+});
+/** The resolution face to draw (Turmoil Redux) — built from the parliament manifest, never a card. */
+const resolutionVm = computed((): PremiumCardVM | undefined => {
+  return props.view.resolution === undefined ? undefined : resolutionPremiumVmById(props.view.resolution);
+});
+/** The card face to draw — none in chip mode (it names, never draws). */
+const cardName = computed((): CardName | undefined => {
+  return props.chip ? undefined : props.view.card;
+});
+/** The MarsBot bonus card face to draw — same rule as `cardName`. */
+const bonusCard = computed((): {id: BonusCardId, ctx: BonusCardContext} | undefined => {
+  return props.chip ? undefined : props.view.bonusCard;
+});
+/** A cell's proper name, when the map prints one (Viking 1, MSL Curiosity) — an English key. */
+const cellName = computed((): string | undefined => {
+  const cell = props.view.cell;
+  return cell === undefined || props.boardName === undefined ? undefined : getSpecialCellInfo(cell.space, props.boardName)?.title;
+});
+/** The cell's printed icons (`resource_icon--*`), when the source is a cell. */
+const cellIcons = computed((): ReadonlyArray<string> => {
+  return props.view.cell?.icons ?? [];
+});
+const nameText = computed((): string => {
+  // The chip is ONE line, so its value must always say something: the card
+  // when there is one, else the source's own name, else its kind. A chip
+  // reading a bare «ИСТОЧНИК» with nothing after it is worse than none.
+  const name: string | Message | undefined =
+    props.chip && props.view.card !== undefined ? props.view.card : (cellName.value ?? props.view.name);
+  if (name === undefined) {
+    return props.chip ? translateText(props.view.kindKey) : '';
+  }
+  return typeof name === 'string' ? translateText(name) : translateMessage(name);
 });
 </script>
