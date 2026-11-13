@@ -1,19 +1,4 @@
 <template>
-  <!--
-    Victory-points emblem for the console score header — an award TOKEN
-    (pentagon shield: warm gold rim over a deep graphite core, the localized
-    «VP»/«ПО» set in the centre). Pure inline SVG — no bitmap, no emoji —
-    so it scales losslessly across every TV profile. Deliberately NOT a star
-    (collides with the board VP glyphs), NOT a crown (award leadership), NOT
-    a globe (too close to the TR tile's silhouette).
-
-    The label arrives PRE-LOCALIZED as a prop (the host passes $t('VP')), so
-    this one component serves every locale; text-anchor="middle" keeps the
-    optical centre identical for «VP» and «ПО» — no jump on language switch.
-    The font stack mirrors the console's own (@con-font) — inline SVG inherits
-    the document webfonts, so it renders the same in Electron on Windows and
-    on SteamOS.
-  -->
   <svg class="con-vp-badge" viewBox="0 0 40 44" aria-hidden="true" focusable="false">
     <defs>
       <linearGradient :id="uid + '-rim'" x1="0" y1="0" x2="0" y2="1">
@@ -38,22 +23,34 @@
   </svg>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * Victory-points emblem for the console score header — an award TOKEN
+ * (pentagon shield: warm gold rim over a deep graphite core, the localized
+ * «VP»/«ПО» set in the centre). Pure inline SVG — no bitmap, no emoji —
+ * so it scales losslessly across every TV profile. Deliberately NOT a star
+ * (collides with the board VP glyphs), NOT a crown (award leadership), NOT
+ * a globe (too close to the TR tile's silhouette).
+ *
+ * The label arrives PRE-LOCALIZED as a prop (the host passes $t('VP')), so
+ * this one component serves every locale; text-anchor="middle" keeps the
+ * optical centre identical for «VP» and «ПО» — no jump on language switch.
+ * The font stack mirrors the console's own (@con-font) — inline SVG inherits
+ * the document webfonts, so it renders the same in Electron on Windows and
+ * on SteamOS.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {ref} from 'vue';
+import {nextVpBadgeUid} from '@/client/components/console/consoleVpBadgeState';
 
-// Per-instance gradient ids: same-id <defs> collide across multiple mounted
-// copies (all resolve to the FIRST one in the document, which breaks if that
-// copy unmounts) — a module counter keeps every badge self-contained.
-let uidCounter = 0;
-
-export default defineComponent({
-  name: 'ConsoleVpBadge',
-  props: {
-    /** The localized emblem text — the host passes $t('VP') («ПО» in ru). */
-    label: {type: String, required: true},
-  },
-  data() {
-    return {uid: `con-vpb-${++uidCounter}`};
-  },
+defineOptions({name: 'ConsoleVpBadge'});
+defineProps({
+  /** The localized emblem text — the host passes $t('VP') («ПО» in ru). */
+  label: {type: String, required: true},
 });
+
+// Per-instance gradient ids — the number comes from the MODULE's counter (`consoleVpBadgeState.ts`: a counter
+// declared here would be one per badge, and every badge would then be number 1).
+const uid = ref(`con-vpb-${nextVpBadgeUid()}`);
 </script>
