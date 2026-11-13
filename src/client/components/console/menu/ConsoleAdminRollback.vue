@@ -1,5 +1,5 @@
 <template>
-  <div class="cm-overlay" role="dialog" :aria-label="$t('Game rollback')">
+  <div ref="root" class="cm-overlay" role="dialog" :aria-label="$t('Game rollback')">
     <div class="cm-overlay__card cm-overlay__card--wide">
       <div class="cm-overlay__title">{{ $t('Game rollback') }}</div>
       <div class="cm-admin__scope">{{ $t('Local games only — games hosted on this device.') }}</div>
@@ -115,7 +115,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * CONSOLE-NATIVE GAME-ROLLBACK — a main-menu plate for LOCAL games. Visible to
  * every player when the menu talks to this machine's own server (plus the
@@ -139,7 +139,7 @@
  * `.con-sys` one because it also has an IN-GAME host; a dev tool has only this
  * one, so it stays with its neighbours.)
  */
-import {defineComponent} from 'vue';
+import {computed, nextTick, onMounted, ref, useTemplateRef} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {stepIndex} from '@/client/console/consoleRouter';
@@ -169,221 +169,222 @@ const PHASE_LABELS: Partial<Record<Phase, string>> = {
   [Phase.END]: 'Game over',
 };
 
-export default defineComponent({
-  name: 'ConsoleAdminRollback',
-  components: {GamepadGlyph, ConsoleScrollArea},
-  props: {
-    /** The player's display name — carried on every request (the server admits
-     *  a loopback connection regardless of it, or the ADMIN_NAME identity). */
-    name: {type: String, required: true},
-  },
-  emits: ['close'],
-  data() {
-    return {
-      state: adminRollbackState,
-      view: 'list' as 'list' | 'detail',
-      listCursor: 0,
-      focusRow: 'gen' as 'gen' | 'save',
-      targetIndex: 0,
-      confirming: false,
-      done: false,
-      // A rollback happened → refresh the list when returning to it.
-      dirty: false,
-    };
-  },
-  computed: {
-    games(): ReadonlyArray<AdminRollbackGameSummary> {
-      return this.state.games;
-    },
-    history(): AdminRollbackHistory | undefined {
-      return this.state.history;
-    },
-    saves(): ReadonlyArray<AdminRollbackSave> {
-      return this.history?.saves ?? [];
-    },
-    /** One chip per generation present, with the index of its FIRST save. */
-    genChips(): ReadonlyArray<{generation: number, firstIndex: number}> {
-      const chips: Array<{generation: number, firstIndex: number}> = [];
-      this.saves.forEach((s, i) => {
-        if (chips.length === 0 || chips[chips.length - 1].generation !== s.generation) {
-          chips.push({generation: s.generation, firstIndex: i});
-        }
-      });
-      return chips;
-    },
-    targetSave(): AdminRollbackSave {
-      return this.saves[this.targetIndex] ?? {saveId: 0, generation: 0, phase: Phase.ACTION};
-    },
-    /** Saves deleted if we roll back to the current target. */
-    deletes(): number {
-      return this.saves.filter((s) => s.saveId > this.targetSave.saveId).length;
-    },
-    /** True when the target is already the latest save (nothing to roll back). */
-    isNoop(): boolean {
-      return this.saves.length === 0 || this.targetIndex >= this.saves.length - 1;
-    },
-    trackPct(): number {
-      const last = this.saves.length - 1;
-      return last <= 0 ? 100 : Math.round((this.targetIndex / last) * 100);
-    },
-    // Parameterized strings — the template `$t` takes no params, so build them here.
-    deletesText(): string {
-      return translateTextWithParams('deletes ${0} save(s)', [String(this.deletes)]);
-    },
-    confirmQuestion(): string {
-      return translateTextWithParams('Delete ${0} save(s) and roll back? This cannot be undone.', [String(this.deletes)]);
-    },
-  },
-  mounted() {
-    // Always refresh on open so the list reflects the real current generation.
-    void loadAdminGames(this.name);
-  },
-  methods: {
-    /** Host-routed pad intents. Returns true when consumed. */
-    handleIntent(intent: GamepadIntent): boolean {
-      const action = consoleActionOf(intent);
-      if (this.view === 'list') {
-        return this.handleListIntent(intent, action);
-      }
-      return this.handleDetailIntent(intent, action);
-    },
-    handleListIntent(intent: GamepadIntent, action: string | undefined): boolean {
-      if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-        this.listCursor = stepIndex(this.listCursor, intent.dir === 'down' ? 1 : -1, this.games.length);
-        this.keepListCursorVisible();
-        return true;
-      }
-      if (action === 'primary') {
-        this.openGameAt(this.listCursor);
-        return true;
-      }
-      if (action === 'back') {
-        this.$emit('close');
-        return true;
-      }
-      return true;
-    },
-    handleDetailIntent(intent: GamepadIntent, action: string | undefined): boolean {
-      // A success banner is up — any confirm/back returns to the list.
-      if (this.done) {
-        if (action === 'primary' || action === 'back') {
-          this.backToList();
-        }
-        return true;
-      }
-      if (this.confirming) {
-        if (action === 'primary') {
-          void this.doRollback();
-        } else if (action === 'back') {
-          this.confirming = false;
-        }
-        return true;
-      }
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          this.focusRow = this.focusRow === 'gen' ? 'save' : 'gen';
-          return true;
-        }
-        if (intent.dir === 'left' || intent.dir === 'right') {
-          const delta = intent.dir === 'right' ? 1 : -1;
-          if (this.focusRow === 'gen') {
-            this.moveGen(delta);
-          } else {
-            this.stepSave(delta);
-          }
-          return true;
-        }
-      }
-      if (action === 'primary') {
-        if (!this.isNoop) {
-          this.confirming = true;
-        }
-        return true;
-      }
-      if (action === 'back') {
-        this.backToList();
-        return true;
-      }
-      return true;
-    },
-    keepListCursorVisible(): void {
-      void this.$nextTick(() => {
-        const scroll = (this.$refs.gamesScroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
-        scroll?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
-      });
-    },
-    openGameAt(i: number): void {
-      this.listCursor = i;
-      const g = this.games[i];
-      if (g === undefined) {
-        return;
-      }
-      this.view = 'detail';
-      this.focusRow = 'gen';
-      this.targetIndex = 0;
-      this.confirming = false;
-      this.done = false;
-      void loadAdminHistory(this.name, g.id).then(() => {
-        // Start the cursor at the latest save (no-op position) so the player
-        // moves DELIBERATELY back to a rollback point.
-        this.targetIndex = Math.max(0, this.saves.length - 1);
-      });
-    },
-    backToList(): void {
-      this.confirming = false;
-      this.done = false;
-      clearAdminHistory();
-      this.view = 'list';
-      if (this.dirty) {
-        this.dirty = false;
-        void loadAdminGames(this.name);
-      }
-    },
-    /** Index of the generation chip whose generation contains the target. */
-    currentGenChipIndex(): number {
-      const idx = this.genChips.findIndex((c) => c.generation === this.targetSave.generation);
-      return idx < 0 ? 0 : idx;
-    },
-    moveGen(delta: number): void {
-      if (this.genChips.length === 0) {
-        return;
-      }
-      const next = Math.min(this.genChips.length - 1, Math.max(0, this.currentGenChipIndex() + delta));
-      this.targetIndex = this.genChips[next].firstIndex;
-    },
-    pickGen(i: number): void {
-      this.focusRow = 'gen';
-      const chip = this.genChips[i];
-      if (chip !== undefined) {
-        this.targetIndex = chip.firstIndex;
-      }
-    },
-    stepSave(delta: number): void {
-      this.focusRow = 'save';
-      this.targetIndex = Math.min(this.saves.length - 1, Math.max(0, this.targetIndex + delta));
-    },
-    async doRollback(): Promise<void> {
-      const game = this.history;
-      if (game === undefined) {
-        return;
-      }
-      const targetSaveId = this.targetSave.saveId;
-      const result = await performAdminRollback(this.name, game.id, targetSaveId);
-      if (result === undefined) {
-        // submitError is shown; leave the confirm bar so the player can retry.
-        return;
-      }
-      this.confirming = false;
-      this.dirty = true;
-      // Reload the (now truncated) history so the slider reflects reality, then
-      // pin the cursor to the new latest save and flash the success banner.
-      await loadAdminHistory(this.name, game.id);
-      this.targetIndex = Math.max(0, this.saves.length - 1);
-      this.done = true;
-    },
-    phaseLabel(phase: Phase): string {
-      return $t(PHASE_LABELS[phase] ?? String(phase));
-    },
-  },
+defineOptions({name: 'ConsoleAdminRollback'});
+const props = defineProps({
+  /** The player's display name — carried on every request (the server admits
+   *  a loopback connection regardless of it, or the ADMIN_NAME identity). */
+  name: {type: String, required: true},
 });
+const emit = defineEmits(['close']);
+
+const root = useTemplateRef<HTMLElement>('root');
+const gamesScroll = useTemplateRef<{ensureVisible?: (el: Element | null) => void}>('gamesScroll');
+const state = adminRollbackState;
+const view = ref<'list' | 'detail'>('list');
+const listCursor = ref(0);
+const focusRow = ref<'gen' | 'save'>('gen');
+const targetIndex = ref(0);
+const confirming = ref(false);
+const done = ref(false);
+// A rollback happened → refresh the list when returning to it.
+const dirty = ref(false);
+const games = computed((): ReadonlyArray<AdminRollbackGameSummary> => {
+  return state.games;
+});
+const history = computed((): AdminRollbackHistory | undefined => {
+  return state.history;
+});
+const saves = computed((): ReadonlyArray<AdminRollbackSave> => {
+  return history.value?.saves ?? [];
+});
+/** One chip per generation present, with the index of its FIRST save. */
+const genChips = computed((): ReadonlyArray<{generation: number, firstIndex: number}> => {
+  const chips: Array<{generation: number, firstIndex: number}> = [];
+  saves.value.forEach((s, i) => {
+    if (chips.length === 0 || chips[chips.length - 1].generation !== s.generation) {
+      chips.push({generation: s.generation, firstIndex: i});
+    }
+  });
+  return chips;
+});
+const targetSave = computed((): AdminRollbackSave => {
+  return saves.value[targetIndex.value] ?? {saveId: 0, generation: 0, phase: Phase.ACTION};
+});
+/** Saves deleted if we roll back to the current target. */
+const deletes = computed((): number => {
+  return saves.value.filter((s) => s.saveId > targetSave.value.saveId).length;
+});
+/** True when the target is already the latest save (nothing to roll back). */
+const isNoop = computed((): boolean => {
+  return saves.value.length === 0 || targetIndex.value >= saves.value.length - 1;
+});
+const trackPct = computed((): number => {
+  const last = saves.value.length - 1;
+  return last <= 0 ? 100 : Math.round((targetIndex.value / last) * 100);
+});
+// Parameterized strings — the template `$t` takes no params, so build them here.
+const deletesText = computed((): string => {
+  return translateTextWithParams('deletes ${0} save(s)', [String(deletes.value)]);
+});
+const confirmQuestion = computed((): string => {
+  return translateTextWithParams('Delete ${0} save(s) and roll back? This cannot be undone.', [String(deletes.value)]);
+});
+/** Host-routed pad intents. Returns true when consumed. */
+function handleIntent(intent: GamepadIntent): boolean {
+  const action = consoleActionOf(intent);
+  if (view.value === 'list') {
+    return handleListIntent(intent, action);
+  }
+  return handleDetailIntent(intent, action);
+}
+function handleListIntent(intent: GamepadIntent, action: string | undefined): boolean {
+  if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+    listCursor.value = stepIndex(listCursor.value, intent.dir === 'down' ? 1 : -1, games.value.length);
+    keepListCursorVisible();
+    return true;
+  }
+  if (action === 'primary') {
+    openGameAt(listCursor.value);
+    return true;
+  }
+  if (action === 'back') {
+    emit('close');
+    return true;
+  }
+  return true;
+}
+function handleDetailIntent(intent: GamepadIntent, action: string | undefined): boolean {
+  // A success banner is up — any confirm/back returns to the list.
+  if (done.value) {
+    if (action === 'primary' || action === 'back') {
+      backToList();
+    }
+    return true;
+  }
+  if (confirming.value) {
+    if (action === 'primary') {
+      void doRollback();
+    } else if (action === 'back') {
+      confirming.value = false;
+    }
+    return true;
+  }
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'up' || intent.dir === 'down') {
+      focusRow.value = focusRow.value === 'gen' ? 'save' : 'gen';
+      return true;
+    }
+    if (intent.dir === 'left' || intent.dir === 'right') {
+      const delta = intent.dir === 'right' ? 1 : -1;
+      if (focusRow.value === 'gen') {
+        moveGen(delta);
+      } else {
+        stepSave(delta);
+      }
+      return true;
+    }
+  }
+  if (action === 'primary') {
+    if (!isNoop.value) {
+      confirming.value = true;
+    }
+    return true;
+  }
+  if (action === 'back') {
+    backToList();
+    return true;
+  }
+  return true;
+}
+function keepListCursorVisible(): void {
+  void nextTick(() => {
+    const scroll = gamesScroll.value;
+    const rootNow = root.value;
+    if (rootNow === null) {
+      return;
+    }
+    scroll?.ensureVisible?.(rootNow.querySelector('.cm-game--cursor'));
+  });
+}
+function openGameAt(i: number): void {
+  listCursor.value = i;
+  const g = games.value[i];
+  if (g === undefined) {
+    return;
+  }
+  view.value = 'detail';
+  focusRow.value = 'gen';
+  targetIndex.value = 0;
+  confirming.value = false;
+  done.value = false;
+  void loadAdminHistory(props.name, g.id).then(() => {
+    // Start the cursor at the latest save (no-op position) so the player
+    // moves DELIBERATELY back to a rollback point.
+    targetIndex.value = Math.max(0, saves.value.length - 1);
+  });
+}
+function backToList(): void {
+  confirming.value = false;
+  done.value = false;
+  clearAdminHistory();
+  view.value = 'list';
+  if (dirty.value) {
+    dirty.value = false;
+    void loadAdminGames(props.name);
+  }
+}
+/** Index of the generation chip whose generation contains the target. */
+function currentGenChipIndex(): number {
+  const idx = genChips.value.findIndex((c) => c.generation === targetSave.value.generation);
+  return idx < 0 ? 0 : idx;
+}
+function moveGen(delta: number): void {
+  if (genChips.value.length === 0) {
+    return;
+  }
+  const next = Math.min(genChips.value.length - 1, Math.max(0, currentGenChipIndex() + delta));
+  targetIndex.value = genChips.value[next].firstIndex;
+}
+function pickGen(i: number): void {
+  focusRow.value = 'gen';
+  const chip = genChips.value[i];
+  if (chip !== undefined) {
+    targetIndex.value = chip.firstIndex;
+  }
+}
+function stepSave(delta: number): void {
+  focusRow.value = 'save';
+  targetIndex.value = Math.min(saves.value.length - 1, Math.max(0, targetIndex.value + delta));
+}
+async function doRollback(): Promise<void> {
+  const game = history.value;
+  if (game === undefined) {
+    return;
+  }
+  const targetSaveId = targetSave.value.saveId;
+  const result = await performAdminRollback(props.name, game.id, targetSaveId);
+  if (result === undefined) {
+    // submitError is shown; leave the confirm bar so the player can retry.
+    return;
+  }
+  confirming.value = false;
+  dirty.value = true;
+  // Reload the (now truncated) history so the slider reflects reality, then
+  // pin the cursor to the new latest save and flash the success banner.
+  await loadAdminHistory(props.name, game.id);
+  targetIndex.value = Math.max(0, saves.value.length - 1);
+  done.value = true;
+}
+function phaseLabel(phase: Phase): string {
+  return $t(PHASE_LABELS[phase] ?? String(phase));
+}
+
+onMounted(() => {
+  // Always refresh on open so the list reflects the real current generation.
+  void loadAdminGames(props.name);
+});
+
+// What `ConsoleMainMenu` reaches through its `ref="admin"`: `handleIntent` — and nothing else (it routes the pad's
+// intents here while the rollback tool is the open overlay).
+defineExpose({handleIntent});
 </script>
