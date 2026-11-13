@@ -1,9 +1,5 @@
 <template>
-  <!-- THE EMBEDDED PLAYED-TARGET STEP — a level of the Card Play Workspace,
-       not a surface over it. No band geometry, no plate, no backdrop, no
-       `con-ws` marker: the workspace it stands in already owns all of those,
-       and the source card stays visible to its left throughout. -->
-  <div class="con-ptsel"
+  <div ref="root" class="con-ptsel"
        :data-mode="layout.mode"
        :data-owners="visibleOwners.length"
        :data-tag-lines="drawnTagLines"
@@ -373,7 +369,16 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE EMBEDDED PLAYED-TARGET STEP — a level of the Card Play Workspace,
+ *       not a surface over it. No band geometry, no plate, no backdrop, no
+ *       `con-ws` marker: the workspace it stands in already owns all of those,
+ *       and the source card stays visible to its left throughout.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * CONSOLE PLAYED-TARGET STEP — the reusable embedded step for «point at a card
  * that is already on the table».
@@ -413,7 +418,7 @@
  * (crossing between owner groups in split view) · LB/RB = owner tabs (tabbed
  * view only) · A = choose · X = inspect · B = back to the play step.
  */
-import {defineComponent, PropType, markRaw} from 'vue';
+import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleCardResourceChip.vue';
@@ -425,7 +430,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import ConsoleAlbumSpine, {AlbumSpinePosition} from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {readingTailText, readingText} from '@/client/console/readingText';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {layoutTopWithin} from '@/client/console/layoutTop';
@@ -446,6 +451,7 @@ import {
 /** The sizing used until the first measurement lands (one frame, at most). */
 /** The premium face's unzoomed width — the section span is counted in these. */
 const SLOT_W_PX = 320;
+
 /** `.con-ptsel { gap: .55rem }` at the 20 px rem base — mirrored here so the
  *  budget subtracts the gaps the column will actually draw. */
 const PTSEL_COLUMN_GAP_PX = 11;
@@ -453,686 +459,691 @@ const PTSEL_COLUMN_GAP_PX = 11;
 const UNMEASURED: PlayedTargetSizing =
   {cardZoom: 0.58, gapPx: 11, headroomPx: 6, sectionFlow: 'rows', sectionColumns: 1, rows: 1, perRow: 3, overflows: false};
 
-export default defineComponent({
-  name: 'ConsolePlayedTargetStep',
-  components: {ConsoleAlbumSpine, ConsoleDeclinePlate, ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea, ConsolePlayedTargetTag, PremiumMechNode},
-  props: {
-    model: {type: Object as PropType<PlayedTargetModel>, required: true},
-    layout: {type: Object as PropType<PlayedTargetLayout>, required: true},
-    focus: {type: Object as PropType<PlayedTargetFocus>, required: true},
-    /**
-     * HOW MANY the step asks for. `single` (A chooses and closes) or the
-     * server's merged up-to-N ask (A toggles, RT confirms) — the shape follows
-     * the prompt, never a per-card rule here.
-     */
-    selection: {type: Object as PropType<PlayedTargetSelection>, default: () => ({mode: 'single'} as PlayedTargetSelection)},
-    /**
-     * THE VERTICAL BUDGET, measured by the host on a STRETCHED box before this
-     * step was visible.
-     *
-     * It is a prop and not a self-measurement on purpose. Everything between
-     * this component and the workspace band is content-sized, so any height
-     * this component could read is a height its own cards produced — a cycle
-     * whose fixpoint depends on the unmeasured first render. It settled LOWER
-     * for one candidate than for two (one stacked block is a shorter column
-     * than two), which is exactly why a lone target came out smaller than each
-     * of a pair. The host owns the band; the step owns what goes in it.
-     */
-    bandHeight: {type: Number, default: 0},
-    /** The already-confirmed target of a SINGLE step (a re-entry from «Изменить
-     *  выбор»); in multi the picks live in `selection.picked`. */
-    lockedCard: {type: String, default: ''},
-    /** An optional choice's refusal (`optionalChoice.ts`) — its plate rides the contract line. */
-    decline: {type: Object as PropType<DeclineModel | undefined>, default: undefined},
-    /**
-     * The HOST's own header already states the ask, so this step must not
-     * restate it (see the contract header in the template). Additive and
-     * default-false: the two composer hosts keep their contract line untouched.
-     */
-    hostStatesAsk: {type: Boolean, default: false},
-  },
-  data() {
-    return {
-      sizing: UNMEASURED as PlayedTargetSizing,
-      /** The measured cells, rebuilt only when the layout genuinely changed. */
-      cellCache: undefined as ReadonlyArray<PlayedTargetCell> | undefined,
-      stopResizeObs: undefined as (() => void) | undefined,
-      /** The step's own vertical CAP, measured against the stretched band. */
-      budgetPx: 0,
-      /** The page each band last stood on — the focused band's page is the CURSOR's (derived, never stored). */
-      ownerPages: {} as Record<string, number>,
-      /** The card budget the solver was last given (px) — read by `geomStamp`. */
-      availHPx: 0,
-    };
-  },
-  computed: {
-    /** SPLIT shows every owner side by side; TABS shows the active one. */
-    visibleOwners(): ReadonlyArray<PlayedTargetOwner> {
-      // `board` (the owner's «одна зона») and `split` stand EVERY group on screen; only `tabs` shows one at a time.
-      return this.layout.mode === 'split' || this.layout.mode === 'board' ?
-        this.model.owners :
-        this.model.owners.filter((o) => o.id === this.activeOwnerId);
-    },
-    activeOwnerId(): string {
-      return this.focus.ownerId;
-    },
-    /** The solver's answer in one attribute — the budget it was given, the card it drew (× ui), the rows, the page. */
-    geomStamp(): string {
-      const ui = conUiScale();
-      return `h${Math.round(this.availHPx)} z${(this.sizing.cardZoom / ui).toFixed(3)} r${this.sizing.rows} p${this.sizing.pageSize ?? 0}`;
-    },
-    /** The size of a band's page (undefined: the whole set is one page). */
-    pageSize(): number | undefined {
-      return this.sizing.pageSize;
-    },
-    /**
-     * LB/RB turn the page only where they walk nothing else — one band, or the split's two columns. Over several bands
-     * (tabs, the table's `board`) the bumpers keep their job (the next owner) and the d-pad across the edge turns pages.
-     */
-    pageTurnOnBumpers(): boolean {
-      return this.model.owners.length === 1 || this.layout.mode === 'split';
-    },
-    /** The band whose page the RAIL reads — the one band on screen when it shows no bar of its own. */
-    railPageOwner(): PlayedTargetOwner | undefined {
-      if (this.showsOwnerBar || this.visibleOwners.length !== 1) {
-        return undefined;
-      }
-      const owner = this.visibleOwners[0];
-      return this.pagesOf(owner) > 1 ? owner : undefined;
-    },
-    /** One key for the pages on screen — a page turn moves every cell, so the cached boxes expire with it. */
-    pageKey(): string {
-      return this.visibleOwners.map((o) => `${o.id}:${this.pageOf(o)}`).join('|') + `/${this.pageSize ?? 0}`;
-    },
-    focused(): PlayedTargetCandidate | undefined {
-      return playedTargetAt(this.focus, this.model.owners);
-    },
-    focusedOwner(): PlayedTargetOwner | undefined {
-      return this.model.owners.find((o) => o.id === this.focus.ownerId);
-    },
-    focusedOwnerName(): string {
-      return this.focusedOwner?.name ?? '';
-    },
-    focusedOwnerColor(): string {
-      return this.focusedOwner?.color ?? 'neutral';
-    },
-    /**
-     * WHOSE cards these are — a real question with two tableaux on screen, and
-     * pure noise with one when the HOST has already said it («выберите одну из
-     * СВОИХ карт»). Scoped to `hostStatesAsk` on purpose: in the composers the
-     * bar earns its line even for a lone owner, because nothing above it says
-     * whose table is being pointed at.
-     */
-    showsOwnerBar(): boolean {
-      return !(this.hostStatesAsk && this.model.owners.length === 1);
-    },
-    /** …and the same rule for the rail's leading card name (see the template). */
-    showsRailCard(): boolean {
-      return !(this.hostStatesAsk && this.model.contract.targetCount === 1);
-    },
-    /** Several owners → the per-owner and per-focus markers earn their place. */
-    showsOwnerTargets(): boolean {
-      return playedTargetShowsOwnerTargetCount(this.model.owners);
-    },
-    /** WHAT lands on the chosen card (TR56, П3) — the contract's «КУДА: [печать]»; undefined = the generic ask. */
-    payload(): PlayedTargetPayload | undefined {
-      return this.model.contract.payload;
-    },
-    /** «3 доступные цели у 2 игроков» — the scope, in one honest line. */
-    /** Some candidate is a player's stand-in, not a card. */
-    hasStands(): boolean {
-      return this.model.owners.some((o) => o.candidates.some((c) => c.stand !== undefined));
-    },
-    scopeLine(): string {
-      const {targetCount, ownerCount} = this.model.contract;
-      // A pick that takes FROM the viewer's own cards is a SOURCE of a price they chose (TR29: «spend 1 fighter from
-      // ANY of your cards»), never a target — the word «цель» belongs to an attack and to a reward (PL-056).
-      if (this.model.contract.direction === 'remove' && this.model.owners.every((owner) => owner.self)) {
-        return translateTextWithParams('${0} available sources', [String(targetCount)]);
-      }
-      return ownerCount > 1 ?
-        translateTextWithParams('${0} targets across ${1} players', [String(targetCount), String(ownerCount)]) :
-        translateTextWithParams('${0} available targets', [String(targetCount)]);
-    },
-    /** The focused candidate's contextual effect — the rail's whole payload. */
-    /** Some candidate wears an outcome tag (PL-219) — then EVERY cell reserves the tag's row. */
-    tagsOn(): boolean {
-      return this.model.owners.some((o) => o.candidates.some((c) => playedTargetTagOfPreview(c.preview) !== undefined));
-    },
-    /** Two lines when some tag says the count AND its consequence (`playedTargetTagStacked`) — every cell reserves them. */
-    tagLines(): 1 | 2 {
-      return this.model.owners.some((o) => o.candidates.some((c) => playedTargetTagStacked(playedTargetTagOfPreview(c.preview)))) ? 2 : 1;
-    },
-    /** The tag's lines as DRAWN — one where the solved card holds the whole line (`PlayedTargetSizing.tagLines`). */
-    drawnTagLines(): 1 | 2 {
-      return this.sizing.tagLines ?? this.tagLines;
-    },
-    railQuick(): ReadonlyArray<PlayedTargetQuickImpact> {
-      // The rail keeps the WORDS; the digits the tag under the card prints are the tag's (TR56, П4).
-      return this.focused === undefined ? [] : playedTargetReadingImpacts(this.focused.preview);
-    },
-    /** The focused candidate belongs to the viewer AND this step takes from it. */
-    focusedSelfHarm(): boolean {
-      return this.model.owners.some((o) => o.id === this.focus.ownerId && o.selfHarm);
-    },
-    railImpacts(): ReadonlyArray<PlayedTargetQuickImpact> {
-      return this.railQuick.slice(0, PLAYED_TARGET_RAIL_IMPACT_CAP);
-    },
-    railOverflow(): number {
-      return Math.max(0, this.railQuick.length - PLAYED_TARGET_RAIL_IMPACT_CAP);
-    },
-    /**
-     * THE SOLVED CELL WIDTH — derived ONCE.
-     *
-     * Two consumers must agree on it exactly or the reflow fix comes undone:
-     * the section's inline SPAN (`cols × this + gaps`, which is where the flex
-     * row wraps) and the proxy's CSS bound (`--con-ptsel-slot-w`). Two hand-
-     * written copies of `SLOT_W_PX * cardZoom` is precisely how a rounding step
-     * added to one of them would let the proxy exceed a card width again — with
-     * the stylesheet guard still green, because it asserts the CSS rather than
-     * the agreement between two derivations.
-     */
-    cardWidthPx(): number {
-      return SLOT_W_PX * this.sizing.cardZoom;
-    },
-    /** Is a PHYSICAL card standing in the row beside the proxy? That, and only
-     *  that, is what makes the solved cell width binding on it: with no card
-     *  there is no shared column and nothing the row could wrap on. */
-    hasCardCandidates(): boolean {
-      return (this.model?.owners ?? []).some((o) =>
-        o.candidates.some((c) => c.relation !== 'source-card'));
-    },
-    /** The proxy's box — one derivation, shared by the tokens and the guards. */
-    selfBox(): {w: number, h: number} {
-      return playedTargetSelfBox({
-        cardWidthPx: this.cardWidthPx,
-        hasCardCandidates: this.hasCardCandidates,
-        ui: conUiScale(),
-      });
-    },
-    /** The measured size, handed to CSS. One writer, so the cards, the gaps and
-     *  the badge de-zoom can never disagree about how big a candidate is. */
-    sizeVars(): Record<string, string> {
-      return {
-        '--con-ptsel-zoom': this.sizing.cardZoom.toFixed(3),
-        '--con-ptsel-gap': `${this.sizing.gapPx.toFixed(2)}px`,
-        // The focus-safe room above the first row — the gap's twin upward (PL-170).
-        '--con-ptsel-headroom': `${this.sizing.headroomPx.toFixed(2)}px`,
-        '--con-ptsel-focus-scale': String(PLAYED_TARGET_FOCUS_SCALE),
-        // THE SOLVED CELL WIDTH, in the layout's own px. Every cell of the
-        // candidate row is exactly this wide — the section's inline span is
-        // `cols × this + gaps`, so anything that renders WIDER than it wraps the
-        // row. The self-target proxy is the one cell whose content is text, so
-        // it is the one cell that has to be TOLD the number instead of getting
-        // it from a card face. Published here because this is the only place
-        // that knows it: the size is solved, never a CSS constant.
-        '--con-ptsel-slot-w': `${this.cardWidthPx.toFixed(2)}px`,
-        // THE PROXY'S OWN BOX — a slot in the same grid, solved by the one
-        // module that owns this layout's numbers. It is NOT the card fit: that
-        // fit is height-bound, so a lone proxy in a short band inherited a
-        // small card's width and collapsed to a text-sized pill with hundreds
-        // of px free beside it.
-        '--con-ptsel-self-w': `${this.selfBox.w.toFixed(2)}px`,
-        '--con-ptsel-self-h': `${this.selfBox.h.toFixed(2)}px`,
-        // The CAP, not a fixed height: a short step still hugs its cards (the
-        // rail sits right under them, exactly as before), and a tall one stops
-        // growing and hands the excess to the candidate viewport's scroll.
-        ...(this.budgetPx > 0 ? {'--con-ptsel-max-h': `${Math.round(this.budgetPx)}px`} : {}),
-      };
-    },
-    /** «Выбрано 1 из 2» — the live accumulation of a multi ask. */
-    pickedLine(): string {
-      if (this.selection.mode !== 'multi') {
-        return '';
-      }
-      return translateTextWithParams('Selected ${0} of ${1}',
-        [String(this.selection.picked.length), String(this.selection.max)]);
-    },
-    atCap(): boolean {
-      return this.selection.mode === 'multi' && this.selection.picked.length >= this.selection.max;
-    },
-    /** The state of the SELF-TARGET link, as one value the watcher can publish
-     *  to the composer that owns the real source card. */
-    selfLink(): {present: boolean, focused: boolean, locked: boolean} {
-      const self = this.model.owners
-        .flatMap((o) => o.candidates)
-        .find((c) => c.relation === 'source-card');
-      if (self === undefined) {
-        return {present: false, focused: false, locked: false};
-      }
-      return {
-        present: true,
-        focused: this.focused?.cardName === self.cardName,
-        locked: this.isChosen(self.cardName),
-      };
-    },
-  },
-  watch: {
-    // The four events that genuinely change the geometry — and nothing else.
-    // (A focus move does not: the cell boxes are what focus moves BETWEEN.)
-    model() {
-      this.invalidateGeometry();
-      this.measureSizing();
-    },
-    'layout.mode'() {
-      this.invalidateGeometry();
-      this.measureSizing();
-    },
-    bandHeight() {
-      this.measureSizing();
-    },
-    /**
-     * THE SELF LINK. The handle cannot reach the source card (it lives one
-     * level up, in the composer's hero slot), so the fact is published and the
-     * composer lights the REAL card. Immediate: the very first frame of a
-     * self-target-only step must already show the link.
-     */
-    selfLink: {
-      immediate: true,
-      handler(v: {present: boolean, focused: boolean, locked: boolean}) {
-        setPlayedTargetSelfLink(v);
-      },
-    },
-    activeOwnerId() {
-      this.invalidateGeometry();
-    },
-    'sizing.cardZoom'() {
-      this.invalidateGeometry();
-    },
-    'sizing.sectionFlow'() {
-      this.invalidateGeometry();
-    },
-    pageKey() {
-      this.invalidateGeometry();
-    },
-    /** The focused band's page is remembered as the cursor leaves it (the band keeps the page the player left it on). */
-    focus: {
-      deep: true,
-      handler(next: PlayedTargetFocus) {
-        const owner = this.model.owners.find((o) => o.id === next.ownerId);
-        if (owner !== undefined) {
-          this.ownerPages = {...this.ownerPages, [owner.id]: playedTargetPageOf(owner, next.index, this.pageSize)};
-        }
-      },
-    },
-  },
-  mounted() {
-    // BEFORE the first painted frame: the host's entrance cascade builds its
-    // 0-state from `[data-unfold-item]` a frame later, so the size it captures
-    // is already final and the surface never re-lays out mid-reveal.
-    this.measureSizing();
-    // The RESPONSIVE path — the band itself changing (a profile switch, the
-    // rail lifting). Never a manual window listener: the observer answers for
-    // the element that actually carries the budget.
-    const zone = (this.$refs.zone ?? undefined) as HTMLElement | undefined;
-    if (zone !== undefined) {
-      this.stopResizeObs = useResizeObserver(zone, () => {
-        this.measureSizing();
-        this.invalidateGeometry();
-      }).stop;
-    }
-  },
-  beforeUnmount() {
-    this.stopResizeObs?.();
-    this.stopResizeObs = undefined;
-    resetPlayedTargetSelf();
-  },
-  methods: {
-    /** The impact's label — a resolved name as is, an i18n key with its params: ONE renderer (`readingText`, PL-160). */
-    /** The candidate's outcome tag (PL-219), or none. */
-    tagOf(cand: PlayedTargetCandidate): PlayedTargetTag | undefined {
-      return playedTargetTagOfPreview(cand.preview);
-    },
-    /** The candidate's tag as a list of none or one — the template binds it once, without a cast. */
-    tagList(cand: PlayedTargetCandidate): ReadonlyArray<PlayedTargetTag> {
-      const tag = playedTargetTagOfPreview(cand.preview);
-      return tag === undefined ? [] : [tag];
-    },
-    impactLabel(imp: PlayedTargetQuickImpact): string {
-      return readingText(imp);
-    },
-    /** The impact's tail phrase, through the same renderer (its own params — «card with the ${0} tag»). */
-    impactTail(imp: PlayedTargetQuickImpact): string {
-      return readingTailText(imp) ?? '';
-    },
-    /**
-     * THIS STEP'S ROOT ELEMENT — resolved, never cast.
-     *
-     * `$el` is the root ELEMENT only when the compiler stripped this template's
-     * leading comment: it does in a production build and does NOT in a
-     * development one, where the root becomes a fragment and `$el` is an anchor
-     * node with no `closest` / `querySelector` / `querySelectorAll` at all. All
-     * three of this file's DOM readers depended on that difference — the
-     * geometry pull THREW, and the size solver silently returned its unmeasured
-     * default, so a dev build laid every host's candidates out at the fallback
-     * zoom. The zone ref is a real element in both, and its `.con-ptsel`
-     * ancestor is this component's root by construction.
-     */
-    rootEl(): HTMLElement | undefined {
-      const zone = (this.$refs.zone ?? undefined) as HTMLElement | undefined;
-      const viaZone = typeof zone?.closest === 'function' ?
-        zone.closest<HTMLElement>('.con-ptsel') :
-        null;
-      if (viaZone !== null && viaZone !== undefined) {
-        return viaZone;
-      }
-      const el = this.$el as HTMLElement | undefined;
-      return typeof el?.querySelectorAll === 'function' ? el : undefined;
-    },
-    /**
-     * THE HOST'S GEOMETRY PULL. Cached: rebuilt only after a mount, a real
-     * layout change, an owner-tab switch or a candidate-set change — never per
-     * input press.
-     */
-    cells(): ReadonlyArray<PlayedTargetCell> {
-      if (this.cellCache !== undefined) {
-        return this.cellCache;
-      }
-      const root = this.rootEl();
-      const out: Array<PlayedTargetCell> = [];
-      for (const el of Array.from(root?.querySelectorAll<HTMLElement>('[data-ptsel-cell]') ?? [])) {
-        const ownerId = el.dataset.owner;
-        const index = Number(el.dataset.index);
-        if (ownerId === undefined || !Number.isFinite(index)) {
-          continue;
-        }
-        const r = el.getBoundingClientRect();
-        out.push({ownerId, index, left: r.left, top: r.top, width: r.width, height: r.height});
-      }
-      this.cellCache = markRaw(out);
-      return this.cellCache;
-    },
-    /**
-     * The measured boxes expired.
-     *
-     * The self-target CONNECTOR measures real elements across two columns, so
-     * it is invalidated by exactly the same four events as the navigation cells
-     * — a new model, a re-solved size, an owner-tab switch, a resize. Focus and
-     * selection are deliberately not among them: they may not move anything,
-     * and a re-measure per cursor press would be a measurement the layout never
-     * asked for.
-     */
-    invalidateGeometry(): void {
-      this.cellCache = undefined;
-      bumpPlayedTargetSelfGeometry();
-    },
-    /**
-     * Keep the cursored candidate inside the CANDIDATE VIEWPORT — the step's
-     * own scroller, not the composer's. The host calls this after a move; with
-     * the rail and the contract fixed outside, this is the only thing a cursor
-     * move may ever scroll.
-     */
-    ensureFocusVisible(): void {
-      void this.$nextTick(() => {
-        const area = (this.$refs.viewport ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined;
-        const el = this.rootEl()?.querySelector('[data-ptsel-cell][data-focused]');
-        area?.ensureVisible?.(el);
-      });
-    },
-    /** The header's payload (the carried print) — the host FLIPs it in from the variant tile it was chosen on. */
-    payloadEl(): HTMLElement | undefined {
-      return (this.$refs.payload ?? undefined) as HTMLElement | undefined;
-    },
-    /** Right-stick scroll, routed by the host while the step owns the screen. */
-    scrollBy(dy: number): void {
-      ((this.$refs.viewport ?? undefined) as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(dy);
-    },
-    /**
-     * Solve the card size against the real box.
-     *
-     * WIDTH is measured here (the zone is stretched, so its width is the band's
-     * and no card can move it). HEIGHT arrives from the host — see `bandHeight`.
-     *
-     * The step's OWN chrome is measured and subtracted: a contract line, the
-     * owner tabs and the status rail. All three are text at a fixed size, so
-     * none of them depends on how big the cards turned out — which is what
-     * keeps this acyclic even though it reads the live DOM.
-     */
-    measureSizing(): void {
-      const zone = (this.$refs.zone ?? undefined) as HTMLElement | undefined;
-      const root = this.rootEl();
-      if (zone === undefined || root === undefined) {
-        return;
-      }
-      // THE ROOM THE CARDS ACTUALLY GET (PL-224, the TR50 walk). The cards' row does not sit on the zone: the owner
-      // group draws its accent rule and its inset, the sections their own padding — ≈ 38 px at 4K. Solved against
-      // `zone.clientWidth`, seven mech holders came out as ONE row 39 px wider than the box that holds it, and the
-      // composer's scroller cut the last card (TR50 itself) together with its focus ring. Same rule as the height
-      // below: PADDINGS AND BORDERS ONLY — fixed by the layout, never a function of the size being solved.
-      let insetX = 0;
-      const zoneStyle = getComputedStyle(zone);
-      insetX += (parseFloat(zoneStyle.paddingLeft) || 0) + (parseFloat(zoneStyle.paddingRight) || 0);
-      const rowBox = zone.querySelector<HTMLElement>('.con-ptsel__sections');
-      for (let el = rowBox; el !== null && el !== zone; el = el.parentElement) {
-        const cs = getComputedStyle(el);
-        insetX += (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) +
-          (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
-      }
-      const availW = zone.clientWidth - insetX;
-      // No band, no honest budget: a bare unit mount keeps the default rather
-      // than sizing itself from a box it produced.
-      if (availW <= 0 || this.bandHeight <= 0) {
-        return;
-      }
-      /**
-       * THE STEP'S OWN CAP — «the bottom of whatever will actually clip me,
-       * minus where I start», and never taller than that box itself.
-       *
-       * ⚠️ IT USED TO BE THE BAND'S BOTTOM, and the step does not live on the
-       * band. In the action host it sits FOUR boxes deeper, inside the stage
-       * plate's own scroll area, whose viewport ends `.6rem` above the band
-       * (the plate's bottom padding). Sizing against the band therefore
-       * licensed the step to grow PAST its own container: the outer scroller
-       * gained ~12–24 px of travel — a SECOND vertical rail beside this step's
-       * own, with only two target cards on screen — and what it clipped was the
-       * last element of this column: the status rail, i.e. the Result line.
-       *
-       * The clip box is the honest reference precisely because it is the thing
-       * that decides whether anything scrolls. The band stays in the `min` for
-       * the host that stretches its scroller to the band (the play path), where
-       * the two agree anyway.
-       *
-       * ACYCLIC, and the clamp is what makes it so. `root.top` is read while
-       * this step sits INSIDE that scroller, so a scrolled viewport would hand
-       * back a LARGER budget → a taller step → more to scroll → larger still.
-       * Bounding the budget by the clip box's own height breaks that loop by
-       * construction, at every scroll position.
-       */
-      const band = root.closest<HTMLElement>('[data-ws-band]');
-      // EVERY BOTTOM EDGE BETWEEN THIS STEP AND THE BAND. The band's bottom is
-      // the honest floor, but the step does not sit ON it: in the action host
-      // the stage plate wraps it and keeps `.6rem` of padding below, so a step
-      // sized to the band's bottom ends `.6rem` past the box that clips it. The
-      // outer scroller then gained travel — a SECOND rail with two cards on
-      // screen — and cut the last element of this column, the Result line.
-      //
-      // ⚠️ PADDINGS AND BORDERS ONLY, and that is the whole reason this is safe:
-      // they are fixed by the layout, so none of them is a function of the size
-      // this measurement is about to produce. (Reading the scroll VIEWPORT's own
-      // height instead is the tempting version and it is circular — that box is
-      // `flex: 0 1 auto`, i.e. content-sized, so it reports back whatever the
-      // cards last came out as. It collapsed the budget until a two-card row
-      // stacked vertically.)
-      let inset = 0;
-      for (let el = root.parentElement; el !== null && el !== band; el = el.parentElement) {
-        const cs = getComputedStyle(el);
-        inset += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
-      }
-      // …and never past the room the HOST gives (`bandHeight`): a host that sizes a box of its own for the step (the wild
-      // step's slot, P43) is the box that clips it — sized off the band alone the step outgrew that slot by 69 px at 4K
-      // and its second row's tags were cut.
-      // The step's place in the band is read in LAYOUT (`layoutTopWithin`): measured mid-entrance a client rect reads
-      // the unfold's offset, and the budget it gave stayed short after the motion ended (nothing resizes to say so).
-      const budget = Math.max(160, Math.min(this.bandHeight, band !== null ?
-        band.offsetHeight - layoutTopWithin(root, band) - inset :
-        this.bandHeight));
-      this.budgetPx = budget;
-      const chrome = ((this.$refs.contract ?? undefined) as HTMLElement | undefined)?.offsetHeight ?? 0;
-      const tabs = ((this.$refs.tabs ?? undefined) as HTMLElement | undefined)?.offsetHeight ?? 0;
-      const rail = ((this.$refs.rail ?? undefined) as HTMLElement | undefined)?.offsetHeight ?? 0;
-      // The column gaps of `.con-ptsel` — one FEWER than its children, and the
-      // owner-tabs row is conditional. It was hardcoded to 3, which handed back
-      // 11 px of phantom room on every single-owner step (the common case).
-      const gaps = (tabs > 0 ? 3 : 2) * PTSEL_COLUMN_GAP_PX * conUiScale();
-      // The RAIL IS RESERVED FIRST. Its height comes out of the budget before a
-      // single card is sized — the cards get what is left, never the other way
-      // round. That ordering is what stops an oversized candidate from pushing
-      // the reading of it off the screen.
-      const availH = Math.max(120, budget - chrome - tabs - rail - gaps);
-      this.availHPx = availH;
-      this.sizing = planPlayedTargetSizing({
-        owners: this.model.owners,
-        mode: this.layout.mode,
-        availW,
-        availH,
-        ui: conUiScale(),
-        handheld: consoleLayoutState.profile === 'handheld',
-        tags: this.tagsOn,
-        tagLines: this.tagLines,
-        tagOneLineW: this.tagOneLinePx(),
-        ownerBar: this.showsOwnerBar,
-      });
-    },
-    /**
-     * The widest STACKED tag laid out on one line (px): its count, the dot, its consequence and the plate's padding —
-     * measured off the tags as they stand (stacked or not, the count and the consequence are the same two runs).
-     * Undefined: no stacked tag on screen yet.
-     */
-    tagOneLinePx(): number | undefined {
-      if (this.tagLines !== 2) {
-        return undefined;
-      }
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      let widest: number | undefined;
-      for (const line of (this.$el as HTMLElement).querySelectorAll<HTMLElement>('.con-ptsel__tag-line')) {
-        const lead = line.querySelector<HTMLElement>('.con-ptsel__tag-lead');
-        const out = line.querySelector<HTMLElement>('.con-ptsel__tag-out');
-        if (lead === null || out === null) {
-          continue;
-        }
-        // Stacked, the lead carries no dot: «·» and its two gaps (.25rem each) come back; flat, the lead's own width has it.
-        const dot = line.classList.contains('con-ptsel__tag-line--stacked') ? 1.1 * rem : 0;
-        const w = lead.scrollWidth + out.scrollWidth + .25 * rem + dot + .9 * rem;
-        widest = Math.max(widest ?? 0, w);
-      }
-      return widest;
-    },
-    /** Chosen = the confirmed single target, or a member of the multi pick. */
-    isChosen(cardName: string): boolean {
-      return this.selection.mode === 'multi' ?
-        this.selection.picked.includes(cardName) :
-        cardName === this.lockedCard;
-    },
-    /** In a multi ask the badge carries the ORDER — «первое / второе событие»
-     *  is what the server's own slots mean, so the player can see which is
-     *  which without reading the prompt again. A single ask just ticks. */
-    pickOrdinal(cardName: string): string {
-      if (this.selection.mode !== 'multi') {
-        return '✓';
-      }
-      const at = this.selection.picked.indexOf(cardName);
-      return at < 0 ? '✓' : String(at + 1);
-    },
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    showsResource(cand: PlayedTargetCandidate): boolean {
-      return playedTargetShowsResource(cand.resourceContext);
-    },
-    /** The band's sections on its CURRENT page (the whole band without paging). */
-    sectionsOf(owner: PlayedTargetOwner): ReadonlyArray<PlayedTargetSection> {
-      return playedTargetSections(playedTargetPage(owner, this.pageSize, this.pageOf(owner)));
-    },
-    /** The band's current page: the cursor's when it stands in this band, else the one it was left on. */
-    pageOf(owner: PlayedTargetOwner): number {
-      const page = owner.id === this.focus.ownerId ?
-        playedTargetPageOf(owner, this.focus.index, this.pageSize) :
-        this.ownerPages[owner.id] ?? 0;
-      return Math.max(0, Math.min(page, this.pagesOf(owner) - 1));
-    },
-    pagesOf(owner: PlayedTargetOwner): number {
-      return playedTargetPageCount(owner, this.pageSize);
-    },
-    /** «5–8 из 12» — the band's range on its page. */
-    rangeOf(owner: PlayedTargetOwner): string {
-      const size = this.pageSize ?? owner.candidates.length;
-      const first = this.pageOf(owner) * size + 1;
-      const last = Math.min(owner.candidates.length, first + size - 1);
-      return translateTextWithParams('${0}–${1} of ${2}', [String(first), String(last), String(owner.candidates.length)]);
-    },
-    spineOf(owner: PlayedTargetOwner): AlbumSpinePosition {
-      const page = this.pageOf(owner);
-      const pages = this.pagesOf(owner);
-      return {page: page + 1, pages, canPrev: page > 0, canNext: page < pages - 1};
-    },
-    /**
-     * THE HOST'S STEP of the cursor — page-aware: the real boxes first (the page on screen and the bands beside it), and
-     * a left / right press against the page's edge TURNS the band's page (the hand album's grammar: the d-pad across
-     * the edge IS the page turn), landing on the near edge of the new page. Undefined: an edge that holds.
-     */
-    navigate(focus: PlayedTargetFocus, dir: PlayedTargetNavDir): PlayedTargetFocus | undefined {
-      const next = stepPlayedTargetFocusAt(focus, dir, this.cells());
-      if (next !== undefined) {
-        return next;
-      }
-      if (dir === 'left' || dir === 'right') {
-        return playedTargetTurnPage(focus, this.model.owners, this.pageSize, dir === 'right' ? 1 : -1, dir === 'right' ? 'first' : 'last');
-      }
-      return undefined;
-    },
-    /** LB / RB — the focused band's page, the cursor keeping its place in the page. Undefined: no page that way. */
-    turnPage(focus: PlayedTargetFocus, delta: number): PlayedTargetFocus | undefined {
-      return this.pageTurnOnBumpers ? playedTargetTurnPage(focus, this.model.owners, this.pageSize, delta, 'same') : undefined;
-    },
-    /**
-     * A category's WIDTH IS ITS SPAN — the columns its own cards need at the
-     * solved row count, not an equal share of the band.
-     *
-     * This is the visual half of the layout fix. A two-card category gets two
-     * card widths; a one-card category gets one. Bounding the section to
-     * exactly that width is what makes the flex row inside it wrap at the right
-     * place, so the cards land in the grid the solver actually planned.
-     */
-    sectionStyle(section: PlayedTargetSection, owner: PlayedTargetOwner): Record<string, string> {
-      // A board's band takes its OWN rows (`ownerRows` — the height shared by need), every other layout the grid's.
-      const rows = this.sizing.ownerRows?.[owner.id] ?? this.sizing.rows;
-      const cols = Math.max(1, Math.ceil(section.candidates.length / Math.max(1, rows)));
-      const cardW = this.cardWidthPx;
-      // CEIL plus a pixel of slack: the cards row wraps at exactly this
-      // width, so a half-pixel of rounding the other way would push the last
-      // card of a span onto a second line — the very stack this span exists
-      // to prevent.
-      return {width: `${Math.ceil(cols * cardW + (cols - 1) * this.sizing.gapPx) + 1}px`};
-    },
-    showsRails(owner: PlayedTargetOwner): boolean {
-      return playedTargetShowsCategoryRails(playedTargetSections(owner));
-    },
-    /** The candidate's index in its OWNER's list — the focus vocabulary. The
-     *  cards render grouped by category, so a section-local index would name a
-     *  different card than the one the host is pointing at. */
-    indexOf(owner: PlayedTargetOwner, cardName: string): number {
-      return owner.candidates.findIndex((c) => c.cardName === cardName);
-    },
-    /** «ДОСТУПНО N» counts what can be CHOSEN — a shown near miss (`blocked`) stands in the row, never in the count. */
-    selectableIn(candidates: ReadonlyArray<PlayedTargetCandidate>): number {
-      return candidates.filter((c) => c.blocked === undefined).length;
-    },
-    isFocused(ownerId: string, cardName: string): boolean {
-      return this.focus.ownerId === ownerId && this.focused?.cardName === cardName;
-    },
-    /** A refused stand-in's reason — the server's own words (a key or a message), translated here. */
-    standRefusal(stand: TableTargetStand): string {
-      const why = stand.refused;
-      return why === undefined ? '' : (typeof why === 'string' ? translateText(why) : translateMessage(why));
-    },
-    /** A stand-in's loss as the server reads it — ONE row of the unit attacked (else the metadata's own delta). */
-    standChanges(stand: TableTargetStand): ReadonlyArray<{icon: string, from: number, to: number}> {
-      const moving = stand.changes.filter((c) => c.from !== c.to);
-      if (moving.length > 0) {
-        return moving;
-      }
-      return stand.current !== undefined && stand.resulting !== undefined ? [{icon: stand.icon, from: stand.current, to: stand.resulting}] : [];
-    },
-  },
+defineOptions({name: 'ConsolePlayedTargetStep'});
+const props = defineProps({
+  model: {type: Object as PropType<PlayedTargetModel>, required: true},
+  layout: {type: Object as PropType<PlayedTargetLayout>, required: true},
+  focus: {type: Object as PropType<PlayedTargetFocus>, required: true},
+  /**
+   * HOW MANY the step asks for. `single` (A chooses and closes) or the
+   * server's merged up-to-N ask (A toggles, RT confirms) — the shape follows
+   * the prompt, never a per-card rule here.
+   */
+  selection: {type: Object as PropType<PlayedTargetSelection>, default: () => ({mode: 'single'} as PlayedTargetSelection)},
+  /**
+   * THE VERTICAL BUDGET, measured by the host on a STRETCHED box before this
+   * step was visible.
+   *
+   * It is a prop and not a self-measurement on purpose. Everything between
+   * this component and the workspace band is content-sized, so any height
+   * this component could read is a height its own cards produced — a cycle
+   * whose fixpoint depends on the unmeasured first render. It settled LOWER
+   * for one candidate than for two (one stacked block is a shorter column
+   * than two), which is exactly why a lone target came out smaller than each
+   * of a pair. The host owns the band; the step owns what goes in it.
+   */
+  bandHeight: {type: Number, default: 0},
+  /** The already-confirmed target of a SINGLE step (a re-entry from «Изменить
+   *  выбор»); in multi the picks live in `selection.picked`. */
+  lockedCard: {type: String, default: ''},
+  /** An optional choice's refusal (`optionalChoice.ts`) — its plate rides the contract line. */
+  decline: {type: Object as PropType<DeclineModel | undefined>, default: undefined},
+  /**
+   * The HOST's own header already states the ask, so this step must not
+   * restate it (see the contract header in the template). Additive and
+   * default-false: the two composer hosts keep their contract line untouched.
+   */
+  hostStatesAsk: {type: Boolean, default: false},
 });
+
+const zone = useTemplateRef<HTMLElement>('zone');
+const viewport = useTemplateRef<{ensureVisible?: (el: Element | null | undefined) => void} & {scrollByPx?: (d: number) => void}>('viewport');
+// The key `payload` is also the computed the template reads, and `payloadEl` is the function the hosts call: the
+// ref's const yields to both.
+const payloadRef = useTemplateRef<HTMLElement>('payload');
+const contract = useTemplateRef<HTMLElement>('contract');
+const tabs = useTemplateRef<HTMLElement>('tabs');
+const rail = useTemplateRef<HTMLElement>('rail');
+const root = useTemplateRef<HTMLElement>('root');
+const sizing = ref(UNMEASURED as PlayedTargetSizing);
+/** The measured cells, rebuilt only when the layout genuinely changed. */
+const cellCache = ref<ReadonlyArray<PlayedTargetCell> | undefined>(undefined);
+let stopResizeObs: (() => void) | undefined;
+/** The step's own vertical CAP, measured against the stretched band. */
+const budgetPx = ref(0);
+/** The page each band last stood on — the focused band's page is the CURSOR's (derived, never stored). */
+const ownerPages = ref<Record<string, number>>({});
+/** The card budget the solver was last given (px) — read by `geomStamp`. */
+const availHPx = ref(0);
+
+/** SPLIT shows every owner side by side; TABS shows the active one. */
+const visibleOwners = computed((): ReadonlyArray<PlayedTargetOwner> => {
+  // `board` (the owner's «одна зона») and `split` stand EVERY group on screen; only `tabs` shows one at a time.
+  return props.layout.mode === 'split' || props.layout.mode === 'board' ?
+    props.model.owners :
+    props.model.owners.filter((o) => o.id === activeOwnerId.value);
+});
+const activeOwnerId = computed((): string => {
+  return props.focus.ownerId;
+});
+/** The solver's answer in one attribute — the budget it was given, the card it drew (× ui), the rows, the page. */
+const geomStamp = computed((): string => {
+  const ui = conUiScale();
+  return `h${Math.round(availHPx.value)} z${(sizing.value.cardZoom / ui).toFixed(3)} r${sizing.value.rows} p${sizing.value.pageSize ?? 0}`;
+});
+/** The size of a band's page (undefined: the whole set is one page). */
+const pageSize = computed((): number | undefined => {
+  return sizing.value.pageSize;
+});
+/**
+ * LB/RB turn the page only where they walk nothing else — one band, or the split's two columns. Over several bands
+ * (tabs, the table's `board`) the bumpers keep their job (the next owner) and the d-pad across the edge turns pages.
+ */
+const pageTurnOnBumpers = computed((): boolean => {
+  return props.model.owners.length === 1 || props.layout.mode === 'split';
+});
+/** The band whose page the RAIL reads — the one band on screen when it shows no bar of its own. */
+const railPageOwner = computed((): PlayedTargetOwner | undefined => {
+  if (showsOwnerBar.value || visibleOwners.value.length !== 1) {
+    return undefined;
+  }
+  const owner = visibleOwners.value[0];
+  return pagesOf(owner) > 1 ? owner : undefined;
+});
+/** One key for the pages on screen — a page turn moves every cell, so the cached boxes expire with it. */
+const pageKey = computed((): string => {
+  return visibleOwners.value.map((o) => `${o.id}:${pageOf(o)}`).join('|') + `/${pageSize.value ?? 0}`;
+});
+const focused = computed((): PlayedTargetCandidate | undefined => {
+  return playedTargetAt(props.focus, props.model.owners);
+});
+const focusedOwner = computed((): PlayedTargetOwner | undefined => {
+  return props.model.owners.find((o) => o.id === props.focus.ownerId);
+});
+const focusedOwnerName = computed((): string => {
+  return focusedOwner.value?.name ?? '';
+});
+const focusedOwnerColor = computed((): string => {
+  return focusedOwner.value?.color ?? 'neutral';
+});
+/**
+ * WHOSE cards these are — a real question with two tableaux on screen, and
+ * pure noise with one when the HOST has already said it («выберите одну из
+ * СВОИХ карт»). Scoped to `hostStatesAsk` on purpose: in the composers the
+ * bar earns its line even for a lone owner, because nothing above it says
+ * whose table is being pointed at.
+ */
+const showsOwnerBar = computed((): boolean => {
+  return !(props.hostStatesAsk && props.model.owners.length === 1);
+});
+/** …and the same rule for the rail's leading card name (see the template). */
+const showsRailCard = computed((): boolean => {
+  return !(props.hostStatesAsk && props.model.contract.targetCount === 1);
+});
+/** Several owners → the per-owner and per-focus markers earn their place. */
+const showsOwnerTargets = computed((): boolean => {
+  return playedTargetShowsOwnerTargetCount(props.model.owners);
+});
+/** WHAT lands on the chosen card (TR56, П3) — the contract's «КУДА: [печать]»; undefined = the generic ask. */
+const payload = computed((): PlayedTargetPayload | undefined => {
+  return props.model.contract.payload;
+});
+/** «3 доступные цели у 2 игроков» — the scope, in one honest line. */
+/** Some candidate is a player's stand-in, not a card. */
+const hasStands = computed((): boolean => {
+  return props.model.owners.some((o) => o.candidates.some((c) => c.stand !== undefined));
+});
+const scopeLine = computed((): string => {
+  const {targetCount, ownerCount} = props.model.contract;
+  // A pick that takes FROM the viewer's own cards is a SOURCE of a price they chose (TR29: «spend 1 fighter from
+  // ANY of your cards»), never a target — the word «цель» belongs to an attack and to a reward (PL-056).
+  if (props.model.contract.direction === 'remove' && props.model.owners.every((owner) => owner.self)) {
+    return translateTextWithParams('${0} available sources', [String(targetCount)]);
+  }
+  return ownerCount > 1 ?
+    translateTextWithParams('${0} targets across ${1} players', [String(targetCount), String(ownerCount)]) :
+    translateTextWithParams('${0} available targets', [String(targetCount)]);
+});
+/** The focused candidate's contextual effect — the rail's whole payload. */
+/** Some candidate wears an outcome tag (PL-219) — then EVERY cell reserves the tag's row. */
+const tagsOn = computed((): boolean => {
+  return props.model.owners.some((o) => o.candidates.some((c) => playedTargetTagOfPreview(c.preview) !== undefined));
+});
+/** Two lines when some tag says the count AND its consequence (`playedTargetTagStacked`) — every cell reserves them. */
+const tagLines = computed((): 1 | 2 => {
+  return props.model.owners.some((o) => o.candidates.some((c) => playedTargetTagStacked(playedTargetTagOfPreview(c.preview)))) ? 2 : 1;
+});
+/** The tag's lines as DRAWN — one where the solved card holds the whole line (`PlayedTargetSizing.tagLines`). */
+const drawnTagLines = computed((): 1 | 2 => {
+  return sizing.value.tagLines ?? tagLines.value;
+});
+const railQuick = computed((): ReadonlyArray<PlayedTargetQuickImpact> => {
+  // The rail keeps the WORDS; the digits the tag under the card prints are the tag's (TR56, П4).
+  return focused.value === undefined ? [] : playedTargetReadingImpacts(focused.value.preview);
+});
+/** The focused candidate belongs to the viewer AND this step takes from it. */
+const focusedSelfHarm = computed((): boolean => {
+  return props.model.owners.some((o) => o.id === props.focus.ownerId && o.selfHarm);
+});
+const railImpacts = computed((): ReadonlyArray<PlayedTargetQuickImpact> => {
+  return railQuick.value.slice(0, PLAYED_TARGET_RAIL_IMPACT_CAP);
+});
+const railOverflow = computed((): number => {
+  return Math.max(0, railQuick.value.length - PLAYED_TARGET_RAIL_IMPACT_CAP);
+});
+/**
+ * THE SOLVED CELL WIDTH — derived ONCE.
+ *
+ * Two consumers must agree on it exactly or the reflow fix comes undone:
+ * the section's inline SPAN (`cols × this + gaps`, which is where the flex
+ * row wraps) and the proxy's CSS bound (`--con-ptsel-slot-w`). Two hand-
+ * written copies of `SLOT_W_PX * cardZoom` is precisely how a rounding step
+ * added to one of them would let the proxy exceed a card width again — with
+ * the stylesheet guard still green, because it asserts the CSS rather than
+ * the agreement between two derivations.
+ */
+const cardWidthPx = computed((): number => {
+  return SLOT_W_PX * sizing.value.cardZoom;
+});
+/** Is a PHYSICAL card standing in the row beside the proxy? That, and only
+ *  that, is what makes the solved cell width binding on it: with no card
+ *  there is no shared column and nothing the row could wrap on. */
+const hasCardCandidates = computed((): boolean => {
+  return (props.model?.owners ?? []).some((o) =>
+    o.candidates.some((c) => c.relation !== 'source-card'));
+});
+/** The proxy's box — one derivation, shared by the tokens and the guards. */
+const selfBox = computed((): {w: number, h: number} => {
+  return playedTargetSelfBox({
+    cardWidthPx: cardWidthPx.value,
+    hasCardCandidates: hasCardCandidates.value,
+    ui: conUiScale(),
+  });
+});
+/** The measured size, handed to CSS. One writer, so the cards, the gaps and
+ *  the badge de-zoom can never disagree about how big a candidate is. */
+const sizeVars = computed((): Record<string, string> => {
+  return {
+    '--con-ptsel-zoom': sizing.value.cardZoom.toFixed(3),
+    '--con-ptsel-gap': `${sizing.value.gapPx.toFixed(2)}px`,
+    // The focus-safe room above the first row — the gap's twin upward (PL-170).
+    '--con-ptsel-headroom': `${sizing.value.headroomPx.toFixed(2)}px`,
+    '--con-ptsel-focus-scale': String(PLAYED_TARGET_FOCUS_SCALE),
+    // THE SOLVED CELL WIDTH, in the layout's own px. Every cell of the
+    // candidate row is exactly this wide — the section's inline span is
+    // `cols × this + gaps`, so anything that renders WIDER than it wraps the
+    // row. The self-target proxy is the one cell whose content is text, so
+    // it is the one cell that has to be TOLD the number instead of getting
+    // it from a card face. Published here because this is the only place
+    // that knows it: the size is solved, never a CSS constant.
+    '--con-ptsel-slot-w': `${cardWidthPx.value.toFixed(2)}px`,
+    // THE PROXY'S OWN BOX — a slot in the same grid, solved by the one
+    // module that owns this layout's numbers. It is NOT the card fit: that
+    // fit is height-bound, so a lone proxy in a short band inherited a
+    // small card's width and collapsed to a text-sized pill with hundreds
+    // of px free beside it.
+    '--con-ptsel-self-w': `${selfBox.value.w.toFixed(2)}px`,
+    '--con-ptsel-self-h': `${selfBox.value.h.toFixed(2)}px`,
+    // The CAP, not a fixed height: a short step still hugs its cards (the
+    // rail sits right under them, exactly as before), and a tall one stops
+    // growing and hands the excess to the candidate viewport's scroll.
+    ...(budgetPx.value > 0 ? {'--con-ptsel-max-h': `${Math.round(budgetPx.value)}px`} : {}),
+  };
+});
+/** «Выбрано 1 из 2» — the live accumulation of a multi ask. */
+const pickedLine = computed((): string => {
+  if (props.selection.mode !== 'multi') {
+    return '';
+  }
+  return translateTextWithParams('Selected ${0} of ${1}',
+    [String(props.selection.picked.length), String(props.selection.max)]);
+});
+const atCap = computed((): boolean => {
+  return props.selection.mode === 'multi' && props.selection.picked.length >= props.selection.max;
+});
+/** The state of the SELF-TARGET link, as one value the watcher can publish
+ *  to the composer that owns the real source card. */
+const selfLink = computed((): {present: boolean, focused: boolean, locked: boolean} => {
+  const self = props.model.owners
+    .flatMap((o) => o.candidates)
+    .find((c) => c.relation === 'source-card');
+  if (self === undefined) {
+    return {present: false, focused: false, locked: false};
+  }
+  return {
+    present: true,
+    focused: focused.value?.cardName === self.cardName,
+    locked: isChosen(self.cardName),
+  };
+});
+
+/** The impact's label — a resolved name as is, an i18n key with its params: ONE renderer (`readingText`, PL-160). */
+/** The candidate's outcome tag (PL-219), or none. */
+function tagOf(cand: PlayedTargetCandidate): PlayedTargetTag | undefined {
+  return playedTargetTagOfPreview(cand.preview);
+}
+/** The candidate's tag as a list of none or one — the template binds it once, without a cast. */
+function tagList(cand: PlayedTargetCandidate): ReadonlyArray<PlayedTargetTag> {
+  const tag = playedTargetTagOfPreview(cand.preview);
+  return tag === undefined ? [] : [tag];
+}
+function impactLabel(imp: PlayedTargetQuickImpact): string {
+  return readingText(imp);
+}
+/** The impact's tail phrase, through the same renderer (its own params — «card with the ${0} tag»). */
+function impactTail(imp: PlayedTargetQuickImpact): string {
+  return readingTailText(imp) ?? '';
+}
+/**
+ * THIS STEP'S ROOT ELEMENT — resolved, never cast.
+ *
+ * The zone ref's `.con-ptsel` ancestor is this component's root by
+ * construction, and it is asked first; the root's own template ref answers
+ * when the zone is not there, and is `null` once the step is unmounted.
+ *
+ * (The Options form read the instance's root node here, and that was the root
+ * ELEMENT only where the compiler had stripped the comment this template
+ * opened with: a production build did, a development one did NOT — the root
+ * became a fragment and its node an anchor with no `closest` /
+ * `querySelector` / `querySelectorAll` at all. All three of this file's DOM
+ * readers depended on that difference — the geometry pull THREW, and the size
+ * solver silently returned its unmeasured default, so a dev build laid every
+ * host's candidates out at the fallback zoom. The template starts with its
+ * root now, and both routes name that element in every build.)
+ */
+function rootEl(): HTMLElement | undefined {
+  const zoneNow = zone.value ?? undefined;
+  const viaZone = typeof zoneNow?.closest === 'function' ?
+    zoneNow.closest<HTMLElement>('.con-ptsel') :
+    null;
+  if (viaZone !== null && viaZone !== undefined) {
+    return viaZone;
+  }
+  const el = root.value ?? undefined;
+  return typeof el?.querySelectorAll === 'function' ? el : undefined;
+}
+/**
+ * THE HOST'S GEOMETRY PULL. Cached: rebuilt only after a mount, a real
+ * layout change, an owner-tab switch or a candidate-set change — never per
+ * input press.
+ */
+function cells(): ReadonlyArray<PlayedTargetCell> {
+  if (cellCache.value !== undefined) {
+    return cellCache.value;
+  }
+  const root = rootEl();
+  const out: Array<PlayedTargetCell> = [];
+  for (const el of Array.from(root?.querySelectorAll<HTMLElement>('[data-ptsel-cell]') ?? [])) {
+    const ownerId = el.dataset.owner;
+    const index = Number(el.dataset.index);
+    if (ownerId === undefined || !Number.isFinite(index)) {
+      continue;
+    }
+    const r = el.getBoundingClientRect();
+    out.push({ownerId, index, left: r.left, top: r.top, width: r.width, height: r.height});
+  }
+  cellCache.value = markRaw(out);
+  return cellCache.value;
+}
+/**
+ * The measured boxes expired.
+ *
+ * The self-target CONNECTOR measures real elements across two columns, so
+ * it is invalidated by exactly the same four events as the navigation cells
+ * — a new model, a re-solved size, an owner-tab switch, a resize. Focus and
+ * selection are deliberately not among them: they may not move anything,
+ * and a re-measure per cursor press would be a measurement the layout never
+ * asked for.
+ */
+function invalidateGeometry(): void {
+  cellCache.value = undefined;
+  bumpPlayedTargetSelfGeometry();
+}
+/**
+ * Keep the cursored candidate inside the CANDIDATE VIEWPORT — the step's
+ * own scroller, not the composer's. The host calls this after a move; with
+ * the rail and the contract fixed outside, this is the only thing a cursor
+ * move may ever scroll.
+ */
+function ensureFocusVisible(): void {
+  void nextTick(() => {
+    const area = viewport.value ?? undefined;
+    const el = rootEl()?.querySelector('[data-ptsel-cell][data-focused]');
+    area?.ensureVisible?.(el);
+  });
+}
+/** The header's payload (the carried print) — the host FLIPs it in from the variant tile it was chosen on. */
+function payloadEl(): HTMLElement | undefined {
+  return payloadRef.value ?? undefined;
+}
+/** Right-stick scroll, routed by the host while the step owns the screen. */
+function scrollBy(dy: number): void {
+  viewport.value?.scrollByPx?.(dy);
+}
+/**
+ * Solve the card size against the real box.
+ *
+ * WIDTH is measured here (the zone is stretched, so its width is the band's
+ * and no card can move it). HEIGHT arrives from the host — see `bandHeight`.
+ *
+ * The step's OWN chrome is measured and subtracted: a contract line, the
+ * owner tabs and the status rail. All three are text at a fixed size, so
+ * none of them depends on how big the cards turned out — which is what
+ * keeps this acyclic even though it reads the live DOM.
+ */
+function measureSizing(): void {
+  const zoneNow = zone.value ?? undefined;
+  const root = rootEl();
+  if (zoneNow === undefined || root === undefined) {
+    return;
+  }
+  // THE ROOM THE CARDS ACTUALLY GET (PL-224, the TR50 walk). The cards' row does not sit on the zone: the owner
+  // group draws its accent rule and its inset, the sections their own padding — ≈ 38 px at 4K. Solved against
+  // `zone.clientWidth`, seven mech holders came out as ONE row 39 px wider than the box that holds it, and the
+  // composer's scroller cut the last card (TR50 itself) together with its focus ring. Same rule as the height
+  // below: PADDINGS AND BORDERS ONLY — fixed by the layout, never a function of the size being solved.
+  let insetX = 0;
+  const zoneStyle = getComputedStyle(zoneNow);
+  insetX += (parseFloat(zoneStyle.paddingLeft) || 0) + (parseFloat(zoneStyle.paddingRight) || 0);
+  const rowBox = zoneNow.querySelector<HTMLElement>('.con-ptsel__sections');
+  for (let el = rowBox; el !== null && el !== zoneNow; el = el.parentElement) {
+    const cs = getComputedStyle(el);
+    insetX += (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) +
+      (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+  }
+  const availW = zoneNow.clientWidth - insetX;
+  // No band, no honest budget: a bare unit mount keeps the default rather
+  // than sizing itself from a box it produced.
+  if (availW <= 0 || props.bandHeight <= 0) {
+    return;
+  }
+  /**
+   * THE STEP'S OWN CAP — «the bottom of whatever will actually clip me,
+   * minus where I start», and never taller than that box itself.
+   *
+   * ⚠️ IT USED TO BE THE BAND'S BOTTOM, and the step does not live on the
+   * band. In the action host it sits FOUR boxes deeper, inside the stage
+   * plate's own scroll area, whose viewport ends `.6rem` above the band
+   * (the plate's bottom padding). Sizing against the band therefore
+   * licensed the step to grow PAST its own container: the outer scroller
+   * gained ~12–24 px of travel — a SECOND vertical rail beside this step's
+   * own, with only two target cards on screen — and what it clipped was the
+   * last element of this column: the status rail, i.e. the Result line.
+   *
+   * The clip box is the honest reference precisely because it is the thing
+   * that decides whether anything scrolls. The band stays in the `min` for
+   * the host that stretches its scroller to the band (the play path), where
+   * the two agree anyway.
+   *
+   * ACYCLIC, and the clamp is what makes it so. `root.top` is read while
+   * this step sits INSIDE that scroller, so a scrolled viewport would hand
+   * back a LARGER budget → a taller step → more to scroll → larger still.
+   * Bounding the budget by the clip box's own height breaks that loop by
+   * construction, at every scroll position.
+   */
+  const band = root.closest<HTMLElement>('[data-ws-band]');
+  // EVERY BOTTOM EDGE BETWEEN THIS STEP AND THE BAND. The band's bottom is
+  // the honest floor, but the step does not sit ON it: in the action host
+  // the stage plate wraps it and keeps `.6rem` of padding below, so a step
+  // sized to the band's bottom ends `.6rem` past the box that clips it. The
+  // outer scroller then gained travel — a SECOND rail with two cards on
+  // screen — and cut the last element of this column, the Result line.
+  //
+  // ⚠️ PADDINGS AND BORDERS ONLY, and that is the whole reason this is safe:
+  // they are fixed by the layout, so none of them is a function of the size
+  // this measurement is about to produce. (Reading the scroll VIEWPORT's own
+  // height instead is the tempting version and it is circular — that box is
+  // `flex: 0 1 auto`, i.e. content-sized, so it reports back whatever the
+  // cards last came out as. It collapsed the budget until a two-card row
+  // stacked vertically.)
+  let inset = 0;
+  for (let el = root.parentElement; el !== null && el !== band; el = el.parentElement) {
+    const cs = getComputedStyle(el);
+    inset += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+  }
+  // …and never past the room the HOST gives (`bandHeight`): a host that sizes a box of its own for the step (the wild
+  // step's slot, P43) is the box that clips it — sized off the band alone the step outgrew that slot by 69 px at 4K
+  // and its second row's tags were cut.
+  // The step's place in the band is read in LAYOUT (`layoutTopWithin`): measured mid-entrance a client rect reads
+  // the unfold's offset, and the budget it gave stayed short after the motion ended (nothing resizes to say so).
+  const budget = Math.max(160, Math.min(props.bandHeight, band !== null ?
+    band.offsetHeight - layoutTopWithin(root, band) - inset :
+    props.bandHeight));
+  budgetPx.value = budget;
+  const chrome = contract.value?.offsetHeight ?? 0;
+  const tabsNow = tabs.value?.offsetHeight ?? 0;
+  const railNow = rail.value?.offsetHeight ?? 0;
+  // The column gaps of `.con-ptsel` — one FEWER than its children, and the
+  // owner-tabs row is conditional. It was hardcoded to 3, which handed back
+  // 11 px of phantom room on every single-owner step (the common case).
+  const gaps = (tabsNow > 0 ? 3 : 2) * PTSEL_COLUMN_GAP_PX * conUiScale();
+  // The RAIL IS RESERVED FIRST. Its height comes out of the budget before a
+  // single card is sized — the cards get what is left, never the other way
+  // round. That ordering is what stops an oversized candidate from pushing
+  // the reading of it off the screen.
+  const availH = Math.max(120, budget - chrome - tabsNow - railNow - gaps);
+  availHPx.value = availH;
+  sizing.value = planPlayedTargetSizing({
+    owners: props.model.owners,
+    mode: props.layout.mode,
+    availW,
+    availH,
+    ui: conUiScale(),
+    handheld: consoleLayoutState.profile === 'handheld',
+    tags: tagsOn.value,
+    tagLines: tagLines.value,
+    tagOneLineW: tagOneLinePx(),
+    ownerBar: showsOwnerBar.value,
+  });
+}
+/**
+ * The widest STACKED tag laid out on one line (px): its count, the dot, its consequence and the plate's padding —
+ * measured off the tags as they stand (stacked or not, the count and the consequence are the same two runs).
+ * Undefined: no stacked tag on screen yet.
+ */
+function tagOneLinePx(): number | undefined {
+  if (tagLines.value !== 2) {
+    return undefined;
+  }
+  // The size solver runs off a resize observer too: a step that is gone has no tags to measure.
+  const rootNow = root.value;
+  if (rootNow === null) {
+    return undefined;
+  }
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  let widest: number | undefined;
+  for (const line of rootNow.querySelectorAll<HTMLElement>('.con-ptsel__tag-line')) {
+    const lead = line.querySelector<HTMLElement>('.con-ptsel__tag-lead');
+    const out = line.querySelector<HTMLElement>('.con-ptsel__tag-out');
+    if (lead === null || out === null) {
+      continue;
+    }
+    // Stacked, the lead carries no dot: «·» and its two gaps (.25rem each) come back; flat, the lead's own width has it.
+    const dot = line.classList.contains('con-ptsel__tag-line--stacked') ? 1.1 * rem : 0;
+    const w = lead.scrollWidth + out.scrollWidth + .25 * rem + dot + .9 * rem;
+    widest = Math.max(widest ?? 0, w);
+  }
+  return widest;
+}
+/** Chosen = the confirmed single target, or a member of the multi pick. */
+function isChosen(cardName: string): boolean {
+  return props.selection.mode === 'multi' ?
+    props.selection.picked.includes(cardName) :
+    cardName === props.lockedCard;
+}
+/** In a multi ask the badge carries the ORDER — «первое / второе событие»
+ *  is what the server's own slots mean, so the player can see which is
+ *  which without reading the prompt again. A single ask just ticks. */
+function pickOrdinal(cardName: string): string {
+  if (props.selection.mode !== 'multi') {
+    return '✓';
+  }
+  const at = props.selection.picked.indexOf(cardName);
+  return at < 0 ? '✓' : String(at + 1);
+}
+function iconClass(icon: string): string {
+  return iconClassFor(icon);
+}
+function showsResource(cand: PlayedTargetCandidate): boolean {
+  return playedTargetShowsResource(cand.resourceContext);
+}
+/** The band's sections on its CURRENT page (the whole band without paging). */
+function sectionsOf(owner: PlayedTargetOwner): ReadonlyArray<PlayedTargetSection> {
+  return playedTargetSections(playedTargetPage(owner, pageSize.value, pageOf(owner)));
+}
+/** The band's current page: the cursor's when it stands in this band, else the one it was left on. */
+function pageOf(owner: PlayedTargetOwner): number {
+  const page = owner.id === props.focus.ownerId ?
+    playedTargetPageOf(owner, props.focus.index, pageSize.value) :
+    ownerPages.value[owner.id] ?? 0;
+  return Math.max(0, Math.min(page, pagesOf(owner) - 1));
+}
+function pagesOf(owner: PlayedTargetOwner): number {
+  return playedTargetPageCount(owner, pageSize.value);
+}
+/** «5–8 из 12» — the band's range on its page. */
+function rangeOf(owner: PlayedTargetOwner): string {
+  const size = pageSize.value ?? owner.candidates.length;
+  const first = pageOf(owner) * size + 1;
+  const last = Math.min(owner.candidates.length, first + size - 1);
+  return translateTextWithParams('${0}–${1} of ${2}', [String(first), String(last), String(owner.candidates.length)]);
+}
+function spineOf(owner: PlayedTargetOwner): AlbumSpinePosition {
+  const page = pageOf(owner);
+  const pages = pagesOf(owner);
+  return {page: page + 1, pages, canPrev: page > 0, canNext: page < pages - 1};
+}
+/**
+ * THE HOST'S STEP of the cursor — page-aware: the real boxes first (the page on screen and the bands beside it), and
+ * a left / right press against the page's edge TURNS the band's page (the hand album's grammar: the d-pad across
+ * the edge IS the page turn), landing on the near edge of the new page. Undefined: an edge that holds.
+ */
+function navigate(focus: PlayedTargetFocus, dir: PlayedTargetNavDir): PlayedTargetFocus | undefined {
+  const next = stepPlayedTargetFocusAt(focus, dir, cells());
+  if (next !== undefined) {
+    return next;
+  }
+  if (dir === 'left' || dir === 'right') {
+    return playedTargetTurnPage(focus, props.model.owners, pageSize.value, dir === 'right' ? 1 : -1, dir === 'right' ? 'first' : 'last');
+  }
+  return undefined;
+}
+/** LB / RB — the focused band's page, the cursor keeping its place in the page. Undefined: no page that way. */
+function turnPage(focus: PlayedTargetFocus, delta: number): PlayedTargetFocus | undefined {
+  return pageTurnOnBumpers.value ? playedTargetTurnPage(focus, props.model.owners, pageSize.value, delta, 'same') : undefined;
+}
+/**
+ * A category's WIDTH IS ITS SPAN — the columns its own cards need at the
+ * solved row count, not an equal share of the band.
+ *
+ * This is the visual half of the layout fix. A two-card category gets two
+ * card widths; a one-card category gets one. Bounding the section to
+ * exactly that width is what makes the flex row inside it wrap at the right
+ * place, so the cards land in the grid the solver actually planned.
+ */
+function sectionStyle(section: PlayedTargetSection, owner: PlayedTargetOwner): Record<string, string> {
+  // A board's band takes its OWN rows (`ownerRows` — the height shared by need), every other layout the grid's.
+  const rows = sizing.value.ownerRows?.[owner.id] ?? sizing.value.rows;
+  const cols = Math.max(1, Math.ceil(section.candidates.length / Math.max(1, rows)));
+  const cardW = cardWidthPx.value;
+  // CEIL plus a pixel of slack: the cards row wraps at exactly this
+  // width, so a half-pixel of rounding the other way would push the last
+  // card of a span onto a second line — the very stack this span exists
+  // to prevent.
+  return {width: `${Math.ceil(cols * cardW + (cols - 1) * sizing.value.gapPx) + 1}px`};
+}
+function showsRails(owner: PlayedTargetOwner): boolean {
+  return playedTargetShowsCategoryRails(playedTargetSections(owner));
+}
+/** The candidate's index in its OWNER's list — the focus vocabulary. The
+ *  cards render grouped by category, so a section-local index would name a
+ *  different card than the one the host is pointing at. */
+function indexOf(owner: PlayedTargetOwner, cardName: string): number {
+  return owner.candidates.findIndex((c) => c.cardName === cardName);
+}
+/** «ДОСТУПНО N» counts what can be CHOSEN — a shown near miss (`blocked`) stands in the row, never in the count. */
+function selectableIn(candidates: ReadonlyArray<PlayedTargetCandidate>): number {
+  return candidates.filter((c) => c.blocked === undefined).length;
+}
+function isFocused(ownerId: string, cardName: string): boolean {
+  return props.focus.ownerId === ownerId && focused.value?.cardName === cardName;
+}
+/** A refused stand-in's reason — the server's own words (a key or a message), translated here. */
+function standRefusal(stand: TableTargetStand): string {
+  const why = stand.refused;
+  return why === undefined ? '' : (typeof why === 'string' ? translateText(why) : translateMessage(why));
+}
+/** A stand-in's loss as the server reads it — ONE row of the unit attacked (else the metadata's own delta). */
+function standChanges(stand: TableTargetStand): ReadonlyArray<{icon: string, from: number, to: number}> {
+  const moving = stand.changes.filter((c) => c.from !== c.to);
+  if (moving.length > 0) {
+    return moving;
+  }
+  return stand.current !== undefined && stand.resulting !== undefined ? [{icon: stand.icon, from: stand.current, to: stand.resulting}] : [];
+}
+
+// The four events that genuinely change the geometry — and nothing else.
+// (A focus move does not: the cell boxes are what focus moves BETWEEN.)
+watch(() => props.model, () => {
+  invalidateGeometry();
+  measureSizing();
+});
+watch(() => props.layout.mode, () => {
+  invalidateGeometry();
+  measureSizing();
+});
+watch(() => props.bandHeight, () => {
+  measureSizing();
+});
+/**
+ * THE SELF LINK. The handle cannot reach the source card (it lives one
+ * level up, in the composer's hero slot), so the fact is published and the
+ * composer lights the REAL card. Immediate: the very first frame of a
+ * self-target-only step must already show the link.
+ */
+watch(() => selfLink.value, (v: {present: boolean, focused: boolean, locked: boolean}) => {
+  setPlayedTargetSelfLink(v);
+}, {immediate: true});
+watch(() => activeOwnerId.value, () => {
+  invalidateGeometry();
+});
+watch(() => sizing.value.cardZoom, () => {
+  invalidateGeometry();
+});
+watch(() => sizing.value.sectionFlow, () => {
+  invalidateGeometry();
+});
+watch(() => pageKey.value, () => {
+  invalidateGeometry();
+});
+/** The focused band's page is remembered as the cursor leaves it (the band keeps the page the player left it on). */
+watch(() => props.focus, (next: PlayedTargetFocus) => {
+  const owner = props.model.owners.find((o) => o.id === next.ownerId);
+  if (owner !== undefined) {
+    ownerPages.value = {...ownerPages.value, [owner.id]: playedTargetPageOf(owner, next.index, pageSize.value)};
+  }
+}, {deep: true});
+
+onMounted(() => {
+  // BEFORE the first painted frame: the host's entrance cascade builds its
+  // 0-state from `[data-unfold-item]` a frame later, so the size it captures
+  // is already final and the surface never re-lays out mid-reveal.
+  measureSizing();
+  // The RESPONSIVE path — the band itself changing (a profile switch, the
+  // rail lifting). Never a manual window listener: the observer answers for
+  // the element that actually carries the budget.
+  const zoneNow = zone.value ?? undefined;
+  if (zoneNow !== undefined) {
+    stopResizeObs = useResizeObserver(zoneNow, () => {
+      measureSizing();
+      invalidateGeometry();
+    }).stop;
+  }
+});
+onBeforeUnmount(() => {
+  stopResizeObs?.();
+  stopResizeObs = undefined;
+  resetPlayedTargetSelf();
+});
+defineExpose({cells, ensureFocusVisible, payloadEl, rootEl, scrollBy, navigate, turnPage});
 </script>
