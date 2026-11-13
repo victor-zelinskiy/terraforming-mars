@@ -38,8 +38,8 @@
   </aside>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel, PartyAccessModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -48,92 +48,83 @@ import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/party
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {AccessReasonRow, accessReasonRows, accessRoadOf, allianceOf, effectDelegatesOf, PARTY_EFFECT_PLACES} from '@/client/console/parliament/consoleParliamentModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export type PartyAccessTone = 'rules' | 'holds' | 'allied' | 'lacks';
 
-export default defineComponent({
-  name: 'ConsolePartyAccessPanel',
-  components: {PlayerDelegate},
-  props: {
-    party: {type: String as PropType<ReduxParty>, required: true},
-    parliament: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
-    /** The player the dossier is opened AS (never the player whose turn it is). */
-    viewer: {type: String as PropType<Color | undefined>, default: undefined},
-    closing: {type: Boolean, default: false},
-  },
-  computed: {
-    access(): PartyAccessModel | undefined {
-      return this.parliament?.players.find((p) => p.color === this.viewer)?.access.find((a) => a.party === this.party);
-    },
-    emblem(): string {
-      return partyEmblemUrl(this.party);
-    },
-    tone(): PartyAccessTone {
-      const road = accessRoadOf(this.access);
-      if (road === 'ruling') {
-        return 'rules';
-      }
-      if (road === 'alliance') {
-        return 'allied';
-      }
-      return road !== undefined ? 'holds' : 'lacks';
-    },
-    /** The alliance's PARTNER when the effect is held through it (TR62) — the ring's mark. */
-    partner(): ReduxParty | undefined {
-      return allianceOf(this.access)?.via;
-    },
-    partnerEmblem(): string {
-      return this.partner === undefined ? '' : partyEmblemUrl(this.partner);
-    },
-    partnerAccent(): string {
-      return this.partner === undefined ? '' : partyAccent(this.partner);
-    },
-    /** The glossary's rows (`accessReasonRows`): the FIRST is the state, the rest are notes (the card requirement). */
-    rows(): ReadonlyArray<AccessReasonRow> {
-      const model = this.parliament;
-      if (model === undefined) {
-        return [];
-      }
-      const enacted = model.enacted === undefined ? undefined : getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution;
-      return accessReasonRows(this.access, {
-        party: this.party,
-        enactedEmpty: model.enacted === undefined,
-        enactedName: enacted === undefined ? undefined : translateText(enacted),
-        inArea: model.slots.some((slot) => slot.party === this.party),
-        waiver: model.players.find((p) => p.color === this.viewer)?.partyRequirementWaiver,
-      }).filter((row) => row.key !== 'Card requirement of this party: met');
-    },
-    stateText(): string {
-      const first = this.rows[0];
-      return first === undefined ? translateText('You do not have it') : this.rowText(first);
-    },
-    notes(): ReadonlyArray<AccessReasonRow> {
-      return this.rows.slice(1);
-    },
-    threshold(): number {
-      return effectDelegatesOf(this.access);
-    },
-    /** The PRINTED places (two) — a place past the seat's own threshold is VOID (its room kept), as on the bill's tally. */
-    places(): number {
-      return PARTY_EFFECT_PLACES;
-    },
-    mine(): number {
-      return Math.min(this.access?.delegates ?? 0, this.threshold);
-    },
-    /** The places stand where the viewer's OWN cubes are the road — or would be (never for the crown, a grant or an alliance). */
-    placesShown(): boolean {
-      const road = accessRoadOf(this.access);
-      return this.access !== undefined && (road === undefined || road === 'delegates');
-    },
-  },
-  methods: {
-    rowText(row: AccessReasonRow): string {
-      return row.params.length === 0 ? translateText(row.key) : translateTextWithParams(row.key, row.params.map((p) => translateText(p)));
-    },
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
-    },
-  },
+defineOptions({name: 'ConsolePartyAccessPanel'});
+const props = defineProps({
+  party: {type: String as PropType<ReduxParty>, required: true},
+  parliament: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
+  /** The player the dossier is opened AS (never the player whose turn it is). */
+  viewer: {type: String as PropType<Color | undefined>, default: undefined},
+  closing: {type: Boolean, default: false},
 });
+
+const access = computed((): PartyAccessModel | undefined => {
+  return props.parliament?.players.find((p) => p.color === props.viewer)?.access.find((a) => a.party === props.party);
+});
+const emblem = computed((): string => {
+  return partyEmblemUrl(props.party);
+});
+const tone = computed((): PartyAccessTone => {
+  const road = accessRoadOf(access.value);
+  if (road === 'ruling') {
+    return 'rules';
+  }
+  if (road === 'alliance') {
+    return 'allied';
+  }
+  return road !== undefined ? 'holds' : 'lacks';
+});
+/** The alliance's PARTNER when the effect is held through it (TR62) — the ring's mark. */
+const partner = computed((): ReduxParty | undefined => {
+  return allianceOf(access.value)?.via;
+});
+const partnerEmblem = computed((): string => {
+  return partner.value === undefined ? '' : partyEmblemUrl(partner.value);
+});
+const partnerAccent = computed((): string => {
+  return partner.value === undefined ? '' : partyAccent(partner.value);
+});
+/** The glossary's rows (`accessReasonRows`): the FIRST is the state, the rest are notes (the card requirement). */
+const rows = computed((): ReadonlyArray<AccessReasonRow> => {
+  const model = props.parliament;
+  if (model === undefined) {
+    return [];
+  }
+  const enacted = model.enacted === undefined ? undefined : getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution;
+  return accessReasonRows(access.value, {
+    party: props.party,
+    enactedEmpty: model.enacted === undefined,
+    enactedName: enacted === undefined ? undefined : translateText(enacted),
+    inArea: model.slots.some((slot) => slot.party === props.party),
+    waiver: model.players.find((p) => p.color === props.viewer)?.partyRequirementWaiver,
+  }).filter((row) => row.key !== 'Card requirement of this party: met');
+});
+const stateText = computed((): string => {
+  const first = rows.value[0];
+  return first === undefined ? translateText('You do not have it') : rowText(first);
+});
+const notes = computed((): ReadonlyArray<AccessReasonRow> => {
+  return rows.value.slice(1);
+});
+const threshold = computed((): number => {
+  return effectDelegatesOf(access.value);
+});
+/** The PRINTED places (two) — a place past the seat's own threshold is VOID (its room kept), as on the bill's tally. */
+const places = PARTY_EFFECT_PLACES;
+const mine = computed((): number => {
+  return Math.min(access.value?.delegates ?? 0, threshold.value);
+});
+/** The places stand where the viewer's OWN cubes are the road — or would be (never for the crown, a grant or an alliance). */
+const placesShown = computed((): boolean => {
+  const road = accessRoadOf(access.value);
+  return access.value !== undefined && (road === undefined || road === 'delegates');
+});
+
+function rowText(row: AccessReasonRow): string {
+  return row.params.length === 0 ? translateText(row.key) : translateTextWithParams(row.key, row.params.map((p) => translateText(p)));
+}
+const figurePx = delegateFigurePx;
 </script>
