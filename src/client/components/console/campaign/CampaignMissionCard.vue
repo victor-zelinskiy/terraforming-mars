@@ -31,15 +31,15 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 import ConsoleTenderChip from './ConsoleTenderChip.vue';
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import CampaignModifierBadge from './CampaignModifierBadge.vue';
 import {MissionModifierMeta, missionModifierMetas} from '@/client/console/campaign/missionModifierMeta';
 import {OverviewMissionCard} from '@/client/console/campaign/campaignOverviewModel';
 import {mapLabelKey, mapMeta} from '@/client/components/create/premium/createGameMeta';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {TitleName} from '@/common/campaign/CampaignTypes';
@@ -51,57 +51,50 @@ import {TitleName} from '@/common/campaign/CampaignTypes';
  * The host owns cursor semantics (this component only paints `cursor`) and
  * every verb — the card renders zero controller hints.
  */
-export default defineComponent({
-  name: 'CampaignMissionCard',
-  components: {PremiumMapFingerprint, CampaignModifierBadge, ConsoleTenderChip},
-  props: {
-    mission: {type: Object as PropType<OverviewMissionCard>, required: true},
-    cursor: {type: Boolean, default: false},
-    reveal: {type: Boolean, default: false},
-    revealDelayMs: {type: Number, default: 0},
-  },
-  computed: {
-    rootClasses(): Record<string, boolean> {
-      return {
-        'ccard--modified': this.modifiers.length > 0,
-        'ccard--cursor': this.cursor,
-        'ccard--done': this.mission.state === 'committed',
-        'ccard--current': this.mission.isCurrent,
-        'ccard--future': this.mission.state === 'locked' && !this.mission.isCurrent,
-        'ccard--final': this.mission.final,
-      };
-    },
-    modifiers(): ReadonlyArray<MissionModifierMeta> {
-      return missionModifierMetas(this.mission.modifiers);
-    },
-    accent(): string {
-      return mapMeta(this.mission.board).accent;
-    },
-    boardLabel(): string {
-      return mapLabelKey(this.mission.board);
-    },
-    stateLabel(): string {
-      switch (this.mission.state) {
-      case 'committed': return 'Mission complete';
-      case 'active': return 'Mission in progress';
-      case 'ready': return this.mission.isCurrent ? 'Next mission' : 'Ahead';
-      default: return 'Ahead';
-      }
-    },
-    generationsText(): string {
-      return translateTextWithParams('Generations: ${0}', [String(this.mission.generations)]);
-    },
-  },
-  methods: {
-    titleArtUrl,
-    titleLabel(title: TitleName): string {
-      return TITLE_LABEL[title];
-    },
-    /** The visible participant label — the ONE name helper (the bot never
-     *  prints its raw save name on a podium). */
-    podiumName(p: {name: string, isBot: boolean}): string {
-      return participantDisplayName({name: p.name, isMarsBot: p.isBot});
-    },
-  },
+defineOptions({name: 'CampaignMissionCard'});
+const props = defineProps({
+  mission: {type: Object as PropType<OverviewMissionCard>, required: true},
+  cursor: {type: Boolean, default: false},
+  reveal: {type: Boolean, default: false},
+  revealDelayMs: {type: Number, default: 0},
 });
+
+const rootClasses = computed((): Record<string, boolean> => {
+  return {
+    'ccard--modified': modifiers.value.length > 0,
+    'ccard--cursor': props.cursor,
+    'ccard--done': props.mission.state === 'committed',
+    'ccard--current': props.mission.isCurrent,
+    'ccard--future': props.mission.state === 'locked' && !props.mission.isCurrent,
+    'ccard--final': props.mission.final,
+  };
+});
+const modifiers = computed((): ReadonlyArray<MissionModifierMeta> => {
+  return missionModifierMetas(props.mission.modifiers);
+});
+const accent = computed((): string => {
+  return mapMeta(props.mission.board).accent;
+});
+const boardLabel = computed((): string => {
+  return mapLabelKey(props.mission.board);
+});
+const stateLabel = computed((): string => {
+  switch (props.mission.state) {
+  case 'committed': return 'Mission complete';
+  case 'active': return 'Mission in progress';
+  case 'ready': return props.mission.isCurrent ? 'Next mission' : 'Ahead';
+  default: return 'Ahead';
+  }
+});
+const generationsText = computed((): string => {
+  return translateTextWithParams('Generations: ${0}', [String(props.mission.generations)]);
+});
+function titleLabel(title: TitleName): string {
+  return TITLE_LABEL[title];
+}
+/** The visible participant label — the ONE name helper (the bot never
+ *  prints its raw save name on a podium). */
+function podiumName(p: {name: string, isBot: boolean}): string {
+  return participantDisplayName({name: p.name, isMarsBot: p.isBot});
+}
 </script>
