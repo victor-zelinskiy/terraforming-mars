@@ -1,13 +1,4 @@
 <template>
-  <!-- THE DELEGATES ZONE — the ONE ledger of every player's places: the
-       lobby's single socket (the free delegate waits there, or it is
-       spent) and the reserve as a stack with its count; the NEUTRAL supply
-       beside them (no lobby of its own); the deck last. It lives in the
-       head's TRAILING region, whose left edge is the crumb's RESERVED
-       width — so the groups stand at the same screen coordinates in the
-       overview and in the vote mode, left-aligned, and never re-centre
-       when a count or a word changes. Every delegate's flight leaves from
-       these very places in both modes. -->
   <div class="con-parl__seats" data-parl-seats data-parl-zone>
     <div v-for="seat in seats" :key="seat.color" class="con-parl__seat"
          :class="{'con-parl__seat--me': seat.color === viewerColor}"
@@ -102,8 +93,22 @@
     </div>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE DELEGATES ZONE — the ONE ledger of every player's places: the
+ * lobby's single socket (the free delegate waits there, or it is
+ * spent) and the reserve as a stack with its count; the NEUTRAL supply
+ * beside them (no lobby of its own); the deck last. It lives in the
+ * head's TRAILING region, whose left edge is the crumb's RESERVED
+ * width — so the groups stand at the same screen coordinates in the
+ * overview and in the vote mode, left-aligned, and never re-centre
+ * when a count or a word changes. Every delegate's flight leaves from
+ * these very places in both modes.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType, ref, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
@@ -114,7 +119,7 @@ import {rallyPoolHeld} from '@/client/console/parliament/neutralRally';
 import {rivalPoolHeld} from '@/client/console/parliament/parliamentRivalVotes';
 import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
-import {BenchSource, seatSourceOf} from '@/client/console/parliament/parliamentVoteView';
+import {BenchSource, seatSourceOf as seatSourceOfColor} from '@/client/console/parliament/parliamentVoteView';
 
 /** A pile's edges beneath its top back: none for one card, one for a few, two for a stack. */
 function pileLayers(n: number): number {
@@ -130,133 +135,123 @@ type SeatRow = {color: Color, name: string, lobby: boolean, reserve: number, res
  * table (a delegate that has not flown home yet), plus what the vote mode
  * keeps painting until its cube has visibly left.
  */
-export default defineComponent({
-  name: 'ConsoleParliamentSeats',
-  components: {PlayerDelegate},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    benchSource: {type: String as PropType<BenchSource>, required: true},
-    benchWarn: {type: Boolean, default: false},
-    /** The common supply is a SOURCE of the press being decided (a door that pays the selected party's Popular Support). */
-    neutralSource: {type: Boolean, default: false},
-  },
-  data() {
+defineOptions({name: 'ConsoleParliamentSeats'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  benchSource: {type: String as PropType<BenchSource>, required: true},
+  benchWarn: {type: Boolean, default: false},
+  /** The common supply is a SOURCE of the press being decided (a door that pays the selected party's Popular Support). */
+  neutralSource: {type: Boolean, default: false},
+});
+
+/** Per seat: how many returning delegates have LANDED on its reserve this mount (each landing re-keys the stack for its ring). */
+const landFlash = ref<Record<string, number>>({});
+/** The price tokens that have landed on the viewer's reserve stack (PL-100) — each is a touchdown the stack answers. */
+const reserveAnswers = computed((): number => {
+  return parliamentFlow.reserveAnswers;
+});
+/** THE SEATS — every participating player's places, with the results scene's display holds applied. */
+const seats = computed((): Array<SeatRow> => {
+  const me = props.viewerColor;
+  const holds = parliamentHolds;
+  return props.view.players.filter((p) => p.participates).map((p) => {
+    const pendingLobby = holds.lobby.has(p.color);
+    // Delegates on their way home: off the enacted card (the enactment's returns) and off a loser (the renewal's).
+    const pendingReturns = (holds.returns.get(p.color) ?? 0) + (holds.renewalReturns.get(p.color) ?? 0);
+    // …and a figure a card took off the table (TR72) that is still in the air home: the reserve counts it on its touchdown.
+    // An exchange's own figure (TR74) stands in the reserve until it is taken off the stack.
+    const base = Math.max(0, p.reserve - pendingReturns - delegateRemovalReserveHeld(p.color) + delegateExchangeReserveStanding(p.color) + (pendingLobby ? 1 : 0));
+    // The viewer's places keep PAINTING the delegate that is leaving until
+    // its proxy stands over it (`sourceHold`), and keep SAYING its count
+    // until it has visibly left (`sourceLeaving`) — by the NUMBER still to
+    // leave (a grant sends up to two, one flight after another).
+    const mine = p.color === me;
+    // ANOTHER SEAT'S cube on its way to a card (`parliamentRivalVotes`): its place keeps painting it until the
+    // proxy stands over it — the same law as the viewer's own source, for a rival's lobby socket and reserve stack.
+    const rival = rivalVotes.sources.get(p.color);
     return {
-      /** Per seat: how many returning delegates have LANDED on its reserve this mount (each landing re-keys the stack for its ring). */
-      landFlash: {} as Record<string, number>,
+      color: p.color, name: p.name,
+      lobby: (p.lobby && !pendingLobby) || (mine && parliamentFlow.sourceHold === 'lobby') || (rival?.lobby ?? 0) > 0,
+      reserve: base + (mine && parliamentFlow.sourceLeaving === 'reserve' ? Math.max(1, parliamentFlow.sourceLeavingCount) : 0) + (rival?.reserve ?? 0),
+      reserveCubes: base + (mine && parliamentFlow.sourceHold === 'reserve' ? Math.max(1, parliamentFlow.sourceHoldCount) : 0) + (rival?.reserve ?? 0),
+      chairman: p.chairman,
+      incoming: pendingReturns + delegateRemovalReserveHeld(p.color),
     };
-  },
-  computed: {
-    /** The price tokens that have landed on the viewer's reserve stack (PL-100) — each is a touchdown the stack answers. */
-    reserveAnswers(): number {
-      return parliamentFlow.reserveAnswers;
-    },
-    /** THE SEATS — every participating player's places, with the results scene's display holds applied. */
-    seats(): Array<SeatRow> {
-      const me = this.viewerColor;
-      const holds = parliamentHolds;
-      return this.view.players.filter((p) => p.participates).map((p) => {
-        const pendingLobby = holds.lobby.has(p.color);
-        // Delegates on their way home: off the enacted card (the enactment's returns) and off a loser (the renewal's).
-        const pendingReturns = (holds.returns.get(p.color) ?? 0) + (holds.renewalReturns.get(p.color) ?? 0);
-        // …and a figure a card took off the table (TR72) that is still in the air home: the reserve counts it on its touchdown.
-        // An exchange's own figure (TR74) stands in the reserve until it is taken off the stack.
-        const base = Math.max(0, p.reserve - pendingReturns - delegateRemovalReserveHeld(p.color) + delegateExchangeReserveStanding(p.color) + (pendingLobby ? 1 : 0));
-        // The viewer's places keep PAINTING the delegate that is leaving until
-        // its proxy stands over it (`sourceHold`), and keep SAYING its count
-        // until it has visibly left (`sourceLeaving`) — by the NUMBER still to
-        // leave (a grant sends up to two, one flight after another).
-        const mine = p.color === me;
-        // ANOTHER SEAT'S cube on its way to a card (`parliamentRivalVotes`): its place keeps painting it until the
-        // proxy stands over it — the same law as the viewer's own source, for a rival's lobby socket and reserve stack.
-        const rival = rivalVotes.sources.get(p.color);
-        return {
-          color: p.color, name: p.name,
-          lobby: (p.lobby && !pendingLobby) || (mine && parliamentFlow.sourceHold === 'lobby') || (rival?.lobby ?? 0) > 0,
-          reserve: base + (mine && parliamentFlow.sourceLeaving === 'reserve' ? Math.max(1, parliamentFlow.sourceLeavingCount) : 0) + (rival?.reserve ?? 0),
-          reserveCubes: base + (mine && parliamentFlow.sourceHold === 'reserve' ? Math.max(1, parliamentFlow.sourceHoldCount) : 0) + (rival?.reserve ?? 0),
-          chairman: p.chairman,
-          incoming: pendingReturns + delegateRemovalReserveHeld(p.color),
-        };
-      });
-    },
-    neutralSupplyShown(): number {
-      // …PLUS the cubes a grant's support has not LIFTED yet (`supportHeld`): the answer already took them
-      // out of the supply, the bench keeps painting and counting each until its proxy stands over it.
-      // …and MINUS the cubes a support-area pick (TR12) sent back that have not LANDED here yet: the answer already
-      // put them in the supply, the pool counts each on its touchdown.
-      // …PLUS the cubes a card's RALLY (TR31) took that have not LIFTED yet: the answer already moved them, the
-      // bench keeps painting and counting each until its proxy stands over it.
-      // …PLUS the cubes the sitting's support step took that have not lifted yet (`supportPool` — the soft gates: the
-      // verdict stands over a supply the pass has already spent).
-      return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0) -
-        supportDiscardPoolHeld() - delegateRemovalPoolHeld()) + parliamentFlow.supportHeld + rallyPoolHeld() + rivalPoolHeld() + parliamentHolds.supportPool;
-    },
-    /** The deck as SHOWN — the renewal's tact moves the piles card by card as each landing happens; the live count otherwise. */
-    deckShown(): number {
-      return parliamentHolds.pile?.deck ?? this.view.deckSize;
-    },
-    /** The discard as SHOWN — the same hold. */
-    discardShown(): number {
-      return parliamentHolds.pile?.discard ?? this.view.discardSize;
-    },
-    /** The pile's edges beneath the top back: none for one card, one for a few, two for a stack. */
-    deckLayers(): number {
-      return pileLayers(this.deckShown);
-    },
-    discardLayers(): number {
-      return pileLayers(this.discardShown);
-    },
-  },
-  watch: {
-    /** A PRICE TOKEN LANDED on the viewer's reserve stack (PL-100 — the resource that buys the delegate): the stack answers with its landed flash, the cube lifts next. */
-    reserveAnswers(now: number, was: number): void {
-      const me = this.viewerColor;
-      if (now > was && me !== undefined) {
-        this.landFlash[me] = (this.landFlash[me] ?? 0) + 1;
-      }
-    },
-    /**
-     * A RETURNING DELEGATE LANDED: the shown reserve grows by one while the
-     * sitting stands (the display hold lets go touchdown by touchdown) —
-     * that frame is the ring's cue. The vote mode's own cube leaving never
-     * counts (the sitting is the only stage the reserve grows in).
-     */
-    seats(now: Array<SeatRow>, was: Array<SeatRow>): void {
-      // The sitting and «ПРЕДСЕДАТЕЛЬСТВО» are the two stages a reserve GROWS in
-      // (a vote's own cube leaving never counts).
-      if (parliamentFlow.stage !== 'sitting' && parliamentFlow.stage !== 'quest') {
-        return;
-      }
-      for (const seat of now) {
-        const before = was.find((s) => s.color === seat.color);
-        if (before !== undefined && seat.reserveCubes > before.reserveCubes) {
-          this.landFlash[seat.color] = (this.landFlash[seat.color] ?? 0) + 1;
-        }
-      }
-    },
-  },
-  methods: {
-    landFlashOf(color: Color): number {
-      return this.landFlash[color] ?? 0;
-    },
-    /** WHICH of the viewer's places the next delegate leaves — marked on the zone while the mode stands, never on another player's group. */
-    /**
-     * WHO CARRIES the delegate in the air right now — another seat's (or a rival card's neutral) figure leaving THIS
-     * place: the place lights for the length of the carry, so the eye reads WHO moves it by the place it left, never by
-     * its colour alone (a rival's vote, a rival's rally out of the common supply).
-     */
-    carryingFrom(color: Color | 'neutral'): 'lobby' | 'reserve' | 'pool' | undefined {
-      const flying = rivalVotes.flying;
-      if (flying === undefined || flying.kind !== 'vote' || flying.owner !== color) {
-        return undefined;
-      }
-      return flying.source;
-    },
-    seatSourceOf(seat: SeatRow): 'lobby' | 'reserve' | undefined {
-      return seatSourceOf(seat.color, this.viewerColor, this.benchSource, this.benchWarn);
-    },
-  },
+  });
+});
+const neutralSupplyShown = computed((): number => {
+  // …PLUS the cubes a grant's support has not LIFTED yet (`supportHeld`): the answer already took them
+  // out of the supply, the bench keeps painting and counting each until its proxy stands over it.
+  // …and MINUS the cubes a support-area pick (TR12) sent back that have not LANDED here yet: the answer already
+  // put them in the supply, the pool counts each on its touchdown.
+  // …PLUS the cubes a card's RALLY (TR31) took that have not LIFTED yet: the answer already moved them, the
+  // bench keeps painting and counting each until its proxy stands over it.
+  // …PLUS the cubes the sitting's support step took that have not lifted yet (`supportPool` — the soft gates: the
+  // verdict stands over a supply the pass has already spent).
+  return Math.max(0, props.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0) -
+    supportDiscardPoolHeld() - delegateRemovalPoolHeld()) + parliamentFlow.supportHeld + rallyPoolHeld() + rivalPoolHeld() + parliamentHolds.supportPool;
+});
+/** The deck as SHOWN — the renewal's tact moves the piles card by card as each landing happens; the live count otherwise. */
+const deckShown = computed((): number => {
+  return parliamentHolds.pile?.deck ?? props.view.deckSize;
+});
+/** The discard as SHOWN — the same hold. */
+const discardShown = computed((): number => {
+  return parliamentHolds.pile?.discard ?? props.view.discardSize;
+});
+/** The pile's edges beneath the top back: none for one card, one for a few, two for a stack. */
+const deckLayers = computed((): number => {
+  return pileLayers(deckShown.value);
+});
+const discardLayers = computed((): number => {
+  return pileLayers(discardShown.value);
+});
+
+function landFlashOf(color: Color): number {
+  return landFlash.value[color] ?? 0;
+}
+/** WHICH of the viewer's places the next delegate leaves — marked on the zone while the mode stands, never on another player's group. */
+/**
+ * WHO CARRIES the delegate in the air right now — another seat's (or a rival card's neutral) figure leaving THIS
+ * place: the place lights for the length of the carry, so the eye reads WHO moves it by the place it left, never by
+ * its colour alone (a rival's vote, a rival's rally out of the common supply).
+ */
+function carryingFrom(color: Color | 'neutral'): 'lobby' | 'reserve' | 'pool' | undefined {
+  const flying = rivalVotes.flying;
+  if (flying === undefined || flying.kind !== 'vote' || flying.owner !== color) {
+    return undefined;
+  }
+  return flying.source;
+}
+function seatSourceOf(seat: SeatRow): 'lobby' | 'reserve' | undefined {
+  return seatSourceOfColor(seat.color, props.viewerColor, props.benchSource, props.benchWarn);
+}
+
+/** A PRICE TOKEN LANDED on the viewer's reserve stack (PL-100 — the resource that buys the delegate): the stack answers with its landed flash, the cube lifts next. */
+watch(() => reserveAnswers.value, (now: number, was: number): void => {
+  const me = props.viewerColor;
+  if (now > was && me !== undefined) {
+    landFlash.value[me] = (landFlash.value[me] ?? 0) + 1;
+  }
+});
+/**
+ * A RETURNING DELEGATE LANDED: the shown reserve grows by one while the
+ * sitting stands (the display hold lets go touchdown by touchdown) —
+ * that frame is the ring's cue. The vote mode's own cube leaving never
+ * counts (the sitting is the only stage the reserve grows in).
+ */
+watch(() => seats.value, (now: Array<SeatRow>, was: Array<SeatRow>): void => {
+  // The sitting and «ПРЕДСЕДАТЕЛЬСТВО» are the two stages a reserve GROWS in
+  // (a vote's own cube leaving never counts).
+  if (parliamentFlow.stage !== 'sitting' && parliamentFlow.stage !== 'quest') {
+    return;
+  }
+  for (const seat of now) {
+    const before = was.find((s) => s.color === seat.color);
+    if (before !== undefined && seat.reserveCubes > before.reserveCubes) {
+      landFlash.value[seat.color] = (landFlash.value[seat.color] ?? 0) + 1;
+    }
+  }
 });
 </script>
