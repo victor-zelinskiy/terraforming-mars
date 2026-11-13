@@ -1,30 +1,4 @@
 <template>
-  <!--
-    THE WINNER'S PART (Turmoil Redux) — ONE graphic block for a resolution's
-    winner part, wherever a surface names it: the vote surface's own-effect
-    block, the fullscreen inspector's footer, the playground, the sitting's band.
-
-    It stands APART from the influence readings on purpose: those are every
-    player's numbers, this is one seat's tile — marked by the winner star and
-    its own label, so nobody reads the free greenery as theirs or as something
-    their plants pay for. The CAPTION says which question it answers («if you
-    win» / «you place it» / «placed by X» / «neutral winner» / a skip's
-    reason); the BODY says what the tile's own placement does to the table
-    (oxygen 7 → 8 %, or «max» — no step) and the TR it is worth. The cell's
-    bonuses are never promised here: that is the placement dossier's job.
-
-    The winner's COLONY (Colony Contest) is the same block with no parameter
-    line: before the pick the body is the colony tile and its label; once it
-    is built, the tile the cube landed on takes the parameter's place.
-
-    The winner's DIRECT STEP (Mohole Contest: the temperature 2 steps) is the
-    same block with the parameter's own icon for a tile: the range it makes
-    (−20 → −16 °C, or «max»), the TR per step, and — in the note — what the
-    track pays on the way (the heat production, the ocean of 0 °C).
-
-    Nothing here computes: the reading arrives from `winnerRewardModel.ts`
-    (the common `winnerReward.ts` rules the engine pays by).
-  -->
   <div class="con-wreward"
        :class="['con-wreward--' + size, 'con-wreward--' + variant, 'con-wreward--' + reading.context, 'con-wreward--' + glyph, {
          'con-wreward--neutral': neutral,
@@ -76,135 +50,160 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE WINNER'S PART (Turmoil Redux) — ONE graphic block for a resolution's
+ * winner part, wherever a surface names it: the vote surface's own-effect
+ * block, the fullscreen inspector's footer, the playground, the sitting's band.
+ *
+ * It stands APART from the influence readings on purpose: those are every
+ * player's numbers, this is one seat's tile — marked by the winner star and
+ * its own label, so nobody reads the free greenery as theirs or as something
+ * their plants pay for. The CAPTION says which question it answers («if you
+ * win» / «you place it» / «placed by X» / «neutral winner» / a skip's
+ * reason); the BODY says what the tile's own placement does to the table
+ * (oxygen 7 → 8 %, or «max» — no step) and the TR it is worth. The cell's
+ * bonuses are never promised here: that is the placement dossier's job.
+ *
+ * The winner's COLONY (Colony Contest) is the same block with no parameter
+ * line: before the pick the body is the colony tile and its label; once it
+ * is built, the tile the cube landed on takes the parameter's place.
+ *
+ * The winner's DIRECT STEP (Mohole Contest: the temperature 2 steps) is the
+ * same block with the parameter's own icon for a tile: the range it makes
+ * (−20 → −16 °C, or «max»), the TR per step, and — in the note — what the
+ * track pays on the way (the heat production, the ocean of 0 °C).
+ *
+ * Nothing here computes: the reading arrives from `winnerRewardModel.ts`
+ * (the common `winnerReward.ts` rules the engine pays by).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {winnerRewardTrTotal} from '@/common/parliament/winnerReward';
 import {
   WinnerRewardGlyph, WinnerRewardReading, winnerParameterLabelKey, winnerParameterMaxNoteKey, winnerParameterUnit, winnerRewardCaptionOf,
   winnerRewardGlyph, winnerStepFollowUps, winnerTileLabelKey,
 } from '@/client/console/parliament/winnerRewardModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleWinnerReward',
-  props: {
-    reading: {type: Object as PropType<WinnerRewardReading>, required: true},
-    /** The viewer — «you place it» vs «placed by X». */
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** A seat's display name. */
-    nameOf: {type: Function as PropType<(color: Color) => string>, default: (color: Color) => translateText(color)},
-    /** `compact` in a footer / a vote block, `normal` in a panel, `hero` on a stage. */
-    size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
-    /**
-     * `block` — the head, the body and the TR breakdown (a panel, the playground);
-     * `chip` — the head over the body, two lines (the fullscreen footer's plate);
-     * `inline` — the body and the caption on ONE line, for a host whose own label
-     * already says «for the winner of the vote» (the vote block's part row).
-     */
-    variant: {type: String as PropType<'block' | 'chip' | 'inline'>, default: 'block'},
-    /**
-     * The host carries a skip's REASON elsewhere (the sitting's skip plate): the caption then
-     * says «ПРОПУЩЕНО» alone (registry R-12 — the same sentence stood twice). A host without a
-     * plate (the playground, the fullscreen footer) keeps the reason in the caption — a skip
-     * never goes unexplained.
-     */
-    reasonElsewhere: {type: Boolean, default: false},
-  },
-  computed: {
-    neutral(): boolean {
-      return (this.reading.context === 'pending' || this.reading.context === 'applied') && this.reading.recipient === 'neutral';
-    },
-    mine(): boolean {
-      return this.viewerColor !== undefined && this.reading.recipient === this.viewerColor;
-    },
-    /** The graphic the part draws: the tile kind, `colony`, or the parameter of a direct step. */
-    glyph(): WinnerRewardGlyph {
-      return winnerRewardGlyph(this.reading.reward);
-    },
-    tileLabel(): string {
-      return winnerTileLabelKey(this.reading.reward);
-    },
-    unit(): string {
-      return this.reading.parameter === undefined ? '' : winnerParameterUnit(this.reading.parameter);
-    },
-    /** The steps the part ASKS for, off the table (a tile: 1; a direct step: its declared count). */
-    declaredSteps(): number {
-      return this.reading.reward.kind === 'parameter' ? this.reading.reward.steps : 1;
-    },
-    /** from → to: the live room, or the recorded step. */
-    range(): {from: number, to: number} | undefined {
-      const r = this.reading;
-      if (r.placed !== undefined && (r.placed.before !== 0 || r.placed.after !== 0)) {
-        return {from: r.placed.before, to: r.placed.after};
-      }
-      if (r.room !== undefined) {
-        return {from: r.room.current, to: r.room.resulting};
-      }
-      return undefined;
-    },
-    rises(): boolean | undefined {
-      const range = this.range;
-      return range === undefined ? undefined : range.to > range.from;
-    },
-    /** The parameter stands at its maximum: the tile lands, the parameter does not move. */
-    atMax(): boolean {
-      const r = this.reading;
-      if (r.room !== undefined) {
-        return !r.room.rises;
-      }
-      const range = this.range;
-      return r.placed !== undefined && range !== undefined && range.to === range.from;
-    },
-    trTotal(): number {
-      return this.reading.tr === undefined ? 0 : winnerRewardTrTotal(this.reading.tr);
-    },
-    caption(): string {
-      // Beside a skip PLATE the caption says «ПРОПУЩЕНО» and the plate says why (R-12); elsewhere the caption is the reason.
-      const caption = this.reading.skipped !== undefined && this.reasonElsewhere ? {key: 'Skipped'} : winnerRewardCaptionOf(this.reading, this.viewerColor, this.nameOf);
-      if (caption === undefined) {
-        return '';
-      }
-      const text = caption.params === undefined ? translateText(caption.key) : translateTextWithParams(caption.key, [...caption.params]);
-      return this.reading.generation === undefined ? text : `${translateTextWithParams('Generation ${0}', [String(this.reading.generation)])} · ${text}`;
-    },
-    /** What the TR is made of — or why the parameter does not move — and what the track pays on the way. */
-    note(): string {
-      const r = this.reading;
-      if (this.neutral || r.skipped !== undefined) {
-        return '';
-      }
-      if (r.room !== undefined && !r.room.tileAvailable) {
-        return translateText('No ocean tile is left');
-      }
-      const terms: Array<string> = [];
-      const tr = r.tr;
-      if (tr !== undefined) {
-        if (tr.tile > 0) {
-          terms.push(`${translateText('Greenery tile')} +${tr.tile}`);
-        }
-        if (tr.parameter > 0 && r.parameter !== undefined) {
-          terms.push(`${translateText(winnerParameterLabelKey(r.parameter))} +${tr.parameter}`);
-        }
-        if (tr.temperature > 0) {
-          terms.push(`${translateText('Temperature')} +${tr.temperature}`);
-        }
-      }
-      const breakdown = terms.length > 1 || (terms.length === 1 && tr?.tile !== undefined && tr.tile > 0) ?
-        translateTextWithParams('TR: ${0}', [terms.join(' · ')]) : '';
-      const lines: Array<string> = [];
-      if (this.atMax && r.parameter !== undefined && r.parameter !== 'oceans') {
-        lines.push(translateText(winnerParameterMaxNoteKey(r.parameter)));
-      }
-      if (breakdown !== '') {
-        lines.push(breakdown);
-      }
-      // A direct step: the track's own bonuses on the way — the heat production, the ocean of 0 °C.
-      for (const follow of winnerStepFollowUps(r)) {
-        lines.push(follow.params === undefined ? translateText(follow.key) : translateTextWithParams(follow.key, [...follow.params]));
-      }
-      return lines.join(' · ');
-    },
-  },
+defineOptions({name: 'ConsoleWinnerReward'});
+const props = defineProps({
+  reading: {type: Object as PropType<WinnerRewardReading>, required: true},
+  /** The viewer — «you place it» vs «placed by X». */
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** A seat's display name. */
+  nameOf: {type: Function as PropType<(color: Color) => string>, default: (color: Color) => translateText(color)},
+  /** `compact` in a footer / a vote block, `normal` in a panel, `hero` on a stage. */
+  size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
+  /**
+   * `block` — the head, the body and the TR breakdown (a panel, the playground);
+   * `chip` — the head over the body, two lines (the fullscreen footer's plate);
+   * `inline` — the body and the caption on ONE line, for a host whose own label
+   * already says «for the winner of the vote» (the vote block's part row).
+   */
+  variant: {type: String as PropType<'block' | 'chip' | 'inline'>, default: 'block'},
+  /**
+   * The host carries a skip's REASON elsewhere (the sitting's skip plate): the caption then
+   * says «ПРОПУЩЕНО» alone (registry R-12 — the same sentence stood twice). A host without a
+   * plate (the playground, the fullscreen footer) keeps the reason in the caption — a skip
+   * never goes unexplained.
+   */
+  reasonElsewhere: {type: Boolean, default: false},
+});
+
+const neutral = computed((): boolean => {
+  return (props.reading.context === 'pending' || props.reading.context === 'applied') && props.reading.recipient === 'neutral';
+});
+const mine = computed((): boolean => {
+  return props.viewerColor !== undefined && props.reading.recipient === props.viewerColor;
+});
+/** The graphic the part draws: the tile kind, `colony`, or the parameter of a direct step. */
+const glyph = computed((): WinnerRewardGlyph => {
+  return winnerRewardGlyph(props.reading.reward);
+});
+const tileLabel = computed((): string => {
+  return winnerTileLabelKey(props.reading.reward);
+});
+const unit = computed((): string => {
+  return props.reading.parameter === undefined ? '' : winnerParameterUnit(props.reading.parameter);
+});
+/** The steps the part ASKS for, off the table (a tile: 1; a direct step: its declared count). */
+const declaredSteps = computed((): number => {
+  return props.reading.reward.kind === 'parameter' ? props.reading.reward.steps : 1;
+});
+/** from → to: the live room, or the recorded step. */
+const range = computed((): {from: number, to: number} | undefined => {
+  const r = props.reading;
+  if (r.placed !== undefined && (r.placed.before !== 0 || r.placed.after !== 0)) {
+    return {from: r.placed.before, to: r.placed.after};
+  }
+  if (r.room !== undefined) {
+    return {from: r.room.current, to: r.room.resulting};
+  }
+  return undefined;
+});
+const rises = computed((): boolean | undefined => {
+  const rangeNow = range.value;
+  return rangeNow === undefined ? undefined : rangeNow.to > rangeNow.from;
+});
+/** The parameter stands at its maximum: the tile lands, the parameter does not move. */
+const atMax = computed((): boolean => {
+  const r = props.reading;
+  if (r.room !== undefined) {
+    return !r.room.rises;
+  }
+  const rangeNow = range.value;
+  return r.placed !== undefined && rangeNow !== undefined && rangeNow.to === rangeNow.from;
+});
+const trTotal = computed((): number => {
+  return props.reading.tr === undefined ? 0 : winnerRewardTrTotal(props.reading.tr);
+});
+const caption = computed((): string => {
+  // Beside a skip PLATE the caption says «ПРОПУЩЕНО» and the plate says why (R-12); elsewhere the caption is the reason.
+  const caption = props.reading.skipped !== undefined && props.reasonElsewhere ? {key: 'Skipped'} : winnerRewardCaptionOf(props.reading, props.viewerColor, props.nameOf);
+  if (caption === undefined) {
+    return '';
+  }
+  const text = caption.params === undefined ? translateText(caption.key) : translateTextWithParams(caption.key, [...caption.params]);
+  return props.reading.generation === undefined ? text : `${translateTextWithParams('Generation ${0}', [String(props.reading.generation)])} · ${text}`;
+});
+/** What the TR is made of — or why the parameter does not move — and what the track pays on the way. */
+const note = computed((): string => {
+  const r = props.reading;
+  if (neutral.value || r.skipped !== undefined) {
+    return '';
+  }
+  if (r.room !== undefined && !r.room.tileAvailable) {
+    return translateText('No ocean tile is left');
+  }
+  const terms: Array<string> = [];
+  const tr = r.tr;
+  if (tr !== undefined) {
+    if (tr.tile > 0) {
+      terms.push(`${translateText('Greenery tile')} +${tr.tile}`);
+    }
+    if (tr.parameter > 0 && r.parameter !== undefined) {
+      terms.push(`${translateText(winnerParameterLabelKey(r.parameter))} +${tr.parameter}`);
+    }
+    if (tr.temperature > 0) {
+      terms.push(`${translateText('Temperature')} +${tr.temperature}`);
+    }
+  }
+  const breakdown = terms.length > 1 || (terms.length === 1 && tr?.tile !== undefined && tr.tile > 0) ?
+    translateTextWithParams('TR: ${0}', [terms.join(' · ')]) : '';
+  const lines: Array<string> = [];
+  if (atMax.value && r.parameter !== undefined && r.parameter !== 'oceans') {
+    lines.push(translateText(winnerParameterMaxNoteKey(r.parameter)));
+  }
+  if (breakdown !== '') {
+    lines.push(breakdown);
+  }
+  // A direct step: the track's own bonuses on the way — the heat production, the ocean of 0 °C.
+  for (const follow of winnerStepFollowUps(r)) {
+    lines.push(follow.params === undefined ? translateText(follow.key) : translateTextWithParams(follow.key, [...follow.params]));
+  }
+  return lines.join(' · ');
 });
 </script>
