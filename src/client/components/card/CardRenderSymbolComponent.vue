@@ -5,9 +5,9 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 import {ICardRenderSymbol} from '@/common/cards/render/Types';
 import {Size} from '@/common/cards/render/Size';
@@ -36,45 +36,42 @@ const sizes: Record<Size, string> = {
   [Size.LARGE]: 'large',
 };
 
-export default defineComponent({
-  name: 'CardRenderSymbolComponent',
-  props: {
-    item: {
-      type: Object as () => ICardRenderSymbol,
-      required: true,
-    },
+defineOptions({name: 'CardRenderSymbolComponent'});
+const props = defineProps({
+  item: {
+    type: Object as () => ICardRenderSymbol,
+    required: true,
   },
-  computed: {
-    classes(): string {
-      const type: CardRenderSymbolType = this.item.type;
-      const size: Size = this.item.size;
-      const classes: Array<string> = ['card-special'];
+});
 
-      if (type === CardRenderSymbolType.ARROW) {
-      // Special-case arrow
-        if (size === Size.SMALL) {
-          classes.push('card-red-arrow--small');
-        } else {
-          classes.push('card-red-arrow');
-        }
-      } else {
-        const config = configs[type];
-        classes.push(config.class);
-        if (config.sizes?.includes(size)) {
-          classes.push(`${config.class}--${sizes[size]}`);
-        }
-      }
+const classes = computed((): string => {
+  const type: CardRenderSymbolType = props.item.type;
+  const size: Size = props.item.size;
+  const classes: Array<string> = ['card-special'];
 
-      if (this.item.cancelled === true) {
-        classes.push('card-symbol-cancelled');
-      }
+  if (type === CardRenderSymbolType.ARROW) {
+  // Special-case arrow
+    if (size === Size.SMALL) {
+      classes.push('card-red-arrow--small');
+    } else {
+      classes.push('card-red-arrow');
+    }
+  } else {
+    const config = configs[type];
+    classes.push(config.class);
+    if (config.sizes?.includes(size)) {
+      classes.push(`${config.class}--${sizes[size]}`);
+    }
+  }
 
-      return classes.join(' ');
-    },
-    content(): string {
-      return this.item.isIcon ? '' : this.item.type;
-    },
-  },
+  if (props.item.cancelled === true) {
+    classes.push('card-symbol-cancelled');
+  }
+
+  return classes.join(' ');
+});
+const content = computed((): string => {
+  return props.item.isIcon ? '' : props.item.type;
 });
 
 </script>
