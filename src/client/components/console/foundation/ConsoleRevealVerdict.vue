@@ -61,8 +61,9 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
@@ -96,25 +97,19 @@ import {RevealVerdictReading, revealRewardStock, revealVerdictReading} from '@/c
  * workspace the stage is named by the breadcrumb, which is what keeps an
  * embedded surface from reading as a modal that arrived.
  */
-export default defineComponent({
-  name: 'ConsoleRevealVerdict',
-  components: {ActionEffectChip, PremiumPartyRequirementGlyph},
-  props: {
-    reveal: {type: Object as PropType<RevealResultModel>, required: true},
-  },
-  computed: {
-    reading(): RevealVerdictReading {
-      return revealVerdictReading(this.reveal);
-    },
-    /** The stock reward this verdict pays into the rail (the «OK» flight's chip), if any. */
-    stockIcon(): string | undefined {
-      return revealRewardStock(this.reveal)?.resource;
-    },
-  },
-  methods: {
-    isStock(chip: ActionEffect): boolean {
-      return this.stockIcon !== undefined && chip.icon === this.stockIcon && chip.note === undefined;
-    },
-  },
+defineOptions({name: 'ConsoleRevealVerdict'});
+const props = defineProps({
+  reveal: {type: Object as PropType<RevealResultModel>, required: true},
 });
+
+const reading = computed((): RevealVerdictReading => {
+  return revealVerdictReading(props.reveal);
+});
+/** The stock reward this verdict pays into the rail (the «OK» flight's chip), if any. */
+const stockIcon = computed((): string | undefined => {
+  return revealRewardStock(props.reveal)?.resource;
+});
+function isStock(chip: ActionEffect): boolean {
+  return stockIcon.value !== undefined && chip.icon === stockIcon.value && chip.note === undefined;
+}
 </script>
