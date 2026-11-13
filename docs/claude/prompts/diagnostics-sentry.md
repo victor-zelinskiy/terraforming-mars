@@ -187,11 +187,12 @@
 ## ФАЗЫ
 
 ### Ф0 — владелец (до Ф3; исполнитель НИЧЕГО не создаёт сам, а когда дойдёт до Ф3 — спрашивает слаги/DSN)
-1. Организация Sentry (EU), проект `terraforming-mars` (платформа Electron); DSN.
-2. Настройки проекта: не хранить IP; скраббер данных вкл.; «Attachments Access» для участников; «Store Native Crash Reports» вкл.
-3. Токен организации для CI (загрузка карт) → секрет GitHub `SENTRY_AUTH_TOKEN`; переменные `SENTRY_ORG`, `SENTRY_PROJECT`.
-4. Токен ЧТЕНИЯ для агентов (внутренняя интеграция: `event:read`, `project:read`, `org:read`) — хранится ВНЕ репо (`~/.config/tm-diagnostics/sentry-token` или переменная окружения ноутбука).
+1. Организация Sentry — **регион EU выбирается при создании организации и потом НЕ меняется** (только новой организацией); проект `terraforming-mars` (платформа Electron); DSN — Project Settings › Client Keys (DSN); DSN не секрет (только отправка событий).
+2. Organization Settings › Security & Privacy: запрет хранения IP, Data Scrubber вкл. (по умолчанию), «Store Native Crash Reports / Store Minidumps As Attachments» вкл.; Organization Settings › General › «Attachments Access» — участникам.
+3. CI: **Organization Token** (Settings › Developer Settings › Organization Tokens; права фиксированные `org:ci` — загрузка карт и релизы; показывается один раз) → секрет GitHub `SENTRY_AUTH_TOKEN`; переменные Actions `SENTRY_ORG`, `SENTRY_PROJECT`, `TM_SENTRY_DSN`.
+4. Чтение для агентов: **Personal Token** (Account › Personal Tokens) только со скоупами чтения (`org:read`, `project:read`, `event:read`) — или внутренняя интеграция с теми же правами; хранится ВНЕ репо: `~/.config/tm-diagnostics/sentry-token`.
 5. Разрешение поправить обёртку на боксе (`TM_SENTRY_ENV=box`) — правка устройства, только с явного слова владельца.
+6. **Тариф:** в таблице цен бесплатного Developer-плана (1 пользователь, 5k ошибок, 1 GB вложений, отзывы — есть) строка «API access» — «No». CLI агента (Ф5) и Sentry MCP стоят на REST API. **Первым делом Ф3 проверить** токеном чтения один запрос (`GET /api/0/organizations/<org>/projects/`): работает — остаёмся на бесплатном; нет — сказать владельцу (Team-план) и до решения строить CLI так, чтобы `box pull` и локальные отчёты работали без API.
 
 ### Ф1 — кран, журнал, концентратор в main (без UI, без Sentry)
 - `diagnosticsTap` ставится в `src/client/main.ts` ДО `createApp` (загрузка и главное меню теперь пишутся); сохраняет `Error` и стек; ранние строки буферизуются для поздних подписчиков.
