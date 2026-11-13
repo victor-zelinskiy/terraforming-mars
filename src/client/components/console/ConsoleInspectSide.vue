@@ -39,7 +39,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * CONSOLE fullscreen-card INSPECT DOSSIER — the two-tab right panel of the
  * card viewer's inspect mode (the Action Browser's X-inspect). ONE stable
@@ -53,52 +53,53 @@
  * in `consoleCardZoom.inspectTab` (module state, driven by the shell), so this
  * component is a pure presentation of it.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType, useTemplateRef} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {ConsoleZoomInspectTab} from '@/client/console/consoleCardZoom';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {stopCursorScroll} from '@/client/console/cursorScroll';
+import {$t} from '@/client/directives/i18n';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import ConsoleCardHistoryPanel from '@/client/components/console/ConsoleCardHistoryPanel.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
-export default defineComponent({
-  name: 'ConsoleInspectSide',
-  components: {ConsoleCardRulesPanel, ConsoleCardHistoryPanel, GamepadGlyph},
-  props: {
-    cardName: {type: String as PropType<CardName>, required: true},
-    history: {type: Object as PropType<ActionInspectHistory>, required: true},
-    tab: {type: String as PropType<ConsoleZoomInspectTab>, required: true},
-    /** The viewer's settle signal (forwarded to the rules panel's measure). */
-    nonce: {type: Number, default: 0},
-    /** The close flight began — hide instantly (never lag the card). */
-    closing: {type: Boolean, default: false},
-  },
-  computed: {
-    reduced(): boolean {
-      return consoleReducedMotionActive();
-    },
-  },
-  methods: {
-    /**
-     * Right-stick / d-pad paging of the ACTIVE tab's body (the rules or the
-     * statistics — each its own ConsoleScrollArea), routed by the shell's zoom
-     * intent handler. Returns false when nothing overflows, so the shell keeps
-     * swallowing the input instead of pretending a journey.
-     */
-    scrollBody(delta: number): boolean {
-      const content = (this.$refs.content ?? undefined) as HTMLElement | undefined;
-      const viewports = content === undefined ? [] : Array.from(content.querySelectorAll<HTMLElement>('.con-scroll-area__viewport'));
-      // During the tab crossfade both bodies stand: the LAST one is the entering tab's.
-      const vp = viewports.reverse().find((el) => el.scrollHeight > el.clientHeight + 1);
-      if (vp === undefined) {
-        return false;
-      }
-      stopCursorScroll(vp);
-      vp.scrollTop += delta;
-      return true;
-    },
-  },
+defineOptions({name: 'ConsoleInspectSide'});
+defineProps({
+  cardName: {type: String as PropType<CardName>, required: true},
+  history: {type: Object as PropType<ActionInspectHistory>, required: true},
+  tab: {type: String as PropType<ConsoleZoomInspectTab>, required: true},
+  /** The viewer's settle signal (forwarded to the rules panel's measure). */
+  nonce: {type: Number, default: 0},
+  /** The close flight began — hide instantly (never lag the card). */
+  closing: {type: Boolean, default: false},
 });
+
+const content = useTemplateRef<HTMLElement>('content');
+const reduced = computed((): boolean => {
+  return consoleReducedMotionActive();
+});
+
+/**
+ * Right-stick / d-pad paging of the ACTIVE tab's body (the rules or the
+ * statistics — each its own ConsoleScrollArea), routed by the shell's zoom
+ * intent handler. Returns false when nothing overflows, so the shell keeps
+ * swallowing the input instead of pretending a journey.
+ */
+function scrollBody(delta: number): boolean {
+  const contentNow = content.value;
+  const viewports = contentNow === null ? [] : Array.from(contentNow.querySelectorAll<HTMLElement>('.con-scroll-area__viewport'));
+  // During the tab crossfade both bodies stand: the LAST one is the entering tab's.
+  const vp = viewports.reverse().find((el) => el.scrollHeight > el.clientHeight + 1);
+  if (vp === undefined) {
+    return false;
+  }
+  stopCursorScroll(vp);
+  vp.scrollTop += delta;
+  return true;
+}
+
+// The shell's viewer reaches the dossier by NAME — `shell.surfaces.at('zoomInspectSide')?.scrollBody(…)`
+// (console/shell/viewerController.ts `scrollZoomSide`): the one member a controller reads off this surface.
+defineExpose({scrollBody});
 </script>
