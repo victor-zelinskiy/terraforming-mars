@@ -1,20 +1,4 @@
 <template>
-  <!--
-    ONE FACT OF A VOTE (Turmoil Redux) — the key, then the current value → the
-    projected one. A fact that does not change is ONE value: an arrow to the
-    same reading is noise on a decision line.
-
-    Two variants of ONE markup:
-    · `row` — «ЛИДЕР [cube] → вы» on one line (the delegate mode's facts);
-    · `tile` — the vote panel's (P77 · DH «ФАКТЫ — ОБЪЕКТЫ»): the key as the
-      tile's kicker and the value drawn as the Parliament's own OBJECTS — the
-      leader's CUBE (an empty socket where nobody leads yet), the vote's CROWN
-      (filled — this resolution leads the vote; a hollow ring — it does not),
-      the party's two SOCKETS (n of the threshold filled; «эффект ваш» once
-      crossed). The words stay in the tile for assistive tech and the
-      inspector's sentences (`con-parl__fact-words`) — never painted twice.
-    Host attributes (`data-parl-vote-late`) fall through to the root.
-  -->
   <div class="con-parl__fact"
        :class="{
          'con-parl__fact--gain': fact.tone === 'gain',
@@ -73,48 +57,60 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ONE FACT OF A VOTE (Turmoil Redux) — the key, then the current value → the
+ * projected one. A fact that does not change is ONE value: an arrow to the
+ * same reading is noise on a decision line.
+ *
+ * Two variants of ONE markup:
+ * · `row` — «ЛИДЕР [cube] → вы» on one line (the delegate mode's facts);
+ * · `tile` — the vote panel's (P77 · DH «ФАКТЫ — ОБЪЕКТЫ»): the key as the
+ *   tile's kicker and the value drawn as the Parliament's own OBJECTS — the
+ *   leader's CUBE (an empty socket where nobody leads yet), the vote's CROWN
+ *   (filled — this resolution leads the vote; a hollow ring — it does not),
+ *   the party's two SOCKETS (n of the threshold filled; «эффект ваш» once
+ *   crossed). The words stay in the tile for assistive tech and the
+ *   inspector's sentences (`con-parl__fact-words`) — never painted twice.
+ * Host attributes (`data-parl-vote-late`) fall through to the root.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {FactValue, factValueText, VoteFactVm} from '@/client/console/parliament/voteInfoModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /** The facts a tile draws as an OBJECT; every other fact keeps its words. */
 const OBJECT_FACTS: ReadonlySet<VoteFactVm['id']> = new Set(['lead', 'win', 'access']);
 
-export default defineComponent({
-  name: 'ConsoleVoteFactRow',
-  components: {PlayerDelegate},
-  props: {
-    fact: {type: Object as PropType<VoteFactVm>, required: true},
-    /** The cube's size in device px (the host's profile scale). */
-    figurePx: {type: Number, required: true},
-    /** `row` — one line of words (the delegate mode); `tile` — the vote panel's object tile. */
-    variant: {type: String as PropType<'row' | 'tile'>, default: 'row'},
-  },
-  computed: {
-    /** The tile draws this fact as an object. */
-    drawn(): boolean {
-      return OBJECT_FACTS.has(this.fact.id);
-    },
-    /**
-     * The party effect's places before and after, out of the threshold — read off the model's own params
-     * («${0} of ${1}»); a side that is already «yours» is the whole threshold.
-     */
-    places(): {before: number, after: number, threshold: number} {
-      const read = (value: FactValue): {n: number, of: number} | undefined =>
-        value.params !== undefined && value.params.length === 2 ? {n: Number(value.params[0]), of: Number(value.params[1])} : undefined;
-      const before = read(this.fact.before);
-      const after = read(this.fact.after);
-      const threshold = before?.of ?? after?.of ?? 2;
-      return {before: before?.n ?? threshold, after: after?.n ?? threshold, threshold};
-    },
-  },
-  methods: {
-    /** One side of the fact as words (a seat's NAME is a display string, never a key). */
-    text(value: FactValue): string {
-      return factValueText(value, (key, params) => params === undefined ? translateText(key) : translateTextWithParams(key, [...params]));
-    },
-  },
+defineOptions({name: 'ConsoleVoteFactRow'});
+const props = defineProps({
+  fact: {type: Object as PropType<VoteFactVm>, required: true},
+  /** The cube's size in device px (the host's profile scale). */
+  figurePx: {type: Number, required: true},
+  /** `row` — one line of words (the delegate mode); `tile` — the vote panel's object tile. */
+  variant: {type: String as PropType<'row' | 'tile'>, default: 'row'},
 });
+
+/** The tile draws this fact as an object. */
+const drawn = computed((): boolean => {
+  return OBJECT_FACTS.has(props.fact.id);
+});
+/**
+ * The party effect's places before and after, out of the threshold — read off the model's own params
+ * («${0} of ${1}»); a side that is already «yours» is the whole threshold.
+ */
+const places = computed((): {before: number, after: number, threshold: number} => {
+  const read = (value: FactValue): {n: number, of: number} | undefined =>
+    value.params !== undefined && value.params.length === 2 ? {n: Number(value.params[0]), of: Number(value.params[1])} : undefined;
+  const before = read(props.fact.before);
+  const after = read(props.fact.after);
+  const threshold = before?.of ?? after?.of ?? 2;
+  return {before: before?.n ?? threshold, after: after?.n ?? threshold, threshold};
+});
+/** One side of the fact as words (a seat's NAME is a display string, never a key). */
+function text(value: FactValue): string {
+  return factValueText(value, (key, params) => params === undefined ? translateText(key) : translateTextWithParams(key, [...params]));
+}
 </script>
