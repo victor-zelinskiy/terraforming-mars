@@ -1,11 +1,4 @@
 <template>
-  <!--
-    One premium cost/gain chip for an action's preview: an icon + a
-    `current → resulting` readout (or a signed amount when there's no single pool
-    to track). Colour conveys direction — amber for a cost, mint for a gain — so
-    the player reads "what changes, and to what value" at a glance, BEFORE they
-    confirm. Used in the action confirmation modal (branch options + summary).
-  -->
   <span class="action-effect-chip"
         :class="['action-effect-chip--' + effect.direction, {
           'action-effect-chip--insufficient': shortfall,
@@ -152,159 +145,165 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * One premium cost/gain chip for an action's preview: an icon + a
+ * `current → resulting` readout (or a signed amount when there's no single pool
+ * to track). Colour conveys direction — amber for a cost, mint for a gain — so
+ * the player reads "what changes, and to what value" at a glance, BEFORE they
+ * confirm. Used in the action confirmation modal (branch options + summary).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {ActionEffect, ActionEffectBasis} from '@/common/models/ActionPreviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {wildIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 import {divertedChip, gainHasNoEffect, vetoedChip, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {CARD_SKIP_CHIP_HINT, RatingRefusalSource, ratingRefusalSourceOf} from '@/client/console/ratingRefusal';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 
-export default defineComponent({
-  name: 'ActionEffectChip',
-  components: {ConsoleDrawSearchRule},
-  props: {
-    effect: {
-      type: Object as PropType<ActionEffect>,
-      required: true,
-    },
-    // This chip describes an effect that will NOT happen (no valid target) — it is
-    // shown INSIDE a warning block purely to name the magnitude that is lost. Muted
-    // + struck through so it can never be misread as something that applies.
-    skipped: {
-      type: Boolean,
-      default: false,
-    },
-    // The hosting row is DANGER-severity (a forced, unavoidable loss). The chip
-    // takes the row's red so the two read as one statement — an amber "cost" chip
-    // under a red title read as a second, milder fact.
-    danger: {
-      type: Boolean,
-      default: false,
-    },
-    // The pool's MOVEMENTS, in order (signed) — the chip reads a timeline on one pool rather than one change.
-    moves: {
-      type: Array as PropType<ReadonlyArray<number>>,
-      default: undefined,
-    },
-    // The chip's basis is READ by a «ПОЧЕМУ» strip beside it (TR45 — a counted play's composition): the chip states the
-    // change and the strip says why, so the pill would say the same count twice. The data is untouched.
-    basisInStrip: {
-      type: Boolean,
-      default: false,
-    },
+defineOptions({name: 'ActionEffectChip'});
+const props = defineProps({
+  effect: {
+    type: Object as PropType<ActionEffect>,
+    required: true,
   },
-  computed: {
-    iconClass(): string {
-      return iconClassFor(this.effect.icon);
-    },
-    /** The sprites of a unit of one of SEVERAL kinds (`effect.icons`), in the declared order; [] for the one-icon chip. */
-    kindIcons(): ReadonlyArray<string> {
-      return (this.effect.icons ?? []).map((icon) => iconClassFor(icon)).filter((cls) => cls !== '');
-    },
-    /** A production change (the server's `note: 'production'`) — drawn on the printed bronze plate. */
-    productionPlate(): boolean {
-      return this.effect.note === 'production' && this.effect.icon !== 'vp';
-    },
-    /** «ANY production» — the server names no single pool (`resources`), or nothing the sprite set can draw. */
-    wildProduction(): boolean {
-      return this.productionPlate && (this.effect.icon === 'resources' || this.effect.icon === 'production' || this.iconClass === '');
-    },
-    wildUrl(): string {
-      return wildIconUrl();
-    },
-    /** The unit is REPLACED by a standing law (RX35): struck, with the data it becomes beside it. */
-    diverted(): boolean {
-      return divertedChip(this.effect);
-    },
-    /**
-     * The RATING is REFUSED by a standing law (RX42 UNMI Veto — the seat is first by terraform rating): struck in the
-     * same register as a replaced unit, NO tail (nothing stands in its place), the law and the steps in the hint.
-     */
-    vetoed(): boolean {
-      return vetoedChip(this.effect);
-    },
-    /** WHO refuses the rating — a law (RX42) or a card's standing skip (P57); the hint and `data-veto-source` read it. */
-    vetoSource(): RatingRefusalSource {
-      return ratingRefusalSourceOf(this.effect.vetoed);
-    },
-    vetoedHint(): string {
-      const mark = this.effect.vetoed;
-      if (mark === undefined) {
-        return '';
-      }
-      // A CARD's skip (P57 Preservation Program): the card named, the first raise of the generation — never the law's words.
-      if (mark.card !== undefined) {
-        return translateTextWithParams(CARD_SKIP_CHIP_HINT, [translateText(mark.card), String(mark.steps)]);
-      }
-      const law = getResolution(mark.resolution ?? '')?.text.name ?? mark.resolution ?? '';
-      return translateTextWithParams('Vetoed by ${0}: your terraform rating is the highest — ${1} TR not gained', [translateTextWithParams(law, []), String(mark.steps)]);
-    },
-    /** The hint names the LAW (the manifest's own name, never the catalog id) and the data. */
-    divertedHint(): string {
-      const mark = this.effect.diverted;
-      if (mark === undefined) {
-        return '';
-      }
-      const law = getResolution(mark.resolution)?.text.name ?? mark.resolution;
-      return translateTextWithParams(mark.lost === true ?
-        'Replaced by ${0}: ${1} data — no card of yours can hold it' :
-        'Replaced by ${0}: ${1} data on one of your cards', [translateTextWithParams(law, []), String(mark.data)]);
-    },
-    /** The data sprite of the struck chip's tail — what the replaced unit becomes. */
-    divertedIconClass(): string {
-      return iconClassFor('data');
-    },
-    /** A VP reading — rendered as a typographic badge, never a sprite. */
-    isVictoryPoints(): boolean {
-      return this.effect.icon === 'vp';
-    },
-    /** The discount a DISCOUNTED price wears (`printed − amount`, both the server's) — `undefined` without one. */
-    discount(): number | undefined {
-      const printed = this.effect.printed;
-      return printed !== undefined && printed > this.effect.amount && this.effect.direction === 'cost' ? printed - this.effect.amount : undefined;
-    },
-    basisTerms(): ReadonlyArray<ActionEffectBasis> {
-      return this.effect.basis ?? [];
-    },
-    hasDelta(): boolean {
-      return this.effect.current !== undefined && this.effect.resulting !== undefined;
-    },
-    // An unaffordable cost (you have fewer than the amount required) — shown as
-    // "have / need" in an insufficient (red) style. Only ever true on a branch
-    // the server already marked unavailable.
-    // A pool that may legally go NEGATIVE (M€ production) carries its unclamped
-    // `resulting` — the builder's own statement that the move is legal — so
-    // «0 → −1» is not a shortfall; a clamped `resulting` (or none) still is.
-    shortfall(): boolean {
-      return this.moves === undefined && this.effect.direction === 'cost' &&
-        this.effect.current !== undefined &&
-        this.effect.current < this.effect.amount &&
-        this.effect.resulting !== this.effect.current - this.effect.amount;
-    },
-    // A gain that changes nothing — because the pool is already capped (raising a
-    // maxed global parameter) or because the amount itself counted to zero (a
-    // "per X" reward on a board with no X). Shown muted with a "no effect" note.
-    // The POOL-LESS form ("+N to a card", "draw N") has no `current` to compare,
-    // so a zero amount is the only signal it has. A VP reading is never «no
-    // effect» (`actionEffectReading.ts`): the resource still lands.
-    noEffect(): boolean {
-      return this.moves === undefined && gainHasNoEffect(this.effect);
-    },
-    // A VP reading short of the next threshold — the neutral register.
-    vpSteady(): boolean {
-      return this.moves === undefined && victoryPointsSteady(this.effect);
-    },
-    unit(): string {
-      return this.effect.unit ?? '';
-    },
-    sign(): string {
-      return this.effect.direction === 'cost' ? '−' : '+';
-    },
+  // This chip describes an effect that will NOT happen (no valid target) — it is
+  // shown INSIDE a warning block purely to name the magnitude that is lost. Muted
+  // + struck through so it can never be misread as something that applies.
+  skipped: {
+    type: Boolean,
+    default: false,
   },
+  // The hosting row is DANGER-severity (a forced, unavoidable loss). The chip
+  // takes the row's red so the two read as one statement — an amber "cost" chip
+  // under a red title read as a second, milder fact.
+  danger: {
+    type: Boolean,
+    default: false,
+  },
+  // The pool's MOVEMENTS, in order (signed) — the chip reads a timeline on one pool rather than one change.
+  moves: {
+    type: Array as PropType<ReadonlyArray<number>>,
+    default: undefined,
+  },
+  // The chip's basis is READ by a «ПОЧЕМУ» strip beside it (TR45 — a counted play's composition): the chip states the
+  // change and the strip says why, so the pill would say the same count twice. The data is untouched.
+  basisInStrip: {
+    type: Boolean,
+    default: false,
+  },
+});
+
+const iconClass = computed((): string => {
+  return iconClassFor(props.effect.icon);
+});
+/** The sprites of a unit of one of SEVERAL kinds (`effect.icons`), in the declared order; [] for the one-icon chip. */
+const kindIcons = computed((): ReadonlyArray<string> => {
+  return (props.effect.icons ?? []).map((icon) => iconClassFor(icon)).filter((cls) => cls !== '');
+});
+/** A production change (the server's `note: 'production'`) — drawn on the printed bronze plate. */
+const productionPlate = computed((): boolean => {
+  return props.effect.note === 'production' && props.effect.icon !== 'vp';
+});
+/** «ANY production» — the server names no single pool (`resources`), or nothing the sprite set can draw. */
+const wildProduction = computed((): boolean => {
+  return productionPlate.value && (props.effect.icon === 'resources' || props.effect.icon === 'production' || iconClass.value === '');
+});
+const wildUrl = computed((): string => {
+  return wildIconUrl();
+});
+/** The unit is REPLACED by a standing law (RX35): struck, with the data it becomes beside it. */
+const diverted = computed((): boolean => {
+  return divertedChip(props.effect);
+});
+/**
+ * The RATING is REFUSED by a standing law (RX42 UNMI Veto — the seat is first by terraform rating): struck in the
+ * same register as a replaced unit, NO tail (nothing stands in its place), the law and the steps in the hint.
+ */
+const vetoed = computed((): boolean => {
+  return vetoedChip(props.effect);
+});
+/** WHO refuses the rating — a law (RX42) or a card's standing skip (P57); the hint and `data-veto-source` read it. */
+const vetoSource = computed((): RatingRefusalSource => {
+  return ratingRefusalSourceOf(props.effect.vetoed);
+});
+const vetoedHint = computed((): string => {
+  const mark = props.effect.vetoed;
+  if (mark === undefined) {
+    return '';
+  }
+  // A CARD's skip (P57 Preservation Program): the card named, the first raise of the generation — never the law's words.
+  if (mark.card !== undefined) {
+    return translateTextWithParams(CARD_SKIP_CHIP_HINT, [translateText(mark.card), String(mark.steps)]);
+  }
+  const law = getResolution(mark.resolution ?? '')?.text.name ?? mark.resolution ?? '';
+  return translateTextWithParams('Vetoed by ${0}: your terraform rating is the highest — ${1} TR not gained', [translateTextWithParams(law, []), String(mark.steps)]);
+});
+/** The hint names the LAW (the manifest's own name, never the catalog id) and the data. */
+const divertedHint = computed((): string => {
+  const mark = props.effect.diverted;
+  if (mark === undefined) {
+    return '';
+  }
+  const law = getResolution(mark.resolution)?.text.name ?? mark.resolution;
+  return translateTextWithParams(mark.lost === true ?
+    'Replaced by ${0}: ${1} data — no card of yours can hold it' :
+    'Replaced by ${0}: ${1} data on one of your cards', [translateTextWithParams(law, []), String(mark.data)]);
+});
+/** The data sprite of the struck chip's tail — what the replaced unit becomes. */
+const divertedIconClass = computed((): string => {
+  return iconClassFor('data');
+});
+/** A VP reading — rendered as a typographic badge, never a sprite. */
+const isVictoryPoints = computed((): boolean => {
+  return props.effect.icon === 'vp';
+});
+/** The discount a DISCOUNTED price wears (`printed − amount`, both the server's) — `undefined` without one. */
+const discount = computed((): number | undefined => {
+  const printed = props.effect.printed;
+  return printed !== undefined && printed > props.effect.amount && props.effect.direction === 'cost' ? printed - props.effect.amount : undefined;
+});
+const basisTerms = computed((): ReadonlyArray<ActionEffectBasis> => {
+  return props.effect.basis ?? [];
+});
+const hasDelta = computed((): boolean => {
+  return props.effect.current !== undefined && props.effect.resulting !== undefined;
+});
+// An unaffordable cost (you have fewer than the amount required) — shown as
+// "have / need" in an insufficient (red) style. Only ever true on a branch
+// the server already marked unavailable.
+// A pool that may legally go NEGATIVE (M€ production) carries its unclamped
+// `resulting` — the builder's own statement that the move is legal — so
+// «0 → −1» is not a shortfall; a clamped `resulting` (or none) still is.
+const shortfall = computed((): boolean => {
+  return props.moves === undefined && props.effect.direction === 'cost' &&
+    props.effect.current !== undefined &&
+    props.effect.current < props.effect.amount &&
+    props.effect.resulting !== props.effect.current - props.effect.amount;
+});
+// A gain that changes nothing — because the pool is already capped (raising a
+// maxed global parameter) or because the amount itself counted to zero (a
+// "per X" reward on a board with no X). Shown muted with a "no effect" note.
+// The POOL-LESS form ("+N to a card", "draw N") has no `current` to compare,
+// so a zero amount is the only signal it has. A VP reading is never «no
+// effect» (`actionEffectReading.ts`): the resource still lands.
+const noEffect = computed((): boolean => {
+  return props.moves === undefined && gainHasNoEffect(props.effect);
+});
+// A VP reading short of the next threshold — the neutral register.
+const vpSteady = computed((): boolean => {
+  return props.moves === undefined && victoryPointsSteady(props.effect);
+});
+const unit = computed((): string => {
+  return props.effect.unit ?? '';
+});
+const sign = computed((): string => {
+  return props.effect.direction === 'cost' ? '−' : '+';
 });
 </script>
 
