@@ -6,7 +6,8 @@ import {RecursivePartial} from '@/common/utils/utils';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Phase} from '@/common/Phase';
 import {setConsolePlacementHeld} from '@/client/console/consolePromptAdmission';
-import {__resetGameTransportForTesting} from '@/client/console/transport/gameTransport';
+import {__resetGameTransportForTesting, transportDiagFacts} from '@/client/console/transport/gameTransport';
+import {APP_ROOT} from '@/client/components/appRoot';
 
 /*
  * THE BOARD-INPUT BINDER (transport rework — the successor of the headless
@@ -34,11 +35,12 @@ describe('ConsoleBoardBinder', () => {
     },
   };
 
-  function mountFor(waitingfor: unknown) {
+  function mountFor(waitingfor: unknown, root?: object) {
     return shallowMount(ConsoleBoardBinder, {
       ...globalConfig,
       global: {
         ...globalConfig.global,
+        provide: root === undefined ? {} : {[APP_ROOT as symbol]: root},
         stubs: {
           ConsoleBoardInput: {template: '<div class="stub-select-space"></div>'},
         },
@@ -73,6 +75,21 @@ describe('ConsoleBoardBinder', () => {
       expect(wrapper.find('.stub-select-space').exists(), JSON.stringify(waitingfor)).to.be.false;
       expect(wrapper.text().trim(), JSON.stringify(waitingfor)).to.eq('');
     }
+  });
+
+  it('starts the transport on the app root the port provides (read through the contract the transport declares)', () => {
+    // The root as the transport drives it: the applied view, the reset epoch, who the server waits for, the busy
+    // mirror and the two verbs. The binder takes it by injection (`useTransportRoot`) — never through `$root`.
+    const root = {
+      playerView: {...playerView, game: {...playerView.game, gameAge: 7}},
+      playerkey: 0,
+      playersWaitingFor: [],
+      isServerSideRequestInProgress: false,
+      updatePlayer: () => {},
+      showAlert: () => {},
+    };
+    mountFor(undefined, root);
+    expect(transportDiagFacts()?.gameAge, 'the transport reads THIS root').to.eq(7);
   });
 
   it('the console placement-admission hold blanks the binder (same window as the holds)', async () => {
