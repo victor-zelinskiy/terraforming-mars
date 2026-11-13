@@ -220,7 +220,7 @@
   </aside>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * THE RIGHT STRATEGY RAIL — the console home's Milestones / Awards premium HUD.
  *
@@ -250,14 +250,14 @@
  * minutes later. Leadership changes FLIP the two units of a row's duel and
  * tick the numbers — only on a REAL diff, never on a poll re-render.
  */
-import {defineComponent, markRaw, PropType} from 'vue';
+import {computed, markRaw, onMounted, PropType, ref, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {Color} from '@/common/Color';
 import {MaHudItem, MaHudZone} from '@/client/console/consoleMaHudModel';
 import {maArtFitStyle, maDisplayName} from '@/client/components/ma/maArt';
 import {consoleReducedMotionActive, consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 
 /** A queued seal older than this applies silently (mirrors the ceremony TTL). */
 const SEAL_TTL_MS = 45_000;
@@ -331,628 +331,596 @@ function groupKey(colors: ReadonlyArray<Color>): string {
   return colors.join('.');
 }
 
-export default defineComponent({
-  name: 'ConsoleStrategyRail',
-  components: {GamepadGlyph},
-  props: {
-    milestones: {type: Object as PropType<MaHudZone>, required: true},
-    awards: {type: Object as PropType<MaHudZone>, required: true},
-    viewerColor: {type: String as PropType<Color>, required: true},
-    /** The game epoch (runId) — a new game reseeds silently. */
-    epoch: {type: String, default: ''},
-    /**
-     * The rail is not watchable right now (a workspace / cinematic / overlay
-     * stands over it, or the player left the board home). Seals queue and play
-     * on the uncover — the ceremony's continuation, never its rival.
-     */
-    covered: {type: Boolean, default: false},
-    /** The board home is the screen (the shell's `section === 'board'`) —
-     *  the root's `v-show`. */
-    shown: {type: Boolean, default: true},
-    /** A workspace screen or a right-edge drawer TAKES the rail's zone
-     *  (`.con-root--rail-replaced` — the rail stays laid out, undrawn). */
-    replaced: {type: Boolean, default: false},
-  },
-  emits: ['open'],
-  setup() {
-    return {flow: useFlowScope('console-strategy-rail')};
-  },
-  data() {
-    return {
-      /** key → taken colour ('' = open) — the seed-then-diff ledger. */
-      seen: {} as Record<string, string>,
-      seeded: false,
-      pending: [] as Array<PendingSeal>,
-      sealingKeys: [] as Array<string>,
-      /** The pre-claim snapshot a pending/sealing row renders from. */
-      heldByKey: {} as Record<string, MaHudItem>,
-      /** The 3/3 pose is APPLIED (rows filtered to the taken three). */
-      composed: {milestones: false, awards: false} as Record<ZoneKind, boolean>,
-      /** Number-roll accents (value keys + a #up/#down direction), short-lived. */
-      tickKeys: [] as Array<string>,
-      /** Rows whose CROWN is being handed over (a live leader change). */
-      crownMoveKeys: [] as Array<string>,
-      /** Rows playing the FULL activation ceremony (first live «now»). */
-      activatingKeys: [] as Array<string>,
-      /** Rows playing the short ready-pulse (a RE-gained offer). */
-      repulseKeys: [] as Array<string>,
-      /** Activations observed while covered — played on the uncover (TTL). */
-      pendingActivations: [] as Array<{key: string, at: number, first: boolean}>,
-      /** Live timers (their cancels) — the component's scope takes them back on unmount (no orphan state flips). */
-      timers: [] as Array<() => void>,
-      flushing: false,
-      /** THE FREEZE (PL-155): while the rail is not drawn the render reads
-       *  the view as it was last drawn — raw, so nothing it holds is
-       *  tracked. The seed-then-diff machine keeps reading the live props
-       *  (seals and activations still queue for the uncover); only the
-       *  PAINT stands still, and the uncover renders the truth once. */
-      frozenViews: undefined as ReadonlyArray<ZoneView> | undefined,
-    };
-  },
-  computed: {
-    motion(): boolean {
-      return !consoleReducedMotionActive();
-    },
-    /** The rail is not drawn: off the board home, or its zone taken. */
-    frozen(): boolean {
-      return !this.shown || this.replaced;
-    },
-    /** What the rail paints — while frozen, the view it last drew: an
-     *  undrawn rail that re-renders on every view apply runs its two
-     *  TransitionGroups' measurements (a clone appended + removed and a
-     *  rect per row — forced layouts) under whatever the player is
-     *  actually watching. */
-    zoneViews(): ReadonlyArray<ZoneView> {
-      return this.frozenViews ?? this.liveZoneViews;
-    },
-    liveZoneViews(): ReadonlyArray<ZoneView> {
-      return [
-        this.buildZoneView('milestones', 'bumperL', 'Milestones', this.milestones),
-        this.buildZoneView('awards', 'bumperR', 'Awards', this.awards),
-      ];
-    },
-  },
-  watch: {
-    milestones: {
-      handler(zone: MaHudZone) {
-        this.observeZone('milestones', zone);
-      },
-    },
-    awards: {
-      handler(zone: MaHudZone) {
-        this.observeZone('awards', zone);
-      },
-    },
-    covered(now: boolean) {
-      if (!now) {
-        this.flushSeals();
-        this.flushActivations();
-      }
-    },
-    epoch() {
-      this.reseed();
-    },
-    frozen() {
-      this.latchViews();
-    },
-  },
-  created() {
-    // Seed BEFORE the first render: a mount over an already-completed zone
-    // must paint the 3/3 pose on its first frame (reconnect / reload never
-    // replays a ceremony, not even for one frame).
-    this.reseed();
-  },
-  mounted() {
-    // Live diagnostics (the shell's __conColonyDiag idiom): a probe reads
-    // the motion machines' ACTUAL state instead of guessing from paint.
-    // Read-only snapshot; no gameplay surface.
-    (window as unknown as Record<string, unknown>).__stratDiag = () => ({
-      covered: this.covered,
-      motion: this.motion,
-      activating: [...this.activatingKeys],
-      repulse: [...this.repulseKeys],
-      pendingActivations: this.pendingActivations.map((p) => p.key),
-      pendingSeals: this.pending.map((p) => p.key),
-      sealing: [...this.sealingKeys],
-      nowPrev: [...this.ledgers().nowPrev.entries()],
-      everNow: [...this.ledgers().everNow],
+defineOptions({name: 'ConsoleStrategyRail'});
+const props = defineProps({
+  milestones: {type: Object as PropType<MaHudZone>, required: true},
+  awards: {type: Object as PropType<MaHudZone>, required: true},
+  viewerColor: {type: String as PropType<Color>, required: true},
+  /** The game epoch (runId) — a new game reseeds silently. */
+  epoch: {type: String, default: ''},
+  /**
+   * The rail is not watchable right now (a workspace / cinematic / overlay
+   * stands over it, or the player left the board home). Seals queue and play
+   * on the uncover — the ceremony's continuation, never its rival.
+   */
+  covered: {type: Boolean, default: false},
+  /** The board home is the screen (the shell's `section === 'board'`) —
+   *  the root's `v-show`. */
+  shown: {type: Boolean, default: true},
+  /** A workspace screen or a right-edge drawer TAKES the rail's zone
+   *  (`.con-root--rail-replaced` — the rail stays laid out, undrawn). */
+  replaced: {type: Boolean, default: false},
+});
+defineEmits(['open']);
+
+const flow = useFlowScope('console-strategy-rail');
+/** The per-value ledger behind the tick accents, the last OPEN face per
+ *  item (what a seal renders from), and the ACTIVATION memory (the last
+ *  observed «offered now» + «has it ever lit up this epoch») — all
+ *  non-reactive on purpose (as state, a Map would deep-proxy every
+ *  write): plain containers of the instance — `reseed` clears them,
+ *  nothing replaces them. */
+const ledgers = {
+  values: new Map<string, number>(),
+  prevOpen: new Map<string, MaHudItem>(),
+  nowPrev: new Map<string, boolean>(),
+  everNow: new Set<string>(),
+  leadPrev: new Map<string, string>(),
+};
+/** key → taken colour ('' = open) — the seed-then-diff ledger. */
+const seen = ref<Record<string, string>>({});
+const seeded = ref(false);
+const pending = ref<Array<PendingSeal>>([]);
+const sealingKeys = ref<Array<string>>([]);
+/** The pre-claim snapshot a pending/sealing row renders from. */
+const heldByKey = ref<Record<string, MaHudItem>>({});
+/** The 3/3 pose is APPLIED (rows filtered to the taken three). */
+const composed = ref({milestones: false, awards: false} as Record<ZoneKind, boolean>);
+/** Number-roll accents (value keys + a #up/#down direction), short-lived. */
+const tickKeys = ref<Array<string>>([]);
+/** Rows whose CROWN is being handed over (a live leader change). */
+const crownMoveKeys = ref<Array<string>>([]);
+/** Rows playing the FULL activation ceremony (first live «now»). */
+const activatingKeys = ref<Array<string>>([]);
+/** Rows playing the short ready-pulse (a RE-gained offer). */
+const repulseKeys = ref<Array<string>>([]);
+/** Activations observed while covered — played on the uncover (TTL). */
+const pendingActivations = ref<Array<{key: string, at: number, first: boolean}>>([]);
+/** Live timers (their cancels) — the component's scope takes them back on unmount (no orphan state flips). */
+let timers: Array<() => void> = [];
+const flushing = ref(false);
+/** THE FREEZE (PL-155): while the rail is not drawn the render reads
+ *  the view as it was last drawn — raw, so nothing it holds is
+ *  tracked. The seed-then-diff machine keeps reading the live props
+ *  (seals and activations still queue for the uncover); only the
+ *  PAINT stands still, and the uncover renders the truth once. */
+const frozenViews = ref<ReadonlyArray<ZoneView> | undefined>(undefined);
+
+const motion = computed((): boolean => {
+  return !consoleReducedMotionActive();
+});
+/** The rail is not drawn: off the board home, or its zone taken. */
+const frozen = computed((): boolean => {
+  return !props.shown || props.replaced;
+});
+/** What the rail paints — while frozen, the view it last drew: an
+ *  undrawn rail that re-renders on every view apply runs its two
+ *  TransitionGroups' measurements (a clone appended + removed and a
+ *  rect per row — forced layouts) under whatever the player is
+ *  actually watching. */
+const zoneViews = computed((): ReadonlyArray<ZoneView> => {
+  return frozenViews.value ?? liveZoneViews.value;
+});
+const liveZoneViews = computed((): ReadonlyArray<ZoneView> => {
+  return [
+    buildZoneView('milestones', 'bumperL', 'Milestones', props.milestones),
+    buildZoneView('awards', 'bumperR', 'Awards', props.awards),
+  ];
+});
+
+function artStyle(name: string): Record<string, string> {
+  // Optical-fit: equal VISUAL mass across assets (measured alpha bboxes),
+  // not equal CSS boxes — see maArtFitStyle.
+  return maArtFitStyle(name);
+}
+/** The milestone meter's fill — the same score/threshold fact the numbers
+ *  print, drawn as a hairline (never a full progress bar). */
+function meterStyle(row: RowView): Record<string, string> {
+  const score = row.my?.score ?? 0;
+  const threshold = row.my?.threshold ?? 0;
+  const pct = threshold > 0 ? Math.min(100, Math.round((score / threshold) * 100)) : 0;
+  return {width: `${pct}%`};
+}
+/** The slot tray's per-pip presentation: taken = the owner's enamel;
+ *  open = a metal contour; the NEXT open slot takes a gold rim while the
+ *  zone's action is genuinely offered (the door-level availability cue). */
+function pipClass(z: ZoneView, c: Color | undefined, i: number): Array<string | Record<string, boolean>> {
+  if (c !== undefined) {
+    return ['con-strat__pip--set', 'player_bg_color_' + c];
+  }
+  return ['con-strat__pip--empty', {'con-strat__pip--next': i === z.nextFreeIdx}];
+}
+/** The row's accessible one-liner: name + the one relevant number.
+ *  (Deliberately NOT a hover tooltip: the rail clips its list against
+ *  extreme-mod overflow, and a clipped bubble is worse than none — the
+ *  workspace, one press away, is the detail surface.) */
+function rowHint(z: ZoneView, row: RowView): string {
+  const name = translateText(maDisplayName(row.name));
+  if (row.showTaken) {
+    return `${name} — ${translateText(z.kind === 'milestones' ? 'Claimed' : 'Funded')}`;
+  }
+  if (z.kind === 'milestones' && row.my !== undefined && !row.my.conditional && row.my.threshold !== undefined) {
+    return `${name} — ${row.my.score}/${row.my.threshold}`;
+  }
+  const lead = row.units.find((u) => u.lead);
+  if (lead !== undefined) {
+    return `${name} — ${translateText('Leader')}: ${lead.score}`;
+  }
+  return name;
+}
+function rowClasses(z: ZoneView, row: RowView): Record<string, boolean> {
+  const key = itemKey(z.kind, row.name);
+  return {
+    'con-strat__item--taken': row.showTaken && !row.sealing,
+    'con-strat__item--sealing': row.sealing,
+    // ready/now are the MILESTONE row states (the server offers only the
+    // ones actually met). Award availability is door-level (`--armed`) —
+    // a whole column of pulsing fundable rows carries no information.
+    'con-strat__item--now': !row.showTaken && row.availableNow,
+    'con-strat__item--ready': !row.showTaken && row.ready && !row.availableNow,
+    // The one-shot activation optics (the ceremony / the ready-pulse).
+    'con-strat__item--activating': activatingKeys.value.includes(key),
+    'con-strat__item--repulse': repulseKeys.value.includes(key),
+    // The crown hand-over accent (a live leader change on this award).
+    'con-strat__item--crownmove': crownMoveKeys.value.includes(key),
+    'con-strat__item--quiet': z.kind === 'awards' && !row.showTaken,
+    'con-strat__item--mine': row.showTaken && row.takenColor === props.viewerColor,
+  };
+}
+function numClasses(z: ZoneView, row: RowView, slot: string): Record<string, boolean> {
+  const vkey = `${itemKey(z.kind, row.name)}|${slot}`;
+  return {
+    'con-strat__num--tick-up': tickKeys.value.includes(`${vkey}#up`),
+    'con-strat__num--tick-down': tickKeys.value.includes(`${vkey}#down`),
+    'con-strat__num--ready': z.kind === 'milestones' && row.ready,
+    // An untouched milestone count recedes (a column of zeros is noise).
+    'con-strat__num--zero': z.kind === 'milestones' && !row.ready &&
+      row.my !== undefined && !row.my.conditional && row.my.score === 0,
+  };
+}
+function buildZoneView(kind: ZoneKind, glyph: 'bumperL' | 'bumperR', title: string, zone: MaHudZone): ZoneView {
+  const composedNow = composed.value[kind];
+  const rows: Array<RowView> = [];
+  for (const it of zone.items) {
+    const key = itemKey(kind, it.name);
+    const pendingHere = pending.value.some((p) => p.key === key);
+    const sealing = sealingKeys.value.includes(key);
+    // A pending seal renders the PRE-claim state (the held snapshot): the
+    // final pose must never appear before its own ceremony beat. While the
+    // seal PLAYS, the medal takes the owner enamel (animated in by the
+    // `--sealing` keyframes) but the value cell still renders the held
+    // numbers — their fade-out IS part of the beat.
+    const src = (pendingHere || sealing) ? (heldByKey.value[key] ?? it) : it;
+    const taken = it.taken !== undefined && !pendingHere;
+    if (composedNow && it.taken === undefined) {
+      continue; // the completed pose keeps only the sealed three
+    }
+    rows.push({
+      name: it.name,
+      showTaken: taken,
+      takenColor: it.taken?.color,
+      sealing,
+      my: taken && !sealing ? undefined : src.my,
+      availableNow: kind === 'milestones' && !taken && src.availableNow,
+      ready: kind === 'milestones' && !taken && src.my?.ready === true,
+      units: kind === 'awards' ? raceUnits(src) : [],
     });
-  },
-  methods: {
-    artStyle(name: string): Record<string, string> {
-      // Optical-fit: equal VISUAL mass across assets (measured alpha bboxes),
-      // not equal CSS boxes — see maArtFitStyle.
-      return maArtFitStyle(name);
-    },
-    /** The milestone meter's fill — the same score/threshold fact the numbers
-     *  print, drawn as a hairline (never a full progress bar). */
-    meterStyle(row: RowView): Record<string, string> {
-      const score = row.my?.score ?? 0;
-      const threshold = row.my?.threshold ?? 0;
-      const pct = threshold > 0 ? Math.min(100, Math.round((score / threshold) * 100)) : 0;
-      return {width: `${pct}%`};
-    },
-    /** The slot tray's per-pip presentation: taken = the owner's enamel;
-     *  open = a metal contour; the NEXT open slot takes a gold rim while the
-     *  zone's action is genuinely offered (the door-level availability cue). */
-    pipClass(z: ZoneView, c: Color | undefined, i: number): Array<string | Record<string, boolean>> {
-      if (c !== undefined) {
-        return ['con-strat__pip--set', 'player_bg_color_' + c];
+  }
+  return {
+    kind, glyph, title, zone, composed: composedNow, rows,
+    armed: kind === 'awards' && !composedNow && zone.actionable > 0,
+    // The gold «this is where the next seal lands» pip — only while the
+    // action is genuinely offered (money, slot and turn all say yes).
+    nextFreeIdx: zone.actionable > 0 ? zone.slots.findIndex((c) => c === undefined) : -1,
+  };
+}
+function raceUnits(it: MaHudItem): Array<RaceUnit> {
+  const units: Array<RaceUnit> = [];
+  const push = (group: {colors: ReadonlyArray<Color>, score: number} | undefined, rank: RaceRank) => {
+    if (group === undefined) {
+      return;
+    }
+    units.push({
+      key: groupKey(group.colors),
+      lead: rank === 'i',
+      rank,
+      cubes: group.colors,
+      score: group.score,
+    });
+  };
+  push(it.leader, 'i');
+  push(it.second, it.secondRanked === true ? 'ii' : 'chase');
+  return units;
+}
+// ── seed-then-diff ─────────────────────────────────────────────────────
+function reseed(): void {
+  for (const t of timers) {
+    t();
+  }
+  timers = [];
+  seen.value = {};
+  pending.value = [];
+  sealingKeys.value = [];
+  heldByKey.value = {};
+  tickKeys.value = [];
+  activatingKeys.value = [];
+  repulseKeys.value = [];
+  pendingActivations.value = [];
+  crownMoveKeys.value = [];
+  flushing.value = false;
+  const {values, prevOpen, nowPrev, everNow, leadPrev} = ledgers;
+  values.clear();
+  prevOpen.clear();
+  nowPrev.clear();
+  everNow.clear();
+  leadPrev.clear();
+  seedZone('milestones', props.milestones);
+  seedZone('awards', props.awards);
+  composed.value = {milestones: props.milestones.completed, awards: props.awards.completed};
+  seeded.value = true;
+  // A new game under a frozen rail latches the NEW game's face.
+  latchViews();
+}
+/** Latch (frozen) or release (drawn) the painted view. */
+function latchViews(): void {
+  frozenViews.value = frozen.value ? markRaw([...liveZoneViews.value]) : undefined;
+}
+function seedZone(kind: ZoneKind, zone: MaHudZone): void {
+  const {nowPrev, everNow} = ledgers;
+  for (const it of zone.items) {
+    const key = itemKey(kind, it.name);
+    seen.value[key] = it.taken?.color ?? '';
+    rememberValues(kind, it);
+    // The activation ledger seeds SILENTLY: an already-offered claim on
+    // mount / reload / reconnect renders straight in its final ready
+    // state — the ceremony belongs to the LIVE moment only.
+    if (kind === 'milestones') {
+      const now = it.taken === undefined && it.availableNow;
+      nowPrev.set(key, now);
+      if (now) {
+        everNow.add(key);
       }
-      return ['con-strat__pip--empty', {'con-strat__pip--next': i === z.nextFreeIdx}];
-    },
-    /** The row's accessible one-liner: name + the one relevant number.
-     *  (Deliberately NOT a hover tooltip: the rail clips its list against
-     *  extreme-mod overflow, and a clipped bubble is worse than none — the
-     *  workspace, one press away, is the detail surface.) */
-    rowHint(z: ZoneView, row: RowView): string {
-      const name = translateText(maDisplayName(row.name));
-      if (row.showTaken) {
-        return `${name} — ${translateText(z.kind === 'milestones' ? 'Claimed' : 'Funded')}`;
-      }
-      if (z.kind === 'milestones' && row.my !== undefined && !row.my.conditional && row.my.threshold !== undefined) {
-        return `${name} — ${row.my.score}/${row.my.threshold}`;
-      }
-      const lead = row.units.find((u) => u.lead);
-      if (lead !== undefined) {
-        return `${name} — ${translateText('Leader')}: ${lead.score}`;
-      }
-      return name;
-    },
-    rowClasses(z: ZoneView, row: RowView): Record<string, boolean> {
-      const key = itemKey(z.kind, row.name);
-      return {
-        'con-strat__item--taken': row.showTaken && !row.sealing,
-        'con-strat__item--sealing': row.sealing,
-        // ready/now are the MILESTONE row states (the server offers only the
-        // ones actually met). Award availability is door-level (`--armed`) —
-        // a whole column of pulsing fundable rows carries no information.
-        'con-strat__item--now': !row.showTaken && row.availableNow,
-        'con-strat__item--ready': !row.showTaken && row.ready && !row.availableNow,
-        // The one-shot activation optics (the ceremony / the ready-pulse).
-        'con-strat__item--activating': this.activatingKeys.includes(key),
-        'con-strat__item--repulse': this.repulseKeys.includes(key),
-        // The crown hand-over accent (a live leader change on this award).
-        'con-strat__item--crownmove': this.crownMoveKeys.includes(key),
-        'con-strat__item--quiet': z.kind === 'awards' && !row.showTaken,
-        'con-strat__item--mine': row.showTaken && row.takenColor === this.viewerColor,
-      };
-    },
-    numClasses(z: ZoneView, row: RowView, slot: string): Record<string, boolean> {
-      const vkey = `${itemKey(z.kind, row.name)}|${slot}`;
-      return {
-        'con-strat__num--tick-up': this.tickKeys.includes(`${vkey}#up`),
-        'con-strat__num--tick-down': this.tickKeys.includes(`${vkey}#down`),
-        'con-strat__num--ready': z.kind === 'milestones' && row.ready,
-        // An untouched milestone count recedes (a column of zeros is noise).
-        'con-strat__num--zero': z.kind === 'milestones' && !row.ready &&
-          row.my !== undefined && !row.my.conditional && row.my.score === 0,
-      };
-    },
-    buildZoneView(kind: ZoneKind, glyph: 'bumperL' | 'bumperR', title: string, zone: MaHudZone): ZoneView {
-      const composed = this.composed[kind];
-      const rows: Array<RowView> = [];
-      for (const it of zone.items) {
-        const key = itemKey(kind, it.name);
-        const pendingHere = this.pending.some((p) => p.key === key);
-        const sealing = this.sealingKeys.includes(key);
-        // A pending seal renders the PRE-claim state (the held snapshot): the
-        // final pose must never appear before its own ceremony beat. While the
-        // seal PLAYS, the medal takes the owner enamel (animated in by the
-        // `--sealing` keyframes) but the value cell still renders the held
-        // numbers — their fade-out IS part of the beat.
-        const src = (pendingHere || sealing) ? (this.heldByKey[key] ?? it) : it;
-        const taken = it.taken !== undefined && !pendingHere;
-        if (composed && it.taken === undefined) {
-          continue; // the completed pose keeps only the sealed three
-        }
-        rows.push({
-          name: it.name,
-          showTaken: taken,
-          takenColor: it.taken?.color,
-          sealing,
-          my: taken && !sealing ? undefined : src.my,
-          availableNow: kind === 'milestones' && !taken && src.availableNow,
-          ready: kind === 'milestones' && !taken && src.my?.ready === true,
-          units: kind === 'awards' ? this.raceUnits(src) : [],
-        });
-      }
-      return {
-        kind, glyph, title, zone, composed, rows,
-        armed: kind === 'awards' && !composed && zone.actionable > 0,
-        // The gold «this is where the next seal lands» pip — only while the
-        // action is genuinely offered (money, slot and turn all say yes).
-        nextFreeIdx: zone.actionable > 0 ? zone.slots.findIndex((c) => c === undefined) : -1,
-      };
-    },
-    raceUnits(it: MaHudItem): Array<RaceUnit> {
-      const units: Array<RaceUnit> = [];
-      const push = (group: {colors: ReadonlyArray<Color>, score: number} | undefined, rank: RaceRank) => {
-        if (group === undefined) {
-          return;
-        }
-        units.push({
-          key: groupKey(group.colors),
-          lead: rank === 'i',
-          rank,
-          cubes: group.colors,
-          score: group.score,
-        });
-      };
-      push(it.leader, 'i');
-      push(it.second, it.secondRanked === true ? 'ii' : 'chase');
-      return units;
-    },
-    // ── seed-then-diff ─────────────────────────────────────────────────────
-    reseed(): void {
-      for (const t of this.timers) {
-        t();
-      }
-      this.timers = [];
-      this.seen = {};
-      this.pending = [];
-      this.sealingKeys = [];
-      this.heldByKey = {};
-      this.tickKeys = [];
-      this.activatingKeys = [];
-      this.repulseKeys = [];
-      this.pendingActivations = [];
-      this.crownMoveKeys = [];
-      this.flushing = false;
-      const {values, prevOpen, nowPrev, everNow, leadPrev} = this.ledgers();
-      values.clear();
-      prevOpen.clear();
-      nowPrev.clear();
-      everNow.clear();
-      leadPrev.clear();
-      this.seedZone('milestones', this.milestones);
-      this.seedZone('awards', this.awards);
-      this.composed = {milestones: this.milestones.completed, awards: this.awards.completed};
-      this.seeded = true;
-      // A new game under a frozen rail latches the NEW game's face.
-      this.latchViews();
-    },
-    /** Latch (frozen) or release (drawn) the painted view. */
-    latchViews(): void {
-      this.frozenViews = this.frozen ? markRaw([...this.liveZoneViews]) : undefined;
-    },
-    seedZone(kind: ZoneKind, zone: MaHudZone): void {
-      const {nowPrev, everNow} = this.ledgers();
-      for (const it of zone.items) {
-        const key = itemKey(kind, it.name);
-        this.seen[key] = it.taken?.color ?? '';
-        this.rememberValues(kind, it);
-        // The activation ledger seeds SILENTLY: an already-offered claim on
-        // mount / reload / reconnect renders straight in its final ready
-        // state — the ceremony belongs to the LIVE moment only.
-        if (kind === 'milestones') {
-          const now = it.taken === undefined && it.availableNow;
-          nowPrev.set(key, now);
-          if (now) {
-            everNow.add(key);
-          }
-        }
-        // The crown ledger seeds silently too — a hand-over accent belongs
-        // to a LIVE leader change, never to a mount.
-        if (kind === 'awards') {
-          this.ledgers().leadPrev.set(key, it.leader !== undefined ? groupKey(it.leader.colors) : '');
-        }
-      }
-    },
-    /** The per-value ledger behind the tick accents, the last OPEN face per
-     *  item (what a seal renders from), and the ACTIVATION memory (the last
-     *  observed «offered now» + «has it ever lit up this epoch») — all
-     *  non-reactive on purpose (a Map in data() would deep-proxy every
-     *  write), initialized lazily. */
-    ledgers(): {values: Map<string, number>, prevOpen: Map<string, MaHudItem>, nowPrev: Map<string, boolean>, everNow: Set<string>, leadPrev: Map<string, string>} {
-      const self = this as unknown as {
-        _stratValues?: Map<string, number>,
-        _stratPrevOpen?: Map<string, MaHudItem>,
-        _stratNowPrev?: Map<string, boolean>,
-        _stratEverNow?: Set<string>,
-        _stratLeadPrev?: Map<string, string>,
-      };
-      if (self._stratValues === undefined) {
-        self._stratValues = new Map();
-      }
-      if (self._stratPrevOpen === undefined) {
-        self._stratPrevOpen = new Map();
-      }
-      if (self._stratNowPrev === undefined) {
-        self._stratNowPrev = new Map();
-      }
-      if (self._stratEverNow === undefined) {
-        self._stratEverNow = new Set();
-      }
-      if (self._stratLeadPrev === undefined) {
-        self._stratLeadPrev = new Map();
-      }
-      return {values: self._stratValues, prevOpen: self._stratPrevOpen, nowPrev: self._stratNowPrev, everNow: self._stratEverNow, leadPrev: self._stratLeadPrev};
-    },
-    rememberValues(kind: ZoneKind, it: MaHudItem): void {
-      const {values, prevOpen} = this.ledgers();
-      const key = itemKey(kind, it.name);
-      if (it.my !== undefined) {
-        values.set(`${key}|my`, it.my.score);
-      }
-      if (it.leader !== undefined) {
-        values.set(`${key}|${groupKey(it.leader.colors)}`, it.leader.score);
-      }
-      if (it.second !== undefined) {
-        values.set(`${key}|${groupKey(it.second.colors)}`, it.second.score);
-      }
-      if (it.taken === undefined) {
-        prevOpen.set(key, it);
-      }
-    },
-    observeZone(kind: ZoneKind, zone: MaHudZone): void {
-      if (!this.seeded) {
-        return;
-      }
-      const now = Date.now();
-      for (const it of zone.items) {
-        const key = itemKey(kind, it.name);
-        const cur = it.taken?.color ?? '';
-        const prev = this.seen[key];
-        if (prev === undefined) {
-          // A new item appeared mid-game (mod edge) — account silently.
-          this.seen[key] = cur;
-          this.rememberValues(kind, it);
-          continue;
-        }
-        if (prev === '' && cur !== '') {
-          // CLAIMED / FUNDED — queue the seal; hold the pre-claim face.
-          this.seen[key] = cur;
-          // The claim consumes any live/queued activation optics for the row.
-          this.activatingKeys = this.activatingKeys.filter((k) => k !== key);
-          this.repulseKeys = this.repulseKeys.filter((k) => k !== key);
-          this.pendingActivations = this.pendingActivations.filter((p) => p.key !== key);
-          this.ledgers().nowPrev.set(key, false);
-          if (this.motion) {
-            this.heldByKey[key] = this.lastOpenSnapshot(kind, it);
-            this.pending.push({key, kind, name: it.name, at: now});
-          } else {
-            this.scheduleCompose(kind);
-          }
-        } else if (prev !== '' && cur === '') {
-          // UNDO — roll the ledger back silently; the pose follows the truth.
-          this.seen[key] = '';
-          this.pending = this.pending.filter((p) => p.key !== key);
-          this.sealingKeys = this.sealingKeys.filter((k) => k !== key);
-          delete this.heldByKey[key];
-          this.composed[kind] = zone.completed;
-        } else if (cur === '') {
-          this.tickChangedValues(kind, it);
-          if (kind === 'milestones') {
-            this.observeAvailability(key, it.availableNow);
-          }
-        }
-        if (kind === 'awards') {
-          this.observeLeadShift(key, it);
-        }
-        this.rememberValues(kind, it);
-      }
-      if (!this.covered) {
-        this.flushSeals();
-      }
-      // No live seal will fire (reduced motion / TTL paths handled above) —
-      // keep the composed pose honest for a zone that completed while away.
-      if (zone.completed && !this.composed[kind] &&
-          !this.pending.some((p) => p.kind === kind) &&
-          !this.sealingKeys.some((k) => k.startsWith(kind === 'milestones' ? 'm:' : 'a:'))) {
-        if (this.covered || !this.motion) {
-          this.composed[kind] = true;
-        }
-      }
-    },
-    /** The pre-claim face: the LAST OPEN view of this item (its numbers
-     *  intact) — never the final pose; the seal is what introduces that. */
-    lastOpenSnapshot(kind: ZoneKind, it: MaHudItem): MaHudItem {
-      const held = this.ledgers().prevOpen.get(itemKey(kind, it.name));
-      return held !== undefined ?
-        {...held, availableNow: false} :
-        {...it, taken: undefined, availableNow: false};
-    },
-    // ── the ACTIVATION machine (milestones: «became claimable NOW») ───────
-    /**
-     * The rising edge of the SERVER's own offer (the claim option's presence
-     * in the waitingFor tree — the same authority every claim surface obeys;
-     * never a client-side `score >= threshold` approximation). The FULL
-     * ceremony plays once per row per epoch, on a LIVE watched transition;
-     * a RE-gained offer (the blocker cleared again — a new turn) gets the
-     * short ready-pulse; a flip under cover queues for the uncover (TTL —
-     * a stale «it lit up» never replays late); reduced motion applies the
-     * final state instantly (the rim/word/contrast carry it).
-     */
-    observeAvailability(key: string, availableNow: boolean): void {
-      const {nowPrev, everNow} = this.ledgers();
-      const prev = nowPrev.get(key) ?? false;
-      nowPrev.set(key, availableNow);
-      if (prev || !availableNow) {
-        return;
-      }
-      const first = !everNow.has(key);
-      everNow.add(key);
-      if (!this.motion) {
-        return;
-      }
-      if (this.covered) {
-        this.pendingActivations.push({key, at: Date.now(), first});
-        return;
-      }
-      this.playActivation(key, first);
-    },
-    playActivation(key: string, first: boolean): void {
-      if (first) {
-        this.activatingKeys = [...this.activatingKeys, key];
-        this.later(() => {
-          this.activatingKeys = this.activatingKeys.filter((k) => k !== key);
-        }, consoleMotionMs(ACTIVATE_MS));
+    }
+    // The crown ledger seeds silently too — a hand-over accent belongs
+    // to a LIVE leader change, never to a mount.
+    if (kind === 'awards') {
+      ledgers.leadPrev.set(key, it.leader !== undefined ? groupKey(it.leader.colors) : '');
+    }
+  }
+}
+function rememberValues(kind: ZoneKind, it: MaHudItem): void {
+  const {values, prevOpen} = ledgers;
+  const key = itemKey(kind, it.name);
+  if (it.my !== undefined) {
+    values.set(`${key}|my`, it.my.score);
+  }
+  if (it.leader !== undefined) {
+    values.set(`${key}|${groupKey(it.leader.colors)}`, it.leader.score);
+  }
+  if (it.second !== undefined) {
+    values.set(`${key}|${groupKey(it.second.colors)}`, it.second.score);
+  }
+  if (it.taken === undefined) {
+    prevOpen.set(key, it);
+  }
+}
+function observeZone(kind: ZoneKind, zone: MaHudZone): void {
+  if (!seeded.value) {
+    return;
+  }
+  const now = Date.now();
+  for (const it of zone.items) {
+    const key = itemKey(kind, it.name);
+    const cur = it.taken?.color ?? '';
+    const prev = seen.value[key];
+    if (prev === undefined) {
+      // A new item appeared mid-game (mod edge) — account silently.
+      seen.value[key] = cur;
+      rememberValues(kind, it);
+      continue;
+    }
+    if (prev === '' && cur !== '') {
+      // CLAIMED / FUNDED — queue the seal; hold the pre-claim face.
+      seen.value[key] = cur;
+      // The claim consumes any live/queued activation optics for the row.
+      activatingKeys.value = activatingKeys.value.filter((k) => k !== key);
+      repulseKeys.value = repulseKeys.value.filter((k) => k !== key);
+      pendingActivations.value = pendingActivations.value.filter((p) => p.key !== key);
+      ledgers.nowPrev.set(key, false);
+      if (motion.value) {
+        heldByKey.value[key] = lastOpenSnapshot(kind, it);
+        pending.value.push({key, kind, name: it.name, at: now});
       } else {
-        this.repulseKeys = [...this.repulseKeys, key];
-        this.later(() => {
-          this.repulseKeys = this.repulseKeys.filter((k) => k !== key);
-        }, consoleMotionMs(REPULSE_MS));
+        scheduleCompose(kind);
       }
-    },
-    flushActivations(): void {
-      const due = this.pendingActivations;
-      if (due.length === 0) {
+    } else if (prev !== '' && cur === '') {
+      // UNDO — roll the ledger back silently; the pose follows the truth.
+      seen.value[key] = '';
+      pending.value = pending.value.filter((p) => p.key !== key);
+      sealingKeys.value = sealingKeys.value.filter((k) => k !== key);
+      delete heldByKey.value[key];
+      composed.value[kind] = zone.completed;
+    } else if (cur === '') {
+      tickChangedValues(kind, it);
+      if (kind === 'milestones') {
+        observeAvailability(key, it.availableNow);
+      }
+    }
+    if (kind === 'awards') {
+      observeLeadShift(key, it);
+    }
+    rememberValues(kind, it);
+  }
+  if (!props.covered) {
+    flushSeals();
+  }
+  // No live seal will fire (reduced motion / TTL paths handled above) —
+  // keep the composed pose honest for a zone that completed while away.
+  if (zone.completed && !composed.value[kind] &&
+      !pending.value.some((p) => p.kind === kind) &&
+      !sealingKeys.value.some((k) => k.startsWith(kind === 'milestones' ? 'm:' : 'a:'))) {
+    if (props.covered || !motion.value) {
+      composed.value[kind] = true;
+    }
+  }
+}
+/** The pre-claim face: the LAST OPEN view of this item (its numbers
+ *  intact) — never the final pose; the seal is what introduces that. */
+function lastOpenSnapshot(kind: ZoneKind, it: MaHudItem): MaHudItem {
+  const held = ledgers.prevOpen.get(itemKey(kind, it.name));
+  return held !== undefined ?
+    {...held, availableNow: false} :
+    {...it, taken: undefined, availableNow: false};
+}
+// ── the ACTIVATION machine (milestones: «became claimable NOW») ───────
+/**
+ * The rising edge of the SERVER's own offer (the claim option's presence
+ * in the waitingFor tree — the same authority every claim surface obeys;
+ * never a client-side `score >= threshold` approximation). The FULL
+ * ceremony plays once per row per epoch, on a LIVE watched transition;
+ * a RE-gained offer (the blocker cleared again — a new turn) gets the
+ * short ready-pulse; a flip under cover queues for the uncover (TTL —
+ * a stale «it lit up» never replays late); reduced motion applies the
+ * final state instantly (the rim/word/contrast carry it).
+ */
+function observeAvailability(key: string, availableNow: boolean): void {
+  const {nowPrev, everNow} = ledgers;
+  const prev = nowPrev.get(key) ?? false;
+  nowPrev.set(key, availableNow);
+  if (prev || !availableNow) {
+    return;
+  }
+  const first = !everNow.has(key);
+  everNow.add(key);
+  if (!motion.value) {
+    return;
+  }
+  if (props.covered) {
+    pendingActivations.value.push({key, at: Date.now(), first});
+    return;
+  }
+  playActivation(key, first);
+}
+function playActivation(key: string, first: boolean): void {
+  if (first) {
+    activatingKeys.value = [...activatingKeys.value, key];
+    later(() => {
+      activatingKeys.value = activatingKeys.value.filter((k) => k !== key);
+    }, consoleMotionMs(ACTIVATE_MS));
+  } else {
+    repulseKeys.value = [...repulseKeys.value, key];
+    later(() => {
+      repulseKeys.value = repulseKeys.value.filter((k) => k !== key);
+    }, consoleMotionMs(REPULSE_MS));
+  }
+}
+function flushActivations(): void {
+  const due = pendingActivations.value;
+  if (due.length === 0) {
+    return;
+  }
+  pendingActivations.value = [];
+  const now = Date.now();
+  for (const p of due) {
+    // Silently apply when stale OR when the offer has meanwhile gone.
+    if (now - p.at > ACTIVATION_TTL_MS || ledgers.nowPrev.get(p.key) !== true) {
+      continue;
+    }
+    playActivation(p.key, p.first);
+  }
+}
+/** A LIVE leader change hands the crown over: the FLIP already moves
+ *  the cubes along the cassette's axes — this adds the short gold-notch
+ *  confirmation impulse on the receiving level (never on mount/reseed,
+ *  never when the leading group is unchanged, never while covered). */
+function observeLeadShift(key: string, it: MaHudItem): void {
+  const {leadPrev} = ledgers;
+  const cur = it.leader !== undefined ? groupKey(it.leader.colors) : '';
+  const prev = leadPrev.get(key);
+  leadPrev.set(key, cur);
+  if (prev === undefined || prev === cur || !motion.value || props.covered) {
+    return;
+  }
+  // A hand-over needs a live crown on BOTH sides (empty → ranked is the
+  // rail's own ignition, not a transfer).
+  if (prev === '' || cur === '' || crownMoveKeys.value.includes(key)) {
+    return;
+  }
+  crownMoveKeys.value = [...crownMoveKeys.value, key];
+  later(() => {
+    crownMoveKeys.value = crownMoveKeys.value.filter((k) => k !== key);
+  }, consoleMotionMs(CROWN_MOVE_MS));
+}
+function tickChangedValues(kind: ZoneKind, it: MaHudItem): void {
+  if (props.covered || !motion.value) {
+    return;
+  }
+  const ledger = ledgers.values;
+  const key = itemKey(kind, it.name);
+  const candidates: Array<[string, number | undefined]> = [];
+  if (it.my !== undefined) {
+    candidates.push([`${key}|my`, it.my.score]);
+  }
+  if (it.leader !== undefined) {
+    candidates.push([`${key}|${groupKey(it.leader.colors)}`, it.leader.score]);
+  }
+  if (it.second !== undefined) {
+    candidates.push([`${key}|${groupKey(it.second.colors)}`, it.second.score]);
+  }
+  for (const [vkey, value] of candidates) {
+    const prev = ledger.get(vkey);
+    if (prev !== undefined && value !== undefined && prev !== value &&
+        !tickKeys.value.some((k) => k.startsWith(`${vkey}#`))) {
+      // The roll carries the change's DIRECTION (digits rise on a gain).
+      const entry = `${vkey}#${value > prev ? 'up' : 'down'}`;
+      tickKeys.value.push(entry);
+      later(() => {
+        tickKeys.value = tickKeys.value.filter((k) => k !== entry);
+      }, consoleMotionMs(TICK_MS));
+    }
+  }
+}
+// ── the seal pipeline ──────────────────────────────────────────────────
+function flushSeals(): void {
+  if (flushing.value || pending.value.length === 0) {
+    return;
+  }
+  const now = Date.now();
+  // Stale seals (the player was away past the TTL) apply silently.
+  const stale = pending.value.filter((p) => now - p.at > SEAL_TTL_MS);
+  if (stale.length > 0) {
+    pending.value = pending.value.filter((p) => now - p.at <= SEAL_TTL_MS);
+    for (const p of stale) {
+      delete heldByKey.value[p.key];
+      scheduleCompose(p.kind);
+    }
+  }
+  if (pending.value.length === 0 || props.covered) {
+    return;
+  }
+  if (!motion.value) {
+    for (const p of pending.value) {
+      delete heldByKey.value[p.key];
+      scheduleCompose(p.kind);
+    }
+    pending.value = [];
+    return;
+  }
+  flushing.value = true;
+  const queue = [...pending.value];
+  const kinds = new Set<ZoneKind>();
+  let delay = consoleMotionMs(140);
+  for (const p of queue) {
+    kinds.add(p.kind);
+    later(() => {
+      pending.value = pending.value.filter((q) => q.key !== p.key);
+      // An UNDO raced this beat (the slot re-opened while the seal was
+      // queued): nothing to stamp — the truth is already rendered.
+      if (seen.value[p.key] === '' || seen.value[p.key] === undefined) {
         return;
       }
-      this.pendingActivations = [];
-      const now = Date.now();
-      for (const p of due) {
-        // Silently apply when stale OR when the offer has meanwhile gone.
-        if (now - p.at > ACTIVATION_TTL_MS || this.ledgers().nowPrev.get(p.key) !== true) {
-          continue;
-        }
-        this.playActivation(p.key, p.first);
-      }
-    },
-    /** A LIVE leader change hands the crown over: the FLIP already moves
-     *  the cubes along the cassette's axes — this adds the short gold-notch
-     *  confirmation impulse on the receiving level (never on mount/reseed,
-     *  never when the leading group is unchanged, never while covered). */
-    observeLeadShift(key: string, it: MaHudItem): void {
-      const {leadPrev} = this.ledgers();
-      const cur = it.leader !== undefined ? groupKey(it.leader.colors) : '';
-      const prev = leadPrev.get(key);
-      leadPrev.set(key, cur);
-      if (prev === undefined || prev === cur || !this.motion || this.covered) {
-        return;
-      }
-      // A hand-over needs a live crown on BOTH sides (empty → ranked is the
-      // rail's own ignition, not a transfer).
-      if (prev === '' || cur === '' || this.crownMoveKeys.includes(key)) {
-        return;
-      }
-      this.crownMoveKeys = [...this.crownMoveKeys, key];
-      this.later(() => {
-        this.crownMoveKeys = this.crownMoveKeys.filter((k) => k !== key);
-      }, consoleMotionMs(CROWN_MOVE_MS));
-    },
-    tickChangedValues(kind: ZoneKind, it: MaHudItem): void {
-      if (this.covered || !this.motion) {
-        return;
-      }
-      const ledger = this.ledgers().values;
-      const key = itemKey(kind, it.name);
-      const candidates: Array<[string, number | undefined]> = [];
-      if (it.my !== undefined) {
-        candidates.push([`${key}|my`, it.my.score]);
-      }
-      if (it.leader !== undefined) {
-        candidates.push([`${key}|${groupKey(it.leader.colors)}`, it.leader.score]);
-      }
-      if (it.second !== undefined) {
-        candidates.push([`${key}|${groupKey(it.second.colors)}`, it.second.score]);
-      }
-      for (const [vkey, value] of candidates) {
-        const prev = ledger.get(vkey);
-        if (prev !== undefined && value !== undefined && prev !== value &&
-            !this.tickKeys.some((k) => k.startsWith(`${vkey}#`))) {
-          // The roll carries the change's DIRECTION (digits rise on a gain).
-          const entry = `${vkey}#${value > prev ? 'up' : 'down'}`;
-          this.tickKeys.push(entry);
-          this.later(() => {
-            this.tickKeys = this.tickKeys.filter((k) => k !== entry);
-          }, consoleMotionMs(TICK_MS));
-        }
-      }
-    },
-    // ── the seal pipeline ──────────────────────────────────────────────────
-    flushSeals(): void {
-      if (this.flushing || this.pending.length === 0) {
-        return;
-      }
-      const now = Date.now();
-      // Stale seals (the player was away past the TTL) apply silently.
-      const stale = this.pending.filter((p) => now - p.at > SEAL_TTL_MS);
-      if (stale.length > 0) {
-        this.pending = this.pending.filter((p) => now - p.at <= SEAL_TTL_MS);
-        for (const p of stale) {
-          delete this.heldByKey[p.key];
-          this.scheduleCompose(p.kind);
-        }
-      }
-      if (this.pending.length === 0 || this.covered) {
-        return;
-      }
-      if (!this.motion) {
-        for (const p of this.pending) {
-          delete this.heldByKey[p.key];
-          this.scheduleCompose(p.kind);
-        }
-        this.pending = [];
-        return;
-      }
-      this.flushing = true;
-      const queue = [...this.pending];
-      const kinds = new Set<ZoneKind>();
-      let delay = consoleMotionMs(140);
-      for (const p of queue) {
-        kinds.add(p.kind);
-        this.later(() => {
-          this.pending = this.pending.filter((q) => q.key !== p.key);
-          // An UNDO raced this beat (the slot re-opened while the seal was
-          // queued): nothing to stamp — the truth is already rendered.
-          if (this.seen[p.key] === '' || this.seen[p.key] === undefined) {
-            return;
-          }
-          this.sealingKeys = [...this.sealingKeys, p.key];
-        }, delay);
-        this.later(() => {
-          this.sealingKeys = this.sealingKeys.filter((k) => k !== p.key);
-          delete this.heldByKey[p.key];
-        }, delay + consoleMotionMs(SEAL_MS));
-        delay += consoleMotionMs(SEAL_STAGGER_MS);
-      }
-      const settle = delay - consoleMotionMs(SEAL_STAGGER_MS) + consoleMotionMs(SEAL_MS);
-      this.later(() => {
-        this.flushing = false;
-        for (const kind of kinds) {
-          this.scheduleCompose(kind, consoleMotionMs(READ_BEAT_MS));
-        }
-        // Seals queued while this run was in flight play on the next uncover
-        // check (covered may have flipped meanwhile).
-        if (!this.covered) {
-          this.flushSeals();
-        }
-      }, settle);
-    },
-    /** Apply the 3/3 pose (after the read beat, or instantly when silent). */
-    scheduleCompose(kind: ZoneKind, afterMs = 0): void {
-      const zone = kind === 'milestones' ? this.milestones : this.awards;
-      if (!zone.completed || this.composed[kind]) {
-        return;
-      }
-      if (afterMs <= 0 || !this.motion) {
-        this.composed[kind] = true;
-        return;
-      }
-      this.later(() => {
-        const z = kind === 'milestones' ? this.milestones : this.awards;
-        if (z.completed) {
-          this.composed[kind] = true;
-        }
-      }, afterMs);
-    },
-    later(fn: () => void, ms: number): void {
-      const t = this.flow.after(ms, 'a strategy rail beat', () => {
-        this.timers = this.timers.filter((x) => x !== t);
-        fn();
-      });
-      this.timers.push(t);
-    },
-    /** FLIP hygiene: a leaving row goes `position: absolute` — pin it to the
-     *  spot it occupied, or it snaps to the list origin before fading. */
-    pinLeaving(el: Element): void {
-      const e = el as HTMLElement;
-      e.style.top = `${e.offsetTop}px`;
-      e.style.left = `${e.offsetLeft}px`;
-      e.style.width = `${e.offsetWidth}px`;
-    },
-  },
+      sealingKeys.value = [...sealingKeys.value, p.key];
+    }, delay);
+    later(() => {
+      sealingKeys.value = sealingKeys.value.filter((k) => k !== p.key);
+      delete heldByKey.value[p.key];
+    }, delay + consoleMotionMs(SEAL_MS));
+    delay += consoleMotionMs(SEAL_STAGGER_MS);
+  }
+  const settle = delay - consoleMotionMs(SEAL_STAGGER_MS) + consoleMotionMs(SEAL_MS);
+  later(() => {
+    flushing.value = false;
+    for (const kind of kinds) {
+      scheduleCompose(kind, consoleMotionMs(READ_BEAT_MS));
+    }
+    // Seals queued while this run was in flight play on the next uncover
+    // check (covered may have flipped meanwhile).
+    if (!props.covered) {
+      flushSeals();
+    }
+  }, settle);
+}
+/** Apply the 3/3 pose (after the read beat, or instantly when silent). */
+function scheduleCompose(kind: ZoneKind, afterMs = 0): void {
+  const zone = kind === 'milestones' ? props.milestones : props.awards;
+  if (!zone.completed || composed.value[kind]) {
+    return;
+  }
+  if (afterMs <= 0 || !motion.value) {
+    composed.value[kind] = true;
+    return;
+  }
+  later(() => {
+    const z = kind === 'milestones' ? props.milestones : props.awards;
+    if (z.completed) {
+      composed.value[kind] = true;
+    }
+  }, afterMs);
+}
+function later(fn: () => void, ms: number): void {
+  const t = flow.after(ms, 'a strategy rail beat', () => {
+    timers = timers.filter((x) => x !== t);
+    fn();
+  });
+  timers.push(t);
+}
+/** FLIP hygiene: a leaving row goes `position: absolute` — pin it to the
+ *  spot it occupied, or it snaps to the list origin before fading. */
+function pinLeaving(el: Element): void {
+  const e = el as HTMLElement;
+  e.style.top = `${e.offsetTop}px`;
+  e.style.left = `${e.offsetLeft}px`;
+  e.style.width = `${e.offsetWidth}px`;
+}
+
+watch(() => props.milestones, (zone: MaHudZone) => {
+  observeZone('milestones', zone);
+});
+watch(() => props.awards, (zone: MaHudZone) => {
+  observeZone('awards', zone);
+});
+watch(() => props.covered, (now: boolean) => {
+  if (!now) {
+    flushSeals();
+    flushActivations();
+  }
+});
+watch(() => props.epoch, () => {
+  reseed();
+});
+watch(() => frozen.value, () => {
+  latchViews();
+});
+
+// Seed BEFORE the first render: a mount over an already-completed zone
+// must paint the 3/3 pose on its first frame (reconnect / reload never
+// replays a ceremony, not even for one frame).
+reseed();
+
+onMounted(() => {
+  // Live diagnostics (the shell's __conColonyDiag idiom): a probe reads
+  // the motion machines' ACTUAL state instead of guessing from paint.
+  // Read-only snapshot; no gameplay surface.
+  (window as unknown as Record<string, unknown>).__stratDiag = () => ({
+    covered: props.covered,
+    motion: motion.value,
+    activating: [...activatingKeys.value],
+    repulse: [...repulseKeys.value],
+    pendingActivations: pendingActivations.value.map((p) => p.key),
+    pendingSeals: pending.value.map((p) => p.key),
+    sealing: [...sealingKeys.value],
+    nowPrev: [...ledgers.nowPrev.entries()],
+    everNow: [...ledgers.everNow],
+  });
 });
 </script>

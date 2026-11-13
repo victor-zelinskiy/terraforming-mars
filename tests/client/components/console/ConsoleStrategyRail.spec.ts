@@ -1,9 +1,11 @@
-import {shallowMount, VueWrapper} from '@vue/test-utils';
+import {mount, shallowMount} from '@vue/test-utils';
 import {expect} from 'chai';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import ConsoleStrategyRail from '@/client/components/console/ConsoleStrategyRail.vue';
 import {buildMaHudZone, MaHudZone} from '@/client/console/consoleMaHudModel';
 import {ConsoleMaSource} from '@/client/components/console/consoleMaModel';
+import {flowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import type {Color} from '@/common/Color';
 
 /**
@@ -14,7 +16,8 @@ import type {Color} from '@/common/Color';
  * the completed-pose filter, and the SEAL pipeline's state machine
  * (seed-then-diff, covered deferral, held pre-state, the read beat before
  * the 3/3 recomposition, the undo rollback, the epoch reseed). Timers are
- * driven through a captured `later` queue — no real waits, no flakiness.
+ * driven through a queue captured at the flow kernel's clock (the rail arms
+ * every beat in its own flow scope) — no real waits, no flakiness.
  */
 
 const me: Color = 'red';
@@ -57,15 +60,38 @@ type RailVm = {
   pendingActivations: Array<{key: string}>,
   crownMoveKeys: Array<string>,
   tickKeys: Array<string>,
-  later: (fn: () => void, ms: number) => void,
 };
 
-/** Reroute the component's timers into a manual queue (deterministic beats). */
-function captureTimers(wrapper: VueWrapper<InstanceType<typeof ConsoleStrategyRail>>): Array<{fn: () => void, ms: number}> {
-  const queue: Array<{fn: () => void, ms: number}> = [];
-  (wrapper.vm as unknown as RailVm).later = (fn: () => void, ms: number) => {
-    queue.push({fn, ms});
-  };
+type Beat = {fn: () => void, ms: number};
+
+/**
+ * Reroute the component's timers into a manual queue (deterministic beats).
+ * The seam is the flow kernel's CLOCK: every beat of the rail is a
+ * `flow.after(…)` of its own scope, so a clock that only RECORDS — in the
+ * order armed, a taken-back timer leaving the queue — hands the spec each
+ * beat to fire by hand. (A `<script setup>` component calls its own `later`
+ * directly: replacing that function on `wrapper.vm`, as this spec did for
+ * the Options form, intercepts nothing — RECIPES § 3.) Called after the
+ * mount; the suite's `afterEach` puts the real clock back.
+ */
+function captureTimers(): Array<Beat> {
+  const queue: Array<Beat> = [];
+  const real = flowClock();
+  setFlowClock({
+    now: () => real.now(),
+    setTimeout: (fn, ms) => {
+      const beat: Beat = {fn, ms};
+      queue.push(beat);
+      return beat;
+    },
+    clearTimeout: (handle) => {
+      const at = queue.indexOf(handle as Beat);
+      if (at >= 0) {
+        queue.splice(at, 1);
+      }
+    },
+    nextFrame: (fn) => real.nextFrame(fn),
+  });
   return queue;
 }
 
@@ -105,6 +131,9 @@ describe('ConsoleStrategyRail', () => {
     g.cancelAnimationFrame = (id) => clearTimeout(id as unknown as ReturnType<typeof setTimeout>);
   });
   afterEach(async () => {
+    // The kernel's real clock back (a test that captured the rail's beats
+    // installed a recording one — bundle-shared module state).
+    setFlowClock(undefined);
     // Drain in-flight transition callbacks while the polyfill (and the
     // wrapper) are still alive — before the shared bundle unmount runs.
     await new Promise((resolve) => setTimeout(resolve, 25));
@@ -299,7 +328,7 @@ describe('ConsoleStrategyRail', () => {
 
   it('a LIVE leader change plays the crown hand-over once — never on mount or a plain re-render', async () => {
     const wrapper = mountRail();
-    const queue = captureTimers(wrapper);
+    const queue = captureTimers();
     const vm = wrapper.vm as unknown as RailVm;
     expect(vm.crownMoveKeys).to.have.lengthOf(0);
     // The rival overtakes: red 4 → blue 6 (a real hand-over).
@@ -330,7 +359,7 @@ describe('ConsoleStrategyRail', () => {
 
   it('a value change ROLLS along its direction (up on a gain, down on a loss)', async () => {
     const wrapper = mountRail();
-    captureTimers(wrapper);
+    captureTimers();
     const vm = wrapper.vm as unknown as RailVm;
     await wrapper.setProps({
       awards: zone('awards', [
@@ -403,7 +432,7 @@ describe('ConsoleStrategyRail', () => {
 
     it('the FIRST live rising edge plays the full ceremony, once', async () => {
       const wrapper = mountRail();
-      const queue = captureTimers(wrapper);
+      const queue = captureTimers();
       const vm = wrapper.vm as unknown as RailVm;
       await wrapper.setProps({milestones: withOffer(['Builder'])});
       expect(vm.activatingKeys).to.deep.eq(['m:Builder']);
@@ -419,7 +448,7 @@ describe('ConsoleStrategyRail', () => {
 
     it('a RE-gained offer (the turn came back) pulses — never the full ceremony again', async () => {
       const wrapper = mountRail();
-      const queue = captureTimers(wrapper);
+      const queue = captureTimers();
       const vm = wrapper.vm as unknown as RailVm;
       await wrapper.setProps({milestones: withOffer(['Builder'])});
       queue.shift()?.fn(); // ceremony ends
@@ -433,7 +462,7 @@ describe('ConsoleStrategyRail', () => {
 
     it('a flip under COVER queues and plays on the uncover (the watched moment)', async () => {
       const wrapper = mountRail({covered: true});
-      const queue = captureTimers(wrapper);
+      const queue = captureTimers();
       const vm = wrapper.vm as unknown as RailVm;
       await wrapper.setProps({milestones: withOffer(['Builder'])});
       expect(vm.activatingKeys).to.have.lengthOf(0);
@@ -447,7 +476,7 @@ describe('ConsoleStrategyRail', () => {
 
     it('a claim consumes any live or queued activation for the row', async () => {
       const wrapper = mountRail();
-      captureTimers(wrapper);
+      captureTimers();
       const vm = wrapper.vm as unknown as RailVm;
       await wrapper.setProps({milestones: withOffer(['Builder'])});
       expect(vm.activatingKeys).to.deep.eq(['m:Builder']);
@@ -460,6 +489,27 @@ describe('ConsoleStrategyRail', () => {
       expect(vm.activatingKeys).to.have.lengthOf(0);
       expect(vm.pendingActivations).to.have.lengthOf(0);
     });
+  });
+
+  it('a PARENT\'s ref sees no member of the script — the shell holds the rail for its ROOT alone (the stage geometry measures `$el`)', () => {
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleStrategyRail, {
+        ref: 'conStratEl',
+        milestones: zone('milestones', OPEN_MILESTONES),
+        awards: zone('awards', OPEN_AWARDS),
+        viewerColor: me,
+        epoch: 'run-1',
+      })]),
+    });
+    const host = mount(Host, {global: {...globalConfig.global, stubs: {GamepadGlyph: true}}});
+    // Exactly the shell's read: `useWorkspaceBandGeometry` resolves the host's `$el` itself.
+    const rail = (host.vm.$refs.conStratEl ?? undefined) as {$el?: unknown} | undefined;
+    expect(rail, 'the host\'s ref stands').to.not.eq(undefined);
+    expect(Object.keys(rail ?? {}), 'no `defineExpose` — nothing of the script leaves it').to.deep.eq([]);
+    expect(rail?.$el, 'the root the right edge of the central opening is measured from').to.eq(host.find('aside.con-strat').element);
+    for (const inner of ['reseed', 'later', 'flushSeals', 'pending', 'ledgers', 'zoneViews']) {
+      expect((rail as unknown as Record<string, unknown>)[inner], `«${inner}» stays inside`).to.eq(undefined);
+    }
   });
 
   it('zone heads and rows are doors: clicks emit open with the zone kind', async () => {
@@ -530,7 +580,7 @@ describe('ConsoleStrategyRail', () => {
 
   it('a live claim seals: covered → held pre-state; uncovered → seal beat → enamel', async () => {
     const wrapper = mountRail({covered: true});
-    const queue = captureTimers(wrapper);
+    const queue = captureTimers();
     // The rival claims Mayor while a workspace covers the rail.
     await wrapper.setProps({
       milestones: zone('milestones', [
@@ -571,7 +621,7 @@ describe('ConsoleStrategyRail', () => {
       source({name: 'Terraformer', threshold: 26, scores: []}),
     ];
     const wrapper = mountRail({milestones: zone('milestones', two)});
-    const queue = captureTimers(wrapper);
+    const queue = captureTimers();
     await wrapper.setProps({
       milestones: zone('milestones', [
         two[0], two[1],
@@ -667,7 +717,7 @@ describe('ConsoleStrategyRail', () => {
 
     it('the diff machine keeps reading the LIVE props: a claim under the freeze still seals on the uncover', async () => {
       const wrapper = mountRail({covered: true, shown: false});
-      const queue = captureTimers(wrapper);
+      const queue = captureTimers();
       await wrapper.setProps({
         milestones: zone('milestones', [
           source({name: 'Mayor', playerName: 'Vika', color: rival, scores: [{color: me, score: 2}]}),
