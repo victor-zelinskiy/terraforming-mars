@@ -37,21 +37,22 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
     <a class="hotkey-target"></a>
     <PlanetaryTracks :tracks="game.pathfinders" :gameOptions="game.gameOptions"/>
   </template>
-
-  <!--
-    vize1215 fork: legacy inline `<Milestones>` + `<Awards>` strip
-    removed entirely. The fork ships dedicated bottom-bar overlays
-    (MilestonesOverlay / AwardsOverlay mounted from PlayerHome.vue)
-    that replace this list with the new sci-fi presentation, and the
-    legacy strip was leaking into the legacy-UI dev overlay where
-    we don't want it either. The Vue components Milestones.vue /
-    Awards.vue are kept in the repo for the upstream-merge surface
-    but are no longer mounted anywhere on the game screen.
-  -->
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * vize1215 fork: legacy inline `<Milestones>` + `<Awards>` strip
+ * removed entirely. The fork ships dedicated bottom-bar overlays
+ * (MilestonesOverlay / AwardsOverlay mounted from PlayerHome.vue)
+ * that replace this list with the new sci-fi presentation, and the
+ * legacy strip was leaking into the legacy-UI dev overlay where
+ * we don't want it either. The Vue components Milestones.vue /
+ * Awards.vue are kept in the repo for the upstream-merge surface
+ * but are no longer mounted anywhere on the game screen.
+ *
+ * (This comment closed the template, after its last root; the template ends with that root now.)
+ */
+import {PropType} from 'vue';
 
 import {GameModel} from '@/common/models/GameModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -61,28 +62,20 @@ import MoonBoard from '@/client/components/moon/MoonBoard.vue';
 import PlanetaryTracks from '@/client/components/pathfinders/PlanetaryTracks.vue';
 import {TileView} from './board/TileView';
 
-export default defineComponent({
-  name: 'GameBoardView',
-  props: {
-    game: {
-      type: Object as () => GameModel,
-      required: true,
-    },
-    tileView: {
-      type: String as () => TileView,
-      required: true,
-    },
-    players: {
-      type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
-      required: true,
-    },
+defineOptions({name: 'GameBoardView'});
+defineProps({
+  game: {
+    type: Object as () => GameModel,
+    required: true,
   },
-  emits: ['toggleTileView'],
-  components: {
-    'board': Board,
-    'turmoil': Turmoil,
-    MoonBoard,
-    PlanetaryTracks,
+  tileView: {
+    type: String as () => TileView,
+    required: true,
+  },
+  players: {
+    type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
+    required: true,
   },
 });
+defineEmits(['toggleTileView']);
 </script>
