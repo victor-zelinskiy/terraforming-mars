@@ -1,32 +1,4 @@
 <template>
-  <!--
-    THE TRADE-TRACK INSTRUMENT — the colony's game object, drawn ONCE for
-    every console surface that shows a colony at full size: the trade stage
-    (`ConsoleColonyFocusStage`, where the action RESOLVES on it) and the
-    dossier (`ConsoleColonyInspect`, where it is read). A future colony
-    screen renders THIS component or it is not the same object.
-
-    THE TRACK AND THE BERTHS SHARE ONE 7-COLUMN GRID. Berth `i` sits under
-    track cell `i` because that is literally the rule: an occupied berth
-    PROTECTS that position — the marker can never return past it. The reset
-    number is therefore never written anywhere; it is where the guard rail
-    stops (docs/claude/console/colony-focus-stage.md § 2).
-
-    The class names are the stage's (`con-colfocus__trackzone` and below —
-    flat BEM, no `.con-colfocus` ancestor required) and every data anchor
-    is the one the trade layers' ladders already read: the marker SEATS
-    (`data-colony-track-cell`), the cube SEATS (`data-colony-build-slot` +
-    `data-colony-build-seat`), the card launch cell (`data-colony-card-cell`),
-    the bonus origins (`data-colony-bonus-source` / `-cell`), and the two
-    CARRY targets of the descend choreography (`data-colony-focus-track` /
-    `data-colony-focus-slots`). Extracting the markup changed none of them.
-
-    The host passes the two positions it PRESENTS (the marker's, and the one
-    a trade would read — pinned past a commit on the stage, live on the
-    dossier) and its transient beats (`latchCell`, `settledCell`,
-    `buildPreview`); everything else derives from the colony's own metadata
-    through the same pure `colonyTradePlan` every colony surface reads.
-  -->
   <section class="con-colfocus__trackzone"
            :style="{'--stop-col': resetPosition, '--ghost-col': resetPositionAfterBuild}">
     <header v-if="head" class="con-colfocus__zonehead" data-unfold-late>
@@ -214,10 +186,41 @@
   </section>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE TRADE-TRACK INSTRUMENT — the colony's game object, drawn ONCE for
+ * every console surface that shows a colony at full size: the trade stage
+ * (`ConsoleColonyFocusStage`, where the action RESOLVES on it) and the
+ * dossier (`ConsoleColonyInspect`, where it is read). A future colony
+ * screen renders THIS component or it is not the same object.
+ *
+ * THE TRACK AND THE BERTHS SHARE ONE 7-COLUMN GRID. Berth `i` sits under
+ * track cell `i` because that is literally the rule: an occupied berth
+ * PROTECTS that position — the marker can never return past it. The reset
+ * number is therefore never written anywhere; it is where the guard rail
+ * stops (docs/claude/console/colony-focus-stage.md § 2).
+ *
+ * The class names are the stage's (`con-colfocus__trackzone` and below —
+ * flat BEM, no `.con-colfocus` ancestor required) and every data anchor
+ * is the one the trade layers' ladders already read: the marker SEATS
+ * (`data-colony-track-cell`), the cube SEATS (`data-colony-build-slot` +
+ * `data-colony-build-seat`), the card launch cell (`data-colony-card-cell`),
+ * the bonus origins (`data-colony-bonus-source` / `-cell`), and the two
+ * CARRY targets of the descend choreography (`data-colony-focus-track` /
+ * `data-colony-focus-slots`). Extracting the markup changed none of them.
+ *
+ * The host passes the two positions it PRESENTS (the marker's, and the one
+ * a trade would read — pinned past a commit on the stage, live on the
+ * dossier) and its transient beats (`latchCell`, `settledCell`,
+ * `buildPreview`); everything else derives from the colony's own metadata
+ * through the same pure `colonyTradePlan` every colony surface reads.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType, ref, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
+import {ColonyMetadata, colonyCardResources, tradeBenefitAt as tradeBenefitAtOf, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
@@ -245,170 +248,161 @@ export type ColonyTrackBonusMath = {color: Color, count: number, total: number};
 
 type Benefit = {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown};
 
-export default defineComponent({
-  name: 'ConsoleColonyTrackInstrument',
-  components: {BenefitGlyph, PlayerCube},
-  data() {
-    return {
-      /**
-       * A WATCHER'S MOMENT: a colony was built beyond the limit while this instrument stood (somebody else's
-       * build — the viewer's own berth is projected before its cube, so its count never changes under it). The
-       * berth is revealed by ONE transition and the cube surfaces after it; the class goes with the animation.
-       */
-      berthRevealing: false,
-    };
-  },
-  watch: {
-    berths(now: ReadonlyArray<ColonyBerth>, was: ReadonlyArray<ColonyBerth>): void {
-      const last = now[now.length - 1];
-      if (now.length > was.length && last !== undefined && last.overLimit && last.state === 'taken') {
-        this.berthRevealing = true;
-      }
-    },
-  },
-  props: {
-    colony: {type: Object as PropType<ColonyModel>, required: true},
-    metadata: {type: Object as PropType<ColonyMetadata>, required: true},
-    /** The marker's DISPLAYED position (the host presents it — frozen mid-trade). */
-    markerPosition: {type: Number, required: true},
-    /** The position a trade would read right now (the standing offset applied). */
-    effectivePosition: {type: Number, required: true},
-    /** The names seated in the berths (index-aligned with the berths model; '' for an empty seat). */
-    ownerNames: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
-    /** The multiplier row (`rate × cubes = total`) — undefined draws just the rate. */
-    bonusMath: {type: Object as PropType<ColonyTrackBonusMath | undefined>, default: undefined},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The stage's transient beats. The dossier passes none of them. */
-    latchCell: {type: Number, default: -1},
-    settledCell: {type: Number, default: -1},
-    buildPreview: {type: Boolean, default: false},
-    /**
-     * THE BERTH A BUILD DOOR PROJECTS ITS CUBE INTO — the server's
-     * (`ColonyBuildSite.slot`, the pick's `buildSites` marker), handed down by
-     * the host. −1 = no door names one: the next berth.
-     */
-    buildSlot: {type: Number, default: -1},
-    /**
-     * THE BERTH WHOSE LIMIT A BUILD IN FLIGHT HAS JUST LIFTED — the stage's
-     * beat, driven by the build transaction's own phase (never a timer). −1 on
-     * the dossier and at rest: a berth beyond the limit is then «passed»
-     * exactly when a cube stands in it.
-     */
-    admitCell: {type: Number, default: -1},
-    /** The colour of the cube a build door projects (the answering player's) — '' = no ghost. */
-    projectedColor: {type: String, default: ''},
-    /** The zone head («ТОРГОВЫЙ ТРЕК» + the standing-offset caption). */
-    head: {type: Boolean, default: true},
-    /**
-     * WHY the effective cell is ahead of the marker — the caption's KIND, set
-     * by the host's mode (never read off a text): a trade's standing offset
-     * moves the track first; a track-moving pick (TR07) puts the marker at the
-     * top. An i18n key.
-     */
-    offsetCaption: {type: String, default: 'Your trade advances the track first'},
-    /**
-     * The furthest cell a MOVING marker has touched (a track move in flight —
-     * `colonyTrackWaveState.touched`): the crossed cells light up as passed on
-     * the touch, the last one's income answers once. −1 when nothing moves.
-     */
-    touchedCell: {type: Number, default: -1},
-  },
-  computed: {
-    /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
-    cardResourceKinds(): ReadonlyArray<CardResource> {
-      return colonyCardResources(this.metadata);
-    },
-    trackMax(): number {
-      return this.metadata.trade.quantity.length - 1;
-    },
-    offsetSteps(): number {
-      return Math.max(0, this.effectivePosition - this.markerPosition);
-    },
-    /** THE RULE, as a number: after a trade the track falls back to the
-     *  built-colony count — read from the ONE pure source every surface reads. */
-    resetPosition(): number {
-      return trackResetPosition(this.colony, this.metadata);
-    },
-    resetPositionAfterBuild(): number {
-      return trackResetAfterBuild(this.colony, this.metadata);
-    },
-    /**
-     * THE OWNER BONUS HAS GIVEN A COLUMN to a berth beyond the limit: its row
-     * stands in three columns instead of four, and it yields in a DECLARED
-     * order (console_colony_berths.less) — the fine-print note first, then
-     * the cubes close ranks, then the rate term; the cubes and the total
-     * never yield.
-     */
-    bonusNarrow(): boolean {
-      return this.berths.length > this.limitIndex;
-    },
-    /** The first berth beyond the printed ones — where the limit mark stands. */
-    limitIndex(): number {
-      return printedBerths();
-    },
-    /** The berth the build preview points at — the door's own, else the next one. */
-    destSlot(): number {
-      return this.buildSlot >= 0 ? this.buildSlot : nextBuildSlot(this.colony);
-    },
-    /** THE BERTHS — the one model every colony surface draws (a previewed build projects its berth). */
-    berths(): Array<ColonyBerth> {
-      return colonyBerthsOf(this.colony, this.buildPreview ? {slot: this.destSlot} : undefined);
-    },
-    cells(): Array<ColonyTrackCell> {
-      const cells: Array<ColonyTrackCell> = [];
-      for (let i = 0; i <= this.trackMax; i++) {
-        cells.push({
-          index: i,
-          quantity: this.metadata.trade.quantity[i] ?? 0,
-          levy: tradeBenefitAt(this.metadata, i).type === ColonyBenefit.LOSE_RESOURCES,
-          marker: i === this.markerPosition,
-          effective: i === this.effectivePosition && this.effectivePosition !== this.markerPosition,
-          passed: i < this.markerPosition || (i > this.markerPosition && i <= this.touchedCell),
-        });
-      }
-      return cells;
-    },
-    /** The income paid on EVERY trade beside the marker's bonus (the Redux Venus's step) — undefined for every other tile. */
-    fixedBenefit(): Benefit | undefined {
-      const fixed = tradeFixedIncome(this.metadata);
-      return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
-    },
-    colonyBenefit(): Benefit {
-      const c = this.metadata.colony;
-      return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
-    },
-    bonusQty(): number {
-      return this.metadata.colony.quantity ?? 1;
-    },
-  },
-  methods: {
-    /** A card-resource cell over SEVERAL kinds (the Redux Vesta) — the glyph box opens to the row's width. */
-    multiKindCell(position: number): boolean {
-      return this.cardResourceKinds.length > 1 && tradeBenefitAt(this.metadata, position).type === ColonyBenefit.ADD_RESOURCES_TO_CARD;
-    },
-    /** The reveal's last beat (the cube surfacing) has played — the one-shot class goes. */
-    onBerthRevealEnd(event: AnimationEvent): void {
-      if (event.animationName === 'con-berth-reveal-cube') {
-        this.berthRevealing = false;
-      }
-    },
-    /**
-     * A berth beyond the limit whose limit has been LIFTED: a cube stands in
-     * it, or the build that will seat one has been committed (`admitCell`).
-     * The mark is then in its «passed» pose and the contour is closed — for good.
-     */
-    berthAdmitted(berth: ColonyBerth): boolean {
-      return berth.overLimit && (berth.state === 'taken' || berth.index === this.admitCell);
-    },
-    /** The build bonus the berth `slot` pays — resolved through the ONE reading (`buildBenefitAt`). */
-    berthBenefit(slot: number): BerthBenefit {
-      return berthBuildBenefit(this.metadata, slot);
-    },
-    /** The cell's income — kind AND resource at that position (the Redux Pluto: data cells, then card cells). */
-    tradeBenefitAt(position: number): Benefit {
-      const income = tradeBenefitAt(this.metadata, position);
-      return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
-    },
-  },
+defineOptions({name: 'ConsoleColonyTrackInstrument'});
+const props = defineProps({
+  colony: {type: Object as PropType<ColonyModel>, required: true},
+  metadata: {type: Object as PropType<ColonyMetadata>, required: true},
+  /** The marker's DISPLAYED position (the host presents it — frozen mid-trade). */
+  markerPosition: {type: Number, required: true},
+  /** The position a trade would read right now (the standing offset applied). */
+  effectivePosition: {type: Number, required: true},
+  /** The names seated in the berths (index-aligned with the berths model; '' for an empty seat). */
+  ownerNames: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+  /** The multiplier row (`rate × cubes = total`) — undefined draws just the rate. */
+  bonusMath: {type: Object as PropType<ColonyTrackBonusMath | undefined>, default: undefined},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** The stage's transient beats. The dossier passes none of them. */
+  latchCell: {type: Number, default: -1},
+  settledCell: {type: Number, default: -1},
+  buildPreview: {type: Boolean, default: false},
+  /**
+   * THE BERTH A BUILD DOOR PROJECTS ITS CUBE INTO — the server's
+   * (`ColonyBuildSite.slot`, the pick's `buildSites` marker), handed down by
+   * the host. −1 = no door names one: the next berth.
+   */
+  buildSlot: {type: Number, default: -1},
+  /**
+   * THE BERTH WHOSE LIMIT A BUILD IN FLIGHT HAS JUST LIFTED — the stage's
+   * beat, driven by the build transaction's own phase (never a timer). −1 on
+   * the dossier and at rest: a berth beyond the limit is then «passed»
+   * exactly when a cube stands in it.
+   */
+  admitCell: {type: Number, default: -1},
+  /** The colour of the cube a build door projects (the answering player's) — '' = no ghost. */
+  projectedColor: {type: String, default: ''},
+  /** The zone head («ТОРГОВЫЙ ТРЕК» + the standing-offset caption). */
+  head: {type: Boolean, default: true},
+  /**
+   * WHY the effective cell is ahead of the marker — the caption's KIND, set
+   * by the host's mode (never read off a text): a trade's standing offset
+   * moves the track first; a track-moving pick (TR07) puts the marker at the
+   * top. An i18n key.
+   */
+  offsetCaption: {type: String, default: 'Your trade advances the track first'},
+  /**
+   * The furthest cell a MOVING marker has touched (a track move in flight —
+   * `colonyTrackWaveState.touched`): the crossed cells light up as passed on
+   * the touch, the last one's income answers once. −1 when nothing moves.
+   */
+  touchedCell: {type: Number, default: -1},
+});
+
+/**
+ * A WATCHER'S MOMENT: a colony was built beyond the limit while this instrument stood (somebody else's
+ * build — the viewer's own berth is projected before its cube, so its count never changes under it). The
+ * berth is revealed by ONE transition and the cube surfaces after it; the class goes with the animation.
+ */
+const berthRevealing = ref(false);
+
+/** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
+const cardResourceKinds = computed((): ReadonlyArray<CardResource> => {
+  return colonyCardResources(props.metadata);
+});
+const trackMax = computed((): number => {
+  return props.metadata.trade.quantity.length - 1;
+});
+const offsetSteps = computed((): number => {
+  return Math.max(0, props.effectivePosition - props.markerPosition);
+});
+/** THE RULE, as a number: after a trade the track falls back to the
+ *  built-colony count — read from the ONE pure source every surface reads. */
+const resetPosition = computed((): number => {
+  return trackResetPosition(props.colony, props.metadata);
+});
+const resetPositionAfterBuild = computed((): number => {
+  return trackResetAfterBuild(props.colony, props.metadata);
+});
+/**
+ * THE OWNER BONUS HAS GIVEN A COLUMN to a berth beyond the limit: its row
+ * stands in three columns instead of four, and it yields in a DECLARED
+ * order (console_colony_berths.less) — the fine-print note first, then
+ * the cubes close ranks, then the rate term; the cubes and the total
+ * never yield.
+ */
+const bonusNarrow = computed((): boolean => {
+  return berths.value.length > limitIndex.value;
+});
+/** The first berth beyond the printed ones — where the limit mark stands. */
+const limitIndex = computed((): number => {
+  return printedBerths();
+});
+/** The berth the build preview points at — the door's own, else the next one. */
+const destSlot = computed((): number => {
+  return props.buildSlot >= 0 ? props.buildSlot : nextBuildSlot(props.colony);
+});
+/** THE BERTHS — the one model every colony surface draws (a previewed build projects its berth). */
+const berths = computed((): Array<ColonyBerth> => {
+  return colonyBerthsOf(props.colony, props.buildPreview ? {slot: destSlot.value} : undefined);
+});
+const cells = computed((): Array<ColonyTrackCell> => {
+  const cells: Array<ColonyTrackCell> = [];
+  for (let i = 0; i <= trackMax.value; i++) {
+    cells.push({
+      index: i,
+      quantity: props.metadata.trade.quantity[i] ?? 0,
+      levy: tradeBenefitAtOf(props.metadata, i).type === ColonyBenefit.LOSE_RESOURCES,
+      marker: i === props.markerPosition,
+      effective: i === props.effectivePosition && props.effectivePosition !== props.markerPosition,
+      passed: i < props.markerPosition || (i > props.markerPosition && i <= props.touchedCell),
+    });
+  }
+  return cells;
+});
+/** The income paid on EVERY trade beside the marker's bonus (the Redux Venus's step) — undefined for every other tile. */
+const fixedBenefit = computed((): Benefit | undefined => {
+  const fixed = tradeFixedIncome(props.metadata);
+  return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
+});
+const colonyBenefit = computed((): Benefit => {
+  const c = props.metadata.colony;
+  return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
+});
+const bonusQty = computed((): number => {
+  return props.metadata.colony.quantity ?? 1;
+});
+
+/** A card-resource cell over SEVERAL kinds (the Redux Vesta) — the glyph box opens to the row's width. */
+function multiKindCell(position: number): boolean {
+  return cardResourceKinds.value.length > 1 && tradeBenefitAtOf(props.metadata, position).type === ColonyBenefit.ADD_RESOURCES_TO_CARD;
+}
+/** The reveal's last beat (the cube surfacing) has played — the one-shot class goes. */
+function onBerthRevealEnd(event: AnimationEvent): void {
+  if (event.animationName === 'con-berth-reveal-cube') {
+    berthRevealing.value = false;
+  }
+}
+/**
+ * A berth beyond the limit whose limit has been LIFTED: a cube stands in
+ * it, or the build that will seat one has been committed (`admitCell`).
+ * The mark is then in its «passed» pose and the contour is closed — for good.
+ */
+function berthAdmitted(berth: ColonyBerth): boolean {
+  return berth.overLimit && (berth.state === 'taken' || berth.index === props.admitCell);
+}
+/** The build bonus the berth `slot` pays — resolved through the ONE reading (`buildBenefitAt`). */
+function berthBenefit(slot: number): BerthBenefit {
+  return berthBuildBenefit(props.metadata, slot);
+}
+/** The cell's income — kind AND resource at that position (the Redux Pluto: data cells, then card cells). */
+function tradeBenefitAt(position: number): Benefit {
+  const income = tradeBenefitAtOf(props.metadata, position);
+  return {type: income.type, quantity: props.metadata.trade.quantity, resource: income.resource};
+}
+
+watch(() => berths.value, (now: ReadonlyArray<ColonyBerth>, was: ReadonlyArray<ColonyBerth>): void => {
+  const last = now[now.length - 1];
+  if (now.length > was.length && last !== undefined && last.overLimit && last.state === 'taken') {
+    berthRevealing.value = true;
+  }
 });
 </script>
