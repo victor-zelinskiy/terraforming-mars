@@ -35,7 +35,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * DEV-ONLY visual harness for the fullscreen ARCHIVE ENTRY (`?lorePlayground`).
  *
@@ -49,7 +49,7 @@
  * It renders the REAL component with the REAL data (no fixtures), so it can
  * never drift from production.
  */
-import {defineComponent} from 'vue';
+import {computed, ref} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -82,47 +82,32 @@ const STATES: ReadonlyArray<LoreState> = [
 
 const LOCALES = [{code: 'ru', label: 'RU'}, {code: 'en', label: 'EN'}] as const;
 
-export default defineComponent({
-  name: 'CardLorePlayground',
-  components: {CardLoreAside},
-  props: {
-    /** Hosted in the console playground stand — the host owns fullscreen + scroll. */
-    embedded: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-  },
-  data() {
-    return {
-      lang: PreferencesManager.INSTANCE.values().lang,
-      revealed: true,
-    };
-  },
-  computed: {
-    states(): ReadonlyArray<LoreState> {
-      return STATES;
-    },
-    /** One finished model per cell — rebuilt when the locale switches. */
-    models(): Record<string, LoreModel> {
-      void this.lang; // the dependency: the translator reads the locale outside reactivity
-      const out: Record<string, LoreModel> = {};
-      for (const state of STATES) {
-        out[state.key] = 'party' in state ?
-          buildPartyLoreModel(state.party, translateLore) :
-          buildCardLoreModel(state.card, translateLore);
-      }
-      return out;
-    },
-    LOCALES(): ReadonlyArray<{code: string, label: string}> {
-      return LOCALES;
-    },
-  },
-  methods: {
-    setLang(code: string): void {
-      PreferencesManager.INSTANCE.set('lang', code);
-      this.lang = code;
-    },
+defineOptions({name: 'CardLorePlayground'});
+defineProps({
+  /** Hosted in the console playground stand — the host owns fullscreen + scroll. */
+  embedded: {
+    type: Boolean,
+    required: false,
+    default: false,
   },
 });
+
+const lang = ref(PreferencesManager.INSTANCE.values().lang);
+const revealed = ref(true);
+const states = STATES;
+/** One finished model per cell — rebuilt when the locale switches. */
+const models = computed((): Record<string, LoreModel> => {
+  void lang.value; // the dependency: the translator reads the locale outside reactivity
+  const out: Record<string, LoreModel> = {};
+  for (const state of STATES) {
+    out[state.key] = 'party' in state ?
+      buildPartyLoreModel(state.party, translateLore) :
+      buildCardLoreModel(state.card, translateLore);
+  }
+  return out;
+});
+function setLang(code: string): void {
+  PreferencesManager.INSTANCE.set('lang', code);
+  lang.value = code;
+}
 </script>
