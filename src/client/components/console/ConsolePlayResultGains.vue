@@ -1,9 +1,4 @@
 <template>
-  <!-- WHAT THE PLAY ADDS BEYOND ITS RESOURCES (P81 · the owner, 2026-11-01): chips IN the result, on the result chips'
-       own chassis — «+ [знак] Эффект», «+ [знак] Действие» (the same glyphs the «Эффекты» / «Действия карт» screens
-       wear), and the VP the card scores, the shield + «+N» (a «per X» card: the number NOW, its printed formula beside it,
-       quiet; a VP the play cannot know yet: «по условию»). Never the card's graphic a second time — the face beside the
-       sheet prints it; the chip says only that the card brings it. -->
   <span v-for="g in gains" :key="g.kind" class="con-resgain" :data-result-gain="g.kind">
     <span class="con-resgain__plus" aria-hidden="true">+</span>
     <BarButtonIcon class="con-resgain__icon" :name="g.icon" />
@@ -24,13 +19,23 @@
   </span>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * WHAT THE PLAY ADDS BEYOND ITS RESOURCES (P81 · the owner, 2026-11-01): chips IN the result, on the result chips'
+ * own chassis — «+ [знак] Эффект», «+ [знак] Действие» (the same glyphs the «Эффекты» / «Действия карт» screens
+ * wear), and the VP the card scores, the shield + «+N» (a «per X» card: the number NOW, its printed formula beside it,
+ * quiet; a VP the play cannot know yet: «по условию»). Never the card's graphic a second time — the face beside the
+ * sheet prints it; the chip says only that the card brings it.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * The result's NON-RESOURCE gains (P81 · the owner, 2026-11-01): a new effect, a new action, the VP — chips in the
  * «РЕЗУЛЬТАТ» row, one chassis with the resource chips. Pure presentation: the host derives what the card brings
  * (`cardHasPassiveEffect` / `cardHasAction` / the result's `vp` section — the server's projection).
  */
-import {defineComponent, PropType} from 'vue';
+import {PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
@@ -39,21 +44,14 @@ import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfa
 export type ResultGain = {kind: 'effect' | 'action', icon: string, label: string};
 export type ResultVp = {kind: 'fixed' | 'formula' | 'variable', value: string, formula?: ScoreFormula};
 
-export default defineComponent({
-  name: 'ConsolePlayResultGains',
-  components: {BarButtonIcon, ConsoleVpBadge, PremiumCountGlyph},
-  props: {
-    gains: {type: Array as PropType<ReadonlyArray<ResultGain>>, default: () => []},
-    vp: {type: Object as PropType<ResultVp | undefined>, default: undefined},
-  },
-  methods: {
-    formulaTagIcon,
-    formulaOperandsText,
-    shortfallText,
-    countGlyphs(formula: ScoreFormula) {
-      const glyph = formulaGlyph(formula);
-      return glyph?.kind === 'counted' ? [glyph.glyph] : [];
-    },
-  },
+defineOptions({name: 'ConsolePlayResultGains'});
+defineProps({
+  gains: {type: Array as PropType<ReadonlyArray<ResultGain>>, default: () => []},
+  vp: {type: Object as PropType<ResultVp | undefined>, default: undefined},
 });
+
+function countGlyphs(formula: ScoreFormula) {
+  const glyph = formulaGlyph(formula);
+  return glyph?.kind === 'counted' ? [glyph.glyph] : [];
+}
 </script>
