@@ -8,7 +8,7 @@ import ConfirmDialog from '@/client/components/common/ConfirmDialog.vue';
  * The native-`<dialog>` confirmation the board binder asks «Place your tile here?» with. A `<script setup>` component
  * (step A of docs/claude/vapor/RECIPES.md): what it renders for its two props and its slot, its three verbs — `accept`,
  * `dismiss`, `hide` (the «don't show this again» box) — and the ONE member its parent reaches through a ref:
- * `ConsoleBoardInput` calls `this.typedRefs.confirmation.show()`.
+ * `ConsoleBoardInput` calls `confirmation.value?.show()`.
  */
 
 /** What the board binder reads through its `ref="confirmation"`. */
@@ -60,7 +60,8 @@ describe('ConfirmDialog', () => {
   });
 
   it('a parent\'s ref sees `show` and nothing else — and `show()` opens the dialog as a modal', () => {
-    // The dialog the way the board binder mounts it: under an Options host with the string ref `confirmation`.
+    // The dialog the way the board binder mounts it: under a host with the string ref `confirmation` (the binder
+    // reads it with `useTemplateRef`; this host with `$refs` — the same exposed object either way).
     const Host = defineComponent({
       render: () => h('div', [h(ConfirmDialog, {ref: 'confirmation', message: 'Place your tile here?'})]),
     });
