@@ -1,5 +1,5 @@
 <template>
-  <div class="cm-overlay" role="dialog" :aria-label="$t('Participant')">
+  <div ref="root" class="cm-overlay" role="dialog" :aria-label="$t('Participant')">
     <div class="cm-overlay__card">
       <div class="cm-overlay__title cm-editor__head">
         <template v-if="target.kind === 'human'">
@@ -149,7 +149,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * Console-native PARTICIPANT editor (create screen) — one overlay per crew
  * member: name (the sanctioned text-entry fallback), cube colour (◄ ► cycles
@@ -160,7 +160,7 @@
  * screen model (`consoleCreateUi.overlay`), intents are routed here via
  * `handleIntent` from the screen root.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, nextTick, onBeforeUnmount, PropType, ref, useTemplateRef} from 'vue';
 import {Color, PLAYER_COLORS} from '@/common/Color';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -178,6 +178,7 @@ import {normalizePlayerName, validatePlayerName} from '@/common/utils/playerName
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
+import {$t} from '@/client/directives/i18n';
 
 /** A row of the friend quick-pick: a saved friend, or the "type a name" escape. */
 type FriendPickRow = {kind: 'friend', name: string, seated: boolean} | {kind: 'type'};
@@ -185,251 +186,245 @@ type FriendPickRow = {kind: 'friend', name: string, seated: boolean} | {kind: 't
 /** «Динамический баланс» on the editor's note — HIDDEN balance: the rule is named, its numbers never are (the owner, 2026-10-28/29); every difficulty has it. */
 const SECOND_SHIFT_DESC_ON = 'Dynamic balance: MarsBot stays in the round longer when a long game drags on. How much depends on the difficulty.';
 
-export default defineComponent({
-  name: 'ConsoleParticipantEditor',
-  components: {GamepadGlyph, ConsoleScrollArea, ConsoleVirtualKeyboard},
-  props: {
-    target: {type: Object as PropType<EditorTarget>, required: true},
-    cursor: {type: Number, required: true},
-  },
-  emits: ['close', 'remove-request', 'cursor'],
-  data() {
-    return {
-      entering: false,
-      entryDraft: '',
-      nameIssue: '',
-      pickingFriend: false,
-      friendCursor: 0,
-    };
-  },
-  computed: {
-    fields(): ReadonlyArray<EditorField> {
-      return editorFields(this.target);
-    },
-    colors(): ReadonlyArray<Color> {
-      return PLAYER_COLORS;
-    },
-    slotColor(): Color {
-      if (this.target.kind === 'human') {
-        return createGameState.config.players[this.target.index]?.color ?? PLAYER_COLORS[0];
-      }
-      return PLAYER_COLORS[0];
-    },
-    currentName(): string {
-      if (this.target.kind === 'human') {
-        return (createGameState.config.players[this.target.index]?.name ?? '').trim();
-      }
-      return 'MarsBot';
-    },
-    headName(): string {
-      return this.currentName !== '' ? this.currentName : this.$t('Participant');
-    },
-    trBoost(): number {
-      if (this.target.kind === 'human') {
-        return createGameState.config.players[this.target.index]?.trBoost ?? 0;
-      }
-      return 0;
-    },
-    difficultyLabel(): string {
-      return botDifficultyMeta(createGameState.config.botDifficulty).labelKey;
-    },
-    difficultyDesc(): string {
-      return botDifficultyMeta(createGameState.config.botDifficulty).descKey;
-    },
-    secondShiftOn(): boolean {
-      return createGameState.config.botSecondShift;
-    },
-    /** The rule's reading — on or off; the cap is hidden balance and never named. */
-    secondShiftDesc(): string {
-      if (!this.secondShiftOn) {
-        return 'Dynamic balance off: MarsBot keeps the same pace all game, as the Automa rules say.';
-      }
-      return SECOND_SHIFT_DESC_ON;
-    },
-    extraCorporationsOn(): boolean {
-      return createGameState.config.botExtraCorporations;
-    },
-    /** What the switch puts in the bot's pool — the official set alone, or the fork's own series beside it. */
-    extraCorporationsDesc(): string {
-      return this.extraCorporationsOn ?
-        'Extra corporations on: besides the official ones, MarsBot may get one of the corporations made for this edition.' :
-        'Extra corporations off: MarsBot gets only corporations from the official Automa set.';
-    },
-    /** Saved friends offered for this seat + a final "type a new name" row.
-     * A friend already used by ANOTHER seat is shown disabled (case-insensitive). */
-    friendPickRows(): ReadonlyArray<FriendPickRow> {
-      if (this.target.kind !== 'human') {
-        return [];
-      }
-      const myIndex = this.target.index;
-      const takenNorms = new Set(
-        createGameState.config.players
-          .filter((_, i) => i !== myIndex)
-          .map((p) => normalizePlayerName(p.name)),
-      );
-      const rows: Array<FriendPickRow> = friendsState.friends.map((name) => ({
-        kind: 'friend',
-        name,
-        seated: takenNorms.has(normalizePlayerName(name)),
-      }));
-      rows.push({kind: 'type'});
-      return rows;
-    },
-  },
-  created() {
-    ensureFriendsLoaded();
-  },
-  beforeUnmount() {
-    menuPadState.textEntry = false;
-  },
-  methods: {
-    /** Screen-root routed intents. Returns true when consumed. */
-    handleIntent(intent: GamepadIntent): boolean {
-      if (this.entering) {
-        // The on-screen keyboard owns every intent while name entry is active.
-        const vk = (this.$refs.vkeyboard ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
-        return vk?.handleIntent?.(intent) ?? true;
-      }
-      if (this.pickingFriend) {
-        // The friend quick-pick owns every intent while it is open.
-        if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-          const count = this.friendPickRows.length;
-          this.friendCursor = Math.min(count - 1, Math.max(0, this.friendCursor + (intent.dir === 'down' ? 1 : -1)));
-          this.keepFriendCursorVisible();
-          return true;
-        }
-        const pickAction = consoleActionOf(intent);
-        if (pickAction === 'primary') {
-          this.chooseFriendRow(this.friendCursor);
-          return true;
-        }
-        if (pickAction === 'back') {
-          this.pickingFriend = false;
-          return true;
-        }
-        return true; // Swallow the rest — nothing behind the picker reacts.
-      }
-      const field = this.fields[this.cursor];
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          const next = this.cursor + (intent.dir === 'down' ? 1 : -1);
-          if (next >= 0 && next < this.fields.length) {
-            this.$emit('cursor', next);
-          }
-          return true;
-        }
-        if (field !== undefined && (intent.dir === 'left' || intent.dir === 'right')) {
-          editorAdjust(this.target, field.id, intent.dir === 'right' ? 1 : -1);
-          return true;
-        }
-        return true;
-      }
-      if (consoleActionOf(intent) === 'primary') {
-        this.activateField(this.cursor);
-        return true;
-      }
-      return false; // B (outside entry) falls through — the root closes us.
-    },
-    onFieldClick(i: number): void {
-      this.$emit('cursor', i);
-      this.activateField(i);
-    },
-    activateField(i: number): void {
-      const field = this.fields[i];
-      if (field === undefined) {
-        return;
-      }
-      switch (field.id) {
-      case 'name':
-        // With saved friends, offer the quick-pick first; otherwise type directly.
-        if (this.target.kind === 'human' && friendsState.friends.length > 0) {
-          this.openFriendPick();
-        } else {
-          this.startNameEntry();
-        }
-        break;
-      case 'color':
-      case 'trBoost':
-      case 'difficulty':
-      case 'secondShift':
-      case 'extraCorporations':
-        editorAdjust(this.target, field.id, 1);
-        break;
-      case 'remove':
-        this.$emit('remove-request');
-        break;
-      }
-    },
-    openFriendPick(): void {
-      this.friendCursor = 0;
-      this.pickingFriend = true;
-    },
-    keepFriendCursorVisible(): void {
-      void this.$nextTick(() => {
-        const scroll = (this.$refs.friendScroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
-        scroll?.ensureVisible?.(this.$el.querySelector('.cm-overlay--nested .cm-field--cursor'));
-      });
-    },
-    chooseFriendRow(i: number): void {
-      const row = this.friendPickRows[i];
-      if (row === undefined) {
-        return;
-      }
-      if (row.kind === 'type') {
-        this.pickingFriend = false;
-        this.startNameEntry();
-        return;
-      }
-      if (row.seated) {
-        return; // Already used by another seat — the row is disabled.
-      }
-      if (this.target.kind === 'human') {
-        setSlotName(this.target.index, row.name);
-      }
-      this.pickingFriend = false;
-    },
-    startNameEntry(): void {
-      if (this.target.kind !== 'human') {
-        return;
-      }
-      this.entryDraft = this.currentName;
-      this.nameIssue = '';
-      // Silence the console key bridge so a physical key can't drive menu nav
-      // behind the on-screen keyboard (the keyboard owns physical input too).
-      menuPadState.textEntry = true;
-      this.entering = true;
-    },
-    commitNameEntry(value: string): void {
-      if (this.target.kind !== 'human') {
-        return;
-      }
-      const validation = validatePlayerName(value);
-      if (!validation.ok) {
-        this.nameIssue = validation.reason === 'empty' ? 'Fill in the player name' : 'This name cannot be used';
-        return;
-      }
-      setSlotName(this.target.index, validation.displayName);
-      this.entering = false;
-      this.nameIssue = '';
-      menuPadState.textEntry = false;
-    },
-    cancelNameEntry(): void {
-      this.entering = false;
-      this.nameIssue = '';
-      menuPadState.textEntry = false;
-    },
-    pickColor(c: Color): void {
-      if (this.target.kind === 'human') {
-        setSlotColor(this.target.index, c);
-      }
-    },
-    takenBy(c: Color): boolean {
-      if (this.target.kind !== 'human') {
-        return false;
-      }
-      const idx = this.target.index;
-      return createGameState.config.players.some((p, i) => i !== idx && p.color === c);
-    },
-  },
+defineOptions({name: 'ConsoleParticipantEditor'});
+const props = defineProps({
+  target: {type: Object as PropType<EditorTarget>, required: true},
+  cursor: {type: Number, required: true},
 });
+const emit = defineEmits(['close', 'remove-request', 'cursor']);
+
+const vkeyboard = useTemplateRef<{handleIntent?: (i: GamepadIntent) => boolean}>('vkeyboard');
+const friendScroll = useTemplateRef<{ensureVisible?: (el: Element | null) => void}>('friendScroll');
+const root = useTemplateRef<HTMLElement>('root');
+const entering = ref(false);
+const entryDraft = ref('');
+const nameIssue = ref('');
+const pickingFriend = ref(false);
+const friendCursor = ref(0);
+
+const fields = computed((): ReadonlyArray<EditorField> => {
+  return editorFields(props.target);
+});
+const colors = PLAYER_COLORS;
+const slotColor = computed((): Color => {
+  if (props.target.kind === 'human') {
+    return createGameState.config.players[props.target.index]?.color ?? PLAYER_COLORS[0];
+  }
+  return PLAYER_COLORS[0];
+});
+const currentName = computed((): string => {
+  if (props.target.kind === 'human') {
+    return (createGameState.config.players[props.target.index]?.name ?? '').trim();
+  }
+  return 'MarsBot';
+});
+const headName = computed((): string => {
+  return currentName.value !== '' ? currentName.value : $t('Participant');
+});
+const trBoost = computed((): number => {
+  if (props.target.kind === 'human') {
+    return createGameState.config.players[props.target.index]?.trBoost ?? 0;
+  }
+  return 0;
+});
+const difficultyLabel = computed((): string => {
+  return botDifficultyMeta(createGameState.config.botDifficulty).labelKey;
+});
+const difficultyDesc = computed((): string => {
+  return botDifficultyMeta(createGameState.config.botDifficulty).descKey;
+});
+const secondShiftOn = computed((): boolean => {
+  return createGameState.config.botSecondShift;
+});
+/** The rule's reading — on or off; the cap is hidden balance and never named. */
+const secondShiftDesc = computed((): string => {
+  if (!secondShiftOn.value) {
+    return 'Dynamic balance off: MarsBot keeps the same pace all game, as the Automa rules say.';
+  }
+  return SECOND_SHIFT_DESC_ON;
+});
+const extraCorporationsOn = computed((): boolean => {
+  return createGameState.config.botExtraCorporations;
+});
+/** What the switch puts in the bot's pool — the official set alone, or the fork's own series beside it. */
+const extraCorporationsDesc = computed((): string => {
+  return extraCorporationsOn.value ?
+    'Extra corporations on: besides the official ones, MarsBot may get one of the corporations made for this edition.' :
+    'Extra corporations off: MarsBot gets only corporations from the official Automa set.';
+});
+/** Saved friends offered for this seat + a final "type a new name" row.
+ * A friend already used by ANOTHER seat is shown disabled (case-insensitive). */
+const friendPickRows = computed((): ReadonlyArray<FriendPickRow> => {
+  if (props.target.kind !== 'human') {
+    return [];
+  }
+  const myIndex = props.target.index;
+  const takenNorms = new Set(
+    createGameState.config.players
+      .filter((_, i) => i !== myIndex)
+      .map((p) => normalizePlayerName(p.name)),
+  );
+  const rows: Array<FriendPickRow> = friendsState.friends.map((name) => ({
+    kind: 'friend',
+    name,
+    seated: takenNorms.has(normalizePlayerName(name)),
+  }));
+  rows.push({kind: 'type'});
+  return rows;
+});
+
+/** Screen-root routed intents. Returns true when consumed. */
+function handleIntent(intent: GamepadIntent): boolean {
+  if (entering.value) {
+    // The on-screen keyboard owns every intent while name entry is active.
+    const vk = vkeyboard.value ?? undefined;
+    return vk?.handleIntent?.(intent) ?? true;
+  }
+  if (pickingFriend.value) {
+    // The friend quick-pick owns every intent while it is open.
+    if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+      const count = friendPickRows.value.length;
+      friendCursor.value = Math.min(count - 1, Math.max(0, friendCursor.value + (intent.dir === 'down' ? 1 : -1)));
+      keepFriendCursorVisible();
+      return true;
+    }
+    const pickAction = consoleActionOf(intent);
+    if (pickAction === 'primary') {
+      chooseFriendRow(friendCursor.value);
+      return true;
+    }
+    if (pickAction === 'back') {
+      pickingFriend.value = false;
+      return true;
+    }
+    return true; // Swallow the rest — nothing behind the picker reacts.
+  }
+  const field = fields.value[props.cursor];
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'up' || intent.dir === 'down') {
+      const next = props.cursor + (intent.dir === 'down' ? 1 : -1);
+      if (next >= 0 && next < fields.value.length) {
+        emit('cursor', next);
+      }
+      return true;
+    }
+    if (field !== undefined && (intent.dir === 'left' || intent.dir === 'right')) {
+      editorAdjust(props.target, field.id, intent.dir === 'right' ? 1 : -1);
+      return true;
+    }
+    return true;
+  }
+  if (consoleActionOf(intent) === 'primary') {
+    activateField(props.cursor);
+    return true;
+  }
+  return false; // B (outside entry) falls through — the root closes us.
+}
+function onFieldClick(i: number): void {
+  emit('cursor', i);
+  activateField(i);
+}
+function activateField(i: number): void {
+  const field = fields.value[i];
+  if (field === undefined) {
+    return;
+  }
+  switch (field.id) {
+  case 'name':
+    // With saved friends, offer the quick-pick first; otherwise type directly.
+    if (props.target.kind === 'human' && friendsState.friends.length > 0) {
+      openFriendPick();
+    } else {
+      startNameEntry();
+    }
+    break;
+  case 'color':
+  case 'trBoost':
+  case 'difficulty':
+  case 'secondShift':
+  case 'extraCorporations':
+    editorAdjust(props.target, field.id, 1);
+    break;
+  case 'remove':
+    emit('remove-request');
+    break;
+  }
+}
+function openFriendPick(): void {
+  friendCursor.value = 0;
+  pickingFriend.value = true;
+}
+function keepFriendCursorVisible(): void {
+  void nextTick(() => {
+    const scroll = friendScroll.value ?? undefined;
+    scroll?.ensureVisible?.(root.value?.querySelector('.cm-overlay--nested .cm-field--cursor') ?? null);
+  });
+}
+function chooseFriendRow(i: number): void {
+  const row = friendPickRows.value[i];
+  if (row === undefined) {
+    return;
+  }
+  if (row.kind === 'type') {
+    pickingFriend.value = false;
+    startNameEntry();
+    return;
+  }
+  if (row.seated) {
+    return; // Already used by another seat — the row is disabled.
+  }
+  if (props.target.kind === 'human') {
+    setSlotName(props.target.index, row.name);
+  }
+  pickingFriend.value = false;
+}
+function startNameEntry(): void {
+  if (props.target.kind !== 'human') {
+    return;
+  }
+  entryDraft.value = currentName.value;
+  nameIssue.value = '';
+  // Silence the console key bridge so a physical key can't drive menu nav
+  // behind the on-screen keyboard (the keyboard owns physical input too).
+  menuPadState.textEntry = true;
+  entering.value = true;
+}
+function commitNameEntry(value: string): void {
+  if (props.target.kind !== 'human') {
+    return;
+  }
+  const validation = validatePlayerName(value);
+  if (!validation.ok) {
+    nameIssue.value = validation.reason === 'empty' ? 'Fill in the player name' : 'This name cannot be used';
+    return;
+  }
+  setSlotName(props.target.index, validation.displayName);
+  entering.value = false;
+  nameIssue.value = '';
+  menuPadState.textEntry = false;
+}
+function cancelNameEntry(): void {
+  entering.value = false;
+  nameIssue.value = '';
+  menuPadState.textEntry = false;
+}
+function pickColor(c: Color): void {
+  if (props.target.kind === 'human') {
+    setSlotColor(props.target.index, c);
+  }
+}
+function takenBy(c: Color): boolean {
+  if (props.target.kind !== 'human') {
+    return false;
+  }
+  const idx = props.target.index;
+  return createGameState.config.players.some((p, i) => i !== idx && p.color === c);
+}
+
+ensureFriendsLoaded();
+
+onBeforeUnmount(() => {
+  menuPadState.textEntry = false;
+});
+defineExpose({handleIntent});
 </script>
