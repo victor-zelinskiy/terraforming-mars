@@ -1,7 +1,4 @@
 <template>
-  <!-- CHAIRMAN SEAT — the mandatory pick: every delegate of the viewer's is on
-       a resolution; ◀ ▶ walk the candidate cards, A takes the delegate off the
-       focused one for the seat. -->
   <div class="con-parl__stage-head">
     <div>
       <b class="con-parl__stage-title">{{ $t('You completed the chairman quest') }}</b>
@@ -30,8 +27,16 @@
     <span class="con-parl__cta-label">{{ $t(flow.stage === 'submitting' ? 'Performing…' : 'Take the delegate') }}</span>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * CHAIRMAN SEAT — the mandatory pick: every delegate of the viewer's is on
+ * a resolution; ◀ ▶ walk the candidate cards, A takes the delegate off the
+ * focused one for the seat.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -51,63 +56,58 @@ import type {Rect} from '@/client/console/parliament/consoleParliamentVoteMotion
  * flight's source); the send itself is the section's, because the delegate
  * flies from the card only once the server has answered.
  */
-export default defineComponent({
-  name: 'ConsoleParliamentSeatPick',
-  components: {PlayerDelegate, GamepadGlyph},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    /** The focused candidate slot. */
-    slot: {type: Object as PropType<ParliamentSlotVm>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The candidate slots (indices) the server offers. */
-    seatCandidates: {type: Array as PropType<ReadonlyArray<number>>, default: () => []},
-  },
-  emits: ['submit', 'inspect'],
-  computed: {
-    flow() {
-      return parliamentFlow;
-    },
-  },
-  methods: {
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
-    },
-    resolutionTitle(id: string): string {
-      return resolutionTitleOf(this.view, id);
-    },
-    /** The stage's own verbs: ◀ ▶ over the candidates, X inspects the focused card, A takes the delegate. */
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        const candidates = this.seatCandidates;
-        if (candidates.length > 0) {
-          const at = candidates.indexOf(parliamentFlow.slotIndex);
-          const next = intent.dir === 'left' ? Math.max(0, at - 1) : intent.dir === 'right' ? Math.min(candidates.length - 1, at + 1) : at;
-          parliamentFlow.slotIndex = candidates[next < 0 ? 0 : next];
-        }
-        return;
-      }
-      const action = consoleActionOf(intent);
-      if (action === 'inspect') {
-        this.inspect();
-      } else if (action === 'primary') {
-        this.submit();
-      }
-    },
-    /** A: the cube that leaves the card for the seat is the viewer's newest one on it — its rect rides the submit. */
-    submit(): void {
-      const slot = this.slot;
-      const me = this.viewerColor;
-      const mine = slot.votes.filter((v) => v.owner === me).map((v) => v.seq);
-      const seq = mine.length > 0 ? Math.max(...mine) : undefined;
-      const cube = seq === undefined ? null : parliamentRootEl()?.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${slot.instance}"] [data-seq="${seq}"]`) ?? null;
-      const from: Rect | undefined = rectOf(cube);
-      this.$emit('submit', from);
-    },
-    inspect(): void {
-      const slot = this.slot;
-      const request: ParliamentInspectRequest = {kind: 'resolution', ids: [slot.resolutionId], index: 0, origin: () => slotFaceOf(parliamentRootEl(), slot.instance)};
-      this.$emit('inspect', request);
-    },
-  },
+defineOptions({name: 'ConsoleParliamentSeatPick'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  /** The focused candidate slot. */
+  slot: {type: Object as PropType<ParliamentSlotVm>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** The candidate slots (indices) the server offers. */
+  seatCandidates: {type: Array as PropType<ReadonlyArray<number>>, default: () => []},
 });
+const emit = defineEmits(['submit', 'inspect']);
+
+const flow = parliamentFlow;
+
+function figurePx(logical: number): number {
+  return delegateFigurePx(logical);
+}
+function resolutionTitle(id: string): string {
+  return resolutionTitleOf(props.view, id);
+}
+/** The stage's own verbs: ◀ ▶ over the candidates, X inspects the focused card, A takes the delegate. */
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'nav') {
+    const candidates = props.seatCandidates;
+    if (candidates.length > 0) {
+      const at = candidates.indexOf(parliamentFlow.slotIndex);
+      const next = intent.dir === 'left' ? Math.max(0, at - 1) : intent.dir === 'right' ? Math.min(candidates.length - 1, at + 1) : at;
+      parliamentFlow.slotIndex = candidates[next < 0 ? 0 : next];
+    }
+    return;
+  }
+  const action = consoleActionOf(intent);
+  if (action === 'inspect') {
+    inspect();
+  } else if (action === 'primary') {
+    submit();
+  }
+}
+/** A: the cube that leaves the card for the seat is the viewer's newest one on it — its rect rides the submit. */
+function submit(): void {
+  const slot = props.slot;
+  const me = props.viewerColor;
+  const mine = slot.votes.filter((v) => v.owner === me).map((v) => v.seq);
+  const seq = mine.length > 0 ? Math.max(...mine) : undefined;
+  const cube = seq === undefined ? null : parliamentRootEl()?.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${slot.instance}"] [data-seq="${seq}"]`) ?? null;
+  const from: Rect | undefined = rectOf(cube);
+  emit('submit', from);
+}
+function inspect(): void {
+  const slot = props.slot;
+  const request: ParliamentInspectRequest = {kind: 'resolution', ids: [slot.resolutionId], index: 0, origin: () => slotFaceOf(parliamentRootEl(), slot.instance)};
+  emit('inspect', request);
+}
+
+defineExpose({handleIntent});
 </script>
