@@ -4,25 +4,6 @@ inside its `.pcard` root (theme `charter`), so every host that draws a party as 
 the fullscreen inspector — keeps zooming / measuring / inspecting one `.pcard` in the 320×460 design box.
 -->
 <template>
-  <!--
-    THE CHARTER (2026-10-25, the owner: «надо всё вывести под формат карточек … свой неповторимый НАСТОЛЬНЫЙ дизайн,
-    логотипу не должно быть отдано так много места»). A party is neither a project (it is played by nobody, it has no
-    cost, no tags, no illustration) nor a bill (it is not a document that is voted on — it is the standing body that
-    brings bills in). It is the faction's CHARTER: a board-game faction card whose anatomy is its mechanics:
-
-      · the BOARD — a stiff chamfered tile (cut corners all round): told from a project card (gold frame, rounded) and
-        from a bill (a page with a folded corner) by its OUTLINE alone, from across the room;
-      · the BANNER — the party's own dyed cloth across the head, cut in a pennant's chevron, hemmed in gold: the party
-        reads by its colour as a MASS, the way a faction's colour does on a table;
-      · the CREST — the emblem, a modest seal on the banner (never the art window the project anatomy gave it);
-      · the NAME — under the crest, in vellum caps on the dye;
-      · the CLAUSES — what the party DOES, each under its own engraved label: its standing EFFECT («∞ ЭФФЕКТ») and its
-        ACTION («⚡ ДЕЙСТВИЕ»), through the ONE formula renderer — the same node references the ACTION COMMIT's impulse
-        runs over (`data-graphic-node`), so the composer's commit lands on this face exactly as on a card's;
-      · the FOOT — the printed LAW OF ACCESS as marks («[crown] / [delegate][delegate]» — the ruling party, or two of
-        your delegates on its bill), the expansion stamp beside it.
-    Console-safe by construction: gradients, clip-path and box-shadow only — no `filter`, no glow, nothing animated.
-  -->
   <div class="pcard-charter__sheet" aria-hidden="true">
     <div class="pcard-charter__board">
       <div class="pcard-charter__banner">
@@ -65,8 +46,29 @@ the fullscreen inspector — keeps zooming / measuring / inspecting one `.pcard`
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * THE CHARTER (2026-10-25, the owner: «надо всё вывести под формат карточек … свой неповторимый НАСТОЛЬНЫЙ дизайн,
+ * логотипу не должно быть отдано так много места»). A party is neither a project (it is played by nobody, it has no
+ * cost, no tags, no illustration) nor a bill (it is not a document that is voted on — it is the standing body that
+ * brings bills in). It is the faction's CHARTER: a board-game faction card whose anatomy is its mechanics:
+ *
+ *   · the BOARD — a stiff chamfered tile (cut corners all round): told from a project card (gold frame, rounded) and
+ *     from a bill (a page with a folded corner) by its OUTLINE alone, from across the room;
+ *   · the BANNER — the party's own dyed cloth across the head, cut in a pennant's chevron, hemmed in gold: the party
+ *     reads by its colour as a MASS, the way a faction's colour does on a table;
+ *   · the CREST — the emblem, a modest seal on the banner (never the art window the project anatomy gave it);
+ *   · the NAME — under the crest, in vellum caps on the dye;
+ *   · the CLAUSES — what the party DOES, each under its own engraved label: its standing EFFECT («∞ ЭФФЕКТ») and its
+ *     ACTION («⚡ ДЕЙСТВИЕ»), through the ONE formula renderer — the same node references the ACTION COMMIT's impulse
+ *     runs over (`data-graphic-node`), so the composer's commit lands on this face exactly as on a card's;
+ *   · the FOOT — the printed LAW OF ACCESS as marks («[crown] / [delegate][delegate]» — the ruling party, or two of
+ *     your delegates on its bill), the expansion stamp beside it.
+ * Console-safe by construction: gradients, clip-path and box-shadow only — no `filter`, no glow, nothing animated.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed} from 'vue';
 import {PremiumCardVM} from './premiumCardViewModel';
 import {MechanicsVM} from './mechanicsModel';
 import {TitleTier} from './titleFit';
@@ -74,49 +76,46 @@ import {expansionIconUrl} from './premiumCardIcons';
 import PremiumMechanicsPanel from './PremiumMechanicsPanel.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {Color} from '@/common/Color';
+import {$t} from '@/client/directives/i18n';
 
 type Clause = {kind: 'effect' | 'action', mechanics: MechanicsVM};
 
-export default defineComponent({
-  name: 'PremiumPartyFace',
-  components: {PremiumMechanicsPanel, PlayerCube},
-  props: {
-    vm: {type: Object as () => PremiumCardVM, required: true},
-    /** The translated title and its length tier (the host face already derived both). */
-    title: {type: String, required: true},
-    titleTier: {type: Number as unknown as () => TitleTier, required: true},
-    /** «Настройки» → «Номера карт» (`cardNumberDisplay.ts`), off by default. */
-    showCode: {type: Boolean, default: false},
-  },
-  computed: {
-    emblemUrl(): string {
-      return this.vm.parliament?.emblemUrl ?? '';
-    },
-    /** The seats whose cube stands on this party's banner (Septem Tribus:redux), handed in by the host. */
-    bannerCubes(): ReadonlyArray<Color> {
-      return this.vm.parliament?.bannerCubes ?? [];
-    },
-    delegateUrl(): string {
-      return 'assets/misc/delegate.svg';
-    },
-    /** The party's clauses in the printed order — the standing effect, then the action (a party prints one or both). */
-    clauses(): ReadonlyArray<Clause> {
-      const charter = this.vm.parliament?.charter;
-      const out: Array<Clause> = [];
-      if (charter?.effect !== undefined) {
-        out.push({kind: 'effect', mechanics: charter.effect});
-      }
-      if (charter?.action !== undefined) {
-        out.push({kind: 'action', mechanics: charter.action});
-      }
-      return out;
-    },
-    expansionIcon(): string | undefined {
-      return expansionIconUrl(this.vm.expansion);
-    },
-    expansionStyle(): Record<string, string> {
-      return this.expansionIcon !== undefined ? {backgroundImage: `url(${this.expansionIcon})`} : {};
-    },
-  },
+defineOptions({name: 'PremiumPartyFace'});
+const props = defineProps({
+  vm: {type: Object as () => PremiumCardVM, required: true},
+  /** The translated title and its length tier (the host face already derived both). */
+  title: {type: String, required: true},
+  titleTier: {type: Number as unknown as () => TitleTier, required: true},
+  /** «Настройки» → «Номера карт» (`cardNumberDisplay.ts`), off by default. */
+  showCode: {type: Boolean, default: false},
+});
+
+const emblemUrl = computed((): string => {
+  return props.vm.parliament?.emblemUrl ?? '';
+});
+/** The seats whose cube stands on this party's banner (Septem Tribus:redux), handed in by the host. */
+const bannerCubes = computed((): ReadonlyArray<Color> => {
+  return props.vm.parliament?.bannerCubes ?? [];
+});
+const delegateUrl = computed((): string => {
+  return 'assets/misc/delegate.svg';
+});
+/** The party's clauses in the printed order — the standing effect, then the action (a party prints one or both). */
+const clauses = computed((): ReadonlyArray<Clause> => {
+  const charter = props.vm.parliament?.charter;
+  const out: Array<Clause> = [];
+  if (charter?.effect !== undefined) {
+    out.push({kind: 'effect', mechanics: charter.effect});
+  }
+  if (charter?.action !== undefined) {
+    out.push({kind: 'action', mechanics: charter.action});
+  }
+  return out;
+});
+const expansionIcon = computed((): string | undefined => {
+  return expansionIconUrl(props.vm.expansion);
+});
+const expansionStyle = computed((): Record<string, string> => {
+  return expansionIcon.value !== undefined ? {backgroundImage: `url(${expansionIcon.value})`} : {};
 });
 </script>
