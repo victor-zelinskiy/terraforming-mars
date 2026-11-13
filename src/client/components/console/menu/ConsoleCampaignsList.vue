@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div ref="root">
     <!-- ── My campaigns — one CARD per campaign (never per mission), on the pregame screen chassis (TR68) ── -->
     <ConsoleLobbyScreen
       ref="screen"
@@ -56,7 +56,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * «МОИ КАМПАНИИ» — the console-native campaign list: a pregame SCREEN on the
  * showcase chassis (`ConsoleLobbyScreen` + `ConsoleLobbyCard`, TR68 —
@@ -79,7 +79,7 @@
  * row says how long ago its campaign was CREATED — on the lobby's ONE clock,
  * which this screen hands its rows to (`setLobbyAgeRows`).
  */
-import {defineComponent} from 'vue';
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
 import {paths} from '@/common/app/paths';
 import {CampaignSummaryModel} from '@/common/campaign/CampaignSummary';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -106,266 +106,263 @@ import {$t, translateTextWithParams} from '@/client/directives/i18n';
 /** This screen's key among the rows the lobby's age clock ticks for. */
 const AGE_CLOCK_CONSUMER = 'campaigns';
 
-export default defineComponent({
-  name: 'ConsoleCampaignsList',
-  components: {GamepadGlyph, ConsoleLobbyScreen, ConsoleLobbyCard},
-  emits: ['close'],
-  data() {
-    return {
-      ui: campaignsState,
-      identityState,
-      lobbyState,
-      /** The showcase grid's column count (the screen measures it). */
-      cols: 3,
-    };
-  },
-  computed: {
-    identityName(): string {
-      return this.identityState.identity?.displayName ?? '';
-    },
-    needName(): boolean {
-      return this.identityName === '';
-    },
-    firstLoad(): boolean {
-      return this.ui.status === 'loading' || this.ui.status === 'idle';
-    },
-    loadError(): boolean {
-      return this.ui.status === 'error';
-    },
-    /** The shown slice, sorted (the one list the cursor walks). */
-    rows(): ReadonlyArray<CampaignSourceRow> {
-      return visibleCampaignSourceRows(this.ui.rows, this.ui.tab);
-    },
-    tabs(): ReadonlyArray<{id: CampaignsTab, label: string, count: number | undefined}> {
-      const loaded = this.ui.status === 'ok';
-      return [
-        {id: 'active', label: 'Active campaigns', count: loaded ? activeCampaignRowCount(this.ui.rows) : undefined},
-        {id: 'completed', label: 'Completed campaigns', count: loaded ? completedCampaignRowCount(this.ui.rows) : undefined},
-      ];
-    },
-    /** The lobby's four honest answers on the stage (no name · still asking · failed · none). */
-    screenState(): LobbyScreenState {
-      if (this.needName) {
-        return 'need-name';
-      }
-      if (this.firstLoad) {
-        return 'loading';
-      }
-      if (this.loadError) {
-        return 'error';
-      }
-      return this.rows.length === 0 ? 'empty' : 'list';
-    },
-    stateKey(): string {
-      switch (this.screenState) {
-      case 'need-name': return 'Set your player name to see your games';
-      case 'loading': return 'Loading';
-      case 'error': return 'Could not load your campaigns';
-      case 'empty': return this.emptyKey;
-      default: return '';
-      }
-    },
-    stateHintKey(): string {
-      switch (this.screenState) {
-      case 'need-name': return 'Your games are found by your player name — set it in the player profile';
-      case 'error': return 'Refresh';
-      default: return '';
-      }
-    },
-    emptyKey(): string {
-      return this.ui.tab === 'completed' ?
-        'You have no completed campaigns yet.' :
-        'You have no active campaigns yet. Assemble one in the New game screen.';
-    },
-    confirmRow(): CampaignSourceRow | undefined {
-      const id = this.ui.confirmId;
-      if (id === undefined) {
-        return undefined;
-      }
-      return this.ui.rows.find((r) => r.summary.id === id);
-    },
-    /** Key of the CURRENT slice — the focus-restore watcher re-runs on it. */
-    rowsKey(): string {
-      return this.ui.status + '|' + this.ui.tab + '|' + this.rows.map((r) => r.summary.id).join(',');
-    },
-  },
-  watch: {
-    /** The identity is an INPUT that can arrive late — reload for the new name. */
-    identityName(): void {
-      void refreshCampaigns();
-    },
-    rowsKey(): void {
-      this.shareAgeRows();
-      this.applyPendingFocus();
-      // A refresh that removed rows must not leave the cursor past the end.
-      if (this.ui.cursor > 0 && this.ui.cursor >= this.rows.length) {
-        this.ui.cursor = Math.max(0, this.rows.length - 1);
-      }
-      // A confirm standing over a row that vanished (realtime removal) closes.
-      if (this.ui.confirmId !== undefined && this.confirmRow === undefined && !this.ui.deleting) {
-        this.cancelConfirm();
-      }
-    },
-  },
-  mounted() {
-    // Entering the screen is an unconditional refresh, every time.
-    void refreshCampaigns();
-    startCampaignsWatch();
-    // The store may already hold rows (the menu plate's badge loaded them), in
-    // which case no rowsKey change is coming to hand them to the clock.
-    this.shareAgeRows();
-    this.applyPendingFocus();
-  },
-  beforeUnmount() {
-    stopCampaignsWatch();
-    setLobbyAgeRows(AGE_CLOCK_CONSUMER, []);
-  },
-  methods: {
-    /** The ages tick on the lobby's shared clock — at the cadence the freshest
-     *  row on THIS screen needs, so a campaign created seconds ago counts up. */
-    shareAgeRows(): void {
-      setLobbyAgeRows(AGE_CLOCK_CONSUMER, this.rows.map((r) => r.summary.createdTimeMs));
-    },
-    /** Return-from-map restore: focus the remembered campaign once rows exist. */
-    applyPendingFocus(): void {
-      const id = this.ui.pendingFocusId;
-      if (id === undefined || this.ui.status !== 'ok') {
-        return;
-      }
-      this.ui.pendingFocusId = undefined;
-      const idx = this.rows.findIndex((r) => r.summary.id === id);
-      if (idx >= 0) {
-        this.ui.cursor = idx;
-      }
-      this.keepCursorVisible();
-    },
-    handleIntent(intent: GamepadIntent): boolean {
-      const action = consoleActionOf(intent);
-      // The delete confirm swallows everything but confirm/cancel — key
-      // repeat, a held A from the previous screen and stale focus included.
-      if (this.ui.confirmId !== undefined) {
-        if (action === 'primary') {
-          void this.executeDelete();
-        } else if (action === 'back') {
-          this.cancelConfirm();
-        }
-        return true;
-      }
-      if (intent.kind === 'nav') {
-        // The showcase is a GRID: ◀ ▶ walk the ring, ▲ ▼ a row (`showcaseStep`).
-        this.ui.cursor = showcaseStep(this.ui.cursor, intent.dir, Math.max(1, this.rows.length), this.cols);
-        this.keepCursorVisible();
-        return true;
-      }
-      if (intent.kind === 'press' && intent.button === 'stickL') {
-        this.setTab(this.ui.tab === 'completed' ? 'active' : 'completed');
-        return true;
-      }
-      if (intent.kind === 'press' && intent.button === 'triggerR') {
-        // RT re-asks every source in one sweep — the lobby first (it owns the
-        // LAN endpoints), then the campaigns fetch rides its completion; the
-        // direct call covers the local half immediately.
-        void refreshLobby();
-        void refreshCampaigns();
-        return true;
-      }
-      if (action === 'primary') {
-        this.openAt(this.ui.cursor);
-        return true;
-      }
-      if (action === 'inspect') {
-        // X — cascade delete (creator only; the server enforces it again).
-        this.requestDelete();
-        return true;
-      }
-      if (action === 'back') {
-        this.$emit('close');
-        return true;
-      }
-      // No Y verb here BY DESIGN: «удалить все кампании» is not offered.
-      return true;
-    },
-    keepCursorVisible(): void {
-      void this.$nextTick(() => {
-        const screen = (this.$refs.screen ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
-        screen?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
-      });
-    },
-    /** One campaign as a card (the pure model). */
-    cardView(r: CampaignSourceRow): LobbyCardView {
-      return campaignCardView(r);
-    },
-    setTab(tab: CampaignsTab): void {
-      if (this.ui.tab === tab) {
-        return;
-      }
-      this.ui.tab = tab;
-      this.ui.cursor = 0;
-      this.ui.confirmId = undefined;
-      this.ui.deleteError = '';
-      this.keepCursorVisible();
-    },
-    /** A — the existing Campaign Map is THE door; missions live one press deeper.
-     *  A LAN row pins its campaign id to the host's endpoint first, so every
-     *  request the map makes lands on the server the campaign lives on. */
-    openAt(i: number): void {
-      this.ui.cursor = i;
-      const row = this.rows[i];
-      if (row === undefined || row.stale) {
-        return; // A quiet host's row stays listed but is not entered.
-      }
-      pinCampaignRow(row);
-      navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.summary.id), 'sync', {kind: 'campaign-map'});
-    },
-    requestDelete(): void {
-      const row = this.rows[this.ui.cursor];
-      if (row === undefined || !row.summary.isCreator || row.stale) {
-        return; // The bar already shows the verb disabled for a non-creator.
-      }
-      this.ui.deleteError = '';
-      this.ui.confirmId = row.summary.id;
-    },
-    cancelConfirm(): void {
-      this.ui.confirmId = undefined;
-      this.ui.deleteError = '';
-      // The cursor was never moved — focus returns to the original row.
-    },
-    async executeDelete(): Promise<void> {
-      const id = this.ui.confirmId;
-      if (id === undefined || this.ui.deleting) {
-        return;
-      }
-      const ok = await deleteCampaignCascade(id);
-      if (!ok) {
-        return; // The error renders inside the confirm; B cancels out.
-      }
-      this.ui.confirmId = undefined;
-      // The mission games are gone too — «Мои партии» must not keep ghosts.
-      void refreshLobby({archive: true});
-      void this.$nextTick(() => {
-        this.ui.cursor = Math.min(this.ui.cursor, Math.max(0, this.rows.length - 1));
-        this.keepCursorVisible();
-      });
-    },
-    // ---- the confirm's presentation (the card reads `lobbyCardModel`) -------
-    isArchived(c: CampaignSummaryModel): boolean {
-      return isArchivedCampaign(c);
-    },
-    stateLabel(c: CampaignSummaryModel): string {
-      return campaignStateLabelKey(c);
-    },
-    progressLabel(c: CampaignSummaryModel): string {
-      const p = campaignProgress(c);
-      return p.params.length > 0 ? translateTextWithParams(p.key, p.params) : $t(p.key);
-    },
-    /** How long ago the campaign was CREATED — the very key the rows are sorted
-     *  by, so the order reads off the labels. The lobby's ONE shared clock. */
-    createdAgo(c: CampaignSummaryModel): string {
-      return lobbyAgeLabel(lobbyAge(c.createdTimeMs, this.lobbyState.nowMs));
-    },
-    missionGamesLine(c: CampaignSummaryModel): string {
-      return translateTextWithParams('Mission games to delete: ${0}.', [String(c.missionGamesCount)]);
-    },
-  },
+defineOptions({name: 'ConsoleCampaignsList'});
+const emit = defineEmits(['close']);
+
+const root = useTemplateRef<HTMLElement>('root');
+const screen = useTemplateRef<{ensureVisible?: (el: Element | null) => void}>('screen');
+const ui = campaignsState;
+/** The showcase grid's column count (the screen measures it). */
+const cols = ref(3);
+const identityName = computed((): string => {
+  return identityState.identity?.displayName ?? '';
 });
+const needName = computed((): boolean => {
+  return identityName.value === '';
+});
+const firstLoad = computed((): boolean => {
+  return ui.status === 'loading' || ui.status === 'idle';
+});
+const loadError = computed((): boolean => {
+  return ui.status === 'error';
+});
+/** The shown slice, sorted (the one list the cursor walks). */
+const rows = computed((): ReadonlyArray<CampaignSourceRow> => {
+  return visibleCampaignSourceRows(ui.rows, ui.tab);
+});
+const tabs = computed((): ReadonlyArray<{id: CampaignsTab, label: string, count: number | undefined}> => {
+  const loaded = ui.status === 'ok';
+  return [
+    {id: 'active', label: 'Active campaigns', count: loaded ? activeCampaignRowCount(ui.rows) : undefined},
+    {id: 'completed', label: 'Completed campaigns', count: loaded ? completedCampaignRowCount(ui.rows) : undefined},
+  ];
+});
+/** The lobby's four honest answers on the stage (no name · still asking · failed · none). */
+const screenState = computed((): LobbyScreenState => {
+  if (needName.value) {
+    return 'need-name';
+  }
+  if (firstLoad.value) {
+    return 'loading';
+  }
+  if (loadError.value) {
+    return 'error';
+  }
+  return rows.value.length === 0 ? 'empty' : 'list';
+});
+const stateKey = computed((): string => {
+  switch (screenState.value) {
+  case 'need-name': return 'Set your player name to see your games';
+  case 'loading': return 'Loading';
+  case 'error': return 'Could not load your campaigns';
+  case 'empty': return emptyKey.value;
+  default: return '';
+  }
+});
+const stateHintKey = computed((): string => {
+  switch (screenState.value) {
+  case 'need-name': return 'Your games are found by your player name — set it in the player profile';
+  case 'error': return 'Refresh';
+  default: return '';
+  }
+});
+const emptyKey = computed((): string => {
+  return ui.tab === 'completed' ?
+    'You have no completed campaigns yet.' :
+    'You have no active campaigns yet. Assemble one in the New game screen.';
+});
+const confirmRow = computed((): CampaignSourceRow | undefined => {
+  const id = ui.confirmId;
+  if (id === undefined) {
+    return undefined;
+  }
+  return ui.rows.find((r) => r.summary.id === id);
+});
+/** Key of the CURRENT slice — the focus-restore watcher re-runs on it. */
+const rowsKey = computed((): string => {
+  return ui.status + '|' + ui.tab + '|' + rows.value.map((r) => r.summary.id).join(',');
+});
+/** The ages tick on the lobby's shared clock — at the cadence the freshest
+ *  row on THIS screen needs, so a campaign created seconds ago counts up. */
+function shareAgeRows(): void {
+  setLobbyAgeRows(AGE_CLOCK_CONSUMER, rows.value.map((r) => r.summary.createdTimeMs));
+}
+/** Return-from-map restore: focus the remembered campaign once rows exist. */
+function applyPendingFocus(): void {
+  const id = ui.pendingFocusId;
+  if (id === undefined || ui.status !== 'ok') {
+    return;
+  }
+  ui.pendingFocusId = undefined;
+  const idx = rows.value.findIndex((r) => r.summary.id === id);
+  if (idx >= 0) {
+    ui.cursor = idx;
+  }
+  keepCursorVisible();
+}
+function handleIntent(intent: GamepadIntent): boolean {
+  const action = consoleActionOf(intent);
+  // The delete confirm swallows everything but confirm/cancel — key
+  // repeat, a held A from the previous screen and stale focus included.
+  if (ui.confirmId !== undefined) {
+    if (action === 'primary') {
+      void executeDelete();
+    } else if (action === 'back') {
+      cancelConfirm();
+    }
+    return true;
+  }
+  if (intent.kind === 'nav') {
+    // The showcase is a GRID: ◀ ▶ walk the ring, ▲ ▼ a row (`showcaseStep`).
+    ui.cursor = showcaseStep(ui.cursor, intent.dir, Math.max(1, rows.value.length), cols.value);
+    keepCursorVisible();
+    return true;
+  }
+  if (intent.kind === 'press' && intent.button === 'stickL') {
+    setTab(ui.tab === 'completed' ? 'active' : 'completed');
+    return true;
+  }
+  if (intent.kind === 'press' && intent.button === 'triggerR') {
+    // RT re-asks every source in one sweep — the lobby first (it owns the
+    // LAN endpoints), then the campaigns fetch rides its completion; the
+    // direct call covers the local half immediately.
+    void refreshLobby();
+    void refreshCampaigns();
+    return true;
+  }
+  if (action === 'primary') {
+    openAt(ui.cursor);
+    return true;
+  }
+  if (action === 'inspect') {
+    // X — cascade delete (creator only; the server enforces it again).
+    requestDelete();
+    return true;
+  }
+  if (action === 'back') {
+    emit('close');
+    return true;
+  }
+  // No Y verb here BY DESIGN: «удалить все кампании» is not offered.
+  return true;
+}
+function keepCursorVisible(): void {
+  void nextTick(() => {
+    const screenNow = screen.value;
+    const rootNow = root.value;
+    if (rootNow === null) {
+      return;
+    }
+    screenNow?.ensureVisible?.(rootNow.querySelector('.cm-game--cursor'));
+  });
+}
+/** One campaign as a card (the pure model). */
+function cardView(r: CampaignSourceRow): LobbyCardView {
+  return campaignCardView(r);
+}
+function setTab(tab: CampaignsTab): void {
+  if (ui.tab === tab) {
+    return;
+  }
+  ui.tab = tab;
+  ui.cursor = 0;
+  ui.confirmId = undefined;
+  ui.deleteError = '';
+  keepCursorVisible();
+}
+/** A — the existing Campaign Map is THE door; missions live one press deeper.
+ *  A LAN row pins its campaign id to the host's endpoint first, so every
+ *  request the map makes lands on the server the campaign lives on. */
+function openAt(i: number): void {
+  ui.cursor = i;
+  const row = rows.value[i];
+  if (row === undefined || row.stale) {
+    return; // A quiet host's row stays listed but is not entered.
+  }
+  pinCampaignRow(row);
+  navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.summary.id), 'sync', {kind: 'campaign-map'});
+}
+function requestDelete(): void {
+  const row = rows.value[ui.cursor];
+  if (row === undefined || !row.summary.isCreator || row.stale) {
+    return; // The bar already shows the verb disabled for a non-creator.
+  }
+  ui.deleteError = '';
+  ui.confirmId = row.summary.id;
+}
+function cancelConfirm(): void {
+  ui.confirmId = undefined;
+  ui.deleteError = '';
+  // The cursor was never moved — focus returns to the original row.
+}
+async function executeDelete(): Promise<void> {
+  const id = ui.confirmId;
+  if (id === undefined || ui.deleting) {
+    return;
+  }
+  const ok = await deleteCampaignCascade(id);
+  if (!ok) {
+    return; // The error renders inside the confirm; B cancels out.
+  }
+  ui.confirmId = undefined;
+  // The mission games are gone too — «Мои партии» must not keep ghosts.
+  void refreshLobby({archive: true});
+  void nextTick(() => {
+    ui.cursor = Math.min(ui.cursor, Math.max(0, rows.value.length - 1));
+    keepCursorVisible();
+  });
+}
+// ---- the confirm's presentation (the card reads `lobbyCardModel`) -------
+function isArchived(c: CampaignSummaryModel): boolean {
+  return isArchivedCampaign(c);
+}
+function stateLabel(c: CampaignSummaryModel): string {
+  return campaignStateLabelKey(c);
+}
+function progressLabel(c: CampaignSummaryModel): string {
+  const p = campaignProgress(c);
+  return p.params.length > 0 ? translateTextWithParams(p.key, p.params) : $t(p.key);
+}
+/** How long ago the campaign was CREATED — the very key the rows are sorted
+ *  by, so the order reads off the labels. The lobby's ONE shared clock. */
+function createdAgo(c: CampaignSummaryModel): string {
+  return lobbyAgeLabel(lobbyAge(c.createdTimeMs, lobbyState.nowMs));
+}
+function missionGamesLine(c: CampaignSummaryModel): string {
+  return translateTextWithParams('Mission games to delete: ${0}.', [String(c.missionGamesCount)]);
+}
+
+/** The identity is an INPUT that can arrive late — reload for the new name. */
+watch(() => identityName.value, (): void => {
+  void refreshCampaigns();
+});
+watch(() => rowsKey.value, (): void => {
+  shareAgeRows();
+  applyPendingFocus();
+  // A refresh that removed rows must not leave the cursor past the end.
+  if (ui.cursor > 0 && ui.cursor >= rows.value.length) {
+    ui.cursor = Math.max(0, rows.value.length - 1);
+  }
+  // A confirm standing over a row that vanished (realtime removal) closes.
+  if (ui.confirmId !== undefined && confirmRow.value === undefined && !ui.deleting) {
+    cancelConfirm();
+  }
+});
+onMounted(() => {
+  // Entering the screen is an unconditional refresh, every time.
+  void refreshCampaigns();
+  startCampaignsWatch();
+  // The store may already hold rows (the menu plate's badge loaded them), in
+  // which case no rowsKey change is coming to hand them to the clock.
+  shareAgeRows();
+  applyPendingFocus();
+});
+onBeforeUnmount(() => {
+  stopCampaignsWatch();
+  setLobbyAgeRows(AGE_CLOCK_CONSUMER, []);
+});
+
+// What `ConsoleMainMenu` reaches through its `ref="campaigns"`: `handleIntent` — and nothing else (it routes the pad's
+// intents here while the campaigns screen is the open overlay).
+defineExpose({handleIntent});
 </script>

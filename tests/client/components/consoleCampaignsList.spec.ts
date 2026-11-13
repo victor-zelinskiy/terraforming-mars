@@ -1,5 +1,6 @@
 import {mount, flushPromises, VueWrapper} from '@vue/test-utils';
 import {expect} from 'chai';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from './getLocalVue';
 import ConsoleCampaignsList from '@/client/components/console/menu/ConsoleCampaignsList.vue';
 import {
@@ -337,5 +338,32 @@ describe('ConsoleCampaignsList', () => {
     await flushPromises();
     expect(deletePosts).has.length(1);
     expect(deletePosts[0].startsWith(LAN_BASE), deletePosts[0]).is.true;
+  });
+
+  // ── What the MENU reaches (the screen is a `<script setup>` component: its ref carries only what it exposes) ──
+
+  it('a PARENT\'s ref sees `handleIntent` and nothing else; B through it closes the screen', async () => {
+    localRows = [summary({})];
+    let closed = 0;
+    // Mounted the way `ConsoleMainMenu` mounts it: under a host with a string ref, listening for `close`.
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleCampaignsList, {
+        ref: 'campaigns',
+        onClose: () => {
+          closed++;
+        },
+      })]),
+    });
+    const host = mount(Host, {...globalConfig, global: {...globalConfig.global, stubs: STUBS}});
+    await flushPromises();
+    // Exactly the menu's read: `(this.$refs.campaigns ?? undefined) as {handleIntent?: …} | undefined`.
+    const panel = (host.vm.$refs.campaigns ?? undefined) as {handleIntent(i: GamepadIntent): boolean} | undefined;
+    expect(panel, 'the host holds a ref to the screen').is.not.undefined;
+    expect(Object.keys(panel!), 'exactly what the screen exposes').deep.eq(['handleIntent']);
+    expect(host.findAll('.cm-camp')).has.length(1);
+    expect(panel!.handleIntent(nav('down')), 'every intent is consumed — the screen owns the pad').eq(true);
+    expect(closed).eq(0);
+    expect(panel!.handleIntent(press('back'))).eq(true);
+    expect(closed, 'B').eq(1);
   });
 });
