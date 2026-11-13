@@ -71,10 +71,11 @@ describe('playComposerLifetime — the composer answers ONE prompt', () => {
     const transport = code(path.join('console', 'transport', 'gameTransport.ts'));
 
     it('the composer re-arms on a view only through composerReArms, and records what it answered', () => {
-      const watcher = /\n {4}playerView\(\) \{([\s\S]*?)\n {4}\},/.exec(composer)?.[1] ?? '';
+      // The composer is `<script setup>`: the watcher of the view is a top-level `watch` of the prop.
+      const watcher = /\nwatch\(\(\) => props\.playerView, \(\) => \{([\s\S]*?)\n\}\);/.exec(composer)?.[1] ?? '';
       expect(watcher, 'the playerView watcher').to.not.eq('');
       expect(watcher).to.match(/composerReArms\(/);
-      expect(composer).to.match(/this\.answeredFor = this\.playerView\.waitingFor\?\.promptId/);
+      expect(composer).to.match(/answeredFor\.value = props\.playerView\.waitingFor\?\.promptId/);
     });
 
     it('the shell releases an outlived composer and stamps the play with the prompt it was opened on', () => {

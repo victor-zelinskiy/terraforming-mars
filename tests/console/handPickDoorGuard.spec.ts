@@ -24,36 +24,55 @@ const COMPOSERS: ReadonlyArray<{file: string, door: string}> = [
   {file: 'ConsoleActionComposer.vue', door: 'descendOrBranch(c: ComposerChoice, item: ConsoleOrItem): void {'},
 ];
 
-/** The body of a method declared by `signature` — up to its own closing line at the methods' indentation. */
+/**
+ * ONE reading for both forms a composer may stand in: `<script setup>` (a member is a top-level function, the
+ * sub-state a ref — `sub.value = …`, `openHandPick(…)`) and the Options API one it was converted from (`this.sub = …`,
+ * `this.openHandPick(…)`). The guard is about WHERE the list is opened, never about how a member is spelled.
+ */
+function memberNeutral(source: string): string {
+  return source.replace(/\bthis\./g, '').replace(/\.value\b/g, '');
+}
+
+/** The nested list's opener, in the neutral reading. */
+const OPENER = /\bsub = \{kind: 'orNested'/g;
+
+/**
+ * The body of a function declared by `signature` — up to its own closing line, at the indentation it is declared at
+ * (a method of the Options form closes at the methods' indentation, a `<script setup>` function at column 0). A
+ * declaration whose closing line is not found is NO body (`''` — the caller's «exists» assertion fails), never the
+ * rest of the file.
+ */
 function methodBody(source: string, signature: string): string {
   const at = source.indexOf(signature);
   if (at === -1) {
     return '';
   }
-  const end = source.indexOf('\n    },', at);
-  return source.slice(at, end === -1 ? undefined : end);
+  const indent = /^[ \t]*/.exec(source.slice(source.lastIndexOf('\n', at) + 1, at))?.[0] ?? '';
+  const end = source.indexOf('\n' + indent + '}', at);
+  return end === -1 ? '' : source.slice(at, end);
 }
 
 describe('the or-option door — a hand pick or a table pick inside an `or` never reaches a list of names', () => {
   for (const {file, door} of COMPOSERS) {
-    const source = stripComments(fs.readFileSync(path.join(CONSOLE, file), 'utf8'));
+    const source = memberNeutral(stripComments(fs.readFileSync(path.join(CONSOLE, file), 'utf8')));
 
     it(`${file}: the flat nested list is opened in ONE place, behind the door verdict`, () => {
-      const opens = source.split('this.sub = {kind: \'orNested\'').length - 1;
+      const opens = (source.match(OPENER) ?? []).length;
       expect(opens, 'the nested list has exactly one opener').to.eq(1);
       const body = methodBody(source, door);
       expect(body, `the door method «${door}» exists`).to.not.eq('');
-      expect(body, 'the opener lives inside the door method').to.contain('this.sub = {kind: \'orNested\'');
+      const opener = body.search(OPENER);
+      expect(opener, 'the opener lives inside the door method').to.be.greaterThan(-1);
       const verdict = body.indexOf('orOptionDoor(');
       expect(verdict, 'the door asks the ONE verdict').to.be.greaterThan(-1);
-      expect(verdict, '…before it opens the list').to.be.lessThan(body.indexOf('this.sub = {kind: \'orNested\''));
-      expect(body, 'a hand verdict opens the album').to.contain('this.openHandPick(c, item)');
+      expect(verdict, '…before it opens the list').to.be.lessThan(opener);
+      expect(body, 'a hand verdict opens the album').to.contain('openHandPick(c, item)');
       // …and a TABLE verdict opens the embedded target step (grouped by owner) — the ONE pattern for every removal that
       // also offers MarsBot: «Хищники» / «Муравьи» from an action, «Научный прорыв» from a play. The play composer once
       // sent it to the flat list of names.
-      const table = body.indexOf('this.openPlayedTargetStep(c, item)');
+      const table = body.indexOf('openPlayedTargetStep(c, item)');
       expect(table, 'a table verdict opens the embedded target step').to.be.greaterThan(-1);
-      expect(table, '…before the flat list').to.be.lessThan(body.indexOf('this.sub = {kind: \'orNested\''));
+      expect(table, '…before the flat list').to.be.lessThan(opener);
     });
 
     it(`${file}: the composer's hand pick is a PRE-SELECT — it never arms the discard tray`, () => {
