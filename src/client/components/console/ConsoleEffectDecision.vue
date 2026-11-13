@@ -1,29 +1,4 @@
 <template>
-  <!--
-    EFFECT DECISION — the console's ONE screen for an optional game decision.
-
-    It replaces the context-less «Выберите вариант» list for prompts the adapter
-    can represent honestly (`effectDecisionModel.buildEffectDecision`); anything
-    it cannot, the ordinary task host keeps. Same submit / defer / hand-pick
-    contract as the host, so the shell wires it identically.
-
-    The layout answers four questions in reading order: WHAT KIND of decision
-    (eyebrow), WHAT is being decided (headline), WHY it appeared (trigger), and
-    WHAT each choice costs and gives (the action cards). The source card sits
-    beside them — big enough to recognise, never big enough to dominate — and
-    the whole panel sizes to its content, so a two-choice decision is a compact
-    card and not a half-empty screen.
-
-    HOST-AGNOSTIC (`embedded`): the very same instance is TELEPORTED into the
-    outcome zone of the workspace whose press raised this decision — «Марсианский
-    университет» answering the science tag the player just played from their
-    hand. What the prop strips is exactly the standalone SHELL — the band, the
-    `con-ws` rail marker, the surface-motion identity, the plate and the KICKER
-    (handed UP to the workspace's breadcrumb instead, so the line reads «КАРТЫ В
-    РУКЕ › ГАНИМЕД › ЭФФЕКТ» rather than a second title floating inside someone
-    else's frame). Content, input path, submit contract and focus memory are
-    untouched.
-  -->
   <div class="con-decision"
        :class="{'con-ws': !embedded, 'con-decision--embedded': embedded}"
        :role="embedded ? 'group' : 'dialog'" :aria-label="$t(vm.headlineKey)"
@@ -108,7 +83,34 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * EFFECT DECISION — the console's ONE screen for an optional game decision.
+ *
+ * It replaces the context-less «Выберите вариант» list for prompts the adapter
+ * can represent honestly (`effectDecisionModel.buildEffectDecision`); anything
+ * it cannot, the ordinary task host keeps. Same submit / defer / hand-pick
+ * contract as the host, so the shell wires it identically.
+ *
+ * The layout answers four questions in reading order: WHAT KIND of decision
+ * (eyebrow), WHAT is being decided (headline), WHY it appeared (trigger), and
+ * WHAT each choice costs and gives (the action cards). The source card sits
+ * beside them — big enough to recognise, never big enough to dominate — and
+ * the whole panel sizes to its content, so a two-choice decision is a compact
+ * card and not a half-empty screen.
+ *
+ * HOST-AGNOSTIC (`embedded`): the very same instance is TELEPORTED into the
+ * outcome zone of the workspace whose press raised this decision — «Марсианский
+ * университет» answering the science tag the player just played from their
+ * hand. What the prop strips is exactly the standalone SHELL — the band, the
+ * `con-ws` rail marker, the surface-motion identity, the plate and the KICKER
+ * (handed UP to the workspace's breadcrumb instead, so the line reads «КАРТЫ В
+ * РУКЕ › ГАНИМЕД › ЭФФЕКТ» rather than a second title floating inside someone
+ * else's frame). Content, input path, submit contract and focus memory are
+ * untouched.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 import {choiceSeriesOf} from '@/client/console/promptSeries';
 /**
  * The decision SCREEN. It owns focus, the pad contract and the submit — and
@@ -116,11 +118,15 @@ import {choiceSeriesOf} from '@/client/console/promptSeries';
  * by the pure adapter (`effectDecisionModel.ts`), so this file contains no
  * game logic and no text heuristics.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
+// `console-source-dock` is the lazy binding of `asyncComponents.ts` (async on purpose) — see the note there.
+import {ConsoleSourceDock} from '@/client/components/asyncComponents';
+// The keyed panel's prompt → prompt swap: the PROMPT HANDOFF phrase (release → arrive → compose, PL-384) on a
+// family plate; an embedded stage keeps its quiet swap.
 import {
   promptSwapEnterCancelledHook, promptSwapEnterHook, promptSwapLeaveCancelledHook, promptSwapLeaveHook,
 } from '@/client/console/surfaceMotion/promptHandoffMotion';
@@ -129,7 +135,7 @@ import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {GrantSeries, PlayerInputModel, SelectCardModel} from '@/common/models/PlayerInputModel';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -155,286 +161,265 @@ function textOf(value: string | Message | undefined): string {
   return typeof value === 'string' ? translateText(value) : translateMessage(value);
 }
 
-export default defineComponent({
-  name: 'ConsoleEffectDecision',
-  // `console-source-dock` is GLOBAL (main.ts) — see the note there.
-  components: {GamepadGlyph, ActionEffectChip, ConsoleDeclinePlate, ConsolePromptHead, ConsoleVariantChoice},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    vm: {type: Object as PropType<EffectDecisionViewModel>, required: true},
-    /** Hosted as a STEP of the workspace whose press raised this decision —
-     *  the shell teleports THIS instance into that workspace's outcome zone. */
-    embedded: {type: Boolean, default: false},
-    /**
-     * THE QUESTION THIS SURFACE STANDS ON when it is not the live one (PC04 · GS — the shell holds the answered member
-     * of a series while the next is not admitted): its head and sequence read it instead of the server's prompt.
-     */
-    promptOverride: {type: Object as PropType<PlayerInputModel | undefined>, default: undefined},
-  },
-  emits: ['submit', 'defer', 'hand-pick'],
-  data() {
-    return {
-      /** Restored on re-entry from an overlay, so B lands the player back on
-       *  the very action card they opened. */
-      focusIdx: 0,
-      /** Guards a double A: the second press must not submit twice. */
-      armed: false,
-      submitting: false,
-    };
-  },
-  computed: {
-    /** A genuinely NEW prompt cross-fades the panel; a re-render does not. */
-    panelKey(): string {
-      return `${this.vm.eyebrowKey}|${this.vm.headlineKey}|${this.vm.actions.length}`;
-    },
-    /** The decision model already resolved WHO asks; normalize it into the one
-     *  shape the shared dock speaks. */
-    sourceView(): PromptSourceView | undefined {
-      return choiceSourceView(this.vm.source);
-    },
-    sourceCardName(): CardName | undefined {
-      return this.vm.source?.card;
-    },
-    triggerText(): string {
-      return textOf(this.vm.trigger);
-    },
-    /** The crumb tail this stage hands UP while embedded ('' = not ours). */
-    stagePhase(): string {
-      return this.embedded ? this.vm.stageKey : '';
-    },
-    /** The decision's character (`promptTone.ts` — structural markers of the prompt this screen answers). */
-    tone(): PromptTone {
-      return promptToneOf(this.playerView.waitingFor).tone;
-    },
-    /** The decision's identity in the press's sequence (`promptSequence.ts`); '' while embedded (a stage, not a modal). */
-    /** The question's place in a series (PC04 — `choiceContext.series`), counted by the head. */
-    promptSeries(): GrantSeries | undefined {
-      return this.embedded ? undefined : choiceSeriesOf(this.promptOverride ?? this.playerView.waitingFor);
-    },
-    sequenceKey(): string {
-      const wf = this.promptOverride ?? this.playerView.waitingFor;
-      return this.embedded || wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
-    },
-    /** A seat is the subject of the answers (an attack's targets) → a pick LIST, one row per seat, no «ИЛИ»; otherwise
-     *  the answers are RESULTS, stacked tiles a cursor walks with the d-pad. */
-    choiceLayout(): 'column' | 'list' {
-      return this.vm.actions.some((a) => a.playerColor !== undefined) ? 'list' : 'column';
-    },
-    /** «ИЛИ» stands between a FEW mutually exclusive results — never down a list of targets. */
-    choiceExclusive(): boolean {
-      return this.choiceLayout === 'column' && this.vm.actions.length <= 3;
-    },
-    /** The three facts of the grammar: the cursor, the answer given (A pressed — it resolves on the spot, so the seal
-     *  is the press's own acknowledgement until the server moves on) and the refusal (none here: every action is a
-     *  legal answer — a refused target lives in `unavailableOptions`). The role rides as a data hook (the decline of a
-     *  YES / NO keeps its own calm paint). */
-    choiceOptions(): ReadonlyArray<VariantChoiceOption> {
-      return this.vm.actions.map((action, i): VariantChoiceOption => ({
-        key: action.key,
-        state: {focused: this.focusIdx === i, selected: this.focusIdx === i && this.armed, off: false},
-        title: this.labelOf(action),
-        door: action.leadKey !== undefined,
-        color: action.playerColor,
-        attrs: {'data-decision-action': action.key, 'data-decision-role': action.role},
-      }));
-    },
-    unavailableOptions(): ReadonlyArray<VariantChoiceOption> {
-      return this.vm.unavailable.map((u, i): VariantChoiceOption => ({
-        key: 'u' + i,
-        state: {focused: false, selected: false, off: true},
-        title: textOf(u.title),
-        reason: textOf(u.reason),
-        color: u.playerColor,
-      }));
-    },
-    /** The plate's SIZE tier: a FULL source card beside the actions is `l`; actions alone are `m`. */
-    promptSize(): 'm' | 'l' {
-      return this.sourceView !== undefined ? 'l' : 'm';
-    },
-    /** The pad contract this screen publishes to the shared command bar. The
-     *  KEYS are derived in the pure model — this only picks the glyphs; the
-     *  COMMIT (A on a leaf — «Подтвердить») speaks the decision's tone. */
-    footCommands(): Array<ConsoleCommand> {
-      const cmds = decisionCommands(this.vm, this.focusIdx);
-      if (this.embedded || this.tone === 'neutral') {
-        return cmds;
-      }
-      return cmds.map((cmd): ConsoleCommand => {
-        if (cmd.control !== 'confirm' || cmd.label !== 'Confirm') {
-          return cmd;
-        }
-        return this.tone === 'loss' ?
-          {...cmd, label: promptCommitLabelKey('loss', cmd.label), tone: 'danger'} :
-          {...cmd, highlight: cmd.enabled !== false};
-      });
-    },
-  },
-  watch: {
-    /**
-     * Every server response (root identity always changes) re-arms submission —
-     * the same contract ConsoleTaskHost carries, and this screen was the one
-     * decision surface without it. Two effect decisions routinely follow EACH
-     * OTHER in one chain with nothing between them («Конференция на Олимпе»
-     * answers the science tag, its «положить жетон» branch draws nothing, and
-     * «Марсианский университет» asks in the very next response), so this
-     * component never unmounts between the prompts — and a `submitting`
-     * latched by the first answer then swallowed EVERY A on the second
-     * decision: a visible «Сбросить карту» that answered nothing. `armed`
-     * falls with it, so the fresh prompt never paints a pressed row.
-     */
-    playerView() {
-      this.submitting = false;
-      this.armed = false;
-    },
-    /**
-     * A genuinely NEW decision must not inherit the previous one's cursor.
-     * The shell already resets the MODULE memory (`resetDecisionFocus` on its
-     * `effectDecisionKey` watcher — a parent's watcher, so it runs first in
-     * the flush), but this instance seeds its own `focusIdx` only in
-     * `mounted()` — and in a chained pair of decisions it never remounts, so
-     * the second prompt opened with the first one's cursor (an ArrowDown
-     * spent on «Олимп» landed the university's fresh question on its decline).
-     */
-    panelKey() {
-      const remembered = effectDecisionState.focusIdx;
-      this.focusIdx = remembered < this.vm.actions.length ? remembered : 0;
-    },
-    footCommands: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>): void {
-        setPanelCommands('effectDecision', cmds);
-      },
-    },
-    focusIdx(now: number): void {
-      rememberDecisionFocus(now);
-    },
-    /**
-     * Hand the STAGE NAME up to the hosting workspace's breadcrumb, exactly as
-     * the task host and the drawn reveal do — so «КАРТЫ В РУКЕ › ГАНИМЕД ›
-     * ЭФФЕКТ» is one continuous line instead of a detached «◈ ЭФФЕКТ КАРТЫ»
-     * floating inside somebody else's frame.
-     */
-    stagePhase: {
-      immediate: true,
-      handler(key: string): void {
-        if (key !== '') {
-          setWorkspaceOutcomePhase(key);
-        }
-      },
-    },
-  },
-  mounted() {
-    // Coming back from the hand overlay must land on the action that opened it,
-    // not on the top of the list.
-    const remembered = effectDecisionState.focusIdx;
-    this.focusIdx = remembered < this.vm.actions.length ? remembered : 0;
-  },
-  beforeUnmount() {
-    clearPanelCommands('effectDecision');
-    // ONLY OUR OWN NAME. This surface unmounts to hand the screen to the very
-    // next stage of the SAME flow — the offer's discard opens the real hand,
-    // and the shell publishes «СБРОС КАРТЫ» before we go. Clearing
-    // unconditionally would blank the crumb's tail for that whole step, i.e.
-    // step BACKWARDS through a flow that only moves forward.
-    if (this.stagePhase !== '' && workspaceOutcomeState.phaseKey === this.stagePhase) {
+defineOptions({name: 'ConsoleEffectDecision'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  vm: {type: Object as PropType<EffectDecisionViewModel>, required: true},
+  /** Hosted as a STEP of the workspace whose press raised this decision —
+   *  the shell teleports THIS instance into that workspace's outcome zone. */
+  embedded: {type: Boolean, default: false},
+  /**
+   * THE QUESTION THIS SURFACE STANDS ON when it is not the live one (PC04 · GS — the shell holds the answered member
+   * of a series while the next is not admitted): its head and sequence read it instead of the server's prompt.
+   */
+  promptOverride: {type: Object as PropType<PlayerInputModel | undefined>, default: undefined},
+});
+const emit = defineEmits(['submit', 'defer', 'hand-pick']);
+
+// The dock is a COMPONENT — its ref is read for its root element (`inspectSource`).
+const sourceCard = useTemplateRef<{$el?: HTMLElement}>('sourceCard');
+/** Restored on re-entry from an overlay, so B lands the player back on
+ *  the very action card they opened. */
+const focusIdx = ref(0);
+/** Guards a double A: the second press must not submit twice. */
+const armed = ref(false);
+const submitting = ref(false);
+/** A genuinely NEW prompt cross-fades the panel; a re-render does not. */
+const panelKey = computed((): string => {
+  return `${props.vm.eyebrowKey}|${props.vm.headlineKey}|${props.vm.actions.length}`;
+});
+/** The decision model already resolved WHO asks; normalize it into the one
+ *  shape the shared dock speaks. */
+const sourceView = computed((): PromptSourceView | undefined => {
+  return choiceSourceView(props.vm.source);
+});
+const sourceCardName = computed((): CardName | undefined => {
+  return props.vm.source?.card;
+});
+const triggerText = computed((): string => {
+  return textOf(props.vm.trigger);
+});
+/** The crumb tail this stage hands UP while embedded ('' = not ours). */
+const stagePhase = computed((): string => {
+  return props.embedded ? props.vm.stageKey : '';
+});
+/** The decision's character (`promptTone.ts` — structural markers of the prompt this screen answers). */
+const tone = computed((): PromptTone => {
+  return promptToneOf(props.playerView.waitingFor).tone;
+});
+/** The decision's identity in the press's sequence (`promptSequence.ts`); '' while embedded (a stage, not a modal). */
+/** The question's place in a series (PC04 — `choiceContext.series`), counted by the head. */
+const promptSeries = computed((): GrantSeries | undefined => {
+  return props.embedded ? undefined : choiceSeriesOf(props.promptOverride ?? props.playerView.waitingFor);
+});
+const sequenceKey = computed((): string => {
+  const wf = props.promptOverride ?? props.playerView.waitingFor;
+  return props.embedded || wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
+});
+/** A seat is the subject of the answers (an attack's targets) → a pick LIST, one row per seat, no «ИЛИ»; otherwise
+ *  the answers are RESULTS, stacked tiles a cursor walks with the d-pad. */
+const choiceLayout = computed((): 'column' | 'list' => {
+  return props.vm.actions.some((a) => a.playerColor !== undefined) ? 'list' : 'column';
+});
+/** «ИЛИ» stands between a FEW mutually exclusive results — never down a list of targets. */
+const choiceExclusive = computed((): boolean => {
+  return choiceLayout.value === 'column' && props.vm.actions.length <= 3;
+});
+/** The three facts of the grammar: the cursor, the answer given (A pressed — it resolves on the spot, so the seal
+ *  is the press's own acknowledgement until the server moves on) and the refusal (none here: every action is a
+ *  legal answer — a refused target lives in `unavailableOptions`). The role rides as a data hook (the decline of a
+ *  YES / NO keeps its own calm paint). */
+const choiceOptions = computed((): ReadonlyArray<VariantChoiceOption> => {
+  return props.vm.actions.map((action, i): VariantChoiceOption => ({
+    key: action.key,
+    state: {focused: focusIdx.value === i, selected: focusIdx.value === i && armed.value, off: false},
+    title: labelOf(action),
+    door: action.leadKey !== undefined,
+    color: action.playerColor,
+    attrs: {'data-decision-action': action.key, 'data-decision-role': action.role},
+  }));
+});
+const unavailableOptions = computed((): ReadonlyArray<VariantChoiceOption> => {
+  return props.vm.unavailable.map((u, i): VariantChoiceOption => ({
+    key: 'u' + i,
+    state: {focused: false, selected: false, off: true},
+    title: textOf(u.title),
+    reason: textOf(u.reason),
+    color: u.playerColor,
+  }));
+});
+/** The plate's SIZE tier: a FULL source card beside the actions is `l`; actions alone are `m`. */
+const promptSize = computed((): 'm' | 'l' => {
+  return sourceView.value !== undefined ? 'l' : 'm';
+});
+/** The pad contract this screen publishes to the shared command bar. The
+ *  KEYS are derived in the pure model — this only picks the glyphs; the
+ *  COMMIT (A on a leaf — «Подтвердить») speaks the decision's tone. */
+const footCommands = computed((): Array<ConsoleCommand> => {
+  const cmds = decisionCommands(props.vm, focusIdx.value);
+  if (props.embedded || tone.value === 'neutral') {
+    return cmds;
+  }
+  return cmds.map((cmd): ConsoleCommand => {
+    if (cmd.control !== 'confirm' || cmd.label !== 'Confirm') {
+      return cmd;
+    }
+    return tone.value === 'loss' ?
+      {...cmd, label: promptCommitLabelKey('loss', cmd.label), tone: 'danger'} :
+      {...cmd, highlight: cmd.enabled !== false};
+  });
+});
+
+function labelOf(action: EffectDecisionAction): string {
+  return textOf(action.title);
+}
+function descriptionOf(action: EffectDecisionAction): string {
+  return textOf(action.description);
+}
+function tradeoffOf(action: EffectDecisionAction): string {
+  return textOf(action.tradeoff);
+}
+/**
+ * The shell routes the pad here while this screen serves. WHAT a press
+ * means is decided by the pure model (`decisionPressIntent`) — this only
+ * carries it out, so the rules that matter (B is not a decline, a second A
+ * cannot submit again) are guarded by a unit test rather than by a
+ * component the client bundle cannot even mount in a spec.
+ */
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'nav') {
+    focusIdx.value = decisionFocusStep(props.vm, focusIdx.value, intent.dir === 'down' || intent.dir === 'right' ? 1 : -1);
+    armed.value = false;
+    return;
+  }
+  const press = decisionPressIntent(props.vm, focusIdx.value, consoleActionOf(intent), submitting.value);
+  if (press === undefined) {
+    return;
+  }
+  switch (press.kind) {
+  case 'defer':
+    emit('defer');
+    return;
+  case 'inspectSource':
+    inspectSource(press.card);
+    return;
+  case 'decline':
+    // RT — the deliberate refusal. Nothing follows it, so an embedded stage hands on an EMPTY tail.
+    rememberDecisionFocus(focusIdx.value);
+    submitting.value = true;
+    if (props.embedded) {
       setWorkspaceOutcomePhase('');
     }
-  },
-  methods: {
-    // The keyed panel's prompt → prompt swap: the PROMPT HANDOFF phrase (release → arrive → compose, PL-384) on a
-    // family plate; an embedded stage keeps its quiet swap.
-    promptSwapEnterHook,
-    promptSwapLeaveHook,
-    promptSwapEnterCancelledHook,
-    promptSwapLeaveCancelledHook,
-    textOf,
-    labelOf(action: EffectDecisionAction): string {
-      return textOf(action.title);
+    emit('submit', orOptionResponse(press.optionIndex));
+    return;
+  case 'handPick':
+    rememberDecisionFocus(focusIdx.value);
+    emit('hand-pick', {
+      index: press.action.optionIndex,
+      cardPrompt: press.action.nested as SelectCardModel,
+      source: props.vm.source,
+      // The decision's refusal rides into the album (RT + the plate there too).
+      decline: declineModelOf(props.vm.decline),
+      // WHERE THE FLOW GOES once the pick is answered — derived ONCE, in
+      // the pure model, so the immediate branch above and this one can
+      // never disagree about what follows a card-for-a-card exchange.
+      nextStage: nextStageKeyOf(press.action),
+    });
+    return;
+  case 'submit':
+  default:
+    rememberDecisionFocus(focusIdx.value);
+    submitting.value = true;
+    armed.value = true;
+    // THE TAIL IS HANDED ON, never retracted. This branch resolves ON the
+    // press («Олимпийская конференция»: «снять жетон и взять карту»), so
+    // between here and the card coming off the deck nobody would own the
+    // crumb's stage — and `onBeforeUnmount` clearing it there dropped the
+    // line back to «РАЗЫГРАНО», two steps behind the flow.
+    if (props.embedded) {
+      setWorkspaceOutcomePhase(nextStageKeyOf(props.vm.actions[focusIdx.value]));
+    }
+    emit('submit', orOptionResponse(press.optionIndex));
+  }
+}
+/** X — the source in the ordinary fullscreen viewer (never a private one).
+ *  The screen stays mounted underneath, so focus and picks are exactly as
+ *  the player left them when the viewer closes. */
+function inspectSource(name: CardName): void {
+  openConsoleCardZoom([{name}], 0, undefined, undefined, {
+    statusLabel: 'Source',
+    origin: {
+      kind: 'physical',
+      // The dock is a COMPONENT — reach its root element.
+      resolve: () => sourceCard.value?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null,
     },
-    descriptionOf(action: EffectDecisionAction): string {
-      return textOf(action.description);
-    },
-    tradeoffOf(action: EffectDecisionAction): string {
-      return textOf(action.tradeoff);
-    },
-    /**
-     * The shell routes the pad here while this screen serves. WHAT a press
-     * means is decided by the pure model (`decisionPressIntent`) — this only
-     * carries it out, so the rules that matter (B is not a decline, a second A
-     * cannot submit again) are guarded by a unit test rather than by a
-     * component the client bundle cannot even mount in a spec.
-     */
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        this.focusIdx = decisionFocusStep(this.vm, this.focusIdx, intent.dir === 'down' || intent.dir === 'right' ? 1 : -1);
-        this.armed = false;
-        return;
-      }
-      const press = decisionPressIntent(this.vm, this.focusIdx, consoleActionOf(intent), this.submitting);
-      if (press === undefined) {
-        return;
-      }
-      switch (press.kind) {
-      case 'defer':
-        this.$emit('defer');
-        return;
-      case 'inspectSource':
-        this.inspectSource(press.card);
-        return;
-      case 'decline':
-        // RT — the deliberate refusal. Nothing follows it, so an embedded stage hands on an EMPTY tail.
-        rememberDecisionFocus(this.focusIdx);
-        this.submitting = true;
-        if (this.embedded) {
-          setWorkspaceOutcomePhase('');
-        }
-        this.$emit('submit', orOptionResponse(press.optionIndex));
-        return;
-      case 'handPick':
-        rememberDecisionFocus(this.focusIdx);
-        this.$emit('hand-pick', {
-          index: press.action.optionIndex,
-          cardPrompt: press.action.nested as SelectCardModel,
-          source: this.vm.source,
-          // The decision's refusal rides into the album (RT + the plate there too).
-          decline: declineModelOf(this.vm.decline),
-          // WHERE THE FLOW GOES once the pick is answered — derived ONCE, in
-          // the pure model, so the immediate branch above and this one can
-          // never disagree about what follows a card-for-a-card exchange.
-          nextStage: nextStageKeyOf(press.action),
-        });
-        return;
-      case 'submit':
-      default:
-        rememberDecisionFocus(this.focusIdx);
-        this.submitting = true;
-        this.armed = true;
-        // THE TAIL IS HANDED ON, never retracted. This branch resolves ON the
-        // press («Олимпийская конференция»: «снять жетон и взять карту»), so
-        // between here and the card coming off the deck nobody would own the
-        // crumb's stage — and `beforeUnmount` clearing it there dropped the
-        // line back to «РАЗЫГРАНО», two steps behind the flow.
-        if (this.embedded) {
-          setWorkspaceOutcomePhase(nextStageKeyOf(this.vm.actions[this.focusIdx]));
-        }
-        this.$emit('submit', orOptionResponse(press.optionIndex));
-      }
-    },
-    /** X — the source in the ordinary fullscreen viewer (never a private one).
-     *  The screen stays mounted underneath, so focus and picks are exactly as
-     *  the player left them when the viewer closes. */
-    inspectSource(name: CardName): void {
-      openConsoleCardZoom([{name}], 0, undefined, undefined, {
-        statusLabel: 'Source',
-        origin: {
-          kind: 'physical',
-          // The dock is a COMPONENT — reach its root element.
-          resolve: () => ((this.$refs.sourceCard ?? undefined) as {$el?: HTMLElement} | undefined)
-            ?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null,
-        },
-      });
-    },
-  },
+  });
+}
+
+/**
+ * Every server response (root identity always changes) re-arms submission —
+ * the same contract ConsoleTaskHost carries, and this screen was the one
+ * decision surface without it. Two effect decisions routinely follow EACH
+ * OTHER in one chain with nothing between them («Конференция на Олимпе»
+ * answers the science tag, its «положить жетон» branch draws nothing, and
+ * «Марсианский университет» asks in the very next response), so this
+ * component never unmounts between the prompts — and a `submitting`
+ * latched by the first answer then swallowed EVERY A on the second
+ * decision: a visible «Сбросить карту» that answered nothing. `armed`
+ * falls with it, so the fresh prompt never paints a pressed row.
+ */
+watch(() => props.playerView, () => {
+  submitting.value = false;
+  armed.value = false;
 });
+/**
+ * A genuinely NEW decision must not inherit the previous one's cursor.
+ * The shell already resets the MODULE memory (`resetDecisionFocus` on its
+ * `effectDecisionKey` watcher — a parent's watcher, so it runs first in
+ * the flush), but this instance seeds its own `focusIdx` only in
+ * `onMounted` — and in a chained pair of decisions it never remounts, so
+ * the second prompt opened with the first one's cursor (an ArrowDown
+ * spent on «Олимп» landed the university's fresh question on its decline).
+ */
+watch(() => panelKey.value, () => {
+  const remembered = effectDecisionState.focusIdx;
+  focusIdx.value = remembered < props.vm.actions.length ? remembered : 0;
+});
+watch(() => footCommands.value, (cmds: ReadonlyArray<ConsoleCommand>): void => {
+  setPanelCommands('effectDecision', cmds);
+}, {immediate: true, deep: true});
+watch(() => focusIdx.value, (now: number): void => {
+  rememberDecisionFocus(now);
+});
+/**
+ * Hand the STAGE NAME up to the hosting workspace's breadcrumb, exactly as
+ * the task host and the drawn reveal do — so «КАРТЫ В РУКЕ › ГАНИМЕД ›
+ * ЭФФЕКТ» is one continuous line instead of a detached «◈ ЭФФЕКТ КАРТЫ»
+ * floating inside somebody else's frame.
+ */
+watch(() => stagePhase.value, (key: string): void => {
+  if (key !== '') {
+    setWorkspaceOutcomePhase(key);
+  }
+}, {immediate: true});
+onMounted(() => {
+  // Coming back from the hand overlay must land on the action that opened it,
+  // not on the top of the list.
+  const remembered = effectDecisionState.focusIdx;
+  focusIdx.value = remembered < props.vm.actions.length ? remembered : 0;
+});
+onBeforeUnmount(() => {
+  clearPanelCommands('effectDecision');
+  // ONLY OUR OWN NAME. This surface unmounts to hand the screen to the very
+  // next stage of the SAME flow — the offer's discard opens the real hand,
+  // and the shell publishes «СБРОС КАРТЫ» before we go. Clearing
+  // unconditionally would blank the crumb's tail for that whole step, i.e.
+  // step BACKWARDS through a flow that only moves forward.
+  if (stagePhase.value !== '' && workspaceOutcomeState.phaseKey === stagePhase.value) {
+    setWorkspaceOutcomePhase('');
+  }
+});
+// What the shell's pad router reaches through the surface registry (`surfaces.at('effectDecision')` → `handedTo`):
+// the pad's entry — and nothing else.
+defineExpose({handleIntent});
 </script>
