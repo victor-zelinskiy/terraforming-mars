@@ -132,9 +132,8 @@ describe('ConsolePaymentPanel — one panel, two densities', () => {
     expect(discounted.find('.con-pay__price-value').text()).to.equal('8');
     expect(discounted.find('[data-pay-saved]').text()).to.equal('−2');
     expect(discounted.find('.con-pay__price').classes()).to.include('con-pay__price--discounted');
-    // The aria reading carries the same «was → becomes» (the root is read
-    // through `.con-pay` — the template's leading comment makes the wrapper
-    // a fragment in a dev build).
+    // The aria reading carries the same «was → becomes» (read off `.con-pay`
+    // — the wrapper's own root: the template starts with it).
     expect(discounted.find('.con-pay').attributes('aria-label')).to.contain('10 → 8');
   });
 

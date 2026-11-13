@@ -1,20 +1,4 @@
 <template>
-  <!-- THE console-native payment surface — ONE component, THREE densities.
-       `line` (P81 · DJ) is the price said ONCE when there is nothing to shape: one lane (M€), chosen by itself, the
-       mix exact — «ОПЛАТА · 11 [M€] · 15 → 4» on one line, no ledger, no «✓ Оплачено» beside «ТОЧНАЯ ОПЛАТА» (one
-       fact, said once). A second lane, an alternative or a shortfall is `compact`, as it always was.
-       `compact` is the summary that lives inside a composer next to the CTA;
-       `expanded` is the same block opened up by LT for manual editing. Same
-       rows, same order, same icons, same numbers, same captions, same verdict,
-       same reserved geometry — the ONLY differences are how loud the captions
-       read, the cursor and which rows can be dialed. That is what makes LT
-       read as "this block unfolding" rather than a jump into a separate
-       technical form.
-
-       Purely presentational: the host owns every input (LB/RB quick-adjust,
-       LT/B mode switch, ←→ and RT inside the editor). This component NEVER
-       mutates and NEVER emits — so no payment surface can drift from the
-       pure `buildPaymentView` rules. -->
   <div class="con-pay"
        :class="['con-pay--' + mode, {'con-pay--configurable': view.configurable && !free, 'con-pay--blocked': !view.status.ok && !free, 'con-pay--free': free, 'con-pay--dense': dense}]"
        :data-pay-density="mode"
@@ -100,7 +84,27 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE console-native payment surface — ONE component, THREE densities.
+ * `line` (P81 · DJ) is the price said ONCE when there is nothing to shape: one lane (M€), chosen by itself, the
+ * mix exact — «ОПЛАТА · 11 [M€] · 15 → 4» on one line, no ledger, no «✓ Оплачено» beside «ТОЧНАЯ ОПЛАТА» (one
+ * fact, said once). A second lane, an alternative or a shortfall is `compact`, as it always was.
+ * `compact` is the summary that lives inside a composer next to the CTA;
+ * `expanded` is the same block opened up by LT for manual editing. Same
+ * rows, same order, same icons, same numbers, same captions, same verdict,
+ * same reserved geometry — the ONLY differences are how loud the captions
+ * read, the cursor and which rows can be dialed. That is what makes LT
+ * read as "this block unfolding" rather than a jump into a separate
+ * technical form.
+ *
+ * Purely presentational: the host owns every input (LB/RB quick-adjust,
+ * LT/B mode switch, ←→ and RT inside the editor). This component NEVER
+ * mutates and NEVER emits — so no payment surface can drift from the
+ * pure `buildPaymentView` rules.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * ConsolePaymentPanel — the ONE premium payment panel for every console-native
  * payment prompt: playing a project card, activating a blue-card action, the
@@ -116,102 +120,98 @@
  * play vs a blue action vs a standalone prompt) WITHOUT forking the rows, the
  * verdict or the geometry.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {PaymentDensity, PaymentView, paymentUnitLabel} from '@/client/console/paymentPlan';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsolePaymentSourceRow from '@/client/components/console/ConsolePaymentSourceRow.vue';
 import ConsolePaymentStatus from '@/client/components/console/ConsolePaymentStatus.vue';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 
 type PanelHint = {control: GlyphControl, label: string};
 
-export default defineComponent({
-  name: 'ConsolePaymentPanel',
-  components: {GamepadGlyph, ConsolePaymentSourceRow, ConsolePaymentStatus},
-  props: {
-    /** The pure payment view-model — rows + verdict + editability. */
-    view: {type: Object as PropType<PaymentView>, required: true},
-    /** Density: the one-line price (one lane, nothing to shape — `paymentLineEligible`), the composer summary, or the
-     *  LT editor. */
-    mode: {type: String as PropType<PaymentDensity>, default: 'compact'},
-    /** Expanded only — the unit the cursor sits on (LB/RB drive it). */
-    focusUnit: {type: String, default: undefined},
-    /** Bumped by the host on each adjust to re-key the one-shot pulse. */
-    flashNonce: {type: Number, default: 0},
-    /** The block heading — a host may name its own context. */
-    titleKey: {type: String, default: 'Payment'},
-    /**
-     * `auto` renders the LT/B mode-switch hint inside the head (a composer,
-     * where payment is one block among several); `none` suppresses it for a
-     * host whose whole screen IS the payment (the standalone task), where the
-     * bottom command bar already carries the controls.
-     */
-    hintMode: {type: String as PropType<'auto' | 'none'>, default: 'auto'},
-    /**
-     * The card that MODIFIES this payment's sources (Delta Works widening the
-     * energy fee to steel) — rendered as a secondary source badge under the
-     * rows. The English card name IS its i18n key.
-     */
-    sourceCard: {type: String, default: undefined},
-    /**
-     * The DISCOUNT this price carries (the effect forecast's
-     * `discounts.base/final`): the head reads «ЦЕНА base → final» plus a
-     * «−saved» pill. Undefined (no discount) renders the head exactly as it
-     * always did; the pill never changes the head's height.
-     */
-    discount: {type: Object as PropType<{base: number, final: number, armedSource?: string} | undefined>, default: undefined},
-    /**
-     * The price is ZERO (the server's `calculatedCost === 0` — a printed zero,
-     * or discounts that ate the whole cost): the block collapses to its head
-     * plus the «БЕСПЛАТНО» accent. No rows, no verdict, no editor hint — the
-     * ONE composition change this panel allows, and it is static for the
-     * composer's session (it flips back only when a state change re-prices
-     * the card above zero).
-     */
-    free: {type: Boolean, default: false},
-  },
-  computed: {
-    /** The price's denomination — every icon/aria in the panel follows it. */
-    costUnit(): string {
-      return this.view.costUnit ?? 'megacredits';
-    },
-    /**
-     * A LEDGER OF MANY LANES (five or more — steel, titanium, heat, the card-bound units, M€) sets its rows denser in
-     * BOTH the summary and the editor (P81 · DJ, the owner's extreme payment): the same rows, the same order, the same
-     * geometry between the two densities — only the row's height is the profile's dense token.
-     */
-    dense(): boolean {
-      return this.mode !== 'line' && !this.free && this.view.rows.length >= 5;
-    },
-    /** The LINE's wallet: the one lane, what it holds before → what it keeps (undefined in any other density). */
-    lineKeep(): {unit: string, before: number, after: number} | undefined {
-      const row = this.mode === 'line' && !this.free ? this.view.rows[0] : undefined;
-      return row === undefined ? undefined : {unit: row.unit, before: row.available, after: row.remaining};
-    },
-    hint(): PanelHint | undefined {
-      if (this.hintMode === 'none' || this.free || this.mode === 'line') {
-        return undefined;
-      }
-      if (this.mode === 'expanded') {
-        return {control: 'back', label: 'Back to quick payment'};
-      }
-      // ONLY when the editor is a real second stage. A single alt lane is
-      // already fully dialable right here, so the entry would promise depth
-      // that does not exist — the pure model owns that rule, never the host.
-      return this.view.editorEligible ? {control: 'triggerL', label: 'Configure payment'} : undefined;
-    },
-    panelLabel(): string {
-      const unit = this.view.costUnit !== undefined ? translateText(paymentUnitLabel(this.view.costUnit)) : 'M€';
-      const price = this.discount === undefined ? `${this.view.cost}` : `${this.discount.base} → ${this.view.cost}`;
-      const tail = this.free ? ` · ${translateText('Free')}` : '';
-      return `${translateText(this.titleKey)}: ${translateText('Cost')} ${price} ${unit}${tail}`;
-    },
-    sourceLabel(): string {
-      return this.sourceCard === undefined ?
-        '' :
-        `${translateText(this.sourceCard)}: 1 ${translateText('Steel')} = 1 ${translateText('Energy')}`;
-    },
-  },
+defineOptions({name: 'ConsolePaymentPanel'});
+const props = defineProps({
+  /** The pure payment view-model — rows + verdict + editability. */
+  view: {type: Object as PropType<PaymentView>, required: true},
+  /** Density: the one-line price (one lane, nothing to shape — `paymentLineEligible`), the composer summary, or the
+   *  LT editor. */
+  mode: {type: String as PropType<PaymentDensity>, default: 'compact'},
+  /** Expanded only — the unit the cursor sits on (LB/RB drive it). */
+  focusUnit: {type: String, default: undefined},
+  /** Bumped by the host on each adjust to re-key the one-shot pulse. */
+  flashNonce: {type: Number, default: 0},
+  /** The block heading — a host may name its own context. */
+  titleKey: {type: String, default: 'Payment'},
+  /**
+   * `auto` renders the LT/B mode-switch hint inside the head (a composer,
+   * where payment is one block among several); `none` suppresses it for a
+   * host whose whole screen IS the payment (the standalone task), where the
+   * bottom command bar already carries the controls.
+   */
+  hintMode: {type: String as PropType<'auto' | 'none'>, default: 'auto'},
+  /**
+   * The card that MODIFIES this payment's sources (Delta Works widening the
+   * energy fee to steel) — rendered as a secondary source badge under the
+   * rows. The English card name IS its i18n key.
+   */
+  sourceCard: {type: String, default: undefined},
+  /**
+   * The DISCOUNT this price carries (the effect forecast's
+   * `discounts.base/final`): the head reads «ЦЕНА base → final» plus a
+   * «−saved» pill. Undefined (no discount) renders the head exactly as it
+   * always did; the pill never changes the head's height.
+   */
+  discount: {type: Object as PropType<{base: number, final: number, armedSource?: string} | undefined>, default: undefined},
+  /**
+   * The price is ZERO (the server's `calculatedCost === 0` — a printed zero,
+   * or discounts that ate the whole cost): the block collapses to its head
+   * plus the «БЕСПЛАТНО» accent. No rows, no verdict, no editor hint — the
+   * ONE composition change this panel allows, and it is static for the
+   * composer's session (it flips back only when a state change re-prices
+   * the card above zero).
+   */
+  free: {type: Boolean, default: false},
+});
+
+/** The price's denomination — every icon/aria in the panel follows it. */
+const costUnit = computed((): string => {
+  return props.view.costUnit ?? 'megacredits';
+});
+/**
+ * A LEDGER OF MANY LANES (five or more — steel, titanium, heat, the card-bound units, M€) sets its rows denser in
+ * BOTH the summary and the editor (P81 · DJ, the owner's extreme payment): the same rows, the same order, the same
+ * geometry between the two densities — only the row's height is the profile's dense token.
+ */
+const dense = computed((): boolean => {
+  return props.mode !== 'line' && !props.free && props.view.rows.length >= 5;
+});
+/** The LINE's wallet: the one lane, what it holds before → what it keeps (undefined in any other density). */
+const lineKeep = computed((): {unit: string, before: number, after: number} | undefined => {
+  const row = props.mode === 'line' && !props.free ? props.view.rows[0] : undefined;
+  return row === undefined ? undefined : {unit: row.unit, before: row.available, after: row.remaining};
+});
+const hint = computed((): PanelHint | undefined => {
+  if (props.hintMode === 'none' || props.free || props.mode === 'line') {
+    return undefined;
+  }
+  if (props.mode === 'expanded') {
+    return {control: 'back', label: 'Back to quick payment'};
+  }
+  // ONLY when the editor is a real second stage. A single alt lane is
+  // already fully dialable right here, so the entry would promise depth
+  // that does not exist — the pure model owns that rule, never the host.
+  return props.view.editorEligible ? {control: 'triggerL', label: 'Configure payment'} : undefined;
+});
+const panelLabel = computed((): string => {
+  const unit = props.view.costUnit !== undefined ? translateText(paymentUnitLabel(props.view.costUnit)) : 'M€';
+  const price = props.discount === undefined ? `${props.view.cost}` : `${props.discount.base} → ${props.view.cost}`;
+  const tail = props.free ? ` · ${translateText('Free')}` : '';
+  return `${translateText(props.titleKey)}: ${translateText('Cost')} ${price} ${unit}${tail}`;
+});
+const sourceLabel = computed((): string => {
+  return props.sourceCard === undefined ?
+    '' :
+    `${translateText(props.sourceCard)}: 1 ${translateText('Steel')} = 1 ${translateText('Energy')}`;
 });
 </script>
