@@ -39,6 +39,7 @@ import {availabilityContextFor} from '@/client/console/cardAvailability';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {leavingRectOf} from '@/client/console/surfaceMotion/rowLeaveRect';
 import {untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealKeptCardHeld} from '@/client/console/revealReading';
 import {taskFor, DELEGATE_GRANT_STEP_STAGE} from '@/client/console/consoleTaskRouter';
@@ -1113,7 +1114,9 @@ export function createHandController(shell: HandPort) {
    * is FROZEN at its live rect (fixed, inert — it shares `.con-main`'s row
    * with the returning board and must not squeeze it) and dissolves over the
    * planet, carrying the hosted Parliament inside it; the step's own release
-   * fires when this motion ends.
+   * fires when this motion ends. «Its live rect» is where it stood when the
+   * leave was DECIDED (`leavingRectOf`) — by this hook's turn the board may
+   * already be back in the row (`surfaceMotion/rowLeaveRect.ts`).
    */
   function handLeaveHook(el: Element, done: () => void): void {
     const armed = handDissolveArmed.value;
@@ -1127,7 +1130,7 @@ export function createHandController(shell: HandPort) {
       finish();
       return;
     }
-    const r = el.getBoundingClientRect();
+    const r = leavingRectOf(el);
     Object.assign(el.style, {
       position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`,
       margin: '0', zIndex: '5', pointerEvents: 'none',

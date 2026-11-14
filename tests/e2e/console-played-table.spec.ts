@@ -232,14 +232,15 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       expect(own, 'the own seat before the album').toMatch(/player1/i);
       await expect.poll(() => crumb(page), {message: 'the seat stays inside a category', timeout: 10_000}).toMatch(/player1/i);
       await expect.poll(() => crumb(page), {timeout: 10_000}).not.toMatch(/player2/i);
-      const firstOnScreen = await page.evaluate(() => {
+      // A STATE, never a timer: the strip SLIDES to the page, and under a loaded box the slide outlives the press's
+      // fixed wait (one read 700 ms after RB was red 1 / 3 beside another 4K test — before the Vapor flip and after it).
+      await expect.poll(() => page.evaluate(() => {
         const box = document.querySelector('.con-played-cat__album')!.getBoundingClientRect();
         return Array.from(document.querySelectorAll<HTMLElement>('.con-played-cat__slot')).some((el) => {
           const r = el.getBoundingClientRect();
           return el.closest('[data-cat-page-index="1"]') !== null && r.left >= box.left - 1 && r.right <= box.right + 1;
         });
-      });
-      expect(firstOnScreen, 'page 2 stands in the album box').toBe(true);
+      }), {message: 'page 2 stands in the album box', timeout: 10_000}).toBe(true);
       await shoot(page, preset.id, '04-album-page2');
       // LB — back.
       await key(page, 'KeyQ', 700);

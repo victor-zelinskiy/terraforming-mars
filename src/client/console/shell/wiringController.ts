@@ -39,6 +39,7 @@ import {setHandRevealHooks} from '@/client/console/handDock/handRevealDirector';
 import {Phase} from '@/common/Phase';
 import {colonyTradeState, isColonyTradeInputLocked, colonyTradeDiagnostics} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {conWsPresence, installConWsPresenceBridge} from '@/client/console/conWsPresenceBridge';
+import {installRowLeaveRects} from '@/client/console/surfaceMotion/rowLeaveRect';
 import {colonyFocusState} from '@/client/console/consoleColoniesModel';
 import {consoleStartState, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, releaseBoardExcursion} from '@/client/console/boardExcursion';
@@ -979,7 +980,18 @@ export function createWiringController(shell: WiringPort) {
     shell.offIntent = registerConsoleIntentHandler((intent) => shell.handleIntent(intent));
     // The `.con-ws` / planet-focus DOM-presence flags (the ex-`:has()` rules)
     // — one observer on the shell root, folded into conRootClasses.
-    offWsPresence.value = installConWsPresenceBridge(shell.conRootEl as HTMLElement);
+    const offPresence = installConWsPresenceBridge(shell.conRootEl as HTMLElement);
+    // …and the row's other DOM fact: where its members stood when a leave was DECIDED — the stack's frames or the
+    // section changed. A section frozen for its dissolve is pinned to that rect, never to what the board's return
+    // has left of it by its leave hook's turn (`surfaceMotion/rowLeaveRect.ts`).
+    const offRowRects = installRowLeaveRects(
+      () => (shell.conRootEl as HTMLElement | undefined)?.querySelector(':scope > .con-main'),
+      () => `${consoleState.section}|${workspaceStackState.frames.map((frame) => frame.kind).join(',')}`,
+    );
+    offWsPresence.value = () => {
+      offPresence();
+      offRowRects();
+    };
     // The console-mode <html> class is owned by GamepadLayer (it spans every
     // lifecycle screen); the shell only reports its own presence.
     consoleState.shellMounted = true;

@@ -43,6 +43,8 @@ import VaporContextProbe from './fixtures/VaporContextProbe.vue';
 import VaporKeyProbe from './fixtures/VaporKeyProbe.vue';
 import VaporTeleportLate from './fixtures/VaporTeleportLate.vue';
 import VaporSelectorProbe from './fixtures/VaporSelectorProbe.vue';
+import VaporShowOrderProbe from './fixtures/VaporShowOrderProbe.vue';
+import SetupShowOrderProbe from './fixtures/SetupShowOrderProbe.vue';
 import {embedZoneMounted, resetEmbedZones} from '@/client/console/embedZoneRegistry';
 import {lendFrames} from './lendFrames';
 
@@ -637,6 +639,40 @@ describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, throu
     reach(safe).open('a');
     await nextTick();
     expect(hot(safe)).to.deep.equal(['a']);
+  });
+
+  /*
+   * `v-show` IS A RENDER EFFECT — IT NO LONGER WAITS FOR THE PATCH TO END. On the virtual DOM a directive's update
+   * ran AFTER the whole patch: when ONE mutation showed an early sibling and removed a later one, the later one's
+   * `<Transition>` leave hook still saw the early sibling hidden — and code that MEASURED in that hook («freeze the
+   * leaving section at its rect, the board is not back in the row yet») leaned on it without knowing. In a Vapor
+   * component `v-show` is an effect like any other, run in the template's order: by the hook's turn the early sibling
+   * is displayed and the row has re-flowed. Found by `console-fringe-colony` (2026-11-14: the hand frozen in what the
+   * returning board had left of it). The law it leaves: a leave hook never measures a layout another reaction of the
+   * same mutation changes — the rect is taken when the leave is DECIDED (`surfaceMotion/rowLeaveRect.ts`).
+   * The day the Vapor half of this row turns, the hold is merely redundant.
+   */
+  it('`v-show` on an earlier sibling is applied BEFORE a later sibling\'s leave hook in the same flush — on the virtual DOM it was applied after', async () => {
+    const stand = async (probe: Component): Promise<Array<string>> => {
+      const seen: Array<string> = [];
+      const Host = defineComponent({
+        props: {open: {type: Boolean, default: true}},
+        render() {
+          return h('div', [h(probe as never, {open: this.open, onLeft: (display: string) => seen.push(display === '' ? 'shown' : display)})]);
+        },
+      });
+      const wrapper = mount(Host, {global: {stubs: {'transition': false, 'transition-group': false}}, attachTo: document.body});
+      const early = (wrapper.element as Element).querySelector<HTMLElement>('.vp-order__early')!;
+      expect(early.style.display, 'hidden while the late sibling stands').to.equal('none');
+      await wrapper.setProps({open: false});
+      await nextTick();
+      expect(early.style.display, 'shown once the flush is over — in both runtimes').to.equal('');
+      expect(wrapper.element.querySelector('.vp-order__late'), 'the late sibling left').to.equal(null);
+      wrapper.unmount();
+      return seen;
+    };
+    expect(await stand(SetupShowOrderProbe), 'the virtual DOM: the leave hook runs inside the patch, `v-show` after it').to.deep.equal(['none']);
+    expect(await stand(VaporShowOrderProbe), 'Vapor: the early sibling is already displayed at the hook\'s turn').to.deep.equal(['shown']);
   });
 
   /*

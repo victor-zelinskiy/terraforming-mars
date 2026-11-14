@@ -60,6 +60,7 @@ import {
 import {playPromptArrive, playPromptRelease, promptComposeItems} from '@/client/console/surfaceMotion/promptHandoffMotion';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {probeTick} from '@/client/console/probeTick';
+import {leavingRectOf} from '@/client/console/surfaceMotion/rowLeaveRect';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 
@@ -1036,9 +1037,13 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
   // full home from the FIRST frame — fitBoard keeps its stored scale and
   // never recomputes mid-exit. Applied synchronously in the leave hook (the
   // same pre-paint task as the board's v-show flip), so no squeezed frame
-  // can ever paint.
+  // can ever paint. THE RECT is the one it had when the leave was DECIDED
+  // (`leavingRectOf`): by this hook's turn the board's `v-show` may already
+  // have put it back in the row — a Vapor `v-show` is a render effect in the
+  // template's order, not the post-patch directive update it was — and a live
+  // measure would freeze the leaver squeezed (`surfaceMotion/rowLeaveRect.ts`).
   if (id === 'section' && el instanceof HTMLElement) {
-    const r = el.getBoundingClientRect();
+    const r = leavingRectOf(el);
     gsap.set(el, {
       position: 'fixed',
       left: r.left, top: r.top, width: r.width, height: r.height,
