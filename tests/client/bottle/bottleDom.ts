@@ -238,7 +238,38 @@ function reconfigureUrl(url: string, parse: (url: string) => unknown, originOf: 
   win._document._clearBaseURLCache();
 }
 
-export function takePage(nodeRequire: (id: string) => unknown, url: string, storage: Map<string, string> = new Map()): BottlePage {
+/**
+ * A SYNTHETIC LAYOUT (opt-in — `BottleOptions.layout: 'synthetic'`). jsdom lays nothing out, so every measured END is
+ * 0×0: a card's flight has no slot to land in, the hold behind it stands to its ceiling, and a walk spends its presses
+ * in front of waits a browser ends in half a second (the monkey's first full pass: `ma-price:price-end` on 116 tables,
+ * `played-hero:target` on 63, the arrivals' admission block on 17 — and 38 % of the declared flows reached on a
+ * sample where a browser reaches far more). The synthetic layout gives every DISPLAYED element a rect that is
+ *   · NON-EMPTY (120 × 60 — past every «is there a slot» threshold), so a flight has two ends and lands on the
+ *     bottle's clock;
+ *   · DETERMINISTIC — its position is a hash of the element's path among its ancestors' children, so a walk is the
+ *     same run every time;
+ *   · SCATTERED over a 1920 × 1080 viewport rather than one box for all — a geometric judgement that asks «is A's
+ *     centre inside B» (`sceneCovers`) answers «no» for almost every pair instead of «yes» for every pair.
+ * It is NOT a layout: nothing about WHERE things are is true, and what stands on geometry stays the browser monkey's.
+ * What it buys is the DECISIONS behind measured ends — they run at their time, not a ceiling later.
+ */
+function syntheticRect(el: Element): {x: number, y: number, top: number, left: number, right: number, bottom: number, width: number, height: number, toJSON: () => object} {
+  let h = 2166136261;
+  for (let at: Element | null = el; at !== null && at.parentElement !== null; at = at.parentElement) {
+    let index = 0;
+    for (let sibling = at.previousElementSibling; sibling !== null; sibling = sibling.previousElementSibling) {
+      index++;
+    }
+    h = Math.imul(h ^ (index + 1), 16777619) >>> 0;
+  }
+  const width = 120;
+  const height = 60;
+  const left = h % (1920 - width);
+  const top = (h >>> 11) % (1080 - height);
+  return {x: left, y: top, top, left, right: left + width, bottom: top + height, width, height, toJSON: () => ({})};
+}
+
+export function takePage(nodeRequire: (id: string) => unknown, url: string, storage: Map<string, string> = new Map(), layout: 'none' | 'synthetic' = 'none'): BottlePage {
   const globals = globalThis as unknown as Globals;
   const win = globals.window as Globals;
   const doc = globals.document as Document;
@@ -300,6 +331,11 @@ export function takePage(nodeRequire: (id: string) => unknown, url: string, stor
   if (globals.Notification === undefined) {
     both('Notification', {permission: 'denied', requestPermission: () => Promise.resolve('denied')});
   }
+  // THE PAGE IS IN PLAIN VIEW. jsdom's document is `prerender` — hidden — unless told otherwise, and the product asks
+  // «is somebody looking at this page» in earnest: the witness of the supervisor's pulse judges only a visible page,
+  // the turn handoff and the overflow guard likewise. A bottle is a page somebody plays.
+  replace(doc as unknown as Globals, 'visibilityState', 'visible');
+  replace(doc as unknown as Globals, 'hidden', false);
 
   // ── «has a box» ──
   const displayed = (el: Element): boolean => {
@@ -317,8 +353,28 @@ export function takePage(nodeRequire: (id: string) => unknown, url: string, stor
   const HtmlProto = (globals.HTMLElement as {prototype: Globals}).prototype;
   const box = {x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({})};
   replace(ElementProto, 'getClientRects', function(this: Element) {
-    return displayed(this) ? [box] : [];
+    return displayed(this) ? [layout === 'synthetic' ? syntheticRect(this) : box] : [];
   });
+  if (layout === 'synthetic') {
+    replace(ElementProto, 'getBoundingClientRect', function(this: Element) {
+      return displayed(this) ? syntheticRect(this) : box;
+    });
+    for (const [name, size] of [['offsetWidth', 120], ['offsetHeight', 60], ['clientWidth', 120], ['clientHeight', 60]] as const) {
+      const own = Object.getOwnPropertyDescriptor(HtmlProto, name) ?? Object.getOwnPropertyDescriptor(ElementProto, name);
+      const holder = Object.getOwnPropertyDescriptor(HtmlProto, name) !== undefined ? HtmlProto : ElementProto;
+      Object.defineProperty(holder, name, {
+        configurable: true,
+        get(this: Element) {
+          return displayed(this) ? size : 0;
+        },
+      });
+      saved.push(() => {
+        if (own !== undefined) {
+          Object.defineProperty(holder, name, own);
+        }
+      });
+    }
+  }
   const offsetParent = Object.getOwnPropertyDescriptor(HtmlProto, 'offsetParent');
   Object.defineProperty(HtmlProto, 'offsetParent', {
     configurable: true,

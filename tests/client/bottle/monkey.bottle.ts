@@ -16,11 +16,14 @@
  *
  * OPT-IN (it is an hour of the laptop): `TM_BOTTLE_MONKEY=1 npm run test:client:one -- tests/client/bottle/monkey.bottle.ts`
  *   TM_BOTTLE_MONKEY_SEED (default `fz0`) · TM_BOTTLE_MONKEY_PRESSES (60) · TM_BOTTLE_MONKEY_ONLY (a regex over
- *   fixture names) · TM_BOTTLE_MONKEY_SHARD (`k/n`) · TM_BOTTLE_MONKEY_OUT (default `.e2e-remote/bottle-monkey` — beside the box monkey's).
+ *   fixture names) · TM_BOTTLE_MONKEY_LAYOUT (`synthetic` — measured ends are non-empty, so flights land and a walk
+ *   reaches what stands behind them) · TM_BOTTLE_MONKEY_MODE (`guided` — the walk presses what the command bar offers: far deeper into
+ *   the flows than the blind stream; its own seeded stream) · TM_BOTTLE_MONKEY_RELOAD (`<n>` — a reload of the page on average once in n presses, its own
+ *   seeded stream: the restore road walked on every table) · TM_BOTTLE_MONKEY_SHARD (`k/n`) · TM_BOTTLE_MONKEY_OUT (default `.e2e-remote/bottle-monkey` — beside the box monkey's).
  */
-import {bootBottle, ConsoleBottle} from './consoleBottle';
+import {bootBottle, ConsoleBottle, disposeLiveBottle} from './consoleBottle';
 import {bottleServer, nodeProcess, nodeRequire} from './bottleNode';
-import {monkeyWalk} from './monkeyWalk';
+import {MonkeyMode, monkeyWalk} from './monkeyWalk';
 
 const env = nodeProcess().env as Record<string, string | undefined>;
 const ENABLED = env.TM_BOTTLE_MONKEY === '1';
@@ -29,6 +32,12 @@ const PRESSES = Number(env.TM_BOTTLE_MONKEY_PRESSES ?? 60);
 const ONLY = env.TM_BOTTLE_MONKEY_ONLY === undefined ? undefined : new RegExp(env.TM_BOTTLE_MONKEY_ONLY);
 const OUT = env.TM_BOTTLE_MONKEY_OUT ?? '.e2e-remote/bottle-monkey';
 const [SHARD, SHARDS] = (env.TM_BOTTLE_MONKEY_SHARD ?? '1/1').split('/').map(Number);
+/** `plain` — the box monkey's blind stream (the default); `guided` — it presses what the command bar offers (`monkeyWalk.ts`). */
+const MODE: MonkeyMode = env.TM_BOTTLE_MONKEY_MODE === 'guided' ? 'guided' : 'plain';
+/** `synthetic` — every displayed element has a non-empty rect, so flights land (`bottleDom.ts`); default: jsdom's 0×0. */
+const LAYOUT: 'none' | 'synthetic' = env.TM_BOTTLE_MONKEY_LAYOUT === 'synthetic' ? 'synthetic' : 'none';
+/** THE RELOAD: on average once in this many presses the page is reloaded where the walk stands (unset = never). */
+const RELOAD_EVERY = env.TM_BOTTLE_MONKEY_RELOAD === undefined ? undefined : Number(env.TM_BOTTLE_MONKEY_RELOAD);
 
 // (The walk itself — the generator, the pad's weights, the rhythm — is `monkeyWalk.ts`: the class replays use it too.)
 
@@ -61,6 +70,8 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
   afterEach(async () => {
     await bottle?.dispose();
     bottle = undefined;
+    // …and a bottle a reload stood up inside a walk that then threw.
+    await disposeLiveBottle();
   });
 
   for (const fixture of fixtures) {
@@ -70,15 +81,28 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
       const records: Array<Filed> = [];
       let why: Array<string> = [];
       let status = 'passed';
+      let coverageKeys: Array<string> = [];
+      let coverage: {keys: Array<string>, machines: Record<string, Array<string>>, frames: Array<string>} | undefined;
       try {
         const table = await bottleServer().bootFixture(fixture);
-        bottle = await bootBottle(table);
+        // (`coverage=1` — the page marks how much of the kernel's state space the walk went through.)
+        bottle = await bootBottle(table, {query: 'coverage=1', layout: LAYOUT});
         await bottle.advance(3_000);
-        log = await monkeyWalk(bottle, table.seats.length, seed, PRESSES);
+        const walked = await monkeyWalk(bottle, table.seats.length, seed, PRESSES, {reloadEvery: RELOAD_EVERY, mode: MODE});
+        bottle = walked.bottle;
+        log = walked.log;
+        coverageKeys = walked.carriedCoverage;
+        for (const before of walked.carried) {
+          records.push(filed(before.cls, before.blind ? 'info' : 'defect', before.count, before.blind ? `(the bottle is blind here) ${before.text}` : before.text));
+        }
         // THE LAST WORD: a quiet spell past the arbiter's grace — whatever the walk left on screen is judged.
         await bottle.advance(14_000);
         const live = bottle.liveness();
         why = live.why;
+        const covered = bottle.coverage();
+        if (covered !== undefined) {
+          coverage = {keys: [...new Set([...coverageKeys, ...covered.keys])].sort(), machines: covered.machines, frames: covered.frames};
+        }
         for (const defect of live.defects) {
           records.push(filed(defect.cls, 'defect', defect.count, defect.text));
         }
@@ -92,7 +116,8 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
       }
       fs.writeFileSync(path.join(outDir, `bottle-monkey--monkey-${fixture}-r0.json`), JSON.stringify({
         file: 'monkey.bottle.ts', title: `monkey · ${fixture}`, retry: 0, status, records,
-        monkey: {seed, fixture, landing: 'boot', duo: false, reload: false, presses: log.filter((l) => !l.startsWith('[')).length, perturb: {netMs: 0, cpu: 0, motion: ''}, bottle: true, why},
+        ...(coverage !== undefined ? {coverage} : {}),
+        monkey: {seed, fixture, mode: MODE, layout: LAYOUT, landing: 'boot', duo: false, reload: RELOAD_EVERY !== undefined, presses: log.filter((l) => !l.startsWith('[')).length, perturb: {netMs: 0, cpu: 0, motion: ''}, bottle: true, why},
         walk: log.join(' '),
       }, null, 1));
       const defects = records.filter((record) => record.tier === 'defect');

@@ -95,9 +95,16 @@ whose only way out was to close the game. Now the arbiter's last word is `rebuil
 cured a freeze of this console, because everything the game screen shows is a function of the server's view — every
 rung above is a hand-written, partial imitation of that function for one module; the rebuild is the function itself.
 
-- **When.** The verdict is `unserved` (the player CANNOT act — never `presses-no-effect`: a screen that accepts is
-  judged by the ladder alone, a rebuild there would take a working screen away), the ladder had nothing left to
-  release, and the screen still stood `LIVENESS_REBUILD_AFTER_MS` (4 s — two more looks) later.
+- **When** (`consoleLiveness.lastLineStep` — pure, `sessionRebuild.spec` § when it is due). The ladder had nothing
+  left to release, and `LIVENESS_REBUILD_AFTER_MS` (4 s — two more looks) later:
+  - UNSERVED — the player CANNOT act: due by that time alone. Read from the verdict's FACT (`verdict.unserved`), never
+    from its name: a player hammering a screen that takes nothing is filed `presses-no-effect` (the presses bring the
+    judgement forward to 5 s and win the stall's name for good) and is still a player who cannot act — the fact joins
+    at its own grace (10 s) and no further press is asked of them;
+  - a DEAF screen — stalled by presses alone (it says it accepts and takes no A / B): by its own account it works, so time
+    proves nothing — a player may rest on it for a minute. Due only when the player has pressed AGAIN past the spent
+    ladder and that press moved nothing either: their own hand saying «I am still trying, and it is still dead».
+    (Before 2026-11-14 evening a deaf screen ended the way every freeze used to — the ladder spent, the game closed.)
 - **How (depth `page`).** The document is replaced behind the loading curtain — `navigateWithCurtain(location.href,
   'sync')`, the road of every game-boundary navigation: the curtain is painted before the page goes, the next page
   opens under it, the native shell's overlay holds the window meanwhile. Complete by construction (no module state
@@ -118,6 +125,50 @@ rung above is a hand-written, partial imitation of that function for one module;
 - Specs: `tests/console/sessionRebuild.spec.ts` (the bounds), `tests/common/diagnostics/diagnosticsCause.spec.ts` and
   `tests/server/diagnostics/diagnosticsHub.spec.ts` (the outcome), `tests/e2e/console-stall-cause.spec.ts` (the real
   page: rebuilt once, served again, refused the second time; and with the switch off — the player's own reload).
+
+### 3b. Who watches the watcher — THE SUPERVISOR'S PULSE (2026-11-14)
+
+The last line is asked by the arbiter, and the arbiter is ONE pass of the shell's supervisor. So the line had a blind
+side exactly as wide as that pass — a game screen whose supervisor does not COMPLETE a pass has nobody to ask:
+
+- **no shell** — the route resolved to the game, the view is in, and no shell stands (its set-up threw; the curtain's
+  arm watchdog «revealed anyway» over the bare atmosphere);
+- **no pass** — the shell stands and its pass throws before it reaches the arbiter: every second, said by the kernel
+  as an anomaly each time (`the tick … threw` — the tick goes on), judged by nobody.
+
+Both are a page that RUNS (the main process's hang watch sees a healthy renderer) and serves nothing, for ever.
+
+**The witness** (`console/session/supervisorPulse.ts`) stands OUTSIDE the shell: armed once by the app's root
+(`App.vue`), on the PAGE's scope (`consoleAppScope().every`), reading ONE number — the passes the supervisor
+completed (`noteSupervisorPass()` after `checkLiveness()` returned; a pass that threw is not one).
+
+- **A look** every `PULSE_LOOK_MS` (5 s). The game screen is WATCHED when the root says it stands (the route is the
+  game's AND the view is in — the one condition the shell is rendered under), the curtain does not cover it (a boot
+  has its own bounds), the page is visible and not already leaving. A watched look in which the count did not move is
+  a MISS; `PULSE_MISSED_LOOKS` (3) in a row → `rebuildConsoleSession({by: 'pulse', task: 'no-pass' | 'no-shell'})`.
+- **Counted in LOOKS, never in milliseconds** (`pulseStep` — pure): a laptop that slept an hour and a throttled
+  background tab both stretch the wall clock between two looks, and neither is a supervisor that stopped. The
+  supervisor's timer and the witness's are the same clock's, so while both run a look always has a pass before it.
+- **Its own cause.** `session-rebuild/page/no-pass` · `session-rebuild/page/no-shell`, dimension `by: pulse` — a
+  DEFECT like every rebuild, apart from a spent ladder's. Under the same bound (once per question, 3 per 5 min); a
+  refused rebuild is asked for again three looks later, and its refusal is said once.
+- **Why the judge is in the page, not the server** (the plan's «delivery contract», verdict half — decision F11):
+  the server cannot answer a page that does not ask (a game screen without a shell has no transport: the binder is
+  the shell's child), and it learns nothing a running page does not already know (the arbiter reads the screen's own
+  verdict once a second). The one thing left to judge is whether the judge runs — only something outside it can.
+- **THE PLAYER CAN ALWAYS ACT — three legs, none standing on another** (the program's R14):
+  1. the arbiter past its ladder → the last line (the supervisor runs, the screen does not serve);
+  2. the pulse's witness → the same last line (the supervisor does not run);
+  3. THE PLAYER'S OWN HAND — the system overlay (Menu) is owned by the app-level pad layer (`GamepadLayer`), asked
+     BEFORE the console router (`consoleKeyBridge` → `consoleSystemMenuIntent`; a pad reaches it on the raw intent
+     stream): it opens over whatever the game screen is doing, and «В главное меню» → «Продолжить» is a fresh page.
+     Nothing of the shell may ever stand between the Menu button and that overlay (`console-stall-cause` «the
+     player's own way out»: a dead screen, the last line switched off — Menu still answers).
+  (A renderer that does not run at all is none of these: the main process's hang watch reloads it.)
+- Control: `?waitGraphControl=strand` → `__conBreakSupervisorPass()` (every pass throws from then on). Specs:
+  `tests/console/supervisorPulse.spec.ts` (the look), `tests/client/bottle/consoleBottle.bottle.ts` test 13 (the
+  real app: a minute healthy → nothing; broken → ONE rebuild under its cause), `tests/e2e/console-stall-cause.spec.ts`
+  «who watches the watcher» (the real page: replaced once, the hand served again, silent afterwards).
 
 ## 4. What it does not replace
 

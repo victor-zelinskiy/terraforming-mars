@@ -54,6 +54,39 @@ export const LIVENESS_RUNG_GAP_MS = 2_000;
  * looks of the arbiter: a screen that was about to come back by itself has come back.
  */
 export const LIVENESS_REBUILD_AFTER_MS = 4_000;
+
+/** The last line's own clock: when the ladder was first found SPENT in the stall that stands, and the presses then. */
+export type LastLineState = {spentSince: number, pressesAtSpent: number};
+export const LAST_LINE_REST: LastLineState = {spentSince: 0, pressesAtSpent: 0};
+
+/**
+ * IS THE LAST LINE DUE? One look of the arbiter past its ladder → the next state of the clock and the answer. PURE.
+ *
+ *  · UNSERVED — nothing accepts while the server asks: the player CANNOT act. Due once the screen has stood
+ *    `LIVENESS_REBUILD_AFTER_MS` past the spent ladder. It is read from the verdict's FACT (`unserved`), never from
+ *    its `reason`: a player hammering a screen that takes nothing is filed `presses-no-effect` (the presses came
+ *    first), and is still a player who cannot act.
+ *  · a DEAF screen — stalled by presses alone: it says it accepts, and takes no A / B. By its own account it is
+ *    working, so time alone proves nothing (a player may rest on it); due only when the player has pressed AGAIN past
+ *    the spent ladder and that press moved nothing either — their own hand saying «I am still trying, and it is still
+ *    dead». Without this a deaf screen ended the way every freeze used to: the ladder spent, and a player closing
+ *    the game.
+ *
+ * A look whose ladder is not spent (a rung still acted, or the stall is over) puts the clock back to rest.
+ */
+export function lastLineStep(state: LastLineState, look: {spent: boolean, unserved: boolean, presses: number, now: number}):
+  {state: LastLineState, due: boolean} {
+  if (!look.spent) {
+    return {state: LAST_LINE_REST, due: false};
+  }
+  if (state.spentSince === 0) {
+    return {state: {spentSince: look.now, pressesAtSpent: look.presses}, due: false};
+  }
+  if (look.now - state.spentSince < LIVENESS_REBUILD_AFTER_MS) {
+    return {state, due: false};
+  }
+  return {state, due: look.unserved || look.presses > state.pressesAtSpent};
+}
 /** A ledger story younger than this is «in flight» (its owner's own machinery still has the floor); older, it is a
  *  debt the arbiter may cut. Below every story's own due (30 s) by design. */
 export const LIVENESS_STORY_GRACE_MS = 8_000;
@@ -131,8 +164,10 @@ export type LivenessVerdict =
   | {stalled: false, recovered?: {afterMs: number, rungs: number}}
   | {
     stalled: true,
-    /** Why: no surface accepting for the grace, or presses with no effect. */
+    /** Why: no surface accepting for the grace, or presses with no effect (the presses win the NAME when both hold). */
     reason: 'unserved' | 'presses-no-effect',
+    /** THE FACT behind `unserved`, whatever the name says: the player is asked (or owed a beat's end) and nothing accepts. */
+    unserved: boolean,
     quietMs: number,
     presses: number,
     lastInFlight: ReadonlyArray<string>,
@@ -191,6 +226,7 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
     verdict: {
       stalled: true,
       reason: pressed ? 'presses-no-effect' : 'unserved',
+      unserved,
       quietMs,
       presses: next.pressesSinceProgress,
       lastInFlight: next.lastInFlight,

@@ -62,6 +62,10 @@ const PAGE_LIFETIME: Readonly<Record<string, Readonly<Record<string, string>>>> 
     leaving: 'true only from the moment THIS document was told to leave for a rebuild — it dies with the document',
     navigate: 'how the document is replaced — a constant of the page (a spec gives its own)',
   },
+  'src/client/console/session/supervisorPulse.ts': {
+    passes: 'the count of supervisor passes completed in this DOCUMENT — the witness that reads it stands outside every session, and compares it only with its own last look',
+    standing: 'whether a supervisor is started — written by the supervisor\'s own start and stop (the shell\'s mount and unmount), read by the page\'s witness',
+  },
 };
 
 const STATE_CALLS = new Set(['reactive', 'ref', 'shallowRef', 'shallowReactive']);

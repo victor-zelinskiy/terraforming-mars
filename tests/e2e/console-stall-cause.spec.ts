@@ -23,6 +23,10 @@ import {bootFixture, cinematicBeat, fetchPlayerModel, playCardFromHand, press, r
  *    page stays (a rebuild that can repeat is a loop);
  *  · with the line switched off (`?rebuild=0`) the page stays as it stood, and the player's own reload under the
  *    episode ends it as `reload` — «не вылечено, ушло в перезагрузку».
+ *
+ * And WHO WATCHES THE WATCHER (`session/supervisorPulse.ts`): the arbiter is one pass of the shell's supervisor — a
+ * supervisor whose pass does not run (`__conBreakSupervisorPass()`) can ask for nothing, so the witness OUTSIDE the
+ * shell asks for the same last line, under its own cause (`session-rebuild/page/no-pass`, by `pulse`).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv&waitGraphControl=strand'} as const;
 
@@ -152,6 +156,56 @@ test.describe('a stall names its cause and says how it ended', () => {
     expect(lines.rebuilds.filter((l) => l.includes('refused (again)')), 'said ONCE').toHaveLength(1);
     expect(lines.rebuilds.filter((l) => l.startsWith('[session-rebuild] page')), 'rebuilt ONCE').toHaveLength(1);
     expect(navigatedAgain, 'the page stayed').toBe(false);
+  });
+
+  test('WHO WATCHES THE WATCHER: a supervisor whose pass does not run is rebuilt by the witness outside the shell — once, and the game is served again', async ({page, request}) => {
+    test.setTimeout(300_000);
+    test.info().annotations.push({type: EXPECTS_LIVENESS_STALL, description: 'the last line asked by the pulse\'s witness is this control\'s subject — the supervisor is broken on purpose'});
+    const lines = watchLines(page);
+    await reachPlayFromHand(page, request, PRESET.query);
+
+    const left = page.waitForEvent('framenavigated', {predicate: (frame) => frame === page.mainFrame(), timeout: 120_000});
+    // THE PLANT: every pass of the supervisor throws from now on. The hand still stands — the page is not frozen;
+    // what is gone is the JUDGE, and with it every net of the console and the last line itself.
+    const broke = await page.evaluate(() => {
+      const seam = (window as unknown as {__conBreakSupervisorPass?: () => void}).__conBreakSupervisorPass;
+      seam?.();
+      return seam !== undefined;
+    });
+    expect(broke, 'the control seam is installed by the flag').toBe(true);
+    // The witness looks every 5 s; the third look in a row with no completed pass asks. No key was pressed.
+    await expect.poll(() => lines.rebuilds.length, {timeout: 60_000, message: 'the witness spoke'}).toBeGreaterThan(0);
+    expect(lines.rebuilds[0]).toMatch(/^\[session-rebuild\] page — «no-pass» \(projectCard#\d+\) — by pulse: the supervisor completed no pass in 15s — its pass does not reach the arbiter$/);
+    expect(lines.stalls, 'the arbiter said nothing — it never ran').toEqual([]);
+    await left;
+    await consoleStandsAgain(page);
+    // The rebuilt page's supervisor runs, the question's own surface stands again…
+    await expect(page.locator('.con-hand'), 'the hand stands for the question again').toHaveCount(1, {timeout: 30_000});
+    // …the finding is filed under ITS cause (the next page adopted the journal), never a spent ladder's…
+    const filed = (await journal(page)).find((e) => e.cause?.cls === 'session-rebuild/page/no-pass');
+    expect(filed, 'the journal carries the witness\'s finding').toBeDefined();
+    expect(filed?.cause).toMatchObject({tier: 'defect', dims: {by: 'pulse'}});
+    // …and the witness is silent over a supervisor that runs: five more looks, nothing asked.
+    await cinematicBeat(page, 26_000, 'five looks of the witness over a running supervisor — it must ask for nothing');
+    expect(lines.rebuilds, 'ONE rebuild, no refusal').toHaveLength(1);
+  });
+
+  test('THE PLAYER\'S OWN WAY OUT: on a dead screen the Menu button still answers — the system overlay stands outside the shell', async ({page, request}) => {
+    test.setTimeout(300_000);
+    test.info().annotations.push({type: EXPECTS_LIVENESS_STALL, description: 'a dead screen is this control\'s ground — the stall is planted and the last line switched off'});
+    const lines = watchLines(page);
+    await reachPlayFromHand(page, request, `${PRESET.query}&rebuild=0`);
+    await strand(page);
+    // The screen is DEAD and stays dead: the ladder is spent, the last line is off, nothing serves the question.
+    await expect.poll(() => lines.rebuilds.length, {timeout: 60_000, message: 'the switched-off line said so'}).toBe(1);
+    await expect(page.locator('.con-hand'), 'nothing came back by itself').toHaveCount(0);
+    // The system overlay is owned by the app-level pad layer and asked BEFORE the console router: whatever the game
+    // screen does, Menu opens it — and «В главное меню» (the game is saved; «Продолжить» brings a fresh page) is there.
+    await press(page, 'KeyM', 500);
+    await expect(page.locator('.con-sys--menu'), 'the Menu button answers on a dead screen').toHaveCount(1, {timeout: 10_000});
+    await expect(page.locator('.con-sysact__plate', {hasText: 'В главное меню'})).toHaveCount(1);
+    await press(page, 'Escape', 500);
+    await expect(page.locator('.con-sys'), 'and B closes it').toHaveCount(0);
   });
 
   test('with the last line switched off the page stays as it stood — and the player\'s own reload under the episode ends it as «reload»', async ({page, request}) => {

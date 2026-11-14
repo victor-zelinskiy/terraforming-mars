@@ -26,8 +26,11 @@ import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {decideRebuild, parseRebuildMemory} from '@/client/console/session/rebuildBound';
 import {captureDiagEvidence, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 
-/** Who may ask: the arbiter past its last rung; the server's own judgement of the question's delivery. */
-export type RebuildAsker = 'liveness' | 'delivery';
+/**
+ * Who may ask: the arbiter past its last rung · the witness of the arbiter's own pulse, outside the shell
+ * (`supervisorPulse.ts` — a game screen whose supervisor completes no pass has nobody else to ask).
+ */
+export type RebuildAsker = 'liveness' | 'pulse';
 
 export type RebuildAsk = {
   by: RebuildAsker;

@@ -67,6 +67,12 @@ export type BottleOptions = {
   storage?: Map<string, string>,
   /** Print every warn / error line the page makes (a debugging aid; the journal has them either way). */
   echo?: boolean,
+  /**
+   * `synthetic` — every displayed element has a non-empty, deterministic rect (`bottleDom.ts` § a synthetic layout):
+   * flights land and the holds behind measured ends let go at their time. Default `none` — jsdom's 0×0, the border
+   * the first twelve tests were measured on.
+   */
+  layout?: 'none' | 'synthetic',
 };
 
 /**
@@ -135,6 +141,14 @@ export type ConsoleBottle = {
   digest(): string,
   /** The command bar's text (what the player is offered) — a walk's eyes. */
   bar(): string,
+  /**
+   * THE VERBS THE COMMAND BAR OFFERS RIGHT NOW, as keys of the pad: each enabled command of the bar by its glyph
+   * (A → Enter, B → Escape, X, Y, LB / RB, LT / RT, L3 / R3), with whether the bar marks it hot. What a player's eyes
+   * read before a press — a guided walk presses what is offered far more often than what is not.
+   */
+  offered(): Array<{key: BottleKey, hot: boolean, label: string}>,
+  /** How much of the kernel's state space this page walked (`__conCoverage()` — only when booted with `coverage=1`). */
+  coverage(): {keys: Array<string>, machines: Record<string, Array<string>>, frames: Array<string>} | undefined,
   /** One wait on each source of time the client has (GSAP, the kernel, the frames) — `BottlePageHandle.timeProbe`. */
   timeProbe(): ReturnType<BottlePageHandle['timeProbe']>,
   /** ANOTHER SEAT'S MOVE through the server's own door (its plainest: a pass, or the plainest legal answer). What it did, or `undefined` when that seat is asked nothing. */
@@ -171,6 +185,14 @@ async function loadPage(): Promise<{page: typeof import('./bottlePage'), restore
   };
 }
 
+/**
+ * Dispose WHATEVER bottle stands — the one a test holds, or one a walk left behind (a reload replaces the bottle
+ * inside the walk; a throw after it leaves the test's own handle pointing at the page that is already gone).
+ */
+export async function disposeLiveBottle(): Promise<void> {
+  await live?.dispose();
+}
+
 export async function bootBottle(table: BottleTable, options: BottleOptions = {}): Promise<ConsoleBottle> {
   if (live !== undefined) {
     throw new Error('one bottle at a time — dispose the previous one (the document and the globals are the process\'s)');
@@ -178,7 +200,7 @@ export async function bootBottle(table: BottleTable, options: BottleOptions = {}
   const server = bottleServer();
   const seat = table.seats[options.seat ?? 0];
   const query = `id=${seat.id}&fastboot=1&realtime=0${options.query !== undefined ? '&' + options.query : ''}`;
-  const dom: BottlePage = takePage(nodeRequire(), `http://bottle.local/player?${query}`, options.storage);
+  const dom: BottlePage = takePage(nodeRequire(), `http://bottle.local/player?${query}`, options.storage, options.layout ?? 'none');
   const clock = takeTime(options.startMs ?? START_MS);
   const wire = takeWire(server, clock);
   const lines: Array<string> = [];
@@ -194,6 +216,26 @@ export async function bootBottle(table: BottleTable, options: BottleOptions = {}
     throw error;
   }
   const bar = (): string => (document.querySelector('.con-cmdbar, .con-bar, [data-command-bar]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  /** The Xbox glyph set's labels (`gamepad/glyphSets.ts`) → the key of the same control (`CONSOLE_KEY_BUTTON`). */
+  const GLYPH_KEY: Readonly<Record<string, BottleKey>> = {
+    'A': 'Enter', 'B': 'Escape', 'X': 'KeyX', 'Y': 'KeyY', 'LB': 'KeyQ', 'RB': 'KeyE', 'LT': 'Comma', 'RT': 'Period', 'L3': 'KeyC', 'R3': 'KeyV', '⧉': 'KeyR',
+  };
+  const offered = (): Array<{key: BottleKey, hot: boolean, label: string}> => {
+    const out: Array<{key: BottleKey, hot: boolean, label: string}> = [];
+    for (const cmd of document.querySelectorAll('.con-cmdbar__cmd')) {
+      if (cmd.classList.contains('con-cmdbar__cmd--disabled')) {
+        continue;
+      }
+      const label = (cmd.querySelector('.con-cmdbar__label')?.textContent ?? '').trim();
+      for (const glyph of cmd.querySelectorAll('.gp-glyph')) {
+        const key = GLYPH_KEY[(glyph.textContent ?? '').trim()];
+        if (key !== undefined) {
+          out.push({key, hot: cmd.classList.contains('con-cmdbar__cmd--hot'), label});
+        }
+      }
+    }
+    return out;
+  };
 
   const bottle: ConsoleBottle = {
     table,
@@ -283,6 +325,8 @@ export async function bootBottle(table: BottleTable, options: BottleOptions = {}
       ].join(' | ');
     },
     bar,
+    offered,
+    coverage: () => (window as unknown as {__conCoverage?: () => {keys: Array<string>, machines: Record<string, Array<string>>, frames: Array<string>}}).__conCoverage?.(),
     timeProbe: () => page.timeProbe(),
     otherSeatMoves: async (index) => {
       const moved = await server.otherSeatMoves(table.seats[index].id);

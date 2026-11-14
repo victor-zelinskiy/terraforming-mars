@@ -25,8 +25,9 @@ import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
 import {observeStillHold, pageMoves, StillHoldState} from '@/client/console/waitGraph/motionWitness';
-import {advanceLivenessRung, LIVENESS_REBUILD_AFTER_MS, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
+import {advanceLivenessRung, LAST_LINE_REST, LastLineState, lastLineStep, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {rebuildConsoleSession} from '@/client/console/session/sessionRebuild';
+import {noteSupervisorPass, noteSupervisorStarted, noteSupervisorStopped} from '@/client/console/session/supervisorPulse';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
@@ -136,8 +137,10 @@ export function createSupervisorController(shell: SupervisorPort) {
   const staleFreeTurnKey = ref('');
   /** The reaper's own quiet clock (`staleFreeTurnClock.ts`) — never the arbiter's one-tick-old progress stamp alone. */
   let staleFreeTurnClock: StaleFreeTurnClock = staleFreeTurnClockInit(Date.now());
-  /** When the ladder was first found SPENT in the stall that stands (0 = it is not) — the last line's own clock. */
-  let ladderSpentSince = 0;
+  /** The last line's own clock (`consoleLiveness.lastLineStep`): at rest while the ladder still acts or nothing stalls. */
+  let lastLine: LastLineState = LAST_LINE_REST;
+  /** THE PULSE's CONTROL (`?waitGraphControl=strand` only — `__conBreakSupervisorPass()`): the pass throws from then on. */
+  let passBrokenOnPurpose = false;
   /** The liveness arbiter's last `accepting` (a surface takes input for the live question) — read by the ghost gate. */
   const lastLivenessAccepting = ref(true);
   /** Consecutive 1 Hz passes a LIVE frame of a phase that is over has stood with no leave pending (`reapDeadPhaseFrames`). */
@@ -322,11 +325,23 @@ export function createSupervisorController(shell: SupervisorPort) {
     // What stands on this game screen, for the record of a defect (`stallEvidence.ts`) — read only when one is named.
     setDiagEvidenceProvider(() => evidenceNow());
     beatStallTimer.value?.();
-    beatStallTimer.value = consoleSessionScope().every(1000, 'the supervisor\'s tick', () => checkLiveness());
+    // THE PULSE (`session/supervisorPulse.ts`): a pass that ran to its END is counted — the witness outside the shell
+    // reads the count, and a game screen whose supervisor completes none is rebuilt by the same last line. A pass
+    // that throws is said by the kernel (the tick goes on) and is NOT one: the arbiter was never reached.
+    noteSupervisorStarted();
+    beatStallTimer.value = consoleSessionScope().every(1000, 'the supervisor\'s tick', () => {
+      if (passBrokenOnPurpose) {
+        throw new Error('the supervisor\'s pass is broken on purpose (the pulse\'s control)');
+      }
+      checkLiveness();
+      noteSupervisorPass();
+    });
   }
 
   /** …and ends with it: the sampler, every registration, the arbiter's and the beat guard's own state. */
   function stopSupervisor(): void {
+    noteSupervisorStopped();
+    passBrokenOnPurpose = false;
     setDiagEvidenceProvider(undefined);
     beatStallTimer.value?.();
     beatStallTimer.value = undefined;
@@ -558,7 +573,7 @@ export function createSupervisorController(shell: SupervisorPort) {
       signature,
     });
     if (!verdict.stalled) {
-      ladderSpentSince = 0;
+      lastLine = LAST_LINE_REST;
       // The stall's END is evidence too: the field export reads the time-to-cure, not only that a cure ran.
       if (verdict.recovered !== undefined) {
         console.warn(`[liveness] recovered after ${Math.round(verdict.recovered.afterMs / 1000)}s, ${verdict.recovered.rungs} rung(s) run`);
@@ -607,20 +622,19 @@ export function createSupervisorController(shell: SupervisorPort) {
     // PAST THE LAST RUNG — THE LAST LINE (`session/sessionRebuild.ts`, FREEZE ZERO §4 · 6). Nothing serves the
     // question, the ladder has nothing left to release, and the screen still stands `LIVENESS_REBUILD_AFTER_MS`
     // later: the console session is rebuilt from the server's view. There was NOTHING here before — a line, and a
-    // player who had to close the game. Only for `unserved` (the player CANNOT act): presses that moved nothing on a
-    // screen that accepts are judged by the ladder alone — a rebuild there would take a working screen away.
-    if (spent && verdict.reason === 'unserved') {
-      if (ladderSpentSince === 0) {
-        ladderSpentSince = Date.now();
-      } else if (Date.now() - ladderSpentSince >= LIVENESS_REBUILD_AFTER_MS) {
-        rebuildConsoleSession({
-          by: 'liveness', seat: shell.playerView.id ?? '',
-          question: wf === undefined ? '' : `${wf.type}#${wf.promptId ?? ''}`, task,
-          why: `the ladder is spent and the screen stood ${Math.round(verdict.quietMs / 1000)}s`,
-        });
-      }
-    } else {
-      ladderSpentSince = 0;
+    // player who had to close the game. An UNSERVED screen (the player CANNOT act — the verdict's fact, whatever its
+    // name) is due by time alone; a DEAF one (it says it accepts and takes no A / B) only when the player pressed
+    // AGAIN past the spent ladder and that press moved nothing either (`lastLineStep` — the decision and its reasons).
+    const line = lastLineStep(lastLine, {spent, unserved: verdict.unserved, presses: verdict.presses, now: Date.now()});
+    lastLine = line.state;
+    if (line.due) {
+      rebuildConsoleSession({
+        by: 'liveness', seat: shell.playerView.id ?? '',
+        question: wf === undefined ? '' : `${wf.type}#${wf.promptId ?? ''}`, task,
+        why: verdict.unserved ?
+          `the ladder is spent and the screen stood ${Math.round(verdict.quietMs / 1000)}s` :
+          `the ladder is spent and ${verdict.presses} presses moved nothing in ${Math.round(verdict.quietMs / 1000)}s`,
+      });
     }
   }
 
@@ -1028,8 +1042,14 @@ export function createSupervisorController(shell: SupervisorPort) {
         (window as unknown as {__conDisarmWaitCures?: () => void}).__conDisarmWaitCures = () => {
           waitGraphArming.armed = new Set();
         };
+        // …and THE WATCHER THAT DOES NOT RUN on demand (the pulse's control — `supervisorPulse.ts`): every pass of the
+        // supervisor throws from now on, so nothing inside the shell can ask for the last line — the witness must.
+        (window as unknown as {__conBreakSupervisorPass?: () => void}).__conBreakSupervisorPass = () => {
+          passBrokenOnPurpose = true;
+        };
         return [() => {
           still?.release();
+          delete (window as unknown as {__conBreakSupervisorPass?: unknown}).__conBreakSupervisorPass;
           delete (window as unknown as {__conDisarmWaitCures?: unknown}).__conDisarmWaitCures;
           delete (window as unknown as {__conStrandQuestion?: unknown}).__conStrandQuestion;
           delete (window as unknown as {__conOrphanClaim?: unknown}).__conOrphanClaim;

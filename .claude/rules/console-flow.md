@@ -321,8 +321,11 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
 - **THE LAST LINE IS ONE VERB** — `rebuildConsoleSession(ask)` (`session/sessionRebuild.ts`): the page back to the
   server's truth, bounded (once per question, a few per window), a DEFECT in the journal (`rebuilt`), never a cure.
   Nothing else replaces the document for a stall (`location.reload()` in a net is a second last line with no bound),
-  and nothing asks for it but the arbiter past its last rung and — when it exists — the server's judgement of the
-  question's delivery. Contract: `docs/claude/console/liveness-arbiter.md` § 3a.
+  and exactly TWO may ask for it: the arbiter past its last rung, and the witness of the arbiter's own PULSE
+  (`session/supervisorPulse.ts` — outside the shell, on the page's scope: a game screen whose supervisor completes no
+  pass in three looks has nobody else to ask; its cause is `…/no-pass` · `…/no-shell`). A pass of the supervisor that
+  throws is not a pass — never swallow an error inside `checkLiveness` to «keep the arbiter alive»: the silence IS
+  the signal. Contract: `docs/claude/console/liveness-arbiter.md` § 3a – 3b.
 - **The supervisor** (`console/supervisor/supervisorController.ts`) is the one sampler. Its PORT is the list of what
   the nets read of the shell — it only shrinks; a new net is a state with an `after` in a machine, not a new row.
 

@@ -18,6 +18,7 @@
  *  10  throughput (presses per second of the wall, by how far the clock moves after each)
  *  11  the server's own timers stand on the same clock (MarsBot's paced turn)
  *  12  a bottle leaves nothing behind (the suite's bare jsdom, the wall clock, the document)
+ *  13  who watches the watcher: a supervisor whose pass does not run is rebuilt by the witness outside the shell
  *
  * The numbers these tests print (boot, presses per second, tasks) are the spike's measurements — read them in the log.
  */
@@ -384,6 +385,31 @@ describe('THE CONSOLE IN A BOTTLE — the real shell and the real server in one 
     const live = bottle.liveness();
     say(`liveness: ok=${live.ok} why=${JSON.stringify(live.why)} blind=${JSON.stringify(live.blind.map((b) => b.cls))}`);
     expect(live.why).to.deep.equal([]);
+  });
+
+  it('13 · WHO WATCHES THE WATCHER — a supervisor whose pass does not run is rebuilt by the witness OUTSIDE the shell', async () => {
+    const table = await bottleServer().bootFixture(FIXTURE);
+    bottle = await bootBottle(table, {query: 'waitGraphControl=strand'});
+    // A healthy table for a minute: the witness looks twelve times and asks for nothing.
+    await bottle.advance(60_000);
+    expect(bottle.rebuildsAsked(), 'a supervisor that runs is never rebuilt').to.equal(0);
+    expect(bottle.liveness().why, 'and the table is healthy').to.deep.equal([]);
+    // The product's own control (`supervisorController.ts`): every pass of the supervisor throws from now on — the
+    // arbiter is never reached, so nothing INSIDE the shell can ask for the last line any more.
+    const breakPass = (window as unknown as {__conBreakSupervisorPass?: () => void}).__conBreakSupervisorPass;
+    expect(breakPass, 'the control seam is installed by the flag').to.be.a('function');
+    breakPass?.();
+    // The look after the break is a baseline (the count moved before it); the THIRD miss after that is 15 – 20 s on.
+    await bottle.advance(12_000);
+    expect(bottle.rebuildsAsked(), 'two misses are not «it stopped»').to.equal(0);
+    await bottle.advance(10_000);
+    expect(bottle.rebuildsAsked(), 'the third miss: the last line, asked from outside the shell').to.equal(1);
+    const classes = bottle.liveness().defects.map((d) => d.cls);
+    say(`the witness: ${classes.join(' · ')}`);
+    expect(classes, 'filed under its own cause — never a spent ladder\'s').to.include('session-rebuild/page/no-pass');
+    // ONE ask: the document is leaving, the witness has nothing more to judge.
+    await bottle.advance(30_000);
+    expect(bottle.rebuildsAsked()).to.equal(1);
   });
 
   it('12 · a bottle leaves nothing behind', async () => {

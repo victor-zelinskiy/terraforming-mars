@@ -267,7 +267,7 @@
 </template>
 
 <script setup vapor lang="ts">
-import {computed, nextTick, onErrorCaptured, onMounted, provide, ref, useTemplateRef, watch} from 'vue';
+import {computed, nextTick, onErrorCaptured, onMounted, onUnmounted, provide, ref, useTemplateRef, watch} from 'vue';
 import * as constants from '@/common/constants';
 
 // The root's lazy screens and layers (each a chunk of its own) — module state, so they live in the sibling
@@ -317,6 +317,7 @@ import {isNomadMoveActive, stageRemoteNomadMove} from '@/client/console/nomads/c
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {armDeferredViewRefresh, disarmDeferredViewRefresh} from '@/client/components/deferredViewRefresh';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
+import {watchSupervisorPulse} from '@/client/console/session/supervisorPulse';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -1042,6 +1043,21 @@ watch(() => playerView.value, (view: PlayerViewModel | undefined) => {
   // central spot both shells (console + desktop) share.
   bindPrivateScoreGame(view?.id);
 });
+
+// WHO WATCHES THE WATCHER (`console/session/supervisorPulse.ts`). The game screen stands ⇔ the route is the game's
+// AND its view is in — the one condition the shell is rendered under (the template's `v-else-if`). A screen that
+// stands in plain view while its supervisor completes no pass (no shell at all, or a pass that throws) is rebuilt by
+// the console's one last line: nothing inside the shell could have asked for it.
+const stopPulseWitness = watchSupervisorPulse(() => {
+  const view = playerView.value;
+  if (screen.value !== 'player-home' || view === undefined) {
+    return undefined;
+  }
+  const wf = view.waitingFor;
+  return {seat: view.id ?? '', question: wf === undefined ? '' : `${wf.type}#${wf.promptId ?? ''}`};
+});
+// (The root never unmounts in the product; a spec's root does, and takes its witness with it.)
+onUnmounted(stopPulseWitness);
 
 onMounted(() => {
   setDocumentTitle();

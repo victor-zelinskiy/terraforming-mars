@@ -47,16 +47,75 @@ export function monkeyPick(r: () => number): BottleKey {
   return 'Enter';
 }
 
+/** What a page of the walk had named when it was replaced by a reload (its journal goes with it). */
+export type MonkeyCarried = {cls: string, count: number, text: string, blind: boolean};
+
+/**
+ * HOW THE NEXT KEY IS CHOSEN.
+ *  · `plain`  — the box monkey's stream: the pad's weights, blind to the screen. A walk by its seed IS the box's walk.
+ *  · `guided` — a player's eyes: most presses are verbs the command bar OFFERS right now (the hot one first, A and RT
+ *    before B), some move the cursor, a few are anything at all. It goes where a blind walk rarely does — through a
+ *    composer to its submit, into a nested step, past a commit — because it presses what the screen asks for. Its own
+ *    stream (`<seed>:guided`): the plain walk of the same seed is untouched.
+ */
+export type MonkeyMode = 'plain' | 'guided';
+
+export type MonkeyWalkResult = {
+  /** `key:echo`, `[seat n] move`, `[RELOAD]`. */
+  log: Array<string>,
+  /** The bottle the walk ENDED on — another one than it began on when a reload replaced the page. */
+  bottle: ConsoleBottle,
+  /** The classes of the pages a reload replaced (the last page's are read by the caller, after its «last word»). */
+  carried: Array<MonkeyCarried>,
+  /** The coverage keys of the pages a reload replaced (the last page's are read by the caller). */
+  carriedCoverage: Array<string>,
+};
+
+const ARROWS: ReadonlyArray<BottleKey> = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+
+/** A guided press: what the bar offers (weighted), else the cursor, else anything. */
+function guidedPick(bottle: ConsoleBottle, g: () => number, r: () => number): BottleKey {
+  const roll = g();
+  const offered = bottle.offered();
+  if (roll < 0.62 && offered.length > 0) {
+    // The hot verb is what the screen asks for; A and RT move a flow on; B leaves it (rarer, or the walk never arrives).
+    const weight = (o: {key: BottleKey, hot: boolean}): number => (o.hot ? 6 : 0) + (o.key === 'Enter' ? 5 : o.key === 'Period' ? 3 : o.key === 'Escape' ? 1 : 2);
+    let x = g() * offered.reduce((sum, o) => sum + weight(o), 0);
+    for (const o of offered) {
+      x -= weight(o);
+      if (x < 0) {
+        return o.key;
+      }
+    }
+    return offered[0].key;
+  }
+  if (roll < 0.9) {
+    return ARROWS[Math.floor(g() * ARROWS.length)];
+  }
+  return monkeyPick(r);
+}
+
 /**
  * Walk `presses` presses of the stream `seed` (`<seed>:<fixture>`, as the monkey's annotation prints it) on a booted
- * bottle of a table with `seats` seats. Returns the log (`key:echo`, `[seat n] move`). The caller advances the clock
- * past the nets' graces afterwards (the monkey's «last word»: 14 s).
+ * bottle of a table with `seats` seats. The caller advances the clock past the nets' graces afterwards (the monkey's
+ * «last word»: 14 s) and reads the last page's journal.
+ *
+ * `reloadEvery` — THE RELOAD (the box monkey's `TM_E2E_MONKEY_RELOAD`, here with a rate): on average once in that many
+ * presses the page is RELOADED where the walk stands — its own seeded stream (`<seed>:reload`), so a walk's presses
+ * are the same with it off. The restore road (a stage re-primed from the server, a flow's latch reset under a live
+ * question) is then walked like any press; what the replaced page had named is carried.
  */
-export async function monkeyWalk(bottle: ConsoleBottle, seats: number, seed: string, presses: number): Promise<Array<string>> {
+export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: string, presses: number,
+  opts: {reloadEvery?: number, mode?: MonkeyMode} = {}): Promise<MonkeyWalkResult> {
+  let bottle = start;
   const r = monkeyRng(seed);
+  const guided = opts.mode === 'guided' ? monkeyRng(`${seed}:guided`) : undefined;
+  const carriedCoverage = new Set<string>();
   // (The box monkey's first number chooses its landing; the stream stays in step with it.)
   r();
+  const reload = opts.reloadEvery !== undefined && opts.reloadEvery > 0 ? monkeyRng(`${seed}:reload`) : undefined;
   const log: Array<string> = [];
+  const carried: Array<MonkeyCarried> = [];
   for (let i = 0; i < presses; i++) {
     // THE OTHER SEATS MOVE — every dozen presses, as on the box.
     if (i % 12 === 11) {
@@ -67,7 +126,18 @@ export async function monkeyWalk(bottle: ConsoleBottle, seats: number, seed: str
         }
       }
     }
-    const key = monkeyPick(r);
+    if (reload !== undefined && reload() < 1 / (opts.reloadEvery ?? 1)) {
+      const live = bottle.liveness();
+      carried.push(...live.defects.map((d) => ({...d, blind: false})), ...live.blind.map((d) => ({...d, blind: true})));
+      for (const key of bottle.coverage()?.keys ?? []) {
+        carriedCoverage.add(key);
+      }
+      log.push('[RELOAD]');
+      bottle = await bottle.reload();
+      await bottle.advance(3_000);
+      continue;
+    }
+    const key = guided === undefined ? monkeyPick(r) : guidedPick(bottle, guided, r);
     const echo = await bottle.press(key);
     log.push(`${key}:${echo}`);
     // A player's rhythm — the box monkey's own numbers.
@@ -75,5 +145,5 @@ export async function monkeyWalk(bottle: ConsoleBottle, seats: number, seed: str
     const pause = roll < 0.7 ? 120 + r() * 380 : roll < 0.95 ? 600 + r() * 1400 : 3000 + r() * 5000;
     await bottle.advance(Math.round(pause));
   }
-  return log;
+  return {log, bottle, carried, carriedCoverage: [...carriedCoverage]};
 }

@@ -133,7 +133,7 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     const table = await bottleServer().bootFixture('terraforming-deal-start-nodraw');
     bottle = await bootBottle(table);
     await bottle.advance(3_000);
-    await monkeyWalk(bottle, table.seats.length, 'fz0:terraforming-deal-start-nodraw', 60);
+    bottle = (await monkeyWalk(bottle, table.seats.length, 'fz0:terraforming-deal-start-nodraw', 60)).bottle;
     await bottle.advance(14_000);
     const waits = bottle.journal().filter((entry) => entry.cause?.cls === 'wait-graph/ceiling/scale-step-rating:stage' ||
       entry.cause?.cls === 'wait-graph/ceiling/card-reaction:rating-story-quiet');
