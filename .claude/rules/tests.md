@@ -30,7 +30,15 @@ npm run test:client:one -- "<spec>"
 # THE CONSOLE IN A BOTTLE (tests/client/bottle/*.bottle.ts — NOT in the unit glob: a minute, and it loads the game
 # server into the runner's process): the real App + ConsoleShell against the real server in one process, one manual clock
 npm run test:bottle
+# …and THE MONKEY IN THE BOTTLE (opt-in — every table, ~40 min on the laptop in two shards, no box): the box monkey's
+# own walk (same seed → same presses), classes filed in the box monkey's format
+TM_BOTTLE_MONKEY=1 TM_BOTTLE_MONKEY_SHARD=1/2 npm run test:client:one -- tests/client/bottle/monkey.bottle.ts
+node scripts/monkey-report.mjs .e2e-remote/bottle-monkey --against .e2e-remote/<the box run>/monkey-report.json
 ```
+**A CLASS FOUND IS A CLASS REPLAYED** (`tests/client/bottle/classReplays.bottle.ts`): every cause class closed gets a
+test there — the fixture, the presses that produced it, the property its fix established — and that test is RED with
+the fix switched off, under the class key the monkey filed (prove it once, by hand, before the commit). The bottle has
+no layout: a class that needs a rect or a paint is replayed on the box instead, and said so in its row of the plan.
 
 **The client runner is `scripts/client-tests.mjs`** (2026-11-12): webpack builds the specs into one file with
 `webpack.test.config.js`, mocha runs that file in this process inside the jsdom of `tests/client/components/setup.ts`.
