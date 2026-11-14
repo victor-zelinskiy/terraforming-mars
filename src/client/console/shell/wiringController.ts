@@ -57,7 +57,7 @@ import {paths} from '@/common/app/paths';
 import {isHydroMarkerActive, hydroRewardHoldOwed, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {hydroCeremonyOwed, hydroFlowState, hydroFlowTrail, installHydroFlowWitnesses, isHydroCeremonyActive, registerHydroFlowProbe} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
-import {workspaceOutcomeBeatPending, lastOutcomeReleaseStack, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceOutcomeBeatPending, workspaceOutcomeClaimed, lastOutcomeReleaseStack, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkState, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe} from '@/client/console/boardBeatPark';
 import {colonyBonusPayoutParksReveal} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {boardCardBonusState} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -151,6 +151,7 @@ export type WiringPort = {
   handleIntent: UnwrapRef<PadRouterController['handleIntent']>,
   handOffHandForDiscard: UnwrapRef<HandSelectController['handOffHandForDiscard']>,
   hostTask: UnwrapRef<RouterController['hostTask']>,
+  taskHeldForWorkspace: UnwrapRef<RouterController['taskHeldForWorkspace']>,
   hydroFollowUpLive: UnwrapRef<HydroController['hydroFollowUpLive']>,
   hydroResolutionBusy: UnwrapRef<HydroController['hydroResolutionBusy']>,
   hydroResultTimer: UnwrapRef<HydroController['hydroResultTimer']>,
@@ -687,6 +688,8 @@ export function createWiringController(shell: WiringPort) {
         startOwned: shell.startSceneMounted,
         admission: block ?? '',
         announce: !shell.mandatoryGateHeld ? 'none' : isMandatoryBeatPresented(shell.mandatoryBeat) ? 'presented' : 'pending',
+        // (The same two facts the wait graph's question node reads — one table: a question the claim holds waits on the claim.)
+        claimHeld: shell.taskHeldForWorkspace && workspaceOutcomeClaimed(),
       };
     });
     // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.

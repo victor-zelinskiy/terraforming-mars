@@ -522,7 +522,35 @@ export type ScreenShadowContext = {
   admission: string,
   /** The announce gate's beat: none · announced but not yet presented · PRESENTED (its plate / beacon owed on screen). */
   announce?: 'none' | 'pending' | 'presented',
+  /**
+   * AN OUTCOME CLAIM HOLDS THE QUESTION FOR ITS OWN STAGE (`routerController.taskHeldForWorkspace` while a claim
+   * stands): the flow that asked for the question renders it NOWHERE until its zone is in the DOM and its execution
+   * beat has had its time — then embeds it. For that window the question has no surface BY DESIGN and whatever paints
+   * is the claim's own host; the shadow read it as `misserved` (a foreign workspace over the question), and the wait
+   * graph, by the same omission, as a dead end it reopened under the live claim (CI 2026-11-14,
+   * `console-venus-orbital-survey` «the purchase is EMBEDDED»). The SAME two facts the graph reads
+   * (`supervisorController.shellWaitNodes`): the hold is the claim's, bounded by the claim's own bound.
+   */
+  claimHeld?: boolean,
 };
+
+/**
+ * WHAT HOLDS THE QUESTION, for the shadow's verdict — '' = nothing does, and a missing surface is a finding. ONE
+ * order: a BLIND announce is never a hold (its door cannot be seen); then the detector's own reasons
+ * (`promptHeldReason`), the outcome claim's hold, the shell's admission block. PURE.
+ */
+export function screenShadowHeldBy(input: {blind: string, hold: string, claimHeld: boolean, admission: string}): string {
+  if (input.blind !== '') {
+    return '';
+  }
+  if (input.hold !== '') {
+    return input.hold;
+  }
+  if (input.claimHeld) {
+    return 'claim';
+  }
+  return input.admission !== '' ? `admit:${input.admission}` : '';
+}
 let screenShadowContext: (() => ScreenShadowContext) | undefined;
 export function registerScreenShadowContext(supplier: (() => ScreenShadowContext) | undefined): void {
   screenShadowContext = supplier;
@@ -687,7 +715,7 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
     frameServes: workspacesServing(task.kind),
     host: flowHost(),
     boardBranch: consoleTaskSpacePlacement,
-    held: blind !== '' ? '' : hold !== '' ? hold : ctx.admission !== '' ? `admit:${ctx.admission}` : '',
+    held: screenShadowHeldBy({blind, hold, claimHeld: ctx.claimHeld === true, admission: ctx.admission}),
     blind,
     present,
     beats,

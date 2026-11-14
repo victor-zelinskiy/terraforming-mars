@@ -85,4 +85,34 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(classes().filter((cls) => !cls.startsWith('wait-graph/ceiling/') && !cls.startsWith('animation-hold/ceiling/')),
       'no cycle, no stranded question, no stall (the bottle has no layout: a ceiling of a wait for a rect is its own blind spot)').to.deep.equal([]);
   });
+
+  /*
+   * `animation-hold/ceiling/parliament-chairman-quest` — the monkey's baseline, seed `fz0` ·
+   * `parliament-chairman-quest-last-action`. The plate's A opens the Parliament on the chairman's quest and the answer
+   * rides that press; the walk pressed A AGAIN 0.9 s later — «дожать» with the answer still on the wire. The hurry
+   * killed the reading's own timer and ran nothing in its place (`answered` was false), so when the answer came the
+   * flow found its reading «not done» for ever: two blocking holds, the bar reading «Выполняется», until the 20 s
+   * ceiling settled the chairmanship without its beats. Bisected HERE in 16 s (A alone: done in 2 s; A + ▼ / B / X:
+   * done; A + A: the ceiling). The law: a cut step is never dropped — whoever kills a scheduled beat applies its
+   * effect (`chairmanQuestDirector.finishChairmanQuestBeats`).
+   */
+  it('a second A inside the round trip of the chairman\'s quest: the chairmanship still plays to its end — no hold left for the ceiling', async () => {
+    const table = await bottleServer().bootFixture('parliament-chairman-quest-last-action');
+    bottle = await bootBottle(table);
+    await bottle.advance(4_000);
+    expect(bottle.bar(), 'the quest is announced: its plate stands').to.match(/Open the Parliament/);
+    const beat = (): string => document.querySelector('.con-parl')?.getAttribute('data-quest-beat') ?? '(no parliament)';
+
+    expect(await bottle.press('Enter')).to.equal('consumed');
+    await bottle.advance(930);
+    expect(bottle.frames(), 'the Parliament stands on the quest').to.deep.equal(['parliament:committed']);
+    expect(await bottle.press('Enter'), 'the second A — 0.9 s in').to.equal('consumed');
+    const done = await bottle.until(() => beat() === 'done', 8_000, 250);
+    expect(done, `the chairmanship reached its end by itself (beat: ${beat()}, holds: ${JSON.stringify(bottle.ready().holds)})`).to.equal(true);
+    // Past the ceiling the flow's hold used to reach: nothing is left for it to cut.
+    await bottle.advance(22_000);
+    expect(bottle.ready().holds.filter((hold) => hold.startsWith('parliament-chairman-quest')), 'the flow\'s hold is released').to.deep.equal([]);
+    expect(classes(), 'no hold outlived its ceiling').to.deep.equal([]);
+    expect(bottle.bar(), 'the finished chairmanship is the player\'s to close').to.match(/Close/);
+  });
 });

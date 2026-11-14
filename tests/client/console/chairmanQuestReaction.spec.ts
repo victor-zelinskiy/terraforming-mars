@@ -136,6 +136,52 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — wait graph R3: the hold for t
     expect(gone.done, 'the flow\'s own ending ran').eq(1);
   });
 
+  /*
+   * FREEZE ZERO — the monkey's class `animation-hold/ceiling/parliament-chairman-quest`. The answer rides the press
+   * that opened the Parliament; a second A inside its round trip is «дожать» with the answer NOT in yet.
+   */
+  it('A «дожать» BEFORE the server has answered: the reading is over by that press — and the answer, when it comes, takes the flow on', () => {
+    const table: Table = {question: undefined, served: false, done: 0};
+    armChairmanQuestFlow(model(), BLUE);
+    startChairmanQuestBeats({
+      root: document.createElement('div'), viewer: BLUE, generation: 3,
+      playAgendaWalk: (_record, hooks) => hooks.onLanded(),
+      onStage: () => undefined, owesSeatPick: () => false, owesReaction: () => table.question, reactionServed: () => table.served,
+      onDone: () => {
+        table.done++;
+      },
+    });
+    expect(chairmanQuestFlow.beat).eq('task');
+    // The second A, 0.9 s in: the answer is still on the wire.
+    finishChairmanQuestBeats();
+    expect(chairmanQuestFlow.beat, 'nothing to drive yet — the seat waits for the answer').eq('task');
+    // The answer arrives: the flow must go on by itself (it stood on `task` until the 20 s ceiling).
+    noteChairmanQuestAnswer();
+    finishChairmanQuestBeats();
+    expect(chairmanQuestFlow.beat, 'the beats ran to their end').eq('done');
+    expect(table.done).eq(1);
+    expect(activeAnimationHoldLabels().some((label) => label.startsWith('parliament-chairman-quest')), 'the flow\'s hold is released').eq(false);
+  });
+
+  it('A «дожать» in the gap between the reading and the seat (answered, the seat scheduled): the seat is taken, never left cut', () => {
+    const table: Table = {question: undefined, served: false, done: 0};
+    armChairmanQuestFlow(model(), BLUE);
+    startChairmanQuestBeats({
+      root: document.createElement('div'), viewer: BLUE, generation: 3,
+      playAgendaWalk: (_record, hooks) => hooks.onLanded(),
+      onStage: () => undefined, owesSeatPick: () => false, owesReaction: () => table.question, reactionServed: () => table.served,
+      onDone: () => {
+        table.done++;
+      },
+    });
+    noteChairmanQuestAnswer();
+    finishChairmanQuestBeats(); // the reading is cut → the seat starts
+    finishChairmanQuestBeats(); // …and a press at any later moment drives on, whatever was scheduled then
+    finishChairmanQuestBeats();
+    expect(chairmanQuestFlow.beat).eq('done');
+    expect(table.done).eq(1);
+  });
+
   it('a killed run ends the probe with it (nothing reads a flow that is gone)', () => {
     const table: Table = {question: 'Fighter', served: false, done: 0};
     holdForQuestion(table);

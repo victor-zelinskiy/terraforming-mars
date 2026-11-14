@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {leakDetectorState, registerScreenCureExecutor, registerScreenShadowContext, runLeakDetection, runScreenCure, screenShadowStanding, setConsoleTaskDeferred, setConsoleTaskSpacePlacement, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
+import {leakDetectorState, registerScreenCureExecutor, registerScreenShadowContext, runLeakDetection, runScreenCure, screenShadowHeldBy, screenShadowStanding, setConsoleTaskDeferred, setConsoleTaskSpacePlacement, stopConsoleLeakDetector} from '@/client/console/consoleLeakDetector';
 import {ScreenCurePlan, resetScreenShadowLog, screenCureArming, screenShadowLog, SCREEN_SHADOW_CONFIRM_TICKS} from '@/client/console/screenDirector';
 import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/consoleMandatoryGate';
 import {beginAnimationHold, expireActiveAnimationHolds, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
@@ -48,6 +48,7 @@ describe('screen shadow — positive controls through the leak detector', () => 
   let admission = '';
   let startOwned = false;
   let announce: 'none' | 'pending' | 'presented' = 'none';
+  let claimHeld = false;
 
   /** A node with layout — what the probe counts as PAINTED. */
   function paint(cls: string): HTMLElement {
@@ -74,7 +75,8 @@ describe('screen shadow — positive controls through the leak detector', () => 
     admission = '';
     startOwned = false;
     announce = 'none';
-    registerScreenShadowContext(() => ({startOwned, admission, announce}));
+    claimHeld = false;
+    registerScreenShadowContext(() => ({startOwned, admission, announce, claimHeld}));
     warns.length = 0;
     realWarn = console.warn;
     console.warn = (...args: Array<unknown>) => {
@@ -165,6 +167,26 @@ describe('screen shadow — positive controls through the leak detector', () => 
     expect(screenShadowLog.stats.held).deep.eq({'announce-gate': 4, 'admit:remote-landing': 2});
     expect(screenShadowLog.stats.heldMaxRun['announce-gate']).eq(4);
     expect(screenShadowLog.stats.masked.handSelect).deep.eq({'held:announce-gate | nothing': 4, 'held:admit:remote-landing | nothing': 2});
+  });
+
+  it('HELD BY AN OUTCOME CLAIM — a question its flow keeps for its own stage is never «misserved» by the host that stands meanwhile', () => {
+    // (FREEZE ZERO §4: the card centre's claim holds the purchase for its stage through the executing beat — the
+    // question renders nowhere by design, and the claim's own host is what paints.)
+    paint('con-cardactions');
+    claimHeld = true;
+    passes(handSelectView(), 4);
+    expect(screenShadowLog.findings, 'the claim\'s hold explains the wait').length(0);
+    expect(screenShadowLog.stats.held).deep.eq({claim: 4});
+    // …and the claim gone, the same screen IS a finding again: the hold was the only thing that explained it.
+    claimHeld = false;
+    passes(handSelectView(), 4);
+    expect(screenShadowLog.findings.length, 'with no claim the question over a foreign host is named').greaterThan(0);
+    // The order is ONE: a blind announce is never a hold; the detector's own reason, the claim, then the admission.
+    expect(screenShadowHeldBy({blind: 'announce-gate', hold: 'announce-gate', claimHeld: true, admission: 'reveal'})).eq('');
+    expect(screenShadowHeldBy({blind: '', hold: 'deferred', claimHeld: true, admission: 'reveal'})).eq('deferred');
+    expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: true, admission: 'reveal'})).eq('claim');
+    expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: false, admission: 'reveal'})).eq('admit:reveal');
+    expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: false, admission: ''})).eq('');
   });
 
   it('a hold HIDES nothing from the stats — a foreign surface standing under it is recorded beside the reason', () => {

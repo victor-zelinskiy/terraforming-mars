@@ -630,12 +630,24 @@ export function finishChairmanQuestBeats(): void {
     }
     // A beat whose fire was cancelled above still owes its step: run the next
     // stage directly rather than leaving the flow half-played.
-    if (chairmanQuestFlow.beat === 'task' && chairmanQuestFlow.answered) {
+    if (chairmanQuestFlow.beat === 'task') {
+      // THE BEAT CUT ABOVE WAS THE READING'S END (or the gap before the seat): its whole effect is «the reading is
+      // done — the seat starts once the answer is in». It is applied HERE, WHETHER OR NOT THE SERVER HAS ANSWERED.
+      // The answer rides the press that opened the Parliament, so a second A within its round trip («дожать» 0.9 s
+      // in) met `answered: false`: the reading's own timer was killed, nothing was run in its place, and when the
+      // answer came `maybeStartSeat` found the reading «not done» for ever — the flow stood on `task` behind two
+      // blocking holds, the bar reading «Выполняется», until the 20 s ceiling settled it without its beats (FREEZE
+      // ZERO, the monkey's baseline `fz0 · parliament-chairman-quest-last-action`: `animation-hold/ceiling/
+      // parliament-chairman-quest`; bisected and replayed in `classReplays.bottle.ts`). A cut step is never dropped:
+      // whoever kills a scheduled beat applies its effect.
       state.readDone = true;
-      if (!state.seatStarted) {
-        state.seatStarted = true;
-        beatSeat();
+      if (!chairmanQuestFlow.answered) {
+        // The seat is `noteChairmanQuestAnswer`'s to start, the moment the answer is in.
+        break;
       }
+      // (Answered: the seat's own start — or the gap scheduled before it — was among the beats cut above.)
+      state.seatStarted = true;
+      beatSeat();
     } else if (chairmanQuestFlow.beat === 'seat' && parliamentHolds.chairAwaits === undefined) {
       beatAgenda();
     } else if (chairmanQuestFlow.beat === 'agenda' && parliamentHolds.agendaAwaits === undefined) {

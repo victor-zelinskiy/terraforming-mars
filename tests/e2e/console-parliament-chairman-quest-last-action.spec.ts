@@ -93,6 +93,40 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the gate that ends the t
     });
   }
 
+  /*
+   * FREEZE ZERO — the monkey's class `animation-hold/ceiling/parliament-chairman-quest` (the baseline `fz0`). The
+   * answer rides the press that opens the Parliament; the walk pressed A again 0.9 s later — «дожать» with the answer
+   * still on the wire. The hurry killed the reading's timer and ran nothing in its place, so the flow stood on its
+   * `task` beat behind two blocking holds, «Выполняется» on the bar, until the 20 s ceiling settled it without its
+   * beats. A cut step is never dropped (`chairmanQuestDirector.finishChairmanQuestBeats`); replayed in the bottle
+   * (`tests/client/bottle/classReplays.bottle.ts`).
+   */
+  test('a second A inside the quest\'s round trip does not wedge the chairmanship: it plays to its end by itself, long before any ceiling', async ({page, request}) => {
+    test.setTimeout(180_000);
+    const ceilings: Array<string> = [];
+    page.on('console', (m) => {
+      const text = m.text();
+      if (/\[animation-hold\].*force-released|\[parliament\] chairmanship: the beats outlived/.test(text)) {
+        ceilings.push(text.slice(0, 240));
+      }
+    });
+    await bootFixtureSeats(page, request, 'parliament-chairman-quest-last-action', {landing: 'prompt'});
+    await expect(page.locator('.con-mandatory'), 'the gate is announced').toHaveCount(1, {timeout: 25_000});
+    await settle(page, {timeoutMs: 20_000});
+    // The plate's A, and A again 0.9 s later — the walk's own two presses, with its own gap.
+    await press(page, 'Enter', 900, {absorbed: 'allow'});
+    await press(page, 'Enter', 200, {absorbed: 'allow'});
+    await expect(page.locator('.con-parl'), 'the Parliament stands on the quest').toHaveCount(1, {timeout: 15_000});
+    await expect.poll(async () => await page.locator('.con-parl').getAttribute('data-quest-beat'), {
+      timeout: 12_000,
+      message: 'the chairmanship reached its end by itself — well inside the 20 s its hold could stand',
+    }).toBe('done');
+    expect(ceilings, 'no hold outlived its ceiling, no beat was settled unplayed').toEqual([]);
+    await press(page, 'Enter', 900);
+    await settle(page, {timeoutMs: 20_000});
+    expect(await page.locator('.con-parl').count(), 'the finished flow LEAVES').toBe(0);
+  });
+
   test('the field case whole: the PLAY from the hand closes the quest, its gate rides the landing, the gate ends the turn', async ({page, request}) => {
     await bootFixtureSeats(page, request, 'parliament-chairman-quest-by-play');
     expect(await playCardFromHand(page, 'Power Plant'), 'Power Plant was played from the hand').toBe(true);
