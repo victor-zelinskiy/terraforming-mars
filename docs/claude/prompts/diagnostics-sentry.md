@@ -340,7 +340,7 @@
 - секрет `SENTRY_AUTH_TOKEN` (Organization Token, права `org:ci`);
 - переменные Actions `SENTRY_ORG=victor-zelinskiy`, `SENTRY_PROJECT=terraforming-mars`, `TM_SENTRY_DSN=<DSN>`.
 
-В `release.yml`: `${{ secrets.SENTRY_AUTH_TOKEN }}`, `${{ vars.SENTRY_ORG }}`, `${{ vars.SENTRY_PROJECT }}`, `${{ vars.TM_SENTRY_DSN }}`. Наличие токена докажет первый релиз с загруженными картами.
+В `release.yml`: `${{ secrets.SENTRY_AUTH_TOKEN }}`, `${{ vars.SENTRY_ORG }}`, `${{ vars.SENTRY_PROJECT }}`, `${{ secrets.TM_SENTRY_DSN }}` (с 2026-11-14 — секрет, переменной больше нет). Наличие токена докажет первый релиз с загруженными картами.
 
 **Метка бокса:** `~/.config/terraforming-mars/diagnostics.json` = `{"environment": "box"}`. Это ДАННЫЕ приложения, а не обёртка запуска: обёртку генерирует общий установщик Steam Deck, правка в нём уехала бы всем игрокам, а ручная правка стирается переустановкой. Как приложение узнаёт, что оно на боксе, — решаешь ты, но метка уже лежит.
 

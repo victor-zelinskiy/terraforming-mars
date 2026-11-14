@@ -374,8 +374,8 @@ stranger can do with it is ONE thing — send events — and what that costs is 
 attachments a month on the free plan). So the key is defended by four things, in this order:
 
 1. **It is in no file of the repository and in no public log.** The release reads it from the Actions SECRET
-   `TM_SENTRY_DSN` (masked in the build log of this public repository; the variable of the same name is the fallback
-   of the days before and is deleted once the secret exists). Guard: `diagnosticsClassification.spec` § the client key
+   `TM_SENTRY_DSN` and from nowhere else (masked in the build log of this public repository; the variable of the same
+   name was deleted on 2026-11-14 and no workflow reads one). Guard: `diagnosticsClassification.spec` § the client key
    — a real DSN anywhere under `docs`, `.github`, `.claude`, `electron`, `scripts`, `src`, `tests` or in a root
    file fails the suite. (The key that stood in `prompts/diagnostics-sentry.md` until 2026-11-14 is in the history
    for ever — which is why it was REPLACED, not merely deleted.)

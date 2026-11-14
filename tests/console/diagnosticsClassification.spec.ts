@@ -237,9 +237,11 @@ describe('diagnostics — the client key is in no file of the repository', () =>
     // (A walk of the tree owns its budget — mocha's 2 s is for logic, never for a tree read.)
   }).timeout(30_000);
 
-  it('the release takes it from the SECRET (masked in the public build log) before the variable', () => {
-    const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8');
-    expect(workflow).to.match(/TM_SENTRY_DSN:\s*\$\{\{\s*secrets\.TM_SENTRY_DSN\s*\|\|\s*vars\.TM_SENTRY_DSN\s*\}\}/);
+  it('the release takes it from the SECRET (masked in the public build log) — and from nowhere else', () => {
+    const workflows = fs.readdirSync(path.join(ROOT, '.github/workflows')).map((name) => fs.readFileSync(path.join(ROOT, '.github/workflows', name), 'utf8')).join('\n');
+    expect(workflows).to.match(/TM_SENTRY_DSN:\s*\$\{\{\s*secrets\.TM_SENTRY_DSN\s*\}\}/);
+    // A variable is printed in the log of a public repository: no workflow reads the key from one.
+    expect(workflows, 'no workflow reads the key from an Actions variable').to.not.match(/vars\.TM_SENTRY_DSN/);
   });
 });
 
