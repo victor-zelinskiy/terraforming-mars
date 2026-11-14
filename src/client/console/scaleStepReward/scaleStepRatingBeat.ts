@@ -325,6 +325,22 @@ function resolveQuiet(): void {
   r?.();
 }
 
+/**
+ * THE RATING'S STORY WAITS FOR A BOARD THE PLAYER KEEPS COVERED — the reason its ceilings are honest ends ('' = they
+ * are not: the board stood in plain view and the story never came, a defect).
+ *
+ * A scale step's rating is told on the board (the token is born on the marker). While the player stands in a surface
+ * of their own over it — the start workspace through a prelude's whole reading, a workspace they are browsing — the
+ * story is OWED, bounded by its due, and at the due the rating is applied untold: the board's own bounded, ledgered
+ * story (CLAUDE.md invariant 16). The ledger's line already says so (`story-due … "watchable":false` — planned); the
+ * wait graph's two lines of the SAME incident — this beat's wait for its stage, and a rating reactor's wait for the
+ * touchdown — were filed as defects (FREEZE ZERO, the monkey: `terraforming-deal-start-nodraw`, in the bottle and in
+ * a real browser alike). One fact, one reading: the caller of a ceiling asks here.
+ */
+export function scaleStepRatingStageCovered(): string {
+  return debt !== undefined && !boardBeatBoardWatchable() ? 'the player keeps the board covered — the rating is applied at its due, untold' : '';
+}
+
 /** The beat is OWED or PLAYING — the step's other payees and the park's cover wait for it. */
 export function scaleStepRatingBusy(): boolean {
   void scaleStepRatingState.phase;
@@ -560,7 +576,8 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
           if (verdict === 'ready') {
             wait.met();
           } else if (verdict === 'due') {
-            wait.ceiling();
+            // (The debt is settled above — the fact is the board's own, asked directly: `scaleStepRatingStageCovered`'s reason.)
+            wait.ceiling(boardBeatBoardWatchable() ? undefined : 'the player keeps the board covered — the rating is applied at its due, untold');
           } else {
             wait.end();
           }

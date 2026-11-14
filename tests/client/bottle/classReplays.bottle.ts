@@ -11,6 +11,7 @@
 import {expect} from 'chai';
 import {bootBottle, ConsoleBottle} from './consoleBottle';
 import {bottleServer} from './bottleNode';
+import {monkeyWalk} from './monkeyWalk';
 
 describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bottle', function() {
   // A bottle boots a whole application; a budget for that, never a timing.
@@ -114,5 +115,32 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(bottle.ready().holds.filter((hold) => hold.startsWith('parliament-chairman-quest')), 'the flow\'s hold is released').to.deep.equal([]);
     expect(classes(), 'no hold outlived its ceiling').to.deep.equal([]);
     expect(bottle.bar(), 'the finished chairmanship is the player\'s to close').to.match(/Close/);
+  });
+
+  /*
+   * `wait-graph/ceiling/scale-step-rating:stage` · `wait-graph/ceiling/card-reaction:rating-story-quiet` — the monkey
+   * in the bottle, seed `fz0` · `terraforming-deal-start-nodraw`, confirmed by the box monkey's spec in a real browser.
+   * A prelude played inside the START workspace steps a scale; the step's rating is told on the board — which the
+   * player keeps covered by the start workspace for as long as they read. The story is OWED, bounded by its due, and
+   * at the due the rating is applied untold: the board's own bounded, ledgered story, and the ledger's line said so
+   * (`planned`). The wait graph's two lines of the SAME incident were filed as DEFECTS — noise under a class's name,
+   * an event of the quota for the player's own reading time. The law: a ceiling says WHY it was the wait's honest end
+   * at the moment it comes (`CeilingWait.ceiling(planned)`, read from the rating's own beat —
+   * `scaleStepRatingStageCovered`); with the board in plain view the same ceiling is still a defect.
+   * (The walk is the monkey's own, by its seed — `monkeyWalk.ts`.)
+   */
+  it('a scale step\'s rating owed under the start workspace: its waits end as PLANNED — counted, never a defect', async () => {
+    const table = await bottleServer().bootFixture('terraforming-deal-start-nodraw');
+    bottle = await bootBottle(table);
+    await bottle.advance(3_000);
+    await monkeyWalk(bottle, table.seats.length, 'fz0:terraforming-deal-start-nodraw', 60);
+    await bottle.advance(14_000);
+    const waits = bottle.journal().filter((entry) => entry.cause?.cls === 'wait-graph/ceiling/scale-step-rating:stage' ||
+      entry.cause?.cls === 'wait-graph/ceiling/card-reaction:rating-story-quiet');
+    expect(waits.map((entry) => entry.cause?.cls).sort(), 'the walk reaches both waits, and both end on their ceilings')
+      .to.deep.equal(['wait-graph/ceiling/card-reaction:rating-story-quiet', 'wait-graph/ceiling/scale-step-rating:stage']);
+    expect(waits.map((entry) => entry.cause?.tier), 'the player kept the board covered: an honest end, said by the line').to.deep.equal(['planned', 'planned']);
+    expect(waits.every((entry) => /\(planned: .*the player keeps the board covered/.test(entry.text)), 'the reason is in the line').to.equal(true);
+    expect(classes(), 'nothing of this walk is a defect').to.deep.equal([]);
   });
 });

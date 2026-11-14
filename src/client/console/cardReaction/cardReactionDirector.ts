@@ -79,7 +79,7 @@ import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingW
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {motionGuarantee} from '@/client/console/session/sessionWaits';
 import {boardSceneMemberBusy, boardSceneOwedBusy} from '@/client/console/boardSceneMembers';
-import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {scaleStepRatingBusy, scaleStepRatingStageCovered} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {hydroCeremonyOwed, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {hydroTraversalPending, isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {RectLike} from '@/client/console/cardIntake/intakeAssemblyPlan';
@@ -1348,7 +1348,10 @@ async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
   let wait: CeilingWait | undefined;
   while (epoch === myEpoch && scaleStepRatingBusy() && standaloneQueue.some((s) => s.group.record.channel === 'tr-increase')) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
-      wait?.ceiling();
+      // The touchdown this waits for is itself waiting for a board the player keeps covered: the same honest wait,
+      // read from the rating's own beat (`scaleStepRatingStageCovered`) — '' there = a defect here.
+      const covered = scaleStepRatingStageCovered();
+      wait?.ceiling(covered === '' ? undefined : `the rating's own story waits for its stage — ${covered}`);
       return;
     }
     cardReactionState.waitingOnOther = true;

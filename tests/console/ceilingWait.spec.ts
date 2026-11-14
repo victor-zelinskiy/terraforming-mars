@@ -3,6 +3,7 @@ import {beginCeilingWait, ceilingStats, raceCeiling, resetCeilingStats} from '@/
 import {collectWaitNodes, resetWaitGraph} from '@/client/console/waitGraph/waitGraph';
 import {waitTable} from '@/client/console/kernel/flowScope';
 import {beginConsoleSession, endConsoleSession} from '@/client/console/session/consoleSession';
+import {causeOf} from '@/common/diagnostics/cause';
 
 /*
  * A WAIT WHOSE ONLY WAY OUT IS A CEILING (the owner's field freeze of 2026-11-08 — Flooding's 8 s): a node of the wait
@@ -66,6 +67,22 @@ describe('ceilingWait — a ceiling is a node, and a ceiling hit is said', () =>
     expect(ceilingStats.hits).eq(1);
     expect(ceilingStats.met).eq(0);
     expect(collectWaitNodes(1)).to.deep.eq([]);
+  });
+
+  it('a ceiling may say WHY it was the wait\'s honest end at the moment it comes — the line carries it, and its tier follows', () => {
+    // (A story's wait for its stage: a defect when the stage stood in view, the player's own time when THEY covered it.)
+    const honest = beginCeilingWait({id: 'scale-step-rating:stage', owner: 'scaleStepRatingBeat', what: 'the stage of the scale step rating', maxMs: 32_000});
+    honest.ceiling('the player keeps the board covered — the rating is applied at its due, untold');
+    const defect = beginCeilingWait({id: 'scale-step-rating:stage', owner: 'scaleStepRatingBeat', what: 'the stage of the scale step rating', maxMs: 32_000});
+    defect.ceiling();
+    expect(warns[0]).to.match(/the wait ended on its ceiling \(planned: the player keeps the board covered — the rating is applied at its due, untold\)$/);
+    expect(warns[1]).to.match(/the wait ended on its ceiling$/);
+    expect(causeOf(warns[0], 'warn')).to.deep.include({cls: 'wait-graph/ceiling/scale-step-rating:stage', tier: 'planned'});
+    expect(causeOf(warns[1], 'warn')).to.deep.include({cls: 'wait-graph/ceiling/scale-step-rating:stage', tier: 'defect'});
+    // The spec's own `planned` (a wait honest by its nature) still stands when the ceiling says nothing.
+    const byNature = beginCeilingWait({id: 'remote-placement:watchable-board', owner: 'consoleRemotePlacement', what: 'a board', maxMs: 12_000, planned: 'the viewer keeps the board covered'});
+    byNature.ceiling();
+    expect(warns[2]).to.match(/\(planned: the viewer keeps the board covered\)$/);
   });
 
   it('an abandoned wait ends silently and counts nothing', () => {

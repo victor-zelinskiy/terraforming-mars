@@ -18,8 +18,9 @@
  *   TM_BOTTLE_MONKEY_SEED (default `fz0`) · TM_BOTTLE_MONKEY_PRESSES (60) · TM_BOTTLE_MONKEY_ONLY (a regex over
  *   fixture names) · TM_BOTTLE_MONKEY_SHARD (`k/n`) · TM_BOTTLE_MONKEY_OUT (default `.e2e-remote/bottle-monkey` — beside the box monkey's).
  */
-import {bootBottle, BottleKey, ConsoleBottle} from './consoleBottle';
+import {bootBottle, ConsoleBottle} from './consoleBottle';
 import {bottleServer, nodeProcess, nodeRequire} from './bottleNode';
+import {monkeyWalk} from './monkeyWalk';
 
 const env = nodeProcess().env as Record<string, string | undefined>;
 const ENABLED = env.TM_BOTTLE_MONKEY === '1';
@@ -29,41 +30,7 @@ const ONLY = env.TM_BOTTLE_MONKEY_ONLY === undefined ? undefined : new RegExp(en
 const OUT = env.TM_BOTTLE_MONKEY_OUT ?? '.e2e-remote/bottle-monkey';
 const [SHARD, SHARDS] = (env.TM_BOTTLE_MONKEY_SHARD ?? '1/1').split('/').map(Number);
 
-/** mulberry32 — the box monkey's generator, number for number (`console-monkey.spec.ts` `rng`). */
-function rng(seed: string): () => number {
-  let h = 1779033703 ^ seed.length;
-  for (let i = 0; i < seed.length; i++) {
-    h = Math.imul(h ^ seed.charCodeAt(i), 3432918353);
-    h = (h << 13) | (h >>> 19);
-  }
-  let a = h >>> 0;
-  return () => {
-    a = (a + 0x6D2B79F5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** The pad, weighted like a player's thumb — the box monkey's table (`KEYS`). */
-const KEYS: ReadonlyArray<[BottleKey, number]> = [
-  ['ArrowUp', 9], ['ArrowDown', 9], ['ArrowLeft', 9], ['ArrowRight', 9],
-  ['Enter', 26], ['Escape', 12],
-  ['KeyX', 3], ['KeyY', 3], ['KeyQ', 3], ['KeyE', 3], ['Comma', 3], ['Period', 4], ['KeyC', 2], ['KeyV', 2], ['KeyR', 1],
-];
-const KEY_TOTAL = KEYS.reduce((sum, [, w]) => sum + w, 0);
-
-function pick(r: () => number): BottleKey {
-  let x = r() * KEY_TOTAL;
-  for (const [key, w] of KEYS) {
-    x -= w;
-    if (x < 0) {
-      return key;
-    }
-  }
-  return 'Enter';
-}
+// (The walk itself — the generator, the pad's weights, the rhythm — is `monkeyWalk.ts`: the class replays use it too.)
 
 type Filed = {cls: string, shape: string, tier: string, family: string, page: number, count: number, lines: number, atMs: number, title: string, dims: Record<string, string>};
 const filed = (cls: string, tier: string, count: number, text: string): Filed => ({
@@ -99,10 +66,7 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
   for (const fixture of fixtures) {
     it(`monkey · ${fixture}`, async () => {
       const seed = `${SEED}:${fixture}`;
-      const r = rng(seed);
-      // (The box monkey's first number chooses its landing; the stream stays in step with it.)
-      r();
-      const log: Array<string> = [];
+      let log: Array<string> = [];
       const records: Array<Filed> = [];
       let why: Array<string> = [];
       let status = 'passed';
@@ -110,24 +74,7 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
         const table = await bottleServer().bootFixture(fixture);
         bottle = await bootBottle(table);
         await bottle.advance(3_000);
-        for (let i = 0; i < PRESSES; i++) {
-          // THE OTHER SEATS MOVE — every dozen presses, as on the box.
-          if (i % 12 === 11) {
-            for (let seat = 1; seat < table.seats.length; seat++) {
-              const moved = await bottle.otherSeatMoves(seat).catch(() => undefined);
-              if (moved !== undefined) {
-                log.push(`[seat ${seat}] ${moved}`);
-              }
-            }
-          }
-          const key = pick(r);
-          const echo = await bottle.press(key);
-          log.push(`${key}:${echo}`);
-          // A player's rhythm — the box monkey's own numbers.
-          const roll = r();
-          const pause = roll < 0.7 ? 120 + r() * 380 : roll < 0.95 ? 600 + r() * 1400 : 3000 + r() * 5000;
-          await bottle.advance(Math.round(pause));
-        }
+        log = await monkeyWalk(bottle, table.seats.length, seed, PRESSES);
         // THE LAST WORD: a quiet spell past the arbiter's grace — whatever the walk left on screen is judged.
         await bottle.advance(14_000);
         const live = bottle.liveness();

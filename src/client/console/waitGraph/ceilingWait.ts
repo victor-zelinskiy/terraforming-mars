@@ -40,8 +40,13 @@ export type CeilingWaitSpec = {
 export type CeilingWait = {
   /** The awaited thing came — the node ends. */
   met: () => void,
-  /** The ceiling ended it — named once, counted, the node ends. */
-  ceiling: () => void,
+  /**
+   * The ceiling ended it — named once, counted, the node ends. `planned` — WHY this ceiling was the wait's honest end,
+   * when only the moment of the ceiling can say (the spec's own `planned` is for a wait that is honest by its nature):
+   * a story's wait for its stage is a defect when the stage stood in plain view and the story never came — and the
+   * player's own time when THEY kept the stage covered. The caller reads the fact and says it; `undefined` = a defect.
+   */
+  ceiling: (planned?: string) => void,
   /** The wait was abandoned (its run is gone) — the node ends, nothing is said. */
   end: () => void,
   /** What holds it right now — on the node, and named by the ceiling line if it comes. */
@@ -74,10 +79,11 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
         node.end();
       }
     },
-    ceiling: () => {
+    ceiling: (plannedNow?: string) => {
       if (!open) {
         return;
       }
+      const planned = plannedNow ?? spec.planned;
       open = false;
       node.end();
       ceilingStats.hits++;
@@ -86,7 +92,7 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
         ceilingStats.recent.shift();
       }
       console.warn(`[wait-graph] ceiling ${spec.id} (${spec.owner}${detail !== undefined && detail !== '' ? `: ${detail}` : ''}) — ` +
-        `«${spec.what}» did not come in ${spec.maxMs} ms — the wait ended on its ceiling${spec.planned !== undefined ? ` (planned: ${spec.planned})` : ''}`);
+        `«${spec.what}» did not come in ${spec.maxMs} ms — the wait ended on its ceiling${planned !== undefined ? ` (planned: ${planned})` : ''}`);
     },
     end: () => {
       if (open) {
