@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {
-  buriedUnderAnotherCard, domReactorPlace, findReactorPlace, liftTargetOf, placeShowsCard, reactorHomeSelectors, registerReactorPlace, resetReactorPlaces,
+  buriedUnderAnotherCard, domReactorPlace, findReactorPlace, liftTargetOf, placeShowsCard, reactorHomeSelectors, reactorPlaceArriving, registerReactorPlace,
+  resetReactorPlaces,
   visibleReactorHome,
 } from '@/client/console/cardReaction/reactorPlaces';
 
@@ -136,6 +137,79 @@ describe('reactorPlaces — where a reacting card already stands', () => {
     expect(placeShowsCard(slot, CardName.PROTEUS)).is.true;
     expect(visibleReactorHome(CardName.TITAN_HOLDINGS), 'the away card never lifts the promoted card').is.undefined;
     expect(visibleReactorHome(CardName.PROTEUS), 'the promoted card IS painted there — its own place').eq(slot);
+  });
+
+  describe('a place that is ARRIVING is waited for — never decided against (`reactorPlaceArriving`)', () => {
+    const originalGetAnimations = (document as unknown as {getAnimations?: unknown}).getAnimations;
+    const running = (target: Element, endTime: number, state: {playState?: string, pending?: boolean} = {}) => ({
+      playState: state.playState ?? 'running', pending: state.pending ?? false, effect: {getComputedTiming: () => ({endTime}), target},
+    });
+    const animations = (list: Array<unknown>) => {
+      (document as unknown as {getAnimations: () => Array<unknown>}).getAnimations = () => list;
+    };
+    /** The sitting's receipt page: the page fades in, the asker's face on its hook inside it. */
+    const surfacingFace = () => {
+      const page = document.createElement('div');
+      page.style.opacity = '0';
+      const face = document.createElement('div');
+      face.setAttribute('data-reaction-home', CardName.ARWIND_INC);
+      box(face, {left: 400, top: 300, width: 320, height: 460});
+      page.appendChild(face);
+      root.appendChild(page);
+      return {page, face};
+    };
+    afterEach(() => {
+      (document as unknown as {getAnimations?: unknown}).getAnimations = originalGetAnimations;
+    });
+
+    it('SURFACING — the face reads «faded» while an entrance of its page is running: no place YET, and one is on its way', () => {
+      const {page} = surfacingFace();
+      animations([running(page, 180)]);
+      expect(findReactorPlace(CardName.ARWIND_INC), 'faded — no place to lift in yet').is.undefined;
+      expect(reactorPlaceArriving(CardName.ARWIND_INC), 'its entrance is in flight — the chain waits for it').is.true;
+    });
+
+    it('SURFACING — an entrance the compositor has not STARTED yet (pending on a slow frame) is on its way too', () => {
+      const {page} = surfacingFace();
+      animations([running(page, 180, {playState: 'paused', pending: true})]);
+      expect(reactorPlaceArriving(CardName.ARWIND_INC)).is.true;
+    });
+
+    it('a face that is faded and NOT moving (a receded card) is no arrival — the stage is right at once', () => {
+      surfacingFace();
+      animations([]);
+      expect(reactorPlaceArriving(CardName.ARWIND_INC)).is.false;
+    });
+
+    it('…nor is one under an ENDLESS loop (a standing state) or a motion of somebody else', () => {
+      const {page} = surfacingFace();
+      const elsewhere = document.createElement('div');
+      root.appendChild(elsewhere);
+      animations([running(page, Number.POSITIVE_INFINITY), running(elsewhere, 180)]);
+      expect(reactorPlaceArriving(CardName.ARWIND_INC)).is.false;
+    });
+
+    it('a face that already STANDS is a place, not an arrival', () => {
+      const face = document.createElement('div');
+      face.setAttribute('data-reaction-home', CardName.ARWIND_INC);
+      box(face, {left: 400, top: 300, width: 320, height: 460});
+      root.appendChild(face);
+      animations([running(face, 180)]);
+      expect(findReactorPlace(CardName.ARWIND_INC)).is.not.undefined;
+      expect(reactorPlaceArriving(CardName.ARWIND_INC), 'nothing to wait for').is.false;
+    });
+
+    it('DEALT IN — a face still under the deal\'s hold is arriving (PL-1098, unchanged)', () => {
+      const hold = document.createElement('div');
+      hold.className = 'con-deal-hold';
+      const face = document.createElement('div');
+      face.setAttribute('data-played-key', CardName.ARWIND_INC);
+      box(face, {left: 100, top: 100, width: 320, height: 460});
+      hold.appendChild(face);
+      root.appendChild(hold);
+      animations([]);
+      expect(reactorPlaceArriving(CardName.ARWIND_INC)).is.true;
+    });
   });
 
   it('no hit-test evidence (a pointer-events: none face, a host with no hit test) is no evidence of cover', () => {

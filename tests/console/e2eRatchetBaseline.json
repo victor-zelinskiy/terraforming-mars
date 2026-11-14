@@ -1,7 +1,7 @@
 {
   "//": "Frozen per-file counts of e2e anti-patterns. Counts may only FALL. Regenerate with: node scripts/e2e-ratchet-baseline.mjs --write",
   "totals": {
-    "setInterval": 294,
+    "setInterval": 293,
     "waitForTimeout": 742,
     "requestAnimationFrame": 46
   },
@@ -1004,9 +1004,6 @@
     },
     "console-venus-bonus-park.spec.ts": {
       "waitForTimeout": 4
-    },
-    "console-venus-orbital-survey.spec.ts": {
-      "setInterval": 1
     },
     "console-venus-trade-hub.spec.ts": {
       "setInterval": 1

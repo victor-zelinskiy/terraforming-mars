@@ -435,7 +435,9 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
       }
       await press(page, 'Enter', 900);
     }
-    expect(await page.locator('[data-composer-repeat-name]').count(), 'the pick resolves into the law\'s slot').toBe(1);
+    // A STATE, never one read: the pick resolves into the slot a frame after the last press (a one-shot `count()` here
+    // read 0 on CI with the slot arriving).
+    await expect(page.locator('[data-composer-repeat-name]'), 'the pick resolves into the law\'s slot').toHaveCount(1, {timeout: 15_000});
     await settle(page, {timeoutMs: 15_000});
     const before = await wireOf(request, id);
     expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, id)).game.venusScaleLevel === 18, {tries: 4, settleMs: 900}),

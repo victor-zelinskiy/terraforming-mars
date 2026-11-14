@@ -110,6 +110,18 @@ whose node has no door is logged as a worklist row (`cure dead-end — <node> ha
 `console-wait-graph-dead-end` (`?waitGraphControl=strand` → `__conStrandQuestion()` strips the serving frame; the graph
 gives the question its surface back with no key pressed).
 
+**A question its workspace's CLAIM holds is no dead end (2026-11-14).** A press that draws-then-asks («reveal two, buy
+the rest») claims its outcome, and the purchase the same response asks renders NOWHERE until the claimed stage's
+execution beat has played (`taskHeldForWorkspace` — the router's own hold, bounded by the claim's machine). With no
+plate, no «set aside» and no admission block that question read «nothing holds it»; on a frame slow enough for the beat
+to outlast the three confirming ticks (CI; the box pinned to two cores — 4 / 6) it was a `dead-end`, and the armed door
+opened the router's surface for it: `closeConsoleLayers`, the workspace gone under its own live claim, the purchase a
+standalone band (`console-venus-orbital-survey`, «the purchase is EMBEDDED in the workspace»; the kernel's trace:
+`end frame:card-actions cancelled (the frame left the stack)` 2.3 s after the submit applied, the claim `orphaned`). The
+question's node now WAITS ON THE CLAIM's node (`claim:<host>` — its bound, its own door `workspace-outcome`), and
+`reopenOrphanQuestion` never opens the router's door for a question held for its workspace. Witness: the same spec, 21 / 21
+in the CI-like profile (`TM_E2E_CI_LIKE=2`).
+
 ## 2d. `dangling` and `overdue` (announce only) are ARMED (2026-11-09)
 
 `dangling` — a wait pointing at a node that is not there: «set aside» with no restore card (inventory A2) is un-set-aside

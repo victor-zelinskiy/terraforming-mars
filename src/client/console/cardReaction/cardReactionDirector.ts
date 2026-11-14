@@ -869,6 +869,14 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
         return;
       }
       const t = tempoFor(groups.length);
+      // …AND NEVER WHILE A PLACE IS STILL ARRIVING: «decided once» is decided on what the player is about to see, so a
+      // face dealt in or surfacing with its page is waited for first — bounded, the chain's own wait (PL-1098; the
+      // sitting's receipt on a slow frame: decided a beat early, the reactor rose at the stage and the answer was told
+      // twice). Nothing arriving: no wait at all.
+      await Promise.all(groups.map((g) => waitPlaceArrival(g.card, myEpoch)));
+      if (epoch !== myEpoch) {
+        return;
+      }
       // THE PLACES ARE DECIDED ONCE, BEFORE ANY RISE (P82 · H6/H7): a group standing on screen lifts there; every other
       // takes its OWN stage slot — never `i % slots`: with more groups than slots two faces shared a box («a card with
       // another UNDER it»). A group past the last slot rises nowhere: its tokens tick, its name stands on the state.
@@ -876,6 +884,11 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       const places = groups.map((g, i) => (plan[i].via === 'place' ? placeOf(g, opts.emergence) ?? null : null));
       const slots = stageSlotsFor(Math.max(1, plan.filter((p) => p.via === 'stage').length));
       const overflow = groups.filter((_, i) => plan[i].via === 'none');
+      // The decision, on the trail: who lifts where — and, for a group sent to the stage, what its hooks showed.
+      noteTransferTrail('reaction:plan', {
+        plan: groups.map((g, i) => `${g.card}:${plan[i].via}`),
+        unseen: groups.filter((_, i) => plan[i].via !== 'place').map((g) => ({card: g.card, places: describeReactorPlaces(g.card)})),
+      });
       prepared = true;
       attachedLive++;
       cardReactionState.phase = 'rising';

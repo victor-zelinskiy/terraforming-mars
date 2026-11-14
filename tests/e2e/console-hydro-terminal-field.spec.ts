@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, openConsole, press, settle, waitForBoardHome} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, openConsole, press, settle, waitForBoardHome} from './consoleStart';
+import {armLandingRecord, landingClose} from './hydroLandingWitness';
 import type {FixtureName} from './consoleStart';
 
 /**
@@ -53,26 +54,24 @@ for (const [fixture, viewerColor] of TABLES) {
     await press(page, 'Period', 900);
     const focused = await page.evaluate(() => document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
     expect(focused, 'the farthest legal stage is the 5 VP slot').toBe('11');
+    // The ceremony's seat is RECORDED from before the press (`hydroLandingWitness.ts`): it stands for a couple of
+    // seconds, and a wait begun after the press and the server's poll met a workspace that had already played it.
+    await armLandingRecord(page);
     await press(page, 'Enter', 900);
     await expect.poll(async () => ((await fetchPlayerModel(request, playerId)) as unknown as {thisPlayer: {deltaProject?: {position?: number}}}).thisPlayer.deltaProject?.position,
       {timeout: 30_000, message: 'the server position is the finish slot'}).toBe(11);
-    await page.waitForSelector('.con-hydro__cere', {timeout: 30_000});
-    const cereAt = Date.now();
+    const landing = await landingClose(page, 30_000, 25_000);
+    expect(landing.cere, "the ceremony's seat stood").toBe(true);
 
-    // THE CONTRACT: the flow closes ITSELF — ceremony → summary → the workspace leaves. No press, no help.
-    const reads: Array<string> = [];
-    let gone = false;
-    for (let i = 0; i < 20 && !gone; i++) {
+    // THE CONTRACT: the flow closes ITSELF — ceremony → summary → the workspace leaves. No press, no help. The
+    // close is read off the product's own writes (the seat's first tick → the workspace's last), never off this
+    // spec's clock.
+    if (!landing.closed) {
       const s = await sceneOf(page);
-      reads.push(`${i}s hydro=${s.hydro} cere=${s.cere} holds=${s.holds.join(',')} frames=${s.frames.join(';')} diag=${JSON.stringify(s.diag).slice(0, 300)}`);
-      gone = s.hydro === 0 && s.ws === 0;
-      if (!gone) {
-        await cinematicBeat(page, 1000, 'the ending on a 1 s grid');
-      }
+      expect(landing.closed, `the workspace never left after the ceremony — hydro=${s.hydro} cere=${s.cere} holds=${s.holds.join(',')} frames=${s.frames.join(';')} diag=${JSON.stringify(s.diag).slice(0, 300)}`).toBe(true);
     }
-    const closeMs = Date.now() - cereAt;
-    expect(gone, `the workspace never left after the ceremony — ${reads.join(' | ')}`).toBe(true);
-    expect(closeMs, `ceremony→close took ${closeMs}ms (a stall hides behind the 14–30 s safeties) — ${reads.join(' | ')}`).toBeLessThanOrEqual(14_000);
+    expect(landing.closeMs, `ceremony→close took ${landing.closeMs}ms (a stall hides behind the 14–30 s safeties)`).toBeLessThanOrEqual(14_000);
+    await expect.poll(async () => (await sceneOf(page)).ws, {timeout: 15_000, message: 'no workspace band is left on screen'}).toBe(0);
 
     // The board is the player's again; the harness's guards are the witness that nothing stalled on the way.
     await settle(page, {timeoutMs: 30_000});

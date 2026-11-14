@@ -3,6 +3,7 @@ import {
   NO_PAYMENT, bootFixture, createGameWithCards, fetchPlayerModel, openConsole, press,
   seedGameOverApi, sendPlayerInput, settle, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
+import {armLandingRecord, landingClose} from './hydroLandingWitness';
 
 /**
  * THE TERMINAL LANDING CLOSES ITSELF — the finale-wedge regression.
@@ -75,20 +76,17 @@ test.describe('Hydronetwork terminal landing · fhd', () => {
 
     // ── Commit. A plain multi-step advance owes no picks — one A arms the
     //    glide and submits. The commit record is the positive witness. ──
+    await armLandingRecord(page);
     await press(page, 'Enter', 900);
     await expect.poll(async () => (await hydroDiag(page))?.commit?.kind ?? 'none',
       {timeout: 15_000, message: 'the ceremony-kind commit stands after A'}).toBe('ceremony');
 
     // ── The culmination plays (the seat exists only from the marker's
     //    physical arrival on the finish stop). ──
-    await page.waitForSelector('.con-hydro__cere', {timeout: 30_000});
-    const cereAt = Date.now();
-
     // ── THE CONTRACT: the flow closes ITSELF — ceremony → summary (the
     //    result read hold) → the workspace leaves. No press, no help. ──
-    const closed = await page.waitForSelector('.con-hydro', {state: 'detached', timeout: 25_000})
-      .then(() => true).catch(() => false);
-    const closeMs = Date.now() - cereAt;
+    const {cere, closed, closeMs} = await landingClose(page, 30_000, 25_000);
+    expect(cere, `the ceremony's seat stood — ${await wedgeDump(page)}`).toBe(true);
     if (!closed) {
       expect(closed, `the workspace never left after the ceremony — ${await wedgeDump(page)}`).toBe(true);
     }
@@ -277,17 +275,14 @@ test.describe('Hydronetwork terminal landing under a MarsBot turn · fhd', () =>
     const focused = await page.evaluate(() =>
       document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
     expect(focused, 'the farthest legal stage is the 5 VP slot').toBe('11');
+    await armLandingRecord(page);
     await press(page, 'Enter', 900);
     await expect.poll(async () => (await hydroDiag(page))?.commit?.kind ?? 'none',
       {timeout: 15_000, message: 'the ceremony-kind commit stands after A'}).toBe('ceremony');
 
-    await page.waitForSelector('.con-hydro__cere', {timeout: 40_000});
-    const cereAt = Date.now();
-
     // ── THE CONTRACT under bot pressure: the flow still closes ITSELF. ──
-    const closed = await page.waitForSelector('.con-hydro', {state: 'detached', timeout: 30_000})
-      .then(() => true).catch(() => false);
-    const closeMs = Date.now() - cereAt;
+    const {cere, closed, closeMs} = await landingClose(page, 40_000, 30_000);
+    expect(cere, `the ceremony's seat stood — ${await wedgeDump(page)}`).toBe(true);
     if (!closed) {
       expect(closed, `the workspace never left after the ceremony (bot turn behind it) — ${await wedgeDump(page)}`).toBe(true);
     }

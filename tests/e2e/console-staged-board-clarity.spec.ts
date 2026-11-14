@@ -128,6 +128,13 @@ async function bLanding(page: Page, timeoutMs = 15_000): Promise<'composer' | 'b
     const state = await placementState(page);
     const proxy = await page.locator('.con-played-hero__proxy').count();
     const composer = await page.locator('.con-composer--play').count();
+    // A B THE PRODUCT SAYS IT OWES IS IN FLIGHT, never lost: the bar reads «Возвращаемся…» while a hold of the
+    // hand-off still owns the moment (the hero's tail outlives the first aim on a slow frame), and the return runs on
+    // that hold's end. Judging «the board stands» there timed the press against the machine, not the product — CI
+    // 2026-11-14: the `board` window read two boards 400 ms apart with the bar saying exactly that, 3 / 3.
+    if ((await page.locator('.con-cmdbar').first().textContent() ?? '').includes('Возвращаемся')) {
+      return 'flight';
+    }
     if (state !== 'none' && composer === 0) {
       return 'board';
     }

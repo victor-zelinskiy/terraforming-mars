@@ -4,6 +4,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
   bootFixture, crumbText, fetchPlayerModel, openActionFocus, openCardActions, press, reloadConsole, settle, walkFocusUntil,
 } from './consoleStart';
+import {recordTransient, stopTransient} from './transientRecorder';
 
 /**
  * P88 «ОРБИТАЛЬНАЯ РАЗВЕДКА ВЕНЕРЫ» — THE SPLIT REVEAL (docs/claude/prompts/prelude2-p88-venus-orbital-survey.md,
@@ -104,17 +105,41 @@ async function confirmToStage(page: Page, posts: Array<string>): Promise<void> {
   const logs: Array<string> = [];
   page.on('console', (m) => {
     if (m.type() === 'warning' || m.type() === 'error' || /\[(workspace|liveness|wait-graph|screen-shadow)/.test(m.text())) {
-      logs.push(`${m.type()} ${m.text().slice(0, 400)}`);
+      logs.push(`${m.type()} ${m.text().slice(0, 3000)}`);
     }
   });
+  // THE FLOW'S OWN TIMELINE, recorded from the press (a red prints it): the claim, the stack, the composer's stage and
+  // who held the prompt — every CHANGE of that picture with its time, so the gap between «claimed» and «embedded» names
+  // itself instead of being guessed from the last frame.
+  await recordTransient(page, 'p88-flow', () => {
+    const w = window as unknown as {__conReady?: () => unknown};
+    const r = w.__conReady?.() as {outcome?: unknown, wsFrames?: unknown, holds?: unknown,
+      decision?: {hostBlock?: unknown, heldForWorkspace?: unknown, belongs?: unknown},
+      transport?: {promptId?: unknown, waitingForType?: unknown, requestInProgress?: unknown}} | undefined;
+    return JSON.stringify({
+      outcome: r?.outcome, frames: r?.wsFrames, holds: r?.holds,
+      prompt: `${String(r?.transport?.waitingForType)}#${String(r?.transport?.promptId)}${r?.transport?.requestInProgress === true ? ' (request)' : ''}`,
+      decision: {block: r?.decision?.hostBlock, held: r?.decision?.heldForWorkspace, belongs: r?.decision?.belongs},
+      composer: document.querySelector('.con-composer') !== null,
+      crumb: (document.querySelector('.con-cardactions .con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      zones: [...document.querySelectorAll('[data-embed-slot]')].map((el) => el.getAttribute('data-embed-slot')),
+      hosts: [...document.querySelectorAll('.con-task-host')].map((el) => el.className),
+    });
+  }, {max: 400});
   await commitOnce(page, posts, 0);
   const embedded = await expect(page.locator(HOST)).toHaveCount(1, {timeout: 30_000}).then(() => true, () => false);
+  const trail = await stopTransient<string>(page, 'p88-flow');
   if (!embedded) {
+    const t0 = trail[0]?.t ?? 0;
+    console.log('── the flow\'s timeline from the press ──\n' + trail.map((x) => `${Math.round(x.t - t0)} ${x.v}`).join('\n'));
     // THE DIAGNOSIS FIRST (CI 2026-11-09, the max-0 stall): which gate held the claimed stage out of its zone.
     const diag = await page.evaluate(() => ({
       ready: (window as unknown as {__conReady?: () => unknown}).__conReady?.(),
       zones: [...document.querySelectorAll('[data-embed-slot]')].map((el) => el.getAttribute('data-embed-slot')),
       hosts: [...document.querySelectorAll('.con-task-host')].map((el) => el.className),
+      // The kernel's own trace: which verb ended the workspace's frame, and how the claim's run went.
+      flow: ((window as unknown as {__conFlow?: () => {trace: Array<string>}}).__conFlow?.().trace ?? [])
+        .filter((line) => /frame:|claim|awaiting|submit/.test(line)),
       wf: document.querySelector('.con-cardactions')?.className ?? '',
     }));
     console.log('── the purchase never embedded ──\n' + JSON.stringify(diag, null, 1) + '\n── console ──\n' + logs.join('\n'));
@@ -187,20 +212,14 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     await openSurvey(page);
     await confirmToStage(page, posts);
     // The refused card is SEEN leaving onto the table's ONE discard pile and the pile COUNTS it (PL-1410 — it used to
-    // read «0» under the card that had just landed): a sampler armed BEFORE the press records the discard flight and
-    // every count the pile shows while it stands.
-    await page.evaluate(() => {
-      const w = window as unknown as {__p88Discard: number, __p88Pile: Array<number>};
-      w.__p88Discard = 0;
-      w.__p88Pile = [];
-      const t = window.setInterval(() => {
-        w.__p88Discard += document.querySelectorAll('.con-discard-proxy').length;
-        const pile = document.querySelector('[data-discard-pile-count]');
-        if (pile !== null) {
-          w.__p88Pile.push(Number(pile.getAttribute('data-discard-pile-count') ?? '0'));
-        }
-      }, 30);
-      window.setTimeout(() => window.clearInterval(t), 15_000);
+    // read «0» under the card that had just landed): a recorder armed BEFORE the press records the discard flight and
+    // every count the pile shows while it stands — off the product's own writes (`recordTransient`), never a sampler:
+    // on a 300 ms frame a 30 ms `setInterval` slept through the count's one tick and read «0» for the pile's whole
+    // life (CI 2026-11-14, «counts 0»).
+    await recordTransient(page, 'p88-discard', () => document.querySelectorAll('.con-discard-proxy').length);
+    await recordTransient(page, 'p88-pile', () => {
+      const pile = document.querySelector('[data-discard-pile-count]');
+      return pile === null ? -1 : Number(pile.getAttribute('data-discard-pile-count') ?? '0');
     });
     await commitOnce(page, posts, 1, 'Period');
     await expect(page.locator('.con-cardactions'), 'the flow leaves').toHaveCount(0, {timeout: 40_000});
@@ -209,14 +228,11 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     expect(after.thisPlayer.megacredits, 'nothing paid').toBe(10);
     expect(handNames(after)).toContain(VENUS);
     expect(handNames(after)).not.toContain(OTHER);
-    const seen = await page.evaluate(() => {
-      const w = window as unknown as {__p88Discard: number, __p88Pile: Array<number>};
-      return {__p88Discard: w.__p88Discard, __p88Pile: w.__p88Pile};
-    });
-    expect(seen.__p88Discard, 'the unbought card flew to the discard').toBeGreaterThan(0);
-    expect(seen.__p88Pile.length, 'the ONE discard pile stood for it').toBeGreaterThan(0);
-    expect(Math.max(...seen.__p88Pile) - seen.__p88Pile[0],
-      `the pile COUNTED the refused card (counts ${[...new Set(seen.__p88Pile)].join(' → ')})`).toBe(1);
+    const flights = (await stopTransient<number>(page, 'p88-discard')).map((x) => x.v);
+    const pile = (await stopTransient<number>(page, 'p88-pile')).map((x) => x.v).filter((count) => count >= 0);
+    expect(Math.max(0, ...flights), 'the unbought card flew to the discard').toBeGreaterThan(0);
+    expect(pile.length, 'the ONE discard pile stood for it').toBeGreaterThan(0);
+    expect(Math.max(...pile) - pile[0], `the pile COUNTED the refused card (counts ${pile.join(' → ')})`).toBe(1);
   });
 
   test('(B) two Venus cards: no question — one drawn batch, taken in place', async ({page, request}) => {

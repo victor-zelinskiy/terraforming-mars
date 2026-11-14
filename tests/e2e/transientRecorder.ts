@@ -32,6 +32,18 @@ import type {Page} from '@playwright/test';
  *   const last = s.at(-1);                                            // «the last pose the product wrote»
  *
  * A NEW probe of a transient is this, never a `setInterval` (ratcheted in `tests/console/e2eDriverGuard.spec.ts`).
+ *
+ * ⭐ `settled: true` — WHAT IS PAINTED AT ONCE IS WHAT A TASK LEAVES, never what stands between two of its writes.
+ * The observer's callback runs at the microtask checkpoint — after the product's FIRST write of the task and before
+ * the writes the same task still owes: a tween's tick moves a proxy and calls «the card left its tile», the tile is
+ * emptied by the reactive flush that call queued, a microtask later, in the same task, before any paint. A sample
+ * taken in the callback sees the proxy away AND the tile full — a state no frame ever shows. On a fast frame the two
+ * stand a few pixels apart and no reader minds; on a 300 ms software frame the tween has carried the proxy across the
+ * screen in that one tick, and the reader calls it «two certificates at once» (`console-tenders-storyboard`, CI
+ * 2026-11-14, 3 / 3 — the box: only pinned to two cores). So a claim about COEXISTENCE or ORDER — «never painted
+ * twice», «the old one gone before the new one stands» — records with `settled: true`: the sample is taken when the
+ * task's microtasks have run (the flush included), which is the state a frame can paint. «Did it ever happen» keeps
+ * the default: a transient is caught in the task that wrote it.
  */
 
 export type TransientSample<T> = {t: number, v: T, /** the document the sample was taken in (a reload changes it) */ doc: string};
@@ -65,10 +77,10 @@ function stateOf(page: Page): PageState {
   return s;
 }
 
-type InstallArgs = {key: string, src: string, args: unknown, rafTick: boolean};
+type InstallArgs = {key: string, src: string, args: unknown, rafTick: boolean, settled: boolean};
 
 /** The page half — runs in every document (init script) and once in the current one. Self-contained. */
-function installTransient({key, src, args, rafTick}: InstallArgs): void {
+function installTransient({key, src, args, rafTick, settled}: InstallArgs): void {
   type Live = {flush: () => Promise<unknown>, stop: () => void};
   const w = window as unknown as {
     __tmTransientPush?: (key: string, t: number, v: unknown, doc: string) => Promise<unknown>,
@@ -101,7 +113,11 @@ function installTransient({key, src, args, rafTick}: InstallArgs): void {
     if (!live || document.documentElement === null) {
       return;
     }
-    mo = new MutationObserver(() => void sample());
+    // `settled`: behind the microtasks the task has already queued (the reactive flush of the write just observed) —
+    // and behind one more turn, for a flush that queues its own.
+    mo = new MutationObserver(settled ?
+      () => queueMicrotask(() => queueMicrotask(() => void sample())) :
+      () => void sample());
     mo.observe(document.documentElement, {subtree: true, childList: true, attributes: true, characterData: true});
     const tick = () => {
       if (!live) {
@@ -135,11 +151,11 @@ function installTransient({key, src, args, rafTick}: InstallArgs): void {
  * product included). `args` is passed to the reader as its one argument. `max` caps the kept samples.
  */
 export async function recordTransient<A, T>(page: Page, key: string, reader: (args: A) => T,
-  opts: {args?: A, max?: number, rafTick?: boolean} = {}): Promise<void> {
+  opts: {args?: A, max?: number, rafTick?: boolean, /** the state a task LEAVES — for a coexistence / order claim */ settled?: boolean} = {}): Promise<void> {
   const state = stateOf(page);
   await state.bound;
   state.recs.set(key, {samples: [], stopped: false, max: opts.max ?? 4000});
-  const install: InstallArgs = {key, src: reader.toString(), args: opts.args ?? null, rafTick: opts.rafTick ?? true};
+  const install: InstallArgs = {key, src: reader.toString(), args: opts.args ?? null, rafTick: opts.rafTick ?? true, settled: opts.settled ?? false};
   await page.addInitScript(installTransient, install);
   await page.evaluate(installTransient, install).catch(() => undefined); // a navigating page: the init script covers it
 }

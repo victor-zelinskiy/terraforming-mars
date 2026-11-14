@@ -126,7 +126,9 @@ test.describe('campaign «Тендеры» — the storyboard at TV 4K', () => {
       const sheetId = document.querySelector('[data-tender-sheet]')?.getAttribute('data-tender-sheet-id') ?? '-';
       const live = document.querySelector('[data-tender-portfolio]')?.classList.contains('con-tport--live') ? 'live' : 'idle';
       return `${dups} | sheet=${sheetId} list=${live} | ${where}`;
-    });
+      // `settled`: «painted twice AT ONCE» is a claim about a frame — the state a task leaves, never the one between
+      // a tween's write and the reactive flush that empties the tile in the same task (transientRecorder.ts).
+    }, {settled: true});
     const twins = async () => (await readTransient<string>(page, 'tender-twins')).map((x) => x.v).filter((v) => v !== '');
     await recordTransient(page, 'deal-held', () => Array.from(document.querySelectorAll<HTMLElement>('[data-deal-dealing="yes"][data-step-slot]'))
       .map((el) => (el.getAttribute('data-step-slot') ?? '').split('|')[1] ?? '').sort().join(','));

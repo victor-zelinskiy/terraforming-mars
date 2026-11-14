@@ -700,6 +700,11 @@ export function createSupervisorController(shell: SupervisorPort) {
     if (serving !== undefined && serving.kind !== 'start') {
       return '';
     }
+    // A QUESTION ITS WORKSPACE HOLDS FOR ITS CLAIMED STAGE IS NO ORPHAN: it renders nowhere on purpose while the
+    // stage's beat plays, and this door closes the layers — the very workspace about to host it (see `claimHoldsQuestion`).
+    if (shell.taskHeldForWorkspace) {
+      return '';
+    }
     shell.openShellTaskSurface(task);
     const now = frameServing(task.kind);
     return now !== undefined && now.kind !== 'start' ? `reopened the «${task.kind}» question in «${now.kind}»` : '';
@@ -823,7 +828,16 @@ export function createSupervisorController(shell: SupervisorPort) {
     };
     // THE QUESTION — answered by a press on whatever serves it, or held by what holds it.
     if (questionId !== undefined) {
-      const held = announceId ?? deferredId ?? admission(task?.kind === 'space' ? 'placement' : 'host');
+      // …AND A CLAIM HOLDS THE QUESTION IT WILL HOST. A press that draws-then-asks («reveal two, buy the rest») claims
+      // its outcome, and the purchase the same response asks renders NOWHERE until the stage's execution beat has
+      // played (`taskHeldForWorkspace` — the router's own hold, bounded by the claim's machine). Read as «nothing holds
+      // it», that question was a `dead-end` two seconds in — on a frame slow enough for the beat to outlast the
+      // confirmation (CI; the box pinned to two cores, 4 / 6) — and its armed door opened the router's surface for
+      // it: the layers closed, the workspace left under its own live claim, and the purchase rose as a standalone band
+      // (`console-venus-orbital-survey`, «the purchase is EMBEDDED in the workspace»). The question waits on the CLAIM:
+      // the claim's node carries the bound and the claim's own door.
+      const claimHoldsQuestion = shell.taskHeldForWorkspace && workspaceOutcomeClaimed() ? `claim:${workspaceOutcomeState.host}` : undefined;
+      const held = announceId ?? deferredId ?? admission(task?.kind === 'space' ? 'placement' : 'host') ?? claimHoldsQuestion;
       out.push({
         id: questionId, family: 'question', owner: 'server',
         targets: held !== undefined ? [{kind: 'node', id: held}] : [{kind: 'player', what: 'answer the question'}],

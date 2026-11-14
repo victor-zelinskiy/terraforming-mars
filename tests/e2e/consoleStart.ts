@@ -364,6 +364,72 @@ function fastBootQuery(): string {
 const PRESS_MIN_MS = 120;
 const PRESS_QUIET_MS = 150;
 const DOM_QUIET_MS = 100;
+
+/**
+ * ⭐ FINITE MOTION IS A STATE, NOT A DURATION — the e2e flake architecture, CLASS 4 (CI 2026-11-14).
+ *
+ * A CSS transition, a CSS animation and a Web Animation change no DOM and raise no animation hold: an entrance of
+ * 180 ms, a cursor's scale, a commit row sliding up its last 18 px. «The console is quiet» said nothing about them, so
+ * a spec that measured a box after `settle` or after a press measured it WHERE THE MACHINE HAD GOT TO: on the box the
+ * motion was over long before the read; on CI's software raster the animation had not even been started by the
+ * compositor (the main thread reads its first keyframe meanwhile). Seven reds of one CI run were this one fact — «the
+ * commit 18 px below its sheet», «selecting resized the proxy», «the focused card is not the hero».
+ *
+ * So the wait asks the page for it: every animation of the document that is RUNNING or PENDING and ENDS (an endless
+ * loop is a standing state, never waited for; a motion with more than `MOTION_HORIZON_MS` left is ambient). `settle`
+ * and a press's quiet count it as busy — softly: past `MOTION_SOFT_MS` the wait goes on without it and never throws
+ * for it (a motion is not a hold; a product whose motion never ends is a different red). The TIMING class is
+ * untouched: its subject IS the motion, and it keeps the fixed settle.
+ */
+const MOTION_HORIZON_MS = 6000;
+/** How long a `settle` waits for finite motion alone before it stops minding it. */
+const MOTION_SOFT_MS = 5000;
+/** How far past its own ceiling a press may wait — for finite motion only (the ceiling was a guess at exactly this). */
+const PRESS_MOTION_EXTRA_MS = 1500;
+/**
+ * …and WHICH motion a press waits for: the SHORT one — an entrance, a cursor's glide, a sheet settling its last pixels,
+ * the thing a measurement taken right after the press would read half-way. A LONG scene the press starts (a flight, a
+ * marker's walk, a ceremony) is the spec's own subject: it follows it, and what it must catch of it is RECORDED from
+ * before the press (`recordTransient`). Waiting such a scene out inside the press moved every spec's clock by a
+ * second and a half and stepped over the transients those specs poll for (the first full regression of the
+ * motion-aware press: the dock's open pose, the Hydronetwork's ceremony, a chained placement's gap, the espionage's
+ * first glide). So the press counts only motion with this much left; `settle` — «wait until the screen is at rest» —
+ * keeps the whole horizon.
+ */
+const PRESS_MOTION_HORIZON_MS = 700;
+
+/** The page half: how many finite animations are still running (or waiting to start). Self-contained. */
+function finiteMotionReader(horizonMs: number): number {
+  // …AND A SHEET STILL LOADING IS NOT AT REST: a composer mounts first and takes its preview a beat later — no hold,
+  // no transport request, no DOM write while it waits — and the content then ARRIVES with its own cascade. A `settle`
+  // that came back in that gap measured the sheet half-arrived (`console-play-composer-sheet`: «the commit 18 px below
+  // its sheet» — the cascade's rise, read mid-way; CI 3 / 3, and the box pinned to two cores even with the motion
+  // counted, because the motion had not STARTED when the quiet was judged).
+  const loading = document.querySelector('.con-composer__loading') === null ? 0 : 1;
+  if (typeof document.getAnimations !== 'function') {
+    return loading;
+  }
+  let moving = loading;
+  for (const animation of document.getAnimations()) {
+    if (animation.playState !== 'running' && !animation.pending) {
+      continue;
+    }
+    const end = Number(animation.effect?.getComputedTiming().endTime);
+    if (!Number.isFinite(end)) {
+      continue; // an endless loop — a standing state
+    }
+    const left = (end - Number(animation.currentTime ?? 0)) / Math.abs(animation.playbackRate || 1);
+    if (left > 0 && left <= horizonMs) {
+      moving++;
+    }
+  }
+  return moving;
+}
+
+/** Finite motion still on the page (0 where the page cannot say — a navigation, a closed page). */
+export async function finiteMotion(page: Page, horizonMs = MOTION_HORIZON_MS): Promise<number> {
+  return page.evaluate(finiteMotionReader, horizonMs).catch(() => 0);
+}
 async function quietAfterPress(page: Page, maxMs: number): Promise<void> {
   const started = Date.now();
   let quietSince: number | undefined;
@@ -390,8 +456,9 @@ async function quietAfterPress(page: Page, maxMs: number): Promise<void> {
       await pollPause(page, Math.max(0, maxMs - (Date.now() - started)));
       return;
     }
+    const moving = await finiteMotion(page, PRESS_MOTION_HORIZON_MS) > 0;
     const busy = r.holds.length > 0 || r.transport?.requestInProgress === true || r.transport?.holding === true ||
-      (snap.sinceMutation !== undefined && snap.sinceMutation < DOM_QUIET_MS);
+      (snap.sinceMutation !== undefined && snap.sinceMutation < DOM_QUIET_MS) || moving;
     const now = Date.now();
     if (busy) {
       quietSince = undefined;
@@ -400,7 +467,8 @@ async function quietAfterPress(page: Page, maxMs: number): Promise<void> {
     } else if (now - started >= PRESS_MIN_MS && now - quietSince >= PRESS_QUIET_MS) {
       return;
     }
-    if (now - started >= maxMs) {
+    // The ceiling stands for everything but finite motion: what the press set moving is waited to its end (bounded).
+    if (now - started >= maxMs + (moving ? PRESS_MOTION_EXTRA_MS : 0)) {
       return;
     }
     await pollPause(page, 25);
@@ -445,7 +513,8 @@ export async function settle(page: Page, opts: {timeoutMs?: number, quietMs?: nu
 async function settleInner(page: Page, opts: {timeoutMs?: number, quietMs?: number, notifications?: boolean}): Promise<void> {
   const timeoutMs = opts.timeoutMs ?? 15_000;
   const quietMs = opts.quietMs ?? 250;
-  const deadline = Date.now() + timeoutMs;
+  const started = Date.now();
+  const deadline = started + timeoutMs;
   let quietSince: number | undefined;
   let last: Awaited<ReturnType<typeof readiness>>;
   for (;;) {
@@ -470,16 +539,22 @@ async function settleInner(page: Page, opts: {timeoutMs?: number, quietMs?: numb
       await page.waitForTimeout(quietMs);
       return;
     }
-    const busy = last.holds.length > 0 ||
+    const held = last.holds.length > 0 ||
       last.transport?.requestInProgress === true ||
       last.transport?.holding === true ||
       (opts.notifications === true && !last.notificationsSettled);
+    // FINITE MOTION (class 4, above): busy until it ends — softly, never a reason to throw.
+    const moving = !held && Date.now() - started < MOTION_SOFT_MS && await finiteMotion(page) > 0;
+    const busy = held || moving;
     if (busy) {
       quietSince = undefined;
     } else if (quietSince === undefined) {
       quietSince = Date.now();
     } else if (Date.now() - quietSince >= quietMs) {
       return;
+    }
+    if (Date.now() >= deadline && !held) {
+      return; // only finite motion is left, past the settle's own budget — not a hold, never a throw
     }
     if (Date.now() >= deadline) {
       throw new Error(`settle: the console never went quiet in ${timeoutMs} ms — ` +
@@ -1372,28 +1447,43 @@ export async function showAllCardReactions(page: Page): Promise<void> {
  * drives BOTH modes: in single-press mode the first Enter already commits
  * and the second lands after `placementActive` fell (a no-op board press).
  */
+/** The id of the question the server asks right now (the transport's own — `__conReady`), where the probe stands. */
+function standingPromptId(page: Page): Promise<number | undefined> {
+  return page.evaluate(() =>
+    (window as unknown as {__conReady?: () => {transport?: {promptId?: number}}}).__conReady?.()?.transport?.promptId).catch(() => undefined);
+}
+
 export async function placeTile(page: Page, maxTries = 24): Promise<boolean> {
   const kicker = page.locator('.con-context__task-kicker');
   if (await kicker.count() === 0) {
     return false;
   }
+  // «RESOLVED» IS THE SERVER'S QUESTION MOVING ON — never only «the kicker is gone». A placement that CHAINS (two
+  // oceans of one card, a tile and then its bonus tile) hands the panel straight to the next placement: the kicker is
+  // absent only for the length of the landing scene, and a press that waits out that scene (the harness's `press`
+  // waits for the motion it started; so does any press on a slow frame) comes back to a kicker standing again — the
+  // NEXT question's. Read as «not resolved», the loop walked on and placed the second tile too
+  // (`console-staged-play` D2: «the second (live) placement never took the board»). The prompt's own id says which
+  // question stands; a refresh of the same placement keeps it.
+  const asked = await standingPromptId(page);
+  const resolved = async (): Promise<boolean> => await kicker.count() === 0 || (asked !== undefined && await standingPromptId(page) !== asked);
   const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowUp'];
-  for (let i = 0; i < maxTries && await kicker.count() > 0; i++) {
+  for (let i = 0; i < maxTries && !await resolved(); i++) {
     const lockedAt = Date.now();
     await press(page, 'Enter', 600); // lock (or the whole commit in swift mode)
-    if (await kicker.count() === 0) {
+    if (await resolved()) {
       return true;
     }
     await lockedPlacementSeen(page, lockedAt); // the lock seen + the dwell passed — see commitFocusedSpace
     await press(page, 'Enter', 1100); // confirm — past the lock dwell
-    if (await kicker.count() === 0) {
+    if (await resolved()) {
       return true;
     }
     // Neither press resolved it — the cursor stands on an illegal cell (a
     // lock never engaged); walk one step and try again.
     await press(page, dirs[i % dirs.length], 350);
   }
-  return await kicker.count() === 0;
+  return resolved();
 }
 
 /**
@@ -1634,18 +1724,21 @@ export async function commitFocusedSpace(page: Page, settleMs = 900): Promise<bo
   if (await placing.count() === 0) {
     return false;
   }
+  // «Resolved» = the kicker is gone OR the server asks the next thing (a chained placement keeps the kicker — `placeTile`).
+  const asked = await standingPromptId(page);
+  const gone = async (): Promise<boolean> => await placing.count() === 0 || (asked !== undefined && await standingPromptId(page) !== asked);
   const resolved = async (maxMs: number): Promise<boolean> => {
     for (let waited = 0; waited < maxMs; waited += 120) {
-      if (await placing.count() === 0) {
+      if (await gone()) {
         return true;
       }
       await page.waitForTimeout(120);
     }
-    return await placing.count() === 0;
+    return gone();
   };
   const lockedAt = Date.now();
   await press(page, 'Enter', 420); // lock (or the whole commit in swift mode)
-  if (await placing.count() === 0) { // swift mode: that WAS the commit
+  if (await gone()) { // swift mode: that WAS the commit
     if (settleMs > 0) {
       await page.waitForTimeout(settleMs);
     }
@@ -3915,8 +4008,28 @@ export async function passDeferredTableQuestions(page: Page): Promise<void> {
  * leaves. A no-op without a bonus row. True once the row reads its answer (`data-venus-answered`).
  */
 const VENUS_LANES = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
+
+/**
+ * A SHEET THAT IS STILL LOADING IS NOT READ (CI 2026-11-14, `console-venus-bonus-hosts` H2). A composer mounts first
+ * and takes its preview from the server a beat later — and everything a driver asks of it («is a bonus row owed?»,
+ * «is a table question deferred?») is carried by that preview. Read during the load, «no row» is not an answer: the
+ * driver took it for «nothing owed», pressed A blind — and once the preview landed those presses walked INTO the
+ * bonus's inner step and laid the unit on its first lane (the play went through, the steel never came). So a read of
+ * a composer waits for its own loading marker to leave — bounded; a sheet that never loads is the caller's red.
+ * `mount` also waits for the composer to STAND first (the press that opens it may still be in a slow frame).
+ */
+export async function composerLoaded(page: Page, opts: {mount?: string, mountMs?: number, timeoutMs?: number} = {}): Promise<void> {
+  const timeout = opts.timeoutMs ?? 15_000;
+  if (opts.mount !== undefined) {
+    await page.locator(opts.mount).first().waitFor({state: 'attached', timeout: opts.mountMs ?? 6_000}).catch(() => undefined);
+  }
+  await page.waitForFunction(() => document.querySelector('.con-composer__loading') === null, undefined, {polling: 50, timeout})
+    .catch(() => undefined);
+}
+
 /** Is a Venus bonus still owed on screen — its inner step open, or its row unanswered? */
 export async function venusOwed(page: Page): Promise<boolean> {
+  await composerLoaded(page);
   return await page.locator('[data-venus-inner]').count() > 0 ||
     await page.locator('[data-venus-bonus-row]:not([data-venus-answered])').count() > 0;
 }
@@ -3940,6 +4053,7 @@ export async function openVenusStep(page: Page): Promise<boolean> {
 export async function answerVenusSpread(page: Page, lane?: string, opts: {wild?: 'onCard' | 'asStandard'} = {}): Promise<boolean> {
   const row = page.locator('[data-venus-bonus-row]').first();
   const inner = page.locator('[data-venus-inner]').first();
+  await composerLoaded(page);
   if (await row.count() === 0 && await inner.count() === 0) {
     return true;
   }
@@ -3996,6 +4110,31 @@ export async function answerVenusSpread(page: Page, lane?: string, opts: {wild?:
   // A on the laid-out grid CONFIRMS and leaves the step; the row reads its answer.
   await pressUntil(page, 'Enter', async () => await inner.count() === 0, {tries: 3, settleMs: 600});
   return await inner.count() === 0 && await row.getAttribute('data-venus-answered') !== null;
+}
+
+/**
+ * OPEN THE PLAY COMPOSER OF `card` from the board home — the hand (RT wheel → centre), the card focused, A — VERIFIED:
+ * the hand's own «input released» signal before the A (the dock-to-hand reveal gates it on purpose), act → verify →
+ * retry on the composer standing, and the sheet LOADED before anything reads it. A spec-local «Enter, then wait 15 s
+ * for the composer» was one blind press: swallowed by the reveal on a slow frame, it waited for a composer no press had
+ * asked for (`console-arwind-inc` A · A2 on the box pinned to two cores).
+ */
+export async function openHandPlayComposer(page: Page, card: string): Promise<void> {
+  const hand = page.locator('.con-hand');
+  for (let i = 0; i < 4 && await hand.count() === 0; i++) {
+    await press(page, 'Period', 600); // RT → the quick wheel
+    await press(page, 'Enter', 1600); // centre slot → the hand screen
+  }
+  await page.locator(`.con-hand [data-zoom-slot="${card}"]`).waitFor({timeout: 20_000});
+  const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
+  expect(await focusCard(page, card, ringWalk(Math.max(slots, 1), 1)), `«${card}» is focused in the hand`).toBeTruthy();
+  await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
+  const composer = page.locator('.con-composer--play');
+  for (let i = 0; i < 4 && await composer.count() === 0; i++) {
+    await press(page, 'Enter', 1200);
+  }
+  await composer.waitFor({timeout: 15_000});
+  await composerLoaded(page);
 }
 
 export async function playCardFromHand(page: Page, card: string, attempts = 3, opts: {venusLane?: string} = {}): Promise<boolean> {
@@ -4063,6 +4202,9 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3, o
     await page.locator('.con-hand:not(.con-hand--transit)')
       .waitFor({state: 'visible', timeout: 15_000});
     await press(page, 'Enter', 900); // open the play composer
+    // …and the sheet is READ only once it stands with its preview in (`composerLoaded`).
+    // (A press the frame swallowed opens nothing — the mount's wait is short and the attempt's own retry handles it.)
+    await composerLoaded(page, {mount: '.con-composer--play, .con-context__task-kicker'});
     // A table question left for after a draw is offered to the cursor once — never answered by a blind A here.
     await passDeferredTableQuestions(page);
     // The alternative board's Venus bonus is PRE-SELECTED on the sheet (P89 · EL): the commit is held until it is laid out.

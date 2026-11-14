@@ -192,16 +192,40 @@ export function domReactorPlace(card: CardName): ReactorEmergence | undefined {
 }
 
 /**
- * `card`'s face is being DEALT IN right now — mounted on one of the product's hooks but still under the deal's hold
- * (`.con-deal-hold`: the start seat a corporation lands in while the same response opens the solo colony step —
- * PL-1098). Its place is a beat away: the chain waits for it instead of raising a second instance at the stage.
+ * `card`'s face is ARRIVING right now — mounted on one of the product's hooks and a beat away from being a place:
+ *  · DEALT IN — still under the deal's hold (`.con-deal-hold`: the start seat a corporation lands in while the same
+ *    response opens the solo colony step — PL-1098);
+ *  · SURFACING — its surface is fading in (the face reads «faded» and an entrance of its own or of an ancestor is still
+ *    running or has not been started by the compositor yet): the sitting's receipt page mounts and the answer's flight
+ *    asks for its place in the same beat. On a fast frame the entrance is over by the question; on a 300 ms frame it
+ *    has not begun, the place read «not there», the reactor rose at the layer's stage — and the answer was told
+ *    TWICE (`console-arwind-inc` C2 on CI, 2 / 3; the box pinned to four cores).
+ * The chain waits for it — bounded (`PLACE_ARRIVAL_WAIT_MS`) — instead of raising a second instance at the stage. A
+ * face that is faded and NOT moving (a receded card) is no arrival: nothing is coming, the stage is right at once.
  */
 export function reactorPlaceArriving(card: CardName): boolean {
   if (typeof document === 'undefined') {
     return false;
   }
   return reactorHomeSelectors(card).some((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector))
-    .some((el) => el.closest('.con-reaction') === null && el.closest('.con-deal-hold') !== null));
+    .some((el) => el.closest('.con-reaction') === null &&
+      (el.closest('.con-deal-hold') !== null || (placeShowsCard(el, card) && surfacing(el)))));
+}
+
+/** The face reads «faded» while an entrance on it or above it is still in flight (or pending its first frame). */
+function surfacing(el: HTMLElement): boolean {
+  const verdict = transferEndVerdict(el);
+  if (verdict.visible || verdict.why !== 'faded' || typeof document.getAnimations !== 'function') {
+    return false;
+  }
+  return document.getAnimations().some((animation) => {
+    if (animation.playState !== 'running' && !animation.pending) {
+      return false;
+    }
+    const timing = animation.effect?.getComputedTiming();
+    const target = (animation.effect as KeyframeEffect | null)?.target ?? null;
+    return timing !== undefined && Number.isFinite(Number(timing.endTime)) && target !== null && target.contains(el);
+  });
 }
 
 /** WHERE `card` stands on screen right now — a registered host's place first, else a painted face; `undefined` = the stage. */

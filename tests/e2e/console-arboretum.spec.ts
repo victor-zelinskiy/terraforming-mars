@@ -193,8 +193,14 @@ async function armProbe(page: Page): Promise<void> {
         p.phases.push('gone');
         p.idleAt ??= now;
       }
+      // A WAKE IS THE PULSE THE PRODUCT STAGED — one element per token a city sends, standing at its city (the layer
+      // mounts them together at the PAY step and plays them in turn). «Was its wash PAINTED when I looked» asks the
+      // machine, not the product: the wash rises from zero and falls back, and on a starved frame (the box at 4K
+      // beside four other workers; pinned to two cores — frames of 1 – 2.5 s) the first pulse is over before the next
+      // sample, so the count read «three of four woke» of a payout that staged all four (the data landed, the M€
+      // ticked). The observer sees the pulse's element in the task that mounts it; where it stands is checked below.
       document.querySelectorAll('.con-tileplace__oceanpulse--city').forEach((el) => {
-        if (shown(el.querySelector('.con-tileplace__oceanpulse-wash') ?? el)) {
+        if (el.getBoundingClientRect().width > 2) {
           p.firstWakeAt ??= now;
           if (!seenWakes.has(el)) {
             seenWakes.add(el);

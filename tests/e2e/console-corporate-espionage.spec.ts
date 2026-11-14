@@ -2,6 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {fetchPlayerModel, NO_PAYMENT, openConsole, press, seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome} from './consoleStart';
+import {recordTransient, stopTransient} from './transientRecorder';
 
 /**
  * DP10 — CORPORATE ESPIONAGE, the premium vertical slice, live:
@@ -235,6 +236,21 @@ function armInputPosts(page: Page): Array<string> {
  *  Corporate Espionage»: the A on the result went to the composer hidden under
  *  the track and posted the play a second time; in solo every menu after the
  *  first reads «Take your next action», so the composer outlived its play). */
+/**
+ * THE EXECUTION'S FIRST BEATS ARE RECORDED FROM BEFORE THE COMMIT (tests.md — a transient the press starts is recorded
+ * above it): the commit line and the TARGET's glide open the execution, and the watcher below starts only after the
+ * commit's press has come back — a press that waits for the motion it started comes back after the target's marker
+ * has already glided («the TARGET's own marker glided (saw: red)»). Armed above the commit; `watchExecution` folds what
+ * it recorded into the same log.
+ */
+async function armExecutionRecord(page: Page): Promise<void> {
+  await recordTransient(page, 'esp-execution', () => {
+    const marker = document.querySelector('.con-hydromarker');
+    const color = marker === null ? '' : (Array.from(marker.classList).find((c) => c.startsWith('player_bg_color_')) ?? '');
+    return `${color.replace('player_bg_color_', '')}|${document.querySelector('.con-hydro__espline') !== null ? 'line' : ''}`;
+  });
+}
+
 async function watchExecution(page: Page, log: {glideColors: Set<string>, sawEspLine: boolean, sawResult: boolean}): Promise<void> {
   let resultStreak = 0;
   let alert = '';
@@ -279,6 +295,15 @@ async function watchExecution(page: Page, log: {glideColors: Set<string>, sawEsp
     board = log.sawResult && s.board;
     if (!board) {
       await page.waitForTimeout(200);
+    }
+  }
+  for (const sample of await stopTransient<string>(page, 'esp-execution')) {
+    const [color, line] = sample.v.split('|');
+    if (color !== '') {
+      log.glideColors.add(color);
+    }
+    if (line === 'line') {
+      log.sawEspLine = true;
     }
   }
   expect(log.sawResult, 'the execution reached its result summary').toBeTruthy();
@@ -336,6 +361,7 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     expect(pickLog.sawArc, 'the movement arc linked the marker to its ghost').toBeTruthy();
     await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 10_000});
     const posts = armInputPosts(page);
+    await armExecutionRecord(page);
     await key(page, 'Enter', 400); // commit
 
     const log = {glideColors: new Set<string>(), sawEspLine: false, sawResult: false};
@@ -472,6 +498,7 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     // THE FIELD REPORT'S SHAPE: DP10 is played as a LATER action of a solo game, where every menu reads «Take your
     // next action» — the menu after the play has the same key as the one it answered.
     const posts = armInputPosts(page);
+    await armExecutionRecord(page);
     await key(page, 'Enter', 400); // commit
 
     const exec = {glideColors: new Set<string>(), sawEspLine: false, sawResult: false};
@@ -621,6 +648,7 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     await answerOwnerChoiceRow(page);
     await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 10_000});
     const posts = armInputPosts(page);
+    await armExecutionRecord(page);
     await key(page, 'Enter', 400); // commit
 
     const log = {glideColors: new Set<string>(), sawEspLine: false, sawResult: false};

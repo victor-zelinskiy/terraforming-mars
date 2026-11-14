@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, openMandatoryAnnounce, press, settle} from './consoleStart';
+import {bootFixtureSeats, crumbText, fetchPlayerModel, openMandatoryAnnounce, openHandPlayComposer, press, settle} from './consoleStart';
 import {closeSitting, closeSittingAs, enterSittingByPass, turnTo, waitSittingAtRest} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
@@ -163,12 +163,7 @@ async function pickHosted(page: Page, zone: string, card: string): Promise<void>
 
 /** Open the hand from the board home and the play composer of `card`. */
 async function openPlay(page: Page, card: string): Promise<void> {
-  await press(page, 'Period', 600);
-  await press(page, 'Enter', 1600);
-  await page.locator(`.con-hand [data-zoom-slot="${card}"]`).waitFor({timeout: 20_000});
-  expect(await focusCard(page, card, 24), `${card} is focused`).toBeTruthy();
-  await press(page, 'Enter', 1200);
-  await page.locator('.con-composer--play').waitFor({timeout: 15_000});
+  await openHandPlayComposer(page, card);
   await settle(page);
 }
 
@@ -426,6 +421,9 @@ test.describe('Arwind Inc. · a walk of the Career answered by the table, on one
     const probe = await readFlowProbe(page);
     expect(probe.picks, 'no pick anywhere').toBe(0);
     expect(probe.bands).toBe(0);
+    // The director's own decisions, on every run (a green one too): where each reactor lifted, and whether it waited
+    // for a place still arriving — the evidence that «told once» held by the mechanism, not by the machine's speed.
+    console.log(`[arwind C2] ${probe.reactions.filter((line) => /reaction:(plan|place|rise)/.test(line)).join(' · ')}`);
     expectToldOnce(probe, 'told once, on the stage');
     await closeSitting(page, request, playerId);
     const other = seats.find((s) => s !== playerId);

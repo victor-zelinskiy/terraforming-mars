@@ -13,7 +13,8 @@
  *
  * WHAT IT DOES, in order:
  *   1. preflight — the host answers; no DO_NOT_DISTURB marker
- *      (`~/tm-e2e/DO_NOT_DISTURB`); a running game is noted, never a refusal
+ *      (`~/tm-e2e/DO_NOT_DISTURB`) and the owner is not playing there
+ *      (Enshrouded running → exit 4); Mars itself running is noted, never a refusal
  *      (the owner, 2026-10-23 — the run goes beside it);
  *   2. sync — a MANIFEST diff (size + mtime) of the laptop's tree against the
  *      mirror, then a tar of only what changed. TWO destinations, because the
@@ -58,6 +59,14 @@
  * (TM_E2E_GPU defaults to 1 — that is the point). Default workers: 2 per run
  * (three runs share the box). A storyboard / timing claim:
  * `--exclusive --workers=1`.
+ *
+ * THE CI-LIKE PROFILE — `TM_E2E_CI_LIKE=<cores>` (default 2 when the value is not a number): the run CI gives a spec,
+ * taken on the box. The whole process tree of the run (Playwright, every Chromium, the worker's game server) is
+ * pinned to that many cores (`taskset`), the GPU is off and the browser is the one CI runs (the new headless, software
+ * raster). A red that CI sees and the box does not is a red about TIME — a frame of 300 ms, a main thread shared with
+ * the raster — and a spec that depends on time is fixed where it can be SEEN failing, not guessed at from a brief
+ * (2026-11-14: three CI-only reds stood green on the box in every other mode). `--exclusive` belongs with it: the
+ * pinned cores are a measurement only while nothing else is on them.
  */
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -171,7 +180,7 @@ function unreachable(res, what) {
 
 // ─── 1. preflight ────────────────────────────────────────────────────────────
 // `[T]erraforming…` — a pattern that does not match the shell carrying this very command line (pgrep -f reads argv).
-const pre = ssh(`test -d ${REMOTE_REPO} && echo REPO-OK; test -f ${REMOTE_HOME}/DO_NOT_DISTURB && echo DND; pgrep -f '[T]erraformingMars.AppImage' >/dev/null && echo GAME-RUNNING; pgrep -f '[p]laywright test' >/dev/null && echo RUN-IN-PROGRESS; true`);
+const pre = ssh(`test -d ${REMOTE_REPO} && echo REPO-OK; test -f ${REMOTE_HOME}/DO_NOT_DISTURB && echo DND; pgrep -f '[T]erraformingMars.AppImage' >/dev/null && echo GAME-RUNNING; pgrep -fi '[e]nshrouded' >/dev/null && echo OWNER-PLAYS; pgrep -f '[p]laywright test' >/dev/null && echo RUN-IN-PROGRESS; true`);
 if (res255(pre)) {
   unreachable(pre, 'preflight');
 }
@@ -182,6 +191,14 @@ if (!flags.has('REPO-OK')) {
 }
 if (flags.has('DND')) {
   log(`${HOST} carries ${REMOTE_HOME}/DO_NOT_DISTURB — the owner asked for quiet; ask before running`);
+  process.exit(4);
+}
+// THE OWNER IS PLAYING ON THE BOX (the owner, 2026-11-14: «не запускать e2e на боксе, когда там запущена игра
+// Enshrouded») — a refusal, by construction: up to eight workers and the GPU beside it spoil the game, and a run taken
+// there is measured on a box at load 15 – 20 (three reds of one pass that stood green an hour earlier). Exit 4 like the
+// marker above: the run did not happen — wait, or ask the owner to run CI after the push.
+if (flags.has('OWNER-PLAYS')) {
+  log(`the owner is playing on ${HOST} (Enshrouded is running) — no e2e beside it; wait for the box, or ask the owner to run CI after the push`);
   process.exit(4);
 }
 // A running game is NOT a refusal (the owner, 2026-10-23: «можно гонять e2e на steam machine даже когда игра
@@ -232,10 +249,21 @@ function* walk(dir, relBase, skip) {
  * worker (it does so after every failure), and a neighbour's sync into a SHARED `tests/` mid-run poisoned
  * a 338-spec baseline with one broken harness file (2026-10-22 04:00: 607 reds in 14 minutes). The run's
  * cwd is the task dir: `assets` and `node_modules` stand beside it as links to the mirror.
+ *
+ * …EXCEPT WHAT A TREE GENERATES INTO `assets/` — `assets/locales` (`make:json`, gitignored: every tree has its own,
+ * built from ITS `src/locales`). Mirrored into the shared `assets/`, two sessions overwrote each other's `ru.json`,
+ * and a run that waited for tokens after its mirror played on the NEIGHBOUR's locale: a spec reading a fresh line of
+ * RU copy went red on a product that was right (2026-11-14, `console-diagnostics` — found by the other session). So
+ * the task's `assets` is a real directory of LINKS to the mirror's entries, and `assets/locales` in it is the task's
+ * own copy. The mirror keeps whatever `assets/locales` an older wrapper left there (a neighbour's task of the earlier
+ * layout still reads it) — it is simply never sent or read by this one.
  */
 const SHARED_ROOTS = ['assets', 'package.json', 'package-lock.json'];
-const TASK_ROOTS = ['src', 'tests', 'package.json', 'package-lock.json', 'tsconfig.json', 'playwright.config.ts'];
+const TASK_ASSET_ROOTS = ['assets/locales'];
+const TASK_ROOTS = ['src', 'tests', 'package.json', 'package-lock.json', 'tsconfig.json', 'playwright.config.ts', ...TASK_ASSET_ROOTS];
 const staticSkip = (rel, entry) => entry.name === 'node_modules' || rel.startsWith('tests/e2e/__screenshots__') || /\.tsbuildinfo$/.test(entry.name);
+const ownedByTask = (rel) => TASK_ASSET_ROOTS.some((root) => rel === root || rel.startsWith(`${root}/`));
+const sharedSkip = (rel, entry) => staticSkip(rel, entry) || ownedByTask(rel);
 const buildSkip = (rel, entry) => rel === 'build/tests' || /\.map(\.gz|\.br)?$/.test(entry.name);
 
 /** A sync SET: one destination on the host, the local cwd its paths are relative to, and its manifest. */
@@ -255,7 +283,7 @@ function manifest(cwd, roots, skip) {
   return files;
 }
 const SETS = [
-  {base: REMOTE_REPO, cwd: ROOT, roots: SHARED_ROOTS, files: manifest(ROOT, SHARED_ROOTS, staticSkip)},
+  {base: REMOTE_REPO, cwd: ROOT, roots: SHARED_ROOTS, keep: TASK_ASSET_ROOTS, files: manifest(ROOT, SHARED_ROOTS, sharedSkip)},
   {base: TASK_DIR, cwd: ROOT, roots: TASK_ROOTS, files: manifest(ROOT, TASK_ROOTS, staticSkip)},
   {base: TASK_DIR, cwd: buildRoot, roots: ['build'], files: manifest(buildRoot, ['build'], buildSkip)},
 ];
@@ -272,11 +300,16 @@ for s in m['sets']:
     # go BEFORE the compare: compared through it, the files read as present and the sync wrote through it
     # into the mirror, and the outer script's later cleanup then left the task with no tests at all
     # («No tests found», the first baseline of 2026-10-22).
+    # …and so must a link ABOVE a root: the earlier layout linked the task's whole \`assets\` to the mirror, and the
+    # task's own \`assets/locales\` written through it is the shared copy again.
     for root in s['roots']:
-        rp = os.path.join(base, root)
-        if os.path.islink(rp):
-            os.remove(rp)
+        parts = root.split('/')
+        for i in range(1, len(parts) + 1):
+            rp = os.path.join(base, *parts[:i])
+            if os.path.islink(rp):
+                os.remove(rp)
     files = s['files']
+    keep = s.get('keep', [])
     send = []
     for rel, (size, mt) in files.items():
         p = os.path.join(base, rel)
@@ -296,13 +329,15 @@ for s in m['sets']:
             for f in fs_:
                 full = os.path.join(d, f)
                 rel = os.path.relpath(full, base).replace(os.sep, '/')
+                if any(rel == k or rel.startswith(k + '/') for k in keep):
+                    continue
                 if rel not in files:
                     os.remove(full); deleted += 1
     out.append(send)
 print(json.dumps({'send': out, 'deleted': deleted}))
 `;
 const t0 = Date.now();
-const cmp = ssh(`python3 -c ${shq(COMPARE_PY)}`, {input: JSON.stringify({sets: SETS.map((s) => ({base: s.base, roots: s.roots, files: s.files}))})});
+const cmp = ssh(`python3 -c ${shq(COMPARE_PY)}`, {input: JSON.stringify({sets: SETS.map((s) => ({base: s.base, roots: s.roots, keep: s.keep ?? [], files: s.files}))})});
 if (res255(cmp)) {
   unreachable(cmp, 'manifest');
 }
@@ -383,6 +418,14 @@ for (const [k, v] of Object.entries(process.env)) {
     env[k] = v;
   }
 }
+// THE CI-LIKE PROFILE (the header): the cores the run is pinned to, the GPU off, CI's browser.
+const ciLike = process.env.TM_E2E_CI_LIKE;
+const ciCores = ciLike === undefined || ciLike === '' || ciLike === '0' ? 0 : Math.max(1, Number.parseInt(ciLike, 10) || 2);
+if (ciCores > 0) {
+  env.TM_E2E_GPU = '0';
+  env.TM_E2E_CHANNEL = 'chromium';
+}
+const pin = ciCores > 0 ? `taskset -c 0-${ciCores - 1} ` : '';
 env.TM_E2E_HOST = HOST;
 if (head) {
   env.TM_E2E_HEAD = head;
@@ -437,7 +480,7 @@ SLOT="$1"
 # never measured beside the functional workers. Each pass has its own output / report dir (Playwright clears an output
 # dir at its start — one dir would have wiped the first pass's failures); the timings ledger is shared (appended).
 pw_pass() {
-  env ${envLine} TM_E2E_SLOT="$SLOT" TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results$2 TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report$2 TM_E2E_TIMINGS=${TASK_DIR}/test-results/timings.jsonl npx playwright test $1 ${pwArgs.map(shq).join(' ')}
+  ${pin}env ${envLine} TM_E2E_SLOT="$SLOT" TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results$2 TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report$2 TM_E2E_TIMINGS=${TASK_DIR}/test-results/timings.jsonl npx playwright test $1 ${pwArgs.map(shq).join(' ')}
 }
 ${twoPasses ? `echo "[e2e:remote] pass 1/2 — FUNCTIONAL (project chromium)"
 pw_pass "--project=chromium --pass-with-no-tests" ""
@@ -552,7 +595,16 @@ echo "[e2e:remote] $SLOT — running ${shq(task)} on $(cat /etc/hostname 2>/dev/
 # resolves UPWARD from the server's real path: on the laptop the snapshot sits inside the repo, here
 # the task dir stands beside the mirror (the first run of this layout: «worker server exited with 1»).
 # Old tasks' builds go after 14 idle days.
-mkdir -p ${TASK_DIR} && ln -sfn ../../repo/assets ${TASK_DIR}/assets && ln -sfn ../../repo/node_modules ${TASK_DIR}/node_modules
+mkdir -p ${TASK_DIR} && ln -sfn ../../repo/node_modules ${TASK_DIR}/node_modules
+# \`assets\`: a real directory of links to the mirror's entries — all but what the task owns (its generated locales).
+[ -L ${TASK_DIR}/assets ] && rm -f ${TASK_DIR}/assets
+mkdir -p ${TASK_DIR}/assets
+for entry in ${REMOTE_REPO}/assets/* ${REMOTE_REPO}/assets/.[!.]*; do
+  [ -e "$entry" ] || continue
+  name=$(basename "$entry")
+  case " ${TASK_ASSET_ROOTS.map((root) => root.replace(/^assets\//, '')).join(' ')} " in *" $name "*) continue ;; esac
+  ln -sfn "../../../repo/assets/$name" "${TASK_DIR}/assets/$name"
+done
 # A task dir from the earlier layout linked \`tests\` to the mirror; the sync now writes the task's own copy there.
 [ -L ${TASK_DIR}/tests ] && rm -f ${TASK_DIR}/tests
 find ${REMOTE_BUILDS} -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} + 2>/dev/null

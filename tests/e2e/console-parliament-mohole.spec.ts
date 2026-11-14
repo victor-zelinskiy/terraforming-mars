@@ -90,7 +90,19 @@ async function armProbe(page: Page): Promise<void> {
   });
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__moholeProbe: Probe}).__moholeProbe);
+/**
+ * The probe is armed BEFORE the pass and read in two cuts: `samples` — from the first tick the sitting stood on screen
+ * (what «armed once the sitting is up» used to mean, without the race of arming it there), and `all` — everything
+ * since the pass. The winner's TR chip belongs to `all`: the rating cell is an INSTRUMENT and ticks with the response
+ * that carries the sitting, while the generation scene is still rising — a probe armed after the sitting stood caught
+ * that chip only when the driver happened to be a second quicker than the chip's own life (the harness's press now
+ * waits for the motion it started: 3 / 3 red, on the same product).
+ */
+const readProbe = async (page: Page): Promise<Probe & {all: Array<Sample>}> => {
+  const all = (await page.evaluate(() => (window as unknown as {__moholeProbe: Probe}).__moholeProbe)).samples;
+  const up = all.findIndex((sample) => sample.parl && sample.sit !== ''); // the SITTING, never the overview a fixture opens on
+  return {samples: up === -1 ? [] : all.slice(up), all};
+};
 
 test.describe(`Mohole Contest · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
@@ -122,8 +134,8 @@ test.describe(`Mohole Contest · ${PRESET.id}`, () => {
     await settle(page, {timeoutMs: 15_000});
 
     // ── THE PASS carries the whole sitting; it comes up and turns its pages by itself.
-    await enterSittingByPass(page, request, playerId);
     await armProbe(page);
+    await enterSittingByPass(page, request, playerId);
     await shoot(page, '01-sitting-up');
 
     // ── ① THE SEAT IS PAID ITS HEAT FIRST: 3 per influence, influence 2 → +6 — recorded, and the wave to the rail.
@@ -132,16 +144,20 @@ test.describe(`Mohole Contest · ${PRESET.id}`, () => {
       return outcomes.find((o) => o.step === 'heat' && o.player === before.thisPlayer.color)?.amount;
     }, {timeout: 60_000, message: 'the seat\'s own 6 heat is recorded'}).toBe(6);
     // The wave is a witness in its own right; on a miss the TIMELINE and the ledger's own trail are the evidence.
-    try {
-      await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.transferChips > 0), {timeout: 60_000,
-        message: 'the heat chip flies to the rail'}).toBe(true);
-    } catch (e) {
-      const samples = (await readProbe(page)).samples;
+    /** A miss names itself: every CHANGE the probe saw, and the ledger's own trail. */
+    const withTimeline = async (e: unknown): Promise<Error> => {
+      const samples = (await readProbe(page)).all;
       const changes = samples.filter((s, i) => i === 0 || ['parl', 'temperature', 'trChips', 'transferChips', 'placing', 'sit', 'yielded', 'holds']
         .some((k) => (s as unknown as Record<string, unknown>)[k] !== (samples[i - 1] as unknown as Record<string, unknown>)[k]));
       const ready = await page.evaluate(() => (window as unknown as {__conReady?: () => Ready}).__conReady?.());
       const timeline = changes.map((s) => JSON.stringify(s)).join(' | ');
-      throw new Error(`${(e as Error).message} TIMELINE: ${timeline} LEDGER: ${JSON.stringify(ready?.parliamentReward)}`);
+      return new Error(`${(e as Error).message} TIMELINE: ${timeline} LEDGER: ${JSON.stringify(ready?.parliamentReward)}`);
+    };
+    try {
+      await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.transferChips > 0), {timeout: 60_000,
+        message: 'the heat chip flies to the rail'}).toBe(true);
+    } catch (e) {
+      throw await withTimeline(e);
     }
 
     // ── ② THE WINNER'S STEP is recorded as the WINNER's, rewarded: 2 steps, −4 → 0, TR 2 — never `unrewarded`.
@@ -164,8 +180,12 @@ test.describe(`Mohole Contest · ${PRESET.id}`, () => {
       message: 'the sitting left the screen for the board — the planet\'s own beat, no press'}).toBe(true);
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => !s.parl && /(^|[^\d-])0\s*°?/.test(s.temperature) && !s.temperature.includes('-4')), {timeout: 60_000,
       message: 'the temperature readout shows 0 °C while the board has the screen'}).toBe(true);
-    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.trChips > 0), {timeout: 60_000,
-      message: 'a terraform-rating chip flies for the WINNER (the step is theirs — unlike a world move)'}).toBe(true);
+    try {
+      await expect.poll(async () => (await readProbe(page)).all.some((s) => s.trChips > 0), {timeout: 60_000,
+        message: 'a terraform-rating chip flies for the WINNER (the step is theirs — unlike a world move)'}).toBe(true);
+    } catch (e) {
+      throw await withTimeline(e);
+    }
     await shoot(page, '02-board-world-beat');
 
     // ── ④ THE OCEAN OF 0 °C stands on the board on the SAME trip: the sitting does not come back in between.

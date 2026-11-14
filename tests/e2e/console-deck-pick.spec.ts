@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {press, pressUntil, summaryVisible, walkToSummary, fillPicks, pickCards} from './consoleStart';
+import {readTransient, recordTransient, stopTransient} from './transientRecorder';
 
 /**
  * «КОРПОРАТИВНЫЕ АРХИВЫ» — the DRAW & SELECT flow, as a step of the Game Start
@@ -550,6 +551,11 @@ for (const profile of PROFILES) {
         mo.observe(document.body, {childList: true, subtree: true, attributes: true});
         setInterval(scan, 16);
       });
+      // …and so is the dock's pose: it opens for the length of the flights only, and a press now waits for the motion
+      // it started (the harness's `press`) — a poll that began AFTER the press met a dock already compact again. The
+      // recorder is armed BEFORE the press and keeps every pose the product wrote (tests.md — a transient is recorded).
+      await recordTransient(page, 'deckpick-dock-compact',
+        () => document.querySelector('.con-handdock')?.classList.contains('con-handdock--compact') ?? false);
       await press(page, 'Period', 400); // RT = «Подтвердить»
       expect(await waitUntil(page, (s) => s.flow !== 'choosing', 5000),
         `RT committed the pick — ${JSON.stringify(await surfaces(page))}`).toBeTruthy();
@@ -557,7 +563,9 @@ for (const profile of PROFILES) {
       // receiving, and the pose those flights measure their landing rects in.
       // Awaited, not sampled: it opens when the FLIGHT starts, and the flight
       // starts when the server answers.
-      const dockOpened = await waitUntil(page, (s) => !s.dockCompact);
+      const dockOpened = await expect.poll(async () => (await readTransient<boolean>(page, 'deckpick-dock-compact')).some((x) => !x.v),
+        {timeout: 8000}).toBe(true).then(() => true, () => false);
+      await stopTransient(page, 'deckpick-dock-compact');
       await page.screenshot({path: `test-results/deckpick-${profile.tag}-03-sending.png`});
       expect(dockOpened,
         `the dock opens up to receive the picks — ${JSON.stringify(await surfaces(page))}`)
