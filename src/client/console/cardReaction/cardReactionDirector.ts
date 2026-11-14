@@ -80,12 +80,13 @@ import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {motionGuarantee} from '@/client/console/session/sessionWaits';
 import {boardSceneMemberBusy, boardSceneOwedBusy} from '@/client/console/boardSceneMembers';
 import {scaleStepRatingBusy, scaleStepRatingStageCovered} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {SCALE_STEP_STAGE_DUE_MS} from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {hydroCeremonyOwed, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {hydroTraversalPending, isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {RectLike} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {
-  CardReactionGroup, REACTION_HURRY_PACE, REACTION_RIVAL_SCALE, ReactionTempo, freshCardReactions, groupCardReactions, planReactionChain, reactionAnswerGroups, reactionRisers,
-  reactionImpactSpec, reactionStageSlots, reactionTempo, reactionTokensOf, reducedReactionTempo,
+  CardReactionGroup, REACTION_HURRY_PACE, REACTION_RIVAL_SCALE, ReactionTempo, freshCardReactions, groupCardReactions, planReactionChain, ratingTouchdownStep, reactionAnswerGroups,
+  reactionRisers, reactionImpactSpec, reactionStageSlots, reactionTempo, reactionTokensOf, reducedReactionTempo,
 } from '@/client/console/cardReaction/cardReactionModel';
 import {
   ReactorCaption, ReactorFace, cardReactionStageMounted, cardReactionStageRect, cardReactionState, dropWarmFacesOf, dropWarmReactors, killReactorTweens, markReactionRow,
@@ -1341,24 +1342,46 @@ async function waitHydroStoryQuiet(myEpoch: number): Promise<void> {
 /**
  * A RATING reactor answers the rating's OWN touchdown (TR81 Lotus Innovations — `onIncreaseTerraformRatingByAnyPlayer`):
  * a scale step's TR is the scale-step rating beat's, born on the marker once it has ARRIVED — a NOTIFICATION-ONLY hold
- * the blocking wait above never sees, so the chain rose and paid before its cause had landed. Bounded like that wait.
+ * the blocking wait above never sees, so the chain rose and paid before its cause had landed.
+ *
+ * ONE DUE (`ratingTouchdownStep`): on a stage in plain view the touchdown is owed within the blocking bound — past it,
+ * a ceiling and a defect. While the player keeps the rating's stage COVERED the wait is the story's own: its due ends
+ * it (the rating is applied, the beat goes idle, this loop is over) — the reactor used to run out twenty seconds
+ * before that and pay for a rating that had not landed. Each of the two is a node of the wait graph with ITS bound.
  */
 async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
-  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  const clock = (): number => (typeof performance === 'undefined' ? 0 : performance.now());
+  let owedSince = clock();
+  /** The touchdown owed on a stage in plain view — the reactor's own bound. */
   let wait: CeilingWait | undefined;
+  /** The rating's story in its own bounded wait for a covered stage — the bound is the story's due. */
+  let withStory: CeilingWait | undefined;
   while (epoch === myEpoch && scaleStepRatingBusy() && standaloneQueue.some((s) => s.group.record.channel === 'tr-increase')) {
-    if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
-      // The touchdown this waits for is itself waiting for a board the player keeps covered: the same honest wait,
-      // read from the rating's own beat (`scaleStepRatingStageCovered`) — '' there = a defect here.
-      const covered = scaleStepRatingStageCovered();
-      wait?.ceiling(covered === '' ? undefined : `the rating's own story waits for its stage — ${covered}`);
+    const covered = scaleStepRatingStageCovered() !== '';
+    const step = ratingTouchdownStep(owedSince, {now: clock(), covered}, BLOCKING_QUIET_MAX_MS);
+    owedSince = step.owedSince;
+    if (step.overdue) {
+      wait?.ceiling();
+      withStory?.end();
       return;
     }
     cardReactionState.waitingOnOther = true;
-    wait ??= beginCeilingWait({id: 'card-reaction:rating-story-quiet', owner: 'cardReactionDirector', what: 'the touchdown of the scale rating', maxMs: BLOCKING_QUIET_MAX_MS});
+    if (covered) {
+      wait?.end();
+      wait = undefined;
+      withStory ??= beginCeilingWait({
+        id: 'card-reaction:rating-story-covered', owner: 'cardReactionDirector', what: 'the due of the rating\'s own story (its stage is covered)',
+        maxMs: SCALE_STEP_STAGE_DUE_MS + BLOCKING_QUIET_MAX_MS,
+      });
+    } else {
+      withStory?.met();
+      withStory = undefined;
+      wait ??= beginCeilingWait({id: 'card-reaction:rating-story-quiet', owner: 'cardReactionDirector', what: 'the touchdown of the scale rating', maxMs: BLOCKING_QUIET_MAX_MS});
+    }
     await nextPaintedFrame();
   }
   closeReactionWait(wait, myEpoch);
+  closeReactionWait(withStory, myEpoch);
 }
 
 /**

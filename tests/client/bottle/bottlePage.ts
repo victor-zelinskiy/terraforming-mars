@@ -28,6 +28,7 @@ import {livenessStateSnapshot} from '@/client/console/consoleLiveness';
 import {reactivityWitnessStats} from '@/client/components/presentation/reactivityWitness';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
 import type {BottleClock} from './bottleTime';
+import {resetVaporTree} from '../testing/vaporTree';
 
 export type PageBeat = {accepting: boolean, inFlight: ReadonlyArray<string>, frames: ReadonlyArray<string>, section: string, quietS: number, graph?: string};
 
@@ -169,6 +170,11 @@ export function openPage(clock: BottleClock, lines: Array<string>, echo: boolean
       }
       await clock.drain();
       host.remove();
+      // THE SUITE'S OWN REGISTRY LETS THE PAGE GO. The unit bundle's `vue` remembers every component a Vapor render
+      // created (`tests/client/testing/vaporTree.ts` — what `findComponent` reads) and forgets them after each TEST.
+      // A bottle is a whole application: a test that stands several (a reload, a shrink's sixty replays) kept every
+      // one of them alive until its end — 22 – 84 MB a page, measured; the shrink of a real walk died at 4 GB.
+      resetVaporTree();
       restoreRebuild();
       console.warn = realWarn;
       console.error = realError;

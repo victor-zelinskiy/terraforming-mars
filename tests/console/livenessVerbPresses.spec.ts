@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {dispatchConsoleIntent, registerConsoleIntentHandler} from '@/client/console/consoleRouter';
-import {inputEchoSnapshot, noteUnreceivedPress, resetInputEchoForTest} from '@/client/console/inputEcho';
+import {inputEchoSnapshot, inputTrailLine, noteUnreceivedPress, recordInputTrail, resetInputEchoForTest} from '@/client/console/inputEcho';
+import {noteInputAbsorbed} from '@/client/console/inputAbsorb';
 
 /**
  * THE PRESSES THE LIVENESS ARBITER COUNTS (2026-10-31): A and B — the two verbs every live surface must answer — from
@@ -47,6 +48,55 @@ describe('liveness · the presses it counts', () => {
     } finally {
       off();
     }
+  });
+
+  /*
+   * THE TRAIL (FREEZE ZERO · part A): a freeze is read by WHICH presses led to it, in what order and how fast — the
+   * chairmanship wedged on «A, then A again 0.9 s later», found only by bisecting presses by hand because the event
+   * carried a count. The router notes every press edge of every device with what became of it; a defect's evidence
+   * prints the last of them (`stallEvidence.ts` → `input`).
+   */
+  it('THE TRAIL: every press edge and direction, oldest first, with its age and what became of it', () => {
+    resetInputEchoForTest();
+    let mounted = true;
+    const off = registerConsoleIntentHandler((intent) => {
+      if (intent.kind === 'press' && intent.button === 'secondary') {
+        noteInputAbsorbed('decision-settle');
+        return true;
+      }
+      if (!mounted) {
+        noteUnreceivedPress('cardActions');
+        return true;
+      }
+      return intent.kind === 'press' && intent.button === 'confirm';
+    });
+    try {
+      dispatchConsoleIntent({kind: 'press', button: 'confirm'}); // taken
+      dispatchConsoleIntent({kind: 'release', button: 'confirm'}); // a release is not an edge of the trail
+      dispatchConsoleIntent({kind: 'nav', dir: 'down', repeat: false}); // nobody took it
+      dispatchConsoleIntent({kind: 'nav', dir: 'down', repeat: true}); // a held direction is ONE press
+      dispatchConsoleIntent({kind: 'press', button: 'secondary'}); // a deliberate gate took it, by name
+      mounted = false;
+      dispatchConsoleIntent({kind: 'press', button: 'confirm'}); // consumed for a surface that is not there
+    } finally {
+      off();
+    }
+    expect(inputTrailLine(Date.now()).replace(/−\d+\.\ds/g, '−Ns'))
+      .to.equal('confirm −Ns · nav:down −Ns (dropped) · secondary −Ns (absorbed by decision-settle) · confirm −Ns (dropped)');
+  });
+
+  it('the trail is bounded, and forgets what is older than its window — another story\'s presses are not this one\'s', () => {
+    resetInputEchoForTest();
+    for (let i = 0; i < 40; i++) {
+      recordInputTrail(`p${i}`, 'taken', 1_000 + i * 1_000);
+    }
+    const line = inputTrailLine(41_000);
+    expect(line.split(' · '), 'the newest two dozen').to.have.length(24);
+    expect(line.startsWith('p16 −24.0s · p17 −23.0s')).to.equal(true);
+    expect(line.endsWith('p39 −1.0s')).to.equal(true);
+    expect(inputTrailLine(41_000 + 200_000), 'two minutes later they are history').to.equal('');
+    recordInputTrail('confirm', 'taken', 500_000);
+    expect(inputTrailLine(500_300)).to.equal('confirm −0.3s');
   });
 
   it('counts the B presses a handler TOOK apart (the arbiter judges them on a frame past its commit)', () => {

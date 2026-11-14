@@ -136,7 +136,11 @@ something only the PLAYER decides the time of), never a way to silence a line.
 A `defect` record of the page carries what stood when it was named: the question with who may serve it and who does;
 the holders with their ages (the one the class names first); the kernel's flow tree with every wait; the wait table;
 the wait graph's nodes and standing findings; the kernel's last records (the machines' transitions among them); what
-the pad's funnel last saw. Taken ONCE per record by the provider the console's supervisor registers with the
+the pad's funnel last saw — its counters and **THE TRAIL: the presses that led here** (`inputEcho.inputTrailLine`: the
+last two dozen press edges and directions of any device, oldest first, each with its age and what became of it —
+`confirm −14.2s · nav:down −13.9s · back −12.0s (dropped) · confirm −3.1s (absorbed by decision-settle)`; noted by the
+router, semantic verbs only — a text field never reaches it). A freeze is read by WHICH presses, in what order and how
+fast: the chairmanship wedged on «A, then A again 0.9 s later», and a count could not say so. Taken ONCE per record by the provider the console's supervisor registers with the
 interceptor (`setDiagEvidenceProvider` — the interceptor still imports nothing of the console), bounded
 (`DIAG_EVIDENCE_*`), never on a healthy second (D30).
 

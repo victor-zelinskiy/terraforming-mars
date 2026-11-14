@@ -19,7 +19,7 @@ import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {AlbumFilter, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {loadingScreenState, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
-import {recordVerbPress, takeUnreceivedPress} from '@/client/console/inputEcho';
+import {recordInputTrail, recordVerbPress, takeUnreceivedPress} from '@/client/console/inputEcho';
 import {beginInputDispatch, endInputDispatch, noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {
   registerWorkspaceTaskSetAside,
@@ -272,14 +272,26 @@ export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
   // Every dispatch is BRACKETED for the input-absorb ledger (`inputAbsorb.ts`): a gate that swallows this intent on
   // purpose says so during it, and the key bridge's echo reports the press as `absorbed` by name.
   beginInputDispatch();
+  let outcome: DispatchOutcome = {taken: false, received: false};
   try {
-    return dispatchConsoleIntentInner(intent);
+    outcome = dispatchConsoleIntentInner(intent);
+    return outcome.taken;
   } finally {
-    endInputDispatch();
+    const absorbedBy = endInputDispatch();
+    // THE TRAIL (`inputEcho.ts`): every press edge and direction of any device, with what became of it — what a
+    // defect's evidence prints as «the presses that led here». (A held direction's repeats are one press.)
+    if (intent.kind === 'press' || (intent.kind === 'nav' && !intent.repeat)) {
+      recordInputTrail(
+        intent.kind === 'press' ? intent.button : `nav:${intent.dir}`,
+        absorbedBy.length > 0 ? `absorbed by ${absorbedBy.join(',')}` : outcome.received ? 'taken' : 'dropped');
+    }
   }
 }
 
-function dispatchConsoleIntentInner(intent: GamepadIntent): boolean {
+/** `taken` — the router's answer (the intent is consumed); `received` — …and a surface that is THERE received it. */
+type DispatchOutcome = {taken: boolean, received: boolean};
+
+function dispatchConsoleIntentInner(intent: GamepadIntent): DispatchOutcome {
   takeUnreceivedPress(); // a note left by an intent that was not a verb is not this press's
   // The liveness arbiter's witness of «the player is trying»: A / B from any device (`inputEcho.verbPresses`), and
   // whether anybody TOOK it (`verbDropped`).
@@ -302,17 +314,18 @@ function dispatchConsoleIntentInner(intent: GamepadIntent): boolean {
     if (verb) {
       recordVerbPress(true);
     }
-    return true;
+    return {taken: true, received: true};
   }
   for (const observe of observers) {
     observe(intent);
   }
   const taken = handler !== undefined ? handler(intent) : false;
+  // …and a press the shell CONSUMED for a surface that was not mounted to receive it was taken by nobody.
+  const received = taken && takeUnreceivedPress() === undefined;
   if (verb) {
-    // …and a press the shell CONSUMED for a surface that was not mounted to receive it was taken by nobody.
-    recordVerbPress(taken && takeUnreceivedPress() === undefined, intent.kind === 'press' && intent.button === 'back');
+    recordVerbPress(received, intent.kind === 'press' && intent.button === 'back');
   }
-  return taken;
+  return {taken, received};
 }
 
 /** The scene curtain absorbs every gameplay intent while it owns the frame — a gate in front of every surface. */

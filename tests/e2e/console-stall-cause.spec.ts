@@ -12,7 +12,7 @@ import {bootFixture, cinematicBeat, fetchPlayerModel, playCardFromHand, press, r
  *
  *  · ONE episode, filed under its cause class: `liveness/stall/unserved/<task>/<top>/stranded…` — the holder is named;
  *  · with WHAT STOOD when it began: the question (asked, who may serve it, that nobody did), the holders, the kernel's
- *    flow tree, the kernel's last records.
+ *    flow tree, the kernel's last records — and THE TRAIL, the presses that led there.
  *
  * And what the PLAYER gets, past the ladder's last rung:
  *
@@ -119,9 +119,13 @@ test.describe('a stall names its cause and says how it ended', () => {
     await reachPlayFromHand(page, request, PRESET.query);
 
     const left = page.waitForEvent('framenavigated', {predicate: (frame) => frame === page.mainFrame(), timeout: 120_000});
+    // One press the player made just before it all stopped (a direction in the hand — never a verb the arbiter counts).
+    await press(page, 'ArrowLeft', 300);
     await strand(page);
     await expect.poll(() => lines.stalls.length, {timeout: 40_000, message: 'the arbiter named the stall'}).toBeGreaterThan(0);
     const open = await expectEpisodeWithItsCause(page, lines.stalls);
+    // THE TRAIL rides the evidence: the presses that led here, each with its age and what became of it.
+    expect(open.evidence?.input, 'the press before the stall is in the record').toMatch(/the trail: .*nav:left −\d+\.\ds/);
 
     // THE LAST LINE. No rung can serve a question that has no frame: the ladder is spent, the screen still stands —
     // and the page replaces itself behind the curtain. No key was pressed.

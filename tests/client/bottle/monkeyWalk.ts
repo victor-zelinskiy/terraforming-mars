@@ -60,9 +60,18 @@ export type MonkeyCarried = {cls: string, count: number, text: string, blind: bo
  */
 export type MonkeyMode = 'plain' | 'guided';
 
+/**
+ * ONE STEP OF A WALK, AS IT WAS MADE — with nothing of the stream left in it: a press and the pause after it, the
+ * other seats' moves, a reload. What `replaySteps` runs and `shrink.ts` cuts: a list of these IS a walk, whoever
+ * produced it (the seeded stream, a guided pick, a hand).
+ */
+export type MonkeyStep = {do: 'press', key: BottleKey, pauseMs: number} | {do: 'seats'} | {do: 'reload'};
+
 export type MonkeyWalkResult = {
   /** `key:echo`, `[seat n] move`, `[RELOAD]`. */
   log: Array<string>,
+  /** The walk as a list of steps — replayed by `replaySteps`, cut down by `shrinkSteps`. */
+  steps: Array<MonkeyStep>,
   /** The bottle the walk ENDED on — another one than it began on when a reload replaced the page. */
   bottle: ConsoleBottle,
   /** The classes of the pages a reload replaced (the last page's are read by the caller, after its «last word»). */
@@ -115,10 +124,12 @@ export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: stri
   r();
   const reload = opts.reloadEvery !== undefined && opts.reloadEvery > 0 ? monkeyRng(`${seed}:reload`) : undefined;
   const log: Array<string> = [];
+  const steps: Array<MonkeyStep> = [];
   const carried: Array<MonkeyCarried> = [];
   for (let i = 0; i < presses; i++) {
     // THE OTHER SEATS MOVE — every dozen presses, as on the box.
     if (i % 12 === 11) {
+      steps.push({do: 'seats'});
       for (let seat = 1; seat < seats; seat++) {
         const moved = await bottle.otherSeatMoves(seat).catch(() => undefined);
         if (moved !== undefined) {
@@ -133,6 +144,7 @@ export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: stri
         carriedCoverage.add(key);
       }
       log.push('[RELOAD]');
+      steps.push({do: 'reload'});
       bottle = await bottle.reload();
       await bottle.advance(3_000);
       continue;
@@ -143,7 +155,36 @@ export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: stri
     // A player's rhythm — the box monkey's own numbers.
     const roll = r();
     const pause = roll < 0.7 ? 120 + r() * 380 : roll < 0.95 ? 600 + r() * 1400 : 3000 + r() * 5000;
+    steps.push({do: 'press', key, pauseMs: Math.round(pause)});
     await bottle.advance(Math.round(pause));
   }
-  return {log, bottle, carried, carriedCoverage: [...carriedCoverage]};
+  return {log, steps, bottle, carried, carriedCoverage: [...carriedCoverage]};
+}
+
+/**
+ * REPLAY a list of steps on a booted bottle of a table with `seats` seats — the same three verbs `monkeyWalk` makes,
+ * in the order given. Returns the bottle the replay ended on (a reload replaces it). The caller advances the clock
+ * past the nets' graces afterwards and reads the journal, as after a walk.
+ */
+export async function replaySteps(start: ConsoleBottle, seats: number, steps: ReadonlyArray<MonkeyStep>): Promise<ConsoleBottle> {
+  let bottle = start;
+  for (const step of steps) {
+    if (step.do === 'seats') {
+      for (let seat = 1; seat < seats; seat++) {
+        await bottle.otherSeatMoves(seat).catch(() => undefined);
+      }
+    } else if (step.do === 'reload') {
+      bottle = await bottle.reload();
+      await bottle.advance(3_000);
+    } else {
+      await bottle.press(step.key);
+      await bottle.advance(step.pauseMs);
+    }
+  }
+  return bottle;
+}
+
+/** A step as a line a human reads (and pastes into a replay): `Enter +420ms`, `[seats]`, `[reload]`. */
+export function stepLine(step: MonkeyStep): string {
+  return step.do === 'press' ? `${step.key} +${step.pauseMs}ms` : `[${step.do}]`;
 }

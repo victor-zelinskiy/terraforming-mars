@@ -34,7 +34,17 @@ npm run test:bottle
 # own walk (same seed → same presses), classes filed in the box monkey's format
 TM_BOTTLE_MONKEY=1 TM_BOTTLE_MONKEY_SHARD=1/2 npm run test:client:one -- tests/client/bottle/monkey.bottle.ts
 node scripts/monkey-report.mjs .e2e-remote/bottle-monkey --against .e2e-remote/<the box run>/monkey-report.json
+# THE FREEZE GATE — the three in one command, with NO BOX (≈ 35 min of a laptop): the replays of every closed class,
+# the monkey in the bottle over every table, the report against the committed baseline — red on a NEW defect class
+npm run gate:freeze                      # --shards 4 · --only <regex> · --report-only · --write-baseline
+# THE SHRINK — a walk that names a class, cut down to the steps that make it (each candidate on a fresh bottle)
+TM_BOTTLE_MONKEY=1 TM_BOTTLE_MONKEY_ONLY='^<table>$' TM_BOTTLE_MONKEY_SHRINK='<class regex>' npm run test:client:one -- tests/client/bottle/monkey.bottle.ts
 ```
+**THE FREEZE GATE'S BASELINE SAYS WHY** (`tests/client/bottle/monkeyBaseline.json`, guard
+`tests/console/freezeGateBaseline.spec.ts`): the classes the bottle is KNOWN to name, each with the reason it may
+stand. A class the gate calls NEW is a finding — close it (a law, a guard, a replay) or, when a real browser says
+«not there», add it with its `why`; a row without one is red in the unit run. Never add a row to make the gate green.
+
 **A CLASS FOUND IS A CLASS REPLAYED** (`tests/client/bottle/classReplays.bottle.ts`): every cause class closed gets a
 test there — the fixture, the presses that produced it, the property its fix established — and that test is RED with
 the fix switched off, under the class key the monkey filed (prove it once, by hand, before the commit). The bottle has

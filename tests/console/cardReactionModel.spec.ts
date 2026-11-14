@@ -9,6 +9,7 @@ import {
   reducedReactionTempo,
 } from '../../src/client/console/cardReaction/cardReactionModel';
 import {intakeAssemblyTimings, reducedIntakeAssemblyTimings} from '../../src/client/console/cardIntake/intakeAssemblyPlan';
+import {ratingTouchdownStep} from '../../src/client/console/cardReaction/cardReactionModel';
 
 /**
  * «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» — the pure half: the server's records
@@ -304,6 +305,38 @@ describe('cardReactionModel — the record → the group → the chain → the s
     });
   });
   // ── P82 · «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА» — § risers: ONE question «who rises now, and how» ──
+  describe('ratingTouchdownStep — a rating reactor waits WITH the rating: one due (FREEZE ZERO, the scale-step rating)', () => {
+    const MAX = 12_000;
+    /** Walk the looks (one a second); return the second at which the wait is overdue, or -1. */
+    function overdueAt(covered: (second: number) => boolean, seconds: number): number {
+      let owedSince = 0;
+      for (let s = 0; s <= seconds; s++) {
+        const step = ratingTouchdownStep(owedSince, {now: s * 1000, covered: covered(s)}, MAX);
+        owedSince = step.owedSince;
+        if (step.overdue) {
+          return s;
+        }
+      }
+      return -1;
+    }
+
+    it('on a stage in PLAIN VIEW the touchdown is owed within the bound — past it, the ceiling (a defect)', () => {
+      expect(overdueAt(() => false, 60)).to.eq(13);
+    });
+
+    it('while the player keeps the stage COVERED the clock does not run — the story\'s own due ends the wait, never this one', () => {
+      // The rating's story may wait 32 s for its stage: the reactor used to run out at 12 s and pay first.
+      expect(overdueAt(() => true, 120)).to.eq(-1);
+    });
+
+    it('the bound counts from the moment the stage came INTO VIEW — the covered seconds are the story\'s, not the reactor\'s', () => {
+      // Covered for 20 s (a prelude read inside the start workspace), then the board stands in plain view.
+      expect(overdueAt((s) => s <= 20, 60)).to.eq(33);
+      // …and a stage covered AGAIN before the bound ran out starts it over.
+      expect(overdueAt((s) => s <= 20 || (s >= 28 && s <= 30), 60)).to.eq(43);
+    });
+  });
+
   describe('reactionAnswerGroups / reactionRisers — who rises in THIS answer, and how', () => {
     const c = (seq: number, block: number, rows: Array<string>, over: {claimed?: boolean, reserved?: string} = {}) =>
       ({seq, block, rows, claimed: over.claimed ?? false, reserved: over.reserved});

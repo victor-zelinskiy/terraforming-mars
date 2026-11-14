@@ -126,6 +126,36 @@ export function recordVerbPress(taken: boolean, back = false): void {
   }
 }
 
+/**
+ * THE TRAIL — THE PRESSES THAT LED HERE (FREEZE ZERO · part A). The counters above say HOW MANY; a freeze is read by
+ * WHICH, in what order and how fast: the chairmanship wedged on «A, then A again 0.9 s later» — found only by
+ * bisecting presses by hand, because the event carried a count. The router (`dispatchConsoleIntent` — every device)
+ * notes each PRESS edge and each direction with what became of it; a defect's evidence prints the last of them with
+ * their age (`inputTrailLine`). Semantic verbs only (`confirm`, `nav:down`) — a text field never reaches the router.
+ */
+export type InputTrailHow = 'taken' | 'dropped' | string;
+const TRAIL_MAX = 24;
+const trail: Array<{at: number, what: string, how: InputTrailHow}> = [];
+
+export function recordInputTrail(what: string, how: InputTrailHow, at: number = Date.now()): void {
+  trail.push({at, what, how});
+  if (trail.length > TRAIL_MAX) {
+    trail.shift();
+  }
+}
+
+/**
+ * The trail as one line, oldest first: `confirm −14.2s · nav:down −13.9s · back −12.0s (dropped) · confirm −3.1s
+ * (absorbed by decision-settle)`. A press that was simply taken says nothing after its age — the exceptions read.
+ * Presses older than `maxAgeMs` are another story's and are left out.
+ */
+export function inputTrailLine(now: number = Date.now(), maxAgeMs = 120_000): string {
+  return trail
+    .filter((press) => now - press.at <= maxAgeMs)
+    .map((press) => `${press.what} −${(Math.max(0, now - press.at) / 1000).toFixed(1)}s${press.how === 'taken' ? '' : ` (${press.how})`}`)
+    .join(' · ');
+}
+
 export function inputEchoSnapshot(): InputEchoSnapshot {
   return {...state, last: state.last === undefined ? undefined : {...state.last},
     lastPress: state.lastPress === undefined ? undefined : {...state.lastPress}};
@@ -142,6 +172,7 @@ export function installInputEchoProbe(): void {
 
 export function resetInputEchoForTest(): void {
   unreceivedBy = undefined;
+  trail.splice(0);
   state.seq = 0;
   state.presses = 0;
   state.verbPresses = 0;

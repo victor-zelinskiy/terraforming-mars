@@ -19,6 +19,8 @@
  *  11  the server's own timers stand on the same clock (MarsBot's paced turn)
  *  12  a bottle leaves nothing behind (the suite's bare jsdom, the wall clock, the document)
  *  13  who watches the watcher: a supervisor whose pass does not run is rebuilt by the witness outside the shell
+ *  14  THE SHRINK: a walk that names a class is cut down to the steps that make it — the cutting itself (pure), and
+ *      a walk of fourteen steps with a planted defect among them, each candidate replayed on a fresh bottle
  *
  * The numbers these tests print (boot, presses per second, tasks) are the spike's measurements — read them in the log.
  */
@@ -26,6 +28,8 @@ import {expect} from 'chai';
 import fc from 'fast-check';
 import {bootBottle, BOTTLE_KEYS, BottleKey, ConsoleBottle, seededRandom} from './consoleBottle';
 import {bottleServer, nodeProcess} from './bottleNode';
+import {MonkeyStep, replaySteps, stepLine} from './monkeyWalk';
+import {shrinkSteps} from './shrink';
 
 const FIXTURE = 'aerial-mappers';
 const wall = () => Number(nodeProcess().hrtime.bigint() / 1_000_000n);
@@ -410,6 +414,75 @@ describe('THE CONSOLE IN A BOTTLE — the real shell and the real server in one 
     // ONE ask: the document is leaving, the witness has nothing more to judge.
     await bottle.advance(30_000);
     expect(bottle.rebuildsAsked()).to.equal(1);
+  });
+
+  it('14a · THE SHRINK, the cutting itself: three steps of sixty that must come in order are what is left', async () => {
+    const walk = Array.from({length: 60}, (_, i) => i);
+    const inOrder = (needs: ReadonlyArray<number>) => async (candidate: ReadonlyArray<number>): Promise<boolean> => {
+      let at = 0;
+      for (const step of candidate) {
+        if (step === needs[at]) {
+          at++;
+        }
+      }
+      return at === needs.length;
+    };
+    const three = await shrinkSteps(walk, inOrder([7, 23, 41]));
+    expect(three.steps).to.deep.equal([7, 23, 41]);
+    expect(three.cut).to.equal(false);
+    expect(three.tries, 'a few dozen replays, never the 2^60 of trying every subset').to.be.lessThan(80);
+    // THE TAIL GOES FIRST: a class named early in a long walk costs a handful of replays, not a cut of all sixty.
+    const early = await shrinkSteps(walk, inOrder([2, 5]));
+    expect(early.steps).to.deep.equal([2, 5]);
+    expect(early.tries, 'the prefix is found by halving').to.be.lessThan(20);
+    // A class that needs the whole walk keeps the whole walk; a budget that runs out says so and returns what still names it.
+    expect((await shrinkSteps([1, 2, 3, 4], async (candidate) => candidate.length === 4)).steps).to.deep.equal([1, 2, 3, 4]);
+    const cut = await shrinkSteps(walk, inOrder([7, 23, 41]), 5);
+    expect(cut.cut).to.equal(true);
+    expect(await inOrder([7, 23, 41])(cut.steps), 'what is returned still names the class').to.equal(true);
+  });
+
+  it('14b · THE SHRINK on a real page: fourteen steps with a planted defect among them — cut to the plant, each candidate on a fresh bottle', async () => {
+    type Step = MonkeyStep | {do: 'strand'};
+    const press = (key: BottleKey, pauseMs: number): Step => ({do: 'press', key, pauseMs});
+    // A player looking around the start (directions and inspect — nothing that answers the question), the plant in
+    // the middle of it, and more looking around after.
+    const walk: Array<Step> = [
+      press('ArrowRight', 300), press('ArrowLeft', 250), press('KeyX', 400), press('Escape', 300), press('ArrowRight', 350),
+      press('ArrowDown', 200), press('ArrowUp', 300), {do: 'strand'}, press('ArrowLeft', 300), press('ArrowRight', 250),
+      press('ArrowDown', 300), press('ArrowUp', 350), press('ArrowLeft', 200), press('ArrowRight', 300),
+    ];
+    let replays = 0;
+    const names = async (candidate: ReadonlyArray<Step>): Promise<boolean> => {
+      replays++;
+      // The same world for every candidate: the same ids, the same rolls.
+      restoreRandom?.();
+      restoreRandom = bottleServer().seedProcessRandom(0.4242);
+      bottleServer().reset();
+      const table = bottleServer().bootNewGame(2, {}, '-shrink');
+      let page = await bootBottle(table, {query: 'waitGraphControl=strand'});
+      try {
+        await page.advance(3_000);
+        for (const step of candidate) {
+          if (step.do === 'strand') {
+            (window as unknown as {__conStrandQuestion?: () => string}).__conStrandQuestion?.();
+          } else {
+            page = await replaySteps(page, table.seats.length, [step]);
+          }
+        }
+        await page.advance(15_000);
+        return page.liveness().defects.some((defect) => /wait-graph\/dead-end|stranded|liveness\/stall/.test(defect.cls));
+      } finally {
+        await page.dispose();
+      }
+    };
+    expect(await names(walk), 'the walk names the class as recorded').to.equal(true);
+    expect(await names(walk.filter((step) => step.do !== 'strand')), '…and not without its plant').to.equal(false);
+    const shrunk = await shrinkSteps(walk, names);
+    say(`the shrink: ${walk.length} steps → ${shrunk.steps.length} in ${shrunk.tries} replays (${replays} bottles): ${shrunk.steps.map((step) => (step.do === 'strand' ? '[strand]' : stepLine(step))).join(' · ')}`);
+    expect(shrunk.steps.some((step) => step.do === 'strand'), 'the plant is what is left').to.equal(true);
+    expect(shrunk.steps.length, 'and next to nothing beside it').to.be.lessThan(3);
+    expect(shrunk.cut).to.equal(false);
   });
 
   it('12 · a bottle leaves nothing behind', async () => {

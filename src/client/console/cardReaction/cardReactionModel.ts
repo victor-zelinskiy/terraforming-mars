@@ -154,6 +154,28 @@ export function groupCardReactions(records: ReadonlyArray<CardReactionRecord>, v
  * ticking on each touchdown); a production step and a rating step are one
  * token each, and so is a loss.
  */
+/**
+ * A RATING REACTOR WAITS WITH THE RATING — ONE DUE (FREEZE ZERO — PLAN §4, the scale-step rating's row).
+ *
+ * A card that answers a rating («+1 РТ → …») rises once the rating has TOUCHED DOWN. The rating of a scale step is
+ * told on the board; while the player keeps the board covered (a prelude read inside the start workspace) that story
+ * is owed and bounded by ITS due — and the reactor's own 12 s ran out long before it: the card paid for a rating
+ * that had not landed yet. Two clocks for one fact. Now there is one:
+ *
+ *  · while the rating's stage is COVERED the reactor's clock does not run — the wait is the story's own, and the
+ *    story's due ends it (the rating is applied, the beat goes idle, the reactor's loop is over);
+ *  · on a stage in PLAIN VIEW the touchdown is owed within `maxMs` of the moment the stage came into view — past it
+ *    the wait ends on its ceiling, a defect (the story stood in view and never came).
+ *
+ * Pure: the moment the touchdown has been owed since, and whether it is overdue.
+ */
+export function ratingTouchdownStep(owedSince: number, look: {now: number, covered: boolean}, maxMs: number): {owedSince: number, overdue: boolean} {
+  if (look.covered) {
+    return {owedSince: look.now, overdue: false};
+  }
+  return {owedSince, overdue: look.now - owedSince > maxMs};
+}
+
 export const REACTION_WAVE_CAP = 6;
 export function reactionTokensOf(spec: ResourceTransferSpec, waveCap = REACTION_WAVE_CAP): Array<ResourceTransferSpec> {
   const counted = (spec.channel === 'stock' && spec.resource !== RATING_RAIL_KEY) || (spec.channel === 'card-resource' && spec.direction !== 'loss');

@@ -1,0 +1,69 @@
+{
+  "what": "the DEFECT classes the monkey in the bottle is KNOWN to name — each with why it may stand (scripts/freeze-gate.mjs)",
+  "seed": "fz0",
+  "presses": 36360,
+  "walks": 606,
+  "at": "2026-11-14",
+  "classes": {
+    "console-foreground-watchdog/expired/animation:deck-draw-lease:mandatory-choice×n-result-modaldra": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:venus-trade",
+      "why": "the bottle has no layout: the trade's drawn cards and the colony roster fly between MEASURED rects, so the card-arrival admission stands to its bound and the start's menu takes no A meanwhile. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "console-foreground-watchdog/expired/animation:external-draw-admission:anyanimation": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:parliament-sponsored-eight",
+      "why": "the bottle has no layout: the external draw's cards have no measured place to land, the draw's hold and its admission stand with nothing rendered and the sitting takes no A meanwhile. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "console-foreground-watchdog/expired/lease:mandatory-choice×n": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:soil-bacteria-wg",
+      "why": "the bottle has no layout: the played hero's flight has no target rect, so the claim's presentation and the mandatory lease behind it stand to their bounds and the deck pick takes no A meanwhile. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "liveness/stall/presses-no-effect/actionmenu/start:committed/block:card-arrival": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:venus-trade",
+      "why": "the bottle has no layout: the trade's drawn cards and the colony roster fly between MEASURED rects, so the card-arrival admission stands to its bound and the start's menu takes no A meanwhile. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "liveness/stall/presses-no-effect/deckselect/hand:committed/claim:hand:presenting": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:soil-bacteria-wg",
+      "why": "the bottle has no layout: the played hero's flight has no target rect, so the claim's presentation and the mandatory lease behind it stand to their bounds and the deck pick takes no A meanwhile. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "liveness/stall/presses-no-effect/externaldraw/parliament:committed/deaf": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:parliament-sponsored-eight",
+      "why": "the bottle has no layout: the external draw's cards have no measured place to land, the draw's hold and its admission stand with nothing rendered and the sitting takes no A meanwhile. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "mandatory-gate/overdue/task:card-select-$n-cards-to-discard-reds": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:red-lawyers",
+      "why": "the bottle has no layout: the discard's plate waits behind a flight with no measurable end, and its first presentation comes at the gate's bound instead of the touchdown. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "notifications/starvation/deck-drawnotification-only": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:sagitta-start",
+      "why": "the bottle has no layout: the deck draw's notification-only hold ends on a MEASURED touchdown that never comes here, so the feed delivers at its own bound. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "presentation-ledger/story-due/board-beat-park": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:floating-biodomes-maxo2",
+      "why": "the bottle has no layout: the board beat's park lets go on the landing of a token between measured rects — its release edge comes at the story's due instead. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "start-stranded/confirmed/or": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:venus-trade-unity-bonus-2p",
+      "why": "the bottle has no layout: the start's table answer waits for a card arrival's measured end, and the start serves nothing until that hold's bound. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    }
+  }
+}

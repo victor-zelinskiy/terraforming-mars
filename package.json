@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.3261",
+  "version": "1.2.3262",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=24.20.0 <25"
@@ -120,6 +120,7 @@
     "test:client": "cross-env NODE_ENV=development node scripts/run-tests.mjs --label client --min 8000 -- node scripts/client-tests.mjs \"tests/client/**/*.spec.ts\"",
     "test:client:one": "cross-env NODE_ENV=development node scripts/client-tests.mjs",
     "test:bottle": "cross-env NODE_ENV=development node scripts/client-tests.mjs tests/client/bottle/*.bottle.ts",
+    "gate:freeze": "node scripts/freeze-gate.mjs",
     "test:client:vapor": "cross-env NODE_ENV=development TM_UNIT_VAPOR=all node scripts/run-tests.mjs --label client --min 8000 -- node scripts/client-tests.mjs \"tests/client/**/*.spec.ts\"",
     "test:client:vapor:one": "cross-env NODE_ENV=development TM_UNIT_VAPOR=all node scripts/client-tests.mjs",
     "test:client:vdom:one": "cross-env NODE_ENV=development TM_UNIT_VAPOR=none node scripts/client-tests.mjs",

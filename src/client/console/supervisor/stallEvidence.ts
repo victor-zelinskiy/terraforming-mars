@@ -17,7 +17,7 @@ import {
 } from '@/common/diagnostics/DiagnosticModel';
 import {dumpFlowTree, waitTable} from '@/client/console/kernel/flowScope';
 import {flowTraceLines} from '@/client/console/kernel/flowTrace';
-import {inputEchoSnapshot} from '@/client/console/inputEcho';
+import {inputEchoSnapshot, inputTrailLine} from '@/client/console/inputEcho';
 import {waitGraphSnapshot} from '@/client/console/waitGraph/waitGraph';
 
 /** What the supervisor knows of the screen that a holder is named from — every term a fact it already samples. */
@@ -114,6 +114,7 @@ export function buildStallEvidence(facts: StallEvidenceFacts, now: number = Date
   const standing = graph.standing.map((key) => clip(`finding: ${key}`));
   const echo = inputEchoSnapshot();
   const last = echo.lastPress;
+  const trail = inputTrailLine(now);
   return {
     at: now,
     question: clip(facts.question),
@@ -123,6 +124,8 @@ export function buildStallEvidence(facts: StallEvidenceFacts, now: number = Date
     graph: [...nodes, ...standing],
     trace: flowTraceLines(DIAG_EVIDENCE_TRACE_MAX).map(clip),
     input: `A/B presses ${echo.verbPresses} (no handler took ${echo.verbDropped}, B taken ${echo.backTaken}), absorbed ${echo.absorbed}` +
-      `${last === undefined ? '' : `; last press ${last.code} → ${last.outcome}${last.absorbedBy !== undefined && last.absorbedBy.length > 0 ? ` by ${last.absorbedBy.join(',')}` : ''}`}`,
+      `${last === undefined ? '' : `; last press ${last.code} → ${last.outcome}${last.absorbedBy !== undefined && last.absorbedBy.length > 0 ? ` by ${last.absorbedBy.join(',')}` : ''}`}` +
+      // THE PRESSES THAT LED HERE, oldest first, each with its age and what became of it (`inputEcho.inputTrailLine`).
+      `${trail === '' ? '' : `; the trail: ${trail}`}`,
   };
 }
