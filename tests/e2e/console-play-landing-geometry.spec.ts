@@ -455,7 +455,10 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
       }
     }
   }
-  const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+  // «The same picture» is the same SET of classes: the ORDER inside `className` is how a runtime serialises an update
+  // (the proxy's art tier is written after its mount, the face's with it) — the virtual DOM and Vapor order it
+  // differently, and the paint does not read the order (tests.md § a Vapor component in a unit spec: assert the set).
+  const norm = (s: string) => s.split(/\s+/).filter((c) => c !== '').sort().join(' ');
   const proxyCls = iOpaqueLast >= 0 ? norm(frames[iOpaqueLast].proxyCls) : '';
   const faceCls = iReveal >= 0 ? norm(frames[iReveal].faceCls) : '';
   // A FACE-DOWN landing compares two card BACKS: the same sleeve art under

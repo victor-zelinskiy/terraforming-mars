@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.3239",
+  "version": "1.2.3240",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=24.20.0 <25"
@@ -8,6 +8,7 @@
   "private": true,
   "main": "build/electron/main.js",
   "dependencies": {
+    "@sentry/core": "11.12.0",
     "@vueuse/core": "15.0.0",
     "ansi-escape-sequences": "^6.2.4",
     "bonjour-service": "^1.4.4",
@@ -94,7 +95,7 @@
     "start": "node build/src/server/server.js",
     "start:prof": "node --prof build/src/server/server.js",
     "build": "npm run make:static && npm run build:server && npm run build:client",
-    "build:client": "npm run make:cards && cross-env NODE_ENV=production webpack",
+    "build:client": "npm run make:cards && cross-env NODE_ENV=production webpack && node scripts/make-frame-symbols.mjs",
     "build:server": "tsc --build src/tsconfig.json && tsc-alias -p src/tsconfig.json",
     "build:test": "tsc -p tests/tsconfig.json --noEmit && tsc -p tests/e2e/tsconfig.json",
     "build:tests": "npm run build:test",
@@ -131,10 +132,11 @@
     "dev:client": "cross-env NODE_ENV=development webpack --watch",
     "dev:server": "cross-env NODE_ENV=development tsx watch src/server/server.ts",
     "electron:build:main": "tsc -p electron/tsconfig.json",
-    "electron:dev": "npm run electron:build:main && electron build/electron/main.js",
+    "electron:dev": "npm run electron:build:main && npm run build:diagnostics && electron build/electron/main.js",
     "build:embedded": "webpack --config webpack.embedded.config.js && node scripts/check-embedded-bundle.mjs",
+    "build:diagnostics": "webpack --config webpack.diagnostics.config.js",
     "prepare": "node -e \"require('fs').existsSync('scripts/setup-hooks.mjs')&&require('child_process').execSync('node scripts/setup-hooks.mjs',{stdio:'inherit'})\"",
-    "build:desktop": "npm run make:static && cross-env DESKTOP_BUILD=1 npm run build:client && npm run electron:build:main && npm run build:embedded",
+    "build:desktop": "npm run make:static && cross-env DESKTOP_BUILD=1 npm run build:client && npm run electron:build:main && npm run build:diagnostics && npm run build:embedded",
     "electron:desktop": "npm run build:desktop && cross-env TM_ELECTRON_LOAD=app electron build/electron/main.js",
     "electron:run": "cross-env TM_ELECTRON_LOAD=app TM_LOCAL_BUILD=1 electron build/electron/main.js",
     "electron:run:packed": "cross-env TM_LOCAL_BUILD=1 node scripts/run-packed.mjs",
@@ -150,7 +152,8 @@
     "coverage:kernel": "cross-env TM_KERNEL_COVERAGE=lower node ./node_modules/mocha/bin/mocha.js --import=tsx --require tests/testing/setup.ts tests/console/kernelCoverage.spec.ts",
     "debt:architecture": "cross-env TM_ARCHITECTURE_DEBT=lower node ./node_modules/mocha/bin/mocha.js --import=tsx --require tests/testing/setup.ts tests/console/architectureDebt.spec.ts",
     "ready:vapor": "cross-env TM_VAPOR_READINESS=lower node ./node_modules/mocha/bin/mocha.js --import=tsx --require tests/testing/setup.ts tests/console/vaporReadiness.spec.ts",
-    "e2e:fixtures": "tsx tests/e2e/fixtures/generate.ts"
+    "e2e:fixtures": "tsx tests/e2e/fixtures/generate.ts",
+    "diag": "node scripts/diag.mjs"
   },
   "repository": {
     "type": "git",
