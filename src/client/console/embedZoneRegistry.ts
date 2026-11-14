@@ -32,7 +32,7 @@
  * Guard: `tests/console/embedZoneRegistry.spec.ts` — the registry's semantics,
  * and every zone a publisher can name carries the directive.
  */
-import {ObjectDirective, reactive} from 'vue';
+import {nextTick, ObjectDirective, reactive} from 'vue';
 
 const zones = new Set<HTMLElement>();
 const registry = reactive({epoch: 0});
@@ -67,6 +67,17 @@ export function embedZoneEpoch(): number {
 export function registerEmbedZone(el: HTMLElement): void {
   zones.add(el);
   registry.epoch++;
+  // A VAPOR component calls the directive when the element is CREATED — before its block is inserted. A reader that
+  // re-asks at once finds a zone that is registered and not in the document yet, and nothing would tell it when the
+  // insertion happens (it is the same flush: no reactive edge of its own). So the epoch moves ONCE MORE after that
+  // flush, when the element stands in the document. (The virtual DOM calls `mounted` after the insertion: no echo.)
+  if (!el.isConnected) {
+    void nextTick(() => {
+      if (zones.has(el)) {
+        registry.epoch++;
+      }
+    });
+  }
 }
 
 /** A zone element left (the directive's `unmounted`, in either runtime). */

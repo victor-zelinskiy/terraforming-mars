@@ -43,6 +43,7 @@ import VaporContextProbe from './fixtures/VaporContextProbe.vue';
 import VaporKeyProbe from './fixtures/VaporKeyProbe.vue';
 import VaporTeleportLate from './fixtures/VaporTeleportLate.vue';
 import VaporSelectorProbe from './fixtures/VaporSelectorProbe.vue';
+import VaporNodeMarkProbe from './fixtures/VaporNodeMarkProbe.vue';
 import VaporShowOrderProbe from './fixtures/VaporShowOrderProbe.vue';
 import SetupShowOrderProbe from './fixtures/SetupShowOrderProbe.vue';
 import {embedZoneMounted, resetEmbedZones} from '@/client/console/embedZoneRegistry';
@@ -673,6 +674,53 @@ describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, throu
     };
     expect(await stand(SetupShowOrderProbe), 'the virtual DOM: the leave hook runs inside the patch, `v-show` after it').to.deep.equal(['none']);
     expect(await stand(VaporShowOrderProbe), 'Vapor: the early sibling is already displayed at the hook\'s turn').to.deep.equal(['shown']);
+  });
+
+  /*
+   * A MARK THAT IS NOT AN ELEMENT. A Vapor component has no handle on a PLACE in its own template unless an element
+   * stands there (a `ref` goes on an element or a component; on a `<Teleport>` it is `null`) — and an element among a
+   * host's children is something the host's sheets and scripts count. `<component :is>` given a DOM NODE mounts that
+   * very node: a comment the component created itself stands where the tag is, moves with the block and leaves with
+   * it. `ConsoleTeleport`'s two home marks stand on this row (vue 3.6.0-rc.15: `createDynamicComponent` returns a
+   * block as it is).
+   */
+  it('`<component :is>` given a DOM NODE mounts that very node: a comment the component keeps as a handle on a place — no element added', async () => {
+    const Host = defineComponent({
+      props: {on: {type: Boolean, default: false}},
+      render() {
+        return h('div', [h(VaporNodeMarkProbe as never, {ref: 'probe', on: this.on})]);
+      },
+    });
+    const wrapper = mount(Host, {attachTo: document.body});
+    const {start, end} = (wrapper.vm as unknown as {$refs: {probe: {start: Comment, end: Comment}}}).$refs.probe;
+    const box = wrapper.element.querySelector('.vp-mark')!;
+    const between = (): Array<string> => {
+      const out: Array<string> = [];
+      for (let node = start.nextSibling; node !== null && node !== end; node = node.nextSibling) {
+        if (node.nodeType === 1) {
+          out.push((node as Element).className);
+        }
+      }
+      return out;
+    };
+    expect(start.parentNode, 'the very node the component created stands in its template').to.equal(box);
+    expect(end.parentNode).to.equal(box);
+    expect(start.compareDocumentPosition(end) & Node.DOCUMENT_POSITION_FOLLOWING, 'in the template\'s order').to.not.equal(0);
+    expect(box.children.length, 'a mark is not an element').to.equal(0);
+    expect(box.matches(':empty'), 'comments do not fill a box').to.equal(true);
+    expect(between()).to.deep.equal([]);
+
+    await wrapper.setProps({on: true});
+    expect(between(), 'what the `v-if` renders stands BETWEEN the marks').to.deep.equal(['vp-mark__leaf']);
+    expect(box.children.length).to.equal(1);
+    expect(box.firstElementChild?.matches(':first-child:last-child'), 'the leaf is the only element child').to.equal(true);
+
+    await wrapper.setProps({on: false});
+    expect(between()).to.deep.equal([]);
+    expect(start.parentNode, 'the marks stay through the branch\'s life').to.equal(box);
+
+    wrapper.unmount();
+    expect(start.isConnected || end.isConnected, 'and leave with the component').to.equal(false);
   });
 
   /*

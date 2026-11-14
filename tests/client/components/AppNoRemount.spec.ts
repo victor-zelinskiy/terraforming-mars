@@ -42,10 +42,11 @@ async function flushPromises(): Promise<void> {
 
 /**
  * The game shell's stub. The root imports its lazy screens as bindings (`appAsync.ts`), and an imported lazy binding
- * answers to the stub key `AsyncComponentWrapper` (RECIPES § 3) — so the shell is told apart from the other lazy
- * screens by what the root hands IT: the live waiting list.
+ * answers to the stub key `VaporAsyncComponentWrapper` — the own name of the Vapor async wrapper `lazyComponent`
+ * makes (RECIPES § 3) — so the shell is told apart from the other lazy screens by what the root hands IT: the live
+ * waiting list.
  */
-const SHELL_STUB = 'async-component-wrapper-stub[waiting-on-players]';
+const SHELL_STUB = 'vapor-async-component-wrapper-stub[waiting-on-players]';
 
 describe('AppNoRemount', () => {
   let localStorage: FakeLocalStorage;

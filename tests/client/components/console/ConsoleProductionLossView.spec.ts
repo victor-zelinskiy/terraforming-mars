@@ -34,10 +34,10 @@ function mountWith(v: PlayerViewModel) {
       // `console-source-dock` is the LAZY binding of `asyncComponents` (it renders
       // the card face, whose import chain zeroes a unit spec) — so it is stubbed
       // here rather than resolved, under the name that binding answers to
-      // (`AsyncComponentWrapper`). Its own contract is guarded by
+      // (`VaporAsyncComponentWrapper`). Its own contract is guarded by
       // `promptSource.spec.ts` + the e2e probe; what this file owns is WHICH
       // view the surface hands it and WHICH verbs it publishes.
-      stubs: {'GamepadGlyph': true, 'AsyncComponentWrapper': ConsoleSourceDockStub},
+      stubs: {'GamepadGlyph': true, 'VaporAsyncComponentWrapper': ConsoleSourceDockStub},
     },
     props: {playerView: v},
   });
@@ -217,7 +217,7 @@ describe('ConsoleProductionLoss (view)', () => {
       },
     });
     const w = mount(ConsoleProductionLoss, {
-      global: {...globalConfig.global, stubs: {GamepadGlyph: true, AsyncComponentWrapper: DockWithFace}},
+      global: {...globalConfig.global, stubs: {GamepadGlyph: true, VaporAsyncComponentWrapper: DockWithFace}},
       props: {playerView: view(1, {steel: 1}, {type: 'card', card: CardName.CAESAR})},
     });
     try {

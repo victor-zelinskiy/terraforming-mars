@@ -64,7 +64,7 @@ function sectionOf(player: Seat) {
   return mount(ConsoleArmedEffectsSection, {
     global: {
       ...globalConfig.global,
-      stubs: {ConsoleCardFaceLite: LiteFaceStub, PremiumPartyRequirementGlyph: PartyGlyphStub, AsyncComponentWrapper: LawFaceStub},
+      stubs: {ConsoleCardFaceLite: LiteFaceStub, PremiumPartyRequirementGlyph: PartyGlyphStub, VaporAsyncComponentWrapper: LawFaceStub},
     },
     props: {player},
   });

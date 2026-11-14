@@ -571,22 +571,22 @@ and are REFUSED at B); the sheet's `STEP B` line names such an import, and `test
   use them and leave with the last one.
 
 ### R18 — a render function
-A render function stays a virtual-DOM component (it keeps working inside the Vapor app only through the interop
-plugin — which V4 removes). The client has ONE component that renders by function:
-**`console/foundation/ConsoleTeleport.vue`** — a wrapper that works around the native virtual-DOM `<Teleport>` (it
-never mounts into an absent target). Its four laws are decided in one render over what the PREVIOUS render put on
-screen — was a teleport live, was it disabled, does content stand between its anchors — which a template cannot ask.
-**Step A (done, V3 wave 4): it is `<script setup>`** — its template is `<TeleportView />`, a functional component of
-its own script that holds the render, and what the Options form read off its instance (`this.$.subTree`) is the vnode
-that render itself returned last: Vue mounts the very object a render returns, so its `el` / `anchor` / `props` are
-the mounted teleport's (the readiness ledger's `instance-internals` row is at zero; its eight unit tests and the
-runtime's own warnings are the same before and after). **Step B is a REWRITE on the Vapor `<Teleport>`**, specified
-by its laws (the header of the file) and its unit + e2e specs — not a recipe. **The facts it stands on are pinned**
-(`VaporTeleportLate.vue`): a Vapor teleport whose target is absent mounts NOTHING and a later patch does NOT throw
-(the virtual-DOM crash the wrapper exists for is gone); it never looks for its target again (a target that arrives
-changes nothing); a RE-MOUNT with the target present, or `disabled`, places the content. So that rewrite is a
-TEMPLATE: the same «wait for the target» loop (already a flow scope's timers), and
-`<Teleport v-if="targetStands" :key="generation" :to :disabled>`. The other `h(` uses of the client are spec hosts.
+A render function is a virtual-DOM component, and since V4 the app has nothing to render one with: the client has
+NONE (ledger `render-function: 0`, `virtual-dom: 0`). The last was **`console/foundation/ConsoleTeleport.vue`** — a
+wrapper that never mounts its content into an absent target. Its four laws were decided in one render over what the
+PREVIOUS render had put on screen (was a teleport live, was it disabled, does content stand between its anchors),
+which a template cannot ask; step A kept the render behind `<script setup>` and remembered the vnode it returned.
+**Step B (done 2026-11-14) is a REWRITE on the Vapor `<Teleport>`**, specified by its laws (the header of the file)
+and its unit + e2e specs — the record is ROADMAP § 4d. What made it a TEMPLATE:
+- the laws need ONE fact of the old render — «does content stand in place» — and it is read off the DOM between two
+  HOME MARKS the wrapper keeps around its teleport (a `ref` on a Vapor `<Teleport>` is `null`);
+- **a mark is a COMMENT node the component creates itself, mounted by `<component :is="node">`** (the runtime mounts a
+  DOM node given to `:is` as it is — a row of the capability table): an ELEMENT mark, even `display: none`, is a child
+  the host's scripts count and its sheets select;
+- «every render of the parent re-resolved the selector» is gone with the renders: a DECLARED target (`v-embed-zone`)
+  moves the registry's epoch, followed as a job of that flush (never `sync` — a Vapor directive runs at the element's
+  CREATION, before its insertion); any other target is watched through its parent while the content stands in it.
+The `h(` uses left in the repo are spec hosts.
 
 ### R19 — i18n (`$t`, `v-i18n`, `this.$t`)
 `$t(…)` in the template → the template is unchanged; the script gains `import {$t} from '@/client/directives/i18n'`
@@ -598,6 +598,8 @@ translation is on screen at the first frame and follows a change).
 Not used in the client (0). If one appears: `defineModel()`.
 
 ### R21 — `<Transition>`, `<TransitionGroup>`, `<Teleport>`, `<component :is>`, `defineAsyncComponent`
+**Since V4 (2026-11-14): a lazy component is `lazyComponent(() => import(…))`** (`components/lazyComponent.ts`, the Vapor async wrapper) — a `defineAsyncComponent` wrapper is a virtual-DOM component and the app has nothing to render it with; the ledger's `virtual-dom` row fails it. **And a `<Transition>` leave hook does not MEASURE what another reaction of the same mutation re-flows** — `v-show` is a Vapor render effect in the template's order, applied before a later sibling's leave hook (`.claude/rules/animations.md` § A LEAVER IS FROZEN…).
+
 Unchanged — with ONE exception. ✔ Vapor (`VaporTransitionProbe.vue`, `VaporTeleportProbe.vue`, `VaporBasics.vue`; a
 vdom async wrapper loads a Vapor component). *At B, in a unit spec:* a Vapor `<Transition>` is the real one
 (test-utils' `transition` stub is virtual-DOM only) and needs a frame source — `tests/client/vapor/lendFrames.ts`.
@@ -667,7 +669,7 @@ An Options script's statements outside `export default` are on the sheet as `scr
   HANDLE a component function reads and writes (an `AbortController`, a cached promise) moves TOGETHER WITH THE CODE
   THAT OWNS IT, behind one function (`replaceLogRequest()` — `logpanel/logPanelState.ts`; `loadChart()` —
   `gameend/victoryPointChartState.ts`): the component calls the function and never sees the handle.
-  **A module-level `defineAsyncComponent(…)` is identity-bearing state too** (its resolved-component cache would be
+  **A module-level lazy wrapper (`lazyComponent(…)` — `defineAsyncComponent` until V4) is identity-bearing state too** (its resolved-component cache would be
   per instance — every re-mount would await the loaded chunk again): it moves to a sibling module on the model of
   `components/asyncComponents.ts`, typed `Component` (`console/menu/consolePlaygroundHubAsync.ts`). (A second plain `<script>` block beside
   `<script setup>` would also keep it per-module — do not use it: one block per component, and the tools read one.)
@@ -730,7 +732,7 @@ component has none at all, so the root comes DOWN:
   `name` — also for a parent's spec that stubs THIS component (`stubs: {ConsoleFlipValue: true}`).
 - **A slot in a spec is a render function** (`slots: {default: () => h('i')}`) — a STRING slot throws in this build
   («"prefixIdentifiers" option is not supported»). **A stub of an `asyncComponents` binding** is keyed
-  `AsyncComponentWrapper`: neither the import's name nor the kebab tag the Options-era spec used
+  `VaporAsyncComponentWrapper` (`AsyncComponentWrapper` until V4): neither the import's name nor the kebab tag the Options-era spec used
   (`'console-source-dock'`) matches.
 - **Three things a new spec trips on**: a state the component sets in `onMounted` reaches the DOM on the NEXT render
   (`await nextTick()` after `mount` before reading it); a value handed over by `setProps` reaches a stubbed child as
@@ -806,7 +808,7 @@ component has none at all, so the root comes DOWN:
   exposes), never a second file beside it. A spec that mounts the component only through a PARENT and never asserts on
   it is not its spec, and the component still gets its own.
 - **The three `asyncComponents` bindings in a spec** (R1): a `stubs` entry keyed by the import's name
-  (`PremiumCardFace`) does NOT match — the binding answers to the name `AsyncComponentWrapper`, which is the stub's
+  (`PremiumCardFace`) does NOT match — the binding answers to the name `VaporAsyncComponentWrapper` (the wrapper `lazyComponent` makes; `AsyncComponentWrapper` until V4), which is the stub's
   key; a spec that used to feed the tag through `global.components` (the real `PremiumCard` as `premium-card-face`) is
   ignored by a converted component, which renders the lazy binding — resolve it once per suite (`before`: mount →
   `await flushPromises()` → unmount) and the mounts after it render the face at once.

@@ -1,4 +1,4 @@
-import {createApp, vaporInteropPlugin} from 'vue';
+import {createVaporApp} from 'vue';
 
 import App from '@/client/components/App.vue';
 import {getPreferences} from '@/client/utils/PreferencesManager';
@@ -73,12 +73,14 @@ async function bootstrap() {
     }
   }
 
-  const app = createApp(App);
+  // ONE VAPOR APPLICATION (the north star, V4 — docs/claude/vapor/ROADMAP.md): every component of the client is a
+  // Vapor component, so the app is created by `createVaporApp` and there is NO virtual-DOM renderer behind it — no
+  // `vaporInteropPlugin` either: nothing is left for it to host (a lazy component is `lazyComponent`, the Vapor async
+  // wrapper). A virtual-DOM component rendered here would not mount; the readiness ledger fails the file that adds one.
+  // (The cast is for the PLAIN compiler of the webpack build: its `*.vue` shim types every component as a virtual-DOM
+  // one. vue-tsc reads the SFC itself and needs none.)
+  const app = createVaporApp(App as unknown as Parameters<typeof createVaporApp>[0]);
   installVueErrorReport(app);
-  // THE ROAD TO `createVaporApp(App)` (docs/claude/vapor/ROADMAP.md): until the last component is converted the app is
-  // a virtual-DOM one in which Vapor components (`<script setup vapor>`) and virtual-DOM components host each other —
-  // this plugin is what lets them. It goes with the switch of V4 (a Vapor app needs no interop).
-  app.use(vaporInteropPlugin);
 
   // NOTHING IS REGISTERED ON THE APP (ROADMAP § 4a · B10): no global component, no global directive, no global
   // property. Every component imports what it renders and calls (`$t` from `directives/i18n`, the directives from

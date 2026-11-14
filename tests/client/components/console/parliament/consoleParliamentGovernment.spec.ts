@@ -26,7 +26,7 @@ import {careerGrantState} from '@/client/console/parliament/careerGrantBeat';
 import ConsoleParliamentGovernment from '@/client/components/console/parliament/ConsoleParliamentGovernment.vue';
 
 // The teleport and the premium face are their own specs' subjects; this one reads what the dais HANDS them. The face
-// is one of the three async-on-purpose bindings — a stub of it answers to `AsyncComponentWrapper` (RECIPES § 3).
+// is one of the three async-on-purpose bindings — a stub of it answers to `VaporAsyncComponentWrapper` (RECIPES § 3).
 // (Render functions, not template strings: the runtime compiler is not in this build.)
 const TeleportStub = defineComponent({
   name: 'ConsoleTeleport',
@@ -34,7 +34,7 @@ const TeleportStub = defineComponent({
   setup: (_props, {slots}) => () => h('div', {class: 'teleport-stub'}, slots.default?.()),
 });
 const FaceStub = defineComponent({
-  name: 'AsyncComponentWrapper',
+  name: 'VaporAsyncComponentWrapper',
   props: {
     vmOverride: {type: Object as PropType<PremiumCardVM>, default: undefined},
     lightweight: {type: Boolean, default: false},
@@ -62,7 +62,7 @@ function dais(props: Record<string, unknown> = {}) {
   return mount(ConsoleParliamentGovernment as any, {
     ...globalConfig,
     props: {view: v, players: [], viewerColor: RED, agendaVm: agendaViewOf(v), ...props},
-    global: {...globalConfig.global, stubs: {ConsoleTeleport: TeleportStub, AsyncComponentWrapper: FaceStub}},
+    global: {...globalConfig.global, stubs: {ConsoleTeleport: TeleportStub, VaporAsyncComponentWrapper: FaceStub}},
   });
 }
 

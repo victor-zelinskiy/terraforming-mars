@@ -59,7 +59,7 @@ const info: BoardCellInfo = {
 
 /** The stand-in of the lazy source dock: the chip's own classes, and the view the panel handed it. */
 const SourceDockStub = defineComponent({
-  name: 'AsyncComponentWrapper',
+  name: 'VaporAsyncComponentWrapper',
   props: {view: {type: Object, default: undefined}, chip: {type: Boolean, default: false}},
   render() {
     return h('div', {class: 'con-src con-src--chip'});
@@ -74,11 +74,11 @@ function mountPanel(props: Record<string, unknown>) {
       // `console-source-dock` is the LAZY binding of `asyncComponents` (it renders
       // the card face, whose import chain is not this spec's subject) — so it is
       // stubbed here rather than resolved, under the name that binding answers to
-      // (`AsyncComponentWrapper`: neither the import's name nor its tag matches a
+      // (`VaporAsyncComponentWrapper`: neither the import's name nor its tag matches a
       // `<script setup>` component's lazy import). Its own contract lives in
       // `promptSource.spec.ts` + the placement e2e probe.
       stubs: {
-        'AsyncComponentWrapper': SourceDockStub,
+        'VaporAsyncComponentWrapper': SourceDockStub,
         // THE ONE sections renderer both modes share (TR67) renders for real — its rows stay shallow stubs.
         'console-dossier-sections': false,
         'ConsoleDossierSections': false,
@@ -358,7 +358,7 @@ describe('ConsoleContextPanel', () => {
       });
       const host = mount(Host, {
         ...globalConfig,
-        global: {...globalConfig.global, stubs: {AsyncComponentWrapper: SourceDockStub, ConsoleCellPortrait: true, ConsolePlacementFactRow: true}},
+        global: {...globalConfig.global, stubs: {VaporAsyncComponentWrapper: SourceDockStub, ConsoleCellPortrait: true, ConsolePlacementFactRow: true}},
       });
       expect(host.find('.con-context').exists(), 'the panel stands under the host').to.be.true;
       expect(Object.keys((host.vm.$refs.panel ?? {}) as object), 'every value is a prop; the shell stands no ref on it').to.deep.eq([]);

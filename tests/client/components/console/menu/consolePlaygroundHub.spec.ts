@@ -42,17 +42,17 @@ const ScrollStub = defineComponent({
 });
 
 /**
- * Every showcase is a lazy binding the hub IMPORTS (`consolePlaygroundHubAsync.ts` — `defineAsyncComponent`), and an
- * imported lazy binding answers to ONE stub key, `AsyncComponentWrapper` (neither its import's name nor its tag) — so
+ * Every showcase is a lazy binding the hub IMPORTS (`consolePlaygroundHubAsync.ts` — `lazyComponent`, a Vapor async wrapper), and an
+ * imported lazy binding answers to ONE stub key, `VaporAsyncComponentWrapper` (neither its import's name nor its tag) — so
  * this is the stand-in of all five, and no real catalog is loaded. test-utils cannot tell two of them apart (each is
- * named `AsyncComponentWrapper`), so WHICH stand is open is read off what the hub hands the chassis — its title, its
+ * named `VaporAsyncComponentWrapper`), so WHICH stand is open is read off what the hub hands the chassis — its title, its
  * section selector, its pad target. The stand-in says how it was mounted, and it is an INTERACTIVE showcase that takes
  * ▼ and declines the rest (what the two interactive stands hand to the chassis as their pad target, through the hub's
  * own ref to the showcase).
  */
 const offered: Array<GamepadIntent> = [];
 const ShowcaseStub = defineComponent({
-  name: 'AsyncComponentWrapper',
+  name: 'VaporAsyncComponentWrapper',
   props: {embedded: Boolean},
   methods: {
     handleIntent(intent: GamepadIntent): boolean {
@@ -78,7 +78,7 @@ function mountUnderHost() {
     global: {
       ...globalConfig.global,
       // The stand is teleported to the body in the product; here it stays inside the wrapper.
-      stubs: {GamepadGlyph: GlyphStub, ConsoleScrollArea: ScrollStub, AsyncComponentWrapper: ShowcaseStub, teleport: true},
+      stubs: {GamepadGlyph: GlyphStub, ConsoleScrollArea: ScrollStub, VaporAsyncComponentWrapper: ShowcaseStub, teleport: true},
     },
   });
   return {

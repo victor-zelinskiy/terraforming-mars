@@ -12,7 +12,7 @@
  *  - X / L3: the viewer's physical origin resolves through the surface's ROOT ref (R12) and answers «no element» once
  *    the surface is gone.
  * Mounted the way the shell mounts it: under a host that holds a ref. The card face, the head, the source dock (one of
- * the three lazy bindings — keyed `AsyncComponentWrapper`) and the availability line are stubbed. The unit runner
+ * the three lazy bindings — keyed `VaporAsyncComponentWrapper`) and the availability line are stubbed. The unit runner
  * renders the English keys.
  *
  * (The flow's MODULE — `consoleExternalDraw.ts` — is plain state; the take's flights are its e2e's:
@@ -62,7 +62,7 @@ const WsHeadStub = defineComponent({
 });
 
 const DockStub = defineComponent({
-  name: 'AsyncComponentWrapper',
+  name: 'VaporAsyncComponentWrapper',
   props: {view: {type: Object, default: undefined}, compact: Boolean},
   render() {
     return h('i', {'class': 'dock-stub'});
@@ -72,7 +72,7 @@ const DockStub = defineComponent({
 const STUBS = {
   Card: CardStub,
   ConsoleWsHead: WsHeadStub,
-  AsyncComponentWrapper: DockStub,
+  VaporAsyncComponentWrapper: DockStub,
   ConsoleCardAvailabilityPanel: true,
 };
 

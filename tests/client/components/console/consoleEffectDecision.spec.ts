@@ -91,7 +91,7 @@ const ChipStub = defineComponent({
  * and, like the real one, exposes its root as `rootEl` (components/rootEl.ts): the screen finds the face under it.
  */
 const DockStub = defineComponent({
-  name: 'AsyncComponentWrapper',
+  name: 'VaporAsyncComponentWrapper',
   props: {view: {type: Object, required: true}},
   setup(_, {expose}) {
     const root = ref<HTMLElement | null>(null);
@@ -106,7 +106,7 @@ const stubs = {
   ConsoleVariantChoice: ChoiceStub,
   GamepadGlyph: GlyphStub,
   ActionEffectChip: ChipStub,
-  AsyncComponentWrapper: DockStub,
+  VaporAsyncComponentWrapper: DockStub,
 };
 
 const CARDS: ActionEffect = {direction: 'gain', icon: 'cards', amount: 1} as ActionEffect;

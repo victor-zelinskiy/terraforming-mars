@@ -14,23 +14,21 @@
  *    that a surface adopting it by a static import loses its own unit spec's isolation (and its chunk).
  *
  * A `<script setup>` component cannot lean on a global registration (a Vapor component has none; the readiness
- * ledger's `global-in-setup` row). So the SAME async wrappers are exported here: a component imports the binding and
+ * ledger's `global-in-setup` row). So the async wrappers are exported here (`lazyComponent` — the Vapor async
+ * wrapper: the app is a Vapor one and hosts no virtual-DOM wrapper): a component imports the binding and
  * its template keeps the tag (`<premium-card-face …>` resolves to `PremiumCardFace`). They stay lazy — the dynamic
  * `import()` and its chunk are unchanged — and each is typed as a plain `Component`, deliberately: an inferred type
  * would reach through the `import()` and close the very cycle the laziness opens. (The tag's props are therefore not
  * checked in a template — exactly as when it was resolved by name.)
- *
- * `main.ts` still registers the three by name for the Options-API components that use them; that registration leaves
- * with the last one.
  */
-import {defineAsyncComponent} from 'vue';
+import {lazyComponent} from '@/client/components/lazyComponent';
 import type {Component} from 'vue';
 
 /** The card-target picker (`<action-target-card>`). */
-export const ActionTargetCard: Component = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/actions/ActionTargetCard.vue'));
+export const ActionTargetCard: Component = lazyComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/actions/ActionTargetCard.vue'));
 
 /** The premium card face (`<premium-card-face>`) — lazy, so the zoom chain has no type cycle. */
-export const PremiumCardFace: Component = defineAsyncComponent(() => import('@/client/components/premiumCard/PremiumCard.vue'));
+export const PremiumCardFace: Component = lazyComponent(() => import('@/client/components/premiumCard/PremiumCard.vue'));
 
 /** The console's source dock (`<console-source-dock>` — «who asked for this decision?»). */
-export const ConsoleSourceDock: Component = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleSourceDock.vue'));
+export const ConsoleSourceDock: Component = lazyComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleSourceDock.vue'));

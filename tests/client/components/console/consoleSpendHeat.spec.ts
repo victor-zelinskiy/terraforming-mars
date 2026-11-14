@@ -56,7 +56,7 @@ function billOf(source: CardName, amount: number, heatMax: number, floaterMax: n
 // stub's key (RECIPES § 3). The stub stands a card face where the real dock stands one, and — like the real dock —
 // exposes its root as `rootEl` (components/rootEl.ts), the element the surface finds the face under.
 const DockStub = defineComponent({
-  name: 'AsyncComponentWrapper',
+  name: 'VaporAsyncComponentWrapper',
   props: {view: {type: Object, required: true}, compact: {type: Boolean, default: false}},
   setup(_, {expose}) {
     const root = ref<HTMLElement | null>(null);
@@ -81,7 +81,7 @@ function mountUnderHost(first: PlayerViewModel) {
       },
     })]),
   });
-  const wrapper = mount(Host, {...globalConfig, global: {...globalConfig.global, stubs: {GamepadGlyph: true, AsyncComponentWrapper: DockStub}}});
+  const wrapper = mount(Host, {...globalConfig, global: {...globalConfig.global, stubs: {GamepadGlyph: true, VaporAsyncComponentWrapper: DockStub}}});
   return {
     wrapper,
     view,

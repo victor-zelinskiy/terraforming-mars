@@ -41,7 +41,7 @@ const TotalsStub = defineComponent({name: 'ConsoleSitTotals', props: {totals: Ar
 const DelegateStub = defineComponent({name: 'PlayerDelegate', props: {color: String, steel: Boolean, glow: {type: Boolean, default: true}}, render: () => h('i', {class: 'delegate-stub'})});
 /** The premium face is one of the three ASYNC bindings — it answers to the wrapper's name (RECIPES § 3). */
 const FaceStub = defineComponent({
-  name: 'AsyncComponentWrapper',
+  name: 'VaporAsyncComponentWrapper',
   props: {vmOverride: Object, lightweight: Boolean, inert: Boolean},
   render: () => h('i', {class: 'face-stub'}),
 });
@@ -59,7 +59,7 @@ const DetailsStub = defineComponent({
 });
 
 const stubs = {
-  ConsoleColonyLedger: LedgerStub, ConsoleSitTotals: TotalsStub, PlayerDelegate: DelegateStub, AsyncComponentWrapper: FaceStub,
+  ConsoleColonyLedger: LedgerStub, ConsoleSitTotals: TotalsStub, PlayerDelegate: DelegateStub, VaporAsyncComponentWrapper: FaceStub,
   ConsoleSittingPayoutDetails: DetailsStub, ConsoleTableReceipt: true, ConsoleParliamentTableAnswer: true, ConsoleParliamentDrawStage: true,
 };
 

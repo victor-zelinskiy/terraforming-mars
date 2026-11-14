@@ -18,8 +18,8 @@ loads when you touch client code.
 | **V0** | the docs: the north star in `CLAUDE.md`, this program, the rules, the architecture plan pointing at it | a new session reads the destination and the rules of the road before it writes a line | **done 2026-11-12** (`da57cf6027`) |
 | **V1** | THE PILOT — `vue@3.6.0-rc.15` is the project's version (still a `createApp` app); the toolchain compiles and tests Vapor; three leaves run as Vapor in the product | §3: every check green on the pinned version, the differences found are written here; the capability table of §3.6 is an executable suite | **done 2026-11-12** — §3 is the record |
 | **V2** | architecture v2 to the end — 100 % of the console UI on the flow kernel | `docs/claude/console/architecture-v2/PLAN.md` §11: the debt ledger's DECISION rows are at ZERO and guarded there (2026-11-12 — the surface registry, the question's scope and «set aside» as its record, the owned answers, the last latch), and **S-last is done: the shell is layout** — `ConsoleShell.vue` has no `data` / `computed` / `methods` / `watch` / hooks, its port is no component instance. What the ledger still freezes is the supervisory layer (the nets), which retires on field evidence and blocks nothing of V3 | **the base for V3 stands (2026-11-12)**; open in V2: the two one-table redesigns, the domains' reactions as machines (PLAN §0) |
-| **V3** | THE REWORK — every component is `<script setup>` and compiles as Vapor, wave by wave | §4: the readiness ledger (§5) is at zero Options-API components; every wave passed the full e2e on CI before the next began | after V2 |
-| **V4** | THE SWITCH — `createVaporApp(App).mount('#app')` | `main.ts` creates a Vapor app; the vdom runtime and the interop plugin are not in the bundle; the full e2e and the timing class are green; the field build ships | after V3 |
+| **V3** | THE REWORK — every component is `<script setup>` and compiles as Vapor, wave by wave | §4: the readiness ledger (§5) is at zero Options-API components; every wave passed the full e2e on CI before the next began | **done 2026-11-14** — step A 2026-11-13 (`options-api: 0`), step B 2026-11-14 (455 / 455 Vapor): § 4a · § 4c · § 4d |
+| **V4** | THE SWITCH — `createVaporApp(App).mount('#app')` | `main.ts` creates a Vapor app; the vdom runtime and the interop plugin are not in the bundle; the full e2e and the timing class are green; the field build ships | **done 2026-11-14** — § 4d is the record. (One clause of «done» is read precisely there: the interop plugin and the virtual-DOM RENDERER are out of the product; the part of `@vue/runtime-core` the Vapor runtime itself stands on stays in the bundle.) |
 
 **Why this order.** V1 first because everything after it should be written and measured on the runtime we are going
 to: the reactivity core is new in 3.6 (alien-signals), and the architecture's sharpest edges are reactive ones (the
@@ -408,14 +408,14 @@ order it has to be done, each with its number and the tool that prints it:
 | B2 | The four templates the Vapor compiler refuses: «`v-if`/`else` branches must use unique keys» — `ConsoleActionComposer`, `ConsoleCardActions`, `ConsoleEffectsExplorer`, `ConsoleStartScene`. | 4 → **0** (2026-11-13) | CLOSED: the branches of one chain carried the same key expression; the branch's own name leads the key now (`'law|' + sourceKey`). `node scripts/vapor/why-refused.mjs <file>` prints the compiler's findings with their line |
 | B2s | **The SELECTOR** — a `v-for` row compared with an outer value (`:class="{hot: row.id === tip.id}"`) is compiled into `createSelector(() => tip.id)`, watched SYNCHRONOUSLY: under `v-if="tip !== null"` the assignment `tip = null` throws out of its own line. | 25 selectors in the client, 4 that could throw → **0** (2026-11-13) | CLOSED: null-safe in the template (`tip?.id`); `node scripts/vapor/selector-audit.mjs`, guard `tests/console/vaporSelectorAudit.spec.ts`, the fact a row of the capability table. Found behind a GREEN spec — by the warn latch (tests.md § Traps) |
 | B3 | `v-memo` — ignored by the Vapor compiler. | 11 uses in 2 components (ledger row `v-memo`) → **0** (2026-11-13) | CLOSED with their flip: `CardList` (a hint only) and `ConsoleStrategyRail` (PL-155 was a virtual-DOM cost — «the TransitionGroups are patched on every render of the rail»; a Vapor component has no such render) |
-| B4 | `ConsoleTeleport` — a render function over the previous vnode. | 1 (ledger `render-function: 4` = its four `h(`) | the REWRITE on the Vapor `<Teleport>` (R18). **Not needed for the switch itself**: a Vapor app keeps hosting it through `vaporInteropPlugin` (the smoke of `createVaporApp(App)` ran with it as it is) — it is what stands between the switch and REMOVING the plugin, with the lazy wrappers (`defineAsyncComponent` ×30 → `defineVaporAsyncComponent`; 15 specs name the stub `async-component-wrapper-stub`). The facts of the Vapor teleport the rewrite stands on, measured 2026-11-13 (rc.15): ① `:to` is REACTIVE — a new element or selector MOVES the content, so law 2 is «hand over the resolved element» with no re-mount; ② mounted ENABLED into an absent target it mounts nothing, and handing it the element later places the content (law 1 needs no `:key`); ③ a DISABLED teleport keeps its content in place, and ENABLING it into an absent target leaves that content where it stands (law 3 is native); ④ content + enable in ONE flush is ONE insertion, straight into the target; ⑤ BUT content that arrives while it is enabled-into-nothing after having been disabled mounts IN PLACE (law 4 is still the wrapper's to keep) — and a `ref` on `<Teleport>` is `null`, so «does content stand between my anchors» has no DOM handle from a template: that is the one open design point; ⑥ nothing re-resolves a selector by itself (a NEW element under the same selector is not found) — the wrapper needs its own trigger where the virtual DOM had «every render». **The trigger exists since the flip**: a target DECLARES itself (`v-embed-zone` — the outcome zones and, since 2026-11-13, the Parliament's ruler slot / vote row / sitting hero and the under-shade transfer layer), the registry's epoch is reactive and `ConsoleTeleport` reads it in its render (`embedZoneEpoch`) — found by the flip's one deterministic red: under a Vapor parent a teleport is created before its host's subtree is in the document, so every such mount took the wrapper's «wait for the target» road |
+| B4 | `ConsoleTeleport` — a render function over the previous vnode. | 1 (ledger `render-function: 4` = its four `h(`) → **0** (2026-11-14) | **CLOSED — § 4d.** The plan as it stood: the REWRITE on the Vapor `<Teleport>` (R18). **Not needed for the switch itself**: a Vapor app keeps hosting it through `vaporInteropPlugin` (the smoke of `createVaporApp(App)` ran with it as it is) — it is what stands between the switch and REMOVING the plugin, with the lazy wrappers (`defineAsyncComponent` ×30 → `defineVaporAsyncComponent`; 15 specs name the stub `async-component-wrapper-stub`). The facts of the Vapor teleport the rewrite stands on, measured 2026-11-13 (rc.15): ① `:to` is REACTIVE — a new element or selector MOVES the content, so law 2 is «hand over the resolved element» with no re-mount; ② mounted ENABLED into an absent target it mounts nothing, and handing it the element later places the content (law 1 needs no `:key`); ③ a DISABLED teleport keeps its content in place, and ENABLING it into an absent target leaves that content where it stands (law 3 is native); ④ content + enable in ONE flush is ONE insertion, straight into the target; ⑤ BUT content that arrives while it is enabled-into-nothing after having been disabled mounts IN PLACE (law 4 is still the wrapper's to keep) — and a `ref` on `<Teleport>` is `null`, so «does content stand between my anchors» has no DOM handle from a template: that is the one open design point; ⑥ nothing re-resolves a selector by itself (a NEW element under the same selector is not found) — the wrapper needs its own trigger where the virtual DOM had «every render». **The trigger exists since the flip**: a target DECLARES itself (`v-embed-zone` — the outcome zones and, since 2026-11-13, the Parliament's ruler slot / vote row / sitting hero and the under-shade transfer layer), the registry's epoch is reactive and `ConsoleTeleport` reads it in its render (`embedZoneEpoch`) — found by the flip's one deterministic red: under a Vapor parent a teleport is created before its host's subtree is in the document, so every such mount took the wrapper's «wait for the target» road |
 | B5 | **A parent that reads a CHILD's `$el` through its ref.** A Vapor child's ref is its `defineExpose` object — no `$el`. | 25 reads in 17 files (`grep '\.\$el\b' src/client`): the viewer controller ×5, the flight layers' tile / cube proxies, the source docks, the stage geometry's hull members | **CLOSED 2026-11-13, ahead of the flips** (it works on the virtual DOM too, so it did not have to wait for them): ONE contract — a child whose root a parent needs exposes `rootEl` (`src/client/components/rootEl.ts`), twelve components do, and nothing in the client reads `$el` (guard `tests/console/childRootEl.spec.ts`). Why first: on the whole client flipped (§ 4c) it was ~70 % of the e2e reds — the fullscreen viewer never opened, the band lost the rail's edge, the flying tile its proxy |
 | B6 | **The unit suite.** `mount(<a Vapor component>)` as the ROOT throws; `stubs` do not reach the children of a Vapor parent; `findComponent` into a Vapor child fails; `wrapper.vm` has nothing to show. | 918 client spec files: **494 mount a component** · 254 use `stubs` · 224 `findComponent` · 208 `setProps` / `setData` · 64 `shallowMount` · 61 read `wrapper.vm` | **CLOSED 2026-11-13 — by a LAYER, not a codemod: no spec was rewritten** (§ 4b). The unit bundle's `@vue/test-utils` and `vue` are the suite's own (`tests/client/testing/`): a Vapor root is mounted under a host and wrapped, the mount's stub rule reaches what a Vapor render creates, `findComponent` walks one tree over both runtimes. A converted component is compiled AS WRITTEN in the unit bundle (`scripts/vapor/unitVaporPolicy.cjs`; the valve `tests/client/vaporUnit.json` is empty) |
 | B7 | **Order-dependent watcher pairs** — two watchers of one source / one collection whose order matters are ONE `watch` before their component is Vapor (§ 2 rule 6; a Vapor effect has no «component render» to order against). | named by the wave's reviewers: `ConsoleMaScreen` (`kind` → `items`), `ConsoleHandSection` (`index` → `modeKey` → `entries`); the full list is a review of the 122 former `watch:` blocks | merged per component, in the commit before its `vapor` |
 | B8 | **`onUpdated` / «after every parent re-render» logic** and reads through `wrapper.vm` of the dev shape. | per sheet (R9 «trap at B») | a `watch` of what is measured |
 | B9 | **The flip itself** — `<script setup vapor>` on 452 components. | 3 of 455 → **454 of 455** (2026-11-13) | DONE in ONE step, `node scripts/vapor/flip.mjs --all --write`, after two full runs of the whole client flipped in a side worktree (§ 4c) had read the worklist down: a flip in waves would have met B5 / the selector / the types at every edge instead of once. The one component left is `ConsoleTeleport` (B4). Proof: unit 9874 / 9874 under the true runtime, vue-tsc, the whole e2e on the box |
 | B10 | **What the APP still registers globally** — `app.component` ×3 (the async-on-purpose tags), `app.directive`, `globalProperties.$t`: a Vapor app has no global properties. | ledger `global-registration: 6` · `global-in-setup: 2` → **0 · 0** (2026-11-13) | CLOSED: the last component that leaned on a global (`TurmoilAgendaContainer`) imports its `$t`; `main.ts` registers NOTHING on the app; the i18n plugin is deleted (the unit suite ran green with it installing nothing — the one test that needed it was an Options-API fixture, which imports its own now) |
-| B11 | **V4 — the switch.** `createApp(App)` + `vaporInteropPlugin` → `createVaporApp(App)` in `main.ts`; the plugins the app installs (`i18n`), `app.config.errorHandler`, the unit runner's `bundleSetup.ts` interop install. | 1 file + the runner | after B1–B10 are zero and the whole e2e is green on the box with the interop plugin REMOVED |
+| B11 | **V4 — the switch.** `createApp(App)` + `vaporInteropPlugin` → `createVaporApp(App)` in `main.ts`; the plugins the app installs (`i18n`), `app.config.errorHandler`, the unit runner's `bundleSetup.ts` interop install. | 1 file + the runner | **DONE 2026-11-14 — § 4d** (the unit runner KEEPS its interop install: `@vue/test-utils` mounts through a virtual-DOM app — the suite's scaffolding, not the product's) |
 
 **What is NOT left** (closed by step A and guarded): the Options API (`options-api: 0`), `$refs` (0), `getCurrentInstance`
 (0), instance internals (0), `$parent` / `$root` / `vueRoot` (0), mixins (0), module state hidden in a component
@@ -495,6 +495,73 @@ first error of each failure (`tm-arch-tools/e2e_classify.py` over the run's log)
 One cause, read off a child's ref, took most of the product down without one type error or one red unit spec —
 which is why it is closed BEFORE the flips, by a contract with a guard, and why the next move is the same run again.
 
+## 4d. V4 — the switch, and what the box found on the way (2026-11-14)
+
+**`main.ts` is `createVaporApp(App)`.** No virtual-DOM renderer stands behind the app and no `vaporInteropPlugin` is
+installed: a virtual-DOM component rendered anywhere in the tree would simply not mount. Three things had to be true
+first, and one defect of the flip itself was found by the box before the push.
+
+**1 · The last virtual-DOM component — `ConsoleTeleport` is a template.** `<Teleport v-if :key :to :disabled>` between
+two home marks, its four laws decided by ONE function (`decide`) over reactive facts — the props, the wrapper's own
+wait, the registry of declared targets. What the rewrite turned on (each a row of its spec, under a virtual-DOM host
+and under a Vapor parent — 14 rows):
+- **the marks are COMMENT nodes**, created by the component and mounted with `<component :is="node">` (the runtime
+  returns a block given to `:is` as it is — capability row «`<component :is>` given a DOM NODE»). The first prototype
+  used two hidden `<i>`: an audit of the hosts found `parliamentCardFit` summing the dais' CHILDREN and their gaps —
+  two more children, a smaller enacted card. An element among a host's children is never invisible to the host;
+- **the reaction to a declared target is a JOB of the flush, never `sync`.** A Vapor directive runs when its element
+  is CREATED — before the block is inserted — so `v-embed-zone` moves the registry's epoch while the zone is not in
+  the document yet. Asked on the spot, the wrapper found nothing and moved a tick later (the registry's echo), after
+  that flush's post hooks had measured the content where it stood. As a queued job it runs when the render that
+  inserts the zone is over — where the virtual-DOM wrapper's own render used to stand (`console-parliament-sitting-v3`
+  0 / 1 on the `sync` build → 3 / 3; the spec row is mutation-checked);
+- the registry ECHOES its epoch once after the flush for a zone registered while detached (a lazily-read computed that
+  was evaluated mid-render would otherwise keep «absent» until the next move);
+- a target that is not declared is watched through its PARENT while content stands in it (a `MutationObserver` — the
+  virtual-DOM wrapper re-resolved on every render of its parent, and a Vapor parent has none).
+
+**2 · The lazy wrappers.** `defineAsyncComponent` makes a virtual-DOM wrapper. All 29 uses are `lazyComponent(() =>
+import(…))` now (`components/lazyComponent.ts` → `defineVaporAsyncComponent`), created once per module as before
+(`asyncComponents.ts` 3 · `appAsync.ts` 21 · `consolePlaygroundHubAsync.ts` 5). The wrapper's name is
+`VaporAsyncComponentWrapper`: 14 unit specs that stub a lazy binding were re-keyed, nothing else in them changed.
+
+**3 · The guards hold the destination** (§ 5): every component is Vapor, `main.ts` creates the Vapor app, the
+`virtual-dom` row; `teleportTargetGuard` lets ONE file own a native teleport with a computed target — the wrapper.
+
+**THE DEFECT OF THE FLIP THE BOX FOUND — `v-show` no longer waits for the patch.** `console-fringe-colony` went from
+4 / 4 before the flip to 2 / 4 after it, and the first reading («a tight spec under a loaded box») was wrong: a
+per-frame probe of the three builds showed the same flow up to the receipt, and then — only after the flip — the
+hand's whole frame standing in the right-hand 1431 px of its 3358 px home for the 350 ms of its leave, the colony grid
+re-fitted into four small tiles. The cause is one difference between the runtimes, pinned by a capability row that
+runs BOTH: on the virtual DOM a directive's update (`v-show`) ran after the whole patch, so the leave hook of a
+section removed by the same mutation still saw the board hidden; in Vapor `v-show` is a render effect in the
+template's order — the board (earlier in the shell's template) is back in the row before the hook's turn. Two hooks
+measured «my live rect» there to freeze the leaver (`handLeaveHook`, the director's `section` leave — 23 surfaces).
+The fix is the project's own law, ONE MUTATION — ONE REACTION, applied: the row's members are measured in the
+ASSIGNMENT that changes the row's composition (`surfaceMotion/rowLeaveRect.ts` — a `sync` watcher of the stack's
+frames and the shell's section), and the hooks ask for that rect. 6 / 6. **What it teaches about the method:** the
+full run of the flipped tree was green on this spec twice (its measure usually landed inside the receipt's window) —
+a red that appears «only under load» was a real, painted regression, found only by comparing FRAMES across builds.
+A new red after a runtime change is judged by RATE against the build before it, and a rate that moved is read down to
+its cause before it is called a flake. (Two other reds of the same run, `console-nationalist-movement` and
+`console-played-table` B, were exactly that: the same rate on the pre-flip build under the same load — the second
+one's single read after a fixed wait is an `expect.poll` now.)
+
+**The bundle.** `vendors.js`: 554.7 KB before the flip (the virtual DOM + the interop plugin + three Vapor leaves) →
+581.0 KB flipped (both runtimes in full use) → **541.1 KB · gz 189.6** as one Vapor app (−13.9 KB gz against the
+flipped build). It is not «the virtual DOM is gone»: `@vue/runtime-vapor` stands on `@vue/runtime-core` (the
+scheduler, the app API, the transition base, `nextTick`), and that part stays. What left is the virtual-DOM RENDERER
+path and the interop layer.
+
+**What the unit suite keeps.** `@vue/test-utils` mounts through `createApp`; its hosts and stubs are virtual-DOM
+components. `tests/client/components/bundleSetup.ts` therefore still installs `vaporInteropPlugin` for every mount —
+the suite's scaffolding (§ 4b), named nowhere in `src/client`. The components under test are compiled and mounted as
+they ship.
+
+**What is still open:** `vue@3.6.0-rc.15` is a release candidate — the pin stays exact, and § 3.8 is the protocol of
+the next bump (the capability table is re-read FIRST: several of its rows pin behaviour of this RC that a later one
+may change — the block returned by `<component :is>`, a directive's call at creation, `v-show`'s place in a flush).
+
 ## 5. The readiness ledger
 
 `tests/console/vaporReadiness.spec.ts` over `vaporReadinessBaseline.json`, in the form of the two architecture
@@ -508,6 +575,12 @@ tests, not conventions), a component that is Vapor stays Vapor, and a Vapor comp
 `Vapor components: 3 / 455 · options-api: 0 · instance-access: 0 · instance-internals: 0 · parent-root: 0 · root-through-instance: 0 · mixin: 0 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 0 · global-in-setup: 2` (2026-11-13, after V3 wave 4 — step A complete; after wave 3: `options-api` 108, `refs` 571; after wave 2: 226 / 650; after wave 1: 344 / 652; at the pilot: `options-api` 468, `refs` 785, `instance-access` 1).
 
 V3 is done when `options-api` is zero and every component is Vapor; V4 is one line in `main.ts` after that.
+
+**Both are done.** The line since 2026-11-14:
+
+`Vapor components: 455 / 455 · options-api: 0 · instance-access: 0 · instance-internals: 0 · parent-root: 0 · root-through-instance: 0 · mixin: 0 · global-registration: 0 · render-function: 0 · virtual-dom: 0 · v-memo: 0 · refs: 0 · global-in-setup: 0`
+
+From here the ledger does not count a road any more — it HOLDS the destination: a component that is not `<script setup vapor>` fails («EVERY component is a Vapor component»), `main.ts` must create the app with `createVaporApp(App)`, and the new `virtual-dom` row fails `defineComponent` / `defineAsyncComponent` / `defineCustomElement` / `createApp` / `createSSRApp` / `vaporInteropPlugin` by name in `src/client`.
 
 ## 6. How it meets architecture v2
 

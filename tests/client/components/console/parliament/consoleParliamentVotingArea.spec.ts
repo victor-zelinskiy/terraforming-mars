@@ -28,7 +28,7 @@ const DelegateStub = defineComponent({
   render: () => h('i', {class: 'delegate-stub'}),
 });
 /** The lazy premium face (`asyncComponents`) answers to the wrapper's name — RECIPES § 3. */
-const FaceStub = defineComponent({name: 'AsyncComponentWrapper', render: () => h('i', {class: 'face-stub'})});
+const FaceStub = defineComponent({name: 'VaporAsyncComponentWrapper', render: () => h('i', {class: 'face-stub'})});
 /** The teleport, standing its content in place (the slots are carried into the vote row only while the vote mode is up). */
 const TeleportStub = defineComponent({
   name: 'ConsoleTeleport',
@@ -38,7 +38,7 @@ const TeleportStub = defineComponent({
   },
 });
 
-const stubs = {PlayerDelegate: DelegateStub, AsyncComponentWrapper: FaceStub, ConsoleTeleport: TeleportStub};
+const stubs = {PlayerDelegate: DelegateStub, VaporAsyncComponentWrapper: FaceStub, ConsoleTeleport: TeleportStub};
 
 const GREENS: ReduxParty = PartyName.GREENS;
 const REDS: ReduxParty = PartyName.REDS;

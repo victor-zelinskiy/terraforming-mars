@@ -32,12 +32,12 @@ const CubeStub = defineComponent({
 });
 /** The premium face is one of the three ASYNC bindings — it answers to the wrapper's name (RECIPES § 3). */
 const FaceStub = defineComponent({
-  name: 'AsyncComponentWrapper',
+  name: 'VaporAsyncComponentWrapper',
   props: {vmOverride: Object, lightweight: Boolean, artTier: String, inert: Boolean},
   render: () => h('i', {class: 'face-stub'}),
 });
 
-const stubs = {PlayerDelegate: DelegateStub, PlayerCube: CubeStub, AsyncComponentWrapper: FaceStub};
+const stubs = {PlayerDelegate: DelegateStub, PlayerCube: CubeStub, VaporAsyncComponentWrapper: FaceStub};
 
 /** The layer reads a face's `name` for its hook and hands the vm on whole — the name is all this fixture needs. */
 const FACE = {name: 'RX07'} as unknown as PremiumCardVM;

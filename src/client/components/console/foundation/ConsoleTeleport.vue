@@ -1,130 +1,104 @@
 <template>
-  <TeleportView />
+  <component :is="homeStartMark" />
+  <Teleport v-if="plan.mounted" :key="plan.generation" :to="plan.to" :disabled="plan.disabled">
+    <slot />
+  </Teleport>
+  <component :is="homeEndMark" />
 </template>
 
-<script setup lang="ts">
-/**
- * THE ONE TELEPORT INTO A TARGET THAT CAN BE ABSENT. Every console `<Teleport>`
- * whose target is not `body` goes through this component (guard
- * `tests/console/teleportTargetGuard.spec.ts`).
+<script setup vapor lang="ts">
+/*
+ * THE ONE TELEPORT INTO A TARGET THAT CAN BE ABSENT. Every console `<Teleport>` whose target is not `body` goes
+ * through this component (guard `tests/console/teleportTargetGuard.spec.ts`).
  *
- * Why it exists (the field crash of 2026-11-07, game-pdb19bfa — «Построить
- * колонию» from the standard projects right after a card had built one from the
- * hand): Vue's native `<Teleport>` does NOT keep its content in place when the
- * target is missing AT MOUNT. It warns (dev only), mounts NOTHING, and keeps the
- * never-mounted children as its `n1`; the next patch then walks component vnodes
- * that have no instance — `Cannot read properties of null (reading
- * 'emitsOptions')`, then `bum` / `parentNode` / `exposed` on unmount — and the
- * whole subtree around it stops patching. The surface vanishes and the server's
- * question has nobody serving it. A selector published by a host that already
- * left (a stale slot, a stale berth) is all it takes, and nothing about it is
- * visible in a test that never mounts twice.
+ * Why it exists (the field crash of 2026-11-07, game-pdb19bfa — «Построить колонию» from the standard projects right
+ * after a card had built one from the hand): a selector published by a host that already left — a stale slot, a stale
+ * berth — is all it takes for a surface to be teleported into NOTHING, and the server's question then has nobody
+ * serving it. (On the virtual DOM the native teleport also crashed on its next patch; the Vapor one does not — what
+ * is left is the law, not the crash.)
  *
- * Three laws, each a native trap closed:
- * 1. **Nothing mounts into nothing.** Enabled with no live target, the content
- *    renders NOWHERE (the stack's own «ownership ≠ readiness» gap) and waits —
- *    one re-check after the current flush (a target rendered later in the same
- *    flush: the native `defer` case), then per frame, then at a slow cadence —
- *    and mounts the moment the target is in the document.
- * 2. **The target is resolved on every render**, and handed to the native
- *    teleport as the ELEMENT: a string `to` that never changes is never
- *    re-resolved by Vue, so a target node REPLACED by its host kept receiving
- *    the content in a detached copy. A new element is a new `to` — Vue moves.
- * 3. **Enabling never moves into a dead target.** A teleport mounted disabled
- *    keeps the target it resolved at mount; enabled later with the same `to`,
- *    Vue inserts into that (possibly `null`) target. While the target is
- *    missing, an already-mounted teleport that is disabled STAYS disabled.
- * 4. **…and what was not standing yet does not stand up in place.** Law 3 keeps
- *    content that is already ON SCREEN where it is; content that arrives in the
- *    very render that asks for the missing target (the reveal claimed by a
- *    colony stage whose zone renders later in the same flush) would otherwise
- *    mount in the teleport's own place and MOVE into the target a tick later —
- *    two insertions, the arrival told twice (CI 2026-11-08,
- *    `console-pluto-two-colony-sequence`: the dealt card re-inserted). Vue
- *    patches a disabled teleport's NEW children into its own place before it
- *    moves them, so a teleport holding nothing (`teleportStandsContent`) waits
- *    empty and goes live as a FRESH teleport (a new key): its content mounts
- *    straight into the target — the stack's own «ownership ≠ readiness» gap.
+ * FOUR LAWS, decided by ONE function (`decide`) over reactive facts — the props, this wrapper's own wait, and the
+ * registry of DECLARED targets (`v-embed-zone`):
+ * 1. **Nothing mounts into nothing.** Enabled with no live target and no teleport standing, the content is rendered
+ *    NOWHERE — not even created (the stack's own «ownership ≠ readiness» gap) — and waits: a declared target re-asks
+ *    the document from its own mount, in the same task; any other is looked for after the flush, then per frame,
+ *    then at a slow cadence; a wait of 5 s is named once (`[teleport] stranded` — red in every e2e spec).
+ * 2. **The target is the resolved ELEMENT.** The Vapor teleport's `to` is reactive: a new element under the same
+ *    selector is a changed `to`, and the content MOVES there — the same nodes, never a re-mount. A declared target
+ *    says when it leaves; any other is watched through its parent while the content stands in it.
+ * 3. **What stands keeps standing.** Enabling into an absent target leaves content that is ON SCREEN where it is —
+ *    in its own place while it was disabled, in the target it was last given — and moves it once the target exists.
+ * 4. **…and what was not standing yet does not stand up in place.** Content that arrives in the very change that
+ *    asks for a missing target (the reveal claimed by a colony stage whose zone renders later) would mount in the
+ *    teleport's own place and move a tick later — two insertions, the arrival told twice (CI 2026-11-08,
+ *    `console-pluto-two-colony-sequence`: the dealt card re-inserted). A disabled teleport holding nothing waits
+ *    UNMOUNTED and goes live as a fresh one: its content mounts straight into the target.
  *
- * THE FORM (V3 wave 4). The four laws are decided in ONE render function — they read what the previous render put on
- * screen (was a teleport live, was it disabled, does content stand between its anchors), which a template cannot ask.
- * The component is `<script setup>` and its template is that render (`TeleportView`, a functional component of this
- * script); what the Options form read off its instance (`this.$.subTree`) is the vnode this script itself returned
- * last (`rendered`). The rewrite on the Vapor `<Teleport>` — which has no such defect to work around — is its step B
- * (docs/claude/vapor/RECIPES.md § R18).
+ * THE FORM (V3 step B · B4, 2026-11-13). This was the client's last virtual-DOM component: a render function over the
+ * vnode it had returned last, because the four laws read what the previous render had put on screen. On the Vapor
+ * teleport they need ONE such fact — «does content stand in place» — and it is read off the DOM between the wrapper's
+ * two HOME MARKS (a `ref` on a Vapor `<Teleport>` is `null`, so the wrapper keeps its own handle).
+ *
+ * A MARK IS A COMMENT NODE, NEVER AN ELEMENT. The wrapper stands among its host's own children — the tiles of the
+ * parties' grid, the government's dais, the shell's root — and a host must never have to know it is there: an element,
+ * even a `display: none` one, is a child a script counts (`parliamentCardFit` sums the dais' children and their gaps:
+ * two hidden `<i>` made the enacted card smaller), a `:first-child` / `:nth-child` / `:empty` a sheet reads. A comment
+ * is none of those. The wrapper creates the two nodes itself and the template mounts them as they are
+ * (`<component :is>` given a DOM node renders that node — a row of the capability table).
+ *
+ * The facts of the Vapor teleport it stands on are rows of `tests/client/vapor/vaporCapability.spec.ts` and of its
+ * own spec (under a virtual-DOM parent and a Vapor one).
  */
-import {FunctionalComponent, h, markRaw, nextTick, onBeforeUnmount, PropType, ref, Teleport, useSlots, VNode} from 'vue';
+import {nextTick, onBeforeUnmount, PropType, reactive, ref, watch} from 'vue';
+import type {Component} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {embedZoneEpoch} from '@/client/console/embedZoneRegistry';
 
+defineOptions({name: 'ConsoleTeleport'});
+
 type TeleportTo = string | HTMLElement;
 
-/** The live element a `to` names right now (`null` = not in the document). */
-function resolveTeleportTarget(to: TeleportTo): Element | null {
+function resolveTeleportTarget(to: TeleportTo): HTMLElement | null {
   if (typeof to !== 'string') {
     return to;
   }
   try {
-    return document.querySelector(to);
+    return document.querySelector<HTMLElement>(to);
   } catch {
     return null;
   }
 }
 
-/**
- * Does the live teleport hold content the player can SEE — any child that rendered an element (a `v-if` that is
- * off renders a comment, a `<transition>` around it renders that comment)? Only such content has a place to keep.
- */
-function teleportStandsContent(prev: VNode): boolean {
-  // A DISABLED teleport keeps its content in place, between its own two anchors.
-  const start = prev.el as Node | null;
-  const end = prev.anchor as Node | null;
-  for (let node = start?.nextSibling ?? null; node !== null && node !== end; node = node.nextSibling) {
+const FAST_RETRY_FRAMES = 30;
+const SLOW_RETRY_MS = 250;
+const STRANDED_MS = 5000;
+
+const props = defineProps({
+  to: {type: [String, Object] as PropType<TeleportTo>, required: true},
+  disabled: {type: Boolean, default: false},
+  /** Kept for the call sites: a declared target re-resolves in its own flush, so there is nothing to defer. */
+  defer: {type: Boolean, default: false},
+});
+
+const homeStart = document.createComment('');
+const homeEnd = document.createComment('');
+// (`<component :is>` is typed for components and tag names; the runtime also takes a node and mounts it as it is.)
+const homeStartMark = homeStart as unknown as Component;
+const homeEndMark = homeEnd as unknown as Component;
+const flowScope = useFlowScope('console-teleport');
+const epoch = ref(0);
+const wait = {cancelFrame: (() => {}) as () => void, cancelTimer: (() => {}) as () => void, active: false, warned: false, since: 0, stranded: false};
+const plan = reactive({mounted: false, generation: 0, to: props.to as TeleportTo, disabled: props.disabled});
+
+/** Does the teleport hold content the player can see IN PLACE — an element between the two home marks? */
+function standsInPlace(): boolean {
+  for (let node = homeStart.nextSibling; node !== null && node !== homeEnd; node = node.nextSibling) {
     if (node.nodeType === 1) {
       return true;
     }
   }
   return false;
 }
-
-/** Per-frame re-checks before the slow cadence takes over. */
-const FAST_RETRY_FRAMES = 30;
-const SLOW_RETRY_MS = 250;
-/**
- * A wait this long is no gap frame any more — the content is STRANDED: whatever it serves (a prompt's step, a hosted
- * surface) stands nowhere on screen (ledger HC — the lent-node class of game-pdb19bfa turned from a crash into a
- * silent wait). Named once, `[teleport] stranded`; every e2e spec reads it red.
- */
-const STRANDED_MS = 5000;
-
-const props = defineProps({
-  to: {
-    type: [String, Object] as PropType<TeleportTo>,
-    required: true,
-  },
-  disabled: {
-    type: Boolean,
-    default: false,
-  },
-  /** Passed to the native teleport on its mount (it resolves after the flush). */
-  defer: {
-    type: Boolean,
-    default: false,
-  },
-});
-const slots = useSlots();
-
-// The wait's bookkeeping — plain, never reactive (the render reads it).
-const wait = markRaw({cancelFrame: (() => {}) as () => void, cancelTimer: (() => {}) as () => void, active: false, warned: false, since: 0, stranded: false, key: 0});
-const flowScope = useFlowScope('console-teleport');
-/** Bumped by a re-check that found the target — the one reactive edge of the wait. */
-const epoch = ref(0);
-/**
- * WHAT THIS COMPONENT RENDERED LAST — the teleport's own vnode, `null` while the content renders nowhere. The render
- * below is the component's whole subtree and Vue mounts the very object it returns: its `el` / `anchor` are the
- * teleport's two anchors in place, its `props` what the mounted teleport was given.
- */
-let rendered: VNode | null = null;
 
 function stopWaiting(): void {
   wait.cancelFrame();
@@ -177,47 +151,83 @@ function awaitTarget(): void {
   });
 }
 
-/** THE RENDER — one decision per render, remembered as `rendered` for the next one. */
-function teleportFor(): VNode | null {
-  void epoch.value;
-  // …and every DECLARED node's coming and going (`v-embed-zone` — the outcome zones, the Parliament's ruler slot, vote
-  // row and sitting hero, the under-shade transfer layer): the target is re-asked in the flush that mounted it.
-  void embedZoneEpoch();
-  const prev = rendered;
-  const live = prev !== null;
-  const target = resolveTeleportTarget(props.to);
-  const children = slots.default?.() ?? [];
-  const wasDisabled = live && (prev.props?.disabled === true || prev.props?.disabled === '');
-  // LAW 4 — a disabled teleport holding NOTHING that is asked to go live does not patch its new content in place
-  // (Vue mounts it into the teleport's own place and only then moves it): it waits empty, and goes live as a FRESH
-  // teleport — a new key — whose content mounts straight into the target.
-  const nothingStands = wasDisabled && !teleportStandsContent(prev);
-  if (target === null) {
-    if (!live && !props.disabled) {
-      // LAW 1 — the native teleport would mount nothing and crash on the next patch.
-      awaitTarget();
-      return null;
-    }
-    if (live && !props.disabled && wasDisabled) {
-      // LAW 3 — enabling now would insert into the target resolved at mount.
-      awaitTarget();
-      return h(Teleport, {key: wait.key, to: prev.props?.to ?? props.to, disabled: true}, nothingStands ? [] : children);
-    }
-    return h(Teleport, {key: wait.key, to: props.to, disabled: props.disabled, defer: live ? undefined : props.defer}, children);
+/*
+ * THE TARGET IS WATCHED WHILE THE CONTENT STANDS IN IT. The virtual-DOM wrapper re-resolved its selector on every
+ * render of its parent; a Vapor component has no such render. A declared target (`v-embed-zone`) moves the registry's
+ * epoch when it leaves; for any other, the element's own parent is observed — its removal re-asks the document.
+ */
+let observed: {el: HTMLElement, stop: () => void} | undefined;
+function watchTarget(el: HTMLElement | undefined): void {
+  if (observed?.el === el) {
+    return;
   }
-  stopWaiting();
-  if (!props.disabled && nothingStands) {
-    wait.key++;
-    return h(Teleport, {key: wait.key, to: target as HTMLElement, disabled: false}, children);
+  observed?.stop();
+  observed = undefined;
+  const parent = el?.parentNode ?? null;
+  if (el === undefined || parent === null || typeof MutationObserver === 'undefined') {
+    return;
   }
-  // LAW 2 — the element, so a replaced node is a changed `to`.
-  return h(Teleport, {key: wait.key, to: target as HTMLElement, disabled: props.disabled, defer: live ? undefined : props.defer}, children);
+  const observer = new MutationObserver(() => {
+    if (!el.isConnected) {
+      epoch.value++;
+    }
+  });
+  observer.observe(parent, {childList: true});
+  observed = {el, stop: () => observer.disconnect()};
 }
 
-const TeleportView: FunctionalComponent = () => {
-  rendered = teleportFor();
-  return rendered;
-};
+/** THE DECISION — the wrapper's four laws over what stands now. */
+function decide(): void {
+  const target = resolveTeleportTarget(props.to);
+  const live = plan.mounted;
+  const wasDisabled = live && plan.disabled;
+  if (target === null) {
+    watchTarget(undefined);
+    if (props.disabled) {
+      // In place: the target does not matter yet (the body stands in for it — an absent selector is a warning).
+      plan.disabled = true;
+      if (!live) {
+        plan.to = document.body;
+      }
+      plan.mounted = true;
+      return;
+    }
+    awaitTarget();
+    if (!live) {
+      return; // LAW 1 — nothing mounts into nothing
+    }
+    if (wasDisabled && !standsInPlace()) {
+      plan.mounted = false; // LAW 4 — nothing stood: it waits unmounted, its content mounts straight into the target
+    }
+    // LAW 3 — what stands keeps standing where it is: in place while it was disabled, in the target it was given
+    // (one that left the document, or the old one while `to` names one that is not there yet).
+    return;
+  }
+  stopWaiting();
+  if (live && wasDisabled && !props.disabled && !standsInPlace()) {
+    plan.generation++; // LAW 4 — a fresh teleport: the arriving content is inserted once, into the target
+  }
+  plan.to = target; // LAW 2 — the element: a replaced node is a changed `to`, and the Vapor teleport moves
+  plan.disabled = props.disabled;
+  plan.mounted = true;
+  watchTarget(props.disabled ? undefined : target);
+}
 
-onBeforeUnmount(() => stopWaiting());
+// What the wrapper is TOLD — its props, its own wait — is decided on the spot: the teleport's props change in the
+// very assignment, before the host's content of that change is rendered (law 4 reads what stood BEFORE it).
+watch([() => props.to, () => props.disabled, epoch], decide, {flush: 'sync'});
+// A DECLARED target is another matter. Its directive moves the registry's epoch when the element is CREATED — a Vapor
+// render creates a block and inserts it afterwards — so asked on the spot the document does not hold the zone yet,
+// and the content would move a TICK later (the registry's echo): after the flush's post hooks had measured it where
+// it stood (`console-parliament-sitting-v3` on the first Vapor wrapper: the ruler's tile stood nowhere for the first
+// sample of the verdict). So this reaction is a JOB of the flush that is creating the zone: it runs when the render
+// that inserts the element is over, and before anything of that flush measures — where the virtual-DOM wrapper's own
+// render used to stand.
+watch(() => embedZoneEpoch(), decide);
+decide();
+
+onBeforeUnmount(() => {
+  stopWaiting();
+  watchTarget(undefined);
+});
 </script>

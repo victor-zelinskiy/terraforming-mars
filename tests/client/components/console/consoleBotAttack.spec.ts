@@ -77,7 +77,7 @@ function attackOn(cards: ReadonlyArray<CardName>, min = 1): Table {
 // `<console-source-dock>` is the lazy binding of `asyncComponents.ts` — it answers to the wrapper's name, which is the
 // stub's key (RECIPES § 3).
 const DockStub = defineComponent({
-  name: 'AsyncComponentWrapper',
+  name: 'VaporAsyncComponentWrapper',
   props: {view: {type: Object, required: true}},
   render: () => h('div', {class: 'con-src'}),
 });
@@ -135,7 +135,7 @@ function mountUnderHost(first: Table) {
   });
   const wrapper = mount(Host, {
     ...globalConfig,
-    global: {...globalConfig.global, stubs: {GamepadGlyph: true, AsyncComponentWrapper: DockStub, ConsolePlayedTargetStep: StepStub}},
+    global: {...globalConfig.global, stubs: {GamepadGlyph: true, VaporAsyncComponentWrapper: DockStub, ConsolePlayedTargetStep: StepStub}},
   });
   const cta = () => wrapper.find('.con-botattack__cta');
   return {

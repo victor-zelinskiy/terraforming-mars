@@ -58,11 +58,12 @@ const teardownFailures: Array<string> = [];
 /*
  * ── EVERY MOUNT CAN HOST A VAPOR COMPONENT ──────────────────────────────────
  *
- * The product is a virtual-DOM app in which Vapor components (`<script setup vapor>`) are being introduced wave by
- * wave (docs/claude/vapor/ROADMAP.md); `main.ts` installs `vaporInteropPlugin` for it. A spec mounts its component
- * in an app of its own — and a component whose tree reaches a converted leaf mounts NOTHING there without the plugin
- * (the Vapor child is an unknown kind of component to a plain virtual-DOM renderer). Installed here, once, for every
- * `mount()` of the bundle: a spec never has to know which of its component's descendants were converted.
+ * The PRODUCT is one Vapor application — `createVaporApp(App)`, no virtual-DOM renderer and no interop plugin
+ * (docs/claude/vapor/ROADMAP.md, V4). The UNIT SUITE is the one place where a virtual-DOM renderer still stands, and
+ * only as scaffolding: `@vue/test-utils` mounts through `createApp`, its stubs and its hosts are virtual-DOM
+ * components — and a Vapor component mounts NOTHING under a plain virtual-DOM renderer (it is an unknown kind of
+ * component to it). So `vaporInteropPlugin` is installed here, once, for every `mount()` of the bundle. It is the
+ * suite's own business: nothing in `src/client` may name it (the readiness ledger's `virtual-dom` row).
  *
  * And a spec never has to know that its OWN component was converted either: the `@vue/test-utils` and the `vue` of
  * this bundle are the suite's layer (`tests/client/testing/vaporTestUtils.ts` · `vueForTests.ts`, aliased by

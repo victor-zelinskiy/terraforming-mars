@@ -34,6 +34,9 @@ const INSTANCE_TABLES = {
   'src/client/components/console/ConsoleStrategyRail.vue': {
     ledgers: 'the rail\'s own before/after ledgers — stashed on the instance in the Options form, one per rail by design',
   },
+  'src/client/components/console/foundation/ConsoleTeleport.vue': {
+    wait: 'ONE WAIT PER TELEPORT — each wrapper looks for its own target on its own clock (the frame / timer handles, «since», «warned»); a table shared by the module would let one teleport cancel the wait of another',
+  },
 };
 
 const MUTATORS = new Set(['push', 'pop', 'splice', 'shift', 'unshift', 'set', 'add', 'delete', 'clear', 'sort', 'reverse', 'fill', 'copyWithin']);

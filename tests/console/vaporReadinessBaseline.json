@@ -7,9 +7,8 @@
   "root-through-instance": {},
   "mixin": {},
   "global-registration": {},
-  "render-function": {
-   "src/client/components/console/foundation/ConsoleTeleport.vue": 4
-  },
+  "render-function": {},
+  "virtual-dom": {},
   "v-memo": {},
   "refs": {},
   "global-in-setup": {}
@@ -255,6 +254,7 @@
   "src/client/components/console/foundation/ConsoleScrollArea.vue",
   "src/client/components/console/foundation/ConsoleTableImpact.vue",
   "src/client/components/console/foundation/ConsoleTargetImpactRows.vue",
+  "src/client/components/console/foundation/ConsoleTeleport.vue",
   "src/client/components/console/foundation/ConsoleVariantChoice.vue",
   "src/client/components/console/foundation/ConsoleVenusBonusRow.vue",
   "src/client/components/console/foundation/ConsoleVenusBonusStep.vue",

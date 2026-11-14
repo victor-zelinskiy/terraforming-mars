@@ -70,7 +70,7 @@ function stageOf(card: ZoomCard, selected = false) {
   return mount(CardZoomCard, {
     global: {
       ...globalConfig.global,
-      stubs: {BonusCardFace: BonusFaceStub, MarsBotCorpFace: CorpFaceStub, ConsoleTenderCard: true, AsyncComponentWrapper: PremiumFaceStub},
+      stubs: {BonusCardFace: BonusFaceStub, MarsBotCorpFace: CorpFaceStub, ConsoleTenderCard: true, VaporAsyncComponentWrapper: PremiumFaceStub},
     },
     props: {card, selected},
   });

@@ -13,12 +13,13 @@ import * as path from 'path';
  * `getCurrentInstance()`, a `$parent`, a mixin, a global registration, a render function, a `v-memo`, a `$refs` reach,
  * a `<script setup>` component that still leans on a global (`$t`, `v-i18n`) instead of importing it.
  *
- * Until V3 is over THE COUNT ONLY SHRINKS:
- *  · a file may not gain a use of a construct, and A NEW FILE STARTS AT ZERO — so «a new `.vue` is
- *    `<script setup lang="ts">`» (ROADMAP §2 rule 1) is a failing test, not a convention, and a new `<script setup>`
- *    component is written in the form that can become Vapor by adding one attribute;
+ * THE TARGET IS REACHED (V4, 2026-11-13): the app is `createVaporApp(App)`, every component is a Vapor component,
+ * every row of the list stands at ZERO — and the ledger now HOLDS it there:
+ *  · EVERY single-file component is `<script setup vapor>` — a virtual-DOM one would not mount (the app has no
+ *    virtual-DOM renderer behind it, and no `vaporInteropPlugin` to host one);
+ *  · a file may not gain a use of a construct, and A NEW FILE STARTS AT ZERO;
  *  · a component that IS Vapor stays Vapor (`vapor` in the baseline — a conversion cannot drift back);
- *  · a wave of V3 lowers the baseline with `npm run ready:vapor`, which prints the line: converted / total.
+ *  · `npm run ready:vapor` records a new component and prints the line: converted / total.
  *
  * It counts FORM, not behaviour: what a Vapor component cannot do at all is the capability suite
  * (`tests/client/vapor/vaporCapability.spec.ts`), and what the rework must keep is the e2e (CLAUDE.md invariant 14).
@@ -101,6 +102,14 @@ export const CONSTRUCTS: Readonly<Record<string, Construct>> = {
     },
     what: 'a render function (`h(…)`) — it stays a virtual-DOM component',
     instead: 'a template (a dynamic tag is `<component :is>`, a wrapper is a slot)',
+  },
+  'virtual-dom': {
+    where: 'any',
+    count: (code) => uses(/\b(?:defineComponent|defineAsyncComponent|defineCustomElement|createApp|createSSRApp|vaporInteropPlugin)\b/g, code),
+    what: 'the VIRTUAL-DOM runtime by name — `defineComponent`, `defineAsyncComponent`, `createApp`, `vaporInteropPlugin`: the app is ' +
+      '`createVaporApp(App)`, nothing in it renders a virtual-DOM component (a `defineAsyncComponent` wrapper is one)',
+    instead: 'a component is `<script setup vapor lang="ts">`; a lazy one is `lazyComponent(() => import(…))` ' +
+      '(`components/lazyComponent.ts` — the Vapor async wrapper); the app is created ONCE, in `main.ts`, by `createVaporApp`',
   },
   'v-memo': {
     where: 'vue',
@@ -273,6 +282,15 @@ describe('vapor readiness — what the target has no place for only shrinks', fu
     expect(lost, 'was `<script setup vapor>`, is not any more').to.deep.equal([]);
     const unrecorded = now.vapor.filter((file) => !baseline.vapor.includes(file));
     expect(unrecorded, 'a new Vapor component: record it with `npm run ready:vapor` (in the same diff)').to.deep.equal([]);
+  });
+
+  it('EVERY component is a Vapor component — the app is `createVaporApp(App)` and hosts no virtual-DOM one', () => {
+    const virtualDom = sources(path.join(ROOT, 'src', 'client'))
+      .map((file) => path.relative(ROOT, file).split(path.sep).join('/'))
+      .filter((rel) => rel.endsWith('.vue') && !now.vapor.includes(rel));
+    expect(virtualDom, 'a component that is not `<script setup vapor>` — it would not mount (no virtual-DOM renderer, no interop plugin)').to.deep.equal([]);
+    const main = code(fs.readFileSync(path.join(ROOT, 'src', 'client', 'main.ts'), 'utf8'));
+    expect(main, 'main.ts creates the ONE Vapor application').to.match(/\bcreateVaporApp\(App\b/);
   });
 
   it('a Vapor template starts with its ROOT — no comment before it (development keeps it, and the root becomes a fragment)', () => {

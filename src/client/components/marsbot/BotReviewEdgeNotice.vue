@@ -22,8 +22,9 @@
  * the pop animation.
  *
  * A VAPOR component — one of the three leaves of the Vue 3.6 pilot (docs/claude/vapor/ROADMAP.md §3.6): this one is
- * the `<Transition>` over a keyed `v-if` driven by a module's reactive state. It runs inside the virtual-DOM app
- * through `vaporInteropPlugin` (main.ts). `$t` is the imported binding — a Vapor component has no global properties.
+ * the `<Transition>` over a keyed `v-if` driven by a module's reactive state. (The pilot ran it inside a
+ * virtual-DOM app through `vaporInteropPlugin`; since V4 the app itself is a Vapor one.) `$t` is the imported binding
+ * — a Vapor component has no global properties.
  *
  * ⚠ THE TEMPLATE STARTS WITH ITS ROOT — no comment before it. A development build keeps template comments, a comment
  * beside the root makes the component's root a FRAGMENT for Vapor, and the attributes its parent lets fall through
