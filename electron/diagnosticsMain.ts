@@ -33,6 +33,12 @@ export type DiagnosticsMainDeps = {
   postToServer: (message: unknown) => boolean;
   /** Where the console exports, the hang traces and (on the Deck) the wrapper's log live. */
   exportDir: () => string;
+  /**
+   * Quit the app through its ONE guarded door (`beginShutdown` — shutdown.ts). Never a bare `app.quit()`: on the
+   * Steam Machine Chromium's native teardown can stall after `quit`, and only that door arms the watchdog that ends
+   * the process (the first probe of a release on the box left its process alive behind «process should end now»).
+   */
+  quit: (reason: string) => void;
 };
 
 export type DiagnosticsMain = {
@@ -146,7 +152,7 @@ const PROBE_SETTLE_MS = 9_000;
  * A developer's instrument (`electron/README.md` § Diagnostics): pair it with `TM_DIAG_DSN` to prove a local build,
  * or run it on an installed release to prove that installation. Never set by the game.
  */
-function runProbe(win: BrowserWindow): void {
+function runProbe(win: BrowserWindow, quit: (reason: string) => void): void {
   let ran = false;
   win.webContents.on('did-finish-load', () => {
     if (ran) {
@@ -164,7 +170,7 @@ function runProbe(win: BrowserWindow): void {
         console.log(`[diagnostics] probe: report → ${JSON.stringify(await ask('window.__conDiagnostics.report("other", "TM_DIAG_PROBE — a probe report, not a player")'))}`);
         // eslint-disable-next-line no-console
         console.log('[diagnostics] probe: done — quitting');
-        app.quit();
+        quit('diagnostics probe');
       })();
     }, PROBE_SETTLE_MS);
   });
@@ -424,7 +430,7 @@ function install(deps: DiagnosticsMainDeps): DiagnosticsMain {
       window = win;
       exporter = consoleExporter;
       if (process.env.TM_DIAG_PROBE === '1') {
-        runProbe(win);
+        runProbe(win, deps.quit);
       }
       win.on('closed', () => {
         if (window === win) {

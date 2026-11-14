@@ -288,6 +288,32 @@ runs no SDK; what the initial chunk gained is the interceptor, the journal and t
 of diagnostics; `vendors.js` 40 KB larger on the «before» side is what gave it away. A baseline is the commit the
 work stands on, built the same way.
 
+### 9.2 Proving a RELEASE on the box with no hand on a pad
+
+The released AppImage, in a scratch folder, with its OWN data folder (the owner's installation and saves are not
+touched), headless inside the `e2e` distrobox — the app runs the connection check and sends one probe report by
+itself, prints both answers and quits:
+
+```bash
+# ── on the box (`ssh steam-machine`) ──
+mkdir -p ~/tm-e2e/diag-accept/cfg/terraforming-mars && cd ~/tm-e2e/diag-accept
+cp ~/.config/terraforming-mars/diagnostics.json cfg/terraforming-mars/     # the box's label: {"environment": "box"}
+curl -sL -o TM.AppImage https://github.com/victor-zelinskiy/terraforming-mars/releases/download/v<version>/TerraformingMars.AppImage
+chmod +x TM.AppImage
+distrobox enter e2e -- bash -lc 'cd ~/tm-e2e/diag-accept && XDG_CONFIG_HOME=$PWD/cfg TM_DIAG_PROBE=1 TM_ELECTRON_WINDOWED=1 \
+  timeout 240 xvfb-run -a -s "-screen 0 1920x1080x24" ./TM.AppImage --appimage-extract-and-run --no-sandbox > probe.log 2>&1'
+grep 'diagnostics\]' probe.log
+
+# ── on the laptop ──
+npm run diag -- selftest --since 30m          # page · main · server — env box, the release, RESOLVED
+npm run diag -- report <the code it printed>   # the package, with screen.jpg
+```
+
+First run, release 1.2.3242 (2026-11-14): «sending as box · terraforming-mars@1.2.3242», the three events delivered in
+145 ms and RESOLVED to sources in Sentry, the report `TM-3VXNY6` accepted with its frame. ⚠ It files a real report
+under `environment: box` — the owner gets the «new report» e-mail; say so. Afterwards: no `terraforming-mars`
+process left (`pgrep -f "usr/bin/[t]erraforming-mars"`), `rm -rf /tmp/appimage_extracted_*`.
+
 ---
 
 ## 10. Журнал решений (decision journal)
@@ -325,6 +351,7 @@ work stands on, built the same way.
 | D29 | **Чтение кадров проверяется на записи, рождённой ВНУТРИ бандла** (запись «проверки связи» страницы, семья `selftest`) | проверять на ошибке, брошенной стендом | У ошибки из `page.evaluate` нет ни одного кадра бандла — читать нечего; запись проверки связи рождается в `diagnosticsSurface.ts`, и e2e требует первой строкой `src/client/diagnostics/diagnosticsSurface.ts:<строка>` |
 | D30 | **Размер окна читается один раз при загрузке и заново только по `resize`** — снимок экрана у записи его не спрашивает | читать `window.innerWidth` на каждой записи (так было) | Чтение `innerWidth` заставляет браузер довести раскладку до актуальной, а строка печатается где угодно — в том числе посреди тяжёлого монтирования. Замер разницы не показал (§ 9.1), но диагностика не имеет права стоить кадру, который описывает, — закрыто конструкцией и строкой юнит-спеки |
 | D31 | **Колонка главного меню держит полный набор плиток приложения — измерено, а не прикинуто** (e2e: 11 плиток на минимальной высоте, 9 повседневных — с обеими строками внутри) | убрать пункт «Сообщить о проблеме» из меню в нижнюю панель; ужимать плитки по счётчику | На ТВ колонка вмещает 8 плиток в полный рост; на боксе с новым пунктом их 9. Плитки уже уступают место вместе (flex-shrink до `min-height`) — менять вёрстку не понадобилось, но это было допущение, пока его не померили на боксе |
+| D32 | **Проба выходит через `beginShutdown`** (зависимость `quit` у `installDiagnosticsMain`), а не голым `app.quit()` | `app.quit()` (так было) | Первая же проба релиза на боксе оставила процесс жить после «quit — event loop done»: на Steam Machine нативное завершение Chromium может не закончиться, и только общая дверь выхода взводит сторожа, который добивает процесс (`electron/shutdown.ts`). Правило проекта — «никогда голый `app.quit()`» — действует и для инструмента разработчика |
 
 ## 11. Как позже добавить канал связи
 Одно значение — константа `DIAG_CONTACT` в `src/common/diagnostics/protocol.ts` (сейчас `''`). Пока оно пустое, строки

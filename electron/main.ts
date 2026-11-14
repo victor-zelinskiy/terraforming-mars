@@ -129,6 +129,7 @@ const diagnostics = installDiagnosticsMain({
   appMode: () => effectiveMode,
   postToServer: (message) => postToEmbeddedServer(message),
   exportDir: () => resolveExportDir(app),
+  quit: (reason) => beginShutdown(reason),
 });
 onEmbeddedDiag((signal) => diagnostics.noteServerSignal(signal));
 
