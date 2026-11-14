@@ -310,7 +310,13 @@ npm run diag -- report <the code it printed>   # the package, with screen.jpg
 ```
 
 First run, release 1.2.3242 (2026-11-14): «sending as box · terraforming-mars@1.2.3242», the three events delivered in
-145 ms and RESOLVED to sources in Sentry, the report `TM-3VXNY6` accepted with its frame. ⚠ It files a real report
+145 ms and RESOLVED to sources in Sentry, the report `TM-3VXNY6` accepted with its frame. Second run, release
+1.2.3243: **NO NETWORK** first (the same command with `--host-resolver-rules="MAP *.sentry.io ~NOTFOUND"` after
+`--no-sandbox`) — every row «no connection (net::ERR_NAME_NOT_RESOLVED)», the report `TM-RNTXKH` answered `queued`,
+four envelopes in `diagnostics/outbox/`; then an ordinary launch — the outbox emptied by itself (`TM-RNTXKH` is in
+Sentry with its nine attachments), a new report `TM-K3AQQX` sent, the process ended through the guarded door in 21 s
+with nothing left behind. The package carries both `*.symbols.json`, both files of the mono face and the hub's
+bundle, and no source map. ⚠ It files a real report
 under `environment: box` — the owner gets the «new report» e-mail; say so. Afterwards: no `terraforming-mars`
 process left (`pgrep -f "usr/bin/[t]erraforming-mars"`), `rm -rf /tmp/appimage_extracted_*`.
 

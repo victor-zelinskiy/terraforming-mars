@@ -150,6 +150,49 @@ describe('diagnostics — the liveness line has ONE shape for its three readers'
   });
 });
 
+describe('diagnostics — the developer\'s notice stands outside every gate', () => {
+  /*
+   * «Errors and stall warnings are on screen even when the screen hangs — no animation hold, no cinematic gate may
+   * hide them.» A stall IS a hold that never let go, a gate that never opened: a notice that asked any of them for
+   * leave would be silent exactly when it is needed. So the notice, its plate and the layer that mounts it read the
+   * journal and their own setting — and nothing of the machinery that can stand still.
+   */
+  const GATES: ReadonlyArray<{name: string, source: RegExp}> = [
+    {name: 'the animation-hold registry', source: /components\/presentation\/animationHold/},
+    {name: 'the presentation flow', source: /components\/presentation\/presentationFlow/},
+    {name: 'the prompt admission', source: /consolePromptAdmission/},
+    {name: 'the game transport and its cinematic holds', source: /console\/transport\//},
+    {name: 'the workspace stack', source: /consoleWorkspaceStack/},
+    {name: 'the liveness arbiter', source: /consoleLiveness/},
+  ];
+  const NOTICE_FILES = [
+    'src/client/diagnostics/diagnosticsNotice.ts',
+    'src/client/diagnostics/diagnosticsPrefs.ts',
+    'src/client/components/console/diagnostics/ConsoleDevNotice.vue',
+    'src/client/components/console/diagnostics/DiagnosticsLayer.vue',
+  ];
+
+  it('neither the notice, its plate nor its layer imports a hold, a gate or a flow that can stand still', () => {
+    const offenders: Array<string> = [];
+    for (const file of NOTICE_FILES) {
+      const imports = fs.readFileSync(path.join(ROOT, file), 'utf8').split(/\r?\n/).filter((line) => /^\s*import\b/.test(line));
+      for (const gate of GATES) {
+        if (imports.some((line) => gate.source.test(line))) {
+          offenders.push(`${file} ← ${gate.name}`);
+        }
+      }
+    }
+    expect(offenders, 'the notice must rise while the screen stands still — it may not wait for what is standing').to.deep.eq([]);
+  });
+
+  it('the layer is mounted by the APP, beside the game\'s shell — never inside it', () => {
+    const app = fs.readFileSync(path.join(ROOT, 'src/client/components/App.vue'), 'utf8');
+    expect(app, 'App.vue mounts the diagnostics layer').to.match(/<DiagnosticsLayer\b/);
+    const shell = fs.readFileSync(path.join(ROOT, 'src/client/components/console/ConsoleShell.vue'), 'utf8');
+    expect(shell, 'the shell (whose surfaces obey the admission and the holds) does not own it').to.not.match(/DiagnosticsLayer|ConsoleDevNotice/);
+  });
+});
+
 describe('diagnostics — the page runs no SDK and nothing in the client sends by itself', () => {
   it('nothing under src/client imports the Sentry SDK (the hub is the one sender)', () => {
     const offenders: Array<string> = [];
