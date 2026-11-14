@@ -399,6 +399,22 @@ attachments a month on the free plan). So the key is defended by four things, in
    Retiring is refused while the key is the only active one. A game that has not updated yet keeps its reports on
    the device (the outbox + the report folders) and loses its automatic events of that window — the price of a rotation.
 
+   ⚠ **THE INGEST ANSWERS `200` TO ANY KEY** — a retired one, a mistyped one, thirty-two zeroes (measured 2026-11-14:
+   three real event envelopes, each answered `200 {"id": …}`, none of them stored). It accepts first and judges the
+   key afterwards. Two consequences: ① a game that still carries a retired key SAYS «отправлен» / «Доставлено» and
+   nothing arrives — the hub cannot know; its report folders on the device are the only copy; ② the in-game
+   connection check proves the ROAD to the collector, and only `npm run diag -- selftest` (which reads what Sentry
+   STORED) proves the arrival. After a rotation and after any change of the secret, the second one is the check.
+   (A limit is different: the collector says `429` / the rate-limit header — D33 stands on that.)
+
+   **The first rotation — 2026-11-14.** The key that had been written into the prompt document (`2181c05e…`) was
+   replaced by `52658725…`: the owner set the secret and deleted the variable; release 1.2.3248 had been built before
+   that and still carried the old key (read out of its package on the box), 1.2.3249 carries the new one (the same
+   reading; the probe's three events RESOLVED in Sentry); the old key is retired — events sent with it are not stored.
+   ⚠ `sentry api` answers a GET from its own cache: right after the retirement it still listed the key as active, and
+   the first `key retire` announced a success it had not checked. The key commands read past the cache now
+   (`apiFresh`) and `key retire` re-reads the key before it says anything.
+
 **What would close it for good** (not built — the owner's call, a new piece of infrastructure): a relay of our own (a
 small serverless function is enough) that holds the real key, accepts envelopes from the game and applies limits per
 address and per day before forwarding. The game would then carry the relay's address instead of a Sentry key, and a

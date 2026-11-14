@@ -865,16 +865,29 @@ async function apiWrite(method, endpoint, payload) {
   return body.length === 0 ? {} : JSON.parse(body.toString('utf8'));
 }
 
+/**
+ * A read that is NEVER the CLI's cached copy. `sentry api` answers a GET from its own cache for a while: right after
+ * a key was retired it still listed the key as active (2026-11-14) — and a command that changes a key must read what
+ * the server holds now.
+ */
+async function apiFresh(endpoint) {
+  const token = process.env.SENTRY_AUTH_TOKEN || await tokenFromCli();
+  if (token === '' || token === undefined) {
+    return api(endpoint);
+  }
+  return JSON.parse((await fetchWith(token, endpoint)).toString('utf8'));
+}
+
 function keyLine(k) {
   const limit = k.rateLimit ? `${k.rateLimit.count} per ${Math.round(k.rateLimit.window / 3600)}h` : 'none';
   return [k.id.slice(0, 8), k.isActive ? 'active' : 'RETIRED', cut(k.name, 34), limit, localTime(k.dateCreated)];
 }
 
 async function keyStatus() {
-  const keys = await api(`${projectPath}/keys/`);
+  const keys = await apiFresh(`${projectPath}/keys/`);
   console.log(table(keys.map(keyLine), ['KEY', 'STATE', 'NAME', 'RATE LIMIT', 'CREATED']));
   // The plan's quota for the running period — what a flood (or a broken build) would burn.
-  const customer = await api(`customers/${ORG}/`).catch(() => undefined);
+  const customer = await apiFresh(`customers/${ORG}/`).catch(() => undefined);
   if (customer !== undefined) {
     const errors = customer.categories?.errors;
     const files = customer.categories?.attachments;
@@ -912,7 +925,7 @@ async function keyRetire(args) {
   if (!ref) {
     throw new Failure('usage: diag key retire <key id or its first characters>   (see `diag key`)', 2);
   }
-  const keys = await api(`${projectPath}/keys/`);
+  const keys = await apiFresh(`${projectPath}/keys/`);
   const hits = keys.filter((k) => k.id.startsWith(ref));
   if (hits.length !== 1) {
     throw new Failure(`«${ref}» names ${hits.length} keys — give more of the id (\`npm run diag -- key\`)`, 2);
@@ -921,8 +934,19 @@ async function keyRetire(args) {
   if (keys.filter((k) => k.isActive && k.id !== key.id).length === 0) {
     throw new Failure('this is the only ACTIVE key: retiring it would silence every installed game. Create the next one first (`diag key rotate`).');
   }
+  if (!key.isActive) {
+    console.log(`key ${key.id.slice(0, 8)} «${key.name}» is already retired.`);
+    return 0;
+  }
   await apiWrite('PUT', `${projectPath}/keys/${key.id}/`, {isActive: false});
-  console.log(`key ${key.id.slice(0, 8)} «${key.name}» is retired: the collector refuses it from now on (it can be switched back on in Sentry → Client Keys).`);
+  // SAID ONLY WHEN TRUE: the answer of a write is not the state — the key is read again, past every cache.
+  const after = (await apiFresh(`${projectPath}/keys/`)).find((k) => k.id === key.id);
+  if (after === undefined || after.isActive) {
+    throw new Failure(`the collector still lists key ${key.id.slice(0, 8)} as ACTIVE — it was not retired. Do it in Sentry → Settings → Client Keys.`);
+  }
+  console.log(`key ${key.id.slice(0, 8)} «${key.name}» is retired (it can be switched back on in Sentry → Client Keys).`);
+  console.log('note: the ingest endpoint answers 200 to ANY key and drops the event afterwards — a game that still carries');
+  console.log('      this key will say «sent», and nothing will arrive. The proof of arrival is `npm run diag -- selftest`.');
   return 0;
 }
 
