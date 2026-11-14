@@ -138,14 +138,13 @@ export function installShellReactions(shell: Shell): void {
   watch(() => shell.cellPreviewKey, () => shell.whenCellPreviewKeyChanges(), {immediate: true});
   watch(() => shell.placementPeekTarget, (peek) => shell.whenPlacementPeekTargetChanges(peek), {immediate: true});
   watch(() => shell.placementTakesBoardForLanding, (now) => shell.whenPlacementTakesBoardForLandingChanges(now));
-  watch(() => shell.boardStoryCoverCandidate, (now) => shell.whenBoardStoryCoverCandidateChanges(now));
   watch(() => shell.boardStoryCoverOwed, (owed) => shell.whenBoardStoryCoverOwedChanges(owed));
   watch(() => shell.placementTakesBoardForStory, (now) => shell.whenPlacementTakesBoardForStoryChanges(now));
   watch(() => shell.placementActive, (now) => shell.whenPlacementActiveChanges(now));
   watch(() => shell.placementMoveFrom, (now, before) => shell.whenPlacementMoveFromChanges(now, before));
   watch(() => shell.placementRawSpaceModel, (raw) => shell.whenPlacementRawSpaceModelChanges(raw));
   watch(() => shell.placementWorldVersion, () => shell.whenPlacementWorldVersionChanges());
-  watch(() => shell.planetFocusTarget, (now) => shell.whenPlanetFocusTargetChanges(now));
+  watch(() => shell.planetFocusOrder, (now, was) => shell.whenPlanetFocusOrderChanges(now, was));
   watch(() => shell.terraformedSceneState.phase, (now) => shell.whenTerraformedSceneStatePhaseChanges(now));
   watch(() => shell.startTask, (now, was) => shell.whenStartTaskChanges(now, was));
   watch(() => shell.startExcursionEngage, (now) => shell.whenStartExcursionEngageChanges(now));

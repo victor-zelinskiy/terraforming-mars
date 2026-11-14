@@ -279,6 +279,8 @@ export function createPlacementController(shell: PlacementPort) {
    * prompt (`boardStoryCoverFor`), never a live term of the signal itself: the signal releases the camera
    * (`placementHeldForBoardStory`), the camera's exit raises the blocking `planet-focus` hold, and a live «nothing else
    * holds» would then drop the story, re-engage the camera and ping-pong until the page crashed (the box, 2026-11-05).
+   * The latch is set in the SAME reaction that tells the camera, before it (`whenPlanetFocusOrderChanges`) — as a
+   * watcher of its own it lost its turn to the camera's and never ran (the same crash again, 2026-11-14).
    * Any other surface never waits on a story under a cover (no drain can run there) — and neither does a placement
    * under a cover the board cannot TAKE (`boardTakeableFromStack`: the start's phase root stands through its own
    * placements, so the drain cannot run until the phase ends — the hold only waited out the park's safety).
@@ -288,6 +290,11 @@ export function createPlacementController(shell: PlacementPort) {
     return shell.playerView.waitingFor?.type === 'space' && !placementLiveLatch.value && !boardInPlainViewForStory.value &&
       boardTakeableFromStack() && boardBeatParkPending() &&
       promptAdmissionBlock('placement', guardedAdmissionSignals(shell.admissionSignalsBeforeStory)) === undefined;
+  });
+
+  /** PL-1840 — the cover's candidate and the camera's target as ONE source (`whenPlanetFocusOrderChanges`). */
+  const planetFocusOrder = computed((): number => {
+    return (boardStoryCoverCandidate.value ? 1 : 0) | (planetFocusTarget.value ? 2 : 0);
   });
 
   /** PL-1840 — the latched cover still owes its story (the park pending or draining, the same prompt). */
@@ -1189,10 +1196,34 @@ export function createPlacementController(shell: PlacementPort) {
   }
 
   /** PL-1840 — the cover is LATCHED for this prompt on the candidate's rising edge (see `boardStoryCoverCandidate`). */
-  function whenBoardStoryCoverCandidateChanges(now: boolean): void {
-    if (now) {
-      boardStoryCoverFor.value = shell.promptPresenceIdentity;
-      noteTransferTrail('board-story:cover', {prompt: boardStoryCoverFor.value});
+  function latchBoardStoryCover(): void {
+    boardStoryCoverFor.value = shell.promptPresenceIdentity;
+    noteTransferTrail('board-story:cover', {prompt: boardStoryCoverFor.value});
+  }
+
+  /**
+   * THE COVER IS LATCHED, THEN THE CAMERA IS TOLD — ONE REACTION, its order written here (ONE MUTATION — ONE REACTION).
+   *
+   * They were two rows of the shell's table: «the candidate rose → latch the cover» and «the camera's target changed →
+   * enter / exit». The latch exists to keep the camera's own exit from dropping the story it was released for — so it
+   * must be set BEFORE the camera moves. As two watchers that order was the scheduler's: a queued job runs its getter
+   * when its turn comes, the camera's turn came first, its exit raised the `planet-focus` hold, the candidate fell —
+   * and the latch's job found «false, as before» and never ran its body. The story dropped, the camera came back in,
+   * its hold let go, the candidate rose again: a flush that never ended, the page frozen for good (the Palladin action
+   * at −2 °C — `console-palladin-shipping` E; CI of 2026-11-14 — the main thread silent for 492 s; the trace: 90
+   * camera flips with the latch empty and not ONE run of its watcher).
+   *
+   * As one reaction there is no such turn to lose: whenever the camera is told that its target fell for a covered
+   * story, the candidate stands in that very evaluation — it is what made the target fall — and the cover is latched
+   * first. `planetFocusOrder` is both facts in one value (bit 0 the candidate, bit 1 the target).
+   */
+  function whenPlanetFocusOrderChanges(now: number, was: number | undefined): void {
+    const before = was ?? 0;
+    if ((now & 1) !== 0 && (before & 1) === 0) {
+      latchBoardStoryCover();
+    }
+    if ((now & 2) !== (before & 2)) {
+      whenPlanetFocusTargetChanges((now & 2) !== 0);
     }
   }
 
@@ -1475,6 +1506,7 @@ export function createPlacementController(shell: PlacementPort) {
     placementTakesBoardForStory,
     boardStoryBeforePlacement,
     boardStoryCoverCandidate,
+    planetFocusOrder,
     boardStoryCoverOwed,
     boardInPlainViewForStory,
     placementHeldForBoardStory,
@@ -1534,14 +1566,13 @@ export function createPlacementController(shell: PlacementPort) {
     whenPlacementHeldChanges,
     whenPlacementPeekTargetChanges,
     whenPlacementTakesBoardForLandingChanges,
-    whenBoardStoryCoverCandidateChanges,
     whenBoardStoryCoverOwedChanges,
     whenPlacementTakesBoardForStoryChanges,
     whenPlacementActiveChanges,
     whenPlacementMoveFromChanges,
     whenPlacementRawSpaceModelChanges,
     whenPlacementWorldVersionChanges,
-    whenPlanetFocusTargetChanges,
+    whenPlanetFocusOrderChanges,
     whenTerraformedSceneStatePhaseChanges,
     whenFinalGreeneryActiveChanges,
   };
