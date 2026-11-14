@@ -29,6 +29,7 @@ import {endFinaleSession} from '@/client/console/finalGreenery/finalGreenerySess
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
 import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
+import {installFlowCoverageProbe} from '@/client/console/flowCoverageProbe';
 import {resetStdProjectsFlow, stdProjectsFlow} from '@/client/console/consoleStdProjects';
 import {registerDiscardOverlayHandoff, registerPreselectedDiscardArm} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyBonusEntry, colonyResolutionUi, remoteColonyBonusParksReveal} from '@/client/console/colonyTrade/colonyResolution';
@@ -718,6 +719,9 @@ export function createWiringController(shell: WiringPort) {
     // the holds/transport/stack facts this shell already stands on. Installed
     // here so the aggregator adds no new edges to any import graph.
     installConsoleReadinessProbe();
+    // …and HOW MUCH OF THE KERNEL'S STATE SPACE A WALK WENT THROUGH (`flowCoverageProbe.ts`) — only when the e2e harness
+    // asks for it (its flag, or `?coverage=1`): a player's game never installs it.
+    installFlowCoverageProbe();
     // THE RELEASE FUNNEL'S GUARD (consoleWorkspaceOutcome): a claim serving a
     // live prompt/batch whose host frame still stands cannot be released out
     // from under the player. The evidence lives in the shell (the raw

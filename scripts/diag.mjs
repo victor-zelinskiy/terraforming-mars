@@ -8,11 +8,32 @@
  * tool is how an agent reads all of it with one command instead of clicking through a web UI:
  *
  *   report <TM-XXXXXX | latest>   the report's package downloaded + a SUMMARY.md built from it
- *   issues [filters]              the project's issues, newest first, filtered by the hub's own tags
- *   issue <shortId | id>          one issue: its latest event's tags, contexts, stack, breadcrumbs, attachments
+ *   issues [filters]              the project's issues, newest first, filtered by the hub's own tags (`--regressed`:
+ *                                 only those that came back after being resolved)
+ *   issue <shortId | id>          one issue: its latest event (or `--event <id>`) in READING ORDER — the tags, the CAUSE
+ *                                 (class, shape, tier, dimensions), what stood (the question, the holders), the episode
+ *                                 (how it ended, who cured it, what changed), the flow tree / waits / wait graph / flow
+ *                                 trace, the save; then the stack, the breadcrumbs, the attachments
+ *   classes [filters]             ONE ROW PER CAUSE CLASS: events, runs, how they ended, first / last seen, the trend by
+ *                                 release, the issue it is filed under
+ *   class <cause class>           a class OPENED: its last N cases laid out in folders in reading order + a README (the
+ *                                 cases, the issue, how to fetch a case's save, where the class is reproduced in the repo)
+ *   trend                         «ARE FREEZES FEWER?» — the session ledgers summed by release: defects and episodes per
+ *                                 hour of play and per session, outcomes, time-to-cure, long frames, the top classes, the
+ *                                 fires of every net
+ *   save <g#… saveId | issue>     the game's save AS IT STOOD when an episode began, from the box (`--fixture <name>`:
+ *                                 also as an e2e fixture; `--from <file>`: from a save already on this machine)
+ *   resolve <class | shortId>     close a class «fixed in release» (default: this checkout's version — run it after
+ *                                 the fix is committed; `--in <version>` names another, `--next` asks the collector)
+ *   where <word>                  from a word of the evidence (a scope, a hold, a wait, a block, a rung, a door, a tag, a
+ *                                 shape) to the line of the source that declares it
  *   selftest [--since 30m]        did the connection check («Проверка связи») arrive from all three runtimes?
  *   box pull [--since 24h]        the box's diagnostic files (logs, reports, outbox, console exports, field logs)
  *   box resolve <fingerprint>     an automatic event's `p#…` / `g#…` back to the id and the save that holds it
+ *   key · key rotate · key retire the client key and the plan's quota; its rotation
+ *
+ * What is PURE of all this (reading an event as a case, the rows of a class, the sums of a trend, the matching of
+ * `where`) lives in `scripts/diag-lib.mjs` and is unit-tested (`tests/scripts/diagLib.spec.ts`).
  *
  * AUTHENTICATION, in this order (the token is never printed):
  *   1. `SENTRY_AUTH_TOKEN` in the environment → plain `fetch` against `https://de.sentry.io/api/0/` with a Bearer header;
@@ -26,26 +47,44 @@
  *
  * WHERE IT WRITES — everything under `.diagnostics/` at the repo root (git-ignored):
  *   .diagnostics/reports/<TM-XXXXXX>/   the report's attachments + event.json + SUMMARY.md
- *   .diagnostics/issues/<shortId>/      an issue's attachments + event.json
+ *   .diagnostics/issues/<shortId>/      an issue's attachments + event.json (`--event`: under `events/<eventId>/`)
+ *   .diagnostics/classes/<class>/       a class: README.md + one folder per case (`NN-<when>-<outcome>/`: 00-summary.md,
+ *                                       01-lines.txt … 05-flow-trace.txt, event.json, the event's attachments)
+ *   .diagnostics/sessions/<eventId>.json  a session event, fetched once (what `trend` reads)
+ *   .diagnostics/saves/<gameId>-<saveId>.json  a game's save from the box (it holds the table's ids and names)
  *   .diagnostics/box/<YYYYMMDD-HHMMSS>/ the box's files, by their path relative to /home/deck
+ * …and ONE thing outside it, only when asked by name: `save --fixture <name>` writes
+ * `tests/e2e/fixtures/field-<name>.json` (the save with its names anonymized, checked against the current engine).
  *
- * User input never reaches a shell string: every process is spawned with an argument array, and the two values that
- * do go into the box's remote command (`--since`, a fingerprint) are validated against a strict pattern first.
+ * User input never reaches a shell string: every process is spawned with an argument array, and the values that do go
+ * into the box's remote command (`--since`, a fingerprint, a game id, a save id) are validated against a strict
+ * pattern first. What goes into a query of the collector is a URL parameter, and a cause class is refused when it
+ * holds a quote, a backslash or a wildcard.
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import {spawn} from 'child_process';
 import {fileURLToPath} from 'url';
+import {
+  aggregateTrend, BOX_HISTORY_DIR, caseFiles, caseFolderName, caseSummaryMd, classReadme, cut, extraOf, findReproductions, fingerprintOf,
+  FINGERPRINT_DIGITS, fixtureFromSave, fixtureText, hasCause, historyFileName, issueLine, localTime, mergeClassRows, pad2, parseHistoryListing, pickSaveId,
+  readCase, RELEASE_PREFIX, renderCase, renderClasses, renderTrend, renderWhere, safeClassDir, shortRelease, table, tagsOf, whereSearch,
+} from './diag-lib.mjs';
 
 const ORG = 'victor-zelinskiy';
 const PROJECT = 'terraforming-mars';
+/** The project's numeric id — what the grouped (Discover) endpoint is scoped by. */
+const PROJECT_ID = '4512424269054032';
 const API_BASE = 'https://de.sentry.io/api/0/';
 const BOX = 'steam-machine';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, '.diagnostics');
-/** Must match `src/common/diagnostics/privacy.ts` — `FINGERPRINT_DIGITS`. */
-const FINGERPRINT_DIGITS = 10;
+/** The environments an event is filed under (`hubConfig.ts`); `development` is the probe's (`scripts/diag-probe.mjs`). */
+const ENVIRONMENTS = ['box', 'production', 'development'];
+/** «All time» for the grouped endpoint: the collector keeps events 90 days at most. */
+const ALL_PERIOD = '90d';
+/** Flags that never take a value — `resolve --next <class>` must not read the class as the flag's. */
+const BOOLEAN_FLAGS = new Set(['json', 'regressed', 'next']);
 
 // ───────────────────────────── small helpers ─────────────────────────────
 
@@ -65,6 +104,8 @@ function parseArgs(argv) {
       const eq = a.indexOf('=');
       if (eq > 0) {
         flags[a.slice(2, eq)] = a.slice(eq + 1);
+      } else if (BOOLEAN_FLAGS.has(a.slice(2))) {
+        flags[a.slice(2)] = true;
       } else if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
         flags[a.slice(2)] = argv[++i];
       } else {
@@ -114,25 +155,7 @@ function qs(params) {
   return parts.length === 0 ? '' : `?${parts.join('&')}`;
 }
 
-function cut(s, n) {
-  const one = String(s ?? '').replace(/\s+/g, ' ').trim();
-  return one.length > n ? `${one.slice(0, n - 1)}…` : one;
-}
-
-function pad2(n) {
-  return String(n).padStart(2, '0');
-}
-
-function localTime(value) {
-  if (value === undefined || value === null || value === '') {
-    return '—';
-  }
-  const d = new Date(typeof value === 'number' ? value : String(value));
-  if (Number.isNaN(d.getTime())) {
-    return String(value);
-  }
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-}
+// (`cut`, `pad2`, `localTime`, `table`, `tagsOf` are the pure module's — `diag-lib.mjs`.)
 
 function clock(ms) {
   const d = new Date(ms);
@@ -150,12 +173,6 @@ function size(bytes) {
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
-}
-
-function table(rows, header) {
-  const all = [header, ...rows];
-  const widths = header.map((_, i) => Math.max(...all.map((r) => String(r[i]).length)));
-  return all.map((r) => r.map((c, i) => (i === r.length - 1 ? String(c) : String(c).padEnd(widths[i]))).join('  ')).join('\n');
 }
 
 function rel(p) {
@@ -313,12 +330,74 @@ function latestEvent(issueId) {
   return api(`organizations/${ORG}/issues/${issueId}/events/latest/`);
 }
 
-function tagsOf(event) {
-  const out = {};
-  for (const t of event.tags ?? []) {
-    out[t.key] = t.value;
+/** One event by its id (32 hex digits) — the same JSON `latestEvent` answers. */
+function eventById(eventId) {
+  const id = String(eventId).toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(id)) {
+    throw new Failure(`«${eventId}» is not an event id (32 hex digits)`, 2);
   }
+  return api(`${projectPath}/events/${id}/`);
+}
+
+/**
+ * The GROUPED endpoint (Discover over the `errors` dataset): one row per distinct combination of the plain `fields`,
+ * with the functions (`count()`, `count_unique(run)`, `min(timestamp)` …) computed over it. A custom tag of the hub
+ * (`cause`, `outcome`, `run` …) is a field and a query term by its own name. ONE page: `limit` ≤ 100.
+ */
+async function discover({fields, query, since, env, sort, limit = 100}) {
+  const params = [
+    ...fields.map((f) => ['field', f]),
+    ['query', query], ['statsPeriod', since === 'all' ? ALL_PERIOD : since], ['environment', env], ['sort', sort],
+    ['dataset', 'errors'], ['project', PROJECT_ID], ['per_page', String(limit)],
+  ].filter(([, v]) => v !== undefined && v !== '');
+  const answer = await api(`organizations/${ORG}/events/?${params.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')}`);
+  return Array.isArray(answer?.data) ? answer.data : [];
+}
+
+/** `fn` over `items`, at most `limit` at a time, the answers in the items' order. */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({length: Math.min(limit, items.length)}, worker));
   return out;
+}
+
+/** A cause class as the user typed it: what may stand inside a quoted term of the collector's query, and nothing else. */
+function causeClassArg(value, usage) {
+  const cls = String(value ?? '').trim();
+  if (cls === '' || !cls.includes('/')) {
+    throw new Failure(usage, 2);
+  }
+  if (cls.length > 200 || /["\\*]/.test(cls) || [...cls].some((ch) => ch.charCodeAt(0) < 32)) {
+    throw new Failure(`«${cut(cls, 80)}» is not a cause class (no quote, backslash, wildcard or control character; at most 200 characters)`, 2);
+  }
+  return cls;
+}
+
+/** `--release 1.2.3250` (or the full `terraforming-mars@1.2.3250`) → the release as the collector names it. */
+function releaseArg(name, value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  const v = String(value).startsWith(RELEASE_PREFIX) ? String(value).slice(RELEASE_PREFIX.length) : String(value);
+  if (!/^\d+\.\d+\.\d+$/.test(v)) {
+    throw new Failure(`--${name} must be a version like 1.2.3250 — got «${value}»`, 2);
+  }
+  return `${RELEASE_PREFIX}${v}`;
+}
+
+function intArg(name, value, fallback, min, max) {
+  const n = value === undefined ? fallback : Number(value);
+  if (!Number.isInteger(n) || n < min || n > max) {
+    throw new Failure(`--${name} must be an integer ${min}…${max}`, 2);
+  }
+  return n;
 }
 
 function entryOf(event, type) {
@@ -499,10 +578,15 @@ async function cmdReport(args) {
 
 async function cmdIssues(args) {
   const f = args.flags;
-  const since = period(f.since, '24h', true);
-  const env = oneOf('env', f.env, ['box', 'production']);
+  // (A class that came back is not «seen in the last day» by default: `--regressed` looks at all of them.)
+  const since = period(f.since, f.regressed ? 'all' : '24h', true);
+  const env = oneOf('env', f.env, ENVIRONMENTS);
   const terms = [];
-  const kind = oneOf('kind', f.kind, ['error', 'stall', 'integrity', 'report']);
+  if (f.regressed) {
+    // «A class closed in release X returned»: resolved (`diag resolve`), then seen again in a later release.
+    terms.push('is:regressed');
+  }
+  const kind = oneOf('kind', f.kind, ['error', 'stall', 'integrity', 'report', 'session']);
   if (kind) {
     terms.push(`kind:${kind}`);
   }
@@ -519,10 +603,7 @@ async function cmdIssues(args) {
   if (since !== 'all') {
     terms.push(`lastSeen:-${since}`);
   }
-  const limit = f.limit === undefined ? 25 : Number(f.limit);
-  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
-    throw new Failure('--limit must be an integer 1…100', 2);
-  }
+  const limit = intArg('limit', f.limit, 25, 1, 100);
   const list = await searchIssues({query: terms.join(' '), environment: env, limit, sort: 'date'});
   if (f.json) {
     console.log(JSON.stringify(list, null, 2));
@@ -530,45 +611,82 @@ async function cmdIssues(args) {
   }
   const filters = `${terms.join(' ') || '(no filter)'}${env ? ` · environment=${env}` : ''}`;
   if (!Array.isArray(list) || list.length === 0) {
-    console.log(`No issues found for ${filters}.`);
+    console.log(f.regressed ? `No issue came back after being resolved (${filters}).` : `No issues found for ${filters}.`);
     return 0;
   }
   console.log(`${list.length} issue${list.length === 1 ? '' : 's'} for ${filters}:\n`);
   console.log(table(list.map((i) => [
     i.shortId, i.level ?? '—', i.count ?? '—', localTime(i.lastSeen), env ?? '—', cut(i.title, 100),
   ]), ['SHORT ID', 'LEVEL', 'SEEN', 'LAST SEEN', 'ENV', 'TITLE']));
+  if (f.regressed) {
+    console.log('\nEach came back after `diag resolve`: `npm run diag -- issue <SHORT ID>` reads its newest case; its tag `cause` is the class to open.');
+  }
   return 0;
+}
+
+function contextLines(event, name) {
+  const c = event.contexts?.[name];
+  if (c === undefined || c === null) {
+    return [];
+  }
+  const L = [`Context ${name}:`];
+  for (const [k, v] of Object.entries(c)) {
+    if (k !== 'type') {
+      L.push(`  ${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`);
+    }
+  }
+  return L;
 }
 
 async function cmdIssue(args) {
   const ref = args.positional[0];
   if (ref === undefined) {
-    throw new Failure('usage: diag issue <shortId | numeric id>', 2);
+    throw new Failure('usage: diag issue <shortId | numeric id> [--event <eventId>]', 2);
   }
   const issue = await issueById(ref);
-  const event = await latestEvent(issue.id);
+  const asked = args.flags.event;
+  if (asked === true) {
+    throw new Failure('--event needs an event id (32 hex digits) — `diag class <cause class>` lists a class\'s events', 2);
+  }
+  const event = asked === undefined ? await latestEvent(issue.id) : await eventById(asked);
+  if (asked !== undefined && String(event.groupID) !== String(issue.id)) {
+    throw new Failure(`event ${asked} is not an event of ${issue.shortId} (it belongs to issue ${event.groupID})`, 2);
+  }
+  const eventId = event.eventID ?? event.id;
   const L = [];
   L.push(`${issue.shortId} — ${issue.title}`);
   L.push(`level ${issue.level} · status ${issue.status} · seen ${issue.count}× by ${issue.userCount ?? 0} user(s) · first ${localTime(issue.firstSeen)} · last ${localTime(issue.lastSeen)}`);
   L.push(issue.permalink ?? '');
   L.push('');
-  L.push(`Latest event ${event.eventID ?? event.id} · ${localTime(event.dateCreated)}`);
+  L.push(`${asked === undefined ? 'Latest event' : 'Event'} ${eventId} · ${localTime(event.dateCreated)}`);
   L.push('');
   L.push('Tags:');
   for (const [k, v] of Object.entries(tagsOf(event))) {
     L.push(`  ${k}=${v}`);
   }
-  for (const name of ['screen', 'episode']) {
-    const c = event.contexts?.[name];
-    if (c !== undefined) {
+  // THE CAUSE, IN READING ORDER: what it is → what stood → how it ended → the net's own lines → the long lists → the
+  // save. An event with none of it (an exception, a report, an event of an older build) prints what it always did.
+  const read = readCase(event);
+  const block = (lines) => {
+    if (lines.length > 0) {
       L.push('');
-      L.push(`Context ${name}:`);
-      for (const [k, v] of Object.entries(c)) {
-        if (k !== 'type') {
-          L.push(`  ${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`);
-        }
-      }
+      L.push(...lines);
     }
+  };
+  if (hasCause(read)) {
+    const parts = renderCase(read);
+    block(parts.cause);
+    block(parts.evidence);
+    block(parts.episode.length > 0 ? parts.episode : contextLines(event, 'episode'));
+    block(contextLines(event, 'screen'));
+    block(parts.lines);
+    block(parts.lists);
+    block(parts.save);
+    block(parts.cut);
+  } else {
+    block(contextLines(event, 'screen'));
+    block(contextLines(event, 'episode'));
+    block(contextLines(event, 'session'));
   }
   const exc = entryOf(event, 'exception')?.values ?? [];
   if (exc.length > 0) {
@@ -597,14 +715,224 @@ async function cmdIssue(args) {
       L.push(`  ${localTime(b.timestamp)}  ${b.level ?? ''}  ${b.category ?? ''}  ${cut(b.message, 140)}`);
     }
   }
-  const dir = path.join(OUT, 'issues', safeName(issue.shortId));
+  // (The latest event is the issue's own folder; an event asked for by its id has a folder of its own beside it.)
+  const dir = asked === undefined ? path.join(OUT, 'issues', safeName(issue.shortId)) : path.join(OUT, 'issues', safeName(issue.shortId), 'events', safeName(eventId));
   fs.mkdirSync(dir, {recursive: true});
   fs.writeFileSync(path.join(dir, 'event.json'), JSON.stringify(event, null, 1));
-  const files = await downloadAttachments(event.eventID ?? event.id, dir);
+  const files = await downloadAttachments(eventId, dir);
   L.push('');
   L.push(files.length === 0 ? 'No attachments.' : `Attachments: ${files.map((x) => `${x.name} (${size(x.bytes)})`).join(', ')}`);
   L.push(`→ ${rel(dir)}/`);
+  if (read.cause !== undefined) {
+    L.push(`the whole class:  npm run diag -- class ${read.cause.cls}`);
+  }
   console.log(L.join('\n'));
+  return 0;
+}
+
+// ───────────────────────────── classes / class ─────────────────────────────
+
+/** The filters `classes`, `class` and `trend` share → the terms of a query, and how to say them. */
+function eventFilters(f, {kinds} = {}) {
+  const env = oneOf('env', f.env, ENVIRONMENTS);
+  const release = releaseArg('release', f.release === true ? '' : f.release);
+  const terms = [];
+  const said = [];
+  if (release !== undefined) {
+    terms.push(`release:"${release}"`);
+    said.push(`release ${shortRelease(release)}`);
+  }
+  const tier = oneOf('tier', f.tier, ['defect', 'planned', 'info']);
+  if (tier) {
+    terms.push(`tier:${tier}`);
+    said.push(`tier ${tier}`);
+  }
+  const kind = oneOf('kind', f.kind, kinds ?? ['stall', 'integrity']);
+  if (kind) {
+    terms.push(`kind:${kind}`);
+    said.push(`kind ${kind}`);
+  }
+  if (env) {
+    said.push(`environment ${env}`);
+  }
+  return {env, release, terms, said};
+}
+
+async function cmdClasses(args) {
+  const f = args.flags;
+  const since = period(f.since, '14d', true);
+  const limit = intArg('limit', f.limit, 50, 1, 100);
+  const {env, terms, said} = eventFilters(f);
+  const query = ['has:cause', ...terms].join(' ');
+  // THREE grouped questions, one page each. The issue a class is filed under comes from the FIRST one (grouped by
+  // `cause` + `issue`) — cheaper than a search of the issues per class, and it shows by itself a class the
+  // fingerprint did not group (two rows of one cause).
+  const [main, outcomes, releases] = await Promise.all([
+    discover({fields: ['cause', 'tier', 'kind', 'issue', 'issue.id', 'count()', 'count_unique(run)', 'min(timestamp)', 'max(timestamp)'], query, since, env, sort: '-count()'}),
+    discover({fields: ['cause', 'outcome', 'count()'], query, since, env}),
+    discover({fields: ['cause', 'release', 'count()'], query, since, env}),
+  ]);
+  const rows = mergeClassRows(
+    main.map((r) => ({cause: r.cause, tier: r.tier, kind: r.kind, issue: r.issue, issueId: r['issue.id'], count: r['count()'], runs: r['count_unique(run)'], first: r['min(timestamp)'], last: r['max(timestamp)']})),
+    outcomes.map((r) => ({cause: r.cause, outcome: r.outcome, count: r['count()']})),
+    releases.map((r) => ({cause: r.cause, release: r.release, count: r['count()']})),
+  );
+  const shown = rows.slice(0, limit);
+  if (f.json) {
+    console.log(JSON.stringify(shown, null, 2));
+    return 0;
+  }
+  const window = `${since === 'all' ? `all the collector keeps (${ALL_PERIOD})` : `the last ${since}`}${said.length > 0 ? ` · ${said.join(' · ')}` : ''}`;
+  if (rows.length === 0) {
+    console.log(`No event names a cause class in ${window}.`);
+    return 0;
+  }
+  console.log(`${rows.length} cause class${rows.length === 1 ? '' : 'es'} in ${window}${rows.length > shown.length ? ` — the ${shown.length} with the most events` : ''}:\n`);
+  console.log(renderClasses(shown));
+  console.log('');
+  console.log('EVENTS = what was SENT (a class is capped per run — `diag trend` counts every record) · RUNS = app runs that sent one · BY RELEASE reads left to right as time does');
+  if ([main, outcomes, releases].some((page) => page.length >= 100)) {
+    console.log('⚠ a grouped answer filled its page of 100 rows — some classes or cells may be missing: narrow --since, --env or --release.');
+  }
+  if (rows.some((r) => r.issues.length > 1)) {
+    console.log('⚠ SPLIT = one cause class filed under several issues: the fingerprint did not group it (an event of a build before the cause existed, or a merge undone in the collector).');
+  }
+  console.log(`open one:  npm run diag -- class ${rows[0].cls}`);
+  return 0;
+}
+
+/** The text files a search of the repo reads: every one under `dir` with one of `extensions`, the heavy folders left out. */
+function sourceFiles(dir, extensions, {skip = [], maxBytes = 4 * 1024 * 1024, depth = 12} = {}) {
+  const out = [];
+  const visit = (d, left) => {
+    let entries;
+    try {
+      entries = fs.readdirSync(d, {withFileTypes: true});
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) {
+        if (left > 0 && e.name !== 'node_modules' && !e.name.startsWith('.') && !skip.includes(e.name)) {
+          visit(full, left - 1);
+        }
+      } else if (e.isFile() && extensions.some((x) => (typeof x === 'string' ? e.name.endsWith(x) : x.test(e.name)))) {
+        try {
+          if (fs.statSync(full).size <= maxBytes) {
+            out.push(full);
+          }
+        } catch {
+          // gone between the listing and the look — not a file to read
+        }
+      }
+    }
+  };
+  visit(dir, depth);
+  return out;
+}
+
+/** WHERE THE CLASS IS REPRODUCED IN THE REPO: the specs and drivers under `tests/`, and the monkey's reports the box sent back. */
+function reproductionsOf(cls) {
+  const paths = [
+    // (The e2e fixtures are saves — megabytes of them, and a save never names a class.)
+    ...sourceFiles(path.join(ROOT, 'tests'), ['.ts', '.mjs', '.cjs', '.js', '.json', '.md', '.txt'], {skip: ['fixtures']}),
+    // (`.e2e-remote/<task>/test-results[/<pass>]/monkey-report.json` — `scripts/monkey-report.mjs`.)
+    ...sourceFiles(path.join(ROOT, '.e2e-remote'), [/^monkey-report.*\.json$/], {depth: 3, maxBytes: 32 * 1024 * 1024}),
+  ];
+  const needle = Buffer.from(cls, 'utf8');
+  const files = [];
+  for (const p of paths) {
+    let data;
+    try {
+      data = fs.readFileSync(p);
+    } catch {
+      continue;
+    }
+    if (data.includes(needle)) {
+      files.push({path: rel(p), text: data.toString('utf8')});
+    }
+  }
+  return {hits: findReproductions(files, cls), searched: paths.length};
+}
+
+async function cmdClass(args) {
+  const f = args.flags;
+  const cls = causeClassArg(args.positional[0], 'usage: diag class <cause class> [--last 5] [--env box|production|development] [--release <version>] [--since 14d|all]\n(`diag classes` lists them; a class looks like liveness/stall/unserved/handpick/hand:committed/block:reveal)');
+  const last = intArg('last', f.last, 5, 1, 20);
+  const since = period(f.since, 'all', true);
+  const {env, terms, said} = eventFilters(f, {kinds: []});
+  const query = [`cause:"${cls}"`, ...terms].join(' ');
+  const found = await discover({fields: ['id', 'timestamp', 'issue.id'], query, since, env, sort: '-timestamp', limit: last});
+  const filters = [`the last ${last}`, ...said, ...(since === 'all' ? [] : [`within ${since}`])].join(' · ');
+  const dir = path.join(OUT, 'classes', safeClassDir(cls));
+  // The folder is the class as it is read NOW: the cases of an earlier look are not left beside the new ones.
+  fs.rmSync(dir, {recursive: true, force: true});
+  fs.mkdirSync(dir, {recursive: true});
+  const events = await mapLimit(found, 8, (row) => eventById(row.id));
+  const issueIds = [...new Set(events.map((e) => String(e.groupID ?? '')).filter((id) => id !== ''))];
+  let issues = await mapLimit(issueIds, 4, (id) => api(`organizations/${ORG}/issues/${id}/`));
+  if (issues.length === 0) {
+    // No event in the window: the issue (resolved, perhaps) still says when the class was last seen.
+    const listed = await searchIssues({query: `cause:"${cls}"`, limit: 5});
+    issues = Array.isArray(listed) ? listed : [];
+  }
+  const cases = [];
+  for (const [i, event] of events.entries()) {
+    const read = readCase(event);
+    const folder = caseFolderName(i, read);
+    const caseDir = path.join(dir, folder);
+    fs.mkdirSync(caseDir, {recursive: true});
+    fs.writeFileSync(path.join(caseDir, 'event.json'), JSON.stringify(event, null, 1));
+    for (const [name, lines] of caseFiles(read)) {
+      fs.writeFileSync(path.join(caseDir, name), lines.length === 0 ? '' : `${lines.join('\n')}\n`);
+    }
+    const attachments = await downloadAttachments(read.eventId, caseDir);
+    fs.writeFileSync(path.join(caseDir, '00-summary.md'), caseSummaryMd(read, {index: i, issue: issues.find((x) => String(x.id) === read.issueId), attachments}));
+    cases.push({folder, case: read, attachments});
+  }
+  const repro = reproductionsOf(cls);
+  const readme = classReadme({cls, cases, issues, repro: repro.hits, filters});
+  fs.writeFileSync(path.join(dir, 'README.md'), readme);
+  console.log(readme);
+  const attached = cases.reduce((n, c) => n + c.attachments.length, 0);
+  console.log(`→ ${rel(dir)}/  (README.md + ${cases.length} case folder${cases.length === 1 ? '' : 's'}, ${attached} attachment${attached === 1 ? '' : 's'}; ${repro.searched} files of the repo searched for the class)`);
+  return events.length === 0 ? 1 : 0;
+}
+
+// ───────────────────────────── trend ─────────────────────────────
+
+async function cmdTrend(args) {
+  const f = args.flags;
+  const since = period(f.since, '30d', true);
+  const {env, terms, said} = eventFilters(f, {kinds: []});
+  // The session events are found through the grouped endpoint (their ids, the newest first — one page of 100 runs),
+  // and each event's full JSON is fetched ONCE: a ledger never changes after it was sent.
+  const found = await discover({fields: ['id', 'timestamp'], query: ['kind:session', ...terms].join(' '), since, env, sort: '-timestamp'});
+  const cacheDir = path.join(OUT, 'sessions');
+  fs.mkdirSync(cacheDir, {recursive: true});
+  let fetched = 0;
+  const ledgers = await mapLimit(found, 8, async (row) => {
+    const file = path.join(cacheDir, `${safeName(row.id)}.json`);
+    let event = readJson(file);
+    if (event === undefined) {
+      event = await eventById(row.id);
+      fs.writeFileSync(file, JSON.stringify(event, null, 1));
+      fetched++;
+    }
+    return extraOf(event).ledger;
+  });
+  const agg = aggregateTrend(ledgers);
+  if (f.json) {
+    console.log(JSON.stringify(agg, null, 2));
+    return 0;
+  }
+  const window = `${since === 'all' ? `all the collector keeps (${ALL_PERIOD})` : `the last ${since}`}${said.length > 0 ? ` · ${said.join(' · ')}` : ''}`;
+  console.log(`${found.length} session event${found.length === 1 ? '' : 's'} in ${window} (${fetched} fetched now, ${found.length - fetched} read from ${rel(cacheDir)}/)\n`);
+  console.log(renderTrend(agg));
+  if (found.length >= 100) {
+    console.log('\n⚠ the page of 100 session events is full — older runs of the window are not counted: narrow --since or --release.');
+  }
   return 0;
 }
 
@@ -787,24 +1115,41 @@ async function boxPull(args) {
   return 0;
 }
 
-async function boxResolve(args) {
-  const fp = String(args.positional[1] ?? '').toLowerCase();
-  if (!new RegExp(`^[pgs]#[0-9a-f]{${FINGERPRINT_DIGITS}}$`).test(fp)) {
-    throw new Failure('usage: diag box resolve <p#xxxxxxxxxx | g#… | s#…>  (a letter, #, ten hex digits)', 2);
-  }
-  const remote = 'cd ~/.config/terraforming-mars/embedded/db/files && grep -roE \'"[pgs][0-9a-f]{8,16}"\' --include=\'*.json\' . | sort -u';
+/**
+ * One command on the box. `remote` is built by the caller from CONSTANTS and from values it has validated against a
+ * strict pattern — never from raw input. The box unreachable (ssh's own exit 255, or ssh not startable) is exit 2 with
+ * ssh's words; any other exit code is the remote command's own and is the caller's to read.
+ */
+async function boxRun(remote) {
   let r;
   try {
     r = await run('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', BOX, remote]);
   } catch (err) {
     throw new Failure(`ssh could not be started: ${err.message}`, 2);
   }
-  // grep exits 1 for «no match» — an empty answer, not a failure. ssh's own failure is 255.
+  if (r.code === 255) {
+    throw new Failure(`ssh ${BOX}: ${cut(r.stderr.toString('utf8'), 300) || 'exited 255'}`, 2);
+  }
+  return r;
+}
+
+function fingerprintArg(value, letters, usage) {
+  const fp = String(value ?? '').toLowerCase();
+  if (!new RegExp(`^[${letters}]#[0-9a-f]{${FINGERPRINT_DIGITS}}$`).test(fp)) {
+    throw new Failure(usage, 2);
+  }
+  return fp;
+}
+
+/** A fingerprint of an automatic event → the ids on the box it is the print of, each with the saves that hold it. */
+async function resolveOnBox(fp) {
+  const remote = 'cd ~/.config/terraforming-mars/embedded/db/files && grep -roE \'"[pgs][0-9a-f]{8,16}"\' --include=\'*.json\' . | sort -u';
+  const r = await boxRun(remote);
+  // grep exits 1 for «no match» — an empty answer, not a failure.
   if (r.code !== 0 && r.code !== 1) {
     throw new Failure(`ssh ${BOX}: ${cut(r.stderr.toString('utf8'), 300) || `exited ${r.code}`}`, 2);
   }
   const hits = new Map();
-  let ids = 0;
   const seen = new Set();
   for (const line of r.stdout.toString('utf8').split('\n')) {
     const m = /^(.*):"([pgs][0-9a-f]{8,16})"$/.exec(line.trim());
@@ -812,18 +1157,20 @@ async function boxResolve(args) {
       continue;
     }
     const [, file, id] = m;
-    if (!seen.has(id)) {
-      seen.add(id);
-      ids++;
-    }
-    const print = `${id[0]}#${crypto.createHash('sha256').update(id).digest('hex').slice(0, FINGERPRINT_DIGITS)}`;
-    if (print === fp) {
+    seen.add(id);
+    if (fingerprintOf(id) === fp) {
       if (!hits.has(id)) {
         hits.set(id, []);
       }
       hits.get(id).push(`~/.config/terraforming-mars/embedded/db/files/${file.replace(/^\.\//, '')}`);
     }
   }
+  return {hits, ids: seen.size};
+}
+
+async function boxResolve(args) {
+  const fp = fingerprintArg(args.positional[1], 'pgs', 'usage: diag box resolve <p#xxxxxxxxxx | g#… | s#…>  (a letter, #, ten hex digits)');
+  const {hits, ids} = await resolveOnBox(fp);
   if (hits.size === 0) {
     console.log(`No save on the box holds ${fp} (${ids} distinct ids checked).`);
     return 0;
@@ -834,6 +1181,225 @@ async function boxResolve(args) {
       console.log(`  ${f}`);
     }
   }
+  return 0;
+}
+
+// ───────────────────────────── save ─────────────────────────────
+
+/*
+ * THE GAME AS IT STOOD WHEN AN EPISODE BEGAN. An automatic event never carries the save (it is the table's keys and
+ * names): it names it — the game by its fingerprint and the number of its newest save (`contexts.save`). The embedded
+ * server keeps EVERY save of a game (`db/files/history/<game>-<n>.json`), so on a machine the agent can read the pair
+ * is a file. A save loads as an e2e fixture AS IT IS: `POST /api/dev/load-game` remaps its ids and rides
+ * `Game.deserialize` — the path every real save rides (`.claude/rules/tests.md` § STATE IS DECLARED).
+ */
+
+const SAVES_DIR = path.join(OUT, 'saves');
+const FIXTURES_DIR = path.join(ROOT, 'tests', 'e2e', 'fixtures');
+
+/** `0…130, 132…363` — the save ids the box holds, as ranges. */
+function rangesText(ids) {
+  const parts = [];
+  let from;
+  let prev;
+  for (const id of ids) {
+    if (from === undefined) {
+      from = id;
+    } else if (id !== prev + 1) {
+      parts.push(from === prev ? `${from}` : `${from}…${prev}`);
+      from = id;
+    }
+    prev = id;
+  }
+  if (from !== undefined) {
+    parts.push(from === prev ? `${from}` : `${from}…${prev}`);
+  }
+  return `${parts.join(', ')} (${ids.length} save${ids.length === 1 ? '' : 's'})`;
+}
+
+/** What the command was asked for → the game's fingerprint and the save's number (`undefined` = the event did not say). */
+async function saveRefOf(args) {
+  const [first, second] = args.positional;
+  const usage = 'usage: diag save <g#xxxxxxxxxx> <saveId> [--fixture <name>]\n       diag save <issue shortId | event id> [--event <eventId>] [--fixture <name>]\n       diag save --from <a save file> --fixture <name>';
+  if (first === undefined) {
+    throw new Failure(usage, 2);
+  }
+  if (first.includes('#')) {
+    const gameRef = fingerprintArg(first, 'g', `«${first}» is not a game's fingerprint (g#, ten hex digits — an event's \`game_ref\` / \`contexts.save.game_ref\`)\n${usage}`);
+    if (!/^\d{1,9}$/.test(String(second ?? ''))) {
+      throw new Failure(`the save's number is missing or not a number — got «${second ?? ''}»\n${usage}`, 2);
+    }
+    return {gameRef, saveId: Number(second), said: `${gameRef} at save ${second}`};
+  }
+  let event;
+  let said;
+  if (/^[0-9a-f]{32}$/i.test(first)) {
+    event = await eventById(first);
+    said = `event ${first.toLowerCase()}`;
+  } else {
+    const issue = await issueById(first);
+    const asked = args.flags.event;
+    if (asked === true) {
+      throw new Failure(`--event needs an event id (32 hex digits)\n${usage}`, 2);
+    }
+    event = asked === undefined ? await latestEvent(issue.id) : await eventById(asked);
+    if (asked !== undefined && String(event.groupID) !== String(issue.id)) {
+      throw new Failure(`event ${asked} is not an event of ${issue.shortId} (it belongs to issue ${event.groupID})`, 2);
+    }
+    said = `${issue.shortId}, ${asked === undefined ? 'its latest event' : 'event'} ${event.eventID ?? event.id}`;
+  }
+  const save = readCase(event).save;
+  if (save === undefined) {
+    throw new Failure(`${said} names no save (no \`contexts.save\`): only an episode on a device that HOSTS the game does. Its tags may still name the game: \`game_ref\`.`);
+  }
+  fingerprintArg(save.gameRef, 'g', `${said} names «${save.gameRef}» as its game — not a game's fingerprint`);
+  return {gameRef: save.gameRef, saveId: Number.isInteger(save.saveId) && save.saveId >= 0 ? save.saveId : undefined, said: `${said} → ${save.gameRef} at save ${save.saveId}`};
+}
+
+/**
+ * A GAME's fingerprint → its id on the box, by the same rule as `box resolve` (the print of an id is compared with
+ * the fingerprint) — but the ids are read off the saves' FILE NAMES (`<gameId>.json`, `history/<gameId>-<n>.json`),
+ * not out of their contents: a game's id is its file's name, and reading 60 000 saves (21 GB on the owner's box,
+ * 2026-11-14) to learn it took a minute and a half; the listing takes under a second.
+ */
+async function gameIdsOnBox(fp) {
+  const r = await boxRun('cd ~/.config/terraforming-mars/embedded/db/files && ls -1 . history 2>/dev/null | grep -oE \'^g[0-9a-f]{8,16}\' | sort -u');
+  // grep exits 1 for «no match» — an empty answer, not a failure.
+  if (r.code !== 0 && r.code !== 1) {
+    throw new Failure(`ssh ${BOX}: ${cut(r.stderr.toString('utf8'), 300) || `exited ${r.code}`}`, 2);
+  }
+  const ids = r.stdout.toString('utf8').split('\n').map((s) => s.trim()).filter((s) => /^g[0-9a-f]{8,16}$/.test(s));
+  return {hits: ids.filter((id) => fingerprintOf(id) === fp), ids: ids.length};
+}
+
+/** The save from the box → `.diagnostics/saves/<gameId>-<saveId>.json`; the path it was written to. */
+async function fetchSave({gameRef, saveId, said}) {
+  const {hits, ids} = await gameIdsOnBox(gameRef);
+  if (hits.length === 0) {
+    throw new Failure(`${said}: no game on the box has the fingerprint ${gameRef} (${ids} games checked) — it was hosted by another device, or its saves are gone.`);
+  }
+  if (hits.length > 1) {
+    throw new Failure(`${gameRef} is the print of ${hits.length} games on the box (${hits.join(', ')}) — cannot tell which.`);
+  }
+  // (The id goes into the box's command line: `gameIdsOnBox` let through only what a game id is made of.)
+  const gameId = hits[0];
+  const listing = await boxRun(`ls -1 ~/${BOX_HISTORY_DIR}/ | grep -E '^${gameId}-[0-9]+\\.json$'`);
+  const available = parseHistoryListing(listing.stdout.toString('utf8'), gameId);
+  if (available.length === 0) {
+    throw new Failure(`${gameRef} = ${gameId}, but the box keeps no save of it under ~/${BOX_HISTORY_DIR}/.`);
+  }
+  let pick;
+  if (saveId === undefined) {
+    pick = {saveId: available[available.length - 1], exact: false};
+    console.log(`the event did not say which save — taking the NEWEST the box holds: ${pick.saveId} (of ${rangesText(available)})`);
+  } else {
+    pick = pickSaveId(available, saveId);
+    if (pick === undefined) {
+      throw new Failure(`save ${saveId} of ${gameId} is not on the box and none below it is — the box holds ${rangesText(available)}.`);
+    }
+    if (!pick.exact) {
+      console.log(`save ${saveId} of ${gameId} is NOT on the box (it holds ${rangesText(available)}) — taking the nearest below: ${pick.saveId}`);
+    }
+  }
+  const name = historyFileName(gameId, pick.saveId);
+  if (!/^g[0-9a-f]+-\d{5,}\.json$/.test(name)) {
+    throw new Failure(`«${name}» is not a history file's name.`);
+  }
+  const got = await boxRun(`cat ~/${BOX_HISTORY_DIR}/${name}`);
+  if (got.code !== 0) {
+    throw new Failure(`ssh ${BOX}: ~/${BOX_HISTORY_DIR}/${name} could not be read (exit ${got.code}): ${cut(got.stderr.toString('utf8'), 300)}`, 2);
+  }
+  fs.mkdirSync(SAVES_DIR, {recursive: true});
+  const file = path.join(SAVES_DIR, name);
+  fs.writeFileSync(file, got.stdout);
+  console.log(`${gameRef} = ${gameId} · save ${pick.saveId} · ${size(got.stdout.length)} → ${rel(file)}`);
+  return file;
+}
+
+/** Checks a written fixture against the CURRENT engine with the suite's own guard (`e2eFixturesLoad.spec.ts`). */
+async function checkFixture(fixtureFile) {
+  const mocha = path.join(ROOT, 'node_modules', 'mocha', 'bin', 'mocha.js');
+  const spec = 'tests/console/e2eFixturesLoad.spec.ts';
+  const command = `npx mocha --import=tsx --require tests/testing/setup.ts ${spec} -g "${path.basename(fixtureFile)}"`;
+  if (!fs.existsSync(mocha)) {
+    return {ran: false, ok: false, command, output: 'mocha is not installed here'};
+  }
+  let r;
+  try {
+    r = await run(process.execPath, [mocha, '--import=tsx', '--require', 'tests/testing/setup.ts', spec, '-g', path.basename(fixtureFile)], {cwd: ROOT});
+  } catch (err) {
+    return {ran: false, ok: false, command, output: err.message};
+  }
+  const output = `${r.stdout.toString('utf8')}\n${r.stderr.toString('utf8')}`;
+  const passing = Number(/(\d+) passing/.exec(output)?.[1] ?? 0);
+  // (A runner that collected nothing also exits 0: the check is «the one test of this fixture passed».)
+  return {ran: true, ok: r.code === 0 && passing >= 1, command, output};
+}
+
+async function cmdSave(args) {
+  const f = args.flags;
+  const fixture = f.fixture;
+  if (fixture !== undefined && (fixture === true || !/^[a-z0-9][a-z0-9-]{0,48}$/.test(String(fixture)))) {
+    throw new Failure('--fixture needs a name of lower-case letters, digits and dashes (it becomes tests/e2e/fixtures/field-<name>.json)', 2);
+  }
+  let file;
+  if (f.from !== undefined) {
+    if (f.from === true) {
+      throw new Failure('--from needs the path of a save file (a file of .diagnostics/saves/, or the `save.json` of a report)', 2);
+    }
+    file = path.resolve(String(f.from));
+    if (!fs.existsSync(file)) {
+      throw new Failure(`${f.from}: no such file`, 2);
+    }
+  } else {
+    file = await fetchSave(await saveRefOf(args));
+  }
+  let made;
+  try {
+    made = fixtureFromSave(JSON.parse(fs.readFileSync(file, 'utf8')));
+  } catch (err) {
+    throw new Failure(`${rel(file)} is not a game's save: ${err.message}`);
+  }
+  const seats = made.seats.map((s) => `${s.index}:${s.color}${s.bot ? ' (the bot)' : ''}${s.active ? ' ← on the move' : ''}`).join(' · ');
+  console.log(`game ${made.gameId} · save ${made.saveId ?? '?'} · phase ${made.phase} · generation ${made.generation ?? '?'} · seats ${seats}`);
+  console.log('(the file holds the table\'s ids and its players\' names — it stays under .diagnostics/, which git ignores)');
+  const byHand = (name) => [
+    'by hand after it:',
+    `  1. add '${name}' to the \`FixtureName\` union — tests/e2e/consoleStart.ts (\`bootFixture\` takes only a declared name);`,
+    `  2. the spec boots it: \`bootFixtureSeats(page, request, '${name}')\` → \`seats[i]\` is seat i above (\`bootFixture\` answers seats[0]).`,
+    '     The save is the table BEFORE the episode: the spec drives, on the real UI, the action the episode began with;',
+    '  3. only when the table must first be MOVED by the engine (an action replayed, a hand arranged): put the save under',
+    '     tests/e2e/fixtures/field/ and add its block to tests/e2e/fixtures/generate.ts, as `field-venus-unity-trade` does.',
+    '     That part is a decision about the case — it is not mechanical.',
+  ];
+  if (fixture === undefined) {
+    console.log('');
+    console.log('TO MAKE IT AN E2E FIXTURE (as the `field-*` fixtures were made — .claude/rules/tests.md § STATE IS DECLARED):');
+    console.log(`  npm run diag -- save --from ${rel(file)} --fixture <name>`);
+    console.log('      → tests/e2e/fixtures/field-<name>.json: the table AS SAVED, its names anonymized (seat1, seat2 …; the bot keeps its');
+    console.log('        own), checked against the current engine. The loader (`POST /api/dev/load-game`) remaps the ids and rides');
+    console.log('        `Game.deserialize` — the path every real save rides; the resume block re-primes the prompt.');
+    console.log(byHand('field-<name>').join('\n'));
+    return 0;
+  }
+  const name = `field-${fixture}`;
+  const target = path.join(FIXTURES_DIR, `${name}.json`);
+  if (fs.existsSync(target)) {
+    throw new Failure(`${rel(target)} already exists — choose another name (a fixture a spec stands on is never overwritten by a tool).`, 2);
+  }
+  fs.writeFileSync(target, fixtureText(made.fixture));
+  const check = await checkFixture(target);
+  if (check.ran && !check.ok) {
+    fs.rmSync(target, {force: true});
+    const tail = check.output.split('\n').filter((l) => l.trim() !== '').slice(-14).join('\n');
+    throw new Failure(`the save does NOT load against the current engine — ${rel(target)} was not left behind (it would turn the server suite red):\n${tail}\n\nrerun the check:  ${check.command}`);
+  }
+  console.log('');
+  console.log(`→ ${rel(target)}  (${size(fs.statSync(target).size)}; names anonymized: ${made.seats.filter((s) => !s.bot).map((s) => `seat${s.index + 1}`).join(', ') || 'none'}; ids kept — the loader remaps them at every boot)`);
+  console.log(check.ran ?
+    '  checked: it deserializes with the current engine and resumes a live prompt (tests/console/e2eFixturesLoad.spec.ts).' :
+    `  ⚠ NOT checked (${check.output}) — run:  ${check.command}`);
+  console.log(byHand(name).join('\n'));
   return 0;
 }
 
@@ -950,6 +1516,128 @@ async function keyRetire(args) {
   return 0;
 }
 
+// ───────────────────────────── resolve ─────────────────────────────
+
+/*
+ * A CLASS IS CLOSED «FIXED IN RELEASE». The issue is resolved in a release (the one named, or the next one the
+ * collector sees); an event of the class from a LATER release makes the collector reopen it as REGRESSED — which is
+ * what `diag issues --regressed` lists. So «the class closed in X came back» costs one command and no memory.
+ */
+/** The version this checkout builds (`package.json`) — after the fix is committed, the release that carries it. */
+function checkoutVersion() {
+  try {
+    const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+    return typeof version === 'string' && /^\d+\.\d+\.\d+$/.test(version) ? version : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** «Resolved in release X» needs X to EXIST for the collector: a version nothing was sent from yet is created (empty). */
+async function ensureRelease(release) {
+  try {
+    await api(`organizations/${ORG}/releases/${encodeURIComponent(release)}/`);
+    return false;
+  } catch {
+    await apiWrite('POST', `organizations/${ORG}/releases/`, {version: release, projects: [PROJECT]});
+    return true;
+  }
+}
+
+async function cmdResolve(args) {
+  const ref = args.positional[0];
+  const f = args.flags;
+  const usage = 'usage: diag resolve <cause class | issue shortId> [--in <version> | --next]   (default: --in <this checkout\'s version> — run it after the fix is committed)';
+  if (ref === undefined) {
+    throw new Failure(usage, 2);
+  }
+  if (f.in !== undefined && f.next) {
+    throw new Failure(`--in and --next exclude each other\n${usage}`, 2);
+  }
+  // THE DEFAULT IS THE VERSION THAT CARRIES THE FIX — this checkout's, once the fix is committed (the commit takes the
+  // next free version). «The next release» is the collector's notion and hangs on what IT calls the latest: one stray
+  // release with a greater number (2026-11-14: `45.3.1`, an early probe that sent Electron's version) and a class
+  // closed that way never regresses. `--next` stays for who asks for it, with that warning.
+  const own = f.in === undefined && !f.next ? checkoutVersion() : undefined;
+  if (f.in === undefined && !f.next && own === undefined) {
+    throw new Failure(`this checkout's version is unreadable (package.json) — name the release of the fix: --in <version>\n${usage}`, 2);
+  }
+  const release = releaseArg('in', own ?? (f.in === true ? '' : f.in));
+  let issue;
+  if (ref.includes('/')) {
+    const cls = causeClassArg(ref, usage);
+    const found = await searchIssues({query: `cause:"${cls}"`, limit: 10});
+    const list = Array.isArray(found) ? found : [];
+    if (list.length === 0) {
+      console.log(`No issue is filed under the class ${cls} — nothing to resolve.`);
+      return 1;
+    }
+    if (list.length > 1) {
+      throw new Failure(`${list.length} issues are filed under ${cls} — resolve the one you mean by its short id:\n${list.map((i) => `  ${issueLine(i)}`).join('\n')}`);
+    }
+    issue = list[0];
+  } else {
+    issue = await issueById(ref);
+  }
+  const statusDetails = release !== undefined ? {inRelease: release} : {inNextRelease: true};
+  if (release !== undefined && await ensureRelease(release)) {
+    console.log(`(the collector had not heard of ${shortRelease(release)} yet — the release is created, empty)`);
+  }
+  const done = await apiWrite('PUT', `organizations/${ORG}/issues/${issue.id}/`, {status: 'resolved', statusDetails});
+  const details = done.statusDetails ?? statusDetails;
+  console.log(`${issue.shortId} — ${cut(issue.title, 110)}`);
+  const was = `was ${issue.status}${issue.substatus ? ` (${issue.substatus})` : ''}`;
+  if (release !== undefined) {
+    console.log(`  ${was} → ${done.status ?? 'resolved'} in ${shortRelease(details.inRelease ?? release)}`);
+    console.log(`  an event of it from ${shortRelease(release)} or a later version reopens it as REGRESSED:  npm run diag -- issues --regressed`);
+  } else {
+    // «The next release» is the collector's own notion: the first one AFTER the release it calls the latest — and it
+    // answers which that is. The project's versions are compared as versions, so a stray release with a greater
+    // number than every real one (2026-11-14: `terraforming-mars@45.3.1`, an early probe that sent Electron's version)
+    // becomes «the latest» for ever, and a class closed «in the next release» after it can never come back.
+    const anchor = typeof details.inRelease === 'string' ? details.inRelease : undefined;
+    console.log(`  ${was} → ${done.status ?? 'resolved'} in the next release${anchor !== undefined ? ` — the first one after ${shortRelease(anchor)}, which the collector takes for the latest` : ''}`);
+    const releases = anchor === undefined ? undefined : await api(`${projectPath}/releases/?per_page=5`).catch(() => undefined);
+    const newest = Array.isArray(releases) && releases.length > 0 ? releases[0].version : undefined;
+    if (anchor !== undefined && newest !== undefined && anchor !== newest) {
+      console.log(`  ⚠ ${shortRelease(anchor)} is NOT the newest release (that is ${shortRelease(newest)}): its number outranks the real versions, so no release will ever be`);
+      console.log('    «after» it and THIS CLASS WOULD NEVER REGRESS. Close it by the version that carries the fix instead:');
+      console.log(`      npm run diag -- resolve ${issue.shortId} --in <version>`);
+      console.log(`    (or archive the stray release ${anchor} in the collector, once).`);
+    } else {
+      console.log('  an event of it from a later release reopens it as REGRESSED:  npm run diag -- issues --regressed');
+    }
+  }
+  if (issue.permalink) {
+    console.log(`  ${issue.permalink}`);
+  }
+  return 0;
+}
+
+// ───────────────────────────── where ─────────────────────────────
+
+function cmdWhere(args) {
+  const word = args.positional.join(' ').trim();
+  if (word === '') {
+    throw new Failure('usage: diag where <a word of the evidence>\n' +
+      '  a scope / a hold / a wait / a block / a rung / a door as the evidence prints it:  frame:hand#3 · scene:hold:played-hero#12 ·\n' +
+      '  step:commit-fold-owed · story:owed:board-beat-park · card-receive · played-hero:payback · block:reveal · workspace-outcome · question-open\n' +
+      '  a line\'s tag, a shape or a whole cause class:  [workspace-stale] · wait-graph/ceiling · liveness/stall/unserved/…', 2);
+  }
+  const read = (p) => ({path: rel(p), text: fs.readFileSync(p, 'utf8')});
+  // The client declares the names; the Electron lane prints tags of its own (`[renderer-hang]`).
+  const files = [
+    ...sourceFiles(path.join(ROOT, 'src', 'client'), ['.ts', '.vue']),
+    ...sourceFiles(path.join(ROOT, 'electron'), ['.ts']),
+  ].map(read);
+  const shapesPath = path.join(ROOT, 'src', 'common', 'diagnostics', 'shapes.ts');
+  const shapesText = fs.existsSync(shapesPath) ? fs.readFileSync(shapesPath, 'utf8') : '';
+  const result = whereSearch(files, word, {shapesText, shapesPath: rel(shapesPath)});
+  console.log(renderWhere(result));
+  console.log(`\n(${files.length} files of src/client and electron searched)`);
+  return result.hits.length === 0 && result.row === undefined ? 1 : 0;
+}
+
 // ───────────────────────────── main ─────────────────────────────
 
 const USAGE = `diag — the game's diagnostics, read from Sentry and from the box (docs/claude/diagnostics.md)
@@ -957,10 +1645,43 @@ const USAGE = `diag — the game's diagnostics, read from Sentry and from the bo
 usage: npm run diag -- <command> [args]
 
   report <TM-XXXXXX | latest>   download a player's report package + write SUMMARY.md (.diagnostics/reports/<code>/)
-  issues [--since 24h|all] [--env box|production] [--kind error|stall|integrity|report]
-         [--family <tag>] [--runtime page|main|server] [--limit 25] [--json]
-                                list the project's issues, newest first
-  issue <shortId | id>          one issue: tags, contexts, stack, breadcrumbs; attachments → .diagnostics/issues/<shortId>/
+  issues [--since 24h|all] [--env box|production|development] [--kind error|stall|integrity|report|session]
+         [--family <tag>] [--runtime page|main|server] [--regressed] [--limit 25] [--json]
+                                list the project's issues, newest first; --regressed: only those that CAME BACK
+                                after being resolved (a class closed in a release and seen in a later one)
+  issue <shortId | id> [--event <eventId>]
+                                one issue, its latest event (or the one named) in READING ORDER: tags → the CAUSE (class,
+                                shape, tier, dimensions) → what stood (question, holders) → the episode (outcome, who cured
+                                it, what changed) → the net's lines → flow tree · waits · wait graph · flow trace → the
+                                save; then stack, breadcrumbs; attachments → .diagnostics/issues/<shortId>/
+
+  classes [--since 14d|all] [--env …] [--release <version>] [--tier defect|planned|info] [--kind stall|integrity]
+          [--limit 50] [--json]
+                                ONE ROW PER CAUSE CLASS: events, runs, how they ended, first / last seen, the trend by
+                                release (1.2.3250:4 1.2.3251:1), the issue it is filed under
+  class <cause class> [--last 5] [--env …] [--release <version>] [--since 14d|all]
+                                OPEN A CLASS: its last N cases → .diagnostics/classes/<class>/NN-<when>-<outcome>/
+                                (00-summary.md · 01-lines.txt · 02-flow-tree.txt · 03-waits.txt · 04-wait-graph.txt ·
+                                05-flow-trace.txt · event.json · the attachments) + README.md: the cases, the issue, the
+                                save of each case, WHERE THE CLASS IS REPRODUCED in tests/ and the monkey's reports
+  trend [--since 30d|all] [--env …] [--release <version>] [--json]
+                                ARE FREEZES FEWER? the session ledgers by release: sessions, hours of play, defects and
+                                episodes per hour and per session, outcomes, time-to-cure, renderer stops, long frames
+                                (where their time went); the top classes per release; the fires of EVERY net
+  save <g#xxxxxxxxxx> <saveId> [--fixture <name>]
+  save <shortId | eventId> [--event <eventId>] [--fixture <name>]
+                                the game's save AS IT STOOD when the episode began, from the box →
+                                .diagnostics/saves/<gameId>-<saveId>.json (the nearest save below, when that one is gone)
+  save --from <save file> --fixture <name>
+                                a save already here (a fetched one, a report's save.json) → tests/e2e/fixtures/field-<name>.json:
+                                names anonymized, checked against the current engine; prints what is left to do by hand
+  resolve <cause class | shortId> [--in <version> | --next]
+                                close a class «fixed in release» (default: this checkout's version — run it after the
+                                fix is committed) — it REGRESSES if an event of that version or a later one returns
+  where <word>                  from a word of the evidence — frame:hand#3 · scene:hold:played-hero#12 · step:commit-fold-owed ·
+                                card-receive · played-hero:payback · block:reveal · question-open · [workspace-stale] ·
+                                wait-graph/ceiling — to the line of the source that DECLARES it (file:line)
+
   selftest [--since 30m]        did the connection check arrive from page · main · server? (exit 1 if one is missing)
   box pull [--since 24h|all]    the box's logs, reports, outbox, console exports, field logs → .diagnostics/box/<stamp>/
   box resolve <p#xxxxxxxxxx>    map a fingerprint of an automatic event back to an id and its save on the box
@@ -972,6 +1693,12 @@ usage: npm run diag -- <command> [args]
 examples:
   npm run diag -- report TM-K7QW3D
   npm run diag -- issues --since 7d --env box --kind stall
+  npm run diag -- classes --env box --since 30d
+  npm run diag -- class liveness/stall/unserved/handpick/hand:committed/block:reveal --last 3
+  npm run diag -- where scene:hold:played-hero#12
+  npm run diag -- trend --env box
+  npm run diag -- resolve liveness/stall/unserved/handpick/hand:committed/block:reveal --in 1.2.3260
+  npm run diag -- issues --regressed
   npm run diag -- box pull --since 2h
 
 auth: SENTRY_AUTH_TOKEN if set, else the authorised \`sentry\` CLI.`;
@@ -984,6 +1711,12 @@ async function main() {
   case 'report': return cmdReport(args);
   case 'issues': return cmdIssues(args);
   case 'issue': return cmdIssue(args);
+  case 'classes': return cmdClasses(args);
+  case 'class': return cmdClass(args);
+  case 'trend': return cmdTrend(args);
+  case 'save': return cmdSave(args);
+  case 'resolve': return cmdResolve(args);
+  case 'where': return cmdWhere(args);
   case 'selftest': return cmdSelftest(args);
   case 'box':
     if (sub === 'pull') {

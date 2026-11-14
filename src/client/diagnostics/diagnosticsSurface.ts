@@ -27,7 +27,7 @@ import {stepIndex} from '@/client/console/consoleRouter';
 import {settled} from '@/client/console/kernel/flowScope';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {pageJournal, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
+import {captureDiagEvidence, pageJournal, reportDiagnosticError, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {currentDiagContext, publishDebugIds} from '@/client/diagnostics/diagnosticsContext';
 import {refreshDiagnosticsHubStatus} from '@/client/diagnostics/diagnosticsHubState';
 import {diagEntries, diagEntry} from '@/client/diagnostics/diagnosticsJournalState';
@@ -454,6 +454,38 @@ export function installDiagnosticsProbe(): void {
       resetReport();
       diagSurfaceState.step = 'browse';
       return copy;
+    },
+    /**
+     * A CONTROL STALL — the arbiter's own two lines, printed through the page's real console: the journal makes ONE
+     * episode of them, the hub files it under its cause class (`liveness/stall/unserved/control/board/control` — the
+     * same issue every time) and sends it with how it ended. Nothing of the game is touched: no net runs, nothing is
+     * held. What it proves on an installed release is the whole road of a stall — interceptor → journal → hub →
+     * collector — with the cause, the outcome and the evidence in the event.
+     */
+    stall: async () => {
+      const stood = captureDiagEvidence() ?? {
+        at: Date.now(), question: 'nothing asked (a control stall of the probe)', holders: ['holder: control'],
+        tree: [], waits: [], graph: [], trace: [], input: '',
+      };
+      withDiagEvidence(stood, () => console.warn('[liveness] stall (unserved): 12s without progress, 0 presses; asked: none; task: control; top: board; ' +
+        'holder: control; beat: none; stranded: no; last in flight: nothing; claim: none; holds: none — rung 0: control: the probe\'s own line, nothing was held'));
+      await consoleAppScope().sleep(1_500);
+      console.warn('[liveness] recovered after 13s, 1 rung(s) run');
+      const entry = [...(pageJournal()?.entries() ?? [])].reverse().find((e) => e.cause?.cls.endsWith('/control/board/control'));
+      return plain({cause: entry?.cause?.cls ?? '', outcome: entry?.episode?.outcome ?? '', cure: entry?.episode?.cure?.by ?? ''});
+    },
+    /**
+     * A CONTROL STOP — the page's main thread spins for `ms` (a busy loop: the one thing no net of the page can
+     * report). The main process's watch sees the window stop answering, records Chromium's trace and names the stop;
+     * the hub sends it as one event with the trace attached. Only the probe calls it.
+     */
+    hang: (ms: number) => {
+      const until = performance.now() + Math.min(Math.max(0, ms), 40_000);
+      let spins = 0;
+      while (performance.now() < until) {
+        spins++;
+      }
+      return spins > 0;
     },
   };
 }

@@ -17,9 +17,9 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {transportDiagFacts, transportState} from '@/client/console/transport/gameTransport';
 import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
-import {activeAnimationHoldLabels, AnimationHold, beginAnimationHold, blockingAnimationHoldCount, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldLabels, activeAnimationHoldWaits, AnimationHold, beginAnimationHold, blockingAnimationHoldCount, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
 import {isTransientBeat, resetBeatStall, transientSurfaceBeats, WORKSPACE_BEAT_STALL_MS} from '@/client/console/workspaceBeatStall';
-import {registerWaitRecovery, registerWaitSource, tickWaitGraph, waitGraphDigest, WaitNodeInput} from '@/client/console/waitGraph/waitGraph';
+import {registerWaitRecovery, registerWaitSource, tickWaitGraph, waitGraphArming, waitGraphDigest, WaitNodeInput} from '@/client/console/waitGraph/waitGraph';
 import {flowTreeDigest} from '@/client/console/kernel/flowScope';
 import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
@@ -27,6 +27,9 @@ import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGr
 import {observeStillHold, pageMoves, StillHoldState} from '@/client/console/waitGraph/motionWitness';
 import {advanceLivenessRung, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
+import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
+import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
+import {buildStallEvidence, stallHolder, StallHolderFacts} from '@/client/console/supervisor/stallEvidence';
 import {observeStaleFreeTurn, StaleFreeTurnClock, staleFreeTurnClockInit, staleFreeTurnHeld} from '@/client/console/supervisor/staleFreeTurnClock';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
@@ -41,7 +44,7 @@ import {resetConsoleActionComposerUi} from '@/client/console/consoleActionCompos
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {ConsoleTask, taskFor} from '@/client/console/consoleTaskRouter';
 import {leakDetectorState, runScreenCure} from '@/client/console/consoleLeakDetector';
-import {ScreenCurePlan} from '@/client/console/screenDirector';
+import {expectedScreenOwners, ScreenCurePlan} from '@/client/console/screenDirector';
 import {workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, releaseWorkspaceOutcome, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {releaseDiscardExchange} from '@/client/console/cardDiscard/discardExchangeBeat';
 import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
@@ -260,10 +263,13 @@ export function createSupervisorController(shell: SupervisorPort) {
         console.warn(`[workspace-outcome] the claim of «${top.kind}» answered for nothing over the free turn ${quiet}s — released`);
       }
     }
+    // (What stood is read BEFORE the conclusion: after it the evidence would describe the cure.)
+    const stood = captureDiagEvidence();
+    const frames = workspaceStackState.frames.map((f) => f.kind + ':' + f.phase).join(';') || 'none';
     if (shell.concludeWorkspaceFlow(top.kind)) {
-      console.warn(`[workspace-stale] concluded «${top.kind}» — it stood committed over the free turn ${quiet}s with ` +
-        `nothing in flight (frames: ${workspaceStackState.frames.map((f) => f.kind + ':' + f.phase).join(';') || 'none'}); ` +
-        'its flow did not end itself');
+      withDiagEvidence(stood, () => console.warn(`[workspace-stale] concluded «${top.kind}» — it stood committed over the free turn ${quiet}s with ` +
+        `nothing in flight (frames: ${frames}); ` +
+        'its flow did not end itself'));
     } else {
       // HELD by the frame's own reason: the holder ends with its own edge — the next ask is a whole quiet span later
       // (law 3), and the hold is named ONCE per standing (`staleFreeTurnKey`), as evidence.
@@ -295,12 +301,13 @@ export function createSupervisorController(shell: SupervisorPort) {
       return;
     }
     deadLiveFramePasses.value = 0;
+    const stood = captureDiagEvidence();
     for (const kind of dead) {
       closePhaseRoot(kind);
     }
     closeConsoleLayers();
-    console.warn(`[workspace-anchor] reaped a live frame of a phase that is over: ${dead.join(', ')} — ` +
-      `asked: ${shell.playerView.waitingFor?.type ?? 'none'}; a lifecycle edge was missed`);
+    withDiagEvidence(stood, () => console.warn(`[workspace-anchor] reaped a live frame of a phase that is over: ${dead.join(', ')} — ` +
+      `asked: ${shell.playerView.waitingFor?.type ?? 'none'}; a lifecycle edge was missed`));
   }
 
   /**
@@ -309,12 +316,15 @@ export function createSupervisorController(shell: SupervisorPort) {
    */
   function startSupervisor(): void {
     registerLivenessRungs();
+    // What stands on this game screen, for the record of a defect (`stallEvidence.ts`) — read only when one is named.
+    setDiagEvidenceProvider(() => evidenceNow());
     beatStallTimer.value?.();
     beatStallTimer.value = consoleSessionScope().every(1000, 'the supervisor\'s tick', () => checkLiveness());
   }
 
   /** …and ends with it: the sampler, every registration, the arbiter's and the beat guard's own state. */
   function stopSupervisor(): void {
+    setDiagEvidenceProvider(undefined);
     beatStallTimer.value?.();
     beatStallTimer.value = undefined;
     for (const stop of livenessRungStops.value) {
@@ -328,6 +338,101 @@ export function createSupervisorController(shell: SupervisorPort) {
   /** The control stand declares a defect it put in on purpose (`__conScreenControl.declareDefect`): named, bounded; `0` ends it. */
   function declareScreenControlDefect(ms: number): void {
     screenControlDefectUntil = ms <= 0 ? 0 : Date.now() + Math.min(ms, SCREEN_CONTROL_DEFECT_MAX_MS);
+  }
+
+  /** The claim as the arbiter's line names it: who holds it, for which card, how far its gates are. */
+  function claimLine(): string {
+    return workspaceOutcomeState.sourceCard === '' ? 'none' :
+      `${workspaceOutcomeState.host}/${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}` +
+      ` (zone ${workspaceOutcomeState.embedSlot === '' ? '-' : workspaceOutcomeZone() === '' ? 'unmounted' : 'up'}` +
+      `, beat ${workspaceOutcomeBeatPending() ? 'pending' : 'done'}, arrival ${workspaceOutcomeState.arrivalDone ? 'done' : 'pending'}` +
+      `, task ${shell.hostTask?.kind ?? (shell.nativeCompositeTask?.kind ?? '-')}${shell.taskHeldForWorkspace ? ' held' : ''}` +
+      `${shell.taskHostRendered ? ' rendered' : ''}${shell.deckPickActive ? ' deckpick' : ''})`;
+  }
+
+  /** The admission block holding the live question's surface ('' = none) — what the heartbeat and the holder both read. */
+  function questionBlock(): string {
+    const wf = shell.playerView.waitingFor;
+    return wf === undefined ? '' : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', shell.admissionSignals) ?? '';
+  }
+
+  /** The deepest frame on stage as `<kind>:<phase>` — `board` when no frame stands there. */
+  function topWord(): string {
+    const top = workspaceStackCollapsed() || stackYieldedToBoard() ? undefined : workspaceStackTop();
+    return top === undefined ? 'board' : `${top.kind}:${top.phase}`;
+  }
+
+  /** WHO HOLDS THE QUESTION — the facts the holder's word is named from (`stallHolder`), every one already sampled here. */
+  function holderFacts(beat: string | undefined, deaf: boolean): StallHolderFacts {
+    const dead = deadLiveFrames();
+    const blocking = activeAnimationHoldWaits().filter((h) => h.scope === 'blocking').sort((a, b) => a.since - b.since)[0];
+    return {
+      stranded: leakDetectorState.stranded !== undefined,
+      claim: workspaceOutcomeClaimed() ? `${workspaceOutcomeState.host ?? ''}:${workspaceOutcomeState.stage}` : '',
+      deadFrame: dead.length > 0 && handoffPendingEntries.size === 0 && !shell.parliamentLeaving ? dead[0] : '',
+      beat: beat !== undefined,
+      awaiting: isSurfaceAwaitingHandoff() ? surfaceMotionState.awaiting?.from ?? 'surface' : '',
+      block: questionBlock(),
+      hold: blocking?.label ?? '',
+      deaf,
+    };
+  }
+
+  /**
+   * WHAT STANDS, FOR A DEFECT'S RECORD (`stallEvidence.ts`): the question with who may serve it and who does, and
+   * everybody who holds anything — the holder the class names first, each with its age. Read only when a defect's line
+   * is printed (the interceptor asks), never by the tick.
+   */
+  function evidenceNow(): DiagEvidence {
+    const now = Date.now();
+    const age = (since: number): string => `${Math.max(0, (now - since) / 1000).toFixed(1)}s`;
+    const wf = shell.playerView.waitingFor;
+    const task = taskFor(shell.playerView);
+    const expected = task === undefined ? [] : expectedScreenOwners(task);
+    const serving = task === undefined ? undefined : frameServing(task.kind);
+    const question = wf === undefined ? 'nothing asked' :
+      `asked ${wf.type}#${wf.promptId ?? ''}${wf.optional === true ? ' (optional)' : ''} · task ${task?.kind ?? 'none'} · ` +
+      `may serve: ${typeof expected === 'string' ? `scope ${expected}` : expected.join(',') || 'nobody'} · ` +
+      `serving frame: ${serving === undefined ? 'none' : `${serving.kind}:${serving.phase}`} · top: ${topWord()} · ` +
+      `section: ${consoleState.section}/${consoleState.sheet ?? ''} · stranded: ${leakDetectorState.stranded?.inputType ?? 'no'} · ` +
+      `set aside: ${consoleState.task.deferred ? 'yes' : 'no'}`;
+    const beat = judgedTransientBeat();
+    const holders: Array<string> = [`holder: ${stallHolder(holderFacts(beat, false))}`];
+    if (beat !== undefined) {
+      holders.push(`beat ${beat}`);
+    }
+    const hostBlock = wf === undefined ? undefined : promptAdmissionBlock('host', shell.admissionSignals);
+    const placementBlock = wf === undefined ? undefined : promptAdmissionBlock('placement', shell.admissionSignals);
+    if (hostBlock !== undefined) {
+      holders.push(`admission host: ${hostBlock}`);
+    }
+    if (placementBlock !== undefined) {
+      holders.push(`admission placement: ${placementBlock}`);
+    }
+    if (shell.mandatoryGateHeld) {
+      holders.push(`announce gate: ${shell.mandatoryBeat?.key ?? '?'}${shell.mandatoryAnnounceVisible ? ' (plate visible)' : ''}${shell.mandatoryChipAttention ? ' (beacon)' : ''}`);
+    }
+    if (workspaceOutcomeClaimed()) {
+      holders.push(`claim ${claimLine()}`);
+    }
+    for (const hold of activeAnimationHoldWaits().sort((a, b) => a.since - b.since)) {
+      holders.push(`hold ${hold.label} [${hold.scope}]${hold.waitsFor !== undefined ? ` waits for the ${hold.waitsFor}` : ''} ${age(hold.since)} of ${Math.round(hold.maxHoldMs / 1000)}s`);
+    }
+    for (const story of presentationLedgerSnapshot().stories) {
+      holders.push(`story ${story.id} ${(story.ageMs / 1000).toFixed(1)}s of ${Math.round(story.dueMs / 1000)}s${story.why !== '' ? ` — ${story.why}` : ''}`);
+    }
+    for (const owed of owedConclusions()) {
+      holders.push(`conclusion of ${owed.kind} owed ${age(owed.since)} — held: ${conclusionRefusal.last?.kind === owed.kind ? conclusionRefusal.last.reason : 'unknown'}`);
+    }
+    if (transportState.requestInProgress) {
+      holders.push(`transport: ${transportState.responseArrived ? 'the answer is in, its gates play' : 'on the wire'} ${age(transportState.requestSince)}`);
+    }
+    if (surfaceMotionState.awaiting !== undefined) {
+      holders.push(`awaiting a hand-over from ${surfaceMotionState.awaiting.from} ${age(surfaceMotionState.awaiting.startedAt)}`);
+    }
+    holders.push(`frames: ${workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`).join(';') || 'none'}` +
+      `${workspaceStackCollapsed() ? ' (collapsed)' : ''}${stackYieldedToBoard() ? ' (aside for the board)' : ''}${shell.placementActive ? ' (placement)' : ''}`);
+    return buildStallEvidence({question, holders}, now);
   }
 
   function checkLiveness(): void {
@@ -413,7 +518,7 @@ export function createSupervisorController(shell: SupervisorPort) {
       quietS,
       presses: livenessStateSnapshot().pressesSinceProgress,
       // What a wait waits FOR, and what the opening says it serves — the two facts the 2026-11-01 13:50 freeze lacked.
-      block: wf === undefined ? '' : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', shell.admissionSignals) ?? '',
+      block: questionBlock(),
       start: shell.startSceneMounted ? consoleStartState.serves ?? '' : '',
       graph: waitGraphDigest(8),
       // …and the kernel's own tree, once the picture has stood for two seconds: what stands, in what, waiting for what.
@@ -459,6 +564,15 @@ export function createSupervisorController(shell: SupervisorPort) {
     if (verdict.rung === undefined) {
       return;
     }
+    // WHAT STOOD is read BEFORE the rung runs — the holder's word and the claim for the line (the cause class reads them:
+    // `common/diagnostics/shapes.ts`), and on the stall's first line the whole evidence (`stallEvidence.ts`). Read after
+    // the rung they would describe the cure: a claim the rung released would name no claim at all.
+    const holder = stallHolder(holderFacts(beat, verdict.reason === 'presses-no-effect' && accepting));
+    const top = topWord();
+    const task = taskFor(shell.playerView)?.kind ?? 'none';
+    const claim = claimLine();
+    const holds = activeAnimationHoldLabels().join(', ') || 'none';
+    const stood = verdict.first ? captureDiagEvidence() : undefined;
     // A rung with NOTHING to release costs no gap — the next one runs in the same tick, so the first rung that acts acts
     // at once (the Hi-Tech Lab field freeze: three empty rungs cost 6 s before the claim's own release was reached).
     let rungIndex = verdict.rung;
@@ -476,17 +590,12 @@ export function createSupervisorController(shell: SupervisorPort) {
       did = did === undefined ? `${empties.join(' · ')} — the ladder is spent` : `${empties.join(' · ')} · ${did}`;
     }
     // …and the claim's own GATES (CI 2026-11-09, P88's max-0 purchase: «claim … awaiting, holds: none» named no cause):
-    // the zone it publishes (and whether that node stands), the beat, the arrival — and what the host prompt did with it.
-    const claim = workspaceOutcomeState.sourceCard === '' ? 'none' :
-      `${workspaceOutcomeState.host}/${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}` +
-      ` (zone ${workspaceOutcomeState.embedSlot === '' ? '-' : workspaceOutcomeZone() === '' ? 'unmounted' : 'up'}` +
-      `, beat ${workspaceOutcomeBeatPending() ? 'pending' : 'done'}, arrival ${workspaceOutcomeState.arrivalDone ? 'done' : 'pending'}` +
-      `, task ${shell.hostTask?.kind ?? (shell.nativeCompositeTask?.kind ?? '-')}${shell.taskHeldForWorkspace ? ' held' : ''}` +
-      `${shell.taskHostRendered ? ' rendered' : ''}${shell.deckPickActive ? ' deckpick' : ''})`;
-    console.warn(`[liveness] stall (${verdict.reason}): ${Math.round(verdict.quietMs / 1000)}s without progress, ${verdict.presses} presses; ` +
-      `asked: ${wf?.type ?? 'none'}; beat: ${beat ?? 'none'}; stranded: ${leakDetectorState.stranded?.inputType ?? 'no'}; ` +
-      `last in flight: ${verdict.lastInFlight.join(', ') || 'nothing'}; claim: ${claim}; holds: ${activeAnimationHoldLabels().join(', ') || 'none'} — ` +
-      (did === undefined ? 'the ladder is spent' : `rung ${verdict.rung}: ${did}`));
+    // the zone it publishes (and whether that node stands), the beat, the arrival — and what the host prompt did with it
+    // (`claimLine`, read above — before the rung). `task` · `top` · `holder` are the words the cause class is made of.
+    withDiagEvidence(stood, () => console.warn(`[liveness] stall (${verdict.reason}): ${Math.round(verdict.quietMs / 1000)}s without progress, ${verdict.presses} presses; ` +
+      `asked: ${wf?.type ?? 'none'}; task: ${task}; top: ${top}; holder: ${holder}; beat: ${beat ?? 'none'}; stranded: ${leakDetectorState.stranded?.inputType ?? 'no'}; ` +
+      `last in flight: ${verdict.lastInFlight.join(', ') || 'nothing'}; claim: ${claim}; holds: ${holds} — ` +
+      (did === undefined ? 'the ladder is spent' : `rung ${verdict.rung}: ${did}`)));
     // NO NOTICE TO THE PLAYER (the owner, 2026-11-07: «чтобы для пользователя выглядело как будто зависания нет»):
     // the screen simply comes back. The line above is the evidence — the field log and every e2e spec read it.
   }
@@ -876,8 +985,14 @@ export function createSupervisorController(shell: SupervisorPort) {
           }});
           return true;
         };
+        // …and THE ARBITER'S OWN CASE on demand (the control of a stall's CAUSE and OUTCOME — `console-stall-cause.spec`):
+        // the graph stops acting on what it finds, so a question stranded by the seam above is the arbiter's to judge.
+        (window as unknown as {__conDisarmWaitCures?: () => void}).__conDisarmWaitCures = () => {
+          waitGraphArming.armed = new Set();
+        };
         return [() => {
           still?.release();
+          delete (window as unknown as {__conDisarmWaitCures?: unknown}).__conDisarmWaitCures;
           delete (window as unknown as {__conStrandQuestion?: unknown}).__conStrandQuestion;
           delete (window as unknown as {__conOrphanClaim?: unknown}).__conOrphanClaim;
           delete (window as unknown as {__conStillHold?: unknown}).__conStillHold;

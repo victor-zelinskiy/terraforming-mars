@@ -3,14 +3,18 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as zlib from 'zlib';
-import {DiagEntry} from '../../../src/common/diagnostics/DiagnosticModel';
+import {DiagEntry, DiagEvidence} from '../../../src/common/diagnostics/DiagnosticModel';
+import {DiagJournal} from '../../../src/common/diagnostics/journal';
 import {DiagContext, DiagHubStatus, DiagReportRequest, DiagReportResult, DiagSelfTestResult, REPORT_CODE_PATTERN} from '../../../src/common/diagnostics/protocol';
 import {OUTBOX_AUTO_MAX, readCollectorLimits} from '../../../src/server/diagnostics/hub/envelopeSender';
-import {autoDecision, createDiagnosticsHub, EPISODE_STANDING_MS, KEY_EVENTS_MAX, newPolicyState, noteSent, SESSION_EVENTS_MAX} from '../../../src/server/diagnostics/hub/hub';
+import {
+  autoDecision, createDiagnosticsHub, EPISODE_SETTLE_MS, EPISODE_STANDING_MS, KEY_EVENTS_MAX, newPolicyState, noteSent, policyKey, SESSION_EVENTS_MAX, STALL_SETTLE_MS,
+} from '../../../src/server/diagnostics/hub/hub';
 import {parseDsn, resolveHubConfig} from '../../../src/server/diagnostics/hub/hubConfig';
 import {HubHost} from '../../../src/server/diagnostics/hub/hubTypes';
 import {tailWithin} from '../../../src/server/diagnostics/hub/reportPackage';
-import {eventOf, splitErrorHead} from '../../../src/server/diagnostics/hub/sentryEvent';
+import {CAUSE_FINGERPRINT, classTitle, eventOf, extraLists, splitErrorHead} from '../../../src/server/diagnostics/hub/sentryEvent';
+import {SessionLedger} from '../../../src/server/diagnostics/hub/sessionLedger';
 
 /**
  * THE DIAGNOSTICS HUB (docs/claude/diagnostics.md) — the one sender. A fake host in a temp folder, a fake collector
@@ -37,8 +41,11 @@ function parseEnvelope(body: Uint8Array): Array<{header: Record<string, unknown>
   return items;
 }
 
-function harness(opts: {packaged?: boolean, dsn?: string, env?: Record<string, string>, machine?: string, appMode?: 'host' | 'remote', online?: boolean, status?: number} = {}) {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tm-diag-'));
+function harness(opts: {packaged?: boolean, dsn?: string, env?: Record<string, string>, machine?: string, appMode?: 'host' | 'remote', online?: boolean, status?: number,
+  /** A data folder an earlier harness left (the «next launch» of the same device). */ dataDir?: string,
+  /** The Chromium trace of the newest renderer stop. */ trace?: string,
+  /** The clock's first reading (a later launch of the same device). */ startAt?: number} = {}) {
+  const dataDir = opts.dataDir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'tm-diag-'));
   if (opts.machine !== undefined) {
     fs.writeFileSync(path.join(dataDir, 'diagnostics.json'), JSON.stringify({environment: opts.machine}));
   }
@@ -47,7 +54,7 @@ function harness(opts: {packaged?: boolean, dsn?: string, env?: Record<string, s
   const timers: Array<{ms: number, run: () => void, dead: boolean}> = [];
   const logs: Array<string> = [];
   const net = {online: opts.online ?? true, status: opts.status ?? 200, headers: {} as Record<string, string>};
-  let clock = 1_700_000_000_000;
+  let clock = opts.startAt ?? 1_700_000_000_000;
   let crashUpload: boolean | undefined;
   // (The host is built before the hub it serves: the server's answer reaches the hub through this box.)
   const made: {hub?: ReturnType<typeof createDiagnosticsHub>} = {};
@@ -70,9 +77,9 @@ function harness(opts: {packaged?: boolean, dsn?: string, env?: Record<string, s
     dropScreen: () => undefined,
     heldScreenJpeg: async () => new TextEncoder().encode('JPEGBYTES'),
     consoleDump: async () => 'console line by Zelin about gdeadbeef0001\n',
-    readSave: async (participantId) => ({gameId: 'gdeadbeef0001', data: new TextEncoder().encode(JSON.stringify({id: 'gdeadbeef0001', players: [participantId]}))}),
+    readSave: async (participantId) => ({gameId: 'gdeadbeef0001', data: new TextEncoder().encode(JSON.stringify({id: 'gdeadbeef0001', lastSaveId: 17, players: [participantId]}))}),
     logTails: async () => [{name: 'embedded-server', text: 'server tail\n'}],
-    recentHangTrace: async () => undefined,
+    recentHangTrace: async () => (opts.trace === undefined ? undefined : {name: 'renderer-hang-20261114-101500.trace.json', data: new TextEncoder().encode(opts.trace)}),
     serverSelfTest: async () => {
       // The server answers on its own clock: its test error arrives as a note of the `server` runtime.
       setImmediate(() => made.hub?.note('server', 'error', '[selftest] server — the connection check: Error: test\nError: test\n    at serverSelfTest (/app/embedded-server.js:5:5)', 'Error: test\n    at serverSelfTest (/app/embedded-server.js:5:5)', {'/app/embedded-server.js': 'id-server'}));
@@ -104,6 +111,14 @@ function harness(opts: {packaged?: boolean, dsn?: string, env?: Record<string, s
     tick: (ms: number) => {
       clock += ms;
     },
+    /** Run the timers of exactly this span that still stand (a settle of the hub's own) — the clock moves with them. */
+    fire: (ms: number) => {
+      clock += ms;
+      for (const timer of timers.filter((t) => !t.dead && t.ms === ms)) {
+        timer.dead = true;
+        timer.run();
+      }
+    },
     now: () => clock,
     events: () => sent.flatMap((s) => s.items.filter((i) => i.header.type === 'event').map((i) => JSON.parse(i.body) as Record<string, any>)),
     status: async () => await hub.invoke('status', undefined) as DiagHubStatus,
@@ -119,6 +134,11 @@ function entry(over: Partial<DiagEntry> = {}): DiagEntry {
     ...over,
   };
 }
+
+const FACTS = {
+  eventId: 'e', release: 'r', environment: 'box', appMode: 'host' as const, head: 'h', os: 'linux', osVersion: '', arch: '', runtimeName: 'Electron', runtimeVersion: '',
+  context: undefined, gameRef: '', seatRef: '', debugIds: new Map<string, string>(), trail: [], selfTest: false,
+};
 
 const CONTEXT: DiagContext = {screen: 'player-home', profile: 'tv', locale: 'ru', gameId: 'gdeadbeef0001', participantId: 'p1a2b3c4d5e6f', names: ['Zelin', 'Марсианин'], promptType: 'or'};
 
@@ -179,7 +199,7 @@ describe('diagnostics hub — what is sent by itself (the policy)', () => {
     expect(autoDecision(episode('unhealed', 70_000), 'close', state)).to.eq('send');
   });
 
-  it('budgets: one defect, one family and one session cannot spend the quota', () => {
+  it('budgets: one defect and one session cannot spend the quota', () => {
     const state = newPolicyState();
     for (let i = 0; i < KEY_EVENTS_MAX; i++) {
       noteSent(entry({id: `a${i}`}), state);
@@ -190,6 +210,40 @@ describe('diagnostics hub — what is sent by itself (the policy)', () => {
       noteSent(entry({id: `b${i}`, family: `f${i}`, title: `t${i}`, stack: undefined}), wide);
     }
     expect(autoDecision(entry({id: 'new', family: 'fresh', title: 'fresh', stack: undefined}), 'new', wide)).to.deep.eq({skip: 'budget'});
+  });
+
+  it('SIGNAL APART FROM NOISE: a planned wait and a net\'s echo are never events — and a hundred of them do not keep a dead end from leaving', () => {
+    const page = new DiagJournal({runtime: 'page', session: 's1', build: '1.2.9'});
+    const state = newPolicyState();
+    const planned = (i: number) => page.ingest({at: 1_000 + i * 40_000, level: 'warn',
+      text: '[wait-graph] ceiling remote-placement:watchable-board (consoleRemotePlacement) — «a board free for the landing of another seat» did not come in 12000 ms — the wait ended on its ceiling (planned: the viewer keeps the board covered)'});
+    for (let i = 0; i < 100; i++) {
+      const {entry: e, change} = planned(i);
+      expect(e.cause?.tier).to.eq('planned');
+      expect(autoDecision(e, change, state), 'a planned ceiling is counted, never sent').to.deep.eq({skip: 'policy'});
+    }
+    const echo = page.ingest({at: 9_000_000, level: 'warn', text: '[presentation-ledger] story «board-beat-park» degraded by the liveness arbiter after 12s'});
+    expect(autoDecision(echo.entry, echo.change, state)).to.deep.eq({skip: 'policy'});
+    expect(state.total, 'nothing of the budget was spent').to.eq(0);
+    // …and the real defect of the SAME family, in the same session, still leaves.
+    const deadEnd = page.ingest({at: 9_100_000, level: 'warn', text: '[wait-graph] dead-end question:card#12 (server: card / handPick) — nothing accepts the press — standing 3 s'});
+    expect(deadEnd.entry.cause).to.deep.include({tier: 'defect', cls: 'wait-graph/dead-end/question:card'});
+    expect(autoDecision(deadEnd.entry, deadEnd.change, state)).to.eq('send');
+  });
+
+  it('the budget is per CAUSE CLASS: one class cannot evict another, and a reworded line is the same class', () => {
+    const page = new DiagJournal({runtime: 'page', session: 's1', build: '1.2.9'});
+    const state = newPolicyState();
+    const ceiling = (id: string, at: number, detail: string) => page.ingest({at, level: 'warn',
+      text: `[wait-graph] ceiling ${id} (owner: ${detail}) — «x» did not come in 9000 ms — the wait ended on its ceiling`}).entry;
+    const a1 = ceiling('played-hero:payback', 1_000, 'paying');
+    const a2 = ceiling('played-hero:payback', 100_000, 'late');
+    const a3 = ceiling('played-hero:payback', 200_000, 'other words');
+    expect(policyKey(a1)).to.eq(policyKey(a2));
+    noteSent(a1, state);
+    noteSent(a2, state);
+    expect(autoDecision(a3, 'new', state), 'the class has had its events of this run').to.deep.eq({skip: 'budget'});
+    expect(autoDecision(ceiling('deck-draw:stage', 300_000, 'x'), 'new', state), 'another class of the same family is not touched by it').to.eq('send');
   });
 });
 
@@ -248,11 +302,13 @@ describe('diagnostics hub — an automatic event', () => {
   });
 
   it('a liveness episode is one message with how it ended', () => {
-    const facts = {eventId: 'e', release: 'r', environment: 'box', appMode: 'host' as const, head: 'h', os: 'linux', osVersion: '', arch: '', runtimeName: 'Electron', runtimeVersion: '', context: undefined, gameRef: '', seatRef: '', debugIds: new Map<string, string>(), trail: [], selfTest: false};
     const text = '[liveness] stall (unserved): 10s without progress, 0 presses; asked: or; beat: none; stranded: no; last in flight: nothing; claim: none; holds: none — rung 0: x';
-    const event = eventOf(entry({kind: 'stall', family: 'liveness', level: 'warn', stack: undefined, title: 'stall', text, episode: {state: 'healed', durationMs: 16_000, lines: 4, steps: ['rung 0: x']}}), facts);
-    expect(event.message).to.deep.eq({formatted: '[liveness] the screen stood still (unserved, asked or) — cured after 16s'});
-    expect(event.fingerprint).to.deep.eq(['stall', 'liveness', 'unserved', 'or', 'healed']);
+    const event = eventOf(entry({kind: 'stall', family: 'liveness', level: 'warn', stack: undefined, title: 'stall', text, episode: {state: 'healed', durationMs: 16_000, lines: 4, steps: ['rung 0: x']}}), FACTS);
+    // The FIRST line is what the collector titles the issue by — the class's own words; how THIS episode ended is the second.
+    expect(event.message).to.deep.eq({formatted: '[liveness] the screen stood still (unserved · asked or)\ncured after 16s'});
+    expect((event.extra as Record<string, any>).ending).to.eq('cured after 16s');
+    // (A record written before the cause class existed — an older page's, adopted from the mirror — keeps a key of its own.)
+    expect(event.fingerprint).to.deep.eq(['stall', 'liveness', 'unserved', 'or']);
     expect(event.level).to.eq('warning');
     expect((event.contexts as Record<string, any>).episode).to.deep.include({state: 'healed', duration_s: 16, lines: 4});
     expect(splitErrorHead('TypeError: x is not a function')).to.deep.eq({type: 'TypeError', value: 'x is not a function'});
@@ -538,6 +594,323 @@ describe('diagnostics hub — the mirror', () => {
       expect(await h.hub.invoke('unknown-verb', 1)).to.eq(undefined);
     } finally {
       h.cleanup();
+    }
+  });
+});
+
+/*
+ * FREEZE ZERO · PART A (docs/claude/console/freeze-zero/PLAN.md §2) — a stall's event names its CAUSE, is filed under
+ * its cause class, says how it ended for the player, and the run is counted whatever was sent of it.
+ */
+const STALL_FIELDS = 'asked: card; task: handPick; top: hand:committed; holder: block:reveal; beat: none; stranded: no; last in flight: nothing; ' +
+  'claim: hand/Ganymede Colony [draw] awaiting (zone up, beat pending, arrival pending, task card); holds: card-receive[blocking]';
+const stallText = (fields: string = STALL_FIELDS, rung = 'rung 0: presentation-ledger: 2 stories degraded', quiet = 12) =>
+  `[liveness] stall (unserved): ${quiet}s without progress, 0 presses; ${fields} — ${rung}`;
+const EVIDENCE: DiagEvidence = {
+  at: 1_700_000_000_000,
+  question: 'asked card#12 · task handPick · may serve: hand · serving frame: hand:committed · seat p1a2b3c4d5e6f',
+  holders: ['holder: block:reveal', 'hold card-receive [blocking] 11.2s of 35s'],
+  tree: ['session:game#1 120.0s', '  frame:hand#3 40.1s committed', '    claim:hand#7 12.0s awaiting  ⟵ waits «the claimed answer» 12.0s/20s'],
+  waits: ['claim:hand#7 [server] waits «the claimed answer» 12.0s of 20s'],
+  graph: ['question:card#12 (server: card / handPick) → admission:host:reveal 12.0s'],
+  trace: ['-12.0s state claim:hand#7 awaiting', '-0.1s wait frame:hand#3 «submit#31 ends»'],
+  input: 'A/B presses 3 (no handler took 0, B taken 0), absorbed 0',
+};
+
+describe('diagnostics hub — a stall is filed under its CAUSE, with what stood', () => {
+  const pageJournal = (session = 's1') => new DiagJournal({runtime: 'page', session, build: '1.2.9'});
+
+  it('two causes are two issues; one cause in three sessions is one — whatever its duration, its card, its outcome', () => {
+    const fingerprintOf = (session: string, fields: string, healed: boolean): unknown => {
+      const page = pageJournal(session);
+      page.ingest({at: 1_000, level: 'warn', text: stallText(fields, undefined, 10 + session.length)});
+      const closed = healed ? page.ingest({at: 9_000, level: 'warn', text: '[liveness] recovered after 18s, 2 rung(s) run'}).entry : page.closeOpenEpisodes()[0];
+      return eventOf(closed, FACTS).fingerprint;
+    };
+    const a = fingerprintOf('s1', STALL_FIELDS, true);
+    const b = fingerprintOf('session-two', STALL_FIELDS.replace('Ganymede Colony', 'Pets').replace('awaiting', 'presenting'), false);
+    const c = fingerprintOf('s3', STALL_FIELDS, false);
+    expect(a).to.deep.eq([CAUSE_FINGERPRINT, 'liveness/stall/unserved/handpick/hand:committed/block:reveal']);
+    expect(b, 'another session, another card, never cured — the same cause').to.deep.eq(a);
+    expect(c).to.deep.eq(a);
+    const other = fingerprintOf('s4', 'asked: card; task: deckPick; top: board; holder: stranded+claim:card-actions:awaiting; beat: none; stranded: card; last in flight: nothing; claim: card-actions/Hi-Tech Lab [draw,pick] awaiting (zone -, beat pending, arrival pending, task -); holds: none', true);
+    expect(other, '«unserved, asked card» held by something else is another issue').to.not.deep.eq(a);
+  });
+
+  it('the event NAMES the cause: the holder and who cured it as tags, what stood and what changed as its body — scrubbed like the rest', async () => {
+    const h = harness({machine: 'box'});
+    try {
+      const page = pageJournal();
+      h.hub.line({kind: 'context', context: CONTEXT});
+      const open = page.ingest({at: h.now(), level: 'warn', text: stallText(), evidence: EVIDENCE});
+      h.hub.line({kind: 'entry', entry: open.entry, change: open.change});
+      const healed = page.ingest({at: h.now() + 6_000, level: 'warn', text: '[liveness] recovered after 18s, 1 rung(s) run',
+        evidence: {...EVIDENCE, holders: ['holder: none'], tree: ['session:game#1 126.0s', '  frame:hand#3 46.1s committed']}});
+      h.hub.line({kind: 'entry', entry: healed.entry, change: healed.change});
+      await h.settle();
+      expect(h.events(), 'an episode leaves once it is known how it ended for the player').to.have.length(0);
+      h.fire(EPISODE_SETTLE_MS);
+      await h.settle();
+      const event = h.events()[0];
+      expect(event.fingerprint).to.deep.eq([CAUSE_FINGERPRINT, 'liveness/stall/unserved/handpick/hand:committed/block:reveal']);
+      expect(event.message.formatted).to.eq('[liveness] the screen stood still (unserved · asked handPick · hand:committed · held by block:reveal)\ncured after 18s by presentation-ledger');
+      expect(event.tags).to.deep.include({
+        cause: 'liveness/stall/unserved/handpick/hand:committed/block:reveal', shape: 'liveness/stall', tier: 'defect',
+        reason: 'unserved', task: 'handPick', where: 'hand:committed', holder: 'block:reveal', source: 'Ganymede Colony',
+        outcome: 'healed', stood: '10-20s', cure: 'presentation-ledger',
+      });
+      expect(event.contexts.episode).to.deep.include({outcome: 'healed', cured_by: 'presentation-ledger'});
+      expect(event.contexts.episode.changed).to.include('ended: claim:hand#7 12.0s awaiting  ⟵ waits «the claimed answer» 12.0s/20s');
+      expect(event.contexts.episode.changed).to.include('let go: holder: block:reveal');
+      expect(event.contexts.evidence.holders[0]).to.eq('holder: block:reveal');
+      expect(event.extra.flow_tree).to.have.length(3);
+      expect(event.extra.waits[0]).to.contain('waits «the claimed answer»');
+      expect(event.extra.flow_trace).to.have.length(2);
+      // The evidence is a string of the event: scrubbed by construction.
+      expect(event.contexts.evidence.question).to.match(/seat p#[0-9a-f]{10}$/);
+      expect(JSON.stringify(h.sent)).to.not.match(/p1a2b3c4d5e6f/);
+      // A hosting device says where the game's save stood when the episode began — a reference, never the save.
+      expect(event.contexts.save).to.deep.include({save_id: 17});
+      expect(event.contexts.save.game_ref).to.match(/^g#[0-9a-f]{10}$/);
+      expect(h.sent[0].items.some((i) => i.header.filename === 'save.json'), 'a save never rides an automatic event').to.eq(false);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('a finding leaves with what its door did: the cure of the same tick is a line of the same event', async () => {
+    const h = harness();
+    try {
+      const page = pageJournal();
+      h.hub.line({kind: 'context', context: CONTEXT});
+      const finding = page.ingest({at: h.now(), level: 'warn', text: '[wait-graph] dead-end question:card#12 (server: card / handPick) — nothing accepts the press — standing 3 s', evidence: EVIDENCE});
+      h.hub.line({kind: 'entry', entry: finding.entry, change: finding.change});
+      const cure = page.ingest({at: h.now() + 1, level: 'warn', text: '[wait-graph] cure dead-end at question:card#12 through «question-open» — reopened the «handPick» question in «hand»'});
+      h.hub.line({kind: 'entry', entry: cure.entry, change: cure.change});
+      await h.settle();
+      expect(h.events()).to.have.length(0);
+      h.fire(STALL_SETTLE_MS);
+      await h.settle();
+      expect(h.events(), 'ONE event for the finding and its cure').to.have.length(1);
+      const event = h.events()[0];
+      expect(event.fingerprint).to.deep.eq([CAUSE_FINGERPRINT, 'wait-graph/dead-end/question:card']);
+      expect(event.extra.text).to.contain('through «question-open» — reopened');
+      // The issue's title is the CLASS's (the first line); the occurrence's own words follow it.
+      expect(event.message.formatted.split('\n')).to.deep.eq([
+        '[wait-graph] dead-end (question:card)',
+        '[wait-graph] dead-end question:card#12 (server: card / handPick) — nothing accepts the press — standing 3 s',
+      ]);
+      // A FINDING is a defect like an episode: it too says where the game's save stood (the case nobody reproduces by hand).
+      expect(event.contexts.save).to.deep.include({save_id: 17});
+      // …and the fire of the door that answered it is COUNTED in the run's ledger (it has no record of its own).
+      const ledger = await h.hub.invoke('ledger', undefined) as SessionLedger;
+      expect(ledger.classes['wait-graph/dead-end/question:card']).to.deep.include({n: 1, lines: 2});
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('a long list of the evidence leaves in PARTS the collector keeps whole; an episode\'s tags are its own, never a folded line\'s', () => {
+    // (The collector keeps ~16 KB of one `extra` value — measured: 69 of the tree's 90 lines arrived.)
+    const line = (i: number) => `  frame:hand#${i} ${'·'.repeat(120)} «${'x'.repeat(100)}»`;
+    const tree = Array.from({length: 90}, (_, i) => line(i));
+    const parts = extraLists('flow_tree', tree);
+    expect(Object.keys(parts).length, 'more than one part').to.be.greaterThan(1);
+    expect(Object.keys(parts)[1]).to.eq('flow_tree_2');
+    for (const part of Object.values(parts)) {
+      expect(Buffer.byteLength(JSON.stringify(part)), 'each part under the collector\'s limit, with a margin').to.be.lessThan(14_000);
+    }
+    expect(Object.values(parts).flat(), 'nothing lost, in order').to.deep.eq(tree);
+    expect(extraLists('waits', ['a'])).to.deep.eq({waits: ['a']});
+    expect(extraLists('waits', [])).to.deep.eq({waits: []});
+    expect(classTitle('workspace-outcome/host-gone/card-actions/draw-pick')).to.eq('[workspace-outcome] host-gone (card-actions · draw-pick)');
+    expect(classTitle('flow/unshaped')).to.eq('[flow] unshaped');
+
+    const page = pageJournal();
+    page.ingest({at: 1_000, level: 'warn', text: stallText()});
+    page.ingest({at: 1_500, level: 'warn', text: '[presentation-ledger] story «board-beat-park» degraded by the liveness arbiter after 12s'});
+    const closed = page.ingest({at: 9_000, level: 'warn', text: '[liveness] recovered after 18s, 1 rung(s) run'}).entry;
+    const event = eventOf(closed, FACTS) as Record<string, any>;
+    expect(event.tags.by, 'the author of a line folded into the episode is not the episode\'s').to.eq(undefined);
+    expect(event.tags.cure).to.eq('presentation-ledger');
+  });
+
+  it('an episode the page left under: a RELOAD when another page comes, a QUIT when the app closes — kept in the outbox, never lost', async () => {
+    const reloaded = harness();
+    try {
+      const page = pageJournal('s1');
+      const open = page.ingest({at: reloaded.now(), level: 'warn', text: stallText(), evidence: EVIDENCE});
+      reloaded.hub.line({kind: 'entry', entry: open.entry, change: open.change});
+      // The page dies without a word (a renderer restarted by the hang watch): the NEXT page's first question says so.
+      await reloaded.hub.invoke('journal', {session: 's2'});
+      reloaded.fire(EPISODE_SETTLE_MS);
+      await reloaded.settle();
+      const event = reloaded.events()[0];
+      expect(event.tags).to.deep.include({outcome: 'reload', episode: 'unhealed'});
+      expect(event.message.formatted).to.contain('NOT cured — the page was reloaded under it');
+      expect(event.contexts.evidence.holders[0], 'with what stood at its START').to.eq('holder: block:reveal');
+    } finally {
+      reloaded.cleanup();
+    }
+    const closed = harness();
+    try {
+      const page = pageJournal('s1');
+      const open = page.ingest({at: closed.now(), level: 'warn', text: stallText()});
+      closed.hub.line({kind: 'entry', entry: open.entry, change: open.change});
+      // The window closes: the page's `pagehide` says «reload» (it cannot know), the app's shutdown says what it was.
+      for (const left of page.closeOpenEpisodes()) {
+        closed.hub.line({kind: 'entry', entry: left, change: 'close'});
+      }
+      await closed.hub.shutdown();
+      await closed.settle();
+      expect(closed.events(), 'no request is awaited while the app closes').to.have.length(0);
+      const outbox = fs.readdirSync(path.join(closed.dataDir, 'diagnostics', 'outbox'));
+      expect(outbox, 'the event waits for the next launch').to.have.length(1);
+      const parked = parseEnvelope(fs.readFileSync(path.join(closed.dataDir, 'diagnostics', 'outbox', outbox[0])));
+      const event = JSON.parse(parked.find((i) => i.header.type === 'event')?.body ?? '{}') as Record<string, any>;
+      expect(event.tags.outcome).to.eq('quit');
+      expect(event.message.formatted).to.contain('the game was closed under it');
+    } finally {
+      closed.cleanup();
+    }
+  });
+
+  it('A RENDERER\'S STOP arrives as one event with its trace — scrubbed — and the last screen in its class', async () => {
+    const trace = JSON.stringify({traceEvents: [{name: 'Layout', ph: 'X', dur: 4_200_000}], metadata: {'command_line': '/home/deck/Applications/TM.AppImage --user-data-dir=/home/deck/.config'}});
+    const h = harness({machine: 'box', trace});
+    try {
+      h.hub.note('main', 'warn', '[renderer-hang] the page stopped answering — the last screen (read 3s before: prompt card#12, accepting, frames hand:committed, section hand/, quiet 2s, flows frame:hand#3 committed)');
+      h.tick(5_000);
+      h.hub.note('main', 'warn', '[renderer-hang] the page answers again after 5s');
+      h.hub.note('main', 'warn', '[renderer-hang] trace of the stop (5s, the page answered again): /home/deck/Applications/renderer-hang-20261114-101500.trace.json — open it in chrome://tracing / ui.perfetto.dev');
+      await h.settle();
+      expect(h.events()).to.have.length(0);
+      h.fire(EPISODE_SETTLE_MS);
+      await h.settle();
+      expect(h.events(), 'the stop, its end and its trace are ONE event').to.have.length(1);
+      const event = h.events()[0];
+      expect(event.fingerprint).to.deep.eq([CAUSE_FINGERPRINT, 'renderer-hang/unresponsive/hand/hand:committed']);
+      expect(event.tags).to.deep.include({kind: 'stall', family: 'renderer-hang', runtime: 'main', outcome: 'healed', where: 'hand:committed'});
+      const file = h.sent[0].items.find((i) => i.header.filename === 'hang_trace.json');
+      expect(file?.body, 'the trace rides the event').to.contain('"Layout"');
+      expect(file?.body, 'the OS account is not in it').to.contain('/home/<user>/Applications');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('a player\'s device sends the trace of a stop only within its day\'s budget of files', async () => {
+    const h = harness({trace: '{"traceEvents":[]}'});
+    try {
+      // (Four stops on four different screens: four classes — the budget in question is the day's FILES, not a class's events.)
+      for (const where of ['hand', 'colonies', 'parliament', 'hydro']) {
+        h.hub.note('main', 'warn', `[renderer-hang] the page stopped answering — the last screen (read 3s before: prompt card#12, accepting, frames ${where}:committed, section ${where}/, quiet 2s)`);
+        h.tick(2_000);
+        h.hub.note('main', 'warn', '[renderer-hang] the page answers again after 2s');
+        h.fire(EPISODE_SETTLE_MS);
+        await h.settle();
+        h.tick(60_000);
+      }
+      expect(h.events()).to.have.length(4);
+      const traces = h.sent.filter((s) => s.items.some((i) => i.header.filename === 'hang_trace.json')).length;
+      expect(traces, 'two files a day from a player\'s device').to.eq(2);
+    } finally {
+      h.cleanup();
+    }
+  });
+});
+
+describe('diagnostics hub — the session is COUNTED, whatever was sent of it', () => {
+  it('every record is counted by its cause class and tier — repeats, what spoke inside an episode, and what the budget kept back', async () => {
+    const h = harness();
+    try {
+      const page = new DiagJournal({runtime: 'page', session: 's1', build: '1.2.9'});
+      const say = (text: string, at: number, level: 'warn' | 'error' = 'warn') => {
+        const {entry: e, change} = page.ingest({at, level, text});
+        h.hub.line({kind: 'entry', entry: e, change});
+      };
+      h.hub.line({kind: 'context', context: CONTEXT});
+      const planned = '[wait-graph] ceiling remote-placement:watchable-board (consoleRemotePlacement) — «a board» did not come in 12000 ms — the wait ended on its ceiling (planned: the viewer keeps the board covered)';
+      for (let i = 0; i < 5; i++) {
+        say(planned, h.now() + i * 40_000);
+      }
+      const base = h.now() + 400_000;
+      say(stallText(), base);
+      say('[presentation-ledger] story «board-beat-park» degraded by the liveness arbiter after 12s', base + 1);
+      say('[liveness] recovered after 14s, 1 rung(s) run', base + 2_000);
+      say('[long-frame] 812ms — native 700ms (render 500 · style+layout 200) · script 112ms (forced layout 30): 90 event-listener «keydown» @ main.js:onKey · a press waited in it · +2 long frame(s) since the last line — NATIVE', base + 3_000);
+      const ledger = await h.hub.invoke('ledger', undefined) as SessionLedger;
+      expect(ledger.classes['wait-graph/ceiling/remote-placement:watchable-board']).to.deep.include({tier: 'planned', n: 5, sent: 0});
+      expect(ledger.classes['liveness/stall/unserved/handpick/hand:committed/block:reveal']).to.deep.include({tier: 'defect', n: 1, sent: 1});
+      expect(ledger.classes['presentation-ledger/story-degraded-by/board-beat-park'], 'what spoke inside the episode is counted under its own class').to.deep.include({tier: 'info', n: 1});
+      expect(ledger.outcomes).to.deep.eq({healed: 1});
+      expect(ledger.stood).to.deep.eq({'10-20s': 1});
+      expect(ledger.episodes[0]).to.deep.include({cls: 'liveness/stall/unserved/handpick/hand:committed/block:reveal', outcome: 'healed', stoodS: 14, cure: 'presentation-ledger'});
+      expect(ledger.kinds.perf).to.eq(1);
+      expect(ledger.longFrames.unknown, 'long frames by the screen they were printed on (this record carried none), with where the time went')
+        .to.deep.eq({n: 3, worstMs: 812, native: 1, pressWaited: 1, totalMs: 812, scriptMs: 112, forcedLayoutMs: 30, styleLayoutMs: 200, renderMs: 500});
+      expect(ledger.pages).to.eq(1);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('play time is counted from the page\'s signs of life — a silence longer than three minutes is not play', async () => {
+    const h = harness();
+    try {
+      h.hub.line({kind: 'context', context: CONTEXT});
+      for (let i = 0; i < 10; i++) {
+        h.tick(60_000);
+        h.hub.line({kind: 'pulse', inGame: true});
+      }
+      h.tick(20 * 60_000); // the page hung, or the player went away
+      h.hub.line({kind: 'pulse', inGame: true});
+      h.tick(60_000);
+      h.hub.line({kind: 'pulse', inGame: false}); // back in the menu
+      h.tick(30 * 60_000);
+      h.hub.line({kind: 'pulse', inGame: false});
+      const ledger = await h.hub.invoke('ledger', undefined) as SessionLedger;
+      expect(Math.round(ledger.playMs / 60_000), '10 minutes + the capped silence (3) + the last minute').to.eq(14);
+      expect(ledger.games).to.eq(1);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('the run\'s ledger leaves as ONE event at the NEXT launch — the denominator of «are freezes fewer?»', async () => {
+    const first = harness();
+    const dataDir = first.dataDir;
+    try {
+      const page = new DiagJournal({runtime: 'page', session: 's1', build: '1.2.9'});
+      first.hub.line({kind: 'context', context: CONTEXT});
+      for (let i = 0; i < 5; i++) {
+        first.tick(60_000);
+        first.hub.line({kind: 'pulse', inGame: true});
+      }
+      const open = page.ingest({at: first.now(), level: 'warn', text: stallText()});
+      first.hub.line({kind: 'entry', entry: open.entry, change: open.change});
+      await first.hub.shutdown();
+      expect(fs.existsSync(path.join(dataDir, 'diagnostics', 'session.json')), 'written by the run itself').to.eq(true);
+      const second = harness({dataDir, startAt: first.now() + 3_600_000});
+      second.fire(12_000);
+      await second.settle();
+      const session = second.events().find((e) => e.tags.kind === 'session');
+      expect(session, 'the earlier run, sent by the next one').to.not.eq(undefined);
+      expect(session?.fingerprint).to.deep.eq(['tm-session']);
+      expect(session?.level).to.eq('info');
+      expect(session?.tags).to.deep.include({played: '1-10m', defects: '1-2', unhealed: '1'});
+      expect(session?.contexts.session).to.deep.include({play_min: 5, episodes: 1});
+      expect(session?.contexts.session.outcomes).to.deep.eq({quit: 1});
+      expect(session?.extra.ledger.classes['liveness/stall/unserved/handpick/hand:committed/block:reveal']).to.deep.include({n: 1});
+      expect(JSON.stringify(session), 'no key of the table in it').to.not.match(/p1a2b3c4d5e6f|gdeadbeef0001/);
+      // A run nobody played and nothing failed in is not worth an event.
+      await second.hub.shutdown();
+      const third = harness({dataDir, startAt: second.now() + 3_600_000});
+      third.fire(12_000);
+      await third.settle();
+      expect(third.events().filter((e) => e.tags.kind === 'session')).to.have.length(0);
+    } finally {
+      first.cleanup();
     }
   });
 });

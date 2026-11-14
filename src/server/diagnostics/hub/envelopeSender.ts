@@ -182,6 +182,21 @@ export class EnvelopeSender {
     return outcome;
   }
 
+  /**
+   * THE APP IS ENDING — no request can be awaited. The envelope goes straight to the outbox (compressed in this very
+   * call) and leaves at the next launch. Never throws.
+   */
+  park(bytes: Uint8Array, klass: EnvelopeClass, id: string): SendOutcome {
+    if (this.options.url === undefined) {
+      return {state: 'dropped', reason: 'this build sends nothing'};
+    }
+    try {
+      return this.keep(zlib.gzipSync(bytes), klass, id, 'the app was closing', false);
+    } catch (err) {
+      return {state: 'dropped', reason: `the envelope could not be kept (${err instanceof Error ? err.message : String(err)})`};
+    }
+  }
+
   private async deliver(body: Uint8Array): Promise<SendOutcome> {
     const url = this.options.url;
     if (url === undefined) {

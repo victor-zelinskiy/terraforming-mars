@@ -20,7 +20,7 @@ import {DiagEntry, DiagKind} from '@/common/diagnostics/DiagnosticModel';
 import {DiagChange} from '@/common/diagnostics/journal';
 import {DiagPush} from '@/common/diagnostics/protocol';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
-import {announceDiagnosticEntry, onDiagnosticEntry, pageJournal} from '@/client/diagnostics/diagnosticsCapture';
+import {announceDiagnosticEntry, diagnosticsGameAlive, onDiagnosticEntry, pageJournal} from '@/client/diagnostics/diagnosticsCapture';
 import {publishDebugIds} from '@/client/diagnostics/diagnosticsContext';
 import {noteDiagnosticsHubStatus, refreshDiagnosticsHubStatus} from '@/client/diagnostics/diagnosticsHubState';
 import {diagnosticsTransport} from '@/client/diagnostics/diagnosticsTransport';
@@ -39,6 +39,8 @@ const SESSION_KEY = 'tm_diag_journal';
 const MIRROR_DEBOUNCE_MS = 400;
 /** How often an open episode is re-judged for silence. */
 const TICK_MS = 5_000;
+/** Every this many ticks the page tells the hub it is alive (a minute) — what the session's play time is counted from. */
+const PULSE_TICKS = 12;
 
 let installed = false;
 let mirrorArmed = false;
@@ -183,16 +185,21 @@ export function installDiagnosticsJournal(): void {
   if (transport.kind === 'none') {
     adopt(readSessionMirror());
   } else {
-    void transport.invoke('journal', undefined).then(adopt);
+    void transport.invoke('journal', journal === undefined ? undefined : {session: journal.session}).then(adopt);
     // THE HUB'S STATUS IS ASKED AT BOOT, not at the first opening of the diagnostics surface: the settings console
     // shows «Автоотчёты об ошибках» only once the hub has said what the player's choice is — and a player who goes to
     // the settings first must find the row there (the e2e's «two doors» stand found it missing).
     void refreshDiagnosticsHubStatus();
   }
   // An episode nobody is curing any more is closed as «не вылечено» — the page's own tick, for the page's whole life.
+  let ticks = 0;
   consoleAppScope().every(TICK_MS, 'the diagnostics journal re-judges its open episodes', () => {
     for (const entry of journal?.tick(Date.now()) ?? []) {
       announceDiagnosticEntry(entry, 'close');
+    }
+    // …and once a minute the page says it lives (the same tick — no timer of its own): the hub's play clock.
+    if (++ticks % PULSE_TICKS === 0 && transport.kind !== 'none') {
+      transport.send({kind: 'pulse', inGame: diagnosticsGameAlive()});
     }
   });
   // The page is leaving under an open episode: it was never cured here, and the next page must read it so.

@@ -22,7 +22,8 @@
  */
 
 import raw_settings from '@/genfiles/settings.json';
-import {DiagEntry, DiagLevel, DiagScreen} from '@/common/diagnostics/DiagnosticModel';
+import {causeOf} from '@/common/diagnostics/cause';
+import {DIAG_COALESCE_MS, DiagEntry, DiagEvidence, DiagLevel, DiagScreen} from '@/common/diagnostics/DiagnosticModel';
 import {DiagChange, DiagJournal, DiagLine} from '@/common/diagnostics/journal';
 
 export type DiagLineListener = (line: DiagLine) => void;
@@ -53,6 +54,12 @@ const entryListeners = new Set<DiagEntryListener>();
 let lastHeartbeat: DiagHeartbeat | undefined;
 let lastHeartbeatAt = 0;
 let appScreen = '';
+/** What stood on the game screen right now — registered by the console's supervisor while a game screen is up. */
+let evidenceProvider: (() => DiagEvidence | undefined) | undefined;
+/** The snapshot an acting net took BEFORE it acted, for the one line it prints next (`withDiagEvidence`). */
+let stagedEvidence: DiagEvidence | undefined;
+/** cause class → when its evidence was last taken: a defect re-said every second is snapshotted once per record. */
+const evidenceTakenAt = new Map<string, number>();
 
 type ConsoleMethod = (...args: Array<unknown>) => void;
 const original: {warn: ConsoleMethod, error: ConsoleMethod} = {
@@ -164,8 +171,39 @@ export function currentDiagScreen(now: number = Date.now()): DiagScreen {
   };
 }
 
+/**
+ * WHAT STOOD — asked ONCE per defect, at the moment its line is printed, never on a healthy second (D30: a diagnostic
+ * may not cost the frame it describes). A net that ACTS hands over the snapshot it took before acting
+ * (`withDiagEvidence`); the cure of an episode takes one more, so that «what changed» can be said. A repeat of a
+ * record that still stands (`DIAG_COALESCE_MS`) takes none.
+ */
+function evidenceFor(text: string, level: DiagLevel, at: number): DiagEvidence | undefined {
+  if (stagedEvidence !== undefined) {
+    return stagedEvidence;
+  }
+  const cause = causeOf(text, level);
+  if (cause === undefined || (cause.tier !== 'defect' && cause.shape !== 'liveness/recovered')) {
+    return undefined;
+  }
+  const taken = evidenceTakenAt.get(cause.cls);
+  if (taken !== undefined && at - taken < DIAG_COALESCE_MS) {
+    return undefined;
+  }
+  evidenceTakenAt.set(cause.cls, at);
+  if (evidenceTakenAt.size > 200) {
+    evidenceTakenAt.clear();
+  }
+  return captureDiagEvidence();
+}
+
 function record(level: DiagLevel, text: string, stack: string | undefined): void {
-  const line: DiagLine = {at: Date.now(), level, text, screen: currentDiagScreen(), ...(stack !== undefined ? {stack} : {})};
+  const at = Date.now();
+  const evidence = evidenceFor(text, level, at);
+  const line: DiagLine = {
+    at, level, text, screen: currentDiagScreen(),
+    ...(stack !== undefined ? {stack} : {}),
+    ...(evidence !== undefined ? {evidence} : {}),
+  };
   backlog.push(line);
   if (backlog.length > BACKLOG_MAX) {
     backlog.splice(0, backlog.length - BACKLOG_MAX);
@@ -209,6 +247,38 @@ export function reportDiagnosticError(line: string, err: unknown): void {
   record('error', stack === undefined ? line : `${line}\n${stack}`, stack);
 }
 
+/**
+ * The console's supervisor says how to read what stands (the flow tree, the waits, the holders) while a game screen is
+ * up; `undefined` when it leaves. The interceptor imports nothing of the console — this registration is the seam.
+ */
+export function setDiagEvidenceProvider(provider: (() => DiagEvidence | undefined) | undefined): void {
+  evidenceProvider = provider;
+}
+
+/** What stands right now, by the registered provider (`undefined` outside a game screen, or when the read threw). */
+export function captureDiagEvidence(): DiagEvidence | undefined {
+  try {
+    return evidenceProvider?.();
+  } catch {
+    // A diagnostic never breaks the flow it describes.
+    return undefined;
+  }
+}
+
+/**
+ * A NET THAT ACTS PRINTS ITS LINE AFTER IT ACTED — and what stood then is the cure, not the cause. It takes the
+ * snapshot first (`captureDiagEvidence()`), acts, and prints inside `withDiagEvidence(before, () => console.warn(…))`:
+ * the line is recorded with what stood BEFORE.
+ */
+export function withDiagEvidence<T>(evidence: DiagEvidence | undefined, print: () => T): T {
+  stagedEvidence = evidence;
+  try {
+    return print();
+  } finally {
+    stagedEvidence = undefined;
+  }
+}
+
 /** Every line the page printed (and will print): the kept backlog first, then live. Returns the unsubscribe. */
 export function onDiagnosticLine(listener: DiagLineListener, opts: {replay?: boolean} = {}): () => void {
   if (opts.replay === true) {
@@ -240,6 +310,11 @@ export function announceDiagnosticEntry(entry: DiagEntry, change: DiagChange): v
 export function noteDiagnosticsHeartbeat(beat: DiagHeartbeat): void {
   lastHeartbeat = beat;
   lastHeartbeatAt = Date.now();
+}
+
+/** A game screen stands and its supervisor ticks under it (a heartbeat in the last few seconds). */
+export function diagnosticsGameAlive(now: number = Date.now()): boolean {
+  return lastHeartbeat !== undefined && now - lastHeartbeatAt < 5_000;
 }
 
 /** The app's screen (`player-home`, `main-menu`, …), told by the app-level layer that receives it. */
@@ -310,6 +385,9 @@ export function __resetDiagnosticsCaptureForTesting(): void {
   lastHeartbeat = undefined;
   appScreen = '';
   viewportText = undefined;
+  evidenceProvider = undefined;
+  stagedEvidence = undefined;
+  evidenceTakenAt.clear();
 }
 
 /** Spec seam: a journal without a window (the capture's record path under the server runner). */

@@ -37,9 +37,9 @@ Three layers, one model:
 
 | layer | where | what |
 | --- | --- | --- |
-| **shared, pure** | `src/common/diagnostics/` | `DiagnosticModel` (the record), `classify` (tag → kind), `journal` (lines → records, episodes), `stackFrames` (a V8 stack parsed), `privacy` (the scrub), `protocol` (page ↔ hub), `debugIds` |
+| **shared, pure** | `src/common/diagnostics/` | `DiagnosticModel` (the record), `classify` (tag → kind), `shapes` (a stall line → its shape and tier), `cause` (a stall → its CAUSE CLASS), `journal` (lines → records, episodes), `stackFrames` (a V8 stack parsed), `privacy` (the scrub), `protocol` (page ↔ hub), `debugIds` |
 | **the page** | `src/client/diagnostics/`, `src/client/components/console/diagnostics/`, `src/styles/console_diagnostics.less` | the interceptor, the journal's reactive face, the transport seam, the surface's controller and view-model, the notice, the components |
-| **the hub** | `src/server/diagnostics/hub/` (a plain Node module, bundled to `build/electron/diagnostics-hub.js` by `webpack.diagnostics.config.js`) + its host `electron/diagnosticsMain.ts` | the mirror, the policy, the scrub, the sender with its outbox, the report package, the connection check |
+| **the hub** | `src/server/diagnostics/hub/` (a plain Node module, bundled to `build/electron/diagnostics-hub.js` by `webpack.diagnostics.config.js`) + its host `electron/diagnosticsMain.ts` | the mirror, the session's ledger, the policy, the scrub, the sender with its outbox, the report package, the connection check |
 | **the server** | `src/server/diagnostics/serverDiagnostics.ts` | a facade with one sink; embedded → posts to the main process |
 
 **No SDK runs in the page.** The hub is the one sender; it uses only `@sentry/core`'s envelope serialiser. Nothing
@@ -52,7 +52,9 @@ page runs no SDK).
 
 One console line (or one episode) = one record: `kind` · `family` (the tag) · `level` · `runtime` (`page | main | server`)
 · `title` · **`text` — verbatim what the console received, an `Error` as its whole stack** · `stack` · `count` ·
-`episode?` · `screen?` (what the screen was doing: the field recorder's heartbeat reduced) · `build` · `delivery?`.
+`episode?` · `screen?` (what the screen was doing: the field recorder's heartbeat reduced) · **`cause?`** (a stall /
+integrity record's cause class, tier and dimensions — § 2.4) · **`evidence?`** (what stood when a defect was named —
+§ 2.5) · `build` · `delivery?`.
 
 ### 2.1 Every tagged line has a class
 `classify.ts` is the ONE table: tag → `error | stall | integrity | perf | note`. The journal's filters, the notice and
@@ -62,15 +64,28 @@ have no row; a site whose first argument is not a literal is declared in the spe
 
 An untagged `console.error` is an `error` of the family `console`; an untagged `console.warn` a `note`.
 
-### 2.2 Three rules of the journal (`journal.ts`)
-1. **ONE THROW — ONE RECORD.** A repeat inside `DIAG_COALESCE_MS` (30 s) grows `count`.
+### 2.2 Five rules of the journal (`journal.ts`)
+1. **ONE THROW — ONE RECORD.** A repeat inside `DIAG_COALESCE_MS` (30 s) grows `count`. «The same» is the CAUSE CLASS
+   for a stall / integrity line (never its wording), the stack for an exception.
 2. **A LIVENESS STALL IS AN EPISODE.** The arbiter prints `[liveness] stall …` once per rung (≥ 2 s apart) and
    `[liveness] recovered after Ns`. The lines between are ONE record: `episode.state` = `open → healed` (with the
-   arbiter's own duration) or `unhealed` (no line for `DIAG_EPISODE_SILENCE_MS`, or the page left under it).
+   arbiter's own duration) or `unhealed`; **`episode.outcome` says how it ended for the player** — `healed` ·
+   `unhealed` (no line for `DIAG_EPISODE_SILENCE_MS`: the ladder was spent and the page lived on) · `reload` (the page
+   was replaced under it) · `quit` (the app was closed under it); **`episode.cure`** — who cured it (the releases of
+   the last rung that did something) and what was different after (§ 2.5). The renderer's STOP is an episode of the
+   main process's journal by the same rules (`the page stopped answering` → `answers again` / `the renderer is
+   restarted`).
    **The arbiter's line has three readers** — `readLivenessLine` (here), `buildStallDigest` (the console export) and the
    e2e harness's `livenessGuard`; the classification spec pins the line's fixed words in the supervisor's source, so
-   changing the wording moves all of them in one diff.
-3. **BOUNDED.** `DIAG_JOURNAL_MAX` records, `DIAG_TEXT_MAX` characters each (head + newest tail).
+   changing the wording moves all of them in one diff. (`shapeOf` — § 2.4 — is its fourth: it reads `task:` · `top:` ·
+   `holder:`.)
+3. **WHAT A NET SAYS INSIDE AN EPISODE IS THE EPISODE'S.** While the arbiter's episode is open, every other stall line
+   of the same runtime (a story a rung degraded, a beat it tore down, a finding of the wait graph) is a line of that
+   record, counted in `episode.nets` by its own class — one incident is one record, found in one step.
+4. **AN ECHO IS A LINE OF WHAT IT ANSWERS.** A door's result after the finding that asked for it (`[wait-graph] cure …`),
+   the trace's file name after the stop it traced: the shape's row names what it is the echo of (`echoOf`), and the
+   line is folded into the newest such record (within `DIAG_ECHO_MS`) instead of filing a second one.
+5. **BOUNDED.** `DIAG_JOURNAL_MAX` records, `DIAG_TEXT_MAX` characters each (head + newest tail).
 
 ### 2.3 Nothing is lost, nothing is told twice
 - **The interceptor is the FIRST module of the page** (`diagnosticsBoot.ts`, the first import of `main.ts`): the boot and
@@ -85,26 +100,92 @@ An untagged `console.error` is an `error` of the family `console`; an untagged `
 - **The field recorder's contract is untouched** (`POST /api/field-log`, its ring, its spec): it subscribes to the
   interceptor instead of wrapping the console itself.
 
+### 2.4 The CAUSE of a stall — shape, class, tier (`shapes.ts`, `cause.ts`)
+A stall is a wait nobody ended, and a net's line names it. It is filed under WHAT HELD, never under how the line is
+worded (`docs/claude/console/freeze-zero/PLAN.md` § 2 is the design):
+
+| | what | example |
+| --- | --- | --- |
+| **shape** | what the line IS, matched on its fixed words — a row of `DIAG_SHAPES` | `wait-graph/ceiling`, `liveness/stall`, `flow/bound-wait` |
+| **cause class** | the shape + the line's STRUCTURAL words (a workspace kind, a phase, a hold's label, a wait's id without its run number, an admission block). Never a duration, a counter, a prompt id, a card | `liveness/stall/unserved/handpick/hand:committed/block:reveal` |
+| **tier** | what the line is FOR: `defect` (an EVENT) · `planned` (an honest wait reached the ceiling it DECLARED — counted, never an event; the row or the wait says why) · `info` (evidence around an event: a net's own echo) | |
+| **dimensions** | what a reader slices by and what must NOT split a class: the source card, the holder, the outcome, who cured it, how long it stood — an event's TAGS | `source=Ganymede Colony`, `outcome=healed`, `cure=presentation-ledger` |
+
+`causeOf(line)` is a PURE function of the line's text — so the page, the hub (the main process's and the server's own
+lines), the e2e harvest (`tests/e2e/causeHarvest.ts`) and the monkey's report (`scripts/monkey-report.mjs`) compute
+ONE key: a field case finds its reproducing spec by it, and a red spec its field cases (`npm run diag -- class <key>`).
+
+**The arbiter names the holder.** Its line carries `task:` (the router's task kind), `top:` (the deepest frame on
+stage, `kind:phase`) and `holder:` — ONE word by ONE precedence (`supervisor/stallEvidence.ts` `stallHolder`):
+`stranded[+claim:<host>:<stage>]` → `dead-frame:<kind>` → `beat` → `awaiting:<from>` → `block:<name>` →
+`claim:<host>:<stage>` → `hold:<label>` → `deaf` → `none`. Class: `liveness/stall/<reason>/<task>/<top>/<holder>`.
+
+**A NEW LINE IS A NEW ROW.** `tests/console/diagnosticsShapes.spec.ts` renders the first argument of every
+`console.warn` / `console.error` of a stall / integrity family and fails with the LIST of sites no row matches (a line
+whose distinguishing word is interpolated, or printed through a helper, is declared there with its sample); a row no
+site prints is dead and fails too. A reworded line cannot silently change class.
+
+**A wait declares that its ceiling is its honest end** — `CeilingWaitSpec.planned: '<why>'` (`ceilingWait.ts`): the
+line says `(planned: …)` and its tier is `planned`. Declaring it is a decision to defend in review (a wait for
+something only the PLAYER decides the time of), never a way to silence a line.
+
+### 2.5 What stood — the evidence (`DiagEvidence`)
+A `defect` record of the page carries what stood when it was named: the question with who may serve it and who does;
+the holders with their ages (the one the class names first); the kernel's flow tree with every wait; the wait table;
+the wait graph's nodes and standing findings; the kernel's last records (the machines' transitions among them); what
+the pad's funnel last saw. Taken ONCE per record by the provider the console's supervisor registers with the
+interceptor (`setDiagEvidenceProvider` — the interceptor still imports nothing of the console), bounded
+(`DIAG_EVIDENCE_*`), never on a healthy second (D30).
+
+**A net that ACTS takes it BEFORE it acts** — `const stood = captureDiagEvidence(); …act…; withDiagEvidence(stood, () =>
+console.warn(line))`: read after, the evidence would describe the cure (the arbiter reads the holder, the claim and
+the evidence before its rung runs). The cure of an episode takes one more snapshot; `episode.cure.changed` is the
+difference — the scopes that ended (by the run's own id), the holders that let go, a question that moved on.
+
 ---
 
 ## 3. What is sent by itself — the hub's policy (`hub.ts` `autoDecision`)
 
-| kind | when | as |
+| kind · tier | when | as |
 | --- | --- | --- |
-| `error`, `integrity` | when the record is born | an EXCEPTION with frames + debug ids (a stack), else a MESSAGE with an explicit fingerprint |
-| `stall` — a liveness episode | when it ENDS, or once it has stood 30 s | ONE message: «the screen stood still (reason, asked …) — cured after N s / NOT cured» |
-| `stall` — other families | when the record is born | a message |
-| `perf`, `note` | never | they ride the next event as its breadcrumbs (the journal's last 30 records) |
+| `error` | when the record is born | an EXCEPTION with frames + debug ids — grouped by its stack |
+| `integrity` · `defect` | when the record is born | a MESSAGE, fingerprint = its cause class |
+| `stall` · `defect` — an episode (the arbiter's, the renderer's stop) | `EPISODE_SETTLE_MS` after it ENDS (it is then known whether the page was reloaded or the app closed under it, and a stop's trace is written), or once it has stood 30 s | ONE message: its FIRST line is the class's — «the screen stood still (reason · asked … · where · held by …)» —, its second how THIS episode ended («cured after N s by … / NOT cured — …», also `extra.ending`); fingerprint = its cause class |
+| `stall` · `defect` — any other | `STALL_SETTLE_MS` after it is born (what its own tick still says of it is a line of the same event) | a message, fingerprint = its cause class |
+| `stall` / `integrity` · `planned` / `info` | never | COUNTED in the session's ledger (§ 3.3); the trail of the next event |
+| `perf`, `note` | never | counted in the ledger; they ride the next event as its breadcrumbs (the journal's last 30 records) |
 
-Budgets (one loop must not spend the quota): 40 events per app run · 2 per defect key · 8 per family · 200 per device per
-day (kept on disk). On the box (`environment: box`) an automatic event carries the console's dump, scrubbed, at most once
-in 10 minutes.
+**One cause — one issue.** The fingerprint of a stall is `['tm-cause', <cause class>]`: the same cause across
+sessions, players, releases and rewordings of its line is ONE issue; the outcome, the cure, the card and the duration
+are TAGS of its events (`outcome` · `cure` · `source` · `stood` · `holder` · `where` · `task` · `reason` · `cause` ·
+`shape` · `tier`), so a class is sliced without opening an event.
+
+Budgets (one loop must not spend the quota, and NOISE NEVER SPENDS A DEFECT'S BUDGET): 40 events per app run · 2 per
+DEFECT (a cause class; for an exception its own frame) · 200 per device per day (kept on disk). There is no budget per
+family any more: a planned wait is not an event at all, so it cannot evict the same family's `dead-end`. What the
+budget keeps back is still counted (§ 3.3). On the box (`environment: box`) an automatic event carries the console's
+dump, scrubbed, at most once in 10 minutes. An app that is closing sends nothing: what waited for its settle is parked
+in the outbox and leaves at the next launch.
+
+**A renderer's stop arrives with its trace** — `hang_trace.json`, scrubbed: always on the box (≤ 24 MB), from a
+player's device within `DAILY_FILES_MAX` files a day (≤ 8 MB). **A defect on a hosting device — an episode and a
+single finding alike — names where the game's save stood when it was born** — `contexts.save` = the game's FINGERPRINT + the number of its newest save (never the save:
+it is the table's keys and names). The server keeps every save (`db/files/history/<game>-<n>.json`), so `npm run diag
+-- save <g#…> <n>` fetches that very file from a machine the agent can read.
 
 **Tags of every event** (what an agent filters by): `kind` · `family` · `runtime` (`page | main | server`) · `app_mode`
 (`host | remote | web`) · `screen` · `section` · `profile` · `prompt_type` · `locale` · `seat_ref` (a fingerprint) · `head` ·
-`episode` · `selftest`; a report adds `report_code` · `report_category` · `entry_kind`; the collector derives `os` /
-`os.name` from the context. Contexts: `screen`, `episode`, `os`, `device`, `host_runtime` (Electron and its version —
-never a context named `runtime`: the collector would derive a `runtime` tag from it and overwrite ours), `app`.
+`run` (the app run — every event of one run, and its session, are found by it) · `episode` · `selftest`; a stall /
+integrity event adds the cause's (above); a report adds `report_code` · `report_category` · `entry_kind`; the collector
+derives `os` / `os.name` from the context. Contexts: `screen`, `cause`, `episode` (state, outcome, steps, `cured_by`,
+`changed`, `nets`), `evidence` (the question, the holders), `save`, `os`, `device`, `host_runtime` (Electron and its
+version — never a context named `runtime`: the collector would derive a `runtime` tag from it and overwrite ours),
+`app`. Extra: `text` (the net's own lines), `ending`, `flow_tree`, `waits`, `wait_graph`, `flow_trace` — **a long
+list leaves in PARTS** (`flow_tree`, `flow_tree_2`, …; `extraLists`): the collector keeps ~16 KB of ONE `extra` value
+and drops the rest in silence, while the whole `extra` may be far larger; `diag` joins the parts back (`partsOf`).
+**The issue's TITLE is the class's, never an occurrence's**: the collector titles an issue by the first line of its
+newest event's message, so that line is built from the class alone (`classTitle`: `[family] shape (part · part)`; the
+arbiter's sentence is made of the class's own parts) and the occurrence's words are the second line.
 **Where the player is, is not said**: `sdk.settings.infer_ip = never` keeps the sender's address out, and the event
 brings `user.geo = {region: 'not collected'}` — without it the collector still derives a CITY from the connection
 (measured with `scripts/diag-probe.mjs`).
@@ -134,6 +215,19 @@ what was queued by itself is taken back, the crash uploader stops. **A stall is 
 
 An explicit report is the player's own press on a surface that listed what leaves: it carries the full package
 unscrubbed.
+
+### 3.3 The session's ledger — «are freezes fewer?» has a denominator (`sessionLedger.ts`)
+Events cannot answer it: a class is sent a few times per run, a planned wait never, and a net that fires inside an
+episode is a line of that episode. So the hub COUNTS every record it mirrors — by cause class and tier (records,
+lines, events actually sent), every episode with its outcome, how long it stood and who cured it, long frames by the
+screen they were printed on, the renderer's stops — beside the run's PLAY TIME (the page's own minute: `{kind:
+'pulse', inGame}` on the journal's existing tick; a silence longer than three minutes is not play).
+
+The ledger is written to `<userData>/diagnostics/session.json` as it changes (a run that ends in a native stop cannot
+send its own) and leaves as ONE event of kind `session` at the NEXT launch (fingerprint `['tm-session']`, `extra.ledger`
+— a run nobody played and nothing failed in sends none). `npm run diag -- trend` reads them: stalls per hour of play
+and per session by release, the outcomes' shares, the time-to-cure, the top classes with their trend, and the fires of
+EVERY net — the evidence a net's retirement needs (`docs/claude/console/architecture-v2/PLAN.md` § 6).
 
 ---
 
@@ -247,7 +341,8 @@ bundle under `build/electron/`, which the allowlist already packs.
 | path (under `<userData>` = `%AppData%\terraforming-mars` · `~/.config/terraforming-mars`) | what |
 | --- | --- |
 | `diagnostics.json` | `{"environment": "box"}` — the machine's label (hand-placed on the owner's box) |
-| `diagnostics/state.json` | the consent, the day's counter |
+| `diagnostics/state.json` | the consent, the day's counters (events, files) |
+| `diagnostics/session.json` | the run's ledger (§ 3.3) — sent by the next launch |
 | `diagnostics/outbox/*.env.gz` | envelopes waiting for the network |
 | `diagnostics/reports/TM-XXXXXX/` | report packages (the newest 20) |
 | `logs/main.log`, `logs/main.prev.log` | the main process's log — on every platform (a packaged Windows build had none) |
@@ -259,8 +354,10 @@ bundle under `build/electron/`, which the allowlist already packs.
 
 ```bash
 npx mocha --import=tsx --require tests/testing/setup.ts \
-  tests/common/diagnostics/diagnosticsCore.spec.ts tests/server/diagnostics/diagnosticsHub.spec.ts \
-  tests/console/diagnosticsClassification.spec.ts tests/electron/diagnosticsHubConform.spec.ts tests/console/fieldRecorder.spec.ts
+  tests/common/diagnostics/diagnosticsCore.spec.ts tests/common/diagnostics/diagnosticsCause.spec.ts \
+  tests/server/diagnostics/diagnosticsHub.spec.ts tests/console/diagnosticsClassification.spec.ts \
+  tests/console/diagnosticsShapes.spec.ts tests/console/stallEvidence.spec.ts \
+  tests/electron/diagnosticsHubConform.spec.ts tests/console/fieldRecorder.spec.ts
 npm run test:client:one -- tests/client/diagnostics/diagnosticsClient.spec.ts
 npm run e2e:remote -- <task> tests/e2e/console-diagnostics.spec.ts tests/e2e/console-system-menu.spec.ts tests/e2e/console-options-settings.spec.ts
 ```
@@ -360,6 +457,18 @@ process left (`pgrep -f "usr/bin/[t]erraforming-mars"`), `rm -rf /tmp/appimage_e
 | D32 | **Проба выходит через `beginShutdown`** (зависимость `quit` у `installDiagnosticsMain`), а не голым `app.quit()` | `app.quit()` (так было) | Первая же проба релиза на боксе оставила процесс жить после «quit — event loop done»: на Steam Machine нативное завершение Chromium может не закончиться, и только общая дверь выхода взводит сторожа, который добивает процесс (`electron/shutdown.ts`). Правило проекта — «никогда голый `app.quit()`» — действует и для инструмента разработчика |
 | D33 | **Отказ Sentry по лимиту — не «нет сети»**: хаб читает `429` и заголовок `X-Sentry-Rate-Limits` (отдельно события и отдельно вложения), отчёт получает `waits: 'limit'` / `filesRefused`, статус — `limitedWhat` + слово самого Sentry (`usage_exceeded`, `key_quota` …) | один исход «в очереди» с текстом про сеть (так было) | Исчерпанная квота бесплатного плана выглядела для игрока как «проверьте интернет», а отчёт без вложений (квота файлов отдельная) — как обычный «отправлен». Теперь экран говорит правду: «служба приёма переполнена, ваш интернет ни при чём», «отчёт у разработчика — без файлов», вкладка СИСТЕМА и проверка связи — то же. Высоты строк не меняются: меняются слова в местах, которые уже стоят |
 | D34 | **Ключ отправки — из СЕКРЕТА GitHub, в репозитории его нет (гард), смена — три команды** (`npm run diag -- key` · `key rotate` · `key retire`) | переменная Actions + ключ в документе (так было); собственный прокси с учётом по адресам | Ключ внутри розданной игры публичен по природе — его нельзя спрятать, можно только не класть туда, где его найдёт поиск по репозиторию или открытый лог сборки, следить за квотой и уметь заменить за минуты. Прокси (свой сервис с настоящим ключом и лимитами по адресам) — единственная полная защита от намеренной заливки; это отдельная инфраструктура и решение владельца (§ 12) |
+| D35 | **Класс причины — ЧИСТАЯ ФУНКЦИЯ СТРОКИ** (таблица форм `shapes.ts` + структурные слова строки); супервизор печатает слова, из которых класс собирается (`task:` · `top:` · `holder:`) | структурный объект рядом со строкой как единственный источник; хэш дерева флоу | Ключ обязан совпасть у четырёх читателей — страницы, хаба (строки main-процесса и сервера), e2e-харвеста и отчёта обезьяны, — а у трёх из них есть только текст консоли. Функция текста — одна реализация на всех; гард `diagnosticsShapes.spec` привязывает каждое место печати к форме, поэтому переписанная строка не может молча сменить класс. Дерево флоу — УЛИКА: оно зависит от тайминга и раздробило бы класс |
+| D36 | **Исход, вылечившая сетка, карта и длительность — ИЗМЕРЕНИЯ (теги), а не часть ключа** (прежний отпечаток нёс `healed` / `unhealed`) | оставить исход в ключе | Одна причина в одной сессии лечится, в другой кончается перезагрузкой; с исходом в ключе худшие случаи дефекта лежали бы отдельно от него самого |
+| D37 | **Улики снимает ПРОВАЙДЕР, который супервизор консоли регистрирует у перехватчика** (один раз на запись дефекта); действующая сетка снимает их ДО действия и передаёт со строкой (`withDiagEvidence`) | каждое место печати собирает улики само; снимать на каждой строке | Перехватчик работает до появления приложения и не должен знать консоль; один провайдер = одна ограниченная форма; на здоровой секунде не платится ничего (D30). Снимок после лечения описывал бы лечение, а не причину |
+| D38 | **Плановое ожидание — не событие, а счётчик в книге сессии**; уровень (`defect` · `planned` · `info`) объявляет строка таблицы форм или само ожидание (`CeilingWaitSpec.planned`) | семплировать; оставить событием с малым бюджетом | 5–8 плановых потолков за партию вытесняли из бюджета семейства (8) настоящий `dead-end` и за неделю съели бы месячную квоту при нескольких игроках. Счётчик сохраняет частоту — больше плановому ожиданию сказать нечего. Бюджет стал «на класс причины», семейного больше нет |
+| D39 | **Эхо сетки — строка записи, на которую оно отвечает; сказанное внутри эпизода арбитра — строка эпизода** (`echoOf` в таблице форм; `episode.nets`) | каждая строка — своя запись и своё событие | Один инцидент давал три проблемы в Sentry (эпизод арбитра + «история деградирована арбитром» + «такт снят арбитром»). Теперь одно событие несёт всё, а книга сессии всё равно считает каждую сработавшую сетку по её классу |
+| D40 | **Событие зависания уходит не сразу**: находка — через `STALL_SETTLE_MS` (эхо того же тика — её строки), эпизод — через `EPISODE_SETTLE_MS` после конца | отправлять в момент рождения (так было) | За это время становится известно, чем эпизод кончился ДЛЯ ИГРОКА (страницу перезагрузили → `reload`, игру закрыли → `quit`), а у остановки рендерера записан трейс. Закрывающееся приложение ничего не шлёт: ждущее событие кладётся в очередь на диске и уходит при следующем запуске |
+| D41 | **Знаменатель «стало меньше?» — собственное событие сессии** (одно на запуск, отправляет СЛЕДУЮЩИЙ запуск) | release health Sentry (сессии); продукт метрик | Хаб — единственный отправитель и уже хранит состояние дня на диске; одно событие несёт время игры, счёт каждой сетки и исходы эпизодов — ровно те числа, из которых состоит планка программы, — и стоит одного события квоты на сессию. В release health нет места своему счётчику и нет времени игры. Запуск, кончившийся нативной остановкой, сам о себе не расскажет — поэтому отправляет следующий |
+| D42 | **Сохранение едет ССЫЛКОЙ** (отпечаток партии + номер сохранения в момент начала эпизода), а не файлом | вкладывать сохранение в автоматическое событие | Сохранение — это ключи и имена стола: закон 6 запрещает их в автоматической отправке, а вычищенное сохранение не загружается. Сервер хранит КАЖДОЕ сохранение партии (`history/<партия>-<n>.json`), так что ссылка остаётся верной, и `npm run diag -- save` забирает ровно тот файл с машины, которую агент может читать (бокс) |
+| D43 | **Трейс остановки рендерера едет с её событием** — вычищенный; на боксе всегда, у игрока в пределах `DAILY_FILES_MAX` файлов в день | только с явным отчётом (так было) | При нативной остановке страница не исполнялась: ни одна сетка страницы ничего не скажет, и отчёт никто не нажмёт (геймпад мёртв). Трейс Chromium — единственная улика тех секунд |
+| D44 | **В Sentry добавлено правило «TM diagnostics — a resolved issue came back (regression)»** (workflow `1494371`: условие `regression_event` → письмо), рядом с правилом о новых проблемах (D23) | смотреть регрессы только командой | Класс, закрытый «исправлено в релизе» (`npm run diag -- resolve`), при возврате должен быть виден СРАЗУ: Sentry сам помечает такую проблему регрессом, правило превращает это в письмо; `npm run diag -- issues --regressed` показывает то же из командной строки. Создано через API одним запросом по образцу правила D23 |
+| D45 | **Шесть поправок после проверки на настоящем коллекторе** (2026-11-14): длинные списки улик уходят ЧАСТЯМИ (`flow_tree`, `flow_tree_2`, …); первая строка сообщения — слова КЛАССА, исход случая — вторая строка и `extra.ending`; ссылку на сохранение несёт ЛЮБОЙ дефект, не только эпизод (одно чтение файла на всплеск); эпизод не берёт измерения свёрнутой в него строки (кроме `trace`); свёрнутые эхо считаются строками записи в учёте сессии; `resolve` по умолчанию закрывает в версии ЭТОГО чекаута | оставить как было | Замерено пробой: коллектор молча режет одно значение `extra` на ~16 КБ (дошло 69 строк дерева из 90, 70 строк трассы из 80); заголовок проблемы читался как исход ПОСЛЕДНЕГО случая («cured…» у класса, где были и перезагрузки); находка, вылеченная дверью за свой же тик, приходила без пути назад к столу; эпизод арбитра получал тег `by: the liveness arbiter` — автора свёрнутой строки; срабатывание двери не попадало в счёт сетей |
+| D46 | **Чужой релиз `terraforming-mars@45.3.1` заархивирован в Sentry**, а `resolve --next` перестал быть умолчанием | оставить `--next` | Ранняя проба без упаковки отправила версию Electron; число больше любого `1.2.x`, коллектор считал этот релиз «последним», и класс, закрытый «в следующем релизе», не мог вернуться регрессом никогда. Умолчание теперь — версия чекаута (команда запускается ПОСЛЕ коммита исправления), релиз создаётся в коллекторе, если о нём ещё не слышали |
 
 ## 11. Как позже добавить канал связи
 Одно значение — константа `DIAG_CONTACT` в `src/common/diagnostics/protocol.ts` (сейчас `''`). Пока оно пустое, строки

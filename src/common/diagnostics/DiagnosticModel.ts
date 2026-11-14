@@ -50,6 +50,30 @@ export type DiagEpisodeState =
   /** It was never cured on this page: the ladder ran out, or the page was reloaded under it. */
   'unhealed';
 
+/**
+ * How an episode ENDED for the player — a dimension of its event, never part of its class (one cause heals in one
+ * session and ends in a reload in another):
+ */
+export type DiagEpisodeOutcome =
+  /** The net cured it and the game went on. */
+  'healed' |
+  /** It stood until the journal gave up on it (no line, no cure) — the page lived on. */
+  'unhealed' |
+  /** The page was reloaded under it (the player's own F5 / restart of the game screen, or the hang watch's). */
+  'reload' |
+  /** The app was closed under it. */
+  'quit';
+
+/** What ended an episode, and what was different once it had (`cause.ts` `evidenceDelta`). */
+export type DiagCure = {
+  /** The releases of the last step that did something (`presentation-ledger`, `workspace-outcome`) — '' when none did. */
+  by: string;
+  /** That step in the net's own words. */
+  did: string;
+  /** What stood at the start and no longer stood at the cure — scopes that ended, holders that let go, a new question. */
+  changed: Array<string>;
+};
+
 export type DiagEpisode = {
   state: DiagEpisodeState;
   /** From the first line to the cure (healed), to the last line seen (open / unhealed). */
@@ -58,7 +82,81 @@ export type DiagEpisode = {
   lines: number;
   /** What the net did, in its own words, in order (`rung 2: a claim released with force`). */
   steps: Array<string>;
+  /** Set when the episode closes (absent while it is open, and on a record written before the field existed). */
+  outcome?: DiagEpisodeOutcome;
+  cure?: DiagCure;
+  /**
+   * WHAT ELSE SPOKE INSIDE IT — the cause classes of the other stall lines folded into this episode (a story a rung
+   * degraded, a finding of the wait graph), each with its tier and how many times: one incident is one record, and
+   * the session's ledger still counts every net that fired.
+   */
+  nets?: Array<{cls: string, tier: DiagTier, n: number}>;
+  /**
+   * WHAT WAS NAMED JUST BEFORE IT — the cause classes of the defects recorded in the seconds before the episode began
+   * (a stranded question the leak detector named, a finding of the wait graph whose door did not cure it). Each is an
+   * issue of its own; the episode says which of them it followed, so the incident reads as one.
+   */
+  after?: Array<string>;
 };
+
+/**
+ * WHAT A STALL / INTEGRITY LINE IS FOR — declared by its shape's row (`shapes.ts`), never by a consumer:
+ */
+export type DiagTier =
+  /** A net had to act, a finding names a defect, a bound cut a decision: an EVENT — one issue per cause class. */
+  'defect' |
+  /** An honest wait reached the ceiling it declared (a foreign tile waiting for a covered board): COUNTED, never an event. */
+  'planned' |
+  /** Evidence around an event (a cure's own echo, a state dump): a breadcrumb. */
+  'info';
+
+/**
+ * THE CAUSE of a stall / integrity record — a PURE function of its line (`cause.ts` `causeOf`), so the page, the hub,
+ * the e2e harvest and the monkey all file one defect under one key.
+ */
+export type DiagCause = {
+  /**
+   * THE CAUSE CLASS — the grouping key: the line's shape and its STRUCTURAL parts (a workspace kind, a phase, a hold's
+   * label, a wait's id without its run number). Never a duration, a counter, a prompt id, a card's name.
+   */
+  cls: string;
+  /** The line's shape (`wait-graph/ceiling`). */
+  shape: string;
+  tier: DiagTier;
+  /** What a reader slices by and what must NOT split a class: the source card, the holder, the question's type… */
+  dims: Record<string, string>;
+};
+
+/**
+ * WHAT STOOD when a defect was named — taken ONCE, at that moment, by the provider the console session registers with
+ * the interceptor (`diagnosticsCapture.ts`); bounded. An acting net takes it BEFORE it acts (a snapshot after the cure
+ * describes the cure). It may carry ids (the game's): a consumer that leaves the device scrubs them (`privacy.ts`).
+ */
+export type DiagEvidence = {
+  /** Milliseconds since the epoch. */
+  at: number;
+  /** The server's question, the router's task for it, who may serve it and who does — one line. */
+  question: string;
+  /** Who holds it, each with its age — the arbiter's own account, the first being the one the class names. */
+  holders: Array<string>;
+  /** The kernel's flow tree (`dumpFlowTree`): every scope that stands, its age, its state, what it waits for. */
+  tree: Array<string>;
+  /** Every standing wait that is not a plain timer (`waitTable`), the oldest first. */
+  waits: Array<string>;
+  /** The wait graph's nodes with their targets, then its standing findings. */
+  graph: Array<string>;
+  /** The kernel's last records (`flowTraceLines`) — opens, ends with their reasons, the machines' transitions. */
+  trace: Array<string>;
+  /** What the pad's funnel saw last (`inputEcho`): the last presses and what each became. */
+  input: string;
+};
+
+/** The bounds of one evidence snapshot (lines kept per list, characters per line). */
+export const DIAG_EVIDENCE_TREE_MAX = 90;
+export const DIAG_EVIDENCE_WAITS_MAX = 40;
+export const DIAG_EVIDENCE_GRAPH_MAX = 40;
+export const DIAG_EVIDENCE_TRACE_MAX = 80;
+export const DIAG_EVIDENCE_LINE_MAX = 260;
 
 /**
  * What the screen was doing when the signal was born — the field recorder's heartbeat, reduced to what a reader needs.
@@ -110,6 +208,10 @@ export type DiagEntry = {
   count: number;
   episode?: DiagEpisode;
   screen?: DiagScreen;
+  /** The cause class, tier and dimensions — a stall / integrity record's own (`cause.ts`); absent on every other kind. */
+  cause?: DiagCause;
+  /** What stood when the defect was named (a `defect`-tier record of the page, once). */
+  evidence?: DiagEvidence;
   /** The build that printed it (`settings.json` version). */
   build: string;
   /** What the sender did with it (set by the hub; absent = never offered — the web build, a unit test). */

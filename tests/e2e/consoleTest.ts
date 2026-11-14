@@ -48,6 +48,7 @@ import * as path from 'path';
 import {currentTimingBucket, formatTiming, noteTiming, resetTiming, snapshotTiming} from './timing';
 import {describeReactionStory, installReactionWitness, reactionStory} from './reactionWitness';
 import {armHungPageWatch} from './hungPageWatch';
+import {armCauseHarvest, CauseRecord, fileCauseRecords} from './causeHarvest';
 
 export * from '@playwright/test';
 
@@ -287,6 +288,12 @@ const TELEPORT_STRANDED = '[teleport] stranded';
  * upstream of it.
  */
 const LIVENESS_STALL = '[liveness] stall';
+/**
+ * The annotation of a spec whose SUBJECT is the arbiter's stall (it plants one on purpose and reads what the journal
+ * made of it): `test.info().annotations.push({type: EXPECTS_LIVENESS_STALL, description: '<why>'})` before the plant.
+ * The guard then lets the line pass. Never a way to quiet a red: a stall nobody planted is the product's.
+ */
+export const EXPECTS_LIVENESS_STALL = 'expects-liveness-stall';
 /**
  * The START SHADOW's marker (`src/client/console/startDirector.ts`, phase 0 of «правда сервера → одно состояние → один
  * владелец экрана», 2026-10-29): who the server's one question says must serve the screen disagreed, for a while, with
@@ -534,7 +541,40 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, waitGraphHarvest: void, pageErrorHarvest: void, stillHoldHarvest: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, vueErrorGuard: void, stallHarvest: void, productReloadGuard: void, timingLedger: void, cpuThrottle: void, hungPageWatch: void}, {workerServer: WorkerServer, workerBuild: string}>({
+/**
+ * What the test's pages marked of the kernel's state space — the union over the pages that still answer (a page that
+ * hangs or was closed is skipped: a read bounded by its own few seconds, never by the test's).
+ */
+async function readCoverage(pages: ReadonlyArray<Page>): Promise<{keys: Array<string>, machines: Record<string, Array<string>>, frames: Array<string>} | undefined> {
+  type Report = {keys: Array<string>, machines: Record<string, Array<string>>, frames: Array<string>};
+  const keys = new Set<string>();
+  let machines: Record<string, Array<string>> | undefined;
+  let frames: Array<string> | undefined;
+  for (const page of pages) {
+    if (page.isClosed()) {
+      continue;
+    }
+    const read = page.evaluate(() => (window as unknown as {__conCoverage?: () => unknown}).__conCoverage?.() ?? null).catch(() => null) as Promise<Report | null>;
+    const report = await Promise.race([read, new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000))]);
+    if (report === null || !Array.isArray(report.keys)) {
+      continue;
+    }
+    report.keys.forEach((key) => keys.add(key));
+    machines ??= report.machines;
+    frames ??= report.frames;
+  }
+  return machines === undefined ? undefined : {keys: [...keys].sort(), machines, frames: frames ?? []};
+}
+
+/** The cause harvest as a spec sees it (`causeHarvest` fixture). */
+export type CauseHarvestHandle = {
+  /** What the test's pages named so far. */
+  records: () => Array<CauseRecord>,
+  /** Facts of the spec's own, written beside the records in the test's file (`cause-classes/…json`). */
+  note: (facts: Record<string, unknown>) => void,
+};
+
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, waitGraphHarvest: void, pageErrorHarvest: void, stillHoldHarvest: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, vueErrorGuard: void, stallHarvest: void, productReloadGuard: void, timingLedger: void, cpuThrottle: void, hungPageWatch: void, causeHarvest: CauseHarvestHandle}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -766,6 +806,35 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     console.log(`[product-reload] the page replaced itself during the test — every page-side witness was reset: ${line}`);
   }, {auto: true}],
 
+  /**
+   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: the CAUSE CLASSES the page named (`causeHarvest.ts`) are FILED under
+   * `<outputDir>/cause-classes/` with the very key the field files a stall under — a red spec finds its field cases,
+   * a field case its spec. DATA, never red by itself. A spec that wants its own facts beside the records (the monkey:
+   * its seed, its presses) asks for the fixture and calls `note`.
+   */
+  causeHarvest: [async ({context}, use, testInfo) => {
+    const harvest = armCauseHarvest(context);
+    const extra: Record<string, unknown> = {};
+    // HOW MUCH OF THE KERNEL'S STATE SPACE THE TEST WALKED (`TM_E2E_COVERAGE=1` — the monkey sets it): every page of the
+    // context is told to mark its coverage (`src/client/console/flowCoverageProbe.ts`), and what it marked is read when
+    // the test is over and filed beside the cause classes — `scripts/monkey-report.mjs` sums it into «N % walked».
+    const coverage = process.env.TM_E2E_COVERAGE === '1';
+    if (coverage) {
+      await context.addInitScript(() => {
+        try {
+          sessionStorage.setItem('tm_coverage', '1');
+        } catch {
+          // a page with no storage marks nothing
+        }
+      });
+    }
+    await use({records: harvest.records, note: (facts) => Object.assign(extra, facts)});
+    if (coverage) {
+      extra.coverage = await readCoverage(context.pages());
+    }
+    fileCauseRecords(testInfo, harvest.close(), extra);
+  }, {auto: true}],
+
   stallHarvest: [async ({context}, use, testInfo) => {
     const t0 = Date.now();
     const seen: Array<{at: number, text: string}> = [];
@@ -917,7 +986,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
    * (`[liveness] stall` — what was asked, what stood, what was last in flight, which rung of the cure ran) and cures
    * it; the harness turns the report red, because the cure is the player's frozen screen with a way out.
    */
-  livenessGuard: [async ({context}, use) => {
+  livenessGuard: [async ({context}, use, testInfo) => {
     const stalls: Array<string> = [];
     const watch = (page: Page) => {
       page.on('console', (message) => {
@@ -930,7 +999,9 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     context.pages().forEach(watch);
     context.on('page', watch);
     await use();
-    if (stalls.length > 0) {
+    // A POSITIVE CONTROL OF THE ARBITER ITSELF says so (`EXPECTS_LIVENESS_STALL` — the stall's own event is its
+    // subject: `console-stall-cause.spec`); every other test is red on the arbiter's line.
+    if (stalls.length > 0 && !testInfo.annotations.some((a) => a.type === EXPECTS_LIVENESS_STALL)) {
       throw new Error(`LIVENESS STALL — the player could not act and nothing was in flight:\n  ${stalls.join('\n  ')}`);
     }
   }, {auto: true}],

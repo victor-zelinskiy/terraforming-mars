@@ -120,6 +120,16 @@ when you add a primitive, add its operation to that model.
 
 ## 6. Diagnosis
 
+**Coverage — the state space as a number** (`kernel/flowCoverage.ts`, `console/flowCoverageProbe.ts`; FREEZE ZERO §3.1):
+asked for by the e2e harness (`TM_E2E_COVERAGE=1` — the monkey always asks), every step of the trace marks a KEY with
+what varies between two runs of one flow taken out — `open <kind:label>` · `end <kind:label> <how>` · `state <kind:label>
+<from> → <to>` · `wait <kind:label> <family>` · `bound` · `cycle` — and `window.__conCoverage()` answers the keys beside
+the UNIVERSE the page knows (every move the registered machines can make; every workspace frame). The universe of the
+flows is what the sources declare (`scripts/flow-universe.mjs` — the literal labels of `createFlowRun` / `deriveFlowRun` /
+`useFlowScope` / `scopedState` / `owedAnswer` / the holds / `owePresentation` / `.open`). `scripts/monkey-report.mjs`
+sums a run: «N % of the declared flows were opened, M % of each machine's moves were made», and the list of what was
+NEVER reached. A new flow is in the universe the day it is written — nothing to register. Off in a player's game.
+
 `flowTrace()` / `flowTraceLines()` — the ring of opens, ends (with reasons), waits and machine transitions;
 `flowTraceStats` — counts; `[flow] …` console lines for anomalies (a task that threw, a cleanup that threw, a law
 violation at run time, a refused cycle, a bound that ended a wait). `window.__conFlow()` returns the tree

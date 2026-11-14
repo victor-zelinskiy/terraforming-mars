@@ -144,6 +144,10 @@ function installMainLog(): string {
 
 /** The probe waits this long after the page loaded (the boot, the embedded server's first answers) before it asks. */
 const PROBE_SETTLE_MS = 9_000;
+/** `TM_DIAG_PROBE=stall`: how long the control stop spins the page (past Chromium's own hung-renderer delay). */
+const PROBE_STOP_MS = 24_000;
+/** …and how long the probe then waits for the two episodes' events to leave (the hub's settle + the request). */
+const PROBE_SETTLE_AFTER_MS = 12_000;
 
 /**
  * `TM_DIAG_PROBE=1` — THE WHOLE ROAD, PROVEN BY THE APP ITSELF, with no hand on a pad: once the page has loaded, the
@@ -168,6 +172,29 @@ function runProbe(win: BrowserWindow, quit: (reason: string) => void): void {
         console.log(`[diagnostics] probe: connection check → ${JSON.stringify(await ask('window.__conDiagnostics.selfTest()'))}`);
         // eslint-disable-next-line no-console
         console.log(`[diagnostics] probe: report → ${JSON.stringify(await ask('window.__conDiagnostics.report("other", "TM_DIAG_PROBE — a probe report, not a player")'))}`);
+        if (process.env.TM_DIAG_PROBE === 'stall') {
+          // THE ROAD OF A FREEZE (`TM_DIAG_PROBE=stall`): a control stall through the page's own console — one episode,
+          // filed under its cause class with how it ended — and a control STOP of the renderer: the page spins, the
+          // watch names it and records Chromium's trace, the hub sends the stop with the trace attached.
+          // eslint-disable-next-line no-console
+          console.log(`[diagnostics] probe: a control stall → ${JSON.stringify(await ask('window.__conDiagnostics.stall()'))}`);
+          // eslint-disable-next-line no-console
+          console.log('[diagnostics] probe: a control stop of the renderer (the page spins for 24 s)…');
+          const spun = ask(`window.__conDiagnostics.hang(${PROBE_STOP_MS})`);
+          // (Chromium looks for a hung renderer when an input event is not answered: the probe sends one.)
+          setTimeout(() => {
+            try {
+              win.webContents.sendInputEvent({type: 'keyDown', keyCode: 'Shift'});
+              win.webContents.sendInputEvent({type: 'keyUp', keyCode: 'Shift'});
+            } catch {
+              // The window went away — the probe ends with what it has.
+            }
+          }, 500);
+          // eslint-disable-next-line no-console
+          console.log(`[diagnostics] probe: the page answered again → ${JSON.stringify(await spun)}`);
+          // …and the two episodes leave after their settle (the hub waits to learn how each ended, and for the trace).
+          await new Promise((resolve) => setTimeout(resolve, PROBE_SETTLE_AFTER_MS));
+        }
         // eslint-disable-next-line no-console
         console.log('[diagnostics] probe: done — quitting');
         quit('diagnostics probe');
@@ -429,7 +456,7 @@ function install(deps: DiagnosticsMainDeps): DiagnosticsMain {
     attachWindow: (win, consoleExporter) => {
       window = win;
       exporter = consoleExporter;
-      if (process.env.TM_DIAG_PROBE === '1') {
+      if (process.env.TM_DIAG_PROBE === '1' || process.env.TM_DIAG_PROBE === 'stall') {
         runProbe(win, deps.quit);
       }
       win.on('closed', () => {

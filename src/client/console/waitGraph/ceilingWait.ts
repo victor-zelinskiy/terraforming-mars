@@ -27,6 +27,14 @@ export type CeilingWaitSpec = {
   target?: 'motion' | 'server' | 'player',
   family?: WaitNode['family'],
   detail?: string,
+  /**
+   * THIS WAIT'S CEILING IS ITS HONEST END — say why (one phrase). A ceiling is a safety, never a schedule: a line of an
+   * undeclared wait is a defect upstream (an EVENT — `common/diagnostics/shapes.ts`). A wait for something only the
+   * PLAYER decides the time of (a foreign tile waiting for a board the viewer keeps covered) reaches its ceiling by
+   * design; declared so, its line is COUNTED and never an event. Declaring it is a decision to defend in review —
+   * never a way to silence a line.
+   */
+  planned?: string,
 };
 
 export type CeilingWait = {
@@ -78,7 +86,7 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
         ceilingStats.recent.shift();
       }
       console.warn(`[wait-graph] ceiling ${spec.id} (${spec.owner}${detail !== undefined && detail !== '' ? `: ${detail}` : ''}) — ` +
-        `«${spec.what}» did not come in ${spec.maxMs} ms — the wait ended on its ceiling`);
+        `«${spec.what}» did not come in ${spec.maxMs} ms — the wait ended on its ceiling${spec.planned !== undefined ? ` (planned: ${spec.planned})` : ''}`);
     },
     end: () => {
       if (open) {

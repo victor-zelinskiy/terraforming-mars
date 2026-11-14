@@ -76,9 +76,14 @@ function raise(entry: DiagEntry, change: DiagChange): void {
   if (!devNoticeShows(devNoticeState.mode, entry.kind) || entry.family === 'selftest') {
     return;
   }
+  // A PLANNED wait that reached its declared ceiling, and a net's own echo, are not what the developer is called for
+  // (`common/diagnostics/shapes.ts` — the tier): they stand in the journal, the notice rises for a DEFECT.
+  if (entry.cause !== undefined && entry.cause.tier !== 'defect') {
+    return;
+  }
   const v = devNoticeView;
-  // A plain repeat of the record already on the plate changes its count, not the notice's pose.
-  if (change === 'update' && entry.episode === undefined) {
+  // A plain repeat of the record already on the plate (or one more line folded into it) changes its text, not the notice's pose.
+  if ((change === 'update' || change === 'fold') && entry.episode === undefined) {
     return;
   }
   if (!counted.has(entry.id)) {

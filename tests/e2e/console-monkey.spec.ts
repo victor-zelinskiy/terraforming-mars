@@ -23,6 +23,11 @@ import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, openCons
  * over fixture names). A red names its seed and the whole press log — the walk replays exactly.
  */
 const ENABLED = process.env.TM_E2E_MONKEY === '1';
+// A WALK SAYS HOW MUCH OF THE KERNEL'S STATE SPACE IT WENT THROUGH (the harness's `causeHarvest` reads the page's
+// coverage when asked): the monkey always asks — `TM_E2E_COVERAGE=0` to walk without it.
+if (ENABLED) {
+  process.env.TM_E2E_COVERAGE ??= '1';
+}
 const SEED = process.env.TM_E2E_MONKEY_SEED ?? new Date().toISOString().slice(0, 10);
 const PRESSES = Number(process.env.TM_E2E_MONKEY_PRESSES ?? 120);
 const ONLY = process.env.TM_E2E_MONKEY_ONLY === undefined ? undefined : new RegExp(process.env.TM_E2E_MONKEY_ONLY);
@@ -38,6 +43,15 @@ const DUO = process.env.TM_E2E_MONKEY_DUO === '1';
  * (a stage re-primed from the server, a flow's latch reset under a live question) are walked like any press.
  */
 const RELOAD = process.env.TM_E2E_MONKEY_RELOAD === '1';
+/**
+ * TIME IS PERTURBED ON PURPOSE (docs/claude/console/freeze-zero/PLAN.md §3.2) — a race a quiet box never loses must
+ * lose here. Three knobs, all recorded beside the walk's cause classes (`cause-classes/…json` → `monkey.perturb`):
+ *  · `TM_E2E_MONKEY_NET_MS=<max>` — every API answer the PAGE waits for (its submits, its polls, its view refetch) is
+ *    held a seeded random 0…max ms: a slow server, a lossy LAN. The other seats' own moves (over `request`) are not;
+ *  · `TM_E2E_CPU_THROTTLE=<rate>` — the harness's own (`consoleTest.ts` `cpuThrottle`): a starved renderer;
+ *  · `TM_E2E_MOTION=<x>` — the driver's own: motion stretched (>1) or compressed (<1).
+ */
+const NET_MS = Number(process.env.TM_E2E_MONKEY_NET_MS ?? 0);
 
 /** Every fixture the generator writes — read off the directory, so a new table is walked the day it exists. */
 const FIXTURES: ReadonlyArray<string> = fs.readdirSync(path.resolve(__dirname, 'fixtures'))
@@ -156,7 +170,7 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
   test.skip(!ENABLED, 'opt-in: TM_E2E_MONKEY=1 (hours of box time)');
 
   for (const fixture of FIXTURES) {
-    test(`monkey · ${fixture}`, async ({page, request}) => {
+    test(`monkey · ${fixture}`, async ({page, request, causeHarvest}) => {
       test.setTimeout(6 * 60_000);
       const seed = `${SEED}:${fixture}`;
       const r = rng(seed);
@@ -206,6 +220,15 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
         });
       };
       watch(page, '');
+      // THE SLOW SERVER: each API answer the page waits for is held a seeded moment (its own stream — a walk's presses
+      // replay unchanged with the knob off).
+      if (Number.isFinite(NET_MS) && NET_MS > 0) {
+        const net = rng(`${seed}:net`);
+        await page.context().route('**/api/**', async (route) => {
+          await new Promise((resolve) => setTimeout(resolve, Math.floor(net() * NET_MS)));
+          await route.continue().catch(() => undefined);
+        });
+      }
       // THE DUO: the second seat, when it is a human (never the bot's), walks its own page beside the first.
       const second = DUO && seats.length > 1 && !/marsbot/i.test(seats[1]) ? seats[1] : undefined;
       let page2: Page | undefined;
@@ -225,6 +248,14 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
         // THE LAST WORD: a quiet spell longer than the arbiter's grace — whatever the walk left on screen is judged.
         await cinematicBeat(page, 14_000, 'the last word — a quiet spell past the liveness grace, so the arbiter judges the screen the walk left');
       } finally {
+        // THE WALK'S OWN NUMBERS beside the cause classes its pages named (`cause-classes/…json` — what
+        // `scripts/monkey-report.mjs` sums): «fires per 1000 presses» needs the presses.
+        causeHarvest.note({
+          monkey: {
+            seed, fixture, landing, duo: second !== undefined, reload: RELOAD, presses: log.filter((l) => !l.startsWith('[')).length + log2.length,
+            perturb: {netMs: NET_MS, cpu: Number(process.env.TM_E2E_CPU_THROTTLE ?? 0), motion: process.env.TM_E2E_MOTION ?? ''},
+          },
+        });
         const walkLog = `seed=${seed} landing=${landing}${second !== undefined ? ` duo=${second}` : ''}\n${log.join(' ')}` +
           (log2.length > 0 ? `\nP2 ${log2.join(' ')}` : '');
         // A FILE beside the error context (pulled back with test-results) — the attachment lives in the report only.

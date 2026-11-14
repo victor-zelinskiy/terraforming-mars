@@ -74,8 +74,18 @@ module registers its own release (`registerLivenessRelease({rank, name, release}
 | 25 | `workspace-beat` (shell) | a stalled transient beat torn down through `forceRecoverStuckWorkspace` |
 | 30 | `stack-home` (shell) | the stack goes home; the mandatory plate re-announces whatever the server still asks |
 
-Every rung names itself: `[liveness] stall (<reason>): Ns without progress, N presses; asked: …; beat: …; stranded: …;
-last in flight: …; claim: …; holds: … — rung k: <what each release did>`. The player gets one notice per stall.
+Every rung names itself: `[liveness] stall (<reason>): Ns without progress, N presses; asked: …; task: …; top: …;
+holder: …; beat: …; stranded: …; last in flight: …; claim: …; holds: … — rung k: <what each release did>`. The player
+gets no notice (the heal is silent).
+
+**The line names its HOLDER — the tail of the stall's cause class** (FREEZE ZERO, 2026-11-14 —
+`docs/claude/diagnostics.md` § 2.4). `task` is the router's task kind, `top` the deepest frame on stage (`kind:phase`,
+or `board`), `holder` ONE word by ONE precedence (`supervisor/stallEvidence.ts` `stallHolder`): `stranded[+claim:…]` →
+`dead-frame:<kind>` → `beat` → `awaiting:<from>` → `block:<name>` → `claim:<host>:<stage>` → `hold:<label>` → `deaf` →
+`none`. The holder, the claim, the holds and the EVIDENCE (the flow tree, the waits, the trace) are read BEFORE the
+rung runs: read after, they would describe the cure — a claim the rung released would name no claim at all. The
+episode's event is filed under `liveness/stall/<reason>/<task>/<top>/<holder>`, so every «unserved, asked card» is no
+longer one issue whatever held the question.
 
 ## 4. What it does not replace
 

@@ -93,6 +93,13 @@ on it by construction (`waitQuiet` and its wrappers, `waitScreenHandoff`). **Gua
 `Promise.race(` outside the primitive; every `wait…` / `await…` helper whose body carries a ceiling reaches the
 primitive or is listed with its reason.
 
+**A ceiling that is the wait's HONEST end is declared so** (FREEZE ZERO, 2026-11-14): `CeilingWaitSpec.planned:
+'<why>'` — the line ends `(planned: …)`, its tier is `planned` (`common/diagnostics/shapes.ts`): COUNTED in the
+session's ledger, never an event, never the developer's notice. Only a wait for something the PLAYER decides the time
+of qualifies (a foreign tile / a nomad's move waiting for a board the viewer keeps covered:
+`remote-placement:watchable-board`, `nomad-move:watchable-board`); every other ceiling line stays a defect upstream,
+filed under `wait-graph/ceiling/<the wait's id>`.
+
 ## 2c. `dead-end` is ARMED (2026-11-09)
 
 A question the server asks with nothing on screen accepting, nothing holding it (no plate, no «set aside», no admission

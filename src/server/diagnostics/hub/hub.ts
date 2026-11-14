@@ -4,7 +4,8 @@
  *   the page ──(records, as they are made)──┐
  *   the host process (`note('main', …)`) ───┼─→ MIRROR (this app run's journal, every runtime) ──→ the page adopts it
  *   the game server (`note('server', …)`) ──┘         │
- *                                                     ├─→ POLICY (kind · consent · budgets) → SCRUB → the collector
+ *                                                     ├─→ LEDGER (every record COUNTED by its cause class — `sessionLedger.ts`)
+ *                                                     ├─→ POLICY (kind · tier · consent · budgets) → SCRUB → the collector
  *   «Сообщить о проблеме» ──→ the PACKAGE (a folder on the device + the same files as attachments, unscrubbed)
  *   «Проверка связи» ──→ one test event per runtime, each answered «доставлено» / why not
  *
@@ -15,8 +16,14 @@
  *    also governs what the host process and the crash uploader send before any page exists.
  *  · NOTHING AUTOMATIC CARRIES A KEY OR A NAME — the finished event is scrubbed (`privacy.ts`) with what the page said
  *    is on its table; only an explicit report carries the full package.
- *  · ONE INCIDENT — ONE EVENT. A record is sent once; a liveness episode once, when it ends (or when it has stood half
- *    a minute); a session and a day have budgets, so a loop cannot spend the collector's quota.
+ *  · ONE INCIDENT — ONE EVENT, ONE CAUSE — ONE ISSUE. A record is sent once; an episode once, when it ends (or when it
+ *    has stood half a minute); a stall is filed under its CAUSE CLASS (`common/diagnostics/cause.ts`), never under its
+ *    wording.
+ *  · NOISE NEVER SPENDS A DEFECT'S BUDGET. A PLANNED wait that reached its declared ceiling and a net's own echo are
+ *    never events (the shape's tier — `shapes.ts`): they are counted in the ledger. The budgets are per cause class
+ *    and per run, so one loop cannot spend the collector's quota and one family cannot evict another's defect.
+ *  · «FEWER?» HAS A DENOMINATOR. The run's ledger (play time, every class's count, every episode's outcome) leaves as
+ *    one event of kind `session` at the next launch.
  *
  * It runs in the Electron main process today (`electron/diagnosticsMain.ts` is its host); the same module is what a
  * hosted server will run. Contract: `docs/claude/diagnostics.md`.
@@ -26,10 +33,11 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import {episodeCure} from '@/common/diagnostics/cause';
 import {debugIdsOf} from '@/common/diagnostics/debugIds';
-import {DiagDelivery, DiagEntry} from '@/common/diagnostics/DiagnosticModel';
+import {DiagDelivery, DiagEntry, DiagEpisodeOutcome} from '@/common/diagnostics/DiagnosticModel';
 import {DiagChange, DiagJournal} from '@/common/diagnostics/journal';
-import {fingerprintId, scrubDeep, ScrubContext} from '@/common/diagnostics/privacy';
+import {fingerprintId, scrubDeep, ScrubContext, scrubText} from '@/common/diagnostics/privacy';
 import {
   DiagContext, DiagHubStatus, DiagPush, DiagReportRequest, DiagReportResult, DiagSelfTestResult, DiagSelfTestRow, DiagSend, reportCodeFrom,
 } from '@/common/diagnostics/protocol';
@@ -38,20 +46,43 @@ import {EnvelopeAttachment, EnvelopeSender, eventEnvelope, SendOutcome} from './
 import {HubConfig, parseDsn, resolveHubConfig} from './hubConfig';
 import {DiagnosticsHub, HubHost} from './hubTypes';
 import {describeParts, gatherReportParts, ReportPart, tailWithin, writeReportFolder} from './reportPackage';
-import {EventFacts, eventOf, reportEventOf} from './sentryEvent';
+import {EventFacts, eventOf, reportEventOf, SaveRef, sessionEventOf} from './sentryEvent';
+import {
+  ledgerNote, ledgerPulse, ledgerSent, ledgerWorthSending, newLedgerSeen, newSessionLedger, PlayClock, SessionLedger,
+} from './sessionLedger';
 
 /** Records the mirror keeps for the app run (every runtime together). */
 export const MIRROR_MAX = 400;
-/** Automatic events one app run may send, one fingerprint may send, one family may send. */
+/** Automatic events one app run may send, and one DEFECT may send (a cause class; for an exception, its own frame). */
 export const SESSION_EVENTS_MAX = 40;
 export const KEY_EVENTS_MAX = 2;
-export const FAMILY_EVENTS_MAX = 8;
 /** …and one device in one day (kept on disk: a crash loop relaunching the app must not spend the quota). */
 export const DAILY_EVENTS_MAX = 200;
 /** An episode still open after this long is sent as «standing» — the player may never see it end. */
 export const EPISODE_STANDING_MS = 30_000;
 /** On the owner's machine an automatic event carries the console's dump — at most this often. */
 export const BOX_DUMP_EVERY_MS = 10 * 60_000;
+/**
+ * A stall's record leaves this long after it was born: what the next seconds still say of it — the other detectors of
+ * the same incident (a stranded question is named by the leak detector at once, by the screen's shadow and the wait
+ * graph three passes later), the door's result after the finding that asked for it — is a line of the same record,
+ * and of the same event.
+ */
+export const STALL_SETTLE_MS = 5_000;
+/**
+ * …and an episode this long after it closed: the trace of a stop is written seconds after the stop, and an app that
+ * is closing under an episode says so within that time (`reload` → `quit`).
+ */
+export const EPISODE_SETTLE_MS = 4_000;
+/** The trace of a renderer's stop that may ride its event: on the owner's machine, and on a player's (within `DAILY_FILES_MAX`). */
+export const HANG_TRACE_BOX_MAX = 24 * 1024 * 1024;
+export const HANG_TRACE_MAX = 8 * 1024 * 1024;
+/** Files (a trace) a player's device may attach to automatic events in one day. The owner's machine is not capped. */
+export const DAILY_FILES_MAX = 2;
+/** One read of the save answers every defect born within this of it (`noteSaveRef`). */
+const SAVE_REF_SHARED_MS = 2_000;
+/** The ledger is written no more often than this while it changes. */
+const LEDGER_SAVE_MS = 5_000;
 
 export type HubDeps = {
   now?: () => number;
@@ -65,46 +96,54 @@ export type AutoDecision =
   'send' |
   /** Not yet — an episode that is still young. */
   'wait' |
-  /** Never: this kind is not sent, it was sent already, or a budget is spent. */
+  /** Never: this kind / tier is not sent, it was sent already, or a budget is spent. */
   {skip: 'policy' | 'budget'};
 
 export type PolicyState = {
   sent: Set<string>;
   perKey: Map<string, number>;
-  perFamily: Map<string, number>;
   total: number;
 };
 
 export function newPolicyState(): PolicyState {
-  return {sent: new Set(), perKey: new Map(), perFamily: new Map(), total: 0};
+  return {sent: new Set(), perKey: new Map(), total: 0};
 }
 
-/** The key two records of one defect share (the budget's unit). */
+/**
+ * The key two records of ONE defect share (the budget's unit): the cause class of a stall / integrity line, the frame
+ * of our own code for an exception, the normalised words for anything else.
+ */
 export function policyKey(entry: DiagEntry): string {
   const frames = parseStack(entry.stack);
+  if (frames.length === 0 && entry.cause !== undefined) {
+    return `${entry.runtime}|${entry.kind}|${entry.cause.cls}`;
+  }
   const own = frames.find((f) => f.inApp) ?? frames[0];
   return `${entry.runtime}|${entry.kind}|${entry.family}|${own !== undefined ? `${own.fn}@${own.file}` : normalizeMessage(entry.title)}`;
 }
 
 /**
  * WHAT IS SENT BY ITSELF. Errors and integrity warnings when they are born; a stall when it is over (or has stood
- * `EPISODE_STANDING_MS`); a performance line and a module's note never — they ride the next event as its trail.
- * Pure: the budgets are in `state`, which `noteSent` moves.
+ * `EPISODE_STANDING_MS`) — and only a DEFECT: a planned wait and a net's echo are counted, never sent; a performance
+ * line and a module's note never — they ride the next event as its trail. Pure: the budgets are in `state`, which
+ * `noteSent` moves.
  */
 export function autoDecision(entry: DiagEntry, change: DiagChange, state: PolicyState): AutoDecision {
   if (entry.kind === 'perf' || entry.kind === 'note' || entry.family === 'selftest' || state.sent.has(entry.id)) {
+    return {skip: 'policy'};
+  }
+  if (entry.cause !== undefined && entry.cause.tier !== 'defect') {
     return {skip: 'policy'};
   }
   if (entry.episode !== undefined && entry.episode.state === 'open') {
     if (entry.episode.durationMs < EPISODE_STANDING_MS) {
       return 'wait';
     }
-  } else if (change === 'update') {
-    // A repeat of a record that was already judged when it was born.
+  } else if (change === 'update' || change === 'fold') {
+    // A repeat of — or one more line of — a record that was already judged when it was born.
     return {skip: 'policy'};
   }
-  if (state.total >= SESSION_EVENTS_MAX || (state.perKey.get(policyKey(entry)) ?? 0) >= KEY_EVENTS_MAX ||
-      (state.perFamily.get(entry.family) ?? 0) >= FAMILY_EVENTS_MAX) {
+  if (state.total >= SESSION_EVENTS_MAX || (state.perKey.get(policyKey(entry)) ?? 0) >= KEY_EVENTS_MAX) {
     return {skip: 'budget'};
   }
   return 'send';
@@ -115,10 +154,9 @@ export function noteSent(entry: DiagEntry, state: PolicyState): void {
   state.total++;
   const key = policyKey(entry);
   state.perKey.set(key, (state.perKey.get(key) ?? 0) + 1);
-  state.perFamily.set(entry.family, (state.perFamily.get(entry.family) ?? 0) + 1);
 }
 
-type StoredState = {consent?: boolean, day?: string, sentToday?: number};
+type StoredState = {consent?: boolean, day?: string, sentToday?: number, filesToday?: number};
 
 function sha256(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -132,6 +170,11 @@ function readJson<T>(file: string): T | undefined {
   }
 }
 
+/** `page-<session>-<n>` → `<session>` ('' for a record of another runtime). */
+function pageSessionOf(id: string): string {
+  return /^page-(.+)-\d+$/.exec(id)?.[1] ?? '';
+}
+
 export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): DiagnosticsHub {
   const now = deps.now ?? (() => Date.now());
   const random = deps.random ?? Math.random;
@@ -143,6 +186,7 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
   const dir = path.join(host.dataDir, 'diagnostics');
   const reportsDir = path.join(dir, 'reports');
   const stateFile = path.join(dir, 'state.json');
+  const ledgerFile = path.join(dir, 'session.json');
   const config: HubConfig = resolveHubConfig({
     packaged: host.packaged, dsn: host.dsn, version: host.version,
     machineFile: readJson<{environment?: unknown}>(path.join(host.dataDir, 'diagnostics.json')),
@@ -162,13 +206,24 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
     }
   };
   const today = (): string => new Date(now()).toISOString().slice(0, 10);
-  const dailyRoom = (): boolean => (stored.day === today() ? (stored.sentToday ?? 0) : 0) < DAILY_EVENTS_MAX;
-  const noteDaily = (): void => {
+  const newDay = (): void => {
     if (stored.day !== today()) {
       stored.day = today();
       stored.sentToday = 0;
+      stored.filesToday = 0;
     }
+  };
+  const dailyRoom = (): boolean => (stored.day === today() ? (stored.sentToday ?? 0) : 0) < DAILY_EVENTS_MAX;
+  const noteDaily = (): void => {
+    newDay();
     stored.sentToday = (stored.sentToday ?? 0) + 1;
+    saveState();
+  };
+  /** May one more FILE ride an automatic event today? The owner's machine is never capped (the owner, 2026-11-14). */
+  const fileRoom = (): boolean => config.environment === 'box' || (stored.day === today() ? (stored.filesToday ?? 0) : 0) < DAILY_FILES_MAX;
+  const noteFile = (): void => {
+    newDay();
+    stored.filesToday = (stored.filesToday ?? 0) + 1;
     saveState();
   };
 
@@ -183,6 +238,32 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
   let context: DiagContext | undefined;
   let lastBoxDumpAt = 0;
   const waiters: Array<{test: (entry: DiagEntry) => boolean, resolve: (entry: DiagEntry) => void}> = [];
+  /** Records whose event waits for its settle: id → the cancel of its timer. */
+  const pending = new Map<string, () => void>();
+  /** Where the game's save stood when an episode began: record id → the reference its event carries. */
+  const saveRefs = new Map<string, SaveRef>();
+  /** The page session the last record of the page came from ('' = none yet). */
+  let pageSession = '';
+
+  // ── the session's ledger ─────────────────────────────────────────────────────────────────────────────────────────
+  const earlier = readJson<SessionLedger>(ledgerFile);
+  const ledger = newSessionLedger(session, {release: config.release, environment: config.environment, appMode: host.appMode()}, now());
+  const ledgerSeen = newLedgerSeen();
+  let play: PlayClock = {at: now(), inGame: false};
+  let cancelLedgerSave: (() => void) | undefined;
+  const saveLedger = (): void => {
+    cancelLedgerSave?.();
+    cancelLedgerSave = undefined;
+    try {
+      fs.mkdirSync(dir, {recursive: true});
+      fs.writeFileSync(ledgerFile, JSON.stringify(ledger));
+    } catch {
+      // The run's count is lost with the run — nothing of the game depends on it.
+    }
+  };
+  const touchLedger = (): void => {
+    cancelLedgerSave ??= schedule(LEDGER_SAVE_MS, saveLedger);
+  };
 
   const status = (): DiagHubStatus => ({
     environment: config.environment,
@@ -236,6 +317,8 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
       gameRef: context !== undefined && context.gameId !== '' ? fingerprintId(context.gameId, sha256) : '',
       seatRef: context !== undefined && context.participantId !== '' ? fingerprintId(context.participantId, sha256) : '',
       debugIds, trail, selfTest,
+      run: session,
+      ...(entry !== undefined && saveRefs.has(entry.id) ? {save: saveRefs.get(entry.id)} : {}),
     };
   }
 
@@ -245,7 +328,9 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
   }
 
   /** One record as one event, scrubbed, to the collector. `force` = «Проверка связи» (no consent, no budget asked). */
-  async function sendEntry(entry: DiagEntry, force: boolean): Promise<DiagDelivery> {
+  async function sendEntry(given: DiagEntry, force: boolean): Promise<DiagDelivery> {
+    // The record as it stands NOW: lines folded into it since it was judged are part of its event.
+    const entry = mirror.get(given.id) ?? given;
     const eventId = crypto.randomUUID().replace(/-/g, '');
     const scrub = scrubContext();
     const event = scrubDeep(eventOf(entry, facts(eventId, entry, force)), scrub, sha256);
@@ -263,6 +348,19 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
         // The event leaves without it.
       }
     }
+    // A RENDERER'S STOP ARRIVES WITH ITS TRACE: the stall no net of the page can report (the page did not run) is
+    // readable only from Chromium's own record of those seconds — scrubbed like every automatic payload.
+    if (!force && entry.cause?.shape === 'renderer-hang/unresponsive' && fileRoom()) {
+      try {
+        const trace = await host.recentHangTrace(entry.at - 15_000, config.environment === 'box' ? HANG_TRACE_BOX_MAX : HANG_TRACE_MAX);
+        if (trace !== undefined) {
+          attachments.push({filename: 'hang_trace.json', data: scrubText(Buffer.from(trace.data).toString('utf8'), scrub, sha256), contentType: 'application/json'});
+          noteFile();
+        }
+      } catch {
+        // The event leaves without it.
+      }
+    }
     const outcome = await sender.send(eventEnvelope(event, attachments, now()), 'auto', eventId);
     const delivery: DiagDelivery = outcome.state === 'sent' ? {state: 'sent', eventId} :
       (outcome.state === 'queued' ? {state: 'queued', eventId} : {state: 'held', reason: 'disabled'});
@@ -270,7 +368,72 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
     return delivery;
   }
 
-  /** A record entered or changed: mirror it, and let the policy decide. */
+  /** The app is ending: the record's event goes straight to the outbox (no request can be awaited) and leaves at the next launch. */
+  function parkEntry(given: DiagEntry): void {
+    const entry = mirror.get(given.id) ?? given;
+    const eventId = crypto.randomUUID().replace(/-/g, '');
+    const event = scrubDeep(eventOf(entry, facts(eventId, entry, false)), scrubContext(), sha256);
+    const outcome = sender.park(eventEnvelope(event, [], now()), 'auto', eventId);
+    setDelivery(entry, outcome.state === 'queued' ? {state: 'queued', eventId} : {state: 'held', reason: 'disabled'});
+  }
+
+  /** The record's event leaves after `ms` — once, with whatever the record has become by then. */
+  function sendLater(entry: DiagEntry, ms: number): void {
+    if (pending.has(entry.id)) {
+      return;
+    }
+    pending.set(entry.id, schedule(ms, () => {
+      pending.delete(entry.id);
+      const current = mirror.get(entry.id);
+      if (current !== undefined) {
+        void sendEntry(current, false);
+      }
+    }));
+  }
+
+  /**
+   * WHERE THE GAME'S SAVE STOOD WHEN A DEFECT WAS BORN (a hosting device only): the game by its fingerprint and the
+   * number of its newest save. The server keeps every save of a game (`db/files/history/<game>-<n>.json`), so the
+   * reference stays good — `npm run diag -- save` fetches that very file from a machine the agent can read, and a
+   * save never rides an automatic event (it is the table's keys and names).
+   *
+   * EVERY defect asks, not only an episode: a finding a door cured within its tick is exactly the case nobody can
+   * reproduce by hand (2026-11-14: the probe's findings arrived with no way back to the table). One read answers every
+   * record born within a moment of it — a burst of findings is one position of the save, and one file read.
+   */
+  let saveRead: {at: number, seat: string, ref: Promise<SaveRef | undefined>} | undefined;
+  function noteSaveRef(entry: DiagEntry): void {
+    const seat = context?.participantId ?? '';
+    if (host.appMode() !== 'host' || seat === '' || saveRefs.has(entry.id)) {
+      return;
+    }
+    // (Asked at once; the answer is a file read in the host's own time.)
+    saveRefs.set(entry.id, {game: '', saveId: -1});
+    if (saveRead === undefined || saveRead.seat !== seat || now() - saveRead.at > SAVE_REF_SHARED_MS) {
+      saveRead = {
+        at: now(), seat,
+        ref: host.readSave(seat).then((save) => {
+          if (save === undefined) {
+            return undefined;
+          }
+          const lastSaveId = /"lastSaveId":\s*(\d+)/.exec(Buffer.from(save.data).toString('utf8'))?.[1];
+          return {game: fingerprintId(save.gameId, sha256), saveId: lastSaveId === undefined ? -1 : Number(lastSaveId)};
+        }).catch(() => undefined),
+      };
+    }
+    void saveRead.ref.then((ref) => {
+      if (ref === undefined) {
+        saveRefs.delete(entry.id);
+        return;
+      }
+      saveRefs.set(entry.id, ref);
+      if (saveRefs.size > 40) {
+        saveRefs.delete(saveRefs.keys().next().value ?? '');
+      }
+    });
+  }
+
+  /** A record entered or changed: mirror it, count it, and let the policy decide. */
   function accept(entry: DiagEntry, change: DiagChange): void {
     const known = mirror.get(entry.id);
     if (known !== undefined && known.delivery !== undefined && entry.delivery === undefined) {
@@ -284,6 +447,11 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
         break;
       }
       mirror.delete(oldest);
+    }
+    ledgerNote(ledger, ledgerSeen, entry, now());
+    touchLedger();
+    if (change === 'new' && (entry.episode !== undefined || entry.cause?.tier === 'defect')) {
+      noteSaveRef(entry);
     }
     for (let i = waiters.length - 1; i >= 0; i--) {
       if (waiters[i].test(entry)) {
@@ -317,7 +485,44 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
     }
     noteSent(entry, policy);
     noteDaily();
-    void sendEntry(entry, false);
+    ledgerSent(ledger, entry);
+    // An exception leaves at once. A stall leaves when its own tick has finished speaking; an episode when it is
+    // known how it ended for the player.
+    const settle = entry.episode !== undefined ? (entry.episode.state === 'open' ? 0 : EPISODE_SETTLE_MS) : (entry.kind === 'stall' ? STALL_SETTLE_MS : 0);
+    if (settle === 0) {
+      void sendEntry(entry, false);
+    } else {
+      sendLater(entry, settle);
+    }
+  }
+
+  /** An episode's page (or the app) went away under it: it ends as that, and is judged like any closed episode. */
+  function endEpisode(entry: DiagEntry, outcome: DiagEpisodeOutcome): void {
+    if (entry.episode === undefined || entry.episode.state !== 'open') {
+      return;
+    }
+    entry.episode.state = 'unhealed';
+    entry.episode.outcome = outcome;
+    entry.episode.cure = episodeCure(entry.episode, entry.evidence, undefined);
+    accept(entry, 'close');
+    host.push({kind: 'entry', entry} satisfies DiagPush);
+  }
+
+  /**
+   * A NEW PAGE STANDS. Whatever episode an EARLIER page left open was never closed by it (a renderer that was
+   * restarted, a page that died without its `pagehide`): it ended in a reload.
+   */
+  function pageChanged(next: string): void {
+    if (next === '' || next === pageSession) {
+      return;
+    }
+    pageSession = next;
+    ledger.pages++;
+    for (const entry of [...mirror.values()]) {
+      if (entry.runtime === 'page' && pageSessionOf(entry.id) !== next) {
+        endEpisode(entry, 'reload');
+      }
+    }
   }
 
   function waitFor(test: (entry: DiagEntry) => boolean, ms: number): Promise<DiagEntry | undefined> {
@@ -350,6 +555,26 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
     accept(entry, change);
     host.push({kind: 'entry', entry} satisfies DiagPush);
   }
+
+  /** The earlier run's ledger, as its one event — the run could not send its own (it may have ended in a native stop). */
+  function sendEarlierSession(): void {
+    if (earlier === undefined || typeof earlier.run !== 'string' || earlier.run === session || !ledgerWorthSending(earlier)) {
+      return;
+    }
+    if (!sends || !consent || !dailyRoom()) {
+      return;
+    }
+    noteDaily();
+    const eventId = crypto.randomUUID().replace(/-/g, '');
+    const event = scrubDeep(sessionEventOf(earlier, facts(eventId, undefined, false)), scrubContext(), sha256);
+    void sender.send(eventEnvelope(event, [], now()), 'auto', eventId);
+  }
+  if (sends) {
+    // After the outbox's own first look: the app has settled, and the network is known.
+    schedule(12_000, sendEarlierSession);
+  }
+  // The file is THIS run's from now on (a run that dies before its first record still leaves a ledger of itself).
+  saveLedger();
 
   async function report(request: DiagReportRequest): Promise<DiagReportResult> {
     const code = reportCodeFrom([random(), random(), random(), random(), random(), random()]);
@@ -459,9 +684,18 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
       return;
     }
     if (message.kind === 'entry' && message.entry !== undefined && typeof message.entry.id === 'string') {
+      pageChanged(pageSessionOf(message.entry.id));
+      // A record is a sign of life of its page: the play clock keeps its pose.
+      play = ledgerPulse(ledger, play, now(), play.inGame);
       accept(message.entry, message.change);
     } else if (message.kind === 'context' && message.context !== undefined) {
       context = message.context;
+      play = ledgerPulse(ledger, play, now(), message.context.participantId !== '');
+      touchLedger();
+    } else if (message.kind === 'pulse') {
+      // The page's own minute: a game screen stands and its supervisor ticks (or it does not).
+      play = ledgerPulse(ledger, play, now(), message.inGame === true);
+      touchLedger();
     } else if (message.kind === 'debug-ids' && message.ids !== undefined) {
       for (const [file, id] of Object.entries(message.ids)) {
         debugIds.set(file, String(id));
@@ -475,8 +709,14 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
 
   function answer(verb: string, payload: unknown): unknown {
     switch (verb) {
-    case 'journal':
+    case 'journal': {
+      // A page that asks for the journal is a NEW page: what an earlier one left open ended with it.
+      const asking = String((payload as {session?: unknown} | undefined)?.session ?? '');
+      if (asking !== '') {
+        pageChanged(asking);
+      }
       return [...mirror.values()].sort((a, b) => a.at - b.at);
+    }
     case 'status':
       return status();
     case 'set-consent':
@@ -508,6 +748,9 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
       host.copyToClipboard(entry.text);
       return true;
     }
+    case 'ledger':
+      // The run's count as it stands (the developer's readout, a spec, `npm run diag` on a machine it can read).
+      return JSON.parse(JSON.stringify(ledger)) as SessionLedger;
     default:
       return undefined;
     }
@@ -527,11 +770,33 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
     openJournal: () => host.push({kind: 'open-journal'} satisfies DiagPush),
     shutdown: () => {
       sender.stop();
+      // THE APP IS ENDING. An episode still open ends as that; one that closed in a «reload» moments ago was the
+      // app's own closing (its page left first).
+      for (const entry of [...mirror.values()]) {
+        if (entry.runtime === 'page' && entry.episode !== undefined) {
+          if (entry.episode.state === 'open') {
+            endEpisode(entry, 'quit');
+          } else if (pending.has(entry.id) && entry.episode.outcome === 'reload') {
+            entry.episode.outcome = 'quit';
+          }
+        }
+      }
       for (const journal of [journals.main, journals.server]) {
-        for (const entry of journal.closeOpenEpisodes()) {
+        for (const entry of journal.closeOpenEpisodes('quit')) {
           accept(entry, 'close');
         }
       }
+      // What waited for its settle leaves through the outbox — no request can be awaited now.
+      for (const [id, cancel] of [...pending]) {
+        cancel();
+        const entry = mirror.get(id);
+        if (entry !== undefined) {
+          parkEntry(entry);
+        }
+      }
+      pending.clear();
+      play = ledgerPulse(ledger, play, now(), false);
+      saveLedger();
       return Promise.resolve();
     },
   };

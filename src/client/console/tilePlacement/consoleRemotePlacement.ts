@@ -1682,6 +1682,8 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
   const wait = beginCeilingWait({
     id: 'remote-placement:watchable-board', owner: 'consoleRemotePlacement', what: 'a board free for the landing of another seat',
     maxMs: BOARD_WAIT_MAX_MS, detail: `kept up to ${BOARD_WAIT_KEPT_MAX_MS} ms while the keeper holds`,
+    // The viewer decides how long their own workspace covers the board: past the ceiling the tile is revealed without its flight.
+    planned: 'the viewer keeps the board covered — the tile is revealed without its flight',
   });
   return new Promise<void>((done) => {
     const poll = () => {

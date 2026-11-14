@@ -133,8 +133,11 @@ export type DiagSelfTestResult = {
 
 /** What the page may ask. */
 export type DiagInvoke = {
-  /** Every record of this app run the hub mirrors (earlier page loads, the main process, the server). */
-  journal: {request: undefined, response: Array<DiagEntry>};
+  /**
+   * Every record of this app run the hub mirrors (earlier page loads, the main process, the server). `session` — the
+   * asking page's own journal session: a NEW page stands, so an episode an earlier page left open ended in a reload.
+   */
+  journal: {request: {session: string} | undefined, response: Array<DiagEntry>};
   status: {request: undefined, response: DiagHubStatus};
   'set-consent': {request: boolean, response: DiagHubStatus};
   /** Keep the frame on screen NOW (before a menu covers it) for a report that may follow. */
@@ -154,6 +157,11 @@ export type DiagVerb = keyof DiagInvoke;
 export type DiagSend =
   {kind: 'entry', entry: DiagEntry, change: DiagChange} |
   {kind: 'context', context: DiagContext} |
+  /**
+   * The page's own minute — a sign of life, and whether a game screen stands and ticks under it. What the session's
+   * play time is counted from (`sessionLedger.ts`): a page that hangs sends none, and its silence is not play.
+   */
+  {kind: 'pulse', inGame: boolean} |
   /** The page's script files and their debug ids (file URL → id) — what resolves a stack to `src/…:line`. */
   {kind: 'debug-ids', ids: Record<string, string>};
 

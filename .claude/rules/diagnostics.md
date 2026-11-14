@@ -13,6 +13,11 @@ paths:
   - "tests/server/diagnostics/**"
   - "tests/client/diagnostics/**"
   - "tests/console/diagnosticsClassification.spec.ts"
+  - "tests/console/diagnosticsShapes.spec.ts"
+  - "tests/console/stallEvidence.spec.ts"
+  - "src/client/console/supervisor/stallEvidence.ts"
+  - "tests/e2e/causeHarvest.ts"
+  - "scripts/monkey-report.mjs"
   - "tests/e2e/console-diagnostics.spec.ts"
 ---
 
@@ -69,6 +74,37 @@ a report or a Sentry issue is the skill `diagnose-report` (`npm run diag -- …`
     workflow, a script or a source file fails `diagnosticsClassification.spec` — and a key that was ever pushed is
     ROTATED (`npm run diag -- key rotate` … `key retire`), not just deleted. Contract: `docs/claude/diagnostics.md` § 12.
 
+14. **A NEW STALL / INTEGRITY LINE IS A NEW ROW OF THE SHAPE TABLE** (`src/common/diagnostics/shapes.ts`): its fixed
+    words, which captures are STRUCTURAL (the cause class's tail — a kind, a phase, a label, an id without its run
+    number; never a duration, a counter, a prompt id, a card), which are dimensions, its TIER. A stall is filed under
+    its CAUSE CLASS (`cause.ts` — a PURE function of the line, the same key on the page, in the hub, in the e2e harvest
+    and in the monkey's report); a line no row matches would be `<family>/unshaped` — every cause of a family in one
+    issue. Guard: `tests/console/diagnosticsShapes.spec.ts` fails with the LIST (a line whose distinguishing word is
+    interpolated, or printed through a helper, is declared there with its sample); a row nothing prints fails too.
+    Rewording a line means moving its row in the same diff.
+15. **THE TIER IS A DECISION, NOT A MUTE BUTTON.** `defect` is an event; `planned` (an honest wait reached the ceiling
+    it declared) and `info` (a net's own echo) are COUNTED in the session's ledger and never sent. A row that is not a
+    defect says WHY (guarded); a ceiling wait is `planned` only by its own declaration with a reason
+    (`CeilingWaitSpec.planned` — a wait for something only the PLAYER decides the time of). Never lower a tier to
+    make an issue go away: fix the wait.
+16. **AN ACTING NET TAKES ITS EVIDENCE BEFORE IT ACTS** — `const stood = captureDiagEvidence(); …act…;
+    withDiagEvidence(stood, () => console.warn(line))` (`diagnosticsCapture.ts`). Read after, the evidence describes
+    the cure. A net that only NAMES needs nothing: the interceptor asks the provider when a defect's line is printed.
+    The provider is the supervisor's (`setDiagEvidenceProvider`) — the interceptor still imports nothing of the
+    console — and it is asked once per record, never on a healthy second.
+17. **WHAT MUST NOT SPLIT A CLASS IS A DIMENSION.** The outcome (`healed` · `unhealed` · `reload` · `quit`), who cured
+    it, the source card, how long it stood are TAGS of an event (`cause.ts` `causeDims`, `sentryEvent.ts` `DIM_TAGS`),
+    never words of the class. A new fact a reader should slice by is a dimension; a new fact that distinguishes two
+    CAUSES is a structural capture of the row.
+18. **THE SESSION IS COUNTED WHATEVER WAS SENT** (`sessionLedger.ts`): every record by its class and tier, every
+    episode's outcome, the play time. A new kind of signal the bar should count gets its field in the ledger (and its
+    column in `npm run diag -- trend`), never a second file or a second event of its own.
+19. **WHAT THE COLLECTOR KEEPS OF AN EVENT IS MEASURED, NOT ASSUMED.** One `extra` value is cut at ~16 KB in silence
+    — a long list leaves in parts (`extraLists`), and `diag issue` names every cut it can see (`cutPaths`). The first
+    line of an event's message is the issue's TITLE: it is the class's (`classTitle`), never one occurrence's ending,
+    card or duration. A new field of the event is proven by the probe on the real project (`scripts/diag-probe.mjs`),
+    and `diag issue --event` is how it is read back.
+
 ## Where a signal comes from (do not add a fourth road)
 | runtime | the road |
 | --- | --- |
@@ -79,7 +115,8 @@ a report or a Sentry issue is the skill `diagnose-report` (`npm run diag -- …`
 ## Checks
 ```bash
 npx mocha --import=tsx --require tests/testing/setup.ts tests/common/diagnostics/diagnosticsCore.spec.ts \
-  tests/server/diagnostics/diagnosticsHub.spec.ts tests/console/diagnosticsClassification.spec.ts \
+  tests/common/diagnostics/diagnosticsCause.spec.ts tests/server/diagnostics/diagnosticsHub.spec.ts \
+  tests/console/diagnosticsClassification.spec.ts tests/console/diagnosticsShapes.spec.ts tests/console/stallEvidence.spec.ts \
   tests/electron/diagnosticsHubConform.spec.ts tests/console/fieldRecorder.spec.ts
 npm run test:client:one -- tests/client/diagnostics/diagnosticsClient.spec.ts
 npm run build:diagnostics          # the hub's bundle (after touching src/server/diagnostics or src/common/diagnostics)
