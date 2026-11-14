@@ -55,6 +55,7 @@ describe('startDirector — what the latches put on screen', () => {
     expect(actualStartOwner({...rest, visible: false})).eq('beat');
     expect(actualStartOwner({...rest, parked: true})).eq('parked');
     expect(actualStartOwner({...rest, mounted: false})).eq('game');
+    expect(actualStartOwner({...rest, mounted: false, parked: true}), 'a minimized first action takes the frame off the stack — the player\'s own choice').eq('parked');
     expect(actualStartOwner({...rest, mounted: false, placementLive: true}), 'a placement outside the start is the game\'s — out of the shadow\'s scope').eq('game');
     expect(actualStartOwner({...rest, promptSurface: true, serves: 'queue'}), 'a surface over the scene serves the step').eq('step');
   });

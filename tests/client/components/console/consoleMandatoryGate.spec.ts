@@ -13,6 +13,8 @@ import {
   resetMandatoryGate,
   setMandatoryGateHeld,
   isMandatoryGateHeld,
+  heldFlowWorkspaceOf,
+  FLOW_BEAT_WORKSPACE,
   MandatoryFlowBeat,
 } from '@/client/console/consoleMandatoryGate';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
@@ -223,6 +225,31 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
       markMandatoryBeatPresented(draft.key);
       resetMandatoryGate();
       expect(isMandatoryBeatPresented(draft)).to.be.false;
+    });
+  });
+
+  describe('a flow\'s plate opens ONE workspace — and while it stands, every road into that workspace is its door', () => {
+    // (FREEZE ZERO, the monkey's first class: the Parliament opened from the wheel BESIDE a held sitting plate.)
+    const sitting = {key: 'parliament:gen3', taskKind: 'parliamentPhase', flow: 'parliament-phase'} as const;
+    const draft = {key: 'draft:gen3', taskKind: 'cardSelect', flow: 'draft'} as const;
+
+    it('a HELD flow beat names the workspace its plate opens', () => {
+      expect(heldFlowWorkspaceOf(sitting)).to.eq('parliament');
+      expect(heldFlowWorkspaceOf(draft)).to.eq('draft');
+      expect(Object.keys(FLOW_BEAT_WORKSPACE).sort(), 'every flow kind has its workspace').to.deep.eq(['draft', 'parliament-phase']);
+    });
+
+    it('…an OPENED one names none: the plate is answered, the workspace is the player\'s again', () => {
+      acknowledgeMandatoryBeat(sitting.key);
+      expect(heldFlowWorkspaceOf(sitting)).to.eq(undefined);
+      // The same generation's beat arising again (a rollback) is a NEW pending action — held again.
+      noteMandatoryBeatIdentity(undefined);
+      expect(heldFlowWorkspaceOf(sitting)).to.eq('parliament');
+    });
+
+    it('a TASK beat is never a flow\'s: its plate keeps its own A (an interruptive ask over a frame that is leaving)', () => {
+      expect(heldFlowWorkspaceOf({key: 'task:card|x', taskKind: 'handSelect'})).to.eq(undefined);
+      expect(heldFlowWorkspaceOf(undefined)).to.eq(undefined);
     });
   });
 

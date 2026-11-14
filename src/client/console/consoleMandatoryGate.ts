@@ -107,6 +107,22 @@ export type MandatoryFlowKind =
    */
   | 'parliament-phase';
 
+/**
+ * THE WORKSPACE EACH FLOW'S PLATE OPENS — total over the flow kinds (a new flow cannot compile without its row).
+ * A flow beat's plate has ONE verb, «open the flow's workspace»; so while that plate stands, every road the player
+ * takes into that very workspace IS the plate's door (`heldFlowWorkspaceOf`, `workspaceController.
+ * enterOrRestoreWorkspace`) — you cannot be inside the same workspace twice.
+ */
+export const FLOW_BEAT_WORKSPACE = {
+  'draft': 'draft',
+  'parliament-phase': 'parliament',
+} as const satisfies Record<MandatoryFlowKind, string>;
+
+/** The workspace a HELD flow beat announces — `undefined` for a task beat, an opened beat, no beat. PURE. */
+export function heldFlowWorkspaceOf(beat: MandatoryBeat | undefined): (typeof FLOW_BEAT_WORKSPACE)[MandatoryFlowKind] | undefined {
+  return beat?.flow !== undefined && isMandatoryBeatHeld(beat) ? FLOW_BEAT_WORKSPACE[beat.flow] : undefined;
+}
+
 /** One interruptive mandatory DECISION beat — a stable identity + its task kind. */
 export type MandatoryBeat = {
   /** Stable key for the beat (advances when the pending decision changes). */

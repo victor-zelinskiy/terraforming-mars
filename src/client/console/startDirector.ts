@@ -111,7 +111,12 @@ export function actualStartOwner(s: ActualStartSignals): ActualStartOwner {
   // The start frame is gone: whatever stands — a staged card's cell on the board, the finale's greenery, a card's
   // placement — is the GAME's, never the start's business (the shadow filed «game → board» on three ordinary tables).
   if (!s.mounted) {
-    return 'game';
+    // …unless the PLAYER took it away: «B Свернуть» on the corporation's first action sets the question aside and
+    // takes the start's frame off the stack — the board stands with the restore card («Вернуться к решению»), by the
+    // player's own choice. That is `parked` whether or not a frame is mounted; read as `game` it was «the game on
+    // screen for the start's own question» — a finding (and a defect event) filed for a screen the player asked for
+    // (FREEZE ZERO, the monkey's baseline `fz0 · hydro-terminal-surge`; replayed in `classReplays.bottle.ts`).
+    return s.parked ? 'parked' : 'game';
   }
   if (s.placementLive) {
     return 'board';

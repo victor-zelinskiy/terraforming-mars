@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
-import {armLeakWitness, awaitSittingUp, enterSittingByPass, openParliament, passAs, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armLeakWitness, awaitSittingUp, enterSittingByPass, mandatoryPlate, openParliament, passAs, strandedReports, waitSittingAtRest} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
@@ -244,6 +244,46 @@ ${transferTrail(witness)}`).toBeDefined();
       expect(warns, 'no watchdog recovery, no untold enactment, no ceiling').toEqual([]);
       expect(await strandedReports(page)).toEqual([]);
       await shoot(page, preset.id, '04-enact-remote');
+    });
+
+    /* THE MONKEY'S FIRST CLASS (FREEZE ZERO, the baseline `fz0`: `wait-graph/cycle/announce:parliament:genN/
+     * question:parliamentphase/surface:parliament`). The same table as C — the sitting arrives by the poll, the PLATE
+     * «ПАРЛАМЕНТ · Заседание» is the door in — but the player does not press A on it: they open the Parliament from the
+     * quick wheel, as they do any other minute of the game. That road stood a lateral Parliament BESIDE the door: the
+     * beat stayed held behind the workspace that hid its plate, the question waited for the gate, the frame for its
+     * question — a dead screen for seconds, until the wait graph named the cycle and acknowledged the beat, and a
+     * sitting that then ran with its enactment untold. A flow's plate has one verb, «open the flow's workspace»: any
+     * road into that workspace while the plate stands IS the plate's door. */
+    test(`D: the plate stands and the player opens the Parliament from the WHEEL — that press is the plate's door: the sitting, at once, told in full (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(420_000);
+      const warns: Array<string> = [];
+      page.on('console', (m) => {
+        const text = m.text();
+        if (/\[wait-graph\] (cycle|dead-end|dangling)|\[console-foreground-watchdog\]|\[ruling-change-draw\]|force-released by the safety ceiling/.test(text)) {
+          warns.push(text.slice(0, 260));
+        }
+      });
+      const {playerId, seats} = await bootFixtureSeats(page, request, 'eden-alliance-enact-remote', {query: preset.query});
+      const tr = (await wireOf(request, playerId)).thisPlayer.terraformRating;
+      await settle(page);
+      await armTransferWitness(page);
+      await passAs(request, seats[1]);
+      await expect(mandatoryPlate(page), 'the sitting is announced — its plate stands on the board').toHaveCount(1, {timeout: 60_000});
+      // THE OTHER ROAD: the quick wheel's «Парламент» (RT → down), never the plate's A.
+      await openParliament(page);
+      await expect(page.locator('.con-parl[data-sitting-stage]'), 'the Parliament that opened IS the sitting — never an overview beside it').toHaveCount(1, {timeout: 15_000});
+      await expect(mandatoryPlate(page), 'the plate is answered by that press').toHaveCount(0);
+      // The sitting is told in full, exactly as through the plate: the rating is born on Unity's seal and lands.
+      await expect.poll(async () => (await transferWitness(page)).landings.some((l) => l.under === 'rail:tr'), {timeout: 60_000, message: 'the rating token landed'})
+        .toBe(true);
+      const witness = await transferWitness(page);
+      expect(witness.births.find((b) => b.under === `seal:${UNITY}`), `the rating token is born on Unity's seal:
+${transferTrail(witness)}`).toBeDefined();
+      await waitSittingAtRest(page, 30_000);
+      expect((await wireOf(request, playerId)).thisPlayer.terraformRating, 'the server: ONE rating for the change of power').toBe(tr + 1);
+      expect(warns, 'no cycle for a net to cure, no untold enactment, no watchdog recovery').toEqual([]);
+      expect(await strandedReports(page)).toEqual([]);
+      await shoot(page, preset.id, '05-enact-remote-by-the-wheel');
     });
   });
 }

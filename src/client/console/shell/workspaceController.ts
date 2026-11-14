@@ -60,6 +60,8 @@ export type WorkspacePort = {
   consoleRevealMode: UnwrapRef<RevealController['consoleRevealMode']>,
   readonly contextOverlayMode: 'placement' | 'cell' | 'track' | undefined,
   deferShellTask: UnwrapRef<MandatoryController['deferShellTask']>,
+  heldFlowWorkspace: UnwrapRef<MandatoryController['heldFlowWorkspace']>,
+  openMandatoryAnnounce: UnwrapRef<MandatoryController['openMandatoryAnnounce']>,
   dockBehindWorkspace: UnwrapRef<HandController['dockBehindWorkspace']>,
   dockIntakeAccent: UnwrapRef<HandController['dockIntakeAccent']>,
   endgameStageUp: UnwrapRef<FinaleController['endgameStageUp']>,
@@ -315,6 +317,15 @@ export function createWorkspaceController(shell: WorkspacePort) {
    * cursor); false when the park answered and the caller must not.
    */
   function enterOrRestoreWorkspace(kind: WorkspaceFrameKind): boolean {
+    // THE FLOW'S PLATE STANDS FOR THIS VERY WORKSPACE: the press is the plate's door (`mandatoryController.
+    // heldFlowWorkspace` — the class and its cycle are told there). The same reason as the park's door below: you
+    // cannot be inside the same workspace twice, so «открой Парламент» while «ПАРЛАМЕНТ · Заседание» waits for its A
+    // can only mean «открой заседание» — the beat is acknowledged and the sitting opens on its own stage, by its own
+    // entrance. A lateral instance beside the door left the plate held behind the workspace that hid it.
+    if (shell.heldFlowWorkspace === kind) {
+      shell.openMandatoryAnnounce();
+      return false;
+    }
     if (workspaceKindSpec(kind).parkOwnsFlow === true && restoreParkedWorkspace(kind)) {
       return false;
     }

@@ -49,7 +49,7 @@ import {promptIdentityKey} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {journalState} from '@/client/components/journal/journalState';
-import {MandatoryBeat, MandatoryFlowBeat, mandatoryBeatFor, isMandatoryBeatHeld, isMandatoryBeatPresented, forceMandatoryBeacon, isMandatoryBeaconForced, acknowledgeMandatoryBeat, markMandatoryBeatPresented, noteMandatoryBeatIdentity, isResolutionAsk} from '@/client/console/consoleMandatoryGate';
+import {MandatoryBeat, MandatoryFlowBeat, mandatoryBeatFor, heldFlowWorkspaceOf, isMandatoryBeatHeld, isMandatoryBeatPresented, forceMandatoryBeacon, isMandatoryBeaconForced, acknowledgeMandatoryBeat, markMandatoryBeatPresented, noteMandatoryBeatIdentity, isResolutionAsk} from '@/client/console/consoleMandatoryGate';
 import type {ColonyController} from '@/client/console/shell/colonyController';
 import type {FinaleController} from '@/client/console/shell/finaleController';
 import type {ParliamentController} from '@/client/console/shell/parliamentController';
@@ -257,6 +257,24 @@ export function createMandatoryController(shell: MandatoryPort) {
   /** The held beat suppresses its task surface (shellTask / hostTask). */
   const taskGateHeld = computed((): boolean => {
     return mandatoryGateHeld.value;
+  });
+
+  /**
+   * THE WORKSPACE THE STANDING FLOW PLATE OPENS — `undefined` when no flow beat is held.
+   *
+   * A flow's plate («ПАРЛАМЕНТ · Заседание», the draft's) has one verb — «open the flow's workspace» — and
+   * `openMandatoryAnnounce` is THE door into it (the sitting's stage, the draft's entrance; nothing auto-enters).
+   * The player has other roads to the same workspace: the wheel's «Парламент» is a view as much as an action screen.
+   * Taken while the plate stood, that road opened the workspace BESIDE the door: the beat stayed held behind a
+   * workspace that hid its plate, the question's follow-up door asked the gate, the frame waited for its question —
+   * plate → surface → question → plate, a dead screen until the wait graph confirmed the cycle and acknowledged the
+   * beat seconds later, and a sitting that then ran without its own telling (FREEZE ZERO, the monkey's baseline
+   * `fz0 · eden-alliance-enact-remote`: `wait-graph/cycle/announce:parliament:genN/question:parliamentphase/
+   * surface:parliament`). The lateral entry reads this and takes the plate's door instead
+   * (`workspaceController.enterOrRestoreWorkspace`): one workspace, one door, whatever the player pressed.
+   */
+  const heldFlowWorkspace = computed((): WorkspaceFrameKind | undefined => {
+    return heldFlowWorkspaceOf(mandatoryBeat.value);
   });
 
   /**
@@ -889,6 +907,7 @@ export function createMandatoryController(shell: MandatoryPort) {
     mandatoryBeatKey,
     mandatoryGateHeld,
     taskGateHeld,
+    heldFlowWorkspace,
     minimizableTaskLive,
     mandatoryDeferredActive,
     boardHomeIdle,
