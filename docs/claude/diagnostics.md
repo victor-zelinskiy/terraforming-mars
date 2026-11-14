@@ -111,7 +111,7 @@ brings `user.geo = {region: 'not collected'}` — without it the collector still
 
 ### 3.1 Whether anything is sent at all (`hubConfig.ts`)
 **Only a packaged release BUILT with a destination sends.** The DSN is baked into `settings.json` (`sentryDsn`) by
-`make:json` from the Actions variable `TM_SENTRY_DSN`; a local build, a fork's build, a development run have none. A
+`make:json` from the Actions SECRET `TM_SENTRY_DSN` (§ 12); a local build, a fork's build, a development run have none. A
 test run never sends (`NODE_ENV=test`, `TM_E2E_HOST`, `PLAYWRIGHT_TEST_BASE_URL`, `TM_DIAG_OFF=1`) — spec'd.
 `TM_DIAG_DSN` is the developer's door for proving the pipeline from a local build.
 
@@ -216,7 +216,7 @@ implementation), with a «Отчёты» group in front and «Проверка �
 
 ## 6. The release — maps and debug ids (`.github/workflows/release.yml`, job `build`)
 
-1. `build:desktop` with `TM_SENTRY_DSN` (an Actions variable) → `settings.json` carries the DSN.
+1. `build:desktop` with `TM_SENTRY_DSN` (an Actions secret — § 12) → `settings.json` carries the DSN.
 2. **Stamp** — `sentry-cli sourcemaps inject build-desktop build/electron` — ALWAYS (no credentials): every shipped
    script gets a debug id and its map the same id. Each runtime reads its own registry (`debugIdsOf`) and the hub puts
    the ids of a stack's files into the event (`debug_meta.images`).
@@ -358,9 +358,49 @@ process left (`pgrep -f "usr/bin/[t]erraforming-mars"`), `rm -rf /tmp/appimage_e
 | D30 | **Размер окна читается один раз при загрузке и заново только по `resize`** — снимок экрана у записи его не спрашивает | читать `window.innerWidth` на каждой записи (так было) | Чтение `innerWidth` заставляет браузер довести раскладку до актуальной, а строка печатается где угодно — в том числе посреди тяжёлого монтирования. Замер разницы не показал (§ 9.1), но диагностика не имеет права стоить кадру, который описывает, — закрыто конструкцией и строкой юнит-спеки |
 | D31 | **Колонка главного меню держит полный набор плиток приложения — измерено, а не прикинуто** (e2e: 11 плиток на минимальной высоте, 9 повседневных — с обеими строками внутри) | убрать пункт «Сообщить о проблеме» из меню в нижнюю панель; ужимать плитки по счётчику | На ТВ колонка вмещает 8 плиток в полный рост; на боксе с новым пунктом их 9. Плитки уже уступают место вместе (flex-shrink до `min-height`) — менять вёрстку не понадобилось, но это было допущение, пока его не померили на боксе |
 | D32 | **Проба выходит через `beginShutdown`** (зависимость `quit` у `installDiagnosticsMain`), а не голым `app.quit()` | `app.quit()` (так было) | Первая же проба релиза на боксе оставила процесс жить после «quit — event loop done»: на Steam Machine нативное завершение Chromium может не закончиться, и только общая дверь выхода взводит сторожа, который добивает процесс (`electron/shutdown.ts`). Правило проекта — «никогда голый `app.quit()`» — действует и для инструмента разработчика |
+| D33 | **Отказ Sentry по лимиту — не «нет сети»**: хаб читает `429` и заголовок `X-Sentry-Rate-Limits` (отдельно события и отдельно вложения), отчёт получает `waits: 'limit'` / `filesRefused`, статус — `limitedWhat` + слово самого Sentry (`usage_exceeded`, `key_quota` …) | один исход «в очереди» с текстом про сеть (так было) | Исчерпанная квота бесплатного плана выглядела для игрока как «проверьте интернет», а отчёт без вложений (квота файлов отдельная) — как обычный «отправлен». Теперь экран говорит правду: «служба приёма переполнена, ваш интернет ни при чём», «отчёт у разработчика — без файлов», вкладка СИСТЕМА и проверка связи — то же. Высоты строк не меняются: меняются слова в местах, которые уже стоят |
+| D34 | **Ключ отправки — из СЕКРЕТА GitHub, в репозитории его нет (гард), смена — три команды** (`npm run diag -- key` · `key rotate` · `key retire`) | переменная Actions + ключ в документе (так было); собственный прокси с учётом по адресам | Ключ внутри розданной игры публичен по природе — его нельзя спрятать, можно только не класть туда, где его найдёт поиск по репозиторию или открытый лог сборки, следить за квотой и уметь заменить за минуты. Прокси (свой сервис с настоящим ключом и лимитами по адресам) — единственная полная защита от намеренной заливки; это отдельная инфраструктура и решение владельца (§ 12) |
 
 ## 11. Как позже добавить канал связи
 Одно значение — константа `DIAG_CONTACT` в `src/common/diagnostics/protocol.ts` (сейчас `''`). Пока оно пустое, строки
 о контакте нет нигде (ни на этапе «ГОТОВО», ни в гайде); с непустым значением этап «ГОТОВО» печатает его под кодом
 (`[data-diag-contact]`), а в гайд игроков добавляется одна строка. `DISCORD_INVITE` из `src/common/constants.ts` — сообщество
 оригинального проекта, его не использовать.
+
+## 12. The client key — public by nature, so: findable nowhere else, watched, replaceable
+
+A DSN inside a shipped application can be read by anyone who unpacks it; no build step makes it a secret. What a
+stranger can do with it is ONE thing — send events — and what that costs is the plan's quota (5 000 events and 1 GB of
+attachments a month on the free plan). So the key is defended by four things, in this order:
+
+1. **It is in no file of the repository and in no public log.** The release reads it from the Actions SECRET
+   `TM_SENTRY_DSN` (masked in the build log of this public repository; the variable of the same name is the fallback
+   of the days before and is deleted once the secret exists). Guard: `diagnosticsClassification.spec` § the client key
+   — a real DSN anywhere under `docs`, `.github`, `.claude`, `electron`, `scripts`, `src`, `tests` or in a root
+   file fails the suite. (The key that stood in `prompts/diagnostics-sentry.md` until 2026-11-14 is in the history
+   for ever — which is why it was REPLACED, not merely deleted.)
+2. **The collector's own nets.** Spike protection is on (the project's `quotas:spike-protection-disabled` is false);
+   both keys carry a rate limit of 1 000 events / 24 h — five times one device's own daily cap, so a tester is never
+   throttled by it. ⚠ Per-key rate limits are a feature of the paid plans: they work while the organization's trial
+   lasts (until 2026-11-27) and may stop being enforced after it — do not count on them.
+3. **The quota is watched, and its end is told truthfully.** `npm run diag -- key` prints the keys and how much of the
+   period's quota is used; when the collector refuses (`429`, or `200` with the files refused), the game says «the
+   receiving service is full» — never «no network» (D33) — and the report stays on the device until the limit renews.
+4. **A key that is abused is replaced in minutes** — nothing else stops a flood on the free plan:
+
+   ```bash
+   npm run diag -- key rotate          # a NEW key; prints its DSN. The old one still works.
+   #   GitHub → Settings → Secrets and variables → Actions → Secrets → TM_SENTRY_DSN = that DSN   (by hand: no token here)
+   #   push anything → the release bakes it in → installed games update themselves
+   npm run diag -- selftest            # after the box updated and ran «Проверка связи»: the events arrive
+   npm run diag -- key retire <old id> # only now the collector stops accepting the old key
+   ```
+
+   Retiring is refused while the key is the only active one. A game that has not updated yet keeps its reports on
+   the device (the outbox + the report folders) and loses its automatic events of that window — the price of a rotation.
+
+**What would close it for good** (not built — the owner's call, a new piece of infrastructure): a relay of our own (a
+small serverless function is enough) that holds the real key, accepts envelopes from the game and applies limits per
+address and per day before forwarding. The game would then carry the relay's address instead of a Sentry key, and a
+flood could cost no more than the relay lets through. The hub needs one change for it — the envelope URL — and the
+seam is `hubConfig.ts` (`parseDsn`).

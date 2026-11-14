@@ -162,7 +162,7 @@ const cells = computed((): ReadonlyArray<string> => {
   const tail = code.value.replace(/^TM-/, '');
   return [0, 1, 2, 3, 4, 5].map((i) => tail.charAt(i));
 });
-const done = computed(() => (s.result === undefined ? undefined : reportDoneReading(s.result.state)));
+const done = computed(() => (s.result === undefined ? undefined : reportDoneReading(s.result)));
 const kicker = computed((): string => {
   if (s.step === 'failed') {
     return 'The report was not made';

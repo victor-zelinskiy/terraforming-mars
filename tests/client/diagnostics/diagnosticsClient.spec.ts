@@ -27,7 +27,7 @@ import {
 import {__setDiagnosticsTransportForTesting, DiagnosticsTransport} from '@/client/diagnostics/diagnosticsTransport';
 import {
   DIAG_TABS, diagDelivery, diagFrameRows, diagHeadline, diagOutcome, diagScreenFacts, diagTabCounts, filterDiagEntries, reportAttachRows,
-  reportDoneReading, reportSize, suggestedCategory,
+  reportDoneReading, reportSize, sendingReading, suggestedCategory,
 } from '@/client/diagnostics/diagnosticsView';
 
 /**
@@ -62,13 +62,13 @@ function fakeTransport(over: Partial<{report: (r: DiagReportRequest) => Promise<
       asked.push({verb, request});
       if (verb === 'report') {
         return over.report !== undefined ? over.report(request as DiagReportRequest) :
-          {code: 'TM-ACDEFG', state: 'sent', folder: 'C:\\reports\\TM-ACDEFG', parts: [{name: 'report.json', bytes: 2048, truncated: false}, {name: 'screen.jpg', bytes: 1024 * 1024, truncated: false}]};
+          {code: 'TM-ACDEFG', state: 'sent', waits: '', filesRefused: false, folder: 'C:\\reports\\TM-ACDEFG', parts: [{name: 'report.json', bytes: 2048, truncated: false}, {name: 'screen.jpg', bytes: 1024 * 1024, truncated: false}]};
       }
       if (verb === 'selftest') {
         return {tookMs: 12, rows: [
-          {runtime: 'page', state: 'delivered', eventId: 'a', reason: ''},
-          {runtime: 'main', state: 'failed', eventId: '', reason: 'no connection'},
-          {runtime: 'server', state: 'absent', eventId: '', reason: 'not here'},
+          {runtime: 'page', state: 'delivered', eventId: 'a', reason: '', limited: false},
+          {runtime: 'main', state: 'failed', eventId: '', reason: 'no connection', limited: false},
+          {runtime: 'server', state: 'absent', eventId: '', reason: 'not here', limited: false},
         ]};
       }
       if (verb === 'copy') {
@@ -258,6 +258,8 @@ describe('diagnostics · how a record reads', () => {
     expect(diagDelivery(error)).to.eq(undefined);
     expect(diagDelivery({...error, delivery: {state: 'sent', eventId: 'e'}})).to.deep.include({key: 'Sent to the developer', tone: 'ok'});
     expect(diagDelivery({...error, delivery: {state: 'held', reason: 'consent'}})?.key).to.eq('Not sent — automatic reports are off');
+    // A record that waits says what is true whether it waits for the network or for the collector's limit.
+    expect(diagDelivery({...error, delivery: {state: 'queued', eventId: 'e'}})).to.deep.include({key: 'Kept on this device — will be sent later', tone: 'warn'});
     expect(diagDelivery({...error, delivery: {state: 'held', reason: 'policy'}})).to.eq(undefined);
   });
 
@@ -273,7 +275,7 @@ describe('diagnostics · how a record reads', () => {
   });
 
   it('the report says BEFORE the press what leaves — and what does not, with its reason', () => {
-    const status = {environment: 'box', release: 'r', appMode: 'host' as const, sendingOff: '' as const, consent: true, queued: 0, lastDeliveredAt: 0, lastError: '', reportsDir: ''};
+    const status = {environment: 'box', release: 'r', appMode: 'host' as const, sendingOff: '' as const, consent: true, queued: 0, lastDeliveredAt: 0, lastError: '', limitedWhat: '' as const, limitedReason: '', reportsDir: ''};
     expect(reportAttachRows(status, true).every((r) => r.included)).to.eq(true);
     const remote = reportAttachRows({...status, appMode: 'remote'}, true).find((r) => r.label === 'The save of this game');
     expect(remote).to.deep.include({included: false, note: 'The game is hosted on another device'});
@@ -281,8 +283,19 @@ describe('diagnostics · how a record reads', () => {
     expect(suggestedCategory(stall)).to.eq('freeze');
     expect(suggestedCategory(error)).to.eq('visual');
     expect(suggestedCategory(undefined)).to.eq(undefined);
-    expect(reportDoneReading('sent').title).to.eq('The report is with the developer');
-    expect(reportDoneReading('queued').tone).to.eq('warn');
+    expect(reportDoneReading({state: 'sent', waits: '', filesRefused: false}).title).to.eq('The report is with the developer');
+    expect(reportDoneReading({state: 'queued', waits: 'network', filesRefused: false})).to.deep.include({title: 'The report will be sent when the network is back', tone: 'warn'});
+    // THE TRUTH OF A WAIT: the receiving service's limit is not the player's network — the screen never says «сеть».
+    const limited = reportDoneReading({state: 'queued', waits: 'limit', filesRefused: false});
+    expect(limited).to.deep.include({title: 'The report is saved and will be sent later', tone: 'warn'});
+    expect(limited.body).to.contain('Your internet is fine');
+    // …and a report that went without its files says so, and where they are.
+    expect(reportDoneReading({state: 'sent', waits: '', filesRefused: true})).to.deep.include({title: 'The report is with the developer — without its files', tone: 'warn'});
+    // The system readout's one phrase follows the same truth.
+    expect(sendingReading(status)).to.deep.include({key: 'Sending is on', tone: 'ok'});
+    expect(sendingReading({...status, limitedWhat: 'events', limitedReason: 'usage_exceeded'})).to.deep.include({key: 'The receiving service is full', tone: 'warn'});
+    expect(sendingReading({...status, limitedWhat: 'attachments'})).to.deep.include({key: 'Reports go without their files', tone: 'warn'});
+    expect(sendingReading({...status, sendingOff: 'consent', limitedWhat: 'events'}).key, 'the switch of the player is said first').to.eq('Automatic reports are off');
     expect(reportSize([{name: 'a', bytes: 1024 * 1024 * 1.44, truncated: false}])).to.deep.eq({key: '${0} MB', params: ['1.4']});
     expect(reportSize([{name: 'a', bytes: 300, truncated: false}])).to.deep.eq({key: '${0} KB', params: ['1']});
   });

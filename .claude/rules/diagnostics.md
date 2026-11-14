@@ -60,6 +60,15 @@ a report or a Sentry issue is the skill `diagnose-report` (`npm run diag -- …`
     (`reportPackage.ts`), a row of `reportAttachRows` / `PART_LABEL` (`diagnosticsView.ts` — the player is told BEFORE
     the press, in a person's words) and of the table in `docs/claude/diagnostics.md` § 4 and `scripts/diag.mjs`'s summary.
 
+12. **A WAIT IS TOLD BY ITS TRUE REASON.** The collector's own limit (`429`, `X-Sentry-Rate-Limits` — the plan's
+    quota, a key's rate limit, the spike protection) is NOT «no network»: the sender marks the outcome `limited`, the
+    report carries `waits: 'limit'` / `filesRefused`, the status `limitedWhat`. A new surface that speaks of a
+    report that did not leave reads those — never a bare `queued` → «check your internet». Words change in rows that
+    already stand; no row is added for it.
+13. **THE CLIENT KEY IS IN NO FILE.** It comes from the Actions SECRET `TM_SENTRY_DSN`; a real DSN in a doc, a
+    workflow, a script or a source file fails `diagnosticsClassification.spec` — and a key that was ever pushed is
+    ROTATED (`npm run diag -- key rotate` … `key retire`), not just deleted. Contract: `docs/claude/diagnostics.md` § 12.
+
 ## Where a signal comes from (do not add a fourth road)
 | runtime | the road |
 | --- | --- |

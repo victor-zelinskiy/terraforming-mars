@@ -32,13 +32,67 @@ export type EnvelopeAttachment = {
 export type EnvelopeClass = 'report' | 'auto';
 
 export type SendOutcome =
-  {state: 'sent'} |
-  {state: 'queued', reason: string} |
+  /** `attachmentsRefused` — the event was taken, its files were not (the collector's limit for attachments). */
+  {state: 'sent', attachmentsRefused?: boolean} |
+  /** `limited` — it waits for the collector's LIMIT to renew, not for the network. */
+  {state: 'queued', reason: string, limited?: boolean} |
   {state: 'dropped', reason: string};
+
+/**
+ * WHAT THE COLLECTOR SAYS ABOUT ITS LIMITS. A plan's quota (events a month, bytes of attachments), a key's rate limit
+ * and the spike protection all speak the same way: `429` when nothing of the envelope was taken, `200` when the
+ * event was taken and some of its items were not — and in both cases the header
+ *
+ *     X-Sentry-Rate-Limits: <seconds>:<category>;<category>:<scope>:<reason>, …        (no category = every category)
+ *
+ * names what is refused, for how long and why (`usage_exceeded`, `key_quota`, `project_abuse_limit` …). Read
+ * apart from «no network»: a player is told the truth («the receiving service is full», never «check your internet»),
+ * and a report that went without its files says so. Pure.
+ */
+export type CollectorLimit = {
+  /** Until when no EVENT is taken (ms since the epoch; 0 = events are taken). */
+  eventsUntil: number;
+  /** Until when no ATTACHMENT is taken. */
+  attachmentsUntil: number;
+  /** The collector's own word for the reason ('' = it gave none). */
+  reason: string;
+};
+
+const EVENT_CATEGORIES = ['error', 'default', 'security'];
+
+export function readCollectorLimits(status: number, headers: Readonly<Record<string, string | undefined>>, now: number): CollectorLimit {
+  const limit: CollectorLimit = {eventsUntil: 0, attachmentsUntil: 0, reason: ''};
+  for (const quota of (headers['x-sentry-rate-limits'] ?? '').split(',')) {
+    const fields = quota.trim().split(':');
+    if (fields.length < 2 && fields[0] === '') {
+      continue;
+    }
+    const seconds = Number(fields[0]);
+    const until = now + (Number.isFinite(seconds) && seconds > 0 ? seconds : 60) * 1000;
+    const categories = (fields[1] ?? '').split(';').map((c) => c.trim()).filter((c) => c !== '');
+    const reason = (fields[3] ?? '').trim();
+    if (categories.length === 0 || categories.some((c) => EVENT_CATEGORIES.includes(c))) {
+      limit.eventsUntil = Math.max(limit.eventsUntil, until);
+      limit.reason = reason !== '' ? reason : limit.reason;
+    }
+    if (categories.length === 0 || categories.includes('attachment')) {
+      limit.attachmentsUntil = Math.max(limit.attachmentsUntil, until);
+      limit.reason = limit.reason !== '' ? limit.reason : reason;
+    }
+  }
+  if (status === 429 && limit.eventsUntil === 0) {
+    // A refusal with no table of quotas: everything is refused for as long as it asked (a minute when it did not say).
+    const after = Number(headers['retry-after'] ?? '');
+    limit.eventsUntil = now + (Number.isFinite(after) && after > 0 ? after : 60) * 1000;
+  }
+  return limit;
+}
 
 export const OUTBOX_AUTO_MAX = 30;
 export const OUTBOX_REPORT_MAX = 12;
 const FLUSH_EVERY_MS = 60_000;
+/** A collector that is out of quota is asked again at most this often, however long it says the limit lasts. */
+const LIMIT_RETRY_MAX_MS = 6 * 3600_000;
 /** A request that does not answer is a network that is away. */
 const REQUEST_MAX_MS = 45_000;
 
@@ -74,10 +128,26 @@ export class EnvelopeSender {
   lastDeliveredAt = 0;
   lastError = '';
   private retryNotBefore = 0;
+  private limit: CollectorLimit = {eventsUntil: 0, attachmentsUntil: 0, reason: ''};
   private flushing = false;
   private cancelTimer: (() => void) | undefined;
 
   constructor(private readonly options: EnvelopeSenderOptions) {}
+
+  /**
+   * What the collector refuses RIGHT NOW by its own limits ('' = nothing it has told us of). Events outrank files: a
+   * collector that takes no event takes no report at all.
+   */
+  limited(): {what: '' | 'events' | 'attachments', reason: string} {
+    const now = this.options.now();
+    if (this.limit.eventsUntil > now) {
+      return {what: 'events', reason: this.limit.reason};
+    }
+    if (this.limit.attachmentsUntil > now) {
+      return {what: 'attachments', reason: this.limit.reason};
+    }
+    return {what: '', reason: ''};
+  }
 
   /** Envelopes waiting in the outbox. */
   queued(): number {
@@ -98,11 +168,11 @@ export class EnvelopeSender {
       return {state: 'dropped', reason: 'this build sends nothing'};
     }
     const body = await gzip(bytes);
-    const outcome = this.options.now() < this.retryNotBefore ?
-      {state: 'queued' as const, reason: 'the collector asked to wait'} :
+    const outcome: SendOutcome = this.options.now() < this.retryNotBefore ?
+      {state: 'queued', reason: this.lastError !== '' ? this.lastError : 'the collector asked to wait', limited: this.limited().what === 'events'} :
       await this.deliver(body);
     if (outcome.state === 'queued') {
-      return this.keep(body, klass, id, outcome.reason);
+      return this.keep(body, klass, id, outcome.reason, outcome.limited === true);
     }
     if (outcome.state === 'sent') {
       // The road is open: whatever waited goes now.
@@ -125,14 +195,33 @@ export class EnvelopeSender {
           body,
         }),
         REQUEST_MAX_MS, this.options.schedule);
+      const now = this.options.now();
+      const seen = readCollectorLimits(response.status, response.headers, now);
       if (response.status >= 200 && response.status < 300) {
-        this.lastDeliveredAt = this.options.now();
+        this.lastDeliveredAt = now;
+        // The event was taken: whatever was said about events before is over. What it says of files stands until it
+        // runs out by itself — a small event with no file teaches nothing about them.
+        this.limit.eventsUntil = 0;
+        if (seen.attachmentsUntil > now) {
+          this.limit.attachmentsUntil = seen.attachmentsUntil;
+          this.limit.reason = seen.reason;
+          this.lastError = `the collector took the event and refused its files — the limit for attachments is reached${seen.reason === '' ? '' : ` (${seen.reason})`}`;
+          return {state: 'sent', attachmentsRefused: true};
+        }
         this.lastError = '';
         return {state: 'sent'};
       }
-      if (response.status === 429 || response.status >= 500) {
+      if (response.status === 429) {
+        // ITS LIMIT, not our network. It is asked again no sooner than it said — and never more than a few times a
+        // day while a month's quota is gone (a queued report is megabytes).
+        this.limit = {eventsUntil: seen.eventsUntil, attachmentsUntil: Math.max(this.limit.attachmentsUntil, seen.attachmentsUntil), reason: seen.reason};
+        this.retryNotBefore = Math.min(seen.eventsUntil, now + LIMIT_RETRY_MAX_MS);
+        this.lastError = `the collector is not taking events — its limit is reached${seen.reason === '' ? '' : ` (${seen.reason})`}`;
+        return {state: 'queued', reason: this.lastError, limited: true};
+      }
+      if (response.status >= 500) {
         const after = Number(response.headers['retry-after'] ?? '');
-        this.retryNotBefore = this.options.now() + (Number.isFinite(after) && after > 0 ? Math.min(after, 3600) * 1000 : 60_000);
+        this.retryNotBefore = now + (Number.isFinite(after) && after > 0 ? Math.min(after, 3600) * 1000 : 60_000);
         this.lastError = `the collector answered ${response.status}`;
         return {state: 'queued', reason: this.lastError};
       }
@@ -144,7 +233,7 @@ export class EnvelopeSender {
     }
   }
 
-  private keep(body: Uint8Array, klass: EnvelopeClass, id: string, reason: string): SendOutcome {
+  private keep(body: Uint8Array, klass: EnvelopeClass, id: string, reason: string, limited: boolean): SendOutcome {
     try {
       fs.mkdirSync(this.options.outboxDir, {recursive: true});
       const files = this.outboxFiles();
@@ -162,7 +251,7 @@ export class EnvelopeSender {
       fs.writeFileSync(path.join(this.options.outboxDir, name), body);
       this.arm();
       this.options.onChange?.();
-      return {state: 'queued', reason};
+      return limited ? {state: 'queued', reason, limited} : {state: 'queued', reason};
     } catch (err) {
       this.options.onChange?.();
       return {state: 'dropped', reason: `the outbox could not be written (${err instanceof Error ? err.message : String(err)})`};

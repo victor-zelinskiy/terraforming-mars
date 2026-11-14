@@ -130,9 +130,12 @@ jobs:
         run: npm run build:desktop
         env:
           # WHERE THIS RELEASE'S DIAGNOSTICS GO (docs/claude/diagnostics.md): baked into settings.json by make:json.
-          # An Actions VARIABLE (a DSN is an address events can only be sent to, not a secret). A fork has none —
-          # its build then sends nothing, by the hub's own rule.
-          TM_SENTRY_DSN: ${{ vars.TM_SENTRY_DSN }}
+          # THE KEY IS READ FROM A SECRET. A client key inside a shipped game is public by nature (anyone can unpack
+          # the app) — but it must be nowhere EASIER to find than there: a variable is printed in this public
+          # repository's build log, and a line of a file is scraped by a search. A secret is masked in the log. The
+          # variable is the fallback of the days before the secret was set (it is deleted once the secret exists).
+          # A fork has neither — its build then sends nothing, by the hub's own rule. Rotation: `npm run diag -- key rotate`.
+          TM_SENTRY_DSN: ${{ secrets.TM_SENTRY_DSN || vars.TM_SENTRY_DSN }}
 
       # DIAGNOSTICS — every shipped script gets a DEBUG ID (the page's chunks, the main process, the hub's bundle, the
       # embedded server) and its source map the same id: that pair is what turns `main.js:2:1834` of a player's stack

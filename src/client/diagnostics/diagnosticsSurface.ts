@@ -272,7 +272,7 @@ export async function runDiagnosticsSelfTest(): Promise<void> {
   s.check = answer.status === 'met' && answer.value.ok && answer.value.value !== undefined ? answer.value.value : {
     // Nobody answered: every runtime is «not delivered», with the one reason there is.
     rows: (['page', 'main', 'server'] as const).map((runtime) => ({
-      runtime, state: 'failed' as const, eventId: '',
+      runtime, state: 'failed' as const, eventId: '', limited: false,
       reason: diagnosticsTransport().kind === 'none' ? 'this build has no diagnostics service' : 'the diagnostics service did not answer',
     })),
     tookMs: 0,

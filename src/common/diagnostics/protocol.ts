@@ -44,6 +44,14 @@ export type DiagHubStatus = {
   lastDeliveredAt: number;
   /** The transport's last failure in its own words ('' = none since the last delivery). */
   lastError: string;
+  /**
+   * What the COLLECTOR refuses right now by its own limits — the plan's quota, a key's rate limit, the spike
+   * protection: '' (nothing it told us of) · `events` (it takes nothing: reports wait on this device) · `attachments`
+   * (events go, their files do not). Never «no network»: the player is told which of the two it is.
+   */
+  limitedWhat: '' | 'events' | 'attachments';
+  /** The collector's own word for the reason (`usage_exceeded`, `key_quota` …; '' = it gave none). */
+  limitedReason: string;
   /** Where the report packages are kept on this device. */
   reportsDir: string;
 };
@@ -98,6 +106,10 @@ export type DiagReportResult = {
    * `local` — this build sends nothing; the package is on this device only.
    */
   state: 'sent' | 'queued' | 'local';
+  /** A `queued` report waits for: the network to return, or the collector's limit to renew ('' = it does not wait). */
+  waits: '' | 'network' | 'limit';
+  /** `sent`, but the collector took the summary only — its limit for attached files is reached (they are in the folder). */
+  filesRefused: boolean;
   /** The folder of the package on this device. */
   folder: string;
   parts: Array<DiagReportPart>;
@@ -109,6 +121,8 @@ export type DiagSelfTestRow = {
   state: 'delivered' | 'failed' | 'absent';
   eventId: string;
   reason: string;
+  /** `failed` because the collector's limit is reached — not because the device has no network. */
+  limited: boolean;
 };
 
 export type DiagSelfTestResult = {

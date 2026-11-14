@@ -71,6 +71,14 @@ const summary = computed((): {title: string, body: string, tone: string} => {
     return {title: s.checking ? 'Checking the connection…' : '', body: s.checking ? 'This takes a few seconds.' : '', tone: 'plain'};
   }
   const failed = s.check.rows.filter((r) => r.state === 'failed').length;
+  // THE COLLECTOR'S LIMIT IS NOT THE NETWORK: nothing on this device is wrong, and «check the internet» would be a lie.
+  if (s.check.rows.some((r) => r.state === 'failed' && r.limited)) {
+    return {
+      title: 'The receiving service is full',
+      body: 'The connection is fine — the service that receives reports has used up its limit. Reports are kept on this device and leave by themselves when the limit renews.',
+      tone: 'warn',
+    };
+  }
   if (failed === 0) {
     return {title: 'Everything reaches the developer', body: 'Errors of this installation will arrive by themselves.', tone: 'ok'};
   }

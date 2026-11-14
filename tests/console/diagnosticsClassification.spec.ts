@@ -193,6 +193,56 @@ describe('diagnostics — the developer\'s notice stands outside every gate', ()
   });
 });
 
+describe('diagnostics — the client key is in no file of the repository', () => {
+  /*
+   * A key inside a shipped game is public by nature — the app can be unpacked. Its safety is that it is nowhere
+   * EASIER to find than there, and that it can be replaced in minutes (`npm run diag -- key rotate`). A key written
+   * into a doc, a workflow or a source file is found by a search of this public repository and stays in its history
+   * for ever: the release reads it from the Actions SECRET `TM_SENTRY_DSN`, and nothing else names it.
+   */
+  const KEY = /https:\/\/[0-9a-f]{32}@o\d+\.ingest\.[a-z0-9.]*sentry\.io\/\d+/;
+  const TEXT = /\.(md|ts|vue|mjs|cjs|js|json|ya?ml|less|html|txt)$/;
+  const SKIP = new Set(['node_modules', 'build', 'build-desktop', 'genfiles', 'locales', '.git', 'screenshots', 'test-results', 'playwright-report']);
+
+  it('no doc, workflow, script or source file carries a real DSN', () => {
+    const offenders: Array<string> = [];
+    const read = (full: string): void => {
+      if (TEXT.test(full) && KEY.test(fs.readFileSync(full, 'utf8'))) {
+        offenders.push(path.relative(ROOT, full).replace(/\\/g, '/'));
+      }
+    };
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+        if (SKIP.has(entry.name) || /^\.e2e-/.test(entry.name)) {
+          continue;
+        }
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else {
+          read(full);
+        }
+      }
+    };
+    for (const dir of ['docs', '.github', '.claude', 'electron', 'scripts', 'src', 'tests']) {
+      walk(path.join(ROOT, dir));
+    }
+    for (const entry of fs.readdirSync(ROOT, {withFileTypes: true})) {
+      if (entry.isFile()) {
+        read(path.join(ROOT, entry.name));
+      }
+    }
+    expect(offenders, 'a client key is written into the repository — move it to the Actions secret TM_SENTRY_DSN and ROTATE it ' +
+      '(`npm run diag -- key rotate`): what was pushed once stays in the history').to.deep.eq([]);
+    // (A walk of the tree owns its budget — mocha's 2 s is for logic, never for a tree read.)
+  }).timeout(30_000);
+
+  it('the release takes it from the SECRET (masked in the public build log) before the variable', () => {
+    const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8');
+    expect(workflow).to.match(/TM_SENTRY_DSN:\s*\$\{\{\s*secrets\.TM_SENTRY_DSN\s*\|\|\s*vars\.TM_SENTRY_DSN\s*\}\}/);
+  });
+});
+
 describe('diagnostics — the page runs no SDK and nothing in the client sends by itself', () => {
   it('nothing under src/client imports the Sentry SDK (the hub is the one sender)', () => {
     const offenders: Array<string> = [];

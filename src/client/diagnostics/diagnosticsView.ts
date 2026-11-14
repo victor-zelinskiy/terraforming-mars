@@ -10,7 +10,7 @@
 
 import {readLivenessLine} from '@/common/diagnostics/classify';
 import {DiagEntry, DiagFrame, DiagKind, DiagRuntime} from '@/common/diagnostics/DiagnosticModel';
-import {DiagHubStatus, DiagReportCategory, DiagReportPart} from '@/common/diagnostics/protocol';
+import {DiagHubStatus, DiagReportCategory, DiagReportPart, DiagReportResult} from '@/common/diagnostics/protocol';
 import {frameLocation, parseStack, stackHead} from '@/common/diagnostics/stackFrames';
 
 /** A reading: an English i18n key and what fills its `${n}` slots. */
@@ -147,7 +147,9 @@ export function diagDelivery(entry: DiagEntry): (DiagReading & {tone: 'ok' | 'wa
     return {...reading('Sent to the developer'), tone: 'ok'};
   }
   if (delivery.state === 'queued') {
-    return {...reading('Will be sent when the network is back'), tone: 'warn'};
+    // Why it waits — the network, or the collector's limit — is the hub's status to say (the system readout); a record
+    // says only what is true in both cases.
+    return {...reading('Kept on this device — will be sent later'), tone: 'warn'};
   }
   switch (delivery.reason) {
   case 'consent': return {...reading('Not sent — automatic reports are off'), tone: 'plain'};
@@ -303,11 +305,19 @@ export function reportSize(parts: ReadonlyArray<DiagReportPart>): DiagReading {
 }
 
 /** The done stage's one sentence. */
-export function reportDoneReading(state: 'sent' | 'queued' | 'local'): {title: string, body: string, tone: 'ok' | 'warn' | 'plain'} {
-  switch (state) {
+export function reportDoneReading(result: Pick<DiagReportResult, 'state' | 'waits' | 'filesRefused'>): {title: string, body: string, tone: 'ok' | 'warn' | 'plain'} {
+  switch (result.state) {
   case 'sent':
+    // THE TRUTH OF WHAT ARRIVED: the collector's limit for files can be used up while it still takes events.
+    if (result.filesRefused) {
+      return {title: 'The report is with the developer — without its files', body: 'The receiving service is out of room for attached files, so only the summary went. The files are in the folder below — keep it until the developer asks.', tone: 'warn'};
+    }
     return {title: 'The report is with the developer', body: 'Nothing else is needed. The code is for reference — name it if you contact the developer yourself.', tone: 'ok'};
   case 'queued':
+    // THE TRUTH OF THE WAIT: a limit of the receiving service is not the player's network — nothing of theirs to fix.
+    if (result.waits === 'limit') {
+      return {title: 'The report is saved and will be sent later', body: 'The receiving service is not taking new reports right now — its limit is used up. Your internet is fine. The report is kept on this device and leaves by itself when the limit renews.', tone: 'warn'};
+    }
     return {title: 'The report will be sent when the network is back', body: 'It is kept on this device and leaves by itself — now or the next time the game starts. The code is for reference.', tone: 'warn'};
   default:
     return {title: 'The report is saved on this device', body: 'This build does not send reports. The folder below holds everything a developer needs.', tone: 'plain'};
@@ -326,6 +336,15 @@ export function sendingReading(status: DiagHubStatus | undefined): DiagReading &
   }
   if (status.sendingOff === 'consent') {
     return {...reading('Automatic reports are off'), tone: 'warn'};
+  }
+  // The collector's own limit (the plan's quota, a key's rate limit, the spike protection) — never «no network».
+  // ONE LINE, like every other value of this row (the count of what waits stands in the row below; the reason — in
+  // the group's note): a longer phrase wrapped and made the row taller than it stands in every other state.
+  if (status.limitedWhat === 'events') {
+    return {...reading('The receiving service is full'), tone: 'warn'};
+  }
+  if (status.limitedWhat === 'attachments') {
+    return {...reading('Reports go without their files'), tone: 'warn'};
   }
   return {...reading('Sending is on'), tone: 'ok'};
 }

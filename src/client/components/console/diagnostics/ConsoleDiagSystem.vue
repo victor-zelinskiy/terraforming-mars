@@ -56,7 +56,7 @@ const reports = computed((): ConsoleReadoutGroup => {
   if (status !== undefined) {
     rows.push(
       {label: 'Build type', raw: false, value: translateText(environmentLabel(status.environment)), tone: 'plain'},
-      {label: 'Waiting for the network', raw: false, value: String(status.queued), tone: status.queued > 0 ? 'warn' : 'plain'},
+      {label: 'Waiting to be sent', raw: false, value: String(status.queued), tone: status.queued > 0 ? 'warn' : 'plain'},
       {label: 'Last delivery', raw: false, value: status.lastDeliveredAt > 0 ? diagClock(status.lastDeliveredAt) : '—', tone: status.lastDeliveredAt > 0 ? 'ok' : 'plain'},
     );
   }

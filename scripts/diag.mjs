@@ -837,6 +837,95 @@ async function boxResolve(args) {
   return 0;
 }
 
+// ───────────────────────────── key ──────────────────────────────
+
+/*
+ * THE CLIENT KEY (the DSN's public half). A key inside a shipped game is PUBLIC by nature — anyone can unpack the app
+ * and read it — so its safety is not secrecy: it is that the key is nowhere easier to find than inside the app (never
+ * in the repository, never in a public build log), that the plan's quota is watched, and that a key someone abuses is
+ * REPLACED in minutes: a new key → the GitHub secret TM_SENTRY_DSN → a release → the old key retired.
+ */
+
+/** A WRITE to the API — with the same token the reads use (the CLI's own, or SENTRY_AUTH_TOKEN). */
+async function apiWrite(method, endpoint, payload) {
+  const token = process.env.SENTRY_AUTH_TOKEN || await tokenFromCli();
+  if (token === '' || token === undefined) {
+    throw new Failure('no Sentry access for a write: set SENTRY_AUTH_TOKEN or authorise the `sentry` CLI');
+  }
+  let res;
+  try {
+    res = await fetch(API_BASE + endpoint, {method, headers: {'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+  } catch (err) {
+    throw new Failure(`sentry: ${method} ${endpoint} — network error: ${err.cause?.message ?? err.message}`);
+  }
+  const body = Buffer.from(await res.arrayBuffer());
+  if (!res.ok) {
+    throw new Failure(`sentry: ${method} ${endpoint} — HTTP ${res.status}: ${detailOf(body)}`);
+  }
+  return body.length === 0 ? {} : JSON.parse(body.toString('utf8'));
+}
+
+function keyLine(k) {
+  const limit = k.rateLimit ? `${k.rateLimit.count} per ${Math.round(k.rateLimit.window / 3600)}h` : 'none';
+  return [k.id.slice(0, 8), k.isActive ? 'active' : 'RETIRED', cut(k.name, 34), limit, localTime(k.dateCreated)];
+}
+
+async function keyStatus() {
+  const keys = await api(`${projectPath}/keys/`);
+  console.log(table(keys.map(keyLine), ['KEY', 'STATE', 'NAME', 'RATE LIMIT', 'CREATED']));
+  // The plan's quota for the running period — what a flood (or a broken build) would burn.
+  const customer = await api(`customers/${ORG}/`).catch(() => undefined);
+  if (customer !== undefined) {
+    const errors = customer.categories?.errors;
+    const files = customer.categories?.attachments;
+    console.log('');
+    console.log(`plan ${customer.planDetails?.name ?? '?'} · period ends ${customer.onDemandPeriodEnd ?? '?'}${customer.trialEnd ? ` · trial features until ${String(customer.trialEnd).slice(0, 10)}` : ''}`);
+    if (errors) {
+      console.log(`events        ${errors.usage} of ${errors.reserved}${errors.usageExceeded ? '   ← EXCEEDED: the collector answers 429 until the period ends' : ''}`);
+    }
+    if (files) {
+      console.log(`attachments   ${size(files.usage)} of ${files.reserved} GB${files.usageExceeded ? '   ← EXCEEDED: reports arrive without their files' : ''}`);
+    }
+  }
+  return 0;
+}
+
+async function keyRotate(args) {
+  const name = typeof args.flags.name === 'string' ? args.flags.name : `release builds — ${new Date().toISOString().slice(0, 10)}`;
+  const created = await apiWrite('POST', `${projectPath}/keys/`, {name});
+  console.log(`a new key is created: ${created.id.slice(0, 8)} «${created.name}». The old keys still work — nothing is cut off yet.`);
+  console.log('');
+  console.log('its DSN (put it into the GitHub SECRET, never into a file of the repository):');
+  console.log(`  ${created.dsn.public}`);
+  console.log('');
+  console.log('next:');
+  console.log('  1. GitHub → Settings → Secrets and variables → Actions → Secrets → TM_SENTRY_DSN = the DSN above');
+  console.log('     (and delete the VARIABLE of the same name, if there is one: a variable is printed in the public build log)');
+  console.log('  2. push anything to main — the release bakes the new key in; installed games update themselves');
+  console.log('  3. npm run diag -- selftest        (after the box updated and ran the connection check: the events arrive)');
+  console.log(`  4. npm run diag -- key retire <the old key's id>     — only now the old key stops being accepted`);
+  return 0;
+}
+
+async function keyRetire(args) {
+  const ref = args.positional[1];
+  if (!ref) {
+    throw new Failure('usage: diag key retire <key id or its first characters>   (see `diag key`)', 2);
+  }
+  const keys = await api(`${projectPath}/keys/`);
+  const hits = keys.filter((k) => k.id.startsWith(ref));
+  if (hits.length !== 1) {
+    throw new Failure(`«${ref}» names ${hits.length} keys — give more of the id (\`npm run diag -- key\`)`, 2);
+  }
+  const key = hits[0];
+  if (keys.filter((k) => k.isActive && k.id !== key.id).length === 0) {
+    throw new Failure('this is the only ACTIVE key: retiring it would silence every installed game. Create the next one first (`diag key rotate`).');
+  }
+  await apiWrite('PUT', `${projectPath}/keys/${key.id}/`, {isActive: false});
+  console.log(`key ${key.id.slice(0, 8)} «${key.name}» is retired: the collector refuses it from now on (it can be switched back on in Sentry → Client Keys).`);
+  return 0;
+}
+
 // ───────────────────────────── main ─────────────────────────────
 
 const USAGE = `diag — the game's diagnostics, read from Sentry and from the box (docs/claude/diagnostics.md)
@@ -851,6 +940,9 @@ usage: npm run diag -- <command> [args]
   selftest [--since 30m]        did the connection check arrive from page · main · server? (exit 1 if one is missing)
   box pull [--since 24h|all]    the box's logs, reports, outbox, console exports, field logs → .diagnostics/box/<stamp>/
   box resolve <p#xxxxxxxxxx>    map a fingerprint of an automatic event back to an id and its save on the box
+  key                           the project's client keys and how much of the plan's quota is used
+  key rotate [--name <text>]    create the NEXT key and print its DSN + the four steps of a rotation
+  key retire <key id>           stop accepting a key (refused while it is the only active one)
   help                          this text
 
 examples:
@@ -877,6 +969,17 @@ async function main() {
       return boxResolve(args);
     }
     throw new Failure('usage: diag box pull [--since 24h] | diag box resolve <fingerprint>', 2);
+  case 'key':
+    if (sub === undefined || sub === 'status') {
+      return keyStatus();
+    }
+    if (sub === 'rotate') {
+      return keyRotate(args);
+    }
+    if (sub === 'retire') {
+      return keyRetire(args);
+    }
+    throw new Failure('usage: diag key [status] | diag key rotate [--name <text>] | diag key retire <key id>', 2);
   case undefined:
   case 'help':
   case '--help':

@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as zlib from 'zlib';
 import {DiagEntry} from '../../../src/common/diagnostics/DiagnosticModel';
 import {DiagContext, DiagHubStatus, DiagReportRequest, DiagReportResult, DiagSelfTestResult, REPORT_CODE_PATTERN} from '../../../src/common/diagnostics/protocol';
-import {OUTBOX_AUTO_MAX} from '../../../src/server/diagnostics/hub/envelopeSender';
+import {OUTBOX_AUTO_MAX, readCollectorLimits} from '../../../src/server/diagnostics/hub/envelopeSender';
 import {autoDecision, createDiagnosticsHub, EPISODE_STANDING_MS, KEY_EVENTS_MAX, newPolicyState, noteSent, SESSION_EVENTS_MAX} from '../../../src/server/diagnostics/hub/hub';
 import {parseDsn, resolveHubConfig} from '../../../src/server/diagnostics/hub/hubConfig';
 import {HubHost} from '../../../src/server/diagnostics/hub/hubTypes';
@@ -46,7 +46,7 @@ function harness(opts: {packaged?: boolean, dsn?: string, env?: Record<string, s
   const pushes: Array<{kind: string, id?: string, entry?: DiagEntry, delivery?: {state: string, reason?: string, eventId?: string}}> = [];
   const timers: Array<{ms: number, run: () => void, dead: boolean}> = [];
   const logs: Array<string> = [];
-  const net = {online: opts.online ?? true, status: opts.status ?? 200};
+  const net = {online: opts.online ?? true, status: opts.status ?? 200, headers: {} as Record<string, string>};
   let clock = 1_700_000_000_000;
   let crashUpload: boolean | undefined;
   // (The host is built before the hub it serves: the server's answer reaches the hub through this box.)
@@ -63,7 +63,7 @@ function harness(opts: {packaged?: boolean, dsn?: string, env?: Record<string, s
       if (net.status === 200) {
         sent.push({url, items: parseEnvelope(init.body)});
       }
-      return {status: net.status, headers: {}};
+      return {status: net.status, headers: net.headers};
     },
     push: (event) => pushes.push(event as never),
     holdScreen: async () => true,
@@ -369,6 +369,7 @@ describe('diagnostics hub — an explicit report', () => {
       expect(event.message.formatted).to.contain(request.comment);
       expect(event.extra.comment).to.eq(request.comment);
       expect(h.sent.flatMap((s) => s.items).map((i) => i.header.type).filter((t) => t !== 'event' && t !== 'attachment')).to.deep.eq([]);
+      expect({waits: result.waits, filesRefused: result.filesRefused}, 'it does not wait, and its files went with it').to.deep.eq({waits: '', filesRefused: false});
     } finally {
       h.cleanup();
     }
@@ -380,6 +381,7 @@ describe('diagnostics hub — an explicit report', () => {
       await h.hub.invoke('set-consent', false);
       const result = await h.hub.invoke('report', {...request, comment: ''}) as DiagReportResult;
       expect(result.state).to.eq('queued');
+      expect(result.waits, 'it waits for the NETWORK').to.eq('network');
       expect(fs.existsSync(path.join(result.folder, 'report.json'))).to.eq(true);
       expect((await h.status()).queued).to.eq(1);
       h.net.online = true;
@@ -413,6 +415,80 @@ describe('diagnostics hub — an explicit report', () => {
     expect(cut.text.endsWith('TAIL')).to.eq(true);
     expect(cut.text).to.contain('were cut to fit the report');
     expect(tailWithin('short', 1000)).to.deep.eq({text: 'short', truncated: false});
+  });
+});
+
+describe('diagnostics hub — the collector\'s own limit is never «no network»', () => {
+  const request: DiagReportRequest = {
+    category: 'freeze', comment: '', entryId: '', context: CONTEXT,
+    journal: [entry()], fieldRecord: {lines: [], heartbeats: []},
+  };
+  const NOW = 1_700_000_000_000;
+
+  it('reads what is refused, for how long and why — from the collector\'s own header', () => {
+    // A month's quota of events is gone: nothing of the envelope is taken.
+    expect(readCollectorLimits(429, {'x-sentry-rate-limits': '2700:error;default;security:organization:usage_exceeded'}, NOW))
+      .to.deep.eq({eventsUntil: NOW + 2_700_000, attachmentsUntil: 0, reason: 'usage_exceeded'});
+    // The event is taken (200) and its files are not: the quota of attachments is a separate one.
+    expect(readCollectorLimits(200, {'x-sentry-rate-limits': '60:attachment:organization:usage_exceeded'}, NOW))
+      .to.deep.eq({eventsUntil: 0, attachmentsUntil: NOW + 60_000, reason: 'usage_exceeded'});
+    // No category = every category (a key's rate limit); several quotas in one header.
+    expect(readCollectorLimits(429, {'x-sentry-rate-limits': '30::key:key_quota, 3600:attachment:organization:usage_exceeded'}, NOW))
+      .to.deep.eq({eventsUntil: NOW + 30_000, attachmentsUntil: NOW + 3_600_000, reason: 'key_quota'});
+    // A category of somebody else's (transactions) limits nothing of ours.
+    expect(readCollectorLimits(200, {'x-sentry-rate-limits': '60:transaction:organization'}, NOW)).to.deep.eq({eventsUntil: 0, attachmentsUntil: 0, reason: ''});
+    // A bare 429: for as long as it asked — a minute when it did not say.
+    expect(readCollectorLimits(429, {'retry-after': '120'}, NOW).eventsUntil).to.eq(NOW + 120_000);
+    expect(readCollectorLimits(429, {}, NOW).eventsUntil).to.eq(NOW + 60_000);
+    expect(readCollectorLimits(200, {}, NOW)).to.deep.eq({eventsUntil: 0, attachmentsUntil: 0, reason: ''});
+  });
+
+  it('a quota that is used up: the report WAITS FOR THE LIMIT, the status and the connection check say so — and it leaves when the limit renews', async () => {
+    const h = harness({status: 429});
+    h.net.headers = {'x-sentry-rate-limits': '2700:error;default:organization:usage_exceeded', 'retry-after': '2700'};
+    try {
+      const result = await h.hub.invoke('report', request) as DiagReportResult;
+      expect(result.state).to.eq('queued');
+      expect(result.waits, 'not the player\'s network — nothing of theirs to fix').to.eq('limit');
+      expect(fs.existsSync(path.join(result.folder, 'report.json')), 'the package is on the device meanwhile').to.eq(true);
+      const limited = await h.status();
+      expect({what: limited.limitedWhat, reason: limited.limitedReason, queued: limited.queued}).to.deep.eq({what: 'events', reason: 'usage_exceeded', queued: 1});
+      expect(limited.lastError).to.contain('its limit is reached (usage_exceeded)');
+      h.hub.line({kind: 'entry', entry: entry({id: 'page-s1-9', family: 'selftest'}), change: 'new'});
+      const check = await h.hub.invoke('selftest', {pageEntryId: 'page-s1-9'}) as DiagSelfTestResult;
+      expect(check.rows.filter((r) => r.state === 'failed').every((r) => r.limited), 'every failed row names the limit').to.eq(true);
+      expect(h.sent, 'while it says «wait», it is not asked again').to.have.length(0);
+      // The limit renews: the collector takes events again, and what waited leaves by itself.
+      h.net.status = 200;
+      h.net.headers = {};
+      h.tick(2_700_001);
+      h.timers.filter((t) => !t.dead).forEach((t) => t.run());
+      await h.settle();
+      expect(h.events().map((e) => e.tags.kind)).to.include('report');
+      const open = await h.status();
+      expect({what: open.limitedWhat, lastError: open.lastError}).to.deep.eq({what: '', lastError: ''});
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('the limit for FILES alone: the report arrives as a summary, says so, and the files stay in the folder', async () => {
+    const h = harness();
+    h.net.headers = {'x-sentry-rate-limits': '600:attachment:organization:usage_exceeded'};
+    try {
+      const result = await h.hub.invoke('report', request) as DiagReportResult;
+      expect({state: result.state, waits: result.waits, filesRefused: result.filesRefused}).to.deep.eq({state: 'sent', waits: '', filesRefused: true});
+      expect(fs.existsSync(path.join(result.folder, 'journal.json')), 'the files are on the device').to.eq(true);
+      expect(h.logs.some((line) => line.includes(result.code) && line.includes('refused the files'))).to.eq(true);
+      const status = await h.status();
+      expect({what: status.limitedWhat, reason: status.limitedReason}).to.deep.eq({what: 'attachments', reason: 'usage_exceeded'});
+      // It runs out by itself: nothing but time opens it.
+      h.net.headers = {};
+      h.tick(600_001);
+      expect((await h.status()).limitedWhat).to.eq('');
+    } finally {
+      h.cleanup();
+    }
   });
 });
 

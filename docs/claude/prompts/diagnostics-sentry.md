@@ -325,7 +325,7 @@
 **Sentry.**
 - Организация `victor-zelinskiy`, регион **EU** (`https://de.sentry.io`; изменить нельзя), команда `victor-zelinskiy`, бесплатный Developer-план: 1 пользователь, 5k ошибок, 1 GB вложений, отзывы есть.
 - Проект **`terraforming-mars`** (платформа `electron`).
-- **DSN** `https://2181c05ef5f21983bab67042e18117e4@o4512424253980672.ingest.de.sentry.io/4512424269054032` — не секрет, только отправка событий.
+- **DSN** — в GitHub-секрете `TM_SENTRY_DSN` (в репозитории его нет и быть не должно: гард `diagnosticsClassification.spec`); посмотреть / сменить — `npm run diag -- key`, Sentry → Settings → Client Keys. Ключ, стоявший в этой строке до 2026-11-14, заменён.
 - Настройки ПРОЕКТА: `dataScrubber: true`, `scrubIPAddresses: true`, `storeCrashReports: 5`.
 - `attachmentsRole` организации — `member`.
 

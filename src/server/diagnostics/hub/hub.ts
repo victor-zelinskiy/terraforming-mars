@@ -34,7 +34,7 @@ import {
   DiagContext, DiagHubStatus, DiagPush, DiagReportRequest, DiagReportResult, DiagSelfTestResult, DiagSelfTestRow, DiagSend, reportCodeFrom,
 } from '@/common/diagnostics/protocol';
 import {normalizeMessage, parseStack} from '@/common/diagnostics/stackFrames';
-import {EnvelopeAttachment, EnvelopeSender, eventEnvelope} from './envelopeSender';
+import {EnvelopeAttachment, EnvelopeSender, eventEnvelope, SendOutcome} from './envelopeSender';
 import {HubConfig, parseDsn, resolveHubConfig} from './hubConfig';
 import {DiagnosticsHub, HubHost} from './hubTypes';
 import {describeParts, gatherReportParts, ReportPart, tailWithin, writeReportFolder} from './reportPackage';
@@ -193,6 +193,8 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
     queued: sender.queued(),
     lastDeliveredAt: sender.lastDeliveredAt,
     lastError: sender.lastError,
+    limitedWhat: sender.limited().what,
+    limitedReason: sender.limited().reason,
     reportsDir,
   });
   const pushStatus = (): void => host.push({kind: 'status', status: status()} satisfies DiagPush);
@@ -374,7 +376,12 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
     const parts = await gatherReportParts(host, request, meta, at);
     const folder = writeReportFolder(reportsDir, code, parts);
     host.dropScreen();
-    const result = (state: DiagReportResult['state']): DiagReportResult => ({code, state, folder, parts: describeParts(parts)});
+    const result = (state: DiagReportResult['state'], outcome?: SendOutcome): DiagReportResult => ({
+      code, state, folder, parts: describeParts(parts),
+      // The truth of a wait: the network, or the collector's own limit — and a report that went without its files.
+      waits: state !== 'queued' ? '' : (outcome?.state === 'queued' && outcome.limited === true ? 'limit' : 'network'),
+      filesRefused: state === 'sent' && outcome?.state === 'sent' && outcome.attachmentsRefused === true,
+    });
     if (!sends) {
       return result('local');
     }
@@ -398,23 +405,26 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
     // (The player's words ride the report's own event — its message and `extra.comment`. They are NOT sent a second
     // time as a «User Feedback» item: the collector files that as an issue of its own, i.e. two issues and two mails
     // per report — measured with the probe, 2026-11-14.)
-    return result(outcome.state === 'sent' ? 'sent' : 'queued');
+    if (outcome.state === 'sent' && outcome.attachmentsRefused === true) {
+      host.log(`[diagnostics] report ${code}: the collector took the summary and refused the files (its limit for attachments) — they are in ${folder}`);
+    }
+    return result(outcome.state === 'sent' ? 'sent' : 'queued', outcome);
   }
 
   async function selfTest(pageEntryId: string): Promise<DiagSelfTestResult> {
     const started = now();
     const row = async (runtime: DiagSelfTestRow['runtime'], entry: DiagEntry | undefined, absent: string): Promise<DiagSelfTestRow> => {
       if (entry === undefined) {
-        return {runtime, state: absent === '' ? 'failed' : 'absent', eventId: '', reason: absent === '' ? 'the test record never arrived' : absent};
+        return {runtime, state: absent === '' ? 'failed' : 'absent', eventId: '', reason: absent === '' ? 'the test record never arrived' : absent, limited: false};
       }
       if (!sends) {
-        return {runtime, state: 'failed', eventId: '', reason: config.why === '' ? 'this build has no destination' : config.why};
+        return {runtime, state: 'failed', eventId: '', reason: config.why === '' ? 'this build has no destination' : config.why, limited: false};
       }
       const delivery = await sendEntry(entry, true);
       if (delivery.state === 'sent') {
-        return {runtime, state: 'delivered', eventId: delivery.eventId, reason: ''};
+        return {runtime, state: 'delivered', eventId: delivery.eventId, reason: '', limited: false};
       }
-      return {runtime, state: 'failed', eventId: delivery.state === 'queued' ? delivery.eventId : '', reason: sender.lastError === '' ? 'not delivered' : sender.lastError};
+      return {runtime, state: 'failed', eventId: delivery.state === 'queued' ? delivery.eventId : '', reason: sender.lastError === '' ? 'not delivered' : sender.lastError, limited: sender.limited().what === 'events'};
     };
     const page = waitFor((e) => e.id === pageEntryId, 3_000);
     // The host's own test error: thrown in the host's code, so its stack proves the host's source maps.

@@ -39,7 +39,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 async function installStandHub(page: Page): Promise<void> {
   await page.addInitScript(() => {
     type Stand = {
-      mode: 'sent' | 'queued' | 'silent',
+      mode: 'sent' | 'queued' | 'limited' | 'silent',
       consent: boolean,
       calls: Array<{verb: string, request: unknown}>,
       lines: Array<unknown>,
@@ -54,7 +54,9 @@ async function installStandHub(page: Page): Promise<void> {
     };
     const status = () => ({
       environment: 'box', release: 'terraforming-mars@e2e', appMode: 'host', sendingOff: stand.consent ? '' : 'consent', consent: stand.consent,
-      queued: stand.mode === 'queued' ? 1 : 0, lastDeliveredAt: stand.mode === 'sent' ? Date.now() : 0, lastError: '',
+      queued: stand.mode === 'queued' || stand.mode === 'limited' ? 1 : 0, lastDeliveredAt: stand.mode === 'sent' ? Date.now() : 0,
+      lastError: stand.mode === 'limited' ? 'the collector is not taking events — its limit is reached (usage_exceeded)' : '',
+      limitedWhat: stand.mode === 'limited' ? 'events' : '', limitedReason: stand.mode === 'limited' ? 'usage_exceeded' : '',
       reportsDir: '/home/deck/.config/terraforming-mars/diagnostics/reports',
     });
     const later = <T>(ms: number, value: T): Promise<T> => new Promise((resolve) => setTimeout(() => resolve(value), ms));
@@ -73,7 +75,8 @@ async function installStandHub(page: Page): Promise<void> {
             return later(900, undefined);
           }
           return later(2600, {
-            code: 'TM-K7QW3D', state: stand.mode,
+            code: 'TM-K7QW3D', state: stand.mode === 'sent' ? 'sent' : 'queued',
+            waits: stand.mode === 'sent' ? '' : (stand.mode === 'limited' ? 'limit' : 'network'), filesRefused: false,
             folder: '/home/deck/.config/terraforming-mars/diagnostics/reports/TM-K7QW3D',
             parts: [
               {name: 'report.json', bytes: 2100, truncated: false}, {name: 'journal.json', bytes: 48_000, truncated: false},
@@ -82,10 +85,18 @@ async function installStandHub(page: Page): Promise<void> {
             ],
           });
         case 'selftest':
+          if (stand.mode === 'limited') {
+            const reason = 'the collector is not taking events — its limit is reached (usage_exceeded)';
+            return later(1200, {tookMs: 1200, rows: [
+              {runtime: 'page', state: 'failed', eventId: '', reason, limited: true},
+              {runtime: 'main', state: 'failed', eventId: '', reason, limited: true},
+              {runtime: 'server', state: 'failed', eventId: '', reason, limited: true},
+            ]});
+          }
           return later(1800, {tookMs: 1800, rows: [
-            {runtime: 'page', state: 'delivered', eventId: 'a'.repeat(32), reason: ''},
-            {runtime: 'main', state: 'delivered', eventId: 'b'.repeat(32), reason: ''},
-            {runtime: 'server', state: stand.mode === 'queued' ? 'failed' : 'delivered', eventId: '', reason: stand.mode === 'queued' ? 'no connection (net::ERR_INTERNET_DISCONNECTED)' : ''},
+            {runtime: 'page', state: 'delivered', eventId: 'a'.repeat(32), reason: '', limited: false},
+            {runtime: 'main', state: 'delivered', eventId: 'b'.repeat(32), reason: '', limited: false},
+            {runtime: 'server', state: stand.mode === 'queued' ? 'failed' : 'delivered', eventId: '', reason: stand.mode === 'queued' ? 'no connection (net::ERR_INTERNET_DISCONNECTED)' : '', limited: false},
           ]});
         case 'copy': return Promise.resolve(true);
         default: return Promise.resolve(true);
@@ -336,6 +347,51 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     await cinematicBeat(page, 900, 'the code\'s cells finish their reveal');
     await shoot(page, '15-report-queued');
     await press(page, 'Enter');
+    await expect(page.locator('.con-sys')).toHaveCount(0);
+
+    // ── THE RECEIVING SERVICE IS FULL: its limit is not the player's network, and no screen says «сеть» ───────────
+    await page.evaluate(() => {
+      (window as unknown as {__diagStand: {mode: string}}).__diagStand.mode = 'limited';
+    });
+    await press(page, 'KeyM');
+    await expect(page.locator('.con-sys--menu')).toHaveCount(1);
+    await page.locator('.con-sysact__plate', {hasText: 'Сообщить о проблеме'}).click();
+    await expect.poll(() => step(page)).toBe('category');
+    await press(page, 'Enter');
+    await press(page, 'Enter', 300, {absorbed: 'allow'});
+    await expect.poll(() => step(page), {timeout: 20_000}).toBe('done');
+    await expect(page.locator('.con-diagsend__title')).toHaveText('Отчёт сохранён и уйдёт позже');
+    await expect(page.locator('.con-diagsend')).toContainText('ваш интернет ни при чём');
+    await expect(page.locator('.con-diagsend'), 'a limit is never told as a missing network').not.toContainText('сеть');
+    await sameFrame('the report: the service is full');
+    await cinematicBeat(page, 900, 'the cells of the code finish their reveal');
+    await shoot(page, '22-report-limited');
+    await press(page, 'Enter');
+    await expect(page.locator('.con-sys')).toHaveCount(0);
+    // The developer reads the same truth on the system readout — with the collector's own word for the reason…
+    await press(page, 'KeyM');
+    await page.locator('.con-sysact__plate', {hasText: 'Диагностика'}).click();
+    await expect.poll(() => step(page)).toBe('browse');
+    await page.locator('[data-diag-tab="system"]').click();
+    const sendingRow = page.locator('[data-diag-group="Reports"] .con-set__ro').first();
+    await expect(sendingRow).toContainText('Служба приёма переполнена');
+    await expect(page.locator('[data-diag-group="Reports"] .con-set__ro-note')).toContainText('usage_exceeded');
+    // The words changed in a row that already stood: it is as tall as the row under it (one line), not a line taller.
+    const rowHeights = await page.locator('[data-diag-group="Reports"] .con-set__ro').evaluateAll((rows) => rows.map((row) => Math.round(row.getBoundingClientRect().height)));
+    expect(new Set(rowHeights).size, `every row of the group is one line tall — ${rowHeights.join(', ')}`).toBe(1);
+    await sameFrame('the system readout: the service is full');
+    await shoot(page, '23-system-limited');
+    // …and the connection check does not send them to check the internet.
+    await press(page, 'Enter');
+    await expect.poll(() => step(page)).toBe('selftest');
+    await expect(page.locator('[data-diag-check="done"]')).toHaveCount(1, {timeout: 15_000});
+    await expect(page.locator('.con-diagcheck__summary')).toHaveText('Служба приёма переполнена');
+    await expect(page.locator('.con-diagcheck__hint')).toContainText('Связь в порядке');
+    await sameFrame('the connection check: the service is full');
+    await shoot(page, '24-check-limited');
+    await press(page, 'Escape');
+    await press(page, 'Escape');
+    await press(page, 'Escape');
     await expect(page.locator('.con-sys')).toHaveCount(0);
 
     // ── A HUB THAT DOES NOT ANSWER: the refusal speaks; B returns to the draft ───────────────────────────────────
