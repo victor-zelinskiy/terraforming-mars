@@ -52,6 +52,8 @@ export type BottlePageHandle = {
    * cannot navigate — the ask is counted, and the bottle's own `reload()` is what serves it.
    */
   rebuildsAsked(): number,
+  /** How many times the page asked to NAVIGATE to another document (jsdom cannot; the ask is counted). */
+  navigationsAsked(): number,
   /**
    * WHO KEEPS A CLOCK — one wait on each source of time the client has, started NOW; the returned reader says when
    * (in ms of the bottle's clock after the start) each of them came, `-1` while it has not.
@@ -74,8 +76,17 @@ export function openPage(clock: BottleClock, lines: Array<string>, echo: boolean
   const record = __installDiagnosticsJournalForTesting(journal);
   const realWarn = console.warn;
   const realError = console.error;
+  let navigationsAsked = 0;
   const tap = (level: 'warn' | 'error', real: (...args: Array<unknown>) => void) => (...args: Array<unknown>): void => {
     const text = args.map((arg) => (arg instanceof Error ? arg.stack ?? arg.message : typeof arg === 'string' ? arg : safeJson(arg))).join(' ');
+    // THE PAGE ASKED TO LEAVE (a game-boundary navigation — the finale's way out, a rematch): jsdom cannot navigate and
+    // says so as an error of its own. It is the bottle's fact (`navigationsAsked`), never a record of the game's journal
+    // (the monkey's first full pass filed it as `error/console` on `marsbot-random-set-ares-finale`).
+    if (/Not implemented: navigation/.test(text)) {
+      navigationsAsked++;
+      lines.push(`bottle: the page asked to navigate (${navigationsAsked})`);
+      return;
+    }
     lines.push(`${level}: ${text}`);
     if (echo) {
       real.call(console, ...args);
@@ -126,6 +137,7 @@ export function openPage(clock: BottleClock, lines: Array<string>, echo: boolean
     beat: () => (window as unknown as {__conFieldRecorder?: () => FieldRecord}).__conFieldRecorder?.().heartbeats.at(-1),
     counters: () => ({...flowTraceStats, reactivityLatches: reactivityWitnessStats.latches}),
     rebuildsAsked: () => rebuildsAsked,
+    navigationsAsked: () => navigationsAsked,
     timeProbe: () => {
       const started = clock.now();
       const tickerAt = gsap.ticker.time;

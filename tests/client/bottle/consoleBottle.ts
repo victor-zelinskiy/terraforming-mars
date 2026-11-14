@@ -79,6 +79,14 @@ export type BottleOptions = {
 export const LAYOUT_BLIND: ReadonlyArray<{cls: RegExp, why: string}> = [
   {cls: /^wait-graph\/ceiling\/played-hero:target$/, why: '«a measurable landing slot for the card» — a 0×0 rect is no slot (`transferEndVerdict`: width ≤ 4 → empty)'},
   {cls: /^animation-hold\/ceiling\/parliament-vote-landing$/, why: 'the delegates\' flight between two measured figures (`ConsoleParliamentVoteMode` `flyOwnDelegate`)'},
+  // THE FIRST FULL PASS OF THE MONKEY IN THE BOTTLE (2026-11-14, 606 walks, seed `fz0`) — every row below ended a wait
+  // for a MEASURED end on its ceiling, on tables where the box monkey's baseline (456 walks) named nothing.
+  // ⚠ A ROW IS ADDED ONLY AFTER A REAL BROWSER SAID «not there»: two classes of that pass looked exactly as blind as
+  // these (`wait-graph/ceiling/scale-step-rating:stage`, `…/card-reaction:rating-story-quiet`) and a real browser
+  // named them too — they are the GAME's (the plan's worklist), and they are not rows here.
+  {cls: /^wait-graph\/ceiling\/ma-price:price-end$/, why: '«the price\'s end» — the token of a milestone / award price lands on a measured cell (116 tables in the bottle, none on the box)'},
+  {cls: /^wait-graph\/ceiling\/played-hero:reward-place$/, why: '«a place for the reward» of a played card — a measured slot, the sibling of `played-hero:target`'},
+  {cls: /^wait-graph\/overdue\/admission:host:card-arrival$/, why: 'the arrival of a drawn card into the dock is a flight to a measured slot; the admission block that waits for it runs to its bound'},
 ];
 
 export type BottleLiveness = {
