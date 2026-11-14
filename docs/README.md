@@ -14,6 +14,10 @@ files here are the deeper dives it points at.
 ## Repo workflow / release
 - [SHARED_MAIN_WORKFLOW.md](SHARED_MAIN_WORKFLOW.md) — two clones pushing to one `main`: `npm run push`, why the release version may never be derived from the local base, and what the pre-commit / push / pre-push trio each guarantee.
 
+## Диагностика — руководства для людей
+- [DIAGNOSTICS_GUIDE_PLAYERS_QA.md](DIAGNOSTICS_GUIDE_PLAYERS_QA.md) — **игрокам и тестировщикам**: как сообщить о проблеме, что уходит в отчёте, код отчёта, журнал ошибок; для QA — как оформить баг, категории, уведомления разработчика, что делать при зависании.
+- [DIAGNOSTICS_GUIDE_DEVELOPER.md](DIAGNOSTICS_GUIDE_DEVELOPER.md) — **разработчику**: ошибки и зависания прямо в игре, проверка связи, Sentry в браузере (фильтры, вложения, письма), фразы для агента, диагностика с бокса без отчёта, лимиты, приватность, шпаргалка. Технический контракт — [claude/diagnostics.md](claude/diagnostics.md).
+
 ## Console / gamepad / TV
 - [CONSOLE_MODE_CONCEPT.md](CONSOLE_MODE_CONCEPT.md) — console-native shell design (the default UI surface).
 - [CONSOLE_FOUNDATION.md](CONSOLE_FOUNDATION.md) — VueUse foundation layer (semantic input, overflow policy, viewport).

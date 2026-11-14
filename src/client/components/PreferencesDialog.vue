@@ -108,18 +108,16 @@
         <button class="btn btn-lg btn-primary" v-on:click="okClicked" v-i18n>Ok</button>
         <button class="btn btn-lg btn-primary" v-on:click="showBugDialog" v-i18n>Report a bug</button>
       </div>
-      <bug-report-dialog ref="bugDialog"></bug-report-dialog>
     </div>
 </template>
 
 <script setup vapor lang="ts">
-import {ref, useTemplateRef} from 'vue';
-import {ExposedOf} from '@/client/components/exposedOf';
+import {ref} from 'vue';
 
 import {PreferencesManager, Preference} from '@/client/utils/PreferencesManager';
 import {$t} from '@/client/directives/i18n';
 import {vI18n} from '@/client/directives/vDirectives';
-import BugReportDialog from '@/client/components/BugReportDialog.vue';
+import {openDiagnosticsOverlay} from '@/client/diagnostics/diagnosticsOverlayBridge';
 
 
 defineOptions({name: 'PreferencesDialog'});
@@ -131,14 +129,15 @@ const props = defineProps({
 });
 const emit = defineEmits(['okButtonClicked']);
 
-const bugDialog = useTemplateRef<ExposedOf<typeof BugReportDialog>>('bugDialog');
 const prefs = ref({...props.preferencesManager.values()});
+/**
+ * «Report a bug» is the GAME'S OWN report (docs/claude/diagnostics.md): the diagnostics surface, on its report step —
+ * a package for this fork's developer with a code. (It used to open a dialog that sent the player to the ORIGINAL
+ * project's GitHub and Discord — upstream cannot act on a bug of this fork, and the text it offered to paste carried
+ * the player's id.)
+ */
 function showBugDialog() {
-  const el = bugDialog.value;
-  if (el === null) {
-    return;
-  }
-  el.show();
+  openDiagnosticsOverlay({to: 'report'});
 }
 function setBoolPreferencesCSS(
   target: HTMLElement,

@@ -114,4 +114,13 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   },
   // Settings-row "apply now": relaunch into the newly persisted mode.
   relaunchApp: (): Promise<void> => ipcRenderer.invoke('desktop:relaunchApp'),
+  // ---- Diagnostics (docs/claude/diagnostics.md) — three pipes, no verbs known here ----
+  // The page talks to the diagnostics HUB of the main process (electron/diagnosticsMain.ts) in the protocol of
+  // src/common/diagnostics/protocol.ts. `diagSend` is a one-way line (a journal record must reach main even when the
+  // page is about to die — no round trip), `diagInvoke` a question, `onDiagEvent` what the hub pushes back.
+  diagInvoke: (verb: string, payload?: unknown): Promise<unknown> => ipcRenderer.invoke('desktop:diag', verb, payload),
+  diagSend: (payload: unknown): void => ipcRenderer.send('desktop:diag-line', payload),
+  onDiagEvent: (cb: (event: unknown) => void): void => {
+    ipcRenderer.on('desktop:diag-event', (_event, payload) => cb(payload));
+  },
 });

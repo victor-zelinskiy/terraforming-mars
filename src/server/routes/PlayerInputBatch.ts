@@ -11,6 +11,7 @@ import {runId} from '../utils/server-ids';
 import {AppError} from '../server/AppError';
 import {statusCode} from '../../common/http/statusCode';
 import {InputError} from '../inputs/InputError';
+import {reportServerError} from '../diagnostics/serverDiagnostics';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {AppErrorResponse, INVALID_RUN_ID} from '../../common/app/AppErrorId';
 import {replayBatch} from '../inputs/deferredInputBatch';
@@ -108,6 +109,8 @@ export class PlayerInputBatch extends Handler {
           resolve();
         } catch (e) {
           if (!(e instanceof AppError || e instanceof InputError)) {
+            // Not a refusal of the rules (those are AppError / InputError): the engine THREW while applying the answer.
+            reportServerError('processing a player input', e);
             console.warn('Error processing batch input from player', e);
           }
           res.writeHead(statusCode.badRequest, {

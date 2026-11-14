@@ -35,7 +35,8 @@ import {beginShutdown, isShuttingDown} from './shutdown';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
 import {readSteamPersonaName} from './steamPersona';
 import {getSteamPromptDismissed, setSteamPromptDismissed, getAppMode, setAppMode, getLanVisible, setLanVisible, getLanName, setLanName} from './session';
-import {startEmbeddedServer, stopEmbeddedServer, embeddedServerStatus, embeddedServerPort, getLanHosts, getLanDiagnostics, onLanHostsChanged, setLanName as renameLanAdvertisement} from './embeddedServer';
+import {startEmbeddedServer, stopEmbeddedServer, embeddedServerStatus, embeddedServerPort, getLanHosts, getLanDiagnostics, onLanHostsChanged, setLanName as renameLanAdvertisement, onEmbeddedDiag, postToEmbeddedServer} from './embeddedServer';
+import {installDiagnosticsMain} from './diagnosticsMain';
 import {VelopackApp} from 'velopack';
 
 // Velopack sets VELOPACK_FIRSTRUN when it launches the app for the FIRST time after install.
@@ -120,6 +121,17 @@ if (requestedAppMode() === 'host' && !APP_LOAD) {
   // eslint-disable-next-line no-console
   console.warn('[embedded] host mode requires the app:// renderer (TM_ELECTRON_LOAD=app) — running remote');
 }
+// DIAGNOSTICS (docs/claude/diagnostics.md) — installed at module load, before 'ready': the crash reporter must start
+// before the app is ready, and what the main process prints while it boots is evidence too. From here on every
+// console.warn / console.error of this process is a record of the in-game journal, the process has a log file on every
+// platform, and (in a release built with a destination, with the player's consent) what fails is sent.
+const diagnostics = installDiagnosticsMain({
+  appMode: () => effectiveMode,
+  postToServer: (message) => postToEmbeddedServer(message),
+  exportDir: () => resolveExportDir(app),
+});
+onEmbeddedDiag((signal) => diagnostics.noteServerSignal(signal));
+
 // LAN visibility is a launch-time bind property; captured so the settings row
 // can tell "persisted choice" from "what this session actually runs".
 const lanVisibleAtLaunch = getLanVisible();
@@ -535,12 +547,17 @@ function createWindow(): void {
   mainWindow.on('focus', startDisplayBlocker);
   mainWindow.on('blur', stopDisplayBlocker);
 
-  // F12 toggles DevTools even in the packaged fullscreen build — the one
-  // accelerator kept after dropping the default application menu. It's how the
-  // on-device "[TM perf]" echo and ?perf=1 long-task logs are read.
+  // F12 opens the game's OWN diagnostics journal (docs/claude/diagnostics.md) — the premium surface a player is asked
+  // to open, never a browser console. Chrome DevTools stays the developer's instrument behind SHIFT+F12 (and the
+  // on-device "[TM perf]" echo and ?perf=1 long-task logs are still read there). Both are the only accelerators kept
+  // after dropping the default application menu.
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' && input.key === 'F12') {
       event.preventDefault();
+      if (!input.shift) {
+        diagnostics.openJournal();
+        return;
+      }
       const wc = mainWindow?.webContents;
       if (wc !== undefined) {
         if (wc.isDevToolsOpened()) {
@@ -556,6 +573,8 @@ function createWindow(): void {
   // F12 "Экспорт консоли" button can dump it to a file beside the game log, and "Копировать
   // консоль" can put the same dump on the clipboard.
   const consoleExporter = installConsoleCapture(app, mainWindow);
+  // …and the diagnostics hub talks to THIS window's page: its pushes, the frame on screen, the console's dump.
+  diagnostics.attachWindow(mainWindow, consoleExporter);
 
   // THE RENDERER HANG WATCH (`rendererHangWatch.ts`): a stop in NATIVE rendering never returns to JS, so nothing in the
   // page sees it — the main process names where the screen stood, and past 30 s restarts the renderer (the reload
@@ -956,6 +975,8 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', () => {
     // eslint-disable-next-line no-console
     console.log('[shutdown] before-quit — stopping the embedded server');
+    // What the journal still holds open is closed (an episode nobody cured); nothing here waits for the network.
+    void diagnostics.shutdown();
     // Best-effort graceful stop; never blocks quit (saves are already durable —
     // every action is a completed synchronous file write).
     stopEmbeddedServer();

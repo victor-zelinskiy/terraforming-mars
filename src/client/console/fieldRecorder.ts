@@ -22,6 +22,10 @@
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
+import {noteDiagnosticsHeartbeat, onDiagnosticLine, pageErrorLine} from '@/client/diagnostics/diagnosticsCapture';
+
+// The line an uncaught error is printed as lives with the interceptor that prints it; re-exported for its readers.
+export {pageErrorLine};
 
 export type FieldHeartbeat = {
   /** The game id (the shell knows it; the URL does not carry it). */
@@ -324,8 +328,8 @@ function browserPost(body: FieldPost, final: boolean): void {
 }
 
 /**
- * Idempotent — installed once per page by the console key bridge (the console's own entry). Wraps `console.warn` and
- * `console.error` to COPY tagged lines (the originals still print); the heartbeat is the shell's call.
+ * Idempotent — installed once per page by the console key bridge (the console's own entry). It COPIES the tagged lines
+ * the page's interceptor hands it (the console still prints them); the heartbeat is the shell's call.
  */
 export function installFieldRecorder(): FieldRecorder | undefined {
   if (installed !== undefined || typeof window === 'undefined' || typeof localStorage === 'undefined') {
@@ -340,47 +344,22 @@ export function installFieldRecorder(): FieldRecorder | undefined {
   };
   const recorder = new FieldRecorder({storage, post: browserPost, now: () => Date.now(), page});
   installed = recorder;
-  const wrap = (method: 'warn' | 'error') => {
-    const original = console[method].bind(console);
-    console[method] = (...args: Array<unknown>) => {
-      original(...args);
-      try {
-        const text = args.map((a) => typeof a === 'string' ? a : (a instanceof Error ? a.message : JSON.stringify(a))).join(' ');
-        recorder.line(text);
-      } catch {
-        // never into the console being recorded
-      }
-    };
-  };
-  wrap('warn');
-  wrap('error');
-  // AN EXCEPTION IN AN ASYNC BEAT leaves its flow half-way (a stage never left, a hold never released) — and printed
-  // untagged it never reached the field log: the freeze arrived with its symptom only. Every uncaught error and every
-  // unhandled rejection is a tagged line now, with the head of its stack.
-  window.addEventListener('error', (e) => {
-    // The browser's own notice that a ResizeObserver callback was deferred a frame — no exception, no flow affected.
-    if (/^ResizeObserver loop/.test(String(e.message ?? ''))) {
-      return;
-    }
-    console.error(pageErrorLine('uncaught', e.error ?? e.message));
-  });
-  window.addEventListener('unhandledrejection', (e) => {
-    console.error(pageErrorLine('unhandled rejection', e.reason));
-  });
+  // THE LINES COME FROM THE PAGE'S ONE INTERCEPTOR (`diagnostics/diagnosticsCapture.ts`, installed by `main.ts` before
+  // the app exists): this recorder no longer wraps the console itself. Two things that buys — the lines printed BEFORE
+  // the console was entered (the boot, the main menu) are replayed into the record, and an `Error` arrives as its
+  // whole stack instead of its message. Uncaught errors and unhandled rejections are the interceptor's too
+  // (`[page-error] …`, one line per throw).
+  onDiagnosticLine((line) => {
+    recorder.line(line.text);
+  }, {replay: true});
   window.addEventListener('pagehide', () => recorder.pagehide());
   (window as unknown as {__conFieldRecorder?: () => FieldRecord}).__conFieldRecorder = () => recorder.snapshot();
   return recorder;
 }
 
-/** `[page-error] <kind>: <name: message> @ <the first two frames>` — pure (the field log's line for an exception). */
-export function pageErrorLine(kind: string, err: unknown): string {
-  const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-  const frames = err instanceof Error && typeof err.stack === 'string' ?
-    err.stack.split('\n').slice(1, 3).map((f) => f.trim()).join(' | ') : '';
-  return `[page-error] ${kind}: ${message.slice(0, 300)}${frames !== '' ? ` @ ${frames.slice(0, 300)}` : ''}`;
-}
-
 /** The arbiter's heartbeat — a no-op until the recorder is installed. */
 export function recordFieldHeartbeat(h: Omit<FieldHeartbeat, 'at'>): void {
   installed?.heartbeat(h);
+  // …and the same beat is what a diagnostic record says the screen was doing when it was born.
+  noteDiagnosticsHeartbeat(h);
 }

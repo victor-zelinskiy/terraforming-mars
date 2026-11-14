@@ -316,6 +316,8 @@ export interface ConsoleExporter {
   copyToClipboard(): Promise<{ok: boolean, length?: number, error?: string}>;
   /** A line the MAIN process says (the renderer hang watch) — kept beside the page's own, in the export. */
   note(text: string): void;
+  /** The same dump as text — what a diagnostics report attaches (`console_export.txt`). Never throws; '' on failure. */
+  dumpText(): Promise<string>;
 }
 
 /** A page probe that cannot hang the export: a hung renderer never answers `executeJavaScript` (the hang watch). */
@@ -697,6 +699,14 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
   return {
     note(text: string): void {
       capTo(fallback, 'WARN', text, 'main');
+    },
+    async dumpText() {
+      try {
+        const {gameName, when, entries, rich, screen} = await gather();
+        return dump(gameName, when, entries, rich, screen);
+      } catch {
+        return '';
+      }
     },
     async export() {
       try {

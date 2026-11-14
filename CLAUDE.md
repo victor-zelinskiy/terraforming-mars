@@ -214,6 +214,7 @@ Pluggable backends in `src/server/database/` (SQLite / PostgreSQL / LocalFilesys
 | `server.md` | `src/server/**`, `src/common/**`, route/event/model tests |
 | `board.md` | board engine, board facts, board components |
 | `localization.md` | `src/locales/**` |
+| `diagnostics.md` | the in-game journal, «Сообщить о проблеме», the hub (the one sender to Sentry), the developer's notice: `src/{common,client,server}/diagnostics/**`, `electron/diagnosticsMain.ts`, `scripts/diag.mjs` (contract `docs/claude/diagnostics.md`; triage — the skill `diagnose-report`) |
 | `tests.md` | `tests/**` |
 
 **`docs/claude/`** — full reference, never auto-loaded. **The program of the north star is `docs/claude/vapor/ROADMAP.md`** (the stages, what is counted against the target, the pilot's protocol, how the rework is run). Start at `docs/claude/README.md` for the index (expansion checklist, architecture reference, board information, journal, notifications, presentation flow, the desktop overlays, the card subsystems, the console contracts). Long-standing sibling docs stay where they are: `docs/CONSOLE_MODE_CONCEPT.md`, `docs/CONSOLE_FOUNDATION.md`, `docs/CONSOLE_SURFACE_MOTION.md`, `docs/DESKTOP_UI_PHILOSOPHY.md`, `docs/MODAL_INPUTS.md`, `docs/EVENT_STAT_FOUNDATION.md`, `docs/ENDGAME_STORYTELLING.md`, plus the audit files (`DELAYED_TARGET_AUDIT`, `CHOICE_CONTEXT_AUDIT`, `PROMPT_PREMIUM_AUDIT`, `PENDING_ACTION_CANCEL_AUDIT`, `SPECIAL_TILE_AUDIT`, `DESKTOP_DEPRECATION_AUDIT`).

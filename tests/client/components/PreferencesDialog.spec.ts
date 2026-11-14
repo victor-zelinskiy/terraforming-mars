@@ -3,6 +3,7 @@ import {expect} from 'chai';
 import PreferencesDialog from '@/client/components/PreferencesDialog.vue';
 import {Preference, PreferencesManager} from '@/client/utils/PreferencesManager';
 import {globalConfig} from './getLocalVue';
+import {setDiagnosticsOverlayOpener} from '@/client/diagnostics/diagnosticsOverlayBridge';
 
 describe('PreferencesDialog', () => {
   const preferencesManager = PreferencesManager.INSTANCE;
@@ -53,9 +54,9 @@ describe('PreferencesDialog', () => {
     expect(preferencesManager.values().hide_awards_and_milestones).is.true;
   });
 
-  // The panel is `<script setup>` (step A of docs/claude/vapor/RECIPES.md): its one emit is declared, and the bug
-  // dialog it holds by `ref="bugDialog"` answers with what that dialog EXPOSES — `show()`.
-  it('«Ok» emits okButtonClicked, and «Report a bug» opens the bug dialog it holds by ref', async () => {
+  // The panel is `<script setup>` (step A of docs/claude/vapor/RECIPES.md): its one emit is declared. «Report a bug»
+  // opens the game's OWN report — the diagnostics surface — never a dialog that sends the player to upstream.
+  it('«Ok» emits okButtonClicked, and «Report a bug» opens the report of the game itself', async () => {
     const wrapper = mount(PreferencesDialog, {
       ...globalConfig,
       props: {preferencesManager},
@@ -65,11 +66,14 @@ describe('PreferencesDialog', () => {
     await ok.trigger('click');
     expect(wrapper.emitted('okButtonClicked')).to.deep.eq([[]]);
 
-    let opened = 0;
-    wrapper.find<HTMLDialogElement>('dialog.bug-dialog').element.showModal = () => {
-      opened++;
-    };
-    await reportABug.trigger('click');
-    expect(opened).to.eq(1);
+    const opened: Array<unknown> = [];
+    setDiagnosticsOverlayOpener((target) => opened.push(target));
+    try {
+      await reportABug.trigger('click');
+      expect(opened).to.deep.eq([{to: 'report'}]);
+      expect(wrapper.find('dialog.bug-dialog').exists()).to.eq(false);
+    } finally {
+      setDiagnosticsOverlayOpener(undefined);
+    }
   });
 });

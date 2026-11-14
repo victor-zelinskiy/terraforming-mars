@@ -250,6 +250,9 @@
         entirely (mouse/keyboard players byte-identical).
       -->
       <GamepadLayer v-if="screen !== 'empty'" :screen="screen" />
+      <!-- DIAGNOSTICS (docs/claude/diagnostics.md): the developer's notice and the page's context for the hub —
+           app-level, like the two layers above, so it stands on every screen and while the shell does not. -->
+      <DiagnosticsLayer :screen="screen" :player-view="playerView" />
       <!--
         The shared fullscreen card viewer for PRE-GAME console screens (the
         campaign map's carryover picker, the dev card picker, …): the same
@@ -323,6 +326,7 @@ import {
 } from '@/client/components/feedback/hazardCleanupTransition';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
+import DiagnosticsLayer from '@/client/components/console/diagnostics/DiagnosticsLayer.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleModeState, requestConsoleFullscreen} from '@/client/console/consoleModeState';
 import {showConsoleAlert} from '@/client/console/consoleSystemAlertState';

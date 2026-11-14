@@ -131,6 +131,10 @@ function writeBuildMetadata() {
     waitingForTimeout: getEnv('WAITING_FOR_TIMEOUT', constants.DEFAULT_WAITING_FOR_TIMEOUT),
     logLength: getEnv('LOG_LENGTH', constants.DEFAULT_LOG_LENGTH),
     discordClientId: process.env['DISCORD_CLIENT_ID'] ?? '',
+    // WHERE THIS BUILD'S DIAGNOSTICS GO (docs/claude/diagnostics.md) — a DSN, i.e. an address events can only be SENT
+    // to (not a secret). The release workflow passes it from the repository's Actions variable; a local build, a
+    // fork's build and a pull request have none, and a build with none sends nothing — the hub decides on this field.
+    sentryDsn: (process.env['TM_SENTRY_DSN'] ?? '').trim(),
   };
   fs.writeFileSync('src/genfiles/settings.json', JSON.stringify(settings));
 }

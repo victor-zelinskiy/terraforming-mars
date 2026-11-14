@@ -26,13 +26,17 @@
  *   → {type:'fatal', error}           unrecoverable startup failure (main falls back to remote)
  *   → {type:'lan-hosts', hosts}       aggregated browse results (LanHostInfo[])
  *   → {type:'lan-diagnostics', diagnostics}  per-link mDNS health (heartbeat)
+ *   → {type:'diag', signal}           a failure of this process, for the diagnostics hub (serverDiagnostics.ts)
  *   ← {type:'shutdown'}               graceful stop, then process.exit(0)
  *   ← {type:'lan-rename', name}       re-advertise under a new friendly name
+ *   ← {type:'diag-selftest'}          «Проверка связи»: throw the test error and post it
  *
  * NOTE: server modules are `require`d AFTER process.chdir so every cwd-derived
  * default (LocalFilesystem db folder) resolves under TM_EMBEDDED_ROOT.
  */
 import * as fs from 'fs';
+// (Holds no server state and reads no cwd — safe to load before the chdir below.)
+import {installServerDiagnostics, serverSelfTest, setServerDiagnosticsSink} from '../diagnostics/serverDiagnostics';
 
 export const DEFAULT_EMBEDDED_PORT = 17325;
 /** Heartbeat for the cached LAN diagnostics snapshot in the main process. */
@@ -61,6 +65,12 @@ function send(message: unknown): void {
 process.on('uncaughtException', (err: unknown) => {
   console.error('UNCAUGHT EXCEPTION', err);
 });
+
+// DIAGNOSTICS (docs/claude/diagnostics.md): whatever fails here is posted to the main process, where the hub mirrors
+// it into the in-game journal and — when the build has a destination and the player allows it — sends it. The server
+// itself knows only its facade; a hosted server will give it another sink.
+setServerDiagnosticsSink((signal) => send({type: 'diag', signal}));
+installServerDiagnostics();
 
 async function main(): Promise<void> {
   const root = (process.env.TM_EMBEDDED_ROOT ?? '').trim();
@@ -151,6 +161,9 @@ async function main(): Promise<void> {
         .catch((err) => console.error('[embedded] stop failed', err))
         .then(() => flushDatabase())
         .finally(() => process.exit(0));
+    } else if (data.type === 'diag-selftest') {
+      // «Проверка связи»: the app asks this process to prove its road to the developer.
+      serverSelfTest();
     } else if (data.type === 'lan-rename') {
       discovery.rename(String(data.name ?? ''));
     }

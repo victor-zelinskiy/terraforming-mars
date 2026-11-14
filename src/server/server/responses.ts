@@ -4,6 +4,7 @@ import {Request} from '../Request';
 import {Response} from '../Response';
 import {statusCode} from '../../common/http/statusCode';
 import {AppError} from './AppError';
+import {reportServerError} from '../diagnostics/serverDiagnostics';
 import {AppErrorResponse} from '../../common/app/AppErrorId';
 
 export function badRequest(req: Request, res: Response, err?: string): void {
@@ -95,6 +96,8 @@ export function internalServerError(
   res: Response,
   err: unknown): void {
   console.warn('internal server error: ', req.url, err);
+  // A request that ends here ended on an exception: said once to the diagnostics facade (a no-op with no sink).
+  reportServerError(`internal server error at ${(req.url ?? '').split('?')[0]}`, err);
   res.writeHead(statusCode.internalServerError);
 
   res.write('Internal server error: ');

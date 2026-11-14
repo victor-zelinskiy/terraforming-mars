@@ -88,6 +88,8 @@ import {desktopBridge, DesktopAppModeInfo, DesktopLanState} from '@/client/compo
 import {realtimeState, realtimeHealthy, realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import {buildVersionLabel} from '@/common/utils/buildVersion';
 import raw_settings from '@/genfiles/settings.json';
+import {diagHubState, diagnosticsHubPresent, setDiagnosticsConsent} from '@/client/diagnostics/diagnosticsHubState';
+import {DEV_NOTICE_MODES, DevNoticeMode, devNoticeState, setDevNoticeMode} from '@/client/diagnostics/diagnosticsPrefs';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /** Where the surface is hosted — 'game' is the in-game system menu. */
@@ -99,7 +101,8 @@ export type ConsoleSettingsCategoryId =
 export type ConsoleSettingId =
   'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'cardNumbers' | 'eventCounter' | 'notifications' | 'notificationContent' | 'controller' | 'buttons' | 'wheelControl' |
   'placeConfirm' |
-  'motionSpeed' | 'motionRate' | 'cardReactions' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible';
+  'motionSpeed' | 'motionRate' | 'cardReactions' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible' |
+  'autoReports' | 'devNotices';
 
 /** One dialable preference: a ring of options plus where we are in it. */
 export type ConsoleSettingRow = {
@@ -498,8 +501,51 @@ function networkCategory(input: ConsoleSettingsInput): ConsoleSettingsCategory {
   return {id: 'network', label: 'Network', glyph: '⇅', minor: true, rows, readout: []};
 }
 
-/** ── ДИАГНОСТИКА (minor; read-only) ────────────────────────────────── */
-function diagnosticsCategory(input: ConsoleSettingsInput): ConsoleSettingsCategory {
+/**
+ * ── ДИАГНОСТИКА (minor) — the two SETTINGS of diagnostics ─────────────
+ * (docs/claude/diagnostics.md). The read-only readout that used to stand here lives on the diagnostics surface now
+ * (System → «Диагностика» → СИСТЕМА — `buildDiagnosticsReadout` below is still its one implementation); a category
+ * has rows or a readout, never both.
+ */
+function diagnosticsCategory(): ConsoleSettingsCategory {
+  const rows: Array<ConsoleSettingRow> = [];
+  // The player's consent to AUTOMATIC reports. Kept by the hub (it also governs what the app itself sends before any
+  // page exists), so the row exists only where a hub does — the desktop app. A build with no destination still shows
+  // it, and says so: the choice is remembered for the release that follows.
+  const status = diagHubState.status;
+  if (diagnosticsHubPresent() && status !== undefined) {
+    rows.push(toggleRow(
+      'autoReports', 'Automatic error reports',
+      'When the game hits an error, a report goes to the developer by itself — without player names and without the contents of your game. A report you send by hand is never affected',
+      status.consent, ['Off', 'On'],
+      (v) => void setDiagnosticsConsent(v),
+      status.sendingOff === 'environment' ? {text: translateText('This build sends nothing')} : {text: ''},
+    ));
+  }
+  rows.push(ringRow(
+    'devNotices', 'Developer notices',
+    devNoticeState.mode === 'off' ?
+      'For developers: show an error or a stall of the screen right in the game, the moment it happens. Hold the button shown on the notice to read the record in full' :
+      'Errors and stalls appear on screen as they happen. Hold the button shown on the notice to read the record in full; the journal is under System → Diagnostics',
+    DEV_NOTICE_MODES, devNoticeState.mode,
+    (v) => translateText(DEV_NOTICE_LABELS[v]),
+    (v) => setDevNoticeMode(v),
+  ));
+  return {id: 'diagnostics', label: 'Diagnostics', glyph: '⊙', minor: true, rows, readout: []};
+}
+
+const DEV_NOTICE_LABELS: Record<DevNoticeMode, string> = {
+  off: 'Off',
+  errors: 'Errors',
+  all: 'Errors and stalls',
+};
+
+/**
+ * THE READ-ONLY READOUT of this device — the link to the game server, the display, the local network. Rendered by the
+ * diagnostics surface's СИСТЕМА tab (`ConsoleDiagSystem.vue`); built here because its rows read the same live sources
+ * the settings do.
+ */
+export function buildDiagnosticsReadout(input: ConsoleSettingsInput): ReadonlyArray<ConsoleReadoutGroup> {
   const d = consoleDisplayDiagnostics();
   const display: ConsoleReadoutGroup = {
     label: 'Display',
@@ -530,10 +576,7 @@ function diagnosticsCategory(input: ConsoleSettingsInput): ConsoleSettingsCatego
   if (lan !== undefined) {
     groups.push(lan);
   }
-  return {
-    id: 'diagnostics', label: 'Diagnostics', glyph: '⊙', minor: true, rows: [],
-    readout: groups,
-  };
+  return groups;
 }
 
 /**
@@ -682,7 +725,7 @@ export function buildConsoleSettings(input: ConsoleSettingsInput): ReadonlyArray
   if (input.context !== 'game') {
     all.push(networkCategory(input));
   }
-  all.push(diagnosticsCategory(input));
+  all.push(diagnosticsCategory());
   // An empty category would render as a dead rail entry (network on the web,
   // where the desktop bridge answers nothing).
   return all.filter((c) => c.rows.length > 0 || c.readout.length > 0);

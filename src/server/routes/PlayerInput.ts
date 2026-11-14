@@ -12,6 +12,7 @@ import {Response} from '../Response';
 import {runId} from '../utils/server-ids';
 import {AppError} from '../server/AppError';
 import {InputError} from '../inputs/InputError';
+import {reportServerError} from '../diagnostics/serverDiagnostics';
 import {isIProjectCard} from '../cards/IProjectCard';
 import {INVALID_RUN_ID} from '../../common/app/AppErrorId';
 import {drainBatchTail, expireSupersededStagedTail} from '../inputs/deferredInputBatch';
@@ -138,6 +139,8 @@ export class PlayerInput extends Handler {
           resolve();
         } catch (e) {
           if (!(e instanceof AppError || e instanceof InputError)) {
+            // Not a refusal of the rules (those are AppError / InputError): the engine THREW while applying the answer.
+            reportServerError('processing a player input', e);
             console.warn('Error processing input from player', e);
           }
           responses.badInputRequest(req, res, e);

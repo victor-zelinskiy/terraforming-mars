@@ -67,7 +67,11 @@ const plugins = [
   },
 ];
 
-if (process.env.NODE_ENV === 'production') {
+// The pre-compressed copies (`*.gz` / `*.br`) are for the WEB server, which serves them by Accept-Encoding. The desktop
+// build is read off disk by the `app://` handler, which serves the plain files only — so there they were dead weight
+// in the package (every chunk and every map three times over), minutes of Brotli-11 on the release's critical path,
+// and STALE the moment the release stamps the scripts with their debug ids (docs/claude/diagnostics.md).
+if (process.env.NODE_ENV === 'production' && !DESKTOP_BUILD) {
   plugins.push(new CompressionPlugin());
   plugins.push(new CompressionPlugin({
     algorithm: 'brotliCompress',

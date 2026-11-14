@@ -306,6 +306,7 @@ import {
 import {initLanDiscovery, publishLanName, addManualHost, removeManualHost, lanState} from '@/client/components/mainMenu/lanState';
 import {lobbyAge, lobbyAgeLabel} from '@/client/components/mainMenu/lobbyAge';
 import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
+import {openDiagnosticsOverlay} from '@/client/diagnostics/diagnosticsOverlayBridge';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, navigateWithCurtain} from '@/client/console/loadingScreenState';
@@ -320,7 +321,7 @@ import {campaignsState, refreshCampaigns, takeCampaignsReturn} from '@/client/co
 import {activeCampaignRowCount, campaignActionRequired, visibleCampaignSourceRows} from '@/client/console/campaign/campaignListModel';
 import {useAppRoot} from '@/client/components/appRoot';
 
-type MenuItemId = 'continue' | 'create' | 'games' | 'campaigns' | 'profile' | 'options' | 'admin' | 'playground' | 'steam' | 'quit';
+type MenuItemId = 'continue' | 'create' | 'games' | 'campaigns' | 'profile' | 'options' | 'report' | 'admin' | 'playground' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
 type MenuOverlay = 'games' | 'campaigns' | 'profile' | 'profiles' | 'friends' | 'language' | 'options' | 'admin' | 'playground' | 'quit' | 'steam' | undefined;
 
@@ -639,6 +640,9 @@ const items = computed((): ReadonlyArray<MenuItem> => {
   items.push({id: 'campaigns', labelKey: 'My campaigns', subText: $t('Continue a campaign or open the route map'), glyph: '⚑', badge: campaignsBadge.value});
   items.push({id: 'profile', labelKey: 'Player profile', subText: identityName.value !== '' ? identityName.value : $t('Set your name'), glyph: '◉', badge: 0});
   items.push({id: 'options', labelKey: 'Options', subText: $t('Interface and display settings'), glyph: '⚙', badge: 0});
+  // «Сообщить о проблеме» — the diagnostics surface's report, straight from the menu (docs/claude/diagnostics.md): a
+  // problem met before any game (or after one) has the same road to the developer as one met inside it.
+  items.push({id: 'report', labelKey: 'Report a problem', subText: $t('Send a report to the developer'), glyph: '✉', badge: 0});
   // Rollback: every player in local mode (games on this device); the
   // overlay carries the local-only note. Playground stays ADMIN_NAME-only.
   if (rollbackAvailable.value) {
@@ -1091,6 +1095,9 @@ function activateAt(i: number): void {
     break;
   case 'profile':
     openProfile();
+    break;
+  case 'report':
+    openDiagnosticsOverlay({to: 'report'});
     break;
   case 'options':
     overlay.value = 'options';

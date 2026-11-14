@@ -45,6 +45,9 @@ const INDEX_HTML = path.join(ASSETS_DIR, 'index.html');
 const JS_FILES = new Set<string>([
   'main.js', 'main.js.map',
   'vendors.js', 'vendors.js.map',
+  // The frame symbols of the two initial chunks (scripts/make-frame-symbols.mjs) — what the in-game diagnostics
+  // journal reads a minified frame back to its source with (the maps themselves are never packaged).
+  'main.js.symbols.json', 'vendors.js.symbols.json',
   'sw.js', 'sw.js.map',
 ]);
 

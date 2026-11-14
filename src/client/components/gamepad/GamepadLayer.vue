@@ -19,17 +19,19 @@
          containing block for its `position: fixed` children. -->
     <transition name="con-layer">
       <div v-if="systemMenuOpen && consoleModeState.enabled" class="con-sys-host">
-        <ConsoleSystemMenu v-if="systemMenuSettings === undefined"
+        <!-- «Сообщить о проблеме» / «Диагностика» / F12 / the developer's notice — the DIAGNOSTICS surface, the third
+             member of the same chassis (docs/claude/diagnostics.md). Loaded on first use. -->
+        <ConsoleDiagnostics v-if="diagSurfaceState.shown" />
+        <ConsoleSystemMenu v-else-if="systemMenuSettings === undefined"
                            :index="systemMenuIndex"
                            :confirmExit="systemMenuConfirmExit"
                            :inGame="screen === 'player-home'"
                            @activate="onSystemMenuActivate"
                            @cursor="systemMenuIndex = $event" />
-        <!-- «Настройки» / «Диагностика» — the SHARED settings console (the ONE
-             home of persistent console settings AND of the read-only readout,
-             CLAUDE.md). B returns to the system list. The in-game context drops
-             the shell switch (a main-menu affordance) and the launch-time
-             network rows. -->
+        <!-- «Настройки» — the SHARED settings console (the ONE home of persistent
+             console settings, CLAUDE.md). B returns to the system list. The in-game
+             context drops the shell switch (a main-menu affordance) and the
+             launch-time network rows. -->
         <ConsoleOptionsPanel v-else
                              ref="systemOptions"
                              context="game"
@@ -102,6 +104,12 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleEntryPrompt from '@/client/components/console/ConsoleEntryPrompt.vue';
 import ConsoleSystemMenu from '@/client/components/console/ConsoleSystemMenu.vue';
 import {SYSTEM_MENU_ITEMS} from '@/client/components/console/consoleSystemMenuModel';
+import {ConsoleDiagnostics, warmDiagnosticsSurface} from '@/client/components/console/diagnostics/diagnosticsAsync';
+import {noteDiagnosticsAppScreen} from '@/client/diagnostics/diagnosticsCapture';
+import {onDiagnosticsPush} from '@/client/diagnostics/diagnosticsJournalState';
+import {interceptDevNoticeIntent} from '@/client/diagnostics/diagnosticsNotice';
+import {setDiagnosticsOverlayOpener} from '@/client/diagnostics/diagnosticsOverlayBridge';
+import {closeDiagnostics, DiagOpenTarget, diagSurfaceState, handleDiagnosticsIntent, holdDiagnosticsScreen, openDiagnostics} from '@/client/diagnostics/diagnosticsSurface';
 import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptionsPanel.vue';
 import {ConsoleSettingsCategoryId} from '@/client/console/settings/consoleSettingsModel';
 import {buttonLayoutState, remapConsoleIntent} from '@/client/gamepad/buttonLayout';
@@ -120,6 +128,8 @@ import {installConsoleOverflowGuard, uninstallConsoleOverflowGuard} from '@/clie
 import {$t} from '@/client/directives/i18n';
 
 const FOCUS_TICK_MS = 400;
+/** How long after the layer mounts the diagnostics surface's chunk is fetched (well past the boot). */
+const WARM_DIAGNOSTICS_MS = 9_000;
 
 /** Holding Menu this long toggles console ↔ desktop mode. */
 type LegendRow = {control: GlyphControl, label: string};
@@ -186,8 +196,8 @@ const systemMenuConfirmExit = ref(false);
 /**
  * The settings console opened FROM the system menu, and which category it
  * opened on (undefined = the system list itself is showing). «Настройки»
- * opens it on its default category, «Диагностика» straight on the
- * read-only readout — the readout has no second implementation any more.
+ * opens it on its default category. (The diagnostics readout moved to the
+ * diagnostics surface — the third member, `diagSurfaceState.shown`.)
  */
 const systemMenuSettings = ref<ConsoleSettingsCategoryId | undefined>(undefined);
 const legendOpen = ref(false);
@@ -195,6 +205,7 @@ const toast = ref('');
 const intentLog = ref<Array<string>>([]);
 let offIntent: (() => void) | undefined;
 let offMode: (() => void) | undefined;
+let offDiagPush: (() => void) | undefined;
 const menuPressedAt = ref<number | undefined>(undefined);
 
 const debug = computed((): boolean => {
@@ -240,11 +251,24 @@ function onIntent(rawIntent: GamepadIntent): void {
     handleGamepadIntent(intent);
     return;
   }
+  // THE DEVELOPER'S NOTICE asks first for its hold-X (`diagnosticsNotice.ts`): a hold opens the record, a tap is
+  // replayed to the screen below. It stands outside the shell on purpose — it must answer while the shell does not.
+  if (!systemMenuOpen.value && interceptDevNoticeIntent(intent, routeIntent)) {
+    return;
+  }
+  routeIntent(intent);
+}
+/** The pad's intent past the gates that stand above every screen (the update cover, the developer's notice). */
+function routeIntent(intent: GamepadIntent): void {
   // Menu = the SYSTEM overlay. The old HOLD (≥650ms) shell toggle died
   // with the desktop shell (desktop-removal wave 1) — a long hold now
   // behaves exactly like a short press.
   if (intent.kind === 'press' && intent.button === 'menu') {
     menuPressedAt.value = Date.now();
+    // The frame on screen is kept for a report that may follow — NOW, on the press: the overlay rises on the release.
+    if (!systemMenuOpen.value && consoleModeState.enabled && props.screen === 'player-home') {
+      void holdDiagnosticsScreen();
+    }
     return;
   }
   if (intent.kind === 'release' && intent.button === 'menu') {
@@ -301,6 +325,8 @@ function onIntent(rawIntent: GamepadIntent): void {
 }
 // ── System overlay (console lifecycle §4) ─────────────────────────
 function openSystemMenu(): void {
+  // Two of the menu's plates lead to the diagnostics surface: its chunk is fetched while the player reads the list.
+  warmDiagnosticsSurface();
   systemMenuOpen.value = true;
   systemMenuIndex.value = 0;
   systemMenuConfirmExit.value = false;
@@ -310,6 +336,32 @@ function closeSystemMenu(): void {
   systemMenuOpen.value = false;
   systemMenuConfirmExit.value = false;
   systemMenuSettings.value = undefined;
+  if (diagSurfaceState.shown) {
+    closeDiagnostics();
+  }
+}
+/**
+ * THE DIAGNOSTICS SURFACE, opened from OUTSIDE the system list — the developer's notice, the main menu's item, the
+ * developer's key. It needs no game screen: the overlay rises over whatever stands, and B at the surface's root closes
+ * the whole overlay (there is no list to return to).
+ */
+function openDiagnosticsDirect(target: DiagOpenTarget): void {
+  if (!consoleModeState.enabled || desktopUpdateBlocking()) {
+    return;
+  }
+  legendOpen.value = false;
+  systemMenuOpen.value = true;
+  systemMenuConfirmExit.value = false;
+  systemMenuSettings.value = undefined;
+  openDiagnostics('direct', target);
+}
+/** The surface is done with the overlay: back to the system list it was opened from, or the overlay closes. */
+function leaveDiagnostics(): void {
+  const toList = diagSurfaceState.origin === 'menu' && props.screen === 'player-home';
+  closeDiagnostics();
+  if (!toList) {
+    closeSystemMenu();
+  }
 }
 /**
  * The KEYBOARD's view of the system overlay (the pad path is `onIntent`).
@@ -320,6 +372,12 @@ function closeSystemMenu(): void {
 function keyboardSystemMenuIntent(intent: GamepadIntent): boolean {
   if (!consoleModeState.enabled || desktopUpdateBlocking()) {
     return false;
+  }
+  // The developer's notice takes its hold-X from the keyboard too; a tap is replayed to the console's own dispatch.
+  if (!systemMenuOpen.value && interceptDevNoticeIntent(intent, (replayed) => {
+    dispatchConsoleIntent(replayed);
+  })) {
+    return true;
   }
   if (systemMenuOpen.value) {
     // The Menu key closes it again; everything else is the overlay's.
@@ -334,6 +392,9 @@ function keyboardSystemMenuIntent(intent: GamepadIntent): boolean {
     // Same rule as the pad: the overlay is an IN-GAME affordance (at the
     // lifecycle screens there is nowhere to "return to").
     if (props.screen === 'player-home') {
+      // (The keyboard opens on the press itself: the frame is asked for in the same breath — the overlay's own
+      // fade leaves it the time.)
+      void holdDiagnosticsScreen();
       openSystemMenu();
     }
     return true;
@@ -351,6 +412,13 @@ function handleSystemMenuIntent(intent: GamepadIntent): void {
     const host = document.querySelector('.con-sys-host');
     if (host !== null && host !== undefined) {
       stickScrollBy(intent.dy, host);
+    }
+    return;
+  }
+  // The diagnostics surface owns its own steps and input (`diagnosticsSurface.ts`); it says when it is done.
+  if (diagSurfaceState.shown) {
+    if (handleDiagnosticsIntent(intent) === 'leave') {
+      leaveDiagnostics();
     }
     return;
   }
@@ -404,10 +472,13 @@ function onSystemMenuActivate(i: number): void {
     closeSystemMenu();
     legendOpen.value = true;
     break;
+  case 'report':
+    // «Сообщить о проблеме» — the diagnostics surface, straight on the report's first step.
+    openDiagnostics('menu', {to: 'report'});
+    break;
   case 'diagnostics':
-    // The readout lives in the settings console's minor ДИАГНОСТИКА
-    // category — this plate is a deep link, not a second panel.
-    systemMenuSettings.value = 'diagnostics';
+    // The journal, the system readout and the connection check — the diagnostics surface's browse step.
+    openDiagnostics('menu', {to: 'journal'});
     break;
   case 'exit':
     systemMenuConfirmExit.value = true;
@@ -467,7 +538,9 @@ watch(() => inputModeState.padsConnected, (now: number, before: number) => {
 // P10: a screen transition invalidates the focus descriptor — drop it
 // so the next tick re-acquires the first actionable of the NEW screen
 // (never a stale/hidden element, never an unfocusable state).
-watch(() => props.screen, () => {
+watch(() => props.screen, (screen) => {
+  // What a diagnostic record says the screen was (`diagnosticsCapture.currentDiagScreen`).
+  noteDiagnosticsAppScreen(screen);
   if (gamepadActive.value) {
     clearGamepadFocus();
     void nextTick(() => gamepadFocusTick());
@@ -526,6 +599,23 @@ onMounted(() => {
   // directly; the keyboard bridge speaks to the console router, which this
   // layer is not part of — so it asks here first (consoleSystemMenuBridge).
   setConsoleSystemMenuInput((intent) => keyboardSystemMenuIntent(intent));
+  noteDiagnosticsAppScreen(props.screen);
+  // The doors into the diagnostics surface from outside this layer: the notice, the main menu, the developer's key
+  // (F12 — the main process pushes it; a second press closes what the first one opened).
+  setDiagnosticsOverlayOpener((target) => openDiagnosticsDirect(target));
+  // …and its chunk is fetched once the app has settled — never on the boot's path, and never a first-open blink.
+  // PACING: a layer that left has nothing to warm.
+  flow.after(WARM_DIAGNOSTICS_MS, 'the diagnostics surface\'s chunk is fetched ahead of its first use', warmDiagnosticsSurface);
+  offDiagPush = onDiagnosticsPush((push) => {
+    if (push.kind !== 'open-journal') {
+      return;
+    }
+    if (diagSurfaceState.shown) {
+      leaveDiagnostics();
+    } else {
+      void holdDiagnosticsScreen().then(() => openDiagnosticsDirect({to: 'journal'}));
+    }
+  });
   if (gamepadActive.value) {
     startTick();
   }
@@ -552,6 +642,8 @@ onBeforeUnmount(() => {
   offIntent?.();
   offMode?.();
   setConsoleSystemMenuInput(undefined);
+  setDiagnosticsOverlayOpener(undefined);
+  offDiagPush?.();
   stopTick();
   clearGamepadFocus();
   uninstallGamepadCore();

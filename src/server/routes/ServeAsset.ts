@@ -173,10 +173,14 @@ export class ServeAsset extends Handler {
     case 'assets/Newsreader-Regular-latin.woff2':
     case 'assets/GolosText-latin.woff2':
     case 'assets/GolosText-cyrillic.woff2':
+    case 'assets/JetBrainsMono-latin.woff2':
+    case 'assets/JetBrainsMono-cyrillic.woff2':
       // The .woff2 set: Literata / Newsreader are the literary faces of the
       // fullscreen card's archive entry (card_lore.less) — italic + upright
       // weight-variable subsets; Golos Text is the console READING face
-      // (rule texts and other long-form sentences — common.less §reading).
+      // (rule texts and other long-form sentences — common.less §reading);
+      // JetBrains Mono is the game's MONO face (a diagnostic record's stack and
+      // full text, a report's code — console_diagnostics.less).
       return {file: urlPath};
 
     case 'styles.css':
@@ -193,6 +197,12 @@ export class ServeAsset extends Handler {
     case 'vendors.js':
     case 'vendors.js.map':
       return this.toMainFile(urlPath, encodings);
+
+    // The frame symbols of the two initial chunks (scripts/make-frame-symbols.mjs): written after the bundle, so they
+    // have no compressed twin — served as they are, and only when the journal opens a record.
+    case 'main.js.symbols.json':
+    case 'vendors.js.symbols.json':
+      return {file: `build/${urlPath}`};
 
     // sw.js is empty. Although not confirmed, it seems sw.js is necessary
     // for mobile notifications. If confirmed that it is not necessary, this

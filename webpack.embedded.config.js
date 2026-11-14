@@ -26,7 +26,9 @@ const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 module.exports = {
   target: 'node',
   mode: 'production',
-  devtool: false,
+  // A source map is emitted (never shipped — electron-builder drops `*.map`): the release workflow uploads it, so a
+  // server exception reported through the diagnostics hub resolves to `src/server/…:line` (docs/claude/diagnostics.md).
+  devtool: 'source-map',
   entry: './src/server/embedded/embeddedServerMain.ts',
   resolve: {
     plugins: [new TsconfigPathsPlugin()],

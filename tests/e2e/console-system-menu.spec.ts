@@ -12,8 +12,8 @@ import {bootIntoGame, press} from './consoleStart';
  *  · the two surfaces really are the same chassis (same card class, same head);
  *  · the exit confirmation is a STAGE of the menu — the crumb GAINS a tail and
  *    the frame does not move, instead of a second dialog arriving;
- *  · «Диагностика» deep-links into the settings console's minor category
- *    rather than rendering a second, hand-built readout;
+ *  · «Диагностика» opens the DIAGNOSTICS surface — the third member of the same
+ *    chassis (its own journeys: `console-diagnostics.spec.ts`);
  *  · the in-game context drops the shell switch and gains ЭТА ПАРТИЯ;
  *  · B walks back exactly one logical level each time.
  *
@@ -113,7 +113,7 @@ test.describe('the in-game system overlay + its settings console', () => {
     await expect(page.locator('.con-sys__crumb-root')).toHaveText('Система');
     // Nothing has been entered yet, so the crumb has no tail.
     await expect(page.locator('.con-sys__crumb-stage')).toHaveCount(0);
-    await expect(page.locator('.con-sysact__plate')).toHaveCount(5);
+    await expect(page.locator('.con-sysact__plate')).toHaveCount(6);
     // Every plate carries a static sub — a fixed-shape list, never a value.
     await expect(page.locator('.con-sysact__sub').first()).not.toBeEmpty();
     await shoot(page, '01-system-menu');
@@ -132,19 +132,19 @@ test.describe('the in-game system overlay + its settings console', () => {
     await shoot(page, '02-exit-stage');
     // B is one logical level: back to the plate list.
     await key(page, 'Escape', 500);
-    await expect(page.locator('.con-sysact__plate')).toHaveCount(5);
+    await expect(page.locator('.con-sysact__plate')).toHaveCount(6);
 
-    // ── «Диагностика» deep-links into the settings console ───────────
+    // ── «Диагностика» opens the diagnostics surface ──────────────────
     await page.locator('.con-sysact__plate', {hasText: 'Диагностика'}).click();
-    await page.waitForTimeout(500);
-    // The SAME chassis — a settings surface, opened on its minor category. The
-    // swap is INSTANT: exactly ONE `.con-sys` exists at any moment, never two
-    // cards crossfading over two stacked backdrops.
+    await expect(page.locator('.con-sys--diag')).toHaveCount(1);
+    // The SAME chassis — the third member. The swap is INSTANT: exactly ONE
+    // `.con-sys` exists at any moment, never two cards crossfading over two
+    // stacked backdrops.
     await expect(page.locator('.con-sys')).toHaveCount(1);
-    await expect(page.locator('.con-sys--settings')).toHaveCount(1);
-    await expect(page.locator('.con-sys__crumb-root')).toHaveText('Настройки');
-    await expect(page.locator('.con-set__tab', {hasText: 'Диагностика'})).toHaveClass(/con-set__tab--current/);
-    // ONE readout, not a second hand-built panel: the connection group is here.
+    await expect(page.locator('.con-sys__crumb-root')).toHaveText('Диагностика');
+    // ONE readout of this device, and it lives here now: the connection group
+    // is under the surface's СИСТЕМА tab.
+    await page.locator('[data-diag-tab="system"]').click();
     await expect(page.locator('.con-set__group').filter({hasText: 'Связь'})).toHaveCount(1);
     await shoot(page, '03-diagnostics-deeplink');
     await key(page, 'Escape', 500);
@@ -155,6 +155,19 @@ test.describe('the in-game system overlay + its settings console', () => {
     await page.locator('.con-sysact__plate', {hasText: 'Настройки'}).click();
     await page.waitForTimeout(500);
     await expect(page.locator('.con-set__tab', {hasText: 'Интерфейс'})).toHaveClass(/con-set__tab--current/);
+    // THE STRIP HOLDS ALL SIX in-game categories between its two bumper chips (the sixth, «ДИАГНОСТИКА», used to run
+    // under the right chip and out of the card).
+    await expect(page.locator('.con-set__tab')).toHaveCount(6);
+    const crowded = await page.evaluate(() => {
+      const chips = [...document.querySelectorAll('.con-sys--settings .con-sys__tabs-chip')].map((el) => el.getBoundingClientRect());
+      const left = Math.min(...chips.map((r) => r.right));
+      const right = Math.max(...chips.map((r) => r.left));
+      return [...document.querySelectorAll('.con-sys--settings .con-set__tab')]
+        .map((el) => ({name: (el.textContent ?? '').trim(), box: el.getBoundingClientRect()}))
+        .filter((tab) => tab.box.left < left - 0.5 || tab.box.right > right + 0.5)
+        .map((tab) => tab.name);
+    });
+    expect(crowded, 'every category stands clear of the two bumper chips').toEqual([]);
     // In-game drops the shell switch (swapping shells mid-game is jarring)…
     await expect(page.locator('.con-set__row', {hasText: 'Оболочка'})).toHaveCount(0);
     // …and gains the per-game category with the private-score mask.

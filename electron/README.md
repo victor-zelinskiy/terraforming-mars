@@ -108,6 +108,10 @@ declares the running build latest: the gate and Velopack never run, the update o
 | `TM_ELECTRON_SOFTWARE` | — | `=1` forces the SOFTWARE rendering path (`--disable-gpu` + parallel raster threads). The rollback if the Steam Deck's GPU/Vulkan default misbehaves; also a Windows diagnostic. |
 | `TM_ELECTRON_FEATURES` | platform default | REPLACES the default `--enable-features` list (Windows default: `SkiaGraphite,SkiaGraphitePrecompilation,DXGIWaitableSwapChain:…`). `none`/`off` = no list at all — the Graphite rollback. |
 | `TM_ELECTRON_SWITCHES` | — | Semicolon-separated raw Chromium switches (`key` or `key=value`), appended LAST so they override same-key defaults. E.g. `skia-graphite-dawn-backend=d3d12` (re-test D3D12 against the pinned D3D11 Graphite backend), `disable-direct-composition`, `use-angle=d3d9`, `js-flags=--max-old-space-size=1024`, `ozone-platform=wayland;use-angle=vulkan` (a GL/display key on Linux also skips the default `--disable-gpu`). Replaces the retired per-knob env vars. |
+| `TM_DIAG_OFF` | — | `=1` — the diagnostics hub sends NOTHING in this run, whatever the build is (the in-game journal still works). See § Diagnostics. |
+| `TM_DIAG_ENV` | — | Overrides the diagnostics environment tag (`box` / `production` / any `[a-z0-9-]` word). Normally the machine's own `<userData>/diagnostics.json` decides. |
+| `TM_DIAG_DSN` | — | A developer's door: a DSN given here makes a LOCAL / unpackaged build send (as `development` unless `TM_DIAG_ENV` says otherwise) — for proving the pipeline without a release. Never set on a player's machine. |
+| `TM_DIAG_PROBE` | — | `=1` — the app PROVES its diagnostics road by itself and quits: ~9 s after the page loads it runs the connection check (page → hub → main / game server → the collector) and sends one probe report, printing both answers to the log (`logs/main.log`). With `TM_DIAG_DSN` it proves a local build; on an installed release, that installation. |
 | `TM_UPDATE_CHANNEL` | `latest` | Update channel (dev/staging/prod/latest) — selects the feed `<channel>.yml` and is sent to the compatibility gate as `?channel=`. |
 | `TM_LOCAL_BUILD` | — | `=1` treats THIS build as the latest version: the compatibility gate and Velopack never run, so a locally-packed build is never "updated" back to a published release. Set by `electron:run` / `electron:run:packed`; also `--tm-local-build`. No effect on an unpackaged dev run (already exempt). |
 | `TM_DESKTOP_STRICT_OFFLINE` | — | `=1` blocks the app when compatibility was **never** verified and the server is unreachable (default fails open so a first-run offline launch isn't bricked). A known-outdated client (last check said "update required") is always blocked offline regardless. |
@@ -286,7 +290,44 @@ renderer's own origin (the server origin in `server` mode, `app://bundle` in `ap
 mode), so the SPA's same-origin reloads keep working while cross-origin does not load
 in-window.
 
+## Diagnostics — the journal, the hub, Sentry (`docs/claude/diagnostics.md`)
+
+**Keys.** **F12** opens the game's OWN diagnostics journal (the premium surface a player is asked to open) — a second
+F12 closes it. **Shift+F12** toggles Chrome DevTools (the developer's instrument: the `[TM perf]` echo, `?perf=1`
+long-task logs, the console export buttons). `TM_ELECTRON_DEVTOOLS=1` still opens DevTools at launch.
+
+**What the main process does** (`diagnosticsMain.ts` — the host of the diagnostics HUB, which arrives as the bundle
+`build/electron/diagnostics-hub.js`, built by `npm run build:diagnostics` from `src/server/diagnostics/hub`):
+- carries the page ↔ hub protocol over three preload pipes (`desktop:diag` invoke · `desktop:diag-line` one-way ·
+  `desktop:diag-event` push);
+- turns its OWN `console.warn` / `console.error`, an uncaught exception, an unhandled rejection and a child process
+  that went away into records of the in-game journal (an uncaught exception no longer raises Electron's modal error
+  dialog over a fullscreen game — it is logged, recorded and, when allowed, sent);
+- forwards what the embedded game server reports about itself (`{type: 'diag'}` on its parent port);
+- gives a report its parts: the frame captured before the system menu covered the game, the renderer's console dump,
+  the hosted save, the log tails, the newest hang trace;
+- starts Electron's `crashReporter` with the collector's minidump endpoint (only in a build that has a destination;
+  upload follows the player's «Автоотчёты об ошибках»).
+
+**It sends only from a packaged release built with a DSN** (the release workflow bakes `TM_SENTRY_DSN` into
+`settings.json` as `sentryDsn`). A dev run, `electron:run`, a local `pack:dir:*` build and every test send nothing.
+A missing / broken hub bundle never blocks a launch: the game runs, the in-game journal works, nothing is sent.
+
+**Files on a device** (`<userData>` = `%AppData%	erraforming-mars` on Windows, `~/.config/terraforming-mars` on Linux):
+
+| path | what |
+|---|---|
+| `logs/main.log`, `logs/main.prev.log` | the main process's log — on EVERY platform (a packaged Windows build used to have none); this run and the previous one |
+| `embedded/embedded-server.log`, `embedded/embedded-server.prev.log` | the game server's log; the previous run is kept (it used to be truncated at every launch — the launch after a crash erased the crash) |
+| `diagnostics/reports/TM-XXXXXX/` | «Сообщить о проблеме» packages (the newest 20) |
+| `diagnostics/outbox/` | envelopes waiting for the network |
+| `diagnostics/state.json` | the player's consent to automatic reports, the day's counter |
+| `diagnostics.json` | `{"environment": "box"}` — hand-placed on the owner's Steam Machine only: it is what tags that machine's events `box` |
+
 ## Files
+
+- `electron/diagnosticsMain.ts` — the diagnostics hub's host (above); `electron/diagnosticsHost.ts` — the hub's two
+  types as this lane sees them (a hand-kept mirror of `src/server/diagnostics/hub/hubTypes.ts`, proven by a spec).
 
 - `electron/main.ts` — app lifecycle, single-instance lock, `setAppUserModelId`, the
   safe `BrowserWindow`, the two load modes, external-link handling, the two IPC handlers.

@@ -115,13 +115,15 @@ test.describe('the settings console — categories, stepper, detail strip', () =
     await expect(page.locator('.con-set__detail-title')).toHaveText('Управление колесом');
     expect((await detail.boundingBox())?.height).toBe(detailBox?.height);
 
-    // The minor DIAGNOSTICS category is a read-only readout, not a settings list
-    // — it is the ONE home of the readout the system menu used to duplicate.
+    // The minor DIAGNOSTICS category holds the SETTINGS of diagnostics — dialable rows like every other category.
+    // (The read-only readout it used to be lives on the diagnostics surface: System → «Диагностика» → СИСТЕМА —
+    // `console-diagnostics.spec.ts`.)
     await tabs.filter({hasText: 'Диагностика'}).click();
     await page.waitForTimeout(400);
-    await expect(page.locator('.con-set__row')).toHaveCount(0);
-    await expect(page.locator('.con-set__group').filter({hasText: 'Связь'})).toHaveCount(1);
-    await expect(page.locator('.con-set__ro', {hasText: 'Версия клиента'})).toHaveCount(1);
+    await expect(page.locator('.con-set__row', {hasText: 'Уведомления разработчика'})).toHaveCount(1);
+    await expect(page.locator('.con-set__ro')).toHaveCount(0);
+    // Off by default: a player who never opens this category never meets the notice.
+    await expect(page.locator('.con-set__row', {hasText: 'Уведомления разработчика'}).locator('.con-set__value')).toHaveText('выкл.');
     await shoot(page, '04-settings-diagnostics');
   });
 

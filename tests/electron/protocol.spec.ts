@@ -31,6 +31,9 @@ describe('electron/protocol resolveFile', () => {
     expect(endsWith(resolveFile('/vendors.js'), 'build-desktop', 'vendors.js')).to.be.true;
     expect(endsWith(resolveFile('/sw.js'), 'build-desktop', 'sw.js')).to.be.true;
     expect(endsWith(resolveFile('/main.js.map'), 'build-desktop', 'main.js.map')).to.be.true;
+    // The frame symbols the in-game diagnostics journal resolves a minified stack with (docs/claude/diagnostics.md).
+    expect(endsWith(resolveFile('/main.js.symbols.json'), 'build-desktop', 'main.js.symbols.json')).to.be.true;
+    expect(endsWith(resolveFile('/vendors.js.symbols.json'), 'build-desktop', 'vendors.js.symbols.json')).to.be.true;
   });
 
   it('maps lazy chunks to build-desktop/chunks/', () => {

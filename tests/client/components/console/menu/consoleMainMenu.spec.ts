@@ -38,6 +38,7 @@ import {resetLanStateForTesting} from '@/client/components/mainMenu/lanState';
 import {steamShortcutState} from '@/client/components/desktop/steamShortcutState';
 import {APP_ROOT, AppRoot} from '@/client/components/appRoot';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
+import {setDiagnosticsOverlayOpener} from '@/client/diagnostics/diagnosticsOverlayBridge';
 import ConsoleMainMenu from '@/client/components/console/menu/ConsoleMainMenu.vue';
 
 // (Render functions, not template strings: the runtime compiler is not in this build.)
@@ -220,7 +221,7 @@ describe('ConsoleMainMenu — the pre-game menu', () => {
   /** The plates of a named player with an empty library on the web: no CONTINUE, no Steam plate, no EXIT. */
   function quietPlates(admin: boolean): Array<string> {
     return [
-      'create', 'games', 'campaigns', 'profile', 'options',
+      'create', 'games', 'campaigns', 'profile', 'options', 'report',
       ...(admin || apiEndpointIsLocal() ? ['admin'] : []),
       ...(admin ? ['playground'] : []),
     ];
@@ -403,6 +404,20 @@ describe('ConsoleMainMenu — the pre-game menu', () => {
     }
     expect(heard.map((entry) => entry.surface)).to.deep.eq(
       ['profile', 'profiles', 'profiles', 'friends', 'friends', 'profile', 'language', 'options', 'admin', 'playground', 'campaigns']);
+  });
+
+  it('«Сообщить о проблеме» asks the diagnostics overlay for its REPORT — the menu mounts no surface of its own for it', async () => {
+    const asked: Array<unknown> = [];
+    setDiagnosticsOverlayOpener((target) => asked.push(target));
+    try {
+      const menu = await mountMenu();
+      await menu.plate('report').trigger('click');
+      await nextTick();
+      expect(asked).to.deep.eq([{to: 'report'}]);
+      expect(menu.overlays(), 'the report is the system overlay — nothing opens inside the menu').to.deep.eq([]);
+    } finally {
+      setDiagnosticsOverlayOpener(undefined);
+    }
   });
 
   it('«Мои партии»: the lobby\'s rows as cards, newest first; the d-pad keeps the cursored card in view through the screen\'s ref', async () => {

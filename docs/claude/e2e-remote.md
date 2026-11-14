@@ -124,6 +124,18 @@ the shipped Electron uses: headless has no surface for it and the GPU process di
 SwiftShader — `electron/perf.ts` says the same of the product). Only the `chromium` channel (the new
 headless) can go through the GPU; the headless shell cannot open `chrome://gpu` at all.
 
+## 4a. Reading the box's DIAGNOSTICS (not an e2e run)
+
+What the game on the box recorded — its report packages, the main process's and the game server's logs, the field log,
+console exports, hang traces — is pulled to the laptop with ONE command, never by hand-written `scp`:
+
+```bash
+npm run diag -- box pull --since 24h      # → .diagnostics/box/<stamp>/, with a digest
+npm run diag -- issues --env box          # what the box sent to Sentry
+```
+
+Contract and the file map: `docs/claude/diagnostics.md` § 8; triage: the skill `diagnose-report`.
+
 ## 5. Gotchas paid for on day one
 
 - **A full suite's results are tens of GB — the traces stay on the box** (2026-10-22, the first full baseline:

@@ -2,7 +2,7 @@
   "//": "Frozen per-file counts of e2e anti-patterns. Counts may only FALL. Regenerate with: node scripts/e2e-ratchet-baseline.mjs --write",
   "totals": {
     "setInterval": 294,
-    "waitForTimeout": 743,
+    "waitForTimeout": 742,
     "requestAnimationFrame": 46
   },
   "files": {
@@ -956,7 +956,7 @@
       "waitForTimeout": 5
     },
     "console-system-menu.spec.ts": {
-      "waitForTimeout": 4
+      "waitForTimeout": 3
     },
     "console-terraformed-scene.spec.ts": {
       "setInterval": 1

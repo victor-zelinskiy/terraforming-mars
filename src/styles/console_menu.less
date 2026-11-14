@@ -2734,7 +2734,9 @@ html.con-profile-handheld {
 .cm-vk-overlay {
     position: fixed;
     inset: 0;
-    z-index: 11800;
+    /* Over EVERYTHING it can be raised from — the pre-game editors, and the system overlay (z 12760): the diagnostics
+       report raises it for the player's comment (console_diagnostics.less). Below the gamepad ring / the curtain. */
+    z-index: 12790;
     display: flex;
     align-items: center;
     justify-content: center;

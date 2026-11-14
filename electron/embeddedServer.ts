@@ -69,6 +69,7 @@ let shuttingDown = false;
 let lanHosts: LanHost[] = [];
 let lanDiagnostics: LanDiagnostics | undefined;
 let lanHostsListener: ((hosts: LanHost[]) => void) | undefined;
+let diagListener: ((signal: unknown) => void) | undefined;
 let logStream: fs.WriteStream | undefined;
 
 export function embeddedServerStatus(): EmbeddedServerStatus {
@@ -95,6 +96,27 @@ export function getLanDiagnostics(): LanDiagnostics | undefined {
 /** The renderer push hook (set once from main; survives window reloads). */
 export function onLanHostsChanged(listener: (hosts: LanHost[]) => void): void {
   lanHostsListener = listener;
+}
+
+/**
+ * A failure the game server reported about itself (`{type: 'diag', signal}` — src/server/diagnostics/serverDiagnostics.ts):
+ * main hands it to the diagnostics hub. Set once; survives a respawn.
+ */
+export function onEmbeddedDiag(listener: (signal: unknown) => void): void {
+  diagListener = listener;
+}
+
+/** Post a message to the running game server; false when none runs (remote mode, a failed start). */
+export function postToEmbeddedServer(message: unknown): boolean {
+  if (child === undefined || status !== 'ready') {
+    return false;
+  }
+  try {
+    child.postMessage(message);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Live re-advertise under a new friendly name (profile change on the host). */
@@ -128,7 +150,18 @@ function serverScriptPath(): string | undefined {
 function openLog(root: string): fs.WriteStream | undefined {
   try {
     fs.mkdirSync(root, {recursive: true});
-    return fs.createWriteStream(path.join(root, 'embedded-server.log'), {flags: 'w'});
+    // ONE RUN BACK IS KEPT. The log used to be truncated at every launch — so the launch after a crash (the very one a
+    // player makes before reporting it) erased the crash's own log. The previous run is now `embedded-server.prev.log`,
+    // and a diagnostics report attaches the tails of both.
+    const file = path.join(root, 'embedded-server.log');
+    try {
+      if (fs.existsSync(file)) {
+        fs.renameSync(file, path.join(root, 'embedded-server.prev.log'));
+      }
+    } catch {
+      // Could not be moved (a scanner holds it): it is overwritten, as before.
+    }
+    return fs.createWriteStream(file, {flags: 'w'});
   } catch {
     return undefined;
   }
@@ -136,7 +169,7 @@ function openLog(root: string): fs.WriteStream | undefined {
 
 function wireChild(proc: UtilityProcess, onReady: (port: number) => void, onFatal: (reason: string) => void): void {
   proc.on('message', (message: unknown) => {
-    const m = message as {type?: string, port?: number, hosts?: LanHost[], error?: string, diagnostics?: LanDiagnostics};
+    const m = message as {type?: string, port?: number, hosts?: LanHost[], error?: string, diagnostics?: LanDiagnostics, signal?: unknown};
     if (m.type === 'ready' && typeof m.port === 'number') {
       status = 'ready';
       boundPort = m.port;
@@ -148,6 +181,8 @@ function wireChild(proc: UtilityProcess, onReady: (port: number) => void, onFata
       lanHostsListener?.(lanHosts);
     } else if (m.type === 'lan-diagnostics' && m.diagnostics !== undefined) {
       lanDiagnostics = m.diagnostics;
+    } else if (m.type === 'diag') {
+      diagListener?.(m.signal);
     }
   });
   proc.stdout?.on('data', (chunk: Buffer) => {

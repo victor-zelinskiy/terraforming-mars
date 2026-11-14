@@ -1,4 +1,5 @@
 import type {App, ComponentPublicInstance} from 'vue';
+import {reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 
 /**
  * A VUE ERROR NAMES ITS COMPONENT — and it is a diagnostic line, not noise.
@@ -54,6 +55,8 @@ export function vueErrorLine(err: unknown, chain: string, info: string): string 
 
 export function installVueErrorReport(app: App): void {
   app.config.errorHandler = (err, instance, info) => {
-    console.error(vueErrorLine(err, componentChainOf(instance), info), err);
+    // Through the page's one interceptor: printed once (the same line, the error beside it) and recorded once, with the
+    // error's own stack — `diagnostics/diagnosticsCapture.ts`.
+    reportDiagnosticError(vueErrorLine(err, componentChainOf(instance), info), err);
   };
 }

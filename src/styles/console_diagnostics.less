@@ -1,0 +1,1085 @@
+/*
+ * THE DIAGNOSTICS SURFACE — the third member of the console's system overlay, and the developer's notice.
+ *
+ *   .con-sys--diag        the surface (ConsoleDiagnostics.vue) on the SHARED `.con-sys` chassis of
+ *                         console_settings.less: the same card, crumb head, tab band and foot bar.
+ *     .con-diag           the body cell — FIXED height; every step is laid into it
+ *     .con-diagentry      one record in full (the stack, the screen, the full text)
+ *     .con-diagrep        the report's panes · .con-diagsend the panel past the commit (the code)
+ *     .con-diagcheck      the connection check · .con-diagsys the system readout
+ *   .con-devnote          the developer's notice (ConsoleDevNotice.vue) — app-level, outside the shell
+ *
+ * WHAT IS REUSED, on purpose: the tabs are `.con-set__tab`, the detail strip is `.con-set__detail`, the readout is
+ * `.con-set__readout`, the category plates are `.con-sysact__plate` — one element, one look, in all three members.
+ * This sheet adds only what is new.
+ *
+ * LAYOUT-SHIFT CONTRACT (system-surface.md §3 — measured by the e2e): `.con-diag` has a fixed `height`; every step
+ * is `position: absolute; inset: 0` in it; a row is ONE line; every strip that changes its words reserves its lines.
+ * A filter change, a cursor move and a step change move nothing of the card.
+ *
+ * VISUAL RESTRAINT (CLAUDE.md invariant 15): a state — the kind of a record, how an episode ended, a part that is
+ * not sent — is a kant, a word, a weight; the only light is the cursor's ring, and the only motion a one-shot (the
+ * step's reveal, the code's cells, a NEW notice) or a working indicator (the sending rail — re-allowed under reduced
+ * motion by its `spin` name: a frozen one would read as a hang).
+ */
+
+@diag-error: @con-red;
+@diag-stall: @con-amber;
+@diag-other: fade(@con-text-dim, 70%);
+@diag-row-h: 2.3rem;
+
+.con-sys--diag {
+    .con-sys__card { width: min(56rem, 96vw); }
+}
+
+/* The crumb's tail GROWS: a segment that arrives fades in once; the ones before it stand still. An earlier segment
+   is the SUBJECT of the flow (the chosen category) — calm, not the accent. */
+.con-diag__crumb-seg {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .5rem;
+    min-width: 0;
+    animation: con-diag-crumb-in calc(180ms * var(--motion-scale, 1)) ease both;
+}
+.con-diag__crumb-subject {
+    color: @con-text;
+    letter-spacing: .1rem;
+}
+@keyframes con-diag-crumb-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* The tab band stays MOUNTED on every step — unmounting it would lift the body by its height. Past the browse step
+   it only steps back in paint (the filters are not what the player is doing). */
+.con-diag__tabs--away {
+    opacity: .28;
+    pointer-events: none;
+    .con-visual-transition(160ms);
+}
+.con-diag__tab-count {
+    min-width: 1.3rem;
+    padding: 0 .3rem;
+    border-radius: .3rem;
+    background: fade(@con-cyan, 16%);
+    font-family: @con-font;
+    font-size: .65rem;
+    font-weight: 700;
+    line-height: 1.1rem;
+    text-align: center;
+    color: @con-text;
+
+    &--none {
+        background: transparent;
+        box-shadow: inset 0 0 0 .05rem fade(@con-text-dim, 26%);
+        color: fade(@con-text-dim, 70%);
+    }
+}
+
+/* ── The body cell ─────────────────────────────────────────────────────── */
+.con-diag {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    height: 24rem;
+}
+.con-diag__step {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    min-width: 0;
+    min-height: 0;
+}
+/* A STEP CHANGE is one phrase: what stood lets go ON THE SPOT, the new step surfaces a beat later from inside the same
+   cell. Opacity and a hair of rise — never a size, so nothing re-fits. */
+.con-diag-step-leave-active {
+    transition: opacity calc(110ms * var(--motion-scale, 1)) @con-ease-exit;
+}
+.con-diag-step-enter-active {
+    transition:
+        opacity calc(190ms * var(--motion-scale, 1)) @con-ease-enter calc(90ms * var(--motion-scale, 1)),
+        transform calc(220ms * var(--motion-scale, 1)) @con-ease-enter calc(90ms * var(--motion-scale, 1));
+}
+.con-diag-step-enter-from {
+    opacity: 0;
+    transform: translateY(.4rem);
+}
+.con-diag-step-leave-to {
+    opacity: 0;
+}
+
+/* ── BROWSE: the journal's list ────────────────────────────────────────── */
+.con-diag__list {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.con-diag__rows {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding-right: .2rem;
+}
+.con-diag__row {
+    position: relative;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    height: @diag-row-h;
+    padding: 0 .7rem 0 .9rem;
+    border-radius: .45rem;
+    background: rgba(12, 20, 30, 0.72);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 14%);
+    cursor: pointer;
+    .con-visual-transition(140ms);
+
+    /* THE KIND is a kant on the leading edge (and a word) — never a tint of the row. */
+    &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: .45rem;
+        bottom: .45rem;
+        width: .16rem;
+        border-radius: .1rem;
+        background: @diag-other;
+    }
+    &--error::before,
+    &--integrity::before { background: @diag-error; }
+    &--stall::before { background: @diag-stall; }
+
+    &--cursor {
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, .9rem) fade(@con-cyan, 18%);
+    }
+}
+.con-diag__row-time {
+    flex: 0 0 auto;
+    width: 4.6rem;
+    font-family: @con-font-mono;
+    font-size: .7rem;
+    color: fade(@con-text-dim, 85%);
+}
+.con-diag__row-kind {
+    flex: 0 0 auto;
+    width: 7.2rem;
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .12rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: @diag-other;
+}
+.con-diag__row--error .con-diag__row-kind,
+.con-diag__row--integrity .con-diag__row-kind { color: fade(@diag-error, 95%); }
+.con-diag__row--stall .con-diag__row-kind { color: fade(@diag-stall, 95%); }
+.con-diag__row-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: .9rem;
+    font-weight: 700;
+    letter-spacing: .02rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.con-diag__row-count {
+    flex: 0 0 auto;
+    font-family: @con-font-mono;
+    font-size: .72rem;
+    color: @con-text-dim;
+}
+/* Whether the developer has it: a filled dot (sent), a ring (waiting for the network), nothing (never offered). */
+.con-diag__row-mark {
+    flex: 0 0 auto;
+    width: .5rem;
+    height: .5rem;
+    border-radius: 49.95rem;
+
+    &--ok { background: @con-mint; }
+    &--warn { box-shadow: inset 0 0 0 .1rem @con-amber; }
+    &--plain { box-shadow: inset 0 0 0 .08rem fade(@con-text-dim, 45%); }
+}
+
+.con-diag__empty {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 12rem;
+    padding: 1rem 2rem;
+    text-align: center;
+}
+.con-diag__empty-mark {
+    width: 2.6rem;
+    height: 2.6rem;
+    display: grid;
+    place-items: center;
+    border-radius: 49.95rem;
+    box-shadow: inset 0 0 0 .08rem fade(@con-mint, 70%);
+    font-size: 1.3rem;
+    color: @con-mint;
+}
+.con-diag__empty-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: .03rem;
+}
+.con-diag__empty-body {
+    max-width: 34rem;
+    font-family: @con-font-read;
+    font-size: .85rem;
+    line-height: 1.45;
+    color: @con-text-dim;
+}
+
+/* The detail strip is the settings console's own; here its description line is the record's OWN first line, in mono,
+   two lines reserved and no more (the whole of it is one press away). */
+.con-diag__detail-raw {
+    font-family: @con-font-mono;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.con-diag__detail-note {
+    display: flex;
+    align-items: baseline;
+    gap: 1.2rem;
+}
+.con-diag__tone {
+    &--ok { color: @con-mint; font-weight: 700; }
+    &--warn { color: @con-amber; font-weight: 700; }
+    &--bad { color: fade(@con-red, 96%); font-weight: 700; }
+    &--plain { color: @con-text-dim; }
+}
+
+/* ── ONE RECORD IN FULL ────────────────────────────────────────────────── */
+.con-diagentry {
+    &__head {
+        position: relative;
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        /* All three lines are reserved: two records of different shapes stand in the same frame. */
+        min-height: 5rem;
+        padding: .55rem .8rem .55rem 1.05rem;
+        border-radius: .45rem;
+        background: rgba(9, 16, 25, 0.78);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 20%);
+
+        &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: .6rem;
+            bottom: .6rem;
+            width: .18rem;
+            border-radius: .1rem;
+            background: @diag-other;
+        }
+        &--error::before,
+        &--integrity::before { background: @diag-error; }
+        &--stall::before { background: @diag-stall; }
+    }
+    &__kicker {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+    &__kind {
+        font-size: .65rem;
+        font-weight: 700;
+        letter-spacing: .16rem;
+        text-transform: uppercase;
+        color: @diag-other;
+    }
+    &__head--error &__kind,
+    &__head--integrity &__kind { color: fade(@diag-error, 95%); }
+    &__head--stall &__kind { color: fade(@diag-stall, 95%); }
+    &__meta {
+        font-size: .7rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+    }
+    &__title {
+        min-height: 1.5rem;
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: .02rem;
+        line-height: 1.3;
+    }
+    &__state {
+        display: flex;
+        gap: 1.2rem;
+        min-height: 1rem;
+        font-size: .75rem;
+    }
+
+    &__scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: .9rem;
+        padding: .1rem .5rem .6rem .1rem;
+    }
+    &__section {
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        min-width: 0;
+    }
+    &__label {
+        margin-bottom: .15rem;
+        font-size: .6rem;
+        letter-spacing: .16rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 72%);
+    }
+    /* The message is the hero of the stack — the frames are how it got there. */
+    &__message {
+        margin-bottom: .2rem;
+        font-family: @con-font-mono;
+        font-size: .95rem;
+        font-weight: 700;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+        color: @con-text;
+    }
+    &__frame {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1.2rem;
+        min-height: 1.5rem;
+        padding: .1rem .6rem;
+        border-radius: .3rem;
+        background: rgba(12, 20, 30, 0.6);
+        font-family: @con-font-mono;
+        font-size: .78rem;
+        line-height: 1.35;
+
+        /* A library's frame steps back by weight and tone — it stays readable. */
+        &--lib {
+            background: transparent;
+            color: fade(@con-text-dim, 62%);
+        }
+    }
+    &__frame-fn {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+    }
+    &__frame--lib &__frame-fn { font-weight: 400; }
+    &__frame-at {
+        flex: 0 1 auto;
+        text-align: right;
+        overflow-wrap: anywhere;
+        color: fade(@con-cyan, 88%);
+    }
+    &__frame--lib &__frame-at { color: fade(@con-text-dim, 55%); }
+
+    &__fact {
+        display: flex;
+        align-items: baseline;
+        gap: 1rem;
+        min-height: 1.45rem;
+        padding: .1rem .6rem;
+        border-radius: .3rem;
+        background: rgba(12, 20, 30, 0.5);
+    }
+    &__fact-key {
+        flex: 0 0 11rem;
+        font-size: .76rem;
+        color: @con-text-dim;
+    }
+    &__fact-val {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: .8rem;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+
+        &--mono {
+            font-family: @con-font-mono;
+            font-size: .76rem;
+            font-weight: 400;
+        }
+    }
+    /* VERBATIM what the console received. Long lines WRAP — a reading surface is never scrolled sideways. */
+    &__text {
+        margin: 0;
+        padding: .6rem .7rem;
+        border-radius: .4rem;
+        background: rgba(5, 9, 15, 0.82);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 12%);
+        font-family: @con-font-mono;
+        font-size: .76rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        tab-size: 2;
+        color: fade(@con-text, 90%);
+    }
+}
+
+/* ── THE REPORT ────────────────────────────────────────────────────────── */
+.con-diagrep {
+    /* The report's panes share ONE cell too (the inner step transition). */
+    > .con-diagrep__pane {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+        min-height: 0;
+    }
+    &__lead {
+        flex: 0 0 auto;
+        font-size: .65rem;
+        letter-spacing: .16rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 78%);
+    }
+    &__plates {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
+    > .con-diagrep__pane--review {
+        flex-direction: row;
+        gap: 1.2rem;
+    }
+    &__col {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+    }
+    &__attach {
+        display: flex;
+        align-items: baseline;
+        gap: .7rem;
+        min-height: 2.2rem;
+        padding: .3rem .7rem;
+        border-radius: .4rem;
+        background: rgba(12, 20, 30, 0.62);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 12%);
+
+        /* A part that does not travel is SHOWN, with its reason — by form (a dash, a dashed edge), not by vanishing. */
+        &--off {
+            background: transparent;
+            box-shadow: none;
+            outline: .05rem dashed fade(@con-text-dim, 34%);
+            outline-offset: -.05rem;
+        }
+    }
+    &__attach-mark {
+        flex: 0 0 1rem;
+        font-size: .85rem;
+        font-weight: 700;
+        text-align: center;
+        color: @con-mint;
+    }
+    &__attach--off &__attach-mark { color: fade(@con-text-dim, 70%); }
+    &__attach-text {
+        display: flex;
+        flex-direction: column;
+        gap: .05rem;
+        min-width: 0;
+    }
+    &__attach-label {
+        font-size: .85rem;
+        font-weight: 700;
+    }
+    &__attach--off &__attach-label { font-weight: 400; color: @con-text-dim; }
+    &__attach-note {
+        font-size: .68rem;
+        color: fade(@con-text-dim, 85%);
+    }
+    &__privacy {
+        margin-top: auto;
+        font-family: @con-font-read;
+        font-size: .74rem;
+        line-height: 1.4;
+        color: @con-text-dim;
+    }
+
+    &__comment {
+        flex: 1 1 auto;
+        min-height: 5rem;
+        padding: .6rem .75rem;
+        border-radius: .45rem;
+        background: rgba(12, 20, 30, 0.72);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 15%);
+        font-family: @con-font-read;
+        font-size: .9rem;
+        line-height: 1.45;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+        .con-visual-transition(140ms);
+
+        &--empty { color: fade(@con-text-dim, 80%); }
+        &--cursor {
+            background: fade(@con-cyan, 10%);
+            box-shadow: inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, .9rem) fade(@con-cyan, 18%);
+        }
+    }
+    &__commit-well {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+    }
+    /* The refusal's line is ALWAYS reserved — a reason appears into a place that was waiting for it. */
+    &__refusal {
+        min-height: 1rem;
+        font-size: .72rem;
+        color: fade(@con-amber, 95%);
+    }
+    &__commit {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .7rem;
+        min-height: var(--con-hit-min, 2.8rem);
+        padding: .5rem 1rem;
+        border-radius: .5rem;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 .06rem fade(@con-mint, 46%);
+        cursor: pointer;
+        .con-visual-transition(140ms);
+
+        &--cursor {
+            background: fade(@con-mint, 12%);
+            box-shadow: inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-mint, 85%), 0 0 var(--con-glow-r, .9rem) fade(@con-mint, 16%);
+        }
+        /* Refused: by form and tone, never by see-through opacity. */
+        &--off {
+            box-shadow: inset 0 0 0 .06rem fade(@con-text-dim, 30%);
+            color: fade(@con-text-dim, 80%);
+        }
+    }
+    &__commit-label {
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+    }
+    &__commit-go { opacity: 0; .con-visual-transition(140ms); }
+    &__commit--cursor &__commit-go { opacity: 1; }
+}
+
+/* ── PAST THE COMMIT: the beat and its result are ONE panel ───────────── */
+.con-diagsend {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+
+    &__kicker {
+        min-height: 1rem;
+        font-size: .7rem;
+        letter-spacing: .18rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 80%);
+    }
+    /* THE CODE — the hero of the surface: large, mono, each character in its own cell, read out without doubt. */
+    &__code {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        margin: .5rem 0 .2rem;
+        font-family: @con-font-mono;
+        font-weight: 700;
+    }
+    &__prefix {
+        font-size: 2.1rem;
+        letter-spacing: .12rem;
+        color: fade(@con-text-dim, 90%);
+    }
+    &__dash {
+        width: .9rem;
+        height: .14rem;
+        border-radius: .1rem;
+        background: fade(@con-text-dim, 60%);
+    }
+    &__cell {
+        width: 2.5rem;
+        height: 3.3rem;
+        display: grid;
+        place-items: center;
+        border-radius: .4rem;
+        background: rgba(5, 9, 15, 0.82);
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 26%);
+        font-size: 2.2rem;
+        line-height: 1;
+        color: @con-text;
+
+        /* The reveal — once, cell after cell: the code grows out of the cells that waited for it. */
+        &--lit {
+            box-shadow: inset 0 0 0 .08rem fade(@con-mint, 70%);
+            animation: con-diag-cell-in calc(260ms * var(--motion-scale, 1)) @con-ease-enter both;
+            animation-delay: calc(var(--cell) * 70ms * var(--motion-scale, 1));
+        }
+    }
+    /* The working indicator of the beat: a hairline with a run along it — only while the report is on its way.
+       (`spin` in its name re-allows it under reduced motion: a frozen one would read as a hang.) */
+    &__rail {
+        position: relative;
+        width: 21rem;
+        height: .12rem;
+        margin: .3rem 0 .5rem;
+        border-radius: .1rem;
+        background: fade(@con-cyan, 14%);
+        overflow: hidden;
+    }
+    &__rail-run {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 34%;
+        border-radius: .1rem;
+        background: fade(@con-cyan, 85%);
+        opacity: 0;
+    }
+    &--sending &__rail-run {
+        opacity: 1;
+        animation: con-diag-railspin calc(1300ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+    &__title {
+        min-height: 1.6rem;
+        font-size: 1.2rem;
+        font-weight: 700;
+        letter-spacing: .03rem;
+    }
+    &__body {
+        max-width: 38rem;
+        min-height: 2.6rem;
+        font-family: @con-font-read;
+        font-size: .88rem;
+        line-height: 1.45;
+        color: @con-text-dim;
+    }
+    &__where {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .15rem;
+        min-height: 3.2rem;
+        margin-top: .3rem;
+    }
+    &__where-key {
+        font-size: .6rem;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 70%);
+    }
+    &__folder {
+        max-width: 46rem;
+        font-family: @con-font-mono;
+        font-size: .74rem;
+        overflow-wrap: anywhere;
+        color: fade(@con-text, 88%);
+    }
+    &__size {
+        font-size: .68rem;
+        color: fade(@con-text-dim, 85%);
+    }
+    &__contact {
+        margin-top: .2rem;
+        font-size: .8rem;
+        font-weight: 700;
+        color: fade(@con-cyan, 95%);
+    }
+}
+@keyframes con-diag-cell-in {
+    from { opacity: 0; transform: translateY(.3rem); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes con-diag-railspin {
+    0% { transform: translateX(-110%); }
+    100% { transform: translateX(310%); }
+}
+
+/* ── THE CONNECTION CHECK ──────────────────────────────────────────────── */
+.con-diagcheck {
+    justify-content: center;
+
+    &__rows {
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        min-height: 3.6rem;
+        padding: .45rem .9rem;
+        border-radius: .5rem;
+        background: rgba(12, 20, 30, 0.7);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 14%);
+    }
+    &__mark {
+        flex: 0 0 2rem;
+        height: 2rem;
+        display: grid;
+        place-items: center;
+        border-radius: 49.95rem;
+        box-shadow: inset 0 0 0 .08rem fade(@con-text-dim, 40%);
+        font-size: 1rem;
+        font-weight: 700;
+        color: @con-text-dim;
+    }
+    &__row--delivered &__mark { box-shadow: inset 0 0 0 .08rem fade(@con-mint, 80%); color: @con-mint; }
+    &__row--failed &__mark { box-shadow: inset 0 0 0 .08rem fade(@con-red, 80%); color: @con-red; }
+    &__text {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .05rem;
+    }
+    &__name {
+        font-size: 1rem;
+        font-weight: 700;
+    }
+    &__what {
+        font-size: .72rem;
+        color: @con-text-dim;
+    }
+    &__result {
+        flex: 0 1 22rem;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: .05rem;
+        text-align: right;
+    }
+    &__verdict {
+        font-size: .85rem;
+        font-weight: 700;
+        color: @con-text-dim;
+    }
+    &__row--delivered &__verdict { color: @con-mint; }
+    &__row--failed &__verdict { color: fade(@con-red, 96%); }
+    &__reason {
+        min-height: .9rem;
+        font-family: @con-font-mono;
+        font-size: .66rem;
+        overflow-wrap: anywhere;
+        color: fade(@con-text-dim, 85%);
+    }
+    &__summary {
+        min-height: 1.5rem;
+        margin-top: .5rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        text-align: center;
+    }
+    &__hint {
+        min-height: 2.4rem;
+        font-family: @con-font-read;
+        font-size: .82rem;
+        line-height: 1.4;
+        text-align: center;
+        color: @con-text-dim;
+    }
+}
+
+/* ── THE SYSTEM READOUT ────────────────────────────────────────────────── */
+.con-diagsys {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    height: 100%;
+    min-height: 0;
+
+    &__scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    &__content { padding-right: .2rem; }
+}
+
+/* ══ THE DEVELOPER'S NOTICE ══════════════════════════════════════════════
+   App-level, outside the shell, above every game surface and under the system overlay. It stands in the bottom-left
+   corner of the CENTRAL OPENING — the one corner of the game screen nothing else uses (the feed's cards stand
+   top-right; the scales and the hand's dock begin to its right; both bars and both rails are hull) — on the insets the
+   shell publishes on <html> (`--con-stage-l/-b`); with no shell (the menus) it stands off the viewport's own corner,
+   above their command bar. SIZED TO THAT CORNER: the plate is three short lines and never wider than the corner is
+   free; over a docked workspace the notice arrives as its chip. Never over a HUD member, a hint or a card of the feed.
+
+   The wrapper paints nothing: the plate and the chip are two glass boxes anchored to the same corner, and folding is
+   a crossfade of the two — never a box that changes its size under the eye. */
+.con-devnote {
+    position: fixed;
+    left: calc(var(--con-stage-l, 1.2rem) + .5rem);
+    bottom: calc(var(--con-stage-b, 3.6rem) + .5rem);
+    z-index: 12700;
+    font-family: @con-font;
+    color: @con-text;
+    pointer-events: none;
+
+    &__plate,
+    &__chip {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        border-radius: .5rem;
+        background: @con-glass;
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 30%),
+            0 .5rem 1.6rem rgba(0, 0, 0, 0.55);
+        transition:
+            opacity calc(180ms * var(--motion-scale, 1)) ease,
+            visibility 0s linear;
+
+        /* THE KIND — a kant on the leading edge, and a word. */
+        &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: .5rem;
+            bottom: .5rem;
+            width: .2rem;
+            border-radius: .1rem;
+            background: @diag-error;
+        }
+    }
+    &--stalls &__plate::before,
+    &--stalls &__chip::before { background: @diag-stall; }
+
+    &__plate {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: .12rem;
+        width: 19rem;
+        height: 4.3rem;
+        padding: 0 .8rem 0 1rem;
+        /* A NEW record: the plate arrives once (keyed by the raise). */
+        animation: con-devnote-in calc(240ms * var(--motion-scale, 1)) @con-ease-enter both;
+    }
+    &__chip {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        height: 2.3rem;
+        padding: 0 .7rem 0 .95rem;
+        opacity: 0;
+        visibility: hidden;
+    }
+    &--folded &__plate {
+        opacity: 0;
+        visibility: hidden;
+        transition:
+            opacity calc(180ms * var(--motion-scale, 1)) ease,
+            visibility 0s linear calc(180ms * var(--motion-scale, 1));
+    }
+    &--folded &__chip {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    &__top {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        min-width: 0;
+    }
+    &__kind {
+        flex: 0 0 auto;
+        font-size: .62rem;
+        font-weight: 700;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: fade(@diag-error, 95%);
+    }
+    &--stalls &__kind { color: fade(@diag-stall, 95%); }
+    &__outcome {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: .66rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__title {
+        font-size: .86rem;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__raw {
+        font-family: @con-font-mono;
+        font-size: .6rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: fade(@con-text-dim, 88%);
+    }
+
+    &__tally {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .3rem;
+        font-size: .95rem;
+        font-weight: 700;
+
+        &--errors { color: fade(@diag-error, 96%); }
+        &--stalls { color: fade(@diag-stall, 96%); }
+    }
+    &__tally-mark { font-size: .75rem; }
+
+    &__hold {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        margin-left: auto;
+        font-size: .6rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+    }
+    &__hold-glyph {
+        position: relative;
+        display: inline-grid;
+        place-items: center;
+    }
+    /* The hold's fill — the SAME duration as the input's own timer (set inline from the one constant). */
+    &__hold-fill {
+        position: absolute;
+        inset: -.16rem;
+        border-radius: 49.95rem;
+        box-shadow: inset 0 0 0 .12rem fade(@con-cyan, 95%);
+        clip-path: inset(100% 0 0 0);
+        opacity: 0;
+    }
+    &--holding &__hold-fill {
+        opacity: 1;
+        animation-name: con-devnote-hold;
+        animation-timing-function: linear;
+        animation-fill-mode: both;
+    }
+}
+@keyframes con-devnote-in {
+    from { opacity: 0; transform: translateY(.35rem); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes con-devnote-hold {
+    from { clip-path: inset(100% 0 0 0); }
+    to { clip-path: inset(0 0 0 0); }
+}
+.con-devnote-enter-active,
+.con-devnote-leave-active {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+}
+.con-devnote-enter-from,
+.con-devnote-leave-to {
+    opacity: 0;
+}
+
+/* ══ LESS MOTION (the OS preference or «Меньше движения» — `html.con-reduced-motion`): what arrives, arrives by
+   opacity alone — no rise, no stagger. The sending rail keeps running (it is a working indicator; the shared sheet
+   re-allows it by the `spin` in its name). ══ */
+html.con-reduced-motion {
+    .con-diag-step-enter-active {
+        transition: opacity calc(120ms * var(--motion-scale, 1)) ease;
+    }
+    .con-diag-step-enter-from { transform: none; }
+    .con-diagsend__cell--lit,
+    .con-devnote__plate {
+        animation-name: con-diag-crumb-in;
+        animation-delay: 0s;
+    }
+}
+
+/* ══ THE COUCH (TV profile): the same geometry, the couch type scale — nothing under the 16 px service floor ══ */
+html.con-profile-tv {
+    .con-sys--diag .con-sys__card { width: min(72rem, 96vw); }
+    .con-diag { height: 30.5rem; }
+    .con-diag__tab-count { font-size: var(--con-t-floor); line-height: 1.4rem; min-width: 1.7rem; }
+    .con-diag__row { height: 3rem; }
+    .con-diag__row-time { width: 6.2rem; font-size: var(--con-t-caption); }
+    .con-diag__row-kind { width: 9.4rem; font-size: var(--con-t-floor); }
+    .con-diag__row-title { font-size: var(--con-t-body); }
+    .con-diag__row-count { font-size: var(--con-t-caption); }
+    .con-diag__row-mark { width: .65rem; height: .65rem; }
+    .con-diag__empty-title { font-size: var(--con-t-section); }
+    .con-diag__empty-body { font-size: var(--con-t-secondary); max-width: 44rem; }
+    .con-diagentry {
+        &__head { min-height: 6.4rem; }
+        &__kind { font-size: var(--con-t-floor); }
+        &__meta { font-size: var(--con-t-caption); }
+        &__title { font-size: var(--con-t-section); min-height: 1.9rem; }
+        &__state { font-size: var(--con-t-caption); min-height: 1.2rem; }
+        &__label { font-size: var(--con-t-floor); }
+        &__message { font-size: var(--con-t-body); }
+        &__frame { font-size: var(--con-t-caption); min-height: 1.9rem; }
+        &__fact { min-height: 1.9rem; }
+        &__fact-key { flex-basis: 14rem; font-size: var(--con-t-caption); }
+        &__fact-val { font-size: var(--con-t-secondary); &--mono { font-size: var(--con-t-caption); } }
+        &__text { font-size: var(--con-t-caption); }
+    }
+    .con-diagrep {
+        &__lead { font-size: var(--con-t-floor); }
+        &__attach { min-height: 2.9rem; }
+        &__attach-label { font-size: var(--con-t-secondary); }
+        &__attach-note { font-size: var(--con-t-floor); }
+        &__privacy { font-size: var(--con-t-caption); }
+        &__comment { font-size: var(--con-t-secondary); }
+        &__refusal { font-size: var(--con-t-caption); min-height: 1.2rem; }
+        &__commit-label { font-size: 1.25rem; }
+    }
+    .con-diagsend {
+        &__kicker { font-size: var(--con-t-caption); min-height: 1.2rem; }
+        &__prefix { font-size: 2.8rem; }
+        &__cell { width: 3.3rem; height: 4.4rem; font-size: 2.9rem; }
+        &__rail { width: 28rem; }
+        &__title { font-size: var(--con-t-section); min-height: 2rem; }
+        &__body { font-size: var(--con-t-secondary); max-width: 46rem; min-height: 3rem; }
+        &__where-key { font-size: var(--con-t-floor); }
+        &__folder { font-size: var(--con-t-caption); max-width: 60rem; }
+        &__size { font-size: var(--con-t-floor); }
+        &__contact { font-size: var(--con-t-secondary); }
+        &__where { min-height: 4rem; }
+    }
+    .con-diagcheck {
+        &__row { min-height: 4.6rem; }
+        &__name { font-size: 1.3rem; }
+        &__what { font-size: var(--con-t-caption); }
+        &__verdict { font-size: var(--con-t-secondary); }
+        &__reason { font-size: var(--con-t-floor); min-height: 1.1rem; }
+        &__summary { font-size: var(--con-t-section); min-height: 2rem; }
+        &__hint { font-size: var(--con-t-secondary); min-height: 3rem; }
+    }
+    .con-devnote {
+        &__plate { width: 19rem; height: 5.2rem; gap: .16rem; }
+        &__chip { height: 2.9rem; }
+        &__kind { font-size: var(--con-t-floor); }
+        &__outcome { font-size: var(--con-t-floor); }
+        &__title { font-size: var(--con-t-secondary); }
+        &__raw { font-size: var(--con-t-floor); }
+        &__tally { font-size: 1.2rem; }
+        &__tally-mark { font-size: var(--con-t-caption); }
+        &__hold { font-size: var(--con-t-floor); }
+    }
+}

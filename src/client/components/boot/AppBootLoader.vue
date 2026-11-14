@@ -314,11 +314,14 @@ onBeforeUnmount(() => {
     // already closed — fine
   }
 });
-onErrorCaptured((): boolean => {
+onErrorCaptured((err): boolean => {
   // A warm-up render failure (an isolated board component missing some game
   // context it normally gets from a live game) must NEVER crash the app —
-  // swallow it here. The pipeline it would have warmed just compiles at first
-  // real use instead. The loader itself keeps running.
+  // it stops here. The pipeline it would have warmed just compiles at first
+  // real use instead. The loader itself keeps running. It is SAID, though (a
+  // note of the diagnostics journal): a warm-up that fails on every boot is a
+  // first deal that hitches on every boot, and nothing used to name it.
+  console.warn('[boot-warmup] a warm-up render failed — its pipeline compiles at first real use', err);
   return false;
 });
 </script>

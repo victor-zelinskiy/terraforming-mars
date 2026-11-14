@@ -165,6 +165,9 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_LOGOUT, ApiLogout.INSTANCE],
     ['main.js', ServeAsset.INSTANCE],
     ['main.js.map', ServeAsset.INSTANCE],
+    // The frame symbols the in-game diagnostics journal reads a minified stack back with (docs/claude/diagnostics.md § 5).
+    ['main.js.symbols.json', ServeAsset.INSTANCE],
+    ['vendors.js.symbols.json', ServeAsset.INSTANCE],
     ['sw.js', ServeAsset.INSTANCE],
     ['vendors.js', ServeAsset.INSTANCE],
     ['vendors.js.map', ServeAsset.INSTANCE],

@@ -1,6 +1,6 @@
-# THE CONSOLE SYSTEM SURFACE — the settings console + the in-game system menu
+# THE CONSOLE SYSTEM SURFACE — the settings console + the in-game system menu + the diagnostics surface
 
-**One chassis, two surfaces.** `.con-sys` (`src/styles/console_settings.less`) is the
+**One chassis, three surfaces.** `.con-sys` (`src/styles/console_settings.less`) is the
 frame the player meets *outside* the game's own flow — backdrop, glass card, crumb head,
 an optional tab band and the foot bar:
 
@@ -8,6 +8,7 @@ an optional tab band and the foot bar:
 | --- | --- | --- |
 | `.con-sys--settings` | `ConsoleOptionsPanel.vue` | THE home of every persistent console preference |
 | `.con-sys--menu` | `ConsoleSystemMenu.vue` | the in-game Menu-button overlay (actions only) |
+| `.con-sys--diag` | `ConsoleDiagnostics.vue` | the diagnostics surface: the journal, a record in full, «Сообщить о проблеме», the connection check, the system readout (§ 10; contract `docs/claude/diagnostics.md`) |
 
 Before this iteration they looked like two different products: the settings panel
 borrowed the pre-game `.cm-overlay` (gold title, no rail) and the system menu had its
@@ -48,7 +49,7 @@ categories that have content in this context.
 | `graphics` | ГРАФИКА | Скорость анимаций, Плавность анимаций, Упрощённые графические эффекты, Меньше движения | |
 | `game` | ПАРТИЯ | Приватный счёт | **in-game only** — a per-game pref keyed by participant id |
 | `network` | СЕТЬ | Сервер партий, Видимость в сети | `minor`, main menu only, desktop shell only (launch-time properties) |
-| `diagnostics` | ДИАГНОСТИКА | — (a read-only READOUT) | `minor` |
+| `diagnostics` | ДИАГНОСТИКА | Автоотчёты об ошибках (only where a diagnostics hub exists — the desktop app), Уведомления разработчика | `minor`. Since 2026-11-14 the category holds the two SETTINGS of diagnostics; the read-only READOUT it used to be moved to the diagnostics surface's СИСТЕМА tab (`buildDiagnosticsReadout` is still its one implementation) |
 
 **`minor: true`** is the answer to "dev-only-ish items should be small, unimportant
 categories": the strip renders them past a hairline seam, small and dim — reachable,
@@ -56,9 +57,10 @@ never competing with the four a player actually tunes. The seam is a RULE, not a
 «ДОПОЛНИТЕЛЬНО» caption: in a horizontal strip a caption would out-shout the tabs it
 introduces.
 
-A category has **either `rows` or `readout`, never both** (spec-guarded). The readout
-groups render **side by side**, which is what lets the whole diagnostics screen land
-inside the constant body height instead of scrolling half of itself away.
+A category has **either `rows` or `readout`, never both** (spec-guarded). No settings
+category is a readout today (the one that was — diagnostics — is rows now); the readout
+markup (`.con-set__readout`: groups **side by side**, so the whole thing lands inside a
+constant body height) is rendered by the diagnostics surface.
 
 ## 3. The layout-shift contract (load-bearing)
 
@@ -132,9 +134,10 @@ asserted to have count 1 in BOTH swap directions.
 
 Plates now carry a subtitle, but every label is **static** — no plate ever relabels in
 place, so d-pad navigation cannot move the plates under the cursor. **Never add a
-SETTING here** (CLAUDE.md). «Диагностика» is a *deep link*: it opens the settings console
-on its `diagnostics` category (`initialCategory`), so the readout has exactly one home,
-one implementation and one look.
+SETTING here** (CLAUDE.md). Six plates: «Настройки» · «Управление» · «Сообщить о проблеме» ·
+«Диагностика» · «В главное меню» · «Вернуться в игру». The two diagnostics plates open the
+THIRD member of the overlay (§ 10) — «Сообщить о проблеме» on the report's first step,
+«Диагностика» on the journal — and B at that surface's root returns to this list.
 
 ## 8. Traps paid for in this iteration
 
@@ -160,6 +163,33 @@ one implementation and one look.
   `tests/client/directives/translateMessageRawString.spec.ts`.
 - **`'This game'` is the victory-point table's «За партию» caption**, not a settings
   category. The ПАРТИЯ category keys `'Game'`.
+
+## 10. The third member — the diagnostics surface
+
+`ConsoleDiagnostics.vue` (`.con-sys--diag`, loaded on first use — `diagnosticsAsync.ts`)
+stands on the same chassis and obeys the same contracts, harder:
+
+- **ONE root crumb, a tail that only grows** — `ДИАГНОСТИКА › ЗАПИСЬ`,
+  `ДИАГНОСТИКА › ОТЧЁТ › <КАТЕГОРИЯ> › ОТПРАВКА`. Its tabs are FILTERS of the journal
+  (ВСЕ · ОШИБКИ · ЗАВИСАНИЯ · ПРОЧЕЕ) with the readout (СИСТЕМА) past the minor seam —
+  the settings console's own strip grammar, and the strip stays MOUNTED on every step
+  (unmounting it would lift the body); past the browse step it only steps back in paint.
+- **The layout-shift contract** — `.con-diag` has a fixed `height`; every step is
+  `position: absolute; inset: 0` in that one cell; rows are one line; every strip whose
+  words change reserves its lines. The e2e measures the card's and the cell's box across
+  every cursor move, filter change and step.
+- **A step change is one phrase**, never a `v-if` blink: what stood lets go on the spot,
+  the next step surfaces a beat later from inside the same cell.
+- **Doors from outside the overlay's owner** (the main menu's «Сообщить о проблеме», the
+  developer's notice, the developer's key F12) go through
+  `diagnostics/diagnosticsOverlayBridge.ts` — the same seam idea as the keyboard's (§ 4).
+  Opened that way there is no list behind it: B at its root closes the whole overlay.
+- **The on-screen keyboard** (the report's comment) is raised OVER the overlay
+  (`.cm-vk-overlay` z 12790).
+
+Logic: `diagnostics/diagnosticsSurface.ts`; readings: `diagnosticsView.ts`; sheet:
+`src/styles/console_diagnostics.less`; specs: `tests/client/diagnostics/diagnosticsClient.spec.ts`,
+`tests/e2e/console-diagnostics.spec.ts`.
 
 ## 9. Files
 

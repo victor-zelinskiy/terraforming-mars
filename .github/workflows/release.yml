@@ -77,6 +77,9 @@ jobs:
   # package in parallel without each re-running the (slow) webpack client build.
   build:
     runs-on: ubuntu-latest
+    env:
+      # Read by the «Upload source maps» step's `if` (a secret cannot be named in an `if` directly). Empty in a fork.
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -125,6 +128,48 @@ jobs:
       # have them; omitting them ships an English-only build).
       - name: Build desktop assets (client + electron main)
         run: npm run build:desktop
+        env:
+          # WHERE THIS RELEASE'S DIAGNOSTICS GO (docs/claude/diagnostics.md): baked into settings.json by make:json.
+          # An Actions VARIABLE (a DSN is an address events can only be sent to, not a secret). A fork has none —
+          # its build then sends nothing, by the hub's own rule.
+          TM_SENTRY_DSN: ${{ vars.TM_SENTRY_DSN }}
+
+      # DIAGNOSTICS — every shipped script gets a DEBUG ID (the page's chunks, the main process, the hub's bundle, the
+      # embedded server) and its source map the same id: that pair is what turns `main.js:2:1834` of a player's stack
+      # into `src/…:line`. Stamping needs no credentials, so it ALWAYS runs — the artifact the packagers take is the
+      # stamped one. It must stand BEFORE the artifact upload and before anything packs these files.
+      - name: Stamp debug ids (source maps ↔ scripts)
+        run: npx --yes @sentry/cli@3.8.2 sourcemaps inject build-desktop build/electron
+
+      # The stamp added a line at the top of every script and rewrote its map: the frame symbols the in-game journal
+      # resolves its stacks with are cut AGAIN, from the stamped maps (scripts/make-frame-symbols.mjs — idempotent).
+      - name: Re-cut the frame symbols from the stamped maps
+        run: node scripts/make-frame-symbols.mjs
+        env:
+          DESKTOP_BUILD: '1'
+
+      # …and the maps go to the collector under this release — ONLY where the token exists (this repository's main).
+      # A fork and a pull request have no secret: the step is skipped and the release is built all the same. A failed
+      # upload never fails a release either (`continue-on-error`): players get their build, stacks of that one version
+      # stay unresolved, and the warning says so.
+      - name: Upload source maps (Sentry)
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          set -u
+          RELEASE="terraforming-mars@$VELO_VERSION"
+          cli() { npx --yes @sentry/cli@3.8.2 "$@"; }
+          cli releases new "$RELEASE"
+          cli sourcemaps upload --release "$RELEASE" build-desktop build/electron             || { echo "::warning::source maps of $RELEASE were not uploaded — its stacks will not be resolved"; exit 1; }
+          # The commit is told when the repository is linked in Sentry; without the link the release stands without it.
+          cli releases set-commits "$RELEASE" --commit "${{ github.repository }}@${{ github.sha }}" --ignore-missing || true
+          cli releases finalize "$RELEASE"
+          echo "source maps uploaded for $RELEASE"
 
       - name: Upload shared build artifact
         uses: actions/upload-artifact@v4

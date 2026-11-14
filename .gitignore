@@ -57,3 +57,4 @@ assets/card-art-sam-spike/
 
 # scratch logs of local runs (never committed)
 /tmp/
+.diagnostics/

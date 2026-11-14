@@ -132,6 +132,12 @@ interface DesktopBridge {
   onLanHosts?(cb: (hosts: DesktopLanHost[]) => void): void;
   // Settings-row "apply now": relaunch into the newly persisted mode.
   relaunchApp?(): Promise<void>;
+  // ---- Diagnostics (docs/claude/diagnostics.md): the page ↔ hub protocol, carried as it is ----
+  // Three thin pipes; the VERBS and their payloads are `src/common/diagnostics/protocol.ts` — the preload does not
+  // know them, so a new verb never needs a new bridge member (an older shell simply has none of the three).
+  diagInvoke?(verb: string, payload?: unknown): Promise<unknown>;
+  diagSend?(payload: unknown): void;
+  onDiagEvent?(cb: (event: unknown) => void): void;
 }
 
 /** A LAN host discovered over mDNS (mirrors src/server/embedded/lanDiscovery.ts). */

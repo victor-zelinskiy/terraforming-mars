@@ -10,6 +10,7 @@ import {currentProfileOverride} from '@/client/console/consoleLayoutProfile';
 import {restLayoutProfile} from './layoutAtRest';
 import {notificationFeedModeState, setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
 import {notificationContentModeState, setNotificationContentMode} from '@/client/components/notifications/notificationContentMode';
+import {devNoticeState, setDevNoticeMode} from '@/client/diagnostics/diagnosticsPrefs';
 
 const A: GamepadIntent = {kind: 'press', button: 'confirm'};
 const B: GamepadIntent = {kind: 'press', button: 'back'};
@@ -21,7 +22,7 @@ const RIGHT: GamepadIntent = {kind: 'nav', dir: 'right', repeat: false};
 
 type PanelVm = {
   categories: ReadonlyArray<{id: string, minor: boolean, rows: ReadonlyArray<{id: string, value: string}>}>,
-  current: {id: string, rows: ReadonlyArray<{id: string}>},
+  current: {id: string, rows: ReadonlyArray<{id: string}>, readout: ReadonlyArray<unknown>},
   categoryIndex: number,
   cursor: number,
   detail: {title: string, value: string, desc: string, note: string},
@@ -199,19 +200,26 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
     expect(vm.detail.value).to.not.eq('');
   });
 
-  it('a read-only category describes itself and has nothing to step', () => {
-    const vm = mountWith('game', 'diagnostics').vm as unknown as PanelVm;
-    expect(vm.current.id).to.eq('diagnostics');
-    expect(vm.current.rows.length).to.eq(0);
-    expect(vm.detail.title).to.eq('Diagnostics');
-    // A press on an empty category must not throw or wander.
-    vm.handleIntent(A);
-    vm.handleIntent(RIGHT);
-    vm.handleIntent(DOWN);
-    expect(vm.current.id).to.eq('diagnostics');
+  it('ДИАГНОСТИКА is dialable: the developer notices step like every other setting', () => {
+    const before = devNoticeState.mode;
+    try {
+      setDevNoticeMode('off');
+      const vm = mountWith('game', 'diagnostics').vm as unknown as PanelVm;
+      expect(vm.current.id).to.eq('diagnostics');
+      expect(vm.current.readout.length).to.eq(0);
+      cursorTo(vm, 'devNotices');
+      expect(vm.detail.title).to.eq('Developer notices');
+      vm.handleIntent(A);
+      expect(devNoticeState.mode).to.eq('errors');
+      vm.handleIntent(LEFT);
+      expect(devNoticeState.mode).to.eq('off');
+      expect(vm.current.id).to.eq('diagnostics');
+    } finally {
+      setDevNoticeMode(before);
+    }
   });
 
-  it('initialCategory deep-links (the system menu’s «Диагностика» plate)', () => {
+  it('initialCategory deep-links onto a category of this context', () => {
     const menu = mountWith('menu', 'diagnostics').vm as unknown as PanelVm;
     expect(menu.current.id).to.eq('diagnostics');
     // An id that does not exist in this context falls back to the first one.

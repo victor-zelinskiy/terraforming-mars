@@ -1261,7 +1261,8 @@ html.con-profile-tv {
            html.con-profile-tv .con-sys__card`), i.e. a selector that matches
            nothing. The settings card silently kept the ACTION-menu width and its
            row labels were squeezed out. Spell both classes instead. */
-        &--settings .con-sys__card { width: min(60rem, 96vw); }
+        /* 66rem: the in-game strip of SIX categories fits between its two chips (see console_settings.less). */
+        &--settings .con-sys__card { width: min(66rem, 96vw); }
         &__emblem { width: 2.4rem; height: 2.4rem; font-size: 1.4rem; }
         &__crumb-root { font-size: var(--con-t-section); }
         &__crumb-stage { font-size: var(--con-t-secondary); }

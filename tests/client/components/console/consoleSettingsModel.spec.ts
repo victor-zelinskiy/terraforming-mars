@@ -1,5 +1,6 @@
 import {expect} from 'chai';
-import {buildConsoleSettings} from '@/client/console/settings/consoleSettingsModel';
+import {buildConsoleSettings, buildDiagnosticsReadout} from '@/client/console/settings/consoleSettingsModel';
+import {devNoticeState, setDevNoticeMode} from '@/client/diagnostics/diagnosticsPrefs';
 import {PROFILE_CHOICES, currentProfileOverride} from '@/client/console/consoleLayoutProfile';
 import {restLayoutProfile} from './layoutAtRest';
 import {buttonLayoutState, setButtonLayout} from '@/client/gamepad/buttonLayout';
@@ -75,16 +76,41 @@ describe('consoleSettingsModel', () => {
     }
   });
 
-  it('the technical categories are the minor ones, and only they carry a readout', () => {
+  it('the technical categories are the minor ones; a category is dialable or a readout — never both', () => {
     const cats = buildConsoleSettings({context: 'menu'});
     expect(cats.filter((c) => c.minor).map((c) => c.id)).to.deep.eq(['diagnostics']);
     for (const cat of cats) {
-      // A category is either dialable or a readout — never both.
       expect(cat.rows.length === 0, `${cat.id}`).to.eq(cat.readout.length > 0);
     }
-    const diag = cats.find((c) => c.id === 'diagnostics');
-    expect(diag?.readout.map((g) => g.label)).to.deep.eq(['Server link', 'Display']);
-    for (const group of diag?.readout ?? []) {
+  });
+
+  it('ДИАГНОСТИКА holds the SETTINGS of diagnostics — the readout moved to the diagnostics surface', () => {
+    const before = devNoticeState.mode;
+    try {
+      setDevNoticeMode('off');
+      const diag = () => buildConsoleSettings({context: 'menu'}).find((c) => c.id === 'diagnostics');
+      expect(diag()?.readout).to.deep.eq([]);
+      // With no hub (this spec's page), automatic reports have nothing to govern: the row is absent, never a dead switch.
+      expect(diag()?.rows.map((r) => r.id)).to.deep.eq(['devNotices']);
+      const row = () => diag()?.rows.find((r) => r.id === 'devNotices');
+      // Off by default; a three-step ring: off → errors → errors and stalls → off.
+      expect(row()).to.deep.include({index: 0, count: 3, value: 'Off'});
+      row()?.step(1);
+      expect(devNoticeState.mode).to.eq('errors');
+      row()?.step(1);
+      expect(devNoticeState.mode).to.eq('all');
+      expect(row()?.value).to.eq('Errors and stalls');
+      row()?.step(1);
+      expect(devNoticeState.mode).to.eq('off');
+    } finally {
+      setDevNoticeMode(before);
+    }
+  });
+
+  it('the readout of this device is built once, for the diagnostics surface', () => {
+    const groups = buildDiagnosticsReadout({context: 'menu'});
+    expect(groups.map((g) => g.label)).to.deep.eq(['Server link', 'Display']);
+    for (const group of groups) {
       expect(group.rows.length, group.label).to.be.greaterThan(0);
     }
   });
@@ -193,8 +219,7 @@ describe('consoleSettingsModel', () => {
   });
 
   it('the diagnostics client version comes from the desktop shell when it answers', () => {
-    const cats = buildConsoleSettings({context: 'game', desktopVersion: '9.9.9-test'});
-    const connection = cats.find((c) => c.id === 'diagnostics')?.readout.find((g) => g.label === 'Server link');
+    const connection = buildDiagnosticsReadout({context: 'game', desktopVersion: '9.9.9-test'}).find((g) => g.label === 'Server link');
     expect(connection?.rows.find((r) => r.label === 'Client version')?.value).to.eq('9.9.9-test');
   });
 

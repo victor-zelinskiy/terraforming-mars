@@ -1,3 +1,6 @@
+// FIRST, before any other module of the app is evaluated: the page's one diagnostic interceptor (an error thrown while
+// the graph below loads is a record too — `diagnostics/diagnosticsBoot.ts`).
+import '@/client/diagnostics/diagnosticsBoot';
 import {createVaporApp} from 'vue';
 
 import App from '@/client/components/App.vue';
@@ -13,6 +16,8 @@ import {applyConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {installConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {warmDisplayFonts} from '@/client/utils/fontWarmup';
 import {installVueErrorReport} from '@/client/console/vueErrorReport';
+import {installDiagnosticsJournal} from '@/client/diagnostics/diagnosticsJournalState';
+import {installDiagnosticsProbe} from '@/client/diagnostics/diagnosticsSurface';
 
 declare global {
   interface Window {
@@ -81,6 +86,10 @@ async function bootstrap() {
   // one. vue-tsc reads the SFC itself and needs none.)
   const app = createVaporApp(App as unknown as Parameters<typeof createVaporApp>[0]);
   installVueErrorReport(app);
+  // The journal's reactive face and its mirror in the diagnostics hub (the interceptor itself stands since the first
+  // import of this file): what the page recorded so far goes to the hub, what the hub holds of earlier pages comes back.
+  installDiagnosticsJournal();
+  installDiagnosticsProbe();
 
   // NOTHING IS REGISTERED ON THE APP (ROADMAP § 4a · B10): no global component, no global directive, no global
   // property. Every component imports what it renders and calls (`$t` from `directives/i18n`, the directives from

@@ -161,6 +161,18 @@ describe('ServeAsset', () => {
     expect(res.content).eq('data: build/vendors.js');
   });
 
+  // The frame symbols of the two initial chunks — the in-game diagnostics journal reads a minified stack back with
+  // them. They are written after the bundle and have no compressed twin: an accepted encoding changes nothing.
+  for (const script of ['main.js', 'vendors.js']) {
+    it(script + '.symbols.json', async () => {
+      instance = new ServeAsset(undefined, false, fileApi);
+      scaffolding.url = '/' + script + '.symbols.json';
+      scaffolding.req.headers['accept-encoding'] = 'br, gzip';
+      await scaffolding.get(instance, res);
+      expect(res.content).eq('data: build/' + script + '.symbols.json');
+    });
+  }
+
   it('chunk js file', async () => {
     instance = new ServeAsset(undefined, false, fileApi);
     scaffolding.url = '/chunks/player-home.js';
@@ -225,6 +237,9 @@ describe('ServeAsset', () => {
     'Newsreader-Regular-latin.woff2',
     'GolosText-latin.woff2',
     'GolosText-cyrillic.woff2',
+    // The game's mono face (the diagnostics journal) — the same glyphs on SteamOS and on Windows.
+    'JetBrainsMono-latin.woff2',
+    'JetBrainsMono-cyrillic.woff2',
   ];
   for (const font of LORE_FONTS) {
     it(`serves ${font} as font/woff2`, async () => {
