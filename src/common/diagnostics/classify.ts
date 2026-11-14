@@ -43,6 +43,8 @@ const STALL: ReadonlyArray<string> = [
   'console-foreground-watchdog', 'wait-graph', 'animation-hold', 'screen-handoff', 'presentation-ledger',
   'notifications', 'deferred-refresh', 'transport', 'flow', 'mandatory-gate', 'teleport', 'scene-transition',
   'cursor', 'realtime',
+  // The last line: the console session rebuilt from the server's view (`console/session/sessionRebuild.ts`).
+  'session-rebuild',
   // The main process's watch over a renderer that stopped answering (`electron/rendererHangWatch.ts`).
   'renderer-hang',
 ];

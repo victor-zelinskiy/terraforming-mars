@@ -37,6 +37,12 @@ test.describe('the wait graph cures a question asked of nobody', () => {
       {timeout: 20_000, message: 'the server asks the play from the hand'}).toBe('projectCard');
     await settle(page, {timeoutMs: 40_000}).catch(() => undefined);
     await expect(page.locator('.con-hand'), 'the hand serves the question').toHaveCount(1);
+    // THE STRAND'S PRECONDITION IS ASSERTED, never hoped for: the hand has finished opening. A hold of its opening
+    // still live when the frame is taken away is «something in flight» — the graph sees no dead end until that hold's
+    // own ceiling, and the ARBITER judges the stranded question first (a loaded box, 2026-11-14: `animation:hand-open`
+    // outlived the stripped hand, the foreground rung cured it, and this control went red on the arbiter's line).
+    await expect.poll(() => page.evaluate(() => (window as unknown as {__conReady?: () => {holds?: Array<string>}}).__conReady?.().holds ?? []),
+      {timeout: 60_000, message: 'no animation hold is live before the strand'}).toEqual([]);
     // THE STRAND: the hand's frame leaves, the question stays asked, nothing set aside.
     const stripped = await page.evaluate(() => (window as unknown as {__conStrandQuestion?: () => string}).__conStrandQuestion?.() ?? '');
     expect(stripped, 'the seam took the serving frame off the stack').toBe('hand');

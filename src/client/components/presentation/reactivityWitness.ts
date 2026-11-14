@@ -40,7 +40,7 @@
  * COST: one extra read of a declared predicate per reactive edge of its dependencies (the sync watcher) — the
  * predicates are cheap boolean reads by contract, the same reads every consumer already makes.
  */
-import {shallowRef, ShallowRef, watch, WatchStopHandle} from 'vue';
+import {effectScope, shallowRef, ShallowRef, watch} from 'vue';
 
 export type ReactivePredicateOptions<T> = {
   /**
@@ -75,8 +75,8 @@ type Entry = {
   polled: string | undefined,
   /** Read by every consumer through the exported predicate — the heal bumps it. */
   epoch: ShallowRef<number>,
-  /** The sync watcher over `read` — undefined until the first audit arms it (module state may not exist yet). */
-  stop: WatchStopHandle | undefined,
+  /** Stops the sync watcher over `read` — undefined until the first audit arms it (module state may not exist yet). */
+  stop: (() => void) | undefined,
   /** The value at the last reactive edge (the watcher's last read). */
   atLastEdge: unknown,
 };
@@ -105,17 +105,29 @@ function guardedRead(entry: Entry): unknown {
   }
 }
 
-/** Start the sync watcher (idempotent). It reads the epoch too, so a heal is an edge the watcher sees. */
+/**
+ * Start the sync watcher (idempotent). It reads the epoch too, so a heal is an edge the watcher sees.
+ *
+ * THE WATCHER IS THE PAGE'S, NEVER A COMPONENT'S — it lives in a DETACHED effect scope of its own. The first audit
+ * runs from the shell's mounted hook, and a `watch` created there belongs to the shell's instance: when that game
+ * screen leaves, Vue stops the watcher — and the entry still says «armed». From then on the witness compares every
+ * fresh read with a value frozen at the first screen's end: every predicate that has moved since is «a latch», named
+ * and healed on every tick, for the rest of the page (the console in a bottle, 2026-11-14: the second game screen of
+ * a page printed `[reactivity] «hold:hand-open»` on presses the first took clean). A page that mounts the shell once
+ * never met it; a console session REBUILT in the page would have, on its first press.
+ */
 function arm(entry: Entry): void {
   if (entry.stop !== undefined) {
     return;
   }
-  entry.stop = watch(() => {
+  const scope = effectScope(true);
+  scope.run(() => watch(() => {
     void entry.epoch.value;
     return guardedRead(entry);
   }, (value) => {
     entry.atLastEdge = value;
-  }, {flush: 'sync', immediate: true});
+  }, {flush: 'sync', immediate: true}));
+  entry.stop = () => scope.stop();
 }
 
 /**

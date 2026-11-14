@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {computed, reactive} from 'vue';
+import {computed, effectScope, reactive} from 'vue';
 import {
   auditReactivity, reactivePredicate, reactivePredicateLabels, recentReactivityLatches, resetReactivityWitnessForTest,
 } from '@/client/components/presentation/reactivityWitness';
@@ -103,6 +103,23 @@ describe('reactivityWitness — a predicate that caches read never latches silen
     expect(animationHoldCount()).eq(before);
     unregisterAnimationHoldSupplier('spec-plain-supplier');
     expect(reactivePredicateLabels(), 'an unregistered supplier leaves the audit').not.includes('hold:spec-plain-supplier');
+  });
+
+  it('the witness outlives the scope its FIRST audit ran in — a game screen that leaves does not blind it', () => {
+    const state = reactive({queued: 0});
+    const owed = reactivePredicate('spec-outlives', () => state.queued > 0);
+    disposers.push(owed.dispose);
+    // The first audit runs from the shell's mounted hook — inside the shell's own effect scope…
+    const shell = effectScope();
+    shell.run(() => auditReactivity());
+    state.queued = 1;
+    expect(own(auditReactivity()), 'armed: a reactive move is an edge').deep.eq([]);
+    // …and the shell leaves. The predicate still moves on reactive edges only — nothing may be called a latch.
+    shell.stop();
+    for (const step of [() => state.queued = 0, () => state.queued = 2, () => state.queued = 0]) {
+      step();
+      expect(own(auditReactivity()).map((l) => l.label), 'after the first screen left').deep.eq([]);
+    }
   });
 
   it('a throwing predicate is skipped, never thrown into the tick', () => {

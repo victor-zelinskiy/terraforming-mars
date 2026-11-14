@@ -156,6 +156,20 @@ export function episodeCure(episode: DiagEpisode, start: DiagEvidence | undefine
  * The dimensions an event of this record is tagged with — the cause's own, and for an episode how it ended, how long it
  * stood and who cured it. Every value is short and structural (a tag, never a sentence).
  */
+/** The shape of the line the last line prints before the page goes (`sessionRebuild.ts`). */
+export const REBUILD_SHAPE = 'session-rebuild/page';
+
+/**
+ * HOW AN EPISODE THE PAGE LEFT UNDER ENDED: the page that was replaced BY THE LAST LINE (its line is a net of the
+ * episode) was `rebuilt`; any other reload is the player's own, or the hang watch's.
+ */
+export function leftOutcome(episode: DiagEpisode, how: 'reload' | 'quit'): DiagEpisodeOutcome {
+  if (how === 'reload' && (episode.nets ?? []).some((net) => net.cls === REBUILD_SHAPE || net.cls.startsWith(`${REBUILD_SHAPE}/`))) {
+    return 'rebuilt';
+  }
+  return how;
+}
+
 export function causeDims(cause: DiagCause, episode?: DiagEpisode): Record<string, string> {
   const dims: Record<string, string> = {...cause.dims};
   if (episode !== undefined) {

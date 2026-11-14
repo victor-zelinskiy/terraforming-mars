@@ -92,7 +92,7 @@ a report or a Sentry issue is the skill `diagnose-report` (`npm run diag -- …`
     the cure. A net that only NAMES needs nothing: the interceptor asks the provider when a defect's line is printed.
     The provider is the supervisor's (`setDiagEvidenceProvider`) — the interceptor still imports nothing of the
     console — and it is asked once per record, never on a healthy second.
-17. **WHAT MUST NOT SPLIT A CLASS IS A DIMENSION.** The outcome (`healed` · `unhealed` · `reload` · `quit`), who cured
+17. **WHAT MUST NOT SPLIT A CLASS IS A DIMENSION.** The outcome (`healed` · `rebuilt` · `unhealed` · `reload` · `quit`), who cured
     it, the source card, how long it stood are TAGS of an event (`cause.ts` `causeDims`, `sentryEvent.ts` `DIM_TAGS`),
     never words of the class. A new fact a reader should slice by is a dimension; a new fact that distinguishes two
     CAUSES is a structural capture of the row.

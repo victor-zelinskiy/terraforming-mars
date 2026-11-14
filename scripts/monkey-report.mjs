@@ -59,7 +59,7 @@ export function findCauseFiles(dir) {
 }
 
 /** An episode that the net did not cure before the walk (or the page) was over. */
-const NOT_CURED = new Set(['unhealed', 'reload', 'quit', 'test-ended']);
+const NOT_CURED = new Set(['unhealed', 'reload', 'rebuilt', 'quit', 'test-ended']);
 
 /** The shape of a class: its first two words (`wait-graph/ceiling/played-hero:payback` → `wait-graph/ceiling`). */
 export function shapeOfClass(cls) {

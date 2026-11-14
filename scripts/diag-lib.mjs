@@ -661,7 +661,7 @@ export function mergeClassRows(main, outcomes = [], releases = []) {
   return [...rows.values()].sort((a, b) => b.events - a.events || a.cls.localeCompare(b.cls));
 }
 
-const OUTCOME_ORDER = ['healed', 'unhealed', 'reload', 'quit', 'standing', 'no-episode'];
+const OUTCOME_ORDER = ['healed', 'rebuilt', 'unhealed', 'reload', 'quit', 'standing', 'no-episode'];
 
 function outcomesText(outcomes) {
   const keys = [...OUTCOME_ORDER.filter((k) => outcomes[k] !== undefined), ...Object.keys(outcomes).filter((k) => !OUTCOME_ORDER.includes(k)).sort()];

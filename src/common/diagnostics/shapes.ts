@@ -250,6 +250,13 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'overdue', re: /^the screen stayed busy for over /, tier: 'defect'},
   ],
   // ── the transport, the kernel ───────────────────────────────────────────────────────────────────────────────────
+  // ── the last line (`console/session/sessionRebuild.ts`) — never a cure: every one of them is a defect ──────────────
+  'session-rebuild': [
+    {name: 'page', re: /^page — «([^»]*)» \(.*?\) — by (\S+): /, tier: 'defect', parts: [1], dims: {by: 2}},
+    {name: 'refused-again', re: /^refused \(again\) — «([^»]*)» \(.*?\) stands unserved after the page was rebuilt for it — by (\S+): /, tier: 'defect', parts: [1], dims: {by: 2}},
+    {name: 'refused-rate', re: /^refused \(rate\) — «([^»]*)» \(.*?\) stays as it stands: the window of rebuilds is full — by (\S+): /, tier: 'defect', dims: {source: 1, by: 2}},
+    {name: 'refused-off', re: /^refused \(off\) — «([^»]*)» \(.*?\) stays as it stands: the last line is switched off /, tier: 'info', parts: [1], why: 'the line is switched off on purpose (`?rebuild=0`: a control spec, a diagnosis) — the episode it stands in is the defect'},
+  ],
   'transport': [
     {name: 'gate-bound', re: /^gate «([^»]*)» of \S+ outlived its bound/, tier: 'defect', parts: [1]},
     {name: 'abandoned', re: /^\S+ abandoned — its presentation never ended/, tier: 'defect'},

@@ -752,6 +752,27 @@ describe('diagnostics hub — a stall is filed under its CAUSE, with what stood'
     } finally {
       reloaded.cleanup();
     }
+    // THE LAST LINE replaced the page: the episode it ended is `rebuilt` — never mistaken for the player's own reload.
+    const rebuilt = harness();
+    try {
+      const page = pageJournal('s1');
+      const open = page.ingest({at: rebuilt.now(), level: 'warn', text: stallText()});
+      rebuilt.hub.line({kind: 'entry', entry: open.entry, change: open.change});
+      const line = page.ingest({at: rebuilt.now() + 4_000, level: 'warn', text: '[session-rebuild] page — «handPick» (card#12) — by liveness: the ladder is spent and the screen stood 16s'});
+      rebuilt.hub.line({kind: 'entry', entry: line.entry, change: line.change});
+      await rebuilt.hub.invoke('journal', {session: 's2'});
+      rebuilt.fire(EPISODE_SETTLE_MS);
+      await rebuilt.settle();
+      const event = rebuilt.events()[0];
+      expect(event.tags).to.deep.include({outcome: 'rebuilt', episode: 'unhealed'});
+      expect(event.message.formatted).to.contain('the console session was REBUILT');
+      expect(event.contexts.episode.nets).to.deep.eq(['session-rebuild/page/handpick ×1 (defect)']);
+      const ledger = await rebuilt.hub.invoke('ledger', undefined) as SessionLedger;
+      expect(ledger.outcomes).to.deep.eq({rebuilt: 1});
+      expect(ledger.classes['session-rebuild/page/handpick'], 'the last line is counted like every net').to.deep.include({tier: 'defect', n: 1});
+    } finally {
+      rebuilt.cleanup();
+    }
     const closed = harness();
     try {
       const page = pageJournal('s1');

@@ -26,6 +26,10 @@ npx mocha --import=tsx --require tests/testing/setup.ts "tests/cards/base/Algae.
 # one client spec (or a glob) — no flags: the runner always builds with webpack.test.config.js (ONE chunk)
 # and always puts tests/client/components/bundleSetup.ts first in the bundle
 npm run test:client:one -- "<spec>"
+
+# THE CONSOLE IN A BOTTLE (tests/client/bottle/*.bottle.ts — NOT in the unit glob: a minute, and it loads the game
+# server into the runner's process): the real App + ConsoleShell against the real server in one process, one manual clock
+npm run test:bottle
 ```
 
 **The client runner is `scripts/client-tests.mjs`** (2026-11-12): webpack builds the specs into one file with

@@ -87,6 +87,38 @@ rung runs: read after, they would describe the cure — a claim the rung release
 episode's event is filed under `liveness/stall/<reason>/<task>/<top>/<holder>`, so every «unserved, asked card» is no
 longer one issue whatever held the question.
 
+## 3a. Past the last rung — THE LAST LINE (FREEZE ZERO, 2026-11-14)
+
+Until 2026-11-14 there was NOTHING past the last rung: the line «the ladder is spent», no further act, and a player
+whose only way out was to close the game. Now the arbiter's last word is `rebuildConsoleSession`
+(`console/session/sessionRebuild.ts`): **the console session is rebuilt from the server's view.** A reload has always
+cured a freeze of this console, because everything the game screen shows is a function of the server's view — every
+rung above is a hand-written, partial imitation of that function for one module; the rebuild is the function itself.
+
+- **When.** The verdict is `unserved` (the player CANNOT act — never `presses-no-effect`: a screen that accepts is
+  judged by the ladder alone, a rebuild there would take a working screen away), the ladder had nothing left to
+  release, and the screen still stood `LIVENESS_REBUILD_AFTER_MS` (4 s — two more looks) later.
+- **How (depth `page`).** The document is replaced behind the loading curtain — `navigateWithCurtain(location.href,
+  'sync')`, the road of every game-boundary navigation: the curtain is painted before the page goes, the next page
+  opens under it, the native shell's overlay holds the window meanwhile. Complete by construction (no module state
+  survives a document); the question's own surface stands again on the next page — the reload's restore road and the
+  rebuild's are ONE road. Depth `shell` (the game screen remounted in the page, instant) joins when
+  `tests/console/moduleStateGuard.spec.ts` is at zero — an in-page rebuild is exactly as complete as «every module
+  state of a game is reached by the session's end».
+- **Bounded — never a loop** (`session/rebuildBound.ts`, pure; the memory is `sessionStorage`: it must outlive the
+  document and die with the tab): ONE rebuild per question (`type#promptId`, per seat) — a question that stands
+  unserved again after its rebuild is a defect of the table itself, said once (`refused (again)`), the page stays; at
+  most 3 rebuilds in 5 minutes whatever the questions (`refused (rate)`). `?rebuild=0` switches the line off
+  (`refused (off)`, said once: a control spec that must stand on a spent ladder; a diagnosis in the field).
+- **A rebuild is a DEFECT, never a cure.** Its line `[session-rebuild] page — «<task>» (<question>) — by liveness: …`
+  is a `stall` of the journal: it folds into the open episode, which is filed with the outcome **`rebuilt`** (not
+  `reload` — that is the player's own, or the hang watch's); the session's ledger counts it; the e2e harness is red
+  on any `[session-rebuild]` line; the program's bar is zero of them. No notice to the player: the curtain is the one
+  every navigation of the game already shows.
+- Specs: `tests/console/sessionRebuild.spec.ts` (the bounds), `tests/common/diagnostics/diagnosticsCause.spec.ts` and
+  `tests/server/diagnostics/diagnosticsHub.spec.ts` (the outcome), `tests/e2e/console-stall-cause.spec.ts` (the real
+  page: rebuilt once, served again, refused the second time; and with the switch off — the player's own reload).
+
 ## 4. What it does not replace
 
 The arbiter is the net under the nets. A stall it cures is a defect upstream of it — the harness turns the marker red

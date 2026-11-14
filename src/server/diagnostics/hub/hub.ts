@@ -33,7 +33,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import {episodeCure} from '@/common/diagnostics/cause';
+import {episodeCure, leftOutcome} from '@/common/diagnostics/cause';
 import {debugIdsOf} from '@/common/diagnostics/debugIds';
 import {DiagDelivery, DiagEntry, DiagEpisodeOutcome} from '@/common/diagnostics/DiagnosticModel';
 import {DiagChange, DiagJournal} from '@/common/diagnostics/journal';
@@ -502,7 +502,7 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
       return;
     }
     entry.episode.state = 'unhealed';
-    entry.episode.outcome = outcome;
+    entry.episode.outcome = outcome === 'reload' ? leftOutcome(entry.episode, 'reload') : outcome;
     entry.episode.cure = episodeCure(entry.episode, entry.evidence, undefined);
     accept(entry, 'close');
     host.push({kind: 'entry', entry} satisfies DiagPush);

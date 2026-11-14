@@ -25,7 +25,8 @@ import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
 import {observeStillHold, pageMoves, StillHoldState} from '@/client/console/waitGraph/motionWitness';
-import {advanceLivenessRung, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
+import {advanceLivenessRung, LIVENESS_REBUILD_AFTER_MS, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
+import {rebuildConsoleSession} from '@/client/console/session/sessionRebuild';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
@@ -135,6 +136,8 @@ export function createSupervisorController(shell: SupervisorPort) {
   const staleFreeTurnKey = ref('');
   /** The reaper's own quiet clock (`staleFreeTurnClock.ts`) — never the arbiter's one-tick-old progress stamp alone. */
   let staleFreeTurnClock: StaleFreeTurnClock = staleFreeTurnClockInit(Date.now());
+  /** When the ladder was first found SPENT in the stall that stands (0 = it is not) — the last line's own clock. */
+  let ladderSpentSince = 0;
   /** The liveness arbiter's last `accepting` (a surface takes input for the live question) — read by the ghost gate. */
   const lastLivenessAccepting = ref(true);
   /** Consecutive 1 Hz passes a LIVE frame of a phase that is over has stood with no leave pending (`reapDeadPhaseFrames`). */
@@ -555,6 +558,7 @@ export function createSupervisorController(shell: SupervisorPort) {
       signature,
     });
     if (!verdict.stalled) {
+      ladderSpentSince = 0;
       // The stall's END is evidence too: the field export reads the time-to-cure, not only that a cure ran.
       if (verdict.recovered !== undefined) {
         console.warn(`[liveness] recovered after ${Math.round(verdict.recovered.afterMs / 1000)}s, ${verdict.recovered.rungs} rung(s) run`);
@@ -586,6 +590,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     if (rungIndex !== verdict.rung) {
       advanceLivenessRung(rungIndex + 1);
     }
+    const spent = did === undefined;
     if (empties.length > 0) {
       did = did === undefined ? `${empties.join(' · ')} — the ladder is spent` : `${empties.join(' · ')} · ${did}`;
     }
@@ -598,6 +603,25 @@ export function createSupervisorController(shell: SupervisorPort) {
       (did === undefined ? 'the ladder is spent' : `rung ${verdict.rung}: ${did}`)));
     // NO NOTICE TO THE PLAYER (the owner, 2026-11-07: «чтобы для пользователя выглядело как будто зависания нет»):
     // the screen simply comes back. The line above is the evidence — the field log and every e2e spec read it.
+    //
+    // PAST THE LAST RUNG — THE LAST LINE (`session/sessionRebuild.ts`, FREEZE ZERO §4 · 6). Nothing serves the
+    // question, the ladder has nothing left to release, and the screen still stands `LIVENESS_REBUILD_AFTER_MS`
+    // later: the console session is rebuilt from the server's view. There was NOTHING here before — a line, and a
+    // player who had to close the game. Only for `unserved` (the player CANNOT act): presses that moved nothing on a
+    // screen that accepts are judged by the ladder alone — a rebuild there would take a working screen away.
+    if (spent && verdict.reason === 'unserved') {
+      if (ladderSpentSince === 0) {
+        ladderSpentSince = Date.now();
+      } else if (Date.now() - ladderSpentSince >= LIVENESS_REBUILD_AFTER_MS) {
+        rebuildConsoleSession({
+          by: 'liveness', seat: shell.playerView.id ?? '',
+          question: wf === undefined ? '' : `${wf.type}#${wf.promptId ?? ''}`, task,
+          why: `the ladder is spent and the screen stood ${Math.round(verdict.quietMs / 1000)}s`,
+        });
+      }
+    } else {
+      ladderSpentSince = 0;
+    }
   }
 
   /**

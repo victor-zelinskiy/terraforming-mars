@@ -48,6 +48,12 @@ export const LIVENESS_PRESSES_NO_EFFECT = 3;
 export const LIVENESS_PRESSED_GRACE_MS = 5_000;
 /** Between two rungs of the ladder: the cure gets this long to take before the next, stronger one. */
 export const LIVENESS_RUNG_GAP_MS = 2_000;
+/**
+ * PAST THE LAST RUNG: the ladder has nothing left to release, nothing serves the question, and the screen has stood
+ * this much longer — the console session is rebuilt from the server's view (`session/sessionRebuild.ts`). Two more
+ * looks of the arbiter: a screen that was about to come back by itself has come back.
+ */
+export const LIVENESS_REBUILD_AFTER_MS = 4_000;
 /** A ledger story younger than this is «in flight» (its owner's own machinery still has the floor); older, it is a
  *  debt the arbiter may cut. Below every story's own due (30 s) by design. */
 export const LIVENESS_STORY_GRACE_MS = 8_000;

@@ -309,6 +309,20 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
   shell's children still stand); the shell's `unmounted` → the session's SCOPE ends (every flow, hold, timer and wait
   of the game — after the children's own scopes). A `guarantee` of the session therefore fires AFTER the resets: its
   release must be the idempotent «let go» it is named for, never a step that re-arms state.
+- **MODULE STATE IS REACHED BY THE SESSION'S END — AND THAT IS CHECKED** (`tests/console/moduleStateGuard.spec.ts`,
+  FREEZE ZERO §4 · 6). Every top-level mutable declaration of a module under `src/client` (a `let`; a `const` holding
+  a `Map` / `Set` / an empty `[]` / `{}` / a `reactive` / `ref` / an object of plain data) is one of: WRITTEN in a
+  function the teardown runs (a `sessionState` reset, `onConsoleSessionEnd`, a scope's `.defer`, an unmount hook,
+  `shellLeaving` — followed three calls deep, across imports); KERNEL-OWNED (a `let` only ever assigned a scope / a
+  run / a scoped timer); or declared PAGE-LIFETIME with its reason in the guard. Anything else counts against
+  `moduleStateBaseline.json` — a ratchet: a file may not gain one, a new file starts at ZERO, a fall is locked in
+  (`MODULE_STATE_BASELINE=write`; `MODULE_STATE_REPORT=1` prints the worklist by directory). A latch that outlives its
+  fact is the commonest freeze this console has had, and the in-page rebuild is exactly as complete as this list.
+- **THE LAST LINE IS ONE VERB** — `rebuildConsoleSession(ask)` (`session/sessionRebuild.ts`): the page back to the
+  server's truth, bounded (once per question, a few per window), a DEFECT in the journal (`rebuilt`), never a cure.
+  Nothing else replaces the document for a stall (`location.reload()` in a net is a second last line with no bound),
+  and nothing asks for it but the arbiter past its last rung and — when it exists — the server's judgement of the
+  question's delivery. Contract: `docs/claude/console/liveness-arbiter.md` § 3a.
 - **The supervisor** (`console/supervisor/supervisorController.ts`) is the one sampler. Its PORT is the list of what
   the nets read of the shell — it only shrinks; a new net is a state with an `after` in a machine, not a new row.
 

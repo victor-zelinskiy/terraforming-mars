@@ -22,7 +22,7 @@
  * erase it (`adopt`).
  */
 
-import {causeOf, episodeCure} from './cause';
+import {causeOf, episodeCure, leftOutcome} from './cause';
 import {classifyLine, lineBody, readLivenessLine} from './classify';
 import {
   DIAG_COALESCE_MS, DIAG_EPISODE_SILENCE_MS, DIAG_JOURNAL_MAX, DIAG_TEXT_MAX, DIAG_TITLE_MAX,
@@ -324,7 +324,8 @@ export class DiagJournal {
       return;
     }
     entry.episode.state = outcome === 'healed' ? 'healed' : 'unhealed';
-    entry.episode.outcome = outcome;
+    // (A page the LAST LINE replaced was rebuilt, not «reloaded under it» — `leftOutcome`.)
+    entry.episode.outcome = outcome === 'reload' ? leftOutcome(entry.episode, 'reload') : outcome;
     entry.episode.cure = episodeCure(entry.episode, entry.evidence, end);
     this.settle(entry);
   }
@@ -372,7 +373,7 @@ export class DiagJournal {
     const known = new Set(this.list.map((e) => e.id));
     const fresh = prior.filter((e) => !known.has(e.id)).map((e) => {
       if (e.episode !== undefined && e.episode.state === 'open') {
-        return {...e, episode: {...e.episode, state: 'unhealed' as const, outcome: 'reload' as const}};
+        return {...e, episode: {...e.episode, state: 'unhealed' as const, outcome: leftOutcome(e.episode, 'reload')}};
       }
       return e;
     });

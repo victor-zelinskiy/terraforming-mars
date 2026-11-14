@@ -240,4 +240,37 @@ describe('diagnostics cause — the journal files by it', () => {
     expect(restarted.entry.episode).to.deep.include({state: 'unhealed', outcome: 'reload', durationMs: 30_000});
     expect(j.entries().length).to.eq(2);
   });
+
+  it('THE LAST LINE: an episode the console session was REBUILT under says so — on the page that left, and on the page that adopts it', () => {
+    const REBUILD = '[session-rebuild] page — «handPick» (card#12) — by liveness: the ladder is spent and the screen stood 16s';
+    expect(causeOf(REBUILD, 'warn')).to.deep.include({cls: 'session-rebuild/page/handpick', tier: 'defect'});
+    expect(causeOf(REBUILD, 'warn')?.dims).to.deep.include({by: 'liveness'});
+    // The page that leaves: its `pagehide` closes the episode — the line of the last line is a net of it.
+    const left = journal();
+    const open = left.ingest({at: 1_000, level: 'warn', text: stall(NEW_LINE, 'the ladder is spent')});
+    const folded = left.ingest({at: 5_000, level: 'warn', text: REBUILD});
+    expect(folded.change, 'a line of the episode, never a record of its own').to.eq('fold');
+    expect(folded.entry.id).to.eq(open.entry.id);
+    const closed = left.closeOpenEpisodes()[0];
+    expect(closed.episode).to.deep.include({state: 'unhealed', outcome: 'rebuilt'});
+    expect(causeDims(closed.cause as NonNullable<typeof closed.cause>, closed.episode).outcome).to.eq('rebuilt');
+    expect(closed.cause?.dims.by, 'the asker of the folded line is not the episode\'s').to.eq(undefined);
+    // The page that comes: an episode its predecessor left OPEN (a document that died without its `pagehide`).
+    const prior = journal();
+    prior.ingest({at: 1_000, level: 'warn', text: stall(NEW_LINE, 'the ladder is spent')});
+    prior.ingest({at: 5_000, level: 'warn', text: REBUILD});
+    const next = new DiagJournal({runtime: 'page', session: 's2', build: '1.2.9'});
+    next.adopt(prior.entries());
+    expect(next.entries()[0].episode).to.deep.include({state: 'unhealed', outcome: 'rebuilt'});
+    // …and a reload nobody asked the last line for stays a reload.
+    const plain = journal();
+    plain.ingest({at: 1_000, level: 'warn', text: stall(NEW_LINE)});
+    expect(plain.closeOpenEpisodes()[0].episode?.outcome).to.eq('reload');
+    // A refusal is a defect of its own class — and the switch that is OFF on purpose is not.
+    expect(causeOf('[session-rebuild] refused (again) — «handPick» (card#12) stands unserved after the page was rebuilt for it — by liveness: the ladder is spent and the screen stood 16s', 'warn'))
+      .to.deep.include({cls: 'session-rebuild/refused-again/handpick', tier: 'defect'});
+    expect(causeOf('[session-rebuild] refused (rate) — «handPick» (card#12) stays as it stands: the window of rebuilds is full — by liveness: the ladder is spent', 'warn'))
+      .to.deep.include({cls: 'session-rebuild/refused-rate', tier: 'defect'});
+    expect(causeOf('[session-rebuild] refused (off) — «handPick» (card#12) stays as it stands: the last line is switched off (?rebuild=0) — by liveness: the ladder is spent', 'warn')?.tier).to.eq('info');
+  });
 });

@@ -26,25 +26,39 @@ const CHAIN_DEPTH = 4;
  * What the chain reads of an instance — the part a virtual-DOM instance and a Vapor one share (Vue 3.6: a component's
  * `parent` is a `GenericComponentInstance`, of either kind).
  */
-type ChainLink = {type: unknown, parent: ChainLink | null};
+type ChainLink = {type?: unknown, parent?: ChainLink | null};
 
 function nameOf(instance: ChainLink): string {
-  const type = instance.type as {name?: string, __name?: string};
+  const type = (instance.type ?? {}) as {name?: string, __name?: string};
   return type.name ?? type.__name ?? 'Anonymous';
 }
 
-/** «ConsoleColonyFleetBar < ConsoleColoniesSection < ConsoleShell» — the component and its nearest ancestors. */
-export function componentChainOf(instance: ComponentPublicInstance | null): string {
-  if (instance === null) {
+/**
+ * «ConsoleColonyFleetBar < ConsoleColoniesSection < ConsoleShell» — the component and its nearest ancestors.
+ *
+ * WHAT VUE HANDS THE HANDLER IS NOT ONE SHAPE. A virtual-DOM component hands its PUBLIC instance (the internal one
+ * is its `$`); a VAPOR component has no proxy and hands the internal instance ITSELF (`instance.proxy || instance`,
+ * Vue 3.6) — it has no `$` at all. Reading `instance.$.type` there threw INSIDE the error handler: since the app
+ * became `createVaporApp` every Vue error of the product was replaced by a `TypeError` of this function, and the
+ * `[vue-error]` line — the one every e2e spec is red on and the field recorder keeps — was never printed (found by
+ * the console in a bottle, 2026-11-14). So the chain starts at whichever of the two this is, and NOTHING here may
+ * throw: an error handler that fails takes the error it was reporting with it.
+ */
+export function componentChainOf(instance: ComponentPublicInstance | null | undefined): string {
+  if (instance === null || instance === undefined) {
     return 'app';
   }
-  const names: Array<string> = [];
-  let at: ChainLink | null = instance.$;
-  while (at !== null && names.length <= CHAIN_DEPTH) {
-    names.push(nameOf(at));
-    at = at.parent;
+  try {
+    const names: Array<string> = [];
+    let at: ChainLink | null | undefined = (instance as unknown as {$?: ChainLink}).$ ?? (instance as unknown as ChainLink);
+    while (at !== null && at !== undefined && names.length <= CHAIN_DEPTH) {
+      names.push(nameOf(at));
+      at = at.parent;
+    }
+    return names.length === 0 ? 'unknown' : names.join(' < ');
+  } catch {
+    return 'unknown';
   }
-  return names.join(' < ');
 }
 
 /** The one line — pure, so the tag and its shape are guarded without a browser. */

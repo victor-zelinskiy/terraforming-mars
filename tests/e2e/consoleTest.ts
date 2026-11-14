@@ -294,6 +294,9 @@ const LIVENESS_STALL = '[liveness] stall';
  * The guard then lets the line pass. Never a way to quiet a red: a stall nobody planted is the product's.
  */
 export const EXPECTS_LIVENESS_STALL = 'expects-liveness-stall';
+/** The last line's lines (`src/client/console/session/sessionRebuild.ts`): every one of them is a freeze the player had. */
+const SESSION_REBUILD = '[session-rebuild] ';
+const SESSION_REBUILD_PAGE = '[session-rebuild] page';
 /**
  * The START SHADOW's marker (`src/client/console/startDirector.ts`, phase 0 of «правда сервера → одно состояние → один
  * владелец экрана», 2026-10-29): who the server's one question says must serve the screen disagreed, for a while, with
@@ -783,7 +786,8 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
       let announced: {at: number, cause: string} | undefined;
       page.on('console', (message) => {
         const text = message.text();
-        if (text.includes('[transport] reload')) {
+        // (…and the LAST LINE's own: `[session-rebuild] page — …` — the console session rebuilt from the server's view.)
+        if (text.includes('[transport] reload') || text.includes(SESSION_REBUILD_PAGE)) {
           announced = {at: Date.now(), cause: text.slice(0, 200)};
         }
       });
@@ -991,7 +995,8 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     const watch = (page: Page) => {
       page.on('console', (message) => {
         const text = message.text();
-        if (text.includes(LIVENESS_STALL)) {
+        // …and THE LAST LINE is never a cure: a session rebuilt (or a rebuild refused) is the freeze the player had.
+        if (text.includes(LIVENESS_STALL) || text.includes(SESSION_REBUILD)) {
           stalls.push(text.slice(0, 1400));
         }
       });

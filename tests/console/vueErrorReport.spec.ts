@@ -26,6 +26,21 @@ describe('vueErrorReport — a Vue error is a tagged line naming its component',
     expect(componentChainOf(null)).to.eq('app');
   });
 
+  it('a VAPOR component hands the handler its internal instance itself — no `$` — and the chain is read from it', () => {
+    // (Since `createVaporApp` every component is one: reading `instance.$.type` threw inside the handler, and the
+    // `[vue-error]` line of the product was never printed.)
+    const shell = {type: {__name: 'ConsoleShell'}, parent: null};
+    const hand = {type: {__name: 'ConsoleHandSection'}, parent: shell};
+    const dock = {type: {__name: 'ConsoleHandDock'}, parent: hand};
+    expect(componentChainOf(dock as unknown as ComponentPublicInstance)).to.eq('ConsoleHandDock < ConsoleHandSection < ConsoleShell');
+    // …and nothing an instance can look like makes the handler throw: it would take the error it reports with it.
+    for (const odd of [undefined, {}, {type: undefined, parent: undefined}, {$: undefined}, {parent: {parent: {}}}, 7, 'x']) {
+      expect(() => componentChainOf(odd as unknown as ComponentPublicInstance), JSON.stringify(odd)).to.not.throw();
+    }
+    expect(componentChainOf({} as unknown as ComponentPublicInstance)).to.eq('Anonymous');
+    expect(componentChainOf(undefined)).to.eq('app');
+  });
+
   it('the app installs it, and the e2e harness turns the same tag red', () => {
     const main = fs.readFileSync(path.resolve(__dirname, '../../src/client/main.ts'), 'utf8');
     expect(main).to.match(/installVueErrorReport\(app\);/);

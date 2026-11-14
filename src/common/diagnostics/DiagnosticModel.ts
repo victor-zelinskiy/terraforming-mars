@@ -61,6 +61,11 @@ export type DiagEpisodeOutcome =
   'unhealed' |
   /** The page was reloaded under it (the player's own F5 / restart of the game screen, or the hang watch's). */
   'reload' |
+  /**
+   * THE LAST LINE ended it: the console session was rebuilt from the server's view (`sessionRebuild.ts`) — no net
+   * cured it, the player went on after the curtain. Not a cure: the program's bar is zero of these.
+   */
+  'rebuilt' |
   /** The app was closed under it. */
   'quit';
 

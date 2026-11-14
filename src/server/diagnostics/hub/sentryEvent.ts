@@ -277,6 +277,9 @@ function episodeEnd(entry: DiagEntry): string {
     return `cured after ${seconds}s${by !== '' ? ` by ${by}` : ''}`;
   }
   const outcome = episode.outcome ?? 'unhealed';
+  if (outcome === 'rebuilt') {
+    return `NOT cured — the console session was REBUILT after ${seconds}s (the last line)`;
+  }
   return outcome === 'reload' ? `NOT cured — the page was reloaded under it after ${seconds}s` :
     (outcome === 'quit' ? `NOT cured — the game was closed under it after ${seconds}s` : `NOT cured (stood ${seconds}s)`);
 }
