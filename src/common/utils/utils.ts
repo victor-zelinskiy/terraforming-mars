@@ -244,7 +244,7 @@ type ConstructorOf<T> = new (...args: any[]) => T;
  * Accepts `undefined` as class and fails when obj is not undefined.
  */
 export function cast<T>(obj: any, klass: new (...args: any[]) => T): T;
-export function cast<T>(obj: any, klass: undefined): undefined;
+export function cast(obj: any, klass: undefined): undefined;
 export function cast<T>(obj: any, klass: ConstructorOf<T> | undefined): T | undefined {
   if (klass === undefined) {
     if (obj !== undefined) {

@@ -58,3 +58,6 @@ assets/card-art-sam-spike/
 # scratch logs of local runs (never committed)
 /tmp/
 .diagnostics/
+
+# Local artifacts of the tools (baselines, scratch packages) — ONE ignored folder (docs/claude/stack.md).
+/.local/

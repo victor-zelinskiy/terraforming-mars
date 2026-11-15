@@ -11,7 +11,7 @@ export class Load extends Handler {
   }
 
   public override get(req: Request, res: Response, ctx: Context): Promise<void> {
-    req.url = '/assets/index.html';
+    req.url = '/index.html';
     return ServeApp.INSTANCE.get(req, res, ctx);
   }
 }

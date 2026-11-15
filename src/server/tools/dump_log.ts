@@ -1,5 +1,5 @@
 // Prints out the entire game log for review.
-// e.g. node build/src/server/tools/dump_log.js g4940001dbc
+// e.g. npx tsx src/server/tools/dump_log.ts g4940001dbc
 import '@/server/init';
 
 import {isGameId} from '../../common/Types';

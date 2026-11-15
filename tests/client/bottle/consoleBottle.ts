@@ -33,16 +33,17 @@
  * The client is built on MODULE state, and the unit bundle shares one module graph among all its specs. A second
  * application mounted over the first one's module state is not a page that was loaded: measured, the second bottle of
  * a process printed `[reactivity] «hand-reveal-episode» changed without a reactive edge` on presses the first took
- * clean. So a bottle's page is EVALUATED ANEW: the bundle's module cache (`require.cache` — webpack's
- * `__webpack_require__.c`) drops every module of `src/**` and of the stateful libraries (GSAP, XState, VueUse), the
- * page side (`bottlePage.ts`) is imported — a fresh instance of everything it reaches — and the cache is put back when
- * the bottle is disposed (the rest of the suite keeps the instances it was linked with). That is what `reload()` is,
- * too: the same table, the same storage, a new page.
+ * clean. So a bottle's page is EVALUATED ANEW: the page side (`bottlePage.ts` and everything it reaches — the product's
+ * sources, Vue, GSAP, XState, VueUse) is a bundle of its own, built beside the suite's by the unit runner, and every
+ * page is that bundle required afresh (`loadPage`) — a fresh instance of everything in it, the suite keeping the
+ * instances it was linked with. A spec that must reach a module of the page asks the page for it
+ * (`bottle.pageModules` — `bottlePage.ts` § PAGE_MODULES). That is what `reload()` is, too: the same table, the same
+ * storage, a new page.
  */
 import {BottleClock, takeTime} from './bottleTime'; // (first: the `Date.now` indirection stands before any page)
 import {BottleWire, takeWire} from './bottleNet';
 import {BottlePage, takePage} from './bottleDom';
-import {bottleServer, nodeRequire} from './bottleNode';
+import {bottleServer, nodeProcess, nodeRequire} from './bottleNode';
 import type {BottleTable} from './server/bottleServerHost';
 import type {BottlePageHandle, PageBeat} from './bottlePage';
 import type {DiagEntry} from '@/common/diagnostics/DiagnosticModel';
@@ -114,6 +115,8 @@ export type BottleLiveness = {
 
 export type ConsoleBottle = {
   table: BottleTable,
+  /** The PAGE's own instances of the modules a replay reaches into (`bottlePage.ts` § PAGE_MODULES). */
+  pageModules: typeof import('./bottlePage').PAGE_MODULES,
   seatId: string,
   clock: BottleClock,
   wire: BottleWire,
@@ -161,28 +164,39 @@ export type ConsoleBottle = {
 const START_MS = Date.UTC(2026, 0, 1);
 let live: ConsoleBottle | undefined;
 
-/** The bundle's module cache (webpack rewrites `require.cache` to its own `__webpack_require__.c`). */
-const moduleCache = require.cache as unknown as Record<string, unknown>;
-/** A module of the PAGE: the product's sources and the libraries that keep state of their own. */
-const PAGE_MODULE = /(^|!)\.\/src\/|\/node_modules\/(gsap|xstate|@xstate|@vueuse)\/|\/tests\/client\/bottle\/bottlePage\.ts$/;
-
-async function loadPage(): Promise<{page: typeof import('./bottlePage'), restore: () => void}> {
-  const kept = {...moduleCache};
-  for (const id of Object.keys(moduleCache)) {
-    if (PAGE_MODULE.test(id)) {
-      delete moduleCache[id];
-    }
+/**
+ * THE PAGE'S BUNDLE — `bottlePage.ts` and everything it reaches (the product's sources, Vue, GSAP, XState, VueUse, the
+ * suite's layer), built by the unit runner as a CommonJS file of its own beside the suite's bundle
+ * (`scripts/client-tests.mts` § the bottle's page). The runner names it on `globalThis` before the suite loads.
+ */
+function pageBundle(): string {
+  const file = (globalThis as {__TM_BOTTLE_PAGE__?: string}).__TM_BOTTLE_PAGE__;
+  if (file === undefined) {
+    throw new Error('the bottle\'s page bundle is not built — run a bottle through the unit runner (`npm run test:bottle`, `npm run test:client:one -- <bottle>`)');
   }
-  const page = await import('./bottlePage');
-  return {
-    page,
-    restore: () => {
-      for (const id of Object.keys(moduleCache)) {
-        delete moduleCache[id];
-      }
-      Object.assign(moduleCache, kept);
-    },
-  };
+  return file;
+}
+
+type PageFactory = (exports: object, require: unknown, module: {exports: object}, filename: string, dirname: string) => void;
+let pageFactory: PageFactory | undefined;
+
+/**
+ * A page, evaluated anew. The bundle is COMPILED ONCE per process (a `vm.Script` of its CommonJS body) and RUN once
+ * per page: every run is a fresh instance of every module inside it, while the compiled code is shared — what a page
+ * costs is the application's own objects, never another copy of an 18 MB program (a `require` per page recompiled it,
+ * and the search's few hundred pages ran the process out of heap).
+ */
+async function loadPage(): Promise<{page: typeof import('./bottlePage'), restore: () => void}> {
+  const file = pageBundle();
+  if (pageFactory === undefined) {
+    const fs = nodeProcess().getBuiltinModule('node:fs') as {readFileSync(file: string, encoding: 'utf8'): string};
+    const vm = nodeProcess().getBuiltinModule('node:vm') as {Script: new (code: string, options: {filename: string}) => {runInThisContext(): unknown}};
+    const body = fs.readFileSync(file, 'utf8');
+    pageFactory = new vm.Script(`(function (exports, require, module, __filename, __dirname) {${body}\n})`, {filename: file}).runInThisContext() as PageFactory;
+  }
+  const module = {exports: {}};
+  pageFactory.call(module.exports, module.exports, nodeRequire(), module, file, file.replace(/[\\/][^\\/]*$/, ''));
+  return {page: module.exports as typeof import('./bottlePage'), restore: () => undefined};
 }
 
 /**
@@ -239,6 +253,7 @@ export async function bootBottle(table: BottleTable, options: BottleOptions = {}
 
   const bottle: ConsoleBottle = {
     table,
+    pageModules: loaded.page.PAGE_MODULES,
     seatId: seat.id,
     clock,
     wire,

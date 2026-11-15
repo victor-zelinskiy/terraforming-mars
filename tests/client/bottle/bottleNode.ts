@@ -1,19 +1,19 @@
 /*
  * THE BOTTLE'S DOOR TO NODE — how the client bundle reaches the server side (FREEZE ZERO · B3, the spike).
  *
- * The unit bundle is a `target: 'web'` webpack build: an `import` of `src/server` from a spec would be BUNDLED — the
- * whole engine through ts-loader, `fs` / `crypto` / `prom-client` unresolved for the web target. It does not have to
- * be: the bundle RUNS in node (mocha, under jsdom's globals), so the server is loaded the way the server runner loads
- * it — Node's own `require`, with tsx registered for TypeScript and the `@/` paths — and stays a module graph of its
- * own. Only TYPES are imported from it here (erased by the transpile).
+ * The unit bundle is a BROWSER build (Vite, scripts/client-tests.mts): an `import` of `src/server` from a spec would
+ * be BUNDLED — the whole engine, `fs` / `crypto` / `prom-client` unresolved for the browser. It does not have to be:
+ * the bundle RUNS in node (mocha, under jsdom's globals), so the server is loaded the way the server runner loads it —
+ * Node's own `require`, with tsx registered for TypeScript and the `@/` paths — and stays a module graph of its own.
+ * Only TYPES are imported from it here (erased by the transpile).
  */
 import type * as Host from './server/bottleServerHost';
 
-type NodeRequire = (id: string) => unknown;
+type NodeRequire = ((id: string) => unknown) & {cache: Record<string, unknown>};
 type NodeModuleApi = {createRequire(from: string): NodeRequire};
 type NodeProcess = {cwd(): string, getBuiltinModule(id: string): unknown, hrtime: {bigint(): bigint}};
 
-/** The process the bundle runs in — read off `globalThis` so webpack sees no `process` to shim. */
+/** The process the bundle runs in — read off `globalThis`, so the bundler sees no `process` to replace. */
 export function nodeProcess(): NodeProcess {
   return (globalThis as unknown as {process: NodeProcess}).process;
 }

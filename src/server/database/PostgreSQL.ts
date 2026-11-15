@@ -1,4 +1,7 @@
-import pg from 'pg';
+// Types only: the driver is required when the backend initializes (`initialize` below). A bundle keeps a top-level
+// `import` of an external module as a `require` at the TOP of the file, so the desktop's embedded server — which ships
+// no `pg` — would die on load (docs/claude/stack.md § 6). The database backends load on demand (`Database.ts`).
+import type pg from 'pg';
 import {IDatabase} from './IDatabase';
 import {IGame, Score} from '../IGame';
 import {GameOptions} from '../game/GameOptions';
@@ -52,7 +55,8 @@ export class PostgreSQL implements IDatabase {
   }
 
   public async initialize(): Promise<void> {
-    this._client = new pg.Pool(this.config);
+    const driver = require('pg') as typeof import('pg');
+    this._client = new driver.Pool(this.config);
 
     const sql = `
     CREATE TABLE IF NOT EXISTS games(

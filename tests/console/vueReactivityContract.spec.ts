@@ -32,7 +32,9 @@ import {
 
 describe('Vue reactivity — THE CONTRACT the console stands on (identical on 3.5.42 and 3.6.0-rc.15)', () => {
   it('runs on the pinned version (a bump re-reads this file first)', () => {
-    const pinned = JSON.parse(fs.readFileSync('package.json', 'utf8')).dependencies.vue as string;
+    // A devDependency since the move to Vite (docs/claude/stack.md § 4): the client BUNDLES it, nothing requires it at run time.
+    const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8')) as {dependencies?: Record<string, string>, devDependencies?: Record<string, string>};
+    const pinned = (manifest.dependencies?.vue ?? manifest.devDependencies?.vue) as string;
     expect(pinned, 'the version is pinned EXACTLY while it is a release candidate — ROADMAP §2 rule 6').to.match(/^\d+\.\d+\.\d+(-[a-z]+\.\d+)?$/);
     expect(version).to.equal(pinned);
   });

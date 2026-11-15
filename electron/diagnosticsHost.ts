@@ -3,7 +3,7 @@
  *
  * The Electron lane compiles `electron/**` alone (its tsconfig's `rootDir` — no `src/`), so it cannot import the
  * hub's own declarations; the hub itself arrives as a BUNDLE (`build/electron/diagnostics-hub.js`, built by
- * `webpack.diagnostics.config.js`) that this lane `require`s at run time. These are the same two types, repeated.
+ * `scripts/build-node.mts hub`) that this lane `require`s at run time. These are the same two types, repeated.
  *
  * ⚠ KEEP THEM IDENTICAL. `tests/electron/diagnosticsHubConform.spec.ts` proves the two declarations assignable in
  * both directions — a member added on one side fails `npm run build:test` until the other side has it.

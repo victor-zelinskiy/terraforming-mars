@@ -86,7 +86,7 @@ async function main() {
   fs.mkdirSync(OUT, {recursive: true});
   const started = Date.now();
   const node = process.execPath;
-  const runner = path.join(ROOT, 'scripts', 'client-tests.mjs');
+  const runner = path.join(ROOT, 'scripts', 'client-tests.mts');
   const bottleEnv = {NODE_ENV: 'development'};
 
   // 1. THE REPLAYS.

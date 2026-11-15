@@ -171,9 +171,9 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     await bottle.advance(3_000);
     // THE PAGE'S OWN MODULES. A bottle's page is evaluated anew (`consoleBottle.ts` § a pristine page): what this file
     // imports statically is the suite's instance, never the page's — so the page's are asked for while it stands.
-    const {realtimeState} = await import('@/client/components/realtime/realtimeService');
-    const {tradeFleetState} = await import('@/client/console/colonyFleet/consoleTradeFleet');
-    const park = await import('@/client/components/deferredViewRefresh');
+    const {realtimeState} = bottle.pageModules.realtimeService;
+    const {tradeFleetState} = bottle.pageModules.consoleTradeFleet;
+    const park = bottle.pageModules.deferredViewRefresh;
     const heals = () => (bottle?.journal() ?? []).filter((entry) => entry.cause?.cls === 'presentation-ledger/witness-heal/view-freshness');
     // A SCENE OF THE VIEWER'S PLAYS (its flag, raised by hand — one of the nine the root refuses a refresh behind)…
     tradeFleetState.active = true;
@@ -275,8 +275,8 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     const table = await bottleServer().bootFixture('eden-alliance-enact-remote');
     bottle = await bootBottle(table);
     await bottle.advance(3_000);
-    const {tradeFleetState} = await import('@/client/console/colonyFleet/consoleTradeFleet');
-    const {toRaw} = await import('vue');
+    const {tradeFleetState} = bottle.pageModules.consoleTradeFleet;
+    const {toRaw} = bottle.pageModules.vue;
     Object.defineProperty(toRaw(tradeFleetState), 'active', {configurable: true, get: () => true, set() {/* every write is refused */}});
     try {
       expect(tradeFleetState.active, 'the flag stands, and nothing lowers it').to.equal(true);

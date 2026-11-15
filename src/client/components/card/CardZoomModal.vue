@@ -217,7 +217,7 @@
  */
 
 import {computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, useSlots, useTemplateRef, watch} from 'vue';
-import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
+import {showModal} from '@/client/components/HTMLDialogElementCompatibility';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -235,7 +235,6 @@ import {tenderLoreModel} from '@/client/console/campaign/tenderAnnotations';
 import CardZoomCard from './CardZoomCard.vue';
 import CardLoreAside from './CardLoreAside.vue';
 import CardAnnotationsLayer from '@/client/components/cardAnnotations/CardAnnotationsLayer.vue';
-import dialogPolyfill from 'dialog-polyfill';
 import {$t} from '@/client/directives/i18n';
 import {vI18n} from '@/client/directives/vDirectives';
 
@@ -1168,9 +1167,6 @@ onMounted(() => {
   const dialogNow = dialog.value ?? undefined;
   if (dialogNow === undefined) {
     return;
-  }
-  if (!windowHasHTMLDialogElement()) {
-    dialogPolyfill.registerDialog(dialogNow);
   }
   dialogNow.addEventListener('close', () => {
     // The event is a QUEUED task: a host that unwound at `close()` itself (the console shell) has unmounted this

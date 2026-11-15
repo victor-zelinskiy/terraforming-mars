@@ -1,50 +1,48 @@
-// A base configuration for src and tests, and also the config
-// Visual Studio Code reads
+// THE BASE CONFIGURATION — extended by every checker (src/tsconfig.json · tests/tsconfig.json · tests/e2e/tsconfig.json ·
+// electron/tsconfig.json · tsconfig.vue-tsc.json) and read by the editor.
+//
+// NOTHING IS EMITTED BY `tsc` (docs/claude/stack.md): the client, the server and the Electron lanes are transpiled and
+// bundled by Vite (Oxc / Rolldown); the tests run through tsx and the unit bundle. TypeScript is the CHECKER only, so
+// this file describes the code as the bundler reads it — `module: preserve` + `moduleResolution: bundler` — and holds
+// nothing a per-file transpiler cannot honour (`isolatedModules`). It is ready for TypeScript 7 as it stands (no
+// deprecated option, no `ignoreDeprecations`): the switch is the version of the package.
 {
-    // Compiler options are mostly for the sub-configurations
     "compilerOptions": {
-        // FORK: lib raised to ES2023 (upstream keeps es2021 for old-browser caution).
-        // This fork's actual runtimes are Node 24 (server/tests, matching the Node
-        // that Electron bundles), Electron 44 and current Chromium (the premium
-        // CSS already requires :has() — Chrome 105+),
-        // where every ES2022/ES2023 lib API (.at, Object.hasOwn, findLast, toSorted)
-        // is long supported. `lib` only widens the TYPE surface — tsc never
-        // polyfills lib methods, so the EMIT is unchanged. `target` deliberately
-        // stays es2021: raising it flips useDefineForClassFields (class-field
-        // semantics) for zero benefit here.
-        // `esnext.disposable`: the TYPES of `Symbol.dispose` / `Disposable` / `using` (explicit resource management) —
-        // the console's flow kernel ends a scope through them. Chromium 134+ and Node 24 run them natively; for the
-        // es2021 target tsc downlevels `using` to try / finally.
+        // FORK: lib raised to ES2023 (upstream keeps es2021 for old-browser caution). The runtimes are Node 24 (the
+        // server, the tests — the Node Electron bundles) and Electron's Chromium; `lib` only widens the TYPE surface.
+        // `esnext.disposable`: the TYPES of `Symbol.dispose` / `Disposable` / `using` (the console's flow kernel ends a
+        // scope through them).
         "lib": ["dom", "es2023", "esnext.disposable"],
-        "incremental": true,
-        "module": "commonjs",
+        // CLASS FIELDS ARE ASSIGNED in the constructor (`[[Set]]`) — what every build of this code has done since
+        // upstream, and what the bundler's transpile reads from HERE (Vite resolves this file for every `.ts`; tsx too).
+        // Stated, not derived from `target`: a raised target would otherwise flip it to `[[Define]]` and change runtime
+        // behaviour of a field that shadows a parent's accessor.
+        "target": "es2021",
+        "useDefineForClassFields": false,
+        "module": "preserve",
+        "moduleResolution": "bundler",
+        "isolatedModules": true,
+        "noEmit": true,
         "strict": true,
         "noImplicitAny": true,
         "noImplicitOverride": true,
         "noImplicitReturns": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
-        "removeComments": true,
-        "preserveConstEnums": true,
         "skipLibCheck": true,
-        "target": "es2021",
         "types": ["node"],
-        "moduleResolution": "node",
-        "ignoreDeprecations": "6.0",
         "rootDir": ".",
         "resolveJsonModule": true,
         "esModuleInterop": true,
         "allowUnreachableCode": false,
+        // `@/` → `src/` — the ONE declaration of the alias: tsc, vue-tsc, tsx and Vite (`resolve.tsconfigPaths`) read it.
         "paths": {
             "@/*": ["./src/*"]
-        },
-        "plugins": [
-            { "transform": "transformer-module" },
-        ]
-
+        }
     },
-    // This gives the VS Code IDE its magic.
+    // This gives the VS Code IDE its magic (and Vite's path resolution its scope: a `.vue` file is in it).
     "include": [
         "**/*.ts",
+        "**/*.vue",
     ],
 }

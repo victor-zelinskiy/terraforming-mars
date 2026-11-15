@@ -31,6 +31,7 @@
 import * as vue from 'vue-real';
 import * as vtu from '@vue/test-utils-real';
 import type {Component} from 'vue';
+import {scriptSetupStateOf} from './scriptSetupState';
 
 type Dict = Record<string, unknown>;
 export type VaporInstance = {
@@ -233,7 +234,7 @@ export function swapForStub(type: unknown, parent: unknown): unknown {
 function localNameOf(parent: unknown, type: unknown): string | undefined {
   type Scripted = {devtoolsRawSetupState?: Dict, parent?: unknown};
   for (let at = parent as Scripted | null | undefined, depth = 0; at !== null && at !== undefined && depth < 64; at = at.parent as Scripted | null | undefined, depth++) {
-    const state = at.devtoolsRawSetupState;
+    const state = at.devtoolsRawSetupState ?? scriptSetupStateOf(at)?.raw;
     if (state === undefined || state === null || typeof state !== 'object') {
       continue;
     }
@@ -445,11 +446,17 @@ const emittedOf = (uid: number, event?: string): unknown =>
   (vtu.VueWrapper.prototype as unknown as {emitted: (this: unknown, event?: string) => unknown}).emitted.call({vm: {$: {uid}}}, event);
 
 function vmOfVapor(instance: VaporInstance, nextTick: () => Promise<void>): unknown {
+  // The setup bindings: a template compiled separately hands them to `setupState`; one compiled inline — as the
+  // product and the unit bundle compile it — records them through the bundle's instrumentation (scriptSetupState.ts).
+  const setupState = (): Dict | undefined => {
+    const state = instance.setupState;
+    return state !== undefined && Object.keys(state).length > 0 ? state : scriptSetupStateOf(instance)?.state;
+  };
   const read = (key: string | symbol): unknown => {
     if (instance.exposed !== null && key in instance.exposed) {
       return vue.unref(instance.exposed[key as string]);
     }
-    const state = instance.setupState;
+    const state = setupState();
     if (state !== undefined && key in state) {
       return state[key as string];
     }
@@ -492,14 +499,14 @@ function vmOfVapor(instance: VaporInstance, nextTick: () => Promise<void>): unkn
         }
         return true;
       }
-      const state = instance.setupState;
+      const state = setupState();
       if (state !== undefined && key in state) {
         state[key as string] = value;
         return true;
       }
-      throw new Error(`wrapper.vm.${String(key)} — the component has no such binding (a Vapor component gives a spec its \`defineExpose\` object and, in a development build, its setup bindings)`);
+      throw new Error(`wrapper.vm.${String(key)} — the component has no such binding (a Vapor component gives a spec its \`defineExpose\` object and its setup bindings)`);
     },
-    has: (_target, key) => (instance.exposed !== null && key in instance.exposed) || (instance.setupState !== undefined && key in instance.setupState) ||
+    has: (_target, key) => (instance.exposed !== null && key in instance.exposed) || key in (setupState() ?? {}) ||
       (typeof key === 'string' && key in instance.props),
   });
 }

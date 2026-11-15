@@ -90,7 +90,7 @@ function named(frame: Frame, root: string): string {
   if (at.source === null) {
     return raw;
   }
-  const source = at.source.replace(/^webpack:\/\/[^/]*\/\.?\/?/, '').replace(/\?.*$/, '');
+  const source = at.source.replace(/^webpack:\/\/[^/]*\/\.?\/?/, '').replace(/^(\.\.\/)+/, '').replace(/\?.*$/, '');
   return `${source}:${at.line}${at.name ? ` ${at.name}` : frame.functionName ? ` ${frame.functionName}` : ''}`;
 }
 

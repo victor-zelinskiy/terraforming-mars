@@ -10,54 +10,76 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Node comes from .nvmrc everywhere — the Node Electron carries (docs/claude/stack.md; guard tests/stack/nodeSync.spec.ts).
 jobs:
   build-linux:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v5
-    - uses: actions/setup-node@v5
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v6
       with:
-        node-version: 24
+        node-version-file: .nvmrc
         cache: npm
     - run: npm ci
+    # npm does not unpack Electron (no postinstall hook): the binary is what the Node-sync guard asks for its Node.
+    - name: Unpack Electron runtime
+      shell: bash
+      run: |
+        for attempt in 1 2 3; do
+          node node_modules/electron/install.js && exit 0
+          echo "::warning::Electron download from github.com failed (attempt $attempt)"
+          sleep $((attempt * 20))
+        done
+        ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ node node_modules/electron/install.js
     - run: npm run make:static
+    # eslint + the i18n audit + the type checks (vue-tsc for the client, tsc for the server and the Electron lane) —
+    # the build itself type-checks nothing (Vite transpiles).
     - run: npm run lint
-    # lint (above) already type-checks the client via vue-tsc, so skip the
-    # duplicate fork-ts-checker pass inside the webpack build.
     - run: npm run build
-      env:
-        SKIP_TS_CHECK: '1'
-    - run: npm run build:tests
+    - run: npm run build:test
     - run: npm test
 
   build-windows:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v5
-    - uses: actions/setup-node@v5
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v6
       with:
-        node-version: 24
+        node-version-file: .nvmrc
         cache: npm
     - run: npm ci
     - run: npm run make:static
-    # No lint here — eslint / vue-tsc / i18n audit are OS-independent and already
-    # run on build-linux. Windows only verifies the build + test compilation, to
-    # catch Windows-specific path / build issues without doubling CI time.
-    # Type checking is OS-independent (covered by build-linux's lint), so skip the
-    # in-build fork-ts-checker pass here too.
+    # No lint here — eslint / the type checks / the i18n audit are OS-independent and already run on build-linux.
+    # Windows only verifies the build + the test tree's compilation, to catch Windows-specific path / build issues
+    # without doubling CI time.
     - run: npm run build
-      env:
-        SKIP_TS_CHECK: '1'
-    - run: npm run build:tests
+    - run: npm run build:test
+
+  # NON-BLOCKING: what TypeScript 7.1 (and @vue/content-mapper for the .vue files) would say of the code that the
+  # project's TypeScript does not — printed, never failing the run (scripts/stack/ts7-check.mjs; docs/claude/stack.md § 5).
+  # The move to 7.1 is a version bump once this is quiet and its blockers have fallen.
+  ts7-preview:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v6
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+    - run: npm ci
+    - run: npm run make:static
+    - run: node scripts/stack/ts7-check.mjs
 
   build-docker:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - uses: docker/setup-buildx-action@v3
     - uses: docker/build-push-action@v6
       with:
@@ -65,5 +87,3 @@ jobs:
         push: false
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
-

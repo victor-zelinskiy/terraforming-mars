@@ -12,18 +12,19 @@
  * when a record is opened (`src/client/diagnostics/frameSymbols.ts`). Lazy chunks are not covered: a frame inside one
  * stays as V8 printed it.
  *
- * WHEN IT RUNS: at the end of `npm run build:client` (so every build has symbols that match its bundle), and AGAIN in
+ * WHEN IT RUNS: at the end of `npm run build:client` / `build:client:desktop` (so every build has symbols that match its bundle), and AGAIN in
  * the release workflow after the scripts are stamped with their debug ids — the stamp adds a line at the top of each
  * script and rewrites its map, and the symbols must be cut from THAT map. Idempotent: it overwrites.
  *
- * <out> is `build-desktop/` for a desktop build (DESKTOP_BUILD=1), `build/` otherwise — the same rule as webpack's.
+ * <out> is the build's directory, the one argument: `node scripts/make-frame-symbols.mjs build` (the web build — the
+ * default) or `… build-desktop` (the desktop renderer).
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const out = path.join(root, process.env.DESKTOP_BUILD === '1' ? 'build-desktop' : 'build');
+const out = path.join(root, process.argv[2] ?? 'build');
 
 let written = 0;
 for (const script of ['main.js', 'vendors.js']) {
@@ -33,7 +34,10 @@ for (const script of ['main.js', 'vendors.js']) {
     continue;
   }
   const map = JSON.parse(fs.readFileSync(mapFile, 'utf8'));
-  const symbols = {version: 3, sources: map.sources ?? [], names: map.names ?? [], mappings: map.mappings ?? ''};
+  // A source as the REPOSITORY names it (`src/client/console/…/x.ts`): the bundler writes it relative to the map
+  // (`../src/client/…`, `../node_modules/vue/…`) — what a frame row prints is the path a developer opens.
+  const sources = (map.sources ?? []).map((source) => /^[a-z]+:/i.test(source) ? source : path.relative(root, path.resolve(out, source)).split(path.sep).join('/'));
+  const symbols = {version: 3, sources, names: map.names ?? [], mappings: map.mappings ?? ''};
   const target = path.join(out, `${script}.symbols.json`);
   fs.writeFileSync(target, JSON.stringify(symbols));
   written++;

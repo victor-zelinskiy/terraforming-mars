@@ -1,5 +1,6 @@
-# Define the version once at the top
-ARG NODE_VERSION=24-alpine3.21
+# Define the version once at the top — the Node Electron carries, as .nvmrc names it (docs/claude/stack.md; the guard
+# tests/stack/nodeSync.spec.ts holds the two together).
+ARG NODE_VERSION=24.22.2-alpine3.23
 
 # Intermediate image - base for building and installing dependencies
 FROM node:${NODE_VERSION} AS install
@@ -30,7 +31,7 @@ RUN npm run build
 # Create image to prepare prod dependencies to be copied from
 FROM install AS installprod
 
-RUN npm ci --production --prefer-offline
+RUN npm ci --omit=dev --prefer-offline
 
 
 # Target image

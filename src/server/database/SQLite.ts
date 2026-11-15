@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import BetterSqlite3 = require('better-sqlite3');
+// Types only: the driver itself is required lazily (`connect` below) — the database backends load on demand.
+import type BetterSqlite3 from 'better-sqlite3';
 
 import {GameIdLedger, IDatabase} from './IDatabase';
 import {IGame, Score} from '../IGame';

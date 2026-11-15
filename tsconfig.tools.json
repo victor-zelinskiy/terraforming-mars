@@ -1,0 +1,13 @@
+{
+  // THE TOOLS' TYPE CHECK (inside `npm run typecheck`): the build's own TypeScript — the Vite config, the Node lanes, the
+  // unit runner, the ESLint config. Node runs these files as they are (its type stripping), so nothing else reads their
+  // types; without this they were the one TypeScript of the repository no checker saw.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["vite.config.mts", "eslint.config.mts", "scripts/**/*.mts"]
+}

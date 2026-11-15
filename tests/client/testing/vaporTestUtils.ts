@@ -1,6 +1,6 @@
 /*
  * `@vue/test-utils`, VAPOR-AWARE — what a spec imports under that name inside the unit bundle
- * (`webpack.test.config.js` aliases the package to this module; docs/claude/vapor/ROADMAP.md § 4a · B6).
+ * (`scripts/client-tests.mts` aliases the package to this module; docs/claude/vapor/ROADMAP.md § 4a · B6).
  *
  * test-utils is a virtual-DOM tool: `mount(<a Vapor component>)` as the ROOT throws (it reads the root's virtual-DOM
  * instance), its `stubs` never reach the children of a Vapor parent and `findComponent` cannot enter one (no vnode
@@ -36,8 +36,9 @@ type RealMount = (component: unknown, options?: unknown) => real.VueWrapper;
  * slots. A slot the virtual-DOM renderer normalized carries its development check «invoked outside of the render
  * function», whose only exemption for Vapor is «the current instance is a Vapor one»; a Vapor root that FORWARDS the
  * slot into a virtual-DOM child (a stub) has it invoked while that child is current — the check fires on a slot whose
- * dependencies Vapor's own render effect tracks (vue 3.6.0-rc.15; the fact is pinned by vaporTestLayer.spec.ts).
- * A slot given as a string / a component still takes test-utils' road.
+ * dependencies Vapor's own render effect tracks (vue 3.6.0-rc.15 under test-utils 2.5). Since test-utils 2.6.0 hands a
+ * mount's slots over COMPILED (`toCompiledSlots`) the check no longer sees them, and this road is belt and braces — the
+ * fact is pinned by vaporTestLayer.spec.ts. A slot given as a string / a component still takes test-utils' road.
  */
 function splitSlots(slots: Dict | undefined): {direct: Dict, viaTestUtils: Dict} {
   const direct: Dict = {};

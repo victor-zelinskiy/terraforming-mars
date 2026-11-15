@@ -1,7 +1,7 @@
 @import (inline) "../../node_modules/spectre.css/dist/spectre.min.css";
 @import (inline) "../../node_modules/spectre.css/dist/spectre-exp.min.css";
 @import (inline) "../../node_modules/spectre.css/dist/spectre-icons.min.css";
-@import (inline) "../../node_modules/dialog-polyfill/dialog-polyfill.css";
+@import (inline) "./dialog_base.css";
 @import "./variables.less";
 @import "./mixins.less";
 
@@ -316,7 +316,7 @@ a:active {
  * Ubuntu 400 (Ubuntu Font Licence 1.0) — the upstream body face, still named by
  * legacy chains (`Prototype, Ubuntu, sans-serif`, cards_v2, bot_review). Until
  * 2026-10-22 it came from a render-blocking `<link>` to fonts.googleapis.com at
- * the top of assets/index.html: an offline TV never got it, and a hanging network
+ * the top of the shell (src/client/index.html): an offline TV never got it, and a hanging network
  * held the first paint. Now self-hosted — the SAME six woff2 subsets and
  * unicode-ranges Google's `css?family=Ubuntu` serves (v21), so an online client
  * renders byte-identically to before.

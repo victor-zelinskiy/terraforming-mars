@@ -8,20 +8,20 @@
              panel paints with final metrics (no fallback flash, no reflow).
              `crossorigin` is required even same-origin: fonts always fetch
              in anonymous CORS mode, and a mismatch double-downloads. -->
-        <link rel="preload" href="assets/GolosText-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
-        <link rel="preload" href="assets/GolosText-latin.woff2" as="font" type="font/woff2" crossorigin />
+        <link vite-ignore rel="preload" href="assets/GolosText-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
+        <link vite-ignore rel="preload" href="assets/GolosText-latin.woff2" as="font" type="font/woff2" crossorigin />
         <!-- The console display face (every HUD/curtain caption). Declared
              font-display:swap in styles.css, so WITHOUT a preload the boot
              curtain's text painted in the fallback and visibly re-set when
              the face arrived — the «мигание текста» on every cold boot. -->
-        <link rel="preload" href="assets/Prototype.ttf" as="font" type="font/ttf" crossorigin />
-        <link rel="preload" href="assets/Prototype-ru.ttf" as="font" type="font/ttf" crossorigin />
-        <link rel="preload" href="assets/Literata-Italic-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
-        <link rel="preload" href="assets/Literata-Italic-latin.woff2" as="font" type="font/woff2" crossorigin />
-        <link rel="preload" href="assets/Literata-Regular-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
-        <link rel="preload" href="assets/Literata-Regular-latin.woff2" as="font" type="font/woff2" crossorigin />
-        <link rel="stylesheet" type="text/css" media="all" href="styles.css" />
-        <link rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
+        <link vite-ignore rel="preload" href="assets/Prototype.ttf" as="font" type="font/ttf" crossorigin />
+        <link vite-ignore rel="preload" href="assets/Prototype-ru.ttf" as="font" type="font/ttf" crossorigin />
+        <link vite-ignore rel="preload" href="assets/Literata-Italic-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
+        <link vite-ignore rel="preload" href="assets/Literata-Italic-latin.woff2" as="font" type="font/woff2" crossorigin />
+        <link vite-ignore rel="preload" href="assets/Literata-Regular-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
+        <link vite-ignore rel="preload" href="assets/Literata-Regular-latin.woff2" as="font" type="font/woff2" crossorigin />
+        <link vite-ignore rel="stylesheet" type="text/css" media="all" href="styles.css" />
+        <link vite-ignore rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
         <meta name="viewport" content='width=1260, user-scalable=1' />
         <meta name="description" content="Terraforming Mars Open Source Web Application" />
     </head>
@@ -101,7 +101,9 @@
             </div>
         </div>
         <div id="app"></div>
-        <script src="vendors.js"></script>
-        <script src="main.js"></script>
+        <!-- THE APPLICATION — an ES module built by Vite (vite.config.ts): the build writes `./main.js` here, with a
+             `<link rel="modulepreload">` for every script it imports and the components' own CSS. The links above
+             carry `vite-ignore`: they are the GAME SERVER's files (styles.css, the fonts, the icon), never bundled. -->
+        <script type="module" src="./main.ts"></script>
     </body>
 </html>

@@ -1,6 +1,6 @@
 import {DiscordUser} from './discord';
 import {Session, SessionId} from '../../auth/Session';
-import {v4 as uuidv4} from 'uuid';
+import {randomUUID} from 'crypto';
 import {Clock} from '../../../common/Timer';
 import {IDatabase} from '../../database/IDatabase';
 import {Database} from '../../database/Database';
@@ -63,7 +63,7 @@ export class SessionManager implements ISessionManager {
   }
 
   async create(discordUser: DiscordUser): Promise<SessionId> {
-    const sessionid = uuidv4();
+    const sessionid = randomUUID();
     const session: Session = {
       id: sessionid,
       data: {discordUser},

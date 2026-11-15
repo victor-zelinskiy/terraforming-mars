@@ -18,12 +18,9 @@
 </template>
 
 <script setup vapor lang="ts">
-import {onMounted, ref, useTemplateRef, watch} from 'vue';
-import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
+import {ref, useTemplateRef, watch} from 'vue';
+import {showModal} from '@/client/components/HTMLDialogElementCompatibility';
 import {vI18n} from '@/client/directives/vDirectives';
-
-import dialogPolyfill from 'dialog-polyfill';
-
 
 defineOptions({name: 'ConfirmDialog'});
 defineProps({
@@ -56,15 +53,6 @@ function show() {
 
 watch(() => hide.value, () => {
   emit('hide', hide.value);
-});
-onMounted(() => {
-  if (!windowHasHTMLDialogElement()) {
-    const el = dialog.value;
-    if (el === null) {
-      return;
-    }
-    dialogPolyfill.registerDialog(el);
-  }
 });
 // What `ConsoleBoardInput` reaches through its `ref="confirmation"` — `show()` — and nothing else.
 defineExpose({show});

@@ -1,6 +1,6 @@
 /*
  * The REAL `@vue/test-utils`, under the name the Vapor-aware shim imports it by (`vaporTestUtils.ts`; the unit bundle's
- * alias — `webpack.test.config.js`). For the type checker it is the package itself.
+ * alias — `scripts/client-tests.mts`). For the type checker it is the package itself.
  */
 declare module '@vue/test-utils-real' {
   export * from '@vue/test-utils';

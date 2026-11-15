@@ -3,14 +3,17 @@
 // Serves the PACKAGED static renderer from a single logical origin
 // (`app://bundle/`), mirroring the server's ServeAsset.toFile mapping so the
 // existing bundle loads unchanged:
-//   - JS (main/vendors/sw/chunks + maps) → build-desktop/  (webpack desktop
-//     output, built with publicPath 'app://bundle/'; kept SEPARATE from the web
-//     build/ so a desktop build never clobbers the browser bundle);
+//   - the shell, the scripts and their CSS (index.html, main/vendors/sw, chunks/,
+//     maps, frame symbols) → build-desktop/  (`vite build --mode desktop` —
+//     ES modules loaded by RELATIVE url, kept in a directory of their own so a
+//     desktop build never clobbers the browser bundle in build/);
 //   - styles.css → build/  (make:css output — identical for web + desktop);
-//   - everything else (index.html, fonts, card/tile art, locales, favicon)
-//     → assets/;
-//   - any extensionless path (an SPA route like /player) → assets/index.html,
-//     so client-side routing + relative navigation keep working.
+//   - everything else (fonts, card/tile art, locales, favicon) → assets/;
+//   - any extensionless path (an SPA route like /player) → the shell, so
+//     client-side routing + relative navigation keep working.
+// ES MODULES over a custom scheme: a module script is fetched in CORS mode, so
+// it needs a `standard` + `secure` scheme serving a JavaScript MIME type — both
+// below; every import of the bundle is same-origin (app://bundle).
 //
 // Registered as a STANDARD + SECURE scheme so: relative asset URLs and the
 // locale `fetch('assets/locales/…')` resolve, window.location keeps a real
@@ -37,10 +40,10 @@ export function appUrl(routePath: string): string {
 // build/electron → repo root (dev). In a packaged app (Phase 6) this resolves
 // to the unpacked resources root; build-desktop/, build/ and assets/ ship there.
 const ROOT = path.resolve(__dirname, '..', '..');
-const JS_DIR = path.join(ROOT, 'build-desktop'); // webpack desktop output
+const JS_DIR = path.join(ROOT, 'build-desktop'); // vite.config.mts --mode desktop
 const BUILD_DIR = path.join(ROOT, 'build'); // make:css styles.css
-const ASSETS_DIR = path.join(ROOT, 'assets'); // index.html, fonts, art, locales
-const INDEX_HTML = path.join(ASSETS_DIR, 'index.html');
+const ASSETS_DIR = path.join(ROOT, 'assets'); // fonts, art, locales
+const INDEX_HTML = path.join(JS_DIR, 'index.html'); // the SPA shell, built from src/client/index.html
 
 const JS_FILES = new Set<string>([
   'main.js', 'main.js.map',

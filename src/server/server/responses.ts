@@ -1,4 +1,3 @@
-import {escape} from 'html-escaper';
 import {Context} from '../routes/IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
@@ -103,9 +102,9 @@ export function internalServerError(
   res.write('Internal server error: ');
 
   if (err instanceof Error) {
-    res.write(escape(err.message));
+    res.write(escapeHtml(err.message));
   } else if (typeof(err) === 'string') {
-    res.write(escape(err));
+    res.write(escapeHtml(err));
   } else {
     res.write('unknown error');
   }
@@ -157,3 +156,8 @@ export function quotaExceeded(req: Request, res: Response) {
   res.end();
 }
 
+/** The five characters HTML gives a meaning — an error written into a response body never carries them raw. */
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>'"]/g, (char) => HTML_ENTITIES[char]);
+}
+const HTML_ENTITIES: Readonly<Record<string, string>> = {'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'};

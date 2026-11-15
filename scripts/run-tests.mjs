@@ -5,7 +5,7 @@
  * WHY THIS EXISTS. A mocha run (the server suite, the client bundle) that collects ZERO tests exits 0 and
  * prints «0 passing», which every CI in the world reads as success. This fork
  * shipped exactly that: a fixed-name `vendors` split chunk turned the whole
- * `npm run test:client` suite into a silent no-op (see webpack.test.config.js),
+ * `npm run test:client` suite into a silent no-op (the webpack era's split chunk),
  * and the dead suite went unnoticed for months because the pipeline was green.
  * A bad glob, a renamed directory or a `--require` that throws can do the same
  * to the server suite.
@@ -126,7 +126,7 @@ child.on('close', (code, signal) => {
       `\n[test-count] ✖ ${label.toUpperCase()} COLLECTED ${collected} TESTS, EXPECTED AT LEAST ${min}.\n` +
       '  The run exited 0 but did not do its job — this is a FALSE GREEN, not a pass.\n' +
       '  Likely causes: the spec glob matched nothing, a --require file threw, or the\n' +
-      '  bundle\'s entry module never executed (see webpack.test.config.js).\n' +
+      '  bundle\'s entry module never executed (see scripts/client-tests.mts).\n' +
       '  Do NOT lower the floor to make this pass.');
     process.exit(1);
   }

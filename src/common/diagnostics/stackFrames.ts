@@ -20,8 +20,11 @@ import {DiagFrame} from './DiagnosticModel';
 const FRAME = /^\s*at (?:(.+?) \()?(.+?)\)?\s*$/;
 const LOCATION = /^(.*?):(\d+)(?::(\d+))?$/;
 
-/** A frame of somebody else's code: a bundled dependency, the runtime's own modules, an extension. */
-const LIBRARY_FILE = /(?:^|[\\/])node_modules[\\/]|[\\/]vendors\.js|[\\/]chunks[\\/]chartjs|^node:|^electron[\\/]js2c|^chrome-extension:|^<anonymous>$|^native$|^webpack[\\/]|[\\/]webpack[\\/]runtime/;
+/**
+ * A frame of somebody else's code: a bundled dependency (`vendors.js`, the chart's own chunk, the bundler's runtime
+ * helpers `chunks/rolldown-runtime.js` — vite.config.mts), the runtime's own modules, an extension.
+ */
+const LIBRARY_FILE = /(?:^|[\\/])node_modules[\\/]|[\\/]vendors\.js|[\\/]chunks[\\/](?:chartjs|rolldown-runtime)|^node:|^electron[\\/]js2c|^chrome-extension:|^<anonymous>$|^native$/;
 
 export function isLibraryFile(file: string): boolean {
   return file === '' || LIBRARY_FILE.test(file);

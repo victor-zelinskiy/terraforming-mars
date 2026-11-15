@@ -8,7 +8,7 @@ require('console-stamp')(
   {format: ':date(yyyy-mm-dd HH:MM:ss Z)'},
 );
 
-import ansi from 'ansi-escape-sequences';
+import {styleText} from 'util';
 import raw_settings from '../genfiles/settings.json';
 import {runId, serverId} from '@/server/utils/server-ids';
 import {startGameServer} from '@/server/GameServer';
@@ -31,7 +31,7 @@ async function start() {
   await startGameServer({port, host});
 
   if (!process.env.SERVER_ID) {
-    console.log(`The secret serverId for this server is ${ansi.style.bold}${serverId}${ansi.style.reset}.`);
+    console.log(`The secret serverId for this server is ${styleText('bold', serverId)}.`);
     console.log(`Administrative routes can be found at admin?serverId=${serverId}`);
   }
   console.log(`The public run ID is ${runId}`);

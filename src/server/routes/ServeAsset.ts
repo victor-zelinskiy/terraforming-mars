@@ -157,7 +157,11 @@ export class ServeAsset extends Handler {
 
   private toFile(urlPath: string, encodings: Set<Encoding>): { file?: string, encoding?: Encoding } {
     switch (urlPath) {
-    case 'assets/index.html':
+    // THE SPA SHELL — built by Vite from src/client/index.html (vite.config.mts): the module scripts, their preloads
+    // and the components' own CSS are written into it. Every SPA route rewrites its url to this one (ServeApp & co.).
+    case 'index.html':
+      return {file: 'build/index.html'};
+
     case 'assets/curtain-overlay.html': // the Electron curtain overlay page (electron/curtainOverlay.ts)
     case 'assets/Prototype.ttf':
     case 'assets/Prototype-ru.ttf':
@@ -204,9 +208,8 @@ export class ServeAsset extends Handler {
     case 'vendors.js.symbols.json':
       return {file: `build/${urlPath}`};
 
-    // sw.js is empty. Although not confirmed, it seems sw.js is necessary
-    // for mobile notifications. If confirmed that it is not necessary, this
-    // can be removed.
+    // The service worker (src/client/sw.ts — empty: it exists so a notification can be shown through
+    // `registration.showNotification`, console/transport/gameTransport.ts). Registered on http(s) only.
     case 'sw.js':
     case '/sw.js':
       return this.toServiceWorkerFile(urlPath);
@@ -215,12 +218,13 @@ export class ServeAsset extends Handler {
       return {file: 'assets/favicon.ico'};
 
     default:
-      // Serve JS chunks produced by webpack code splitting.
+      // The lazy chunks of the client build (vite.config.mts): scripts, their maps, and the CSS of the components
+      // inside them — the initial chunk's own CSS (`chunks/main.css`) too, linked from index.html.
       if (urlPath.startsWith('chunks/')) {
         const chunksRoot = path.resolve('./build/chunks');
         const resolvedFile = path.resolve(path.normalize('build/' + urlPath));
         if (resolvedFile.startsWith(chunksRoot)) {
-          if (urlPath.endsWith('.js') || urlPath.endsWith('.js.map')) {
+          if (/\.(js|css)(\.map)?$/.test(urlPath)) {
             return this.toMainFile(urlPath, encodings);
           }
         }

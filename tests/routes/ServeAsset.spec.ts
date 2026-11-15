@@ -58,11 +58,12 @@ describe('ServeAsset', () => {
     expect(res.content).eq('Not found');
   });
 
-  it('index.html', async () => {
-    scaffolding.url = '/assets/index.html';
+  it('index.html — the BUILT shell (vite.config.mts writes it into build/)', async () => {
+    instance = new ServeAsset(undefined, false, fileApi);
+    scaffolding.url = '/index.html';
     scaffolding.req.headers['accept-encoding'] = '';
     await scaffolding.get(instance, res);
-    expect(res.content.startsWith('<!DOCTYPE html>'));
+    expect(res.content).eq('data: build/index.html');
   });
 
   it('styles.css', async () => {
@@ -197,10 +198,14 @@ describe('ServeAsset', () => {
     expect(res.statusCode).eq(statusCode.notFound);
   });
 
-  it('serves all script sources referenced in index.html', async () => {
-    const html = fs.readFileSync('assets/index.html', 'utf8');
-    const srcs = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
-    expect(srcs).to.not.be.empty;
+  it('serves every file the built shell references: its module scripts, their preloads and the components\' CSS', async () => {
+    // The shell's SOURCE names the module entry; Vite writes the built one (vite.config.mts — fixed names). The
+    // partition is the config's: the two initial chunks at the root, everything else under chunks/.
+    const source = fs.readFileSync('src/client/index.html', 'utf8');
+    expect(source).to.match(/<script type="module" src="\.\/main\.ts"><\/script>/);
+    const config = fs.readFileSync('vite.config.mts', 'utf8');
+    expect(config).to.include('const INITIAL_CHUNKS = new Set([\'main\', \'vendors\']);');
+    const srcs = ['main.js', 'vendors.js', 'sw.js', 'chunks/rolldown-runtime.js', 'chunks/main.css', 'chunks/console-shell.js', 'chunks/console-shell.css'];
     for (const src of srcs) {
       const perRes = new MockResponse();
       const perScaffolding = new RouteTestScaffolding();

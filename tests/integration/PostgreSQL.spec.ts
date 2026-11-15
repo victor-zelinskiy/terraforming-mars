@@ -1,4 +1,3 @@
-import dotenv from 'dotenv';
 import {expect} from 'chai';
 import {describeDatabaseSuite} from '../database/databaseSuite';
 import {ITestDatabase, Status} from '../database/ITestDatabase';
@@ -16,7 +15,11 @@ import {QueryResult} from 'pg';
 import {SelectInitialCards} from '../../src/server/inputs/SelectInitialCards';
 import {cast, range} from '../../src/common/utils/utils';
 
-dotenv.config({path: 'tests/integration/.env', debug: true, quiet: true});
+try {
+  process.loadEnvFile('tests/integration/.env');
+} catch {
+  // no tests/integration/.env — the environment is the process's
+}
 
 /*
  * This test can be run with `npm run test:integration` as long as the test is set up

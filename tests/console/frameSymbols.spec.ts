@@ -90,6 +90,9 @@ describe('frame symbols — a minified frame read back to its source', () => {
   it('resolves a position to the LAST segment at or before it; a path reads as the repository has it', () => {
     expect(cleanSourcePath('webpack://terraforming-mars/./src/client/x.ts?vue')).to.eq('src/client/x.ts');
     expect(cleanSourcePath('webpack://terraforming-mars/../../node_modules/vue/dist/vue.js')).to.eq('node_modules/vue/dist/vue.js');
+    // …and a Vite map's (relative to the script's own directory — a raw `.map`, read when no symbols stand beside it)
+    expect(cleanSourcePath('../src/client/console/x.ts')).to.eq('src/client/console/x.ts');
+    expect(cleanSourcePath('../../node_modules/vue/dist/vue.runtime.esm-bundler.js')).to.eq('node_modules/vue/dist/vue.runtime.esm-bundler.js');
     // V8's column is 1-based: column 11 is the map's column 10.
     expect(resolvePosition(symbols, 1, 11)).to.deep.eq({source: 'src/client/console/hand/handStage.ts', line: 412, name: 'foldStage'});
     expect(resolvePosition(symbols, 1, 260)).to.deep.eq({source: 'node_modules/gsap/gsap-core.js', line: 91, name: 'to'});

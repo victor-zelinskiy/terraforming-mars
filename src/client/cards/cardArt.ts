@@ -25,7 +25,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {getCard} from '@/client/cards/ClientCardManifest';
 // @ts-ignore cardArtManifest.json doesn't exist until make:cards runs
-import artManifest from '@/genfiles/cardArtManifest.json' assert {type: 'json'};
+import artManifest from '@/genfiles/cardArtManifest.json';
 
 export const CARD_ART_FALLBACK_URL = 'assets/card-images/-1.webp';
 

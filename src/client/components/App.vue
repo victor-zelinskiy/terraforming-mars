@@ -382,9 +382,8 @@ import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {APP_ROOT, AppRoot, AppScreen} from '@/client/components/appRoot';
 import type {TransportRoot} from '@/client/console/transport/gameTransport';
 import {Color} from '@/common/Color';
-import {hasShowModal, showModal, windowHasHTMLDialogElement} from './HTMLDialogElementCompatibility';
+import {hasShowModal, showModal} from './HTMLDialogElementCompatibility';
 
-import dialogPolyfill from 'dialog-polyfill';
 import {setDocumentTitle} from '../utils/documentTitle';
 import {vI18n} from '@/client/directives/vDirectives';
 
@@ -1079,9 +1078,6 @@ onMounted(() => {
   // (the real screen loads underneath and is revealed when the loader fades out).
   if (shouldRunBootWarmup()) {
     beginBootWarmup();
-  }
-  if (!windowHasHTMLDialogElement()) {
-    dialogPolyfill.registerDialog(document.getElementById('alert-dialog') as HTMLDialogElement);
   }
   // P10: raise the loading curtain BEFORE the first route resolution —
   // either continuing the previous page's handoff (join / create / exit

@@ -12,7 +12,7 @@ type ChartCtor = (typeof import('chart.js'))['Chart'];
 let chartCtorPromise: Promise<ChartCtor> | undefined;
 export function loadChart(): Promise<ChartCtor> {
   if (chartCtorPromise === undefined) {
-    chartCtorPromise = import(/* webpackChunkName: "chartjs" */ 'chart.js').then(({Chart, registerables}) => {
+    chartCtorPromise = import('chart.js').then(({Chart, registerables}) => {
       Chart.register(...registerables);
       Chart.defaults.font.size = 20;
       Chart.defaults.font.family = 'Ubuntu, Sans';

@@ -25,10 +25,10 @@ import {lazyComponent} from '@/client/components/lazyComponent';
 import type {Component} from 'vue';
 
 /** The card-target picker (`<action-target-card>`). */
-export const ActionTargetCard: Component = lazyComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/actions/ActionTargetCard.vue'));
+export const ActionTargetCard: Component = lazyComponent(() => import('@/client/components/actions/ActionTargetCard.vue'));
 
 /** The premium card face (`<premium-card-face>`) — lazy, so the zoom chain has no type cycle. */
 export const PremiumCardFace: Component = lazyComponent(() => import('@/client/components/premiumCard/PremiumCard.vue'));
 
 /** The console's source dock (`<console-source-dock>` — «who asked for this decision?»). */
-export const ConsoleSourceDock: Component = lazyComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleSourceDock.vue'));
+export const ConsoleSourceDock: Component = lazyComponent(() => import('@/client/components/console/ConsoleSourceDock.vue'));

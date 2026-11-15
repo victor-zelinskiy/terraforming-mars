@@ -549,7 +549,7 @@ export function clearFullscreenLost(): void {
 }
 
 /**
- * Remove the STATIC pre-Vue curtain (assets/index.html `#boot-curtain`) —
+ * Remove the STATIC pre-Vue curtain (src/client/index.html `#boot-curtain`) —
  * the node that covers the reload→mount gap so a transition never blinks
  * through dark frames. Called by the mounted Vue curtain once ITS first
  * frame has painted (the two are pixel-identical, so the swap is invisible),

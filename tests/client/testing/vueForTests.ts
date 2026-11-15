@@ -1,5 +1,5 @@
 /*
- * `vue`, AS THE UNIT BUNDLE SEES IT (`webpack.test.config.js` aliases the package to this module).
+ * `vue`, AS THE UNIT BUNDLE SEES IT (`scripts/client-tests.mts` aliases the package to this module).
  *
  * Everything is the real package — one module instance, one reactivity system. Three functions are wrapped: the calls
  * a COMPILED VAPOR TEMPLATE makes to create a component (`createComponent`, `createComponentWithFallback`,

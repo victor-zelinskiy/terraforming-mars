@@ -1,64 +1,110 @@
 /**
- * Attribute webpack bundle module sizes by client subtree — the measurement
- * behind the desktop-removal waves (which subgraphs actually weigh what).
- * Run: npx webpack --config webpack.config.js --mode production --json=bundle-stats.json
- *      node scripts/perf/bundle-attribution.mjs [bundle-stats.json]
+ * Attribute the client bundle's BYTES by client subtree — the measurement behind the desktop-removal waves (which
+ * subgraphs actually weigh what), read off the build's own source maps: every generated character of a script is
+ * counted for the source its mapping segment names (what the minifier left of that module, not its source size).
+ *
+ * Run: npm run build:client          (or any `vite build` — the maps sit beside the scripts)
+ *      node scripts/perf/bundle-attribution.mjs [build-dir]      (default: build)
  */
-import fs from 'fs';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const statsPath = process.argv[2] ?? 'bundle-stats.json';
-const stats = JSON.parse(fs.readFileSync(statsPath, 'utf8'));
-const mods = (stats.modules ?? []).flatMap((m) => m.modules ?? [m]);
+const dir = path.resolve(process.argv[2] ?? 'build');
+const scripts = [
+  ...['main.js', 'vendors.js'].map((file) => path.join(dir, file)),
+  ...(fs.existsSync(path.join(dir, 'chunks')) ? fs.readdirSync(path.join(dir, 'chunks')).filter((file) => file.endsWith('.js')).map((file) => path.join(dir, 'chunks', file)) : []),
+].filter((file) => fs.existsSync(file) && fs.existsSync(file + '.map'));
+
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const DIGIT = new Map([...B64].map((char, index) => [char, index]));
+
+/** The `[generatedColumn, sourceIndex]` of every segment of every line (sourceIndex −1 for an unmapped segment). */
+function* segments(mappings) {
+  let source = 0;
+  for (const line of mappings.split(';')) {
+    let column = 0;
+    for (const segment of line.split(',')) {
+      if (segment === '') {
+        continue;
+      }
+      const values = [];
+      let value = 0;
+      let shift = 0;
+      for (const char of segment) {
+        const digit = DIGIT.get(char);
+        value += (digit & 31) << shift;
+        if (digit & 32) {
+          shift += 5;
+        } else {
+          values.push(value & 1 ? -(value >>> 1) : value >>> 1);
+          value = 0;
+          shift = 0;
+        }
+      }
+      column += values[0];
+      if (values.length > 1) {
+        source += values[1];
+      }
+      yield [column, values.length > 1 ? source : -1];
+    }
+    yield [Infinity, -1]; // end of line
+  }
+}
 
 const buckets = new Map();
-const add = (k, s) => buckets.set(k, (buckets.get(k) ?? 0) + s);
+const add = (key, size) => buckets.set(key, (buckets.get(key) ?? 0) + size);
 
-for (const m of mods) {
-  const n = String(m.name ?? '').replace(/\\/g, '/');
-  const s = m.size ?? 0;
-  if (!n.includes('src/client')) {
-    if (n.includes('node_modules')) {
-      const pkg = /node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(n)?.[1] ?? 'other';
-      add('vendor:' + pkg, s);
-    } else if (n.includes('src/common')) {
-      add('src/common', s);
-    } else if (n.includes('src/locales') || n.includes('genfiles')) {
-      add('locales+genfiles', s);
+function bucketOf(source) {
+  const name = source.replace(/\\/g, '/');
+  if (!name.includes('src/client')) {
+    if (name.includes('node_modules')) {
+      return 'vendor:' + (/node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(name)?.[1] ?? 'other');
     }
-    continue;
+    if (name.includes('src/common')) {
+      return 'src/common';
+    }
+    if (name.includes('src/locales') || name.includes('genfiles')) {
+      return 'locales+genfiles';
+    }
+    return 'other';
   }
-  const seg =
-    /src\/client\/components\/console\//.test(n) ? 'client:console-components' :
-    /src\/client\/console\//.test(n) ? 'client:console-modules' :
-    /src\/client\/gamepad\//.test(n) ? 'client:gamepad' :
-    /PlayerHome\.vue/.test(n) ? 'client:PlayerHome.vue' :
-    /src\/client\/components\/([^/]+)\//.exec(n)?.[1] !== undefined ?
-      'client:components/' + /src\/client\/components\/([^/]+)\//.exec(n)[1] :
-    /src\/client\/components\/[^/]+$/.test(n) ? 'client:components-root' :
-    /src\/client\/([^/]+)\//.exec(n)?.[1] !== undefined ?
-      'client:' + /src\/client\/([^/]+)\//.exec(n)[1] :
+  return /src\/client\/components\/console\//.test(name) ? 'client:console-components' :
+    /src\/client\/console\//.test(name) ? 'client:console-modules' :
+    /src\/client\/gamepad\//.test(name) ? 'client:gamepad' :
+    /src\/client\/components\/([^/]+)\//.exec(name) !== null ? 'client:components/' + /src\/client\/components\/([^/]+)\//.exec(name)[1] :
+    /src\/client\/components\/[^/]+$/.test(name) ? 'client:components-root' :
+    /src\/client\/([^/]+)\//.exec(name) !== null ? 'client:' + /src\/client\/([^/]+)\//.exec(name)[1] :
     'client:root';
-  add(seg, s);
+}
+
+for (const script of scripts) {
+  const lines = fs.readFileSync(script, 'utf8').split('\n');
+  const map = JSON.parse(fs.readFileSync(script + '.map', 'utf8'));
+  let line = 0;
+  let previous;
+  for (const [column, source] of segments(map.mappings ?? '')) {
+    if (previous !== undefined) {
+      const end = column === Infinity ? (lines[line]?.length ?? 0) : column;
+      if (previous.source >= 0) {
+        add(bucketOf(map.sources[previous.source] ?? ''), Math.max(0, end - previous.column));
+      }
+    }
+    if (column === Infinity) {
+      line++;
+      previous = undefined;
+    } else {
+      previous = {column, source};
+    }
+  }
 }
 
 const rows = [...buckets.entries()].sort((a, b) => b[1] - a[1]);
-let total = 0;
-let vendors = 0;
-let client = 0;
-for (const [k, v] of rows) {
-  total += v;
-  if (k.startsWith('vendor:')) {
-    vendors += v;
-  }
-  if (k.startsWith('client:')) {
-    client += v;
-  }
-}
-for (const [k, v] of rows) {
-  if (v > 8 * 1024) {
-    console.log(String((v / 1024).toFixed(0)).padStart(7) + ' KB  ' + k);
+const sum = (prefix) => rows.filter(([key]) => key.startsWith(prefix)).reduce((total, [, size]) => total + size, 0);
+for (const [key, size] of rows) {
+  if (size > 8 * 1024) {
+    console.log(String((size / 1024).toFixed(0)).padStart(7) + ' KB  ' + key);
   }
 }
 console.log('---');
-console.log('client total: ' + (client / 1024 / 1024).toFixed(2) + ' MB, vendors: ' +
-  (vendors / 1024 / 1024).toFixed(2) + ' MB, grand: ' + (total / 1024 / 1024).toFixed(2) + ' MB (unminified module sizes)');
+console.log(`client total: ${(sum('client:') / 1024 / 1024).toFixed(2)} MB, vendors: ${(sum('vendor:') / 1024 / 1024).toFixed(2)} MB, ` +
+  `grand: ${(rows.reduce((total, [, size]) => total + size, 0) / 1024 / 1024).toFixed(2)} MB (minified bytes, ${scripts.length} scripts)`);

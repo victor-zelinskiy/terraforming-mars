@@ -13,8 +13,7 @@ import {
 /*
  * WHO PRESENTS A DRAWN BATCH — the workspace's own stage, the standalone scene,
  * or (retired by TR57) the headless fullscreen viewer? (ConsoleRevealOverlay reads this decision; the component
- * itself cannot be unit-mounted — its static `Card` import loads a webpack
- * chunk mochapack cannot, which silently zeroes the whole spec file.)
+ * is not mounted here: the decision is a pure function, and this spec reads it.)
  */
 
 function ctx(over: Partial<DrawnRevealPresentationCtx> = {}): DrawnRevealPresentationCtx {

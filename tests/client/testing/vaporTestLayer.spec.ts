@@ -5,7 +5,7 @@
  * `@vue/test-utils` is a virtual-DOM tool; the layer makes its reading surface hold over a tree that Vapor renders.
  * Every row here is a promise a spec of a converted component leans on WITHOUT knowing it was converted: the same
  * `mount(Component, {props, slots, global: {stubs}})`, the same `findComponent`, the same wrapper. The fixtures are
- * Vapor in every mode of the bundle (they stand outside `src/client` — scripts/vapor/unitVaporPolicy.cjs), so this
+ * Vapor in every mode of the bundle (they stand outside `src/client`), so this
  * table is red the day a new core changes one of the runtime internals the layer reads.
  */
 import {expect} from 'chai';
@@ -104,9 +104,12 @@ describe('the unit suite\'s Vapor layer — test-utils over a tree that Vapor re
       expect(real.find('.chassis > .from-the-spec').text(), 'and into the real Vapor child').to.eq('slotted');
     });
 
-    it('THE FACT BEHIND that (vue 3.6.0-rc.15): a slot the virtual-DOM renderer NORMALIZED, forwarded by a Vapor component into a virtual-DOM child, is warned about', () => {
-      // A spec's own host hands its normalized slots on — the road the layer's host does NOT take (`splitSlots`).
-      // The day this row is red the runtime exempts the case itself, and `splitSlots` can go.
+    it('THE FACT BEHIND that, as test-utils ≥ 2.6.0 has it: a mount\'s slots arrive COMPILED, so a spec\'s own host forwarding them through a Vapor component into a virtual-DOM child is NOT warned about', () => {
+      // A spec's own host hands the mount's slots on — the road the layer's host does not take (`splitSlots`). Under
+      // test-utils 2.5 those slots were plain functions the virtual-DOM renderer NORMALIZED, and vue 3.6.0-rc.15's
+      // «invoked outside of the render function» check fired on them; 2.6.0 hands them over as compiled slots
+      // (`toCompiledSlots`: `withCtx`, `_c: false`) and the check never sees them (2026-11-15, the stack move). So
+      // `splitSlots` is belt and braces now: the day this row is red, test-utils normalizes a mount's slots again.
       const warned: Array<string> = [];
       const ChassisStub = defineComponent({
         name: 'LayerChassis',
@@ -124,7 +127,7 @@ describe('the unit suite\'s Vapor layer — test-utils over a tree that Vapor re
         global: {stubs: {Chassis: ChassisStub}, config: {warnHandler: (message: string) => warned.push(message)}},
       });
       expect(w.find('.chassis-stub > .from-the-spec').text(), 'it renders all the same').to.eq('slotted');
-      expect(warned.filter((message) => message.includes('invoked outside of the render function'))).to.have.length(1);
+      expect(warned.filter((message) => message.includes('invoked outside of the render function'))).to.deep.eq([]);
     });
   });
 

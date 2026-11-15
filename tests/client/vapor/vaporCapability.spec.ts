@@ -2,8 +2,8 @@
  * WHAT VAPOR TAKES FOR US — the capability table of the road to `createVaporApp(App)`, as executable facts.
  *
  * Every row of `docs/claude/vapor/ROADMAP.md` §3.6 («the Vapor probe») is a test here: a Vapor single-file component
- * (`<script setup vapor>`, compiled by the same webpack toolchain the product is built with — vue-loader +
- * `scripts/vapor/sfcTemplateCompiler.cjs`) mounted INSIDE a virtual-DOM application through `vaporInteropPlugin`,
+ * (`<script setup vapor>`, compiled by the same toolchain the product is built with — Vite + @vitejs/plugin-vue,
+ * the template inline as it ships) mounted INSIDE a virtual-DOM application through `vaporInteropPlugin`,
  * which is exactly how every wave of the rework will run until the last component is converted.
  *
  * The suite is the pilot's result AND its regression net: a new release candidate re-reads the table by running it.
@@ -82,12 +82,14 @@ const RU: Record<string, string> = {
 };
 
 describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, through vaporInteropPlugin)', () => {
-  it('the toolchain compiles a `<script setup vapor>` SFC as a Vapor component — in the non-inline (test / dev) mode too', () => {
+  it('the toolchain compiles a `<script setup vapor>` SFC as a Vapor component — its template INLINE, as the product ships it', () => {
     const def = VaporBasics as unknown as {__vapor?: boolean, render?: unknown, setup?: unknown};
     expect(def.__vapor, 'compiler-sfc marked it').to.equal(true);
-    expect(def.render, 'the template loader attached a render — compiled by @vue/compiler-vapor (sfcTemplateCompiler.cjs)').to.be.a('function');
-    // A virtual-DOM render function takes (_ctx, _cache, …) and returns vnodes; a Vapor one takes the setup state and
-    // returns DOM. The proof it is the right compiler's output is that the rows below mount at all.
+    // @vitejs/plugin-vue compiles the template INTO the setup (`compileScript` with `inlineTemplate`) in the unit bundle
+    // as in the product build (docs/claude/stack.md S3): no separate render function is attached. The proof it is the
+    // right compiler's output is that the rows below mount at all.
+    expect(def.render, 'the template is compiled into the setup — no separate render').to.equal(undefined);
+    expect(def.setup).to.be.a('function');
   });
 
   it('props, text, class / attribute bindings, `v-for` (keyed), `v-if` / `v-else`, `v-show`, `v-html`, `v-model`, `<component :is>`', async () => {

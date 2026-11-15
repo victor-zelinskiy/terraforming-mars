@@ -3,7 +3,7 @@
  * A PRIVATE E2E BUILD — `npm run e2e:snapshot <name>`.
  *
  * Several sessions share one clone, and `build/` is the one thing every e2e
- * worker server serves from: a neighbour's `npm run build` (or `webpack
+ * worker server serves from: a neighbour's `npm run build` (or `vite
  * --watch`) rewrites the product in the middle of your run, and every red after
  * that moment is a verdict about THEIR build, not your code (2026-09-30: a
  * parliament run lost ~40 tests' worth of meaning this way). A shared

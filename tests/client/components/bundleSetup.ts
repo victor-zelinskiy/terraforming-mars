@@ -1,6 +1,6 @@
 /**
  * IN-BUNDLE test setup — the FIRST module of the client test bundle (`scripts/client-tests.mjs`), so it runs
- * INSIDE the webpack bundle (unlike `setup.ts`, which node loads before mocha's
+ * INSIDE the Vite bundle (unlike `setup.ts`, which node loads before mocha's
  * globals even exist) and therefore shares ONE `@vue/test-utils` instance with
  * every spec.
  *
@@ -67,7 +67,7 @@ const teardownFailures: Array<string> = [];
  *
  * And a spec never has to know that its OWN component was converted either: the `@vue/test-utils` and the `vue` of
  * this bundle are the suite's layer (`tests/client/testing/vaporTestUtils.ts` · `vueForTests.ts`, aliased by
- * `webpack.test.config.js`) — a Vapor root is mounted under a host and wrapped, the mount's stubs reach the children a
+ * `scripts/client-tests.mts`) — a Vapor root is mounted under a host and wrapped, the mount's stubs reach the children a
  * Vapor render creates, `findComponent` walks one tree over both runtimes.
  */
 config.global.plugins = [...(config.global.plugins ?? []), vaporInteropPlugin];

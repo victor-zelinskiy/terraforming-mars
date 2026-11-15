@@ -8,8 +8,8 @@
 # your machine as fast as possible while the commit still shows ❌ if CI (a separate check) fails.
 #
 # SHAPE (optimised for shortest push→download latency):
-#   build   — ONE ubuntu job: build:desktop (make:static + webpack client + electron main) ONCE and
-#             publish it as an artifact. The webpack output is OS-independent, so both OS packagers
+#   build   — ONE ubuntu job: build:desktop (make:static + the Vite client + the Node lanes) ONCE and
+#             publish it as an artifact. The build output is OS-independent, so both OS packagers
 #             reuse it instead of each rebuilding the (slow) client. This job also PRE-CREATES the
 #             empty GitHub Release for the tag so the two packagers can run in PARALLEL.
 #   windows — needs build: download the shared build, electron-builder --win, vpk pack + upload --merge.
@@ -74,7 +74,7 @@ env:
 
 jobs:
   # Build the OS-independent desktop assets ONCE and pre-create the release, so windows + linux can
-  # package in parallel without each re-running the (slow) webpack client build.
+  # package in parallel without each re-running the client build.
   build:
     runs-on: ubuntu-latest
     env:
@@ -82,12 +82,12 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -120,7 +120,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # make:static + DESKTOP_BUILD=1 webpack client + electron main tsc. Everything the packagers
+      # make:static + the desktop client (`vite build --mode desktop`) + the Node lanes (Electron main, the hub, the
+      # embedded server — scripts/build-node.mts). Everything the packagers
       # consume that isn't in the checkout: build/ (electron main + styles.css), build-desktop/ (the
       # renderer bundle), src/genfiles/ (settings.json build identity + generated manifests), and
       # assets/locales/ (the per-language translation JSONs the client loads async at runtime —
@@ -143,14 +144,13 @@ jobs:
       # into `src/…:line`. Stamping needs no credentials, so it ALWAYS runs — the artifact the packagers take is the
       # stamped one. It must stand BEFORE the artifact upload and before anything packs these files.
       - name: Stamp debug ids (source maps ↔ scripts)
-        run: npx --yes @sentry/cli@3.8.2 sourcemaps inject build-desktop build/electron
+        # `sentry-cli` is a pinned devDependency (package.json) — never a version fetched at run time.
+        run: npx sentry-cli sourcemaps inject build-desktop build/electron
 
       # The stamp added a line at the top of every script and rewrote its map: the frame symbols the in-game journal
       # resolves its stacks with are cut AGAIN, from the stamped maps (scripts/make-frame-symbols.mjs — idempotent).
       - name: Re-cut the frame symbols from the stamped maps
-        run: node scripts/make-frame-symbols.mjs
-        env:
-          DESKTOP_BUILD: '1'
+        run: node scripts/make-frame-symbols.mjs build-desktop
 
       # …and the maps go to the collector under this release — ONLY where the token exists (this repository's main).
       # A fork and a pull request have no secret: the step is skipped and the release is built all the same. A failed
@@ -167,7 +167,7 @@ jobs:
         run: |
           set -u
           RELEASE="terraforming-mars@$VELO_VERSION"
-          cli() { npx --yes @sentry/cli@3.8.2 "$@"; }
+          cli() { npx sentry-cli "$@"; }
           cli releases new "$RELEASE"
           cli sourcemaps upload --release "$RELEASE" build-desktop build/electron             || { echo "::warning::source maps of $RELEASE were not uploaded — its stacks will not be resolved"; exit 1; }
           # The commit is told when the repository is linked in Sentry; without the link the release stands without it.
@@ -176,7 +176,7 @@ jobs:
           echo "source maps uploaded for $RELEASE"
 
       - name: Upload shared build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: desktop-build
           path: |
@@ -192,12 +192,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -239,7 +239,7 @@ jobs:
       # Reuse the client + electron-main build produced ONCE by the `build` job (restores build/,
       # build-desktop/, src/genfiles/ at the workspace root).
       - name: Download shared build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: desktop-build
 
@@ -340,12 +340,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -383,7 +383,7 @@ jobs:
           echo "release version: $V"
 
       - name: Download shared build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: desktop-build
 

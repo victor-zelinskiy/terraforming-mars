@@ -16,13 +16,14 @@ function endsWith(actual: string | undefined, ...segments: Array<string>): boole
 }
 
 describe('electron/protocol resolveFile', () => {
+  // The shell is BUILT (vite.config.mts --mode desktop, from src/client/index.html) — it lives beside the scripts.
   it('serves index.html for the root', () => {
-    expect(endsWith(resolveFile('/'), 'assets', 'index.html')).to.be.true;
+    expect(endsWith(resolveFile('/'), 'build-desktop', 'index.html')).to.be.true;
   });
 
   it('serves index.html for an SPA route (extensionless path)', () => {
     for (const route of ['/player', '/spectator', '/the-end', '/create-game', '/game']) {
-      expect(endsWith(resolveFile(route), 'assets', 'index.html'), route).to.be.true;
+      expect(endsWith(resolveFile(route), 'build-desktop', 'index.html'), route).to.be.true;
     }
   });
 
@@ -36,9 +37,10 @@ describe('electron/protocol resolveFile', () => {
     expect(endsWith(resolveFile('/vendors.js.symbols.json'), 'build-desktop', 'vendors.js.symbols.json')).to.be.true;
   });
 
-  it('maps lazy chunks to build-desktop/chunks/', () => {
-    expect(endsWith(resolveFile('/chunks/116.js'), 'build-desktop', 'chunks', '116.js')).to.be.true;
-    expect(endsWith(resolveFile('/chunks/player-home.js'), 'build-desktop', 'chunks', 'player-home.js')).to.be.true;
+  it('maps lazy chunks — and the CSS of the components inside them — to build-desktop/chunks/', () => {
+    expect(endsWith(resolveFile('/chunks/console-shell.js'), 'build-desktop', 'chunks', 'console-shell.js')).to.be.true;
+    expect(endsWith(resolveFile('/chunks/rolldown-runtime.js'), 'build-desktop', 'chunks', 'rolldown-runtime.js')).to.be.true;
+    expect(endsWith(resolveFile('/chunks/main.css'), 'build-desktop', 'chunks', 'main.css')).to.be.true;
   });
 
   it('maps styles.css to build/ (shared make:css output)', () => {
@@ -61,7 +63,7 @@ describe('electron/protocol resolveFile', () => {
 
   it('preserves the query-less pathname (identity/route ride window.location)', () => {
     // The handler only sees the pathname; ?id=… never reaches resolveFile.
-    expect(endsWith(resolveFile('/player'), 'assets', 'index.html')).to.be.true;
+    expect(endsWith(resolveFile('/player'), 'build-desktop', 'index.html')).to.be.true;
   });
 
   it('refuses path traversal (→ undefined → 403)', () => {

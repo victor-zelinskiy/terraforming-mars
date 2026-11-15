@@ -37,15 +37,15 @@ function rawFrame(frame: Frame): string {
 }
 
 /**
- * THE MAPPING THREAD — one per worker process, created on the first hung page. The source-map consumer is synchronous
- * (`source-map` 0.6: an 8 MB `main.js.map` is parsed whole on the first lookup), so it never runs on the loop that keeps
+ * THE MAPPING THREAD — one per worker process, created on the first hung page. The source-map reader is synchronous
+ * (`@jridgewell/trace-mapping`: a multi-megabyte `main.js.map` is decoded whole on the first lookup), so it never runs on the loop that keeps
  * the test's own bounds; a thread that does not answer within `MAP_BUDGET_MS` leaves the raw frames standing.
  */
 const MAPPER_SOURCE = `
 const {parentPort, workerData} = require('worker_threads');
 const fs = require('fs');
 const path = require('path');
-const {SourceMapConsumer} = require(workerData.sourceMap);
+const {TraceMap, originalPositionFor} = require(workerData.traceMapping);
 const consumers = new Map();
 function consumerFor(root, url) {
   const file = url.split('?')[0].split('/').pop() || '';
@@ -54,7 +54,7 @@ function consumerFor(root, url) {
   if (!consumers.has(key)) {
     let consumer = null;
     try {
-      consumer = new SourceMapConsumer(JSON.parse(fs.readFileSync(path.join(root, 'build', file + '.map'), 'utf8')));
+      consumer = new TraceMap(fs.readFileSync(path.join(root, 'build', file + '.map'), 'utf8'));
     } catch (e) {
       consumer = null;
     }
@@ -66,9 +66,9 @@ parentPort.on('message', ({id, root, frames}) => {
   const lines = frames.map((f) => {
     const consumer = consumerFor(root, f.url);
     if (consumer !== null) {
-      const at = consumer.originalPositionFor({line: f.lineNumber + 1, column: f.columnNumber});
+      const at = originalPositionFor(consumer, {line: f.lineNumber + 1, column: f.columnNumber});
       if (at.source !== null) {
-        const source = at.source.replace(/^webpack:\\/\\/[^/]*\\//, '');
+        const source = at.source.replace(/^webpack:\\/\\/[^/]*\\//, '').replace(/^(\\.\\.\\/)+/, '');
         return (at.name || f.functionName || '?') + ' (' + source + ':' + at.line + ':' + at.column + ')';
       }
     }
@@ -84,8 +84,8 @@ const mapperWaiting = new Map<number, (lines: Array<string | null>) => void>();
 
 function mapperThread(): Worker {
   if (mapper === undefined) {
-    const sourceMap = require.resolve('source-map');
-    mapper = new Worker(MAPPER_SOURCE, {eval: true, workerData: {sourceMap: path.resolve(sourceMap)}});
+    const traceMapping = require.resolve('@jridgewell/trace-mapping');
+    mapper = new Worker(MAPPER_SOURCE, {eval: true, workerData: {traceMapping: path.resolve(traceMapping)}});
     mapper.unref(); // never keeps the worker process alive
     mapper.on('message', ({id, lines}: {id: number, lines: Array<string | null>}) => {
       mapperWaiting.get(id)?.(lines);

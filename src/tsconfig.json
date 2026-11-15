@@ -1,9 +1,10 @@
+// THE SERVER'S TYPE CHECK — `npm run typecheck` (the server, src/common and the tools). Nothing is emitted: the server is
+// bundled by Vite (`node scripts/build-node.mts server`, docs/claude/stack.md). A mandatory gate is never incremental.
 {
-    "compilerOptions": {
-        "outDir": "../build/src",
-        "rootDir": ".",
-    },
     "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "incremental": false
+    },
     "include": [
         "**/*.ts",
         "genfiles/*.json",

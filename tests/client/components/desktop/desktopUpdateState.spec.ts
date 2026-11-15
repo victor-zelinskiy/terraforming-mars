@@ -11,8 +11,7 @@ import {
 // the check must fire on ENTRY (not just on the next tick), keep firing while the menu is up, and
 // stop dead when the player leaves it — an in-game timer would drop the blocking gate over a live
 // turn.
-//   npx mochapack --webpack-config webpack.config.js --require tests/client/components/setup.ts \
-//     "tests/client/components/desktop/desktopUpdateState.spec.ts"
+//   npm run test:client:one -- tests/client/components/desktop/desktopUpdateState.spec.ts
 
 const IDLE: DesktopUpdateState = {mode: 'idle', currentVersion: '1.1.296'};
 

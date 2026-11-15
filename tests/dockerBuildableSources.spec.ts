@@ -6,11 +6,11 @@ import * as path from 'path';
  * THE DOCKER BUILD SEES NO `tests/` — and the client build TYPE-CHECKS THE
  * WHOLE REPO.
  *
- * `.dockerignore` drops `tests`, while webpack's ForkTsChecker runs against
- * the root `tsconfig.json`, whose `include` is `**\/*.ts`. So any TS file
- * OUTSIDE `tests/` that imports FROM `tests/` compiles locally (the tree is
- * there) and fails the release build with TS2307 / TS2882 — a failure mode
- * no local command reproduces. It shipped once, from a perf seed script
+ * `.dockerignore` drops `tests`, while the image's `npm run build` resolves
+ * every import of what it builds (and the type checkers read the root
+ * `tsconfig.json`, whose `include` is `**\/*.ts`). So any TS file OUTSIDE
+ * `tests/` that imports FROM `tests/` builds locally (the tree is there) and
+ * fails the image build — a failure mode no local command reproduces. It shipped once, from a perf seed script
  * parked in `scripts/` that legitimately used `tests/TestGame`; such a
  * script belongs in `tests/` (it is test infrastructure), never beside the
  * build tooling.

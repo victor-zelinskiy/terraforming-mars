@@ -113,10 +113,15 @@ export function decodeMappings(mappings: string): Array<Int32Array> {
   return lines;
 }
 
-/** `webpack://terraforming-mars/./src/client/x.ts` → `src/client/x.ts`; a dependency keeps its package path. */
+/**
+ * A map's source as the repository names it: `../src/client/x.ts` (a Vite map, relative to the script's directory —
+ * the symbols are already cut repository-relative by scripts/make-frame-symbols.mjs, a raw `.map` is not) or an older
+ * build's `webpack://terraforming-mars/./src/client/x.ts` → `src/client/x.ts`; a dependency keeps its package path.
+ */
 export function cleanSourcePath(source: string): string {
   return source
     .replace(/^webpack:\/\/[^/]*\//, '')
+    .replace(/^(\.\.\/)+/, '')
     .replace(/^\.\//, '')
     .replace(/\?.*$/, '')
     .replace(/^.*\/node_modules\//, 'node_modules/');

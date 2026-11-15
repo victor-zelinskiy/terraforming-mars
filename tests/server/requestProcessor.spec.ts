@@ -10,6 +10,7 @@ describe('requestProcessor', () => {
     req.url = '/';
     processRequest(req, res);
 
-    expect(req.url).eq('/assets/index.html');
+    // the SPA shell, built by Vite into build/ (ServeApp → ServeAsset)
+    expect(req.url).eq('/index.html');
   });
 });

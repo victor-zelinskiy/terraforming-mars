@@ -1,73 +1,80 @@
 /**
- * EMBEDDED-BUNDLE CODEGEN GUARD — fails the build on a webpack interop bug that
- * is invisible at compile time and fatal at runtime.
+ * THE EMBEDDED SERVER STARTS — a smoke check of `build/electron/embedded-server.js` (chained into `npm run
+ * build:embedded` and `build:desktop`).
  *
- * WHAT IT CATCHES. webpack 5.110.0–5.110.2 inline a deferred CJS namespace
- * (`__webpack_require__.cw`) into a `new` expression WITHOUT parenthesising it:
+ * WHY A RUN AND NOT A READ. The desktop app forks this bundle as a utilityProcess (electron/embeddedServer.ts); a
+ * bundle that compiles clean and dies on load does not fail anything visible — the app silently DOWNGRADES to remote
+ * mode, and the symptom is «games cannot be created», nowhere near the cause. That happened once (webpack 5.110's
+ * `new X_namespaceFn()(...)` miscompile, 2026-10), and the guard that stood here then grepped the bundle for that one
+ * pattern. Any bundler can fail in a new way, so the guard now asks the only question that matters: does the bundle,
+ * run under plain Node with the embedded environment, reach `ready`?
  *
- *     new gauge_namespaceFn()({name: 'realtime_rooms', ...})
+ * It runs AS PACKAGED: a COPY of the bundle in a throwaway directory, where no `node_modules` can be reached (the
+ * packaged app ships none — a bundle run beside the repository's own `node_modules` resolved a top-level `require('pg')`
+ * and passed while the packaged app died on it, 2026-11-15). The throwaway root holds the database, the port is
+ * ephemeral, LAN advertising off and the bind local — nothing outside this machine sees it — and it is killed the
+ * moment it answers. 60 s to start, or it fails.
  *
- * JS parses that as `(new gauge_namespaceFn())({...})` — it constructs the
- * wrapper itself, then calls the result — instead of the intended
- * `new (gauge_namespaceFn())({...})`. webpack reports "compiled successfully";
- * the bundle then dies on load with `TypeError: X_namespaceFn is not a
- * constructor`, the embedded server never starts, and the desktop app silently
- * DOWNGRADES to remote mode (electron/main.ts) — so the visible symptom is
- * "games can't be created" against the hosted server, nowhere near the cause.
- *
- * It hit 22 sites in one build: prom-client's Gauge/Counter/Histogram and ws's
- * WebSocketServer. The pattern only appears in this node-target,
- * non-minimised bundle — the client bundles never emit `_namespaceFn`.
- *
- * `webpack` is therefore pinned EXACTLY (no caret) in package.json. This guard
- * is what makes the next bump safe: if a future webpack reintroduces the bug,
- * the build fails here instead of shipping a broken auto-update. (Fixed upstream
- * in 5.110.3 — webpack#21876 «parenthesize a wrapped module's accessor call»;
- * the bundle still emits ~33k `_namespaceFn()` accessors, so the pattern stays
- * one regression away.)
- *
- * Run: node scripts/check-embedded-bundle.mjs   (chained into `npm run build:embedded`)
+ * Run: node scripts/check-embedded-bundle.mjs
  */
-import fs from 'fs';
-import path from 'path';
+import {spawn} from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import {fileURLToPath} from 'node:url';
 
-const BUNDLE = path.resolve('build', 'electron', 'embedded-server.js');
-/** `new <ident>_namespaceFn()(` — the mis-parenthesised construction. */
-const BROKEN_NEW = /new\s+([A-Za-z0-9_$]+_namespaceFn)\(\)\(/g;
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const BUNDLE = path.join(ROOT, 'build', 'electron', 'embedded-server.js');
 
 if (!fs.existsSync(BUNDLE)) {
-  console.error(`embedded-bundle guard: ${path.relative(process.cwd(), BUNDLE)} not found — did webpack run?`);
+  console.error(`[embedded-check] ${path.relative(ROOT, BUNDLE)} is missing — run \`npm run build:embedded\``);
   process.exit(1);
 }
 
-const source = fs.readFileSync(BUNDLE, 'utf8');
-const hits = [...source.matchAll(BROKEN_NEW)];
+const home = fs.mkdtempSync(path.join(os.tmpdir(), 'tm-embedded-check-'));
+const copy = path.join(home, 'embedded-server.js');
+fs.copyFileSync(BUNDLE, copy);
+const child = spawn(process.execPath, [copy], {
+  cwd: home,
+  env: {
+    ...process.env,
+    TM_EMBEDDED_ROOT: home,
+    TM_EMBEDDED_PORT: '0',
+    TM_EMBEDDED_BIND: 'local',
+    TM_LAN_VISIBLE: '0',
+  },
+  stdio: ['ignore', 'pipe', 'pipe'],
+});
+// Its exit, watched from the spawn on: a bundle that dies on load has exited before anybody asks.
+const exited = new Promise((resolve) => child.once('exit', resolve));
 
-if (hits.length === 0) {
-  console.log('embedded-bundle guard: OK (no mis-parenthesised namespace constructions)');
-  process.exit(0);
+let output = '';
+const verdict = await new Promise((resolve) => {
+  const timer = setTimeout(() => resolve('it did not answer `ready` within 60 s'), 60_000);
+  const read = (chunk) => {
+    output += chunk;
+    if (/\[embedded\] \{"type":"ready"/.test(output)) {
+      clearTimeout(timer);
+      resolve(undefined);
+    } else if (/\[embedded\] \{"type":"fatal"/.test(output)) {
+      clearTimeout(timer);
+      resolve('it reported a fatal startup error');
+    }
+  };
+  child.stdout.on('data', read);
+  child.stderr.on('data', read);
+  child.on('exit', (code) => {
+    clearTimeout(timer);
+    resolve(`it exited (code ${code}) before answering \`ready\``);
+  });
+});
+
+child.kill();
+await exited;
+fs.rmSync(home, {recursive: true, force: true, maxRetries: 5, retryDelay: 200});
+
+if (verdict !== undefined) {
+  console.error(`[embedded-check] ✖ the embedded server bundle does not start: ${verdict}\n${output.slice(-4000)}`);
+  process.exit(1);
 }
-
-const byName = new Map();
-for (const hit of hits) {
-  byName.set(hit[1], (byName.get(hit[1]) ?? 0) + 1);
-}
-
-console.error(
-  `embedded-bundle guard: FAILED — ${hits.length} mis-parenthesised namespace construction(s).\n` +
-  `webpack emitted \`new X_namespaceFn()(…)\`, which constructs the wrapper instead of the class.\n` +
-  'The bundle compiles but throws "is not a constructor" on load, and the desktop app then\n' +
-  'downgrades to remote mode instead of starting the embedded server.\n\n' +
-  [...byName.entries()].map(([name, count]) => `  ${count}× new ${name}()(`).join('\n') +
-  `\n\nwebpack in use: ${readWebpackVersion()}. Pin \`webpack\` to a version without this bug\n` +
-  '(5.109.2 and 5.111.1 are known good; 5.110.0–5.110.2 are known bad) — see scripts/check-embedded-bundle.mjs.',
-);
-process.exit(1);
-
-function readWebpackVersion() {
-  try {
-    return JSON.parse(fs.readFileSync(path.resolve('node_modules', 'webpack', 'package.json'), 'utf8')).version;
-  } catch {
-    return 'unknown';
-  }
-}
+console.log('[embedded-check] ✓ the embedded server bundle starts and answers `ready`');

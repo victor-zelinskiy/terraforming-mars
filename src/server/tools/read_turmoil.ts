@@ -1,5 +1,5 @@
 // Searches through a game's log for an event.
-// e.g. node build/src/server/tools/read_turmoil.js ge120f6729fca
+// e.g. npx tsx src/server/tools/read_turmoil.ts ge120f6729fca
 import '@/server/init';
 
 import {MultiSet} from 'mnemonist';
