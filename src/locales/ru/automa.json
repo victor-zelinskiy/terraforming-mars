@@ -20,6 +20,8 @@
     "${0} revealed a bonus card": "${0} вскрывает бонусную карту",
     "${0} played a bonus card": "${0} разыграл бонусную карту",
     "${0} played the bonus card ${1}": "${0} разыграл бонусную карту ${1}",
+    "${0} could not finish its turn — the rest of it is skipped": "${0} не смог завершить ход — остаток хода пропущен",
+    "An effect of the turn of ${0} could not be applied — it is skipped": "Эффект хода игрока ${0} не удалось применить — он пропущен",
     "${0} spent 5 floaters for an extra action card": "${0} тратит 5 аэростатов на дополнительную карту действий",
     "${0} spent ${1} ${2} for an extra action card": "${0} тратит ${1} ${2} на дополнительную карту действий",
     "${0} track for ${1} production regressed ${2} step(s)": "Трек ${0} за производство ${1} отступает на ${2} шаг(а)",

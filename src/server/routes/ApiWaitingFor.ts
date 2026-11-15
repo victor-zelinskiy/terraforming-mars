@@ -8,6 +8,7 @@ import {IGame} from '../IGame';
 import {isPlayerId} from '../../common/Types';
 import {Request} from '../Request';
 import {Response} from '../Response';
+import {lookAtTable} from '../liveness/TableLiveness';
 
 export class ApiWaitingFor extends Handler {
   public static readonly INSTANCE = new ApiWaitingFor();
@@ -85,6 +86,10 @@ export class ApiWaitingFor extends Handler {
         return;
       }
       ctx.ipTracker.addParticipant(id, ctx.ip);
+      // THE TABLE'S LIVENESS (`liveness/TableLiveness.ts`): every page comes here once a second — the one place a
+      // table that asks NOBODY is seen at all. A live table costs a scan of the seats; a dead one is said, and the
+      // answer below already carries whatever the loader's road put back.
+      lookAtTable(game);
       responses.writeJson(res, ctx, this.getPlayerWaitingForModel(player, game, gameAge, undoCount, promptId));
     } catch (err) {
       // This is basically impossible since getPlayerById ensures that the player is on that game.

@@ -5,6 +5,7 @@ import {botTurnKey} from '../../common/automa/MarsBotTurn';
 import {AutomaController} from './AutomaController';
 import {RealtimeHub} from '../server/realtime/RealtimeHub';
 import {marsBotOf} from './AutomaUtil';
+import {reportServerError} from '../diagnostics/serverDiagnostics';
 
 /**
  * Server-authoritative, NON-BLOCKING pacing of MarsBot's turn.
@@ -285,7 +286,12 @@ export class BotTurnScheduler {
       game.gameAge++;
       game.save();
     } catch (err) {
+      // What reaches here is no longer the turn's BODY (contained by `AutomaController.takeTurn` — the turn ends
+      // honestly) but the game's own ADVANCE after it. It is SAID (this runs on a timer: until FREEZE ZERO the line
+      // below went to a console nobody reads, and the table stood on «WAIT, nobody» for ever) — and the table's
+      // liveness judge (`liveness/TableLiveness.ts`) names the table and takes the loader's road for it.
       console.error(`BotTurnScheduler: resolving bot turn for game ${game.id} failed`, err);
+      reportServerError(`resolving MarsBot's turn (generation ${game.generation}, phase ${game.phase})`, err);
     }
   }
 

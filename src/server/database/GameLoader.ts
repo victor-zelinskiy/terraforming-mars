@@ -13,6 +13,7 @@ import {CacheConfig} from './CacheConfig';
 import {Clock} from '../../common/Timer';
 import {RealtimeHub} from '../server/realtime/RealtimeHub';
 import {LobbyIndex} from '../models/lobbyIndex';
+import {reportServerError} from '../diagnostics/serverDiagnostics';
 
 const metrics = {
   initialize: new prometheus.Gauge({
@@ -90,6 +91,8 @@ export class GameLoader implements IGameLoader {
   private readonly config: CacheConfig;
   private readonly clock: Clock;
   private purgedGames: Array<GameId>;
+  /** Games whose save threw on load — each reported once (`getGame`). */
+  private readonly unloadable = new Set<GameId>();
 
   private constructor(config: CacheConfig, clock: Clock) {
     this.config = config;
@@ -224,6 +227,12 @@ export class GameLoader implements IGameLoader {
         return game;
       } catch (e) {
         console.error('GameLoader:loadGame', e);
+        // A SAVE THAT CANNOT BE LOADED is a table every page of which answers «cannot find game» for ever — said, once
+        // per game (every poll of every page retries the load): until FREEZE ZERO this line was the only trace.
+        if (!this.unloadable.has(gameId)) {
+          this.unloadable.add(gameId);
+          reportServerError('loading a game from its save', e);
+        }
         return undefined;
       }
     }

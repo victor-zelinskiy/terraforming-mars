@@ -15,6 +15,10 @@ import {AutomaResolver} from './AutomaResolver';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {SecondShift} from './SecondShift';
 import {marsBotOf} from './AutomaUtil';
+import {reportServerError} from '../diagnostics/serverDiagnostics';
+
+/** How many deferred effects of one bot turn may fail before the turn's tail gives up (a queue that only throws). */
+const MAX_LOST_PAYOUTS = 8;
 
 /**
  * Orchestrates MarsBot's turn. Entered from `Game.startActionsForPlayer` when the
@@ -48,6 +52,10 @@ export class AutomaController {
     let passed = false;
     try {
       passed = AutomaController.resolveTurn(game, bot);
+    } catch (err) {
+      // A TURN THAT CANNOT BE TAKEN ENDS HONESTLY (see `abandonTurn`): said in the turn's own journal group, reported,
+      // and the game goes on — the table never dies with the bot's card.
+      passed = AutomaController.abandonTurn(game, bot, err);
     } finally {
       game.events.endScope();
     }
@@ -77,11 +85,72 @@ export class AutomaController {
         AutomaTurnLog.finish(game);
       }
     };
-    game.deferredActions.runAll(() => {
+    // (The game's own ADVANCE is tried once: a throw of the drain BEFORE it is one payout lost; a throw of the advance
+    // itself is the engine's, and is never run twice.)
+    let advancing = false;
+    AutomaController.drainTurnTail(game, bot, () => {
       finishTurn();
+      advancing = true;
       game.playerIsFinishedTakingActions();
-    });
+    }, () => advancing);
     finishTurn();
+  }
+
+  /**
+   * A TURN THAT CANNOT BE TAKEN ENDS HONESTLY (FREEZE ZERO — docs/claude/console/freeze-zero/PLAN.md §4).
+   *
+   * The bot's turn resolves on the SERVER, on a timer, with nobody at the other end of a request: a throw in its body
+   * used to stop inside `BotTurnScheduler`'s catch with the bot still active, the pending marker cleared and no seat
+   * asked — a table that polls «WAIT, nobody» for ever, said to nobody (a `console.error` of a process no one reads),
+   * and after a restart the same turn re-run by the loader, where a second throw made the game unloadable.
+   *
+   * So the BODY's failure is contained where every road into a turn passes (the scheduler, the inline call, the
+   * loader): the failure is reported with its stack, the journal says so in the turn's own group (no silent loss —
+   * what the bot did before the throw stays, and is on the record), the card that broke is spent (never re-revealed),
+   * and the turn ENDS the way every turn ends — the deferred drain, then the game's advance.
+   *
+   * Returns whether the bot PASSES for the round: a turn that broke BEFORE its card was revealed took nothing off
+   * the action deck, and a bot that never passes is given the turn again for ever once the players have passed — so
+   * such a turn is a pass (the round ends); one that broke on its card spent the card, and the deck runs out as ever.
+   */
+  private static abandonTurn(game: IGame, bot: IPlayer, err: unknown): boolean {
+    const automa = game.automa;
+    const entry = automa?.revealedCard;
+    const card = entry === undefined ? 'no card revealed' : entry.kind === 'project' ? `the project card ${entry.name}` : `the bonus card ${entry.id}`;
+    console.error(`AutomaController: MarsBot's turn could not be finished (generation ${game.generation}, ${card})`, err);
+    reportServerError(`MarsBot's turn (generation ${game.generation}, ${card})`, err);
+    if (automa !== undefined && entry !== undefined) {
+      // The card is SPENT: a project counts as played (its tags were the bot's way of playing it — the pile is what
+      // the scoring and the dividends read), a bonus card leaves the game unresolved. Either way it is not revealed again.
+      if (entry.kind === 'project' && !automa.playedPile.includes(entry.name)) {
+        automa.playedPile.push(entry.name);
+      }
+      automa.revealedCard = undefined;
+    }
+    AutomaTurnLog.setCause(game, undefined);
+    game.log('${0} could not finish its turn — the rest of it is skipped', (b) => b.player(bot));
+    return entry === undefined;
+  }
+
+  /**
+   * THE TURN'S TAIL — the deferred payouts, then the game's advance. A payout that throws is ONE payout lost, named
+   * and reported; the queue has already let it go (an action leaves the queue before it runs), so the drain goes on
+   * with the rest. Bounded: a queue that keeps throwing, or a throw of the advance itself, is the caller's to hear.
+   */
+  private static drainTurnTail(game: IGame, bot: IPlayer, afterDrain: () => void, advancing: () => boolean): void {
+    for (let lost = 0; ; lost++) {
+      try {
+        game.deferredActions.runAll(afterDrain);
+        return;
+      } catch (err) {
+        if (advancing() || lost >= MAX_LOST_PAYOUTS) {
+          throw err;
+        }
+        console.error(`AutomaController: an effect of MarsBot's turn could not be applied (generation ${game.generation})`, err);
+        reportServerError(`an effect of MarsBot's turn (generation ${game.generation})`, err);
+        game.log('An effect of the turn of ${0} could not be applied — it is skipped', (b) => b.player(bot));
+      }
+    }
   }
 
   /** Resolve the turn body inside the journal scope. Returns true when the bot passed. */

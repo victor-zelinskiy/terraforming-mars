@@ -6,6 +6,21 @@ import {SpaceId} from '../../common/Types';
 import {tiersOf} from '../../common/boards/cityStack';
 import {OrOptions} from './OrOptions';
 import {AddressableInput, AddressVerdict, PreselectAddress, addressVerdict, answerAddressOf, withoutAddress} from '../../common/inputs/preselectAddress';
+import {reportServerError} from '../diagnostics/serverDiagnostics';
+
+/**
+ * A pre-collected answer its prompt REFUSED is the rules speaking — the state moved since the preview, and the
+ * prompts say so with an `InputError`, an `AppError` or a plain `Error` («Card … not found»): the batch's tail is
+ * dropped and the player answers for real. A PROGRAMMING error is something else — the engine broke while it applied
+ * the answer. The same drop keeps the seat asked (`Player.process` put the prompt back), but it is SAID: until
+ * FREEZE ZERO this catch swallowed a card's defect with no line anywhere.
+ */
+function sayIfEngineThrew(e: unknown): void {
+  if (e instanceof TypeError || e instanceof RangeError || e instanceof ReferenceError) {
+    console.warn('Error applying a pre-collected answer', e);
+    reportServerError('applying a pre-collected answer', e);
+  }
+}
 
 /**
  * THE PRE-COLLECTED BATCH — replay, and the TAIL THAT HAS NOT LANDED YET.
@@ -224,6 +239,7 @@ export function replayBatch(player: IPlayer, batch: ReadonlyArray<InputResponse>
       if (i === 0) {
         throw e; // the action pick itself failed — surface it.
       }
+      sayIfEngineThrew(e);
       // The answer's OWN prompt refused it: the state moved since the preview
       // and the question really is being asked — the rest of THIS batch is
       // dropped and the player answers for real. An anonymous prompt or an
@@ -284,6 +300,7 @@ export function drainBatchTail(player: IPlayer): void {
     try {
       player.process(response);
     } catch (e) {
+      sayIfEngineThrew(e);
       if (verdict === 'own' || !jumpedTheQueue(response, waitingFor)) {
         // The prompt this answer was collected for IS the one being asked, and
         // it refused the answer: the state drifted since the preview. Stale —

@@ -390,6 +390,8 @@ export interface IGame extends Logger {
    * the next player, or moves to the production phase.
    */
   playerIsFinishedTakingActions(): void;
+  /** The loader's road for the ACTION phase, without the reload — for a table found with nobody asked (`liveness/TableLiveness.ts`). */
+  resumeActionPhase(): void;
   /**
    * Returns true if the player may place a greenery tile.
    * Applicable only during final greenery placement.

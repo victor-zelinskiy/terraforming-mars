@@ -1880,6 +1880,19 @@ export class Game implements IGame, Logger {
    *    already-played card, so the safe recovery is to move the game on rather
    *    than freeze. The lone cost is that one deferred prompt is skipped.
    */
+  /**
+   * THE LOADER'S ROAD FOR THE ACTION PHASE, without the reload (`liveness/TableLiveness.ts`): exactly what
+   * `deserialize` does for this state — a bot whose turn is no longer pending is moved past, a human is asked their
+   * action again. For a table found with nobody asked; never part of the ordinary turn order.
+   */
+  public resumeActionPhase(): void {
+    if (this.activePlayer.isMarsBot) {
+      this.resolveBotTurnOnLoad();
+    } else {
+      this.activePlayer.takeAction(/* saveBeforeTakingAction */ false);
+    }
+  }
+
   private resolveBotTurnOnLoad(): void {
     const automa = this.automa;
     if (automa === undefined) {

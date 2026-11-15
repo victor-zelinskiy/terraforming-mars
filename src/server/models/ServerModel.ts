@@ -59,6 +59,7 @@ import {parkedStagedPlacement} from '../inputs/deferredInputBatch';
 import {KELVINISTS_POLICY_3} from '../turmoil/parties/Kelvinists';
 import {armedPlayEffectsOf} from '../cards/armedPlayEffects';
 import {ArmedPlayEffectModel} from '../../common/models/ArmedPlayEffectModel';
+import {noteUnanswerablePrompt} from '../liveness/UnanswerablePrompt';
 
 const DEFAULT_HEAT_FOR_TEMPERATURE = 8;
 const KELVINISTS_HEAT_FOR_TEMPERATURE = 6;
@@ -679,6 +680,8 @@ export class Server {
     // branch of an OrOptions) — a central copy silently dropped it for exactly
     // those cases. It rides `SelectCard.toModel()` instead, so it survives any
     // nesting depth. See `src/server/inputs/SelectCard.ts`.
+    // A QUESTION NOBODY CAN ANSWER is said here, by the process that asked it (`liveness/UnanswerablePrompt.ts`).
+    noteUnanswerablePrompt(player, model);
     return model;
     // showReset: player.game.inputsThisRound > 0 && player.game.resettable === true && player.game.phase === Phase.ACTION,
   }
