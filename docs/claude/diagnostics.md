@@ -39,7 +39,7 @@ Three layers, one model:
 | --- | --- | --- |
 | **shared, pure** | `src/common/diagnostics/` | `DiagnosticModel` (the record), `classify` (tag → kind), `shapes` (a stall line → its shape and tier), `cause` (a stall → its CAUSE CLASS), `journal` (lines → records, episodes), `stackFrames` (a V8 stack parsed), `privacy` (the scrub), `protocol` (page ↔ hub), `debugIds` |
 | **the page** | `src/client/diagnostics/`, `src/client/components/console/diagnostics/`, `src/styles/console_diagnostics.less` | the interceptor, the journal's reactive face, the transport seam, the surface's controller and view-model, the notice, the components |
-| **the hub** | `src/server/diagnostics/hub/` (a plain Node module, bundled to `build/electron/diagnostics-hub.js` by `webpack.diagnostics.config.js`) + its host `electron/diagnosticsMain.ts` | the mirror, the session's ledger, the policy, the scrub, the sender with its outbox, the report package, the connection check |
+| **the hub** | `src/server/diagnostics/hub/` (a plain Node module, bundled to `build/electron/diagnostics-hub.js` by `node scripts/build-node.mts hub` — Vite) + its host `electron/diagnosticsMain.ts` | the mirror, the session's ledger, the policy, the scrub, the sender with its outbox, the report package, the connection check |
 | **the server** | `src/server/diagnostics/serverDiagnostics.ts` | a facade with one sink; embedded → posts to the main process |
 
 **No SDK runs in the page.** The hub is the one sender; it uses only `@sentry/core`'s envelope serialiser. Nothing
@@ -318,15 +318,20 @@ implementation), with a «Отчёты» group in front and «Проверка �
 ## 6. The release — maps and debug ids (`.github/workflows/release.yml`, job `build`)
 
 1. `build:desktop` with `TM_SENTRY_DSN` (an Actions secret — § 12) → `settings.json` carries the DSN.
-2. **Stamp** — `sentry-cli sourcemaps inject build-desktop build/electron` — ALWAYS (no credentials): every shipped
+2. **Stamp** — `npx sentry-cli sourcemaps inject build-desktop build/electron` (a pinned devDependency) — ALWAYS (no
+   credentials): every shipped
    script gets a debug id and its map the same id. Each runtime reads its own registry (`debugIdsOf`) and the hub puts
    the ids of a stack's files into the event (`debug_meta.images`).
 3. **Upload** — only where `SENTRY_AUTH_TOKEN` exists; `continue-on-error` (a failed upload never fails a release).
    Creates and finalises the release `terraforming-mars@<version>`.
 
-Maps are emitted for all four lanes (the client, `tsc` main, the hub's bundle, the embedded server's bundle) and are
-never shipped (`electron-builder.yml` drops `*.map`). The desktop build no longer pre-compresses its assets (the
-`app://` handler never served the `.gz` / `.br` copies; they would be stale after the stamp).
+Maps are emitted for all four lanes — every one a Vite build since 2026-11-15 (the client `vite.config.mts --mode
+desktop`; the Electron main process, the hub and the embedded server `scripts/build-node.mts`) — and are never shipped
+(`electron-builder.yml` drops `*.map`). The desktop build pre-compresses nothing (the `app://` handler serves the
+plain files; `.gz` / `.br` copies would be stale after the stamp). A client script is an ES module; the stamp's line
+at its top is valid in a module, and the frame symbols are cut again from the stamped maps
+(`node scripts/make-frame-symbols.mjs build-desktop`), with their sources written repository-relative
+(`src/client/…`, never the bundler's `../src/…`).
 
 The packaged app needs no `node_modules` for any of this: the hub (with the one piece of `@sentry/core` it uses) is a
 bundle under `build/electron/`, which the allowlist already packs.
@@ -434,7 +439,7 @@ process left (`pgrep -f "usr/bin/[t]erraforming-mars"`), `rm -rf /tmp/appimage_e
 | D2 | **Из SDK взят только `@sentry/core`** (сериализация конверта); событие, очередь и политика — свои | `ServerRuntimeClient` (в 11.x из core убран), `makeOfflineTransport` | Нужен известный ответ «доставлено / в очереди» для экрана отчёта, место в очереди для явного отчёта и возврат очереди при отзыве согласия — готовый офлайн-транспорт этого не даёт; бандл хаба 100 КБ |
 | D3 | **Хаб — обычный Node-модуль в `src/server/diagnostics/hub`, в main приходит бандлом** (как встроенный сервер) | код в `electron/` (линия без `src/` и алиасов), allowlist `node_modules/@sentry/**` | Общий слой `src/common/diagnostics` нужен и странице, и хабу, и серверу; тот же хаб запустит хостинг-сервер (шов R6). Типы хоста продублированы в `electron/diagnosticsHost.ts` и проверяются спеком |
 | D4 | **Нативные краши — штатный `crashReporter` Electron → minidump-эндпоинт Sentry** | минидампы через `@sentry/electron` | Тот же результат без SDK; согласие — `setUploadToServer` |
-| D5 | **Debug ID штампуются в CI `sentry-cli sourcemaps inject` после сборки, всегда; загрузка — только с токеном** | `@sentry/webpack-plugin` | Один механизм на все четыре линии (включая `tsc`-вывод main, который не проходит через webpack); локальные и e2e-сборки не меняются |
+| D5 | **Debug ID штампуются в CI `sentry-cli sourcemaps inject` после сборки, всегда; загрузка — только с токеном** (пересмотрено 2026-11-15 при переезде на Vite — `docs/claude/stack.md` S13: решение то же, `@sentry/cli` теперь закреплённая devDependency вместо `npx --yes`) | `@sentry/webpack-plugin`; с 2026-11-15 — `@sentry/vite-plugin` (все четыре линии теперь Vite) | Один механизм на все линии; штамп только в релизе — локальные и e2e-сборки не меняются, токена в сборке нет, нет плагина, привязанного к мажорам сборщика |
 | D6 | **Отчёт — этапы ОДНОЙ поверхности «Диагностика»**, а не этапы карточки системного меню | этапы внутри `.con-sys--menu` (ориентир) | Карточка меню узкая (30 rem) и фиксированной формы; отчёту нужны две колонки и панель кода. Грамматика та же: один корень крошки, хвост только растёт, B — один уровень; из меню — отдельная плашка, B возвращает в список |
 | D7 | **Сводка «Диагностика» переехала из настроек на вкладку СИСТЕМА; категория настроек стала строками** | новая категория «Отчёты» | Категория имеет либо строки, либо readout; две настройки диагностики естественно живут в категории «Диагностика», а сводка — рядом с журналом, который она объясняет |
 | D8 | **Плашка разработчика — свой слой и свой шлюз ввода в `GamepadLayer`**, вне оболочки | карточка очереди уведомлений (`pushWarning`) | Очередь блокируется ровно тем, из чего состоит зависание; оболочка в зависании может не отвечать |
@@ -452,7 +457,7 @@ process left (`pgrep -f "usr/bin/[t]erraforming-mars"`), `rm -rf /tmp/appimage_e
 | D20 | **Слова игрока едут в самом событии отчёта**, отдельного элемента «User Feedback» нет | `feedback`-элемент, привязанный к событию | Sentry заводит на него отдельную проблему: два письма на один отчёт — найдено пробой |
 | D21 | **`scripts/diag-probe.mjs`** — хаб под голым Node с настоящей отправкой (окружение `development`) | проверять только на релизе | Приём конвертов, вид событий, вычистку и вложения можно доказать до релиза и без окна; так найдены D18–D20 |
 | D23 | **В Sentry добавлено правило оповещения «TM diagnostics — a new player report or stall (below high priority)»** (workflow `1493012`: новая проблема с уровнем ≤ warning → письмо) рядом со штатным «high priority issues» | поднять уровень события отчёта до `error` | Штатное правило шлёт письмо только о проблемах ВЫСОКОГО приоритета (уровень error); отчёт игрока — `info`, зависание — `warning`, письма о них не было бы. Два правила не пересекаются по уровню — одно письмо на проблему. Проверено пробой: `lastTriggered` обоих правил |
-| D24 | **Символы кадров на устройстве** (`main.js.symbols.json`, `vendors.js.symbols.json` — список исходников, имена, mappings без текста исходников; 2 + 0.9 МБ, в установщике ~1 МБ) и свой декодер VLQ | показывать минифицированные кадры; возить полные карты (в 4 раза больше) | «Кадры нашего кода читаются» — на экране игры, а не только в Sentry: разработчик за игрой видит `src/…/file.ts:412`. Грузятся только при открытии записи |
+| D24 | **Символы кадров на устройстве** (`main.js.symbols.json`, `vendors.js.symbols.json` — список исходников (пути от корня репозитория), имена, mappings без текста исходников; с Vite 1.9 + 0.6 МБ: весь начальный код приложения — один `main.js`, `docs/claude/stack.md` S5) и свой декодер VLQ | показывать минифицированные кадры; возить полные карты (в 4 раза больше) | «Кадры нашего кода читаются» — на экране игры, а не только в Sentry: разработчик за игрой видит `src/…/file.ts:412`. Грузятся только при открытии записи |
 | D25 | **`TM_DIAG_PROBE=1`** — приложение само проходит «проверку связи» и шлёт пробный отчёт через настоящие каналы, печатает ответы в лог и выходит; `window.__conDiagnostics` — крючок страницы для этого | проверять только руками с геймпада | Склейка main-процесса (IPC, utilityProcess, пакет отчёта) проверяется одной командой на любой машине — так найден сбой клонирования реактивного объекта ещё до релиза |
 | D22 | **Плашка разработчика — три короткие строки шириной 19 rem в левом нижнем углу центрального проёма; над открытым workspace — сразу чип** | широкая однострочная плашка | Первая версия задевала шкалу и карты в доке (кадр 4K); свободен только этот угол, а над workspace свободных углов нет |
 | D26 | **Статус хаба страница спрашивает ПРИ ЗАГРУЗКЕ** (`installDiagnosticsJournal` → `refreshDiagnosticsHubStatus`) и принимает его push `status` (`acceptDiagnosticsPush`) | спрашивать при открытии поверхности диагностики (так было) | Строка «Автоотчёты об ошибках» в настройках рисуется только когда хаб назвал выбор игрока. Игрок, который идёт в настройки ПЕРВЫМ делом, строки не находил — отказ от автоотправки был невидим, пока не откроешь «Диагностику». Нашёл стенд «две двери» (`console-diagnostics.spec` — снимок 18); push `status` страница молча выбрасывала |

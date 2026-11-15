@@ -79,7 +79,7 @@ The discard family's beats (`console-ui.md` § «СБРОС — ОБЪЕКТ С�
 Focus is not a state that «snaps on»: the ring is an opacity of the host's `.con-cursor()` layer and the lift the host's transform, both on `--con-cursor-ms` / `CURSOR_MS`; a default focus waits for its surface's ready edge (`cursorArrival.ts` — a hand handoff, a band entry's `done`, a deal's end) and arrives the frame after; a flight that lands under a cursor lands on the RESTING box. Contract: `docs/claude/console/cursor.md`; rule: `console-ui.md` § THE CURSOR IS ONE LIVING OBJECT.
 
 ## Test gotcha
-Module state is bundle-shared in mochapack: a spec that leaves a flow's `active`/`current` set keeps its animation hold live and blocks notification delivery in every later spec. Reset in `after()` (the `maCeremonyState.spec` reset is the reference).
+Module state is bundle-shared in the unit bundle (`scripts/client-tests.mts`): a spec that leaves a flow's `active`/`current` set keeps its animation hold live and blocks notification delivery in every later spec. Reset in `after()` (the `maCeremonyState.spec` reset is the reference).
 
 ## Deep reference
 `docs/claude/presentation-flow.md`, `docs/claude/energy-heat-conversion.md`, `docs/claude/terraforming-progress-hud.md`, `docs/CONSOLE_SURFACE_MOTION.md`, `docs/REMOUNT_ANIMATION_REWORK_DESIGN.md`.

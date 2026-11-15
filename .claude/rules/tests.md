@@ -12,19 +12,19 @@ paths:
 - **`tests/TestingUtils.ts`**: `runAllActions(game)` (drain the deferred queue — call it after anything that defers), `cast(value, Class)`, `setOxygenLevel()`, `setTemperature()`, `addOcean()`, `addGreenery()`, `addCity()`, `fakeCard()`.
 - Server card specs: instantiate the card → `canPlay()` / `play()` / `action()` → assert state.
 - Client specs: `@vue/test-utils` with `tests/client/components/setup.ts`.
-- Framework: Mocha + Chai (`expect` style); the client suite is ONE webpack bundle run under mocha in jsdom (`scripts/client-tests.mjs` — it replaced `mochapack` on 2026-11-12; «mochapack» in an older comment means that bundle).
+- Framework: Mocha + Chai (`expect` style); the client suite is ONE Vite bundle run under mocha in jsdom (`scripts/client-tests.mts`, since 2026-11-15 — it replaced the webpack runner, which had replaced `mochapack`; «mochapack» or «the webpack bundle» in an older comment means that bundle).
 
 ## Runners
 ```bash
 npm run test:server          # mocha, ~22 800 specs, ~4 min
-npm run test:client          # scripts/client-tests.mjs, ~8 400 specs, ~3 min
+npm run test:client          # scripts/client-tests.mts, ~9 950 specs, ~6 min (the bundle ~40 s of it)
 npm run build:test           # tsc -p tests/tsconfig.json --noEmit  +  the e2e tree
 
 # one server spec
 npx mocha --import=tsx --require tests/testing/setup.ts "tests/cards/base/Algae.spec.ts"
 
-# one client spec (or a glob) — no flags: the runner always builds with webpack.test.config.js (ONE chunk)
-# and always puts tests/client/components/bundleSetup.ts first in the bundle
+# one client spec (or a glob) — no flags: the runner always builds ONE bundle with the product's own Vue options
+# and always puts tests/client/components/bundleSetup.ts first in it (`TM_KEEP_TEST_BUNDLE=1` keeps the bundle to look at)
 npm run test:client:one -- "<spec>"
 
 # THE CONSOLE IN A BOTTLE (tests/client/bottle/*.bottle.ts — NOT in the unit glob: a minute, and it loads the game
@@ -50,29 +50,30 @@ test there — the fixture, the presses that produced it, the property its fix e
 the fix switched off, under the class key the monkey filed (prove it once, by hand, before the commit). The bottle has
 no layout: a class that needs a rect or a paint is replayed on the box instead, and said so in its row of the plan.
 
-**The client runner is `scripts/client-tests.mjs`** (2026-11-12): webpack builds the specs into one file with
-`webpack.test.config.js`, mocha runs that file in this process inside the jsdom of `tests/client/components/setup.ts`.
-Forty lines against the two tools' PUBLIC APIs — `mochapack` (unmaintained since 2021, deep-requiring the internals
-of both webpack and mocha) was the one package holding the bundler and the test framework a version behind. The specs
-run in ONE fixed order (by path, `localeCompare`); a spec that passes only in the suite is a LEAK in an earlier spec —
-run it alone to tell.
+**The client runner is `scripts/client-tests.mts`** (2026-11-15, `docs/claude/stack.md` S2 · S3): Vite builds the
+specs into ONE ES module with the PRODUCT's `@vitejs/plugin-vue` options — **a template is compiled INLINE, as it
+ships** (guard `tests/client/vapor/sfcCompileParity.spec.ts`) — and mocha runs it in this process inside the jsdom of
+`tests/client/components/setup.ts`. The runtime stays Vue's DEVELOPMENT build. An inline template keeps the setup
+bindings to itself, so the unit bundle (only it) records them at the end of every `<script setup>`
+(`tests/client/testing/scriptSetupState.ts`): `wrapper.vm.<binding>` and a stub by its local name keep working. The
+specs run in ONE fixed order (by path, `localeCompare`); a spec that passes only in the suite is a LEAK in an earlier
+spec — run it alone to tell. A bottle's PAGE is a second bundle, compiled once and run per page
+(`tests/client/bottle/consoleBottle.ts` § a pristine page): a replay reaches the page's modules through
+`bottle.pageModules`, never by importing them itself.
 
 **A VAPOR component in a unit spec** (`<script setup vapor>` — the road to `createVaporApp`, `docs/claude/vapor/ROADMAP.md`
 § 4b): **the spec is written as for any component** — `mount(TheComponent, {props, slots, global: {stubs}})`,
 `shallowMount`, `setProps`, `findComponent`, `wrapper.vm`. `@vue/test-utils` itself is a virtual-DOM tool (a Vapor
 root throws, `stubs` never reach a Vapor parent's children, `findComponent` cannot enter one); inside the unit bundle
 the names `@vue/test-utils` and `vue` resolve to the suite's LAYER (`tests/client/testing/` — aliased by
-`webpack.test.config.js`), which closes all three for every spec and is pinned row by row by
-`tests/client/testing/vaporTestLayer.spec.ts`. The unit bundle compiles a component AS WRITTEN (a converted component
-meets its specs under the runtime that ships — `scripts/vapor/unitVaporPolicy.cjs`; the valve
-`tests/client/vaporUnit.json` is empty and its ceiling only falls). What a spec must NOT do: assert how a runtime
+`scripts/client-tests.mts`), which closes all three for every spec and is pinned row by row by
+`tests/client/testing/vaporTestLayer.spec.ts`. The unit bundle compiles every component AS WRITTEN and as it ships
+(the virtual-DOM valve and its `TM_UNIT_VAPOR` modes are gone with the move to Vite). What a spec must NOT do: assert how a runtime
 SERIALISES — the order of classes after an update, of attributes in `html()`, the anchor comment of an absent root
 (`<!--v-if-->`) — assert the set, the attribute by name, «no element»; read `$el` off a parent's ref on a child (a
 Vapor child's ref is its `defineExpose` object); expect an Options-API surface on `wrapper.vm` (`$data`, `$options`).
 A REAL Vapor `<Transition>` (`stubs: {transition: false}`) needs a frame source — `tests/client/vapor/lendFrames.ts`.
-One spec under the true runtime with the valve ignored: `npm run test:client:vapor:one -- <spec>`; with nothing of
-`src/client` as Vapor («is this red about the runtime at all?»): `npm run test:client:vdom:one -- <spec>`. What Vapor
-takes at all is `tests/client/vapor/vaporCapability.spec.ts`.
+What Vapor takes at all is `tests/client/vapor/vaporCapability.spec.ts`.
 
 **Both `npm run test:*` scripts go through `scripts/run-tests.mjs`**, which fails the run when fewer tests are COLLECTED than the declared floor (`--min`). Raise a floor when a batch of specs lands; never lower one to make a run pass.
 

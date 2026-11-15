@@ -259,17 +259,18 @@ inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many inst
   mocha 12) — the one package holding the bundler and the test framework a version behind. `scripts/client-tests.mjs`
   does what it did for a run against the two tools' PUBLIC APIs (webpack → one file → mocha), collects the same
   suite (8 425 tests), and needs no flags (`npm run test:client:one -- <spec>`).
-- **THE DECISION LEFT OPEN — the bundler's Vue plugin.** Everything above makes webpack + `vue-loader` sufficient for
-  V2 and for V3's waves, and nothing here blocks them. But the loader is unmaintained and the official toolchain for
-  Vapor is Vite's `@vitejs/plugin-vue`. Recommendation: stay on webpack through V2 (no reason to move a build under a
-  redesign), and decide at the ENTRY of V3 — with one fact in hand that this pilot could not produce: a production
-  build of a Vapor-heavy bundle, measured. If the wrapper compiler ever needs a second special case, that is the
-  signal to move rather than patch.
+- **THE BUNDLER — DECIDED 2026-11-15: Vite 8 + `@vitejs/plugin-vue` 6, for everything** (`docs/claude/stack.md` S1).
+  webpack, `vue-loader` and the two bullets above (`sfcTemplateCompiler.cjs`, the unit policy and its valve) are gone;
+  plugin-vue reads `vapor` off the descriptor itself. The unit bundle compiles every component as the product ships it
+  — the template INLINE (S3; guard `tests/client/vapor/sfcCompileParity.spec.ts`), where the webpack unit bundle had
+  compiled it separately. Measured on the production build of the V4 client: build 265 s → ~50 s, `vendors.js` −36 %
+  (the runtime-only Vue), the main menu's cold load 977 → ~600 ms (`stack.md` § 3).
 
 ### 3.8 The protocol of the NEXT bump (a new RC · 3.6 final)
 1. `node scripts/vapor/reactivity-facts.cjs <old node_modules>` and `<new>` → diff. What it prints differently is
    what the suites are about to tell you the slow way.
-2. Change the version in `dependencies.vue` AND every row of `overrides`; `npm install`.
+2. Change the version in `devDependencies.vue` (a devDependency since the move to Vite — the client bundles it) AND every
+   row of `overrides`; `npm install`.
 3. `npm run lint`, `npm run build:test`, `npm run test:server`, `npm run test:client` — the two contract specs and the
    capability suite first: a red there is the bump's finding, by name.
 4. `npm run build` — the bundle against the numbers of §3.2.
@@ -465,7 +466,9 @@ Seven specs asserted how a runtime SERIALISES (the order of classes after an upd
 anchor comment an absent root leaves) — rewritten to assert the fact (the SET of classes, the attribute by name, «no
 element»): green in both runtimes. That is the whole of the spec edits.
 
-**The policy** (`scripts/vapor/unitVaporPolicy.cjs`): the unit bundle compiles a component AS WRITTEN — a converted
+**The policy** (RETIRED 2026-11-15 with the move to Vite — every component compiles as written and as it ships, the
+valve and its run modes are gone; `docs/claude/stack.md` S3. The record below is the webpack era's.)
+(`scripts/vapor/unitVaporPolicy.cjs`): the unit bundle compiled a component AS WRITTEN — a converted
 component meets its specs under the runtime that ships. The valve (`tests/client/vaporUnit.json` §
 `virtualDomInUnit`, `{file: reason}`) sends one component to the virtual DOM in the unit bundle only; it is EMPTY, its
 ceiling only falls (`tests/console/vaporUnitPolicy.spec.ts`), and V4 takes it empty. One run: `npm run

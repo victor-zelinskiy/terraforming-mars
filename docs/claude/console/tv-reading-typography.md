@@ -71,7 +71,7 @@ never shows a nameable jump — over a **30rem** column. Guards:
 `Newsreader-Regular-latin` — `@fontsource-variable` 5.3.0 `wght` subsets, the
 same source/versions as the shipped italics. Registered in THREE places:
 `common.less` @font-face, `ServeAsset.toFile` allowlist (+ its spec), and
-`assets/index.html` `<link rel="preload" as="font" crossorigin>` (crossorigin
+`src/client/index.html` (was `assets/index.html`) `<link rel="preload" as="font" crossorigin>` (crossorigin
 is required even same-origin or the font double-downloads). `main.ts` also
 stamps the real `html.lang` (beside `data-lang`) — CSS `hyphens: auto`
 resolves its dictionary through it.

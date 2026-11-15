@@ -57,12 +57,12 @@ The desktop app is a thin [Electron](https://www.electronjs.org/) client over th
 
 ```bash
 npm install
-npm run build          # server (tsc) + client (webpack) + static assets
+npm run build          # static assets + server + client (Vite)
 
 # run the client in Electron against a local dev server (three terminals):
 npm run dev:server     # game server (REST + WebSocket)
-npm run dev:client     # client bundle, watch mode
-npm run electron:dev   # the desktop window
+npm run dev:client     # the Vite dev server with HMR on :5173 (it proxies the game server)
+npm run electron:dev   # the desktop window, loading the Vite dev server
 ```
 
 Other tasks: `npm run test` (server + client), `npm run lint`.

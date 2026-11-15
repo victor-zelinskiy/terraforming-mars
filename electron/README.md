@@ -24,15 +24,17 @@ npm install            # includes electron (exact-pinned devDependency — see p
 # 1. the game server (REST + WebSocket, port 8080)
 npm run dev:server
 
-# 2. the client bundle (webpack --watch → build/main.js, build/chunks/*, …)
+# 2. the client — the Vite dev server with HMR on :5173 (it proxies the game server's routes)
 npm run dev:client
 
-# 3. the Electron window (compiles electron/ then launches, pointing at the dev server)
+# 3. the Electron window (bundles electron/ then launches, pointing at the Vite dev server)
 npm run electron:dev
 ```
 
-`electron:dev` runs `electron:build:main` (`tsc -p electron/tsconfig.json` →
-`build/electron/{main,preload}.js`) and then `electron build/electron/main.js`.
+`electron:dev` runs `electron:build:main` (`node scripts/build-node.mts electron` — Vite →
+`build/electron/{main,preload,curtainPreload}.js`, one self-contained file each) and then
+`electron build/electron/main.js` with `TM_SERVER_BASE=http://localhost:5173`: the page is the Vite dev server's, every
+game-server route reaches the game server through its proxy — one origin, no CORS.
 
 The window opens the premium main menu from `http://localhost:8080`, exactly as a
 browser tab would. Create/enter a game, and WebSocket realtime + polling fallback work
@@ -48,14 +50,14 @@ npm run dev:server
 npm run electron:desktop
 ```
 
-`build:desktop` runs `make:static` + `DESKTOP_BUILD=1 build:client` (webpack with
-`publicPath: 'app://bundle/'`, emitting to a **separate `build-desktop/`** so the web
-`build/` is never touched) + `electron:build:main`. `electron:desktop` then launches
-with `TM_ELECTRON_LOAD=app`.
+`build:desktop` runs `make:static` + `build:client:desktop` (`vite build --mode desktop`, emitting to a **separate
+`build-desktop/`** so the web `build/` is never touched — every script an ES module loaded by RELATIVE url, so the
+same output runs under `app://bundle/`) + the Node lanes (`node scripts/build-node.mts desktop`: main, the hub, the
+embedded server, then its start check). `electron:desktop` then launches with `TM_ELECTRON_LOAD=app`.
 
-The `app://` handler serves: JS/chunks from `build-desktop/`, `styles.css` from
-`build/`, and `index.html` / fonts / card+tile art / locales / favicon from `assets/`;
-any extensionless path (an SPA route like `/player`) serves `index.html`.
+The `app://` handler serves: the shell (`index.html`, built from `src/client/index.html`), the scripts, chunks and
+their CSS from `build-desktop/`, `styles.css` from `build/`, and fonts / card+tile art / locales / favicon from
+`assets/`; any extensionless path (an SPA route like `/player`) serves the shell.
 
 **What Phase 2A proves:** the packaged renderer boots from `app://`, `main.js` /
 `vendors.js` / `styles.css` / every lazy chunk / fonts / images / art / locales all
@@ -74,7 +76,7 @@ You can force `app://` mode on an already-built desktop bundle with
 |---|---|---|
 | `npm run electron:run` | Launches the LAST desktop build instantly (no build step, ~2 s). `app://` renderer + host mode → the embedded server starts in-process, so **no `dev:server` needed**. | The everyday button. Nothing changed, or only the last build matters. |
 | `npm run electron:desktop` | `build:desktop` (static + desktop renderer + main + embedded server) **then** launches. | After touching `src/client/**` or `electron/**`. |
-| `npm run electron:build:main && npm run electron:run` | tsc for `electron/**` only, then launch. | Main-process change only — seconds instead of a webpack pass. |
+| `npm run electron:build:main && npm run electron:run` | Bundles `electron/**` only (Vite, ~1 s), then launch. | Main-process change only — seconds instead of a client build. |
 | `npm run pack:dir:win` → `npm run electron:run:packed` | The real **packaged** app (asar, `app.isPackaged`) from `dist-desktop/win-unpacked/`, **no installer / Velopack packaging**. `scripts/run-packed.mjs` resolves the exe and forwards extra args (`-- --tm-windowed`). | Verifying something that only behaves like itself when packaged. |
 
 `electron:run` needs `build/electron/embedded-server.js` (produced by `build:desktop`) for host
@@ -180,7 +182,7 @@ the flag.
 ## Build outputs
 
 - Web build (`npm run build:client`) → `build/` with `publicPath: '/'` — **unchanged**.
-- Desktop build (`npm run build:desktop`, i.e. `DESKTOP_BUILD=1`) → **`build-desktop/`**
+- Desktop build (`npm run build:desktop`, i.e. `vite build --mode desktop`) → **`build-desktop/`**
   with `publicPath: 'app://bundle/'`. The two never collide, so a desktop build cannot
   regress the web bundle. `styles.css` (from `make:css`) stays in `build/` and is shared.
 

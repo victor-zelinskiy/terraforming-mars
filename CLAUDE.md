@@ -104,16 +104,21 @@ When a change trades these off against closeness to upstream, code volume or edg
 
 ## Build & Development Commands
 
+The toolchain is **Vite 8** (Rolldown) for every build — the client, the unit-test bundle, the server and the Electron lanes; `tsc` / `vue-tsc` only CHECK. Node is exactly the one Electron carries (`.nvmrc`). Reference and decisions: `docs/claude/stack.md`.
+
 ```bash
-npm run build                # Full build: CSS + JSON static files, server (tsc), client (webpack)
-npm run build:server         # TypeScript compile server only: tsc --build src/tsconfig.json
-npm run build:client         # Webpack production bundle (runs make:cards first) — does NOT compile LESS
-npm run build:test           # Compile tests: tsc --build tests/tsconfig.json
+npm run build                # make:static + the server bundle + the web client (vite build → build/)
+npm run build:client         # the web client (runs make:cards first) — does NOT compile LESS
+npm run build:client:desktop # the desktop renderer (vite build --mode desktop → build-desktop/)
+npm run build:server         # the server bundle: build/src/server/server.js (scripts/build-node.mts)
+npm run build:desktop        # make:static + desktop client + Electron main + hub + embedded server (+ its start check)
+npm run build:test           # Type-check the test tree (tsc --noEmit) + the e2e tree
 npm run make:css             # Compile LESS (required before any visual verification)
 npm run make:cards           # Regenerate card metadata.information + genfiles/cardInfoAudit.json
 npm run make:json            # Aggregate locales (throws on duplicate keys)
-npm run lint                 # All lints: eslint + i18n audit + vue-tsc
-npm run lint:client          # Vue type checking: vue-tsc --noEmit
+npm run lint                 # All lints: eslint + i18n audit + vue-tsc + typecheck
+npm run lint:client          # Vue type checking: vue-tsc --noEmit (the ONLY check of .vue templates)
+npm run typecheck            # tsc --noEmit for the server, the Electron lane and the build tools (vite.config.mts, scripts/*.mts)
 npm run lint:server          # ESLint on src and tests
 npm run lint:fix             # ESLint autofix
 ```
@@ -122,20 +127,19 @@ npm run lint:fix             # ESLint autofix
 
 ```bash
 npm run test                 # All tests (server + client)
-npm run test:server          # Mocha server tests
-npm run test:client          # Client component tests (scripts/client-tests.mjs: webpack bundle -> mocha, in jsdom)
+npm run test:server          # Mocha server tests (tsx)
+npm run test:client          # Client unit tests: scripts/client-tests.mts — ONE Vite bundle of the specs → mocha, in jsdom
 
 # Single server test file
 npx mocha --import=tsx --require tests/testing/setup.ts "tests/cards/base/Algae.spec.ts"
 
-# Single client test file (or a glob). The runner bakes in what used to be flags: the ONE-chunk
-# webpack.test.config.js and the in-bundle setup (auto-unmount, the Vapor interop plugin).
+# Single client test file (or a glob). The unit bundle compiles every .vue AS THE PRODUCT SHIPS IT (the template inline).
 npm run test:client:one -- "tests/client/components/Board.spec.ts"
 ```
 
 Both `npm run test:server` and `npm run test:client` run through `scripts/run-tests.mjs`, which **fails the run when fewer tests were collected than the declared floor** — a suite that quietly stops collecting can no longer report success.
 
-`npm run build:test` is **mandatory** whenever you touch `tests/` — it is the only thing that typechecks the test tree and the thing that catches case-sensitive import paths that break CI.
+`npm run build:test` is **mandatory** whenever you touch `tests/` — it is the only thing that typechecks the test tree and the thing that catches case-sensitive import paths that break CI. **The build type-checks nothing** (Vite transpiles): `npm run lint` is the type gate.
 
 ### Pushing
 
@@ -144,9 +148,10 @@ Both `npm run test:server` and `npm run test:client` run through `scripts/run-te
 ### Dev servers
 
 ```bash
-npm run dev:server           # Server with hot reload (tsx watch)
-npm run dev:client           # Webpack watch mode
+npm run dev:server           # Server with hot reload (tsx watch) on :8080
+npm run dev:client           # The Vite dev server with HMR on :5173 — open http://localhost:5173/ (it proxies the game server)
 npm run watch:less           # CSS rebuild on change
+npm run electron:dev         # The desktop window over the Vite dev server
 ```
 
 ---
@@ -155,10 +160,10 @@ npm run watch:less           # CSS rebuild on change
 
 ### Three layers
 - **`src/server/`** — game engine, card logic, routes, database (Node.js).
-- **`src/client/`** — Vue 3 frontend, bundled with Webpack; Less styles in `src/styles/`. On **Vue 3.6.0-rc.15** (exact pin + `overrides` — never a caret while it is an RC). **Today ALL 455 of its components are VAPOR components and the app is `createVaporApp(App)`** (V4, 2026-11-14): the product has no virtual-DOM renderer and installs no interop plugin; a lazy component is `components/lazyComponent.ts`. The unit suite mounts the components under the true runtime through its own layer (`tests/client/testing/`, ROADMAP § 4b) — the one place a virtual-DOM renderer still stands, as `@vue/test-utils`' scaffolding. A new component is a Vapor one.
+- **`src/client/`** — Vue 3 frontend, bundled with Vite (`vite.config.mts`); Less styles in `src/styles/`. On **Vue 3.6.0-rc.15** (exact pin + `overrides` — never a caret while it is an RC). **Today ALL 455 of its components are VAPOR components and the app is `createVaporApp(App)`** (V4, 2026-11-14): the product has no virtual-DOM renderer and installs no interop plugin; a lazy component is `components/lazyComponent.ts`. The unit suite mounts the components under the true runtime through its own layer (`tests/client/testing/`, ROADMAP § 4b) — the one place a virtual-DOM renderer still stands, as `@vue/test-utils`' scaffolding. A new component is a Vapor one.
 - **`src/common/`** — types, enums and models shared by both. No runtime logic bound to either side.
 
-`@/` maps to `./src/` (tsconfig paths + webpack).
+`@/` maps to `./src/` (tsconfig.json `paths` — the one declaration; Vite reads it too).
 
 ### Card system
 Cards are the core domain object (~1000 across 15 modules). Adding one touches five places: the **card class** (`src/server/cards/<module>/`, extending `Card` — or **`ActionCard`** for an ACTIVE card with a repeatable action), the **`CardName` enum** (`src/common/cards/CardName.ts`), the **module manifest** (aggregated in `AllManifests.ts`), **`metadata.renderData`** via the `CardRenderer.builder()` DSL, and a **spec** under `tests/cards/<module>/`.
@@ -187,7 +192,7 @@ Pluggable backends in `src/server/database/` (SQLite / PostgreSQL / LocalFilesys
 `game.log()` / `player.log()` take a template with `${player}` / `${card}` / `${amount}` placeholders plus typed `LogMessageData` tokens (never pre-rendered HTML) — the premium journal renders tokens as chips, and the event stream feeds notifications, stats and endgame facts. A direct field mutation bypasses the event recorder: go through `stock.add` / `production.add` / the recorder helpers.
 
 ### Testing essentials
-`testGame(n, options?)` → `[game, ...players]`; `TestPlayer.popWaitingFor()`; `tests/TestingUtils.ts` (`runAllActions(game)` after anything that defers, `cast`, `setTemperature`, `addOcean`, `fakeCard`, …). Mocha + Chai (`expect`); client via mochapack + `@vue/test-utils`. Prefer a cheap unit/integration spec; e2e only when a bug can't be reproduced otherwise.
+`testGame(n, options?)` → `[game, ...players]`; `TestPlayer.popWaitingFor()`; `tests/TestingUtils.ts` (`runAllActions(game)` after anything that defers, `cast`, `setTemperature`, `addOcean`, `fakeCard`, …). Mocha + Chai (`expect`); client via the Vite unit bundle (`scripts/client-tests.mts`) + `@vue/test-utils`. Prefer a cheap unit/integration spec; e2e only when a bug can't be reproduced otherwise.
 
 ---
 

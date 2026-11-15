@@ -6,7 +6,7 @@ Before use them build the project `npm run build`
 
 ... then run any of compilled scripts from build directory `node <path-to-the-toolname>.js`
 
-For example check_locales.ts tool can be run like this: `node build/src/server/tools/check_locales.js`
+For example check_locales.ts tool can be run like this: `npx tsx src/server/tools/check_locales.ts` (the server is one bundle since 2026-11-15 — a tool runs from its source)
 
 It is possible to run these tools "directly" by using ts-node package
 
@@ -47,7 +47,7 @@ or
 
 ```
 heroku pg:credentials:url --app <heroku-app-name>
-POSTGRES_HOST=<postges:...> node build/src/tools/export_game.js <game id | player id | spectator id>
+POSTGRES_HOST=<postges:...> npx tsx src/server/tools/export_game.ts <game id | player id | spectator id>
 ```
 
 ### Description
@@ -66,7 +66,7 @@ Starts a local web server that you can use to get results of MA synergy. To run,
 
 ```sh
 npm run build:server
-node build/src/server/tools/analyze_ma.js
+npx tsx src/server/tools/analyze_ma.ts
 ```
 
 And then point your browser to http://localhost:8081

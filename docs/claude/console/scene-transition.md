@@ -75,7 +75,7 @@ double-rAF navigation counts on that).
 The Vue curtain cannot cover what happens BEFORE Vue exists: a game-boundary
 reload showed dark frames (bundle parse + the translations `await` run before
 `app.mount`) and the curtain then popped in — the «мигание» on every
-transition. `assets/index.html` now carries `#boot-curtain`: the SAME
+transition. The shell (`src/client/index.html` — `assets/index.html` until the move to Vite) now carries `#boot-curtain`: the SAME
 composition out of the render-blocking `styles.css`, shown by an inline script
 that also pre-paints `--con-ui-scale` + the `con-profile-*` class from
 `tm_console_profile_seed` — synchronously, before first paint. The mounted Vue

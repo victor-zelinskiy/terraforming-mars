@@ -14,6 +14,8 @@ Nothing was thrown away: every character of the old file is either in `CLAUDE.md
 | Document | Read it before … |
 | --- | --- |
 | `north-star-and-goals.md` | questioning what this fork optimises for (console-native product, 4 visual goals) |
+| `stack.md` | **touching the toolchain** — how everything is built, tested and run since 2026-11-15 (Vite for every lane, the unit bundle that compiles as the product ships, Node = Electron's), the decision journal S1–S16, the before/after numbers, the dependency inventory with verdicts, the TypeScript 7.1 preview and its blockers |
+| `stack-migration-notice.md` | waking a session that slept through the stack move — what to do in its worktree, the names that no longer exist |
 | `expansion-adaptation-checklist.md` | **widening scope to a new expansion** — the master to-do + guard worklists + per-module gotchas |
 | `architecture-reference.md` | needing the full three-layer / card-system / behavior / deferred-action / DB / testing / i18n / card-centering reference |
 | `board-information.md` | touching board facts, placement previews, pay-on-commit or placement cancel |
