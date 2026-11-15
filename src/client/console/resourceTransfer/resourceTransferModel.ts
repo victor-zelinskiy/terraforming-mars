@@ -249,6 +249,16 @@ export const TRANSFER_READ_MS = 240;
  * opened: the token is absorbed where it stands and its counter ticks — never a flight into glass.
  */
 export const TRANSFER_DETACH_WAIT_MS = 3200;
+/**
+ * …AND THAT WAIT IS COUNTED FROM THE SURFACE'S DEPARTURE, never from the token's birth (CI 2026-11-15,
+ * `console-habitat-science` on SwiftShader at 4K): the surface that produced the token reads, concludes and dissolves
+ * at the MACHINE's pace — on a slow renderer that alone outlasted `TRANSFER_DETACH_WAIT_MS`, the token was absorbed in
+ * place over Titan's cell, and the satellite it was promised to opened a second later with nobody flying to it. So
+ * while a surface that stood at the token's birth is still in the document, the wait goes on; the budget above
+ * starts when it has gone. This is the hard ceiling of that extension — a surface that NEVER leaves (a workspace the
+ * player keeps open) ends the wait here, absorbed in place, as before.
+ */
+export const TRANSFER_DETACH_COVER_MAX_MS = 15_000;
 /** The residual result pause AFTER a play-reward wave (the scene breathes,
  *  never snaps shut on the last delta chip). */
 export const TRANSFER_RESIDUAL_PAUSE_MS = 220;

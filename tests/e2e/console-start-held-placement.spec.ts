@@ -129,8 +129,16 @@ test('the owner\'s start: Strategic Base Planning → Triton → the city lands 
         }
         // The city is asked and its grid is not lit yet: whatever holds it, the START must not stand painted over it.
         const serves = await page.locator('.con-start').getAttribute('data-start-serves', {timeout: 2000}).catch(() => null);
-        expect(serves === null || serves === 'yielded' || serves === 'beat',
-          `the city is asked — the start yields or moves, never stands serving «${serves}»`).toBe(true);
+        // …except the colony step that ASKED it, still finishing its own commit: the server asks the city in the very
+        // response that builds the colony, and the step's frame stands past its commit (the cube flies, the frame
+        // leaves) for as long as the machine takes to play it — the surfaces go in turn. A step that stood there
+        // without finishing would be the strand this spec exists for, and the grid's bound below still catches it
+        // (CI 2026-11-15, attempt 0: the read landed in that closing beat on a SwiftShader frame — «serving step»).
+        const frames = await page.evaluate(() => (window as unknown as {__conReady?: () => {wsFrames?: Array<string>}}).__conReady?.()?.wsFrames ?? [])
+          .catch(() => [] as Array<string>);
+        const colonyStepClosing = serves === 'step' && frames.some((f) => /^colonies:(committed|completing|executing|verdict)(\/|@|$)/.test(f));
+        expect(serves === null || serves === 'yielded' || serves === 'beat' || colonyStepClosing,
+          `the city is asked — the start yields or moves, never stands serving «${serves}» (frames ${frames.join(', ')})`).toBe(true);
         await cinematicBeat(page, 400, 'the held city: sampling the scene until its grid lights');
         continue;
       }

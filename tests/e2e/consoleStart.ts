@@ -4137,6 +4137,21 @@ export async function openHandPlayComposer(page: Page, card: string): Promise<vo
   await composerLoaded(page);
 }
 
+/** What a press on the play sheet can change: its selector, its commit, its cursor, its own life. */
+function sheetSignature(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const sheet = document.querySelector('.con-composer--play');
+    if (sheet === null) {
+      return 'gone';
+    }
+    return JSON.stringify({
+      cls: sheet.className, step: document.querySelector('.con-ptsel, [data-venus-inner]') !== null,
+      cta: sheet.querySelector('.con-composer__cta')?.className ?? '',
+      row: sheet.querySelector('.con-composer__row--focused')?.textContent ?? '',
+    });
+  }).catch(() => 'gone');
+}
+
 export async function playCardFromHand(page: Page, card: string, attempts = 3, opts: {venusLane?: string} = {}): Promise<boolean> {
   const inHand = page.locator(`.con-hand [data-zoom-slot="${card}"]`);
   const handScreen = page.locator('.con-hand');
@@ -4174,10 +4189,27 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3, o
       return (model.cardsInHand ?? []).every((c) => c.name !== name);
     }, card).catch(() => false);
   };
+  // THE DRIVER'S OWN TRAIL — what each attempt saw, printed when the card was never played (CI 2026-11-15,
+  // `console-medical-institute` B: «Research was played from the hand» false 3 / 3 with nothing else to read).
+  const trail: Array<string> = [];
+  const look = async (): Promise<string> => page.evaluate(() => {
+    const r = (window as unknown as {__conReady?: () => {holds?: Array<string>, playedHero?: {phase?: string},
+      transport?: {waitingForType?: string, promptId?: number, requestInProgress?: boolean}}}).__conReady?.();
+    const composer = document.querySelector('.con-composer--play');
+    return JSON.stringify({
+      hand: document.querySelector('.con-hand') !== null, transit: document.querySelector('.con-hand--transit') !== null,
+      composer: composer !== null, loading: document.querySelector('.con-composer__loading') !== null,
+      cta: composer?.querySelector('.con-composer__cta')?.className.replace(/\s+/g, ' ') ?? '',
+      focused: composer?.querySelector('.con-composer__row--focused')?.textContent?.replace(/\s+/g, ' ').slice(0, 60) ?? '',
+      sub: document.querySelector('.con-ptsel, [data-venus-inner]') !== null,
+      hero: r?.playedHero?.phase ?? '', holds: r?.holds ?? [], prompt: `${r?.transport?.waitingForType ?? ''}#${r?.transport?.promptId ?? ''}`,
+    });
+  }).catch(() => '(no read)');
   for (let attempt = 0; attempt < attempts; attempt++) {
     await press(page, 'Period', 600); // RT → the quick wheel
     await press(page, 'Enter', 1600); // centre slot → the hand screen
     await inHand.waitFor({timeout: 12_000}).catch(() => {});
+    trail.push(`#${attempt} hand ${await look()}`);
     // THE BUDGET IS THE RING, never a constant. A fixed 14 is smaller than the
     // hand on a wide deal, and the subject is as likely to be the LAST slot as
     // the first — the `deck` profile failed exactly here («Search For Life must
@@ -4187,6 +4219,7 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3, o
     const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
     const landed = await focusCard(page, card, ringWalk(Math.max(slots, 1), 1));
     if (!landed) {
+      trail.push(`#${attempt} not focused (${slots} slots)`);
       // NEVER press A on the wrong card. Enter here plays whatever the cursor
       // happens to sit on, which spends the turn on an unrelated card and makes
       // the spec fail somewhere else entirely, several assertions later.
@@ -4216,19 +4249,33 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3, o
       const phase = (window as unknown as {__conReady?: () => {playedHero?: {phase?: string}}}).__conReady?.()?.playedHero?.phase;
       return phase !== undefined && phase !== '' && phase !== 'idle';
     }).catch(() => false);
-    for (let i = 0; i < 5 && await page.locator('.con-composer--play').count() > 0 && !await heroArmed(); i++) {
+    trail.push(`#${attempt} composer ${await look()}`);
+    // A — VERIFIED PRESS BY PRESS (CI 2026-11-15, `console-medical-institute` B, reproduced pinned to two cores): the
+    // sheet's decision rows (the Institute's two «КУДА») are answered by A on the row → A in its selector, then A on
+    // the commit. A fixed five blind presses read the sheet as it stood BEFORE each press had shown its effect, and one
+    // swallowed press left the play a press short. Each A now waits for ITS effect on the sheet — a selector opened /
+    // closed, the commit armed, the play gone — and a press that changed nothing is pressed again, bounded.
+    for (let i = 0; i < 12 && await page.locator('.con-composer--play').count() > 0 && !await heroArmed(); i++) {
+      const before = await sheetSignature(page);
       await press(page, 'Enter', 900);
+      await expect.poll(async () => await heroArmed() || await sheetSignature(page) !== before, {timeout: 8000}).toBe(true).catch(() => undefined);
+      trail.push(`#${attempt} A${i} ${await look()}`);
     }
     await page.waitForTimeout(4200); // the played-hero scene settles, the card lands
     if (await played()) {
       return true;
     }
+    trail.push(`#${attempt} not played ${await look()}`);
     for (let i = 0; i < 3 && await placing.count() === 0 &&
       await page.locator('.con-hand, .con-composer--play').count() > 0; i++) {
       await press(page, 'Escape', 700);
     }
   }
-  return played();
+  if (await played()) {
+    return true;
+  }
+  console.log(`[playCardFromHand] «${card}» was never played:\n  ${trail.join('\n  ')}`);
+  return false;
 }
 
 /**

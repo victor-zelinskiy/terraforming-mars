@@ -100,6 +100,21 @@ describe('a resource chip is born at its source — the flight starts on the ani
     expect(flight, 'never a wall clock').to.not.match(/setTimeout|requestAnimationFrame/);
   });
 
+  it('the DETACHED wait is counted from the DEPARTURE of the surfaces that stood at the birth, never from the birth (CI 2026-11-15)', () => {
+    // `console-habitat-science` on SwiftShader at 4K: the composer that produced Titan's floater read, concluded and
+    // dissolved at the machine's pace; that alone outlasted the 3.2 s budget, the token was absorbed in place over its
+    // source, and the satellite it was promised to opened a second later with nobody flying to it.
+    const transfer = fs.readFileSync(path.resolve(__dirname, '..', '..', 'src', 'client', 'console', 'resourceTransfer', 'consoleResourceTransfer.ts'), 'utf8')
+      .replace(/\r\n/g, '\n');
+    const wait = transfer.slice(transfer.indexOf('function awaitVisibleDestination('), transfer.indexOf('function flyDetached('));
+    expect(wait, 'while a surface of the birth stands, the budget restarts').to.include('if (covers.some((el) => el.isConnected)) {');
+    expect(wait, '…bounded by the hard ceiling').to.include('deadline = Math.min(hard, Math.max(deadline, now + budgetMs));');
+    expect(wait, 'the wait graph sees the whole ceiling').to.include('maxMs: hard - start,');
+    const detached = transfer.slice(transfer.indexOf('function flyDetached('));
+    expect(detached, 'the surfaces are the ones that stood at the birth').to.include("Array.from(document.querySelectorAll('.con-ws'))");
+    expect(detached, 'the flight guard covers the extended wait').to.include('waitBudgetMs: Math.max(waitMs, coverMaxMs),');
+  });
+
   it('a flight its SAFETY outlives is CAUGHT UP to its end — never abandoned in the air (a starved renderer)', () => {
     // GSAP's lag smoothing counts a frame over 500 ms as 33 ms, so on a starved renderer a live flight falls behind the
     // wall-clock safety; resolving there faded the chip mid-arc and played its contact beat at a destination it never

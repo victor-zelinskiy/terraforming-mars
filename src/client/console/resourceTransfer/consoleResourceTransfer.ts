@@ -43,7 +43,7 @@ import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
   ResourceTransferSpec, TransferCover, TransferEnd, TransferEndLike, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey, isTransferEnd, transferEndOf, transferEndPoint,
-  TRANSFER_BEAT_MS, TRANSFER_DETACH_WAIT_MS, clampTransferPace, RATING_RAIL_KEY, VP_RAIL_KEY, isVpTransfer, transferLaunchFor,
+  TRANSFER_BEAT_MS, TRANSFER_DETACH_COVER_MAX_MS, TRANSFER_DETACH_WAIT_MS, clampTransferPace, RATING_RAIL_KEY, VP_RAIL_KEY, isVpTransfer, transferLaunchFor,
   transferSignedAmount, NO_TRANSFER_COVER, transferPaintPlan, TRANSFER_HANDOVER_FROM,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
@@ -1405,8 +1405,13 @@ function detachable(run: ResourceTransferRun, spec: ResourceTransferSpec, skippe
  * layout — the satellite stands in its workspace pose until the band is removed, then moves home) and a point that
  * holds for two consecutive probes: the 4K walk landed a floater in the empty pose the satellite had just left.
  */
-function awaitVisibleDestination(spec: ResourceTransferSpec, budgetMs: number, alive: () => boolean): Promise<TransferPoint | undefined> {
-  const deadline = performance.now() + budgetMs;
+function awaitVisibleDestination(spec: ResourceTransferSpec, budgetMs: number, alive: () => boolean,
+  covers: ReadonlyArray<Element> = [], coverMaxMs = budgetMs): Promise<TransferPoint | undefined> {
+  const start = performance.now();
+  let deadline = start + budgetMs;
+  // While a surface that stood at the birth is still in the document the budget restarts — it counts from the
+  // departure (`TRANSFER_DETACH_COVER_MAX_MS`), bounded by the hard ceiling.
+  const hard = start + Math.max(budgetMs, coverMaxMs);
   let previous: TransferPoint | undefined;
   let wait: CeilingWait | undefined;
   return new Promise((resolve) => {
@@ -1422,7 +1427,11 @@ function awaitVisibleDestination(spec: ResourceTransferSpec, budgetMs: number, a
         resolve(point);
         return;
       }
-      if (performance.now() >= deadline) {
+      const now = performance.now();
+      if (covers.some((el) => el.isConnected)) {
+        deadline = Math.min(hard, Math.max(deadline, now + budgetMs));
+      }
+      if (now >= deadline) {
         wait?.ceiling();
         resolve(undefined);
         return;
@@ -1430,7 +1439,8 @@ function awaitVisibleDestination(spec: ResourceTransferSpec, budgetMs: number, a
       previous = point;
       // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
       wait ??= beginCeilingWait({
-        id: 'resource-transfer:visible-destination', owner: 'consoleResourceTransfer', what: 'a painted and settled destination of the token', maxMs: budgetMs,
+        id: 'resource-transfer:visible-destination', owner: 'consoleResourceTransfer', what: 'a painted and settled destination of the token',
+        maxMs: hard - start,
       });
       probeTick(poll);
     };
@@ -1456,6 +1466,11 @@ function flyDetached(
 ): Promise<void> {
   const alive = () => resourceTransferState.flights.some((f) => f.id === e.id);
   let reached = false;
+  // The surfaces standing at the birth — the one that produced the token among them: the wait is counted from their
+  // departure (`TRANSFER_DETACH_COVER_MAX_MS`), never from the birth.
+  const covers = typeof document === 'undefined' ? [] : Array.from(document.querySelectorAll('.con-ws'));
+  const waitMs = motionMs(TRANSFER_DETACH_WAIT_MS);
+  const coverMaxMs = motionMs(TRANSFER_DETACH_COVER_MAX_MS);
   const handles = runDetachedTransferFlight(piece, {
     from: e.from,
     to: e.from,
@@ -1466,9 +1481,9 @@ function flyDetached(
     hold: false,
     pace,
     launch: transferLaunchFor(e.spec, false),
-    waitBudgetMs: motionMs(TRANSFER_DETACH_WAIT_MS),
+    waitBudgetMs: Math.max(waitMs, coverMaxMs),
     ...(liveFrom !== undefined ? {liveFrom} : {}),
-    awaitTo: () => awaitVisibleDestination(e.spec, motionMs(TRANSFER_DETACH_WAIT_MS), alive).then((to) => {
+    awaitTo: () => awaitVisibleDestination(e.spec, waitMs, alive, covers, coverMaxMs).then((to) => {
       reached = to !== undefined;
       trail(runId, reached ? 'flight:detach-opened' : 'flight:detach-expired', e.id);
       return to;

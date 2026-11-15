@@ -980,7 +980,11 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
     expect(Object.keys(REWARD_ADDRESS).sort()).deep.eq([...OUTCOME_KINDS].sort());
   });
 
-  it('6 · THE CLIENT KNOWS NO NAMES: no catalog id and no import of the resolutions\' directory under src/client outside the manifest and the stand', () => {
+  it('6 · THE CLIENT KNOWS NO NAMES: no catalog id and no import of the resolutions\' directory under src/client outside the manifest and the stand', function() {
+    // A WALK OF THE WHOLE CLIENT TREE owns its budget (tests.md § flake class ⑤ — a static guard has no clock in its
+    // subject): mocha's 2 s is a budget for logic, and this read crossed it on a laptop loaded by a neighbour's build.
+    // eslint-disable-next-line no-invalid-this
+    this.timeout(30_000);
     const leaks = clientNameLeaks(REDUX_RESOLUTION_CATALOG.all().map((d) => d.id));
     expect(leaks, leaks.join('\n')).deep.eq([]);
   });
