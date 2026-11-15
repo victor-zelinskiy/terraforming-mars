@@ -38,7 +38,7 @@ import {blockingAnimationHoldCount, isAnimationHoldActive} from '@/client/compon
 import {boardBeatParkPending, boardBeatParkState} from '@/client/console/boardBeatPark';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {decisionPromptStamp, effectDecisionState} from '@/client/console/effectDecision/effectDecisionState';
-import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
+import {announceIsBlind, isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {sittingAskResolution} from '@/client/console/promptSource';
 import {agendaReactionOf} from '@/client/console/parliament/agendaReaction';
@@ -532,14 +532,31 @@ export type ScreenShadowContext = {
    * (`supervisorController.shellWaitNodes`): the hold is the claim's, bounded by the claim's own bound.
    */
   claimHeld?: boolean,
+  /**
+   * HOW LONG THE PRESENTED ANNOUNCE HAS HAD NO PLATE, on the gate's own clock (ms; 0 = the plate stands; undefined =
+   * the supplier keeps no clock). A cover younger than the beacon's dwell is the announce changing form, not a door
+   * nobody can see (`consoleMandatoryGate.announceIsBlind`).
+   */
+  announceCoveredMs?: number,
+  /**
+   * THE PLAYER'S OWN SURFACE STANDS OVER A LIVE PLACEMENT ('' = none; else the workspace's kind): the wheels keep
+   * working while a cell is being picked (the hand, the Parliament, the info — to look before placing), and a
+   * workspace opened there in its reversible phase (`browse`) takes the pad by the router's own rule — B is one press
+   * back to the cells. That is the player's doing, bounded by their own B; the shadow read it as `misserved` (a
+   * foreign surface over the board's question) and filed a defect for a look at one's own hand (FREEZE ZERO — the
+   * monkey in the bottle, seed `fz1` · `parliament-skyscrapers-enact`, confirmed in a real browser; cut down by the
+   * shrink to «A · RT · A»).
+   */
+  lateral?: string,
 };
 
 /**
  * WHAT HOLDS THE QUESTION, for the shadow's verdict — '' = nothing does, and a missing surface is a finding. ONE
  * order: a BLIND announce is never a hold (its door cannot be seen); then the detector's own reasons
- * (`promptHeldReason`), the outcome claim's hold, the shell's admission block. PURE.
+ * (`promptHeldReason`), the outcome claim's hold, the player's own lateral surface over a placement, the shell's
+ * admission block. PURE.
  */
-export function screenShadowHeldBy(input: {blind: string, hold: string, claimHeld: boolean, admission: string}): string {
+export function screenShadowHeldBy(input: {blind: string, hold: string, claimHeld: boolean, admission: string, lateral?: string}): string {
   if (input.blind !== '') {
     return '';
   }
@@ -548,6 +565,9 @@ export function screenShadowHeldBy(input: {blind: string, hold: string, claimHel
   }
   if (input.claimHeld) {
     return 'claim';
+  }
+  if (input.lateral !== undefined && input.lateral !== '') {
+    return `lateral:${input.lateral}`;
   }
   return input.admission !== '' ? `admit:${input.admission}` : '';
 }
@@ -707,15 +727,19 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
   const {present, beats} = screenProbe();
   // A BLIND announce: the gate holds a decision it has already PRESENTED, and neither its plate nor the chip's beacon
   // paints — the question waits behind a door nobody can see (the Lagrange Observatory field lock, 2026-11-02).
-  const blind = hold === 'announce-gate' && ctx.announce === 'presented' && !beats.includes('.con-mandatory') &&
-    ![...document.querySelectorAll('.con-status__beacon')].some((el) => paints(el)) ? 'announce-gate' : '';
+  // …judged on the ANNOUNCE's own clock: a plate covered for less than the beacon's dwell is the announce changing
+  // form — three looks of this pass are not three seconds of that (`announceIsBlind`).
+  const blind = announceIsBlind({
+    held: hold === 'announce-gate', presented: ctx.announce === 'presented', platePaints: beats.includes('.con-mandatory'),
+    beaconPaints: [...document.querySelectorAll('.con-status__beacon')].some((el) => paints(el)), coveredMs: ctx.announceCoveredMs,
+  }) ? 'announce-gate' : '';
   const verdict = screenShadowVerdict({
     task,
     startOwned: false,
     frameServes: workspacesServing(task.kind),
     host: flowHost(),
     boardBranch: consoleTaskSpacePlacement,
-    held: screenShadowHeldBy({blind, hold, claimHeld: ctx.claimHeld === true, admission: ctx.admission}),
+    held: screenShadowHeldBy({blind, hold, claimHeld: ctx.claimHeld === true, admission: ctx.admission, lateral: ctx.lateral}),
     blind,
     present,
     beats,

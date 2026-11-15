@@ -11,7 +11,7 @@
 import {expect} from 'chai';
 import {bootBottle, ConsoleBottle} from './consoleBottle';
 import {bottleServer} from './bottleNode';
-import {monkeyWalk} from './monkeyWalk';
+import {MonkeyStep, monkeyWalk, replaySteps} from './monkeyWalk';
 
 describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bottle', function() {
   // A bottle boots a whole application; a budget for that, never a timing.
@@ -151,5 +151,111 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(graph, 'the wait graph\'s probe answers').to.not.equal(undefined);
     expect((graph?.nodes ?? []).map((node) => node.id).filter((id) => id.includes('card-reaction:rating-story')), 'no reactor wait is left standing').to.deep.equal([]);
     expect(classes(), 'nothing of this walk is a defect').to.deep.equal([]);
+  });
+
+  /*
+   * `presentation-ledger/witness-heal/view-freshness` — THE FIELD (the owner's console exports: 51 lines in 14 of 47,
+   * 2026-09-12 … 2026-11-09; never walked into by the monkey — it takes another seat's move on the socket while a
+   * scene of the viewer's plays). The transport's freshness witness heals «the applied view is behind the server's
+   * cursor» after 3 s. But the commonest reason a view is behind is honest and OWNED: the poll fetched the newer view
+   * while a scene was playing, the root refused to commit it over the scene and PARKED the refresh
+   * (`deferredViewRefresh.ts` — re-run on the release edge, bounded by its own ceiling). The witness did not know:
+   * every 3 s of a tile's flight it «healed» (one more fetch, refused and parked again) and printed a defect line.
+   * The law: a debt that has an owner is not a lie (`viewFreshness.viewLagIsALie`).
+   * (The bottle has no socket: the socket's word — the cursor it advertises — is set by hand; the park is armed the
+   * way the root arms it. The witness, the ledger, the transport and the journal are the application's own.)
+   */
+  it('a view parked behind a live scene is a debt with an owner — the freshness witness heals only the lag NOBODY holds', async () => {
+    const table = await bottleServer().bootFixture('aerial-mappers');
+    bottle = await bootBottle(table);
+    await bottle.advance(3_000);
+    // THE PAGE'S OWN MODULES. A bottle's page is evaluated anew (`consoleBottle.ts` § a pristine page): what this file
+    // imports statically is the suite's instance, never the page's — so the page's are asked for while it stands.
+    const {realtimeState} = await import('@/client/components/realtime/realtimeService');
+    const {tradeFleetState} = await import('@/client/console/colonyFleet/consoleTradeFleet');
+    const park = await import('@/client/components/deferredViewRefresh');
+    const heals = () => (bottle?.journal() ?? []).filter((entry) => entry.cause?.cls === 'presentation-ledger/witness-heal/view-freshness');
+    // A SCENE OF THE VIEWER'S PLAYS (its flag, raised by hand — one of the nine the root refuses a refresh behind)…
+    tradeFleetState.active = true;
+    // …and THE SOCKET SAYS the server went one step ahead of the view the page applied.
+    realtimeState.lastInvalidationGameAge = (bottle.view()?.game.gameAge ?? 0) + 1;
+    // (Six seconds: twice the witness's grace, and inside the scene's own life — a flag raised by hand ends on the
+    // scene's own safety a little later.)
+    await bottle.advance(6_000);
+    // The poll saw it, the root fetched the newer view, refused to commit it over the scene and PARKED the refresh —
+    // by its own road, with its words. That debt has an owner: nobody is lied to, nothing is healed.
+    expect(park.deferredViewRefreshParked()?.why, 'the root parked the refresh itself, naming the scene').to.equal('trade-fleet');
+    expect(heals().map((entry) => entry.text), 'six seconds behind a live scene, twice the grace: not one heal').to.deep.equal([]);
+    // THE SCENE ENDS: the park re-runs the refresh on that edge and is gone. The view is STILL behind the socket's word
+    // (the bottle's server never moved) — a lag nobody holds: that IS the lie, healed and said with what it is made of.
+    tradeFleetState.active = false;
+    await bottle.advance(6_000);
+    expect(park.deferredViewRefreshParked(), 'the park is paid').to.equal(undefined);
+    expect(heals().length, 'a lag nobody holds is healed').to.be.greaterThan(0);
+    expect(heals()[0].text, 'and the line says what it is behind by').to.match(/"behind":"age \+1 \(undo \+0\)"/);
+  });
+
+  /*
+   * `screen-shadow/finding/misserved/board/hand` — the monkey in the bottle's SECOND seed (`fz1` ·
+   * `parliament-skyscrapers-enact`, `parliament-biodome-enact`), confirmed in a real browser by the box monkey's spec
+   * with the same seed, and cut down by the shrink from 65 steps to three: A (the placement's plate) · RT (the wheel)
+   * · A (its «Рука»). The wheels keep working while a cell is picked — the player looks at the hand before placing —
+   * and the hand then has the pad by the router's own rule (a section is asked before the placement). TWO readers did
+   * not know that rule: the COMMAND BAR stayed the placement's («Размещение тайла · A Выбрать клетку» over an open
+   * hand, where A acts in the hand), and the SCREEN SHADOW filed «expected board, on screen hand» — a defect event
+   * for a look at one's own cards. The law: the placement owns the bar only while the pad is on the board
+   * (`commandBarController.placementOwnsBar`), and the player's own reversible surface over a placement is a hold of
+   * theirs (`ScreenShadowContext.lateral`) — B is one press back to the cells.
+   */
+  it('the hand opened from the wheel over a live placement: the bar is the hand\'s, nothing is filed, B is back at the cells', async () => {
+    const table = await bottleServer().bootFixture('parliament-skyscrapers-enact');
+    bottle = await bootBottle(table);
+    await bottle.advance(3_000);
+    await bottle.press('Enter');
+    await bottle.advance(400);
+    expect(bottle.bar(), 'the placement stands: the bar is its own').to.match(/^Tile placement.*Select cell/);
+    await bottle.press('Period');
+    await bottle.advance(250);
+    await bottle.press('Enter');
+    await bottle.advance(800);
+    expect(bottle.frames(), 'the hand is open over the cells').to.deep.equal(['hand:browse']);
+    expect(bottle.bar(), 'the pad is the hand\'s — the bar says what the pad does, never a cell').to.not.match(/Tile placement|Select cell/);
+    expect(bottle.bar(), '…the hand\'s own verbs, and B names the way back').to.match(/^Hand.*To the board$/);
+    await bottle.advance(8_000);
+    expect(classes(), 'a look at one\'s own hand while placing is nobody\'s defect').to.deep.equal([]);
+    await bottle.press('Escape');
+    await bottle.advance(1_500);
+    expect(bottle.frames(), 'B: one level back').to.deep.equal([]);
+    expect(bottle.bar(), '…at the cells, with the placement\'s own verbs').to.match(/^Tile placement.*Select cell/);
+  });
+
+  /*
+   * `screen-shadow/finding/unserved/task/nothing` (blind: announce-gate) — the monkey in the bottle's second seed
+   * (`fz1 · two-player-finale-trigger`), reproduced in a real browser, cut down by the shrink to four presses:
+   * → · X («Разыграно», 0.8 s) · B · LT (the wheel, held). The decision's plate stands on the board; each of the
+   * player's own surfaces covers it, and the chip's beacon takes over after its dwell (1.2 s — so a plate covered
+   * for a moment never flashes amber). The screen shadow judged «the announce is BLIND» by three of its 1 Hz looks —
+   * and three looks are not three seconds: two covers inside the dwell with 0.6 s of plate between them, which no
+   * look fell into, read as «no form for three passes». A defect event, and a «cure» that forced a beacon 0.4 s
+   * from lighting by itself. The law: blindness is measured on the ANNOUNCE's own clock — how long the plate has
+   * been gone continuously, stamped on the reactive edge (`consoleMandatoryGate.announceIsBlind`).
+   */
+  it('the plate covered twice inside the beacon\'s dwell — «Разыграно», B, the LT wheel: the announce changes form, nothing is filed, nothing is forced', async () => {
+    const table = await bottleServer().bootFixture('two-player-finale-trigger');
+    bottle = await bootBottle(table);
+    await bottle.advance(3_000);
+    const steps: ReadonlyArray<MonkeyStep> = [
+      {do: 'press', key: 'ArrowRight', pauseMs: 322}, {do: 'press', key: 'KeyX', pauseMs: 843},
+      {do: 'press', key: 'Escape', pauseMs: 649}, {do: 'press', key: 'Comma', pauseMs: 6_582},
+    ];
+    bottle = await replaySteps(bottle, table.seats.length, steps);
+    const shadow = bottle.journal().filter((entry) => entry.text.startsWith('[screen-shadow]')).map((entry) => entry.text.slice(0, 160));
+    expect(shadow, 'no finding, and no cure by the shadow').to.deep.equal([]);
+    expect(classes(), 'flicking between one\'s own surfaces is nobody\'s defect').to.deep.equal([]);
+    // The wheel has stood six seconds over the plate: the beacon carries the decision — by its own dwell.
+    expect(document.querySelector('.con-status__beacon'), 'the chip\'s beacon is lit under the wheel').to.not.equal(null);
+    await bottle.press('Escape');
+    await bottle.advance(1_500);
+    expect(document.querySelector('.con-mandatory'), 'B: the plate is back on the board').to.not.equal(null);
   });
 });

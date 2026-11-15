@@ -15,12 +15,16 @@ const FILE = path.resolve(__dirname, '..', 'client', 'bottle', 'monkeyBaseline.j
 type Row = {tier?: string, tables?: number, first?: string, why?: string};
 
 describe('the freeze gate — its baseline', () => {
-  const baseline = JSON.parse(fs.readFileSync(FILE, 'utf8')) as {seed?: string, walks?: number, classes?: Record<string, Row>};
+  const baseline = JSON.parse(fs.readFileSync(FILE, 'utf8')) as {seeds?: Array<string>, walks?: number, classes?: Record<string, Row>};
   const rows = Object.entries(baseline.classes ?? {});
 
-  it('is the pass of every table by one seed', () => {
-    expect(baseline.seed, 'the seed the gate walks by').to.be.a('string').and.not.eq('');
+  it('is the union of whole passes — every table, by each of its seeds', () => {
+    expect(baseline.seeds, 'the seeds the gate has walked by').to.be.an('array').and.not.empty;
+    expect(baseline.seeds, 'the first seed is the gate\'s default').to.include('fz0');
     expect(baseline.walks, 'a slice (`--only`) is never a baseline').to.be.greaterThan(500);
+    // Every row names the seed that first found it — one of the seeds the baseline says it walked.
+    const strangers = rows.filter(([, row]) => !(baseline.seeds ?? []).some((seed) => (row.first ?? '').startsWith(`${seed}:`))).map(([cls]) => cls);
+    expect(strangers).to.deep.eq([]);
   });
 
   it('every class it lets stand SAYS WHY — a row is never a bare key', () => {

@@ -129,6 +129,12 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'stall', re: /^stall \(([^)]*)\): /, tier: 'defect', read: readLivenessStall},
     {name: 'recovered', re: /^recovered after /, tier: 'info', why: 'the end of an episode — its own record is the episode'},
     {name: 'still-hold', re: /^still hold — /, tier: 'info', why: 'the motion witness names a hold; the wait graph judges it and files the finding'},
+    // A screen that flips between the same few states by itself under a live question (`console/livenessOscillation.ts`).
+    {name: 'oscillating', re: /^oscillating — .*; task: (\S+); top: (\S+)/, tier: 'defect', parts: [1, 2]},
+  ],
+  // ── a question nobody can answer (`common/inputs/promptAnswerable.ts`) — the engine's defect, named by the page ──
+  'question': [
+    {name: 'unanswerable', re: /^unanswerable — «([^»]*)» \((\w+)#\d*\): /, tier: 'defect', parts: [1, 2]},
   ],
   // ── the workspace's nets ────────────────────────────────────────────────────────────────────────────────────────
   'workspace-stall': [
@@ -247,7 +253,7 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'band-no-cause', re: /^band with no nameable cause:/, tier: 'defect'},
   ],
   'deferred-refresh': [
-    {name: 'overdue', re: /^the screen stayed busy for over /, tier: 'defect'},
+    {name: 'overdue', re: /^the screen stayed busy for over \d+ms — refreshing anyway(?: — held by (\S+))?/, tier: 'defect', parts: [1]},
   ],
   // ── the transport, the kernel ───────────────────────────────────────────────────────────────────────────────────
   // ── the last line (`console/session/sessionRebuild.ts`) — never a cure: every one of them is a defect ──────────────

@@ -19,6 +19,7 @@
  *  11  the server's own timers stand on the same clock (MarsBot's paced turn)
  *  12  a bottle leaves nothing behind (the suite's bare jsdom, the wall clock, the document)
  *  13  who watches the watcher: a supervisor whose pass does not run is rebuilt by the witness outside the shell
+ *  15  a screen that moves and goes nowhere (a picture turning in a loop under a live question) is named, once
  *  14  THE SHRINK: a walk that names a class is cut down to the steps that make it — the cutting itself (pure), and
  *      a walk of fourteen steps with a planted defect among them, each candidate replayed on a fresh bottle
  *
@@ -483,6 +484,36 @@ describe('THE CONSOLE IN A BOTTLE — the real shell and the real server in one 
     expect(shrunk.steps.some((step) => step.do === 'strand'), 'the plant is what is left').to.equal(true);
     expect(shrunk.steps.length, 'and next to nothing beside it').to.be.lessThan(3);
     expect(shrunk.cut).to.equal(false);
+  });
+
+  it('15 · A SCREEN THAT MOVES AND GOES NOWHERE is named — a picture turning in a loop under a live question, untouched', async () => {
+    const table = await bottleServer().bootFixture(FIXTURE);
+    bottle = await bootBottle(table);
+    // A healthy table for half a minute, a press now and then: the judge is silent.
+    await bottle.advance(12_000);
+    await bottle.press('ArrowRight');
+    await bottle.advance(12_000);
+    const loops = () => (bottle as ConsoleBottle).journal().filter((entry) => (entry.cause?.cls ?? '').startsWith('liveness/oscillating'));
+    expect(loops(), 'a screen that stands, or moves under a thumb, is never a loop').to.deep.equal([]);
+    // THE PLANT: a surface of the arbiter's own signature (the journal's panel) appears and disappears once a
+    // second by itself — the blinking modal, on demand. Nobody presses anything.
+    const ghost = document.createElement('div');
+    ghost.className = 'con-journal';
+    for (let second = 0; second < 13; second++) {
+      if (second % 2 === 0) {
+        document.body.appendChild(ghost);
+      } else {
+        ghost.remove();
+      }
+      await bottle.advance(1_000);
+    }
+    ghost.remove();
+    const named = loops();
+    say(`the loop: ${named.map((entry) => entry.text.slice(0, 150)).join(' | ')}`);
+    expect(named.length, 'named ONCE for the spell').to.equal(1);
+    expect(named[0].cause?.tier).to.equal('defect');
+    expect(named[0].text).to.match(/^\[liveness\] oscillating — the picture changed \d+ times in 10s among 2 state\(s\) with no press; asked: \w+#\d+; task: \S+; top: \S+/);
+    expect(named[0].evidence, 'with what stood').to.not.equal(undefined);
   });
 
   it('12 · a bottle leaves nothing behind', async () => {

@@ -73,7 +73,7 @@ import {setAlbumLayoutRecomposer} from '@/client/console/consoleAlbumLayout';
 import {leaveConsoleSession} from '@/client/console/session/consoleSession';
 import {handoffPendingEntries} from '@/client/console/shell/shellFlowState';
 import {notificationBus} from '@/client/components/notifications/notificationBus';
-import {isMandatoryBeatPresented, resetMandatoryGate, setMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
+import {isMandatoryBeatPresented, mandatoryAnnounceCoveredMs, resetMandatoryGate, setMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {startShadowLog} from '@/client/console/startDirector';
 import {promptAdmissionBlock, releasePromptPresence} from '@/client/console/consolePromptAdmission';
 import {waitScreenHandoff} from '@/client/console/screenHandoff';
@@ -688,8 +688,13 @@ export function createWiringController(shell: WiringPort) {
         startOwned: shell.startSceneMounted,
         admission: block ?? '',
         announce: !shell.mandatoryGateHeld ? 'none' : isMandatoryBeatPresented(shell.mandatoryBeat) ? 'presented' : 'pending',
+        // (The announce's own clock — stamped where the plate itself comes and goes: `consoleMandatoryGate`.)
+        announceCoveredMs: mandatoryAnnounceCoveredMs(),
         // (The same two facts the wait graph's question node reads — one table: a question the claim holds waits on the claim.)
         claimHeld: shell.taskHeldForWorkspace && workspaceOutcomeClaimed(),
+        // THE PLAYER'S OWN WORKSPACE OVER A LIVE PLACEMENT — reversible (`browse`), so B is one press back to the cells.
+        lateral: shell.placementActive && consoleState.section !== 'board' && workspaceStackTop()?.phase === 'browse' ?
+          workspaceStackTop()?.kind ?? '' : '',
       };
     });
     // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.

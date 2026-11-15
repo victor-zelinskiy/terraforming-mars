@@ -242,6 +242,17 @@ describe('diagnostics cause — the journal files by it', () => {
   });
 
   it('THE LAST LINE: an episode the console session was REBUILT under says so — on the page that left, and on the page that adopts it', () => {
+    // WHAT THE ARBITER CANNOT SEE BY CONSTRUCTION, named by its own shape: a picture that turns in a loop under a live
+    // question, and a question that has no answer.
+    expect(causeOf('[liveness] oscillating — the picture changed 9 times in 10s among 2 state(s) with no press; asked: card#12; task: cardSelect; top: hand:committed', 'warn'))
+      .to.deep.include({cls: 'liveness/oscillating/cardselect/hand:committed', tier: 'defect'});
+    expect(causeOf('[question] unanswerable — «cardSelect» (card#12): 1 card(s) asked of 0', 'warn'))
+      .to.deep.include({cls: 'question/unanswerable/cardselect/card', tier: 'defect'});
+    // A PARK THAT RAN TO ITS CEILING names the scene whose flag never released — its class, not one bucket for all nine.
+    expect(causeOf('[deferred-refresh] the screen stayed busy for over 15000ms — refreshing anyway — held by played-hero+tile-placement', 'warn'))
+      .to.deep.include({cls: 'deferred-refresh/overdue/played-hero+tile-placement', tier: 'defect'});
+    expect(causeOf('[deferred-refresh] the screen stayed busy for over 15000ms — refreshing anyway', 'warn'), 'a line of an older build')
+      .to.deep.include({cls: 'deferred-refresh/overdue', tier: 'defect'});
     const REBUILD = '[session-rebuild] page — «handPick» (card#12) — by liveness: the ladder is spent and the screen stood 16s';
     expect(causeOf(REBUILD, 'warn')).to.deep.include({cls: 'session-rebuild/page/handpick', tier: 'defect'});
     expect(causeOf(REBUILD, 'warn')?.dims).to.deep.include({by: 'liveness'});

@@ -22,8 +22,10 @@
  *      does not hold.
  *
  * THE BASELINE (`tests/client/bottle/monkeyBaseline.json`) is the list of classes the bottle is KNOWN to name, each
- * with its reason («the bottle has no layout: a wait for a measured end», «a real class — PLAN §4, row …»). A class
- * that is not on it is a FINDING: read it (`node scripts/monkey-report.mjs .e2e-remote/bottle-gate`), then either
+ * with its reason («the bottle has no layout: a wait for a measured end», «a real class — PLAN §4, row …»). It is a
+ * UNION OVER SEEDS: another seed is another 606 walks (`--seed fz1`) — the cheapest way there is to find a class —
+ * and what it names that a real browser does not is added beside the first seed's rows (`--write-baseline` adds,
+ * never drops; a row that no pass names any more is taken out by hand). A class that is not on it is a FINDING: read it (`node scripts/monkey-report.mjs .e2e-remote/bottle-gate`), then either
  * close it (a law, a guard, a replay — and it never reaches the baseline) or — when a real browser says «not there»
  * — add it with its reason (`--write-baseline`, then write the `why` by hand). A baseline row without a `why` fails
  * `tests/console/freezeGateBaseline.spec.ts`.
@@ -129,20 +131,25 @@ async function main() {
   if (flag('write-baseline')) {
     const now = JSON.parse(fs.readFileSync(report, 'utf8'));
     const before = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : {classes: {}};
-    const classes = {};
-    for (const [cls, row] of Object.entries(now.classes).sort(([a], [b]) => a.localeCompare(b))) {
-      if (row.tier !== 'defect') {
+    // A UNION: the rows that stand are kept as they are (their notes are a human's or an agent's word); what THIS pass
+    // names beside them is added WITHOUT a note — and the baseline's guard is red until somebody has read the class
+    // and said why it may stand (or closed it and taken the row out).
+    const classes = {...(before.classes ?? {})};
+    let added = 0;
+    for (const [cls, row] of Object.entries(now.classes)) {
+      if (row.tier !== 'defect' || classes[cls] !== undefined) {
         continue;
       }
-      // The note is a human's (or an agent's) word and survives the rewrite; a new row starts WITHOUT one — and the
-      // baseline's guard is red until somebody has read the class and said why it may stand.
-      classes[cls] = {tier: 'defect', tables: row.tests, first: row.first?.seed ?? '', why: before.classes?.[cls]?.why ?? ''};
+      classes[cls] = {tier: 'defect', tables: row.tests, first: row.first?.seed ?? '', why: ''};
+      added++;
     }
+    const seeds = [...new Set([...(before.seeds ?? (before.seed === undefined ? [] : [before.seed])), seed])];
     fs.writeFileSync(BASELINE, `${JSON.stringify({
-      what: 'the DEFECT classes the monkey in the bottle is KNOWN to name — each with why it may stand (scripts/freeze-gate.mjs)',
-      seed, presses: now.totals.presses, walks: now.totals.walks, at: new Date().toISOString().slice(0, 10), classes,
+      what: 'the DEFECT classes the monkey in the bottle is KNOWN to name, over every seed walked — each with why it may stand (scripts/freeze-gate.mjs)',
+      seeds, presses: now.totals.presses, walks: now.totals.walks, at: new Date().toISOString().slice(0, 10),
+      classes: Object.fromEntries(Object.entries(classes).sort(([a], [b]) => a.localeCompare(b))),
     }, null, 2)}\n`);
-    console.log(`[freeze-gate] the baseline is rewritten: ${Object.keys(classes).length} class(es) — write the «why» of every new row`);
+    console.log(`[freeze-gate] the baseline holds ${Object.keys(classes).length} class(es) over the seeds ${seeds.join(', ')} — ${added} added: write the «why» of every new row`);
     return 0;
   }
   const minutes = ((Date.now() - started) / 60_000).toFixed(1);

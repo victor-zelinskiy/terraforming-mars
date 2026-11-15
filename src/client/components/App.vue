@@ -577,12 +577,17 @@ function update(path: typeof paths.PLAYER): void {
        * refusal parks a retry that re-runs `update()` the moment the
        * scenes release (bounded — see deferredViewRefresh.ts).
        */
-      const sceneBlocked = () =>
-        isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive() ||
-        isHydroMarkerActive() || isPlayedHeroActive() || isPatentSaleActive() ||
-        isCardDiscardActive() || isTilePlacementActive() || isNomadMoveActive();
+      // (The scenes are NAMED: a park that runs to its ceiling says which flag never released — `deferredViewRefresh.ts`.)
+      const scenes = (): Array<string> => [
+        isEnergyConversionActive() ? 'energy-conversion' : '', isHazardCleanupActive() ? 'hazard-cleanup' : '',
+        isTradeFleetActive() ? 'trade-fleet' : '', isHydroMarkerActive() ? 'hydro-marker' : '',
+        isPlayedHeroActive() ? 'played-hero' : '', isPatentSaleActive() ? 'patent-sale' : '',
+        isCardDiscardActive() ? 'card-discard' : '', isTilePlacementActive() ? 'tile-placement' : '',
+        isNomadMoveActive() ? 'nomad-move' : '',
+      ].filter((scene) => scene !== '');
+      const sceneBlocked = () => scenes().length > 0;
       if (sceneBlocked()) {
-        armDeferredViewRefresh(sceneBlocked, () => update(path));
+        armDeferredViewRefresh(sceneBlocked, () => update(path), () => scenes().join('+'));
         return;
       }
       // A refresh is committing — any parked retry is superseded by it.

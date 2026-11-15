@@ -38,7 +38,8 @@ import * as constants from '@/common/constants';
 import raw_settings from '@/genfiles/settings.json';
 import {onRealtimeWake} from '@/client/components/realtime/realtimeSync';
 import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
-import {midPromptRefreshEnabled, serverAheadOfView} from '@/client/components/realtime/viewFreshness';
+import {midPromptRefreshEnabled, serverAheadOfView, viewLagIsALie, viewLagOf} from '@/client/components/realtime/viewFreshness';
+import {deferredViewRefreshArmed} from '@/client/components/deferredViewRefresh';
 import {registerTruthWitness} from '@/client/console/presentationLedger';
 import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
 import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
@@ -517,12 +518,20 @@ export function startGameTransport(transportRoot: TransportRoot): void {
   // cursors server-side) and never bypasses a guard.
   freshnessWitnessOff = registerTruthWitness({
     id: 'view-freshness',
+    // A DEBT WITH AN OWNER IS NOT A LIE (`viewFreshness.viewLagIsALie`): a refresh the root PARKED behind a live scene
+    // is re-run by its own waiter on the release edge — healing it was one more fetch refused and a defect line per
+    // 3 s of somebody's cinematic. The witness stands for the lag nobody holds.
     lying: () => !pollStopped && root !== undefined &&
       (root.playerView as PlayerViewModel | undefined)?.game !== undefined &&
-      !root.isServerSideRequestInProgress &&
-      serverAheadOfView(currentView().game),
+      viewLagIsALie({
+        ahead: serverAheadOfView(currentView().game),
+        requestInProgress: root.isServerSideRequestInProgress === true,
+        refreshParked: deferredViewRefreshArmed(),
+      }),
     graceMs: 3000,
     heal: () => waitForUpdate(true),
+    // WHAT the lie is made of — a heal that only says «healing» names no cause (the ledger's own rule for a witness).
+    diagnose: () => ({behind: viewLagOf(currentView().game), holding: transportHolding(), prompt: currentWaitingFor()?.type ?? 'none'}),
   });
 }
 

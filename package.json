@@ -155,7 +155,8 @@
     "debt:architecture": "cross-env TM_ARCHITECTURE_DEBT=lower node ./node_modules/mocha/bin/mocha.js --import=tsx --require tests/testing/setup.ts tests/console/architectureDebt.spec.ts",
     "ready:vapor": "cross-env TM_VAPOR_READINESS=lower node ./node_modules/mocha/bin/mocha.js --import=tsx --require tests/testing/setup.ts tests/console/vaporReadiness.spec.ts",
     "e2e:fixtures": "tsx tests/e2e/fixtures/generate.ts",
-    "diag": "node scripts/diag.mjs"
+    "diag": "node scripts/diag.mjs",
+    "diag:corpus": "tsx scripts/field-corpus.ts"
   },
   "repository": {
     "type": "git",

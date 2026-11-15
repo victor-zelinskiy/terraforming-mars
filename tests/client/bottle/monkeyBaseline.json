@@ -1,9 +1,12 @@
 {
-  "what": "the DEFECT classes the monkey in the bottle is KNOWN to name — each with why it may stand (scripts/freeze-gate.mjs)",
-  "seed": "fz0",
+  "what": "the DEFECT classes the monkey in the bottle is KNOWN to name, over every seed walked — each with why it may stand (scripts/freeze-gate.mjs)",
+  "seeds": [
+    "fz0",
+    "fz1"
+  ],
   "presses": 36360,
   "walks": 606,
-  "at": "2026-11-14",
+  "at": "2026-11-15",
   "classes": {
     "console-foreground-watchdog/expired/animation:deck-draw-lease:mandatory-choice×n-result-modaldra": {
       "tier": "defect",
@@ -59,11 +62,35 @@
       "first": "fz0:floating-biodomes-maxo2",
       "why": "the bottle has no layout: the board beat's park lets go on the landing of a token between measured rects — its release edge comes at the story's due instead. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
     },
+    "start-shadow/finding/disagree/game/none": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz1:venus-trade-unity-bonus-2p",
+      "why": "the bottle has no layout: the corporation's first action performs a flight between MEASURED rects that never lands here, so the start serves nothing while the action menu is asked, and the start director's shadow says so. Cut down by the shrink to 11 steps; the same steps in a real browser (the laptop, 2026-11-15): not one line of any net"
+    },
+    "start-shadow/finding/disagree/game/shell": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz1:venus-trade-unity-bonus-2p",
+      "why": "the same incident one step on — the strand's yield handed the menu to the shell while the start's frame (its first action still «performing» behind the unmeasurable flight) stood. the same steps in a real browser (the laptop, 2026-11-15): not one line of any net"
+    },
     "start-stranded/confirmed/or": {
       "tier": "defect",
       "tables": 1,
       "first": "fz0:venus-trade-unity-bonus-2p",
       "why": "the bottle has no layout: the start's table answer waits for a card arrival's measured end, and the start serves nothing until that hold's bound. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
+    },
+    "start-stranded/yielded/or": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz1:venus-trade-unity-bonus-2p",
+      "why": "the same incident: the strand watchdog's heal found nothing to heal (the first action's stage is waiting for a measured end) and yielded. the same steps in a real browser (the laptop, 2026-11-15): not one line of any net"
+    },
+    "wait-graph/ceiling/board-card-bonus:hover": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz1:red-lawyers",
+      "why": "the bottle has no paint: the card-bonus layer counts FRAMES for «the end of the lift rise» (61 frames estimated at 16 ms) and the bottle's frames are a stand-in on its manual clock — the count runs out at its ceiling. The box monkey's spec in a real browser with the same seed names nothing on this table"
     }
   }
 }

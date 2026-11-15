@@ -83,7 +83,8 @@
  *
  * (This comment opened the template; the template starts with its root now.)
  */
-import {computed, PropType} from 'vue';
+import {computed, onMounted, onUnmounted, PropType} from 'vue';
+import {noteMandatoryPlate} from '@/client/console/consoleMandatoryGate';
 import {CardName} from '@/common/cards/CardName';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
@@ -98,6 +99,10 @@ import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 
 defineOptions({name: 'ConsoleMandatoryAnnounce'});
+// THE ANNOUNCE'S OWN CLOCK is stamped HERE — where the plate comes and goes (`consoleMandatoryGate.noteMandatoryPlate`):
+// the screen shadow's «is the announce blind» reads how long the plate has been gone, never how many of its looks missed it.
+onMounted(() => noteMandatoryPlate(true));
+onUnmounted(() => noteMandatoryPlate(false));
 const props = defineProps({
   /** The decision TYPE, pre-translated by the shell (consoleTaskSummary). */
   kicker: {type: String, required: true},

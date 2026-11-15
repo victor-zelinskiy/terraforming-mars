@@ -211,6 +211,16 @@ export type CommandBarPort = {
 export function createCommandBarController(shell: CommandBarPort) {
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   // ── context panel ──────────────────────────────────────────────────
+  /**
+   * THE PLACEMENT OWNS THE BAR ONLY WHILE THE PAD IS ON THE BOARD — the pad router's own rule, said once more here
+   * (`padRouterController`: every placement verb is `placementActive && padSection === 'board'`, and B asks the open
+   * section first). The wheels keep working while a cell is picked, so a section may stand over a live placement —
+   * the hand opened to look before placing. The pad is then that section's; the bar used to stay the placement's
+   * («Размещение тайла · A Выбрать клетку» over an open hand — A acted in the hand, the bar named a cell). The bar
+   * says what the pad does: a section over a placement speaks its own verbs, and its B is the way back to the cells.
+   */
+  const placementOwnsBar = computed((): boolean => shell.placementActive && consoleState.section === 'board');
+
   const contextMode = computed((): 'placement' | 'cell' | 'track' | 'idle' => {
     // The FINALE SESSION keeps the dossier in placement mode between two picks and through another seat's
     // answer (PL-303): the panel never unmounts, its stage block says where the context stands.
@@ -515,7 +525,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     if (consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
       return sheetTitle.value;
     }
-    if (shell.placementActive) {
+    if (placementOwnsBar.value) {
       // Same source as the right panel's kicker — the bar and the panel can
       // never disagree about what this cell pick puts down.
       return shell.placementKickerKey;
@@ -1335,7 +1345,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     if (shell.finaleSessionEngaged && !shell.placementActive) {
       return [{...finalGreeneryFinishCommand(), enabled: false}, {control: 'back', label: 'Minimize'}];
     }
-    if (shell.placementActive) {
+    if (placementOwnsBar.value) {
       // P21: the placement footer is CONTEXT-ONLY and one-line by
       // contract — LT/RT keep working globally (Info / Actions) but
       // never occupy this bar. The bar is the ONE home of every placement

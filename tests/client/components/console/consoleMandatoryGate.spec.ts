@@ -1,5 +1,8 @@
 import {expect} from 'chai';
 import {
+  announceIsBlind,
+  MANDATORY_BEACON_DWELL_MS,
+  MANDATORY_FORM_BOUND_MS,
   isInterruptiveMandatoryTask,
   isResolutionAsk,
   mandatoryBeatFor,
@@ -317,5 +320,40 @@ describe('consoleMandatoryGate — an enacted resolution\'s ASK vs the law\'s ow
       'so is its pick').to.be.false;
     expect(isResolutionAsk({type: 'payment', title: 'x', buttonLabel: '', amount: 8, paymentOptions: {}} as never), 'a plain payment').to.be.false;
     expect(isResolutionAsk(undefined)).to.be.false;
+  });
+});
+
+/*
+ * IS A PRESENTED ANNOUNCE BLIND? (FREEZE ZERO — the monkey's second seed, `fz1 · two-player-finale-trigger`,
+ * reproduced in a real browser, cut down by the shrink to «→ · X · B · LT».) The plate covered twice inside the
+ * beacon's dwell — «Разыграно» for 0.8 s, B, then the LT wheel — with 0.6 s of plate between that no 1 Hz look fell
+ * into: the screen shadow counted «three passes with no form», filed a defect and forced a beacon that was 0.4 s from
+ * lighting by itself. Three looks are not three seconds: blindness is measured on the announce's own clock.
+ */
+describe('announceIsBlind — a door nobody can see, on the announce\'s own clock', () => {
+  const covered = (coveredMs: number | undefined) => announceIsBlind({held: true, presented: true, platePaints: false, beaconPaints: false, coveredMs});
+
+  it('the beacon\'s dwell is a bounded beat — a plate covered for less than the bound is the announce changing form', () => {
+    expect(MANDATORY_FORM_BOUND_MS, 'the dwell, and a second for the strip to paint').to.eq(MANDATORY_BEACON_DWELL_MS + 1000);
+    expect(covered(0), 'the plate stands (the clock at rest)').to.eq(false);
+    expect(covered(800), '«Разыграно» for 0.8 s').to.eq(false);
+    expect(covered(MANDATORY_BEACON_DWELL_MS), 'the beacon is lighting this very frame').to.eq(false);
+    expect(covered(MANDATORY_FORM_BOUND_MS - 1)).to.eq(false);
+  });
+
+  it('…and past the bound with neither form it IS the door nobody can see (the field lock of 2026-11-02)', () => {
+    expect(covered(MANDATORY_FORM_BOUND_MS)).to.eq(true);
+    expect(covered(60_000), 'an empty committed hand over a held question, for a minute').to.eq(true);
+  });
+
+  it('a form that paints is never blind, whatever the clock says; nor is a decision not yet presented, or not held', () => {
+    expect(announceIsBlind({held: true, presented: true, platePaints: true, beaconPaints: false, coveredMs: 60_000})).to.eq(false);
+    expect(announceIsBlind({held: true, presented: true, platePaints: false, beaconPaints: true, coveredMs: 60_000})).to.eq(false);
+    expect(announceIsBlind({held: true, presented: false, platePaints: false, beaconPaints: false, coveredMs: 60_000}), 'the feed is still playing in front of it').to.eq(false);
+    expect(announceIsBlind({held: false, presented: true, platePaints: false, beaconPaints: false, coveredMs: 60_000})).to.eq(false);
+  });
+
+  it('a supplier that keeps no clock is judged as before — by the looks', () => {
+    expect(covered(undefined)).to.eq(true);
   });
 });

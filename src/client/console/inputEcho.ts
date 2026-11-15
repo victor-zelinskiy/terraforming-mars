@@ -136,8 +136,16 @@ export function recordVerbPress(taken: boolean, back = false): void {
 export type InputTrailHow = 'taken' | 'dropped' | string;
 const TRAIL_MAX = 24;
 const trail: Array<{at: number, what: string, how: InputTrailHow}> = [];
+/** Every press edge and direction the router ever saw — a count that only grows («did the player touch anything»). */
+let trailCount = 0;
+
+/** How many press edges and directions the router has seen, of any device (`livenessOscillation`: a spell is untouched while this stands). */
+export function inputTrailCount(): number {
+  return trailCount;
+}
 
 export function recordInputTrail(what: string, how: InputTrailHow, at: number = Date.now()): void {
+  trailCount++;
   trail.push({at, what, how});
   if (trail.length > TRAIL_MAX) {
     trail.shift();
@@ -173,6 +181,7 @@ export function installInputEchoProbe(): void {
 export function resetInputEchoForTest(): void {
   unreceivedBy = undefined;
   trail.splice(0);
+  trailCount = 0;
   state.seq = 0;
   state.presses = 0;
   state.verbPresses = 0;

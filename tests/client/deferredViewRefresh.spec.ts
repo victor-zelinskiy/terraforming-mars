@@ -3,6 +3,7 @@ import {
   DEFERRED_REFRESH_CHECK_MS,
   armDeferredViewRefresh,
   deferredViewRefreshArmed,
+  deferredViewRefreshParked,
   deferredViewRefreshStats,
   disarmDeferredViewRefresh,
   resetDeferredViewRefreshForTesting,
@@ -32,6 +33,21 @@ describe('deferredViewRefresh', () => {
     expect(fired).eq(1);
     expect(deferredViewRefreshArmed(), 'one-shot — disarmed after firing').eq(false);
     expect(deferredViewRefreshStats.fired).eq(1);
+  });
+
+  it('a park SAYS WHAT HOLDS IT — the scenes its refuser named, for as long as it stands', async () => {
+    let blocked = true;
+    expect(deferredViewRefreshParked(), 'nothing parked').to.equal(undefined);
+    armDeferredViewRefresh(() => blocked, () => undefined, () => 'played-hero+tile-placement');
+    expect(deferredViewRefreshParked()?.why).to.equal('played-hero+tile-placement');
+    // A park armed without the words still stands — and a supplier that throws never breaks the tick.
+    armDeferredViewRefresh(() => blocked, () => undefined, () => {
+      throw new Error('a scene module that is gone');
+    });
+    expect(deferredViewRefreshParked()?.why).to.equal('');
+    blocked = false;
+    await tick(DEFERRED_REFRESH_CHECK_MS * 2.5);
+    expect(deferredViewRefreshParked(), 'released: no park, no words').to.equal(undefined);
   });
 
   it('the LATEST arm wins — a newer poll supersedes the parked closure', async () => {

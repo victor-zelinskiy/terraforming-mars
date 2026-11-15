@@ -35,6 +35,33 @@ export function serverAheadOfView(game: ViewCursor | undefined): boolean {
 }
 
 /**
+ * IS THE VIEW'S LAG A LIE — or a debt somebody owns? (FREEZE ZERO — the field corpus's commonest «defect».)
+ *
+ * The freshness witness of the transport heals «the applied view is behind the server's cursor» after a grace. But
+ * the commonest reason a view is behind is HONEST and already OWNED: the poll fetched the newer view while a scene
+ * was playing, the root refused to commit it over the scene and PARKED the refresh (`deferredViewRefresh.ts` — re-run
+ * on the release edge, bounded by its own 15 s ceiling, named when it runs out). The witness did not know: every
+ * 3 s of a tile's flight or a played card's cinematic it «healed» — one more fetch, refused and parked again — and
+ * printed a defect line (51 of them in 14 of the owner's 47 field exports). Two nets, one fact.
+ *
+ * The law: a debt that has an owner is not a lie. The witness judges only a lag NOBODY holds — no request on the
+ * wire, no refresh parked: a consumed wake, a dropped model.
+ */
+export function viewLagIsALie(f: {ahead: boolean, requestInProgress: boolean, refreshParked: boolean}): boolean {
+  return f.ahead && !f.requestInProgress && !f.refreshParked;
+}
+
+/** What the view is behind by, for a line: `age +3 (undo +0)`. */
+export function viewLagOf(game: ViewCursor | undefined): string {
+  if (game === undefined) {
+    return 'no view';
+  }
+  const age = realtimeState.lastInvalidationGameAge;
+  const undo = realtimeState.lastInvalidationUndoCount;
+  return `age +${age === undefined ? 0 : Math.max(0, age - game.gameAge)} (undo +${undo === undefined ? 0 : Math.max(0, undo - game.undoCount)})`;
+}
+
+/**
  * THE MID-PROMPT REFRESH kill switch (mechanism A of
  * docs/claude/console/presentation-reconciliation.md). Default ON: a
  * GO/REFRESH that lands while the viewer holds a prompt APPLIES (the

@@ -29,6 +29,9 @@ import {advanceLivenessRung, LAST_LINE_REST, LastLineState, lastLineStep, LIVENE
 import {rebuildConsoleSession} from '@/client/console/session/sessionRebuild';
 import {noteSupervisorPass, noteSupervisorStarted, noteSupervisorStopped} from '@/client/console/session/supervisorPulse';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
+import {inputTrailCount} from '@/client/console/inputEcho';
+import {observeOscillation, OSCILLATION_REST, OscillationState} from '@/client/console/livenessOscillation';
+import {unanswerableReason} from '@/common/inputs/promptAnswerable';
 import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
 import {buildStallEvidence, stallHolder, StallHolderFacts} from '@/client/console/supervisor/stallEvidence';
@@ -141,6 +144,10 @@ export function createSupervisorController(shell: SupervisorPort) {
   let lastLine: LastLineState = LAST_LINE_REST;
   /** THE PULSE's CONTROL (`?waitGraphControl=strand` only — `__conBreakSupervisorPass()`): the pass throws from then on. */
   let passBrokenOnPurpose = false;
+  /** A SCREEN THAT MOVES AND GOES NOWHERE (`livenessOscillation.ts`) — the spell being watched, one look a second. */
+  let oscillation: OscillationState = OSCILLATION_REST;
+  /** A QUESTION NOBODY CAN ANSWER (`promptAnswerable.ts`) — the question it was said of (one line per question). */
+  let unanswerableTold = '';
   /** The liveness arbiter's last `accepting` (a surface takes input for the live question) — read by the ghost gate. */
   const lastLivenessAccepting = ref(true);
   /** Consecutive 1 Hz passes a LIVE frame of a phase that is over has stood with no leave pending (`reapDeadPhaseFrames`). */
@@ -342,6 +349,8 @@ export function createSupervisorController(shell: SupervisorPort) {
   function stopSupervisor(): void {
     noteSupervisorStopped();
     passBrokenOnPurpose = false;
+    oscillation = OSCILLATION_REST;
+    unanswerableTold = '';
     setDiagEvidenceProvider(undefined);
     beatStallTimer.value?.();
     beatStallTimer.value = undefined;
@@ -542,6 +551,28 @@ export function createSupervisorController(shell: SupervisorPort) {
       // …and the kernel's own tree, once the picture has stood for two seconds: what stands, in what, waiting for what.
       ...(quietS >= 2 ? {flow: flowTreeDigest(14).slice(0, 900)} : {}),
     });
+    // TWO THINGS THE ARBITER CANNOT SEE BY CONSTRUCTION — named here, with what stood (FREEZE ZERO, PLAN §4):
+    const asked = wf === undefined ? '' : `${wf.type}#${wf.promptId ?? ''}`;
+    //  · A QUESTION NOBODY CAN ANSWER: served perfectly, and it has no answer (the engine asked without checking).
+    //    No rebuild helps — the next page is asked the same — so it is NAMED, once, with the game's save beside it.
+    const dead = unanswerableReason(wf);
+    if (dead === undefined) {
+      unanswerableTold = '';
+    } else if (unanswerableTold !== asked) {
+      unanswerableTold = asked;
+      withDiagEvidence(captureDiagEvidence(), () => console.warn(`[question] unanswerable — «${taskFor(shell.playerView)?.kind ?? 'none'}» (${wf?.type ?? 'none'}#${wf?.promptId ?? ''}): ${dead}`));
+    }
+    //  · A SCREEN THAT MOVES AND GOES NOWHERE: the picture flips between the same few states by itself, so «the
+    //    picture moved» restarts the stall clock every second and no rung ever runs. Observed here (the line and its
+    //    evidence); it becomes a stall of the arbiter's own once the passes have shown it silent on healthy tables.
+    const loop = observeOscillation(oscillation, {promptLive: wf !== undefined && wf.optional !== true, question: asked, signature, inputs: inputTrailCount()});
+    oscillation = loop.state;
+    if (loop.verdict.oscillating && loop.verdict.first) {
+      const seen = loop.verdict;
+      withDiagEvidence(captureDiagEvidence(), () => console.warn(
+        `[liveness] oscillating — the picture changed ${seen.flips} times in ${seen.looks}s among ${seen.states.length} state(s) with no press; ` +
+        `asked: ${asked}; task: ${taskFor(shell.playerView)?.kind ?? 'none'}; top: ${topWord()}`));
+    }
     // THE WAIT GRAPH (Э2 — a shadow): the same second's waits, judged structurally — a cycle, a dangling wait, a dead
     // end, an overdue one — logged `[wait-graph] …` once per confirmed finding; nothing is acted on yet.
     lastLivenessAccepting.value = accepting;

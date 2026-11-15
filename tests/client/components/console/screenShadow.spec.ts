@@ -187,6 +187,14 @@ describe('screen shadow — positive controls through the leak detector', () => 
     expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: true, admission: 'reveal'})).eq('claim');
     expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: false, admission: 'reveal'})).eq('admit:reveal');
     expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: false, admission: ''})).eq('');
+    // THE PLAYER'S OWN SURFACE OVER A LIVE PLACEMENT (the hand opened from the wheel to look before placing — the
+    // monkey's second seed, `fz1 · parliament-skyscrapers-enact`): a hold of theirs, one B from the cells — after the
+    // claim's, before the admission's; and never under a blind announce.
+    expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: false, admission: '', lateral: 'hand'})).eq('lateral:hand');
+    expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: false, admission: 'reveal', lateral: 'hand'})).eq('lateral:hand');
+    expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: true, admission: '', lateral: 'hand'})).eq('claim');
+    expect(screenShadowHeldBy({blind: 'announce-gate', hold: '', claimHeld: false, admission: '', lateral: 'hand'})).eq('');
+    expect(screenShadowHeldBy({blind: '', hold: '', claimHeld: false, admission: '', lateral: ''})).eq('');
   });
 
   it('a hold HIDES nothing from the stats — a foreign surface standing under it is recorded beside the reason', () => {

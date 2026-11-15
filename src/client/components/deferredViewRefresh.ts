@@ -59,6 +59,8 @@ let timer: (() => void) | undefined;
 let armedAt = 0;
 let pendingBlocked: (() => boolean) | undefined;
 let pendingRefresh: (() => void) | undefined;
+/** WHICH scenes keep the screen — said by whoever refused the refresh; the overdue line and the diagnostics name them. */
+let pendingWhy: (() => string) | undefined;
 
 /** Diagnostics (the `__foregroundDiag` family): how often the poll path had to
  *  park a refresh, and the longest such park this session. */
@@ -69,9 +71,10 @@ export const deferredViewRefreshStats = {deferred: 0, fired: 0, maxWaitMs: 0, ov
  * LATEST arm wins — a newer poll superseding an older parked one is exactly
  * right, since `refresh` re-fetches rather than replaying a stale model.
  */
-export function armDeferredViewRefresh(blocked: () => boolean, refresh: () => void): void {
+export function armDeferredViewRefresh(blocked: () => boolean, refresh: () => void, why?: () => string): void {
   pendingBlocked = blocked;
   pendingRefresh = refresh;
+  pendingWhy = why;
   if (timer !== undefined) {
     return; // already ticking — the fresh closures above are what it will run
   }
@@ -85,12 +88,14 @@ export function armDeferredViewRefresh(blocked: () => boolean, refresh: () => vo
       return;
     }
     const run = pendingRefresh;
+    // WHO held it, read BEFORE the park is dropped: a scene flag that never releases is the defect this line names.
+    const held = overdue ? parkedWhy() : '';
     disarmDeferredViewRefresh();
     deferredViewRefreshStats.fired++;
     deferredViewRefreshStats.maxWaitMs = Math.max(deferredViewRefreshStats.maxWaitMs, waited);
     if (overdue) {
       deferredViewRefreshStats.overdue++;
-      console.warn(`[deferred-refresh] the screen stayed busy for over ${DEFERRED_REFRESH_MAX_MS}ms — refreshing anyway`);
+      console.warn(`[deferred-refresh] the screen stayed busy for over ${DEFERRED_REFRESH_MAX_MS}ms — refreshing anyway${held === '' ? '' : ` — held by ${held}`}`);
     }
     run?.();
   });
@@ -120,11 +125,29 @@ export function disarmDeferredViewRefresh(): void {
   }
   pendingBlocked = undefined;
   pendingRefresh = undefined;
+  pendingWhy = undefined;
 }
 
-/** Is a refresh currently parked? (diagnostics / specs) */
+function parkedWhy(): string {
+  try {
+    return pendingWhy?.() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Is a refresh currently parked? THE DEBT HAS AN OWNER while it is: a view that lags behind the server for a parked
+ * refresh is not a lie anybody has to heal — this module re-runs it on the release edge, bounded by its own ceiling
+ * (the freshness witness of the transport reads this; `viewFreshness.viewLagIsALie`).
+ */
 export function deferredViewRefreshArmed(): boolean {
   return timer !== undefined;
+}
+
+/** The park as a fact for a diagnostic line: how long, and behind which scenes (`undefined` = nothing is parked). */
+export function deferredViewRefreshParked(): {forMs: number, why: string} | undefined {
+  return timer === undefined ? undefined : {forMs: Date.now() - armedAt, why: parkedWhy()};
 }
 
 /** Test seam. */

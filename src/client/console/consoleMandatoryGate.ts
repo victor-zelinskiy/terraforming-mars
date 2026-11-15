@@ -442,6 +442,10 @@ export function isMandatoryBeatPresented(beat: MandatoryBeat | undefined): boole
  * finished; equivalent later updates re-derive the same key and change nothing.
  */
 export function markMandatoryBeatPresented(key: string): void {
+  // (A decision presented where no plate can stand begins its life in the beacon's form: its clock starts here.)
+  if (mandatoryGateState.presentedKey !== key && !plateStands) {
+    plateGoneSince = Date.now();
+  }
   mandatoryGateState.presentedKey = key;
   if (liveAnnounce?.key === key) {
     liveAnnounce.flow.send({type: 'PRESENTED'});
@@ -457,6 +461,63 @@ export function forceMandatoryBeacon(key: string): void {
 }
 
 /** Is the beacon of this beat lit by the director? PURE. */
+/**
+ * THE BEACON'S DWELL — how long the chip's beacon takes to light after the plate left the screen (the strip debounces
+ * it, so a plate covered for a moment never flashes amber), and THE BOUND within which a covered announce owes one
+ * of its two forms: the dwell plus a second for the strip's own paint. An announce with neither form for LESS than
+ * the bound is in its dwell — a bounded beat, not a door nobody can see (`announceIsBlind`).
+ */
+export const MANDATORY_BEACON_DWELL_MS = 1200;
+export const MANDATORY_FORM_BOUND_MS = MANDATORY_BEACON_DWELL_MS + 1000;
+
+/**
+ * IS A PRESENTED ANNOUNCE BLIND — held behind a door nobody can see? PURE.
+ *
+ * The gate holds a decision it has already presented; its plate does not paint (the player stands elsewhere, or a
+ * wheel covers the board) and the chip's beacon does not paint either. That is the field lock of 2026-11-02 — IF it
+ * has stood past the beacon's own dwell. The screen shadow used to judge it by three 1 Hz looks, and three looks are
+ * not three seconds: «X — Разыграно» for 0.8 s, B, then the LT wheel covered the plate twice inside the dwell with
+ * 0.6 s of plate between them that no look fell into — «blind for three passes», a defect event and a forced beacon
+ * for a player who was flicking between their own surfaces (FREEZE ZERO — the monkey's second seed,
+ * `fz1 · two-player-finale-trigger`, reproduced in a real browser). The law: blindness is measured on the
+ * ANNOUNCE's own clock — how long the plate has been gone CONTINUOUSLY (`coveredMs`, stamped on the reactive edge) —
+ * never on a sampler's.
+ *
+ * `coveredMs` undefined = the caller keeps no clock (an older supplier, a spec): judged as before, by the looks.
+ */
+export function announceIsBlind(f: {held: boolean, presented: boolean, platePaints: boolean, beaconPaints: boolean, coveredMs?: number}): boolean {
+  if (!f.held || !f.presented || f.platePaints || f.beaconPaints) {
+    return false;
+  }
+  return f.coveredMs === undefined || f.coveredMs >= MANDATORY_FORM_BOUND_MS;
+}
+
+/**
+ * THE ANNOUNCE'S OWN CLOCK. Two facts, each stamped where it HAPPENS — never sampled: the plate stands (its own
+ * component is mounted — `ConsoleMandatoryAnnounce` says so when it comes and when it goes), and the moment since
+ * which a presented decision has had no plate (the plate left; or the decision was presented while the player stood
+ * elsewhere, in the beacon's form from the start).
+ */
+let plateStands = false;
+let plateGoneSince = 0;
+
+/** The plate's own component: it is on screen / it has gone. */
+export function noteMandatoryPlate(stands: boolean, now: number = Date.now()): void {
+  plateStands = stands;
+  plateGoneSince = stands ? 0 : now;
+}
+
+/**
+ * How long the presented announce has had no plate (ms): 0 while the plate stands; `undefined` when no edge was ever
+ * seen (nothing presented yet — the shadow then judges by its looks, as before).
+ */
+export function mandatoryAnnounceCoveredMs(now: number = Date.now()): number | undefined {
+  if (plateStands) {
+    return 0;
+  }
+  return plateGoneSince === 0 ? undefined : Math.max(0, now - plateGoneSince);
+}
+
 export function isMandatoryBeaconForced(beat: MandatoryBeat | undefined): boolean {
   return beat !== undefined && beat.key === mandatoryGateState.beaconKey;
 }
@@ -510,6 +571,8 @@ export function resetMandatoryGate(): void {
   mandatoryGateState.acknowledgedKey = '';
   mandatoryGateState.presentedKey = '';
   mandatoryGateState.beaconKey = '';
+  plateStands = false;
+  plateGoneSince = 0;
 }
 
 // THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass

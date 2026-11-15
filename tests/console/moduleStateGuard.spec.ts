@@ -64,6 +64,7 @@ const PAGE_LIFETIME: Readonly<Record<string, Readonly<Record<string, string>>>> 
   },
   'src/client/console/inputEcho.ts': {
     trail: 'the device\'s own last presses — evidence that must outlive the session it is about (a stall right after a rematch is read with the presses before it)',
+    trailCount: 'how many presses the router ever saw — a count that only grows; its readers compare it with their own last look',
   },
   'src/client/console/session/supervisorPulse.ts': {
     passes: 'the count of supervisor passes completed in this DOCUMENT — the witness that reads it stands outside every session, and compares it only with its own last look',

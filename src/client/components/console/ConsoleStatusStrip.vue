@@ -229,6 +229,7 @@
  */
 import {computed, markRaw, onBeforeUnmount, onBeforeUpdate, onMounted, onUpdated, PropType, ref, useTemplateRef, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {MANDATORY_BEACON_DWELL_MS} from '@/client/console/consoleMandatoryGate';
 import {MIN_TEMPERATURE} from '@/common/constants';
 import {GlobalParameterMaximums, getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
 import {GameModel} from '@/common/models/GameModel';
@@ -305,7 +306,7 @@ const props = defineProps({
    */
   ghostParam: {type: String as PropType<'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined>, default: undefined},
   /** Engagement debounce (ms). A prop so specs can shrink it. */
-  attentionEngageMs: {type: Number, default: 1200},
+  attentionEngageMs: {type: Number, default: MANDATORY_BEACON_DWELL_MS},
   /**
    * The DWELL window (ms) before a non-zero count may show: the backlog
    * must wait CONTINUOUSLY for this long — a blocker that clears sooner, a
