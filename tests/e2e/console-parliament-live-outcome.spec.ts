@@ -113,7 +113,7 @@ for (const shape of SHAPES) {
     }
     expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-law-play-name]').count() > 0, {tries: 5, settleMs: 1200}), 'the slot filled').toBeTruthy();
     await settle(page, {timeoutMs: 20_000});
-    expect(await page.locator(READY).count(), 'the commit is ready').toBe(1);
+    await expect.poll(() => page.locator(READY).count(), {message: 'the commit is ready'}).toBe(1);
     const before = await fetchPlayerModel(request, playerId) as unknown as {thisPlayer: {tableau: Array<{name: string}>}};
 
     await recordTransient(page, 'law-landing', () => {
@@ -126,8 +126,8 @@ for (const shape of SHAPES) {
     const hosted = page.locator(`${ZONE} ${shape.surface}`);
     await expect(hosted, `${shape.card}'s outcome presents inside the law's outcome zone`).toHaveCount(1, {timeout: 30_000});
     // The whole time: the workspace stands, ONE instance of the surface, nothing standalone.
-    expect(await page.locator('.con-cardactions').count(), 'the workspace stands').toBe(1);
-    expect(await page.locator(shape.surface).count(), 'one surface, one home').toBe(1);
+    await expect.poll(() => page.locator('.con-cardactions').count(), {message: 'the workspace stands'}).toBe(1);
+    await expect.poll(() => page.locator(shape.surface).count(), {message: 'one surface, one home'}).toBe(1);
     expect(await page.evaluate((sel) => Array.from(document.querySelectorAll(sel)).every((el) => el.closest('.con-cardactions') !== null), shape.surface),
       'never a standalone band over the board').toBe(true);
     // The crumb only gained a tail: the workspace root and the law stay, the stage names the outcome.

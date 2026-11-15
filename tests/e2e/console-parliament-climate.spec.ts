@@ -219,8 +219,8 @@ for (const preset of PRESETS) {
       const face = page.locator(`.con-parl__slot[data-instance="${CLIMATE_INSTANCE}"] .pcard`);
       await expect(face, 'Climate Research stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(/pcard--resolution-art/);
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX05');
-      expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'the Greens\' tree').toContain('greens');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX05');
+      await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'the Greens\' tree'}).toContain('greens');
       const prodBoxes = face.locator('.pcard__mech .pcard-prod');
       await expect(prodBoxes, 'BOTH rows read production, never the bare heat cube').toHaveCount(2);
       // The draw's object is the PROJECT CARD cover (never the resolution deck's back).
@@ -316,8 +316,7 @@ for (const preset of PRESETS) {
       await expect(take, 'the premium take surface is on screen').toHaveCount(1, {timeout: 20_000});
       await expect(take, '…host-agnostic: no plate of its own').toHaveClass(/con-extdraw--embedded/);
       await expect(page.locator('.con-extdraw .con-wshead'), 'the crumb belongs to the host').toHaveCount(0);
-      expect(await page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw').count(),
-        'the surface stands in the enactment stage\'s own zone').toBe(1);
+      await expect.poll(() => page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw').count(), {message: 'the surface stands in the enactment stage\'s own zone'}).toBe(1);
       const crumb = (await crumbText(page)).toUpperCase();
       expect(crumb, `one continuous crumb, got «${crumb}»`).toMatch(/ПАРЛАМЕНТ|PARLIAMENT/);
       expect(crumb).toMatch(/ПОЛУЧЕНИЕ|INTAKE/);
@@ -328,8 +327,7 @@ for (const preset of PRESETS) {
       //    must not claim the shared dim (it once did — the root kept its
       //    `data-motion-surface` id and the whole Parliament, the take
       //    included, went dark for the entire draw).
-      expect(await page.locator('.con-extdraw').getAttribute('data-motion-surface'),
-        'the embedded take strips its motion-surface id').toBeNull();
+      await expect.poll(() => page.locator('.con-extdraw').getAttribute('data-motion-surface'), {message: 'the embedded take strips its motion-surface id'}).toBeNull();
       expect(await shadeOn(page), 'the embedded take dims nothing — not its host, not itself').toBe(false);
       await expectFits(page, `${preset.id} enactment take`);
       await shoot(page, preset.id, '10-enact-take');

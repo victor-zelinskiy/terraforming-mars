@@ -225,7 +225,7 @@ test.describe(`P73 Floating Refinery · the counted play, the action choice, the
     await openCardActions(page);
     const removeTile = page.locator(`.con-cardactions__tile[data-action-card="${CARD}"]`).nth(REMOVE);
     await expect(removeTile, 'the «remove» variant is shown').toBeVisible();
-    expect(await removeTile.getAttribute('data-action-verdict'), 'refused, never hidden').not.toBe('available');
+    await expect.poll(() => removeTile.getAttribute('data-action-verdict'), {message: 'refused, never hidden'}).not.toBe('available');
     await expect(removeTile, 'its reason, in words').toContainText('Ни на одной вашей карте нет 2 аэростатов');
     await shoot(page, 'g-sole-browse');
     await openVariant(page, ADD);

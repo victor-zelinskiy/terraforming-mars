@@ -156,7 +156,7 @@ test.describe('Dutch Mountains (DP08) · fhd', () => {
     }
     await page.waitForSelector('.con-hydro__layer--rewardpick', {timeout: 10_000});
     // No movement grammar: no route arrow, no commit line — a selection surface.
-    expect(await page.locator('.con-hydro__route').count(), 'no route is drawn').toBe(0);
+    await expect.poll(() => page.locator('.con-hydro__route').count(), {message: 'no route is drawn'}).toBe(0);
     await shoot(page, '02-reward-pick');
 
     // ── Walk to stage 3 (+2 M€ production — deterministic) and claim it. ──
@@ -205,7 +205,7 @@ test.describe('Dutch Mountains (DP08) · fhd', () => {
     expect(after.position, 'the marker did not move').toBe(5);
     expect(after.usedThisGeneration, 'the ordinary advance flag is untouched').toBe(before.usedThisGeneration);
     // The Hydronetwork never opens a second time for the execution.
-    expect(await page.locator('.con-hydro').count(), 'no second Hydronetwork trip').toBe(0);
+    await expect.poll(() => page.locator('.con-hydro').count(), {message: 'no second Hydronetwork trip'}).toBe(0);
     await page.waitForTimeout(2500);
     await shoot(page, '04-after');
   });

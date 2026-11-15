@@ -318,7 +318,7 @@ for (const profile of PROFILES) {
       expect(settle?.settleLeftMs ?? 0, 'the presses landed INSIDE the window').toBeGreaterThan(200);
       await expect(bar.locator('.con-cmdbar__cmd--disabled').first()).toBeVisible();
       await shoot('3-loss-arrives');
-      expect(await page.locator('.con-prodloss__row--active').count(), 'an inertial A marks NO production').toBe(0);
+      await expect.poll(() => page.locator('.con-prodloss__row--active').count(), {message: 'an inertial A marks NO production'}).toBe(0);
       expect(chain.posts.length, 'an inertial X posts NOTHING').toBe(1);
       // …and the absorbed press is answered on the tag, never silently lost.
       await expect(page.locator('.con-prodloss .con-prompt-head[class*="con-prompt-head--nudge"]')).toHaveCount(1);
@@ -438,9 +438,9 @@ for (const profile of PROFILES) {
         await plateStands(page);
         const reading = await plateReading(page);
         expect(reading.tone, `${item.name} reads ${item.tone}`).toBe(item.tone);
-        expect(await page.locator('[data-prompt-panel] .con-prompt-head__crest').count(), `${item.name} wears the crest`).toBe(1);
+        await expect.poll(() => page.locator('[data-prompt-panel] .con-prompt-head__crest').count(), {message: `${item.name} wears the crest`}).toBe(1);
         if (item.tone === 'neutral') {
-          expect(await page.locator('[data-prompt-tag]').count(), 'a free choice wears no tone tag').toBe(0);
+          await expect.poll(() => page.locator('[data-prompt-tag]').count(), {message: 'a free choice wears no tone tag'}).toBe(0);
         } else {
           await expect(page.locator('[data-prompt-panel] [data-prompt-tag]')).toContainText(item.tone === 'gain' ? /ВЫГОДА/i : /УБЫТОК/i);
         }
@@ -485,7 +485,7 @@ for (const profile of PROFILES) {
           expect(palette.inside, 'every reading stands inside its tile').toBe(true);
         }
         if (item.name === 'reward-choice') {
-          expect(await page.locator('[data-prompt-panel] .con-vchoice__opt').count(), 'the reward\'s answers are the grammar\'s tiles').toBe(2);
+          await expect.poll(() => page.locator('[data-prompt-panel] .con-vchoice__opt').count(), {message: 'the reward\'s answers are the grammar\'s tiles'}).toBe(2);
         }
         fs.mkdirSync(OUT, {recursive: true});
         await page.screenshot({path: path.join(OUT, `${profile.tag}-gallery-${item.name}.png`)});

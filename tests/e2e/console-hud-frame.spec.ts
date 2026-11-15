@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStart';
+import {bootSeededGame, createGameWithCards, press, pressUntil, settle, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -31,6 +32,10 @@ import * as path from 'node:path';
  * Parameterised over FHD (standard profile) and 4K (forced tv profile,
  * --con-ui-scale = 2) — a geometry claim asserted at one resolution is a
  * claim about one resolution.
+ *
+ * Every measurement is a claim about the frame AT REST (FLAKE ZERO, class C): each state is read ONCE through
+ * `readSettled` (the console settled, then two equal reads a frame apart) — a box read once is wherever the machine
+ * had got to, and on CI's software raster a workspace's entrance is still under way when a one-shot read lands.
  */
 
 const OUT_ROOT = path.resolve('screenshots', 'hud-frame');
@@ -159,7 +164,7 @@ for (const preset of PRESETS) {
       // The preset landed on the intended layout profile.
       await expect(page.locator('html')).toHaveClass(new RegExp(preset.profileClass));
 
-      const g = await readFrameGeometry(page);
+      const g = await readSettled(page, () => readFrameGeometry(page), {message: `the HUD frame at rest (${preset.id})`});
       const vw = g.viewport.width;
       const vh = g.viewport.height;
       // Sub-device-pixel slack: rect maths under a scaled rem base.
@@ -203,12 +208,12 @@ for (const preset of PRESETS) {
       expect(g.stratRail, 'right strategy rail mounted').not.toBe(undefined);
       expect(Math.abs((g.stratRail?.height ?? 0) - g.main.height)).toBeLessThanOrEqual(2 * eps);
 
-      // ── 5 · the generation block reads the ordinary «ПКЛ. N». ──
-      const genLabel = (await page.locator('.con-status__gen-label').innerText()).trim();
-      expect(genLabel.length).toBeGreaterThan(0);
-      expect(genLabel, 'no final marker word in the generation label').not.toMatch(/ФИНАЛЬН|FINAL/i);
-      const genValue = (await page.locator('.con-status__gen').innerText()).replace(/\D+/g, '');
-      expect(Number(genValue)).toBeGreaterThanOrEqual(1);
+      // ── 5 · the generation block reads the ordinary «ПКЛ. N». ── (A live readout: asserted by a poll.)
+      const genLabel = async () => (await page.locator('.con-status__gen-label').innerText()).trim();
+      await expect.poll(async () => (await genLabel()).length).toBeGreaterThan(0);
+      await expect.poll(genLabel, {message: 'no final marker word in the generation label'}).not.toMatch(/ФИНАЛЬН|FINAL/i);
+      await expect.poll(async () => Number((await page.locator('.con-status__gen').innerText()).replace(/\D+/g, '')))
+        .toBeGreaterThanOrEqual(1);
 
       // ── 6 · no overlaps: the board stage clears the dock's card tops. ──
       if (g.boardStageBottom !== undefined && g.dockCardTop !== undefined) {
@@ -252,8 +257,10 @@ for (const preset of PRESETS) {
       // chips on three lines, each several px adrift INSIDE the scene — the
       // beam's answer read as debris over the board. A LIVE chip is a moving
       // target (its enter transition carries a translate + scale); the anchor
-      // it settles onto is not, which is what this measures.
-      const chipGeom = await page.evaluate(() => {
+      // it settles onto is not, which is what this measures. (The probes are
+      // mounted, measured and removed inside ONE read, so every read of the
+      // settled pair sees the same scaffolding.)
+      const chipGeom = await readSettled(page, () => page.evaluate(() => {
         const mount = (cell: Element, variant: string) => {
           const host = document.createElement('span');
           host.className = `metric-feedback-host metric-feedback-host--${variant} ` +
@@ -288,7 +295,7 @@ for (const preset of PRESETS) {
         // The probes are scaffolding — later sections photograph this screen.
         document.querySelectorAll('[data-chip-probe]').forEach((n) => n.remove());
         return geom;
-      });
+      }), {message: `the beams' chip anchors (${preset.id})`});
       expect(chipGeom.beam.length, 'every global readout carries a chip host').toBeGreaterThanOrEqual(4);
       const beamSeam = chipGeom.strip?.bottom ?? 0;
       const chipTops = chipGeom.beam.map((c) => c.top);
@@ -322,19 +329,20 @@ for (const preset of PRESETS) {
 
       // ── 10 · a WORKSPACE is a state of the scene: its stage welds to the
       // right edge, square (no modal card), content inside the safe inset. ──
-      for (let i = 0; i < 5 && await page.locator('.con-hand').count() === 0; i++) {
-        if (await page.locator('.con-zoom, .con-quick, .con-composer').count() > 0) {
-          await page.keyboard.press('Escape');
-          await page.waitForTimeout(700);
+      // ACT → VERIFY: every press is given its effect's whole window (the
+      // overlay gone, the hand up) before the loop believes «no change».
+      const strayOverlay = page.locator('.con-zoom, .con-quick, .con-composer');
+      const handUp = async () => await page.locator('.con-hand').count() > 0;
+      for (let i = 0; i < 5 && !await handUp(); i++) {
+        if (await strayOverlay.count() > 0) {
+          await pressUntil(page, 'Escape', async () => await strayOverlay.count() === 0, {tries: 1, settleMs: 700});
           continue;
         }
-        await page.keyboard.press('Period');
-        await page.waitForTimeout(700);
-        await page.keyboard.press('Enter');
-        await page.waitForTimeout(2000);
+        await press(page, 'Period', 700); // RT — the quick wheel
+        await pressUntil(page, 'Enter', handUp, {tries: 1, settleMs: 2000}); // its centre slot — the hand
       }
       await expect(page.locator('.con-hand__frame')).toHaveCount(1, {timeout: 15_000});
-      const hand = await page.evaluate(() => {
+      const hand = await readSettled(page, () => page.evaluate(() => {
         const el = document.querySelector('.con-hand__frame');
         if (el === null) {
           return undefined;
@@ -352,7 +360,7 @@ for (const preset of PRESETS) {
         const verdictPad = verdict !== null ? parseFloat(getComputedStyle(verdict).paddingRight) : 0;
         const verdictClasses = verdict !== null ? verdict.className : '(none)';
         return {right: r.right, left: r.left, radius: cs.borderTopRightRadius, padRight: parseFloat(cs.paddingRight), stageX, contentSafe, verdictPad, verdictClasses};
-      });
+      }), {message: `the hand workspace frame at rest (${preset.id})`});
       console.log(`[HAND:${preset.id}] padRight=${hand?.padRight} stageX=${hand?.stageX} contentSafe=${hand?.contentSafe} verdictPad=${hand?.verdictPad} classes=${hand?.verdictClasses}`);
       expect(hand, 'the hand workspace frame is up').not.toBe(undefined);
       expect(Math.abs((hand?.right ?? 0) - vw), 'the workspace stage welds to the right viewport edge')
@@ -373,22 +381,22 @@ for (const preset of PRESETS) {
         'the workspace keeps the same rail seam as the board').toBeLessThanOrEqual(1 + eps);
       fs.mkdirSync(path.join(OUT_ROOT, preset.id), {recursive: true});
       await page.screenshot({path: path.join(OUT_ROOT, preset.id, 'hand-workspace.png')});
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(900);
+      // B — the hand leaves (its effect is the witness, never a pause).
+      await pressUntil(page, 'Escape', async () => !await handUp(), {tries: 1, settleMs: 4000});
 
       // ── 11 · ADAPTIVE SURFACES: the freed area becomes CONTENT, never
       // background. ──
       // The right STRATEGY RAIL: the top competition zone names itself
       // («ДОСТИЖЕНИЯ» — the actions wheel never returns to this rail), and
       // the medal is a first-class carrier sized for the widened member.
-      const strat = await page.evaluate(() => {
+      const strat = await readSettled(page, () => page.evaluate(() => {
         const title = document.querySelector('.con-strat__zone--milestones .con-strat__title');
         const medal = document.querySelector('.con-strat__zone--milestones .con-strat__medal');
         return {
           title: title?.textContent?.trim() ?? '',
           medalH: medal === null ? 0 : medal.getBoundingClientRect().height,
         };
-      });
+      }), {message: `the strategy rail at rest (${preset.id})`});
       expect(strat.title, 'the top zone is the MILESTONES competition, never actions')
         .toMatch(/^(ДОСТИЖЕНИЯ|MILESTONES)$/i);
       // The couch floor sits just under the profile token (tv 4.15rem /
@@ -399,14 +407,14 @@ for (const preset of PRESETS) {
 
       // The LEFT RAIL: the instrument plates own the hull zone the welded
       // chassis gained, while the icons stay on the safe content line.
-      const rail = await page.evaluate(() => {
+      const rail = await readSettled(page, () => page.evaluate(() => {
         const row = document.querySelector('.con-res__row');
         const icon = document.querySelector('.con-res__row .con-res__icon');
         if (row === null || icon === null) {
           return undefined;
         }
         return {rowLeft: row.getBoundingClientRect().left, iconLeft: icon.getBoundingClientRect().left};
-      });
+      }), {message: `the resource rail at rest (${preset.id})`});
       expect(rail, 'the resource rows are mounted').not.toBe(undefined);
       // The bleed grammar, token-derived: the plate extends toward the
       // physical edge by exactly the edge pad the row compensates for
@@ -418,13 +426,13 @@ for (const preset of PRESETS) {
         .toBeGreaterThanOrEqual(g.padXPx - eps);
 
       // STANDARD PROJECTS (LT wheel → БАЗОВЫЕ): the tile grid fills the
-      // whole body and the art stage grows with its adaptive row.
-      await page.keyboard.press('Comma');
-      await page.waitForTimeout(900);
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(1600);
+      // whole body and the art stage grows with its adaptive row. The wheel
+      // standing is the LT press's effect; A goes only into a standing wheel.
+      await press(page, 'Comma', 900);
+      await page.locator('.con-quick').first().waitFor({state: 'visible', timeout: 10_000}).catch(() => undefined);
+      await press(page, 'Enter', 1600);
       await expect(page.locator('.con-stdp')).toHaveCount(1, {timeout: 12_000});
-      const stdp = await page.evaluate(() => {
+      const stdp = await readSettled(page, () => page.evaluate(() => {
         const host = document.querySelector('.con-stdp__scroll-host');
         const grid = document.querySelector('.con-stdp__grid');
         const stage = document.querySelector('.con-stdp__stage');
@@ -438,7 +446,7 @@ for (const preset of PRESETS) {
           stageH: s.height,
           stageW: s.width,
         };
-      });
+      }), {message: `the standard-projects grid at rest (${preset.id})`});
       expect(stdp, 'the standard-projects grid is mounted').not.toBe(undefined);
       expect(stdp?.gridH ?? 0, 'the tile grid fills the body it was given')
         .toBeGreaterThanOrEqual((stdp?.hostH ?? 9999) - 3);
@@ -447,15 +455,13 @@ for (const preset of PRESETS) {
       expect(stdp?.stageH ?? 0, 'the artwork grew with the adaptive row')
         .toBeGreaterThanOrEqual((preset.id === 'tv-4k' ? 4.8 : 3.7) * g.remPx);
       await page.screenshot({path: path.join(OUT_ROOT, preset.id, 'stdp-adaptive.png')});
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(1000);
+      await pressUntil(page, 'Escape', async () => await page.locator('.con-stdp').count() === 0, {tries: 1, settleMs: 4000});
 
       // MILESTONES workspace (LB): the competition grid fills the body and
       // the artefact stage takes the height the filled rows hand out.
-      await page.keyboard.press('KeyQ');
-      await page.waitForTimeout(1800);
+      await press(page, 'KeyQ', 1800);
       await expect(page.locator('.con-ma')).toHaveCount(1, {timeout: 12_000});
-      const ma = await page.evaluate(() => {
+      const ma = await readSettled(page, () => page.evaluate(() => {
         const host = document.querySelector('.con-ma__scroll-host');
         const grid = document.querySelector('.con-ma__grid');
         const stage = document.querySelector('.con-ma__stage');
@@ -467,15 +473,15 @@ for (const preset of PRESETS) {
           gridH: grid.getBoundingClientRect().height,
           stageH: stage.getBoundingClientRect().height,
         };
-      });
+      }), {message: `the milestones grid at rest (${preset.id})`});
       expect(ma, 'the milestones grid is mounted').not.toBe(undefined);
       expect(ma?.gridH ?? 0, 'the competition grid fills the body it was given')
         .toBeGreaterThanOrEqual((ma?.hostH ?? 9999) - 3);
       expect(ma?.stageH ?? 0, 'the artefact stage grew with the filled rows')
         .toBeGreaterThanOrEqual((preset.id === 'tv-4k' ? 6 : 4.8) * g.remPx);
       await page.screenshot({path: path.join(OUT_ROOT, preset.id, 'ma-adaptive.png')});
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(900);
+      await pressUntil(page, 'Escape', async () => await page.locator('.con-ma').count() === 0, {tries: 1, settleMs: 4000});
+      await settle(page); // the board home at rest before its reference frames
 
       const outDir = path.join(OUT_ROOT, preset.id);
       fs.mkdirSync(outDir, {recursive: true});

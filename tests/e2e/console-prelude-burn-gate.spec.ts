@@ -326,8 +326,7 @@ test.describe('console — the prelude ORDER GATE', () => {
     const back = await gate(page);
     expect(back.armed, 'B left the risk stage').toBe('');
     expect(back.stageUp).toBeFalsy();
-    expect(await page.locator('.con-start__queue').isVisible(),
-      'B went back to CHOOSING, it did not minimize the workspace').toBeTruthy();
+    await expect.poll(() => page.locator('.con-start__queue').isVisible(), {message: 'B went back to CHOOSING, it did not minimize the workspace'}).toBeTruthy();
     expect(back.queue, 'and it certainly did not play anything').toContain(WAITING);
 
     // ── EVERY EXIT DISARMS: navigation, and the fullscreen inspect ────────

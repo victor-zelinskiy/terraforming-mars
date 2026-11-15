@@ -138,15 +138,15 @@ async function enterDiscardAlbum(page: Page, preset: string, shotName: string): 
   await expect(handPicking(page).first(), 'A on the discard opens the HAND in pick mode').toBeVisible({timeout: 15_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
-  expect(await page.locator('.con-composer__sublist').count(), 'no option list stood before the album — and none stands while it picks').toBe(0);
-  expect(await page.locator(`${PLAY_COMPOSER}:visible`).count(), 'the composer waits underneath, hidden').toBe(0);
+  await expect.poll(() => page.locator('.con-composer__sublist').count(), {message: 'no option list stood before the album — and none stands while it picks'}).toBe(0);
+  await expect.poll(() => page.locator(`${PLAY_COMPOSER}:visible`).count(), {message: 'the composer waits underneath, hidden'}).toBe(0);
   const crumb = await crumbText(page);
   expect(crumb.toLowerCase(), `the crumb's tail names the discard — «${crumb}»`).toContain('сброс карты');
   // The card being played is NOT in the album (2026-10-14 — the rules never offer it: «discard a card», «reveal any
   // number of OTHER cards»; it stays the composer's hero, L3 inspects it as the source) — the cursor starts on a candidate.
   await expect(page.locator(`.con-hand[data-flow="picking"] [data-zoom-slot="${MU}"]`), 'the played card is not among the choices').toHaveCount(0);
-  expect(await page.locator('.con-hand__slot--selected').count(), 'the cursor stands on a candidate').toBe(1);
-  expect(await page.locator('.con-hand__slot--selected.con-hand__slot--select-disabled').count(), 'the cursor starts on a candidate').toBe(0);
+  await expect.poll(() => page.locator('.con-hand__slot--selected').count(), {message: 'the cursor stands on a candidate'}).toBe(1);
+  await expect.poll(() => page.locator('.con-hand__slot--selected.con-hand__slot--select-disabled').count(), {message: 'the cursor starts on a candidate'}).toBe(0);
   // Every candidate stands in the album as the real card.
   for (const name of FILLER) {
     await expect(page.locator(`.con-hand [data-zoom-slot="${name}"]`), `«${name}» stands in the album`).toHaveCount(1);
@@ -250,7 +250,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 30_000});
       await waitForBoardHome(page, 30);
       await expect(handPicking(page), 'the hand never comes back in pick mode').toHaveCount(0);
-      expect(await page.locator('.con-decision').count(), 'no live decision was raised — the question was answered').toBe(0);
+      await expect.poll(() => page.locator('.con-decision').count(), {message: 'no live decision was raised — the question was answered'}).toBe(0);
       await shoot(page, preset.id, 'A6-board');
     });
 
@@ -314,7 +314,7 @@ for (const preset of PRESETS) {
         expect(after.thisPlayer.cardsInHandNbr, 'the hand: −the card −the discard +1 drawn').toBe(handBefore - 2 + 1);
         await settle(page, {timeoutMs: 30_000});
         await waitForBoardHome(page, 30);
-        expect(await page.locator('.con-decision').count(), 'no live decision — the table\'s question was answered before the press').toBe(0);
+        await expect.poll(() => page.locator('.con-decision').count(), {message: 'no live decision — the table\'s question was answered before the press'}).toBe(0);
         await shoot(page, preset.id, 'B2-board');
       });
     }

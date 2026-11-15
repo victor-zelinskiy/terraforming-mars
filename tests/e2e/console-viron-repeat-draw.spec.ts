@@ -148,8 +148,7 @@ test.describe('console viron repeat draw', () => {
 
     // ── THE CLAIM: the copied draw presents INSIDE the workspace. ─────────
     await expect(embedded, 'the copied draw presents EMBEDDED in the workspace').toHaveCount(1, {timeout: 15_000});
-    expect(await page.locator('.con-cardactions').count(), 'the workspace is still standing under its own outcome')
-      .toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-cardactions').count(), {message: 'the workspace is still standing under its own outcome'}).toBeGreaterThan(0);
     await shoot(page, '03-embedded-draw');
 
     const probe = await page.evaluate(() =>

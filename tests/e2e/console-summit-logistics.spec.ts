@@ -252,7 +252,7 @@ test.describe(`P85 Summit Logistics · a political requirement, a two-term count
     await press(page, 'Escape', 600);
     await expect(page.locator('.con-hand'), 'the workspace leaves after the take').toHaveCount(0, {timeout: 30_000});
     await settle(page, {timeoutMs: 30_000});
-    expect(await page.locator('.con-ws').count(), 'no workspace left standing').toBe(0);
+    await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace left standing'}).toBe(0);
     const after = await wireOf(request, id);
     expect(after.cardDrawReveals ?? [], 'nothing left to take').toEqual([]);
     expect(after.thisPlayer.megacredits, '20 − 3 + 5').toBe(22);

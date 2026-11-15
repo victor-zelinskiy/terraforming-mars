@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixture, FixtureName, focusCard, press, settle} from './consoleStart';
+import {bootFixture, composerLoaded, FixtureName, focusCard, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE PLAY COMPOSER IS A SHEET THAT MIRRORS THE CARD (P81 · DJ — docs/claude/prompts/prelude2-p81-soil-studies.md §4;
@@ -205,6 +206,21 @@ async function readScene(page: Page): Promise<Scene> {
   }, COMPOSER);
 }
 
+/** Two reads are the same scene when they agree to the half pixel — a subpixel that jitters is not motion. */
+function samePx(a: Scene, b: Scene): boolean {
+  const px = (_key: string, v: unknown) => typeof v === 'number' ? Math.round(v * 2) / 2 : v;
+  return JSON.stringify(a, px) === JSON.stringify(b, px);
+}
+
+/**
+ * THE SCENE AT REST (FLAKE ZERO, class C): `settle`, then the same scene twice in a row a frame apart. A box read once
+ * is wherever the machine had got to — the sheet's cascade, the commit plate still rising on a 300 ms software frame
+ * («the commit 18 px below its sheet») — and (b) COMPARES two scenes, so both come through here.
+ */
+async function settledScene(page: Page, what: string): Promise<Scene> {
+  return readSettled(page, () => readScene(page), {message: what, same: samePx});
+}
+
 /** A blurred OUTER shadow in a light colour (the glow the restraint law forbids for a standing state). */
 function hasLightHalo(shadow: string): boolean {
   if (shadow === '' || shadow === 'none') {
@@ -225,9 +241,11 @@ function hasLightHalo(shadow: string): boolean {
 }
 
 async function openHand(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator('.con-hand').count() === 0; i++) {
+  const hand = page.locator('.con-hand');
+  for (let i = 0; i < 4 && await hand.count() === 0; i++) {
     await press(page, 'Period', 600);
-    await press(page, 'Enter', 1600);
+    // act → verify: the wheel's A gets its whole window to stand the hand before the next lap.
+    await pressUntil(page, 'Enter', async () => await hand.count() > 0, {tries: 1, settleMs: 1600});
   }
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
@@ -244,6 +262,8 @@ async function openComposer(page: Page, card: string): Promise<boolean> {
   }
   await press(page, 'Enter', 1200);
   await page.locator(COMPOSER).waitFor({timeout: 15_000});
+  // A sheet still LOADING is not read (class F): its preview — the payment, the result — lands a beat after the mount.
+  await composerLoaded(page);
   await settle(page);
   return true;
 }
@@ -353,15 +373,14 @@ for (const profile of PROFILES) {
         }
         const dir = path.join(OUT, profile.id);
         fs.mkdirSync(dir, {recursive: true});
-        const first = await readScene(page);
+        const first = await settledScene(page, `${profile.id} ${c.id}: the sheet as it opened`);
         await page.screenshot({path: path.join(dir, `${c.id}-a.png`)});
         test.info().annotations.push({type: 'scene', description: `${card} ${JSON.stringify(first)}`});
         expectSheet(first, `${profile.id} ${c.id}`, profile.id === 'deck', c);
         // (b) THE FRAME DOES NOT MOVE while the cursor walks the sheet.
         for (const key of ['ArrowUp', 'ArrowDown']) {
           await press(page, key, 300);
-          await settle(page);
-          const walked = await readScene(page);
+          const walked = await settledScene(page, `${profile.id} ${c.id}: the sheet after ${key}`);
           for (const [name, a, b] of [['sheet', first.sheet, walked.sheet], ['commit', first.cta, walked.cta]] as const) {
             if (a !== null && b !== null) {
               expect.soft(Math.abs(a.t - b.t) <= 1 && Math.abs(a.b - b.b) <= 1 && Math.abs(a.w - b.w) <= 1,

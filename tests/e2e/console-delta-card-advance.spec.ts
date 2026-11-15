@@ -2,9 +2,11 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openActionFocus, openCardActions,
-  openConsole, press, pressUntilVisible, seedGameOverApi, sendPlayerInput, soloGameConfig,
-  waitForBoardHome, waitForTurn,
+  openConsole, press, pressUntil, pressUntilVisible, seedGameOverApi, sendPlayerInput, settle, soloGameConfig,
+  waitForBoardHome, waitForTurn, walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * THE TRACK'S SECOND DOOR — «Штормовой барьер» → «Открыть Гидросеть».
@@ -30,11 +32,14 @@ import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openActionFocus, open
  */
 
 /**
- * How many 16 ms sampler ticks the carried card may spend BLANK on its way
- * home. `runAnchorCarry` blanks the arriving anchor on mount and un-blanks it
- * in the PIN, so the honest cost is the mount frame plus the flush that
- * follows it; anything longer is the card visibly going missing. Measured on
- * this flow (see the `[delta-home]` line the probe prints).
+ * How many 16 ms ticks the carried card may spend BLANK on its way home.
+ * `runAnchorCarry` blanks the arriving anchor on mount and un-blanks it in the
+ * PIN, so the honest cost is the mount frame plus the flush that follows it;
+ * anything longer is the card visibly going missing. Measured on this flow
+ * (see the `[delta-home]` line the probe prints). Counted as the old sampler
+ * counted it — the 16 ms ticks of a FREE main thread that saw the card blank
+ * (the home witness's own timer tick, `homeWitness`): a starved frame runs no
+ * tick, so a long frame is never read as a long blank.
  */
 const DELTA_HOME_BLANK_TICKS = 4;
 
@@ -254,16 +259,104 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
+/** The readout AT REST — the crumb's box and the source's box are compared across the walk, so both sides settle. */
+async function settledReadout(page: Page, what: string): Promise<Readout> {
+  return readSettled(page, () => readout(page), {message: what});
+}
+
+type Box = {x: number, y: number, w: number, h: number};
+
+/** A card face's box, rounded (a subpixel that jitters is not motion); undefined when it is not in the document. */
+async function faceBox(page: Page, selector: string): Promise<Box | undefined> {
+  return page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (el === null) {
+      return undefined;
+    }
+    const r = el.getBoundingClientRect();
+    return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
+  }, selector);
+}
+
+/**
+ * THE CARRY WITNESS — the card on its way INTO the track, RECORDED (FLAKE ZERO: `armWitness`, armed before the press):
+ * the dock's `.pcard` box whenever the dock paints, and whether the carry's transform still rides its anchor. Settled —
+ * «the first PAINTED frame» is the state a task leaves (the mount and the pin are two writes of one task; a sample
+ * between them is a frame no one painted).
+ */
+type CarrySeen = (Box & {moving: boolean}) | null;
+const CARRY_WITNESS = 'delta-carry';
+async function armCarryWitness(page: Page): Promise<void> {
+  await armWitness<CarrySeen>(page, CARRY_WITNESS, () => {
+    const slot = document.querySelector('.con-hydro__bonus-source') as HTMLElement | null;
+    const face = slot?.querySelector('.pcard') ?? null;
+    if (slot === null || face === null || Number(getComputedStyle(slot).opacity) < 0.05 ||
+        getComputedStyle(slot).visibility === 'hidden') {
+      return null;
+    }
+    const r = face.getBoundingClientRect();
+    // The carry's own transform rides the ANCHOR — the card's unzoomed
+    // wrapper — so that is where «is this frame part of the travel» is read.
+    const anchor = slot.querySelector('[data-motion-anchor]') as HTMLElement | null;
+    return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height),
+      moving: (anchor ?? slot).style.transform !== ''};
+  }, {settled: true});
+}
+
+/**
+ * THE HOME WITNESS — the hero card on its way BACK, RECORDED: its box and its PAINTED opacity (multiplicative up the
+ * chain — the body it rides home through is exactly what used to fade it). Settled, for the same «first painted frame»
+ * reason. While the card is BLANK each sample carries its 16 ms tick (the witness's own timer tick, `tickMs`), so a
+ * blank that stands is one distinct sample per tick of a free main thread — the old sampler's own measure — while a
+ * painted pose is recorded only when it changes.
+ */
+type HomeSeen = (Box & {op: number, tick?: number}) | null;
+const HOME_WITNESS = 'delta-home';
+async function armHomeWitness(page: Page): Promise<void> {
+  await armWitness<HomeSeen>(page, HOME_WITNESS, () => {
+    const el = document.querySelector('.con-composer__actcardwrap .pcard');
+    const wrap = document.querySelector('.con-composer__actcardwrap') as HTMLElement | null;
+    if (el === null || wrap === null || wrap.offsetParent === null) {
+      return null;
+    }
+    let op = 1;
+    for (let n: Element | null = el; n !== null; n = n.parentElement) {
+      op *= Number(getComputedStyle(n).opacity);
+    }
+    const r = el.getBoundingClientRect();
+    const box = {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height),
+      op: Math.round(op * 1000) / 1000};
+    return op > 0.9 ? box : {...box, tick: Math.floor(performance.now() / 16)};
+  }, {settled: true, tickMs: 16});
+}
+
+/** THE MARKER WITNESS — the Hydronetwork marker's phase and its x, RECORDED from before the confirm. */
+type MarkerSeen = {phase: string, x: number} | null;
+const MARKER_WITNESS = 'delta-marker';
+async function armMarkerWitness(page: Page): Promise<void> {
+  await armWitness<MarkerSeen>(page, MARKER_WITNESS, () => {
+    const el = document.querySelector('.con-hydromarker') as HTMLElement | null;
+    if (el === null) {
+      return null;
+    }
+    const r = el.getBoundingClientRect();
+    return {phase: (el.className.match(/con-hydromarker--(\w+)/) ?? [])[1] ?? '', x: Math.round(r.left)};
+  });
+}
+
 /** Walk the browse grid onto the card's ADVANCE variant («Вариант 2 / 2»). */
 async function focusAdvanceVariant(page: Page, tries = 16): Promise<void> {
   const variantNow = (): Promise<string> => page.evaluate(() =>
     (document.querySelector('.con-cardactions__detail-variant') as HTMLElement | null)
       ?.innerText.replace(/\s+/g, ' ').trim() ?? '');
   for (let i = 0; i < tries; i++) {
-    if (/2\s*\/\s*2/.test(await variantNow())) {
+    const at = await variantNow();
+    if (/2\s*\/\s*2/.test(at)) {
       return;
     }
-    await press(page, i % 2 === 0 ? 'ArrowRight' : 'ArrowDown', 500);
+    // Each hop is act → verify: the press, then its whole window for the detail to answer.
+    await pressUntil(page, i % 2 === 0 ? 'ArrowRight' : 'ArrowDown', async () => (await variantNow()) !== at,
+      {tries: 1, settleMs: 500});
   }
   throw new Error(`the advance variant was never focused (detail=«${await variantNow()}»)`);
 }
@@ -305,15 +398,15 @@ test.describe('console — the card-action Hydronetwork door', () => {
     await openConsole(page, playerId);
     await waitForBoardHome(page, 25);
     await waitForTurn(page);
-    await page.waitForTimeout(2500);
+    await settle(page);
 
     await openCardActions(page);
     await focusAdvanceVariant(page);
     await shoot(page, '0-browse');
     // The PRINTED FORMULA in a variant tile is drawn by the render DSL at the
     // console's own scale, and its `plate()` («ГИДРОСЕТЬ») ships a fixed 130px
-    // physical-card box — it must not out-grow the row it sits in.
-    const plate = await page.evaluate(() => {
+    // physical-card box — it must not out-grow the row it sits in. Measured at rest.
+    const plate = await readSettled(page, () => page.evaluate(() => {
       const el = document.querySelector('.con-cardactions__graphic .card-plate') as HTMLElement | null;
       const row = el?.closest('.con-cardactions__graphic') as HTMLElement | null;
       if (el === null || row === null) {
@@ -322,7 +415,7 @@ test.describe('console — the card-action Hydronetwork door', () => {
       const r = el.getBoundingClientRect();
       const rr = row.getBoundingClientRect();
       return {w: Math.round(r.width), h: Math.round(r.height), rowH: Math.round(rr.height)};
-    });
+    }), {message: 'the advance variant\'s plate'});
     expect(plate, 'the advance variant draws a Hydronetwork plate').toBeDefined();
     expect(plate?.h ?? 0, `the plate must fit its own row (${JSON.stringify(plate)})`)
       .toBeLessThanOrEqual(plate?.rowH ?? 0);
@@ -330,10 +423,10 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // formula row is the printed 130px slug, not a fitted plate.
     expect(plate?.w ?? 999, `the plate must size to its label (${JSON.stringify(plate)})`).toBeLessThan(130);
     await openActionFocus(page);
-    await page.waitForTimeout(800);
 
-    // The CTA names the walk, never a commit that has not happened.
-    const setup = await readout(page);
+    // The CTA names the walk, never a commit that has not happened. Read AT REST
+    // — its crumb box is the reference the track's crumb is compared against.
+    const setup = await settledReadout(page, 'the action focus stage');
     expect(setup.composerUp, 'the action focus stage must stand').toBe(true);
     expect(setup.composerCta, 'A opens the track, it does not perform the move')
       .toContain('Гидросеть');
@@ -341,11 +434,11 @@ test.describe('console — the card-action Hydronetwork door', () => {
 
     // ── A: the door. Nothing on the wire, nothing spent. ──────────────────
     //
-    // THE CARD IS ONE PHYSICAL OBJECT ACROSS THE WALK. Arm the sampler BEFORE
-    // the press and record the hero's rect from the same frame: the card's
-    // first PAINTED frame on the track must be where the player last saw it,
-    // not a second card growing somewhere else. `setInterval`, never rAF —
-    // headless Chromium drives rAF off the compositor.
+    // THE CARD IS ONE PHYSICAL OBJECT ACROSS THE WALK. Measure the hero AT
+    // REST and arm the carry witness BEFORE the press: the card's first
+    // PAINTED frame on the track must be where the player last saw it, not a
+    // second card growing somewhere else. The witness records the product's own
+    // writes (and every frame), so a starved renderer cannot hide the frame.
     //
     // ⚠️ MEASURE THE PICTURE, NEVER THE SLOT THAT HOLDS IT. This probe used to
     // sample `.con-hydro__bonus-source` — the dock's grid CELL — and it passed
@@ -357,58 +450,27 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // that is what the claim is about — on BOTH sides, and in all four
     // dimensions (a height check is what makes «same box» mean «same object»
     // rather than «same left edge»).
-    await page.evaluate(() => {
-      type Box = {x: number, y: number, w: number, h: number};
-      const w = window as unknown as {
-        __carry?: {hero?: Box, samples: Array<Box & {moving: boolean}>},
-      };
-      const boxOf = (el: Element | null): Box | undefined => {
-        if (el === null) {
-          return undefined;
-        }
-        const r = el.getBoundingClientRect();
-        return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
-      };
-      w.__carry = {hero: boxOf(document.querySelector('.con-composer__actcardwrap .pcard')), samples: []};
-      const tick = () => {
-        const slot = document.querySelector('.con-hydro__bonus-source') as HTMLElement | null;
-        const face = slot?.querySelector('.pcard') ?? null;
-        const box = boxOf(face);
-        if (slot === null || box === undefined || Number(getComputedStyle(slot).opacity) < 0.05 ||
-            getComputedStyle(slot).visibility === 'hidden') {
-          return;
-        }
-        // The carry's own transform rides the ANCHOR — the card's unzoomed
-        // wrapper — so that is where «is this frame part of the travel» is read.
-        const anchor = slot.querySelector('[data-motion-anchor]') as HTMLElement | null;
-        w.__carry?.samples.push({...box, moving: (anchor ?? slot).style.transform !== ''});
-      };
-      setInterval(tick, 16);
-    });
+    const hero0 = await readSettled(page, () => faceBox(page, '.con-composer__actcardwrap .pcard'),
+      {message: 'the composer hero before the door'});
+    await armCarryWitness(page);
     await press(page, 'Enter', 2500);
-    // THE SAMPLER'S WINDOW IS A STATE, NOT A DURATION. The 2500 ms settle above
+    // THE WITNESS'S WINDOW IS A STATE, NOT A DURATION. The 2500 ms settle above
     // is the press's own pacing; whether the track's source dock has taken the
     // card by then is a different question, and on a loaded run the answer is
     // no — the read then came back with ZERO samples and reported «the card
     // must PAINT on the track» about a carry that had not started yet
-    // (measured 1/6 at `--repeat-each=6`, n=0). The `setInterval` keeps running,
-    // so waiting for the dock's own card is enough; extra trailing samples only
-    // settle `rest` further.
+    // (measured 1/6 at `--repeat-each=6`, n=0). So: the dock's own card, the
+    // carry come to REST (a painted pose that has let go of its transform),
+    // then the console's quiet — and only then the record is asked.
     await page.locator('.con-hydro__bonus-source .pcard')
       .waitFor({state: 'visible', timeout: 20_000}).catch(() => {});
-    await page.waitForFunction(
-      () => ((window as unknown as {__carry?: {samples: Array<unknown>}}).__carry?.samples.length ?? 0) > 0,
-      undefined, {timeout: 15_000}).catch(() => {}); // the assert below owns the verdict, with its own report
-    const carry = await page.evaluate(() => {
-      const w = window as unknown as {
-        __carry?: {hero?: {x: number, y: number, w: number, h: number},
-          samples: Array<{x: number, y: number, w: number, h: number, moving: boolean}>},
-      };
-      return w.__carry;
-    });
-    const first = carry?.samples[0];
-    const hero0 = carry?.hero;
-    const carried = `hero=${JSON.stringify(hero0)} first=${JSON.stringify(first)} n=${carry?.samples.length}`;
+    await witnessOf<CarrySeen>(page, CARRY_WITNESS).waitFor((v) => v !== null && !v.moving, {timeoutMs: 15_000})
+      .catch(() => undefined); // the asserts below own the verdict, with their own report
+    await settle(page);
+    const samples = (await witnessOf<CarrySeen>(page, CARRY_WITNESS).stop())
+      .map((s) => s.v).filter((v): v is NonNullable<CarrySeen> => v !== null);
+    const first = samples[0];
+    const carried = `hero=${JSON.stringify(hero0)} first=${JSON.stringify(first)} n=${samples.length}`;
     expect(hero0, `the composer hero must have been measured (${carried})`).toBeDefined();
     expect(first, `the card must PAINT on the track (${carried})`).toBeDefined();
     // It starts where it was, AS IT WAS: same corner, same size, within a hair.
@@ -428,26 +490,28 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // deliberately «at least one INTERMEDIATE pose»: headless Chromium drives
     // rAF off the compositor, so a GSAP tween advances in a handful of coarse
     // steps here (measured: four distinct poses across a 300 ms travel) and a
-    // frame-count threshold would be measuring the harness. The START claim
-    // above is the one that carries the contract.
-    const samples = carry?.samples ?? [];
+    // frame-count threshold would be measuring the harness. Asked of the record
+    // as EVER: a painted pose that is neither the first one nor the rest. The
+    // START claim above is the one that carries the contract.
     const rest = samples[samples.length - 1];
     const carrySpan = Math.max(
       Math.abs((rest?.x ?? 0) - (hero0?.x ?? 0)),
       Math.abs((rest?.y ?? 0) - (hero0?.y ?? 0)),
       Math.abs((rest?.w ?? 0) - (hero0?.w ?? 0)));
-    const moved = samples.filter((sm, i, all) =>
-      i > 0 && (sm.x !== all[i - 1].x || sm.y !== all[i - 1].y || sm.w !== all[i - 1].w)).length;
+    const samePose = (a: Box | undefined, b: Box | undefined) => a !== undefined && b !== undefined &&
+      a.x === b.x && a.y === b.y && a.w === b.w;
+    const intermediate = samples.some((sm) => !samePose(sm, first) && !samePose(sm, rest));
     if (carrySpan >= 40) {
-      expect(moved, `the carry must TRAVEL, not appear (${carried} span=${carrySpan} moved=${moved})`)
-        .toBeGreaterThanOrEqual(2);
+      expect(intermediate, `the carry must TRAVEL, not appear (${carried} span=${carrySpan} ` +
+        `poses=${new Set(samples.map((sm) => `${sm.x},${sm.y},${sm.w}`)).size})`).toBe(true);
     }
     // Wherever it started, it RESTS in its own slot — a FLIP that never
     // finishes parks the card off its seat for the rest of the surface's life,
     // which is exactly what a leftover inline transform would say.
     expect(rest, `the carry must come to rest (${carried})`).toBeDefined();
     expect(rest?.moving, `the carry must let go of its transform (rest=${JSON.stringify(rest)})`).toBe(false);
-    const open = await readout(page);
+    // AT REST — its crumb box is compared with the setup's below.
+    const open = await settledReadout(page, 'the Hydronetwork step');
     await shoot(page, '2-hydro-step');
     expect(open.hydroUp, 'the ordinary Hydronetwork working zone must stand').toBe(true);
     expect(open.sourceUp, 'the source card must be in the zone').toBe(true);
@@ -488,7 +552,7 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // `translate(-78px, -216px) scale(0.95)` — the anchor had been measured a
     // frame before the track laid itself out, and the layer's own entry
     // cascade owned the same transform.)
-    const flip = await page.evaluate(() => {
+    const flip = await readSettled(page, () => page.evaluate(() => {
       const el = document.querySelector('.con-hydro__bonus-source') as HTMLElement | null;
       if (el === null) {
         return undefined;
@@ -499,7 +563,7 @@ test.describe('console — the card-action Hydronetwork door', () => {
         w: Math.round(r.width),
         layoutW: el.offsetWidth,
       };
-    });
+    }), {message: 'the source dock at rest'});
     expect(flip, 'the source dock must be on stage').toBeDefined();
     expect(flip?.inline ?? '', `the FLIP must clear its own transform (${JSON.stringify(flip)})`).toBe('');
     expect(Math.abs((flip?.w ?? 0) - (flip?.layoutW ?? 0)),
@@ -509,11 +573,10 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // `.con-shade` belongs to whoever is presenting; the action workspace used
     // to drop it by LEAVING, and it no longer leaves. Left unhandled the
     // player got the right header over a greyed-out track.
-    const shade = await page.evaluate(() => {
+    await expect.poll(() => page.evaluate(() => {
       const el = document.querySelector('.con-shade') as HTMLElement | null;
       return el === null ? 0 : Number(getComputedStyle(el).opacity);
-    });
-    expect(shade, 'the yielding workspace must hand its dim over too').toBeLessThan(0.05);
+    }), {message: 'the yielding workspace must hand its dim over too'}).toBeLessThan(0.05);
     const geo = `setup=${JSON.stringify(setup.rootBox)} hydro=${JSON.stringify(open.rootBox)}`;
     expect(setup.rootBox, 'the composer must have a measurable crumb').toBeDefined();
     expect(open.rootBox, 'the track must have a measurable crumb').toBeDefined();
@@ -528,49 +591,31 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // into its slot while a second copy dissolved inside the departing track.
     // Same claim as the entry, mirrored: the FIRST painted frame of the hero
     // card is the DOCK's own box.
-    const dockBox = await page.evaluate(() => {
-      const el = document.querySelector('.con-hydro__bonus-source .pcard');
-      if (el === null) {
-        return undefined;
-      }
-      const r = el.getBoundingClientRect();
-      return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
-    });
+    const dockBox = await readSettled(page, () => faceBox(page, '.con-hydro__bonus-source .pcard'),
+      {message: 'the track\'s source card before B'});
     expect(dockBox, 'the track must be showing the source card').toBeDefined();
-    await page.evaluate(() => {
-      type Box = {x: number, y: number, w: number, h: number, op: number};
-      const w = window as unknown as {__home?: Array<Box>};
-      w.__home = [];
-      setInterval(() => {
-        const el = document.querySelector('.con-composer__actcardwrap .pcard');
-        const wrap = document.querySelector('.con-composer__actcardwrap') as HTMLElement | null;
-        if (el === null || wrap === null || wrap.offsetParent === null) {
-          return;
-        }
-        // The PAINTED opacity — `opacity` is multiplicative, and the body this
-        // card rides home through is exactly what used to fade it out.
-        let op = 1;
-        for (let n: Element | null = el; n !== null; n = n.parentElement) {
-          op *= Number(getComputedStyle(n).opacity);
-        }
-        const r = el.getBoundingClientRect();
-        w.__home?.push({x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), op});
-      }, 16);
-    });
+    await armHomeWitness(page);
     await press(page, 'Escape', 2500);
-    const home = await page.evaluate(() => (window as unknown as {__home?: Array<{x: number, y: number, w: number, h: number, op: number}>}).__home ?? []);
+    // The record is asked once the hero has PAINTED (bounded — the asserts below own the verdict).
+    await witnessOf<HomeSeen>(page, HOME_WITNESS).waitFor((v) => v !== null && v.op > 0.9, {timeoutMs: 15_000})
+      .catch(() => undefined);
+    const home = (await witnessOf<HomeSeen>(page, HOME_WITNESS).stop())
+      .map((s) => s.v).filter((v): v is NonNullable<HomeSeen> => v !== null);
     // THE FIRST **PAINTED** FRAME — the claim has always been about the frame
-    // the player can see, and the sampler reads the slot from the moment it is
+    // the player can see, and the witness reads the slot from the moment it is
     // LAID OUT. `runAnchorCarry` mounts the arriving anchor blanked
     // (`holdCarriedAnchors`: «a carried object may not paint at a home it is
     // about to leave») and the PIN is what un-blanks it — so the samples before
     // the pin are the hold, at the home box, at opacity 0. Taking `home[0]`
     // measured that hold and reported «the walk home must START at the dock's
     // own card» with a Δ of 57 px and `op: 0` in its own message.
-    const blankPrefix = home.findIndex((h) => h.op > 0.9);
-    const firstHome = blankPrefix < 0 ? undefined : home[blankPrefix];
+    const firstPainted = home.findIndex((h) => h.op > 0.9);
+    const firstHome = firstPainted < 0 ? undefined : home[firstPainted];
+    // The blank's length in 16 ms ticks of a free main thread (`armHomeWitness`): the distinct ticks that saw it.
+    const blankPrefix = firstPainted < 0 ? -1 :
+      new Set(home.slice(0, firstPainted).map((h) => h.tick ?? -1)).size;
     const homeMsg = `dock=${JSON.stringify(dockBox)} first-painted=${JSON.stringify(firstHome)} ` +
-      `blank-prefix=${blankPrefix} n=${home.length} head=${JSON.stringify(home.slice(0, 4))}`;
+      `blank-ticks=${blankPrefix} n=${home.length} head=${JSON.stringify(home.slice(0, 4))}`;
     console.log(`[delta-home] ${homeMsg}`);
     expect(firstHome, `the hero must paint on the way back (${homeMsg})`).toBeDefined();
     for (const axis of ['x', 'y', 'w', 'h'] as const) {
@@ -587,7 +632,7 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // «the old code held the object INVISIBLE for that whole gap» names.
     expect(blankPrefix, `the carried card may not go missing on the way home (${homeMsg})`)
       .toBeLessThanOrEqual(DELTA_HOME_BLANK_TICKS);
-    const back = await readout(page);
+    const back = await settledReadout(page, 'back on the card variant');
     await shoot(page, '3-back');
     expect(back.hydroUp, 'B leaves the track').toBe(false);
     expect(back.composerUp, 'B lands back on the card variant').toBe(true);
@@ -599,24 +644,15 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // game until the entrance learned to heal what the exit posed.
     // SETTLED, not sampled: the slot's own keyed face swap and the returning
     // FLIP both run on the way back, so a one-shot read can catch either
-    // mid-flight. Two agreeing samples is the project's own settle rule.
-    const readHero = () => page.evaluate(() => {
+    // mid-flight. Two agreeing reads a frame apart is the project's own settle rule (`readSettled`).
+    const hero = await readSettled(page, () => page.evaluate(() => {
       const el = document.querySelector('.con-composer__actcardwrap') as HTMLElement | null;
       if (el === null) {
         return undefined;
       }
       const r = el.getBoundingClientRect();
       return {opacity: getComputedStyle(el).opacity, w: Math.round(r.width), h: Math.round(r.height)};
-    });
-    let hero = await readHero();
-    for (let i = 0; i < 20; i++) {
-      await page.waitForTimeout(200);
-      const next = await readHero();
-      if (JSON.stringify(next) === JSON.stringify(hero) && Number(next?.opacity ?? 0) > 0.9) {
-        break;
-      }
-      hero = next;
-    }
+    }), {message: 'the composer hero back in its slot'});
     expect(hero, 'the composer hero slot must exist').toBeDefined();
     expect(Number(hero?.opacity ?? 0), `the carried card must come back visible (${JSON.stringify(hero)})`)
       .toBeGreaterThan(0.9);
@@ -625,41 +661,22 @@ test.describe('console — the card-action Hydronetwork door', () => {
 
     // ── Re-enter and CONFIRM. ─────────────────────────────────────────────
     await press(page, 'Enter', 2500);
-    expect((await readout(page)).hydroUp, 're-entering shows the step again').toBe(true);
+    await expect.poll(async () => (await readout(page)).hydroUp, {message: 're-entering shows the step again'}).toBe(true);
 
-    // THE MARKER'S OWN LEG, sampled from inside the page. `setInterval` +
-    // `MutationObserver`, never `requestAnimationFrame`: headless Chromium
-    // drives rAF off the compositor, so a rAF sampler stops sampling exactly
-    // when the screen goes quiet.
-    await page.evaluate(() => {
-      const w = window as unknown as {__mk?: Array<{t: number, phase: string, x: number}>};
-      w.__mk = [];
-      const t0 = performance.now();
-      const tick = () => {
-        const el = document.querySelector('.con-hydromarker') as HTMLElement | null;
-        if (el === null) {
-          return;
-        }
-        const r = el.getBoundingClientRect();
-        const phase = (el.className.match(/con-hydromarker--(\w+)/) ?? [])[1] ?? '';
-        w.__mk?.push({t: Math.round(performance.now() - t0), phase, x: Math.round(r.left)});
-      };
-      setInterval(tick, 16);
-    });
+    // THE MARKER'S OWN LEG, RECORDED from before the confirm (`armWitness` —
+    // the product's own writes + a frame tick): every phase it wears and every
+    // x it is painted at, on the page's own clock.
+    await armMarkerWitness(page);
 
     // A on the confirm routes into the LANDED STAGE'S OWN reward step when it
     // has one (position 1 asks «2 steel or 2 plants»), and that step is where
     // the whole move commits — pick, then confirm. So the drive is bounded and
-    // keyed on the SERVER's own position, never on a fixed key count.
-    let after = before;
-    for (let i = 0; i < 6 && after.position === before.position; i++) {
-      await press(page, 'Enter', 2200);
-      after = await serverState(request, playerId);
-    }
-    for (let i = 0; i < 20 && after.position === before.position; i++) {
-      await page.waitForTimeout(700);
-      after = await serverState(request, playerId);
-    }
+    // keyed on the SERVER's own position, never on a fixed key count: each A
+    // gets its whole window, and a slow answer is WAITED for, never re-pressed.
+    const moved = async () => (await serverState(request, playerId)).position !== before.position;
+    await pressUntil(page, 'Enter', moved, {tries: 6, settleMs: 2200});
+    await expect.poll(moved, {timeout: 14_000, message: 'the card\'s move never committed on the server'}).toBe(true);
+    const after = await serverState(request, playerId);
     await shoot(page, '4-committed');
 
     // ── THE MARKER ACTUALLY TRAVELLED. ────────────────────────────────────
@@ -672,13 +689,21 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // unmounted mid-glide and the marker simply APPEARED on the new stop
     // (measured: 19 samples over 343 ms, phases charge+glide only, 5 moving).
     // So this asserts the PHRASE, not a duration: it ran to its own landing.
-    const mk = await page.evaluate(() =>
-      (window as unknown as {__mk?: Array<{t: number, phase: string, x: number}>}).__mk ?? []);
+    const marked = await witnessOf<MarkerSeen>(page, MARKER_WITNESS).samples();
+    const readAt = await pageNow(page);
+    await witnessOf<MarkerSeen>(page, MARKER_WITNESS).stop();
+    const mk = marked.filter((s) => s.v !== null).map((s) => ({t: s.t, ...(s.v as NonNullable<MarkerSeen>)}));
     const xs = mk.map((m) => m.x);
     const phases = [...new Set(mk.map((m) => m.phase))];
+    // The x positions it was PAINTED at between its first and its last — a pose the record saw in between.
+    const distinctXs = new Set(xs).size;
     const moving = xs.filter((x, i) => i > 0 && x !== xs[i - 1]).length;
-    const span = mk.length > 0 ? mk[mk.length - 1].t - mk[0].t : 0;
-    const report = `samples=${mk.length} span=${span}ms phases=${JSON.stringify(phases)} moving=${moving}`;
+    // The leg's span on the PAGE's clock: from the marker's first record to the record that ended its presence (or
+    // the read, while it still stands) — the window the old sampler spanned.
+    const lastIdx = marked.map((s) => s.v !== null).lastIndexOf(true);
+    const ended = lastIdx >= 0 && lastIdx < marked.length - 1 ? marked[lastIdx + 1].t : readAt;
+    const span = mk.length > 0 ? ended - mk[0].t : 0;
+    const report = `samples=${mk.length} span=${span}ms phases=${JSON.stringify(phases)} moving=${moving} xs=${distinctXs}`;
     // …AND REACHED ITS LANDING. `arrive` is a PHASE, not necessarily a painted
     // state: `hydroMarkerDirector` emits it and calls `tryLock()` in the SAME
     // tick, so when the commit is already answered — and over the WebSocket
@@ -692,7 +717,12 @@ test.describe('console — the card-action Hydronetwork door', () => {
     // charge+glide only, 19 samples over 343 ms, 5 moving) has neither.
     expect(phases.some((p) => p === 'arrive' || p === 'lock'),
       `the glide must reach its ARRIVAL (${report})`).toBe(true);
-    expect(moving, `the marker must visibly travel, not appear (${report})`).toBeGreaterThan(10);
+    // «It travelled» is asked of the record as EVER — a pose painted strictly between where it stood and where it
+    // landed; how MANY such frames a machine paints is the machine's (the old «> 10 moving samples» counted frames).
+    const startX = xs[0];
+    const endX = xs[xs.length - 1];
+    const between = xs.some((x) => x !== startX && x !== endX && (x - startX) * (endX - x) > 0);
+    expect(between, `the marker must visibly travel, not appear (${report})`).toBe(true);
     expect(span, `the whole leg must play, not one frame of it (${report})`).toBeGreaterThan(600);
 
     // The move: exactly one step, exactly one energy, and the generation's own
@@ -769,18 +799,17 @@ test.describe('console — the card-action Hydronetwork door', () => {
     await openConsole(page, playerId);
     await waitForBoardHome(page, 25);
     await waitForTurn(page);
-    await page.waitForTimeout(2000);
+    await settle(page);
 
     // ── The ORDINARY advance to 6 (the tag path covers it), through the UI. ──
     await press(page, 'Period', 1100);
     await press(page, 'ArrowLeft', 1600);
     await page.waitForSelector('.con-hydro__payline', {timeout: 10_000});
-    for (let i = 0; i < 5; i++) {
-      await press(page, 'ArrowRight', 450);
-    }
-    const at6 = await page.evaluate(() =>
+    // Walk the plan onto stage 6 — each hop verified by the focused stop moving, never «→ five times».
+    const focusedStop = () => page.evaluate(() =>
       document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-    expect(at6, 'the plan stands on stage 6').toBe('6');
+    await walkFocusUntil(page, async () => (await focusedStop()) === '6', focusedStop, 16, 450);
+    await expect.poll(focusedStop, {message: 'the plan stands on stage 6'}).toBe('6');
     await press(page, 'Enter', 2500); // commit (fixed reward — no substeps)
     await page.waitForSelector('.con-hydro__layer--result', {timeout: 30_000});
     await press(page, 'Enter', 2000); // read the result → board home
@@ -790,19 +819,18 @@ test.describe('console — the card-action Hydronetwork door', () => {
     {timeout: 20_000}).toBe(6);
 
     // ── The DOOR: origin Card Actions → the card's advance → Hydronet 6→7. ──
-    await page.waitForTimeout(1500);
+    await settle(page);
     await openCardActions(page);
     await focusAdvanceVariant(page);
     await openActionFocus(page);
-    await page.waitForTimeout(800);
+    await settle(page);
     await press(page, 'Enter', 2200); // the door
     await page.waitForSelector('.con-hydro__layer--bonus', {timeout: 15_000});
     // Stage 7 owes its pick — the cursor starts ON it (focus priority).
-    const seeded = await page.evaluate(() => ({
-      focusedRow: document.querySelector('.con-hydro__pickrow.con-hydro__summary--focused') !== null,
-      bar: (document.querySelector('.con-cmdbar') as HTMLElement | null)?.innerText ?? '',
-    }));
-    expect(seeded.focusedRow, `the cursor starts on the pre-select (bar «${seeded.bar}»)`).toBe(true);
+    const bar = await page.evaluate(() => (document.querySelector('.con-cmdbar') as HTMLElement | null)?.innerText ?? '');
+    await expect.poll(() => page.evaluate(() =>
+      document.querySelector('.con-hydro__pickrow.con-hydro__summary--focused') !== null),
+    {message: `the cursor starts on the pre-select (bar «${bar}»)`}).toBe(true);
     await shoot(page, '5-deep-preselect');
 
     // ── INTO the nested selector (a SECOND Card Actions instance) and back. ──
@@ -815,34 +843,39 @@ test.describe('console — the card-action Hydronetwork door', () => {
     const trace: Array<string> = [];
     // «Returned» is the hydro ROOT being VISIBLE again (the bonus layer sits
     // in the DOM even while the root is v-show-hidden — counting it stops the
-    // walk before a single press reaches the selector).
+    // walk before a single press reaches the selector). A visibility test (a
+    // laid-out box), never a measurement.
     const hydroHidden = () => page.evaluate(() => {
       const el = document.querySelector('.con-hydro') as HTMLElement | null;
-      return el === null || getComputedStyle(el).display === 'none' || el.getBoundingClientRect().width === 0;
+      return el === null || getComputedStyle(el).display === 'none' || el.offsetWidth === 0;
     });
-    for (let i = 0; i < 5 && await hydroHidden(); i++) {
-      await press(page, 'Enter', 1900);
-      trace.push(await page.evaluate(() => [
+    // Act → verify: each A gets its whole window for the hydro root to come back before the next; what the screen
+    // said after each look is kept (a changed line only) for the report.
+    const resolved = await pressUntil(page, 'Enter', async () => {
+      const line = await page.evaluate(() => [
         (document.querySelector('.con-wshead__step') as HTMLElement | null)?.innerText ?? '',
         (document.querySelector('.con-cmdbar') as HTMLElement | null)?.innerText.replace(/\s+/g, ' ') ?? '',
         document.querySelector('.con-hydro__layer--bonus') !== null ? 'BONUS' : '',
         document.querySelector('.con-cardactions:not([style*="display: none"])') !== null ? 'SEL' : '',
-      ].join(' § ')));
-    }
-    expect(await hydroHidden(),
-      `the selector never resolved — presses: ${JSON.stringify(trace, null, 1)}`).toBe(false);
-    // ── DIAGNOSTIC SAMPLER: what actually stands after the resolve. ──
+      ].join(' § '));
+      if (trace.at(-1) !== line) {
+        trace.push(line);
+      }
+      return !(await hydroHidden());
+    }, {tries: 5, settleMs: 1900});
+    expect(resolved, `the selector never resolved — presses: ${JSON.stringify(trace, null, 1)}`).toBe(true);
+    // ── DIAGNOSTIC TIMELINE: what actually stands after the resolve — polled until the bonus layer is visible, every
+    //    changed line kept for the report. ──
     const timeline: Array<string> = [];
-    for (let i = 0; i < 30; i++) {
-      timeline.push(await page.evaluate(() => {
+    const backLit = await expect.poll(async () => {
+      const line = await page.evaluate(() => {
         const vis = (sel: string) => {
           const el = document.querySelector(sel) as HTMLElement | null;
           if (el === null) {
             return '∅';
           }
-          const r = el.getBoundingClientRect();
           const cs = getComputedStyle(el);
-          return `${cs.display !== 'none' && r.width > 0 ? 'V' : 'h'}·o${cs.opacity}`;
+          return `${cs.display !== 'none' && el.offsetWidth > 0 ? 'V' : 'h'}·o${cs.opacity}`;
         };
         return [
           'hydro=' + vis('.con-hydro'),
@@ -850,19 +883,17 @@ test.describe('console — the card-action Hydronetwork door', () => {
           'sel=' + vis('.con-cardactions'),
           'crumb=' + ((document.querySelector('.con-wshead__step') as HTMLElement | null)?.innerText ?? ''),
         ].join(' ');
-      }));
-      if (/bonus=V/.test(timeline[timeline.length - 1])) {
-        break;
+      });
+      if (timeline.at(-1) !== line) {
+        timeline.push(line);
       }
-      await page.waitForTimeout(400);
-    }
-    expect(/bonus=V/.test(timeline[timeline.length - 1]),
-      `the workspace never came back visible:\n${timeline.join('\n')}`).toBe(true);
-    await page.waitForTimeout(1400); // let any return motion settle
-    await shoot(page, '7-deep-returned');
+      return /bonus=V/.test(line);
+    }, {timeout: 12_000}).toBe(true).then(() => true, () => false);
+    expect(backLit, `the workspace never came back visible:\n${timeline.join('\n')}`).toBe(true);
 
-    // ── THE LIGHT: every load-bearing layer fully lit, nothing stale. ──
-    const light = await page.evaluate(() => {
+    // ── THE LIGHT: every load-bearing layer fully lit, nothing stale — read
+    //    once the return motion has come to REST (never after a guessed pause). ──
+    const light = await readSettled(page, () => page.evaluate(() => {
       const op = (sel: string) => {
         const el = document.querySelector(sel) as HTMLElement | null;
         if (el === null) {
@@ -893,7 +924,8 @@ test.describe('console — the card-action Hydronetwork door', () => {
         bar: (document.querySelector('.con-cmdbar') as HTMLElement | null)
           ?.innerText.replace(/\s+/g, ' ').trim() ?? '',
       };
-    });
+    }), {message: 'the returned workspace at rest'});
+    await shoot(page, '7-deep-returned');
     for (const key of ['root', 'rail', 'scene', 'panel', 'ctx', 'act'] as const) {
       const l = (light as any)[key];
       expect(l, `${key} is on screen`).toBeDefined();
@@ -981,11 +1013,8 @@ test.describe('console — the card-action Hydronetwork door', () => {
     await pressUntilVisible(page, 'Enter', '.con-hydro__layer--bonus', {tries: 3, settleMs: 2200});
     // Stage 5 has no choice — A on the step is the commit. Keyed on the
     // SERVER's position, so a slow answer is waited for, never re-pressed.
-    let after = before;
-    for (let i = 0; i < 4 && after.position === before.position; i++) {
-      await press(page, 'Enter', 2200);
-      after = await serverState(request, playerId);
-    }
+    await pressUntil(page, 'Enter', async () => (await serverState(request, playerId)).position !== before.position,
+      {tries: 4, settleMs: 2200});
     await expect.poll(async () => (await serverState(request, playerId)).position,
       {timeout: 20_000}).toBe(5);
     await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 30_000});
@@ -1009,16 +1038,16 @@ test.describe('console — the card-action Hydronetwork door', () => {
     await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 20_000});
     await expect(page.locator('.con-cardactions--yielded'),
       'the action workspace came back yielded to its step').toHaveCount(1, {timeout: 10_000});
-    const restored = await readout(page);
-    expect(restored.crumbRoot, 'the crumb keeps the origin').toContain('ДЕЙСТВИЯ КАРТ');
+    await expect.poll(async () => (await readout(page)).crumbRoot, {message: 'the crumb keeps the origin'})
+      .toContain('ДЕЙСТВИЯ КАРТ');
 
     // THE CLAIM: no dim over the restored step. Polled past the shade's own
     // 260 ms off-fade — the defect never cleared at all.
     await expect.poll(shadeOpacity, {timeout: 5_000, message: 'no stale shade over the restored step'})
       .toBeLessThan(0.05);
-    const yieldedAttr = await page.evaluate(() =>
-      document.querySelector('.con-cardactions')?.getAttribute('data-motion-shade-yielded') ?? '');
-    expect(yieldedAttr, 'the yielded surface declares its surrendered dim').toBe('1');
+    await expect.poll(() => page.evaluate(() =>
+      document.querySelector('.con-cardactions')?.getAttribute('data-motion-shade-yielded') ?? ''),
+    {message: 'the yielded surface declares its surrendered dim'}).toBe('1');
     await shoot(page, '9-shade-restored');
     expect((await serverState(request, playerId)).position, 'the restore commits nothing').toBe(5);
   });

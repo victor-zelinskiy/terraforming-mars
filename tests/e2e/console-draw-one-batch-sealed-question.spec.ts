@@ -178,7 +178,7 @@ test.describe('the sealed place of a question — the university\'s answer turns
     await press(page, 'Enter', 900);
     await answered;
     await expect(page.locator(place(1)), 'the place opened in place').toHaveAttribute('data-settlement-paint', 'open', {timeout: 60_000});
-    expect(await page.locator(`${zone} .con-reveal[data-settlement-table]`).getAttribute('data-settlement-table'), 'ONE table instance').toBe(nonce);
+    await expect.poll(() => page.locator(`${zone} .con-reveal[data-settlement-table]`).getAttribute('data-settlement-table'), {message: 'ONE table instance'}).toBe(nonce);
     await cinematicBeat(page, 1000, 'the turned card settles');
     await shoot(page, 'D3-answer-turned');
 

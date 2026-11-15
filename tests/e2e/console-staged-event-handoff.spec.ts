@@ -1,6 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, focusCard, placementState, pressUntil, settle} from './consoleStart';
 import {readTransient, recordTransient} from './transientRecorder';
+import {armWitness, pageNow} from './witness';
 
 /**
  * THE STAGED EVENT HANDS THE BOARD OVER AT ONCE (the owner's field freeze of 2026-11-08 — game g245a35e2022f, Flooding).
@@ -40,14 +41,17 @@ test.describe('a staged EVENT hands the board over at once — no pay-back insid
     await bootFixtureSeats(page, request, 'flooding-staged', {query: PRESET.query});
     await openFloodingComposer(page);
     await recordTransient(page, 'payback', () => document.querySelector('[data-hero-payback]')?.getAttribute('data-hero-payback') ?? '');
-    const t0 = Date.now();
+    // H — the hand-off is timed on the PAGE's clock: a reading before the press, the reticle's first recorded aim.
+    const aiming = await armWitness(page, 'staged-aiming', () =>
+      document.querySelector('.con-board--placing') !== null && document.querySelector('.con-board--locked') === null);
+    const t0 = await pageNow(page);
     // The ritual has begun once the scene leaves `idle` — the frozen road never lifted the card (no proxy), it stood in the
     // composer in its `shipping` phase, so a proxy is no witness of the press.
     const started = async () => await page.locator('[data-hero-phase]:not([data-hero-phase="idle"])').count() > 0 ||
       await page.locator('.con-played-hero__proxy').count() > 0 || await placementState(page) !== 'none';
     expect(await pressUntil(page, 'Enter', started, {tries: 4, settleMs: 1200}), '«Разыграть» started the staged play').toBe(true);
     await expect.poll(() => placementState(page), {timeout: 20_000, message: 'the staged board never aimed'}).toBe('aiming');
-    const handoffMs = Date.now() - t0;
+    const handoffMs = ((await aiming.firstWhere((aim) => aim))?.t ?? Infinity) - t0;
     const payback = (await readTransient<string>(page, 'payback')).map((s) => s.v);
     expect(payback, `the ritual of a staged event never enters the pay-back (recorded: ${payback.join(' → ')})`).not.toContain('paying');
     expect(handoffMs, `«Разыграть» → the aiming reticle took ${handoffMs} ms (the freeze stood 9 s)`).toBeLessThan(HANDOFF_BUDGET_MS);

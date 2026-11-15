@@ -130,16 +130,16 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     // …and the STRATEGY rail with it: the scene is the stage, so its zone is
     // taken (`.con-root--rail-replaced` → visibility, the box survives).
     await expect(page.locator('.con-strat')).toBeHidden();
-    expect(await page.locator('.con-handdock:visible').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-handdock:visible').count()).toBe(0);
     await expect(page.locator('.con-cmdbar')).toContainText(/Ускорить подсчёт/i);
     await expect(page.locator('.con-cmdbar')).toContainText(/Свернуть/i);
     await expect(page.locator('.con-cmdbar .con-cmdbar__context')).not.toContainText(/Финальный подсчёт/i);
     // All rows on screen at once, in seating order, bars growing; the result
     // is still untold (no places, no ribbon, no actions).
-    expect(await page.locator('.con-eg__row').count()).toBe(2);
-    expect(await page.locator('.con-eg__place-num').count()).toBe(0);
-    expect(await page.locator('.con-eg__ribbon').count()).toBe(0);
-    expect(await page.locator('.con-eg__actions').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-eg__row').count()).toBe(2);
+    await expect.poll(() => page.locator('.con-eg__place-num').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-eg__ribbon').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-eg__actions').count()).toBe(0);
     await installStabilityProbe(page);
     await shoot(page, SHOT_DIR, '2p-ceremony-scoring');
 
@@ -159,7 +159,7 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     await page.waitForTimeout(1600);
     await forceFrame(page);
     // Paused, not running in the background: the phase class has not moved on.
-    expect(await page.locator('.con-endgame').getAttribute('class')).toBe(phaseWhileParked);
+    await expect.poll(() => page.locator('.con-endgame').getAttribute('class')).toBe(phaseWhileParked);
     expect(phaseWhileParked).not.toContain('con-endgame--actions');
     await shoot(page, SHOT_DIR, '2p-collapsed-board');
 
@@ -191,17 +191,17 @@ test.describe('console endgame workspace — 2p, full journey', () => {
       expect([...rows], `${color}'s seat boxes during the count: ${[...rows].join(' ')}`).toHaveLength(1);
     }
     // The barcode: the settled bar is ONE hue per category — no micro shades.
-    expect(await page.locator('.con-eg__subseg--seamed').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-eg__subseg--seamed').count()).toBe(0);
     // No category light is left standing over the settled podium (T08).
     expect(await page.locator('.con-eg__beam-wash').evaluateAll((els) => els.filter((el) => Number(getComputedStyle(el).opacity) > 0.05).length)).toBe(0);
 
     // 5 · The winner is the SEAT: ribbon + places + the hero; NO duplicate plate exists.
-    expect(await page.locator('.con-eg__ribbon').count()).toBeGreaterThan(0);
-    expect(await page.locator('.con-eg__row--winner').count()).toBeGreaterThan(0);
-    expect(await page.locator('.con-eg__row--hero').count()).toBeGreaterThan(0);
-    expect(await page.locator('.con-eg__place-num').count()).toBe(2);
+    await expect.poll(() => page.locator('.con-eg__ribbon').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__row--winner').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__row--hero').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__place-num').count()).toBe(2);
     // Every category's value stands in its medallion on every seat (TR69).
-    expect(await page.locator('.con-eg__medal--on').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__medal--on').count()).toBeGreaterThan(0);
 
     // The displayed totals are the SERVER's own breakdown totals.
     const finalModel = await getModel(request, ids[0]);
@@ -230,7 +230,7 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     //     results without replaying the ceremony.
     await page.keyboard.press('Enter');
     await waitWithFrames(page, async () => (await page.locator('.con-egov').count()) > 0, 15_000, 'the console overview');
-    expect(await page.locator('.eg-results').count()).toBe(0); // desktop stays desktop-only
+    await expect.poll(() => page.locator('.eg-results').count()).toBe(0); // desktop stays desktop-only
     await expect(page.locator('.con-endgame')).toBeVisible(); // the same root carries both scenes
     await expect(page.locator('.con-egov__kicker')).toContainText(/Обзор партии/i);
     await expect(page.locator('.con-status')).toBeHidden(); // the board never shows through
@@ -239,7 +239,7 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     await expect(page.locator('.con-endgame')).toBeVisible();
     await expect(page.locator('.con-eg__ribbon').first()).toBeVisible(); // state survived
     // …and coming back is a RETURN, never a second ceremony.
-    expect(await page.locator('.con-endgame--scoring, .con-endgame--entering').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-endgame--scoring, .con-endgame--entering').count()).toBe(0);
 
     // 8 · B at the settled root: «Свернуть», never the main menu — and the
     //     road back restores the same settled state.
@@ -257,9 +257,9 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     // 9 · RELOAD into the ended game: the settled state, instantly — the
     //     ceremony must NOT replay uninvited.
     await journeyReload(page, ids[0]);
-    expect(await page.locator('.con-endgame--scoring, .con-endgame--entering').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-endgame--scoring, .con-endgame--entering').count()).toBe(0);
     await expect(page.locator('.con-eg__actions')).toBeVisible();
-    expect(await page.locator('.con-eg__ribbon').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__ribbon').count()).toBeGreaterThan(0);
 
     // 10 · «Повторить подсчёт» replays on demand; X skips it ATOMICALLY.
     const labels = await page.locator('.con-eg__action-label').allTextContents();
@@ -309,7 +309,7 @@ test.describe('console endgame workspace — 2p, full journey', () => {
       .map((t) => Number(t.trim()))
       .sort((a, b) => b - a);
     expect(shownAfterSkip).toEqual(serverTotals);
-    expect(await page.locator('.con-eg__subseg--seamed').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-eg__subseg--seamed').count()).toBe(0);
     await shoot(page, SHOT_DIR, '2p-after-skip');
   });
 });
@@ -329,7 +329,7 @@ test.describe('console endgame workspace — 4K TV, four players', () => {
     test.setTimeout(600_000);
     const ids = await createTable(request, ['red', 'blue', 'green', 'yellow'], {promo: true, community: true});
     await journeyToEndgame(page, request, ids);
-    expect(await page.locator('.con-eg__row').count()).toBe(4);
+    await expect.poll(() => page.locator('.con-eg__row').count()).toBe(4);
     await shoot(page, SHOT_DIR, '4k-ceremony-enter');
 
     // Watch the count: the TR micro-reveal marks sub-steps in the caption and
@@ -361,9 +361,9 @@ test.describe('console endgame workspace — 4K TV, four players', () => {
 
     // Four seats, four totals, ranked places 1..4, the winner ribbon on the
     // hero — and the settled bar is category-clean (merged, no shades).
-    expect(await page.locator('.con-eg__place-num').count()).toBe(4);
-    expect(await page.locator('.con-eg__row--winner').count()).toBeGreaterThan(0);
-    expect(await page.locator('.con-eg__subseg--seamed').count()).toBe(0);
-    expect(await page.locator('.con-eg__medal--on').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__place-num').count()).toBe(4);
+    await expect.poll(() => page.locator('.con-eg__row--winner').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__subseg--seamed').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-eg__medal--on').count()).toBeGreaterThan(0);
   });
 });

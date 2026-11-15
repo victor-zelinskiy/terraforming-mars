@@ -11,10 +11,10 @@
  * card TAKEN).
  *
  * This watches that order in the real DOM. The claim is about the MIDDLE of the
- * episode, not its end state, so the probe is armed BEFORE the confirming press
- * and samples with a MutationObserver + setInterval — never `requestAnimationFrame`
- * (headless Chromium drives rAF off the compositor and stops sampling exactly
- * when the screen goes quiet, which is when this bug fires) and never a
+ * episode, not its end state, so the probe is RECORDED from BEFORE the
+ * confirming press (FLAKE ZERO — `armWitness`: the product's own writes + a
+ * frame tick, replace-proof; an order / coexistence claim records the state a
+ * task LEAVES, `settled`) — never a `setInterval` sampler, and never a
  * `waitForTimeout` standing in for a state.
  *
  * The deterministic sibling — `tests/client/components/console/hydroBonusDoorOrder.spec.ts`
@@ -22,7 +22,10 @@
  * when it regresses. This one proves the product really behaves that way.
  */
 import {expect, test, Page, APIRequestContext} from './consoleTest';
-import {commitFocusedSpace, press, pressUntilGone, walkToSpace} from './consoleStart';
+import {bootSeededGame, commitFocusedSpace, openConsole, playCardFromHand, press, pressUntil, pressUntilGone, settle,
+  walkToSpace} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /** The card that grants the bonus move — and, conveniently, a BUILDING tag,
  *  which is exactly what track position 1 requires, so the offer is FREE. */
@@ -93,137 +96,59 @@ async function key(page: Page, code: string, settleMs = 400): Promise<void> {
   await press(page, code, settleMs);
 }
 
-/** Boot + drive the start wizard, buying the probe's cards into the hand. */
+/**
+ * Create the probe's game and open the console on its board with the probe's
+ * cards in hand. The pregame is SETUP, never this spec's subject, so it rides
+ * the shared API road (`bootSeededGame` — the same responses the wizard sends,
+ * CrediCor taken by name, the four cards bought) instead of a private key
+ * script over the wizard that paced itself with fixed pauses.
+ */
 async function openAtBoard(page: Page, request: APIRequestContext): Promise<string> {
   const created = await request.post('/api/creategame', {data: newGameConfig()});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
   const model = await created.json() as {players: Array<{id: string}>};
   const playerId = model.players[0].id;
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
-  await page.waitForTimeout(3000);
-
-  const buy = [BARRIER, OCEAN_CARD, OCEAN_CARD_2, ...FILLER];
-  let lastFocused = '';
-  let stalls = 0;
-  for (let i = 0; i < 240 && await page.locator('.con-start__frame').count() > 0; i++) {
-    const s = await page.evaluate(() => ({
-      active: (document.querySelector('.con-jrail__item--current')?.textContent ?? '').toUpperCase(),
-      focused: document.querySelector('.con-cards__slot--focused')?.getAttribute('data-zoom-slot') ?? '',
-      picked: Array.from(document.querySelectorAll('.con-cards__slot--picked'))
-        .filter((el) => (el as HTMLElement).offsetParent !== null)
-        .map((el) => el.getAttribute('data-zoom-slot') ?? ''),
-      ceremony: document.querySelector('.con-start--ceremony') !== null,
-    }));
-    if (s.ceremony) {
-      break;
-    }
-    const walk = async () => {
-      stalls = s.focused === lastFocused ? stalls + 1 : 0;
-      await key(page, stalls >= 1 ? 'ArrowDown' : 'ArrowRight', 240);
-      lastFocused = s.focused;
-    };
-    if (s.active.includes('КОРПОРАЦ')) {
-      if (s.picked.includes('CrediCor')) {
-        await key(page, 'Period', 1100);
-      } else if (s.focused === 'CrediCor') {
-        await key(page, 'Enter', 600);
-      } else {
-        await walk();
-      }
-      continue;
-    }
-    if (s.active.includes('ПРОЕКТ')) {
-      const missing = buy.filter((c) => !s.picked.includes(c));
-      if (missing.length === 0) {
-        await key(page, 'Period', 1100);
-      } else if (missing.includes(s.focused)) {
-        await key(page, 'Enter', 420);
-        lastFocused = '';
-      } else {
-        await walk();
-      }
-      continue;
-    }
-    await key(page, 'Enter', 1200);
-  }
-  for (let i = 0; i < 120 && await page.locator('.con-start').count() > 0; i++) {
-    if (await page.locator('.con-start__slot-a').count() > 0) {
-      await key(page, 'Enter', 700);
-    } else {
-      await page.waitForTimeout(300);
-    }
-  }
-  await expect(page.locator('.con-start')).toHaveCount(0, {timeout: 60_000});
-  await page.waitForTimeout(3500);
+  await bootSeededGame(page, request, playerId, {cards: [BARRIER, OCEAN_CARD, OCEAN_CARD_2, ...FILLER], corporation: 'CrediCor'});
   // The player id is what lets a spec RELOAD the page mid-flow.
   return playerId;
 }
 
 /**
- * Focus `card` in the hand ALBUM. The album is PAGED and its ring CLAMPS, so a
- * one-way walk parks against a wall and the caller then presses A on whatever it
- * was already sitting on — which is exactly how an earlier version of this probe
- * played the ocean card instead of the barrier (measured: twelve
- * `.board-space--available` cells where there should have been none). So: turn
- * around when a hop moves nothing, and turn the PAGE when a whole lane does.
+ * Play `card` from the hand — the shared driver (`playCardFromHand`: the hand
+ * opened, the card FOCUSED by identity, never A on whatever the cursor sat on,
+ * each A on the sheet verified by its effect), done when the SERVER's hand no
+ * longer holds it or its placement stands. The private walk this replaces
+ * confirmed with up to twelve blind A presses whenever the play put no tile down.
  */
-async function focusHandCard(page: Page, card: string): Promise<boolean> {
-  let dir: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
-  let last = '';
-  let stalls = 0;
-  for (let i = 0; i < 80; i++) {
-    const focused = await page.evaluate(() =>
-      document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
-    if (focused === card) {
-      return true;
-    }
-    if (focused === last) {
-      stalls++;
-      // A hop that moved nothing: reverse; a whole lane that moved nothing: page.
-      if (stalls >= 3) {
-        await key(page, 'KeyE', 260); // RB — next album page
-        stalls = 0;
-      } else {
-        dir = dir === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
-      }
-    } else {
-      stalls = 0;
-    }
-    last = focused;
-    await key(page, dir, 200);
-  }
-  return false;
+async function playFromHand(page: Page, card: string): Promise<void> {
+  expect(await playCardFromHand(page, card), `${card} was never played from the hand`).toBe(true);
 }
 
-/** Play `card` from the hand workspace, VERIFYING it is the card that opened. */
-async function playFromHand(page: Page, card: string): Promise<void> {
-  for (let i = 0; i < 8 && await page.locator('.con-hand__frame').count() === 0; i++) {
-    await key(page, 'Period', 800);
-    await key(page, 'Enter', 1100);
-  }
-  await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 20_000});
+/** The leak detector's own 1 Hz passes so far — the screen shadow counts every one it judges (`none` verdicts too). */
+async function detectorPasses(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const s = (window as unknown as {__conScreenShadow?: () => {stats?: {verdicts?: Record<string, number>}}}).__conScreenShadow?.();
+    return Object.values(s?.stats?.verdicts ?? {}).reduce((a, n) => a + n, 0);
+  }).catch(() => 0);
+}
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    expect(await focusHandCard(page, card), `never focused ${card} in the album`).toBeTruthy();
-    await key(page, 'Enter', 1400); // open the play composer
-    // ⭐ THE CARD THE COMPOSER OPENED IS THE ONLY THING THAT COUNTS. The album
-    // focus can move under a re-sort between the read and the press.
-    const subject = await page.evaluate(() =>
-      document.querySelector('.con-wshead__subject')?.textContent?.trim() ?? '');
-    if (subject !== '') {
-      break;
-    }
-    await key(page, 'Escape', 700); // wrong card / nothing opened — back out
-  }
-  // Confirm through the composer / payment until the board or a prompt takes over.
-  for (let i = 0; i < 12; i++) {
-    if (await page.locator('.board-space--available').count() > 0) {
-      return;
-    }
-    await key(page, 'Enter', 900);
-  }
+/** Wait (bounded, never a throw) until the detector has run `passes` more passes — the product's own clock. */
+async function awaitDetectorPasses(page: Page, passes: number): Promise<void> {
+  const from = await detectorPasses(page);
+  await expect.poll(() => detectorPasses(page), {timeout: passes * 1000 + 10_000}).toBeGreaterThanOrEqual(from + passes)
+    .catch(() => undefined);
+}
+
+/**
+ * «The amber stranded guard never rose» over a WINDOW — recorded from its start (`armWitness`), and the window is the
+ * DETECTOR's own passes: it runs on a 1 s clock with a 3-pass debounce, so a single read proves nothing and a fixed
+ * pause is a guess at its clock.
+ */
+async function expectNeverStranded(page: Page, key: string, passes: number, message: string): Promise<void> {
+  const stranded = await armWitness(page, key, () => document.querySelector('.con-stranded') !== null);
+  await awaitDetectorPasses(page, passes);
+  expect(await stranded.ever((up) => up), message).toBe(false);
+  await stranded.stop();
 }
 
 /**
@@ -259,11 +184,11 @@ async function driveToBonusOffer(page: Page, rounds = 90): Promise<void> {
 
 type Sample = {t: number, reveal: boolean, bonusZone: boolean, hydro: boolean, modal: boolean, stranded: boolean};
 
-/** One frame of the COMMIT episode: is the workspace still standing, and is
+/** One state of the COMMIT episode: is the workspace still standing, and is
  *  anything of the advance still physically moving? */
 type MoveSample = {t: number, hydro: boolean, marker: boolean, transfer: boolean, commitScene: boolean};
 /**
- * One frame of the INSPECT episode. `visible` counts every PAINTED face of the
+ * One state of the INSPECT episode. `visible` counts every PAINTED face of the
  * source card; `apart` counts them only when they are NOT standing on the same
  * rect — which is the distinction that matters. The canonical close flight
  * deliberately cross-fades the returning stage OVER the revealed slot card for
@@ -274,51 +199,127 @@ type MoveSample = {t: number, hydro: boolean, marker: boolean, transfer: boolean
  */
 type CardSample = {t: number, visible: number, apart: number, zoom: boolean, where: string};
 
+/** Every recorded value with the page's time beside it — ms since the record's first sample (the witness's `t`). */
+function stamped<T>(samples: ReadonlyArray<{t: number, v: T}>): Array<T & {t: number}> {
+  const t0 = samples[0]?.t ?? 0;
+  return samples.map((s) => ({...s.v, t: s.t - t0}));
+}
+
+const ORDER_WITNESS = 'hydro-order';
 /**
- * Arm the order probe BEFORE the press that starts the episode. Samples on
- * every DOM mutation AND on a 40 ms interval, so a state that exists only
- * between two mutations is still seen.
+ * Arm the order probe BEFORE the press that starts the episode — RECORDED, as the
+ * state each task LEAVES (`settled`: «never both at once», «first after last» are
+ * coexistence / order claims), so a state that exists only between two mutations
+ * of the product is still seen and one that no frame ever painted is not.
  */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__hydroOrder?: Array<Sample>, __hydroStop?: () => void};
-    type Sample = {t: number, reveal: boolean, bonusZone: boolean, hydro: boolean, modal: boolean, stranded: boolean};
-    const out: Array<Sample> = [];
-    const t0 = performance.now();
-    const sample = () => {
-      out.push({
-        t: Math.round(performance.now() - t0),
-        // Any drawn-cards presentation: the overlay, or the workspace-embedded one.
-        reveal: document.querySelector('.con-reveal, .con-deckpick, .con-deckdraw') !== null,
-        bonusZone: document.querySelector('.con-hydro__layer--bonus') !== null,
-        hydro: document.querySelector('.con-hydro') !== null,
-        // The generic contextual-choice surface — the thing a dedicated
-        // workspace must make impossible.
-        modal: document.querySelector('.con-decision, .con-task-host .con-task') !== null,
-        // The leak detector's amber guard. It rose OVER a Hydronetwork that was
-        // rendering the offer perfectly underneath, because the detector read
-        // the registry's DEFAULT `serves` and never the frame's earned one.
-        stranded: document.querySelector('.con-stranded') !== null,
-      });
-    };
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-    const iv = window.setInterval(sample, 40);
-    w.__hydroOrder = out;
-    w.__hydroStop = () => {
-      mo.disconnect();
-      window.clearInterval(iv);
-    };
-    sample();
-  });
+  await armWitness(page, ORDER_WITNESS, () => ({
+    // Any drawn-cards presentation: the overlay, or the workspace-embedded one.
+    reveal: document.querySelector('.con-reveal, .con-deckpick, .con-deckdraw') !== null,
+    bonusZone: document.querySelector('.con-hydro__layer--bonus') !== null,
+    hydro: document.querySelector('.con-hydro') !== null,
+    // The generic contextual-choice surface — the thing a dedicated
+    // workspace must make impossible.
+    modal: document.querySelector('.con-decision, .con-task-host .con-task') !== null,
+    // The leak detector's amber guard. It rose OVER a Hydronetwork that was
+    // rendering the offer perfectly underneath, because the detector read
+    // the registry's DEFAULT `serves` and never the frame's earned one.
+    stranded: document.querySelector('.con-stranded') !== null,
+  }), {settled: true});
 }
 
 async function readProbe(page: Page): Promise<Array<Sample>> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__hydroOrder?: Array<Sample>, __hydroStop?: () => void};
-    w.__hydroStop?.();
-    return w.__hydroOrder ?? [];
-  });
+  return stamped(await witnessOf<Omit<Sample, 't'>>(page, ORDER_WITNESS).stop());
+}
+
+const CARD_WITNESS = 'hydro-card-frames';
+/**
+ * The INSPECT probe, RECORDED (settled — «never two places at once» is a coexistence claim). While two faces are
+ * painted the reader stamps its 30 ms tick (`tickMs`), so a co-located overlap that STANDS is still one sample per tick
+ * of a free main thread — the span of a run is measured as the old 30 ms sampler measured it, from its first sample to
+ * its last, never stretched to the next change.
+ */
+async function armCardProbe(page: Page): Promise<void> {
+  await armWitness(page, CARD_WITNESS, () => {
+    /**
+     * PAINTED, not merely present — and that question is asked of the whole
+     * ANCESTOR CHAIN, never of the element alone. `opacity` does not inherit
+     * as a computed value, so a card inside a transparent parent still
+     * reports `opacity: 1`: the zoom flight proxy is authored `opacity: 0`
+     * and revealed by its tween's from-state, and reading only the inner
+     * `.pcard` counted an invisible proxy as a second card on screen.
+     */
+    const shown = (el: Element): boolean => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8) {
+        return false;
+      }
+      let node: Element | null = el;
+      while (node !== null && node !== document.documentElement) {
+        const cs = getComputedStyle(node);
+        if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) <= 0.02) {
+          return false;
+        }
+        node = node.parentElement;
+      }
+      return true;
+    };
+    /** Do two rects stand on top of each other (a dissolve) or apart? */
+    const overlaps = (a: DOMRect, b: DOMRect): boolean => {
+      const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      if (w <= 0 || h <= 0) {
+        return false;
+      }
+      const inter = w * h;
+      return inter / Math.min(a.width * a.height, b.width * b.height) > 0.5;
+    };
+    // Every rendered face of the SOURCE card, anywhere on screen: the dock,
+    // the flight proxy, the dialog. The hold empties the dock via a
+    // `:has(.con-zoom-hold)` rule on the wrapper, so a held slot no longer
+    // paints its card — which is exactly what this counts.
+    const zones: ReadonlyArray<[string, string]> = [
+      ['dock', '.con-hydro__bonus-source :is(.card-container, .pcard)'],
+      ['proxy', '.con-zoom-flight-proxy :is(.card-container, .pcard)'],
+      ['stage', '.card-zoom-stage :is(.card-container, .pcard)'],
+    ];
+    const painted: Array<{zone: string, rect: DOMRect}> = [];
+    for (const [zone, sel] of zones) {
+      for (const el of Array.from(document.querySelectorAll(sel))) {
+        if (shown(el)) {
+          painted.push({zone, rect: el.getBoundingClientRect()});
+        }
+      }
+    }
+    let apart = 0;
+    for (let i = 0; i < painted.length; i++) {
+      for (let j = i + 1; j < painted.length; j++) {
+        if (!overlaps(painted[i].rect, painted[j].rect)) {
+          apart++;
+        }
+      }
+    }
+    return {
+      visible: painted.length,
+      apart,
+      zoom: document.querySelector('.card-zoom-stage') !== null,
+      where: painted.map((f) =>
+        `${f.zone}@${Math.round(f.rect.left)},${Math.round(f.rect.top)} ${Math.round(f.rect.width)}x${Math.round(f.rect.height)}`).join(' + '),
+      // The tick while two faces stand (see above) — absent otherwise, so a single face records only its changes.
+      ...(painted.length > 1 ? {tick: Math.floor(performance.now() / 30)} : {}),
+    };
+  }, {settled: true, tickMs: 30});
+}
+
+const MOVE_WITNESS = 'hydro-move';
+/** The COMMIT probe, RECORDED (settled — «never closed while something still moved» is an order claim). */
+async function armMoveProbe(page: Page): Promise<void> {
+  await armWitness(page, MOVE_WITNESS, () => ({
+    hydro: document.querySelector('.con-hydro') !== null,
+    marker: document.querySelector('.con-hydromarker') !== null,
+    transfer: document.querySelector('.con-transfer') !== null,
+    commitScene: document.querySelector('.con-hydro__layer--commit, .con-hydro__layer--result') !== null,
+  }), {settled: true});
 }
 
 test.describe('the bonus offer never stands over the cards the placement drew', () => {
@@ -329,7 +330,7 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
 
     // The barrier must be IN PLAY before the ocean, or there is no offer at all.
     await playFromHand(page, BARRIER);
-    await page.waitForTimeout(2000);
+    await settle(page);
 
     // …then the ocean, onto the two-card hex.
     await playFromHand(page, OCEAN_CARD);
@@ -350,8 +351,9 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     await page.locator('.con-hydro__layer--bonus').screenshot({path: 'screenshots/hydro-bonus/free.png'}).catch(() => {});
 
     const samples = await readProbe(page);
-    // A DEAD probe must fail loudly rather than pass vacuously.
-    expect(samples.length, `the probe never sampled (${samples.length})`).toBeGreaterThan(20);
+    // A DEAD probe must fail loudly rather than pass vacuously. The record keeps DISTINCT states (never frames), so
+    // its floor only catches a recorder that never ran — the claims below judge the episode.
+    expect(samples.length, `the probe never sampled (${samples.length})`).toBeGreaterThan(0);
 
     const firstBonus = samples.findIndex((s) => s.bonusZone);
     const lastReveal = samples.map((s) => s.reveal).lastIndexOf(true);
@@ -385,104 +387,21 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     // The player is standing in the workspace THIS PROMPT opened. Telling them
     // to go and finish the current action is telling them to finish the thing
     // they are looking at.
-    const status = await page.evaluate(() => ({
+    // Read AT REST — the chip as it stands, never a frame of its arrival.
+    const status = await readSettled(page, () => page.evaluate(() => ({
       busy: document.querySelector('[data-hydro-status="busy"]') !== null,
       text: document.querySelector('.con-hydro__act')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
-    }));
+    })), {message: 'the offer\'s status chip'});
     expect(status.busy, `the status chip read «${status.text}»`).toBe(false);
     expect(status.text, `the status chip read «${status.text}»`).not.toMatch(/завершите/i);
 
     // ══ X — ONE PHYSICAL CARD, NEVER TWO ══════════════════════════
     //
     // The fullscreen viewer LIFTS the card out of the source dock and the dock
-    // slot is held empty for the whole flight (`con-zoom-hold`). Sampled
-    // frame-by-frame, because the end states of a FLIP and of a second card
-    // fading in are identical — only the middle tells them apart.
-    await page.evaluate(() => {
-      // The OUTER CardSample (module scope) applies — a narrower local
-      // redeclaration silently dropped `apart`/`where` from the type while the
-      // sampler kept collecting them.
-      const w = window as unknown as {__cardFrames?: Array<CardSample>, __cardStop?: () => void};
-      const out: Array<CardSample> = [];
-      const t0 = performance.now();
-      /**
-       * PAINTED, not merely present — and that question is asked of the whole
-       * ANCESTOR CHAIN, never of the element alone. `opacity` does not inherit
-       * as a computed value, so a card inside a transparent parent still
-       * reports `opacity: 1`: the zoom flight proxy is authored `opacity: 0`
-       * and revealed by its tween's from-state, and reading only the inner
-       * `.pcard` counted an invisible proxy as a second card on screen.
-       */
-      const shown = (el: Element): boolean => {
-        const r = el.getBoundingClientRect();
-        if (r.width < 8 || r.height < 8) {
-          return false;
-        }
-        let node: Element | null = el;
-        while (node !== null && node !== document.documentElement) {
-          const cs = getComputedStyle(node);
-          if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) <= 0.02) {
-            return false;
-          }
-          node = node.parentElement;
-        }
-        return true;
-      };
-      /** Do two rects stand on top of each other (a dissolve) or apart? */
-      const overlaps = (a: DOMRect, b: DOMRect): boolean => {
-        const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-        const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-        if (w <= 0 || h <= 0) {
-          return false;
-        }
-        const inter = w * h;
-        return inter / Math.min(a.width * a.height, b.width * b.height) > 0.5;
-      };
-      const sample = () => {
-        // Every rendered face of the SOURCE card, anywhere on screen: the dock,
-        // the flight proxy, the dialog. The hold empties the dock via a
-        // `:has(.con-zoom-hold)` rule on the wrapper, so a held slot no longer
-        // paints its card — which is exactly what this counts.
-        const zones: ReadonlyArray<[string, string]> = [
-          ['dock', '.con-hydro__bonus-source :is(.card-container, .pcard)'],
-          ['proxy', '.con-zoom-flight-proxy :is(.card-container, .pcard)'],
-          ['stage', '.card-zoom-stage :is(.card-container, .pcard)'],
-        ];
-        const painted: Array<{zone: string, rect: DOMRect}> = [];
-        for (const [zone, sel] of zones) {
-          for (const el of Array.from(document.querySelectorAll(sel))) {
-            if (shown(el)) {
-              painted.push({zone, rect: el.getBoundingClientRect()});
-            }
-          }
-        }
-        let apart = 0;
-        for (let i = 0; i < painted.length; i++) {
-          for (let j = i + 1; j < painted.length; j++) {
-            if (!overlaps(painted[i].rect, painted[j].rect)) {
-              apart++;
-            }
-          }
-        }
-        out.push({
-          t: Math.round(performance.now() - t0),
-          visible: painted.length,
-          apart,
-          zoom: document.querySelector('.card-zoom-stage') !== null,
-          where: painted.map((f) =>
-            `${f.zone}@${Math.round(f.rect.left)},${Math.round(f.rect.top)} ${Math.round(f.rect.width)}x${Math.round(f.rect.height)}`).join(' + '),
-        });
-      };
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
-      const iv = window.setInterval(sample, 30);
-      w.__cardFrames = out;
-      w.__cardStop = () => {
-        mo.disconnect();
-        window.clearInterval(iv);
-      };
-      sample();
-    });
+    // slot is held empty for the whole flight (`con-zoom-hold`). RECORDED from
+    // before the first press, because the end states of a FLIP and of a second
+    // card fading in are identical — only the middle tells them apart.
+    await armCardProbe(page);
 
     // Two full open/close cycles — a repeated inspect must not leave a hidden
     // card behind or lose the cursor.
@@ -493,12 +412,9 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
       await expect(page.locator('.card-zoom-stage')).toHaveCount(0, {timeout: 10_000});
     }
 
-    const cardFrames: Array<CardSample> = await page.evaluate(() => {
-      const w = window as unknown as {__cardFrames?: Array<CardSample>, __cardStop?: () => void};
-      w.__cardStop?.();
-      return w.__cardFrames ?? [];
-    });
-    expect(cardFrames.length, `the inspect probe never sampled (${cardFrames.length})`).toBeGreaterThan(20);
+    const cardFrames: Array<CardSample> = stamped(await witnessOf<Omit<CardSample, 't'>>(page, CARD_WITNESS).stop());
+    // The record keeps distinct states: its floor only catches a recorder that never ran.
+    expect(cardFrames.length, `the inspect probe never sampled (${cardFrames.length})`).toBeGreaterThan(0);
     // THE CLAIM: not one sampled frame shows the card in TWO PLACES. The only
     // frames where two faces are painted at all are the landing dissolve, where
     // they stand on the same rect and one is fading out over the other — the
@@ -544,10 +460,12 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
       const v = await r.json();
       return {pos: v.thisPlayer.deltaProject?.position ?? 0, waiting: v.waitingFor !== undefined};
     });
-    const backLabel = await page.evaluate(() => Array.from(
+    // The bar is a LIVE string (it republishes a frame after what changes it) — asserted by a poll.
+    const barLabels = () => page.evaluate(() => Array.from(
       document.querySelectorAll('.con-cmdbar__label'))
       .map((e) => e.textContent?.trim() ?? '').join(' | '));
-    expect(backLabel, `the command bar read «${backLabel}»`).not.toMatch(/Пропустить/i);
+    await expect.poll(barLabels, {message: `the command bar offers «Пропустить» (it read «${await barLabels()}»)`})
+      .not.toMatch(/Пропустить/i);
 
     await key(page, 'Escape', 1600);
     // The workspace is gone…
@@ -571,39 +489,17 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     await key(page, 'Enter', 2000);
     await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 20_000});
     // No duplicate: exactly one workspace, one offer, one source card.
-    expect(await page.locator('.con-hydro').count()).toBe(1);
-    expect(await page.locator('.con-hydro__layer--bonus').count()).toBe(1);
+    await expect.poll(() => page.locator('.con-hydro').count()).toBe(1);
+    await expect.poll(() => page.locator('.con-hydro__layer--bonus').count()).toBe(1);
     // …and no false warning on the way back in either.
-    expect(await page.locator('[data-hydro-status="busy"]').count(),
-      'the re-entered workspace nagged about the current action').toBe(0);
+    await expect.poll(() => page.locator('[data-hydro-status="busy"]').count(), {message: 'the re-entered workspace nagged about the current action'}).toBe(0);
 
     // ══ THE MOVE IS PRESENTED — AND THE WORKSPACE OUTLIVES IT ════════════
     //
     // A free bonus step must look exactly like a paid advance: the marker
     // glides, the landed stage pays out, the counters tick — and only then may
     // the workspace go. It used to submit and close in the same breath.
-    await page.evaluate(() => {
-      const w = window as unknown as {__move?: Array<MoveSample>, __moveStop?: () => void};
-      type MoveSample = {t: number, hydro: boolean, marker: boolean, transfer: boolean, commitScene: boolean};
-      const out: Array<MoveSample> = [];
-      const t0 = performance.now();
-      const sample = () => out.push({
-        t: Math.round(performance.now() - t0),
-        hydro: document.querySelector('.con-hydro') !== null,
-        marker: document.querySelector('.con-hydromarker') !== null,
-        transfer: document.querySelector('.con-transfer') !== null,
-        commitScene: document.querySelector('.con-hydro__layer--commit, .con-hydro__layer--result') !== null,
-      });
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
-      const iv = window.setInterval(sample, 30);
-      w.__move = out;
-      w.__moveStop = () => {
-        mo.disconnect();
-        window.clearInterval(iv);
-      };
-      sample();
-    });
+    await armMoveProbe(page);
 
     // ══ THE PAID OFFER — the same flow, one stage further up the track ══
     //
@@ -614,14 +510,28 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     // A on the focused CONFIRM takes the free step. Landing on position 1 asks
     // WHICH reward — and it asks INSIDE this workspace (the whole point), so
     // keep answering until the move is fully resolved.
+    // Each A is act → verify: it gets its whole window for the workspace to answer (its layer / focused row / cta
+    // changing, or the workspace gone) before the next one — never a second A on a step that was merely slow.
+    const hydroSignature = () => page.evaluate(() => {
+      const root = document.querySelector('.con-hydro');
+      if (root === null) {
+        return 'gone';
+      }
+      return JSON.stringify({
+        layers: Array.from(root.querySelectorAll('[class*="con-hydro__layer--"]')).map((el) => el.className).join('|'),
+        focused: root.querySelector('[class*="--focused"]')?.className ?? '',
+      });
+    }).catch(() => 'gone');
     for (let i = 0; i < 20 && await page.locator('.con-hydro').count() > 0; i++) {
       const zone = await page.evaluate(() => ({
         bonus: document.querySelector('.con-hydro__layer--bonus') !== null,
         choice: document.querySelector('.con-hydro__layer--choice') !== null,
       }));
       // …and a reward asked here is NEVER a modal beside the workspace.
-      expect(await page.locator('.con-decision').count(), 'a modal rose for the reward').toBe(0);
-      await key(page, 'Enter', zone.bonus || zone.choice ? 1400 : 900);
+      await expect.poll(() => page.locator('.con-decision').count(), {message: 'a modal rose for the reward'}).toBe(0);
+      const before = await hydroSignature();
+      await pressUntil(page, 'Enter', async () => (await hydroSignature()) !== before,
+        {tries: 1, settleMs: zone.bonus || zone.choice ? 1400 : 900});
     }
 
     // The offer was a visit the player did not ask for, so answering it HANDS
@@ -629,12 +539,9 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     await expect(page.locator('.con-hydro')).toHaveCount(0, {timeout: 30_000});
 
     // ══ …AND THE CLOSE CAME LAST ═══════════════════════════════
-    const move: Array<MoveSample> = await page.evaluate(() => {
-      const w = window as unknown as {__move?: Array<MoveSample>, __moveStop?: () => void};
-      w.__moveStop?.();
-      return w.__move ?? [];
-    });
-    expect(move.length, `the move probe never sampled (${move.length})`).toBeGreaterThan(20);
+    const move: Array<MoveSample> = stamped(await witnessOf<Omit<MoveSample, 't'>>(page, MOVE_WITNESS).stop());
+    // The record keeps distinct states: its floor only catches a recorder that never ran.
+    expect(move.length, `the move probe never sampled (${move.length})`).toBeGreaterThan(0);
 
     // 1. The marker ACTUALLY GLIDED. A bonus step that skips this is the
     //    original defect: the position simply changed while nobody looked.
@@ -665,8 +572,9 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 30_000});
 
     // THE SERVER'S OWN VERDICT, rendered: the price is on the CTA and in the
-    // body, and the free wording is gone. The client decided none of it.
-    const paid = await page.evaluate(() => ({
+    // body, and the free wording is gone. The client decided none of it. Read
+    // AT REST — the offer as it stands, never a frame of its arrival.
+    const paid = await readSettled(page, () => page.evaluate(() => ({
       // Direct child only — the permanent glyph slot nests `.gp-glyph`, itself
       // a last-of-type span, so an unscoped query reads the badge's «A».
       confirm: document.querySelector('.con-hydro__ctazone .con-hydro__cta > span:last-of-type')?.textContent?.trim() ?? '',
@@ -679,7 +587,7 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
         ?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       spendLabel: document.querySelector('.con-hydro__payline .con-hydro__section-label')
         ?.textContent?.trim() ?? '',
-    }));
+    })), {message: 'the paid offer'});
     // THE PARITY LAW: the primary is the DECISION's own vocabulary — the
     // same «Укрепить гидросеть» the player's advance commits with, no price
     // folded in, whatever the offer's shape (the source-only «Продвинуться»
@@ -719,7 +627,7 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     const playerId = await openAtBoard(page, request);
 
     await playFromHand(page, BARRIER);
-    await page.waitForTimeout(2000);
+    await settle(page);
     await playFromHand(page, OCEAN_CARD);
     await expect(page.locator('.board-space--available').first()).toBeVisible({timeout: 25_000});
     await walkToSpace(page, DRAW_OCEAN_SPACE);
@@ -730,18 +638,15 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 30_000});
 
     // ══ 1. THE RELOAD ══════════════════════════════════════
-    await page.goto(`/player?id=${playerId}&console=1`);
-    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 60_000});
-    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
+    // A fresh document on the same player (the shared boot: shell → load → veil — no key races the veil).
+    await openConsole(page, playerId);
 
     // The workspace comes up BY ITSELF, on the mount edge — no press.
     await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 45_000});
     // …and the amber guard never rose. Checked over a WINDOW: the detector runs
-    // on a 1 s clock with a 3-tick debounce, so a single read proves nothing.
-    for (let i = 0; i < 8; i++) {
-      expect(await page.locator('.con-stranded').count(), 'the stranded guard rose over a live offer').toBe(0);
-      await page.waitForTimeout(600);
-    }
+    // on a 1 s clock with a 3-tick debounce, so a single read proves nothing —
+    // recorded over five of its own passes.
+    await expectNeverStranded(page, 'hydro-stranded-reload', 5, 'the stranded guard rose over a live offer');
     // The offer is still the SAME unanswered prompt — a reload resolves nothing.
     const afterReload = await page.evaluate(async () => {
       const id = new URLSearchParams(location.search).get('id');
@@ -762,17 +667,13 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     // over it either — that is the screen the reported strand was seen on.
     await key(page, 'Period', 1200);
     await expect(page.locator('.con-quick')).toBeVisible({timeout: 10_000});
-    for (let i = 0; i < 6; i++) {
-      expect(await page.locator('.con-stranded').count(), 'the stranded guard rose over the wheel').toBe(0);
-      await page.waitForTimeout(600);
-    }
+    await expectNeverStranded(page, 'hydro-stranded-wheel', 4, 'the stranded guard rose over the wheel');
 
     // POSITIVE CONTROL for the beacon assertion below: with the decision parked
     // and the player looking at something else, the top chip IS the reminder —
     // that is what it is for. (The strip debounces engagement by 1200 ms; the
-    // guard window above has already spent 3.6 s.)
-    expect(await page.locator('.con-status__beacon').count(),
-      'the beacon must light while the player is away from the decision').toBeGreaterThan(0);
+    // guard window above has already spent four detector passes.)
+    await expect.poll(() => page.locator('.con-status__beacon').count(), {message: 'the beacon must light while the player is away from the decision'}).toBeGreaterThan(0);
 
     // The wheel is PRESS→RELEASE (wheelArmModel): the DOWN edge of a d-pad
     // direction ARMS its slot and the UP edge COMMITS it — a tap is the whole
@@ -788,11 +689,11 @@ test.describe('the bonus offer never stands over the cards the placement drew', 
     await expect(page.locator('.con-hydro__layer--bonus')).toBeVisible({timeout: 20_000});
     // …and the player is standing in the prompt's own home, so the top chip
     // must NOT be flashing for attention. (The strip debounces engagement by
-    // 1200 ms — wait past it, or the assertion proves only that it is slow.)
-    await page.waitForTimeout(2500);
-    expect(await page.locator('.con-status__beacon').count(),
-      'the chip beaconed at a player standing on the decision').toBe(0);
+    // 1200 ms — wait past it, or the assertion proves only that it is slow:
+    // three of the console's own 1 Hz passes, never a guessed pause.)
+    await awaitDetectorPasses(page, 3);
+    await expect.poll(() => page.locator('.con-status__beacon').count(), {message: 'the chip beaconed at a player standing on the decision'}).toBe(0);
     // …and still no guard.
-    expect(await page.locator('.con-stranded').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-stranded').count()).toBe(0);
   });
 });

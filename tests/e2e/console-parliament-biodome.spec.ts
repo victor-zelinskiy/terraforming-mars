@@ -197,7 +197,7 @@ for (const preset of PRESETS) {
       await expect(face, 'Biodome Contest stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(/pcard--resolution-art/);
       await expect(face.locator('.pcard__code')).toHaveText('RX03');
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX03');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX03');
       await expect(face.locator('.pcard__party-emblem')).toHaveCount(1);
       await expect(face.locator('.pcard__quest-graphic')).toHaveCount(1);
       await shoot(page, preset.id, '01-overview');

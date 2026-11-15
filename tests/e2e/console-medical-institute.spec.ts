@@ -6,6 +6,7 @@ import {
   pressUntil, sendPlayerInput, settle, soloGameConfig, submitSummary, waitQueueIdle, walkToSummary,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TRP9 «MEDICAL INSTITUTE» — the first PRELUDE-REACTOR of Turmoil Redux: draw 1 card; «after you play a Science tag
@@ -37,6 +38,8 @@ type Wire = {
 async function wireOf(request: APIRequestContext, playerId: string): Promise<Wire> {
   return await fetchPlayerModel(request, playerId) as unknown as Wire;
 }
+const CLAIM_WITNESS = 'medical-claim';
+const ROWS_WITNESS = 'medical-composer-rows';
 const countOn = (wire: Wire, card: string) => wire.thisPlayer.tableau.find((c) => c.name === card)?.resources ?? -1;
 const onTable = (wire: Wire, card: string) => wire.thisPlayer.tableau.some((c) => c.name === card);
 
@@ -56,28 +59,25 @@ function watchPosts(page: Page): Array<string> {
   return posts;
 }
 
-/** Any face of the Institute: lifted in its place (the shelf «РАЗЫГРАНО» or the start's seat «Источник» — it holds the
- *  card while its «where?» stands), or a SECOND instance at the reaction layer's stage. */
+/**
+ * Any face of the Institute: lifted in its place (the shelf «РАЗЫГРАНО» or the start's seat «Источник» — it holds the
+ * card while its «where?» stands), or a SECOND instance at the reaction layer's stage — RECORDED (FLAKE ZERO —
+ * `armWitness`, armed before the press): «did it rise» is caught in the task that lifts it; «never a second instance»
+ * is a claim about two faces painted at once, so that record is `settled` (the state a task leaves).
+ */
+const RISE_IN_PLACE = 'medical-rise';
+const RISE_AT_STAGE = 'medical-rise-at-stage';
 async function armRiseProbe(page: Page): Promise<void> {
-  await page.evaluate((card) => {
-    const w = window as unknown as {__rose: boolean, __roseAtStage: boolean};
-    w.__rose = false;
-    w.__roseAtStage = false;
-    window.setInterval(() => {
-      if (document.querySelector(`[data-played-key="${card}"][data-reaction-lifted], [data-played-key="${card}"] [data-reaction-lifted], ` +
-        `[data-start-seat-card="${card}"][data-reaction-lifted], [data-start-seat-card="${card}"] [data-reaction-lifted]`) !== null) {
-        w.__rose = true;
-      }
-      if (document.querySelector(`.con-reaction__face[data-reaction-card="${card}"]`) !== null) {
-        w.__roseAtStage = true;
-      }
-    }, 16);
-  }, CARD);
+  await armWitness<boolean, string>(page, RISE_IN_PLACE, (card) =>
+    document.querySelector(`[data-played-key="${card}"][data-reaction-lifted], [data-played-key="${card}"] [data-reaction-lifted], ` +
+      `[data-start-seat-card="${card}"][data-reaction-lifted], [data-start-seat-card="${card}"] [data-reaction-lifted]`) !== null, {args: CARD});
+  await armWitness<boolean, string>(page, RISE_AT_STAGE, (card) =>
+    document.querySelector(`.con-reaction__face[data-reaction-card="${card}"]`) !== null, {args: CARD, settled: true});
 }
 
-const riseOf = (page: Page) => page.evaluate(() => {
-  const w = window as unknown as {__rose?: boolean, __roseAtStage?: boolean};
-  return {inPlace: w.__rose === true, atStage: w.__roseAtStage === true};
+const riseOf = async (page: Page) => ({
+  inPlace: await witnessOf<boolean>(page, RISE_IN_PLACE).ever((up) => up),
+  atStage: await witnessOf<boolean>(page, RISE_AT_STAGE).ever((up) => up),
 });
 
 /** The server's own colony-removal step of a solo start, when it stands — answered over the API (not the subject). */
@@ -135,19 +135,12 @@ test.describe(`console · TRP9 Medical Institute · ${PRESET.id}`, () => {
 
     // (A) TRP9 from the queue: the card drawn first, then «КУДА» INSIDE the start.
     const handBefore = (await wireOf(request, playerId)).cardsInHand?.length ?? 0;
-    // THE CLAIM'S STORY from the queue press to the pick (PL-1117) — every change of the outcome claim and its last release, sampled.
-    await page.evaluate(() => {
-      const w = window as unknown as {__miClaim: Array<string>, __conColonyDiag?: () => Record<string, unknown>, __conReady?: () => {outcome?: unknown}};
-      w.__miClaim = [];
-      let last = '';
-      window.setInterval(() => {
-        const diag = w.__conColonyDiag?.();
-        const line = JSON.stringify({release: diag?.lastRelease, outcome: w.__conReady?.()?.outcome, start: (diag?.start as {frameLive?: unknown, serves?: unknown} | undefined)});
-        if (line !== last) {
-          last = line;
-          w.__miClaim.push(`${Math.round(performance.now())} ${line}`);
-        }
-      }, 40);
+    // THE CLAIM'S STORY from the queue press to the pick (PL-1117) — every change of the outcome claim and its last
+    // release, RECORDED off the product's own writes (`armWitness` keeps a value only when it changes).
+    await armWitness<string>(page, CLAIM_WITNESS, () => {
+      const w = window as unknown as {__conColonyDiag?: () => Record<string, unknown>, __conReady?: () => {outcome?: unknown}};
+      const diag = w.__conColonyDiag?.();
+      return JSON.stringify({release: diag?.lastRelease, outcome: w.__conReady?.()?.outcome, start: (diag?.start as {frameLive?: unknown, serves?: unknown} | undefined)});
     });
     await armRiseProbe(page);
     expect(await playQueueCard(page, CARD), 'the Institute was played from the queue').toBe(true);
@@ -176,16 +169,17 @@ test.describe(`console · TRP9 Medical Institute · ${PRESET.id}`, () => {
     await expect(candidate, '«КУДА» stood after the card was taken').toBeVisible({timeout: 30_000});
     expect(posts, 'taking the drawn card answered nothing on the server').toEqual([]);
     await settle(page, {timeoutMs: 30_000});
-    const inStart = await page.evaluate((card) => document.querySelector(`.con-task-host .con-cards__slot[data-zoom-slot="${card}"]`)?.closest('.con-start') !== null, HOLDER);
-    const crumb = await crumbText(page);
     await shoot(page, 'a3-where-in-start');
     // PL-1117: the play's claim survives the take — the pick stands INSIDE the start's zone, the start's crumb on screen.
-    const claimStory = await page.evaluate(() => ((window as unknown as {__miClaim?: Array<string>}).__miClaim ?? []).join('\n'));
+    const claimSamples = await witnessOf<string>(page, CLAIM_WITNESS).stop();
+    const claimStory = claimSamples.map((s) => `${s.t - (claimSamples[0]?.t ?? 0)} ${s.v}`).join('\n');
     fs.mkdirSync('test-results', {recursive: true});
     fs.writeFileSync(`test-results/medical-claim-${PRESET.id}.txt`, claimStory);
-    expect(inStart, `«КУДА» is embedded in the start, never a band of its own (crumb «${crumb}»)\n${claimStory.slice(-3000)}`).toBe(true);
-    expect(crumb, 'the start crumb keeps the card').toMatch(/ИНСТИТУТ/i);
-    expect(await page.locator('.con-task-host .con-cards__slot').count(), 'Psychrophiles is the only candidate').toBe(1);
+    const crumb = await crumbText(page); // named in the message below — the claims themselves are polled
+    await expect.poll(() => page.evaluate((card) => document.querySelector(`.con-task-host .con-cards__slot[data-zoom-slot="${card}"]`)?.closest('.con-start') !== null, HOLDER),
+      {timeout: 10_000, message: `«КУДА» is embedded in the start, never a band of its own (crumb «${crumb}»)\n${claimStory.slice(-3000)}`}).toBe(true);
+    await expect.poll(() => crumbText(page), {timeout: 10_000, message: 'the start crumb keeps the card'}).toMatch(/ИНСТИТУТ/i);
+    await expect(page.locator('.con-task-host .con-cards__slot'), 'Psychrophiles is the only candidate').toHaveCount(1);
 
     await armTransferWitness(page);
     await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 1500});
@@ -219,16 +213,12 @@ test.describe(`console · TRP9 Medical Institute · ${PRESET.id}`, () => {
     const posts2 = watchPosts(page);
     await armTransferWitness(page);
     // The play composer's «КУДА» rows the Institute asks — one per Science tag, each seeded with the sole candidate
-    // (T14) — sampled from before the press (the driver confirms the play).
-    await page.evaluate((card) => {
-      const w = window as unknown as {__miRows: number};
-      w.__miRows = 0;
-      window.setInterval(() => {
-        w.__miRows = Math.max(w.__miRows, document.querySelectorAll(`.con-composer--play .con-composer__row--reaction[data-reaction-card="${card}"]`).length);
-      }, 50);
-    }, CARD);
+    // (T14) — RECORDED from before the press (the driver confirms the play): the most rows that ever stood at once,
+    // so `settled` (the state a task leaves — never the gap between a row's leave and its successor's entry).
+    await armWitness<number, string>(page, ROWS_WITNESS, (card) =>
+      document.querySelectorAll(`.con-composer--play .con-composer__row--reaction[data-reaction-card="${card}"]`).length, {args: CARD, settled: true});
     expect(await playCardFromHand(page, RESEARCH), 'Research was played from the hand (the seeded picks answer the Institute)').toBe(true);
-    expect(await page.evaluate(() => (window as unknown as {__miRows?: number}).__miRows ?? 0),
+    expect(Math.max(0, ...(await witnessOf<number>(page, ROWS_WITNESS).stop()).map((s) => s.v)),
       'the composer asked the Institute\'s «КУДА» once per Science tag, before the press').toBe(2);
     await expect.poll(async () => countOn(await wireOf(request, playerId), HOLDER), {timeout: 40_000, message: 'Psychrophiles +2 more'}).toBe(3);
     expect(posts2.length, 'the play and its two picks ride ONE POST').toBe(1);

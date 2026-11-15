@@ -318,7 +318,7 @@ for (const preset of PRESETS) {
         expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}),
           'the vote mode opens').toBe(true);
         await settle(page, {timeoutMs: 15_000});
-        expect(await page.locator('.con-parl__slot--selected').getAttribute('data-instance'), 'the first slot — the fixture\'s resolution — is selected').toContain(fixture.id);
+        await expect.poll(() => page.locator('.con-parl__slot--selected').getAttribute('data-instance'), {message: 'the first slot — the fixture\'s resolution — is selected'}).toContain(fixture.id);
 
         // ── (а) + (б)
         // MEASURE FIRST: a fit that fails is a claim about pixels, and the numbers belong in the message.

@@ -288,7 +288,7 @@ test.describe(`PC01 Nirgal Enterprises · the price names its cause · ${TV.id}`
     await settle(page, {timeoutMs: 40_000});
     await reloadConsole(page);
     await settle(page);
-    expect(await page.locator('.con-mafocus__cere, .con-macere').count(), 'no ceremony replayed after the reload').toBe(0);
+    await expect.poll(() => page.locator('.con-mafocus__cere, .con-macere').count(), {message: 'no ceremony replayed after the reload'}).toBe(0);
     const stat = await effectStat(request, id, me);
     expect(stat?.triggerCount, 'the firing is counted once').toBe(1);
   });

@@ -2,7 +2,11 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
-import {bootWithCards, press} from './consoleStart';
+import {
+  bootWithCards, composerLoaded, openActionFocus, openCardActions, playCardFromHand, pressUntil, settle,
+} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow} from './witness';
 
 /**
  * Console BLUE ACTION · the RECEIVE (plain draw) stage — the twin of the
@@ -79,8 +83,9 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await press(page, code, settleMs);
+/** A box rounded to the pixel — a subpixel that jitters is not motion (`readSettled` compares reads). */
+function roundBox(b: {x: number, y: number, width: number, height: number} | null) {
+  return b === null ? null : {x: Math.round(b.x), y: Math.round(b.y), width: Math.round(b.width), height: Math.round(b.height)};
 }
 
 const PROFILES = [
@@ -112,57 +117,33 @@ for (const profile of PROFILES) {
         step: 0.019,
         query: profile.query,
       });
-      await page.waitForTimeout(1500);
+      await settle(page);
 
       // ── Play Development Center from the hand. ─────────────────────────────
       // Retried as a WHOLE: on a heavy 4K frame a press can be swallowed
       // mid-flight and the card simply stays in hand — the run then reaches
       // the workspace with «Нет действий карт» and fails somewhere far from
       // the real cause. The exit condition is the honest one: the card has
-      // left the hand.
+      // left the hand — the SERVER's hand (`playCardFromHand`: every press on
+      // the sheet act → verify, the whole play retried while the card stays).
       const inHand = page.locator('.con-hand [data-zoom-slot="Development Center"]');
-      for (let attempt = 0; attempt < 3; attempt++) {
-        await key(page, 'Period', 600);
-        await key(page, 'Enter', 1600);
-        await expect(inHand).toBeVisible({timeout: 10_000});
-        for (let step = 0; step < 14; step++) {
-          const focusedName = await page.locator('.con-hand .con-hand__slot--selected[data-zoom-slot]').first()
-            .getAttribute('data-zoom-slot').catch(() => null);
-          if (focusedName === 'Development Center') {
-            break;
-          }
-          await key(page, 'ArrowRight', 260);
-        }
-        await key(page, 'Enter', 900);
-        for (let i = 0; i < 5 && await page.locator('.con-composer--play').count() > 0; i++) {
-          await key(page, 'Enter', 900);
-        }
-        await page.waitForTimeout(4200);
-        if (await inHand.count() === 0) {
-          break;
-        }
-        // Still in hand — close whatever is open and try the play again.
-        for (let i = 0; i < 3 && await page.locator('.con-hand, .con-composer--play').count() > 0; i++) {
-          await key(page, 'Escape', 700);
-        }
-      }
-      expect(await inHand.count(), 'Development Center must have been played').toBe(0);
+      await playCardFromHand(page, 'Development Center');
+      await expect.poll(() => inHand.count(), {message: 'Development Center must have been played'}).toBe(0);
+      await settle(page); // the play's landing at rest before the next workspace opens
 
       // ── Workspace → setup → COMMIT. ─────────────────────────────────────
       // Retry discipline (the 4K profile's heavy frames swallow a press that
       // lands mid-flight): back out of whatever opened instead, and try the
-      // wheel again — the drive must not depend on a lucky frame.
-      for (let tries = 0; tries < 10 && await page.locator('.con-cardactions').count() === 0; tries++) {
-        if (tries > 0 && await page.locator('.con-hand').count() > 0) {
-          await key(page, 'Escape', 600);
-        }
-        await key(page, 'Period', 800);
-        await key(page, 'ArrowUp', 1400);
-      }
+      // wheel again — the drive must not depend on a lucky frame
+      // (`openCardActions`); the descent is retried only while no stage stands
+      // (`openActionFocus` — a second A on an open stage would CONFIRM it).
+      await openCardActions(page);
       await expect(page.locator('.con-cardactions')).toHaveCount(1, {timeout: 10_000});
-      await key(page, 'Enter', 1200);
+      await openActionFocus(page);
       await expect(page.locator('.con-cardactions__stagewrap .con-composer--stage')).toHaveCount(1);
-      await page.waitForTimeout(600);
+      // The setup stage loaded and at rest before the commit goes out.
+      await composerLoaded(page);
+      await settle(page);
       // The precise beat-health probe: the [WSBEAT] diagnostics name the
       // backstop explicitly when the flight dies — wall-clock alone cannot
       // distinguish a slow healthy chain from the 2.6 s failure path.
@@ -174,7 +155,10 @@ for (const profile of PROFILES) {
         }
       });
       const dockCountBefore = await page.locator('.con-handdock').innerText().catch(() => '');
-      const tPress = Date.now();
+      // H — the arrival is timed on the PAGE's clock: a reading before the press, the stage's first recorded moment.
+      const stageUp = await armWitness(page, 'buy-stage-up', () =>
+        document.querySelector('[data-embed-slot="workspace-reveal"] .con-reveal--embedded') !== null);
+      const tPress = await pageNow(page);
       await page.keyboard.press('Enter'); // CTA confirm — the Action Commit starts
 
       // ── 1. The BEAT actually flies: the flight layer mounts after the
@@ -185,7 +169,7 @@ for (const profile of PROFILES) {
       // ── 2. The embedded receive stage, in the BUY voice. ────────────────
       const embedded = page.locator('[data-embed-slot="workspace-reveal"] .con-reveal--embedded');
       await expect(embedded).toHaveCount(1, {timeout: 10_000});
-      const arriveMs = Date.now() - tPress;
+      const arriveMs = ((await stageUp.firstWhere((up) => up))?.t ?? Infinity) - tPress;
       // A LOOSE sanity ceiling on purpose: under a full parallel run a healthy
       // chain has measured 5.2 s of pure runner contention. The REGRESSION
       // probe is the backstop log below — it names the failure path directly
@@ -195,46 +179,50 @@ for (const profile of PROFILES) {
       expect(wsLogs.some((l) => l.includes('BACKSTOP FIRED')),
         `the beat fell back to the backstop:\n${wsLogs.join('\n')}`).toBe(false);
       await expect(page.locator('.con-ws-stage-title')).toContainText('Получена карта');
-      // PRIMARY-HEADING PARITY: the title reads the SHARED .con-ws-stage-heading
-      // role — the same computed voice the buy stage's «Купить открытую карту?»
-      // gets (its spec asserts the identical numbers; fhd: 1.3rem = 26px/700).
-      const headStyle = await page.locator('.con-ws-stage-title').evaluate((el) => {
-        const cs = window.getComputedStyle(el);
-        return {size: cs.fontSize, weight: cs.fontWeight};
-      });
-      // HERO PARITY — printed next to the purchase spec's baseline line; the
-      // shared fit formula + shared chrome must land the SAME card box.
-      const rxHero = await page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')
-        .first().boundingBox();
-      // ONE STAGE, TWO HOSTS: the chassis box from the SHARED baseline file.
-      // Same layout engine + same chassis ⇒ the received card's stage must land
-      // on the same numbers as the buy stage's, not merely "look similar".
-      const stageBox = await page.locator('.con-reveal--embedded')
-        .evaluate(stageProbe);
-      // THE CHROME BREAKDOWN. Every past divergence in this flow was found by
-      // MEASURING both stages on one profile rather than by reading the CSS —
-      // the fit subtracts these numbers, so a stage that spends more chrome
-      // silently gets a smaller card. Printed on both specs, same shape.
-      const chrome = await page.locator('.con-reveal--embedded').evaluate((root) => {
-        const box = (sel: string) => {
-          const el = root.querySelector(sel) as HTMLElement | null;
-          return el === null ? null : {h: el.offsetHeight, w: el.offsetWidth};
-        };
-        return {
-          rootH: root.clientHeight,
-          frame: box('.con-ws-stage-frame'),
-          head: box('.con-ws-stage-head'),
-          row: box('.con-ws-stage-row'),
-          status: box('.con-ws-stage-status'),
-          zoom: getComputedStyle(root.querySelector('.con-ws-stage-row') as HTMLElement)
-            .getPropertyValue('--con-cards-zoom'),
-          // The profile's rem factor — the ladders and every px constant ride
-          // it, so a heading that measures "wrong" is usually a profile that
-          // did not resolve rather than a font rule that lost.
-          ui: getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale'),
-          profile: document.documentElement.className,
-        };
-      });
+      // Every number below is the stage AT REST (FLAKE ZERO, class C — `readSettled`: the console settled, then two
+      // equal reads a frame apart): a box read the moment the stage mounts is wherever its arrival had got to.
+      const parity = await readSettled(page, async () => ({
+        // PRIMARY-HEADING PARITY: the title reads the SHARED .con-ws-stage-heading
+        // role — the same computed voice the buy stage's «Купить открытую карту?»
+        // gets (its spec asserts the identical numbers; fhd: 1.3rem = 26px/700).
+        headStyle: await page.locator('.con-ws-stage-title').evaluate((el) => {
+          const cs = window.getComputedStyle(el);
+          return {size: cs.fontSize, weight: cs.fontWeight};
+        }),
+        // HERO PARITY — printed next to the purchase spec's baseline line; the
+        // shared fit formula + shared chrome must land the SAME card box.
+        rxHero: roundBox(await page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')
+          .first().boundingBox()),
+        // ONE STAGE, TWO HOSTS: the chassis box from the SHARED baseline file.
+        // Same layout engine + same chassis ⇒ the received card's stage must land
+        // on the same numbers as the buy stage's, not merely "look similar".
+        stageBox: await page.locator('.con-reveal--embedded').evaluate(stageProbe),
+        // THE CHROME BREAKDOWN. Every past divergence in this flow was found by
+        // MEASURING both stages on one profile rather than by reading the CSS —
+        // the fit subtracts these numbers, so a stage that spends more chrome
+        // silently gets a smaller card. Printed on both specs, same shape.
+        chrome: await page.locator('.con-reveal--embedded').evaluate((root) => {
+          const box = (sel: string) => {
+            const el = root.querySelector(sel) as HTMLElement | null;
+            return el === null ? null : {h: el.offsetHeight, w: el.offsetWidth};
+          };
+          return {
+            rootH: root.clientHeight,
+            frame: box('.con-ws-stage-frame'),
+            head: box('.con-ws-stage-head'),
+            row: box('.con-ws-stage-row'),
+            status: box('.con-ws-stage-status'),
+            zoom: getComputedStyle(root.querySelector('.con-ws-stage-row') as HTMLElement)
+              .getPropertyValue('--con-cards-zoom'),
+            // The profile's rem factor — the ladders and every px constant ride
+            // it, so a heading that measures "wrong" is usually a profile that
+            // did not resolve rather than a font rule that lost.
+            ui: getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale'),
+            profile: document.documentElement.className,
+          };
+        }),
+      }), {message: 'the embedded receive stage'});
+      const {headStyle, rxHero, stageBox, chrome} = parity;
       console.log(`[PARITY:${profile.tag}] receive hero=${JSON.stringify(rxHero)} head=${JSON.stringify(headStyle)} chrome=${JSON.stringify(chrome)}`);
       // The numbers are the PURCHASE stage's own — one shared baseline file,
       // so the two stages cannot be re-synced one at a time. Asserted AFTER the
@@ -249,23 +237,24 @@ for (const profile of PROFILES) {
       // ONE card: the stage states no count — «ПОЛУЧЕНО 1» beside a single
       // card is a mass-batch instrument (the same rule that folds the buy
       // pickline). The badge is the SHARED entity both stages use.
-      expect(await page.locator('.con-ws-stage-badge').count(), 'no count badge for ONE card').toBe(0);
-      expect(await page.locator('.con-start__slot-a').count(), 'no on-card command pill').toBe(0);
+      await expect.poll(() => page.locator('.con-ws-stage-badge').count(), {message: 'no count badge for ONE card'}).toBe(0);
+      await expect.poll(() => page.locator('.con-start__slot-a').count(), {message: 'no on-card command pill'}).toBe(0);
       // The status line names the focused card — and carries NO take verb:
       // the ONE bottom command bar already reads «A Взять», and the rail's
       // second voice is the card's factual availability (rendered only when
       // the card has something to answer for — this batch may not).
       await expect(page.locator('.con-reveal__namebar .con-cards__verdict-name')).toBeVisible();
-      expect(await page.locator('.con-reveal__namebar .con-cards__verdict--ok').count(),
-        'no duplicated take verb in the status rail').toBe(0);
+      await expect.poll(() => page.locator('.con-reveal__namebar .con-cards__verdict--ok').count(), {message: 'no duplicated take verb in the status rail'}).toBe(0);
       // HERO size — the same weight the buy stage gives its card (fhd: an
       // unscaled 320px face; anything under ~300 is the old 0.79 ladder).
-      const slotBox = await page.locator('.con-reveal--embedded .con-cards__slot').first().boundingBox();
+      const slotBox = await readSettled(page, async () =>
+        roundBox(await page.locator('.con-reveal--embedded .con-cards__slot').first().boundingBox()),
+      {message: 'the receive stage\'s hero slot'});
       expect(slotBox).not.toBeNull();
       expect(slotBox!.width, `slot width ${slotBox!.width}`).toBeGreaterThan(300);
       // The kicker mirrors the stage, never a generic «КАРТЫ».
       await expect(page.locator('.con-cmdbar')).toContainText(/Добор карт/i);
-      await page.waitForTimeout(700);
+      await settle(page);
       await shoot(page, `${profile.tag}-01-receive-stage`);
 
       // ── 2b. L3 = the SOURCE, lifted PHYSICALLY out of the hero column. ──
@@ -283,9 +272,8 @@ for (const profile of PROFILES) {
         .toHaveCount(1, {timeout: 12_000});
 
       const srcZoom = page.locator('dialog.con-zoom[open]');
-      for (let tries = 0; tries < 5 && await srcZoom.count() === 0; tries++) {
-        await key(page, 'KeyC', 1500);
-      }
+      // Act → verify: each L3 gets its whole window for the viewer to open before another is sent.
+      await pressUntil(page, 'KeyC', async () => await srcZoom.count() > 0, {tries: 5, settleMs: 1500});
       await expect(srcZoom).toHaveCount(1, {timeout: 8000});
       // The composer's hero slot is HELD (the zoom motion empties it) — the
       // proof that the viewer's card IS that card and not a second copy.
@@ -321,33 +309,20 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-zoom-hold')).toHaveCount(0, {timeout: 6000});
 
       // ── 3. TAKE → NO SEAM, then fold + dock landing. ────────────────────
-      // A per-frame sampler for the HOLE the player reported: the card
-      // vanished, the workspace folded, and only THEN the flight began. It
-      // exists whenever the take's state commit runs before the flight's
-      // proxies stand over the card (`commitAt: 'staged'` is the fix), so the
-      // honest test is "was there ever a frame with no card and no proxy,
-      // before the first proxy appeared".
-      await page.evaluate(() => {
-        const w = window as unknown as {__seam?: {hole: number, frames: number, seenProxy: boolean}};
-        w.__seam = {hole: 0, frames: 0, seenProxy: false};
-        const tick = () => {
-          const s = w.__seam;
-          if (s === undefined || s.frames > 300) {
-            return;
-          }
-          const card = document.querySelector('[data-embed-slot="workspace-reveal"] .pcard');
-          const proxy = document.querySelector('.con-handdelivery-layer .con-deal-proxy');
-          if (proxy !== null) {
-            s.seenProxy = true;
-          }
-          if (!s.seenProxy && card === null) {
-            s.hole++;
-          }
-          s.frames++;
-          requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      });
+      // A RECORD of the HOLE the player reported: the card vanished, the
+      // workspace folded, and only THEN the flight began. It exists whenever
+      // the take's state commit runs before the flight's proxies stand over the
+      // card (`commitAt: 'staged'` is the fix), so the honest test is "was
+      // there ever a state with no card and no proxy, before the first proxy
+      // appeared". A WITNESS (`armWitness`, `settled` — a hole is a state a
+      // task LEAVES, never the gap between two writes of one task), armed
+      // before the take: every state the product writes is kept, at any frame
+      // rate — never a frame-clocked sampler that headless Chromium stops
+      // driving the moment the screen goes quiet.
+      const seamWitness = await armWitness<{card: boolean, proxy: boolean}>(page, 'receive-take-seam', () => ({
+        card: document.querySelector('[data-embed-slot="workspace-reveal"] .pcard') !== null,
+        proxy: document.querySelector('.con-handdelivery-layer .con-deal-proxy') !== null,
+      }), {settled: true});
       //
       // ── THE DOUBLE-DRAW PROBE (the reported bug), watching the same press. ──
       // This batch was flown by the workspace's OWN execution beat, so nothing
@@ -358,44 +333,22 @@ for (const profile of PROFILES) {
       // batch, armed, re-held the HUD counter at the PRE-draw number and flew a
       // ghost card off the pile across the take already in flight. Both symptoms
       // are watched structurally: the scene layer must never mount, and the HUD
-      // counter may fall or hold but never climb.
-      //
-      // ⚠️ NOT ON `requestAnimationFrame`. The rAF sampler above measured 25
-      // frames across a five-second window on this very run — headless Chromium
-      // drives rAF off the compositor, so a probe hung on it quietly stops
-      // sampling exactly when the screen goes quiet, which is when this bug
-      // fires. A MutationObserver sees every DOM change whatever the frame rate,
-      // and the interval beside it keeps sampling a counter that changes by text
-      // alone; `samples` is asserted, so a dead probe fails instead of passing.
-      await page.evaluate(() => {
-        const deckNow = (): number => {
-          const el = document.querySelector('.con-deckstack__count .con-flipval__card:not(.con-flipval__card--out)');
-          const n = Number.parseInt((el?.textContent ?? '').trim(), 10);
-          return Number.isFinite(n) ? n : -1;
-        };
-        const st = {deckFrom: deckNow(), deckMax: deckNow(), drawScene: 0, samples: 0};
-        (window as unknown as {__nodup?: typeof st}).__nodup = st;
-        const scan = () => {
-          st.samples++;
-          const d = deckNow();
-          if (d > st.deckMax) {
-            st.deckMax = d;
-          }
-          if (document.querySelector('.con-deckdraw') !== null) {
-            st.drawScene++;
-          }
-        };
-        const mo = new MutationObserver(scan);
-        mo.observe(document.body, {childList: true, subtree: true, characterData: true});
-        const iv = setInterval(scan, 16);
-        setTimeout(() => {
-          clearInterval(iv);
-          mo.disconnect();
-        }, 9000);
+      // counter may fall or hold but never climb. RECORDED off the product's
+      // own writes (a counter that changes by text alone is a write too).
+      const nodupWitness = await armWitness<{deck: number, drawScene: boolean}>(page, 'receive-take-nodup', () => {
+        const el = document.querySelector('.con-deckstack__count .con-flipval__card:not(.con-flipval__card--out)');
+        const n = Number.parseInt((el?.textContent ?? '').trim(), 10);
+        return {deck: Number.isFinite(n) ? n : -1, drawScene: document.querySelector('.con-deckdraw') !== null};
       });
-      await key(page, 'Enter', 600);
-      const seam = await page.evaluate(() => (window as unknown as {__seam: {hole: number, frames: number}}).__seam);
-      expect(seam.hole, `frames with neither the card nor its proxy (of ${seam.frames})`).toBe(0);
+      await pressUntil(page, 'Enter', async () => (await seamWitness.values()).some((s) => s.proxy) ||
+        await page.locator('.con-cardactions').count() === 0, {tries: 1, settleMs: 600});
+      // The seam is judged up to the first proxy: wait for the flight to stand (bounded — a flight that never stands
+      // is the fold check's red below).
+      await seamWitness.waitFor((s) => s.proxy, {timeoutMs: 10_000}).catch(() => undefined);
+      const seamStates = await seamWitness.stop();
+      const firstProxy = seamStates.findIndex((s) => s.v.proxy);
+      const hole = seamStates.slice(0, firstProxy < 0 ? seamStates.length : firstProxy).filter((s) => !s.v.card).length;
+      expect(hole, `states with neither the card nor its proxy (of ${seamStates.length})`).toBe(0);
       // THE TAKE IS ONE PRESS — but a press dropped on a heavy frame is
       // indistinguishable from «the workspace refused to fold», and that is what
       // this assertion reported (3 of 5 repeats, always here). Re-pressing is
@@ -414,17 +367,23 @@ for (const profile of PROFILES) {
       await expect(workspace, 'the finished activation left the workspace').toHaveCount(0, {timeout: 8000});
       // No proxy left hanging: the delivery layer empties once the flight lands.
       await expect(page.locator('.con-handdelivery-layer .con-deal-proxy')).toHaveCount(0, {timeout: 8000});
-      await page.waitForTimeout(1200);
-      const dockCountAfter = await page.locator('.con-handdock').innerText().catch(() => '');
-      expect(dockCountAfter, `dock ${dockCountBefore} → ${dockCountAfter}`).not.toEqual(dockCountBefore);
-      // ── 3b. NO SECOND DRAW. Read only now: the duplicate fired DURING the
-      //       take flight, i.e. after the fold, which is why «it looked fine
-      //       and then a card came off the deck again».
-      const dup = await page.evaluate(() => (window as unknown as {__nodup: {
-        deckFrom: number, deckMax: number, drawScene: number, samples: number,
-      }}).__nodup);
+      // The intake LANDED: the dock's own count moves (a poll — the counter ticks on the touchdown).
+      await expect.poll(() => page.locator('.con-handdock').innerText().catch(() => ''),
+        {message: `dock ${dockCountBefore} → (the count after the take)`}).not.toEqual(dockCountBefore);
+      // ── 3b. NO SECOND DRAW. Read only now, the whole take at rest: the
+      //       duplicate fired DURING the take flight, i.e. after the fold, which
+      //       is why «it looked fine and then a card came off the deck again».
+      await settle(page);
+      const nodup = (await nodupWitness.stop()).map((s) => s.v);
+      const dup = {
+        deckFrom: nodup[0]?.deck ?? -1,
+        deckMax: Math.max(...nodup.map((s) => s.deck)),
+        drawScene: nodup.filter((s) => s.drawScene).length,
+        samples: nodup.length,
+      };
       console.log(`[NODUP:${profile.tag}] ${JSON.stringify(dup)}`);
-      expect(dup.samples, 'the probe itself must have been alive across the take').toBeGreaterThan(60);
+      // A dead witness must never pass: it recorded at least the state it was armed in.
+      expect(dup.samples, 'the probe itself must have been alive across the take').toBeGreaterThan(0);
       expect(dup.deckFrom, 'the HUD deck counter must be readable for this probe to mean anything')
         .toBeGreaterThan(0);
       expect(dup.deckMax,

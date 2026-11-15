@@ -239,14 +239,14 @@ for (const profile of PROFILES) {
       expect(headlineText, 'the headline is the played card').toMatch(/Электростанция|Power Plant/);
       expect(headlineText, 'no verb restating the type label').not.toMatch(/сыграл|played/i);
       // No viewer band — nothing personal happened.
-      expect(await page.locator('.con-notif__you').count(), 'no «для вас» band on a bystander event').toBe(0);
+      await expect.poll(() => page.locator('.con-notif__you').count(), {message: 'no «для вас» band on a bystander event'}).toBe(0);
 
       // …and it self-clears (the TTL lifecycle, kept painting by the settle).
       const cleared = Date.now() + 12_000;
       while (Date.now() < cleared && await page.locator('.con-notif').count() > 0) {
         await pumpFrames(page, 400);
       }
-      expect(await page.locator('.con-notif').count(), 'the ambient card auto-dismissed').toBe(0);
+      await expect.poll(() => page.locator('.con-notif').count(), {message: 'the ambient card auto-dismissed'}).toBe(0);
 
       // ── ACT 2 · the HOSTILE event: Energy Tapping takes the viewer's
       //    energy production. ONE card, viewer-first. ─────────────────────

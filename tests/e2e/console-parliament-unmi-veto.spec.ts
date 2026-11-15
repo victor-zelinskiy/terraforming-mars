@@ -209,7 +209,7 @@ for (const preset of PRESETS) {
       await expect(struck, 'ONE chip is struck — the rating').toHaveCount(1);
       await expect(struck).toHaveAttribute('data-vetoed', '1');
       await expect(struck, 'the strike wears the family class').toHaveClass(/action-effect-chip--diverted/);
-      expect(await struck.getAttribute('data-hint'), 'the chip\'s hint names the law').toMatch(/Вето UNMI/);
+      await expect.poll(() => struck.getAttribute('data-hint'), {message: 'the chip\'s hint names the law'}).toMatch(/Вето UNMI/);
       await expect(page.locator(`${CONFIRM} [data-confirm-formula] .action-effect-chip:not(.action-effect-chip--vetoed)`), 'the price and the temperature step stay whole').toHaveCount(2);
       await expect(page.locator(`${CONFIRM} [data-chip-diverted]`), 'nothing stands in the rating\'s place — no tail').toHaveCount(0);
       // PL-814: the «Сработает» row prints the law's own fact STRUCK too — never a bare «+1 [TR]» beside a warning badge.
@@ -269,7 +269,7 @@ for (const preset of PRESETS) {
       await openParliament(page);
       const face = page.locator(`.con-parl__slot[data-instance="${LAW_INSTANCE}"] .pcard`);
       await expect(face, 'UNMI Veto stands in the voting area').toHaveCount(1);
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX42');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX42');
       expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'the vote mode opens').toBe(true);
       await settle(page, {timeoutMs: 15_000});
       const veto = page.locator('[data-parl-vote-veto]');

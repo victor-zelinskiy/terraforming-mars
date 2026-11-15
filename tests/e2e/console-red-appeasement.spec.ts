@@ -161,7 +161,7 @@ test.describe(`P80 Red Appeasement · a play that IS a pass · ${PRESET.id}`, ()
     await expect(pass, 'the «this play passes» row').toHaveCount(1);
     await expect(pass, 'its words').toContainText('Этот розыгрыш — пас');
     const lines = pass.locator('[data-pass-line]');
-    expect(await lines.count(), 'what the pass leaves: the card action and the plants').toBeGreaterThanOrEqual(2);
+    await expect.poll(() => lines.count(), {message: 'what the pass leaves: the card action and the plants'}).toBeGreaterThanOrEqual(2);
     await expect(pass, 'the plants line — the pass confirm\'s own').toContainText(/растени/i);
     const cta = page.locator(`${COMPOSER} .con-composer__cta`);
     await expect(cta, 'the verb names the pass').toContainText('Разыграть и спасовать');
@@ -207,7 +207,7 @@ test.describe(`P80 Red Appeasement · a play that IS a pass · ${PRESET.id}`, ()
     await expect(page.locator('.con-quick'), 'the LT wheel opened').toHaveCount(1, {timeout: 10_000});
     const reasons = page.locator('.con-quick__slot-reason');
     await expect(reasons.filter({hasText: 'Вы спасовали в этом поколении'}).first(), 'the wheel says the viewer passed').toBeVisible({timeout: 10_000});
-    expect(await reasons.filter({hasText: 'Сейчас не ваш ход'}).count(), 'never «not your turn» for a seat that passed').toBe(0);
+    await expect.poll(() => reasons.filter({hasText: 'Сейчас не ваш ход'}).count(), {message: 'never «not your turn» for a seat that passed'}).toBe(0);
     await shoot(page, 'd-offturn');
     await press(page, 'Escape', 700);
     await settle(page);

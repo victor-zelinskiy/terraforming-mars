@@ -99,7 +99,7 @@ for (const profile of PROFILES) {
       const playerId = await createGameWithCards(request, [], {config: cfg()});
       await bootSeededGame(page, request, playerId, {buy: 2, query: profile.query});
       await toBoard(page);
-      expect(await page.locator('.con-board').count(), 'never reached the board home').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-board').count(), {message: 'never reached the board home'}).toBeGreaterThan(0);
       expect(await openPassConfirm(page), 'the pass confirmation stands').toBe(true);
       // The panel's entry (its unfold, the bar relabelling) is progress to the arbiter: let it finish before the presses,
       // or the first X lands inside it and the count restarts (the TV reached the panel later than the Deck).

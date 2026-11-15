@@ -1,4 +1,5 @@
 import {Page} from '@playwright/test';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE VISIBILITY OF A FLIGHT'S END — the polish remediation iteration № 1
@@ -101,27 +102,36 @@ export type TransferEnd = {
 export type TransferWitness = {births: Array<TransferEnd>, landings: Array<TransferEnd>};
 
 /**
- * ARM the transfer witness: from now on every `.con-transfer__chip` is followed
- * (a 16 ms sampler + a MutationObserver on the body + one on every chip's and
- * beat's own `style` — every pose the director writes — never rAF) and the
- * witness records its BIRTH (the first painted sample), its TOUCHDOWN (the
- * first sample its contact beat is painted beside it) and its LANDING (the
- * last painted sample before it left), each with what was painted under it.
- * A spec reads it with `transferWitness(page)` and asserts the law: no end on
- * `glass:*`, every birth on the printed source or its stand-in.
+ * ARM the transfer witness: from now on every `.con-transfer__chip` is followed and the witness records its BIRTH (the
+ * first painted sample), its TOUCHDOWN (the first sample its contact beat is painted beside it) and its LANDING (the
+ * last painted sample before it left), each with what was painted under it. A spec reads it with
+ * `transferWitness(page)` and asserts the law: no end on `glass:*`, every birth on the printed source or its stand-in.
+ *
+ * RECORDED (FLAKE ZERO — `armWitness`): EVERY POSE THE PRODUCT WRITES, not only the ones a timer happens to catch (CI
+ * 2026-10-30, `console-utopia-invest` C: the steel «+4» was recorded LANDING over the M€ row — its last sample was the
+ * arc at q ≈ 0.92, with no contact beat seen at all, because a 4K SwiftShader runner starved a 16 ms sampler through the
+ * rest of the descent). The director moves a chip and paints its beat by writing their `style` (GSAP, one write per
+ * tick), so the recorder's observer samples in the very task each pose is written, and a frame tick catches what only a
+ * computed style moves; every change is pushed to the Node side at once — a page the product REPLACES (a reload) neither
+ * loses the flights recorded before it nor stops the recording. Births / touchdowns / landings are folded here.
+ * Times (`t`, `touched`) are ms on the PAGE's clock since the arm — `window.__transferWitness.t0` is that origin in the
+ * page's `performance.now()`, so a spec can line a touchdown up with its own samples.
  */
+type ChipPose = {id: number, value: string, x: number, y: number, under: string, touched: boolean};
+const KEY = 'transfer';
+const ORIGIN = new WeakMap<Page, number>();
+
 export async function armTransferWitness(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type End = {id: number, value: string, t: number, x: number, y: number, under: string, touched?: number};
-    const w = window as unknown as {__transferWitness?: {births: Array<End>, landings: Array<End>, t0: number, stop: () => void}};
-    w.__transferWitness?.stop();
-    const births: Array<End> = [];
-    const landings: Array<End> = [];
-    const ids = new WeakMap<Element, number>();
-    const last = new Map<number, End>();
-    const touchedAt = new Map<number, number>();
-    let seq = 0;
+  // The clock origin: Date.now() at the arm (the recorder's samples are stamped by Date.now() in the page); the
+  // `performance.now()` of the same moment is published for the specs that line their own samples up with it.
+  ORIGIN.set(page, await page.evaluate(() => {
     const t0 = performance.now();
+    (window as unknown as {__transferWitness?: {t0: number}}).__transferWitness = {t0};
+    return performance.timeOrigin + t0;
+  }));
+  await armWitness<Array<ChipPose>>(page, KEY, () => {
+    const w = window as unknown as {__tmTransferIds?: WeakMap<Element, number>, __tmTransferSeq?: number};
+    const ids = (w.__tmTransferIds ??= new WeakMap<Element, number>());
     const name = (el: Element | null, attr: string) => el?.getAttribute(attr) ?? '';
     const painted = (el: Element): boolean => {
       let op = 1;
@@ -330,86 +340,77 @@ export async function armTransferWitness(page: Page): Promise<void> {
       }
       return `other:${top.tagName.toLowerCase()}${Array.from(top.classList).slice(0, 2).map((c) => `.${c}`).join('')}`;
     };
-    const sample = () => {
-      const seen = new Set<number>();
-      const beats = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).filter(painted).map((b) => {
-        const r = b.getBoundingClientRect();
-        return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip'));
+    if (chips.length === 0) {
+      return [];
+    }
+    const beats = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).filter(painted).map((b) => {
+      const r = b.getBoundingClientRect();
+      return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+    });
+    const out: Array<ChipPose> = [];
+    for (const chip of chips) {
+      const r = chip.getBoundingClientRect();
+      if (r.width < 2 || !painted(chip)) {
+        continue;
+      }
+      let id = ids.get(chip);
+      if (id === undefined) {
+        w.__tmTransferSeq = (w.__tmTransferSeq ?? 0) + 1;
+        id = w.__tmTransferSeq;
+        ids.set(chip, id);
+      }
+      const x = Math.round((r.left + r.width / 2) * 10) / 10;
+      const y = Math.round((r.top + r.height / 2) * 10) / 10;
+      out.push({
+        id, value: (chip.textContent ?? '').replace(/\s+/g, ''), x, y, under: classify(x, y),
+        touched: beats.some((b) => Math.hypot(b.x - x, b.y - y) <= Math.max(r.width, 24)),
       });
-      for (const chip of Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip'))) {
-        const r = chip.getBoundingClientRect();
-        if (r.width < 2 || !painted(chip)) {
-          continue;
-        }
-        let id = ids.get(chip);
-        const x = Math.round((r.left + r.width / 2) * 10) / 10;
-        const y = Math.round((r.top + r.height / 2) * 10) / 10;
-        const t = Math.round(performance.now() - t0);
-        const end: End = {id: 0, value: (chip.textContent ?? '').replace(/\s+/g, ''), t, x, y, under: classify(x, y)};
-        if (id === undefined) {
-          id = ++seq;
-          ids.set(chip, id);
-          end.id = id;
-          births.push({...end});
-        }
-        end.id = id;
-        if (!touchedAt.has(id) && beats.some((b) => Math.hypot(b.x - x, b.y - y) <= Math.max(r.width, 24))) {
-          touchedAt.set(id, t);
-        }
-        const touched = touchedAt.get(id);
-        if (touched !== undefined) {
-          end.touched = touched;
-        }
-        seen.add(id);
-        last.set(id, end);
-      }
-      for (const [id, end] of Array.from(last.entries())) {
-        if (!seen.has(id)) {
-          landings.push(end);
-          last.delete(id);
-        }
-      }
-    };
-    // EVERY POSE THE PRODUCT WRITES, not only the ones a timer happens to catch (CI 2026-10-30, `console-utopia-invest`
-    // C: the steel «+4» was recorded LANDING over the M€ row — its last sample was the arc at q ≈ 0.92, with no contact
-    // beat seen at all, because a 4K SwiftShader runner starved the 16 ms sampler through the rest of the descent, the
-    // settle and the beat; the box never reproduced it, at ×4 CPU throttle either). The director moves a chip and paints
-    // its beat by writing their `style` (GSAP, one write per tick), so a MutationObserver on THOSE attributes samples in
-    // the very task each pose is written — a starved renderer can slow the flight, it can no longer hide its end. The
-    // chip and the beat are followed from the first sample that sees them (a Teleport handover keeps the node, and the
-    // observation with it).
-    const followed = new WeakSet<Element>();
-    const poseMo = new MutationObserver(() => sample());
-    const follow = (): void => {
-      for (const el of Array.from(document.querySelectorAll('.con-transfer__chip, .con-transfer__beat'))) {
-        if (!followed.has(el)) {
-          followed.add(el);
-          poseMo.observe(el, {attributes: true, attributeFilter: ['style', 'class']});
-        }
-      }
-    };
-    const sampleAndFollow = (): void => {
-      follow();
-      sample();
-    };
-    const timer = window.setInterval(sampleAndFollow, 16);
-    const mo = new MutationObserver(sampleAndFollow);
-    mo.observe(document.body, {subtree: true, childList: true});
-    // `t0` — the witness's own clock origin (`performance.now()`), so a spec can line a touchdown up with its own samples.
-    w.__transferWitness = {births, landings, t0, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-      poseMo.disconnect();
-    }};
-  });
+    }
+    return out;
+  }, {max: 200_000});
 }
 
 /** Read the witness (a flight still in the air is not a landing yet — call after the scene has settled). */
 export async function transferWitness(page: Page): Promise<TransferWitness> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__transferWitness?: TransferWitness};
-    return {births: [...(w.__transferWitness?.births ?? [])], landings: [...(w.__transferWitness?.landings ?? [])]};
-  });
+  const samples = await witnessOf<Array<ChipPose>>(page, KEY).samples();
+  const origin = ORIGIN.get(page) ?? samples[0]?.t ?? 0;
+  const births: Array<TransferEnd> = [];
+  const landings: Array<TransferEnd> = [];
+  const idOf = new Map<string, number>();
+  const last = new Map<string, TransferEnd>();
+  const touchedAt = new Map<string, number>();
+  for (const s of samples) {
+    const t = Math.round(s.t - origin);
+    const seen = new Set<string>();
+    for (const pose of s.v) {
+      const key = `${s.doc}:${pose.id}`;
+      let id = idOf.get(key);
+      const end: TransferEnd = {id: 0, value: pose.value, t, x: pose.x, y: pose.y, under: pose.under};
+      if (id === undefined) {
+        id = idOf.size + 1;
+        idOf.set(key, id);
+        births.push({...end, id});
+      }
+      end.id = id;
+      if (pose.touched && !touchedAt.has(key)) {
+        touchedAt.set(key, t);
+      }
+      const touched = touchedAt.get(key);
+      if (touched !== undefined) {
+        end.touched = touched;
+      }
+      seen.add(key);
+      last.set(key, end);
+    }
+    for (const [key, end] of Array.from(last.entries())) {
+      if (!seen.has(key)) {
+        landings.push(end);
+        last.delete(key);
+      }
+    }
+  }
+  return {births, landings};
 }
 
 /** The witness as one trail line per end — for a spec's log beside its frames. */

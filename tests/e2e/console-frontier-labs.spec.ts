@@ -306,7 +306,7 @@ for (const profile of PROFILES) {
       await convertPlantsAt(page, cells.data);
       await untilServer(request, playerId, (m) => resourcesOn(m, 'Martian Census') === resourcesOn(before, 'Martian Census') + 1, 'Census +1');
       await settle(page, {timeoutMs: 30_000});
-      expect(await page.locator('.con-task-host').count(), 'one holder is no question').toBe(0);
+      await expect.poll(() => page.locator('.con-task-host').count(), {message: 'one holder is no question'}).toBe(0);
       let probe = await sceneProbe(page);
       expect(probe.citypay, 'the census rose by the field').toContain('Martian Census');
 

@@ -280,7 +280,7 @@ for (const preset of PRESETS) {
       // PARITY: the buy chrome is the same set of hooks the no-draft road rendered.
       await expect.poll(() => crumbText(page), {timeout: 10_000}).toMatch(/ПОКУПКА/i);
       await expect(page.locator('[data-draft-wallet]'), 'the wallet closes the reading row (T10 · CE)').toBeVisible();
-      expect(await page.locator('.con-task--wide').count(), 'no standalone plate on the drafting road either').toBe(0);
+      await expect.poll(() => page.locator('.con-task--wide').count(), {message: 'no standalone plate on the drafting road either'}).toBe(0);
     });
 
     test('C — no energy: two beats — no conversion layer, the income still ticks as chips, the purchase rises', async ({page, request}) => {
@@ -341,7 +341,7 @@ test.describe('generation scene · tv4k · the honest degradations and the journ
     const group = page.locator('.con-journal .journal-group--production');
     await expect(group, 'ONE production group for the seat').toHaveCount(1, {timeout: 15_000});
     await expect(group.locator('.journal-group__root-body')).toContainText(/доход/i);
-    expect(await group.locator('.journal-child-row').count(), 'the rows: the production values, the rating, the conversion').toBeGreaterThanOrEqual(3);
+    await expect.poll(() => group.locator('.journal-child-row').count(), {message: 'the rows: the production values, the rating, the conversion'}).toBeGreaterThanOrEqual(3);
     await shoot(page, 'tv4k', 'e-journal');
   });
 });

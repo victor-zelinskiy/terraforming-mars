@@ -97,7 +97,7 @@ async function openColonies(page: Page): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
 }
 
 async function focusTitan(page: Page): Promise<void> {
@@ -108,7 +108,7 @@ async function focusTitan(page: Page): Promise<void> {
   for (let i = 0; i < 6 && await focused.count() === 0; i++) {
     await press(page, 'ArrowLeft', 380);
   }
-  expect(await focused.count(), 'could not focus Titan').toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: 'could not focus Titan'}).toBeGreaterThan(0);
 }
 
 /** The focused review row: its text, and whether it still waits for an answer. */

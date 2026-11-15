@@ -52,7 +52,7 @@ test.describe('console: the MarsBot corporation whose whole rule is a bonus card
 
     // No rail at all — the card prints no starting tag, so the strip is
     // OMITTED rather than painted empty (CrediCor's face reads the same way).
-    expect(await slot.locator('.pcard__tags').count(), 'no tag rail is painted').toBe(0);
+    await expect.poll(() => slot.locator('.pcard__tags').count(), {message: 'no tag rail is painted'}).toBe(0);
 
     // The mechanics zone is the only printed content, and it must hold height.
     const mech = slot.locator('.pcard__mech');

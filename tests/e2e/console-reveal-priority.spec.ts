@@ -142,8 +142,7 @@ test.describe('console · reveal is a top-priority modal', () => {
         await startFocus.getAttribute('data-queue-slot') : undefined;
       await key(page, 'ArrowRight', 500);
       await expect(revealFocus).toHaveCount(1);
-      expect(await revealFocus.getAttribute('data-zoom-slot'),
-        'd-pad must move the reveal cursor').not.toBe(revealFocusBefore);
+      await expect.poll(() => revealFocus.getAttribute('data-zoom-slot'), {message: 'd-pad must move the reveal cursor'}).not.toBe(revealFocusBefore);
       if (startFocusBefore !== undefined && startFocusBefore !== null) {
         await expect(startFocus).toHaveAttribute('data-queue-slot', startFocusBefore);
       }

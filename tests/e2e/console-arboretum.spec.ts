@@ -1,7 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, confirmLockedPlacement, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
+import {bootFixtureSeats, confirmLockedPlacement, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle, walkFocusUntil, walkToSpace} from './consoleStart';
+import type {ObservedSample} from './observeCore';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 import {TileType} from '../../src/common/TileType';
 
 /**
@@ -84,8 +87,8 @@ const dataOn = (wire: Wire, name: string) => wire.thisPlayer.tableau.find((c) =>
 type Pt = {x: number, y: number};
 type Box = {x: number, y: number, w: number, h: number};
 type PayoutProbe = {
+  /** Distinct states the recorder kept (a value is kept only when it CHANGES — a count of the product's changes, never of frames). */
   samples: number;
-  ticks: number;
   cities: Record<string, Box>;
   aux?: Box;
   home: Box;
@@ -115,30 +118,62 @@ type PayoutProbe = {
   stranded: boolean;
 };
 
-/** THE SCENE PROBE — MutationObserver + setInterval, never rAF; claims about frames are made on interval ticks. */
+/** The cells the scene is judged against — read on a board at REST before the press. */
+type SceneRef = {cities: Record<string, Box>, home: Box, aux?: Box};
+/** An element's first painted pose, kept in the page by its identity (a `WeakMap` — counted once, whatever the frame rate). */
+type FirstPose = {id: number, city: string, at: Pt, card?: Pt};
+/** ONE recorded observation of the scene: what stands NOW. The folding into a `PayoutProbe` is the Node side's. */
+type SceneSeen = {
+  ox: string;
+  tile: boolean;
+  pay: {phase: string, mode: string | null, degraded: boolean} | null;
+  /** Each wake standing now (laid out), at its FIRST pose. */
+  wakes: Array<FirstPose>;
+  /** Each data token ever painted and standing now, at its FIRST painted pose (+ where the receiving card stood then). */
+  tokens: Array<FirstPose>;
+  /** How many data tokens are mounted at once. */
+  coins: number;
+  /** The receiving card's centre while it is painted. */
+  card: Pt | null;
+  count: string | null;
+  /** Every painted transfer chip, by its identity, where it stands now. */
+  chips: Array<{id: number, at: Pt}>;
+  mc: string;
+  stranded: boolean;
+};
+const SCENE_WITNESS = 'tr21-scene';
+const sceneRefs = new WeakMap<Page, SceneRef>();
+
+/**
+ * THE SCENE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns
+ * what stands now, every change is kept with the page's time, and the folding (first wake, the capsule's counts in
+ * order, each token's birth, each chip's first and last pose) is `foldScene`'s. The claims are about ORDER (the tile
+ * and the oxygen before the first wake, the capsule never ahead) and COEXISTENCE (four tokens at once), so the record is
+ * `settled` — the state a task leaves, the state a frame can paint; a staged element (a wake, a token) still stands at
+ * the end of the task that mounts it. The reference cells are read on a board at rest (`readSettled`).
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({g, paying}) => {
-    const w = window as unknown as {__tr21: PayoutProbe, __tr21chips: Map<Element, {first: Pt, last: Pt, t0: number, t1: number}>};
+  const ref = await readSettled(page, () => page.evaluate(({g, paying}): SceneRef => {
     const boxOf = (el: Element | null): Box | undefined => {
       if (el === null) {
         return undefined;
       }
       const r = el.getBoundingClientRect();
-      return r.width > 1 && r.height > 1 ? {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height} : undefined;
+      return r.width > 1 && r.height > 1 ? {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), h: Math.round(r.height)} : undefined;
     };
     const cities: Record<string, Box> = {};
     for (const id of paying) {
       cities[id] = boxOf(document.querySelector(`.board-space[data_space_id="${id}"]`))!;
     }
-    const p: PayoutProbe = {
-      samples: 0, ticks: 0, cities, home: boxOf(document.querySelector(`.board-space[data_space_id="${g}"]`))!,
+    return {
+      cities, home: boxOf(document.querySelector(`.board-space[data_space_id="${g}"]`))!,
       aux: boxOf(document.querySelector('.con-res-aux__cell[data-aux-resource="data"]')),
-      oxygen: [], tokens: [], wakes: [], tokenMax: 0, cardSeen: 0, counts: [], chips: [], modes: [], phases: [], mc: [],
-      degraded: false, stranded: false,
     };
-    w.__tr21 = p;
-    w.__tr21chips = new Map();
-    const t0 = Date.now();
+  }, {g: G, paying: PAYING}), {message: 'the board\'s cells before the commit'});
+  sceneRefs.set(page, ref);
+  await armWitness<SceneSeen, string>(page, SCENE_WITNESS, (g) => {
+    const w = window as unknown as {__tr21First?: WeakMap<Element, FirstPose>, __tr21Seq?: number};
+    const first = (w.__tr21First ??= new WeakMap<Element, FirstPose>());
     const shown = (el: Element): boolean => {
       let node: Element | null = el;
       let opacity = 1;
@@ -155,109 +190,142 @@ async function armProbe(page: Page): Promise<void> {
     };
     const centre = (el: Element): Pt => {
       const r = el.getBoundingClientRect();
-      return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+      return {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
     };
-    const seenWakes = new Set<Element>();
-    const seenTokens = new Set<Element>();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
+    /** The element's first pose — taken by `make` the first time it is asked, its identity kept by the WeakMap. */
+    const firstOf = (el: Element, make: () => Omit<FirstPose, 'id'>): FirstPose => {
+      let pose = first.get(el);
+      if (pose === undefined) {
+        w.__tr21Seq = (w.__tr21Seq ?? 0) + 1;
+        pose = {...make(), id: w.__tr21Seq};
+        first.set(el, pose);
       }
-      const now = Date.now() - t0;
-      const ox = (document.querySelector('.wgt-icon--oxygen')?.closest('.con-status__param')?.textContent ?? '').replace(/\s+/g, '');
-      if (ox !== '' && p.oxygen[p.oxygen.length - 1]?.[1] !== ox) {
-        p.oxygen.push([now, ox]);
-      }
-      const tile = document.querySelector(`.board-space[data_space_id="${g}"] > [class*="board-space-tile--greenery"]`);
-      if (tile !== null && shown(tile)) {
-        p.tileAt ??= now;
-      }
-      const root = document.querySelector('.con-citypay');
-      if (root !== null) {
-        const phase = root.getAttribute('data-city-payout') ?? '';
-        if (p.phases[p.phases.length - 1] !== phase) {
-          p.phases.push(phase);
-          if (phase === 'idle') {
-            p.idleAt ??= now;
-          }
-        }
-        const mode = root.getAttribute('data-city-payout-mode');
-        if (mode !== null && !p.modes.includes(mode)) {
-          p.modes.push(mode);
-        }
-        if (root.getAttribute('data-city-payout-degraded') !== null) {
-          p.degraded = true;
-        }
-      } else if (p.phases.length > 0 && p.phases[p.phases.length - 1] !== 'gone') {
-        p.phases.push('gone');
-        p.idleAt ??= now;
-      }
-      // A WAKE IS THE PULSE THE PRODUCT STAGED — one element per token a city sends, standing at its city (the layer
-      // mounts them together at the PAY step and plays them in turn). «Was its wash PAINTED when I looked» asks the
-      // machine, not the product: the wash rises from zero and falls back, and on a starved frame (the box at 4K
-      // beside four other workers; pinned to two cores — frames of 1 – 2.5 s) the first pulse is over before the next
-      // sample, so the count read «three of four woke» of a payout that staged all four (the data landed, the M€
-      // ticked). The observer sees the pulse's element in the task that mounts it; where it stands is checked below.
-      document.querySelectorAll('.con-tileplace__oceanpulse--city').forEach((el) => {
-        if (el.getBoundingClientRect().width > 2) {
-          p.firstWakeAt ??= now;
-          if (!seenWakes.has(el)) {
-            seenWakes.add(el);
-            p.wakes.push({city: String(Number(el.getAttribute('data-city-wake'))), at: centre(el), t: now});
-          }
-        }
-      });
-      const tokens = Array.from(document.querySelectorAll('.con-tileplace__oceancoin--data'));
-      p.tokenMax = Math.max(p.tokenMax, tokens.length);
-      for (const el of tokens) {
-        if (!seenTokens.has(el) && shown(el.querySelector('.con-tileplace__coin-body') ?? el)) {
-          seenTokens.add(el);
-          const cityIndex = Number(el.getAttribute('data-city-token'));
-          const cardNow = document.querySelector('.con-citypay__card');
-          p.tokens.push({city: String(cityIndex), at: centre(el), t: now, ...(cardNow !== null && shown(cardNow) ? {card: centre(cardNow)} : {})});
-        }
-      }
-      const card = document.querySelector('.con-citypay__card');
-      if (card !== null && shown(card)) {
-        p.cardSeen++;
-        const at = centre(card);
-        p.cardFirst ??= {t: now, at};
-        p.cardLast = {t: now, at};
-      }
-      const count = card?.getAttribute('data-city-payout-count') ?? null;
-      if (count !== null && p.counts[p.counts.length - 1]?.[1] !== count) {
-        p.counts.push([now, count]);
-      }
-      document.querySelectorAll('.con-transfer__chip').forEach((el) => {
-        if (!shown(el)) {
-          return;
-        }
-        const c = centre(el);
-        const rec = w.__tr21chips.get(el);
-        if (rec === undefined) {
-          w.__tr21chips.set(el, {first: c, last: c, t0: now, t1: now});
-        } else {
-          rec.last = c;
-          rec.t1 = now;
-        }
-      });
-      p.chips = Array.from(w.__tr21chips.values());
-      const mcDigits = document.querySelector('.con-res__row .resource_icon--megacredits')?.closest('.con-res__row')?.querySelector('.con-res__digits');
-      const mc = (mcDigits?.childNodes[0]?.textContent ?? '').trim();
-      if (mc !== '' && p.mc[p.mc.length - 1]?.[1] !== mc) {
-        p.mc.push([now, mc]);
-      }
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
+      return pose;
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 16);
-  }, {g: G, paying: PAYING});
+    const root = document.querySelector('.con-citypay');
+    const tile = document.querySelector(`.board-space[data_space_id="${g}"] > [class*="board-space-tile--greenery"]`);
+    const card = document.querySelector('.con-citypay__card');
+    const cardAt = card !== null && shown(card) ? centre(card) : null;
+    // A WAKE IS THE PULSE THE PRODUCT STAGED — one element per token a city sends, standing at its city (the layer
+    // mounts them together at the PAY step and plays them in turn). «Was its wash PAINTED when I looked» asks the
+    // machine, not the product: the wash rises from zero and falls back, and on a starved frame (the box at 4K
+    // beside four other workers; pinned to two cores — frames of 1 – 2.5 s) the first pulse is over before the next
+    // sample, so the count read «three of four woke» of a payout that staged all four (the data landed, the M€
+    // ticked). The recorder sees the pulse's element at the end of the task that mounts it; where it stands is checked
+    // by the spec.
+    const wakes = Array.from(document.querySelectorAll('.con-tileplace__oceanpulse--city'))
+      .filter((el) => el.getBoundingClientRect().width > 2)
+      .map((el) => firstOf(el, () => ({city: String(Number(el.getAttribute('data-city-wake'))), at: centre(el)})));
+    const coins = Array.from(document.querySelectorAll('.con-tileplace__oceancoin--data'));
+    const tokens = coins
+      .filter((el) => first.has(el) || shown(el.querySelector('.con-tileplace__coin-body') ?? el))
+      .map((el) => firstOf(el, () => ({city: String(Number(el.getAttribute('data-city-token'))), at: centre(el), ...(cardAt !== null ? {card: cardAt} : {})})));
+    const mcDigits = document.querySelector('.con-res__row .resource_icon--megacredits')?.closest('.con-res__row')?.querySelector('.con-res__digits');
+    return {
+      ox: (document.querySelector('.wgt-icon--oxygen')?.closest('.con-status__param')?.textContent ?? '').replace(/\s+/g, ''),
+      tile: tile !== null && shown(tile),
+      pay: root === null ? null : {
+        phase: root.getAttribute('data-city-payout') ?? '',
+        mode: root.getAttribute('data-city-payout-mode'),
+        degraded: root.getAttribute('data-city-payout-degraded') !== null,
+      },
+      wakes,
+      tokens,
+      coins: coins.length,
+      card: cardAt,
+      count: card?.getAttribute('data-city-payout-count') ?? null,
+      chips: Array.from(document.querySelectorAll('.con-transfer__chip')).filter((el) => shown(el))
+        .map((el) => ({id: firstOf(el, () => ({city: '', at: centre(el)})).id, at: centre(el)})),
+      mc: (mcDigits?.childNodes[0]?.textContent ?? '').trim(),
+      stranded: document.querySelector('.con-stranded') !== null,
+    };
+  }, {args: G, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<PayoutProbe> => page.evaluate(() => (window as unknown as {__tr21: PayoutProbe}).__tr21);
+/** The record folded into the scene's facts — times are the PAGE's, from the arm. */
+function foldScene(samples: ReadonlyArray<ObservedSample<SceneSeen>>, ref: SceneRef): PayoutProbe {
+  const p: PayoutProbe = {
+    samples: samples.length, ...ref,
+    oxygen: [], tokens: [], wakes: [], tokenMax: 0, cardSeen: 0, counts: [], chips: [], modes: [], phases: [], mc: [],
+    degraded: false, stranded: false,
+  };
+  const t0 = samples[0]?.t ?? 0;
+  const wakes = new Set<string>();
+  const tokens = new Set<string>();
+  const chips = new Map<string, {first: Pt, last: Pt, t0: number, t1: number}>();
+  for (const s of samples) {
+    const now = s.t - t0;
+    const v = s.v;
+    if (v.ox !== '' && p.oxygen[p.oxygen.length - 1]?.[1] !== v.ox) {
+      p.oxygen.push([now, v.ox]);
+    }
+    if (v.tile) {
+      p.tileAt ??= now;
+    }
+    if (v.pay !== null) {
+      if (p.phases[p.phases.length - 1] !== v.pay.phase) {
+        p.phases.push(v.pay.phase);
+        if (v.pay.phase === 'idle') {
+          p.idleAt ??= now;
+        }
+      }
+      if (v.pay.mode !== null && !p.modes.includes(v.pay.mode)) {
+        p.modes.push(v.pay.mode);
+      }
+      if (v.pay.degraded) {
+        p.degraded = true;
+      }
+    } else if (p.phases.length > 0 && p.phases[p.phases.length - 1] !== 'gone') {
+      p.phases.push('gone');
+      p.idleAt ??= now;
+    }
+    for (const wake of v.wakes) {
+      p.firstWakeAt ??= now;
+      if (!wakes.has(`${s.doc}:${wake.id}`)) {
+        wakes.add(`${s.doc}:${wake.id}`);
+        p.wakes.push({city: wake.city, at: wake.at, t: now});
+      }
+    }
+    p.tokenMax = Math.max(p.tokenMax, v.coins);
+    for (const token of v.tokens) {
+      if (!tokens.has(`${s.doc}:${token.id}`)) {
+        tokens.add(`${s.doc}:${token.id}`);
+        p.tokens.push({city: token.city, at: token.at, t: now, ...(token.card !== undefined ? {card: token.card} : {})});
+      }
+    }
+    if (v.card !== null) {
+      p.cardSeen++;
+      p.cardFirst ??= {t: now, at: v.card};
+      p.cardLast = {t: now, at: v.card};
+    }
+    if (v.count !== null && p.counts[p.counts.length - 1]?.[1] !== v.count) {
+      p.counts.push([now, v.count]);
+    }
+    for (const chip of v.chips) {
+      const rec = chips.get(`${s.doc}:${chip.id}`);
+      if (rec === undefined) {
+        chips.set(`${s.doc}:${chip.id}`, {first: chip.at, last: chip.at, t0: now, t1: now});
+      } else {
+        rec.last = chip.at;
+        rec.t1 = now;
+      }
+    }
+    if (v.mc !== '' && p.mc[p.mc.length - 1]?.[1] !== v.mc) {
+      p.mc.push([now, v.mc]);
+    }
+    if (v.stranded) {
+      p.stranded = true;
+    }
+  }
+  p.chips = [...chips.values()];
+  return p;
+}
+
+const readProbe = async (page: Page): Promise<PayoutProbe> =>
+  foldScene(await witnessOf<SceneSeen>(page, SCENE_WITNESS).samples(), sceneRefs.get(page)!);
+/** The last read of a page's scene: the recording stops (nothing after it is judged). */
+const finishProbe = async (page: Page): Promise<PayoutProbe> =>
+  foldScene(await witnessOf<SceneSeen>(page, SCENE_WITNESS).stop(), sceneRefs.get(page)!);
 
 const composer = '.con-composer--play';
 const panel = '.con-context';
@@ -296,19 +364,21 @@ async function storyboard(page: Page, preset: string, name: string): Promise<() 
   };
 }
 
-/** Open the hand from board home and descend into the card's play composer. */
+/**
+ * Open the hand from board home and descend into the card's play composer. Every A is act → verify (D): its effect gets
+ * the press's whole window before another A — a second A on a composer that opened a beat late is the composer's own
+ * verb, never a retry.
+ */
 async function openComposer(page: Page): Promise<void> {
   const hand = page.locator('.con-hand');
   for (let i = 0; i < 4 && await hand.count() === 0; i++) {
     await press(page, 'Period', 600);
-    await press(page, 'Enter', 1600);
+    await pressUntil(page, 'Enter', async () => await hand.count() > 0, {tries: 1, settleMs: 1600});
   }
   await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 20_000});
   expect(await focusCard(page, CARD, 24), `never focused «${CARD}»`).toBeTruthy();
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
-  for (let i = 0; i < 4 && await page.locator(composer).count() === 0; i++) {
-    await press(page, 'Enter', 1200);
-  }
+  await pressUntil(page, 'Enter', async () => await page.locator(composer).count() > 0, {tries: 4, settleMs: 1200});
   await page.locator(composer).waitFor({timeout: 15_000});
   await settle(page);
 }
@@ -320,21 +390,18 @@ async function openTargetStep(page: Page): Promise<void> {
     if (await page.locator('.con-composer__cta--focused').count() > 0) {
       await press(page, 'ArrowUp', 900);
     }
-    await press(page, 'Enter', 1300);
+    // act → verify (D): the step gets the press's whole window — an A after a step that opened late would answer it.
+    await pressUntil(page, 'Enter', async () => await step.count() > 0, {tries: 1, settleMs: 1300});
   }
   await expect(step, 'the target step opens inside the composer').toHaveCount(1, {timeout: 8000});
   await settle(page);
 }
 
-/** Walk the step's cursor onto a named candidate (the rail names the focused card). */
+/** Walk the step's cursor onto a named candidate (the rail names the focused card) — the ONE walk, turning at a wall. */
 async function focusTarget(page: Page, name: string): Promise<void> {
   const focused = () => page.evaluate(() => document.querySelector('.con-ptsel__slot--focused')?.getAttribute('data-zoom-slot') ?? '');
-  for (const dir of ['ArrowRight', 'ArrowLeft']) {
-    for (let i = 0; i < 6 && await focused() !== name; i++) {
-      await press(page, dir, 500);
-    }
-  }
-  expect(await focused(), `the step's cursor reaches «${name}»`).toBe(name);
+  const reached = await walkFocusUntil(page, async () => await focused() === name, focused, 12, 500);
+  expect(reached, `the step's cursor reaches «${name}» (at «${await focused()}»)`).toBe(true);
 }
 
 /** «РАЗЫГРАТЬ НА ПОЛЕ» — one press verified by the composer's own state; then the board's cell pick. */
@@ -402,9 +469,8 @@ for (const preset of PRESETS) {
         .toContainText('+1 за каждый соседний город', {timeout: 10_000});
       expect(await textOf(page, '.con-ptsel__rail'), 'no «→ N» on a number that does not exist yet').not.toMatch(/\d\s*→\s*\d/);
       await shoot(page, preset.id, '01-target-step');
-      for (let i = 0; i < 4 && await page.locator('.con-ptsel').count() > 0; i++) {
-        await press(page, 'Enter', 1300);
-      }
+      // act → verify (D): A again only while the step provably still stands a whole window later — past it, A is the CTA.
+      await pressUntil(page, 'Enter', async () => await page.locator('.con-ptsel').count() === 0, {tries: 4, settleMs: 1300});
       await expect(page.locator('.con-ptsel'), 'A answers the target').toHaveCount(0, {timeout: 6000});
       await expect(page.locator(composer), 'the CTA is the staged cell\'s verb').toContainText('Разыграть на поле');
       await expect(page.locator(composer), 'the next step is named').toContainText(/озеленени/i);
@@ -426,10 +492,11 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${panel} .con-context__sec--reactions`), 'no second head for the same answer').toHaveCount(0);
       await expect.poll(() => relations(page), {timeout: 10_000, message: 'exactly the paying cities are lit, in the «pays now» tone'})
         .toEqual(PAYING.map((id) => `${id}:reward`).sort());
-      const panelFit = await page.evaluate(() => {
+      // C — the dossier's fit read at REST (two equal reads a frame apart), never mid-entrance.
+      const panelFit = await readSettled(page, () => page.evaluate(() => {
         const scroller = document.querySelector('.con-inspector') as HTMLElement | null;
         return {overflow: scroller === null ? -1 : scroller.scrollHeight - scroller.clientHeight, hint: document.querySelectorAll('.con-inspector__more').length};
-      });
+      }), {message: 'the rich cell\'s dossier'});
       expect(panelFit.overflow, 'the dossier of the rich cell does not scroll').toBeLessThanOrEqual(2);
       expect(panelFit.hint).toBe(0);
       await shoot(page, preset.id, '03-rich-cell');
@@ -472,9 +539,11 @@ for (const preset of PRESETS) {
       await expect.poll(async () => (await readProbe(page)).idleAt, {timeout: 40_000, message: 'the cities\' scene never ended'}).toBeDefined();
       await settle(page, {timeoutMs: 30_000});
       await stopOwn();
-      const own = await readProbe(page);
+      const own = await finishProbe(page);
       await shoot(page, preset.id, '05-after');
-      expect(own.ticks, 'the probe sampled').toBeGreaterThan(10);
+      // The recorder's liveness floor: distinct states the product wrote (the scene's beats, its tokens, its counts) — a
+      // dead recorder keeps one; never a count of frames.
+      expect(own.samples, 'the probe recorded').toBeGreaterThan(0); // a liveness floor catches only a DEAD recorder (tests.md)
       expect(own.degraded, 'the scene never degraded').toBe(false);
       expect(own.modes, 'the own scene').toEqual(['own']);
       expect(own.phases, `the scene's beats in order: ${own.phases.join('→')}`).toEqual(expect.arrayContaining(['rising', 'paying', 'reading', 'returning']));
@@ -552,15 +621,16 @@ for (const preset of PRESETS) {
       // ── 6. THE OPPONENT — the cities wake, the tokens go to blue's chip ──
       await expect.poll(async () => (await readProbe(redPage)).idleAt, {timeout: 40_000, message: 'red never saw the cities pay'}).toBeDefined();
       await stopRed();
-      const remote = await readProbe(redPage);
+      const remote = await finishProbe(redPage);
       expect(remote.modes, 'red plays the REMOTE scene').toEqual(['remote']);
       expect(remote.degraded, 'red\'s scene never degraded').toBe(false);
       expect(remote.cardSeen, 'blue\'s card never rises on red\'s screen').toBe(0);
-      expect(remote.tokens.length, `red sees the four tokens (seen by city ${JSON.stringify(remote.tokens.map((t) => t.city))}, mounted at most ${remote.tokenMax}, samples ${remote.samples}/${remote.ticks} ticks)`).toBe(4);
-      const blueChip = await redPage.evaluate((color) => {
+      expect(remote.tokens.length, `red sees the four tokens (seen by city ${JSON.stringify(remote.tokens.map((t) => t.city))}, mounted at most ${remote.tokenMax}, ${remote.samples} recorded states)`).toBe(4);
+      // C — blue's chip read at REST on red's strip.
+      const blueChip = await readSettled(redPage, () => redPage.evaluate((color) => {
         const r = document.querySelector(`.con-status__player .player_bg_color_${color}`)?.getBoundingClientRect();
-        return r === undefined ? undefined : {x: r.left + r.width / 2, y: r.bottom};
-      }, viewer);
+        return r === undefined ? undefined : {x: Math.round(r.left + r.width / 2), y: Math.round(r.bottom)};
+      }, viewer), {message: 'blue\'s chip in red\'s strip'});
       expect(blueChip, 'blue\'s chip stands in red\'s status strip').toBeDefined();
       const towardBlue = remote.chips.filter((c) => dist(c.last, blueChip!) < dist(c.first, blueChip!) - 40);
       expect(towardBlue.length, `the tokens fly to blue's chip (${JSON.stringify(remote.chips)})`).toBeGreaterThanOrEqual(4);

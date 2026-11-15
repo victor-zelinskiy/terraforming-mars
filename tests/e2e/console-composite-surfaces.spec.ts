@@ -136,8 +136,7 @@ async function expectsWorkspaceBand(page: Page, root: string): Promise<void> {
   expect(band).not.toBeNull();
   expect(band!.x, 'the surface starts right of the player rail').toBeGreaterThan(60);
   // …and the prompt is served natively: the stranded-prompt guard never rises.
-  expect(await page.locator('.con-stranded').count(),
-    'the stranded-prompt guard must not stand over this prompt').toBe(0);
+  await expect.poll(() => page.locator('.con-stranded').count(), {message: 'the stranded-prompt guard must not stand over this prompt'}).toBe(0);
 }
 
 const amountOption = (title: string, max: number) =>
@@ -168,7 +167,7 @@ test('spend heat: a bill, two lanes, and no way to overpay', async ({page, reque
   await expect(page.locator('.con-heat [data-prompt-meter]')).toContainText('/ 6');
   await expect(page.locator('.con-lanes__row')).toHaveCount(2);
   // …and WHO offered the floaters, with the real card face.
-  expect(await page.locator('.con-heat .con-src .pcard, .con-heat .con-src .card-container').count()).toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-heat .con-src .pcard, .con-heat .con-src .card-container').count()).toBeGreaterThan(0);
 
   // The pad contract is on the ONE bar — the panel draws no footer of its own.
   const bar = page.locator('.con-cmdbar').first();
@@ -455,7 +454,7 @@ test.describe('the Venus wild resource: the SHARED target picker', () => {
     // THE SHARED STEP.
     await expect(page.locator('.con-ptsel')).toBeVisible();
     // The panel header states the ask, so the step must not restate it.
-    expect(await page.locator('.con-ptsel__contract').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-ptsel__contract').count()).toBe(0);
     await expect(page.locator('.con-venus .con-prompt-head__kicker')).toContainText(/БОНУС ВЕНЕРЫ/i);
     // The tail names THIS stage, never the one after it.
     await expect(page.locator('.con-lanes__crumb-stage')).toHaveText(/ЦЕЛЬ/i);

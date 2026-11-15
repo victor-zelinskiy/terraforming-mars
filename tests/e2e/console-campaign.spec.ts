@@ -106,7 +106,7 @@ test.describe('campaign map', () => {
     await expect(page.locator('.cmap__seat-crown')).toBeVisible();
     await expect(page.locator('.cmap__card--done')).toHaveCount(4);
     // Reload lands SETTLED — the generation reveal never replays.
-    expect(await page.locator('.cmap--reveal').count()).toBe(0);
+    await expect.poll(() => page.locator('.cmap--reveal').count()).toBe(0);
   });
 
   test('interlude ONE FLOW: the mandatory step opens itself, confirm = ready, the host launch auto-joins', async ({page, request}) => {

@@ -117,7 +117,7 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
     await expect(page.locator('[data-parl-banner-faq]'), 'the FAQ line stands in the reading').toHaveCount(1);
     // THE READING DRAWS THE PARTY'S GRAPHIC beside its words (the owner, 2026-10-25): every clause has its formula.
     const clauses = page.locator('[data-parl-banner-reading]:not(.con-parl-xfade-leave-active) [data-banner-clause]');
-    expect(await clauses.count(), 'the reading prints the clauses of the party').toBeGreaterThan(0);
+    await expect.poll(() => clauses.count(), {message: 'the reading prints the clauses of the party'}).toBeGreaterThan(0);
     // THE BAR SAYS WHAT THE D-PAD IS FOR, and the band names the mode instead of «ГОЛОСОВАНИЕ».
     await expect(page.locator('.con-cmdbar'), 'the bar offers the party choice on the d-pad').toContainText(/Выбор партии/i);
     // THE D-PAD FOLLOWS THE HALL: ▼ walks the opposition column, ▶ crosses to the dais, ◀ returns to the bench left.
@@ -131,8 +131,7 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
     // …and a party WITH a printed graphic draws it in the reading (the second bench — the first may be Unity, whose
     // action prints words only).
     await shoot(page, '02b-banner-second');
-    expect(await page.locator('[data-parl-banner-reading]:not(.con-parl-xfade-leave-active) [data-banner-clause-graphic] .pcard-mech-group').count(),
-      'the reading draws the graphic of the party').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('[data-parl-banner-reading]:not(.con-parl-xfade-leave-active) [data-banner-clause-graphic] .pcard-mech-group').count(), {message: 'the reading draws the graphic of the party'}).toBeGreaterThan(0);
     const benchY = async (p: string | null) => (await page.locator(`.con-parl__opposition .con-pseal[data-party="${p}"]`).first().boundingBox())?.y ?? 0;
     expect(await benchY(second), 'the bench under the cursor stands BELOW the one it left').toBeGreaterThan(await benchY(top));
     await page.keyboard.press('ArrowRight');
@@ -197,7 +196,7 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
     // «ВАШИ ЭФФЕКТЫ» says WHY by a mark — the viewer's cube — and in words for the reader (its aria-label).
     const why = page.locator('.con-parl__effects-row[data-party="Scientists"] [data-parl-effects-why="banner"]').first();
     await expect(why.locator('[data-parl-effects-banner-cube]'), '«ВАШИ ЭФФЕКТЫ» marks the road by the cube').toHaveCount(1);
-    expect(await why.getAttribute('aria-label'), 'and names it').toMatch(/куб на знамени/i);
+    await expect.poll(() => why.getAttribute('aria-label'), {message: 'and names it'}).toMatch(/куб на знамени/i);
     await shoot(page, '04-table');
   });
 

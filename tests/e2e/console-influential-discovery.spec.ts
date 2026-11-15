@@ -139,7 +139,7 @@ async function declineHandReaction(page: Page, card: string): Promise<void> {
     await press(page, 'Enter', 1200);
   }
   await expect(album, `${card}'s question opens the hand album directly`).toBeVisible({timeout: 15_000});
-  expect(await page.locator(`${PLAY} .con-composer__sublist`).count(), 'no option list before the album').toBe(0);
+  await expect.poll(() => page.locator(`${PLAY} .con-composer__sublist`).count(), {message: 'no option list before the album'}).toBe(0);
   await expect(page.locator('.con-hand__question [data-decline-plate]'), 'the decline is named in the album\'s question line').toBeVisible();
   await settle(page);
   for (let i = 0; i < 3 && await page.locator(`${PLAY}:visible`).count() === 0; i++) {

@@ -42,12 +42,12 @@ test.describe('campaign «Тендеры» — the bidding', () => {
     await shoot(page, SHOT_DIR, 'table');
 
     const cards = page.locator('[data-bidding-card]');
-    expect(await cards.count(), 'two seats, two lots (D2)').toBe(2);
-    expect(await page.locator('[data-bidding-seat]').count(), 'both seats in the pick order').toBe(2);
+    await expect.poll(() => cards.count(), {message: 'two seats, two lots (D2)'}).toBe(2);
+    await expect.poll(() => page.locator('[data-bidding-seat]').count(), {message: 'both seats in the pick order'}).toBe(2);
     // Every lot is a CERTIFICATE: the Committee's head (seal + lot tag), the metal frame, the rule, the stub.
-    expect(await page.locator('[data-bidding-card] .con-tender__head').count()).toBe(2);
-    expect(await page.locator('[data-bidding-card] .con-tender__frame').count()).toBe(2);
-    expect(await page.locator('[data-bidding-card] .con-tender__coupon').count()).toBe(2);
+    await expect.poll(() => page.locator('[data-bidding-card] .con-tender__head').count()).toBe(2);
+    await expect.poll(() => page.locator('[data-bidding-card] .con-tender__frame').count()).toBe(2);
+    await expect.poll(() => page.locator('[data-bidding-card] .con-tender__coupon').count()).toBe(2);
 
     // ── the first of the order picks ──────────────────────────────────────
     const live = await campaignModelAs(request, id, 'Alice');
@@ -97,7 +97,7 @@ test.describe('campaign «Тендеры» — the bidding', () => {
     await reloadConsole(page);
     await page.waitForSelector('.con-endgame', {timeout: 60_000});
     await expect.poll(() => page.locator('[data-eg-tender]').count()).toBe(1);
-    expect(await page.locator('[data-bidding-stage].con-bidding--revealing').count()).toBe(0);
+    await expect.poll(() => page.locator('[data-bidding-stage].con-bidding--revealing').count()).toBe(0);
 
     // ── The campaign map speaks tenders: the winner's row wears the holding's chip, the rail's note is the tenders'. ──
     await openMapAs(page, id, winner === 0 ? 'Alice' : 'Bruno');

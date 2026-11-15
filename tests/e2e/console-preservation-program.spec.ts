@@ -235,7 +235,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
     await expect(struck, 'ONE chip is struck — the rating').toHaveCount(1);
     await expect(struck).toHaveAttribute('data-veto-source', 'card');
     await expect(struck).toHaveAttribute('data-vetoed', '1');
-    expect(await struck.getAttribute('data-hint'), 'the chip\'s hint names the CARD, never a law').toMatch(/Программа сохранения/);
+    await expect.poll(() => struck.getAttribute('data-hint'), {message: 'the chip\'s hint names the CARD, never a law'}).toMatch(/Программа сохранения/);
     await expect(page.locator(`${CONFIRM} [data-confirm-formula] .action-effect-chip:not(.action-effect-chip--vetoed)`), 'the price and the temperature stay whole').toHaveCount(2);
     await shoot(page, 'B-03-heat-confirm');
 

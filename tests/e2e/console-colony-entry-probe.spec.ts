@@ -290,7 +290,7 @@ test.describe('colony workspace entry probe', () => {
       await press(page, 'Period', 900);
       await press(page, 'ArrowRight', 1200);
     }
-    expect(await colonies.count(), 'colonies opened from the wheel').toBeGreaterThan(0);
+    await expect.poll(() => colonies.count(), {message: 'colonies opened from the wheel'}).toBeGreaterThan(0);
     await page.waitForTimeout(2500);
     const watch = await collect(page);
     const d = digest(watch);
@@ -334,7 +334,7 @@ test.describe('colony workspace entry probe', () => {
     for (let i = 0; i < 10 && await colonies.count() === 0; i++) {
       await press(page, 'Enter', 1600);
     }
-    expect(await colonies.count(), 'colonies opened inside the start').toBeGreaterThan(0);
+    await expect.poll(() => colonies.count(), {message: 'colonies opened inside the start'}).toBeGreaterThan(0);
     await page.waitForTimeout(3000);
     const watch = await collect(page);
     const d = digest(watch);

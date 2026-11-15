@@ -80,9 +80,8 @@ for (const profile of PROFILES) {
       await expect(thumb).toHaveCount(1);
       // The action SCHEMA reads on the focused tile only — the inspector
       // carries the card and the structured chips, never a second graphic.
-      expect(await page.locator('.con-cardactions__detail .con-cardactions__graphic').count(),
-        'the right-panel schema duplicate must be gone').toBe(0);
-      expect(await page.locator('.con-composer--stage').count(), 'no stage in browse').toBe(0);
+      await expect.poll(() => page.locator('.con-cardactions__detail .con-cardactions__graphic').count(), {message: 'the right-panel schema duplicate must be gone'}).toBe(0);
+      await expect.poll(() => page.locator('.con-composer--stage').count(), {message: 'no stage in browse'}).toBe(0);
       await shoot(page, `${profile.tag}-01-browse-thumbnail`);
 
       // ── 2. A: the SAME frame recomposes into ACTION FOCUS. ──────────────

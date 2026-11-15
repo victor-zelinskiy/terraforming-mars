@@ -141,7 +141,7 @@ for (const preset of PRESETS) {
       })), {timeout: 60_000, message: 'the start flow ended on the board'}).toEqual({start: 0, ws: 0});
       await settle(page, {timeoutMs: 20_000});
       expect((await wireOf(request, playerId)).waitingFor?.type, 'the game went on to the action menu').toBe('or');
-      expect(await page.locator('.con-stranded').count(), 'nothing stranded').toBe(0);
+      await expect.poll(() => page.locator('.con-stranded').count(), {message: 'nothing stranded'}).toBe(0);
       expect(degraded, 'the ceremony never confessed a degraded run').toEqual([]);
       expect(pageErrors, 'no page errors').toEqual([]);
     });

@@ -328,8 +328,8 @@ test.describe('P58 — Project Eden: three placements in the player\'s order, th
     await expect.poll(async () => (await crumbText(page)).toUpperCase(), {timeout: 20_000, message: 'the crumb: the start, the prelude, the stage with its count'})
       .toMatch(/СТАРТ ПАРТИИ.*ПРОЕКТ ЭДЕМ.*ОЧЕРЁДНОСТЬ 1 \/ 3/);
     await expect(page.locator('.con-start'), 'the start answers a step').toHaveAttribute('data-start-serves', 'step');
-    expect(await page.locator(`${STEP} [data-prelude-variant-tile]`).count(), 'three rows').toBe(3);
-    expect(await page.locator(`${STEP} [data-vchoice-print]`).count(), 'each row is the card\'s printed hex').toBe(3);
+    await expect.poll(() => page.locator(`${STEP} [data-prelude-variant-tile]`).count(), {message: 'three rows'}).toBe(3);
+    await expect.poll(() => page.locator(`${STEP} [data-vchoice-print]`).count(), {message: 'each row is the card\'s printed hex'}).toBe(3);
     await shoot(page, 'A-02-order-1');
 
     // 1 · the GREENERY first — the board serves it, the start aside.
@@ -429,7 +429,7 @@ test.describe('P58 — Project Eden: three placements in the player\'s order, th
     const inHand = '.con-hand [data-prelude-variant-kind="placement-order"]';
     const anywhere = '[data-prelude-variant-kind="placement-order"]';
     await expect(page.locator(inHand), 'the first order step stands in the HAND (never the effect-decision modal)').toBeVisible({timeout: 30_000});
-    expect(await page.locator('.con-decision').count(), 'no effect decision took it').toBe(0);
+    await expect.poll(() => page.locator('.con-decision').count(), {message: 'no effect decision took it'}).toBe(0);
     await shoot(page, 'C-01-order-in-hand');
     await chooseTile(page, request, id, inHand, 'city');
     await placeOnBoard(page, request, id, 'the city');

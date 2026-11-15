@@ -143,8 +143,7 @@ test.describe('console · Arcadian Communities', () => {
     //    seated corp + the briefing + one CTA; no modal, no announce plate.
     const stage = page.locator('.con-start__firstact');
     await stage.waitFor({state: 'visible', timeout: 60_000});
-    expect(await page.locator('.con-composer--corpfirst').count(),
-      'the retired standalone modal must not appear in the start flow').toBe(0);
+    await expect.poll(() => page.locator('.con-composer--corpfirst').count(), {message: 'the retired standalone modal must not appear in the start flow'}).toBe(0);
     await page.waitForTimeout(1200);
     await shoot(page, '01-first-action-stage');
     await key(page, 'Enter', 2500);
@@ -232,13 +231,10 @@ test.describe('console · Arcadian Communities', () => {
 
     const canvas = page.locator('.con-cardactions__tile .con-cardactions__graphic');
     await expect(canvas).toHaveCount(1);
-    expect(await canvas.locator('.card-effect-box').count(),
-      'the action tile must draw its PRINTED graphic (a card-effect-box)').toBeGreaterThan(0);
-    expect(await canvas.locator('.con-cardactions__graphic-text').count(),
-      '…and not fall back to the prose branch').toBe(0);
+    await expect.poll(() => canvas.locator('.card-effect-box').count(), {message: 'the action tile must draw its PRINTED graphic (a card-effect-box)'}).toBeGreaterThan(0);
+    await expect.poll(() => canvas.locator('.con-cardactions__graphic-text').count(), {message: '…and not fall back to the prose branch'}).toBe(0);
     // The graphic is really the ACTION half of the corp box (the community
     // cube + «*»), never the sibling EFFECT ("place a tile on a marked area").
-    expect(await canvas.locator('.card-effect-box-item [class*="community"]').count(),
-      'the community token is drawn').toBeGreaterThan(0);
+    await expect.poll(() => canvas.locator('.card-effect-box-item [class*="community"]').count(), {message: 'the community token is drawn'}).toBeGreaterThan(0);
   });
 });

@@ -7,6 +7,8 @@ import {
   focusParliamentZone, mandatoryPlate, openParliament, openParliamentAfterSitting, parliament, PARLIAMENT_PRESETS, ParliamentPreset, parliamentWire, sittingStage, sittingStep,
   waitSittingAtRest,
 } from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 
 /* (Парламент v8 П4: the sitting's poses — the sitting, the reward variants, the families rehearsal, the Deck's reward line —
@@ -27,7 +29,8 @@ import {
  *     stage and no parliament hold stands longer than 2 s: the same objects,
  *     the same A, the poses simply arrive.
  *
- * The probes are `MutationObserver` + `setInterval`, never rAF.
+ * The probes are RECORDINGS (FLAKE ZERO — `armWitness`: the product's own writes observed in the task that makes them,
+ * every change kept with the page's time), never a sampler of our own.
  */
 const OUT_ROOT = path.resolve('screenshots', 'parliament-final');
 /**
@@ -40,15 +43,13 @@ const MODES = ['standard', 'reduced', 'fx-lite'] as const;
 type Mode = typeof MODES[number];
 
 /**
- * The reduced sampler, on every mutation and every 50 ms: the PARLIAMENT's own
- * flight proxies (its flight layer, the reward chips, the Agenda cover — all
- * SKIPPED under reduced motion, so they must never appear), the SHARED deal
- * proxies a hosted step still spawns (the take's deal rides the console-wide
- * 160 ms cap, not a skip — allowed, but never for longer than a pose may take),
- * and the parliament holds.
+ * The reduced RECORD (`armWitness`, armed after the boot — every change with the page's time): the PARLIAMENT's own
+ * flight proxies (its flight layer, the reward chips, the Agenda cover — all SKIPPED under reduced motion, so they must
+ * never appear), the SHARED deal proxies a hosted step still spawns (the take's deal rides the console-wide 160 ms cap,
+ * not a skip — allowed, but never for longer than a pose may take), and the parliament holds.
  */
-type ReducedSample = {t: number, proxies: number, deals: number, holds: Array<string>};
-type ReducedProbe = {samples: Array<ReducedSample>};
+type ReducedSeen = {proxies: number, deals: number, holds: Array<string>};
+const REDUCED_WITNESS = 'parliament-gallery-reduced';
 
 async function shoot(page: Page, preset: string, mode: Mode, nn: string, surface: string): Promise<void> {
   const dir = path.join(OUT_ROOT, preset, mode);
@@ -89,23 +90,14 @@ async function expectPaintBaseline(page: Page, label: string, roots = ['.con-par
 }
 
 async function armReducedProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__reducedProbe: ReducedProbe, __conReady?: () => {holds: Array<string>}};
-    w.__reducedProbe = {samples: []};
-    const sample = () => {
-      w.__reducedProbe.samples.push({
-        t: performance.now(),
-        proxies: document.querySelectorAll('.con-parl__flight:not([data-parl-flight^="sit-park"]), .con-transfer__chip, .con-bonusfly-proxy').length,
-        deals: document.querySelectorAll('.con-deckpick-fly .con-deal-proxy, .con-handdelivery-layer .con-deal-proxy, .con-deckdraw-proxy').length,
-        holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament') || h.startsWith('resource-transfer')),
-      });
-      if (w.__reducedProbe.samples.length > 12000) {
-        w.__reducedProbe.samples.splice(0, 3000);
-      }
+  await armWitness<ReducedSeen>(page, REDUCED_WITNESS, () => {
+    const w = window as unknown as {__conReady?: () => {holds: Array<string>}};
+    return {
+      proxies: document.querySelectorAll('.con-parl__flight:not([data-parl-flight^="sit-park"]), .con-transfer__chip, .con-bonusfly-proxy').length,
+      deals: document.querySelectorAll('.con-deckpick-fly .con-deal-proxy, .con-handdelivery-layer .con-deal-proxy, .con-deckdraw-proxy').length,
+      holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament') || h.startsWith('resource-transfer')),
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-stage']});
-    window.setInterval(sample, 50);
-  });
+  }, {max: 12_000});
 }
 
 /**
@@ -119,16 +111,19 @@ async function armReducedProbe(page: Page): Promise<void> {
 const READING_HOLDS: Record<string, number> = {'parliament-sitting:reward[blocking]': 2600};
 
 async function expectReducedQuiet(page: Page, label: string, maxHoldMs = 2000): Promise<void> {
-  const probe = await page.evaluate(() => (window as unknown as {__reducedProbe: ReducedProbe}).__reducedProbe);
-  const s = probe.samples;
-  expect(s.length, `${label}: the reduced sampler ran`).toBeGreaterThan(5);
-  const withProxies = s.filter((x) => x.proxies > 0);
+  const s = await witnessOf<ReducedSeen>(page, REDUCED_WITNESS).samples();
+  // The recording's own liveness: it holds its first observation from the moment it was armed, and keeps only CHANGES
+  // after it — so the number of its samples says how much changed, never how long it ran; only a dead one has none.
+  expect(s.length, `${label}: the reduced sampler ran`).toBeGreaterThan(0);
+  const withProxies = s.filter((x) => x.v.proxies > 0);
   expect(withProxies.length, `${label}: no parliament flight proxy under reduced motion (${withProxies.length} samples had one)`).toBe(0);
-  // Every hold's longest continuous stand — and the shared deal's longest continuous stretch, as one more «hold».
+  // Every hold's longest continuous stand — and the shared deal's longest continuous stretch, as one more «hold» — on
+  // the PAGE's clock: a hold stands from the change that raised it to the change that let it go; one still standing
+  // stands until now.
   const longest = new Map<string, number>();
   const since = new Map<string, number>();
   for (const x of s) {
-    const standing = [...x.holds, ...(x.deals > 0 ? ['shared-deal-proxies'] : [])];
+    const standing = [...x.v.holds, ...(x.v.deals > 0 ? ['shared-deal-proxies'] : [])];
     for (const h of standing) {
       if (!since.has(h)) {
         since.set(h, x.t);
@@ -141,9 +136,9 @@ async function expectReducedQuiet(page: Page, label: string, maxHoldMs = 2000): 
       }
     }
   }
-  const last = s[s.length - 1];
+  const now = await page.evaluate(() => Date.now());
   for (const [h, t0] of Array.from(since.entries())) {
-    longest.set(h, Math.max(longest.get(h) ?? 0, last.t - t0));
+    longest.set(h, Math.max(longest.get(h) ?? 0, now - t0));
   }
   const over = Array.from(longest.entries()).filter(([h, ms]) => ms > (READING_HOLDS[h] ?? maxHoldMs)).map(([h, ms]) => `${h} ${Math.round(ms)} ms`);
   expect(over, `${label}: no parliament hold stands longer than ${maxHoldMs} ms under reduced motion`).toEqual([]);
@@ -341,10 +336,20 @@ for (const preset of PARLIAMENT_PRESETS) {
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] [data-spread-blocked]'), 'opens with everything still to place').toHaveCount(1);
         await pose(page, preset, mode, '24', 'sitting-reward-layout');
         // RB, RB on the focused holder; the d-pad to the other; RT pours the remainder — the layout is complete.
-        await press(page, 'KeyE', 500);
-        await press(page, 'KeyE', 500);
-        await press(page, 'ArrowRight', 500);
-        await press(page, 'Period', 700);
+        // act → verify → retry (D): each press waits for ITS effect — the units laid out (`data-spread` on the holders),
+        // the cursor on the other holder, the layout ready — never a blind series a swallowed press would cut short. The
+        // verdict stays the one below: the layout is complete.
+        const layout = '.con-parl [data-embed-slot="parliament-stage"]';
+        const laidOut = () => page.evaluate((root) => Array.from(document.querySelectorAll(`${root} [data-spread]`))
+          .reduce((n, el) => n + Number(el.getAttribute('data-spread') ?? '0'), 0), layout);
+        const focusedHolder = () => page.evaluate((root) =>
+          document.querySelector(`${root} .con-cards__slot--focused`)?.getAttribute('data-zoom-slot') ?? '', layout);
+        const ready = async () => await page.locator(`${layout} [data-spread-ready]`).count() > 0;
+        await pressUntil(page, 'KeyE', async () => await laidOut() >= 1 || await ready(), {tries: 3, settleMs: 1200});
+        await pressUntil(page, 'KeyE', async () => await laidOut() >= 2 || await ready(), {tries: 3, settleMs: 1200});
+        const firstHolder = await focusedHolder();
+        await pressUntil(page, 'ArrowRight', async () => await focusedHolder() !== firstHolder, {tries: 2, settleMs: 1200});
+        await pressUntil(page, 'Period', ready, {tries: 3, settleMs: 1400});
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] [data-spread-ready]')).toHaveCount(1);
         await pose(page, preset, mode, '24b', 'sitting-reward-layout-ready');
         await press(page, 'Enter', 1500);
@@ -424,12 +429,14 @@ for (const preset of PARLIAMENT_PRESETS) {
         await press(page, 'Escape', 800);
         // The INFO strip: Information → the effects zone → the party-effects strip.
         const infoRoot = page.locator('.con-info');
-        for (let i = 0; i < 8 && await infoRoot.count() === 0; i++) {
+        const infoOpen = async () => await infoRoot.count() > 0;
+        for (let i = 0; i < 8 && !await infoOpen(); i++) {
           if (i > 0) {
             await press(page, 'Enter', 700);
             await press(page, 'Escape', 500);
           }
-          await press(page, 'KeyY', 1100);
+          // act → verify (D): Y's effect gets its whole window before the loop believes «not open» and presses again.
+          await pressUntil(page, 'KeyY', infoOpen, {tries: 1, settleMs: 1100});
         }
         await expect(infoRoot, 'the Information mode opens').toHaveCount(1);
         // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
@@ -439,8 +446,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         await expect(page.locator('.con-efx__list .con-efx__plate--political').first(), 'the Parliament\'s groups stand in the explorer').toBeVisible({timeout: 10_000});
         await settle(page, {timeoutMs: 20_000});
         // Every column of the explorer keeps the screen, the political groups included (registry R-31 — the old strip
-        // pushed the dossier column past the Deck's right edge).
-        const infoLayout = await page.evaluate(() => {
+        // pushed the dossier column past the Deck's right edge). C — read at REST (the settle just above, then two equal
+        // reads a frame apart), never mid-entrance.
+        const infoLayout = await readSettled(page, () => page.evaluate(() => {
           const vw = window.innerWidth;
           const vh = window.innerHeight;
           const out: Array<string> = [];
@@ -456,7 +464,7 @@ for (const preset of PARLIAMENT_PRESETS) {
             }
           }
           return out;
-        });
+        }), {settle: false, message: 'the explorer\'s columns'});
         expect(infoLayout, `${preset.id}/${mode} info effects: every column of the explorer is on screen`).toEqual([]);
         await expectPaintBaseline(page, `${preset.id}/${mode} info strip`, ['.con-info']);
         await shoot(page, preset.id, mode, '08', 'info-parliament-strip');
@@ -537,7 +545,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         const focusedParty = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-party') ?? '');
         await expect(page.locator('.con-cardactions__tile[data-action-party="Industrialists"]'), 'the Industrialists tile is in the menu').toHaveCount(1, {timeout: 20_000});
         for (let i = 0; i < 16 && await focusedParty() !== 'Industrialists'; i++) {
-          const dir = await page.evaluate(() => {
+          // C — the next hop is read off the grid at REST (two equal reads a frame apart): a tile still growing into its
+          // focus pose is wherever the machine had got to.
+          const dir = await readSettled(page, () => page.evaluate(() => {
             const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
             const t = document.querySelector('.con-cardactions__tile[data-action-party="Industrialists"]')?.getBoundingClientRect();
             if (f === undefined || t === undefined) {
@@ -546,7 +556,7 @@ for (const preset of PARLIAMENT_PRESETS) {
             const dy = (t.top + t.height / 2) - (f.top + f.height / 2);
             const dx = (t.left + t.width / 2) - (f.left + f.width / 2);
             return Math.abs(dy) > f.height / 2 ? (dy > 0 ? 'ArrowDown' : 'ArrowUp') : (dx > 0 ? 'ArrowRight' : 'ArrowLeft');
-          });
+          }), {message: 'the walk\'s next hop'});
           await press(page, dir, 300);
         }
         expect(await focusedParty(), 'the Industrialists tile is focused').toBe('Industrialists');
@@ -633,52 +643,38 @@ for (const preset of PARLIAMENT_PRESETS) {
           // ONE PASS before its sitting (the soft gates): the walk plays, and the REWARD page (turned by the director,
           // about a second for a quiet card) carries its quiet pose: no reading pretends a payout; the stage says what
           // OUTLIVES the enactment, and for an action, where it lives. Read in ONE sample the moment it stands —
-          // captured IN THE PAGE by an observer armed before the pass: under reduced motion the quiet page stands
-          // ~0.9 s, and a Node-side poll whose interval grows to 1 s walked straight past it into the results.
-          await page.evaluate(() => {
-            const w = window as unknown as {__quietPose?: unknown};
-            w.__quietPose = undefined;
+          // RECORDED off the product's own writes from before the pass (`armWitness` — the first sample that shows
+          // it): under reduced motion the quiet page stands ~0.9 s, and a Node-side poll whose interval grows to 1 s
+          // walked straight past it into the results.
+          type QuietPose = {kind: string | null, kicker: string, text: string, where: number, contexts: number, part: string};
+          const quietPose = await armWitness<QuietPose | null>(page, 'parliament-gallery-quiet-pose', () => {
             // v5: the quiet pose is the BAND's line — it names what OUTLIVES the enactment and, for an action,
             // where it lives. The card's own declaration is NOT repeated: the enacted resolution prints it in
             // the government, one tier up, and the band never says what an object already says itself.
-            const read = () => {
-              const band = document.querySelector<HTMLElement>('.con-band[data-parl-band-quiet]');
-              // The band CROSSFADES in one shared cell (law 18): on the first frame of the reward line the enactment's
-              // line is still in the DOM, leaving — read the ENTERING line only, or its «Правящая партия» reads first.
-              const labels = band === null ? [] : Array.from(band.querySelectorAll<HTMLElement>('.con-band__line:not(.con-band-fade-leave-active) [data-parl-band-chip="label"]'))
-                .map((el) => el.textContent?.trim() ?? '');
-              if (band === null || labels.length === 0) {
-                return undefined;
-              }
-              return {
-                kind: band.getAttribute('data-parl-band-quiet'),
-                kicker: labels[0] ?? '',
-                text: '',
-                where: labels.length - 1,
-                contexts: band.querySelectorAll('.con-band__line:not(.con-band-fade-leave-active) [data-yield-context]').length,
-                // Парламент v8 (2026-10-19): the law's tile prints no kicker — its PART rides the graphic's own attribute.
-                part: document.querySelector('[data-parl-enacted-effect]')?.getAttribute('data-parl-enacted-part') ?? '',
-              };
+            const band = document.querySelector<HTMLElement>('.con-band[data-parl-band-quiet]');
+            // The band CROSSFADES in one shared cell (law 18): on the first frame of the reward line the enactment's
+            // line is still in the DOM, leaving — read the ENTERING line only, or its «Правящая партия» reads first.
+            const labels = band === null ? [] : Array.from(band.querySelectorAll<HTMLElement>('.con-band__line:not(.con-band-fade-leave-active) [data-parl-band-chip="label"]'))
+              .map((el) => el.textContent?.trim() ?? '');
+            if (band === null || labels.length === 0) {
+              return null;
+            }
+            return {
+              kind: band.getAttribute('data-parl-band-quiet'),
+              kicker: labels[0] ?? '',
+              text: '',
+              where: labels.length - 1,
+              contexts: band.querySelectorAll('.con-band__line:not(.con-band-fade-leave-active) [data-yield-context]').length,
+              // Парламент v8 (2026-10-19): the law's tile prints no kicker — its PART rides the graphic's own attribute.
+              part: document.querySelector('[data-parl-enacted-effect]')?.getAttribute('data-parl-enacted-part') ?? '',
             };
-            const mo = new MutationObserver(() => {
-              const q = read();
-              if (q !== undefined) {
-                w.__quietPose = q;
-                mo.disconnect();
-              }
-            });
-            mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['data-parl-band-quiet', 'class']});
           });
           await enterSittingByPass(page, request, playerId);
           // REDUCED MOTION has no walk to turn (law 2 — the resting poses at once): a sitting that asks nothing stands on
           // its RESULTS straight away, where the family is named again (below) — there is no reward page to read.
-          const seen: {quiet: {kind: string | null, kicker: string, text: string, where: number, contexts: number, part: string} | null} = {quiet: null};
           if (mode !== 'reduced') {
-            await expect.poll(async () => {
-              seen.quiet = await page.evaluate(() => ((window as unknown as {__quietPose?: unknown}).__quietPose ?? null) as never);
-              return seen.quiet !== null;
-            }, {timeout: 60_000, message: `${family.kind}: the REWARD stage carries its quiet pose`}).toBe(true);
-            const q = seen.quiet!;
+            const q = (await quietPose.waitFor((v) => v !== null,
+              {timeoutMs: 60_000, message: `${family.kind}: the REWARD stage carries its quiet pose`})).v!;
             expect(q.kind, `${family.kind}: the pose names its kind`).toBe(family.kind);
             expect(q.kicker).toMatch(family.kicker);
             expect(q.contexts, `${family.kind}: no reading pretends a payout`).toBe(0);
@@ -691,6 +687,7 @@ for (const preset of PARLIAMENT_PRESETS) {
             expect(q.part, `${family.kind}: «ВАШИ ЭФФЕКТЫ» names the law's part`).toBe(family.kind === 'action' ? 'action' : 'effect');
             await shoot(page, preset.id, mode, family.nn, `family-${family.kind}-walk`);
           }
+          await quietPose.stop();
           // Nothing to pay: the adjourn arrives in the same response — the RESULTS card names the family again.
           await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
           await waitSittingAtRest(page, 30_000);
@@ -720,15 +717,17 @@ for (const preset of PARLIAMENT_PRESETS) {
           await expect(page.locator('.con-band__chip--skip'), 'the skip names the lost tile').toHaveCount(1, {timeout: 40_000});
         }
         // THE TABLE UNDER THE PLATE: a card dealt straight back from the reshuffled discard never left — its face
-        // stays (P-28: the fresh-face hold hid both cards of the table for the whole read).
-        const hiddenFaces = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]')).filter((slot) => {
+        // stays (P-28: the fresh-face hold hid both cards of the table for the whole read). C — two equal reads a frame
+        // apart, never a box caught mid-entrance; no settle first: the sitting's reward page holds a blocking hold by
+        // contract, and the plate is read while it stands.
+        const hiddenFaces = await readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]')).filter((slot) => {
           const face = slot.querySelector<HTMLElement>('.con-parl__card .pcard');
           if (face === null) {
             return true;
           }
           const cs = getComputedStyle(face);
           return face.getBoundingClientRect().height < 2 || cs.visibility === 'hidden' || cs.opacity === '0' || slot.querySelector('.con-parl__card--dealing') !== null;
-        }).map((slot) => slot.getAttribute('data-instance')));
+        }).map((slot) => slot.getAttribute('data-instance'))), {settle: false, message: 'the table\'s faces under the skip plate'});
         if (mode !== 'reduced') {
           // (Reduced motion stands on the results panel, which takes the table's tier — no plate over a table to read.)
           expect(hiddenFaces, `${preset.id}/${mode}: every card on the table keeps its face under the skip plate`).toEqual([]);

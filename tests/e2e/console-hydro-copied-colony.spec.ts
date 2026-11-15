@@ -1,10 +1,12 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi,
-  sendPlayerInput, soloGameConfig, waitForBoardHome,
+import {NO_PAYMENT, composerLoaded, createGameWithCards, fetchPlayerModel, finiteMotion, openConsole, press, pressUntil,
+  seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
 import {LAUNCHPAD, focusTradeVariantTile} from './cardTradeDoor';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * A COPIED ACTION THAT WALKS INTO ANOTHER WORKSPACE — «Летающая платформа».
@@ -156,6 +158,124 @@ async function useLaunchpadFloater(request: APIRequestContext, id: string): Prom
   await toActionMenu(request, id);
 }
 
+/**
+ * RT wheel → the Hydronetwork's slot (on the wheel the direction press IS the activation) — each round verified by
+ * what it opens, which gets the press's WHOLE window before the round is repeated.
+ */
+async function openFromWheel(page: Page, opened: string, tries = 4): Promise<void> {
+  for (let attempt = 0; attempt < tries && await page.locator(opened).count() === 0; attempt++) {
+    await press(page, 'Period', 1400);
+    await pressUntil(page, 'ArrowLeft', async () => await page.locator(opened).count() > 0, {tries: 1, settleMs: 1800});
+  }
+}
+
+/** The motion of a hand-over at rest (bounded — the end of a window, never a claim). */
+async function motionAtRest(page: Page): Promise<void> {
+  await expect.poll(() => finiteMotion(page), {timeout: 8_000}).toBe(0).catch(() => undefined);
+}
+
+/** The CENSUS row: the marker cell and the colonies surface, read TOGETHER (the defect is a co-occurrence). */
+type CensusRow = {cell: number, colonies: boolean, embedded: boolean, ownBand: boolean, hydroShown: number};
+
+/** The reader of a {@link CensusRow} — in the page, self-contained. */
+function readCensus(): CensusRow {
+  const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
+  const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
+  const col = document.querySelector('.con-colonies');
+  const el = document.querySelector('.con-hydro');
+  return {
+    cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
+    colonies: col !== null,
+    // A NESTED FULL SCREEN GETS THE SCENE, never a slot under the track:
+    // squeezed into the Hydronetwork's zone it was a whole colony screen
+    // beneath an instrument it has nothing to do with, two fit engines in
+    // one box. `embedded` is now the REGRESSION.
+    embedded: document.querySelector('.con-hydro__embed .con-colonies') !== null,
+    ownBand: col !== null && col.classList.contains('con-ws'),
+    // …and the host stops being DRAWN while it does — mounted, mid-flow,
+    // its BOX intact (that is the point: `visibility`, never `display`,
+    // so the returning layout has nothing to re-solve), simply not on
+    // screen. The nesting is stated in the header instead.
+    hydroShown: el !== null && getComputedStyle(el).visibility !== 'hidden' ? 1 : 0,
+  };
+}
+
+/** The RETURN row: who has the screen while the trade hands it back. */
+type ReturnRow = {hydro: boolean, colonies: boolean, result: boolean, board: boolean, root: string};
+
+/** The reader of a {@link ReturnRow} — in the page, self-contained. */
+function readReturn(): ReturnRow {
+  const el = document.querySelector('.con-hydro');
+  return {
+    // SHOWN, not merely mounted: the host keeps its box under the guest
+    // (`visibility`, never `display`), so «is the track back» is a
+    // question about paint.
+    hydro: el !== null && getComputedStyle(el).visibility !== 'hidden',
+    colonies: document.querySelector('.con-colonies') !== null,
+    // The traversal's own payoff read — «Укрепление завершено».
+    result: document.querySelector('.con-hydro__layer--result') !== null,
+    // …and the honest ending of a finished flow: the board. ⚠️ The bar's
+    // caps are a `text-transform`, so its DOM text is «Журнал» — an
+    // uppercase match here reads as «the flow never ended».
+    board: (document.querySelector('.con-cmdbar')?.textContent ?? '')
+      .toLowerCase().includes('журнал'),
+    root: (document.querySelector('.con-wshead__root')?.textContent ?? '').trim(),
+  };
+}
+
+/** The host's own box and the chain it hangs off (DIAGNOSTIC — a crop is always a disagreement about layout). */
+async function readHostChain(page: Page): Promise<unknown> {
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-hydro') as HTMLElement | null;
+    if (el === null) {
+      return 'no host';
+    }
+    const chain: Array<Record<string, unknown>> = [];
+    let node: HTMLElement | null = el;
+    for (let i = 0; i < 4 && node !== null; i++) {
+      const cs = getComputedStyle(node);
+      const r = node.getBoundingClientRect();
+      chain.push({
+        cls: node.className.toString().slice(0, 48),
+        display: cs.display, visibility: cs.visibility, position: cs.position,
+        flex: cs.flex, w: Math.round(r.width), h: Math.round(r.height),
+        x: Math.round(r.left), transform: cs.transform.slice(0, 40),
+      });
+      node = node.parentElement;
+    }
+    return chain;
+  });
+}
+
+/** The guest's body as the player reads it — its grid, its mode, its bar, the share of the viewport it spends. */
+async function readGuestBody(page: Page) {
+  return page.evaluate(() => {
+    const zone = document.querySelector('.con-colonies');
+    const zr = zone?.getBoundingClientRect();
+    return {
+      // The screen's OWN body — its rail of colonies. Counted as «is the
+      // screen really here», not «does it have N tiles».
+      cells: zone?.querySelectorAll('.con-colonies__slot').length ?? 0,
+      grid: zone?.querySelector('.con-colonies__grid') !== null,
+      mode: zone?.getAttribute('data-colony-mode') ?? '',
+      text: (zone?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
+      bar: (document.querySelector('.con-cmdbar')?.textContent ?? '').toLowerCase(),
+      // ④b THE WHOLE SCENE: the guest spends the band it now owns.
+      fill: zr !== undefined && window.innerHeight > 0 ?
+        Math.round((zr.height / window.innerHeight) * 100) : -1,
+    };
+  });
+}
+
+/** The track's rail box — «it came back whole» (-1 when the track is not on screen). */
+async function readRailBox(page: Page) {
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-hydro__rail');
+    const r = el?.getBoundingClientRect();
+    return r === undefined ? -1 : {w: Math.round(r.width), x: Math.round(r.left)};
+  });
+}
+
 test.describe('a copied action walks into the colonies · fhd', () => {
   test.use({
     viewport: {width: 1920, height: 1080},
@@ -176,88 +296,38 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     await waitForBoardHome(page, 30);
 
     // ── Open the Hydronetwork and plan 0 → 7. ──
-    for (let attempt = 0; attempt < 4; attempt++) {
-      await press(page, 'Period', 1400);
-      await press(page, 'ArrowLeft', 1800);
-      if (await page.locator('.con-hydro').count() > 0) {
-        break;
-      }
-    }
+    await openFromWheel(page, '.con-hydro');
     await page.waitForSelector('.con-hydro', {timeout: 20_000});
     // RT jumps to the FARTHEST legal stage, and with the colonies module in play
     // that can be past 7 (the Jovian tag the pad itself carries opens stage 8) —
     // so the target is SELECTED rather than assumed. Stage 7 is the one that
-    // repeats an action; walking back to it is what the player would do.
+    // repeats an action; walking back to it is what the player would do — each
+    // step act → verify on the focused stop.
     await press(page, 'Period', 900); // RT — «К дальнему»
     const focused = () => page.evaluate(() =>
       document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-    for (let i = 0; i < 8 && await focused() !== '7'; i++) {
-      await press(page, 'ArrowLeft', 500);
-    }
-    expect(await focused(), 'the plan targets the reuse stage').toBe('7');
+    await pressUntil(page, 'ArrowLeft', async () => await focused() === '7', {tries: 8, settleMs: 500});
+    await expect.poll(() => focused(), {message: 'the plan targets the reuse stage'}).toBe('7');
     await shoot(page, '01-plan');
 
     // ── ARM THE CENSUS before the commit: the marker cell and the colonies
-    //    surface, sampled TOGETHER (the defect is a co-occurrence). ──
-    await page.evaluate(() => {
-      const w = window as unknown as {
-        __seq?: number, __c?: Array<Record<string, unknown>>, __stop?: () => void,
-      };
-      w.__seq = 0;
-      w.__c = [];
-      const sample = () => {
-        const i = ++(w.__seq as number);
-        const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
-        const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
-        const col = document.querySelector('.con-colonies');
-        const row = {
-          cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
-          colonies: col !== null,
-          // A NESTED FULL SCREEN GETS THE SCENE, never a slot under the track:
-          // squeezed into the Hydronetwork's zone it was a whole colony screen
-          // beneath an instrument it has nothing to do with, two fit engines in
-          // one box. `embedded` is now the REGRESSION.
-          embedded: document.querySelector('.con-hydro__embed .con-colonies') !== null,
-          ownBand: col !== null && col.classList.contains('con-ws'),
-          // …and the host stops being DRAWN while it does — mounted, mid-flow,
-          // its BOX intact (that is the point: `visibility`, never `display`,
-          // so the returning layout has nothing to re-solve), simply not on
-          // screen. The nesting is stated in the header instead.
-          hydroShown: (() => {
-            const el = document.querySelector('.con-hydro');
-            return el !== null && getComputedStyle(el).visibility !== 'hidden' ? 1 : 0;
-          })(),
-        };
-        const c = w.__c;
-        if (c === undefined) {
-          return;
-        }
-        const prev = c[c.length - 1];
-        if (prev === undefined || JSON.stringify(prev) !== JSON.stringify({...row, i: prev.i})) {
-          c.push({...row, i});
-        }
-      };
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      const iv = setInterval(sample, 60);
-      w.__stop = () => {
-        mo.disconnect();
-        clearInterval(iv);
-      };
-    });
+    //    surface, RECORDED TOGETHER (the defect is a co-occurrence — `settled`:
+    //    the state a task leaves, never the gap between two writes of one flush). ──
+    const census = await armWitness<CensusRow>(page, 'hydro-copied-census', readCensus, {settled: true, max: 20_000});
 
     // ── THE RAIL: every crossed stage that ASKS must be answered before the
     //    commit is offered — the reward choices and the stage-7 reuse. The rail
     //    ticks its own answered rows, so the driver walks until they are all
     //    ticked rather than pressing a guessed number of times. ──
+    const readRail = () => page.evaluate(() => ({
+      rows: document.querySelectorAll('.con-hydro__pickrow').length,
+      ticks: document.querySelectorAll('.con-hydro__pickrow .con-hydro__bonus-tick').length,
+      picker: document.querySelector('.con-cardactions') !== null,
+      composer: document.querySelector('.con-composer') !== null,
+    }));
     let planShot = false;
     for (let round = 0; round < 20; round++) {
-      const st = await page.evaluate(() => ({
-        rows: document.querySelectorAll('.con-hydro__pickrow').length,
-        ticks: document.querySelectorAll('.con-hydro__pickrow .con-hydro__bonus-tick').length,
-        picker: document.querySelector('.con-cardactions') !== null,
-        composer: document.querySelector('.con-composer') !== null,
-      }));
+      const st = await readRail();
       if (st.rows > 0 && st.ticks >= st.rows) {
         break;
       }
@@ -266,20 +336,23 @@ test.describe('a copied action walks into the colonies · fhd', () => {
         // «положить аэростат» and «потратить аэростат ради бесплатной торговли»
         // — so the trade is reached by choosing the right TILE, exactly as the
         // ordinary door does (`cardTradeDoor.focusTradeVariantTile`).
-        const tiles = await page.evaluate(() => Array.from(
+        const readTiles = () => page.evaluate(() => Array.from(
           document.querySelectorAll('.con-cardactions__tile')).map((t) => ({
           card: t.getAttribute('data-action-card') ?? '',
           reason: (t.querySelector('.con-cardactions__tile-reason')?.textContent ?? '').trim(),
         })));
-        expect(tiles.map((t) => t.card), `the used action is on offer — ${JSON.stringify(tiles)}`)
-          .toContain(LAUNCHPAD);
+        await expect.poll(async () => (await readTiles()).map((t) => t.card),
+          {message: `the used action is on offer — ${JSON.stringify(await readTiles())}`}).toContain(LAUNCHPAD);
         await focusTradeVariantTile(page);
-        await press(page, 'Enter', 2200); // A — descend into the trade variant
+        // A — descend into the trade variant (verified by the composer standing).
+        await pressUntil(page, 'Enter', async () => (await readRail()).composer, {tries: 1, settleMs: 2200});
         continue;
       }
       if (st.composer) {
-        // ── ② THE REGRESSION, read off the screen the player sees. ──
-        const cta = await page.evaluate(() => {
+        // ── ② THE REGRESSION, read off the screen the player sees — once the
+        //    composer has LOADED, at rest. ──
+        await composerLoaded(page);
+        const cta = await readSettled(page, () => page.evaluate(() => {
           const el = document.querySelector('.con-composer__cta');
           return {
             label: (el?.querySelector('.con-composer__cta-label')?.textContent ?? '').trim(),
@@ -293,7 +366,7 @@ test.describe('a copied action walks into the colonies · fhd', () => {
             bar: (document.querySelector('.con-cmdbar')?.textContent ?? '')
               .replace(/\s+/g, ' ').trim(),
           };
-        });
+        }), {settle: false, message: 'the repeat plan\'s composer'});
         if (!planShot) {
           await shoot(page, '02-repeat-plan-composer');
           planShot = true;
@@ -307,18 +380,23 @@ test.describe('a copied action walks into the colonies · fhd', () => {
         expect(cta.bar.toLowerCase(), 'the bar offers the confirm').toMatch(/подтверд|выбрать/);
         await press(page, 'Enter', 2500); // A — «Выбрать это действие»
         await page.waitForSelector('.con-hydro', {timeout: 20_000});
-        await page.waitForTimeout(900);
+        // The plan's composer LEFT before the rail is read again (a second A on a lingering one is a second confirm).
+        await page.locator('.con-composer').first().waitFor({state: 'detached', timeout: 10_000}).catch(() => undefined);
         continue;
       }
-      await press(page, 'Enter', 1200);
+      // A answers the rail's next decision — given its whole window to move the rail before the next look.
+      const before = JSON.stringify(st);
+      await pressUntil(page, 'Enter', async () => JSON.stringify(await readRail()) !== before, {tries: 1, settleMs: 1200});
     }
-    const rail = await page.evaluate(() => ({
+    const readRailText = () => page.evaluate(() => ({
       rows: document.querySelectorAll('.con-hydro__pickrow').length,
       ticks: document.querySelectorAll('.con-hydro__pickrow .con-hydro__bonus-tick').length,
       text: (document.querySelector('.con-hydro__rail')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
     }));
-    expect(rail.ticks, `every rail decision is captured (${JSON.stringify(rail)})`)
-      .toBe(rail.rows);
+    await expect.poll(async () => {
+      const r = await readRailText();
+      return r.ticks === r.rows;
+    }, {message: `every rail decision is captured (${JSON.stringify(await readRailText())})`}).toBe(true);
     await shoot(page, '03-plan-complete');
 
     // ── COMMIT — one press. ──
@@ -326,23 +404,29 @@ test.describe('a copied action walks into the colonies · fhd', () => {
 
     // ── THE STAGE-5 STOP stands between the commit and stage 7: keep 2 of the
     //    four dealt cards. (It is also what makes this the REAL scenario — the
-    //    copy's prompts ride the very response that answers this pick.) ──
+    //    copy's prompts ride the very response that answers this pick.) Each A
+    //    verified by the pick's own band (A is a TOGGLE), the cursor walked onto
+    //    a card not yet kept. ──
     await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 120_000});
-    await press(page, 'Enter', 600);
-    for (let i = 0; i < 6 && await page.locator('.con-cards__slot--picked').count() < 2; i++) {
-      await press(page, 'ArrowRight', 450);
-      await press(page, 'Enter', 600);
-    }
-    expect(await page.locator('.con-cards__slot--picked').count(), 'two picks held').toBe(2);
+    const picked = page.locator('.con-cards__slot--picked');
+    const pickFocus = () => page.evaluate(() => {
+      const el = document.querySelector('.con-deckpick .con-cards__slot--focused[data-deckpick-slot]');
+      return el === null ? '' : `${el.getAttribute('data-deckpick-slot')}|${el.classList.contains('con-cards__slot--picked') ? 1 : 0}`;
+    });
+    await pressUntil(page, 'Enter', async () => await picked.count() >= 1, {tries: 3, settleMs: 600});
+    await walkFocusUntil(page, async () => (await pickFocus()).endsWith('|0'), async () => (await pickFocus()).split('|')[0], 6, 450);
+    await pressUntil(page, 'Enter', async () => await picked.count() >= 2, {tries: 3, settleMs: 600});
+    await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'two picks held'}).toBe(2);
     await press(page, 'Period', 1500); // RT — «Подтвердить»
 
     // The colonies step is the copy's follow-up: it may only exist on cell 7.
     await page.waitForSelector('.con-colonies', {timeout: 180_000});
-    await page.waitForTimeout(1200);
-    await page.evaluate(() => (window as unknown as {__stop?: () => void}).__stop?.());
-    const census = await page.evaluate(() =>
-      (window as unknown as {__c?: Array<Record<string, unknown>>}).__c ?? []);
-    const dump = JSON.stringify(census);
+    // The hand-over's steady state: the guest standing and the track no longer drawn (bounded — the claims below say
+    // what stood), at rest.
+    await census.waitFor((r) => r.colonies && r.hydroShown === 0, {timeoutMs: 10_000}).catch(() => undefined);
+    await motionAtRest(page);
+    const census0 = (await census.stop()).map((s) => s.v);
+    const dump = JSON.stringify(census0);
 
     // Before judging the SCREEN, read the SERVER: did its copied-action stamp
     // reach the wire at all? A missing stamp and an ignored stamp look identical
@@ -352,7 +436,7 @@ test.describe('a copied action walks into the colonies · fhd', () => {
 
     // ① NOTHING BELOW 7. Every sample taken while the marker was on a lower cell
     //    must be free of the colonies surface — embedded or otherwise.
-    const early = census.filter((r) => (r.cell as number) >= 0 && (r.cell as number) < 7);
+    const early = census0.filter((r) => r.cell >= 0 && r.cell < 7);
     expect(early.length, `the census watched the marker below 7 (${dump})`).toBeGreaterThan(0);
     for (const r of early) {
       expect(r.colonies, `the colonies opened at cell ${r.cell} (${dump})`).toBe(false);
@@ -360,16 +444,18 @@ test.describe('a copied action walks into the colonies · fhd', () => {
 
     // ② …AND WHEN IT DID, IT TOOK THE SCENE. Its own band, never a slot inside
     //    the track's zone, and the track is not drawn behind it.
-    const withColonies = census.filter((x) => x.colonies === true);
+    const withColonies = census0.filter((x) => x.colonies);
     for (const r of withColonies) {
       expect(r.embedded, `the colonies are NOT squeezed into the track zone (${dump})`).toBe(false);
       expect(r.ownBand, `they stand in their own band (${dump})`).toBe(true);
       expect(r.cell, 'on stage 7').toBe(7);
     }
-    // …and the track handed the scene over. ⚠️ ONE sample of tolerance, named:
+    // …and the track handed the scene over. ⚠️ ONE state of tolerance, named:
     // the guest's mount and the host's hide are two DOM writes of the SAME Vue
     // flush, so a MutationObserver — which samples mutations, not PAINTS — can
-    // legitimately catch the state between them. The eye never can. What the
+    // legitimately catch the state between them. The eye never can. (The
+    // census is `settled` — taken after the task's flush — so it should not
+    // see that state at all; the tolerance stays as written.) What the
     // assertion is really about is the STEADY state, so the last word wins and
     // a lingering track fails.
     const bothDrawn = withColonies.filter((r) => r.hydroShown !== 0).length;
@@ -383,35 +469,17 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     //  below, where the crop was actually reported.)
 
     // DIAGNOSTIC: the host's own box and the chain it hangs off, stated where
-    // the probe can see it (a crop is always a disagreement about layout).
-    const hostDiag = await page.evaluate(() => {
-      const el = document.querySelector('.con-hydro') as HTMLElement | null;
-      if (el === null) {
-        return 'no host';
-      }
-      const chain: Array<Record<string, unknown>> = [];
-      let node: HTMLElement | null = el;
-      for (let i = 0; i < 4 && node !== null; i++) {
-        const cs = getComputedStyle(node);
-        const r = node.getBoundingClientRect();
-        chain.push({
-          cls: node.className.toString().slice(0, 48),
-          display: cs.display, visibility: cs.visibility, position: cs.position,
-          flex: cs.flex, w: Math.round(r.width), h: Math.round(r.height),
-          x: Math.round(r.left), transform: cs.transform.slice(0, 40),
-        });
-        node = node.parentElement;
-      }
-      return chain;
-    });
+    // the probe can see it (a crop is always a disagreement about layout) — at
+    // rest (`readSettled`; `settle: false` — the step stands inside the flow).
+    const hostDiag = await readSettled(page, () => readHostChain(page), {settle: false, message: 'the host chain'});
     console.log(`[hostDiag] ${JSON.stringify(hostDiag)}`);
 
-    // ③ ONE CONTINUOUS CRUMB, rooted at the workspace the player entered.
-    const head = await page.evaluate(() => ({
+    // ③ ONE CONTINUOUS CRUMB, rooted at the workspace the player entered — read at rest (a live string).
+    const head = await readSettled(page, () => page.evaluate(() => ({
       root: (document.querySelector('.con-wshead__root')?.textContent ?? '').trim(),
       full: (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
       ownHeads: document.querySelectorAll('.con-colonies .con-wshead').length,
-    }));
+    })), {settle: false, message: 'the crumb'});
     expect(head.root.toLowerCase(), `the crumb is rooted at the track — ${head.full}`)
       .toContain('гидросет');
     // …and it only ever GAINS a tail: the stage the flow is on is named, so the
@@ -422,22 +490,8 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     //    scene handed over there is no host chrome left on screen, so the one
     //    header standing has to be the colonies' — rooted at the flow above.
     expect(head.ownHeads, `the screen draws the flow's header — ${head.full}`).toBe(1);
-    const body = await page.evaluate(() => {
-      const zone = document.querySelector('.con-colonies');
-      const zr = zone?.getBoundingClientRect();
-      return {
-        // The screen's OWN body — its rail of colonies. Counted as «is the
-        // screen really here», not «does it have N tiles».
-        cells: zone?.querySelectorAll('.con-colonies__slot').length ?? 0,
-        grid: zone?.querySelector('.con-colonies__grid') !== null,
-        mode: zone?.getAttribute('data-colony-mode') ?? '',
-        text: (zone?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
-        bar: (document.querySelector('.con-cmdbar')?.textContent ?? '').toLowerCase(),
-        // ④b THE WHOLE SCENE: the guest spends the band it now owns.
-        fill: zr !== undefined && window.innerHeight > 0 ?
-          Math.round((zr.height / window.innerHeight) * 100) : -1,
-      };
-    });
+    // The guest's body AT REST (its share of the viewport is a box).
+    const body = await readSettled(page, () => readGuestBody(page), {settle: false, message: 'the guest\'s body'});
     expect(body.mode, `the screen is in its PICK mode, as on any prompt entry — ${body.text}`)
       .toBe('pick');
     expect(body.cells, `every colony is on the grid — ${body.text}`).toBeGreaterThan(2);
@@ -463,24 +517,17 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     //     workspace with no content, «Ⓐ Выполняется» as its only verb and B
     //     dead by phase, recoverable only by reloading. ──
     await press(page, 'Escape', 2200); // B — свернуть
-    await page.waitForTimeout(900);
-    expect(await page.locator('.con-colonies').count(), 'the step is set aside').toBe(0);
-    for (let attempt = 0; attempt < 4; attempt++) {
-      await press(page, 'Period', 1400);
-      await press(page, 'ArrowLeft', 1800);
-      if (await page.locator('.con-colonies, .con-hydro').count() > 0) {
-        break;
-      }
-    }
-    await page.waitForTimeout(1200);
-    const reopened = await page.evaluate(() => ({
+    await expect.poll(() => page.locator('.con-colonies').count(), {message: 'the step is set aside'}).toBe(0);
+    await openFromWheel(page, '.con-colonies, .con-hydro');
+    // What the door opened, AT REST (the console settled, two equal reads) — never a read mid-arrival.
+    const reopened = await readSettled(page, () => page.evaluate(() => ({
       colonies: document.querySelector('.con-colonies') !== null,
       hydro: document.querySelector('.con-hydro') !== null,
       // The sealed screen's signature: a committed track with an empty scene
       // and a bar offering nothing but the absorbed beat.
       bar: (document.querySelector('.con-cmdbar')?.textContent ?? '')
         .replace(/\s+/g, ' ').trim().toLowerCase(),
-    }));
+    })), {message: 'what the wheel\'s door opened'});
     await shoot(page, '05-back-through-the-park');
     // EITHER the decision itself is back (the park answered), OR the track is
     // standing usable — never the sealed committed screen. The one thing that
@@ -494,9 +541,10 @@ test.describe('a copied action walks into the colonies · fhd', () => {
       // frozen commit. Walk back to the decision through the board card.
       expect(reopened.bar, `the fresh track is usable — ${JSON.stringify(reopened)}`)
         .toMatch(/этап|дальн|свернуть|назад|закрыть/);
-      await press(page, 'Escape', 1800);
-      await press(page, 'Enter', 2600); // A on the board-home restore card
-      await page.waitForTimeout(1500);
+      // B closes the fresh track (verified by its leave), then A on the board-home restore card (verified by the
+      // decision standing again).
+      await pressUntil(page, 'Escape', async () => await page.locator('.con-hydro').count() === 0, {tries: 1, settleMs: 1800});
+      await pressUntil(page, 'Enter', async () => await page.locator('.con-colonies').count() > 0, {tries: 1, settleMs: 2600});
     }
     await page.waitForSelector('.con-colonies', {timeout: 60_000});
 
@@ -505,54 +553,26 @@ test.describe('a copied action walks into the colonies · fhd', () => {
     //    happens next (the resume, the stage's own reward wave, the result
     //    read) and it must have the screen back to do it. «The step ended» is
     //    not «the flow ended», and a one-shot read taken after both have
-    //    happened cannot tell those apart — so the return is SAMPLED. ──
-    await page.evaluate(() => {
-      const w = window as unknown as {
-        __r?: Array<Record<string, unknown>>, __rstop?: () => void,
-      };
-      w.__r = [];
-      const sample = () => {
-        const el = document.querySelector('.con-hydro');
-        const row = {
-          // SHOWN, not merely mounted: the host keeps its box under the guest
-          // (`visibility`, never `display`), so «is the track back» is a
-          // question about paint.
-          hydro: el !== null && getComputedStyle(el).visibility !== 'hidden',
-          colonies: document.querySelector('.con-colonies') !== null,
-          // The traversal's own payoff read — «Укрепление завершено».
-          result: document.querySelector('.con-hydro__layer--result') !== null,
-          // …and the honest ending of a finished flow: the board. ⚠️ The bar's
-          // caps are a `text-transform`, so its DOM text is «Журнал» — an
-          // uppercase match here reads as «the flow never ended».
-          board: (document.querySelector('.con-cmdbar')?.textContent ?? '')
-            .toLowerCase().includes('журнал'),
-          root: (document.querySelector('.con-wshead__root')?.textContent ?? '').trim(),
-        };
-        const c = w.__r;
-        if (c === undefined) {
-          return;
-        }
-        const prev = c[c.length - 1];
-        if (prev === undefined || JSON.stringify(prev) !== JSON.stringify(row)) {
-          c.push(row);
-        }
-      };
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      const iv = setInterval(sample, 60);
-      w.__rstop = () => {
-        mo.disconnect();
-        clearInterval(iv);
-      };
-    });
-    await press(page, 'Enter', 2600); // A — the colony's focus stage
+    //    happened cannot tell those apart — so the return is RECORDED
+    //    (`armWitness`, `settled`: who holds the screen is a coexistence claim). ──
+    const ret = await armWitness<ReturnRow>(page, 'hydro-copied-return', readReturn, {settled: true, max: 20_000});
+    // A — the colony's focus stage (verified by the stage standing).
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-colfocus').count() > 0, {tries: 1, settleMs: 2600});
     await shoot(page, '05b-colony-focus');
-    await press(page, 'Enter', 3000); // A — the trade's own single confirm
+    // A — the trade's own single confirm (verified by the stage moving on).
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-colfocus').count() === 0 ||
+      await page.locator('.con-reveal').count() > 0, {tries: 1, settleMs: 3000});
     // …AND THE TRADE PAYS OUT INSIDE THE SAME FRAME. «Титановая шахта» arrives
     // as a card to TAKE, still under the Hydronetwork's crumb — the step is not
     // over until its own reward is in the player's hand, and a driver that
     // waited for the guest to detach without answering that would be waiting on
-    // a screen it had left standing.
+    // a screen it had left standing. Each press is given its whole window to
+    // move the screen before the next look.
+    const takeSig = () => page.evaluate(() => JSON.stringify([
+      document.querySelectorAll('.con-colonies').length,
+      (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      document.querySelectorAll('.con-reveal .con-cards__slot--taken').length,
+    ]));
     for (let i = 0; i < 30; i++) {
       const gone = await page.locator('.con-colonies').count() === 0;
       if (gone) {
@@ -560,32 +580,23 @@ test.describe('a copied action walks into the colonies · fhd', () => {
       }
       const takeable = await page.evaluate(() =>
         (document.querySelector('.con-cmdbar')?.textContent ?? '').toUpperCase().includes('ВЗЯТЬ'));
-      await press(page, takeable ? 'Enter' : 'Escape', takeable ? 1600 : 1200);
+      const before = await takeSig();
+      await pressUntil(page, takeable ? 'Enter' : 'Escape', async () => await takeSig() !== before,
+        {tries: 1, settleMs: takeable ? 1600 : 1200});
     }
     await page.waitForSelector('.con-colonies', {state: 'detached', timeout: 120_000});
     // Let the flow finish on its own — the resume, the wave, the result, the
     // conclusion. Bounded: what is asserted is what was SEEN, never a timeout.
-    for (let i = 0; i < 40; i++) {
-      const done = await page.evaluate(() => (window as unknown as {
-        __r?: Array<Record<string, unknown>> }).__r?.some((r) => r.board === true) ?? false);
-      if (done) {
-        break;
-      }
-      await page.waitForTimeout(1000);
-    }
-    await page.evaluate(() => (window as unknown as {__rstop?: () => void}).__rstop?.());
-    const back = await page.evaluate(() =>
-      (window as unknown as {__r?: Array<Record<string, unknown>>}).__r ?? []);
+    // The flow is OVER when it has left — the board's bar AND neither the guest nor the workspace painted (its dissolve
+    // overlaps the bar's return; stopping on the bar alone read a workspace still fading as «outlived»).
+    await ret.waitFor((r) => r.board && !r.hydro && !r.colonies, {timeoutMs: 40_000}).catch(() => undefined);
+    const back = (await ret.stop()).map((s) => s.v);
     const rdump = JSON.stringify(back);
     await shoot(page, '06-after-the-trade');
 
     // …AND IT CAME BACK WHOLE. The crop was a layout theft, so the evidence is
-    // the box: the track's rail spans the band it always did.
-    const backBox = await page.evaluate(() => {
-      const el = document.querySelector('.con-hydro__rail');
-      const r = el?.getBoundingClientRect();
-      return r === undefined ? -1 : {w: Math.round(r.width), x: Math.round(r.left)};
-    });
+    // the box: the track's rail spans the band it always did — read AT REST.
+    const backBox = await readSettled(page, () => readRailBox(page), {message: 'the track\'s rail'});
     if (typeof backBox !== 'number') {
       expect(backBox.w, `the track came back whole (${JSON.stringify(backBox)})`)
         .toBeGreaterThan(Math.round(1920 * 0.7));

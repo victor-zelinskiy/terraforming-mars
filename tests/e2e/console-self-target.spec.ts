@@ -1,8 +1,9 @@
-import {test, expect, Page} from './consoleTest';
+import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  press, bootWithCards, soloGameConfig, focusCard,
-  closeZoomViewer, openCardActions, openActionFocus,
+  press, pressUntil, settle, bootWithCards, soloGameConfig, focusCard, composerLoaded,
+  closeZoomViewer, openCardActions, openActionFocus, fetchPlayerModel, syncClient,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * «ЭТА КАРТА» — the SELF-TARGET of a played-card target step.
@@ -35,7 +36,8 @@ import {
  *    mechanism, so it is asserted on both.
  *
  * Geometry is read from `getBoundingClientRect`, never from a screenshot diff:
- * the claim is «these boxes did not move», which is a number.
+ * the claim is «these boxes did not move», which is a number — and it is read
+ * AT REST (`settledReadout`), never wherever the machine had got to.
  */
 
 /** Both cards are Jovian floater holders, so each is a legal target of the
@@ -167,6 +169,18 @@ async function readout(page: Page): Promise<Readout> {
 }
 
 /**
+ * THE READOUT AT REST (FLAKE ZERO, class C). Every claim of this probe COMPARES
+ * two readouts to the pixel, and a box read once is wherever the machine had got
+ * to — a focus lift, a step's entrance, a viewer's flight still under way on a
+ * 300 ms software frame. `readSettled` settles the console first, then reads
+ * until two reads a frame apart agree; BOTH sides of every comparison come
+ * through here.
+ */
+async function settledReadout(page: Page, what: string): Promise<Readout> {
+  return readSettled(page, () => readout(page), {message: what});
+}
+
+/**
  * Open the fullscreen viewer and read the state WHILE IT IS OPEN.
  *
  * The retry exists to keep a harness problem from being reported as a product
@@ -180,39 +194,39 @@ async function readout(page: Page): Promise<Readout> {
  */
 async function inspectAndRead(page: Page, tries = 3): Promise<Readout> {
   const zoom = page.locator('dialog.con-zoom[open]');
-  let last = await readout(page);
+  // The open has STARTED once the shell marks `body.con-zoom-open` — the card
+  // then flies for a beat before the dialog shows, and a second X inside that
+  // flight would ABORT the open (the product's X-mid-flight contract).
+  const opening = async () => await zoom.count() > 0 || await page.locator('body.con-zoom-open').count() > 0;
+  let last: Readout | undefined;
   for (let i = 0; i < tries; i++) {
-    const started = Date.now();
-    while (Date.now() - started < 20_000 && await zoom.count() === 0) {
-      await press(page, 'KeyX', 1200);
-    }
-    await page.waitForTimeout(1100);
-    last = await readout(page);
-    if (last.zoomOpen) {
+    await pressUntil(page, 'KeyX', opening, {tries: 16, settleMs: 1200});
+    await zoom.waitFor({state: 'attached', timeout: 8_000}).catch(() => undefined);
+    if (await zoom.count() > 0) {
       // OPEN is not SETTLED. `showModal` fires at the open flight's touchdown,
       // and at 4K that flight is long enough to read the state between the
-      // dialog appearing and the origin hold being in place. Poll for the hold
-      // rather than assert on a frame that is still mid-choreography — and
-      // return regardless once the budget is spent, so «open but nothing held»
-      // still reaches the assertion as the real failure it would be.
-      for (let w = 0; w < 6 && last.held === 0; w++) {
-        await page.waitForTimeout(500);
-        last = await readout(page);
-      }
+      // dialog appearing and the origin hold being in place. Wait for the hold
+      // rather than assert on a frame that is still mid-choreography — bounded,
+      // so «open but nothing held» still reaches the assertion as the real
+      // failure it would be — and read the viewer at rest.
+      await page.locator('.con-zoom-hold').first().waitFor({state: 'attached', timeout: 3_000}).catch(() => undefined);
+    }
+    // Not up (or closed again by a buffered X): the settled read waits out
+    // whatever is still holding input before the next nudge. Never
+    // `openZoomViewer` here — it ASSERTS, so its first miss would end the test
+    // before the retry this function exists for.
+    last = await settledReadout(page, 'the fullscreen viewer');
+    if (last.zoomOpen) {
       return last;
     }
-    // Not up: give whatever is still holding input room to finish, then nudge
-    // again. Never `openZoomViewer` here — it ASSERTS, so its first miss would
-    // end the test before the retry this function exists for.
-    await page.waitForTimeout(2500);
   }
   const state = await page.evaluate(() => ({
     bodyClass: document.body.className,
     step: document.querySelectorAll('.con-ptsel').length,
     focusedSlot: document.querySelectorAll('.con-ptsel__slot--focused, .con-ptsel__self--focused').length,
   }));
-  expect(last.zoomOpen, `X must open the fullscreen viewer — ${JSON.stringify(state)}`).toBe(true);
-  return last;
+  expect(last?.zoomOpen, `X must open the fullscreen viewer — ${JSON.stringify(state)}`).toBe(true);
+  return last as Readout;
 }
 
 /**
@@ -223,12 +237,13 @@ async function inspectAndRead(page: Page, tries = 3): Promise<Readout> {
  * and the next open is driven by an `undefined → defined` watcher. Pressing X
  * inside that window sets an already-defined value, the watcher does not fire,
  * and no dialog opens — which is exactly what a second inspect hit at 4K, where
- * the close beat is long enough to press into.
+ * the close beat is long enough to press into. Then the close beat's tail at
+ * rest (`settle`) before the next press.
  */
 async function closeZoomAndSettle(page: Page): Promise<void> {
   await closeZoomViewer(page);
   await page.locator('body:not(.con-zoom-open)').waitFor({state: 'attached', timeout: 10_000});
-  await page.waitForTimeout(1200);
+  await settle(page);
 }
 
 /** Same box, to the pixel — the whole point of ① is that nothing moved. */
@@ -243,13 +258,13 @@ function sameBox(a: Box | null, b: Box | null, what: string): void {
  * lands on a busy frame is deliberately consumed by the console's commit guard,
  * and at 4K that is the common case rather than the rare one. This probe first
  * failed at `tv4k` while `fhd` passed, with the hand screen still up and the A
- * that should have opened the composer simply gone.
+ * that should have opened the composer simply gone. Each retry is act → verify
+ * (`pressUntil`): the witness gets the press's whole window before a second A,
+ * because a second A on an opened composer is a press INSIDE it.
  */
 async function openPlayComposer(page: Page, tries = 5): Promise<void> {
   const composer = page.locator('.con-composer--play');
-  for (let i = 0; i < tries && await composer.count() === 0; i++) {
-    await press(page, 'Enter', 1400);
-  }
+  await pressUntil(page, 'Enter', async () => await composer.count() > 0, {tries, settleMs: 1400});
   await expect(composer, 'A on the focused hand card opens the play composer')
     .toHaveCount(1, {timeout: 8000});
 }
@@ -262,27 +277,29 @@ async function openPlayComposer(page: Page, tries = 5): Promise<void> {
  * opens it), but once the choice is ANSWERED the cursor sits on the CTA — where
  * A plays the card and ends the probe's subject several assertions early. So
  * every iteration re-asks where the cursor is instead of assuming the last
- * press landed.
+ * press landed — and gives its ONE A the whole window to open the step first.
+ * The cursor's place is the composer's PREVIEW (the choice row), so the sheet
+ * is read only once it has loaded (`composerLoaded`).
  */
 async function openTargetStep(page: Page, tries = 4): Promise<void> {
   const step = page.locator('.con-ptsel');
+  await composerLoaded(page);
   for (let i = 0; i < tries && await step.count() === 0; i++) {
     if (await page.locator('.con-composer__cta--focused').count() > 0) {
       await press(page, 'ArrowUp', 900);
     }
-    await press(page, 'Enter', 1400);
+    await pressUntil(page, 'Enter', async () => await step.count() > 0, {tries: 1, settleMs: 1400});
   }
   await expect(step, 'the embedded played-target step must open').toHaveCount(1, {timeout: 8000});
-  await page.waitForTimeout(500);
+  // The step's entrance at rest before the caller walks or reads it.
+  await settle(page);
 }
 
 /** A on the focused candidate answers the choice, which CLOSES the step — so
  *  the step's absence is the verdict, never the press count. */
 async function confirmChoice(page: Page, tries = 4): Promise<void> {
   const step = page.locator('.con-ptsel');
-  for (let i = 0; i < tries && await step.count() > 0; i++) {
-    await press(page, 'Enter', 1300);
-  }
+  await pressUntil(page, 'Enter', async () => await step.count() === 0, {tries, settleMs: 1300});
   await expect(step, 'A on a candidate answers the choice').toHaveCount(0, {timeout: 6000});
 }
 
@@ -291,7 +308,7 @@ async function openHand(page: Page, tries = 5): Promise<void> {
   const hand = page.locator('.con-hand');
   for (let i = 0; i < tries && await hand.count() === 0; i++) {
     await press(page, 'Period', 800);
-    await press(page, 'Enter', 1600);
+    await pressUntil(page, 'Enter', async () => await hand.count() > 0, {tries: 1, settleMs: 1600});
   }
   await expect(hand, 'the hand screen must open').toHaveCount(1, {timeout: 12_000});
   // The cards are rendered before the dock-to-hand reveal releases input.
@@ -307,8 +324,15 @@ async function openHand(page: Page, tries = 5): Promise<void> {
  * («waiting for .con-hand:not(.con-hand--transit)»), failing the SETUP of a test
  * whose subject is two screens later, and it failed intermittently, which is
  * worse than failing.
+ *
+ * GONE IS NOT DONE (FLAKE ZERO, class E): the composer leaving says the screen
+ * moved on, not that the play landed — the commit is the SERVER's table holding
+ * the card and the page having applied it, then the play's scene at rest before
+ * the next screen is opened. The commit's A stops the moment either says so: a
+ * re-press into the play's own scene is a press on whatever it opened.
  */
-async function playCardVerified(page: Page, card: string, opts: {answersTarget?: boolean} = {}): Promise<void> {
+async function playCardVerified(page: Page, request: APIRequestContext, playerId: string, card: string,
+  opts: {answersTarget?: boolean} = {}): Promise<void> {
   await openHand(page);
   expect(await focusCard(page, card, 16), `${card} must be reachable in hand`).toBe(true);
   await openPlayComposer(page);
@@ -317,29 +341,31 @@ async function playCardVerified(page: Page, card: string, opts: {answersTarget?:
     await confirmChoice(page);
   }
   const composer = page.locator('.con-composer--play');
-  for (let i = 0; i < 6 && await composer.count() > 0; i++) {
-    await press(page, 'Enter', 1500);
-  }
+  const onTable = async () => tableauOf(await fetchPlayerModel(request, playerId)).includes(card);
+  await pressUntil(page, 'Enter', async () => await composer.count() === 0 || await onTable(), {tries: 6, settleMs: 1500});
   await expect(composer, `${card} must commit`).toHaveCount(0, {timeout: 25_000});
-  await page.waitForTimeout(2500);
+  await expect.poll(onTable, {timeout: 25_000, message: `${card} stands on the server's table`}).toBe(true);
+  await syncClient(page, request, playerId);
+  await settle(page);
+}
+
+/** The viewer's own table, as the server has it (English `CardName`s). */
+function tableauOf(model: Awaited<ReturnType<typeof fetchPlayerModel>>): Array<string> {
+  return ((model.thisPlayer as {tableau?: Array<{name: string}>} | undefined)?.tableau ?? []).map((c) => c.name);
 }
 
 /** Walk the cursor onto the self-target proxy (D-pad only — the same axis the
  *  player has). Returns once the proxy reports the focus class. */
 async function focusProxy(page: Page, tries = 6): Promise<void> {
   const proxy = page.locator('.con-ptsel__self--focused');
-  for (let i = 0; i < tries && await proxy.count() === 0; i++) {
-    await press(page, 'ArrowLeft', 700);
-  }
+  await pressUntil(page, 'ArrowLeft', async () => await proxy.count() > 0, {tries, settleMs: 700});
   await expect(proxy, 'the proxy is a full navigation stop').toHaveCount(1, {timeout: 6000});
 }
 
 /** …and onto the ordinary card candidate beside it. */
 async function focusCardTarget(page: Page, tries = 6): Promise<void> {
   const card = page.locator('.con-ptsel__slot--focused');
-  for (let i = 0; i < tries && await card.count() === 0; i++) {
-    await press(page, 'ArrowRight', 700);
-  }
+  await pressUntil(page, 'ArrowRight', async () => await card.count() > 0, {tries, settleMs: 700});
   await expect(card, 'the physical target is reachable from the proxy').toHaveCount(1, {timeout: 6000});
 }
 
@@ -357,7 +383,7 @@ for (const profile of PROFILES) {
 
     test('the row is horizontal and immovable through every state, and X lifts the real card', async ({page, request}) => {
       test.setTimeout(360_000);
-      await bootWithCards(page, request, {
+      const playerId = await bootWithCards(page, request, {
         config: CFG,
         cards: [SHUTTLES, LAUNCHPAD],
         corporation: CORP,
@@ -366,7 +392,7 @@ for (const profile of PROFILES) {
 
       // A second Jovian floater card ON THE TABLE is what makes the step a
       // CHOICE — «эта карта» beside a physical one — instead of a lone handle.
-      await playCardVerified(page, SHUTTLES);
+      await playCardVerified(page, request, playerId, SHUTTLES);
 
       // ── PLAY-TIME self-target: the on-play «add 2 floaters to ANY jovian
       //    card» of the card currently being played. Host: the play composer.
@@ -376,7 +402,7 @@ for (const profile of PROFILES) {
       await openTargetStep(page);
 
       // ① NEUTRAL — one horizontal row, proxy first, card second.
-      const neutral = await readout(page);
+      const neutral = await settledReadout(page, 'the neutral row (play host)');
       expect(neutral.proxy, 'the self-target renders as a proxy').not.toBeNull();
       expect(neutral.cells.length, 'two targets: the proxy and one physical card').toBe(2);
       // ONE ROW — stated over every cell, not over a chosen pair: the claim is
@@ -415,7 +441,7 @@ for (const profile of PROFILES) {
       // ② FOCUS ON THE PROXY — paint changes, geometry does not, and the REAL
       //    card answers.
       await focusProxy(page);
-      const onProxy = await readout(page);
+      const onProxy = await settledReadout(page, 'focus on the proxy (play host)');
       expect(onProxy.proxyFocused).toBe(true);
       expect(onProxy.heroFocused, 'the card the proxy points at must answer').toBe(true);
       sameBox(onProxy.proxy, neutral.proxy, 'focus on the proxy moved the proxy');
@@ -424,7 +450,7 @@ for (const profile of PROFILES) {
 
       // ③ FOCUS ON THE PHYSICAL CARD — both elements keep their positions.
       await focusCardTarget(page);
-      const onCard = await readout(page);
+      const onCard = await settledReadout(page, 'focus on the card target (play host)');
       expect(onCard.proxyFocused).toBe(false);
       expect(onCard.heroFocused, 'the temporary lift leaves with the cursor').toBe(false);
       sameBox(onCard.proxy, neutral.proxy, 'focus on the card moved the proxy');
@@ -436,7 +462,7 @@ for (const profile of PROFILES) {
       await confirmChoice(page);
       await openTargetStep(page);
       await focusProxy(page);
-      const chosenSelf = await readout(page);
+      const chosenSelf = await settledReadout(page, 'the self-target chosen (play host)');
       expect(chosenSelf.proxyLocked, 'the proxy shows the selection').toBe(true);
       expect(chosenSelf.heroLocked, 'and so does the physical card it stands for').toBe(true);
       sameBox(chosenSelf.proxy, neutral.proxy, 'SELECTING the self-target resized the proxy');
@@ -451,7 +477,7 @@ for (const profile of PROFILES) {
       await confirmChoice(page);
       await openTargetStep(page);
       await focusCardTarget(page);
-      const chosenCard = await readout(page);
+      const chosenCard = await settledReadout(page, 'the card target chosen (play host)');
       expect(chosenCard.proxyLocked, 'the proxy returns to neutral').toBe(false);
       expect(chosenCard.heroLocked, 'and the source stops reading as the chosen target').toBe(false);
       sameBox(chosenCard.proxy, neutral.proxy, 'switching target resized the proxy');
@@ -473,9 +499,9 @@ for (const profile of PROFILES) {
       // presses that land on a busy frame BY DESIGN, so the next press is given
       // a settle rather than being fired into the tail of that work — without
       // it this spec failed only in the full-file run, where tv4k follows the
-      // fhd pair on the same worker.
-      await page.waitForTimeout(2500);
-      const settled = await readout(page);
+      // fhd pair on the same worker. The settled read IS that settle: the
+      // console quiet, then the same boxes twice in a row.
+      const settled = await settledReadout(page, 'after repeated switching (play host)');
       sameBox(settled.proxy, neutral.proxy, 'repeated switching drifted the proxy');
       sameBox(settled.cells[1], neutral.cells[1], 'repeated switching drifted the card');
       sameBox(settled.row, neutral.row, 'repeated switching changed the row height');
@@ -490,7 +516,7 @@ for (const profile of PROFILES) {
 
       // ⑧ CLOSING RETURNS EVERYTHING — same boxes, same cursor.
       await closeZoomAndSettle(page);
-      const back = await readout(page);
+      const back = await settledReadout(page, 'the viewer closed (play host)');
       expect(back.held, 'the hold is released on close').toBe(0);
       expect(back.heroOpacity, 'the card is back in its seat').not.toBe('0');
       expect(back.proxyFocused, 'and the cursor survived the trip').toBe(true);
@@ -522,20 +548,20 @@ for (const profile of PROFILES) {
      */
     test('the same self-target works from a played card\'s action', async ({page, request}) => {
       test.setTimeout(360_000);
-      await bootWithCards(page, request, {
+      const playerId = await bootWithCards(page, request, {
         config: CFG,
         cards: [SHUTTLES, LAUNCHPAD],
         corporation: CORP,
         query: profile.query,
       });
-      await playCardVerified(page, SHUTTLES);
-      await playCardVerified(page, LAUNCHPAD, {answersTarget: true});
+      await playCardVerified(page, request, playerId, SHUTTLES);
+      await playCardVerified(page, request, playerId, LAUNCHPAD, {answersTarget: true});
 
       await openCardActions(page);
       await openActionFocus(page);
       await openTargetStep(page);
 
-      const neutral = await readout(page);
+      const neutral = await settledReadout(page, 'the neutral row (action host)');
       expect(neutral.cells.length, 'the acting card and the other Jovian card').toBe(2);
       expect(new Set(neutral.cells.map((c) => c.top)).size,
         'horizontal here too — one component, one behaviour').toBe(1);
@@ -549,7 +575,7 @@ for (const profile of PROFILES) {
         'the wire starts on the acting card\'s right edge').toBeLessThanOrEqual(3);
 
       await focusProxy(page);
-      const onProxy = await readout(page);
+      const onProxy = await settledReadout(page, 'focus on the proxy (action host)');
       expect(onProxy.heroFocused, 'the acting card answers its own proxy').toBe(true);
       sameBox(onProxy.cells[1], neutral.cells[1], 'focus re-flowed the action host\'s row');
 
@@ -557,7 +583,7 @@ for (const profile of PROFILES) {
       await confirmChoice(page);
       await openTargetStep(page);
       await focusProxy(page);
-      const chosen = await readout(page);
+      const chosen = await settledReadout(page, 'the self-target chosen (action host)');
       expect(chosen.proxyLocked).toBe(true);
       expect(chosen.heroLocked).toBe(true);
       sameBox(chosen.proxy, neutral.proxy, 'selection resized the proxy in the action host');
@@ -572,7 +598,7 @@ for (const profile of PROFILES) {
       expect(zoomed.held, 'exactly one slot held').toBe(1);
       expect(zoomed.heroOpacity, 'and its seat is empty meanwhile').toBe('0');
       await closeZoomAndSettle(page);
-      const back = await readout(page);
+      const back = await settledReadout(page, 'the viewer closed (action host)');
       expect(back.held).toBe(0);
       expect(back.proxyFocused, 'navigation survived the inspect').toBe(true);
       sameBox(back.cells[1], neutral.cells[1], 'inspect drifted the action host\'s row');

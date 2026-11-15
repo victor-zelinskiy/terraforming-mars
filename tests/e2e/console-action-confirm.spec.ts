@@ -173,7 +173,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${CONFIRM} .con-confirm__body`), 'the consequence is said ONCE — beside the symbol, never again as a warning').toHaveCount(0);
       await expect(page.locator(`${CONFIRM} .con-confirm__hero [data-wheel-anchor="confirm"]`)).toHaveCount(1);
       const unused = page.locator(`${CONFIRM} [data-confirm-warns] .con-confirm__warn`);
-      expect(await unused.count(), 'the unused opportunities are named, one row each').toBeGreaterThan(0);
+      await expect.poll(() => unused.count(), {message: 'the unused opportunities are named, one row each'}).toBeGreaterThan(0);
       await expect(page.locator(`${CONFIRM} .con-confirm__warns-title`)).toHaveText(/Ещё доступно/i);
       const bar = page.locator('.con-cmdbar');
       await expect(bar).toContainText(/Пас/i);

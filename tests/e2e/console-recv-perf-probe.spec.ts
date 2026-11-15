@@ -10,9 +10,9 @@
  *   - CDP Performance metrics (Nodes / JSHeap / LayoutCount+Duration /
  *     RecalcStyleCount+Duration / ScriptDuration) at three anchors: before the
  *     submit, at the docked stage, after the workspace folds;
- *   - an in-page long-task observer + a 16 ms interval-jitter sampler across
- *     the whole episode (rAF is compositor-starved headless — see
- *     [[e2e-raf-probe-dies-headless]] — so jank is judged by main-thread
+ *   - an in-page long-task observer + the 16 ms tick jitter of a TIMING
+ *     witness across the whole episode (rAF is compositor-starved headless —
+ *     see [[e2e-raf-probe-dies-headless]] — so jank is judged by main-thread
  *     availability, which both of those measure);
  *   - a DOM census of the scene at its docked beat (nodes / faces / <img>);
  *   - idle-loop leftovers after the fold (interval tick rate + scene nodes).
@@ -32,7 +32,9 @@
 import {expect, test, Page, APIRequestContext, CDPSession} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
-import {NO_PAYMENT, press} from './consoleStart';
+import {cinematicBeat, NO_PAYMENT, openHandPlayComposer, press, settle} from './consoleStart';
+import type {ObservedSample} from './observeCore';
+import {armWitness, Witness, witnessOf} from './witness';
 
 const RUN = process.env.RECV_PERF === '1';
 const LABEL = process.env.RECV_PERF_LABEL ?? 'run';
@@ -172,29 +174,31 @@ async function apiPlay(request: APIRequestContext, playerId: string, card: strin
 
 // ── in-page instrumentation ─────────────────────────────────────────────────
 
-type PerfWindow = {
-  longTasks: number,
-  longTaskMax: number,
-  longTaskTotal: number,
-  tickCount: number,
-  tickJank50: number,
-  tickJank120: number,
-  tickMax: number,
-};
+type LongTasks = {longTasks: number, longTaskMax: number, longTaskTotal: number};
+type PerfWindow = LongTasks & {tickCount: number, tickJank50: number, tickJank120: number, tickMax: number};
 
-/** Arm the page-side samplers: long tasks + a 16 ms interval jitter meter. */
+/** The perf window's TIMING witness — one window at a time (re-arming starts a fresh record). */
+const PERF_WINDOW = 'recv-perf-window';
+/** The recorder's TIMER tick (the old jitter meter's period): a free main thread runs it every 16 ms, a stalled one
+ *  runs nothing — so a gap in the stamped series IS a stall. */
+const TICK_MS = 16;
+/** One stamped call of the recorder — the page's `performance.now()`. */
+type PerfTick = {t: number};
+
+/**
+ * Arm a perf window: the page's own LONG-TASK API (a `PerformanceObserver` — the browser's record of a busy main thread,
+ * not a sampler) + the tick jitter as a TIMING witness (`armWitness` + `tickMs`, FLAKE ZERO recipe 9): the reader stamps
+ * every call, the series is read as recorded and a gap over 50 / 120 ms is a stall (`tickJitter`).
+ */
 async function armPerfWindow(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as any;
-    w.__perfStop?.();
-    const rec: PerfWindow & {samples: number} = {
-      longTasks: 0, longTaskMax: 0, longTaskTotal: 0,
-      tickCount: 0, tickJank50: 0, tickJank120: 0, tickMax: 0, samples: 0,
-    };
+    w.__perfObs?.disconnect();
+    w.__perfTick = undefined;
+    const rec = {longTasks: 0, longTaskMax: 0, longTaskTotal: 0};
     w.__perfWin = rec;
-    let obs: PerformanceObserver | undefined;
     try {
-      obs = new PerformanceObserver((list) => {
+      const obs = new PerformanceObserver((list) => {
         for (const e of list.getEntries()) {
           rec.longTasks++;
           rec.longTaskTotal += e.duration;
@@ -202,36 +206,50 @@ async function armPerfWindow(page: Page): Promise<void> {
         }
       });
       obs.observe({entryTypes: ['longtask']});
+      w.__perfObs = obs;
     } catch {
-      /* longtask unsupported — the jitter meter still stands */
+      /* longtask unsupported — the tick series still stands */
     }
-    let last = performance.now();
-    const iv = setInterval(() => {
-      const now = performance.now();
-      const dt = now - last;
-      last = now;
-      rec.tickCount++;
-      rec.tickMax = Math.max(rec.tickMax, dt);
-      if (dt > 50) {
-        rec.tickJank50++;
-      }
-      if (dt > 120) {
-        rec.tickJank120++;
-      }
-    }, 16);
-    w.__perfStop = () => {
-      obs?.disconnect();
-      clearInterval(iv);
-    };
   });
+  await armWitness<PerfTick>(page, PERF_WINDOW, () => {
+    // EVERY CALL IS STAMPED (so the recording keeps it — the series is the page's pace), at most one per 4 ms: the
+    // observer and the timer tick may both call within one frame.
+    const w = window as unknown as {__perfTick?: PerfTick};
+    const now = performance.now();
+    if (w.__perfTick !== undefined && now - w.__perfTick.t < 4) {
+      return w.__perfTick;
+    }
+    w.__perfTick = {t: Math.round(now * 10) / 10};
+    return w.__perfTick;
+  }, {rafTick: false, tickMs: TICK_MS, max: 50_000});
+}
+
+/** The tick jitter of a recorded series — one document's stamps (a reload restarts `performance.now()`), never filled in. */
+function tickJitter(samples: ReadonlyArray<ObservedSample<PerfTick>>): Omit<PerfWindow, keyof LongTasks> {
+  const doc = samples.at(-1)?.doc;
+  const stamps = samples.filter((s) => s.doc === doc).map((s) => s.v.t);
+  const out = {tickCount: Math.max(0, stamps.length - 1), tickJank50: 0, tickJank120: 0, tickMax: 0};
+  for (let i = 1; i < stamps.length; i++) {
+    const dt = stamps[i] - stamps[i - 1];
+    out.tickMax = Math.max(out.tickMax, dt);
+    if (dt > 50) {
+      out.tickJank50++;
+    }
+    if (dt > 120) {
+      out.tickJank120++;
+    }
+  }
+  return out;
 }
 
 async function readPerfWindow(page: Page): Promise<PerfWindow> {
-  return await page.evaluate(() => {
+  const ticks = await witnessOf<PerfTick>(page, PERF_WINDOW).stop();
+  const long = await page.evaluate(() => {
     const w = window as any;
-    w.__perfStop?.();
+    w.__perfObs?.disconnect();
     return w.__perfWin;
-  }) as PerfWindow;
+  }) as LongTasks;
+  return {...long, ...tickJitter(ticks)};
 }
 
 type CdpMetrics = Record<string, number>;
@@ -289,42 +307,18 @@ async function openConsoleOnPlayer(page: Page, playerId: string): Promise<void> 
   await page.goto(`/player?id=${playerId}&console=1`);
   await page.waitForSelector('.con-root', {timeout: 60_000});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
-  await page.waitForTimeout(2500);
+  await settle(page);
 }
 
+/**
+ * The hand → `card` focused → its play composer, LOADED — the shared driver (`openHandPlayComposer`: the hand through
+ * the RT wheel, the focus walked by `walkFocusUntil` — turning around at a wall —, A verified by the composer standing);
+ * the hand-rolled walk this probe kept pressed a fixed rewind sequence at every page edge.
+ */
 async function descendIntoPlay(page: Page, card: string): Promise<void> {
-  for (let i = 0; i < 8 && await page.locator('.con-hand__frame').count() === 0; i++) {
-    await key(page, 'Period', 700);
-    await key(page, 'Enter', 900);
-  }
-  await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 10_000});
-  await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
-  await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 25_000}).catch(() => {});
-  await page.waitForTimeout(600);
-  const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${card}"]`).count();
-  let lastSelected = '';
-  let stalls = 0;
-  const queue: Array<string> = [];
-  for (let i = 0; i < 110 && await onTarget() === 0; i++) {
-    if (queue.length > 0) {
-      await key(page, queue.shift() as string, 180);
-      continue;
-    }
-    const selected = await page.evaluate(() =>
-      document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
-    stalls = selected === lastSelected && i > 0 ? stalls + 1 : 0;
-    if (stalls >= 2) {
-      // Page edge / dead corner — rewind to the album's first slot.
-      queue.push(...Array(12).fill('ArrowLeft'), ...Array(3).fill('ArrowUp'));
-      stalls = 0;
-    } else {
-      await key(page, stalls === 1 ? 'ArrowDown' : 'ArrowRight', 220);
-    }
-    lastSelected = selected;
-  }
-  expect(await onTarget(), `hand cursor reached ${card}`).toBeGreaterThan(0);
-  await key(page, 'Enter', 600);
-  await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 10_000});
+  await openHandPlayComposer(page, card);
+  await expect(page.locator('.con-hand__stage .con-composer--play'), `the play of ${card} stands in the hand's stage`)
+    .toBeVisible({timeout: 10_000});
 }
 
 /** Drive the composer to a READY CTA and submit — adaptive: a target-pick
@@ -382,128 +376,112 @@ type EpisodeResult = {
   idleTicksAfter: Record<string, number>,
 };
 
+/** One observation of the episode — what the scene shows NOW (the census is taken ONCE, in the task the card docked). */
+type EpisodeSeen = {stage: boolean, composer: boolean, docked: boolean, census: Record<string, number> | null};
+type EpisodeArgs = {card: string, arm: number};
+/** The episode's witness key — one episode at a time; `episodeArm` tells a re-arm's fresh state from the last one's. */
+const EPISODE = 'recv-episode';
+let episodeArm = 0;
+
+/** The episode's facts, read off its record: the first STAGE, the first DOCKED, the first FOLD after the stage. */
+type EpisodeFacts = {
+  t0: number,
+  stage: ObservedSample<EpisodeSeen> | undefined,
+  docked: ObservedSample<EpisodeSeen> | undefined,
+  fold: ObservedSample<EpisodeSeen> | undefined,
+};
+
+function episodeFacts(samples: ReadonlyArray<ObservedSample<EpisodeSeen>>): EpisodeFacts {
+  const at = samples.findIndex((s) => s.v.stage);
+  return {
+    t0: samples[0]?.t ?? 0,
+    stage: at < 0 ? undefined : samples[at],
+    docked: samples.find((s) => s.v.docked),
+    fold: at < 0 ? undefined : samples.slice(at + 1).find((s) => !s.v.stage && !s.v.composer),
+  };
+}
+
+/**
+ * Wait until the episode's record holds `fact` — a BOUNDED WAIT, never a verdict: `sawStage` / `sawDocked` are asserted
+ * by the test once the result is on disk. Every poll forces a frame (headless Chromium starves GSAP's rAF on a static
+ * frame — a tiny screenshot IS a BeginFrame, without paying for a full-viewport 4K capture).
+ */
+async function episodeReaches(page: Page, ep: Witness<EpisodeSeen>, fact: 'stage' | 'docked' | 'fold', deadline: number): Promise<boolean> {
+  return expect.poll(async () => {
+    await forceFrame(page);
+    return episodeFacts(await ep.samples())[fact] !== undefined;
+  }, {timeout: Math.max(1, deadline - Date.now()), intervals: [120]}).toBe(true).then(() => true, () => false);
+}
+
 async function runEpisode(page: Page, cdp: CDPSession, card: string, shotPrefix: string): Promise<EpisodeResult> {
   await armPerfWindow(page);
-  // THE FACTS ARE RECORDED IN-PAGE (MutationObserver + a 50 ms interval), the
-  // Playwright loop only owns screenshots and the episode's end — on a loaded
-  // 4K frame an `evaluate` + screenshot round trip costs seconds, and a whole
-  // docked beat fits inside such a hole (the landing probe's TEST_CONTOUR §5
-  // lesson; this probe re-learned it on its first stress run).
-  await page.evaluate((c) => {
-    const w = window as any;
-    w.__epRecStop?.();
-    const rec = {
-      samples: 0, sawStage: false, sawDocked: false,
-      stageAtMs: -1, dockAtMs: -1, foldAtMs: -1, t0: performance.now(),
-      census: undefined as Record<string, number> | undefined,
-    };
-    w.__epRec = rec;
-    let last = -1;
-    const read = () => {
-      const now = performance.now();
-      if (now - last < 16) {
-        return;
-      }
-      last = now;
-      rec.samples++;
-      const stage = document.querySelector('.con-composer__playstage--up') !== null;
-      const composer = document.querySelector('.con-composer--play') !== null;
-      const recv = document.querySelector('.con-composer__playstage .con-recv');
-      const front = recv?.querySelector('[data-recv-front]');
-      const docked = (front?.getAttribute('data-played-key') ?? '') === c;
-      if (stage && !rec.sawStage) {
-        rec.sawStage = true;
-        rec.stageAtMs = Math.round(now - rec.t0);
-      }
-      if (docked && !rec.sawDocked) {
-        rec.sawDocked = true;
-        rec.dockAtMs = Math.round(now - rec.t0);
-        if (recv !== null) {
-          const q = (sel: string) => recv.querySelectorAll(sel).length;
-          rec.census = {
-            totalNodes: recv.querySelectorAll('*').length,
-            pcards: q('.pcard'),
-            imgs: q('img'),
-            minis: q('.con-recv__mini'),
-            strips: q('[data-recv-strip]'),
-            docNodes: document.querySelectorAll('*').length,
-          };
-        }
-      }
-      if (rec.sawStage && !stage && !composer && rec.foldAtMs < 0) {
-        rec.foldAtMs = Math.round(now - rec.t0);
-      }
-    };
-    read();
-    const mo = new MutationObserver(read);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    const iv = setInterval(read, 50);
-    w.__epRecStop = () => {
-      mo.disconnect();
-      clearInterval(iv);
-    };
-    setTimeout(() => w.__epRecStop?.(), 40_000);
-  }, card);
+  // THE FACTS ARE RECORDED IN-PAGE — a witness (`armWitness`, FLAKE ZERO): the scene observed in the task that wrote it,
+  // every change pushed to this side at once; the Playwright side only owns screenshots and the episode's end — on a
+  // loaded 4K frame an `evaluate` + screenshot round trip costs seconds, and a whole docked beat fits inside such a hole
+  // (the landing probe's TEST_CONTOUR §5 lesson; this probe re-learned it on its first stress run).
+  episodeArm++;
+  const ep = await armWitness<EpisodeSeen, EpisodeArgs>(page, EPISODE, ({card, arm}) => {
+    const w = window as unknown as {__recvEpisode?: {arm: number, census: Record<string, number> | null}};
+    if (w.__recvEpisode === undefined || w.__recvEpisode.arm !== arm) {
+      w.__recvEpisode = {arm, census: null};
+    }
+    const state = w.__recvEpisode;
+    const stage = document.querySelector('.con-composer__playstage--up') !== null;
+    const composer = document.querySelector('.con-composer--play') !== null;
+    const recv = document.querySelector('.con-composer__playstage .con-recv');
+    const front = recv?.querySelector('[data-recv-front]');
+    const docked = (front?.getAttribute('data-played-key') ?? '') === card;
+    if (docked && state.census === null && recv !== null) {
+      const q = (sel: string) => recv.querySelectorAll(sel).length;
+      state.census = {
+        totalNodes: recv.querySelectorAll('*').length,
+        pcards: q('.pcard'),
+        imgs: q('img'),
+        minis: q('.con-recv__mini'),
+        strips: q('[data-recv-strip]'),
+        docNodes: document.querySelectorAll('*').length,
+      };
+    }
+    return {stage, composer, docked, census: state.census};
+  }, {args: {card, arm: episodeArm}, rafTick: false});
   const cdpBefore = await cdpMetrics(cdp);
   const t0 = Date.now();
   await armAndSubmit(page, shotPrefix);
 
-  type EpRec = {
-    samples: number, sawStage: boolean, sawDocked: boolean,
-    stageAtMs: number, dockAtMs: number, foldAtMs: number,
-    census?: Record<string, number>,
-  };
   let cdpDocked: CdpMetrics = {};
-  let shotStage = false;
-  let shotDock = false;
-  let folded = false;
   const deadline = Date.now() + 25_000;
-  while (Date.now() < deadline) {
-    const r = await page.evaluate(() => (window as any).__epRec) as EpRec;
-    if (r.sawStage && !shotStage) {
-      // Fired at the first STAGE observation: on a 4K frame the shot's own
-      // round trip lands it mid-flight / at the dock — the one photographable
-      // window of a scene whose docked beat is shorter than a 4K capture.
-      shotStage = true;
-      await shoot(page, `${shotPrefix}-stage`);
-    }
-    if (r.sawDocked && !shotDock) {
-      shotDock = true;
-      cdpDocked = await cdpMetrics(cdp);
-      await shoot(page, `${shotPrefix}-docked`);
-      if (process.env.RECV_PERF_VIDEO === '1' && !NOSHOT) {
-        // VISUAL mode: a clipped BURST of the shelf zone through the effect-
-        // resolution window (emergence → chips → settle) — a full 4K frame
-        // costs more than the docked beat lasts, the clipped half costs half.
-        const vp = page.viewportSize() ?? {width: 1920, height: 1080};
-        const clip = {x: 0, y: Math.round(vp.height * 0.30), width: vp.width, height: Math.round(vp.height * 0.70)};
-        for (let b = 1; b <= 6; b++) {
-          fs.mkdirSync(OUT, {recursive: true});
-          await page.screenshot({path: path.join(OUT, `${shotPrefix}-beat${b}.png`), clip}).catch(() => {});
-          await page.waitForTimeout(160);
-        }
+  if (await episodeReaches(page, ep, 'stage', deadline)) {
+    // Fired at the first STAGE observation: on a 4K frame the shot's own
+    // round trip lands it mid-flight / at the dock — the one photographable
+    // window of a scene whose docked beat is shorter than a 4K capture.
+    await shoot(page, `${shotPrefix}-stage`);
+  }
+  if (await episodeReaches(page, ep, 'docked', deadline)) {
+    cdpDocked = await cdpMetrics(cdp);
+    await shoot(page, `${shotPrefix}-docked`);
+    if (process.env.RECV_PERF_VIDEO === '1' && !NOSHOT) {
+      // VISUAL mode: a clipped BURST of the shelf zone through the effect-
+      // resolution window (emergence → chips → settle) — a full 4K frame
+      // costs more than the docked beat lasts, the clipped half costs half.
+      const vp = page.viewportSize() ?? {width: 1920, height: 1080};
+      const clip = {x: 0, y: Math.round(vp.height * 0.30), width: vp.width, height: Math.round(vp.height * 0.70)};
+      for (let b = 1; b <= 6; b++) {
+        fs.mkdirSync(OUT, {recursive: true});
+        await page.screenshot({path: path.join(OUT, `${shotPrefix}-beat${b}.png`), clip}).catch(() => {});
+        await cinematicBeat(page, 160, 'the frame spacing of the burst — a storyboard of the docked beat');
       }
     }
-    if (r.foldAtMs >= 0) {
-      folded = true;
-      break;
-    }
-    // A tiny screenshot IS a BeginFrame — keep GSAP's rAF fed between reads
-    // (headless Chromium starves it on a static frame), without paying for a
-    // full-viewport 4K capture.
-    await forceFrame(page);
-    await page.waitForTimeout(120);
   }
-  const recFinal = await page.evaluate(() => {
-    const w = window as any;
-    w.__epRecStop?.();
-    return w.__epRec;
-  }) as EpRec;
-  const sawStage = recFinal.sawStage;
-  const sawDocked = recFinal.sawDocked;
-  const census = recFinal.census ?? {};
-  const foldMs = folded && recFinal.foldAtMs >= 0 ? recFinal.foldAtMs : Date.now() - t0;
-  expect(recFinal.samples, 'the in-page episode recorder ran').toBeGreaterThan(3);
+  const folded = await episodeReaches(page, ep, 'fold', deadline);
+  const samples = await ep.stop();
+  const facts = episodeFacts(samples);
+  const ms = (s: ObservedSample<EpisodeSeen> | undefined) => s === undefined ? -1 : Math.round(s.t - facts.t0);
+  const sawStage = facts.stage !== undefined;
+  const sawDocked = facts.docked !== undefined;
+  const census = facts.docked?.v.census ?? {};
+  const foldMs = folded && facts.fold !== undefined ? ms(facts.fold) : Date.now() - t0;
+  // The recorder's own liveness — only a DEAD witness records nothing (the real verdicts are the test's).
+  expect(samples.length, 'the episode witness recorded').toBeGreaterThan(0);
   const perf = await readPerfWindow(page);
   const cdpAfter = await cdpMetrics(cdp);
   await shoot(page, `${shotPrefix}-after`);
@@ -511,7 +489,7 @@ async function runEpisode(page: Page, cdp: CDPSession, card: string, shotPrefix:
   // Idle leftovers: scene nodes must be gone; the tick meter re-armed for 1.2 s
   // gives the post-fold main-thread profile (no busy timelines should remain).
   await armPerfWindow(page);
-  await page.waitForTimeout(1200);
+  await cinematicBeat(page, 1200, 'the post-fold idle window IS the measurement');
   const idle = await readPerfWindow(page);
   const leftovers = await page.evaluate(() => ({
     recvNodes: document.querySelectorAll('.con-recv, .con-recv__emerge').length,
@@ -522,7 +500,7 @@ async function runEpisode(page: Page, cdp: CDPSession, card: string, shotPrefix:
   }));
   return {
     sawStage, sawDocked, foldMs,
-    timingsMs: {stageAt: recFinal.stageAtMs, dockAt: recFinal.dockAtMs, foldAt: recFinal.foldAtMs},
+    timingsMs: {stageAt: ms(facts.stage), dockAt: ms(facts.docked), foldAt: ms(facts.fold)},
     census, perf,
     cdpBefore, cdpDocked, cdpAfter,
     deltaToDocked: metricsDelta(cdpBefore, cdpDocked),
@@ -638,15 +616,15 @@ test.describe('console receiving-stage performance probe', () => {
       await cdp.send('Performance.enable');
 
       await descendIntoPlay(page, sc.uiPlay);
-      await page.waitForTimeout(900);
+      await settle(page);
       await shoot(page, `${sc.name}-1-composer`);
       const episode = await runEpisode(page, cdp, sc.uiPlay, `${sc.name}-2`);
 
       let second: EpisodeResult | undefined;
       if (sc.uiPlaySecond !== undefined) {
-        await page.waitForTimeout(1500);
+        await settle(page);
         await descendIntoPlay(page, sc.uiPlaySecond);
-        await page.waitForTimeout(700);
+        await settle(page);
         second = await runEpisode(page, cdp, sc.uiPlaySecond, `${sc.name}-3-second`);
       }
 

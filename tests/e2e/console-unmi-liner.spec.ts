@@ -302,7 +302,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-colonies__grid [data-fleet-dock]'), 'the grid holds TWO dock cells').toHaveCount(2);
       expect(await page.locator('.con-colonies__grid [data-fleet-dock]').evaluateAll((els) => els.map((el) => el.getAttribute('data-fleet-dock'))),
         'in tableau order').toEqual([LINER, HAULING]);
-      expect(await page.locator('[data-fleet-dock-status="free"]').count(), 'both docks are free').toBe(2);
+      await expect.poll(() => page.locator('[data-fleet-dock-status="free"]').count(), {message: 'both docks are free'}).toBe(2);
       const scaleTwo = await tileScale(page);
       // THE DOCKS ARE CELLS OF THE COLONY GRID (the owner, 2026-10-25 + ledger EZ): ONE size for the whole grid, one
       // fit over colonies + docks — 6 + 1 is 4 + 3 and 6 + 2 is 4 × 2, so the second dock costs the grid nothing.
@@ -350,7 +350,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-fleetdock'), 'A opened the dock\'s stage').toHaveCount(1, {timeout: 10_000});
       await settle(page, {timeoutMs: 15_000});
       await expect(page.locator(`.con-fleetdock[data-fleet-dock-stage="${LINER}"]`), 'it is the liner\'s').toHaveCount(1);
-      expect(await page.locator('.con-ws').count(), 'one workspace — the stage is inside it').toBe(1);
+      await expect.poll(() => page.locator('.con-ws').count(), {message: 'one workspace — the stage is inside it'}).toBe(1);
       const crumb = ((await page.locator('.con-colonies .con-wshead').textContent()) ?? '').replace(/\s+/g, ' ').toUpperCase();
       expect(crumb, `the crumb reads «КОЛОНИИ › ЛАЙНЕР UNMI › ТОРГОВЛЯ» — got «${crumb}»`).toMatch(/КОЛОНИИ.*ЛАЙНЕР UNMI.*ТОРГОВЛЯ/);
       await expect.poll(() => page.locator('.con-fleetdock').getAttribute('data-fleet-dock-category'), {message: 'the reward\'s category is read off the server\'s preview', timeout: 10_000}).toBe('rail');
@@ -369,7 +369,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-fleetdock [data-forecast-layer] .con-efx--forecast'), 'the effects explorer in its forecast mode').toHaveCount(1);
       await expect(page.locator('.con-colonies .con-wshead'), 'the crumb gains «· ЭФФЕКТЫ»').toContainText(/ЭФФЕКТЫ/i);
       await expect(page.locator('.con-fleetdock [data-forecast-layer] [data-forecast-group="receive"]'), 'the Greens\' 2 M€ stand as a tile of «Вы получите»').toHaveCount(1);
-      expect(await page.locator('.con-fleetdock [data-forecast-browse] .con-colfocus__payrow').count(), 'the work column is PARKED under the layer, never unmounted').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-fleetdock [data-forecast-browse] .con-colfocus__payrow').count(), {message: 'the work column is PARKED under the layer, never unmounted'}).toBeGreaterThan(0);
       await settle(page, {timeoutMs: 15_000});
       await shoot(page, preset.id, '02b-liner-effects-layer');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-fleetdock [data-forecast-layer]').count() === 0, {tries: 3, settleMs: 1100}),
@@ -466,7 +466,7 @@ for (const preset of PRESETS) {
       expect(after.thisPlayer.tableau.find((c) => c.name === LINER)?.fleetDocked, 'the fleet stands on the liner').toBe(blue);
       expect(after.thisPlayer.tableau.find((c) => c.name === HAULING)?.fleetDocked, 'the other dock is untouched').toBeUndefined();
       expect(after.game.colonies.filter((c) => c.visitor === blue), 'no colony was visited').toEqual([]);
-      expect(await page.locator('.con-ws').count(), 'no workspace').toBe(0);
+      await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace'}).toBe(0);
       expect(samples.some((s) => s.stranded), 'nothing stranded on the way').toBe(false);
 
       // ── 6. The colonies again: the liner holds its fleet, «Перевозка воды» is free — and plays TR06's scene.
@@ -511,7 +511,7 @@ for (const preset of PRESETS) {
       // ── 5 (the whole journey). The board, quiet.
       await settle(page, {timeoutMs: 20_000});
       await shoot(page, preset.id, '05-board-after-both');
-      expect(await page.locator('.con-ws').count(), 'no workspace').toBe(0);
+      await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace'}).toBe(0);
       expect(await strandedReports(page), 'no prompt was stranded').toEqual([]);
       expect(overflow, `no [console-overflow] — ${overflow.join(' | ')}`).toEqual([]);
       expect(errors, `no page error — ${errors.join(' | ')}`).toEqual([]);

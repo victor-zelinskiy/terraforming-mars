@@ -142,7 +142,7 @@ test.describe('the sealed place in the ledger — Pluto\'s two pairs are one tab
       console.log('── sealed-ledger stall trail ──', JSON.stringify(trail));
       throw e;
     }
-    expect(await page.locator(`${zone} .con-reveal[data-settlement-table]`).getAttribute('data-settlement-table'), 'ONE table instance').toBe(nonce);
+    await expect.poll(() => page.locator(`${zone} .con-reveal[data-settlement-table]`).getAttribute('data-settlement-table'), {message: 'ONE table instance'}).toBe(nonce);
     await expect(page.locator(place(1)), 'place 1 is done').toHaveAttribute('data-settlement-paint', 'done');
     await cinematicBeat(page, 1000, 'the turned card settles');
     await shoot(page, 'C3-pair2-turned');

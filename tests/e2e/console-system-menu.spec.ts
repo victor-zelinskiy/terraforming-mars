@@ -95,7 +95,7 @@ async function openSystemMenu(page: Page): Promise<void> {
       return;
     }
   }
-  expect(await page.locator('.con-sys--menu').count(), 'the system overlay never opened').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-sys--menu').count(), {message: 'the system overlay never opened'}).toBeGreaterThan(0);
 }
 
 test.describe('the in-game system overlay + its settings console', () => {

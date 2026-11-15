@@ -131,7 +131,7 @@ for (const profile of PROFILES) {
       for (let hop = 0; hop < 6 && await slots.count() < 4; hop++) {
         await key(page, 'Period', 1400);
       }
-      expect(await slots.count(), 'the project-buy step is on screen').toBeGreaterThanOrEqual(4);
+      await expect.poll(() => slots.count(), {message: 'the project-buy step is on screen'}).toBeGreaterThanOrEqual(4);
 
       // ── X → the shared fullscreen viewer. Retried: an X landing before the
       //    freshly-mounted step accepts input is silently dropped. ─────────
@@ -147,9 +147,9 @@ for (const profile of PROFILES) {
       const firstText = (await page.locator('.card-zoom-lore__text').innerText()).trim();
       expect(firstText.length, 'the archive entry has text').toBeGreaterThan(0);
       expect(firstText).not.toContain('Архивная запись отсутствует');
-      expect(await page.locator('.card-zoom-lore--fallback').count(), 'no fallback for an in-scope card').toBe(0);
+      await expect.poll(() => page.locator('.card-zoom-lore--fallback').count(), {message: 'no fallback for an in-scope card'}).toBe(0);
       // Both decorative marks, and they contribute no text of their own.
-      expect(await page.locator('.card-zoom-lore__mark').count()).toBe(2);
+      await expect.poll(() => page.locator('.card-zoom-lore__mark').count()).toBe(2);
       await shoot(page, `${profile.tag}-01-archive-entry`);
 
       // 2. STRICT CENTRING: the card sits on the viewport centre line, with the

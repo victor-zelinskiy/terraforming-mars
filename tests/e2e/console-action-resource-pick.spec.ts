@@ -161,14 +161,13 @@ for (const profile of PROFILES) {
       // ── 1. PREMIUM LANGUAGE: every option carries the shared effect chip
       //       (icon + current → resulting), never a bare word. ─────────────
       const rows = optionRows(page);
-      expect(await rows.count(), 'six standard resources').toBe(6);
+      await expect.poll(() => rows.count(), {message: 'six standard resources'}).toBe(6);
       const withChips = await page.locator('.con-composer__sublist .con-vchoice__opt .action-effect-chip').count();
       expect(withChips, 'every option renders its own ActionEffectChip').toBeGreaterThanOrEqual(6);
       const chipText = await page.locator('.con-composer__sublist .con-vchoice__opt').first().innerText();
       expect(chipText, `the first option must state a before→after: «${chipText}»`).toMatch(/\d+\s*→\s*\d+/);
       // Every tile leads with a real resource sprite (the hero), not a text fallback.
-      expect(await page.locator('.con-composer__sublist .con-vchoice__opt .con-vchoice__heroicon.resource_icon').count())
-        .toBeGreaterThanOrEqual(6);
+      await expect.poll(() => page.locator('.con-composer__sublist .con-vchoice__opt .con-vchoice__heroicon.resource_icon').count()).toBeGreaterThanOrEqual(6);
 
       // ── THE PALETTE (TR54): one row of six equal tiles, the hero louder than the chip, the «?» on the kicker, no
       //    medallion, ←→ along the row. ──
@@ -224,8 +223,7 @@ for (const profile of PROFILES) {
 
       // ── 3. NO standalone band. The task host may only appear EMBEDDED. ──
       const standalone = page.locator('.con-task-host.con-ws');
-      expect(await standalone.count(),
-        'a follow-up band after the confirm is the regression this spec exists for').toBe(0);
+      await expect.poll(() => standalone.count(), {message: 'a follow-up band after the confirm is the regression this spec exists for'}).toBe(0);
       await shoot(page, `${profile.tag}-3-after-commit`);
 
       // ── 4. The promised resource actually landed on the rail. ───────────

@@ -110,8 +110,8 @@ test.describe(`«Сработает» in the Hydronetwork · ${PRESET.id}`, () =
     await expect(page.locator('.con-hydro .con-wshead'), 'the crumb gains «ЭФФЕКТЫ»').toContainText(/ЭФФЕКТЫ/i);
     await expect(page.locator('.con-hydro [data-forecast-layer] [data-forecast-group="receive"]'), 'the Greens stand in «Вы получите»').toHaveCount(1);
     await expect(page.locator('.con-hydro__panel--fxopen'), 'the plan\'s columns PARK under the layer').toHaveCount(1);
-    expect(await page.locator('.con-hydro .con-hydro__flow').count(), 'the track column is parked, not gone').toBe(1);
-    expect(await page.locator('.con-hydro__layer--choice').count(), 'the choice step is parked under the layer, not gone').toBe(1);
+    await expect.poll(() => page.locator('.con-hydro .con-hydro__flow').count(), {message: 'the track column is parked, not gone'}).toBe(1);
+    await expect.poll(() => page.locator('.con-hydro__layer--choice').count(), {message: 'the choice step is parked under the layer, not gone'}).toBe(1);
     await shoot(page, '03-layer');
     expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-hydro [data-forecast-layer]').count() === 0, {tries: 3, settleMs: 1100}),
       'B folds the layer').toBeTruthy();

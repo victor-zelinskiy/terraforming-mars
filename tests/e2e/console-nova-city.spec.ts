@@ -516,7 +516,7 @@ for (const preset of PRESETS) {
       await openColoniesSection(redGrid);
       await settle(redGrid, {timeoutMs: 20_000});
       const redBoard = await openRed();
-      expect(await redBoard.locator('.con-colonies').count(), 'red\'s second tab stands on the board').toBe(0);
+      await expect.poll(() => redBoard.locator('.con-colonies').count(), {message: 'red\'s second tab stands on the board'}).toBe(0);
       await page.bringToFront();
 
       // ── 1. the composer: the door's verb, the named step, the VP projection, the trigger ──
@@ -794,7 +794,7 @@ for (const preset of PRESETS) {
       expect(board.proxyMax, 'on the Mars board no city proxy is ever mounted').toBe(0);
       expect(board.boardProxyMax, '…and no tile flies onto the board').toBe(0);
       expect(board.beats, '…no scene played').toEqual([]);
-      expect(await redBoard.locator(`.board-space[data_space_id="${HOSTED_CELL}"]`).count(), 'the hosted cell is not drawn on the Mars board').toBe(0);
+      await expect.poll(() => redBoard.locator(`.board-space[data_space_id="${HOSTED_CELL}"]`).count(), {message: 'the hosted cell is not drawn on the Mars board'}).toBe(0);
       const ready = await redBoard.evaluate(() => {
         const probe = (window as unknown as {__conReady?: () => {holds?: Array<string>}}).__conReady;
         return typeof probe === 'function' ? probe().holds ?? [] : undefined;

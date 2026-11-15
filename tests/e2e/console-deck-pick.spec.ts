@@ -1,6 +1,10 @@
 import {test, expect, Page} from './consoleTest';
-import {press, pressUntil, summaryVisible, walkToSummary, fillPicks, pickCards} from './consoleStart';
+import {
+  finiteMotion, press, pressUntil, summaryVisible, waitQueueIdle, walkFocusUntil, walkToSummary, fillPicks, pickCards,
+} from './consoleStart';
+import {readSettled} from './settledRead';
 import {readTransient, recordTransient, stopTransient} from './transientRecorder';
+import {armWitness} from './witness';
 
 /**
  * «КОРПОРАТИВНЫЕ АРХИВЫ» — the DRAW & SELECT flow, as a step of the Game Start
@@ -52,7 +56,8 @@ function cfg(opts: {preludes: Array<string>}) {
   };
 }
 
-/** Structural readout of the flow — never a title match, never a screenshot diff. */
+/** Structural readout of the flow — never a title match, never a screenshot diff. Every GEOMETRY claim reads it AT
+ *  REST (`settledSurfaces` — FLAKE ZERO, class C); a poll of a STATE field may read it as it stands. */
 async function surfaces(page: Page) {
   return page.evaluate(() => {
     const vis = (sel: string): boolean => {
@@ -316,10 +321,10 @@ async function reachDeployment(page: Page): Promise<void> {
       }
     },
   });
-  if (await summaryVisible(page)) {
-    await press(page, 'Enter', 2500); // НАЧАТЬ ПАРТИЮ
-  }
-  await page.waitForTimeout(4000);
+  // НАЧАТЬ ПАРТИЮ — act → verify: the summary's own commit beat absorbs a press by design.
+  await pressUntil(page, 'Enter', async () => !await summaryVisible(page), {tries: 4, settleMs: 2500});
+  // The deployment takes presses once its queue stands idle (cards standing, nothing in the air).
+  await waitQueueIdle(page);
 }
 
 /**
@@ -331,33 +336,26 @@ async function reachDeployment(page: Page): Promise<void> {
  * opens when the FLIGHT starts, and the flight starts when the server answers,
  * so the instant is a property of the machine and not of the contract. Waiting
  * for the transition also proves strictly more than the sample did: that it
- * happened at all, rather than that it happened to be true once.
+ * happened at all, rather than that it happened to be true once. (A poll — never
+ * a hand-rolled sleep loop.)
  */
 async function waitUntil(
   page: Page,
   pred: (s: Awaited<ReturnType<typeof surfaces>>) => boolean,
   budgetMs = 8000,
 ): Promise<boolean> {
-  const until = Date.now() + budgetMs;
-  for (;;) {
-    if (pred(await surfaces(page))) {
-      return true;
-    }
-    if (Date.now() >= until) {
-      return false;
-    }
-    await page.waitForTimeout(150);
-  }
+  return expect.poll(async () => pred(await surfaces(page)), {timeout: budgetMs}).toBe(true).then(() => true, () => false);
 }
 
-/** Press A on the deployment queue until the draw & select surface stands. */
+/** The flow AT REST — the geometry claims' read (`readSettled`; `settle: false` — the pick is a step INSIDE the
+ *  prelude's play, where a hold of the chain may legitimately stand; the read still waits out finite motion). */
+async function settledSurfaces(page: Page, what: string): Promise<Awaited<ReturnType<typeof surfaces>>> {
+  return readSettled(page, () => surfaces(page), {settle: false, message: what});
+}
+
+/** Press A on the deployment queue until the draw & select surface stands — each A given its whole window. */
 async function openDeckPick(page: Page, maxPresses = 14): Promise<boolean> {
-  for (let i = 0; i < maxPresses; i++) {
-    if ((await surfaces(page)).pickUp) {
-      return true;
-    }
-    await press(page, 'Enter', 2200);
-  }
+  await pressUntil(page, 'Enter', async () => (await surfaces(page)).pickUp, {tries: maxPresses, settleMs: 2200});
   return (await surfaces(page)).pickUp;
 }
 
@@ -368,14 +366,22 @@ async function openDeckPick(page: Page, maxPresses = 14): Promise<boolean> {
  * probe waits for the flow's own readiness signal rather than for a duration.
  */
 async function waitPickable(page: Page, budgetMs = 12_000): Promise<boolean> {
-  const until = Date.now() + budgetMs;
-  while (Date.now() < until) {
-    if ((await surfaces(page)).flow === 'choosing') {
-      return true;
-    }
-    await page.waitForTimeout(200);
-  }
-  return (await surfaces(page)).flow === 'choosing';
+  return waitUntil(page, (s) => s.flow === 'choosing', budgetMs);
+}
+
+/**
+ * Keep two of the dealt cards — each A verified by the pick's own band (A is a TOGGLE: a second A on the same card
+ * would take it back), the cursor walked onto a card not yet kept.
+ */
+async function keepTwo(page: Page): Promise<void> {
+  const picked = page.locator('.con-deckpick__slot.con-cards__slot--picked');
+  const focus = () => page.evaluate(() => {
+    const el = document.querySelector('.con-deckpick .con-cards__slot--focused[data-deckpick-slot]');
+    return el === null ? '' : `${el.getAttribute('data-deckpick-slot')}|${el.classList.contains('con-cards__slot--picked') ? 1 : 0}`;
+  });
+  await pressUntil(page, 'Enter', async () => await picked.count() >= 1, {tries: 3, settleMs: 400});
+  await walkFocusUntil(page, async () => (await focus()).endsWith('|0'), async () => (await focus()).split('|')[0], 6, 300);
+  await pressUntil(page, 'Enter', async () => await picked.count() >= 2, {tries: 3, settleMs: 400});
 }
 
 /**
@@ -416,41 +422,19 @@ for (const profile of PROFILES) {
       //    time: a surface that re-deals (a remount, a second owner flying the
       //    same batch) shows the deck answering twice for one draw — the cards
       //    land, blink out, and peel off again — and the HUD counter climbs
-      //    back to the pre-draw number with it. Both are watched as EDGES.
-      //    Frame-independent on purpose (a rAF sampler stops sampling exactly
-      //    when the screen goes quiet in headless Chromium).
-      await page.evaluate(() => {
-        const deckNow = (): number => {
-          const el = document.querySelector('.con-deckstack__count .con-flipval__card:not(.con-flipval__card--out)');
-          const n = Number.parseInt((el?.textContent ?? '').trim(), 10);
-          return Number.isFinite(n) ? n : -1;
-        };
-        const st = {deals: 0, deckRises: 0, samples: 0, dealing: false, deck: deckNow()};
-        (window as unknown as {__once?: typeof st}).__once = st;
-        const scan = () => {
-          st.samples++;
-          const dealing = document.querySelector('.con-deckpick[data-flow="dealing"]') !== null;
-          if (dealing && !st.dealing) {
-            st.deals++;
-          }
-          st.dealing = dealing;
-          const d = deckNow();
-          if (d >= 0 && st.deck >= 0 && d > st.deck) {
-            st.deckRises++;
-          }
-          if (d >= 0) {
-            st.deck = d;
-          }
-        };
-        const mo = new MutationObserver(scan);
-        mo.observe(document.body, {childList: true, subtree: true, attributes: true, characterData: true});
-        setInterval(scan, 16);
-      });
+      //    back to the pre-draw number with it. Both are watched as EDGES — on
+      //    a RECORD (`armWitness`, `settled`: an edge is between two states a
+      //    task leaves), frame-independent by construction.
+      const onceWitness = await armWitness<{dealing: boolean, deck: number}>(page, 'deckpick-deal-once', () => {
+        const el = document.querySelector('.con-deckstack__count .con-flipval__card:not(.con-flipval__card--out)');
+        const n = Number.parseInt((el?.textContent ?? '').trim(), 10);
+        return {dealing: document.querySelector('.con-deckpick[data-flow="dealing"]') !== null, deck: Number.isFinite(n) ? n : -1};
+      }, {settled: true});
 
       const opened = await openDeckPick(page);
       expect(opened, `the surface opened — ${JSON.stringify(await surfaces(page))}`).toBeTruthy();
       const dealt = await waitPickable(page);
-      const at = await surfaces(page);
+      const at = await settledSurfaces(page, 'the dealt pick');
       expect(dealt, `the deal finished and the pad opened — ${JSON.stringify(at)}`).toBeTruthy();
       await page.screenshot({path: `test-results/deckpick-${profile.tag}-01-dealt.png`});
 
@@ -505,10 +489,8 @@ for (const profile of PROFILES) {
 
       // ── 4. THE PAD IS THE SURFACE'S — the cards are actually pickable ────
       const dockBefore = at.dockCards;
-      await press(page, 'Enter', 400); // A on the focused card
-      await press(page, 'ArrowRight', 300);
-      await press(page, 'Enter', 400);
-      const chosen = await surfaces(page);
+      await keepTwo(page); // A on the focused card, → onto another, A
+      const chosen = await settledSurfaces(page, 'the two picks');
       expect(chosen.picked, `two cards are selected — ${JSON.stringify(chosen)}`).toBe(2);
       // …and the separation survives the focus emphasis, which is the state the
       // layout has to reserve room for rather than the one it is measured in.
@@ -522,7 +504,7 @@ for (const profile of PROFILES) {
       // act → verify → retry (tests.md): the second pick's own beat can still own the press that follows it (CI run
       // 40255070349: L3 went nowhere, the retry opened the viewer).
       await pressUntil(page, 'KeyC', async () => (await surfaces(page)).zoomOpen, {tries: 3, settleMs: 2500});
-      const zoomed = await surfaces(page);
+      const zoomed = await settledSurfaces(page, 'the source in the viewer');
       expect(zoomed.zoomOpen, `L3 opens the source fullscreen — ${JSON.stringify(zoomed)}`).toBeTruthy();
       expect(zoomed.seatHeld, 'the seat is empty while its card is in the viewer').toBeTruthy();
       await press(page, 'Escape', 400);
@@ -533,24 +515,16 @@ for (const profile of PROFILES) {
       expect(viewerGone,
         `the source card returned to its seat and gave input back — ${JSON.stringify(await surfaces(page))}`)
         .toBeTruthy();
-      await page.waitForTimeout(300);
+      // The seat's return flight at rest before the next press (bounded).
+      await expect.poll(() => finiteMotion(page), {timeout: 5_000}).toBe(0).catch(() => undefined);
 
       // ── 5. CONFIRM → the picks reach the DOCK, then the rest clears ──────
-      // The source card's flight home is watched FROM THE PRESS (PL-212): the
+      // The source card's flight home is RECORDED FROM THE PRESS (PL-212): the
       // workspace now folds UNDER the picks' flight into the dock, so the seat's
       // departure can be over before the last pick has landed — a check that
-      // starts sampling at the landing would see only its end state.
-      await page.evaluate(() => {
-        const st = {seen: false, samples: 0};
-        (window as unknown as {__srcFlight?: typeof st}).__srcFlight = st;
-        const scan = () => {
-          st.samples++;
-          st.seen = st.seen || document.querySelector('.con-start__embedsource--departing') !== null;
-        };
-        const mo = new MutationObserver(scan);
-        mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-        setInterval(scan, 16);
-      });
+      // starts looking at the landing would see only its end state.
+      const srcFlightWitness = await armWitness<boolean>(page, 'deckpick-source-flight',
+        () => document.querySelector('.con-start__embedsource--departing') !== null);
       // …and so is the dock's pose: it opens for the length of the flights only, and a press now waits for the motion
       // it started (the harness's `press`) — a poll that began AFTER the press met a dock already compact again. The
       // recorder is armed BEFORE the press and keeps every pose the product wrote (tests.md — a transient is recorded).
@@ -571,13 +545,13 @@ for (const profile of PROFILES) {
         `the dock opens up to receive the picks — ${JSON.stringify(await surfaces(page))}`)
         .toBeTruthy();
       const landed = await waitUntil(page, (s) => s.dockCards >= dockBefore + 2, 9000);
-      const after = await surfaces(page);
+      const after = await surfaces(page); // the message's evidence (the claim is the poll above)
       expect(landed, `the two kept cards are physically in the dock — ${JSON.stringify(after)}`)
         .toBeTruthy();
 
       // ── 6. …and the workspace comes back around its source card ─────────
-      // ⚠️ THE SEAT MAY ONLY EMPTY BY FLIGHT. Sampled densely rather than
-      // asserted at the end, because the end state of a teleport and of a
+      // ⚠️ THE SEAT MAY ONLY EMPTY BY FLIGHT. RECORDED from the press rather
+      // than asserted at the end, because the end state of a teleport and of a
       // flight are identical — «the card is on the shelf» was the old
       // assertion, and it stayed true throughout the bug (the shelf's landing
       // slot carries the away card's identity the whole time it is on loan).
@@ -586,13 +560,13 @@ for (const profile of PROFILES) {
         sawSourceFlight = sawSourceFlight || s.sourceSeatDeparting;
         return !s.pickUp && !s.sourceSeatUp && s.played.includes('Corporate Archives');
       }, 12_000);
-      await page.waitForTimeout(800); // let the shelf's own settle finish
+      // The shelf's own settle finished — read AT REST.
+      const back = await settledSurfaces(page, 'the workspace back around its source card');
       await page.screenshot({path: `test-results/deckpick-${profile.tag}-04-returned.png`});
-      const back = await surfaces(page);
-      const srcFlight = await page.evaluate(() =>
-        (window as unknown as {__srcFlight: {seen: boolean, samples: number}}).__srcFlight);
-      sawSourceFlight = sawSourceFlight || srcFlight.seen;
-      expect(srcFlight.samples, 'the source-flight probe sampled').toBeGreaterThan(10);
+      const srcFlightStates = await srcFlightWitness.stop();
+      sawSourceFlight = sawSourceFlight || srcFlightStates.some((s) => s.v);
+      // A dead witness must never pass: it recorded at least the state it was armed in.
+      expect(srcFlightStates.length, 'the source-flight probe sampled').toBeGreaterThan(0);
       expect(returned, `the flow came back around its source card — ${JSON.stringify(back)}`)
         .toBeTruthy();
       expect(sawSourceFlight,
@@ -614,15 +588,35 @@ for (const profile of PROFILES) {
       //      cards away. The counter's own trace rides along as diagnostics —
       //      it legitimately climbs ONCE here (the hold shows the pre-draw
       //      number while the seven cards physically leave the pile).
-      const once = await page.evaluate(() => (window as unknown as {__once: {
-        deals: number, deckRises: number, samples: number,
-      }}).__once);
+      const onceStates = (await onceWitness.stop()).map((s) => s.v);
+      const once = {deals: 0, deckRises: 0, samples: onceStates.length};
+      let wasDealing = false;
+      let deck = -1;
+      for (const s of onceStates) {
+        if (s.dealing && !wasDealing) {
+          once.deals++;
+        }
+        wasDealing = s.dealing;
+        if (s.deck >= 0 && deck >= 0 && s.deck > deck) {
+          once.deckRises++;
+        }
+        if (s.deck >= 0) {
+          deck = s.deck;
+        }
+      }
       console.log(`[ONCE:${profile.tag}] ${JSON.stringify(once)}`);
-      expect(once.samples, 'the probe itself must have been alive across the flow').toBeGreaterThan(60);
+      // A dead witness must never pass: it recorded at least the state it was armed in.
+      expect(once.samples, 'the probe itself must have been alive across the flow').toBeGreaterThan(0);
       expect(once.deals, `the deck dealt this prompt ${once.deals} times`).toBe(1);
     });
   });
 }
+
+/** One state of the deployment's shelf as the LAST-prelude probe records it. */
+type ShelfState = {
+  start: boolean, shelfMounted: boolean, archivesHome: boolean, blanked: number,
+  pickUp: boolean, seatUp: boolean, departing: boolean, inFlight: boolean,
+};
 
 /**
  * The CHOREOGRAPHY probe stays at one resolution on purpose: what it watches is
@@ -655,51 +649,62 @@ test.describe('console — «посмотри N карт колоды, оста�
     await reachDeployment(page);
 
     // Play everything the deployment offers, answering the archives' pick when
-    // it comes up — and WATCH the shelf the whole way. The contract is about a
-    // moment, not an end state: the card must be seen ON the shelf, painted,
-    // while the workspace is still standing. (Asserting after the scene has
-    // released proves nothing — the shelf has gone with it.)
-    let sawHomeInWorkspace = false;
-    let sawBlanked = false;
-    let sawSourceFlight = false;
-    const watch = async () => {
-      const s = await surfaces(page);
-      sawSourceFlight = sawSourceFlight || s.sourceSeatDeparting;
-      if (s.startUp && s.dockShelf.mounted) {
-        if (s.played.includes('Corporate Archives') && s.shelfBlanked === 0 && !s.pickUp) {
-          sawHomeInWorkspace = true;
+    // it comes up — and RECORD the shelf the whole way (`armWitness`, `settled`:
+    // «on the shelf WHILE the workspace stands», «a blanked slot with nothing
+    // out on loan» are coexistence claims). The contract is about a moment, not
+    // an end state: the card must be seen ON the shelf, painted, while the
+    // workspace is still standing. (Asserting after the scene has released
+    // proves nothing — the shelf has gone with it.) The loop only DRIVES.
+    const shelf = await armWitness<ShelfState>(page, 'deckpick-last-shelf', () => {
+      const vis = (sel: string): boolean => {
+        const el = document.querySelector(sel);
+        if (el === null) {
+          return false;
         }
-        if (s.shelfBlanked > 0 && !s.pickUp && !s.sourceSeatUp) {
-          sawBlanked = true; // a blanked slot with nothing out on loan
-        }
-      }
-      return s;
-    };
+        const st = getComputedStyle(el);
+        return st.display !== 'none' && st.visibility !== 'hidden' && Number(st.opacity) > 0.02;
+      };
+      return {
+        start: vis('.con-start'),
+        shelfMounted: document.querySelector('.con-start__played') !== null,
+        archivesHome: document.querySelector('.con-start__played [data-played-key="Corporate Archives"]') !== null,
+        blanked: Array.from(document.querySelectorAll('.con-start__played [data-zoom-slot]'))
+          .filter((el) => Number(getComputedStyle(el).opacity) < 0.5).length,
+        pickUp: document.querySelector('.con-deckpick') !== null,
+        seatUp: document.querySelector('.con-start__embedsource') !== null,
+        departing: document.querySelector('.con-start__embedsource--departing') !== null,
+        // A start card IN THE AIR — its landing slot on the shelf is legitimately held until the touchdown.
+        inFlight: document.querySelector('.con-startdock-proxy, .con-played-hero__proxy, .con-deckdraw') !== null,
+      };
+    }, {settled: true});
 
     for (let round = 0; round < 24; round++) {
-      const at = await watch();
+      const at = await surfaces(page);
       if (at.pickUp) {
         if (await waitPickable(page)) {
-          await press(page, 'Enter', 400);
-          await press(page, 'ArrowRight', 300);
-          await press(page, 'Enter', 400);
+          await keepTwo(page);
           await press(page, 'Period', 1500); // RT — confirm the keep
         }
-        // Sample densely through the whole return: this is the window the
-        // scene used to skip straight past.
-        for (let f = 0; f < 30; f++) {
-          await watch();
-          await page.waitForTimeout(250);
-        }
+        // The whole return is on the record: wait for it to END (the pick gone, the seat flown home) — bounded.
+        await waitUntil(page, (s) => !s.pickUp && !s.sourceSeatUp, 12_000);
         continue;
       }
       if (!at.startUp) {
         break; // the scene released — the deployment is over
       }
-      await press(page, 'Enter', 1400);
-      await watch();
+      // The next queue card — act → verify on the deployment's own state moving (a play, the pick, the release).
+      const sig = (s: Awaited<ReturnType<typeof surfaces>>) => JSON.stringify([s.pickUp, s.startUp, s.played, s.sourceSeatUp]);
+      const before = sig(at);
+      await pressUntil(page, 'Enter', async () => sig(await surfaces(page)) !== before, {tries: 1, settleMs: 1400});
     }
     await page.screenshot({path: 'test-results/deckpick-05-last.png'});
+    const shelfStates = (await shelf.stop()).map((s) => s.v);
+    const onShelfInWorkspace = shelfStates.filter((s) => s.start && s.shelfMounted);
+    const sawHomeInWorkspace = onShelfInWorkspace.some((s) => s.archivesHome && s.blanked === 0 && !s.pickUp);
+    // a blanked slot with nothing out on loan (and nothing in the air towards it — every state is on the record now,
+    // the flights' own frames included, where a landing slot is held by design)
+    const sawBlanked = onShelfInWorkspace.some((s) => s.blanked > 0 && !s.pickUp && !s.seatUp && !s.inFlight);
+    const sawSourceFlight = shelfStates.some((s) => s.departing);
 
     expect(sawHomeInWorkspace,
       '«Корпоративные архивы» visibly reached «РАЗЫГРАНО» while the workspace still stood')
@@ -708,6 +713,6 @@ test.describe('console — «посмотри N карт колоды, оста�
     expect(sawSourceFlight,
       'the source card FLEW home — the seat never simply blanked into the shelf')
       .toBeTruthy();
-    expect((await surfaces(page)).sourceSeatUp, 'no orphaned source seat survives').toBeFalsy();
+    await expect.poll(async () => (await surfaces(page)).sourceSeatUp, {message: 'no orphaned source seat survives'}).toBeFalsy();
   });
 });

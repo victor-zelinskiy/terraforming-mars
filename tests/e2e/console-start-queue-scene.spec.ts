@@ -2,9 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  createGameWithCards, fetchPlayerModel, focusCard, openConsole, pickCards, playQueueCard, press, sendPlayerInput, settle,
-  soloGameConfig, submitSummary, waitQueueIdle, walkToSummary,
+  createGameWithCards, fetchPlayerModel, fillPicks, focusCard, openConsole, pickCards, playQueueCard, press, sendPlayerInput,
+  settle, soloGameConfig, submitSummary, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * THE WITNESS OF «СТАРТ ПАРТИИ › ПРОЛОГИ › РОЗЫГРЫШ» — THE DEPLOYMENT AT ONE GLANCE (TRP0 · DE, 2026-10-31). The first
@@ -52,11 +54,9 @@ async function bootDeployment(page: Page, request: APIRequestContext, preset: Pr
         expect(await pickCards(p, [CORP]), 'the corporation was picked').toContain(CORP);
       } else if (kind === 'prelude') {
         expect(await pickCards(p, preludes), 'both preludes were picked').toEqual(expect.arrayContaining(preludes));
-      } else if (kind === 'project') {
-        for (let i = 0; i < buy; i++) {
-          await press(p, 'Enter', 500);
-          await press(p, 'ArrowRight', 300);
-        }
+      } else if (kind === 'project' && buy > 0) {
+        // Every pick verified on the step's own slots (act → verify), never a blind «A, →» series.
+        await fillPicks(p, buy);
       }
     },
   });
@@ -95,11 +95,24 @@ const sceneRead = (page: Page) => page.evaluate(() => {
   return {queue: rect(queue), ceremony: rect(ceremony), cards, shelf, rings, caps};
 });
 
+/**
+ * THE SCENE AT REST (FLAKE ZERO, class C): `settle`, then the same scene twice in a row a frame apart — a box read once
+ * is wherever the machine had got to (the hero's scale, a landing in its socket), and the witness COMPARES scenes, so
+ * every side of a comparison comes through here.
+ */
+async function settledScene(page: Page, what: string): Promise<Awaited<ReturnType<typeof sceneRead>>> {
+  return readSettled(page, () => sceneRead(page), {message: what});
+}
+
+/** What a d-pad walk must never move (в), read IN THE PAGE for the walk's witness: every card's reading line (null when
+ *  the card wears none) and every shelf box. */
+type StillParts = {lines: Record<string, Rect | null>, shelf: Array<Rect>};
+
 const near = (a: Rect, b: Rect) => Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1 && Math.abs(a.w - b.w) <= 1 && Math.abs(a.h - b.h) <= 1;
 
 /** (а) (б) (г) (д) (е) on the scene as it stands. */
 async function judge(page: Page, preset: Preset, label: string): Promise<void> {
-  const s = await sceneRead(page);
+  const s = await settledScene(page, label);
   expect(s.queue, `${label}: the queue stands`).toBeDefined();
   const queueH = s.queue!.h;
   const rest = s.cards.filter((c) => !c.focused);
@@ -127,21 +140,46 @@ async function judge(page: Page, preset: Preset, label: string): Promise<void> {
   expect(s.caps.filter((c) => /\b0$/.test(c)), `${label} (д): no «0» on the shelf`).toEqual([]);
 }
 
-/** (в) — a d-pad walk moves only the cards' kant and scale: every line and every shelf box stands still. */
+/**
+ * (в) — a d-pad walk moves only the cards' kant and scale: every line and every shelf box stands still.
+ *
+ * MID-WALK is a claim about the frames of the walk, so the parts are RECORDED from before the press (`armWitness`,
+ * `settled` — the state a task leaves, the one a frame can paint), never sampled once a beat after it, which read
+ * wherever the machine had got to; the walk's end is judged again at rest.
+ */
 async function walkKeepsStill(page: Page, label: string): Promise<void> {
-  const before = await sceneRead(page);
-  for (const key of ['ArrowRight', 'ArrowLeft']) {
-    await press(page, key, 150);
-    const mid = await sceneRead(page);
-    await settle(page);
-    const after = await sceneRead(page);
-    for (const s of [mid, after]) {
-      for (const c of s.cards) {
-        const was = before.cards.find((b) => b.name === c.name);
-        expect(near(was!.reading!.rect, c.reading!.rect), `${label} (в): ${c.name}'s line moved ${JSON.stringify(was!.reading!.rect)} → ${JSON.stringify(c.reading!.rect)} on ${key}`).toBe(true);
-      }
-      s.shelf.forEach((r, i) => expect(near(before.shelf[i], r), `${label} (в): shelf box ${i} moved on ${key}`).toBe(true));
+  const before = await settledScene(page, `${label}: before the walk`);
+  const lineBefore = (name: string) => before.cards.find((b) => b.name === name)?.reading?.rect;
+  const judgeStill = (s: StillParts, key: string, when: string) => {
+    for (const [name, line] of Object.entries(s.lines)) {
+      const was = lineBefore(name);
+      expect(was !== undefined && line !== null && near(was, line),
+        `${label} (в): ${name}'s line moved ${JSON.stringify(was)} → ${JSON.stringify(line)} on ${key} (${when})`).toBe(true);
     }
+    s.shelf.forEach((r, i) => expect(near(before.shelf[i], r), `${label} (в): shelf box ${i} moved on ${key} (${when})`).toBe(true));
+  };
+  for (const key of ['ArrowRight', 'ArrowLeft']) {
+    const walk = await armWitness<StillParts>(page, 'queue-walk-still', () => {
+      const rect = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
+      };
+      const lines: Record<string, {x: number, y: number, w: number, h: number} | null> = {};
+      for (const card of Array.from(document.querySelectorAll('.con-start__qcard'))) {
+        const line = card.querySelector('[data-qcard-reading]');
+        lines[card.getAttribute('data-queue-slot') ?? ''] = line === null ? null : rect(line);
+      }
+      return {lines, shelf: Array.from(document.querySelectorAll('.con-splayed__top')).map(rect)};
+    }, {settled: true});
+    await press(page, key, 150);
+    const after = await settledScene(page, `${label}: after ${key}`);
+    for (const s of await walk.stop().then((samples) => samples.map((x) => x.v))) {
+      judgeStill(s, key, 'mid-walk');
+    }
+    judgeStill({
+      lines: Object.fromEntries(after.cards.map((c) => [c.name, c.reading?.rect ?? null])),
+      shelf: after.shelf,
+    }, key, 'at rest');
   }
 }
 
@@ -175,16 +213,16 @@ for (const preset of PRESETS) {
       expect(await focusCard(page, 'Mohole'), 'the cursor reached Mohole').toBe(true);
       await settle(page);
       await judge(page, preset, 'two preludes');
-      const two = await sceneRead(page);
+      const two = await settledScene(page, 'two preludes');
       expect(two.cards.find((c) => c.name === 'Mohole')?.reading?.verdict, 'a playable prelude reads «Можно разыграть»').toBe('playable');
       await walkKeepsStill(page, 'two preludes');
       await shoot(page, preset, 'a1-two-preludes');
       // (ж) — the prelude socket before the play IS the landing.
-      const socket = (await sceneRead(page)).shelf;
+      const socket = (await settledScene(page, '(ж): the socket before the play')).shelf;
       expect(await playQueueCard(page, 'Mohole'), 'the prelude was played').toBe(true);
       await waitQueueIdle(page);
       await settle(page, {timeoutMs: 30_000});
-      const after = await sceneRead(page);
+      const after = await settledScene(page, '(ж): the shelf after the play');
       expect(after.shelf.length, '(ж): the shelf keeps its places').toBe(socket.length);
       after.shelf.forEach((r, i) => expect(near(socket[i], r), `(ж): shelf place ${i} ${JSON.stringify(socket[i])} → ${JSON.stringify(r)}`).toBe(true));
       await judge(page, preset, 'one prelude');
@@ -202,7 +240,7 @@ for (const preset of PRESETS) {
       const playerId = await bootDeployment(page, request, preset, ['Double Down', 'Business Empire'], ['Double Down', 'Business Empire', 'Loan', 'Donation']);
       await playCorporation(page, request, playerId);
       await judge(page, preset, 'waiting + enabler');
-      const s = await sceneRead(page);
+      const s = await settledScene(page, 'waiting + enabler');
       expect(s.cards.find((c) => c.name === 'Double Down')?.reading?.verdict, 'Double Down waits').toBe('waiting');
       expect(s.cards.find((c) => c.name === 'Business Empire')?.reading?.verdict, 'its enabler can be played').toBe('playable');
       await walkKeepsStill(page, 'waiting + enabler');

@@ -119,7 +119,7 @@ for (const profile of PROFILES) {
       await page.waitForSelector('.con-ma', {timeout: 8_000});
       expectListFits(await listFit(page), 5, profile.tag + ' · milestones');
       await key(page, 'KeyE', 1400); // → the AWARDS workspace (the family's other screen — a lateral move)
-      expect(await page.locator('.con-ma').count(), 'one MA workspace on screen after the bumper').toBe(1);
+      await expect.poll(() => page.locator('.con-ma').count(), {message: 'one MA workspace on screen after the bumper'}).toBe(1);
       await expect(page.locator('.con-ma.con-ma--awards'), 'RB walked to the awards workspace').toHaveCount(1);
       expectListFits(await listFit(page), 5, profile.tag + ' · awards');
 
@@ -127,7 +127,7 @@ for (const profile of PROFILES) {
       // the focused first fundable award advertises the INTENT («Спонсировать»),
       // and the universal «Выбрать» is gone — a dead race and a live claim no
       // longer promise the same thing.
-      expect(await page.locator('.con-ma__card .gp-glyph').count(), 'the per-item CTA must be gone').toBe(0);
+      await expect.poll(() => page.locator('.con-ma__card .gp-glyph').count(), {message: 'the per-item CTA must be gone'}).toBe(0);
       const listBar = await barText(page);
       expect(listBar, 'the overview footer advertises the intent verb').toContain('СПОНСИРОВАТЬ');
       expect(listBar, 'the universal select verb must be gone').not.toContain('ВЫБРАТЬ');
@@ -174,8 +174,7 @@ for (const profile of PROFILES) {
 
       // The detail state speaks the SAME rail — one projection, one language,
       // and the old «БУДЕТ ПОТРАЧЕНО −8 462 → 454» band is gone with it.
-      expect(await page.locator('.con-mafocus .con-marail .action-effect-chip').count(),
-        'the stage projects through the shared rail').toBe(2);
+      await expect.poll(() => page.locator('.con-mafocus .con-marail .action-effect-chip').count(), {message: 'the stage projects through the shared rail'}).toBe(2);
 
       // THE BADGE stays inside its hero column (the clipped «ПОРОГ ДОСТИГНУТ —
       // МОЖНО ВЗЯТЬ СЕЙЧАС» is what this measures against).
@@ -194,7 +193,7 @@ for (const profile of PROFILES) {
 
       // ── 3 · B folds back; the focus survives on the SAME item ──────────────
       await key(page, 'Escape', 1200);
-      expect(await page.locator('.con-mafocus').count(), 'B must fold the stage').toBe(0);
+      await expect.poll(() => page.locator('.con-mafocus').count(), {message: 'B must fold the stage'}).toBe(0);
       const refocused = (await page.locator('.con-ma__card--focused .con-ma__name').innerText()).trim();
       expect(refocused, 'the fold returns the focus to the entered item').toBe(focusedName);
       const restoredOpacity = await page.locator('.con-ma__card--focused .con-ma__stage').evaluate(
@@ -211,9 +210,8 @@ for (const profile of PROFILES) {
 
       // The ceremony arrives ON the stage; the global own-beat scene must not.
       await page.waitForSelector('.con-mafocus__cere', {timeout: 12_000});
-      expect(await page.locator('.con-ma').count(), 'the workspace stays up for its ceremony').toBe(1);
-      expect(await page.locator('.con-macere__scene').count(),
-        'the global centre-stage ceremony must not double-present a claimed beat').toBe(0);
+      await expect.poll(() => page.locator('.con-ma').count(), {message: 'the workspace stays up for its ceremony'}).toBe(1);
+      await expect.poll(() => page.locator('.con-macere__scene').count(), {message: 'the global centre-stage ceremony must not double-present a claimed beat'}).toBe(0);
       // Wait for the SCENE, not for a clock: the dressing is up once the
       // coronation lines have faded in (a busy 4K frame can spend a second on
       // the first paint, and a fixed sleep then measures the wrong moment).
@@ -241,10 +239,8 @@ for (const profile of PROFILES) {
 
       // ── 5 · The workspace closes ONLY after the ceremony settles ───────────
       await page.waitForSelector('.con-ma', {state: 'detached', timeout: 20_000});
-      expect(await page.locator('.con-mafocus, .con-mafocus__cere, .con-ceremony-fx').count(),
-        'no ceremony layer may outlive the workspace').toBe(0);
-      expect(await page.locator('.con-macere__scene').count(),
-        'the beat was consumed by the stage — never replayed globally').toBe(0);
+      await expect.poll(() => page.locator('.con-mafocus, .con-mafocus__cere, .con-ceremony-fx').count(), {message: 'no ceremony layer may outlive the workspace'}).toBe(0);
+      await expect.poll(() => page.locator('.con-macere__scene').count(), {message: 'the beat was consumed by the stage — never replayed globally'}).toBe(0);
       await page.waitForTimeout(600);
       await shoot(page, profile.tag + '-05-closed');
 

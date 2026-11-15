@@ -106,7 +106,7 @@ test.describe('bot turn card · premium neutral story', () => {
     for (const tag of audit!.clusterTags) {
       expect(actorName !== '' && tag.includes(actorName), `a cluster re-names the actor: «${tag}»`).toBe(false);
     }
-    expect(await card.locator('[data-notif-cluster="planet"]').count(), 'no «Марс» cluster on the toast').toBe(0);
+    await expect.poll(() => card.locator('[data-notif-cluster="planet"]').count(), {message: 'no «Марс» cluster on the toast'}).toBe(0);
 
     // No «(s)»-style pluralisation compromise anywhere on the card.
     expect(audit!.whole).not.toMatch(/\((s|а|ов|ы)\)/);

@@ -49,6 +49,7 @@ import {cardReactionTellsTableAnswer} from '@/client/console/cardReaction/cardRe
 import {colonyBuildAnswered} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
 import {consoleHandPickState, enterConsoleHandPick, handPickStageKey} from '@/client/console/consoleHandPick';
+import {tailAfterPickAnswer} from '@/client/console/pickTail';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {AdmissionSignals, LATCHED_SURFACES, PromptSurface, isPromptAdmitted, isPromptPresent, latchPromptPresence, presenceOutlivesAnswer, promptPresenceState, releasePromptPresence} from '@/client/console/consolePromptAdmission';
@@ -1552,9 +1553,11 @@ export function createRouterController(shell: RouterPort) {
     }, (cards) => {
       // ONLY OUR OWN KEY: by now the claim may already be naming something
       // else (or be gone entirely), and overwriting a stage we do not own is
-      // how a crumb starts describing a screen that is not there.
-      if (ownsStage && workspaceOutcomeState.phaseKey === pickStage) {
-        setWorkspaceOutcomePhase(nextStage);
+      // how a crumb starts describing a screen that is not there. And only
+      // FORWARD: with no next stage the tail stands (`tailAfterPickAnswer`).
+      const handedOn = ownsStage ? tailAfterPickAnswer(workspaceOutcomeState.phaseKey, pickStage, nextStage) : undefined;
+      if (handedOn !== undefined) {
+        setWorkspaceOutcomePhase(handedOn);
       }
       if (payload.direct === true) {
         markDecisionPickAnswered(decisionPromptStamp(shell.playerView));
@@ -1576,10 +1579,9 @@ export function createRouterController(shell: RouterPort) {
         void shell.closeHandWithReveal();
       }
     } : undefined, decline !== undefined ? () => {
-      // RT in the album — the refusal. Nothing follows it: the tail is handed on EMPTY.
-      if (ownsStage && workspaceOutcomeState.phaseKey === pickStage) {
-        setWorkspaceOutcomePhase('');
-      }
+      // RT in the album — the refusal. Nothing follows it: the effect is OVER and the tail STANDS on its last stage
+      // until the claim ends (`tailAfterPickAnswer` — written empty, it fell back to the batch's «ДОБОР КАРТ» for the
+      // conclusion's frames: backwards through a flow that only moves forward).
       if (payload.direct === true) {
         markDecisionPickAnswered(decisionPromptStamp(shell.playerView));
       }

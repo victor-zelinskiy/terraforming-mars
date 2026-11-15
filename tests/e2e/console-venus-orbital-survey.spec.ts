@@ -2,9 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixture, crumbText, fetchPlayerModel, openActionFocus, openCardActions, press, reloadConsole, settle, walkFocusUntil,
+  bootFixture, crumbText, fetchPlayerModel, openActionFocus, openCardActions, press, pressUntil, reloadConsole, settle, walkFocusUntil,
 } from './consoleStart';
 import {recordTransient, stopTransient} from './transientRecorder';
+import {armWitness, Witness} from './witness';
 
 /**
  * P88 «ОРБИТАЛЬНАЯ РАЗВЕДКА ВЕНЕРЫ» — THE SPLIT REVEAL (docs/claude/prompts/prelude2-p88-venus-orbital-survey.md,
@@ -96,6 +97,15 @@ async function openSurvey(page: Page): Promise<void> {
   await settle(page);
 }
 
+/**
+ * THE BAND RECORD (FLAKE ZERO — «never» is a recording, not a read): was a STANDALONE task host — a band of its own
+ * over the board — ever on screen from the arm on? `settled`: what a frame can paint, never the gap between two writes
+ * of one task.
+ */
+async function armBandWitness(page: Page): Promise<Witness<boolean>> {
+  return armWitness(page, 'p88-band', () => document.querySelector('.con-task-host:not(.con-task-host--embedded)') !== null, {settled: true});
+}
+
 /** The purchase stage's row, in DOM (= reveal) order: the card names and which are companions. */
 const stageRow = (page: Page) => page.evaluate((sel) => [...document.querySelectorAll(`${sel} .con-cards__strip > .con-cards__slot`)]
   .map((el) => ({name: el.getAttribute('data-zoom-slot') ?? '', companion: el.hasAttribute('data-companion-slot')})), HOST);
@@ -126,6 +136,7 @@ async function confirmToStage(page: Page, posts: Array<string>): Promise<void> {
       hosts: [...document.querySelectorAll('.con-task-host')].map((el) => el.className),
     });
   }, {max: 400});
+  const band = await armBandWitness(page);
   await commitOnce(page, posts, 0);
   const embedded = await expect(page.locator(HOST)).toHaveCount(1, {timeout: 30_000}).then(() => true, () => false);
   const trail = await stopTransient<string>(page, 'p88-flow');
@@ -145,7 +156,8 @@ async function confirmToStage(page: Page, posts: Array<string>): Promise<void> {
     console.log('── the purchase never embedded ──\n' + JSON.stringify(diag, null, 1) + '\n── console ──\n' + logs.join('\n'));
   }
   expect(embedded, 'the purchase is EMBEDDED in the workspace').toBe(true);
-  expect(await page.locator('.con-task-host:not(.con-task-host--embedded)').count(), 'never a standalone band').toBe(0);
+  expect(await band.ever((up) => up), 'never a standalone band').toBe(false);
+  await band.stop();
   await settle(page, {timeoutMs: 40_000});
 }
 
@@ -245,9 +257,11 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     await commitOnce(page, posts, 0);
     await expect.poll(async () => handNames(await wireOf(request, id)).length, {timeout: 30_000, message: 'both in the hand on the server'})
       .toBeGreaterThanOrEqual(2);
-    // Take the batch on its stage (A / RT — whichever the stage offers), then nothing is left standing.
-    for (let i = 0; i < 6 && await page.locator('.con-cardactions').count() > 0; i++) {
-      await press(page, i % 2 === 0 ? 'Period' : 'Enter', 900);
+    // Take the batch on its stage (A / RT — whichever the stage offers), then nothing is left standing. act → verify (D):
+    // each press gets its whole window to take the workspace down before the other key is tried.
+    const workspace = page.locator('.con-cardactions');
+    for (let i = 0; i < 6 && await workspace.count() > 0; i++) {
+      await pressUntil(page, i % 2 === 0 ? 'Period' : 'Enter', async () => await workspace.count() === 0, {tries: 1, settleMs: 900});
     }
     await expect(page.locator('.con-cardactions'), 'the flow leaves').toHaveCount(0, {timeout: 40_000});
     await settle(page, {timeoutMs: 40_000});
@@ -263,9 +277,13 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     await openSurvey(page);
     await confirmToStage(page, posts);
     expect((await stageRow(page)).filter((s) => s.companion), 'no companion').toHaveLength(0);
-    await press(page, 'Enter', 500);
-    await press(page, 'ArrowRight', 400);
-    await press(page, 'Enter', 500);
+    // act → verify → retry (D): pick, step, pick — each press waits for ITS effect (a pick standing, the cursor on the
+    // card not yet picked), never a blind series a swallowed press would cut short. The verdict stays the one below.
+    const picked = () => page.locator(`${HOST} .con-cards__slot--picked`).count();
+    const onUnpicked = async () => await page.locator(`${HOST} .con-cards__slot--focused:not(.con-cards__slot--picked)`).count() > 0;
+    await pressUntil(page, 'Enter', async () => await picked() >= 1, {tries: 2, settleMs: 1500});
+    await pressUntil(page, 'ArrowRight', onUnpicked, {tries: 2, settleMs: 1200});
+    await pressUntil(page, 'Enter', async () => await picked() >= 2, {tries: 2, settleMs: 1500});
     await expect(page.locator(`${HOST} .con-cards__slot--picked`)).toHaveCount(2);
     await commitOnce(page, posts, 1, 'Period');
     await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 40_000});
@@ -308,12 +326,14 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     await confirmToStage(page, posts);
     await press(page, 'Enter', 500);
     await expect(page.locator(`${HOST} .con-cards__slot--picked[data-zoom-slot="${OTHER}"]`)).toHaveCount(1);
-    // RT: the payment opens INSIDE the purchase — nothing is sent.
+    // RT: the payment opens INSIDE the purchase — nothing is sent (and no band of its own ever rises: recorded from the press).
+    const band = await armBandWitness(page);
     await press(page, 'Period', 900);
     const pay = page.locator(`${HOST} [data-buy-pay]`);
     await expect(pay, 'the payment stands in the same stage').toHaveCount(1, {timeout: 10_000});
     expect(posts.length, 'RT sent nothing — the purchase and its payment are ONE decision').toBe(1);
-    expect(await page.locator('.con-task-host:not(.con-task-host--embedded)').count(), 'never a band of its own').toBe(0);
+    expect(await band.ever((up) => up), 'never a band of its own').toBe(false);
+    await band.stop();
     await expect(page.locator('.con-cardactions'), 'the workspace stands').toHaveCount(1);
     expect(await stageRow(page), 'the cards being bought stay on the stage').toEqual([{name: VENUS, companion: true}, {name: OTHER, companion: false}]);
     await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the card stays in the crumb, the tail moved forward to the payment'})
@@ -336,7 +356,7 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     expect(handNames(after), 'both cards in the hand').toEqual(expect.arrayContaining([VENUS, OTHER]));
     expect((before.thisPlayer.megacredits + before.thisPlayer.heat) - (after.thisPlayer.megacredits + after.thisPlayer.heat),
       '3 M€ worth paid (M€ + heat)').toBe(3);
-    expect(await page.locator('.con-task-host').count(), 'nothing left asking').toBe(0);
+    await expect(page.locator('.con-task-host'), 'nothing left asking').toHaveCount(0);
     expect(posts.length, 'two POSTs in all: the action, the purchase with its payment').toBe(2);
   });
 
@@ -349,10 +369,9 @@ test.describe(`P88 Venus Orbital Survey · the split reveal · ${PRESET.id}`, ()
     await confirmToStage(page, posts);
     await reloadConsole(page);
     await settle(page, {timeoutMs: 40_000});
-    // After a reload the decision is presented on the board (a restore card) or straight in the stage.
-    if (await page.locator(HOST).count() === 0) {
-      await press(page, 'Enter', 1500);
-    }
+    // After a reload the decision is presented on the board (a restore card) or straight in the stage. act → verify (D):
+    // A is pressed only while no purchase stands, and given its whole window before it is pressed again.
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-task-host').count() > 0, {tries: 2, settleMs: 3000});
     await expect(page.locator('.con-task-host'), 'the purchase is back').toHaveCount(1, {timeout: 30_000});
     await settle(page, {timeoutMs: 40_000});
     const row = await page.evaluate(() => [...document.querySelectorAll('.con-task-host .con-cards__strip > .con-cards__slot')]

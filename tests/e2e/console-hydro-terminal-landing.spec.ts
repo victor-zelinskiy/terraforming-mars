@@ -4,6 +4,7 @@ import {
   seedGameOverApi, sendPlayerInput, settle, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
 import {armLandingRecord, landingClose} from './hydroLandingWitness';
+import {armWitness, pageNow} from './witness';
 
 /**
  * THE TERMINAL LANDING CLOSES ITSELF — the finale-wedge regression.
@@ -142,16 +143,20 @@ test.describe('Hydronetwork terminal landing · fhd', () => {
     'every rail decision is answered').toBe(0);
 
     // ── Commit (the seat holds the CTA once nothing is left open). ──
+    // H — commit→close is timed on the PAGE's clock: the workspace's presence recorded from before the press.
+    const hydroUp = await armWitness(page, 'hydro-terminal-up', () => document.querySelector('.con-hydro') !== null);
     await press(page, 'Enter', 900);
     await expect.poll(async () => (await hydroDiag(page))?.commit?.kind ?? 'none',
       {timeout: 15_000, message: 'the card-resource commit stands after A'}).toBe('card-resource');
-    const commitAt = Date.now();
+    const commitAt = await pageNow(page);
 
     // ── THE CONTRACT: 7→8→9, the animals land on the presented card, and
     //    the flow CLOSES ITSELF. Pre-fix this hung ~30 s to the plan net. ──
     const closed = await page.waitForSelector('.con-hydro', {state: 'detached', timeout: 25_000})
       .then(() => true).catch(() => false);
-    const closeMs = Date.now() - commitAt;
+    const shown = await hydroUp.samples();
+    const left = shown[shown.map((x) => x.v).lastIndexOf(true) + 1];
+    const closeMs = left === undefined || left.v ? Infinity : Math.max(0, left.t - commitAt);
     if (!closed) {
       expect(closed, `the workspace never left after the terminal presenting leg — ${await wedgeDump(page)}`).toBe(true);
     }

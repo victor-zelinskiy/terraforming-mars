@@ -81,7 +81,7 @@ test('the field\'s opening (Tharsis, the bot moving the scales under the start) 
   const stageAt = Date.now();
   await shoot(page, '01-first-action-stage');
   const firstAction = page.locator('.con-start__firstact');
-  expect(await firstAction.count(), `the first-action stage stands (${JSON.stringify(ledger)})`).toBeGreaterThan(0);
+  await expect.poll(() => firstAction.count(), {message: `the first-action stage stands (${JSON.stringify(ledger)})`}).toBeGreaterThan(0);
 
   // A on the first action: the city's grid on the board.
   const gridAt = await expect.poll(async () => {

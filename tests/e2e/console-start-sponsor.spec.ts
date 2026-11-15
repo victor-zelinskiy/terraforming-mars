@@ -1,5 +1,9 @@
 import {test, expect, Page} from './consoleTest';
-import {cinematicBeat, fillPicks, pickCards, press, pressUntil, reloadConsole, stepKind, stepSubject, summaryVisible, waitPressable} from './consoleStart';
+import {
+  cinematicBeat, composerLoaded, deploymentActive, fillPicks, pickCards, press, pressUntil, reloadConsole, settle, stepKind, stepSubject,
+  submitSummary, summaryVisible, waitPressable, waitQueueIdle,
+} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * «ЭПАТАЖНЫЙ СПОНСОР» — the play-from-hand prelude, as a STEP of the Game
@@ -13,6 +17,10 @@ import {cinematicBeat, fillPicks, pickCards, press, pressUntil, reloadConsole, s
  * causality («this project is being played BECAUSE of that prelude») was
  * unreadable. It is now hosted INSIDE the workspace: the same hand instance,
  * teleported, wearing the start shell.
+ *
+ * Every state is judged on ONE settled read of `surfaces` (FLAKE ZERO, class C — `readSettled`: the console settled,
+ * then two equal reads a frame apart): its painted-card count, its toolbar line and the dock's overlap are geometry,
+ * and a box read once is wherever the machine had got to.
  */
 
 function cfg(opts: {preludes: Array<string>, corps?: Array<string>}) {
@@ -167,13 +175,23 @@ async function surfaces(page: Page) {
   });
 }
 
+/**
+ * `surfaces` AT REST — the one read a state is judged on. The start is a phase-long scene: a step of its chain may hold
+ * a blocking hold until the player answers (`settle` would wait it out and throw), so the console's quiet is waited
+ * for softly and the read itself is what must hold still (two equal reads a frame apart, finite motion over).
+ */
+async function settledSurfaces(page: Page, what: string): Promise<Awaited<ReturnType<typeof surfaces>>> {
+  await settle(page, {timeoutMs: 20_000}).catch(() => { /* a step of the chain holds the screen — the read still waits for rest */ });
+  return readSettled(page, () => surfaces(page), {settle: false, message: what});
+}
+
 /** Walk the setup wizard and commit, landing in the deployment. */
 async function reachDeployment(page: Page): Promise<void> {
   await page.waitForSelector('.con-start__frame', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
   for (let round = 0; round < 8 && !(await summaryVisible(page)); round++) {
     await waitPressable(page);
-    await page.waitForTimeout(250);
+    await settle(page, {timeoutMs: 20_000}).catch(() => { /* the walk reads what stands */ });
     const kind = stepKind(await stepSubject(page));
     if (kind === 'corporation') {
       await press(page, 'Enter', 600);
@@ -189,10 +207,9 @@ async function reachDeployment(page: Page): Promise<void> {
       await fillPicks(page, 6, 30);
     }
     await press(page, 'Period', 1600);
-    for (let w = 0; w < 20 && !(await summaryVisible(page)) &&
-         stepKind(await stepSubject(page)) === kind; w++) {
-      await page.waitForTimeout(250);
-    }
+    // Let the step actually change before looking again — a STATE (bounded), never a sleep.
+    await expect.poll(async () => await summaryVisible(page) || stepKind(await stepSubject(page)) !== kind,
+      {timeout: 5_000}).toBe(true).catch(() => { /* the next round reads what stands */ });
   }
   // On a fast machine the last RT can land at the summary's commit boundary
   // and the solo table may already have materialized deployment before this
@@ -202,21 +219,18 @@ async function reachDeployment(page: Page): Promise<void> {
   const deploymentAlready = await page.locator('.con-start--ceremony').isVisible().catch(() => false);
   expect(onSummary || deploymentAlready, 'reached the summary or its committed deployment').toBeTruthy();
   if (onSummary) {
-    await press(page, 'Enter', 2500); // НАЧАТЬ ПАРТИЮ
+    await submitSummary(page); // НАЧАТЬ ПАРТИЮ — act → verify (the summary accepted)
   }
-  await page.waitForTimeout(4000);
+  // The deployment STANDS and takes presses: its queue (or its purchase) is up and idle — the state the old fixed
+  // pause stood in for.
+  await expect.poll(() => deploymentActive(page), {timeout: 45_000, message: 'the deployment took the screen'}).toBe(true);
+  await waitQueueIdle(page);
+  await settle(page, {timeoutMs: 30_000});
 }
 
-/** Press A on the deployment queue until the sponsor's hand step opens. */
+/** Press A on the deployment queue until the sponsor's hand step opens — act → verify on the step itself. */
 async function openSponsorHand(page: Page, maxPresses = 12): Promise<boolean> {
-  for (let i = 0; i < maxPresses; i++) {
-    const s = await surfaces(page);
-    if (s.handUp) {
-      return true;
-    }
-    await press(page, 'Enter', 1800);
-  }
-  return (await surfaces(page)).handUp;
+  return pressUntil(page, 'Enter', async () => (await surfaces(page)).handUp, {tries: maxPresses, settleMs: 1800});
 }
 
 test.describe('console start — «Эпатажный спонсор» as a workspace step', () => {
@@ -233,8 +247,15 @@ test.describe('console start — «Эпатажный спонсор» as a work
 
     const opened = await openSponsorHand(page);
     expect(opened, 'the sponsor raised its play-from-hand step').toBeTruthy();
-    await page.waitForTimeout(1200);
-    const s = await surfaces(page);
+    // THE DOCK PRESENCE CONTRACT's clock starts at the OPEN, never at a later read: the dock steps into its compact
+    // pose once the OPEN EPISODE has flown (P86: the reveal episode holds the intake lease for its whole flight — the
+    // dock is FULL while its cards are leaving it, then compact). A state wait, bounded well under the lease's 6 s
+    // ceiling (the old 1.2 s sample + its 4 s poll): a compact pose that only comes back at the ceiling is a leaked
+    // lease, and the elapsed time names it.
+    const compactFrom = Date.now();
+    await expect.poll(async () => (await surfaces(page)).dockCompact, {timeout: 5_200, message: 'the dock stepped into its compact pose'}).toBe(true);
+    test.info().annotations.push({type: 'dock-compact-after', description: `${Date.now() - compactFrom} ms past the open`});
+    const s = await settledSurfaces(page, 'the sponsor\'s hand step, open');
     await page.screenshot({path: 'screenshots/sponsor-1-hand-step.png'});
 
     // ① ONE ROOT: the workspace is still up and the hand is INSIDE it.
@@ -261,12 +282,7 @@ test.describe('console start — «Эпатажный спонсор» as a work
     // THE DOCK PRESENCE CONTRACT: mounted, in its compact pose (a workspace
     // owns the screen), and its backs never overlap the status rail.
     expect(s.dockMounted, 'the hand dock is never hidden by a screen').toBeTruthy();
-    // …once the OPEN EPISODE has flown (P86: the reveal episode holds the intake lease for its whole flight — the dock
-    // is FULL while its cards are leaving it, then compact). A state wait, bounded well under the lease's 6 s ceiling:
-    // a compact pose that only comes back at the ceiling is a leaked lease, and the elapsed time names it.
-    const compactFrom = Date.now();
-    await expect.poll(async () => (await surfaces(page)).dockCompact, {timeout: 4_000, message: 'the dock stepped into its compact pose'}).toBe(true);
-    test.info().annotations.push({type: 'dock-compact-after', description: `${Date.now() - compactFrom} ms past the 1.2 s sample`});
+    // (…in its compact pose — asserted from the open, above.)
     expect(s.dockOverRail, 'no dock card overlaps the status rail').toBeFalsy();
     // …and the browse toolbar IS visible while browsing (it only hides for
     // the configure stage).
@@ -310,18 +326,18 @@ test.describe('console start — «Эпатажный спонсор» as a work
     await page.goto(`/player?id=${playerId}&console=1`);
     await reachDeployment(page);
     expect(await openSponsorHand(page), 'the hand step opened').toBeTruthy();
-    await page.waitForTimeout(1200);
-    const opened = await surfaces(page);
+    const opened = await settledSurfaces(page, 'the hand step, first open');
     expect(opened.paintedCards, 'cards painted on first open').toBeGreaterThan(0);
 
     // ── B → the whole workspace minimizes (the deferred card offers the way
     //    back); A → it comes back, WITH its cards. ──
     await press(page, 'Escape', 1600);
-    const away = await surfaces(page);
-    expect(away.handEmbedded, 'the hand step is put down').toBeFalsy();
+    await expect.poll(async () => (await surfaces(page)).handEmbedded, {message: 'the hand step is put down'}).toBeFalsy();
     await press(page, 'Enter', 2600);
-    await page.waitForTimeout(1800);
-    const back = await surfaces(page);
+    // The restore is a STATE to wait for (bounded) — the verdict below names what stood if it never came.
+    await expect.poll(async () => (await surfaces(page)).handEmbedded, {timeout: 10_000}).toBe(true)
+      .catch(() => { /* judged below, with its diagnosis */ });
+    const back = await settledSurfaces(page, 'the hand step, restored');
     await page.screenshot({path: 'screenshots/sponsor-4-restored.png'});
     expect(back.handEmbedded,
       `the hand came back OUTSIDE the workspace — zone=${back.zoneExists} ` +
@@ -366,8 +382,7 @@ test.describe('console start — «Эпатажный спонсор» as a work
     // proven to have landed.
     await pressUntil(page, 'Enter',
       async () => (await surfaces(page)).handEmbedded, {tries: 4, settleMs: 2600});
-    await page.waitForTimeout(1800);
-    const afterDetour = await surfaces(page);
+    const afterDetour = await settledSurfaces(page, 'the hand step, back after the detour');
     await page.screenshot({path: 'screenshots/sponsor-4b-after-detour.png'});
     expect(afterDetour.handEmbedded,
       `a detour destroyed the parked step — diag=${JSON.stringify(afterDetour.diag)}`).toBeTruthy();
@@ -376,8 +391,10 @@ test.describe('console start — «Эпатажный спонсор» as a work
 
     // ── a RELOAD mid-step: the same step, still inside the workspace. ──
     await reloadConsole(page);
-    await page.waitForTimeout(6000);
-    const reloaded = await surfaces(page);
+    // The fresh page re-derives the step from the server — wait for the STATE (the hand step up), then read it at rest.
+    await expect.poll(async () => (await surfaces(page)).handUp, {timeout: 20_000, message: 'the hand step is up after the reload'})
+      .toBeTruthy();
+    const reloaded = await settledSurfaces(page, 'the hand step after the reload');
     await page.screenshot({path: 'screenshots/sponsor-5-reloaded.png'});
     expect(reloaded.handUp, 'the hand step is up after the reload').toBeTruthy();
     expect(reloaded.handEmbedded,
@@ -406,15 +423,16 @@ test.describe('console start — «Эпатажный спонсор» as a work
     await page.goto(`/player?id=${players[0].id}&console=1`);
     await reachDeployment(page);
     expect(await openSponsorHand(page), 'the hand step opened').toBeTruthy();
-    await page.waitForTimeout(1200);
 
-    const before = await surfaces(page);
+    const before = await settledSurfaces(page, 'the hand step before the play');
     expect(before.playable).toBeGreaterThan(0);
 
     // A on the focused (playable) card → the composer DESCENDS into the hand's
     // own stage zone: the same premium entry as a normal play, not a modal.
+    // (A composer is read only once it has LOADED — its own marker.)
     await press(page, 'Enter', 1800);
-    const setup = await surfaces(page);
+    await composerLoaded(page, {mount: '.con-composer--play'});
+    const setup = await settledSurfaces(page, 'the play composer, descended');
     await page.screenshot({path: 'screenshots/sponsor-2-card-play.png'});
     expect(setup.composerUp, 'the play composer is up').toBeTruthy();
     expect(setup.composerEmbedded, 'the composer descended INSIDE the hand').toBeTruthy();
@@ -427,8 +445,10 @@ test.describe('console start — «Эпатажный спонсор» as a work
     // A again → commit. The card leaves the hand, flies the ordinary hero arc
     // and lands in «Разыграно»; the workspace comes back around it.
     await press(page, 'Enter', 2500);
-    await page.waitForTimeout(6000);
-    const after = await surfaces(page);
+    // The play's end is a STATE: the project lands in the played cards (bounded) — then the screen is read at rest.
+    await expect.poll(async () => (await surfaces(page)).tableauCards, {timeout: 30_000}).toBeGreaterThan(before.tableauCards)
+      .catch(() => { /* judged below on the settled read */ });
+    const after = await settledSurfaces(page, 'after the sponsor\'s play');
     await page.screenshot({path: 'screenshots/sponsor-3-back-in-startup.png'});
 
     expect(after.stranded, 'no stranded prompt at any point').toBe(0);
@@ -455,8 +475,10 @@ test.describe('console start — «Эпатажный спонсор» as a work
       // stick, and one stuck flag disabled the compact pose for the REST OF
       // THE GAME (it survived the whole sponsor flow and never came back).
       expect(after.dockMounted, 'the dock is still there').toBeTruthy();
-      expect(after.dockCompact,
-        'the compact pose died somewhere in the flow (a leaked intake accent)').toBeTruthy();
+      // A live pose, asserted by a poll bounded by the intake lease's own 6 s ceiling (the old fixed 6 s pause after
+      // the commit): a pose that never returns is the leaked accent.
+      await expect.poll(async () => (await surfaces(page)).dockCompact, {timeout: 6_000,
+        message: 'the compact pose died somewhere in the flow (a leaked intake accent)'}).toBeTruthy();
     }
   });
   // THE STEP PUT DOWN MID-OPEN (inventory R15 — the monkey's wg2 table `field-start-sbp-triton`, 3/3): a B that lands while

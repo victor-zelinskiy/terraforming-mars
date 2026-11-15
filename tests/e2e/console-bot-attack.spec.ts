@@ -290,8 +290,7 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     // A hostile effect arrives during the BOT's turn; the modal must not
     // appear by itself. The mandatory announcement is its door.
     await page.waitForSelector('.con-mandatory', {timeout: 60_000});
-    expect(await page.locator('.con-botattack').count(),
-      'the modal does not open by itself').toBe(0);
+    await expect.poll(() => page.locator('.con-botattack').count(), {message: 'the modal does not open by itself'}).toBe(0);
 
     await page.keyboard.press('Enter');
     await page.waitForSelector('.con-botattack', {timeout: 20_000});

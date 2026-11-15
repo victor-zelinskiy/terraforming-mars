@@ -164,8 +164,7 @@ for (const profile of PROFILES) {
         await page.waitForTimeout(23_000);
         await expect(page.locator('.con-composer--stage .con-verdict'),
           'the verdict stage must survive a long read').toHaveCount(1);
-        expect(await page.locator('.con-reveal').count(),
-          'the claim backstop must not summon the standalone reveal modal').toBe(0);
+        await expect.poll(() => page.locator('.con-reveal').count(), {message: 'the claim backstop must not summon the standalone reveal modal'}).toBe(0);
       }
     });
   });

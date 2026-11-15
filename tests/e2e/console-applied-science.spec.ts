@@ -94,7 +94,7 @@ async function openSetup(page: Page): Promise<void> {
     await press(page, 'ArrowDown', 400);
   }
   expect(await walkFocusUntil(page, async () => await focusedTile(page) === CARD, () => focusedTile(page), 30), `never focused ${CARD}`).toBeTruthy();
-  expect(await page.locator(`.con-cardactions__tile[data-action-card="${CARD}"]`).count(), 'ONE tile for the ONE printed row').toBe(1);
+  await expect.poll(() => page.locator(`.con-cardactions__tile[data-action-card="${CARD}"]`).count(), {message: 'ONE tile for the ONE printed row'}).toBe(1);
   await openActionFocus(page);
   await settle(page);
 }

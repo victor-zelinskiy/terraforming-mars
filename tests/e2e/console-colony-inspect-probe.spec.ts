@@ -98,7 +98,7 @@ async function openColonies(page: Page): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
 }
 
 async function focusTile(page: Page, target: string): Promise<void> {
@@ -112,7 +112,7 @@ async function focusTile(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 type Composition = {
@@ -325,7 +325,7 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   // ── B → the grid breathes back, the dossier is gone. ──
   await press(page, 'Escape', 1600);
   await shoot(page, '03-folded-back-4k');
-  expect(await page.locator('.con-colinspect').count(), 'B folded the dossier').toBe(0);
+  await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'B folded the dossier'}).toBe(0);
   const browse = await page.evaluate(() => {
     const el = document.querySelector('.con-colonies__browse') as HTMLElement | null;
     return el === null ? null : {opacity: getComputedStyle(el).opacity, visibility: getComputedStyle(el).visibility};
@@ -335,7 +335,7 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
 
   // ── X again, then A → the trade stage takes the dossier's place. ──
   await press(page, 'KeyX', 2200);
-  expect(await page.locator('.con-colinspect').count()).toBe(1);
+  await expect.poll(() => page.locator('.con-colinspect').count()).toBe(1);
   await armPlanetSampler(page, 2400);
   await page.keyboard.press('Enter');
   await cinematicBeat(page, 260, 'the hand-off mid-flight — the cross-fade frame');
@@ -360,7 +360,7 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   // ── B from the stage folds into the TILE (the fold home survived the hand-off). ──
   await press(page, 'Escape', 1800);
   await shoot(page, '06-stage-folded-4k');
-  expect(await page.locator('.con-colfocus').count(), 'the stage folded').toBe(0);
+  await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the stage folded'}).toBe(0);
   const browse2 = await page.evaluate(() => {
     const el = document.querySelector('.con-colonies__browse') as HTMLElement | null;
     return el === null ? null : {opacity: getComputedStyle(el).opacity, visibility: getComputedStyle(el).visibility};
@@ -384,7 +384,7 @@ test('colony dossier: a TILE glyph in a rule renders whole (Europa\'s ocean, TV 
   await openColonies(page);
   await focusTile(page, 'Europa');
   await press(page, 'KeyX', 2400);
-  expect(await page.locator('.con-colinspect').count(), 'the dossier did not open').toBe(1);
+  await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'the dossier did not open'}).toBe(1);
   await shoot(page, '08-europa-ocean-4k');
   const glyph = await page.evaluate(() => {
     const box = document.querySelector('.con-colinspect__group--build .con-colinspect__glyph');
@@ -420,7 +420,7 @@ test('colony dossier: the composition holds at 1080p and on the Deck', async ({p
   await openColonies(page);
   await focusTile(page, 'Luna');
   await press(page, 'KeyX', 2400);
-  expect(await page.locator('.con-colinspect').count(), 'the dossier did not open').toBe(1);
+  await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'the dossier did not open'}).toBe(1);
 
   const profiles: Array<{name: string, w: number, h: number, minPlanet: number}> = [
     {name: 'tv-1080', w: 1920, h: 1080, minPlanet: 380},

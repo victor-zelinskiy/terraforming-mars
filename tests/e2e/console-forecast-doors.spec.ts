@@ -98,7 +98,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-colfocus[data-forecast-host] [data-forecast-layer] .con-efx--forecast')).toHaveCount(1);
       await expect.poll(() => crumb(page), {message: 'the crumb gains «· ЭФФЕКТЫ»', timeout: 10_000}).toMatch(/ТОРГОВЛЯ\s*·\s*ЭФФЕКТЫ/);
       await expect(page.locator('.con-colfocus [data-forecast-layer] [data-forecast-group="receive"]'), 'Meat Industry stands in «Вы получите»').toHaveCount(1);
-      expect(await page.locator('.con-colfocus [data-forecast-browse]').count(), 'the configuration is PARKED, not gone').toBe(1);
+      await expect.poll(() => page.locator('.con-colfocus [data-forecast-browse]').count(), {message: 'the configuration is PARKED, not gone'}).toBe(1);
       await expect(page.locator('.con-colfocus .con-colfocus__trackzone'), 'the track instrument stays in view').toBeVisible();
       await settle(page, {timeoutMs: 15_000});
       await page.screenshot({path: path.join(OUT, `${preset.id}-02-colony-layer.png`)});
@@ -172,7 +172,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-stdp [data-forecast-host] [data-forecast-layer] .con-efx--forecast')).toHaveCount(1);
       await expect(page.locator('.con-stdp .con-wshead'), 'the crumb gains «ЭФФЕКТЫ»').toContainText(/ЭФФЕКТЫ/i);
       await expect(page.locator('.con-stdp [data-forecast-layer] [data-forecast-group="receive"]'), 'the Greens stand in «Вы получите»').toHaveCount(1);
-      expect(await page.locator('.con-stdp [data-forecast-browse] .con-stdp__card').count(), 'the grid is PARKED under the layer, not gone').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-stdp [data-forecast-browse] .con-stdp__card').count(), {message: 'the grid is PARKED under the layer, not gone'}).toBeGreaterThan(0);
       await settle(page, {timeoutMs: 15_000});
       await page.screenshot({path: path.join(OUT, `${preset.id}-04-stdp-layer.png`)});
 

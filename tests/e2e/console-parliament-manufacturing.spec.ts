@@ -165,7 +165,7 @@ for (const preset of PRESETS) {
       const crumb = (await crumbText(page)).toUpperCase();
       expect(crumb, `one crumb: the menu, the law (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
       expect(crumb).toContain('СЕРИЙНЫЙ ВЫПУСК');
-      expect(await page.locator(READY).count(), 'nothing chosen — the commit dims').toBe(0);
+      await expect.poll(() => page.locator(READY).count(), {message: 'nothing chosen — the commit dims'}).toBe(0);
       await shoot(page, preset.id, '02-law-stage-three-variants');
       await press(page, 'ArrowRight', 200);
       await press(page, 'ArrowRight', 200);

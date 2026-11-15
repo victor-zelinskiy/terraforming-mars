@@ -216,7 +216,7 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       expect(pages, 'several pages — and the player sees it').toBeGreaterThan(1);
       await expect(page.locator('[data-cat-spine] .con-played-cat__spine-page')).toHaveText(`1 / ${pages}`);
       await expect(page.locator('[data-cat-spine] .con-played-cat__spine-dot')).toHaveCount(pages);
-      expect(await page.locator('.con-played-cat__grid').count(), 'never a scrolling grid').toBe(0);
+      await expect.poll(() => page.locator('.con-played-cat__grid').count(), {message: 'never a scrolling grid'}).toBe(0);
       // Two rows a page at least.
       const rows = await page.evaluate(() => {
         const page0 = document.querySelector('[data-cat-page-index="0"]');
@@ -267,10 +267,10 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       await settle(page).catch(() => undefined);
       // ONE PHYSICAL COPY: the stack's slots of the lifted cards hold their place (invisible, laid out).
       const held = page.locator('[data-played-stack="active"] .con-played__slot--held-out');
-      expect(await held.count(), 'the active cards are away').toBe(14);
+      await expect.poll(() => held.count(), {message: 'the active cards are away'}).toBe(14);
       const slotDuring = await page.locator('[data-played-stack="active"] .con-played__slot').first().boundingBox();
       expect(slotDuring?.width ?? 0, 'the slot keeps its geometry').toBeCloseTo(slotBefore?.width ?? 0, 0);
-      expect(await page.locator('.con-played-cat__slot').count(), 'every card of the zone in the view').toBe(14);
+      await expect.poll(() => page.locator('.con-played-cat__slot').count(), {message: 'every card of the zone in the view'}).toBe(14);
       // Fourteen cards stand on ONE screen at this size — no scroll, no pages.
       const grid = await page.evaluate(() => {
         const el = document.querySelector<HTMLElement>('.con-played-cat__grid');
@@ -408,7 +408,7 @@ test.describe('the played table · the bot, the early table, reduced motion', ()
     await focusStack(page, 'active');
     await key(page, 'Enter', 600);
     await expect(page.locator('.con-played-cat--framed')).toHaveCount(1, {timeout: 8_000});
-    expect(await page.locator('.con-played-cat__proxy').count(), 'no flight proxies under reduced motion').toBe(0);
+    await expect.poll(() => page.locator('.con-played-cat__proxy').count(), {message: 'no flight proxies under reduced motion'}).toBe(0);
     await key(page, 'Escape', 600);
     await expect(page.locator('.con-played-cat')).toHaveCount(0, {timeout: 8_000});
     await key(page, 'Escape', 800);

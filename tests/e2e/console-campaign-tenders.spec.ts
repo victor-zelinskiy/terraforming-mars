@@ -395,7 +395,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect(sheet.locator('[data-tender-mode="tag"]')).toHaveCount(1);
     await expect.poll(crumb, {timeout: 5_000}).toMatch(/целевой запрос/i);
     const tags = page.locator('[data-tender-mode="tag"] [data-tender-tag]');
-    expect(await tags.count(), 'the printed tags of the table').toBeGreaterThanOrEqual(8);
+    await expect.poll(() => tags.count(), {message: 'the printed tags of the table'}).toBeGreaterThanOrEqual(8);
     const counts = await tags.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-tender-tag-count'))));
     expect(counts.every((n) => Number.isFinite(n) && n >= 0), `server-counted tags: ${counts.join(',')}`).toBe(true);
     expect(counts[0], 'the first tag (Building) has cards to give').toBeGreaterThanOrEqual(3);

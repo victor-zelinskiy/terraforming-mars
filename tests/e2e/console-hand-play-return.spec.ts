@@ -236,7 +236,7 @@ test.describe('the hand returns to the dock behind the play', () => {
     // The landing scene, the result beat and the fold — every frame FORCED, or
     // the very tween this spec must not see would simply never run.
     await pumpUntil(page, async () => await page.locator('.con-hand__frame').count() === 0, 60_000);
-    expect(await page.locator('.con-hand__frame').count(), 'the workspace folded').toBe(0);
+    await expect.poll(() => page.locator('.con-hand__frame').count(), {message: 'the workspace folded'}).toBe(0);
     await pump(page, 2500); // …and everything the fold set off settles
 
     const frames = await readWatch(page);
@@ -290,7 +290,7 @@ test.describe('the hand returns to the dock behind the play', () => {
     await pump(page, 600);
     await press(page, 'Escape', 60); // B — the gather the player asked for
     await pumpUntil(page, async () => await page.locator('.con-hand__frame').count() === 0, 30_000);
-    expect(await page.locator('.con-hand__frame').count(), 'the hand closed').toBe(0);
+    await expect.poll(() => page.locator('.con-hand__frame').count(), {message: 'the hand closed'}).toBe(0);
     await pump(page, 1200);
 
     const frames = await readWatch(page);

@@ -84,7 +84,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(Math.max(...tops) - Math.min(...tops), `the enacted law stands still (tops ${tops.slice(0, 40).map((t) => t.toFixed(1)).join(' ')})`).toBeLessThanOrEqual(1);
       // …and A keeps its place on the bar; the step offers no X «Закрыть» hint of its own.
       expect(await hotBox(page), 'A stands in the SAME place on the step').toEqual(barBefore);
-      expect(await page.locator('.con-cmdbar__cmd:not(.con-cmdbar__cmd--hot)').filter({hasText: /Закрыть/}).count(), 'no X «Закрыть» hint in the step').toBe(0);
+      await expect.poll(() => page.locator('.con-cmdbar__cmd:not(.con-cmdbar__cmd--hot)').filter({hasText: /Закрыть/}).count(), {message: 'no X «Закрыть» hint in the step'}).toBe(0);
       await expect.poll(() => crumbText(page), {message: 'the crumb grows forward one level', timeout: 10_000}).toMatch(/ИТОГИ\s*·\s*ВЫПЛАТЫ/i);
       const read = await page.evaluate((viewer) => {
         const opacity = (sel: string) => {

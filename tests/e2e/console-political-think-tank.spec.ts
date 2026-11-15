@@ -285,8 +285,8 @@ for (const profile of PROFILES) {
       expect(atEnd.hand).toContain(KEPT);
       expect(atEnd.megaCredits).toBe(17);
       expect(atEnd.used, 'the action was spent').toBe(true);
-      expect(await page.locator('.con-ws').count(), 'no workspace on the board').toBe(0);
-      expect(await page.locator('.con-stranded').count(), 'nothing stranded').toBe(0);
+      await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace on the board'}).toBe(0);
+      await expect.poll(() => page.locator('.con-stranded').count(), {message: 'nothing stranded'}).toBe(0);
       expect(await page.evaluate(() => document.documentElement.getAttribute('data-reveal-handoff-degraded'))).toBeNull();
       await shoot(page, `${profile.tag}-03-board`);
       expect(overflow, `no [console-overflow]: ${overflow.join(' | ')}`).toEqual([]);
@@ -353,8 +353,8 @@ for (const profile of PROFILES) {
       expect(atVerdict.discard, 'the revealed card is in the discard pile').toBe(atBoot.discard + 1);
       expect(atEnd.used).toBe(true);
       expect(verdictBox, 'the miss verdict stood').not.toBeNull();
-      expect(await page.locator('.con-ws').count()).toBe(0);
-      expect(await page.locator('.con-stranded').count()).toBe(0);
+      await expect.poll(() => page.locator('.con-ws').count()).toBe(0);
+      await expect.poll(() => page.locator('.con-stranded').count()).toBe(0);
       expect(overflow, `no [console-overflow]: ${overflow.join(' | ')}`).toEqual([]);
       expect(pageErrors, `no page errors: ${pageErrors.join(' | ')}`).toEqual([]);
     });

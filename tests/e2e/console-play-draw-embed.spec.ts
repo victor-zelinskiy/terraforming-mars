@@ -20,9 +20,14 @@
  *
  * Both are observed FRAME BY FRAME, because both bugs are one-frame
  * ownership questions: «did the workspace let go before the cards arrived?».
+ * The frames are RECORDED (`armWitness`, `settled` — every state a task
+ * leaves, i.e. every state a frame can paint; replace-proof) from before the
+ * press, and the driver only DRIVES (each move waits for the state it acts
+ * on) — a press-and-sample loop slept through what it was there to see.
  */
 import {expect, test, Page, APIRequestContext} from './consoleTest';
-import {press} from './consoleStart';
+import {openHandPlayComposer, press, pressUntil, settle} from './consoleStart';
+import {armWitness} from './witness';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -105,7 +110,58 @@ async function createAndOpenConsole(page: Page, request: APIRequestContext, corp
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
-  await page.waitForTimeout(3000); // deal cinematic settle
+  // The deal cinematic settles — the console's own quiet, not a pause (the wizard walk reads what stands either way).
+  await settle(page, {timeoutMs: 30_000}).catch(() => { /* the walk reads what stands */ });
+}
+
+/**
+ * A on the batch standing in `zone` — act → verify: the take's own edge (the reveal turns `busy`, a slot is marked
+ * taken, or the batch is gone), the press repeated only when it changed nothing for its whole window. (The shared
+ * `takeRevealCard` presses only a `ready` reveal — and a single drawn card's reveal may stand `held`, A taking it all
+ * the same.)
+ */
+async function takeEmbeddedCard(page: Page, zone: string): Promise<boolean> {
+  const tookOrGone = () => page.evaluate((sel) => {
+    const reveal = document.querySelector(`${sel} .con-reveal`);
+    return reveal === null || reveal.getAttribute('data-take') === 'busy' ||
+      reveal.querySelectorAll('.con-cards__slot:not(.con-cards__slot--taken)').length === 0;
+  }, zone);
+  return pressUntil(page, 'Enter', tookOrGone, {tries: 3, settleMs: 3_000});
+}
+
+/**
+ * Drive the START out: A on its CTA whenever one stands (and, with `takeEmbedded`, the batch embedded in its zone is
+ * TAKEN — verified, `takeEmbeddedCard`), until the start releases or a mandatory plate takes the screen. Every move
+ * waits for the STATE it acts on (bounded), never a pause; nothing here observes — the recording does.
+ */
+async function pressThroughStart(page: Page, opts: {takeEmbedded?: boolean, onEmbedded?: () => Promise<void>, maxMs?: number} = {}): Promise<void> {
+  const deadline = Date.now() + (opts.maxMs ?? 150_000);
+  while (Date.now() < deadline) {
+    await page.waitForFunction((take) => document.querySelector('.con-start') === null ||
+      document.querySelector('.con-mandatory') !== null ||
+      document.querySelector('.con-start__slot-a') !== null ||
+      (take && document.querySelector('.con-start__embed .con-reveal') !== null), opts.takeEmbedded === true,
+    {timeout: Math.max(1, Math.min(30_000, deadline - Date.now())), polling: 100}).catch(() => undefined);
+    const s = await page.evaluate(() => ({
+      start: document.querySelector('.con-start') !== null,
+      mandatory: document.querySelector('.con-mandatory') !== null,
+      cta: document.querySelector('.con-start__slot-a') !== null,
+      embedded: document.querySelector('.con-start__embed .con-reveal') !== null,
+    }));
+    if (!s.start || s.mandatory) {
+      return;
+    }
+    if (opts.takeEmbedded === true && s.embedded) {
+      await opts.onEmbedded?.();
+      await takeEmbeddedCard(page, '.con-start__embed');
+      // The take's flight and the collect run on; the next round waits for the next actionable state.
+      await page.locator('.con-start__embed .con-reveal').first().waitFor({state: 'detached', timeout: 15_000}).catch(() => undefined);
+      continue;
+    }
+    if (s.cta) {
+      await key(page, 'Enter', 700); // A — play the queued card
+    }
+  }
 }
 
 /**
@@ -119,7 +175,9 @@ async function runWizard(page: Page, corp: string, buy: ReadonlyArray<string> = 
   let stalls = 0;
   const walk = async (focused: string) => {
     if (focused === '') {
-      await page.waitForTimeout(400);
+      // The deal cinematic owns the row — wait for the STATE a walk needs (a focused card; bounded), never a pause.
+      await page.locator('.con-cards__slot--focused, .con-start--ceremony').first()
+        .waitFor({state: 'attached', timeout: 5_000}).catch(() => undefined);
       return;
     }
     stalls = focused === lastFocused ? stalls + 1 : 0;
@@ -182,68 +240,51 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
     await createAndOpenConsole(page, request, ['Point Luna', 'CrediCor']);
     await runWizard(page, 'Point Luna');
 
-    const log = {
-      /** The drawn card presented INSIDE the deployment's embed zone. */
-      embedded: false,
-      /** The fullscreen viewer opened while the batch was on screen (the bug). */
-      viewerFrames: 0,
-      /** A full-bleed standalone reveal stood outside the workspace (the bug). */
-      standaloneFrames: 0,
-      /** The workspace was gone while the batch was still on screen (the bug). */
-      orphanFrames: 0,
-      trace: [] as Array<string>,
-    };
+    // RECORDED from here to the release — every paintable state (`settled`: the claims are «never at the same time»).
+    type StartDrawSeen = {start: boolean, reveal: boolean, embedded: boolean, viewer: boolean, standalone: boolean};
+    const draw = await armWitness<StartDrawSeen>(page, 'pointluna-draw', () => {
+      const start = document.querySelector('.con-start');
+      const reveal = document.querySelector('.con-reveal');
+      // The reveal re-homed into the deployment's own zone…
+      const embedded = document.querySelector('.con-start__embed .con-reveal') !== null;
+      return {
+        start: start !== null,
+        reveal: reveal !== null,
+        embedded,
+        // …and the two failure shapes.
+        viewer: document.querySelector('.con-zoom') !== null,
+        // A FULL-BLEED band is the overlay in its own standalone mode — never the embedded one caught between two tasks
+        // of its host's teardown (the frame leaves a task before its teleported stage does).
+        standalone: document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null,
+      };
+    }, {settled: true});
+    // A = play the queued corporation, then take the drawn card — until the start lets go.
     let shotEmbed = false;
-    let goneStreak = 0;
-    for (let i = 0; i < 200; i++) {
-      const s = await page.evaluate(() => {
-        const start = document.querySelector('.con-start');
-        const reveal = document.querySelector('.con-reveal');
-        return {
-          start: start !== null,
-          reveal: reveal !== null,
-          // The reveal re-homed into the deployment's own zone.
-          embedded: document.querySelector('.con-start__embed .con-reveal') !== null,
-          // …and the two failure shapes.
-          viewer: document.querySelector('.con-zoom') !== null,
-          standalone: reveal !== null &&
-            document.querySelector('.con-start__embed .con-reveal') === null,
-          cta: start !== null && document.querySelector('.con-start__slot-a') !== null,
-          mandatory: document.querySelector('.con-mandatory') !== null,
-        };
-      });
-      log.trace.push(`${i} s:${s.start ? 1 : 0} r:${s.reveal ? 1 : 0} e:${s.embedded ? 1 : 0} z:${s.viewer ? 1 : 0}`);
-      if (s.embedded) {
-        log.embedded = true;
+    await pressThroughStart(page, {
+      takeEmbedded: true,
+      onEmbedded: async () => {
         if (!shotEmbed) {
           shotEmbed = true;
           await shoot(page, 'pointluna-embedded-draw');
         }
-      }
-      if (s.reveal && s.viewer) {
-        log.viewerFrames++;
-      }
-      if (s.standalone) {
-        log.standaloneFrames++;
-      }
-      if (s.reveal && !s.start) {
-        log.orphanFrames++;
-      }
-      if (!s.start) {
-        goneStreak++;
-        if (goneStreak >= 8 || s.mandatory) {
-          break;
-        }
-      } else {
-        goneStreak = 0;
-      }
-      // A = play the queued corporation, then take the drawn card.
-      if (s.cta || s.embedded) {
-        await key(page, 'Enter', 700);
-      } else {
-        await page.waitForTimeout(200);
-      }
-    }
+      },
+    });
+    // The record runs to the release and past it, until the console is at rest (bounded).
+    await expect.poll(() => page.locator('.con-start').count(), {timeout: 60_000}).toBe(0).catch(() => undefined);
+    await settle(page, {timeoutMs: 30_000}).catch(() => { /* the record is judged either way */ });
+    const recorded = await draw.stop();
+    const t0 = recorded[0]?.t ?? 0;
+    const log = {
+      /** The drawn card presented INSIDE the deployment's embed zone. */
+      embedded: recorded.some((r) => r.v.embedded),
+      /** The fullscreen viewer opened while the batch was on screen (the bug) — recorded states. */
+      viewerFrames: recorded.filter((r) => r.v.reveal && r.v.viewer).length,
+      /** A full-bleed standalone reveal stood outside the workspace (the bug). */
+      standaloneFrames: recorded.filter((r) => r.v.standalone).length,
+      /** The workspace was gone while the batch was still on screen (the bug). */
+      orphanFrames: recorded.filter((r) => r.v.reveal && !r.v.start).length,
+      trace: recorded.map(({t, v: s}) => `${t - t0} s:${s.start ? 1 : 0} r:${s.reveal ? 1 : 0} e:${s.embedded ? 1 : 0} z:${s.viewer ? 1 : 0}`),
+    };
     console.log(`[point luna trace]\n${log.trace.join('\n')}`);
     expect(log.embedded, 'the triggered draw presented INSIDE the start workspace').toBeTruthy();
     expect(log.viewerFrames, 'no fullscreen viewer — the card is the workspace\'s, not the board\'s').toBe(0);
@@ -261,173 +302,138 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
     await runWizard(page, 'CrediCor', [DRAW_CARD, ...FILLER]);
     // The deployment plays the corporation on its own (CrediCor draws nothing);
     // press A through whatever CTA stands until the workspace releases.
-    for (let i = 0; i < 120 && await page.locator('.con-start').count() > 0; i++) {
-      if (await page.locator('.con-start__slot-a').count() > 0) {
-        await key(page, 'Enter', 700);
-      } else {
-        await page.waitForTimeout(300);
-      }
-    }
+    await pressThroughStart(page);
     await expect(page.locator('.con-start')).toHaveCount(0, {timeout: 60_000});
-    await page.waitForTimeout(3500); // the starting hand's intake settles
+    await settle(page, {timeoutMs: 30_000}); // the starting hand's intake settles
 
-    // ── into the hand workspace, onto the card, and one level deeper. ──
-    for (let i = 0; i < 6 && await page.locator('.con-hand__frame').count() === 0; i++) {
-      await key(page, 'Period', 800);
-      await key(page, 'Enter', 1100);
-    }
-    await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 15_000});
-    await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
-    await page.waitForTimeout(800);
-    const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${DRAW_CARD}"]`).count();
-    let lastSelected = '';
-    for (let i = 0; i < 60 && await onTarget() === 0; i++) {
-      const selected = await page.evaluate(() =>
-        document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
-      await key(page, selected === lastSelected && i > 0 ? 'ArrowDown' : 'ArrowRight', 260);
-      lastSelected = selected;
-    }
-    expect(await onTarget(), `hand cursor never reached ${DRAW_CARD}`).toBeGreaterThan(0);
-    await key(page, 'Enter', 600);
+    // ── into the hand workspace, onto the card, and one level deeper — the shared, verified opener (the hand's own
+    //    «input released» signal, the focus walk that turns at a wall, the composer LOADED). ──
+    await openHandPlayComposer(page, DRAW_CARD);
     await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 15_000});
     await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 15_000});
-    await page.waitForTimeout(1200);
+    await settle(page);
     await shoot(page, 'hand-composer');
 
-    // ── CONFIRM, and watch the whole episode. ──
-    await page.keyboard.press('Enter');
-    const log = {
-      embedded: false,
-      /** The workspace was gone while the drawn card was on screen (the bug). */
-      orphanFrames: 0,
-      /** The reveal stood as a full-bleed band outside the workspace (the bug). */
-      standaloneFrames: 0,
-      /** The fullscreen viewer took the single drawn card (the bug's 1-card shape). */
-      viewerFrames: 0,
-      /** The landing scene presented at all. */
-      sawLanding: false,
-      landingFrames: 0,
-      /** Frames where the landing stood WHILE the deck was already dealing —
-       *  the previous beat refusing to end over the one arriving. */
-      overstayFrames: 0,
-      /** …and frames where it had let go while the deck dealt: the stage is
-       *  free for what is coming (the point of the release). */
-      freedFrames: 0,
-      /** The stage names itself in the SHARED chassis head + status line. */
-      sawHead: false,
-      sawStatus: false,
-      /** Frames where the hand shelf stood LIT behind the embedded stage. */
-      unparkedFrames: 0,
-      /** The workspace crumb grew a tail instead of restarting a screen. */
-      crumb: '',
-      trace: [] as Array<string>,
+    // ── CONFIRM, and watch the whole episode — RECORDED from before the press (`settled`: every paintable state; the
+    //    claims are coexistence and order — «never the card without its workspace», «the landing lets go as the deal
+    //    begins»). The driver below only drives. ──
+    type HandDrawSeen = {
+      hand: boolean, reveal: boolean, embedded: boolean, standalone: boolean, landing: boolean, landingOpacity: number, dealing: boolean,
+      viewer: boolean, untaken: number, head: boolean, status: boolean, crumb: string, browseParked: boolean,
     };
+    const draw = await armWitness<HandDrawSeen>(page, 'hand-draw', () => {
+      const reveal = document.querySelector('.con-reveal');
+      const embedded = document.querySelector('.con-hand__outcome .con-reveal');
+      const stage = document.querySelector('.con-composer__playstage--up');
+      return {
+        hand: document.querySelector('.con-hand') !== null,
+        reveal: reveal !== null,
+        embedded: embedded !== null,
+        standalone: document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null,
+        landing: stage !== null,
+        // The tableau's own dissolve writes its opacity (a recede to 0) — below 1 is «it has begun to let go».
+        landingOpacity: stage === null ? 0 : Number(getComputedStyle(stage).opacity),
+        // The deck is PHYSICALLY dealing — a flyer exists. Deliberately not
+        // `.con-deckdraw`: that layer mounts when the batch is CLAIMED (at
+        // the response) and then waits for whatever earned the draw to
+        // finish its own scene, so it is up for a second while nothing has
+        // moved yet — and the landing tableau is right to hold the stage
+        // through exactly that window.
+        dealing: document.querySelector('.con-deckdraw-proxy') !== null,
+        viewer: document.querySelector('.con-zoom') !== null,
+        untaken: document.querySelectorAll('.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length,
+        // The stage's own chassis (title row + status line) and the
+        // workspace crumb ABOVE it — the four-condition contract's «one
+        // continuous line, only the tail advances».
+        head: embedded !== null && embedded.querySelector('.con-ws-stage-head') !== null,
+        status: embedded !== null && embedded.querySelector('.con-ws-stage-status') !== null,
+        crumb: (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        // The browse shelf must stay PARKED behind the stage.
+        browseParked: document.querySelector('.con-hand__browse--parked') !== null,
+      };
+    }, {settled: true});
+    await page.keyboard.press('Enter');
+    // THE DRIVER. A takes the card once the batch has arrived AND the landing
+    // tableau has let go of the stage — the STATE is waited for (bounded),
+    // then the take is verified by the reveal's own `data-take`; the workspace
+    // must then leave on its own. Taking on the FIRST sight of the batch raced
+    // the tableau's dissolve (it may legitimately overlap the deal while it
+    // fades); a tableau that never lets go still fails — as an overstay,
+    // which is what it would be.
     let shotEmbed = false;
-    let taken = false;
-    for (let i = 0; i < 120; i++) {
-      const s = await page.evaluate(() => {
-        const reveal = document.querySelector('.con-reveal');
-        const embedded = document.querySelector('.con-hand__outcome .con-reveal');
-        return {
-          hand: document.querySelector('.con-hand') !== null,
-          reveal: reveal !== null,
-          embedded: embedded !== null,
-          landing: document.querySelector('.con-composer__playstage--up') !== null,
-          // The deck is PHYSICALLY dealing — a flyer exists. Deliberately not
-          // `.con-deckdraw`: that layer mounts when the batch is CLAIMED (at
-          // the response) and then waits for whatever earned the draw to
-          // finish its own scene, so it is up for a second while nothing has
-          // moved yet — and the landing tableau is right to hold the stage
-          // through exactly that window.
-          dealing: document.querySelector('.con-deckdraw-proxy') !== null,
-          viewer: document.querySelector('.con-zoom') !== null,
-          untaken: document.querySelectorAll('.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length,
-          // The stage's own chassis (title row + status line) and the
-          // workspace crumb ABOVE it — the four-condition contract's «one
-          // continuous line, only the tail advances».
-          head: embedded?.querySelector('.con-ws-stage-head') !== null &&
-            embedded?.querySelector('.con-ws-stage-head') !== undefined,
-          status: embedded?.querySelector('.con-ws-stage-status') !== null &&
-            embedded?.querySelector('.con-ws-stage-status') !== undefined,
-          crumb: (document.querySelector('.con-wshead')?.textContent ?? '')
-            .replace(/\s+/g, ' ').trim(),
-          // The browse shelf must stay PARKED behind the stage.
-          browseParked: document.querySelector('.con-hand__browse--parked') !== null,
-        };
-      });
-      log.trace.push(`${i} h:${s.hand ? 1 : 0} r:${s.reveal ? 1 : 0} e:${s.embedded ? 1 : 0} l:${s.landing ? 1 : 0} d:${s.dealing ? 1 : 0} z:${s.viewer ? 1 : 0} u:${s.untaken} p:${s.browseParked ? 1 : 0} | ${s.crumb}`);
-      if (s.embedded && s.crumb !== '') {
-        log.crumb = s.crumb;
-      }
-      if (s.embedded && !s.browseParked) {
-        log.unparkedFrames++;
-      }
-      if (s.landing) {
-        log.sawLanding = true;
-        if (!s.reveal) {
-          log.landingFrames++;
-        }
-      }
-      // THE HANDOVER between the two scenes. The landing tableau holds the
-      // stage while nothing else needs it — and lets go the moment the DECK
-      // BEGINS DEALING, so the room is free for what is arriving. Both halves
-      // are asserted: it must not overstay into the deal, and the stage must
-      // actually be freed for the draw. Since the one-flight rework the whole
-      // deal (veiled mount → flight → handoff) fits between two of this
-      // loop's samples, so «freed» accepts EITHER shape of the free stage: a
-      // flyer still in the air with the tableau gone, or the arrived, untaken
-      // batch standing where the tableau used to be. (The reveal is allowed
-      // in the DOM during the flight — a plain batch mounts it VEILED first,
-      // because its slots are the flight's real destinations.)
-      if (s.dealing && s.landing && log.sawLanding) {
-        log.overstayFrames++;
-      }
-      if (log.sawLanding && !s.landing && (s.dealing || (s.embedded && s.untaken > 0))) {
-        log.freedFrames++;
-        if (log.freedFrames === 1) {
-          await shoot(page, 'hand-stage-freed');
-        }
-      }
-      if (s.embedded) {
-        log.embedded = true;
-        log.sawHead = log.sawHead || s.head;
-        log.sawStatus = log.sawStatus || s.status;
-        if (!shotEmbed) {
-          shotEmbed = true;
-          // SETTLED, not the first frame: the batch is still flying on the
-          // frame the zone appears, and a screenshot there proves nothing
-          // about the stage the player actually reads.
-          await page.waitForTimeout(900);
-          await shoot(page, 'hand-embedded-draw');
-        }
-      }
-      if (s.reveal && !s.embedded) {
-        log.standaloneFrames++;
-      }
-      if (s.reveal && !s.hand) {
-        log.orphanFrames++;
-      }
-      if (s.reveal && s.viewer) {
-        log.viewerFrames++;
-      }
-      // A takes the card once the batch has arrived AND the landing tableau has
-      // let go of the stage; then the workspace must leave on its own. Taking
-      // on the FIRST sample of the batch raced the tableau's dissolve (it may
-      // legitimately overlap the deal for a sample or two — see `overstay`):
-      // the take emptied the stage before this loop ever saw it free, and
-      // «freed» read 0 with the product right. A tableau that never lets go
-      // still fails — as an overstay, which is what it would be.
-      if (s.embedded && s.untaken > 0 && !s.landing) {
-        await key(page, 'Enter', 500);
-        taken = true;
-        continue;
-      }
-      if (taken && !s.reveal && !s.hand) {
-        break;
-      }
-      await page.waitForTimeout(220);
+    await draw.waitFor((v) => !v.landing && (v.dealing || (v.embedded && v.untaken > 0)), {timeoutMs: 60_000})
+      .then(() => shoot(page, 'hand-stage-freed'), () => undefined);
+    const takeable = await page.waitForFunction(() =>
+      document.querySelector('.con-hand__outcome .con-reveal') !== null &&
+      document.querySelectorAll('.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length > 0 &&
+      document.querySelector('.con-composer__playstage--up') === null, undefined, {timeout: 60_000, polling: 100})
+      .then(() => true, () => false);
+    if (takeable) {
+      // The batch has landed and the tableau has gone — the stage the player reads.
+      shotEmbed = true;
+      await shoot(page, 'hand-embedded-draw');
+      await takeEmbeddedCard(page, '.con-hand__outcome');
     }
-    console.log(`[hand draw trace]\n${log.trace.join('\n')}`);
+    // The flow ENDS by itself once the card is taken (bounded); the record runs to the console's rest.
+    await expect.poll(() => page.locator('.con-hand').count(), {timeout: 30_000}).toBe(0).catch(() => undefined);
+    await settle(page, {timeoutMs: 30_000}).catch(() => { /* the record is judged either way */ });
+    const recorded = await draw.stop();
+    const states = recorded.map((r) => r.v);
+    const t0 = recorded[0]?.t ?? 0;
+
+    // THE FOLD — every claim over the recorded states (each one a state a frame could paint).
+    const landingAt = states.findIndex((s) => s.landing);
+    // THE HANDOVER between the two scenes. The landing tableau holds the
+    // stage while nothing else needs it — and lets go the moment the DECK
+    // BEGINS DEALING, so the room is free for what is arriving. Both halves
+    // are asserted: it must not overstay into the deal, and the stage must
+    // actually be freed for the draw. «Freed» accepts EITHER shape of the
+    // free stage: a flyer still in the air with the tableau gone, or the
+    // arrived, untaken batch standing where the tableau used to be. (The
+    // reveal is allowed in the DOM during the flight — a plain batch mounts
+    // it VEILED first, because its slots are the flight's real destinations.)
+    // OVERSTAY, as an ORDER: the tableau's exit (it is gone, or its dissolve
+    // has begun — the opacity below its resting value) must begin no later
+    // than the deal is over. A dissolve that overlaps the flight is the exit
+    // itself; a tableau still standing whole once the flyer has landed sat
+    // through the flight — the shape the release replaced. (The dissolve and
+    // the flight tick on one clock, so «no later» holds at any frame rate.)
+    const dealStart = landingAt < 0 ? -1 : states.findIndex((s, i) => i > landingAt && s.dealing);
+    const restingOpacity = Math.max(0, ...states.slice(landingAt < 0 ? 0 : landingAt, dealStart < 0 ? undefined : dealStart)
+      .filter((s) => s.landing).map((s) => s.landingOpacity));
+    const releaseAt = dealStart < 0 ? -1 :
+      states.findIndex((s, i) => i >= dealStart && (!s.landing || s.landingOpacity < restingOpacity - 0.001));
+    const dealEnd = dealStart < 0 ? -1 : states.findIndex((s, i) => i > dealStart && !s.dealing);
+    const overstayed = dealStart >= 0 && (releaseAt < 0 || (dealEnd >= 0 && releaseAt > dealEnd));
+    const embeddedStates = states.filter((s) => s.embedded);
+    const log = {
+      embedded: embeddedStates.length > 0,
+      /** The workspace was gone while the drawn card was on screen — an UNTAKEN card (the bug); the emptied stage's own
+       *  leave, a task behind its frame's, holds no card. */
+      orphanFrames: states.filter((s) => s.untaken > 0 && !s.hand).length,
+      /** The reveal stood as a full-bleed band outside the workspace (the bug) — the overlay in its standalone mode. */
+      standaloneFrames: states.filter((s) => s.standalone).length,
+      /** The fullscreen viewer took the single drawn card (the bug's 1-card shape). */
+      viewerFrames: states.filter((s) => s.reveal && s.viewer).length,
+      /** The landing scene presented at all. */
+      sawLanding: landingAt >= 0,
+      /** The states where the stage stood FREE for what is arriving (the point of the release). */
+      freedFrames: landingAt < 0 ? 0 :
+        states.filter((s, i) => i > landingAt && !s.landing && (s.dealing || (s.embedded && s.untaken > 0))).length,
+      /** The stage names itself in the SHARED chassis head + status line. */
+      sawHead: embeddedStates.some((s) => s.head),
+      sawStatus: embeddedStates.some((s) => s.status),
+      /** States where the hand shelf stood LIT behind the embedded stage. */
+      unparkedFrames: embeddedStates.filter((s) => !s.browseParked).length,
+      /** The workspace crumb grew a tail instead of restarting a screen — read while the drawn card STOOD on the
+       *  stage for the player (the record also holds the workspace's own leave, which is not the stage he reads). */
+      crumb: (embeddedStates.some((s) => s.untaken > 0 && s.crumb !== '') ?
+        embeddedStates.filter((s) => s.untaken > 0 && s.crumb !== '') :
+        embeddedStates.filter((s) => s.crumb !== '')).at(-1)?.crumb ?? '',
+      trace: recorded.map(({t, v: s}) => `${t - t0} h:${s.hand ? 1 : 0} r:${s.reveal ? 1 : 0} e:${s.embedded ? 1 : 0} l:${s.landing ? 1 : 0}` +
+        `@${s.landingOpacity.toFixed(2)} d:${s.dealing ? 1 : 0} z:${s.viewer ? 1 : 0} u:${s.untaken} p:${s.browseParked ? 1 : 0} | ${s.crumb}`),
+    };
+    console.log(`[hand draw trace] (shot the stage: ${shotEmbed}; deal ${dealStart}…${dealEnd}, release ${releaseAt})\n${log.trace.join('\n')}`);
     expect(log.embedded, 'the drawn card presented INSIDE the hand workspace').toBeTruthy();
     expect(log.standaloneFrames, 'never a full-bleed band outside the workspace that drew it').toBe(0);
     expect(log.orphanFrames, 'the workspace never let go while its own card was on screen').toBe(0);
@@ -437,12 +443,12 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
     // nothing else needs it, and LETS GO the moment the deck starts dealing —
     // a scene still standing over the cards it produced is the previous beat
     // refusing to end.
-    // …and PROMPTLY: a sampled frame or two of overlap is the dissolve itself
-    // (it lets go with a fade, never a cut — demanding zero would forbid the
-    // very animation this asserts), but it must not sit there through the
-    // flight, which is the shape the release replaced.
-    expect(log.overstayFrames, `the landing lets go as the deal begins (stayed ${log.overstayFrames} samples)`)
-      .toBeLessThanOrEqual(2);
+    // …and PROMPTLY: overlap with the deal is the dissolve itself (it lets go
+    // with a fade, never a cut — demanding none would forbid the very
+    // animation this asserts), but it must not sit there through the flight,
+    // which is the shape the release replaced.
+    expect(overstayed, `the landing lets go as the deal begins (deal ${dealStart}…${dealEnd}, its exit began at ${releaseAt})`)
+      .toBe(false);
     expect(log.freedFrames, 'the stage is freed for the arriving draw').toBeGreaterThan(0);
     expect(log.unparkedFrames, 'the hand shelf stays PARKED behind the stage — never a surface floating over its own screen').toBe(0);
     expect(log.sawHead, 'the stage wears the shared chassis head (it names itself once, in the stage)').toBeTruthy();

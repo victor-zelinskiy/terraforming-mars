@@ -285,9 +285,7 @@ test.describe('one press, several effects', () => {
     // live, with no surface of its own, for the length of the batch.
     expect(d.owedFrames, 'the colony step was held while the batch was worked through').toBeGreaterThan(3);
     expectOneArrivalInsideTheHand(d);
-    expect(await page.locator('.con-hand .con-colonies').count(),
-      `the colonies must stand INSIDE the hand workspace — stacks seen: ${d.stacks.join(' | ')}`)
-      .toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-hand .con-colonies').count(), {message: `the colonies must stand INSIDE the hand workspace — stacks seen: ${d.stacks.join(' | ')}`}).toBeGreaterThan(0);
   });
 
   /**
@@ -312,8 +310,6 @@ test.describe('one press, several effects', () => {
     // being shown, exactly as it waits for a batch to be taken.
     expect(d.owedFrames, 'the colony step was held while the play was shown').toBeGreaterThan(3);
     expectOneArrivalInsideTheHand(d);
-    expect(await page.locator('.con-hand .con-colonies').count(),
-      `the colonies must stand INSIDE the hand workspace — stacks seen: ${d.stacks.join(' | ')}`)
-      .toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-hand .con-colonies').count(), {message: `the colonies must stand INSIDE the hand workspace — stacks seen: ${d.stacks.join(' | ')}`}).toBeGreaterThan(0);
   });
 });

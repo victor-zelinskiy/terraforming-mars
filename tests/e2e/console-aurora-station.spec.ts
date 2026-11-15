@@ -329,7 +329,7 @@ for (const preset of PRESETS) {
       expect(crumb, `the crumb reads «КОЛОНИИ › СТАНЦИЯ АВРОРА › ТОРГОВЛЯ» — got «${crumb}»`).toMatch(/КОЛОНИИ.*СТАНЦИЯ АВРОРА.*ТОРГОВЛЯ/);
       const row = page.locator('[data-fleet-dock-target]');
       await expect(row, 'the «КУДА» row stands').toHaveCount(1);
-      expect(await row.getAttribute('data-fleet-dock-target-card'), 'nothing is pre-chosen').toBe('');
+      await expect.poll(() => row.getAttribute('data-fleet-dock-target-card'), {message: 'nothing is pre-chosen'}).toBe('');
       await expect(row, 'the row reads as a missing decision').toHaveClass(/con-colfocus__steprow--missing/);
       const barTrade = page.locator('.con-cmdbar .con-cmdbar__cmd', {hasText: /Подтвердить торговлю/i});
       await expect(barTrade, 'the bar names the trade').toHaveCount(1);
@@ -356,7 +356,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '02-target-step');
       await press(page, 'Escape', 900);
       await expect(page.locator('.con-fleetdock .con-colfocus__targetstage'), 'B folds the step').toHaveCount(0, {timeout: 10_000});
-      expect(await row.getAttribute('data-fleet-dock-target-card'), 'B is not a choice').toBe('');
+      await expect.poll(() => row.getAttribute('data-fleet-dock-target-card'), {message: 'B is not a choice'}).toBe('');
       await pressUntilVisible(page, 'Enter', '.con-fleetdock .con-colfocus__targetstage', {tries: 3, settleMs: 900});
       await settle(page, {timeoutMs: 15_000});
       for (let i = 0; i < 4 && await focusedCandidate(page) !== HABS; i++) {
@@ -366,7 +366,7 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 900);
       await expect(page.locator('.con-fleetdock .con-colfocus__targetstage'), 'A answered the step').toHaveCount(0, {timeout: 10_000});
       await settle(page, {timeoutMs: 15_000});
-      expect(await row.getAttribute('data-fleet-dock-target-card'), 'the row names the choice').toBe(HABS);
+      await expect.poll(() => row.getAttribute('data-fleet-dock-target-card'), {message: 'the row names the choice'}).toBe(HABS);
       const result = ((await page.locator('[data-fleet-dock-result]').textContent()) ?? '').replace(/\s+/g, ' ');
       expect(result, `the chip re-aimed at Habs — «${result}»`).toMatch(/1\s*→\s*3/);
       expect(await stageBlocks(page), 'no block of the stage moved with the choice').toBe(blocks0);
@@ -469,7 +469,7 @@ for (const preset of PRESETS) {
       expect(after.thisPlayer.megacreditProduction, '+1 M€ production').toBe(prod0 + 1);
       expect(after.thisPlayer.tradesThisGeneration, 'it was a trade').toBe(1);
       expect(after.thisPlayer.tableau.find((c) => c.name === AURORA)?.fleetDocked, 'the fleet stands on the station').toBe(blue);
-      expect(await page.locator('.con-ws').count(), 'no workspace').toBe(0);
+      await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace'}).toBe(0);
       expect(await strandedReports(page), 'no prompt was stranded').toEqual([]);
       expect(overflow, `no [console-overflow] — ${overflow.join(' | ')}`).toEqual([]);
       expect(errors, `no page error — ${errors.join(' | ')}`).toEqual([]);
@@ -530,7 +530,7 @@ for (const preset of PRESETS) {
       });
       await openStationStage(page);
       const row = page.locator('[data-fleet-dock-target]');
-      expect(await row.getAttribute('data-fleet-dock-target-card'), 'the one holder is NAMED').toBe(AURORA);
+      await expect.poll(() => row.getAttribute('data-fleet-dock-target-card'), {message: 'the one holder is NAMED'}).toBe(AURORA);
       expect(((await row.textContent()) ?? '').replace(/\s+/g, ' '), 'with its own «0 → 2»').toMatch(/0\s*→\s*2/);
       await press(page, 'ArrowDown', 400);
       await expect(row, 'a statement, never a cursor stop').not.toHaveClass(/con-colfocus__steprow--focused/);
@@ -665,7 +665,7 @@ for (const preset of [...PRESETS, {id: 'deck', viewport: {width: 1280, height: 8
       const docks = page.locator('.con-colonies__grid [data-fleet-dock]');
       await expect(docks, 'the grid holds THREE dock cells').toHaveCount(3);
       expect(await docks.evaluateAll((els) => els.map((el) => el.getAttribute('data-fleet-dock'))), 'in tableau order').toEqual([AURORA, HAULING, LINER]);
-      expect(await page.locator('[data-fleet-dock-status="free"]').count(), 'all three are free').toBe(3);
+      await expect.poll(() => page.locator('[data-fleet-dock-status="free"]').count(), {message: 'all three are free'}).toBe(3);
       const scaleThree = await tileScale(page);
       console.log(`[${preset.id}] --coltile-scale: one dock ${scaleOne} · three docks ${scaleThree}`);
       // THE DOCKS ARE CELLS OF THE COLONY GRID (the owner, 2026-10-25 + ledger EZ): one size for the whole grid, one fit

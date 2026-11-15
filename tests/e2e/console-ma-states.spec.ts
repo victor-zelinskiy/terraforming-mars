@@ -193,7 +193,7 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await shoot(page, '10-milestones-fresh');
     // TWO WORKSPACES, ONE FAMILY (FB′): one kind a screen — the milestones alone, two columns of tiles of ONE width
     // (an odd fifth never spans).
-    expect(await page.locator('.con-ma.con-ma--milestones').count(), 'the milestones stand on their own screen').toBe(1);
+    await expect.poll(() => page.locator('.con-ma.con-ma--milestones').count(), {message: 'the milestones stand on their own screen'}).toBe(1);
     expect(await page.locator('.con-ma__card').evaluateAll((els) => {
       const w = Math.max(...els.map((el) => el.getBoundingClientRect().width));
       return els.filter((el) => Math.abs(el.getBoundingClientRect().width - w) > 1).length;
@@ -230,7 +230,7 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     const awayIdx = states.findIndex((s, i) => i !== goIdx && !s.taken);
     await focusCardAt(page, awayIdx);
     const goCard = page.locator('.con-ma__card--go:not(.con-ma__card--focused)');
-    expect(await goCard.count(), 'the available tile is not the focused one').toBe(1);
+    await expect.poll(() => goCard.count(), {message: 'the available tile is not the focused one'}).toBe(1);
     // MATERIAL, NEVER LIGHT (FB): «available» is the row's own mint KANT (an inset ring) + the word — no rim, no
     // shelf, no pooled pedestal; the cursor's ring is a separate layer that is dark here.
     expect(await goCard.evaluate((el) => getComputedStyle(el).boxShadow), 'the available row wears an INSET kant')
@@ -248,7 +248,7 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     // the cyan ring joins the mint wash + activation light, replacing nothing.
     await focusCardAt(page, goIdx);
     const goFocused = page.locator('.con-ma__card--go.con-ma__card--focused');
-    expect(await goFocused.count(), 'focus and availability share one tile').toBe(1);
+    await expect.poll(() => goFocused.count(), {message: 'focus and availability share one tile'}).toBe(1);
     expect(await goFocused.evaluate((el) => getComputedStyle(el).boxShadow), 'focus must not eat the availability kant')
       .toMatch(/inset/);
     // THE CURSOR (`.con-cursor()`): the ring is the row's own layer, lit — an inset ring, never a blurred halo.
@@ -267,7 +267,7 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     expect((await cardStates(page))[awayIdx]?.focused, 'a click focuses the tile').toBe(true);
     await page.locator(ACTIVE_ROWS).nth(awayIdx).click();
     await page.waitForTimeout(1200);
-    expect(await page.locator('.con-mafocus').count(), 'a click on the focused tile descends').toBe(1);
+    await expect.poll(() => page.locator('.con-mafocus').count(), {message: 'a click on the focused tile descends'}).toBe(1);
     await press(page, 'Escape', 1200);
     await focusCardAt(page, goIdx);
 
@@ -277,20 +277,15 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     // standing in the race (never the milestone metric); the race itself is the row's FIELD, seat by seat.
     await expect(page.locator('.con-ma.con-ma--awards'), 'the awards workspace stands').toHaveCount(1);
     const awardTiles = await page.locator('.con-ma--awards .con-ma__card').count();
-    expect(await page.locator('.con-ma--awards .con-ma__card .con-ma__race').count(),
-      'every award row carries your race plate').toBe(awardTiles);
-    expect(await page.locator('.con-ma--awards .con-ma__card .con-ma__metric').count(),
-      'no award row carries the milestone metric').toBe(0);
+    await expect.poll(() => page.locator('.con-ma--awards .con-ma__card .con-ma__race').count(), {message: 'every award row carries your race plate'}).toBe(awardTiles);
+    await expect.poll(() => page.locator('.con-ma--awards .con-ma__card .con-ma__metric').count(), {message: 'no award row carries the milestone metric'}).toBe(0);
     // A live race is CROWNED on its field (lead / tie / behind all have a leader's lane).
     const liveRaces = await page.locator('.con-ma--awards :is(.con-ma__race--lead, .con-ma__race--tie, .con-ma__race--behind)').count();
-    expect(await page.locator('.con-ma--awards .con-ma__card:has(.con-ma__lane--lead .con-ma__crown)').count(),
-      'every live race wears the crown on the leader lane').toBe(liveRaces);
+    await expect.poll(() => page.locator('.con-ma--awards .con-ma__card:has(.con-ma__lane--lead .con-ma__crown)').count(), {message: 'every live race wears the crown on the leader lane'}).toBe(liveRaces);
     // The funded award mounts the sponsor's cube in the emblem socket.
-    expect(await page.locator('.con-ma__card--taken .con-ma__gem').count(),
-      'the funded award wears the sponsor socket').toBe(1);
+    await expect.poll(() => page.locator('.con-ma__card--taken .con-ma__gem').count(), {message: 'the funded award wears the sponsor socket'}).toBe(1);
     // The header tray arms the NEXT slot while funding is genuinely offered.
-    expect(await page.locator('.con-ma__slot--next').count(),
-      'the tray arms the next slot on a live funding offer').toBe(1);
+    await expect.poll(() => page.locator('.con-ma__slot--next').count(), {message: 'the tray arms the next slot on a live funding offer'}).toBe(1);
     await shoot(page, '30-awards-staged');
     const awardStates = await cardStates(page);
     const fundedIdx = awardStates.findIndex((s) => s.taken);
@@ -316,8 +311,8 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
       expect(await page.locator('.con-mafocus__surface').evaluate((el) => getComputedStyle(el).backgroundImage.includes('radial-gradient')),
         'no light pool on the detail surface').toBe(false);
       // THE RIGHT COLUMN IS FULL (FB): the three plates in every mode — the race plate always.
-      expect(await page.locator('[data-ma-plate]').count(), 'condition · what it gives · the race').toBe(3);
-      expect(await page.locator('[data-ma-ladder]').count(), 'the sponsorship ladder').toBe(1);
+      await expect.poll(() => page.locator('[data-ma-plate]').count(), {message: 'condition · what it gives · the race'}).toBe(3);
+      await expect.poll(() => page.locator('[data-ma-ladder]').count(), {message: 'the sponsorship ladder'}).toBe(1);
       await shoot(page, '32-awards-detail-atmosphere');
       await press(page, 'Escape', 1300);
     }
@@ -331,10 +326,9 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
       await press(page, 'Enter', 1500);
       await page.waitForSelector('.con-mafocus', {timeout: 6_000});
       // A blocked milestone: no offered kant, a NAMED reason on the rail (never «Сейчас недоступно»), three plates.
-      expect(await page.locator('.con-mafocus--go, .con-mafocus--avail').count(),
-        'a blocked milestone is not offered').toBe(0);
-      expect(await page.locator('[data-ma-plate]').count(), 'the right column is full on a blocked item').toBe(3);
-      expect(await page.locator('.con-mafocus__decision').innerText(), 'the reason is named').not.toMatch(/Сейчас недоступно/i);
+      await expect.poll(() => page.locator('.con-mafocus--go, .con-mafocus--avail').count(), {message: 'a blocked milestone is not offered'}).toBe(0);
+      await expect.poll(() => page.locator('[data-ma-plate]').count(), {message: 'the right column is full on a blocked item'}).toBe(3);
+      await expect.poll(() => page.locator('.con-mafocus__decision').innerText(), {message: 'the reason is named'}).not.toMatch(/Сейчас недоступно/i);
       await shoot(page, '40-detail-blocked');
       await press(page, 'Escape', 1300);
     }
@@ -345,8 +339,7 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await page.waitForSelector('.con-mafocus', {timeout: 6_000});
     // CONTINUITY (the core criterion): the kanted row OPENS into a kanted stage — the offered milestone's pedestal
     // wears the row's mint kant (an inset ring), and nothing on the stage is light (FB).
-    expect(await page.locator('.con-mafocus--avail').count(),
-      'the offered milestone carries its kant into the stage').toBe(1);
+    await expect.poll(() => page.locator('.con-mafocus--avail').count(), {message: 'the offered milestone carries its kant into the stage'}).toBe(1);
     expect(await page.locator('.con-mafocus__stage').evaluate((el) => getComputedStyle(el).boxShadow), 'the pedestal kant')
       .toMatch(/inset/);
     expect(await page.locator('.con-mafocus__name').evaluate((el) => getComputedStyle(el).textShadow), 'no glowing name').toBe('none');
@@ -359,14 +352,13 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     // The ceremony is GSAP-driven: pump BeginFrame while it plays.
     await page.waitForSelector('.con-mafocus__cere', {timeout: 15_000});
     // The commit latch (`--go`) holds through the ceremony — the ceremony's own light is its licence.
-    expect(await page.locator('.con-mafocus--go').count(),
-      'the commit latch holds through the ceremony').toBe(1);
+    await expect.poll(() => page.locator('.con-mafocus--go').count(), {message: 'the commit latch holds through the ceremony'}).toBe(1);
     await shoot(page, '43-ceremony');
     for (let i = 0; i < 60 && await page.locator('.con-ma').count() > 0; i++) {
       await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
       await page.waitForTimeout(280);
     }
-    expect(await page.locator('.con-ma').count(), 'the workspace closes after its ceremony').toBe(0);
+    await expect.poll(() => page.locator('.con-ma').count(), {message: 'the workspace closes after its ceremony'}).toBe(0);
 
     // ── 7 · the TAKEN-BY-ME state (scenario 5) ─────────────────────────────
     await waitQuiet(page);
@@ -377,17 +369,15 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     expect(mineIdx, 'the claimed milestone must render as taken').toBeGreaterThanOrEqual(0);
     // The taken tile recomposes to the settled trophy: the owner seal takes
     // the status column, and no availability language survives on it.
-    expect(await page.locator('.con-ma__card--taken .con-ma__seal').count(),
-      'the taken milestone carries the owner seal').toBe(1);
-    expect(await page.locator('.con-ma__card--taken .con-ma__avail').count(),
-      'no availability word on a settled trophy').toBe(0);
+    await expect.poll(() => page.locator('.con-ma__card--taken .con-ma__seal').count(), {message: 'the taken milestone carries the owner seal'}).toBe(1);
+    await expect.poll(() => page.locator('.con-ma__card--taken .con-ma__avail').count(), {message: 'no availability word on a settled trophy'}).toBe(0);
     await shoot(page, '50-milestones-taken');
     await focusCardAt(page, mineIdx);
     await press(page, 'Enter', 1500);
     if (await page.locator('.con-mafocus').count() > 0) {
       // A TAKEN item reads history: the race plate keeps the field (its history row first), and the bar offers no
       // dimmed «Заявить» (FB).
-      expect(await page.locator('[data-ma-history]').count(), 'the history row of the claim').toBe(1);
+      await expect.poll(() => page.locator('[data-ma-history]').count(), {message: 'the history row of the claim'}).toBe(1);
       await expect.poll(() => barText(page), {message: 'no claim verb on a taken item', timeout: 10_000}).not.toContain('ЗАЯВИТЬ');
       await shoot(page, '51-detail-taken-mine');
       await press(page, 'Escape', 1000);

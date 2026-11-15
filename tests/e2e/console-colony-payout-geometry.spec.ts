@@ -65,7 +65,7 @@ async function openColonies(page: Page): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
 }
 
 async function focusTile(page: Page, target: string): Promise<void> {
@@ -79,7 +79,7 @@ async function focusTile(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 async function geometry(page: Page): Promise<Geo> {
@@ -185,7 +185,7 @@ for (const preset of PRESETS) {
         await openColonies(page);
         await focusTile(page, PLUTO);
         await press(page, 'Enter', 2000);
-        expect(await page.locator('.con-colfocus').count(), 'the trade stage did not open').toBeGreaterThan(0);
+        await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the trade stage did not open'}).toBeGreaterThan(0);
         await shoot(page, dir, '00-stage');
         const stage = await geometry(page);
         await press(page, 'KeyX', 300); // confirm the trade

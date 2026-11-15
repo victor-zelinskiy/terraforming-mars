@@ -259,8 +259,8 @@ async function runDiscardFlow(
   await expect(hand, 'the album IS the decision').toHaveCount(1, {timeout: 40_000});
   await settle(page);
   await shoot(page, opts.tag + '-1-choice');
-  expect(await page.locator('.con-decision').count(), 'no decision screen before the album').toBe(0);
-  expect(await page.locator('.con-task-host').count(), 'and never the generic host').toBe(0);
+  await expect.poll(() => page.locator('.con-decision').count(), {message: 'no decision screen before the album'}).toBe(0);
+  await expect.poll(() => page.locator('.con-task-host').count(), {message: 'and never the generic host'}).toBe(0);
   // The choice stays a CHOICE (the discard is optional — no auto-select): the decline is offered, nothing is sent.
   await expect(page.locator('.con-hand__question [data-decline-plate]')).toContainText(/Не сбрасывать/i);
   await shoot(page, opts.tag + '-2-hand-discard-mode');
@@ -337,15 +337,15 @@ async function runDiscardFlow(
   await expect(pile).toHaveAttribute('data-discard-pile-holders', /hand-discard/, {timeout: 15_000});
   await expect(pile, 'the count ticks on contact')
     .toHaveAttribute('data-discard-pile-count', String(count), {timeout: 15_000});
-  expect(await pile.locator('.con-dpile__back').count(), 'the pile physically thickened').toBe(Math.min(count, 3));
+  await expect.poll(() => pile.locator('.con-dpile__back').count(), {message: 'the pile physically thickened'}).toBe(Math.min(count, 3));
   await shoot(page, opts.tag + '-4-landed');
 
   // 4 · the scene ends clean and the card really left the hand.
   await page.waitForSelector('.con-discard', {state: 'detached', timeout: 20_000});
   await page.waitForTimeout(600);
   await shoot(page, opts.tag + '-6-settled');
-  expect(await page.locator('.con-discard-proxy').count(), 'no proxy may survive the scene').toBe(0);
-  expect(await page.locator('.con-hand--discard').count(), 'the discard mode is over').toBe(0);
+  await expect.poll(() => page.locator('.con-discard-proxy').count(), {message: 'no proxy may survive the scene'}).toBe(0);
+  await expect.poll(() => page.locator('.con-hand--discard').count(), {message: 'the discard mode is over'}).toBe(0);
   if (!opts.withDraw) {
     expect(await handCount(), `the hand must be ${count} card(s) shorter (was ${before})`).toBe(before - count);
   }

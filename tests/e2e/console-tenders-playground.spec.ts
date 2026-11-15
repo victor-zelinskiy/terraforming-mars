@@ -97,9 +97,9 @@ test.describe('the tenders playground — the certificate at the table size fits
     const catalog = page.locator('[data-tdpg-catalog] .con-tender.con-tender--table');
     const count = await catalog.count();
     expect(count, 'every dealt kind stands in the catalog (the legacy «Авантюра» does not)').toBeGreaterThanOrEqual(12);
-    expect(await page.locator('[data-tdpg-catalog] [data-tdpg-id="gamble"]').count(), 'the undivided gamble is legacy — not in the catalog').toBe(0);
+    await expect.poll(() => page.locator('[data-tdpg-catalog] [data-tdpg-id="gamble"]').count(), {message: 'the undivided gamble is legacy — not in the catalog'}).toBe(0);
     for (const id of ['gamblePreludes', 'gambleProjects', 'gambleCorporations']) {
-      expect(await page.locator(`[data-tdpg-catalog] [data-tdpg-id="${id}"]`).count(), `${id} is dealt`).toBe(1);
+      await expect.poll(() => page.locator(`[data-tdpg-catalog] [data-tdpg-id="${id}"]`).count(), {message: `${id} is dealt`}).toBe(1);
     }
 
     await page.locator('[data-tdpg-catalog]').screenshot({path: path.join(OUT, 'catalog.png')});
@@ -128,7 +128,7 @@ test.describe('the tenders playground — the certificate at the table size fits
     const onStage = viewer.locator('.card-zoom-stage .card-zoom-card--tender .con-tender--reader');
     await expect(onStage).toHaveCount(1);
     await expect(onStage.locator('.con-tender__art')).toBeVisible();
-    expect(await onStage.locator('.con-tender__plate > *').count(), 'the face prints no prose in the viewer either').toBe(3);
+    await expect.poll(() => onStage.locator('.con-tender__plate > *').count(), {message: 'the face prints no prose in the viewer either'}).toBe(3);
     await expect(viewer.locator('.card-zoom-side [data-rules-group="group:tender"]')).toBeVisible();
     await expect(viewer.locator('.card-zoom-side [data-rules-group="group:window"]')).toBeVisible();
     await expect(viewer.locator('.card-zoom-side [data-rules-group="group:buyout"]')).toBeVisible();

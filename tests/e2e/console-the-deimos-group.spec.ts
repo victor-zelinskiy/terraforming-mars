@@ -156,7 +156,7 @@ test.describe('TR83 — The Deimos Group: a delegate as the first action, +2 inf
     // The start row hands the Parliament the whole SCENE (`frameSteps: {parliament: 'scene'}` — Septem's road): ONE instance,
     // standing as the start's step (the crumb above), never a second Parliament beside it.
     await expect(page.locator('.con-parl:not([data-parl-leaving])'), 'ONE Parliament instance').toHaveCount(1);
-    expect(await page.locator('.con-parl__slot').count(), 'three cards on offer').toBeGreaterThanOrEqual(3);
+    await expect.poll(() => page.locator('.con-parl__slot').count(), {message: 'three cards on offer'}).toBeGreaterThanOrEqual(3);
     await shoot(page, '02-vote-in-start');
 
     // THE PRESS: one delegate from the RESERVE onto the selected card's ribbon.

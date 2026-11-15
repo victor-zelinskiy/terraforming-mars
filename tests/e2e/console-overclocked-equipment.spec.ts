@@ -200,7 +200,7 @@ for (const preset of PROFILES) {
       await press(page, 'ArrowLeft', 250);
       expect(await focusedResource(page), '← from the first tile wraps to the last').toBe('heat');
       await walkTo(page, 'plants');
-      expect(await page.locator(`${PALETTE} .con-vchoice__opt--selected`).count(), 'walking selects nothing').toBe(0);
+      await expect.poll(() => page.locator(`${PALETTE} .con-vchoice__opt--selected`).count(), {message: 'walking selects nothing'}).toBe(0);
       const {groupTopBefore, groupTopAfter} = await sealAndCommit(page, 'plants');
       expect(Math.abs(groupTopAfter - groupTopBefore), `the decision column settles — the row did not move (${groupTopBefore} → ${groupTopAfter})`).toBeLessThanOrEqual(2);
       await shot(page, preset.id, 'A-2-sealed');

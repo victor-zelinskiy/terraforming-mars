@@ -1,7 +1,8 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, press} from './consoleStart';
+import {bootSeededGame, press, settle} from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * THE STANDARD-PROJECTS WORKSPACE IS ONE FLOW (the North-Star migration).
@@ -21,6 +22,11 @@ import {bootSeededGame, press} from './consoleStart';
  *    (`.action-effect-chip` — the same component every composer renders);
  *  · the hand-dock PACK is covered by the panel (z under the band), never
  *    painted over the workspace.
+ *
+ * Every frame-level claim (the step's first painted frame, the commit phrase,
+ * the stack's shapes) is RECORDED from before the press that starts it
+ * (`armWitness`, FLAKE ZERO) — never a page-side rAF / timer sampler, which a
+ * starved renderer can blind or a reload can kill.
  */
 
 const OUT = path.resolve('screenshots', 'stdp-workspace');
@@ -127,7 +133,7 @@ async function focusRow(page: Page, re: RegExp): Promise<void> {
   for (let i = 0; i < snake.length && !re.test(await focusedRow(page)); i++) {
     await press(page, snake[i], 240);
   }
-  expect(re.test(await focusedRow(page)), `could not focus ${re}`).toBeTruthy();
+  await expect.poll(async () => re.test(await focusedRow(page)), {message: `could not focus ${re}`}).toBeTruthy();
 }
 
 async function openStdProjects(page: Page): Promise<void> {
@@ -140,29 +146,25 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   test.setTimeout(420_000);
   const playerId = await createGame(request);
   await bootSeededGame(page, request, playerId, {buy: 2, keepColony: 'Pluto'});
-  await page.waitForTimeout(1500);
+  await settle(page);
 
   await openStdProjects(page);
 
   // ── BROWSE: the WHOLE projected transaction reads in the status rail, in
   // the shared chip language, and the HUD carries the pre-select ghost ring. ──
+  // (The rail republishes a frame after the cursor lands — read by a poll.)
   await focusRow(page, /астероид/i);
-  await page.waitForTimeout(400);
-  const asteroidChips = await railChips(page);
-  expect(asteroidChips.length,
-    'the rail must carry the M€ chip AND the parameter chip — one transaction, one place')
+  await expect.poll(async () => (await railChips(page)).length,
+    {message: 'the rail must carry the M€ chip AND the parameter chip — one transaction, one place'})
     .toBeGreaterThanOrEqual(2);
-  expect(asteroidChips.some((t) => /→/.test(t)),
-    'the projection reads as current → resulting, like every other workspace').toBeTruthy();
-  expect(await page.locator('.con-stdp__wshead .con-wshead__trailing').count(),
-    'the header must NOT carry a second copy of the money preview').toBe(0);
-  expect(await page.locator('.con-status__param--ghost').count(),
-    'the affected HUD readout must carry the pre-select ghost ring').toBe(1);
+  await expect.poll(async () => (await railChips(page)).some((t) => /→/.test(t)),
+    {message: 'the projection reads as current → resulting, like every other workspace'}).toBeTruthy();
+  await expect.poll(() => page.locator('.con-stdp__wshead .con-wshead__trailing').count(), {message: 'the header must NOT carry a second copy of the money preview'}).toBe(0);
+  await expect.poll(() => page.locator('.con-status__param--ghost').count(), {message: 'the affected HUD readout must carry the pre-select ghost ring'}).toBe(1);
   // The pay-on-commit projects additionally name their NEXT STEP.
   await focusRow(page, /город/i);
-  await page.waitForTimeout(300);
-  expect(((await page.locator('.con-stdp__context-next').textContent().catch(() => '')) ?? '').length,
-    'a target project must name its next step').toBeGreaterThan(0);
+  await expect.poll(async () => ((await page.locator('.con-stdp__context-next').textContent().catch(() => '')) ?? '').length,
+    {message: 'a target project must name its next step'}).toBeGreaterThan(0);
   await shoot(page, '01-browse-previews');
 
   // ── THE COLONY STEP: nested INSIDE the same panel; B cancels for free. ──
@@ -172,44 +174,34 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   // the frame it mounts: a JS reveal had to hide it first, and that showed as
   // «весь embedded workspace мигает» (content up → hidden → cascaded back).
   // Its first painted frame must therefore already be transparent.
-  await page.evaluate(() => {
-    const w = window as unknown as {__stepOpacity?: Array<number>};
-    const seen: Array<number> = [];
-    w.__stepOpacity = seen;
-    const t0 = performance.now();
-    const tick = () => {
-      const el = document.querySelector('.con-stdp__step > *');
-      if (el !== null) {
-        seen.push(Number(getComputedStyle(el).opacity));
-      }
-      if (performance.now() - t0 < 1600) {
-        requestAnimationFrame(tick);
-      }
-    };
-    requestAnimationFrame(tick);
-  });
+  // RECORDED from before the press, `settled` — the state a task LEAVES is
+  // the state a frame can paint (a mount and its reveal's first write in one
+  // task are one painted frame, never two), and an ORDER claim («never back
+  // down once risen») is judged on exactly those states.
+  const stepFade = await armWitness<number | null>(page, 'stdp-step-opacity', () => {
+    const el = document.querySelector('.con-stdp__step > *');
+    return el === null ? null : Number(getComputedStyle(el).opacity);
+  }, {settled: true});
   await press(page, 'Enter', 2200);
-  const stepOpacity = await page.evaluate(() =>
-    (window as unknown as {__stepOpacity?: Array<number>}).__stepOpacity ?? []);
-  expect(stepOpacity.length, 'the step must have been sampled while it entered').toBeGreaterThan(3);
+  await page.waitForSelector('.con-stdp .con-colonies', {timeout: 15_000});
+  await settle(page); // the entrance is over — the record holds every state it painted
+  const stepOpacity = (await stepFade.stop()).map((s) => s.v).filter((v): v is number => v !== null);
+  expect(stepOpacity.length, 'the step must have been recorded while it entered').toBeGreaterThan(0);
   expect(stepOpacity[0], 'the step`s FIRST painted frame must be transparent — never shown then hidden')
     .toBeLessThan(0.2);
   // …and it must never go back down once it has risen (that dip IS the blink).
   const peak = stepOpacity.reduce((m, v) => Math.max(m, v), 0);
   const afterPeak = stepOpacity.slice(stepOpacity.findIndex((v) => v >= peak - 0.01));
   expect(Math.min(...afterPeak), 'the step must not dip back once it is up').toBeGreaterThan(peak - 0.05);
-  await page.waitForSelector('.con-stdp .con-colonies', {timeout: 15_000});
-  expect(await page.locator('.con-colonies').count(), 'the colony step must exist').toBe(1);
-  expect(await page.locator('.con-stdp .con-colonies').count(),
-    'the colony pick must stand INSIDE the std-projects workspace, never as a lateral screen').toBe(1);
+  await expect.poll(() => page.locator('.con-colonies').count(), {message: 'the colony step must exist'}).toBe(1);
+  await expect.poll(() => page.locator('.con-stdp .con-colonies').count(), {message: 'the colony pick must stand INSIDE the std-projects workspace, never as a lateral screen'}).toBe(1);
   // The crumb is the HOST's: root stays, the tail advances.
-  expect((await page.locator('.con-stdp .con-wshead__root').textContent()) ?? '')
-    .toMatch(/стандартные проекты/i);
+  await expect(page.locator('.con-stdp .con-wshead__root')).toHaveText(/стандартные проекты/i);
   await shoot(page, '02-colony-step');
   await press(page, 'Escape', 2600); // B = server-side cancel (pay-on-commit)
   await page.waitForSelector('.con-stdp .con-colonies', {state: 'detached', timeout: 15_000});
-  expect(await page.locator('.con-stdp').count(), 'the workspace must survive the cancel').toBe(1);
-  expect(await focusedRow(page), 'the cancel must return to the very row').toMatch(/колония/i);
+  await expect.poll(() => page.locator('.con-stdp').count(), {message: 'the workspace must survive the cancel'}).toBe(1);
+  await expect.poll(() => focusedRow(page), {message: 'the cancel must return to the very row'}).toMatch(/колония/i);
   expect(await serverMegacredits(request, playerId), 'a cancelled colony pick must spend NOTHING').toBe(before);
   await shoot(page, '03-colony-cancelled-back');
 
@@ -220,7 +212,7 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   await shoot(page, '04-sale-step');
   await press(page, 'Escape', 1200);
   await page.waitForSelector('.con-stdp .con-hand', {state: 'detached', timeout: 15_000});
-  expect(await focusedRow(page), 'the fold must return to the sale row').toMatch(/продажа патентов/i);
+  await expect.poll(() => focusedRow(page), {message: 'the fold must return to the sale row'}).toMatch(/продажа патентов/i);
   expect(await serverMegacredits(request, playerId), 'a folded sale must gain NOTHING').toBe(before);
 
   // ── THE PLACEMENT STEP: the board serves it; a cancel REOPENS the list on
@@ -231,7 +223,7 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   await shoot(page, '05-city-placement');
   await press(page, 'Escape', 2600); // B = cancel placement (server restores the menu)
   await page.waitForSelector('.con-stdp', {timeout: 15_000});
-  expect(await focusedRow(page), 'the cancelled placement must reopen on the same row').toMatch(/город/i);
+  await expect.poll(() => focusedRow(page), {message: 'the cancelled placement must reopen on the same row'}).toMatch(/город/i);
   expect(await serverMegacredits(request, playerId), 'a cancelled placement must spend NOTHING').toBe(before);
   await shoot(page, '06-city-cancelled-back');
 
@@ -241,28 +233,20 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   await focusRow(page, /колония/i);
   await press(page, 'Enter', 2200);
   await page.waitForSelector('.con-stdp .con-colonies', {timeout: 15_000});
-  const stackTrace = page.evaluate(() => new Promise<Array<string>>((resolve) => {
-    const fn = (window as unknown as {__conColonyDiag?: () => Record<string, unknown>}).__conColonyDiag;
-    const out: Array<string> = [];
-    const t0 = performance.now();
-    const tick = () => {
-      const d = fn !== undefined ? fn() : {};
-      const shape = (d.stack as Array<{kind: string}>).map((f) => f.kind).join('+');
-      if (out[out.length - 1] !== shape) {
-        out.push(shape);
-      }
-      if (performance.now() - t0 < 12_000) {
-        setTimeout(tick, 60);
-      } else {
-        resolve(out);
-      }
-    };
-    tick();
-  }));
+  // The stack's SHAPE, RECORDED from before the commit (`settled` — an ORDER
+  // claim is judged on what a task leaves, the state a frame can paint); the
+  // record keeps a shape only when it changes, so it IS the sequence.
+  const stack = await armWitness<string>(page, 'stdp-stack-shape', () => {
+    const fn = (window as unknown as {__conColonyDiag?: () => {stack?: Array<{kind: string}>}}).__conColonyDiag;
+    return (fn === undefined ? [] : fn().stack ?? []).map((f) => f.kind).join('+');
+  }, {settled: true});
   await press(page, 'Enter', 1600); // descend into the focused colony
   await press(page, 'Enter', 2000); // A = build (the flow's atomic commit)
-  await page.waitForTimeout(10_000);
-  const shapes = await stackTrace;
+  // The flow's end is a STATE — the stack empties once the build settles
+  // (bounded); the verdict below reads the record, whatever it holds.
+  await stack.waitFor((shape) => shape === '', {timeoutMs: 30_000}).catch(() => undefined);
+  await settle(page, {timeoutMs: 30_000});
+  const shapes = (await stack.stop()).map((s) => s.v);
   console.log('── std-projects stack shapes ──', shapes.join(' → '));
   const afterStep = shapes.slice(shapes.findIndex((s) => s.includes('colonies')) + 1);
   expect(afterStep.includes('standard-projects'),
@@ -295,48 +279,39 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   // Record the commit PHRASE as it plays: the press pose must appear before
   // the gold, the gold must be an animated sweep rather than a class swap,
   // and the row must never fall back to its available/green pose on the way
-  // out. Sampling from inside the page — a runner-side poll misses frames.
-  const phrase = page.evaluate(() => new Promise<Array<string>>((resolve) => {
-    const seen: Array<string> = [];
-    const t0 = performance.now();
-    const tick = () => {
-      const row = document.querySelector('.con-stdp__card--pressing, .con-stdp__card--committing, .con-stdp__card--committed');
-      const pose = row === null ? '' :
-        row.classList.contains('con-stdp__card--pressing') ? 'press' :
-          row.classList.contains('con-stdp__card--committing') ? 'gold-sweep' : 'committed';
-      const sweep = document.querySelector('.con-stdp__card--committing .con-stdp__rail-sweep');
-      const sweeping = sweep !== null && getComputedStyle(sweep).opacity !== '0';
-      const tag = pose === 'gold-sweep' ? `gold-sweep:${sweeping ? 'live' : 'idle'}` : pose;
-      if (tag !== '' && seen[seen.length - 1] !== tag) {
-        seen.push(tag);
-      }
-      if (performance.now() - t0 < 3000) {
-        requestAnimationFrame(tick);
-      } else {
-        resolve(seen);
-      }
-    };
-    requestAnimationFrame(tick);
-  }));
+  // out. RECORDED from before the press (`armWitness`, `settled` — an ORDER
+  // claim on the states a frame can paint) — a runner-side poll misses frames,
+  // and so did a page-side rAF sampler on a starved renderer.
+  const phrase = await armWitness<string>(page, 'stdp-commit-phrase', () => {
+    const row = document.querySelector('.con-stdp__card--pressing, .con-stdp__card--committing, .con-stdp__card--committed');
+    const pose = row === null ? '' :
+      row.classList.contains('con-stdp__card--pressing') ? 'press' :
+        row.classList.contains('con-stdp__card--committing') ? 'gold-sweep' : 'committed';
+    const sweep = document.querySelector('.con-stdp__card--committing .con-stdp__rail-sweep');
+    const sweeping = sweep !== null && getComputedStyle(sweep).opacity !== '0';
+    return pose === 'gold-sweep' ? `gold-sweep:${sweeping ? 'live' : 'idle'}` : pose;
+  }, {settled: true});
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter'); // absorbed by the executing phase
   await page.keyboard.press('Enter');
   // Wait for the PHRASE to be under way — any of its poses. (Waiting for the
   // `--committed` class specifically is a race against a ~300 ms window; the
-  // per-frame sampler below is the honest record of what actually played.)
+  // record above is the honest account of what actually played.)
   await page.waitForSelector(
     '.con-stdp__card--pressing, .con-stdp__card--committing, .con-stdp__card--committed',
     {timeout: 10_000});
   await shoot(page, '07-terminal-commit-beat');
   await page.waitForSelector('.con-stdp', {state: 'detached', timeout: 10_000});
-  const poses = await phrase;
+  // The poses in order: the empty «no phrase row» states dropped, repeats collapsed (the sampler's own fold).
+  const poses = (await phrase.stop()).map((s) => s.v).filter((tag) => tag !== '')
+    .filter((tag, i, all) => i === 0 || all[i - 1] !== tag);
   console.log('── commit phrase ──', poses.join(' → '));
   expect(poses[0], 'the press must answer FIRST — before any gold').toBe('press');
   expect(poses.some((p) => p.startsWith('gold-sweep')),
     'the green → gold transition must be an animated sweep, not a class swap').toBeTruthy();
   expect(poses[poses.length - 1], 'the row must leave in its COMMITTED pose, never back to green')
     .toBe('committed');
-  await page.waitForTimeout(800);
+  await settle(page); // the workspace's leave and the payment's flights are over
   await openStdProjects(page);
   expect(await serverMegacredits(request, playerId),
     'Power Plant (11 M€) must be paid exactly ONCE — a double-press must not double-submit')

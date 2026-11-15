@@ -163,8 +163,7 @@ test.describe('console endgame — the boundary seal and the read-only free roam
     await expect(page.locator('.con-endgame'), 'B at the board-home root restores the results').toBeVisible({timeout: 10_000});
     // It comes back SETTLED — the collapse parked the state, it never replayed
     // the ceremony (the action list is the settled terminal phase).
-    expect(await page.locator('.con-eg__action').count(),
-      'the results return settled, action list intact').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__action').count(), {message: 'the results return settled, action list intact'}).toBeGreaterThan(0);
     await shoot(page, SHOT_DIR, '07-back-to-results');
   });
 });

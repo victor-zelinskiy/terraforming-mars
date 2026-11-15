@@ -4,6 +4,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, awaitSittingUp, enterSittingByPass, mandatoryPlate, openParliament, passAs, strandedReports, waitSittingAtRest} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, pageNow} from './witness';
 
 /**
  * TR63 «АЛЬЯНС ЭДЕМА» — the law of access's fourth road for Unity = the Greens, and a RATING answer to a change of power
@@ -224,10 +225,12 @@ for (const preset of PRESETS) {
       const tr = before.thisPlayer.terraformRating;
       await settle(page);
       await armTransferWitness(page);
-      const passedAt = Date.now();
+      // H — timed on the PAGE's clock: a reading before the pass, the sitting's first recorded moment on screen.
+      const sittingUp = await armWitness(page, 'sitting-up', () => document.querySelector('.con-parl') !== null);
+      const passedAt = await pageNow(page);
       await passAs(request, seats[1]);
       await awaitSittingUp(page);
-      const upMs = Date.now() - passedAt;
+      const upMs = ((await sittingUp.firstWhere((up) => up))?.t ?? Infinity) - passedAt;
       console.log(`[TR63 remote ${preset.id}] red's pass → the Parliament stands: ${upMs} ms`);
       expect(upMs, 'the plate came up and opened the sitting — no wait on a hold its stage would release').toBeLessThan(15_000);
       await expect.poll(async () => (await transferWitness(page)).landings.some((l) => l.under === 'rail:tr'), {timeout: 60_000, message: 'the rating token landed'})

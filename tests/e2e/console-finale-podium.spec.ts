@@ -215,7 +215,7 @@ for (const profile of [
       await waitWithFrames(page, async () => (await page.locator('.con-ovs__board').count()) > 0, 8_000, 'the score board');
       await layoutAtRest(page, '.con-egov', 'the score board at rest');
       await shoot(page, SHOT_DIR, `${profile.name}-2p-ov-score`);
-      expect(await page.locator('.con-ovs__seat .pcard').count(), 'a face per place').toBe(2);
+      await expect.poll(() => page.locator('.con-ovs__seat .pcard').count(), {message: 'a face per place'}).toBe(2);
       const score = await shares(page, '.con-egov', profile.tv);
       expect(score.contentBottom, `the board reaches the opening's foot (${score.contentBottom.toFixed(2)})`).toBeGreaterThanOrEqual(0.85);
       expect(score.below).toEqual([]);
@@ -224,7 +224,7 @@ for (const profile of [
       await waitWithFrames(page, async () => (await page.locator('.con-ovpl__hero').count()) > 0, 8_000, 'the players sheet');
       await layoutAtRest(page, '.con-egov', 'the players sheet at rest');
       await shoot(page, SHOT_DIR, `${profile.name}-2p-ov-players`);
-      expect(await page.locator('.con-ovpl__hero .pcard').count(), 'the participant\'s face').toBe(1);
+      await expect.poll(() => page.locator('.con-ovpl__hero .pcard').count(), {message: 'the participant\'s face'}).toBe(1);
       const players = await shares(page, '.con-egov', profile.tv);
       expect(players.contentBottom).toBeGreaterThanOrEqual(0.85);
       expect(players.below).toEqual([]);

@@ -191,7 +191,7 @@ for (const preset of PRESETS) {
       await walkComposer(page, async () => /куда/i.test(await focusedRow(page)), 'the target row');
       await press(page, 'Enter', 600);
       await expect(page.locator('.con-ptsel'), 'the played-target step opened').toBeVisible();
-      expect(await page.locator('.con-ptsel__cell').count(), 'two holders: this card and Forestry Mechs').toBe(2);
+      await expect.poll(() => page.locator('.con-ptsel__cell').count(), {message: 'two holders: this card and Forestry Mechs'}).toBe(2);
       for (const key of ['ArrowRight', 'ArrowLeft']) {
         for (let i = 0; i < 6 && (await focusedCandidate(page)) !== 'self'; i++) {
           await press(page, key, 220);

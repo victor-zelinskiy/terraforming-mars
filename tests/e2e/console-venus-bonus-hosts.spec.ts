@@ -5,6 +5,8 @@ import {
   answerVenusSpread, openVenusStep, venusOwed, bootFixture, bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, openActionFocus, openCardActions, playCardFromHand, press,
   pressUntil, reloadConsole, settle, walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 import {enterSittingByPass, parliament, strandedReports, armLeakWitness, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
@@ -39,66 +41,79 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 /**
- * The HOSTED witness: a sampler (MutationObserver + setInterval, never rAF) records whether a STANDALONE bonus band
+ * The HOSTED witness, RECORDED (FLAKE ZERO — `armWitness`, armed before the press): whether a STANDALONE bonus band
  * (`.con-lanes.con-ws`) ever stood while the test ran, and where the hosted surface first appeared.
  */
+type BonusSeen = {band: boolean, hosted: string};
+const BONUS_WITNESS = 'venus-bonus-band';
 async function armBonusWitness(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__bonusWitness?: {band: number, hosted: string}};
-    const state = {band: 0, hosted: ''};
-    w.__bonusWitness = state;
-    const take = () => {
-      if (document.querySelector('.con-lanes.con-ws') !== null) {
-        state.band++;
-      }
-      const hosted = document.querySelector('.con-venus[data-venus-bonus-embedded]');
-      if (hosted !== null && state.hosted === '') {
-        state.hosted = hosted.closest('.con-cardactions') !== null ? 'card-actions' :
+  await armWitness<BonusSeen>(page, BONUS_WITNESS, () => {
+    const hosted = document.querySelector('.con-venus[data-venus-bonus-embedded]');
+    return {
+      band: document.querySelector('.con-lanes.con-ws') !== null,
+      hosted: hosted === null ? '' :
+        hosted.closest('.con-cardactions') !== null ? 'card-actions' :
           hosted.closest('.con-hand') !== null ? 'hand' :
             hosted.closest('.con-stdp') !== null ? 'standard-projects' :
               hosted.closest('.con-colonies') !== null ? 'colonies' :
-                hosted.closest('.con-parl') !== null ? 'parliament' : 'elsewhere';
-      }
+                hosted.closest('.con-parl') !== null ? 'parliament' : 'elsewhere',
     };
-    new MutationObserver(take).observe(document.body, {subtree: true, childList: true});
-    setInterval(take, 50);
   });
 }
-const witnessOf = (page: Page) => page.evaluate(() => (window as unknown as {__bonusWitness: {band: number, hosted: string}}).__bonusWitness);
+/** What the bonus witness recorded: how many distinct moments showed a standalone band, and the FIRST host. */
+async function bonusRecord(page: Page): Promise<{band: number, hosted: string}> {
+  const seen = await witnessOf<BonusSeen>(page, BONUS_WITNESS).values();
+  return {band: seen.filter((v) => v.band).length, hosted: seen.find((v) => v.hosted !== '')?.hosted ?? ''};
+}
 
 /**
- * THE CELL WITNESS (PL-1436): every transfer chip at its FIRST sample — its icon and its centre — beside the centre of
- * the bonus cell `key` (`.bonus-zone[data-arc-marker]`). The chosen resource must be born ON the cell the step reached.
+ * THE CELL WITNESS (PL-1436), RECORDED: every transfer chip at its FIRST placed pose — its icon and its centre — beside
+ * the centre of the bonus cell `key` (`.bonus-zone[data-arc-marker]`). The chosen resource must be born ON the cell the
+ * step reached. The reader keeps each chip's first pose on the page (a `WeakMap` — the element's identity), so the
+ * recording changes only when a chip is BORN, whatever the frame rate.
  */
+type CellChip = {id: number, icon: string, x: number, y: number};
+type CellSeen = {cell: {x: number, y: number, w: number} | null, chips: Array<CellChip>};
+const CELL_WITNESS = 'venus-bonus-cell';
 async function armCellWitness(page: Page, key: string): Promise<void> {
-  await page.evaluate((cellKey) => {
-    const w = window as unknown as {__cellWitness?: {chips: Array<{icon: string, x: number, y: number}>, cell?: {x: number, y: number, w: number}}};
-    const state: {chips: Array<{icon: string, x: number, y: number}>, cell?: {x: number, y: number, w: number}} = {chips: []};
-    w.__cellWitness = state;
-    const seen = new WeakSet<Element>();
-    const take = () => {
-      const cell = document.querySelector(`.bonus-zone[data-arc-marker="${cellKey}"]`)?.getBoundingClientRect();
-      if (cell !== undefined && cell.width > 1) {
-        state.cell = {x: cell.left + cell.width / 2, y: cell.top + cell.height / 2, w: cell.width};
-      }
-      document.querySelectorAll('.con-transfer__chip').forEach((chip) => {
-        if (seen.has(chip)) {
-          return;
-        }
-        const box = chip.getBoundingClientRect();
+  await armWitness<CellSeen, string>(page, CELL_WITNESS, (cellKey) => {
+    const w = window as unknown as {__tmCellFirst?: WeakMap<Element, CellChip>, __tmCellSeq?: number};
+    const first = (w.__tmCellFirst ??= new WeakMap<Element, CellChip>());
+    const box = document.querySelector(`.bonus-zone[data-arc-marker="${cellKey}"]`)?.getBoundingClientRect();
+    const chips: Array<CellChip> = [];
+    document.querySelectorAll('.con-transfer__chip').forEach((chip) => {
+      let seen = first.get(chip);
+      if (seen === undefined) {
+        const b = chip.getBoundingClientRect();
         // The director PLACES a chip (its transform written) before it shows it; the bare insertion sits at the layer's
         // origin and says nothing about where the token is born.
-        if (box.width < 1 || getComputedStyle(chip).transform === 'none') {
+        if (b.width < 1 || getComputedStyle(chip).transform === 'none') {
           return;
         }
-        seen.add(chip);
         const icon = chip.querySelector('.con-transfer__icon')?.className ?? (chip.querySelector('.con-transfer__amt--mc') !== null ? 'megacredits' : '');
-        state.chips.push({icon: String(icon), x: box.left + box.width / 2, y: box.top + box.height / 2});
-      });
+        w.__tmCellSeq = (w.__tmCellSeq ?? 0) + 1;
+        seen = {id: w.__tmCellSeq, icon: String(icon), x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2)};
+        first.set(chip, seen);
+      }
+      chips.push(seen);
+    });
+    return {
+      cell: box !== undefined && box.width > 1 ? {x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2), w: Math.round(box.width)} : null,
+      chips,
     };
-    new MutationObserver(take).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style']});
-    setInterval(take, 30);
-  }, key);
+  }, {args: key});
+}
+/** Every chip ever born (first pose, per document), and the bonus cell as last measured. */
+async function cellRecord(page: Page): Promise<{chips: Array<CellChip>, cell?: {x: number, y: number, w: number}}> {
+  const samples = await witnessOf<CellSeen>(page, CELL_WITNESS).samples();
+  const chips = new Map<string, CellChip>();
+  for (const s of samples) {
+    for (const c of s.v.chips) {
+      chips.set(`${s.doc}:${c.id}`, chips.get(`${s.doc}:${c.id}`) ?? c);
+    }
+  }
+  const cell = [...samples].reverse().find((s) => s.v.cell !== null)?.v.cell ?? undefined;
+  return {chips: [...chips.values()], cell};
 }
 /**
  * Every chip that is NOT the bonus's: the stands pick STEEL, a resource neither the press (its price is M€) nor the
@@ -108,10 +123,9 @@ function isRatingIcon(icon: string): boolean {
   return !icon.includes('steel');
 }
 async function expectBornOnCell(page: Page, key: string): Promise<void> {
-  await expect.poll(async () => (await page.evaluate(() =>
-    (window as unknown as {__cellWitness: {chips: Array<{icon: string}>}}).__cellWitness.chips)).filter((c) => !isRatingIcon(c.icon)).length,
-  {timeout: 45_000, message: `a resource token was born (cell ${key})`}).toBeGreaterThan(0);
-  const w = await page.evaluate(() => (window as unknown as {__cellWitness: {chips: Array<{icon: string, x: number, y: number}>, cell?: {x: number, y: number, w: number}}}).__cellWitness);
+  await expect.poll(async () => (await cellRecord(page)).chips.filter((c) => !isRatingIcon(c.icon)).length,
+    {timeout: 45_000, message: `a resource token was born (cell ${key})`}).toBeGreaterThan(0);
+  const w = await cellRecord(page);
   const chip = w.chips.find((c) => !isRatingIcon(c.icon))!;
   expect(w.cell, `the cell ${key} was on screen`).toBeDefined();
   const dist = Math.hypot(chip.x - w.cell!.x, chip.y - w.cell!.y);
@@ -130,14 +144,13 @@ async function answerHostedBonus(page: Page, request: APIRequestContext, id: str
   expect(before.waitingFor?.venusBonusPrompt?.kind, 'the server asks the bonus').toBeDefined();
   await press(page, 'ArrowDown', 300); // STEEL — a resource the press itself never moves (the witness tells it apart)
   await press(page, 'Enter', 500);
-  await expect.poll(async () => {
-    await press(page, 'KeyX', 600);
-    return (await wireOf(request, id)).waitingFor?.venusBonusPrompt;
-  }, {timeout: 30_000, message: 'X collects the bonus'}).toBeUndefined();
+  // act → verify → retry (D): X is pressed again only while the SERVER still asks the bonus a whole window later.
+  expect(await pressUntil(page, 'KeyX', async () => (await wireOf(request, id)).waitingFor?.venusBonusPrompt === undefined,
+    {tries: 6, settleMs: 4000}), 'X collects the bonus').toBe(true);
   const after = await wireOf(request, id);
   expect(stock(after), 'one standard resource collected').toBeGreaterThanOrEqual(stock(before) + 1);
   await expect(page.locator(`${hostSel} .con-venus`), 'the host leaves with the answered step').toHaveCount(0, {timeout: 30_000});
-  const w = await witnessOf(page);
+  const w = await bonusRecord(page);
   expect(w.hosted, 'the hosted surface stood in its own host').toBe(host);
   expect(w.band, 'no standalone bonus band ever stood').toBe(0);
   await shoot(page, `${shot}-done`);
@@ -241,7 +254,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     await expect(page.locator('.con-cardactions'), 'the workspace leaves').toHaveCount(0, {timeout: 30_000});
     await expect.poll(() => page.evaluate(() => document.querySelector<HTMLElement>('[data-scale-marker="venus"]')?.dataset.scaleMarkerAt ?? ''),
       {timeout: 30_000, message: 'the board tells the step AFTER — the marker rests on 18'}).toBe('18');
-    const w = await witnessOf(page);
+    const w = await bonusRecord(page);
     expect(w.hosted, 'no hosted bonus step ever stood — it was answered before the press').toBe('');
     expect(w.band, 'no standalone bonus band ever stood').toBe(0);
   });
@@ -258,7 +271,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
       .toBe(before.thisPlayer.steel + 1);
     expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the play').toBeUndefined();
     await expectBornOnCell(page, 'venus-18');
-    const w = await witnessOf(page);
+    const w = await bonusRecord(page);
     expect(w.hosted, 'no hosted bonus step').toBe('');
     expect(w.band, 'no standalone bonus band').toBe(0);
   });
@@ -310,7 +323,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
       .toBe(before.thisPlayer.steel + 1);
     expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the trade').toBeUndefined();
     await expectBornOnCell(page, 'venus-18');
-    const w = await witnessOf(page);
+    const w = await bonusRecord(page);
     expect(w.hosted, 'no hosted bonus step').toBe('');
     expect(w.band, 'no standalone bonus band').toBe(0);
   });
@@ -346,7 +359,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     const after = await wireOf(request, id);
     expect(after.thisPlayer.steel, 'the base unit on steel').toBe(before.thisPlayer.steel + 1);
     expect(after.waitingFor?.venusBonusPrompt, 'no bonus is asked after the press').toBeUndefined();
-    expect((await witnessOf(page)).band, 'no standalone bonus band ever stood').toBe(0);
+    expect((await bonusRecord(page)).band, 'no standalone bonus band ever stood').toBe(0);
     await expect(page.locator('.con-cardactions'), 'the workspace leaves').toHaveCount(0, {timeout: 30_000});
   });
 
@@ -369,7 +382,8 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     const pick = page.locator(`${ACTION_COMPOSER} [data-venus-pick]`);
     await expect(pick.locator('.con-ptsel__cell').first()).toBeVisible();
     await shoot(page, 'H5c-pick');
-    const geom = await pick.evaluate((root) => {
+    // C — the grid read at REST (two equal reads a frame apart), never mid-entrance.
+    const geom = await readSettled(page, () => pick.evaluate((root) => {
       const cells = [...root.querySelectorAll('.con-ptsel__cell')].map((c) => c.getBoundingClientRect());
       const vp = root.querySelector<HTMLElement>('.con-ptsel__viewport .con-scroll-area__viewport');
       const pages = root.querySelector('[data-ptsel-pages]');
@@ -377,7 +391,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
         n: cells.length, w: Math.min(...cells.map((r) => r.width)), rows: new Set(cells.map((r) => Math.round(r.top / 8))).size,
         cut: vp === null ? 0 : vp.scrollHeight - vp.clientHeight, pages: Number(pages?.getAttribute('data-ptsel-page-count') ?? '1'),
       };
-    });
+    }), {message: 'the pick grid'});
     expect(geom.w, `readable cards — ${JSON.stringify(geom)}`).toBeGreaterThanOrEqual(228);
     expect(geom.cut, 'nothing cut — the selector never scrolls').toBeLessThanOrEqual(1);
     expect(geom.n * geom.pages, 'all fourteen reachable (on the page or past it)').toBeGreaterThanOrEqual(14);
@@ -445,7 +459,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     await expect.poll(async () => (await wireOf(request, id)).thisPlayer.steel, {timeout: 30_000, message: 'the repeat\'s batch paid the bonus'})
       .toBe(before.thisPlayer.steel + 1);
     expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the repeat').toBeUndefined();
-    expect((await witnessOf(page)).band, 'no standalone bonus band').toBe(0);
+    expect((await bonusRecord(page)).band, 'no standalone bonus band').toBe(0);
   });
 
   test('H7 no host (a reload mid-bonus): the band stands on its own — after the board told the step', async ({page, request}) => {
@@ -486,7 +500,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
       .toBe(before.thisPlayer.steel + 1);
     expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the copy').toBeUndefined();
     await expectBornOnCell(page, 'venus-18');
-    expect((await witnessOf(page)).band, 'no standalone bonus band').toBe(0);
+    expect((await bonusRecord(page)).band, 'no standalone bonus band').toBe(0);
   });
 
   test('H10 PROJECT INSPECTION repeats P89 at 16 %: the play sheet\'s repeat composes the copied bonus, the play\'s batch answers it', async ({page, request}) => {
@@ -524,7 +538,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
       .toBe(before.thisPlayer.steel + 1);
     expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the play').toBeUndefined();
     await expectBornOnCell(page, 'venus-18');
-    expect((await witnessOf(page)).band, 'no standalone bonus band').toBe(0);
+    expect((await bonusRecord(page)).band, 'no standalone bonus band').toBe(0);
   });
 
   test('H11 ATMOSCOOP at 16 %: the bonus is earned by ONE answer of the «temperature OR Venus» step — the row stands only after «Venus», the play pays it', async ({page, request}) => {
@@ -565,7 +579,7 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
       .toBe(before.thisPlayer.steel + 2);
     expect((await wireOf(request, id)).waitingFor?.venusBonusPrompt, 'no bonus is asked after the play').toBeUndefined();
     await expectBornOnCell(page, 'venus-20');
-    expect((await witnessOf(page)).band, 'no standalone bonus band').toBe(0);
+    expect((await bonusRecord(page)).band, 'no standalone bonus band').toBe(0);
   });
 
   test("H8 «ПАРЛАМЕНТ»: the winner's Venus step (14 → 18 %) → the bonus is a step of the sitting's reward page; the planet's story AFTER the answer, the resource off its cell", async ({page, request}) => {
@@ -575,24 +589,12 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     await armLeakWitness(page);
     await armBonusWitness(page);
     await armCellWitness(page, 'venus-18');
-    // THE SAMPLER: was the sitting ever off the screen while the bonus stood (the planet's trip must wait for the answer)?
-    await page.evaluate(() => {
-      const w = window as unknown as {__sitWitness?: {awayWhileAsked: number, awayAfter: number}};
-      const state = {awayWhileAsked: 0, awayAfter: 0};
-      w.__sitWitness = state;
-      let asked = false;
-      setInterval(() => {
-        const bonus = document.querySelector('.con-venus') !== null;
-        asked = asked || bonus;
-        if (document.querySelector('.con-parl') === null) {
-          if (bonus) {
-            state.awayWhileAsked++;
-          } else if (asked) {
-            state.awayAfter++;
-          }
-        }
-      }, 50);
-    });
+    // THE RECORD: was the sitting ever off the screen while the bonus stood (the planet's trip must wait for the answer)?
+    // A coexistence claim — `settled`: the state a task leaves, never the gap between two of its writes.
+    const sitting = await armWitness(page, 'venus-bonus-sitting', () => ({
+      bonus: document.querySelector('.con-venus') !== null,
+      parl: document.querySelector('.con-parl') !== null,
+    }), {settled: true});
     await enterSittingByPass(page, request, id);
     await expect.poll(async () => (await wireOf(request, id)).waitingFor?.venusBonusPrompt?.kind, {timeout: 60_000,
       message: "the winner's rewarded step asks the 18 % bonus inside the political phase"}).toBe('standard');
@@ -606,9 +608,11 @@ test.describe(`the Venus bonus is a step of its host · ${PRESET.id}`, () => {
     await expectBornOnCell(page, 'venus-18');
     await expect(parliament(page), 'the sitting comes back from the board').toHaveCount(1, {timeout: 60_000});
     await waitSittingAtRest(page, 60_000);
-    const sit = await page.evaluate(() => (window as unknown as {__sitWitness: {awayWhileAsked: number, awayAfter: number}}).__sitWitness);
-    expect(sit.awayWhileAsked, 'the sitting never left the screen while its bonus stood').toBe(0);
-    expect(sit.awayAfter, "the planet's trip to the board came AFTER the answer").toBeGreaterThan(0);
+    const seen = await sitting.values();
+    const askedAt = seen.findIndex((v) => v.bonus);
+    expect(askedAt, 'the bonus stood in the sitting').toBeGreaterThanOrEqual(0);
+    expect(seen.some((v) => v.bonus && !v.parl), 'the sitting never left the screen while its bonus stood').toBe(false);
+    expect(seen.slice(askedAt).some((v) => !v.bonus && !v.parl), "the planet's trip to the board came AFTER the answer").toBe(true);
     expect(await turnTo(page, 'results'), 'the walk reaches the results').toBe(true);
     await shoot(page, 'H8-results');
     expect(await strandedReports(page), 'no stranded prompt on the way').toEqual([]);

@@ -149,9 +149,8 @@ test.describe('console prompt admission · a draw and a placement in ONE respons
     // The greenery SelectSpace is already pending in the same payload. The board
     // must NOT be live: no placement cursor, no available-cell highlight, no
     // forced section switch. Before the fix this was 1 and the hexes glowed.
-    expect(await boardLive.count(), 'the board went LIVE for the greenery while the reveal was up').toBe(0);
-    expect(await page.locator('.board-space--available').count(),
-      'the hex highlight was painted under the reveal modal').toBe(0);
+    await expect.poll(() => boardLive.count(), {message: 'the board went LIVE for the greenery while the reveal was up'}).toBe(0);
+    await expect.poll(() => page.locator('.board-space--available').count(), {message: 'the hex highlight was painted under the reveal modal'}).toBe(0);
 
     // Answer the reveal (A takes each card; it closes when the batch is done)
     // and let the intake flights land in the dock.
@@ -162,9 +161,9 @@ test.describe('console prompt admission · a draw and a placement in ONE respons
     await shoot(page, '02-after-reveal');
 
     // ── AND THEN the placement gets its turn, on its own. ──────────────────
-    expect(await reveal.count(), 'the reveal never closed').toBe(0);
+    await expect.poll(() => reveal.count(), {message: 'the reveal never closed'}).toBe(0);
     await expect(page.locator('.con-board--live')).toHaveCount(1, {timeout: 20_000});
-    expect(await page.locator('.con-context').innerText()).toContain('РАЗМЕЩЕНИЕ ТАЙЛА');
+    await expect.poll(() => page.locator('.con-context').innerText()).toContain('РАЗМЕЩЕНИЕ ТАЙЛА');
     await shoot(page, '03-placement-live');
   });
 
@@ -197,8 +196,7 @@ test.describe('console prompt admission · a draw and a placement in ONE respons
     await shoot(page, '10-plain-placement');
 
     await expect(page.locator('.con-board--live')).toHaveCount(1, {timeout: 20_000});
-    expect(await page.locator('.con-context').innerText()).toContain('РАЗМЕЩЕНИЕ ТАЙЛА');
-    expect(await page.locator('.board-space--available').count(),
-      'no cells were offered for a plain greenery placement').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-context').innerText()).toContain('РАЗМЕЩЕНИЕ ТАЙЛА');
+    await expect.poll(() => page.locator('.board-space--available').count(), {message: 'no cells were offered for a plain greenery placement'}).toBeGreaterThan(0);
   });
 });

@@ -150,10 +150,10 @@ test.describe(`Unexpected Application — the discard is the play's price · ${P
     await shoot(page, '01-composer');
     const total = await page.locator('[data-hand-total]').first().getAttribute('data-hand-total').catch(() => null);
     await openPick(page);
-    expect(await page.locator(`.con-hand__slot[data-zoom-slot="${CARD}"]`).count(), 'the card being played is NOT in its own pick').toBe(0);
-    expect(await page.locator('.con-discard-proxy').count(), 'nothing leaves at the pick').toBe(0);
+    await expect.poll(() => page.locator(`.con-hand__slot[data-zoom-slot="${CARD}"]`).count(), {message: 'the card being played is NOT in its own pick'}).toBe(0);
+    await expect.poll(() => page.locator('.con-discard-proxy').count(), {message: 'nothing leaves at the pick'}).toBe(0);
     if (total !== null) {
-      expect(await page.locator('[data-hand-total]').first().getAttribute('data-hand-total'), 'the hand total stands').toBe(total);
+      await expect.poll(() => page.locator('[data-hand-total]').first().getAttribute('data-hand-total'), {message: 'the hand total stands'}).toBe(total);
     }
     expect(posts, 'nothing sent at the pick').toEqual([]);
     await shoot(page, '02-pick');
@@ -162,7 +162,7 @@ test.describe(`Unexpected Application — the discard is the play's price · ${P
     await press(page, 'Escape', 1200);
     await expect(page.locator(`${COMPOSER}:visible`), 'B returns to the play sheet').toHaveCount(1, {timeout: 15_000});
     await expect(handPicking(page), 'the pick is gone').toHaveCount(0);
-    expect(await page.locator(`${COMPOSER} .con-composer__row--missing`).count(), 'the discard row is still open').toBeGreaterThan(0);
+    await expect.poll(() => page.locator(`${COMPOSER} .con-composer__row--missing`).count(), {message: 'the discard row is still open'}).toBeGreaterThan(0);
 
     // A again → the discard chosen in the album.
     await openPick(page);
@@ -233,7 +233,7 @@ test.describe(`Unexpected Application — the discard is the play's price · ${P
     expect(await focusCard(page, CARD, 8), `never focused «${CARD}»`).toBe(true);
     await expect(page.getByText('Нужна ещё одна карта в руке, чтобы сбросить').first(), 'the reason is named').toBeVisible({timeout: 10_000});
     await press(page, 'Enter', 1200);
-    expect(await page.locator(COMPOSER).count(), 'no composer for an unplayable card').toBe(0);
+    await expect.poll(() => page.locator(COMPOSER).count(), {message: 'no composer for an unplayable card'}).toBe(0);
     expect(posts).toEqual([]);
     await shoot(page, '06-none');
   });

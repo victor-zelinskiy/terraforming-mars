@@ -206,7 +206,7 @@ test.describe(`P64 Terraforming Deal · a prelude with no immediate effect, a re
       expect(await walkFocusUntil(page, async () => await focused() === unmi, focused, 8), `${second} focused in the queue`).toBe(true);
       await expect.poll(() => forecastMc(page, '[data-start-prelude-forecast]'), {timeout: 20_000,
         message: `«Сработает» on the rail names P64's +${answer}`}).toMatch(new RegExp(`\\+${answer}(?!\\d)`));
-      expect(await page.locator('.con-start [data-forecast-row]').count(), 'the answer stands ONCE on the scene').toBe(1);
+      await expect.poll(() => page.locator('.con-start [data-forecast-row]').count(), {message: 'the answer stands ONCE on the scene'}).toBe(1);
       await shoot(page, `${tag}-02-queue-forecast`);
 
       await armTransferWitness(page);
@@ -416,7 +416,7 @@ test.describe(`P64 Terraforming Deal · a prelude with no immediate effect, a re
     await shoot(page, 'E-01-pick');
     const focusedPick = () => page.evaluate(() => document.querySelector('.con-deckpick .con-cards__slot--focused')?.getAttribute('data-deckpick-slot') ?? '');
     expect(await walkFocusUntil(page, async () => await focusedPick() === CARD, focusedPick, 12), 'P64 focused in the pick').toBe(true);
-    expect(await page.locator(`${pick} [data-deckpick-slot="${CARD}"] [data-prelude-burns]`).count(), 'a prelude with no immediate effect does not burn').toBe(0);
+    await expect.poll(() => page.locator(`${pick} [data-deckpick-slot="${CARD}"] [data-prelude-burns]`).count(), {message: 'a prelude with no immediate effect does not burn'}).toBe(0);
     expect(await pressUntil(page, 'Enter', async () => await page.locator(`${pick} [data-deckpick-slot="${CARD}"].con-cards__slot--picked`).count() > 0,
       {tries: 3, settleMs: 600}), 'P64 is chosen').toBe(true);
     expect(await pressUntil(page, 'Period', async () => (await wireOf(request, id)).thisPlayer.tableau.some((c) => c.name === CARD),
@@ -425,7 +425,7 @@ test.describe(`P64 Terraforming Deal · a prelude with no immediate effect, a re
     await settle(page, {timeoutMs: 40_000});
     await waitForBoardHome(page, 40);
     await shoot(page, 'E-02-after');
-    expect(await page.locator('.con-ws').count(), 'no workspace left standing').toBe(0);
+    await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace left standing'}).toBe(0);
     expect(errors, 'no page error').toEqual([]);
   });
 });

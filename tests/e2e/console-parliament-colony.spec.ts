@@ -187,7 +187,7 @@ async function focusColonyTile(page: Page, name: string): Promise<void> {
   for (let i = 0; i < 8 && await focused.count() === 0; i++) {
     await press(page, 'ArrowLeft', 380);
   }
-  expect(await focused.count(), `could not focus ${name} on the embedded grid`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${name} on the embedded grid`}).toBeGreaterThan(0);
 }
 
 /** Boot the fixture ONE PASS before its sitting (the soft gates) and pass on screen — the walk runs to the reward stage by itself. */
@@ -238,7 +238,7 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     expect(gridFirst!.t, `the door opened only after the titanium landed\n${timeline()}`).toBeGreaterThanOrEqual(tick!.t);
     await expect(page.locator(GRID)).toHaveClass(/con-colonies--embedded/);
     await expect(page.locator(`${GRID} .con-wshead`), 'host-agnostic: no head of its own').toHaveCount(0);
-    expect(await page.locator(GRID).getAttribute('data-motion-surface'), 'no motion id inside a host zone (the shade guard)').toBeNull();
+    await expect.poll(() => page.locator(GRID).getAttribute('data-motion-surface'), {message: 'no motion id inside a host zone (the shade guard)'}).toBeNull();
     // THE STEP TAKES THE STAGE WHOLE: no carrier card beside the grid, the grid as wide as the zone's stage.
     await expect(page.locator('[data-sit-fullstep]'), 'the colonies take the whole stage').toHaveCount(1);
     await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card'), 'the law is not squeezed beside the grid').toHaveCount(0);

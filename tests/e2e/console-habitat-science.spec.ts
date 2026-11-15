@@ -2,7 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, crumbText, fetchPlayerModel, openActionFocus, openCardActions, press, settle, walkFocusUntil} from './consoleStart';
+import type {ObservedSample} from './observeCore';
+import {readSettled} from './settledRead';
 import {effectiveVisibility} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR23 «НАУКА ОБИТАЕМОСТИ» — «THE LEDGER PAYS»: a card's action pays ALL the
@@ -79,16 +82,15 @@ type Box = {x: number, y: number, w: number, h: number};
 /** `glassAtLast` — at the chip's last painted sample a band surface (`.con-ws`, opacity ≥ 0.5) still stood: it landed under glass. */
 type Flight = {res: string, text: string, first: Box, last: Box, n: number, firstAt: number, lastAt: number, glassAtLast: boolean};
 type Probe = {
+  /** Distinct states the recorder kept (a value is kept only when it CHANGES) — the probe's own liveness floor. */
   samples: number;
-  /** Interval (task) samples only — the probe's own liveness floor, and the only samples a FRAME claim is made on. */
-  ticks: number;
   /** The crumb's tail, every time it SETTLED on a new word (one stage node standing). */
   tails: Array<[number, string]>;
   /** The root / the card's name changed its text — or its NODE — while the workspace stood. */
   crumbMisses: Array<string>;
   /** Per colony: the row's state (`*` = marked as the row paying now), every change. */
   rows: Record<string, Array<[number, string]>>;
-  /** Task samples past the press where neither the ledger's surface nor a step could be seen in the column. */
+  /** Recorded spans past the press where neither the ledger's surface nor a step could be seen in the column. */
   zoneGaps: Array<string>;
   revealOutside: boolean;
   handOutside: boolean;
@@ -106,27 +108,58 @@ type Probe = {
   ledgerBoxes: Array<[number, string]>;
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/** ONE recorded observation of the flow: what stands NOW. The folding into a `Probe` is `foldLedger`'s. */
+type LedgerSeen = {
+  /** The action workspace's head: its root / subject texts, their NODES' identities (kept in the page), the stage words. */
+  head: null | {root: string, subjects: Array<string>, rootId: number, subjectId: number | null, steps: Array<string>};
+  degraded: boolean;
+  /** Per colony row: its state (`*` = marked as the row paying now). */
+  rows: Array<[string, string]>;
+  revealOutside: boolean;
+  revealInZone: boolean;
+  handOutside: boolean;
+  handDiscardInZone: boolean;
+  colonies: boolean;
+  ws: number;
+  stranded: boolean;
+  plate: boolean;
+  /** The ledger's column, judged only while the workspace stands opaque in its ledger flow (null otherwise). */
+  zone: null | {empty: boolean, parked: boolean, flow: string};
+  /** Every placed, painted transfer chip — the product's own id, its resource, its text, its box now. */
+  chips: Array<{id: string, res: string, text: string, at: Box}>;
+  /** A band surface (`.con-ws`, opacity ≥ 0.5) stands. */
+  glass: boolean;
+  /** The ledger's box key while it stands fully seen (null otherwise). */
+  ledger: string | null;
+  mc: string;
+  capsule: string;
+};
+const LEDGER_WITNESS = 'tr23-ledger';
+
+/**
+ * THE FLOW PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns what
+ * stands now, every change is kept with the page's time, and the folding (the crumb's tails, each row's states, each
+ * chip's flight, the zone's empty spans) is `foldLedger`'s. Its claims are about ORDER (the rows in turn, the tick after
+ * the chip's birth) and COEXISTENCE (never two bands, the zone never empty), so the record is `settled` — the state a
+ * task LEAVES, the state a frame can paint (a microtask sample can see a state the browser never paints — the reason the
+ * old sampler judged the zone on its interval ticks only). The recorder also samples once a frame; on a quiet compositor
+ * no frame comes and nothing changes, so a span is measured from one recorded change to the next.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({card, root}) => {
-    const w = window as unknown as {__tr23: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, tails: [], crumbMisses: [], rows: {}, zoneGaps: [], revealOutside: false, handOutside: false,
-      coloniesOpen: false, wsMax: 0, plate: false, degraded: false, stranded: false, revealInZone: false, handDiscardInZone: false,
-      mc: [], capsule: [], flights: {}, ledgerBoxes: [],
+  await armWitness<LedgerSeen, {card: string}>(page, LEDGER_WITNESS, ({card}) => {
+    const w = window as unknown as {__tr23Ids?: WeakMap<Element, number>, __tr23Seq?: number};
+    const ids = (w.__tr23Ids ??= new WeakMap<Element, number>());
+    /** A node's identity across samples — THE SAME NODES all flow long: a crumb that re-renders a node restarts the line. */
+    const idOf = (el: Element): number => {
+      let id = ids.get(el);
+      if (id === undefined) {
+        w.__tr23Seq = (w.__tr23Seq ?? 0) + 1;
+        id = w.__tr23Seq;
+        ids.set(el, id);
+      }
+      return id;
     };
-    w.__tr23 = p;
-    const t0 = Date.now();
     const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Array<[number, number]>, raw: string | null | undefined) => {
-      if (raw === null || raw === undefined || raw === '') {
-        return;
-      }
-      const value = Number(raw);
-      if (Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
-      }
-    };
     /** What the player can SEE of an element: its own opacity times every ancestor's, 0 when hidden or not laid out. */
     const seenOpacity = (el: Element | null): number => {
       if (el === null) {
@@ -146,155 +179,194 @@ async function armProbe(page: Page): Promise<void> {
       }
       return opacity;
     };
-    let emptySince = -1;
-    let rootNode: Element | null = null;
-    let subjectNode: Element | null = null;
-    const miss = (line: string) => {
-      if (p.crumbMisses.length < 8) {
-        p.crumbMisses.push(`${Date.now() - t0}ms ${line}`);
+    const ws = document.querySelector('.con-cardactions');
+    const headEl = ws?.querySelector('.con-wshead') ?? null;
+    let head: LedgerSeen['head'] = null;
+    if (headEl !== null) {
+      const rootEl = headEl.querySelector('.con-wshead__root');
+      const subjects = Array.from(headEl.querySelectorAll('.con-wshead__subject'));
+      const subjectEl = subjects.find((el) => text(el).toLowerCase() === card.toLowerCase()) ?? null;
+      head = {
+        root: text(rootEl), subjects: subjects.map(text), rootId: rootEl === null ? 0 : idOf(rootEl),
+        subjectId: subjectEl === null ? null : idOf(subjectEl),
+        steps: Array.from(headEl.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
+      };
+    }
+    const composer = ws?.querySelector('.con-composer') ?? null;
+    // WHERE THE STEPS STAND: inside the action workspace's own zone — never a band of their own, never the colonies.
+    const zone = ws?.querySelector('.con-composer__ledgerzone') ?? null;
+    const reveals = Array.from(document.querySelectorAll('.con-reveal'));
+    // The hand (Pluto's discard) takes the WHOLE STAGE — its own layer of the composer (`__handzone`, the owner's
+    // full-stage law of 2026-10-24), never the ledger's column.
+    const handZone = ws?.querySelector('.con-composer__handzone') ?? null;
+    const hands = Array.from(document.querySelectorAll('.con-hand'));
+    // THE ZONE IS NEVER EMPTY. Past the press the column shows the ledger's surface or a step standing over it:
+    //  · PARKED (the surface is put away under a step) with no step to be seen is a gap at once;
+    //  · RELEASED, the surface is coming back on its own 200 ms fade. A transition's clock advances with PAINTED
+    //    frames, so between two frames of a starved renderer (a 4K software frame takes hundreds of ms) every
+    //    sample reads the last painted value — 0 — while the fade is provably LIVE: that is «coming back», never
+    //    «empty». Only a surface at 0 with NO fade running, for longer than a fade, is a ledger that did not return.
+    let zoneSeen: LedgerSeen['zone'] = null;
+    if (ws !== null && composer?.hasAttribute('data-colony-ledger-flow') === true && seenOpacity(ws) > 0.9) {
+      const surfaceEl = composer.querySelector<HTMLElement>('.con-composer__actright > .con-composer__surface');
+      const surface = seenOpacity(surfaceEl);
+      // The take stands in the ledger's column, the hand on the whole stage (its own layer) — either is the step.
+      const step = Math.max(seenOpacity(zone?.querySelector('.con-reveal') ?? null), seenOpacity(handZone?.querySelector('.con-hand') ?? null));
+      const parked = composer.classList.contains('con-composer--ledgerstep');
+      const fading = !parked && surfaceEl !== null && typeof surfaceEl.getAnimations === 'function' &&
+        surfaceEl.getAnimations().some((a) => (a as CSSTransition).transitionProperty === 'opacity' && a.playState !== 'finished' && a.playState !== 'idle');
+      zoneSeen = {empty: surface < 0.05 && step < 0.05 && !fading, parked, flow: composer.getAttribute('data-colony-ledger-flow') ?? ''};
+    }
+    const chips: LedgerSeen['chips'] = [];
+    document.querySelectorAll<HTMLElement>('.con-transfer__chip').forEach((el) => {
+      if (el.style.transform === '') {
+        return;
       }
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || getComputedStyle(el).visibility === 'hidden') {
+        return;
+      }
+      const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
+      // A M€ chip draws its coin without the resource sprite (no icon = megacredits).
+      const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c !== 'con-transfer__icon') ?? '?');
+      chips.push({id: el.dataset.transferId ?? '?', res, text: text(el),
+        at: {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), h: Math.round(r.height)}});
+    });
+    const ledgerEl = composer?.querySelector('[data-colony-ledger-scope="card"]') ?? null;
+    let ledger: string | null = null;
+    if (ledgerEl !== null && seenOpacity(ledgerEl) > 0.98) {
+      const r = ledgerEl.getBoundingClientRect();
+      ledger = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
+    }
+    return {
+      head,
+      degraded: composer?.hasAttribute('data-colony-ledger-degraded') === true,
+      rows: Array.from(document.querySelectorAll<HTMLElement>('[data-colony-ledger-scope="card"] [data-colony-row]'))
+        .map((row): [string, string] => [row.dataset.colonyRow ?? '', `${row.dataset.colonyRowState ?? ''}${row.hasAttribute('data-colony-row-active') ? '*' : ''}`]),
+      revealOutside: reveals.some((el) => zone === null || !zone.contains(el)),
+      revealInZone: reveals.some((el) => zone !== null && zone.contains(el)),
+      handOutside: hands.some((el) => handZone === null || !handZone.contains(el)),
+      handDiscardInZone: hands.some((el) => handZone !== null && handZone.contains(el) && el.classList.contains('con-hand--discard')),
+      colonies: document.querySelector('.con-colonies, .con-colfocus') !== null,
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
+      plate: document.querySelector('.con-mandatory') !== null,
+      zone: zoneSeen,
+      chips,
+      glass: Array.from(document.querySelectorAll('.con-ws')).some((el) => seenOpacity(el) >= 0.5),
+      ledger,
+      mc: (document.querySelector('.con-res__row--megacredits .con-res__digits')?.firstChild?.textContent ?? '').trim(),
+      capsule: text(document.querySelector('.con-cardactions .con-composer__actcard .pcard__res-count')),
     };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const now = Date.now() - t0;
-      const ws = document.querySelector('.con-cardactions');
-      const head = ws?.querySelector('.con-wshead') ?? null;
-      if (head !== null) {
-        const rootEl = head.querySelector('.con-wshead__root');
-        const subjectEl = Array.from(head.querySelectorAll('.con-wshead__subject')).find((el) => text(el).toLowerCase() === card.toLowerCase()) ?? null;
-        if (text(rootEl).toLowerCase() !== root.toLowerCase() || subjectEl === null) {
-          miss(`root=«${text(rootEl)}» subject=«${Array.from(head.querySelectorAll('.con-wshead__subject')).map(text).join('|')}»`);
-        } else {
-          // THE SAME NODES all flow long: a crumb that re-renders its root or its subject restarts the line.
-          if (rootNode === null) {
-            rootNode = rootEl;
-            subjectNode = subjectEl;
-          } else if (rootNode !== rootEl || subjectNode !== subjectEl) {
-            miss(`the ${rootNode !== rootEl ? 'root' : 'subject'} node was replaced`);
-            rootNode = rootEl;
-            subjectNode = subjectEl;
-          }
-        }
-        const steps = Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== '');
-        if (steps.length === 1 && p.tails[p.tails.length - 1]?.[1] !== steps[0]) {
-          p.tails.push([now, steps[0]]);
-        }
-      }
-      const composer = ws?.querySelector('.con-composer') ?? null;
-      if (composer?.hasAttribute('data-colony-ledger-degraded') === true) {
-        p.degraded = true;
-      }
-      for (const row of Array.from(document.querySelectorAll<HTMLElement>('[data-colony-ledger-scope="card"] [data-colony-row]'))) {
-        const colony = row.dataset.colonyRow ?? '';
-        const state = `${row.dataset.colonyRowState ?? ''}${row.hasAttribute('data-colony-row-active') ? '*' : ''}`;
-        const series = p.rows[colony] ?? (p.rows[colony] = []);
-        if (series[series.length - 1]?.[1] !== state) {
-          series.push([now, state]);
-        }
-      }
-      // WHERE THE STEPS STAND: inside the action workspace's own zone — never a band of their own, never the colonies.
-      const zone = ws?.querySelector('.con-composer__ledgerzone') ?? null;
-      document.querySelectorAll('.con-reveal').forEach((el) => {
-        if (zone === null || !zone.contains(el)) {
-          p.revealOutside = true;
-        } else {
-          p.revealInZone = true;
-        }
-      });
-      // The hand (Pluto's discard) takes the WHOLE STAGE — its own layer of the composer (`__handzone`, the owner's
-      // full-stage law of 2026-10-24), never the ledger's column.
-      const handZone = ws?.querySelector('.con-composer__handzone') ?? null;
-      document.querySelectorAll('.con-hand').forEach((el) => {
-        if (handZone === null || !handZone.contains(el)) {
-          p.handOutside = true;
-        } else if (el.classList.contains('con-hand--discard')) {
-          p.handDiscardInZone = true;
-        }
-      });
-      if (document.querySelector('.con-colonies, .con-colfocus') !== null) {
-        p.coloniesOpen = true;
-      }
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      if (document.querySelector('.con-mandatory') !== null) {
-        p.plate = true;
-      }
-      // THE ZONE IS NEVER EMPTY, judged on task samples only (a microtask sample can see a state the browser never
-      // paints). Past the press the column shows the ledger's surface or a step standing over it:
-      //  · PARKED (the surface is put away under a step) with no step to be seen is a gap at once;
-      //  · RELEASED, the surface is coming back on its own 200 ms fade. A transition's clock advances with PAINTED
-      //    frames, so between two frames of a starved renderer (a 4K software frame takes hundreds of ms) every
-      //    sample reads the last painted value — 0 — while the fade is provably LIVE: that is «coming back», never
-      //    «empty». Only a surface at 0 with NO fade running, for longer than a fade, is a ledger that did not return.
-      if (tick && ws !== null && composer?.hasAttribute('data-colony-ledger-flow') === true && seenOpacity(ws) > 0.9) {
-        const surface = seenOpacity(composer.querySelector('.con-composer__actright > .con-composer__surface'));
-        // The take stands in the ledger's column, the hand on the whole stage (its own layer) — either is the step.
-        const step = Math.max(seenOpacity(zone?.querySelector('.con-reveal') ?? null), seenOpacity(handZone?.querySelector('.con-hand') ?? null));
-        const parked = composer.classList.contains('con-composer--ledgerstep');
-        const surfaceEl = composer.querySelector<HTMLElement>('.con-composer__actright > .con-composer__surface');
-        const fading = !parked && surfaceEl !== null && typeof surfaceEl.getAnimations === 'function' &&
-          surfaceEl.getAnimations().some((a) => (a as CSSTransition).transitionProperty === 'opacity' && a.playState !== 'finished' && a.playState !== 'idle');
-        const empty = surface < 0.05 && step < 0.05 && !fading;
-        if (!empty) {
-          emptySince = -1;
-        } else if (emptySince < 0) {
-          emptySince = now;
-        }
-        if (empty && (parked || now - emptySince > 400) && p.zoneGaps.length < 8) {
-          p.zoneGaps.push(`${now}ms ${parked ? 'parked with no step' : `the ledger has not come back for ${now - emptySince} ms`} flow=${composer.getAttribute('data-colony-ledger-flow')}`);
-        }
-      }
-      const glass = Array.from(document.querySelectorAll('.con-ws')).some((ws) => seenOpacity(ws) >= 0.5);
-      document.querySelectorAll<HTMLElement>('.con-transfer__chip').forEach((el) => {
-        if (el.style.transform === '') {
-          return;
-        }
-        const r = el.getBoundingClientRect();
-        if (r.width < 2 || getComputedStyle(el).visibility === 'hidden') {
-          return;
-        }
-        const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
-        // A M€ chip draws its coin without the resource sprite (no icon = megacredits).
-        const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c !== 'con-transfer__icon') ?? '?');
-        const id = el.dataset.transferId ?? '?';
-        const at = {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
-        const rec = p.flights[id] ?? (p.flights[id] = {res, text: text(el), first: at, last: at, n: 0, firstAt: now, lastAt: now, glassAtLast: glass});
-        rec.last = at;
-        rec.lastAt = now;
-        rec.glassAtLast = glass;
-        rec.n++;
-      });
-      const ledgerEl = composer?.querySelector('[data-colony-ledger-scope="card"]') ?? null;
-      if (tick && ledgerEl !== null && seenOpacity(ledgerEl) > 0.98) {
-        const r = ledgerEl.getBoundingClientRect();
-        const key = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
-        if (p.ledgerBoxes[p.ledgerBoxes.length - 1]?.[1] !== key) {
-          p.ledgerBoxes.push([now, key]);
-        }
-      }
-      const digits = document.querySelector('.con-res__row--megacredits .con-res__digits');
-      note(p.mc, (digits?.firstChild?.textContent ?? '').trim());
-      note(p.capsule, text(document.querySelector('.con-cardactions .con-composer__actcard .pcard__res-count')));
-    };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample(true), 30);
-    // THE BASELINE, read synchronously at the arm: the press that follows flips the stage in its own frame, and a
-    // sampler that first runs a tick later would never have seen the state the flow started from.
-    sample(true);
-  }, {card: CARD_RU, root: ROOT_RU});
+  }, {args: {card: CARD_RU}, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr23: Probe}).__tr23);
+/** The record folded into the flow's facts — times are the PAGE's, from the arm (the record's first sample is the baseline). */
+function foldLedger(samples: ReadonlyArray<ObservedSample<LedgerSeen>>): Probe {
+  const p: Probe = {
+    samples: samples.length, tails: [], crumbMisses: [], rows: {}, zoneGaps: [], revealOutside: false, handOutside: false,
+    coloniesOpen: false, wsMax: 0, plate: false, degraded: false, stranded: false, revealInZone: false, handDiscardInZone: false,
+    mc: [], capsule: [], flights: {}, ledgerBoxes: [],
+  };
+  const t0 = samples[0]?.t ?? 0;
+  const note = (series: Array<[number, number]>, raw: string, now: number) => {
+    if (raw === '') {
+      return;
+    }
+    const value = Number(raw);
+    if (Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
+      series.push([now, value]);
+    }
+  };
+  const miss = (now: number, line: string) => {
+    if (p.crumbMisses.length < 8) {
+      p.crumbMisses.push(`${now}ms ${line}`);
+    }
+  };
+  let rootNode: string | undefined;
+  let subjectNode: string | undefined;
+  let emptySince = -1;
+  samples.forEach((s, i) => {
+    const now = s.t - t0;
+    const v = s.v;
+    if (v.head !== null) {
+      if (v.head.root.toLowerCase() !== ROOT_RU.toLowerCase() || v.head.subjectId === null) {
+        miss(now, `root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+      } else {
+        // THE SAME NODES all flow long: a crumb that re-renders its root or its subject restarts the line.
+        const rootKey = `${s.doc}:${v.head.rootId}`;
+        const subjectKey = `${s.doc}:${v.head.subjectId}`;
+        if (rootNode !== undefined && (rootNode !== rootKey || subjectNode !== subjectKey)) {
+          miss(now, `the ${rootNode !== rootKey ? 'root' : 'subject'} node was replaced`);
+        }
+        rootNode = rootKey;
+        subjectNode = subjectKey;
+      }
+      const steps = v.head.steps;
+      if (steps.length === 1 && p.tails[p.tails.length - 1]?.[1] !== steps[0]) {
+        p.tails.push([now, steps[0]]);
+      }
+    }
+    p.degraded ||= v.degraded;
+    for (const [colony, state] of v.rows) {
+      const series = p.rows[colony] ?? (p.rows[colony] = []);
+      if (series[series.length - 1]?.[1] !== state) {
+        series.push([now, state]);
+      }
+    }
+    p.revealOutside ||= v.revealOutside;
+    p.revealInZone ||= v.revealInZone;
+    p.handOutside ||= v.handOutside;
+    p.handDiscardInZone ||= v.handDiscardInZone;
+    p.coloniesOpen ||= v.colonies;
+    p.wsMax = Math.max(p.wsMax, v.ws);
+    p.stranded ||= v.stranded;
+    p.plate ||= v.plate;
+    // THE ZONE'S EMPTY SPANS: nothing changes between two recorded samples, so an empty state stands until the NEXT
+    // one — a gap is parked-with-no-step at once, or empty (no fade running) for longer than a fade.
+    if (v.zone !== null) {
+      if (!v.zone.empty) {
+        emptySince = -1;
+      } else {
+        if (emptySince < 0) {
+          emptySince = now;
+        }
+        const until = i + 1 < samples.length ? samples[i + 1].t - t0 : Infinity;
+        if ((v.zone.parked || until - emptySince > 400) && p.zoneGaps.length < 8) {
+          p.zoneGaps.push(`${now}ms ${v.zone.parked ? 'parked with no step' :
+            `the ledger has not come back for ${until === Infinity ? 'the rest of the record' : `${until - emptySince} ms`}`} flow=${v.zone.flow}`);
+        }
+      }
+    }
+    for (const chip of v.chips) {
+      const key = `${s.doc}:${chip.id}`;
+      const rec = p.flights[key] ?? (p.flights[key] = {res: chip.res, text: chip.text, first: chip.at, last: chip.at, n: 0, firstAt: now, lastAt: now, glassAtLast: v.glass});
+      rec.last = chip.at;
+      rec.lastAt = now;
+      rec.glassAtLast = v.glass;
+      rec.n++;
+    }
+    if (v.ledger !== null && p.ledgerBoxes[p.ledgerBoxes.length - 1]?.[1] !== v.ledger) {
+      p.ledgerBoxes.push([now, v.ledger]);
+    }
+    note(p.mc, v.mc, now);
+    note(p.capsule, v.capsule, now);
+  });
+  return p;
+}
+
+/** The flow's reading — the recording stops here (what comes after is another flow). */
+const finishProbe = async (page: Page): Promise<Probe> => foldLedger(await witnessOf<LedgerSeen>(page, LEDGER_WITNESS).stop());
 
 /** The ONE «can the player see it» reader (`transferWitness.effectiveVisibility`), in this spec's own Box shape. */
 async function seen(page: Page, selector: string): Promise<(Box & {visible: boolean, coveredBy: string}) | undefined> {
   const v = await effectiveVisibility(page, selector);
   return v.found ? {x: v.x, y: v.y, w: v.w, h: v.h, visible: v.visible, coveredBy: v.coveredBy} : undefined;
+}
+
+/** `seen`, read at REST (C — `readSettled`: the same answer twice, a frame apart — never a box mid-entrance). */
+async function seenAtRest(page: Page, selector: string, what: string): Promise<(Box & {visible: boolean, coveredBy: string}) | undefined> {
+  return await readSettled(page, () => seen(page, selector), {message: what});
 }
 
 const dist = (a: {x: number, y: number}, b: {x: number, y: number}) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -398,10 +470,12 @@ for (const preset of PRESETS) {
         `never focused the card's action (at «${await focusedTile(page)}»)`).toBe(true);
       await openActionFocus(page);
       await settle(page);
-      expect((await rowStates(page)).map(([colony, state, asks]) => [colony, state, asks]), 'the ledger: a row per tile, in the order the engine pays').toEqual([
+      await expect.poll(async () => (await rowStates(page)).map(([colony, state, asks]) => [colony, state, asks]),
+        {timeout: 10_000, message: 'the ledger: a row per tile, in the order the engine pays'}).toEqual([
         ['Luna', 'pending', ''], ['Miranda', 'pending', 'draw'], ['Pluto', 'pending', 'draw-discard'], ['Titan', 'pending', 'card'],
       ]);
-      expect((await rowStates(page)).map(([, , , word]) => word), 'each row names the step it will raise').toEqual(['', 'взять карту', 'карта → сброс', 'выбор карты']);
+      await expect.poll(async () => (await rowStates(page)).map(([, , , word]) => word),
+        {timeout: 10_000, message: 'each row names the step it will raise'}).toEqual(['', 'взять карту', 'карта → сброс', 'выбор карты']);
       await expect(page.locator(`${ledger} [data-colony-ledger-totals]`), 'no «Итого» row — the chips above are the sums').toHaveCount(0);
       await expect(page.locator(composer), 'the cost chip: the card\'s own data, current → resulting').toContainText(/4\s*→\s*2/);
       // Titan's target has ONE holder — SEEDED, shown answered and marked (T14 · CC «ЕДИНСТВЕННАЯ ЦЕЛЬ»): never applied
@@ -415,18 +489,25 @@ for (const preset of PRESETS) {
       await expect(page.locator(composer), 'the target\'s own reading').toContainText(/0\s*→\s*1/);
       await settle(page);
       const boxKey = (box: Box | undefined) => box === undefined ? '-' : [box.x - box.w / 2, box.y - box.h / 2, box.w, box.h].map(Math.round).join(',');
-      const ledgerBox = boxKey(await seen(page, ledger));
+      // C — the two sides of «the ledger does not move» are BOTH read at rest (a comparison is only as settled as its
+      // least settled side).
+      const ledgerAtRest = () => readSettled(page, async () => boxKey(await seen(page, ledger)), {message: 'the ledger\'s box'});
+      const ledgerBox = await ledgerAtRest();
       for (let i = 0; i < 8 && await page.locator(`${composer} .con-composer__cta--focused`).count() === 0; i++) {
         await press(page, 'ArrowDown', 200);
       }
       await expect(page.locator(`${composer} .con-composer__cta--focused`), 'the cursor stands on the commit row').toHaveCount(1);
       expect(posts, 'no POST before the commit').toEqual([]);
       expect((await wireOf(request, playerId)).game.gameAge, 'the server\'s change counter stands still').toBe(before.game.gameAge);
-      expect(boxKey(await seen(page, ledger)), 'the ledger does not move while the cursor walks the rows').toBe(ledgerBox);
+      expect(await ledgerAtRest(), 'the ledger does not move while the cursor walks the rows').toBe(ledgerBox);
       await shoot(page, preset.id, '02-ready');
 
-      const sources = {luna: await seen(page, bonusCell('Luna')), titan: await seen(page, bonusCell('Titan'))};
-      const targets = {mc: await seen(page, '.con-res__row--megacredits'), aux: await seen(page, '.con-res-aux__cell[data-aux-resource="floater"], .con-res-aux__cell[data-aux-resource="floaters"]')};
+      // The flights' ends, read at REST before the press — the places the chips are judged against.
+      const sources = {luna: await seenAtRest(page, bonusCell('Luna'), 'Luna\'s bonus cell'), titan: await seenAtRest(page, bonusCell('Titan'), 'Titan\'s bonus cell')};
+      const targets = {
+        mc: await seenAtRest(page, '.con-res__row--megacredits', 'the rail\'s M€ row'),
+        aux: await seenAtRest(page, '.con-res-aux__cell[data-aux-resource="floater"], .con-res-aux__cell[data-aux-resource="floaters"]', 'the floater satellite cell'),
+      };
       expect(sources.luna?.visible, 'Luna\'s bonus cell is on screen').toBe(true);
       expect(sources.titan?.visible, 'Titan\'s bonus cell is on screen').toBe(true);
       expect(targets.mc?.visible, 'the rail\'s M€ row is on screen').toBe(true);
@@ -483,13 +564,14 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${handZone} .con-hand .con-wshead`), 'host-agnostic: no head of its own').toHaveCount(0);
       await expect(page.locator('.con-hand__discard-src'), 'the header names the tile that demands it').toHaveText(/Плутон/);
       await settle(page, {timeoutMs: 20_000}).catch(() => undefined); // the open episode; the discard's own hold may stand
-      const crumb = await crumbText(page);
-      expect(crumb, 'ONE continuous crumb: the workspace, the card, then the step').toMatch(/действия карт/i);
-      expect(crumb).toMatch(/наука о поселениях/i);
-      expect(crumb).toMatch(/сброс/i);
-      const bar = (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
-      expect(bar, `B is «Свернуть» past the commit, never a close (${bar})`).toMatch(/свернуть/i);
-      expect(bar).toMatch(/сбросить/i);
+      // The crumb and the bar are LIVE strings — polled, never read once (A).
+      const crumbPoll = (message: string) => expect.poll(() => crumbText(page), {timeout: 10_000, message});
+      await crumbPoll('ONE continuous crumb: the workspace, the card, then the step').toMatch(/действия карт/i);
+      await crumbPoll('the crumb names the card').toMatch(/наука о поселениях/i);
+      await crumbPoll('the crumb names the step').toMatch(/сброс/i);
+      const barText = async () => (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
+      await expect.poll(barText, {timeout: 10_000, message: 'B is «Свернуть» past the commit, never a close'}).toMatch(/свернуть/i);
+      await expect.poll(barText, {timeout: 10_000, message: 'A discards'}).toMatch(/сбросить/i);
       await shoot(page, preset.id, '05-discard');
       expect(posts.length, 'nothing was sent by the takes').toBe(1);
       const handAtDiscard = (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr;
@@ -509,14 +591,14 @@ for (const preset of PRESETS) {
       await expect.poll(() => page.evaluate(() => document.querySelectorAll('.con-transfer__chip').length),
         {timeout: 10_000, message: 'the detached floater has landed'}).toBe(0);
       await stopStory();
-      // The satellite's HOME — measured on the board: while the composer stood it was in its workspace pose (another
-      // place), which is exactly the point a floater must never be aimed at.
-      const auxHome = await seen(page, '.con-res-aux__cell[data-aux-resource="floater"], .con-res-aux__cell[data-aux-resource="floaters"]');
       await settle(page, {timeoutMs: 30_000});
+      // The satellite's HOME — measured on the board, at rest: while the composer stood it was in its workspace pose
+      // (another place), which is exactly the point a floater must never be aimed at.
+      const auxHome = await seenAtRest(page, '.con-res-aux__cell[data-aux-resource="floater"], .con-res-aux__cell[data-aux-resource="floaters"]', 'the satellite\'s home');
       expect(posts.length, 'and nothing else was sent').toBe(2);
       await shoot(page, preset.id, '07-board');
       // The flow is over: the probe's reading is taken HERE (the second visit below is another flow's crumb).
-      const probe = await readProbe(page);
+      const probe = await finishProbe(page);
 
       // ── 5. the server ──
       const after = await wireOf(request, playerId);
@@ -551,7 +633,10 @@ for (const preset of PRESETS) {
         flights: flights.map((f) => [f.res, f.text, Math.round(f.first.x), Math.round(f.first.y), Math.round(f.last.x), Math.round(f.last.y), f.n, f.firstAt, f.lastAt])});
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/habitat-science-${preset.id}.json`, JSON.stringify(probe, null, 1));
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+      // The recorder's liveness floor: DISTINCT states the product wrote across the flow (seven crumb tails with their
+      // crossfades, four rows' states, two takes, the discard, two flights, the counters) — a dead recorder keeps one;
+      // never a count of frames or ticks.
+      expect(probe.samples, `the probe recorded the flow (${probe.samples} distinct states)`).toBeGreaterThan(0); // a liveness floor catches only a DEAD recorder (tests.md)
 
       // ── one flow: one crumb, the steps inside it ──
       expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name — the same nodes — on every sample').toEqual([]);

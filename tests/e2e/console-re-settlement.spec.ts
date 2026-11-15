@@ -478,7 +478,7 @@ for (const preset of PRESETS) {
       await press(page, 'KeyV', 500); // R3 — «все клетки»
       await walkToSpace(page, Y);
       await expect(page.locator(panel), 'the walled-in city states its ONE reason').toContainText('городу некуда переехать', {timeout: 10_000});
-      expect(await page.locator(`.board-space--available[data_space_id="${Y}"]`).count(), 'a city that cannot move is offered disabled, never as a legal cell').toBe(0);
+      await expect.poll(() => page.locator(`.board-space--available[data_space_id="${Y}"]`).count(), {message: 'a city that cannot move is offered disabled, never as a legal cell'}).toBe(0);
       await shoot(page, preset.id, '03-city-disabled');
       await press(page, 'Enter', 500); // A on it does nothing — and lifts nothing
       expect(await moveLevel(page), 'a disabled city cannot be lifted').toBe('city');

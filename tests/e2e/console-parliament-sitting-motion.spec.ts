@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, fetchPlayerModel, press, pressUntil} from './consoleStart';
 import {answerAsksAs, enterSittingByPass} from './parliamentDrive';
+import {armWitness, pageNow} from './witness';
 
 /**
  * THE PARLIAMENT'S SITTING — the MOTION half (Э4 of
@@ -360,15 +361,19 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     await page.emulateMedia({reducedMotion: 'reduce'});
     const {playerId} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto'});
     await armProbe(page);
+    // H — the walk is timed on the PAGE's clock: the take's first recorded moment on the stage, from a reading taken
+    // as the sitting rises.
+    const take = await armWitness(page, 'reduced-take', () =>
+      document.querySelector('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded') !== null);
     await enterSittingByPass(page, request, playerId);
-    const t0 = Date.now();
+    const t0 = await pageNow(page);
     await expect.poll(() => stageAttr(page), {timeout: 15_000}).toBe('reward');
     await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded'), 'the take stands').toHaveCount(1, {timeout: 20_000});
-    const walkMs = Date.now() - t0;
+    const walkMs = Math.max(0, ((await take.firstWhere((up) => up))?.t ?? Infinity) - t0);
     const probe = await readProbe(page);
     expect(probe.samples.every((s) => s.proxies.length === 0), 'nothing in the air under reduced motion').toBe(true);
     expect(probe.samples.every((s) => s.holds.length === 0), 'no sitting hold under reduced motion').toBe(true);
-    expect(await page.locator('.con-parl__gov-card--awaiting').count(), 'the poses are final at once').toBe(0);
+    await expect.poll(() => page.locator('.con-parl__gov-card--awaiting').count(), {message: 'the poses are final at once'}).toBe(0);
     expect(walkMs, `the whole walk took ${walkMs} ms from the sitting's rise`).toBeLessThan(6_000);
     expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt, 'no confirmation before the take').toBeUndefined();
     await shoot(page, '20-reduced-reward');

@@ -29,7 +29,7 @@ async function openColonies(page: Page): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
 }
 
 async function focusTile(page: Page, target: string): Promise<void> {
@@ -43,7 +43,7 @@ async function focusTile(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 type CellFit = {

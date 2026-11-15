@@ -171,8 +171,7 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
     await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
     await press(page, 'ArrowRight', 450);
     await press(page, 'Enter', 900); // pick option 1 (+1 heat production)
-    expect(await page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(),
-      'both choices resolved').toBe(2);
+    await expect.poll(() => page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(), {message: 'both choices resolved'}).toBe(2);
     await shoot(page, '02-choices-made');
 
     // ── ARM the sequence probes BEFORE the commit: the traversal strip's
@@ -277,7 +276,7 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
       await press(page, 'ArrowRight', 450);
       await press(page, 'Enter', 600);
     }
-    expect(await page.locator('.con-cards__slot--picked').count(), 'two picks held').toBe(2);
+    await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'two picks held'}).toBe(2);
     await press(page, 'Period', 2500); // RT — «Подтвердить»
     await expect.poll(async () => (await serverState(request, id)).hand,
       {timeout: 30_000, message: 'the two picks reached the hand'}).toBe(handBefore + 2);

@@ -212,8 +212,8 @@ test.describe('Industrialist Budget · standard-1080', () => {
       const face = page.locator(`.con-parl__slot[data-instance="${BUDGET_INSTANCE}"] .pcard`);
       await expect(face, 'Industrialist Budget stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(BUDGET_CLASS);
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX15');
-      expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'the Industrialists\' emblem').toContain('industrialists');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX15');
+      await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'the Industrialists\' emblem'}).toContain('industrialists');
       await expect(face.locator('.pcard__mech .pcard-mi--mc').first(), 'the negative is printed INSIDE the tile, as on the card').toHaveText('−10');
       await expect(face.locator('.pcard__mech .pcard-prod'), 'the flat +4 box and the counted box').toHaveCount(2);
       await expect(face.locator('.pcard__quest-graphic'), 'the +1 steel production quest as a graphic').toHaveCount(1);

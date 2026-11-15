@@ -1,8 +1,10 @@
 import {test, expect, Page} from './consoleTest';
 import {
-  createGameWithCards, fillPicks, openConsole, pickCards, playQueueCard, press,
-  queueCards, stepKind, stepSubject, summaryVisible, waitPressable, waitQueueIdle,
+  createGameWithCards, fillPicks, openConsole, pickCards, playQueueCard, press, pressUntil, pressUntilVisible,
+  queueCards, stepKind, stepSubject, summaryVisible, waitPressable, waitQueueIdle, walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * «ЭПАТАЖНЫЙ СПОНСОР» → «ДЕЛОВЫЕ КОНТАКТЫ» → the deck PICK it raises.
@@ -61,7 +63,9 @@ function cfg(opts: {preludes: Array<string>, corps: Array<string>}) {
   };
 }
 
-/** Where the player actually is — structural, never a title match. */
+/** Where the player actually is — structural, never a title match. Read AT REST (`readSettled` — FLAKE ZERO, class
+ *  C: «painted at a size a player can choose from» is a box, and a box read mid-arrival is wherever the machine had
+ *  got to). */
 async function surfaces(page: Page) {
   return page.evaluate(() => {
     const pick = document.querySelector('.con-deckpick');
@@ -108,7 +112,8 @@ test.describe('console start — a project played through «Эпатажный �
     await page.waitForSelector('.con-start__frame', {timeout: 45_000});
     for (let round = 0; round < 8 && !(await summaryVisible(page)); round++) {
       await waitPressable(page);
-      await page.waitForTimeout(250);
+      // The step's subject is '' while the deal cinematic owns it — read it once it names the step.
+      await expect.poll(() => stepSubject(page), {timeout: 5_000}).not.toBe('').catch(() => undefined);
       const kind = stepKind(await stepSubject(page));
       if (kind === 'corporation') {
         expect(await pickCards(page, ['Inventrix']), 'Inventrix was dealt and picked').toContain('Inventrix');
@@ -121,19 +126,15 @@ test.describe('console start — a project played through «Эпатажный �
         await fillPicks(page, 4, 30);
       }
       await press(page, 'Period', 1600);
-      for (let w = 0; w < 20 && !(await summaryVisible(page)) &&
-           stepKind(await stepSubject(page)) === kind; w++) {
-        await page.waitForTimeout(250);
-      }
+      // The wizard moved on: the summary, or another step (bounded — the next round re-reads where it stands).
+      await expect.poll(async () => await summaryVisible(page) || stepKind(await stepSubject(page)) !== kind,
+        {timeout: 5_000}).toBe(true).catch(() => undefined);
     }
     // НАЧАТЬ ПАРТИЮ — act → VERIFY → retry: the summary's own commit beat
     // absorbs a press by design, and one blind Enter left the run staring at a
     // wizard it had already finished.
-    for (let i = 0; i < 8 && await summaryVisible(page); i++) {
-      await press(page, 'Enter', 2500);
-    }
-    expect(await summaryVisible(page), 'the summary committed').toBeFalsy();
-    await page.waitForTimeout(4000);
+    await pressUntil(page, 'Enter', async () => !await summaryVisible(page), {tries: 8, settleMs: 2500});
+    await expect.poll(() => summaryVisible(page), {message: 'the summary committed'}).toBeFalsy();
 
     // ── the deployment: the sponsor goes LAST, so that when its project's pick
     //    stands there is nothing else queued. That is the shape of the report:
@@ -152,28 +153,25 @@ test.describe('console start — a project played through «Эпатажный �
         break;
       }
       await playQueueCard(page, other);
-      await page.waitForTimeout(2500); // its own beat settles before the next read
+      // Its own beat runs before the next read: the played card LEAVES the queue (bounded — the next round's idle wait
+      // and the assertion below say what stands).
+      await expect.poll(async () => (await queueCards(page)).includes(other), {timeout: 15_000}).toBe(false)
+        .catch(() => undefined);
     }
     await waitQueueIdle(page);
-    expect(await queueCards(page), 'the sponsor is the only prelude left')
+    await expect.poll(() => queueCards(page), {message: 'the sponsor is the only prelude left'})
       .toEqual(['Eccentric Sponsor']);
-    for (let i = 0; i < 14 && await page.locator('.con-hand').count() === 0; i++) {
-      await press(page, 'Enter', 1800);
-    }
-    expect(await page.locator('.con-hand').count(), 'the sponsor raised its hand step').toBeGreaterThan(0);
-    await page.waitForTimeout(1200);
+    await pressUntilVisible(page, 'Enter', '.con-hand', {tries: 14, settleMs: 1800});
+    await expect.poll(() => page.locator('.con-hand').count(), {message: 'the sponsor raised its hand step'}).toBeGreaterThan(0);
+    // The dock-to-hand reveal gates input on purpose — the hand is driven once it has landed.
+    await page.locator('.con-hand:not(.con-hand--transit)').first().waitFor({state: 'visible', timeout: 15_000});
 
-    // …focus the 4→2 project and play it (composer → commit).
+    // …focus the 4→2 project and play it (composer → commit). The walk is act → verify on the hand's own
+    // selection, turning round at a wall (`walkFocusUntil`).
     const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
-    let landed = false;
-    for (let i = 0; i < slots * 2 + 4 && !landed; i++) {
-      landed = await page.evaluate(() =>
-        document.querySelector('.con-hand__slot--selected[data-zoom-slot]')
-          ?.getAttribute('data-zoom-slot') ?? '') === 'Business Contacts';
-      if (!landed) {
-        await press(page, 'ArrowRight', 280);
-      }
-    }
+    const handFocus = () => page.evaluate(() =>
+      document.querySelector('.con-hand__slot--selected[data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '');
+    const landed = await walkFocusUntil(page, async () => await handFocus() === 'Business Contacts', handFocus, slots * 2 + 4, 280);
     expect(landed, 'focused «Деловые контакты» in the embedded hand').toBeTruthy();
     // ACT → VERIFY → RETRY (tests.md). Two blind Enters were a flake under load (4 of 6 red at 3 workers,
     // 2026-10-12): the second landed before the composer took input and the play never left — the frame
@@ -181,9 +179,7 @@ test.describe('console start — a project played through «Эпатажный �
     // standing; the commit by the POST it sends — and it is retried ONLY while nothing was sent, so a
     // retry can never land on the pick the play opens.
     const composer = page.locator('.con-composer--play');
-    for (let i = 0; i < 4 && await composer.count() === 0; i++) {
-      await press(page, 'Enter', 1600); // the composer descends
-    }
+    await pressUntil(page, 'Enter', async () => await composer.count() > 0, {tries: 4, settleMs: 1600}); // the composer descends
     await expect(composer, 'the play composer stands').toHaveCount(1);
     const posts: Array<string> = [];
     page.on('request', (r) => {
@@ -191,17 +187,14 @@ test.describe('console start — a project played through «Эпатажный �
         posts.push(r.postData() ?? '');
       }
     });
-    for (let attempt = 0; attempt < 4 && posts.length === 0; attempt++) {
-      await press(page, 'Enter', 400); // commit
-      await expect.poll(() => posts.length, {timeout: 5_000}).toBeGreaterThan(0).catch(() => undefined);
-    }
+    await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 4, settleMs: 5_000}); // commit
     expect(posts.length, 'the play was sent exactly once').toBe(1);
 
     // ── THE CLAIM SURVIVES THE STEP THAT PLACED IT ──
     await expect(page.locator('.con-deckpick'), 'the pick came up')
       .toHaveCount(1, {timeout: 30_000});
-    await page.waitForTimeout(2500); // the arrival settles
-    const s = await surfaces(page);
+    // The arrival at rest: the surfaces read until two reads a frame apart agree, after `settle`.
+    const s = await readSettled(page, () => surfaces(page), {message: 'the embedded pick, arrived'});
     await page.screenshot({path: 'screenshots/sponsor-outcome-pick.png'});
 
     expect(s.startUp, 'the Game Start Workspace never left').toBe(1);
@@ -219,40 +212,44 @@ test.describe('console start — a project played through «Эпатажный �
 
     // ── answering it hands the deployment back, and only THEN does the
     //    corporation's mandatory move get its stage ──
-    await press(page, 'Enter', 700);
-    await press(page, 'ArrowRight', 500);
-    await press(page, 'Enter', 700);
-    // AN ORDER CLAIM IS SAMPLED FROM BEFORE THE PRESS (tests rule): since PL-212 the pick lets go once its cards have
-    // LIFTED (they fly on into the dock over the returning deployment), so «the deployment came back» is a WINDOW between
-    // the pick's leave and the first action's stage — a fixed settle after the press read it after it had closed.
-    await page.evaluate(() => {
-      const w = window as unknown as {__sp: Array<{pick: number, queue: boolean, firstact: number}>};
-      w.__sp = [];
-      window.setInterval(() => {
-        const q = document.querySelector<HTMLElement>('.con-start__queue');
-        let op = q === null ? 0 : 1;
-        for (let el: HTMLElement | null = q; el !== null; el = el.parentElement) {
-          op *= Number(getComputedStyle(el).opacity);
-        }
-        const r = q?.getBoundingClientRect();
-        w.__sp.push({
-          pick: document.querySelectorAll('.con-deckpick').length,
-          queue: q !== null && (r?.width ?? 0) > 0 && getComputedStyle(q).visibility !== 'hidden' && op > 0.5,
-          firstact: document.querySelectorAll('.con-start__firstact').length,
-        });
-      }, 25);
+    // Keep two of the four — each A verified by the pick's own band (A is a TOGGLE: a second A on the same card would
+    // take it back), the cursor walked onto a card not yet kept.
+    const picked = page.locator('.con-deckpick .con-cards__slot--picked');
+    const pickFocus = () => page.evaluate(() => {
+      const el = document.querySelector('.con-deckpick .con-cards__slot--focused[data-deckpick-slot]');
+      return el === null ? '' : `${el.getAttribute('data-deckpick-slot')}|${el.classList.contains('con-cards__slot--picked') ? 1 : 0}`;
     });
+    await pressUntil(page, 'Enter', async () => await picked.count() >= 1, {tries: 3, settleMs: 700});
+    await walkFocusUntil(page, async () => (await pickFocus()).endsWith('|0'), async () => (await pickFocus()).split('|')[0], 6, 500);
+    await pressUntil(page, 'Enter', async () => await picked.count() >= 2, {tries: 3, settleMs: 700});
+    // AN ORDER CLAIM IS RECORDED FROM BEFORE THE PRESS (tests rule): since PL-212 the pick lets go once its cards have
+    // LIFTED (they fly on into the dock over the returning deployment), so «the deployment came back» is a WINDOW between
+    // the pick's leave and the first action's stage — a fixed settle after the press read it after it had closed. A
+    // witness (`armWitness`, `settled` — an order claim is judged on the states a task leaves) keeps every state.
+    const order = await armWitness<{pick: number, queue: boolean, firstact: number}>(page, 'sponsor-deployment-return', () => {
+      const q = document.querySelector<HTMLElement>('.con-start__queue');
+      let op = q === null ? 0 : 1;
+      for (let el: HTMLElement | null = q; el !== null; el = el.parentElement) {
+        op *= Number(getComputedStyle(el).opacity);
+      }
+      const r = q?.getBoundingClientRect();
+      return {
+        pick: document.querySelectorAll('.con-deckpick').length,
+        queue: q !== null && (r?.width ?? 0) > 0 && getComputedStyle(q).visibility !== 'hidden' && op > 0.5,
+        firstact: document.querySelectorAll('.con-start__firstact').length,
+      };
+    }, {settled: true});
     await press(page, 'Period', 2500); // RT — confirm the keep
     await expect(page.locator('.con-deckpick'), 'the pick resolved').toHaveCount(0, {timeout: 30_000});
 
     await expect(page.locator('.con-start__firstact'), 'the first action is the LAST stage, on its own')
       .toHaveCount(1, {timeout: 40_000});
-    const order = await page.evaluate(() => (window as unknown as {__sp: Array<{pick: number, queue: boolean, firstact: number}>}).__sp);
-    expect(order.length, 'the order probe sampled').toBeGreaterThan(10);
-    expect(order.some((s) => s.pick === 0 && s.queue && s.firstact === 0),
+    const states = await order.stop();
+    // A dead witness must never pass: it recorded at least the state it was armed in.
+    expect(states.length, 'the order probe sampled').toBeGreaterThan(0);
+    expect(states.some(({v}) => v.pick === 0 && v.queue && v.firstact === 0),
       'the deployment came back around it — visible after the pick left and before the first action stood').toBe(true);
-    await page.waitForTimeout(1500);
-    const end = await surfaces(page);
+    const end = await readSettled(page, () => surfaces(page), {message: 'the first action\'s stage, arrived'});
     await page.screenshot({path: 'screenshots/sponsor-outcome-first-action.png'});
     expect(end.pickUp, 'nothing of the previous stage is still on screen').toBeFalsy();
     // …and it arrives ACTIONABLE, not in the «wait for your turn» pose it wore

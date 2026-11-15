@@ -120,7 +120,7 @@ for (const preset of PRESETS) {
       await expect(screen).toBeVisible();
       await expect(page.locator('.cm-lcard[data-lobby-card="game"]').first()).toBeVisible({timeout: 60_000});
       await expect.poll(() => page.locator('.cm-lcard[data-lobby-card="game"]').count(), {timeout: 30_000}).toBeGreaterThanOrEqual(2);
-      expect(await page.locator('.cm-overlay').count(), 'never a dialog').toBe(0);
+      await expect.poll(() => page.locator('.cm-overlay').count(), {message: 'never a dialog'}).toBe(0);
       await settled(page);
       const facts = await page.evaluate(() => {
         const vw = window.innerWidth;
@@ -162,7 +162,7 @@ for (const preset of PRESETS) {
       await openItem(page, 'games');
       await expect(page.locator('[data-lobby-state="empty"]'), 'a fresh name: «no games yet», on the stage').toBeVisible({timeout: 60_000});
       await settled(page);
-      expect(await page.locator('.cm-overlay').count()).toBe(0);
+      await expect.poll(() => page.locator('.cm-overlay').count()).toBe(0);
       await page.screenshot({path: `screenshots/tr68/${preset.id}/after-b-empty.png`});
       // The listing fails: «could not load», never «no games».
       await page.route('**/api/games/joinable**', (route) => route.fulfill({status: 500, body: 'down'}));
@@ -185,7 +185,7 @@ for (const preset of PRESETS) {
       await openItem(page, 'campaigns');
       const card = page.locator('.cm-lcard.cm-camp', {hasText: name});
       await expect(card).toHaveCount(1, {timeout: 60_000});
-      expect(await page.locator('.cm-overlay').count()).toBe(0);
+      await expect.poll(() => page.locator('.cm-overlay').count()).toBe(0);
       await settled(page);
       const cut = await card.locator('.cm-lcard__name').evaluate((n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1);
       expect(cut, 'the campaign\'s name is never cut while the card has room').toBe(false);

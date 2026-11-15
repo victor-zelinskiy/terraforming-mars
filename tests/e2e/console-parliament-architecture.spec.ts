@@ -152,7 +152,7 @@ for (const preset of PRESETS) {
       const face = page.locator(`.con-parl__slot[data-instance="${AWARD_INSTANCE}"] .pcard`);
       await expect(face, 'Architecture Award stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(/pcard--resolution-art/);
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX02');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX02');
       await expect(face.locator('.pcard__party-emblem'), 'the Mars First emblem').toHaveCount(1);
       await expect(face.locator('.pcard__mech .pvpcard[data-vp-card-tag="building"]'), 'the counted object: a building CARD with a VP plate').toHaveCount(1);
       await expect(face.locator('.pcard__mech .pvpcard__vp'), 'the VP plate on the glyph').toHaveCount(1);

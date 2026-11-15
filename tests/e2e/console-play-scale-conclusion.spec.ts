@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, fetchPlayerModel, playCardFromHand, settle, waitForBoardHome} from './consoleStart';
+import {armWitness, pageNow} from './witness';
 
 /**
  * A PLAYED CARD THAT RAISES A GLOBAL PARAMETER STILL CONCLUDES ITS WORKSPACE.
@@ -57,7 +58,14 @@ test.describe('Play → scale raise → the workspace concludes · fhd', () => {
     const played = await playCardFromHand(page, 'Mining Expedition');
     expect(played, 'the card was played from the hand').toBe(true);
 
-    const t0 = Date.now();
+    // H — timed on the PAGE's clock: a reading now, the first recorded moment the board home stands (the same predicate
+    // the wait below polls).
+    const homeAt = await armWitness(page, 'scale-board-home', () => {
+      const w = window as unknown as {__conReady?: () => {wsDepth?: number} | undefined};
+      const band = document.querySelector('.con-ws, .con-hand') as HTMLElement | null;
+      return (w.__conReady?.()?.wsDepth ?? 0) === 0 && !(band !== null && band.offsetParent !== null);
+    });
+    const t0 = await pageNow(page);
     // THE CONTRACT: the board home returns on its own — no workspace band, no
     // hand screen — well within the park's 30 s cliff. Poll server truth +
     // the shell's own «where am I» witness.
@@ -68,7 +76,7 @@ test.describe('Play → scale raise → the workspace concludes · fhd', () => {
       const bandShown = band !== null && band.offsetParent !== null;
       return (r?.wsDepth ?? 0) === 0 && !bandShown;
     }, {timeout: 20_000}).then(() => true).catch(() => false);
-    const elapsed = Date.now() - t0;
+    const elapsed = ((await homeAt.firstWhere((at) => at))?.t ?? Infinity) - t0;
     if (!home) {
       expect(home, `the workspace never concluded after the scale-raising play — ${await stuckDump(page)}`).toBe(true);
     }

@@ -128,7 +128,7 @@ for (const preset of PRESETS) {
       await expect(picked(page)).toHaveCount(4);
       await expect(page.locator('.con-hand__salebar--select .con-hand__salebar-item--gain').first()).toContainText('+4');
       await expect(page.locator('[data-hand-sale-cards]'), 'the second payout, in cards').toContainText('+4');
-      expect(await page.locator('.con-cards__pickband--discard').count(), 'every pick wears the DISCARD band').toBe(4);
+      await expect.poll(() => page.locator('.con-cards__pickband--discard').count(), {message: 'every pick wears the DISCARD band'}).toBe(4);
       // RT confirms the set into the composer: the row names the cards and BOTH payouts.
       await press(page, 'Period', 1200);
       await expect(page.locator(`${PLAY}:visible`), 'the composer returns with the answer').toHaveCount(1, {timeout: 15_000});
@@ -153,7 +153,7 @@ for (const preset of PRESETS) {
       // The drawn cards stand EMBEDDED in the hand workspace (TR57) — never the standalone band over the board.
       const embedded = page.locator('.con-hand .con-reveal--embedded');
       await expect(embedded, 'the draw stands inside the workspace').toHaveCount(1, {timeout: 40_000});
-      expect(await page.locator('.con-reveal:not(.con-reveal--embedded)').count(), 'no standalone reveal').toBe(0);
+      await expect.poll(() => page.locator('.con-reveal:not(.con-reveal--embedded)').count(), {message: 'no standalone reveal'}).toBe(0);
       await expect.poll(async () => ((await fetchPlayerModel(request, playerId)) as unknown as Wire).thisPlayer.tableau.some((c) => c.name === CARD), {timeout: 30_000, message: 'the card is on the table'}).toBe(true);
       const after = await fetchPlayerModel(request, playerId) as unknown as Wire;
       expect(after.cardsInHand?.map((c) => c.name), 'the four left the hand').not.toEqual(expect.arrayContaining(ELIGIBLE));

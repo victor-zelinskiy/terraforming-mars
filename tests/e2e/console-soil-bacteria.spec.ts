@@ -152,7 +152,7 @@ test.describe(`P61 Soil Bacteria · a prelude-reactor answering a tag into the r
     expect(await walkFocusUntil(page, async () => await focused() === CARD, focused, 8), 'the prelude focused in the queue').toBe(true);
     await expect.poll(() => forecastPlants(page, '[data-start-prelude-forecast]'), {timeout: 20_000,
       message: '«Сработает» on the rail names the own plant'}).toMatch(/\+1/);
-    expect(await page.locator('.con-start [data-forecast-row]').count(), 'the answer stands ONCE on the scene').toBe(1);
+    await expect.poll(() => page.locator('.con-start [data-forecast-row]').count(), {message: 'the answer stands ONCE on the scene'}).toBe(1);
     await shoot(page, 'A-01-queue-forecast');
 
     await armTransferWitness(page);

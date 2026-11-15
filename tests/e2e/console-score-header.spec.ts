@@ -125,7 +125,7 @@ for (const preset of PRESETS) {
       await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
       await page.waitForTimeout(3000);
       await expect(page.locator('.con-score .vp-private')).toBeVisible();
-      expect(await page.locator('.con-score__cell--vp .con-score__value').count()).toBe(0);
+      await expect.poll(() => page.locator('.con-score__cell--vp .con-score__value').count()).toBe(0);
       await expect(page.locator('.con-score__value--tr')).toHaveText(/^\d+$/);
       await shootRail(page, preset, '03-rail-vp-masked');
       await page.evaluate((id) => localStorage.removeItem('tm.privateScoreDisplay.' + id), playerId);

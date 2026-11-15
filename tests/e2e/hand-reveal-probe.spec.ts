@@ -1,7 +1,9 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, waitForBoardHome} from './consoleStart';
+import {bootIntoGame, cinematicBeat, openQuickWheel, settle, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * HAND REVEAL probe — the dock ↔ hand-overlay physical transition
@@ -111,38 +113,57 @@ async function bootGame(page: Page, request: APIRequestContext, buyProjects: num
   // The hand must actually hold cards — otherwise the episode under test
   // has nothing to fly and every assertion below would be vacuous. The
   // bodies live on the LAYER (single-owner rework), not inside the dock.
-  const count = await page.locator('.con-handreveal-layer [data-hand-dock-card]').count();
-  expect(count, 'the probe needs a non-empty hand').toBeGreaterThan(0);
+  await expect(page.locator('.con-handreveal-layer [data-hand-dock-card]'), 'the probe needs a non-empty hand').not.toHaveCount(0);
 }
 
-/** Wait for the first SEIZED body (episode ownership lands a couple frames
- *  after A — `data-reveal-card` is the «flight is live» contract mark). */
-async function expectProxies(page: Page): Promise<void> {
-  await expect(page.locator('.con-handreveal-layer [data-reveal-card]').first()).toBeVisible({timeout: 3500});
+/** One observation of the episode: the SEIZED bodies (`data-reveal-card` — the «flight is live» contract mark), whether
+ *  the first of them is visible (Playwright's `toBeVisible`: a box, not `visibility: hidden`), the hand in transit. */
+type RevealSeen = {seized: number, flying: boolean, transit: number};
+/** The episode's witness key — one recording at a time (re-arming starts a fresh record). */
+const REVEAL = 'hand-reveal-episode';
+
+/**
+ * RECORD the episode from before the press (`armWitness`, FLAKE ZERO): episode ownership lands a couple of frames after
+ * the key and a short flight can be over before a late poll looks — the record sees every frame of it. `settled`: «the
+ * bodies fly WHILE the hand holds its slots» is a claim about what a frame paints.
+ */
+async function armReveal(page: Page): Promise<Witness<RevealSeen>> {
+  return armWitness<RevealSeen>(page, REVEAL, () => {
+    const seized = document.querySelectorAll<HTMLElement>('.con-handreveal-layer [data-reveal-card]');
+    let flying = false;
+    if (seized.length > 0) {
+      const r = seized[0].getBoundingClientRect();
+      flying = r.width > 0 && r.height > 0 && getComputedStyle(seized[0]).visibility !== 'hidden';
+    }
+    return {seized: seized.length, flying, transit: document.querySelectorAll('.con-hand--transit').length};
+  }, {settled: true});
+}
+
+/** The first SEIZED body was seen in flight (recorded — however short the flight on this machine). */
+async function expectProxies(reveal: Witness<RevealSeen>, message: string): Promise<void> {
+  await reveal.waitFor((v) => v.flying, {timeoutMs: 3500, message});
 }
 
 /**
- * Fire RT-wheel → A («КАРТЫ») WITHOUT the per-key settle — the reveal starts
- * on the A frame and we want to observe it mid-flight.
+ * Fire RT-wheel → A («КАРТЫ») WITHOUT the per-key settle on the A — the reveal
+ * starts on the A frame and we want to observe it mid-flight.
  *
- * ACT → VERIFY → RETRY: the entry is a two-key gesture on a live surface, so
- * a press can land a frame early (the wheel not up yet) and simply do
- * nothing. Polling for the effect — the hand section OR its proxies — keeps
- * the mid-flight observation intact (the first successful attempt is seen
- * immediately) while removing the "the episode never started" flake.
+ * ACT → VERIFY → RETRY: the entry is a two-key gesture on a live surface. The
+ * wheel is opened by the shared driver (verified: it stands), then A goes raw;
+ * a swallowed A is pressed again only after a whole window without its effect
+ * — the hand section OR its proxies. The first successful attempt is seen
+ * immediately, so the mid-flight observation stays intact.
  */
 async function openHandFast(page: Page): Promise<void> {
+  const started = () => page.evaluate(() =>
+    document.querySelectorAll('.con-hand, .con-handreveal-layer [data-reveal-card]').length > 0);
   for (let attempt = 0; attempt < 3; attempt++) {
-    await page.keyboard.press('Period');
-    await page.waitForTimeout(350); // the wheel opens
+    if (await page.locator('.con-quick').count() === 0) {
+      await openQuickWheel(page);
+    }
     await page.keyboard.press('Enter');
-    for (let i = 0; i < 12; i++) {
-      const started = await page.evaluate(() =>
-        document.querySelectorAll('.con-hand, .con-handreveal-layer [data-reveal-card]').length > 0);
-      if (started) {
-        return;
-      }
-      await page.waitForTimeout(100);
+    if (await expect.poll(started, {timeout: 1500, intervals: [100]}).toBe(true).then(() => true, () => false)) {
+      return;
     }
   }
 }
@@ -153,35 +174,39 @@ test.describe('hand reveal · standard 1080', () => {
   test('open: proxies fly while both ends are held; settle releases everything', async ({page, request}) => {
     test.setTimeout(420_000);
     await bootGame(page, request, 3);
-    const dockBacks = await page.locator('.con-handbody').count();
+    // The pack's population at rest — the reference the single-owner invariant compares against.
+    const dockBacks = await readSettled(page, () => page.locator('.con-handbody').count(), {message: 'the docked bodies'});
     expect(dockBacks).toBeGreaterThan(0);
 
+    const open = await armReveal(page);
     await openHandFast(page);
-    await expectProxies(page); // mid-flight — the episode is airborne
-    // ONE visible representation: bodies seized, slots held.
-    await expect(page.locator('.con-hand--transit')).toHaveCount(1);
+    await expectProxies(open, 'the open never flew a seized body'); // mid-flight — the episode is airborne
+    // ONE visible representation: bodies seized, slots held — in one painted frame.
+    expect(await open.ever((v) => v.flying && v.transit === 1),
+      'the seized bodies flew while the hand held its slots (transit)').toBe(true);
     await shoot(page, '01-mid-open');
 
-    await page.waitForTimeout(2100); // settle (open ≈ lift 140 + flight 600 + spread + handoff)
+    await settle(page); // the open's end (lift 140 + flight 600 + spread + handoff)
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
     await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
     // Cards live on the ALBUM now — bodies off the pack (shelf / packet).
     await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).not.toHaveCount(0);
-    const slots = await page.locator('.con-hand__slot').count();
-    expect(slots).toBeGreaterThan(0);
+    await expect(page.locator('.con-hand__slot')).not.toHaveCount(0);
     await shoot(page, '02-open-settled');
 
     // ── close: the gather back into the dock ────────────────────────
+    const close = await armReveal(page);
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(100); // mid-gather
-    await expectProxies(page);
+    await expectProxies(close, 'the close never gathered a seized body'); // mid-gather
     await shoot(page, '03-mid-close');
-    await page.waitForTimeout(1700);
-    await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
+    // The gather's end is the episode RELEASING its bodies (the close names no hold `settle` could wait on) — the old
+    // 1.7 s pause and its poll, as one wait on that state.
+    await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0, {timeout: 6_700});
+    await settle(page);
     await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).toHaveCount(0);
     await expect(page.locator('.con-board')).toBeVisible();
     // N cards = N bodies, before and after — the single-owner invariant.
-    expect(await page.locator('.con-handbody').count()).toBe(dockBacks);
+    await expect.poll(() => page.locator('.con-handbody').count()).toBe(dockBacks);
     await shoot(page, '04-docked-again');
   });
 
@@ -191,21 +216,24 @@ test.describe('hand reveal · standard 1080', () => {
 
     for (const holdMs of [80, 400]) { // build-window cancel and ~50% of the open
       await openHandFast(page);
-      await page.waitForTimeout(holdMs);
+      await cinematicBeat(page, holdMs, 'B lands this far into the open — the cancel point is the subject');
       await page.keyboard.press('Escape'); // reverse from current progress
-      await page.waitForTimeout(120);
+      // Recorded from the B on — armed AFTER it: the open's own bodies were already flying before the B.
+      const reverse = await armReveal(page);
       if (holdMs === 400) {
         // Still ONE representation while reversing (the 80ms case cancels
         // from ~0 progress — its proxies may already be handing off).
-        await expectProxies(page);
+        await expectProxies(reverse, 'the reversal flew no seized body back');
         await shoot(page, '05-mid-reverse');
       }
-      await page.waitForTimeout(1900);
+      // The reversal's end is the episode RELEASING its bodies (a close names no hold `settle` could wait on) — the
+      // old 1.9 s pause and its poll, as one wait on that state.
+      await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0, {timeout: 7_000});
+      await settle(page);
       // Back home: board + full dock pack, nothing stuck.
       await expect(page.locator('.con-board')).toBeVisible();
       await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).toHaveCount(0);
-      await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
-      expect(await page.locator('.con-handbody').count()).toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-handbody').count()).toBeGreaterThan(0);
     }
     await shoot(page, '06-after-reversals');
   });
@@ -215,32 +243,20 @@ test.describe('hand reveal · standard 1080', () => {
     await bootGame(page, request, 3);
 
     await openHandFast(page);
-    await page.waitForTimeout(2200); // fully open
+    await settle(page); // fully open
     // ARM THE FLIGHT WITNESS BEFORE THE PRESS (tests.md: an order claim
     // cannot be sampled late). Under single ownership `data-reveal-card`
     // lives only from seize to release — a short reverse (Escape +130ms,
     // reversed in as long again) can be over before a late poll looks.
-    await page.evaluate(() => {
-      const w = window as unknown as {__sawFly?: boolean, __sawFlyMo?: MutationObserver};
-      w.__sawFly = false;
-      const mo = new MutationObserver(() => {
-        if (document.querySelector('.con-handreveal-layer [data-reveal-card]') !== null) {
-          w.__sawFly = true;
-          mo.disconnect();
-        }
-      });
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      w.__sawFlyMo = mo;
-    });
+    const gather = await armReveal(page);
     await page.keyboard.press('Escape'); // gather begins
-    await page.waitForTimeout(130);
+    await cinematicBeat(page, 130, 'the reopen lands this far into the close — mid-gather is the subject');
     // Reopen mid-close: the dock click is the entry (RT needs the wheel).
     await page.mouse.click(960, 1035);
-    await page.waitForTimeout(120);
-    const sawFly = await page.evaluate(() => (window as unknown as {__sawFly?: boolean}).__sawFly === true);
-    expect(sawFly, 'the close gather seized bodies (the flight was live)').toBe(true);
+    await expect.poll(() => gather.ever((v) => v.seized > 0),
+      {message: 'the close gather seized bodies (the flight was live)'}).toBe(true);
     await shoot(page, '07-mid-reopen');
-    await page.waitForTimeout(2000);
+    await settle(page);
     // Landed OPEN again: hand section up, slots visible, episode released.
     await expect(page.locator('.con-hand')).toHaveCount(1);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
@@ -258,15 +274,17 @@ test.describe('hand reveal · reduced motion', () => {
   test('no proxies — instant, connected states', async ({page, request}) => {
     test.setTimeout(420_000);
     await bootGame(page, request, 2);
+    // «No proxies» is a claim about the WHOLE episode — recorded from before the press, never one look after it.
+    const open = await armReveal(page);
     await openHandFast(page);
-    await page.waitForTimeout(250);
+    await settle(page);
     await expect(page.locator('.con-hand')).toHaveCount(1);
-    await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
+    expect(await open.ever((v) => v.seized > 0), 'reduced motion seized a body for a flight').toBe(false);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
     await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).not.toHaveCount(0);
     await shoot(page, '09-reduced-open');
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(250);
+    await settle(page);
     await expect(page.locator('.con-board')).toBeVisible();
     await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).toHaveCount(0);
   });
@@ -278,10 +296,11 @@ test.describe('hand reveal · deck handheld', () => {
   test('handheld: the same episode plays and settles', async ({page, request}) => {
     test.setTimeout(420_000);
     await bootGame(page, request, 3);
+    const open = await armReveal(page);
     await openHandFast(page);
-    await expectProxies(page);
+    await expectProxies(open, 'the handheld open never flew a seized body');
     await shoot(page, '10-handheld-mid-open');
-    await page.waitForTimeout(2000);
+    await settle(page);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
     await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
     await shoot(page, '11-handheld-open');
@@ -294,10 +313,11 @@ test.describe('hand reveal · tv 1080', () => {
   test('tv profile: the same episode plays and settles', async ({page, request}) => {
     test.setTimeout(420_000);
     await bootGame(page, request, 2, '&consoleProfile=tv');
+    const open = await armReveal(page);
     await openHandFast(page);
-    await expectProxies(page);
+    await expectProxies(open, 'the tv open never flew a seized body');
     await shoot(page, '12-tv-mid-open');
-    await page.waitForTimeout(2000);
+    await settle(page);
     await expect(page.locator('.con-hand--transit')).toHaveCount(0);
     await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
     await shoot(page, '13-tv-open');

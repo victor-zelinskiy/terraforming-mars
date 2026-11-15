@@ -183,7 +183,7 @@ for (const preset of PRESETS) {
       const chipActive = explorer(page).locator('.con-efx__chip--active');
       await expect(chipActive).toHaveCount(1);
       const facetedTiles = explorer(page).locator('.con-efx__tile');
-      expect(await facetedTiles.count(), 'a facet narrows the grid').toBeLessThan(4);
+      await expect.poll(() => facetedTiles.count(), {message: 'a facet narrows the grid'}).toBeLessThan(4);
       await press(page, 'KeyV', 500); // R3 → reset
       await expect(explorer(page).locator('.con-efx__tile')).toHaveCount(4);
 

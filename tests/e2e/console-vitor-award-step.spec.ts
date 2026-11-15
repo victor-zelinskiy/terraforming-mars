@@ -147,7 +147,7 @@ test.describe('console Vitor · the free sponsorship is a start-workspace step',
     // ── «СВЕРНУТЬ» is a ROUND TRIP: the whole flow parks, the board-home
     //    restore card is the way back — at full depth, crumb intact.
     await key(page, 'Escape', 1400);
-    expect(await page.locator('.con-ma').count(), 'the step parks with the flow').toBe(0);
+    await expect.poll(() => page.locator('.con-ma').count(), {message: 'the step parks with the flow'}).toBe(0);
     await page.waitForSelector('.con-mandatory', {timeout: 15_000});
     await shoot(page, '03-collapsed-restore-card');
     await key(page, 'Enter', 1600);

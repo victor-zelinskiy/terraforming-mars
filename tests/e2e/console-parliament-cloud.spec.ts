@@ -182,7 +182,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       const face = page.locator(`.con-parl__slot[data-instance="${CLOUD_INSTANCE}"] .pcard`);
       await expect(face, 'Cloud Development stands in the voting area').toHaveCount(1);
       await expect(face.locator('.pcard__code'), 'the printed code (opted in)').toHaveText('RX06');
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the code').toContain('RX06');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the code'}).toContain('RX06');
       await expect(face.locator('.pcard__party-emblem'), 'the Unity emblem').toHaveCount(1);
       // The module stamp is the Turmoil Redux medallion; the DEPENDENCY medallion beside it is Venus Next's.
       const compat = await face.locator('.pcard-bill__compat').evaluateAll((els) => els.map((el) => `${el.getAttribute('data-bill-compat')}:${(el as HTMLElement).style.backgroundImage}`));

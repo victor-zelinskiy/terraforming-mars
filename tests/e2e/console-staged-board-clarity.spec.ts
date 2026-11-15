@@ -28,7 +28,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, focusedSpaceId, placementState, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, focusedSpaceId, placementState, press, pressUntil, settle, syncClient} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 import {initialPlacementCursor} from '../../src/client/console/tilePlacement/placementCursorStart';
 
 const PROFILES = [
@@ -80,8 +82,11 @@ async function openComposer(page: Page, card: string): Promise<void> {
 
 /** «Разыграть» — the composer's commit (the arrival law may absorb the first press): until the ritual or the board runs. */
 async function pressPlay(page: Page): Promise<void> {
+  // A composer GONE is the board's only beside the board's own fact (E): the staged placement stands — a hole on screen
+  // alone is no proof the play started.
   const started = async () => await page.locator('.con-played-hero__proxy').count() > 0 ||
-    await page.locator('[data-staged-plate]').count() > 0 || await page.locator('.con-composer--play').count() === 0;
+    await page.locator('[data-staged-plate]').count() > 0 ||
+    (await page.locator('.con-composer--play').count() === 0 && await placementState(page) !== 'none');
   expect(await pressUntil(page, 'Enter', started, {tries: 4, settleMs: 1200}), '«Разыграть» never started the staged play').toBe(true);
 }
 
@@ -156,34 +161,24 @@ async function bLanding(page: Page, timeoutMs = 15_000): Promise<'composer' | 'b
   return 'undecided';
 }
 
-/** A bar sampler (MutationObserver + setInterval — never rAF): did the bar ever read `needle`? */
-async function armBarProbe(page: Page, needle: string): Promise<void> {
-  await page.evaluate((n) => {
-    const w = window as unknown as {__t15Bar: {seen: boolean, samples: number, texts: Array<string>}};
-    w.__t15Bar = {seen: false, samples: 0, texts: []};
-    const tick = () => {
-      w.__t15Bar.samples++;
-      const t = document.querySelector('.con-cmdbar')?.textContent ?? '';
-      if (t.includes(n)) {
-        w.__t15Bar.seen = true;
-      }
-      const flat = t.replace(/\s+/g, ' ').trim();
-      if (w.__t15Bar.texts.length < 10 && w.__t15Bar.texts[w.__t15Bar.texts.length - 1] !== flat) {
-        w.__t15Bar.texts.push(flat);
-      }
-    };
-    const iv = setInterval(tick, 30);
-    const mo = new MutationObserver(tick);
-    mo.observe(document.body, {childList: true, subtree: true, characterData: true});
-    setTimeout(() => {
-      clearInterval(iv);
-      mo.disconnect();
-    }, 12_000);
-  }, needle);
+/**
+ * The bar's RECORD (FLAKE ZERO — `armWitness`, armed before the press): every text the bar showed, written by the
+ * product and observed in the task that wrote it, with the page's time — never a sampler that sleeps through a
+ * «Возвращаемся…» standing one short frame.
+ */
+const BAR_WITNESS = 't15-bar';
+/** The window the bar is judged over, from the arm (the life the old sampler had). */
+const BAR_PROBE_LIFE_MS = 12_000;
+async function armBarProbe(page: Page): Promise<void> {
+  await armWitness(page, BAR_WITNESS, () => (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim());
 }
 
-async function barProbe(page: Page): Promise<{seen: boolean, samples: number, texts: Array<string>}> {
-  return await page.evaluate(() => (window as unknown as {__t15Bar: {seen: boolean, samples: number, texts: Array<string>}}).__t15Bar);
+/** Did the bar ever read `needle` within its window — and the first ten texts it showed, in order. */
+async function barProbe(page: Page, needle: string): Promise<{seen: boolean, texts: Array<string>}> {
+  const samples = await witnessOf<string>(page, BAR_WITNESS).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const life = samples.filter((s) => s.t - t0 <= BAR_PROBE_LIFE_MS).map((s) => s.v);
+  return {seen: life.some((text) => text.includes(needle)), texts: life.slice(0, 10)};
 }
 
 for (const preset of PROFILES) {
@@ -199,21 +194,27 @@ for (const preset of PROFILES) {
       await pressPlay(page);
       await stagedBoard(page);
 
-      // A · the bar speaks the play — and never the generic placement's words.
+      // A · the bar speaks the play — and never the generic placement's words. A live string is POLLED (A): the bar
+      // republishes a frame (several, on a starved renderer) after the board took the screen.
+      await expect.poll(() => barText(page), {timeout: 10_000, message: 'the staged bar: «Разыграть здесь»'}).toContain('Разыграть здесь');
+      await expect.poll(() => barText(page), {timeout: 10_000, message: 'the staged bar: «К карте»'}).toContain('К карте');
       const bar = await barText(page);
       test.info().annotations.push({type: 'bar', description: bar});
-      expect(bar, bar).toContain('Разыграть здесь');
-      expect(bar, bar).toContain('К карте');
       expect(bar, bar).not.toMatch(/Отменить размещение|Разместить здесь/);
       // …the plate carries the card and the price, above the tile's own identity.
       const plate = page.locator('[data-staged-plate]');
       await expect(plate.locator('[data-staged-card]')).toHaveText(/Заповедник под куполом/);
       await expect(plate.locator('[data-staged-price]')).toHaveText(new RegExp(`\\b${price}\\b`));
       await expect(page.locator('.con-context__title')).toHaveText(/Озеленение/);
-      const plateBox = await plate.boundingBox();
-      const panelBox = await page.locator('.con-context').boundingBox();
-      expect(plateBox !== null && panelBox !== null).toBe(true);
-      expect(plateBox!.height / panelBox!.height, `the plate takes ${plateBox!.height}px of a ${panelBox!.height}px panel`).toBeLessThanOrEqual(0.12);
+      // C — the two boxes in ONE settled read (a comparison is only as settled as its least settled side).
+      const panel = page.locator('.con-context');
+      const boxes = await readSettled(page, async () => {
+        const p = await plate.boundingBox();
+        const q = await panel.boundingBox();
+        return p === null || q === null ? null : {plate: Math.round(p.height * 10) / 10, panel: Math.round(q.height * 10) / 10};
+      }, {message: 'the plate and its panel'});
+      expect(boxes !== null).toBe(true);
+      expect(boxes!.plate / boxes!.panel, `the plate takes ${boxes!.plate}px of a ${boxes!.panel}px panel`).toBeLessThanOrEqual(0.12);
       // …the server is untouched.
       const now = await model(request, playerId);
       expect(now.game.gameAge, 'nothing was sent').toBe(before.game.gameAge);
@@ -266,7 +267,7 @@ for (const preset of PROFILES) {
       for (let round = 0; round < ROUNDS; round++) {
         for (const w of windows) {
           await openComposer(page, T15);
-          await armBarProbe(page, 'Возвращаемся');
+          await armBarProbe(page);
           const t0 = w.offsetMs !== undefined ? await pressPlayRaw(page) : 0;
           if (w.offsetMs === undefined) {
             await pressPlay(page);
@@ -280,7 +281,9 @@ for (const preset of PROFILES) {
           } else {
             await stagedBoard(page);
             if (w.after === 'dpad') {
-              await press(page, 'ArrowRight', 300);
+              // act → verify (D): the step is the reticle MOVING, given its whole window — not a press hoped into.
+              const from = await focusedSpaceId(page);
+              await pressUntil(page, 'ArrowRight', async () => await focusedSpaceId(page) !== from, {tries: 2, settleMs: 700});
             }
             if (w.after === 'locked') {
               await pressUntil(page, 'Enter', async () => await placementState(page) === 'locked', {tries: 3, settleMs: 700});
@@ -292,7 +295,7 @@ for (const preset of PROFILES) {
           const landing = await bLanding(page);
           const back = landing === 'composer';
           const composerCard = back ? await page.locator('.con-composer--play').textContent() ?? '' : '';
-          const probe = await barProbe(page);
+          const probe = await barProbe(page, 'Возвращаемся');
           test.info().annotations.push({type: `bar:${w.name}`, description: probe.texts.join(' ⟶ ')});
           if (w.owed) {
             owedWindows++;
@@ -326,8 +329,9 @@ for (const preset of PROFILES) {
       await stagedBoard(page);
       const cell = await focusedSpaceId(page);
       await pressUntil(page, 'Enter', async () => await placementState(page) === 'locked', {tries: 3, settleMs: 700});
-      const bar = await barText(page);
-      expect(bar, bar).toMatch(new RegExp(`Разыграть · ${price}`));
+      // A live string is POLLED (A): the lock republishes the bar a frame after the press.
+      await expect.poll(() => barText(page), {timeout: 10_000, message: 'the locked cell\'s bar names the play and its price'})
+        .toMatch(new RegExp(`Разыграть · ${price}`));
       if (STORY) {
         await shot(page, preset.id, 'D-locked');
       }
@@ -346,6 +350,9 @@ for (const preset of PROFILES) {
       expect(after.game.oxygenLevel - before.game.oxygenLevel).toBe(1);
       expect(after.thisPlayer.terraformRating - before.thisPlayer.terraformRating).toBe(2);
       await settle(page, {timeoutMs: 30_000});
+      // The screen is read once the PAGE has applied the server's answer (E — the composer gone is the end of the flow
+      // only beside the server's truth: the play is on the tableau, and the client holds that view).
+      await syncClient(page, request, playerId);
       await expect(page.locator('.con-composer--play'), 'the flow ends on the board').toHaveCount(0);
       await expect(page.locator('.con-hand'), 'no hand comes back').toHaveCount(0);
       // PL-039: the held place lets go with the landing — no marker (and no legacy «selected» outline: it has no writer) stays.
@@ -374,10 +381,13 @@ for (const preset of PROFILES) {
       await focusInHand(page, T15);
       const slot = page.locator(`.con-hand__slot[data-zoom-slot="${T15}"]`);
       await expect(page.locator('.con-hand'), 'the refusal is named in the hand').toContainText(/Нет места для размещения тайла/, {timeout: 10_000});
+      // «Never» is a RECORD, not a read (A): armed before the press, asked after it.
+      const plateSeen = await armWitness(page, 't15-noroom-plate', () => document.querySelector('[data-staged-plate]') !== null);
       await press(page, 'Enter', 900);
-      expect(await page.locator('[data-staged-plate]').count(), 'no staged board for a card that cannot be played').toBe(0);
+      expect(await plateSeen.ever((up) => up), 'no staged board for a card that cannot be played').toBe(false);
+      await plateSeen.stop();
       await shot(page, preset.id, 'F-noroom');
-      expect(await slot.count()).toBe(1);
+      await expect(slot).toHaveCount(1);
     });
 
     test(`G · one ocean left — the composer names the lost second ocean (PL-595) (${preset.id})`, async ({page, request}) => {
@@ -398,7 +408,10 @@ for (const preset of PROFILES) {
       const focused = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
       const snake = ['ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowDown', 'ArrowRight'];
       for (let i = 0; i < snake.length && !/город/i.test(await focused()); i++) {
-        await press(page, snake[i], 240);
+        // act → verify (D): each hop of the snake gets its whole window to move the cursor before it is pressed again —
+        // a swallowed hop no longer bends the route (a hop against the grid's wall moves nothing, by design).
+        const from = await focused();
+        await pressUntil(page, snake[i], async () => await focused() !== from, {tries: 2, settleMs: 600});
       }
       expect(await focused(), 'the City row is focused').toMatch(/город/i);
       await pressUntil(page, 'Enter', async () => await placementState(page) !== 'none', {tries: 3, settleMs: 1400});

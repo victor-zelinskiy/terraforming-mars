@@ -156,8 +156,7 @@ test('a resource distribution names the card that caused it', async ({page, requ
   //     (`.con-src`), the same component every decision surface uses.
   const source = page.locator('.con-src');
   await expect(source).toHaveCount(1);
-  expect(await source.locator('.pcard, .card-container').count(),
-    'the source renders with the REAL premium card face').toBeGreaterThan(0);
+  await expect.poll(() => source.locator('.pcard, .card-container').count(), {message: 'the source renders with the REAL premium card face'}).toBeGreaterThan(0);
   await expect(page.locator('.con-task .con-prompt-head__trigger')).toContainText(/встал рядом с вашими/i);
 
   // 3 · it is COMPACT — context, never the subject. The six lanes the player is
@@ -232,8 +231,7 @@ test('a forced production loss names what forced it — card and hazard alike', 
   const source = page.locator('.con-prodloss .con-src');
   await expect(source).toHaveCount(1);
   await expect(source).toHaveClass(/con-src--compact/);
-  expect(await source.locator('.pcard, .card-container').count(),
-    'a card cause renders the REAL premium card face, not a name in a chip').toBeGreaterThan(0);
+  await expect.poll(() => source.locator('.pcard, .card-container').count(), {message: 'a card cause renders the REAL premium card face, not a name in a chip'}).toBeGreaterThan(0);
   await expect(page.locator('.con-cmdbar').first()).toContainText(/ИСТОЧНИК/i);
   // …and the six rows are still the subject: they get the width.
   const cardBox = await source.locator('.pcard, .card-container').first().boundingBox();
@@ -259,7 +257,7 @@ test('a forced production loss names what forced it — card and hazard alike', 
   await expect(hazard).toHaveClass(/con-src--hazard/);
   await expect(hazard.locator('.con-src__plate')).toContainText(/ОПАСНАЯ ЗОНА/i);
   await expect(hazard.locator('.con-src__rule')).toContainText(/опасной зоной/i);
-  expect(await hazard.locator('.pcard, .card-container').count(), 'nothing to render as a card').toBe(0);
+  await expect.poll(() => hazard.locator('.pcard, .card-container').count(), {message: 'nothing to render as a card'}).toBe(0);
   // Nothing to open → the bar must not offer a source verb it cannot honour.
   await expect(page.locator('.con-cmdbar').first()).not.toContainText(/ИСТОЧНИК/i);
 });

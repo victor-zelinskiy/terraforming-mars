@@ -17,36 +17,41 @@
  *  · after the scene settles nothing keeps animating inside it;
  *  · every tab fits its viewport (no scrollable overflow) at FHD and 4K.
  *
- * ⚠ Probes are setInterval-driven (headless starves rAF); every wait pumps
- * a real frame via the harness (forceFrame/waitWithFrames).
+ * ⚠ The seamlessness probe is RECORDED (FLAKE ZERO — `armWitness`: the
+ * product's own writes + a frame tick, armed before the descent, settled —
+ * «no blank frame» is a coexistence claim); every wait waits for a STATE
+ * (the tab it moved to, the pane machine at rest, `settle` before a shot),
+ * pumping a real frame via the harness (forceFrame/waitWithFrames).
  */
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
   createTable, journeyToEndgame, finishFinaleThroughPage, forceFrame, waitWithFrames, shoot,
   drive, getModel, postInput, genericAnswer, terraformAnswer, terraformed, titleOf, NO_PAYMENT,
 } from './consoleEndgameHarness';
-import {openConsole, settle, CORP_WITH_FIRST_ACTION} from './consoleStart';
+import {cinematicBeat, openConsole, pressUntil, settle, CORP_WITH_FIRST_ACTION} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 const SHOT_DIR = 'screenshots/console-endgame-overview';
 
-type TransitionSample = {
-  t: number,
+/** One observation of the trip: null while the endgame workspace root is not in the document. */
+type TransitionSeen = {
   egResults: number,
   hudVisible: boolean,
   scoringShown: boolean,
   overviewShown: boolean,
   rootBox: string,
-};
+} | null;
+const TRANSITION_WITNESS = 'egov-transition';
 
-declare global {
-  var __ovTransition: {samples: Array<TransitionSample>, stop: () => void} | undefined;
-}
-
-/** The seamlessness probe: installed around the scoring ⇄ overview trips. */
-async function installTransitionProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const samples: Array<TransitionSample> = [];
-    const t0 = performance.now();
+/**
+ * The seamlessness probe, RECORDED around the scoring ⇄ overview trips: every
+ * state the product writes (and every frame), as a task LEAVES it (`settled` —
+ * «no blank frame» is a coexistence claim: a sample between two writes of one
+ * task would call a frame blank that no frame ever painted).
+ */
+async function armTransitionWitness(page: Page): Promise<void> {
+  await armWitness<TransitionSeen>(page, TRANSITION_WITNESS, () => {
     const visiblyShown = (el: HTMLElement | null): boolean => {
       if (el === null) {
         return false;
@@ -54,31 +59,47 @@ async function installTransitionProbe(page: Page): Promise<void> {
       const cs = getComputedStyle(el);
       return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05;
     };
-    const timer = window.setInterval(() => {
-      const root = document.querySelector<HTMLElement>('.con-endgame');
-      if (root === null) {
-        return;
-      }
-      const b = root.getBoundingClientRect();
-      const hud = document.querySelector<HTMLElement>('.con-status');
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        egResults: document.querySelectorAll('.eg-results').length,
-        hudVisible: visiblyShown(hud),
-        scoringShown: visiblyShown(document.querySelector<HTMLElement>('.con-eg')),
-        overviewShown: visiblyShown(document.querySelector<HTMLElement>('.con-egov')),
-        rootBox: `${b.left.toFixed(0)}|${b.top.toFixed(0)}|${b.width.toFixed(0)}|${b.height.toFixed(0)}`,
-      });
-    }, 40);
-    globalThis.__ovTransition = {samples, stop: () => window.clearInterval(timer)};
-  });
+    const root = document.querySelector<HTMLElement>('.con-endgame');
+    if (root === null) {
+      return null;
+    }
+    const b = root.getBoundingClientRect();
+    const hud = document.querySelector<HTMLElement>('.con-status');
+    return {
+      egResults: document.querySelectorAll('.eg-results').length,
+      hudVisible: visiblyShown(hud),
+      scoringShown: visiblyShown(document.querySelector<HTMLElement>('.con-eg')),
+      overviewShown: visiblyShown(document.querySelector<HTMLElement>('.con-egov')),
+      rootBox: `${b.left.toFixed(0)}|${b.top.toFixed(0)}|${b.width.toFixed(0)}|${b.height.toFixed(0)}`,
+    };
+  }, {settled: true});
 }
 
-async function readTransitionProbe(page: Page): Promise<Array<TransitionSample>> {
-  return await page.evaluate(() => {
-    globalThis.__ovTransition?.stop();
-    return globalThis.__ovTransition?.samples ?? [];
-  });
+/** Stop the record; every distinct state it saw with the workspace root standing. */
+async function transitionRecord(page: Page): Promise<Array<NonNullable<TransitionSeen>>> {
+  return (await witnessOf<TransitionSeen>(page, TRANSITION_WITNESS).stop())
+    .map((s) => s.v)
+    .filter((v): v is NonNullable<TransitionSeen> => v !== null);
+}
+
+/** The pane machine at rest: no pane leaving or entering the overview's viewport. */
+async function paneAtRest(page: Page): Promise<void> {
+  await waitWithFrames(page, async () =>
+    await page.evaluate(() => document.querySelectorAll('.con-egov__viewport--out, .con-egov__viewport--in').length === 0),
+  6_000, 'the pane machine to settle');
+  await forceFrame(page);
+}
+
+/**
+ * RB / LB on the overview — act → verify: the press, then the WHOLE window for
+ * the active tab to move (a retry only when it did not — never a second bump on
+ * a tab that was merely slow), then the pane machine at rest. Never a fixed
+ * pause standing in for the swap.
+ */
+async function stepTab(page: Page, code: 'KeyE' | 'KeyQ'): Promise<void> {
+  const before = await activeTab(page);
+  await pressUntil(page, code, async () => (await activeTab(page)) !== before, {tries: 3, settleMs: 1500});
+  await paneAtRest(page);
 }
 
 /** Cheap fixed-VP starters (no requirement, no follow-up prompt) the API
@@ -272,7 +293,7 @@ test.describe('console endgame overview — 2p journey', () => {
     await settleToActions(page);
 
     // ── 1 · THE DESCENT — probed for seamlessness. ──────────────────────
-    await installTransitionProbe(page);
+    await armTransitionWitness(page);
     await openOverview(page);
     await expect(page.locator('.con-egov__kicker')).toContainText(/Обзор партии/i);
     // The bar speaks the overview's own level.
@@ -283,10 +304,7 @@ test.describe('console endgame overview — 2p journey', () => {
     // ── 2 · THE TAB RING: LB/RB walk all six and wrap. ──────────────────
     const seen: Array<string> = [await activeTab(page)];
     for (let i = 0; i < 6; i++) {
-      await page.keyboard.press('KeyE'); // RB
-      await waitWithFrames(page, async () => (await page.locator('.con-egov__tab--active').count()) > 0, 5_000, 'tab swap');
-      await page.waitForTimeout(420);
-      await forceFrame(page);
+      await stepTab(page, 'KeyE'); // RB — the tab moved, its pane at rest
       seen.push(await activeTab(page));
       if (i < 5) {
         await shoot(page, SHOT_DIR, `2p-tab-${i + 2}`);
@@ -302,108 +320,101 @@ test.describe('console endgame overview — 2p journey', () => {
     expect(seen.join(' | ')).toMatch(/Параметры/i);
     expect(seen.join(' | ')).toMatch(/Игроки/i);
     // LB walks back.
-    await page.keyboard.press('KeyQ');
-    await page.waitForTimeout(420);
-    await forceFrame(page);
-    expect(await activeTab(page)).toBe(seen[5]);
+    await stepTab(page, 'KeyQ');
+    await expect.poll(() => activeTab(page), {message: 'LB walked back one tab'}).toBe(seen[5]);
 
     // ── 3 · RAPID BUMPERS: no stacked transitions, the machine lands true.
-    await page.keyboard.press('KeyE'); // back to the digest
-    await page.waitForTimeout(420);
+    await stepTab(page, 'KeyE'); // back to the digest
     for (let i = 0; i < 5; i++) {
       await page.keyboard.press('KeyE');
-      await page.waitForTimeout(35); // faster than any pane transition
+      // The burst's own cadence IS the subject — a deliberate beat between raw bumps, never a wait for anything.
+      await cinematicBeat(page, 35, 'rapid bumpers: faster than any pane transition');
     }
-    await forceFrame(page);
-    await waitWithFrames(page, async () =>
-      await page.evaluate(() => document.querySelectorAll('.con-egov__viewport--out, .con-egov__viewport--in').length === 0),
-    6_000, 'the pane machine to settle');
+    await paneAtRest(page);
     // digest + 5 = players; exactly ONE pane stands in the viewport.
-    expect(await activeTab(page)).toMatch(/Игроки/i);
-    expect(await page.evaluate(() => document.querySelector('.con-egov__viewport')?.childElementCount ?? -1)).toBe(1);
+    await expect.poll(() => activeTab(page), {message: 'the burst landed on the players tab'}).toMatch(/Игроки/i);
+    await expect.poll(() => page.evaluate(() => document.querySelector('.con-egov__viewport')?.childElementCount ?? -1),
+      {message: 'exactly ONE pane stands in the viewport'}).toBe(1);
 
     // ── 4 · D-PAD DEPTH on СЧЁТ: focus → A detail → B one level back. ────
-    await page.keyboard.press('KeyE'); // players → digest
-    await page.waitForTimeout(380);
-    await page.keyboard.press('KeyE'); // digest → score
-    await page.waitForTimeout(380);
-    await forceFrame(page);
-    expect(await activeTab(page)).toMatch(/Счёт/i);
+    await stepTab(page, 'KeyE'); // players → digest
+    await stepTab(page, 'KeyE'); // digest → score
+    await expect.poll(() => activeTab(page)).toMatch(/Счёт/i);
     await shoot(page, SHOT_DIR, '2p-score');
     await page.keyboard.press('ArrowDown');
     await forceFrame(page);
-    const focusedCats = await page.locator('.con-ovs__cat--focused').count();
-    expect(focusedCats).toBe(1);
+    await expect(page.locator('.con-ovs__cat--focused')).toHaveCount(1);
     await page.keyboard.press('Enter'); // A → the category breakdown detail
     await waitWithFrames(page, async () => (await page.locator('.con-egov-detail').count()) > 0, 5_000, 'the score detail');
     await expect(page.locator('.con-cmdbar')).toContainText(/Закрыть/i);
-    await page.waitForTimeout(400);
+    // The detail's entrance at rest before the shot.
+    await settle(page);
     await forceFrame(page);
     await shoot(page, SHOT_DIR, '2p-score-detail');
     await page.keyboard.press('Escape'); // B → back to the TAB, not the results
     await waitWithFrames(page, async () => (await page.locator('.con-egov-detail').count()) === 0, 5_000, 'the detail to close');
-    expect(await activeTab(page)).toMatch(/Счёт/i);
-    expect(await page.locator('.con-egov').count()).toBe(1); // still inside the overview
+    await expect.poll(() => activeTab(page)).toMatch(/Счёт/i);
+    await expect.poll(() => page.locator('.con-egov').count()).toBe(1); // still inside the overview
 
     // ── 5 · THE CARDS TAB: focus preview, page indicator, filter ring. ───
-    await page.keyboard.press('KeyE'); // score → chronology
-    await page.waitForTimeout(380);
+    await stepTab(page, 'KeyE'); // score → chronology
     await shoot(page, SHOT_DIR, '2p-chronology');
-    await page.keyboard.press('KeyE'); // chronology → cards
-    await page.waitForTimeout(380);
-    await forceFrame(page);
-    expect(await activeTab(page)).toMatch(/Карты/i);
-    const hasCards = await page.locator('.con-ovc__row').count();
-    if (hasCards > 0) {
+    await stepTab(page, 'KeyE'); // chronology → cards
+    await expect.poll(() => activeTab(page)).toMatch(/Карты/i);
+    // The tab answers with its rows or its honest empty state — wait for whichever, never branch on a frame before it.
+    const rows = page.locator('.con-ovc__row');
+    await expect.poll(async () => await rows.count() > 0 || await page.locator('.con-egov-empty').count() > 0,
+      {message: 'the cards tab shows its rows or its empty state'}).toBe(true);
+    if (await rows.count() > 0) {
       // The focused row previews ONE premium face — never a wall of cards.
-      expect(await page.locator('.con-ovc__context .pcard, .con-ovc__context .card').count()).toBeGreaterThan(0);
-      const facesMounted = await page.locator('.con-ovc .pcard, .con-ovc .card').count();
-      expect(facesMounted).toBeLessThanOrEqual(2);
+      await expect.poll(() => page.locator('.con-ovc__context .pcard, .con-ovc__context .card').count()).toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-ovc .pcard, .con-ovc .card').count(),
+        {message: 'one previewed face, never a wall of cards'}).toBeLessThanOrEqual(2);
       await page.keyboard.press('ArrowRight'); // the player filter ring
       await forceFrame(page);
-      expect(await page.locator('.con-ovc__filter--on').count()).toBe(1);
+      await expect.poll(() => page.locator('.con-ovc__filter--on').count()).toBe(1);
       await page.keyboard.press('Enter'); // A → the enlarged card detail
       await waitWithFrames(page, async () => (await page.locator('.con-egov-detail').count()) > 0, 5_000, 'the card detail');
-      await page.waitForTimeout(400);
+      await settle(page);
       await forceFrame(page);
       await shoot(page, SHOT_DIR, '2p-card-detail');
       await page.keyboard.press('Escape');
       await waitWithFrames(page, async () => (await page.locator('.con-egov-detail').count()) === 0, 5_000, 'the card detail to close');
     } else {
       // The honest empty state — never a broken grid.
-      expect(await page.locator('.con-egov-empty').count()).toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-egov-empty').count()).toBeGreaterThan(0);
     }
     await shoot(page, SHOT_DIR, '2p-cards');
 
     // ── 6 · PARAMETERS: the d-pad reads exact values without hover. ──────
-    await page.keyboard.press('KeyE');
-    await page.waitForTimeout(380);
-    await forceFrame(page);
-    expect(await activeTab(page)).toMatch(/Параметры/i);
-    expect(await page.locator('.con-ovp__prow').count()).toBeGreaterThan(0);
+    await stepTab(page, 'KeyE');
+    await expect.poll(() => activeTab(page)).toMatch(/Параметры/i);
+    await expect.poll(() => page.locator('.con-ovp__prow').count()).toBeGreaterThan(0);
     // The exact-value readout exists only with ≥2 generations of history —
     // a lightning testMode game may legitimately land on the empty state.
-    if ((await page.locator('.con-ovp__chart svg').count()) > 0) {
+    // Wait for whichever the tab answers with, then branch on it.
+    const chart = page.locator('.con-ovp__chart svg');
+    await expect.poll(async () => await chart.count() > 0 || await page.locator('.con-egov-empty').count() > 0,
+      {message: 'the parameters tab shows its chart or its empty state'}).toBe(true);
+    if (await chart.count() > 0) {
       const roBefore = await page.locator('.con-ovp__ro-gen').textContent();
       await page.keyboard.press('ArrowLeft');
       await forceFrame(page);
-      const roAfter = await page.locator('.con-ovp__ro-gen').textContent();
-      expect(roAfter).not.toBe(roBefore); // the cursor moved and the readout followed
+      // the cursor moved and the readout followed
+      await expect.poll(() => page.locator('.con-ovp__ro-gen').textContent(), {message: 'the readout followed the cursor'}).not.toBe(roBefore);
     } else {
-      expect(await page.locator('.con-egov-empty').count()).toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-egov-empty').count()).toBeGreaterThan(0);
     }
     await shoot(page, SHOT_DIR, '2p-parameters');
 
     // ── 7 · PLAYERS: the ring + groups; the comparison detail. ───────────
-    await page.keyboard.press('KeyE');
-    await page.waitForTimeout(380);
-    await forceFrame(page);
-    expect(await activeTab(page)).toMatch(/Игроки/i);
+    await stepTab(page, 'KeyE');
+    await expect.poll(() => activeTab(page)).toMatch(/Игроки/i);
     await page.keyboard.press('ArrowRight'); // second player
     await forceFrame(page);
     await page.keyboard.press('Enter'); // production comparison
     await waitWithFrames(page, async () => (await page.locator('.con-egov-detail').count()) > 0, 5_000, 'the players detail');
-    await page.waitForTimeout(400);
+    await settle(page);
     await forceFrame(page);
     await shoot(page, SHOT_DIR, '2p-players-detail');
     await page.keyboard.press('Escape');
@@ -411,39 +422,40 @@ test.describe('console endgame overview — 2p journey', () => {
     await shoot(page, SHOT_DIR, '2p-players');
     // The default e2e viewport maps to the HANDHELD profile — the densest
     // stage. Every tab already visited must have fitted; assert the current
-    // one explicitly (the players grid once clipped its third group row here).
-    const handheldFit = await page.evaluate(() => {
+    // one explicitly (the players grid once clipped its third group row here)
+    // — measured at rest.
+    const handheldFit = await readSettled(page, () => page.evaluate(() => {
       const el = document.querySelector('.con-egov__viewport');
       if (el === null) {
         return 'missing';
       }
       return el.scrollHeight > el.clientHeight + 1 ? `overflows ${el.scrollHeight}/${el.clientHeight}` : 'fits';
-    });
+    }), {message: 'the players tab\'s fit'});
     expect(handheldFit).toBe('fits');
 
     // ── 8 · QUIET AFTER SETTLE: nothing keeps animating in the scene. ────
     await settle(page);
     await forceFrame(page);
-    const running = await page.evaluate(() => {
+    await expect.poll(() => page.evaluate(() => {
       const scene = document.querySelector('.con-egov');
       if (scene === null) {
         return -1;
       }
       return scene.getAnimations({subtree: true}).filter((a) => a.playState === 'running').length;
-    });
-    expect(running).toBe(0);
+    }), {message: 'an animation keeps running in the settled scene'}).toBe(0);
 
     // ── 9 · B AT THE ROOT: back to the settled results (no ceremony). ────
     await page.keyboard.press('Escape');
     await waitWithFrames(page, async () => (await page.locator('.con-egov').count()) === 0, 8_000, 'the return to results');
     await expect(page.locator('.con-eg__actions')).toBeVisible();
     await expect(page.locator('.con-eg__ribbon').first()).toBeVisible();
-    expect(await page.locator('.con-endgame--scoring, .con-endgame--entering').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-endgame--scoring, .con-endgame--entering').count()).toBe(0);
     expect(page.url()).toContain('/player'); // never the main menu
 
     // ── 10 · THE PROBE VERDICTS over the whole trip. ─────────────────────
-    const samples = await readTransitionProbe(page);
-    expect(samples.length).toBeGreaterThan(40);
+    // The record keeps DISTINCT states, never frames: its floor only catches a dead recorder (`tests.md`).
+    const samples = await transitionRecord(page);
+    expect(samples.length, 'the transition witness recorded the trip').toBeGreaterThan(0);
     // The desktop overlay NEVER mounted, not for one sample.
     expect(samples.filter((s) => s.egResults > 0)).toHaveLength(0);
     // The board/HUD never showed through the workspace.
@@ -458,7 +470,7 @@ test.describe('console endgame overview — 2p journey', () => {
     await page.keyboard.press('Enter');
     await waitWithFrames(page, async () => (await page.locator('.con-egov').count()) > 0, 8_000, 're-entry');
     await forceFrame(page);
-    expect(await activeTab(page)).toMatch(/Игроки/i);
+    await expect.poll(() => activeTab(page), {message: 're-entry restores the last tab'}).toMatch(/Игроки/i);
     await page.keyboard.press('Escape');
     await waitWithFrames(page, async () => (await page.locator('.con-egov').count()) === 0, 8_000, 'the final return');
   });
@@ -480,14 +492,12 @@ test.describe('console endgame overview — 4K TV, five players', () => {
     const tabShots = ['4k5p-digest', '4k5p-score', '4k5p-chronology', '4k5p-cards', '4k5p-parameters', '4k5p-players'];
     for (let i = 0; i < tabShots.length; i++) {
       if (i > 0) {
-        await page.keyboard.press('KeyE');
-        await page.waitForTimeout(450);
-        await forceFrame(page);
+        await stepTab(page, 'KeyE'); // RB — the tab moved, its pane at rest
       }
       await shoot(page, SHOT_DIR, tabShots[i]);
       // The tab FITS: neither the scene nor the pane accumulates scrollable
-      // overflow (the console law — a native scrollbar is a bug).
-      const overflow = await page.evaluate(() => {
+      // overflow (the console law — a native scrollbar is a bug) — at rest.
+      const overflow = await readSettled(page, () => page.evaluate(() => {
         const els = [document.querySelector('.con-egov'), document.querySelector('.con-egov__viewport')];
         for (const el of els) {
           if (el !== null && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
@@ -495,12 +505,12 @@ test.describe('console endgame overview — 4K TV, five players', () => {
           }
         }
         return 'fits';
-      });
+      }), {message: `${tabShots[i]}: the tab's fit`});
       expect(overflow, tabShots[i]).toBe('fits');
       // Long Russian names survive: every player name node paints its text
       // untruncated OR carries the sanctioned ellipsis box — never a clipped
       // glyph (ellipsizing containers declare text-overflow).
-      const clipped = await page.evaluate(() => {
+      const clipped = await readSettled(page, () => page.evaluate(() => {
         const bad: Array<string> = [];
         document.querySelectorAll<HTMLElement>('.con-egov [class*="name"]').forEach((el) => {
           if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).textOverflow !== 'ellipsis') {
@@ -508,13 +518,13 @@ test.describe('console endgame overview — 4K TV, five players', () => {
           }
         });
         return bad;
-      });
+      }), {message: `${tabShots[i]}: the names' boxes`});
       expect(clipped, tabShots[i]).toHaveLength(0);
     }
 
     // Five players everywhere: the score matrix carries five bars per
     // category, the players ring five chips.
-    expect(await page.evaluate(() =>
-      document.querySelectorAll('.con-ovpl__chip').length)).toBe(5);
+    await expect.poll(() => page.evaluate(() =>
+      document.querySelectorAll('.con-ovpl__chip').length), {message: 'the players ring carries five chips'}).toBe(5);
   });
 });

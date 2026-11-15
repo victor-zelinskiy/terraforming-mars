@@ -35,7 +35,7 @@ async function focusTile(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 const readScene = (page: Page) => page.evaluate(() => {

@@ -19,10 +19,10 @@
  * one the composer could not ask — a hand pick the play's own draw (or an
  * answer above it that draws) makes an honest follow-up; both variants are
  * built on exactly that road (`answerTableQuestions` answers the rest). The spec
- * MEASURES the second decision's reaction to its first press, while an
- * in-page sampler (setInterval — never rAF, headless Chromium parks rAF on a
- * quiet screen) records the workspace-outcome / stack state every 250 ms so
- * a reproduced lock names its holder.
+ * MEASURES the second decision's reaction to its first press, while a witness
+ * (FLAKE ZERO — `armWitness`, the product's own writes + a frame tick) records
+ * every workspace-outcome / stack state the product wrote, so a reproduced lock
+ * names its holder.
  *
  * Since the DECLINE became a button (2026-10-13 — `optionalChoice.ts`) the
  * university's question IS its pick: the album opens directly, «Не сбрасывать»
@@ -32,7 +32,9 @@
  * FIRST press.
  */
 import {expect, test, APIRequestContext, Page} from './consoleTest';
-import {answerTableQuestions, bootIntoGame, cinematicBeat, press, settle, soloGameConfig, TableQuestionAnswer, takeRevealCard} from './consoleStart';
+import {answerTableQuestions, bootIntoGame, cinematicBeat, press, pressUntil, settle, soloGameConfig, TableQuestionAnswer,
+  takeRevealCard} from './consoleStart';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 const OLYMPUS = 'Olympus Conference';
 const MARS_UNIVERSITY = 'Mars University';
@@ -57,28 +59,33 @@ async function playFromHand(page: Page, card: string, answers: Readonly<Record<s
   }
   await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 20_000});
   await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
-  await page.waitForTimeout(800);
+  // The album's entrance at rest before the cursor is walked.
+  await settle(page);
 
   const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${card}"]`).count();
-  let lastSelected = '';
+  const selectedCard = () => page.evaluate(() =>
+    document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
+  // Right along the row; a hop that moved nothing (the row's end) steps DOWN. Each hop is verified by the selection
+  // moving within its window — never a selection read a beat late taken for a wall.
+  let dir = 'ArrowRight';
   for (let i = 0; i < 60 && await onTarget() === 0; i++) {
-    const selected = await page.evaluate(() =>
-      document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
-    await press(page, selected === lastSelected && i > 0 ? 'ArrowDown' : 'ArrowRight', 260);
-    lastSelected = selected;
+    const at = await selectedCard();
+    const moved = await pressUntil(page, dir, async () => (await selectedCard()) !== at, {tries: 1, settleMs: 260});
+    dir = moved ? 'ArrowRight' : 'ArrowDown';
   }
-  expect(await onTarget(), `the hand cursor never reached ${card}`).toBeGreaterThan(0);
+  await expect.poll(onTarget, {message: `the hand cursor never reached ${card}`}).toBeGreaterThan(0);
   await press(page, 'Enter', 900);
   await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 20_000});
   await settle(page);
   await answerTableQuestions(page, answers);
   await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 20_000});
-  await page.waitForTimeout(1000);
+  // The sheet at rest before its commit.
+  await settle(page);
   await page.keyboard.press('Enter');
 }
 
-type DiagSample = {
-  t: number,
+/** One state of the chain, as the product wrote it: the decision / album surfaces and the shell's own diagnosis. */
+type DiagSeen = {
   decision: boolean,
   decline: boolean,
   focusedRow: boolean,
@@ -86,33 +93,92 @@ type DiagSample = {
   revealEmbedded: boolean,
   diag: unknown,
 };
+type DiagSample = DiagSeen & {t: number};
+const DIAG_WITNESS = 'chain-lock-diag';
+
+/**
+ * The lock's holder, RECORDED from here to the end (`armWitness` — every state the product wrote, the last 600 kept:
+ * the end of the episode is where a lock stands). Diagnostic only: it is printed, never asserted.
+ */
+async function armDiagWitness(page: Page): Promise<void> {
+  await armWitness<DiagSeen>(page, DIAG_WITNESS, () => {
+    const diagFn = (window as unknown as Record<string, unknown>).__conColonyDiag as (() => unknown) | undefined;
+    return {
+      decision: document.querySelector('.con-decision') !== null,
+      decline: document.querySelector('[data-decline-plate]') !== null,
+      focusedRow: document.querySelector('.con-decision .con-vchoice__opt--focused') !== null,
+      picking: document.querySelector('.con-hand[data-flow="picking"]') !== null,
+      revealEmbedded: document.querySelector('.con-hand__outcome .con-reveal') !== null,
+      diag: diagFn === undefined ? null : diagFn(),
+    };
+  }, {max: 600});
+}
+
+/** What the diag witness recorded, ms since its first sample. */
+async function diagRecord(page: Page): Promise<Array<DiagSample>> {
+  const samples = await witnessOf<DiagSeen>(page, DIAG_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  return samples.map((s) => ({...s.v, t: s.t - t0}));
+}
 
 /** The university's question stands as its ALBUM: the hand in pick mode, the RT decline named in its question line. */
 async function albumAsks(page: Page): Promise<boolean> {
   return page.evaluate(() => document.querySelector('.con-hand__question [data-decline-plate]') !== null);
 }
 
-/** Press A once per second until the standing album REACTS (its answer is POSTed, or it leaves); ms, -1 = never. */
-async function firstPressLatency(page: Page): Promise<number> {
-  let posted = false;
-  const onPost = (r: {method(): string, url(): string}) => {
-    if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
-      posted = true;
+/**
+ * Drive the chain's middle until the university's ALBUM stands: an embedded drawn card is TAKEN (act → verify —
+ * `takeRevealCard`), and while neither stands the driver waits for whichever comes next (bounded), never a fixed tick.
+ * Deliberately no press on the album itself — its first press is the measurement.
+ */
+async function driveToAlbum(page: Page, maxMs = 60_000): Promise<boolean> {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline && !await albumAsks(page)) {
+    if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
+      await takeRevealCard(page, 15_000);
+      continue;
     }
-  };
-  page.on('request', onPost);
-  const t0 = Date.now();
-  let reactedAt = -1;
-  for (let i = 0; i < 35 && reactedAt < 0; i++) {
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(1000);
-    const gone = await page.evaluate(() => document.querySelector('.con-hand__question [data-decline-plate]') === null);
-    if (posted || gone) {
-      reactedAt = Date.now() - t0;
-    }
+    await page.waitForFunction(() => document.querySelector('.con-hand__question [data-decline-plate]') !== null ||
+      document.querySelector('.con-hand__outcome .con-reveal') !== null,
+    undefined, {polling: 100, timeout: Math.max(1, deadline - Date.now())}).catch(() => undefined);
   }
-  page.off('request', onPost);
-  return reactedAt;
+  return albumAsks(page);
+}
+
+/** How many presses the standing album took to REACT (0 = it never did), and the page-clock time of the reaction. */
+type Reaction = {presses: number, ms: number};
+
+/**
+ * Press A once per second until the standing album REACTS — its answer goes out (the submit funnel busy) or it
+ * leaves — RECORDED from before the first press (`armWitness`, the page's own clock). The presses are RAW: a lock is a
+ * press the product swallows, so the driver's absorb gate must not wait it out. Each press's window ends the moment the
+ * album reacts; the claim is ORDINAL — which press it answered — never a duration of the driver's clock.
+ */
+async function firstPressReaction(page: Page): Promise<Reaction> {
+  type ReactionSeen = {album: boolean, posting: boolean};
+  const witness = await armWitness<ReactionSeen>(page, 'chain-lock-reaction', () => ({
+    album: document.querySelector('.con-hand__question [data-decline-plate]') !== null,
+    posting: (window as unknown as {__conReady?: () => {transport?: {requestInProgress?: boolean}}})
+      .__conReady?.()?.transport?.requestInProgress === true,
+  }));
+  const t0 = await pageNow(page);
+  const reacted = async () => (await witness.samples()).find((s) => s.t >= t0 && (!s.v.album || s.v.posting));
+  let presses = 0;
+  do {
+    await page.keyboard.press('Enter');
+    presses++;
+    await expect.poll(async () => await reacted() !== undefined, {timeout: 1000}).toBe(true).catch(() => undefined);
+  } while (presses < 35 && await reacted() === undefined);
+  const hit = await reacted();
+  await witness.stop();
+  return hit === undefined ? {presses: 0, ms: -1} : {presses, ms: hit.t - t0};
+}
+
+/** The verdict on a reaction: it came, and by the THIRD press at one a second (≤ 4 s) — never a 20 s lock. */
+function expectAnsweredFirstPress(reaction: Reaction): void {
+  expect(reaction.presses, 'the second question never reacted at all').toBeGreaterThan(0);
+  expect(reaction.presses, 'the visible album must answer its first press (≤4s), not a 20 s lock')
+    .toBeLessThanOrEqual(3);
 }
 
 test.describe('two triggered effects in a row', () => {
@@ -137,38 +203,15 @@ test.describe('two triggered effects in a row', () => {
 
     await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'decline'});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
-    await page.waitForTimeout(1500);
+    await settle(page);
 
-    await page.evaluate(() => {
-      const w = window as unknown as Record<string, unknown>;
-      const samples: Array<unknown> = [];
-      w.__lockSamples = samples;
-      const t0 = performance.now();
-      w.__lockSamplerId = setInterval(() => {
-        const diagFn = w.__conColonyDiag as (() => unknown) | undefined;
-        samples.push({
-          t: Math.round(performance.now() - t0),
-          decision: document.querySelector('.con-decision') !== null,
-          decline: document.querySelector('[data-decline-plate]') !== null,
-          focusedRow: document.querySelector('.con-decision .con-vchoice__opt--focused') !== null,
-          picking: document.querySelector('.con-hand[data-flow="picking"]') !== null,
-          revealEmbedded: document.querySelector('.con-hand__outcome .con-reveal') !== null,
-          diag: diagFn === undefined ? null : diagFn(),
-        });
-      }, 250);
-    });
+    await armDiagWitness(page);
 
     await playFromHand(page, RESEARCH);
 
     // The play's own batch presents first (surfaces go in turn) — take it; prompt 1 follows, as its ALBUM.
-    for (let i = 0; i < 120 && !await albumAsks(page); i++) {
-      if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
-        await takeRevealCard(page, 15_000);
-      } else {
-        await page.waitForTimeout(300);
-      }
-    }
-    expect(await albumAsks(page), 'the university\'s first question stands as its album').toBe(true);
+    await driveToAlbum(page);
+    await expect.poll(() => albumAsks(page), {message: 'the university\'s first question stands as its album'}).toBe(true);
     await cinematicBeat(page, 1200, 'the first album settles before its answer');
 
     // RT — the decline (nothing drawn, nothing discarded); its response carries prompt 2.
@@ -177,23 +220,13 @@ test.describe('two triggered effects in a row', () => {
     await answered;
 
     // Prompt 2 — the university's SECOND question, its album again. No reveal stands between the two here.
-    let secondUp = false;
-    for (let i = 0; i < 120 && !secondUp; i++) {
-      secondUp = await albumAsks(page);
-      if (!secondUp) {
-        await page.waitForTimeout(300);
-      }
-    }
-    expect(secondUp, 'the second question (the university\'s second) reached the screen').toBeTruthy();
+    await expect.poll(() => albumAsks(page), {timeout: 36_000,
+      message: 'the second question (the university\'s second) reached the screen'}).toBe(true);
     await cinematicBeat(page, 800, 'the second album settles before the measured press');
 
-    const reactedAt = await firstPressLatency(page);
+    const reaction = await firstPressReaction(page);
 
-    const samples = await page.evaluate(() => {
-      const w = window as unknown as Record<string, unknown>;
-      clearInterval(w.__lockSamplerId as number);
-      return w.__lockSamples as Array<unknown>;
-    }) as Array<DiagSample>;
+    const samples = await diagRecord(page);
     const compact = samples.map((s) => {
       const d = s.diag as {
         outcomeSourceCard?: string, outcomeStage?: string, outcomeKinds?: Array<string>,
@@ -208,11 +241,9 @@ test.describe('two triggered effects in a row', () => {
           `stack:${(d.stack ?? []).map((f) => `${f.kind}/${f.phase}`).join(',')} rv:${(d.liveReveals ?? []).join(';')}`);
     });
     console.log(`[no-draw lock samples]\n${compact.join('\n')}`);
-    console.log(`[no-draw reaction latency] ${reactedAt} ms`);
+    console.log(`[no-draw reaction] press ${reaction.presses}, ${reaction.ms} ms after the first (page clock)`);
 
-    expect(reactedAt, 'the second question never reacted at all').toBeGreaterThanOrEqual(0);
-    expect(reactedAt, 'the visible album must answer its first press (≤4s), not a 20 s lock')
-      .toBeLessThan(4000);
+    expectAnsweredFirstPress(reaction);
   });
 
   test('the second decision answers its FIRST press', async ({page, request}) => {
@@ -221,27 +252,10 @@ test.describe('two triggered effects in a row', () => {
     // Play 1: Olympus alone — seeds its own resource silently, no decision.
     await playFromHand(page, OLYMPUS);
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
-    await page.waitForTimeout(1500);
+    await settle(page);
 
-    // In-page sampler: state every 250 ms from here to the end.
-    await page.evaluate(() => {
-      const w = window as unknown as Record<string, unknown>;
-      const samples: Array<unknown> = [];
-      w.__lockSamples = samples;
-      const t0 = performance.now();
-      w.__lockSamplerId = setInterval(() => {
-        const diagFn = w.__conColonyDiag as (() => unknown) | undefined;
-        samples.push({
-          t: Math.round(performance.now() - t0),
-          decision: document.querySelector('.con-decision') !== null,
-          decline: document.querySelector('[data-decline-plate]') !== null,
-          focusedRow: document.querySelector('.con-decision .con-vchoice__opt--focused') !== null,
-          picking: document.querySelector('.con-hand[data-flow="picking"]') !== null,
-          revealEmbedded: document.querySelector('.con-hand__outcome .con-reveal') !== null,
-          diag: diagFn === undefined ? null : diagFn(),
-        });
-      }, 250);
-    });
+    // The lock's holder, recorded from here to the end.
+    await armDiagWitness(page);
 
     // Play 2: Mars University — Olympus asks first, then the university. Since
     // TR51 Olympus's question is a row of the composer, answered there with
@@ -255,37 +269,23 @@ test.describe('two triggered effects in a row', () => {
     // moment the SECOND question (Mars University — its album, the decline
     // named in its question line) stands. Deliberately no presses on it here —
     // its first press is the measurement.
-    let secondUp = false;
-    for (let i = 0; i < 120 && !secondUp; i++) {
-      secondUp = await albumAsks(page);
-      if (secondUp) {
-        break;
-      }
-      if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
-        // A TAKE IS ACT → VERIFY (`takeRevealCard`: a press only on a reveal that TAKES — `data-take="ready"` — and
-        // never a retry once it has landed). The blind `press(Enter)` here waited for quiet BEFORE its key, so on a
-        // starved CI renderer the last take finished, the university's album rose in that window and the key landed IN
-        // it — the very question this test exists to measure, answered by the driver (CI 2026-11-01: «the second
-        // question never reached the screen», 55 s).
-        await takeRevealCard(page, 15_000);
-      } else {
-        await page.waitForTimeout(300);
-      }
-    }
+    //
+    // A TAKE IS ACT → VERIFY (`takeRevealCard`: a press only on a reveal that TAKES — `data-take="ready"` — and never
+    // a retry once it has landed). The blind `press(Enter)` here waited for quiet BEFORE its key, so on a starved CI
+    // renderer the last take finished, the university's album rose in that window and the key landed IN it — the very
+    // question this test exists to measure, answered by the driver (CI 2026-11-01: «the second question never reached
+    // the screen», 55 s).
+    const secondUp = await driveToAlbum(page);
     expect(secondUp, 'the second question (Mars University) reached the screen').toBeTruthy();
     await cinematicBeat(page, 800, 'the album settles before the measured press');
 
     // ── THE MEASUREMENT ──────────────────────────────────────────────────
-    // Press A once per second and time how long until the album REACTS: A on
-    // the focused candidate discards it — the answer is POSTed, the album leaves.
-    const reactedAt = await firstPressLatency(page);
+    // Press A once per second and see which press the album REACTS to: A on
+    // the focused candidate discards it — the answer goes out, the album leaves.
+    const reaction = await firstPressReaction(page);
 
     // Dump the sampler regardless of the verdict — the lock's holder is in it.
-    const samples = await page.evaluate(() => {
-      const w = window as unknown as Record<string, unknown>;
-      clearInterval(w.__lockSamplerId as number);
-      return w.__lockSamples as Array<unknown>;
-    }) as Array<DiagSample>;
+    const samples = await diagRecord(page);
     const compact = samples.map((s) => {
       const d = s.diag as {
         outcomeSourceCard?: string, outcomeStage?: string, outcomeKinds?: Array<string>,
@@ -301,10 +301,8 @@ test.describe('two triggered effects in a row', () => {
           `stack:${(d.stack ?? []).map((f) => `${f.kind}/${f.phase}`).join(',')} rv:${(d.liveReveals ?? []).join(';')}`);
     });
     console.log(`[lock samples]\n${compact.join('\n')}`);
-    console.log(`[reaction latency] ${reactedAt} ms`);
+    console.log(`[reaction] press ${reaction.presses}, ${reaction.ms} ms after the first (page clock)`);
 
-    expect(reactedAt, 'the second question never reacted at all').toBeGreaterThanOrEqual(0);
-    expect(reactedAt, 'the visible album must answer its first press (≤4s), not a 20 s lock')
-      .toBeLessThan(4000);
+    expectAnsweredFirstPress(reaction);
   });
 });

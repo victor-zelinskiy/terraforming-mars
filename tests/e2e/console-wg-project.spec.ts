@@ -151,8 +151,8 @@ test.describe(`P91 WG Project · a prelude played mid-game · ${PRESET.id}`, () 
     const mid = await wireOf(request, id);
     expect(mid.game.preludeDeckSize, 'three preludes left the deck').toBe((before.game.preludeDeckSize ?? 0) - 3);
     await expect(page.locator(`${PICK} [data-prelude-deck-count]`), 'the deck object reads the server').toHaveText(String(mid.game.preludeDeckSize), {timeout: 10_000});
-    expect(await page.locator(`${PICK} .con-cards__slot`).count(), 'three candidates').toBe(3);
-    expect(await page.locator(`${PICK} [data-prelude-burns]`).count(), 'nothing burns on this table').toBe(0);
+    await expect.poll(() => page.locator(`${PICK} .con-cards__slot`).count(), {message: 'three candidates'}).toBe(3);
+    await expect.poll(() => page.locator(`${PICK} [data-prelude-burns]`).count(), {message: 'nothing burns on this table'}).toBe(0);
     await shoot(page, 'A-pick');
     await choose(page, posts, 'Donation');
     await expect(page.locator(`${PICK} [data-prelude-discard-count]`), 'two land on the discard').toHaveText('2', {timeout: 20_000});
@@ -179,7 +179,7 @@ test.describe(`P91 WG Project · a prelude played mid-game · ${PRESET.id}`, () 
     const stop = await storyboard(page, 'fizzle');
     await playToPick(page);
     await expect(page.locator(`${PICK} [data-deckpick-slot="Huge Asteroid"] [data-prelude-burns]`), 'the burn is shown BEFORE the press').toHaveCount(1);
-    expect(await page.locator(`${PICK} [data-deckpick-slot="Donation"] [data-prelude-burns]`).count(), 'a payable prelude does not burn').toBe(0);
+    await expect.poll(() => page.locator(`${PICK} [data-deckpick-slot="Donation"] [data-prelude-burns]`).count(), {message: 'a payable prelude does not burn'}).toBe(0);
     await shoot(page, 'B-pick');
     await armTransferWitness(page);
     await choose(page, posts, 'Huge Asteroid');
@@ -287,7 +287,7 @@ test.describe(`P91 WG Project · a prelude played mid-game · ${PRESET.id}`, () 
     await expect(asteroid, 'Huge Asteroid is dealt as a candidate').toHaveCount(1, {timeout: 30_000});
     await settle(page, {timeoutMs: 30_000});
     await expect(asteroid.locator('[data-qcard-reading]'), 'the candidate wears the verdict BEFORE the press').toHaveAttribute('data-qcard-verdict', /.+/);
-    expect(await page.locator('.con-start [data-queue-slot="Donation"] [data-qcard-reading]').count(), 'a payable candidate wears no burn').toBe(0);
+    await expect.poll(() => page.locator('.con-start [data-queue-slot="Donation"] [data-qcard-reading]').count(), {message: 'a payable candidate wears no burn'}).toBe(0);
     await shoot(page, 'G-candidates');
     // Walk the queue onto the burning candidate, A → the RISK stage (nothing is sent), then HOLD A → the burn.
     const focused = () => page.evaluate(() => document.querySelector('.con-start .con-start__qcard--focused, .con-start [data-queue-slot].con-cards__slot--focused')
@@ -325,13 +325,13 @@ test.describe(`P91 WG Project · a prelude played mid-game · ${PRESET.id}`, () 
     await expect(page.locator('.con-reveal'), 'the batch is taken').toHaveCount(0, {timeout: 20_000});
     // …THEN the greenery: the hand steps aside for the board (never torn down mid-flow), the tile lands.
     await expect(page.locator('.con-board--placing'), 'the greenery is placed on the board').toHaveCount(1, {timeout: 40_000});
-    expect(await page.locator('.con-hand').count(), 'the hand has stepped aside for the board').toBe(0);
+    await expect.poll(() => page.locator('.con-hand').count(), {message: 'the hand has stepped aside for the board'}).toBe(0);
     await shoot(page, 'H-placing');
     expect(await placeTile(page), 'the greenery landed').toBeTruthy();
     await expect.poll(async () => onTable(await wireOf(request, id), 'Experimental Forest'), {timeout: 30_000}).toBe(true);
     await settle(page, {timeoutMs: 40_000});
     await stop();
-    expect(await page.locator('.con-hand').count(), 'nothing owed after the greenery: the flow ends on the board').toBe(0);
+    await expect.poll(() => page.locator('.con-hand').count(), {message: 'nothing owed after the greenery: the flow ends on the board'}).toBe(0);
     const p = await probe(page);
     expect(p.startSeen).toBe(0);
     expect(p.revealOutsideHand, `the found cards never stood in a band of their own (${p.outside.join(' | ')})`).toBe(0);
@@ -347,13 +347,13 @@ test.describe(`P91 WG Project · a prelude played mid-game · ${PRESET.id}`, () 
     await choose(page, posts, 'Great Aquifer');
     for (let ocean = 1; ocean <= 2; ocean++) {
       await expect(page.locator('.con-board--placing'), `ocean ${ocean} is placed on the board`).toHaveCount(1, {timeout: 40_000});
-      expect(await page.locator('.con-hand').count(), 'the hand stays aside between the two oceans').toBe(0);
+      await expect.poll(() => page.locator('.con-hand').count(), {message: 'the hand stays aside between the two oceans'}).toBe(0);
       expect(await placeTile(page), `ocean ${ocean} landed`).toBeTruthy();
     }
     await expect.poll(async () => onTable(await wireOf(request, id), 'Great Aquifer'), {timeout: 30_000}).toBe(true);
     await settle(page, {timeoutMs: 40_000});
-    expect(await page.locator('.con-hand').count(), 'nothing owed: no return into an empty hand').toBe(0);
-    expect(await page.locator('.con-ws').count(), 'no workspace left standing').toBe(0);
+    await expect.poll(() => page.locator('.con-hand').count(), {message: 'nothing owed: no return into an empty hand'}).toBe(0);
+    await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace left standing'}).toBe(0);
     expect((await probe(page)).startSeen).toBe(0);
   });
 });

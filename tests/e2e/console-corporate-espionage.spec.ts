@@ -187,7 +187,7 @@ async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, 
     }
     await key(page, 'ArrowDown', 260);
   }
-  expect(await page.locator('.con-composer__row--missing').count(), 'every mandatory row answered').toBe(0);
+  await expect.poll(() => page.locator('.con-composer__row--missing').count(), {message: 'every mandatory row answered'}).toBe(0);
 }
 
 /** From board home: open the hand, focus CARD, open its play composer. */
@@ -619,7 +619,7 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     const row = page.locator('.con-hydro__esprow--focused');
     await expect(row).toBeVisible();
     await expect(row.locator('.con-hydro__route--back')).toBeVisible();
-    expect(await page.locator('.con-hydro__stop-ghost').count(), 'ghost markers on the track').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-hydro__stop-ghost').count(), {message: 'ghost markers on the track'}).toBeGreaterThan(0);
     // …and the movement ARCS between the real markers and their ghosts — the
     // premium «кто куда движется» reading (owner fwd + focused target back).
     await expect.poll(async () => page.locator('.con-hydro__ghostlink-path').count(),
@@ -638,7 +638,7 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     for (let i = 0; i < 8 && await page.locator('.con-hydro__layer--esppick').count() > 0; i++) {
       await key(page, 'Enter', 700);
     }
-    expect(await page.locator('.con-hydro__layer--esppick').count(), 'the pick resolved').toBe(0);
+    await expect.poll(() => page.locator('.con-hydro__layer--esppick').count(), {message: 'the pick resolved'}).toBe(0);
 
     // Back in the composer: the resolved target row + the owner half.
     await expect(page.locator('.con-composer--play')).toBeVisible({timeout: 15_000});

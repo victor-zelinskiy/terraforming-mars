@@ -372,7 +372,7 @@ for (const preset of PRESETS) {
         // ── 4. The board, the server.
         await waitForBoardHome(page);
         await shoot(page, preset.id, `${c.key}-02-board`);
-        expect(await page.locator('.con-ws').count(), 'no workspace').toBe(0);
+        await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace'}).toBe(0);
         expect(samples.some((s) => s.stranded), 'nothing stranded on the way').toBe(false);
         expect(await strandedReports(page), 'no prompt was stranded').toEqual([]);
         expect(seen.overflow, `no [console-overflow] — ${seen.overflow.join(' | ')}`).toEqual([]);

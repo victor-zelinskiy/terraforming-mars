@@ -150,7 +150,7 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the scene the beats play
     //    action that completed the quest).
     const plate = page.locator('.con-mandatory');
     await expect(plate).toHaveCount(1, {timeout: 25_000});
-    expect(await page.locator('.con-parl').count(), 'the Parliament is NOT open before the player presses A').toBe(0);
+    await expect.poll(() => page.locator('.con-parl').count(), {message: 'the Parliament is NOT open before the player presses A'}).toBe(0);
 
     // ② The sampler is armed BEFORE the press — the defect this probe exists
     //    for lives entirely in the window between the press and the settle.
@@ -220,6 +220,6 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the scene the beats play
     // ⑨ …and the flow ENDS: A closes it and the workspace leaves.
     await press(page, 'Enter', 900);
     await settle(page, {timeoutMs: 20_000});
-    expect(await page.locator('.con-parl').count(), 'the finished flow LEAVES — it never folds back to a browse layer').toBe(0);
+    await expect.poll(() => page.locator('.con-parl').count(), {message: 'the finished flow LEAVES — it never folds back to a browse layer'}).toBe(0);
   });
 });

@@ -2,9 +2,10 @@
   <div ref="rootEl" class="con-reveal"
        :data-cursor-pending="revealPoseHeld ? 'reveal' : undefined"
        :data-take="takeState"
+       :style="orphanedSpent ? {visibility: 'hidden'} : undefined"
        :class="{
          'con-reveal--headless': headless,
-         'con-reveal--embedded': embedded,
+         'con-reveal--embedded': dressedEmbedded,
          'con-reveal--scene': scene,
          'con-reveal--peek': peeking,
          'con-reveal--collecting': collecting,
@@ -12,9 +13,9 @@
          'con-reveal--bonus-veiled': bonusVeiled,
          'con-reveal--bonus-held': bonusHeld,
        }"
-       :role="embedded ? 'group' : 'dialog'" :aria-label="titleText"
-       :data-motion-surface="embedded ? undefined : 'reveal'"
-       :data-motion-variant="embedded ? undefined : (headless ? 'headless' : mode)"
+       :role="dressedEmbedded ? 'group' : 'dialog'" :aria-label="titleText"
+       :data-motion-surface="embedded || orphanedSpent ? undefined : 'reveal'"
+       :data-motion-variant="dressedEmbedded ? undefined : (headless ? 'headless' : mode)"
        :data-settlement-table="tableNonce"
        :data-settlement-turn="tableTurn">
     <!--
@@ -602,6 +603,7 @@ import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {RevealSourceReading, RevealStageHead, revealStageHead} from '@/client/console/revealStageHead';
+import {embeddedBatchOrphanedSpent} from '@/client/console/revealSpent';
 /** The scene's source peek (`revealSourcePeekState` — module state: the shell's bar reads it too). */
 import {closeRevealSourcePeek, openRevealSourcePeek, revealSourcePeekState} from '@/client/console/revealSourcePeek';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
@@ -1207,6 +1209,25 @@ const drawnUntaken = computed((): Array<{card: CardModel, index: number}> => {
   });
   return out;
 });
+/**
+ * AN EMBEDDED BATCH THAT LOSES ITS HOST SPENT IS NOT A BAND (`console/revealSpent.ts`): the host's zone goes a task
+ * before the batch ends, and for that task the instance stood at `body` in the standalone dress — the full-bleed band
+ * with nothing on it. The batch this instance last presented embedded keeps its embedded dress and paints nothing then.
+ */
+const embeddedBatchId = ref<number | undefined>(undefined);
+watch(() => (props.embedded ? drawnEvent.value?.id : undefined), (id) => {
+  if (id !== undefined) {
+    embeddedBatchId.value = id;
+  }
+}, {immediate: true});
+const orphanedSpent = computed((): boolean => embeddedBatchOrphanedSpent({
+  embedded: props.embedded,
+  batchId: drawnEvent.value?.id,
+  embeddedBatchId: embeddedBatchId.value,
+  untaken: drawnUntaken.value.length,
+}));
+/** The dress the root wears — embedded while hosted, and while an orphaned spent batch ends (never the band). */
+const dressedEmbedded = computed((): boolean => props.embedded || orphanedSpent.value);
 /**
  * The untaken cards split by TRADE WAVE (a merged colony-trade batch):
  * the income cards render plainly, the colony-bonus cards inside their

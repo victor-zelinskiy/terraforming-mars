@@ -144,7 +144,7 @@ test.describe(`console · TRP0 Corridors of Power · ${PRESET.id}`, () => {
     expect(posts.length - before, 'the play is ONE request').toBe(1);
     expect(wire.thisPlayer.actionsThisGeneration, 'the play used no action').not.toContain(CARD);
     await expect(page.locator(`[data-played-key="${CARD}"]`).first(), 'the card stands on «РАЗЫГРАНО»').toBeAttached({timeout: 20_000});
-    expect(await page.locator('.con-ptsel').count(), 'nothing was asked').toBe(0);
+    await expect.poll(() => page.locator('.con-ptsel').count(), {message: 'nothing was asked'}).toBe(0);
     await shoot(page, 'a2-played-shelf');
   });
 

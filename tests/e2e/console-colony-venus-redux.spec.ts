@@ -72,7 +72,7 @@ async function openColonies(page: Page): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
 }
 
 async function focusTile(page: Page, target: string): Promise<void> {
@@ -86,7 +86,7 @@ async function focusTile(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 
@@ -205,7 +205,7 @@ test('Venus Redux — the reading: the tile and the dossier state the COMPOSITE 
 
   // ── B → back; A → the trade stage stands with no refusal. ──
   await press(page, 'Escape', 1600);
-  expect(await page.locator('.con-colinspect').count(), 'B folded the dossier').toBe(0);
+  await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'B folded the dossier'}).toBe(0);
   await press(page, 'Enter', 2200);
   await shoot(page, '02-stage');
   const stage = await page.evaluate(() => ({
@@ -297,7 +297,7 @@ test('Venus Redux — the step: the build\'s «2 delegates to a resolution» ope
   // The Build Colony standard project → the colony pick → the build stage.
   await press(page, 'Comma', 1200);
   await press(page, 'Enter', 1400);
-  expect(await page.locator('.con-stdp').count(), 'standard projects did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-stdp').count(), {message: 'standard projects did not open'}).toBeGreaterThan(0);
   const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
   const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
   for (let i = 0; i < 18 && !/колони/i.test(await focusedName()); i++) {
@@ -308,7 +308,7 @@ test('Venus Redux — the step: the build\'s «2 delegates to a resolution» ope
   await page.waitForSelector('.con-colonies', {timeout: 15_000});
   await focusTile(page, VENUS);
   await press(page, 'Enter', 2000); // descend — the build intent
-  expect(await page.locator('.con-colfocus').count(), 'the build stage did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the build stage did not open'}).toBeGreaterThan(0);
   const crumbBefore = await page.evaluate(() => Array.from(document.querySelectorAll('.con-wshead')).map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim()));
   console.log('── crumb before the commit ──', JSON.stringify(crumbBefore));
   await shoot(page, '10-build-stage');

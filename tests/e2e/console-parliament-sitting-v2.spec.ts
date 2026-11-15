@@ -58,7 +58,9 @@ for (const preset of PARLIAMENT_PRESETS) {
       //    ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ → the wave. The player presses nothing.
       await enterSittingByPass(page, request, playerId);
       await armSittingProbe(page);
-      const t0 = Date.now();
+      // H — the wave is timed on the PAGE's clock (the probe's own `performance.now()`): from the moment it was armed
+      // over the risen sitting to its first sample with a chip in the air.
+      const t0 = await page.evaluate(() => performance.now());
       const summary = (await parliamentWire(request, playerId)).game.parliament?.phase?.summary;
       expect(summary?.winner.player, 'the viewer won the vote').toBe(viewer);
       const winnerInstance = summary?.winner.instance ?? '';
@@ -79,7 +81,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await shoot(page, preset.id, '01-sitting-up');
 
       await expect.poll(async () => (await readSittingProbe(page)).samples.some((s) => s.chips.length > 0), {timeout: 40_000, message: 'the wave left the card'}).toBe(true);
-      const waveAt = Date.now() - t0;
+      const waveAt = Math.round(((await readSittingProbe(page)).samples.find((st) => st.chips.length > 0)?.t ?? Infinity) - t0);
       await waitSittingAtRest(page, 40_000);
       const probe = await readSittingProbe(page);
       const s = probe.samples;

@@ -416,8 +416,8 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '11-enact-draw-stage');
       // THE WALK WAITS FOR THE TAKE: the enactment page holds, the dock has not grown.
       await cinematicBeat(page, 1500, 'the walk would have moved on by now if it did not wait for the take');
-      expect(await parliament(page).getAttribute('data-sitting-stage'), 'the sitting stands on its enactment page until the take').toBe('enact');
-      expect(await reveal.getAttribute('data-take'), 'the card still waits for the player').toBe('ready');
+      await expect.poll(() => parliament(page).getAttribute('data-sitting-stage'), {message: 'the sitting stands on its enactment page until the take'}).toBe('enact');
+      await expect.poll(() => reveal.getAttribute('data-take'), {message: 'the card still waits for the player'}).toBe('ready');
       expect(Number(await page.locator('[data-hand-total]').getAttribute('data-hand-total')), 'nothing landed before the take').toBe(hand);
       // A — «Взять»: the card leaves the stage for the dock, and the stage folds.
       expect(await pressUntil(page, 'Enter', async () => await stage.count() === 0, {settleMs: 1500}), 'the take ends the draw stage').toBe(true);

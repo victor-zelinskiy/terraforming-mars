@@ -75,7 +75,7 @@ for (const profile of PROFILES) {
         await expect.poll(() => serves(page), {timeout: 15_000, message: 'the scene answers «stage» for the first action'}).toBe('stage');
         const crumb = (await page.locator('.con-wshead').innerText()).toUpperCase();
         expect(crumb, 'the crumb names the stage').toContain('ПЕРВОЕ ДЕЙСТВИЕ');
-        expect(await page.locator('.con-mandatory').count(), 'no announce plate over the stage').toBe(0);
+        await expect.poll(() => page.locator('.con-mandatory').count(), {message: 'no announce plate over the stage'}).toBe(0);
         await settle(page, {timeoutMs: 20_000});
         await shoot(page, `${profile.id}-${fixture}-01-stage`);
 
@@ -110,7 +110,7 @@ for (const profile of PROFILES) {
 
         // ── THE TABLE REACHES THE GAME: the start scene leaves; the board (or the sitting) is the player's. ──
         await waitForBoardHome(page, 45);
-        expect(await page.locator('.con-start').count(), 'the start scene has left').toBe(0);
+        await expect.poll(() => page.locator('.con-start').count(), {message: 'the start scene has left'}).toBe(0);
         await shoot(page, `${profile.id}-${fixture}-03-game`);
       });
     }

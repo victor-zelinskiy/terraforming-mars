@@ -124,8 +124,8 @@ test.describe('Joint Research · standard-1080', () => {
       const face = page.locator(`.con-parl__slot[data-instance="${RESEARCH_INSTANCE}"] .pcard`);
       await expect(face, 'Joint Research stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(RESEARCH_CLASS);
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX16');
-      expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'the Scientists\' emblem').toContain('scientists');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX16');
+      await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'the Scientists\' emblem'}).toContain('scientists');
       await expect(face.locator('.pcard__quest-graphic'), 'the quest as a graphic').toHaveCount(1);
       // The footnote is what the PHYSICAL card prints: the EVENT TAG with the count («2 × [event]») — never a
       // «red card» band, never a discard glyph (the yellow disc with the down arrow IS the event tag).
@@ -192,7 +192,7 @@ test.describe('Joint Research · standard-1080', () => {
       const take = page.locator('.con-extdraw');
       await expect(take, 'the take surface is on screen').toHaveCount(1, {timeout: 60_000});
       await expect(take).toHaveClass(/con-extdraw--embedded/);
-      expect(await page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw').count(), 'in the stage\'s zone').toBe(1);
+      await expect.poll(() => page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw').count(), {message: 'in the stage\'s zone'}).toBe(1);
       await expect(page.locator('.con-extdraw .con-cards__slot'), '8 − 5 = three cards, withheld until taken').toHaveCount(3, {timeout: 20_000});
       await expect(page.locator('.con-extdraw__source .pcard').first(), 'the source is the resolution').toHaveClass(RESEARCH_CLASS);
       const bandYield = page.locator('[data-parl-sit-yield]');

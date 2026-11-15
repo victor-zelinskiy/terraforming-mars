@@ -61,7 +61,7 @@ test.describe('parliament · the access scene', () => {
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}),
       'the vote mode opens').toBe(true);
     await settle(page, {timeoutMs: 15_000});
-    expect(await page.locator('.con-parl__slot--selected').getAttribute('data-instance'), 'the Mars First bill is selected').toContain('ARCHITECTURE');
+    await expect.poll(() => page.locator('.con-parl__slot--selected').getAttribute('data-instance'), {message: 'the Mars First bill is selected'}).toContain('ARCHITECTURE');
     await armProbe(page);
     await page.keyboard.press('Enter');
 

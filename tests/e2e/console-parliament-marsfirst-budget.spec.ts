@@ -268,7 +268,7 @@ for (const preset of PRESETS) {
         const face = page.locator(`.con-parl__slot[data-instance="${BUDGET_INSTANCE}"] .pcard`);
         await expect(face, 'Mars First Budget stands in the voting area').toHaveCount(1);
         await expect(face).toHaveClass(BUDGET_CLASS);
-        expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX38');
+        await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX38');
         await expect(face.locator('.pcard__mech .pcard-mi--mc').first(), 'the negative is printed INSIDE the tile').toHaveText('−12');
         expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'the vote mode opens').toBe(true);
         await settle(page, {timeoutMs: 15_000});

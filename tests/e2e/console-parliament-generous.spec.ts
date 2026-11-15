@@ -193,8 +193,8 @@ test.describe('Generous Funding · standard-1080', () => {
     const face = page.locator(`.con-parl__slot[data-instance="${GENEROUS_INSTANCE}"] .pcard`);
     await expect(face, 'Generous Funding stands in the voting area').toHaveCount(1);
     await expect(face).toHaveClass(GENEROUS_CLASS);
-    expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX13');
-    expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'the Greens\' emblem').toContain('greens');
+    await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX13');
+    await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'the Greens\' emblem'}).toContain('greens');
     const trCount = await face.locator('.pcard__mech .pcard-ic').evaluateAll((els) => els.filter((el) => getComputedStyle(el).backgroundImage.includes('tr.png')).length);
     expect(trCount, 'the printed TR badge on the face').toBeGreaterThanOrEqual(1);
     await expect(face.locator('.pcard__mech .pvpcard'), 'no card glyph: this card counts a rating, not cards').toHaveCount(0);

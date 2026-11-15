@@ -3,8 +3,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   bootFixture, cinematicBeat, createGameWithCards, fillPicks, focusCard, openConsole, pickCards, playStartQueue,
-  press, readiness, settle, submitSummary, walkToSummary,
+  press, pressUntil, readiness, settle, submitSummary, walkToSummary,
 } from './consoleStart';
+import type {ObservedSample} from './observeCore';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE PLAY LANDING — geometry + tempo witness, for BOTH doors a card is
@@ -14,9 +16,12 @@ import {
  * The player reported two things about the landing: the flying card's END
  * position does not match the static card's, and the handoff between the two
  * representations JERKS. Both are boundary facts — a few frames around the
- * moment the proxy stops and the real card is revealed — so this spec records
- * the whole episode IN-PAGE at ~8 ms (a MutationObserver + a setInterval, never
- * rAF — headless Chromium stops rAF on a quiet screen) and measures:
+ * moment the proxy stops and the real card is revealed — so this spec RECORDS
+ * the whole episode off the product's own writes (`armWitness` — every change
+ * observed in the task that makes it, kept with the page's time; FLAKE ZERO —
+ * with an 8 ms TIMER tick too, each call stamped, so the series keeps the
+ * page's own pace: a still screen still ticks, a stalled main thread does not,
+ * and the analysis tells the two apart as the old sampler did) — and measures:
  *
  *   · the LAST fully-opaque proxy frame's card box vs the FIRST painted real
  *     card box (dx / dy / dw / dh — the geometry mismatch, in px);
@@ -92,20 +97,57 @@ function magnitude(a: Rect, b: Rect): number {
   return d === undefined ? 0 : Math.max(Math.abs(d.dx), Math.abs(d.dy), Math.abs(d.dw), Math.abs(d.dh));
 }
 
+/** The recording's key — one landing at a time. */
+const LANDING_WITNESS = 'play-landing-geometry';
+/** The recorder's TIMER tick (the old sampler's period): a still screen keeps ticking, a stalled main thread does not. */
+const TICK_MS = 8;
+/** One recorded observation — a `Frame` stamped with the page's `performance.now()` (`t`) by the reader itself. */
+type FrameSeen = Frame;
+type LandingArgs = {mode: 'hand' | 'start', arm: number};
+let landingArm = 0;
+
 /**
- * Arm the in-page recorder (window.__lg). Samples at 8 ms + on every mutation.
+ * Arm the landing RECORD (`armWitness`, FLAKE ZERO): every change of the
+ * scene, observed in the task that makes it (`settled` — the state a frame
+ * can paint: «no frame without a card» and «two half-cards» are claims about
+ * coexistence), kept with the page's time.
  * `mode` picks the destination: the hand's receiving stage front anchor, or
  * the start dock's ARMED top slot (tracked as an ELEMENT — it is persistent,
- * so it stays the landing place after it loses the armed attribute).
+ * so it stays the landing place after it loses the armed attribute; the
+ * tracking lives on the page, keyed by this arm).
  */
 async function armRecorder(page: Page, mode: 'hand' | 'start'): Promise<void> {
-  await page.evaluate((mode) => {
-    const w = window as unknown as {__lg?: {frames: Array<unknown>, stop: () => void}, __conReady?: () => {
+  landingArm++;
+  // A VISIBLE PHASE BEACON for the video recording (fixed, out of flow — it
+  // changes no layout the recorder measures): red = a proxy is in the air,
+  // yellow = proxy + revealed card both painted (the handoff frames), green =
+  // only the real card, black = neither. Frame-by-frame review of the webm
+  // finds the boundary by colour.
+  await page.evaluate(() => {
+    if (document.getElementById('__lg-beacon') === null) {
+      const beacon = document.createElement('div');
+      beacon.id = '__lg-beacon';
+      beacon.style.cssText = 'position:fixed;left:0;top:0;width:36px;height:36px;z-index:2147483647;pointer-events:none;background:#000';
+      document.body.appendChild(beacon);
+    }
+  });
+  await armWitness<FrameSeen, LandingArgs>(page, LANDING_WITNESS, ({mode, arm}) => {
+    type LandingState = {arm: number, trackedTop: HTMLElement | null, marked: Set<string>, beacon: string, at: number, prev?: unknown};
+    const w = window as unknown as {__lgState?: LandingState, __conReady?: () => {
       input: {seq: number}, holds: Array<string>,
       transport?: {gameAge: number, requestInProgress: boolean, holding: boolean},
     }};
-    w.__lg?.stop();
-    const frames: Array<unknown> = [];
+    if (w.__lgState === undefined || w.__lgState.arm !== arm) {
+      w.__lgState = {arm, trackedTop: null, marked: new Set<string>(), beacon: '', at: -1};
+    }
+    const state = w.__lgState;
+    // EVERY CALL IS STAMPED (so the recording keeps it — the series is the page's pace), at most one per 4 ms: the
+    // observer, the frame tick and the timer tick may all call within one frame (the old sampler's own throttle).
+    const now = performance.now();
+    if (state.prev !== undefined && now - state.at < 4) {
+      return state.prev as FrameSeen;
+    }
+    state.at = now;
     const rect = (el: Element | null | undefined) => {
       if (el === null || el === undefined) {
         return null;
@@ -113,114 +155,105 @@ async function armRecorder(page: Page, mode: 'hand' | 'start'): Promise<void> {
       const r = el.getBoundingClientRect();
       return {x: r.left, y: r.top, w: r.width, h: r.height};
     };
-    let last = -1;
-    let trackedTop: HTMLElement | null = null;
     // IN-PAGE MARKS for a `--trace on` run: the trace records page console
     // messages with timestamps beside its screencast frames, so the frames
     // around the landing can be pulled out by these marks afterwards.
-    const marked = new Set<string>();
     const mark = (what: string) => {
-      if (!marked.has(what)) {
-        marked.add(what);
+      if (!state.marked.has(what)) {
+        state.marked.add(what);
         console.log(`[probe-mark] ${what} t=${Math.round(performance.now())}`);
       }
     };
-    // A VISIBLE PHASE BEACON for the video recording (fixed, out of flow —
-    // it changes no layout the recorder measures): red = a proxy is in the
-    // air, yellow = proxy + revealed card both painted (the handoff frames),
-    // green = only the real card, black = neither. Frame-by-frame review of
-    // the webm finds the boundary by colour.
-    let beacon = document.getElementById('__lg-beacon');
-    if (beacon === null) {
-      beacon = document.createElement('div');
-      beacon.id = '__lg-beacon';
-      beacon.style.cssText = 'position:fixed;left:0;top:0;width:36px;height:36px;z-index:2147483647;pointer-events:none;background:#000';
-      document.body.appendChild(beacon);
+    // The phase beacon (stood up by `armRecorder`), repainted only when its
+    // colour CHANGES — the recording observes its own write, and an unchanged
+    // one must not wake it again.
+    const beacon = document.getElementById('__lg-beacon');
+    const ready = w.__conReady?.();
+    const proxy = document.querySelector<HTMLElement>('.con-played-hero__proxy');
+    let front: HTMLElement | null;
+    if (mode === 'hand') {
+      front = document.querySelector<HTMLElement>('.con-composer__playstage [data-recv-front]');
+    } else {
+      const armed = document.querySelector<HTMLElement>('.con-start__played [data-start-front]');
+      if (armed !== null) {
+        state.trackedTop = armed;
+      }
+      front = state.trackedTop !== null && state.trackedTop.isConnected ? state.trackedTop : null;
     }
-    const sample = () => {
-      const now = performance.now();
-      if (now - last < 4) {
-        return;
-      }
-      last = now;
-      const ready = w.__conReady?.();
-      const proxy = document.querySelector<HTMLElement>('.con-played-hero__proxy');
-      let front: HTMLElement | null;
-      if (mode === 'hand') {
-        front = document.querySelector<HTMLElement>('.con-composer__playstage [data-recv-front]');
-      } else {
-        const armed = document.querySelector<HTMLElement>('.con-start__played [data-start-front]');
-        if (armed !== null) {
-          trackedTop = armed;
-        }
-        front = trackedTop !== null && trackedTop.isConnected ? trackedTop : null;
-      }
-      // The REAL card at the landing place: a face-up card's `.pcard`, or the
-      // events pile's back (a face-down landing has no printed face) — and the
-      // proxy's matching side (its back is what an event shows at the landing).
-      const faceCard = front?.querySelector<HTMLElement>('.pcard, .con-card-back') ?? null;
-      const proxyCard = faceCard !== null && faceCard.classList.contains('con-card-back') ?
-        (proxy?.querySelector<HTMLElement>('.con-deal-proxy__back .con-card-back') ?? proxy?.querySelector<HTMLElement>('.pcard') ?? null) :
-        (proxy?.querySelector<HTMLElement>('.pcard') ?? null);
-      if (proxy !== null) {
-        mark('proxy');
-      }
-      const revealedNow = (front?.getAttribute('data-played-key') ?? '') !== '';
-      if (revealedNow) {
-        mark('reveal');
-      }
-      if (proxy === null && marked.has('reveal')) {
-        mark('proxy-gone');
-      }
-      const proxyShown = proxy !== null && Number(getComputedStyle(proxy).opacity) > 0.02;
-      if (beacon !== null) {
-        beacon.style.background = proxyShown && revealedNow ? '#ff0' : (proxyShown ? '#f00' : (revealedNow ? '#0f0' : '#000'));
-      }
-      frames.push({
-        t: Math.round(now * 10) / 10,
-        seq: ready?.input.seq ?? -1,
-        gameAge: ready?.transport?.gameAge ?? -1,
-        req: ready?.transport?.requestInProgress === true,
-        holding: ready?.transport?.holding === true,
-        holds: (ready?.holds ?? []).join('|'),
-        proxy: rect(proxy),
-        proxyOp: proxy === null ? 0 : Number(getComputedStyle(proxy).opacity),
-        proxyCard: rect(proxyCard),
-        proxyCls: proxyCard === null ? '' : proxyCard.className,
-        front: rect(front),
-        frontKey: front?.getAttribute('data-played-key') ?? '',
-        faceCard: rect(faceCard),
-        faceCls: faceCard === null ? '' : faceCard.className,
-        stageUp: mode === 'hand' ? document.querySelector('.con-composer__playstage--up') !== null :
-          document.querySelector('.con-start') !== null,
-        hand: document.querySelector('.con-hand') !== null,
-        composer: document.querySelector('.con-composer--play') !== null,
-        pulse: document.querySelector('.con-recv__front--pulse') !== null,
-        heroPhase: document.querySelector('.con-played-hero')?.getAttribute('data-hero-phase') ?? '',
-        heroWait: document.querySelector('.con-played-hero')?.getAttribute('data-hero-wait') ?? '',
-      });
+    // The REAL card at the landing place: a face-up card's `.pcard`, or the
+    // events pile's back (a face-down landing has no printed face) — and the
+    // proxy's matching side (its back is what an event shows at the landing).
+    const faceCard = front?.querySelector<HTMLElement>('.pcard, .con-card-back') ?? null;
+    const proxyCard = faceCard !== null && faceCard.classList.contains('con-card-back') ?
+      (proxy?.querySelector<HTMLElement>('.con-deal-proxy__back .con-card-back') ?? proxy?.querySelector<HTMLElement>('.pcard') ?? null) :
+      (proxy?.querySelector<HTMLElement>('.pcard') ?? null);
+    if (proxy !== null) {
+      mark('proxy');
+    }
+    const revealedNow = (front?.getAttribute('data-played-key') ?? '') !== '';
+    if (revealedNow) {
+      mark('reveal');
+    }
+    if (proxy === null && state.marked.has('reveal')) {
+      mark('proxy-gone');
+    }
+    const proxyShown = proxy !== null && Number(getComputedStyle(proxy).opacity) > 0.02;
+    const colour = proxyShown && revealedNow ? '#ff0' : (proxyShown ? '#f00' : (revealedNow ? '#0f0' : '#000'));
+    if (beacon !== null && state.beacon !== colour) {
+      state.beacon = colour;
+      beacon.style.background = colour;
+    }
+    state.prev = {
+      t: Math.round(now * 10) / 10,
+      seq: ready?.input.seq ?? -1,
+      gameAge: ready?.transport?.gameAge ?? -1,
+      req: ready?.transport?.requestInProgress === true,
+      holding: ready?.transport?.holding === true,
+      holds: (ready?.holds ?? []).join('|'),
+      proxy: rect(proxy),
+      proxyOp: proxy === null ? 0 : Number(getComputedStyle(proxy).opacity),
+      proxyCard: rect(proxyCard),
+      proxyCls: proxyCard === null ? '' : proxyCard.className,
+      front: rect(front),
+      frontKey: front?.getAttribute('data-played-key') ?? '',
+      faceCard: rect(faceCard),
+      faceCls: faceCard === null ? '' : faceCard.className,
+      stageUp: mode === 'hand' ? document.querySelector('.con-composer__playstage--up') !== null :
+        document.querySelector('.con-start') !== null,
+      hand: document.querySelector('.con-hand') !== null,
+      composer: document.querySelector('.con-composer--play') !== null,
+      pulse: document.querySelector('.con-recv__front--pulse') !== null,
+      heroPhase: document.querySelector('.con-played-hero')?.getAttribute('data-hero-phase') ?? '',
+      heroWait: document.querySelector('.con-played-hero')?.getAttribute('data-hero-wait') ?? '',
     };
-    sample();
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    const iv = setInterval(sample, 8);
-    w.__lg = {
-      frames,
-      stop: () => {
-        mo.disconnect();
-        clearInterval(iv);
-        beacon?.remove();
-      },
-    };
-  }, mode);
+    return state.prev as FrameSeen;
+  }, {args: {mode, arm: landingArm}, settled: true, max: 20_000, tickMs: TICK_MS});
 }
 
-async function takeRecording(page: Page): Promise<Array<Frame>> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__lg?: {frames: Array<Frame>, stop: () => void}};
-    w.__lg?.stop();
-    return w.__lg?.frames ?? [];
-  });
+/**
+ * The recording, read as the series `analyse` was written for: one frame per
+ * stamped call, at the page's `performance.now()` — the timer tick keeps it
+ * dense on a still screen, and a gap over 50 ms is a main-thread stall (no
+ * timer ran), exactly what the old sampler's series showed. The recording is
+ * stopped here and the beacon taken down.
+ */
+async function takeRecording(page: Page): Promise<{frames: Array<Frame>, samples: Array<ObservedSample<FrameSeen>>}> {
+  const samples = await witnessOf<FrameSeen>(page, LANDING_WITNESS).stop();
+  await page.evaluate(() => document.getElementById('__lg-beacon')?.remove());
+  // One document's stamps only (a reload restarts `performance.now()`): the landing's own, the last one recorded.
+  const doc = samples.at(-1)?.doc;
+  return {frames: samples.filter((s) => s.doc === doc).map((s) => s.v), samples};
+}
+
+/**
+ * The RECORDER's median gap between two recorded changes while the proxy was
+ * in the air — the page's own pace of writes (a starved main thread stretches
+ * it), a diagnosis only.
+ */
+function recordedCadence(samples: ReadonlyArray<ObservedSample<FrameSeen>>): number {
+  const flying = samples.filter((s) => s.v.proxy !== null && s.v.proxyOp > 0.02);
+  const gaps = flying.slice(1).map((s, k) => s.t - flying[k].t).sort((a, b) => a - b);
+  return gaps.length > 0 ? gaps[Math.floor(gaps.length / 2)] : 0;
 }
 
 type Report = {
@@ -263,9 +296,9 @@ type Report = {
   classMismatch: boolean,
   proxyCls: string,
   faceCls: string,
-  /** The RECORDER's median sample gap over the flight — main-thread liveness
-   *  (a stalled main thread stretches it), NOT the paint cadence: the
-   *  setInterval keeps its 8 ms while the compositor paints at 10 fps. */
+  /** The RECORDER's median gap between two recorded CHANGES while the proxy
+   *  flew (`recordedCadence`) — the page's pace of writes (a stalled main
+   *  thread stretches it), NOT the paint cadence. A diagnosis only. */
   medianGapMs: number,
   /**
    * The page's PAINT cadence: the median interval between two consecutive
@@ -327,7 +360,9 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
         if (moveAhead) {
           // Only the time the PAGE WAS RUNNING counts: a sample gap over 50 ms
           // is a main-thread stall (a loaded 4K runner), during which nothing
-          // could have flown — it is neither a wait nor a hover.
+          // could have flown — it is neither a wait nor a hover. (The recorder's
+          // 8 ms TIMER tick keeps the series dense on a still screen, so a gap
+          // in it is the thread, never the screen — FLAKE ZERO.)
           // …and only the time the scene itself WAITED for its target counts
           // (`data-hero-wait="target"`: the lift is over, the landing place not
           // measured yet). A still proxy while the lift or the arc runs is a
@@ -511,9 +546,14 @@ function printReport(r: Report, frames: ReadonlyArray<Frame>, revealKey: string)
 
 /** Descend into the play composer for `card` (hand screen → cursor → A). */
 async function descendIntoPlay(page: Page, card: string): Promise<void> {
-  for (let i = 0; i < 6 && await page.locator('.con-hand').count() === 0; i++) {
-    await press(page, 'Period', 700);
-    await press(page, 'Enter', 1200);
+  // RT wheel → the hand, act → verify (D): each press waits for ITS effect (the wheel up, the hand up) for its whole
+  // window — never a blind pair a swallowed RT would turn into an A on the board.
+  const hand = page.locator('.con-hand');
+  const handUp = async () => await hand.count() > 0;
+  for (let i = 0; i < 6 && !await handUp(); i++) {
+    if (await pressUntil(page, 'Period', async () => await handUp() || await page.locator('.con-quick').count() > 0, {tries: 1, settleMs: 900})) {
+      await pressUntil(page, 'Enter', handUp, {tries: 1, settleMs: 1600});
+    }
   }
   await expect(page.locator('.con-hand')).toBeVisible({timeout: 15_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 25_000}).catch(() => {});
@@ -548,11 +588,14 @@ async function runHandLanding(page: Page, profile: string, play: {card: string, 
     return document.querySelector('.con-hand') === null && document.querySelector('.con-composer--play') === null &&
       r !== undefined && r.holds.length === 0 && r.transport?.requestInProgress !== true && r.transport?.holding !== true;
   }, undefined, {polling: 50, timeout: 30_000});
-  await cinematicBeat(page, 600, 'the tail of the fold + the board settle — the recorder keeps sampling through it');
-  const frames = await takeRecording(page);
-  expect(frames.length, 'the in-page recorder ran').toBeGreaterThan(30);
+  await cinematicBeat(page, 600, 'the tail of the fold + the board settle — the recorder keeps recording through it');
+  const {frames, samples} = await takeRecording(page);
+  // The recording's own liveness: it holds its first observation from the arm and keeps only CHANGES after it — the
+  // number of its samples says how much changed, never how long it ran; only a dead one has none.
+  expect(samples.length, 'the in-page recorder ran').toBeGreaterThan(0);
   const report = analyse(frames, profile, play.card, play.kind, seq0, play.card);
   report.pressWall = pressWall;
+  report.medianGapMs = recordedCadence(samples);
   printReport(report, frames, play.card);
   fs.mkdirSync(OUT_DIR, {recursive: true});
   fs.writeFileSync(path.join(OUT_DIR, `${profile}-${play.card.replace(/\s+/g, '_')}.json`), JSON.stringify({report, frames}, null, 1));
@@ -691,10 +734,11 @@ test.describe('play landing geometry · start queue (fhd)', () => {
       const pressWall = Date.now();
       await playStartQueue(page, {plays: 1});
       await settle(page, {timeoutMs: 30_000, quietMs: 500});
-      const frames = await takeRecording(page);
+      const {frames, samples} = await takeRecording(page);
       const played = frames.map((f) => f.frontKey).find((k) => k !== '') ?? queue[0];
       const report = analyse(frames, 'start', played, 'start', seq0, played);
       report.pressWall = pressWall;
+      report.medianGapMs = recordedCadence(samples);
       printReport(report, frames, played);
       reports.push(report);
       fs.mkdirSync(OUT_DIR, {recursive: true});

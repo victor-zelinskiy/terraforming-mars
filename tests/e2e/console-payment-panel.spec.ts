@@ -120,7 +120,7 @@ async function reachConfigurablePayment(
   for (let i = 0; i < 4 && await hand.count() === 0; i++) {
     await key(page, 'Enter', 1400);
   }
-  expect(await hand.count(), 'never reached the hand').toBeGreaterThan(0);
+  await expect.poll(() => hand.count(), {message: 'never reached the hand'}).toBeGreaterThan(0);
   await page.locator('.con-hand:not(.con-hand--transit)')
     .waitFor({state: 'visible', timeout: 15_000});
 
@@ -130,7 +130,7 @@ async function reachConfigurablePayment(
   for (let i = 0; i < 4 && await page.locator('.con-composer--play').count() === 0; i++) {
     await key(page, 'Enter', 1400);
   }
-  expect(await page.locator('.con-composer--play').count(), 'never opened the play composer').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-composer--play').count(), {message: 'never opened the play composer'}).toBeGreaterThan(0);
   // The payment panel only exists once the play PREVIEW has landed — the
   // composer renders a loading line until then, so poll rather than sleep.
   await page.waitForSelector('.con-pay', {timeout: 20_000});
@@ -152,12 +152,12 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     // ── COMPACT ────────────────────────────────────────────────────────
     await shoot(page, '01-compact');
     const pay = page.locator('.con-pay');
-    expect(await pay.count()).toBe(1);
+    await expect.poll(() => pay.count()).toBe(1);
     // Every source row + the verdict are present in the compact summary.
-    expect(await page.locator('.con-payrow').count()).toBeGreaterThan(1);
-    expect(await page.locator('.con-paystatus').count()).toBe(1);
+    await expect.poll(() => page.locator('.con-payrow').count()).toBeGreaterThan(1);
+    await expect.poll(() => page.locator('.con-paystatus').count()).toBe(1);
     // The auto M€ lane is always rendered, badged, and never dialable.
-    expect(await page.locator('.con-payrow[data-pay-unit="megacredits"] .con-payrow__auto').count()).toBe(1);
+    await expect.poll(() => page.locator('.con-payrow[data-pay-unit="megacredits"] .con-payrow__auto').count()).toBe(1);
     // A single-alt payment wears the bumper pills right on its row; a multi-lane
     // one is editor-only by design (the bumpers would be ambiguous).
     const quickAdjustable = await page.locator('.con-payrow--dial .con-payrow__pills').count() === 1;
@@ -166,8 +166,7 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     // player would land on the same rows with an immobile cursor).
     const altLanes = await page.locator('.con-payrow:not([data-pay-unit="megacredits"])').count();
     const hasEditor = altLanes > 1;
-    expect(await page.locator('.con-pay__hint').count(), 'the LT entry must appear exactly when the editor exists')
-      .toBe(hasEditor ? 1 : 0);
+    await expect.poll(() => page.locator('.con-pay__hint').count(), {message: 'the LT entry must appear exactly when the editor exists'}).toBe(hasEditor ? 1 : 0);
 
     const compactRows = await page.locator('.con-payrow').count();
     const compactCta = await ctaBox(page);
@@ -194,14 +193,14 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
         await key(page, 'KeyE', 320); // RB = +1 of the alt source
         await recordState();
         expect(await ctaBox(page), `CTA moved after +1 #${i}`).toEqual(compactCta);
-        expect(await page.locator('.con-payrow').count(), 'a row appeared/vanished').toBe(compactRows);
+        await expect.poll(() => page.locator('.con-payrow').count(), {message: 'a row appeared/vanished'}).toBe(compactRows);
       }
       await shoot(page, '02-compact-dialed-up');
       for (let i = 0; i < 10; i++) {
         await key(page, 'KeyQ', 320); // LB = −1, down through the whole range
         await recordState();
         expect(await ctaBox(page), `CTA moved after −1 #${i}`).toEqual(compactCta);
-        expect(await page.locator('.con-payrow').count(), 'a row appeared/vanished').toBe(compactRows);
+        await expect.poll(() => page.locator('.con-payrow').count(), {message: 'a row appeared/vanished'}).toBe(compactRows);
       }
       await shoot(page, '03-compact-dialed-down');
     }
@@ -217,13 +216,13 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     if (!hasEditor) {
       // The single-alt case: LT is a NO-OP by design. The block must stay
       // exactly as it was — same density, same CTA, no cursor conjured up.
-      expect(await page.locator('.con-pay--expanded').count(), 'LT opened an editor that adds nothing').toBe(0);
-      expect(await page.locator('.con-payrow--focused').count()).toBe(0);
+      await expect.poll(() => page.locator('.con-pay--expanded').count(), {message: 'LT opened an editor that adds nothing'}).toBe(0);
+      await expect.poll(() => page.locator('.con-payrow--focused').count()).toBe(0);
       expect(await ctaBox(page), 'a no-op LT moved the CTA').toEqual(compactCta);
       await shoot(page, '04-single-alt-no-editor');
       return;
     }
-    expect(await page.locator('.con-pay--expanded').count(), 'LT did not expand the payment block').toBe(1);
+    await expect.poll(() => page.locator('.con-pay--expanded').count(), {message: 'LT did not expand the payment block'}).toBe(1);
     await shoot(page, '04-expanded');
 
     // The card, the CTA and the block itself stay exactly where they were —
@@ -232,8 +231,8 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     expect((await page.locator('.con-composer__playcard').boundingBox())!).toEqual(compactCard);
     expect(Math.round((await page.locator('.con-pay').boundingBox())!.y)).toEqual(compactPayTop);
     // Same rows, same order; the cursor opens on the source the bumpers drove.
-    expect(await page.locator('.con-payrow').count()).toBe(compactRows);
-    expect(await page.locator('.con-payrow--focused').count()).toBe(1);
+    await expect.poll(() => page.locator('.con-payrow').count()).toBe(compactRows);
+    await expect.poll(() => page.locator('.con-payrow--focused').count()).toBe(1);
     // The expanded density spells the captions out (the only added content).
     const capsVisible = await page.locator('.con-payrow__cap').first().isVisible();
     expect(capsVisible, 'expanded did not reveal the micro captions').toBeTruthy();
@@ -251,10 +250,9 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
 
     // ── BACK — the mix survives the fold ───────────────────────────────
     await key(page, 'Comma', 900);
-    expect(await page.locator('.con-pay--compact').count(), 'LT did not fold the block back').toBe(1);
+    await expect.poll(() => page.locator('.con-pay--compact').count(), {message: 'LT did not fold the block back'}).toBe(1);
     expect(await ctaBox(page), 'the CTA moved on collapse').toEqual(compactCta);
-    expect(await page.locator(`.con-payrow[data-pay-unit="${editedUnit}"] .con-payrow__used`).innerText(),
-      'the mix chosen in the editor did not survive the fold back').toBe(editedUsed);
+    await expect.poll(() => page.locator(`.con-payrow[data-pay-unit="${editedUnit}"] .con-payrow__used`).innerText(), {message: 'the mix chosen in the editor did not survive the fold back'}).toBe(editedUsed);
     await shoot(page, '06-back-to-compact');
   });
 
@@ -279,15 +277,14 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     });
 
     const altRows = page.locator('.con-payrow:not([data-pay-unit="megacredits"])');
-    expect(await altRows.count(),
-      `the opened card must offer exactly one alternative (${SINGLE_ALT_CARD} + Helion heat)`).toBe(1);
+    await expect.poll(() => altRows.count(), {message: `the opened card must offer exactly one alternative (${SINGLE_ALT_CARD} + Helion heat)`}).toBe(1);
 
     const unit = await altRows.first().getAttribute('data-pay-unit');
     const row = page.locator(`.con-payrow[data-pay-unit="${unit}"]`);
     // It IS the dial: the pills are on the row, not behind a trigger.
-    expect(await row.locator('.con-payrow__pills').count(), 'the lone alt lane lost its inline dial').toBe(1);
+    await expect.poll(() => row.locator('.con-payrow__pills').count(), {message: 'the lone alt lane lost its inline dial'}).toBe(1);
     // ...and nothing offers a second screen — not the block, not the bar.
-    expect(await page.locator('.con-pay__hint').count(), 'the block advertised an editor that adds nothing').toBe(0);
+    await expect.poll(() => page.locator('.con-pay__hint').count(), {message: 'the block advertised an editor that adds nothing'}).toBe(0);
     const bar = (await page.locator('.con-cmdbar').innerText()).toLowerCase();
     expect(bar, 'the command bar advertised an editor that adds nothing').not.toContain('настроить оплату');
     expect(bar, 'the lone dial lost its MAX along with the editor').toContain('макс');
@@ -295,8 +292,8 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
 
     const cta = await ctaBox(page);
     await key(page, 'Comma', 900);
-    expect(await page.locator('.con-pay--expanded').count(), 'LT opened an editor that adds nothing').toBe(0);
-    expect(await page.locator('.con-payrow--focused').count(), 'LT conjured a cursor with nowhere to go').toBe(0);
+    await expect.poll(() => page.locator('.con-pay--expanded').count(), {message: 'LT opened an editor that adds nothing'}).toBe(0);
+    await expect.poll(() => page.locator('.con-payrow--focused').count(), {message: 'LT conjured a cursor with nowhere to go'}).toBe(0);
     expect(await ctaBox(page), 'an inert LT moved the CTA').toEqual(cta);
 
     // RT МАКС. on the quick screen: dial the lane down, then fill it back up.
@@ -308,8 +305,7 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     expect(await used(), 'RT did not fill the lone alt source').toBeGreaterThan(low);
     // «MAX» means the aggregate limit is reached — «+» is spent, and the row
     // says so on the pill the player is looking at.
-    expect(await row.locator('.con-payrow__pill--off').count(),
-      'after MAX the «+» pill must read as spent').toBeGreaterThan(0);
+    await expect.poll(() => row.locator('.con-payrow__pill--off').count(), {message: 'after MAX the «+» pill must read as spent'}).toBeGreaterThan(0);
     expect(await ctaBox(page), 'the CTA moved while dialing on the quick screen').toEqual(cta);
     await shoot(page, '08-single-alt-maxed');
   });

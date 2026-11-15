@@ -1,7 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {createGameWithCards, fetchPlayerModel, NO_PAYMENT, openConsole, press, seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome} from './consoleStart';
+import {cinematicBeat, createGameWithCards, fetchPlayerModel, NO_PAYMENT, openConsole, press, pressUntil, seedGameOverApi, sendPlayerInput, settle, soloGameConfig, syncClient, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 import cardManifest from '../../src/genfiles/cards.json';
 
 /**
@@ -24,6 +26,10 @@ import cardManifest from '../../src/genfiles/cards.json';
  *     second, the source card named — and no workspace of theirs is captured.
  *
  * Screenshots → `screenshots/social-heating/`.
+ *
+ * FLAKE ZERO: «done» is the SERVER moving on (polled), the plan's geometry is read at rest (`readSettled`), the
+ * notification feed is RECORDED (`armWitness`) — and the two pauses that ARE the subject's input (the pass's
+ * hold-to-confirm) are named `cinematicBeat`s.
  */
 
 const OUT = path.resolve('screenshots', 'social-heating');
@@ -119,6 +125,12 @@ async function positionOf(request: APIRequestContext, id: string): Promise<numbe
   return (model.thisPlayer ?? {}).deltaProject?.position ?? 0;
 }
 
+/** The Hydronetwork stop the plan's cursor stands on ('' when none). */
+async function focusedStop(page: Page): Promise<string> {
+  return page.evaluate(() =>
+    document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
+}
+
 /** The «ДОПОЛНИТЕЛЬНО» group, read off the live DOM. */
 /**
  * The result's aggregate row, read the moment the RESULT layer stands with the row's number painted. A fixed press
@@ -189,17 +201,9 @@ test.describe('Social Heating (DP09) · fhd', () => {
     await page.waitForSelector('.con-hydro', {timeout: 10_000});
     await page.waitForSelector('.con-hydro__payline', {timeout: 10_000});
     await press(page, 'Period', 900); // RT — «К дальнему» (stage 5 here)
-    for (let i = 0; i < 6; i++) {
-      const at = await page.evaluate(() =>
-        document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-      if (at === '3') {
-        break;
-      }
-      await press(page, 'ArrowLeft', 500);
-    }
-    const focused = await page.evaluate(() =>
-      document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-    expect(focused, 'the plan stands on stage 3').toBe('3');
+    // ← until the plan stands on stage 3 — each step verified on the cursor itself.
+    await pressUntil(page, 'ArrowLeft', async () => await focusedStop(page) === '3', {tries: 6, settleMs: 500});
+    await expect.poll(() => focusedStop(page), {message: 'the plan stands on stage 3'}).toBe('3');
 
     // ── 1 · THE PROMISE, before any confirm. ──
     const heatBefore = await heatOf(request, id);
@@ -213,8 +217,8 @@ test.describe('Social Heating (DP09) · fhd', () => {
     expect(promise!.icon, 'the heat sprite').toContain('heat');
     await shoot(page, '01-plan-promise');
 
-    // The panel must not scroll and the CTA column must not have moved.
-    const geometry = await page.evaluate(() => {
+    // The panel must not scroll and the CTA column must not have moved — read AT REST (`readSettled`).
+    const geometry = await readSettled(page, () => page.evaluate(() => {
       const panel = document.querySelector('.con-hydro__panel') as HTMLElement | null;
       const act = document.querySelector('.con-hydro__act') as HTMLElement | null;
       const r = act?.getBoundingClientRect();
@@ -224,26 +228,26 @@ test.describe('Social Heating (DP09) · fhd', () => {
         ctaRight: r === undefined ? -1 : Math.round(r.right),
         viewport: window.innerWidth,
       };
-    });
+    }), {message: 'the plan panel'});
     expect(geometry.overflow, 'the plan panel does not scroll').toBeLessThanOrEqual(1);
     expect(geometry.ctaRight).toBeLessThanOrEqual(geometry.viewport);
 
-    // ── The promise FOLLOWS THE PLAN — one step back is one heat less. ──
+    // ── The promise FOLLOWS THE PLAN — one step back is one heat less. ── (A live row: asserted by a poll.)
     await press(page, 'ArrowLeft', 700);
-    const shorter = await extraRow(page);
-    expect(shorter!.plus, 'a two-step plan promises +2').toBe('+2');
-    expect(shorter!.beforeAfter).toBe(`${heatBefore} → ${heatBefore + 2}`);
+    await expect.poll(async () => (await extraRow(page))?.plus, {message: 'a two-step plan promises +2'}).toBe('+2');
+    await expect.poll(async () => (await extraRow(page))?.beforeAfter).toBe(`${heatBefore} → ${heatBefore + 2}`);
     await press(page, 'ArrowRight', 700);
-    expect((await extraRow(page))!.plus).toBe('+3');
+    await expect.poll(async () => (await extraRow(page))?.plus).toBe('+3');
 
     // ── 2 · THE PAYOUT. Commit; the marker walks; the wave lands. ──
     await press(page, 'Enter', 300);
     // The result's rows are read while the result STANDS — at the functional class's motion ×0.5 it has left by the
     // time a fixed 1.2 s has passed (the first full baseline: «the result restates …» undefined, green at ×1).
     const result = await standingResultRow(page, 40_000);
-    await page.waitForTimeout(1200);
 
-    expect(await positionOf(request, id), 'the marker committed 0 → 3').toBe(3);
+    // «Done» is the SERVER's commit — polled, never a pause before one look; the heat is then the server's settled
+    // truth (one read: the move is one atomic request).
+    await expect.poll(() => positionOf(request, id), {message: 'the marker committed 0 → 3'}).toBe(3);
     const heatAfter = await heatOf(request, id);
     expect(heatAfter, 'the server paid exactly what the row promised').toBe(heatBefore + 3);
 
@@ -297,9 +301,7 @@ test.describe('Social Heating × Delta Surge · fhd', () => {
     await page.waitForSelector('.con-hydro__payline', {timeout: 10_000});
     await press(page, 'Period', 900); // RT — «К дальнему» (5)
     await press(page, 'ArrowLeft', 700); // step back to 4 (stage 5 opens a deck pick)
-    const focused = await page.evaluate(() =>
-      document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-    expect(focused, 'the plan stands on stage 4').toBe('4');
+    await expect.poll(() => focusedStop(page), {message: 'the plan stands on stage 4'}).toBe('4');
 
     const heatBefore = await heatOf(request, id);
     const promise = await extraRow(page);
@@ -307,7 +309,7 @@ test.describe('Social Heating × Delta Surge · fhd', () => {
     expect(promise!.plus, 'ONE row for the WHOLE move — four actual steps').toBe('+4');
     expect(promise!.beforeAfter).toBe(`${heatBefore} → ${heatBefore + 4}`);
     // …and exactly ONE such row: never one per crossed cell.
-    expect(await page.locator('.con-hydro__gains-extra .con-hydro__extra').count()).toBe(1);
+    await expect.poll(() => page.locator('.con-hydro__gains-extra .con-hydro__extra').count()).toBe(1);
     await shoot(page, '03-traversal-plan');
 
     // Answer the two crossed reward choices (stages 1 and 2) on the rail,
@@ -318,16 +320,16 @@ test.describe('Social Heating × Delta Surge · fhd', () => {
     await press(page, 'Enter', 900);
     await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
     await press(page, 'Enter', 900);
-    expect(await page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(),
-      'both crossed choices resolved').toBe(2);
+    await expect.poll(() => page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(), {message: 'both crossed choices resolved'}).toBe(2);
 
     await press(page, 'Enter', 300);
     // Read while the result STANDS (see the first test).
     const result = await standingResultRow(page, 60_000);
     const extraRows = result?.rows ?? 0;
-    await page.waitForTimeout(1500);
 
-    expect(await positionOf(request, id), 'the marker committed 0 → 4').toBe(4);
+    // «Done» is the SERVER's commit — polled, never a pause before one look; the heat is then the server's settled
+    // truth (one read: the move is one atomic request, so «once» is judged on its final number).
+    await expect.poll(() => positionOf(request, id), {message: 'the marker committed 0 → 4'}).toBe(4);
     expect(await heatOf(request, id), 'exactly four heat, once')
       .toBe(heatBefore + 4);
     expect(result!.plus).toBe('+4');
@@ -509,7 +511,10 @@ test.describe('Social Heating — another player’s movement · fhd', () => {
     await playCard(request, owner, 'Social Heating');
 
     await openConsole(page, owner, '');
-    await page.waitForTimeout(4000);
+    // The page must be LIVE before the mover moves (a move it boots into is «old news» to the feed): the page has
+    // applied the server's view, and the console is at rest — the states the old 4 s pause stood in for.
+    await syncClient(page, request, owner);
+    await settle(page, {timeoutMs: 30_000});
 
     const heatBefore = await heatOf(request, owner);
     await advanceOverApi(request, mover, 1);
@@ -660,59 +665,52 @@ test.describe('Social Heating — MarsBot’s movement · fhd', () => {
         await press(page, 'ArrowDown', 1000); // its «Пас» slot
         // Passing is irreversible, so its confirm is a HOLD, not a tap (the
         // shared hold-to-confirm ring) — a `press` here does nothing at all.
+        // The hold IS the input: the ring fills on the wall clock.
         await page.keyboard.down('Enter');
-        await page.waitForTimeout(1600);
+        await cinematicBeat(page, 1600, 'the pass confirm is a HOLD — the ring fills on the wall clock, the key stays DOWN that long');
         await page.keyboard.up('Enter');
-        await page.waitForTimeout(1200);
         // The POSITIVE witness: the table moved on. The bot's turn (and the
         // generation roll behind it) is what this round exists to wait for, so
         // «the viewer is no longer the one being asked» is enough — the caller
-        // samples the rest.
-        for (let i = 0; i < 12; i++) {
+        // samples the rest. The server, polled, given the whole window.
+        const movedOn = await expect.poll(async () => {
           const model = await fetchPlayerModel(request, id) as Wire;
-          if ((model.game ?? {}).generation !== before || model.waitingFor === undefined) {
-            return true;
-          }
-          await page.waitForTimeout(500);
+          return (model.game ?? {}).generation !== before || model.waitingFor === undefined;
+        }, {timeout: 8_000, intervals: [500]}).toBe(true).then(() => true, () => false);
+        if (movedOn) {
+          return true;
         }
       }
       return false;
     };
 
-    /** Record every notification card that ever appears (MutationObserver +
-     *  interval — never rAF: headless Chromium stops rAF on a quiet screen,
-     *  which is most of a bot's generation). */
-    const armRecorder = () => page.evaluate(() => {
-      const w = window as unknown as {__notifs?: Array<Record<string, string>>};
-      if (w.__notifs !== undefined) {
-        return;
-      }
-      w.__notifs = [];
-      const seen = new Set<string>();
+    /** Record every notification card that ever appears — RECORDED (`armWitness`: the product's own writes plus a
+     *  frame tick, replace-proof), never a page-side timer sampler. The reader returns the cards standing NOW; the
+     *  «every card that ever appeared» set is folded on the Node side. */
+    type NotifCard = {variant: string, sign: string, band: string, text: string};
+    const armRecorder = () => armWitness<Array<NotifCard>>(page, 'heat-bot-notifs', () => {
       const norm = (t: string | null | undefined) => (t ?? '').replace(/\s+/g, ' ').trim();
-      const scan = () => {
-        document.querySelectorAll('.con-notif').forEach((el) => {
-          const sign = Array.from(el.classList).find((c) => c.startsWith('con-notif--sign-')) ?? '';
-          const variant = Array.from(el.classList).find((c) => c.startsWith('notification-card--variant-')) ?? '';
-          const band = norm((el.querySelector('.con-notif__you') as HTMLElement | null)?.innerText);
-          const text = norm((el as HTMLElement).innerText).slice(0, 200);
-          const key = `${variant}|${sign}|${band}|${text}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            w.__notifs!.push({variant, sign, band, text});
-          }
-        });
-      };
-      new MutationObserver(scan).observe(document.body, {childList: true, subtree: true, characterData: true});
-      setInterval(scan, 150);
-    });
+      return Array.from(document.querySelectorAll('.con-notif')).map((el) => ({
+        variant: Array.from(el.classList).find((c) => c.startsWith('notification-card--variant-')) ?? '',
+        sign: Array.from(el.classList).find((c) => c.startsWith('con-notif--sign-')) ?? '',
+        band: norm((el.querySelector('.con-notif__you') as HTMLElement | null)?.innerText),
+        text: norm((el as HTMLElement).innerText).slice(0, 200),
+      }));
+    }, {max: 20_000});
+    const everyCard = (records: ReadonlyArray<Array<NotifCard>>): Array<NotifCard> => {
+      const byKey = new Map<string, NotifCard>();
+      for (const card of records.flat()) {
+        byKey.set(`${card.variant}|${card.sign}|${card.band}|${card.text}`, card);
+      }
+      return [...byKey.values()];
+    };
 
     let moved: {steps: number, heat: number} | undefined;
-    let seenCards: Array<Record<string, string>> = [];
+    let seenCards: Array<NotifCard> = [];
 
     await openConsole(page, id, '');
     await waitForBoardHome(page, 30);
-    await armRecorder();
+    const notifs = await armRecorder();
 
     // The bot's Solo Delta Project resolution fires on its FIRST turn of a
     // generation, and its Power / associated-tag tracks only become eligible
@@ -746,31 +744,29 @@ test.describe('Social Heating — MarsBot’s movement · fhd', () => {
           console.log('[pass] answered the research buy over the API (bought nothing)');
         }
       }
-      for (let i = 0; i < 60; i++) {
+      // The SERVER, polled (≈ 30 s): the bot's marker moved inside this generation, or the round rolled over without
+      // a move (try the next one). The sample that decided is kept — a pair inside ONE generation is the reading.
+      const decided: {cur?: BotSample} = {};
+      await expect.poll(async () => {
         const cur = await sample();
-        if (cur.botPosition > before.botPosition && cur.generation === before.generation) {
-          moved = {steps: cur.botPosition - before.botPosition, heat: cur.heat - before.heat};
-          break;
-        }
-        if (cur.generation !== before.generation) {
-          break; // the round rolled over without a move — try the next one
-        }
-        await page.waitForTimeout(500);
+        decided.cur = cur;
+        return (cur.botPosition > before.botPosition && cur.generation === before.generation) || cur.generation !== before.generation;
+      }, {timeout: 30_000, intervals: [500]}).toBe(true).catch(() => undefined);
+      const cur = decided.cur;
+      if (cur !== undefined && cur.botPosition > before.botPosition && cur.generation === before.generation) {
+        moved = {steps: cur.botPosition - before.botPosition, heat: cur.heat - before.heat};
       }
       if (moved === undefined) {
         await waitForBoardHome(page, 40);
       }
     }
 
-    // Let the turn card present before reading what was recorded.
-    for (let i = 0; i < 40 && moved !== undefined; i++) {
-      seenCards = await page.evaluate(() =>
-        (window as unknown as {__notifs?: Array<Record<string, string>>}).__notifs ?? []);
-      if (seenCards.some((n) => n.band.includes(`+${moved!.steps}`))) {
-        break;
-      }
-      await page.waitForTimeout(500);
+    // Let the turn card present before reading what was recorded — a STATE of the record (bounded).
+    if (moved !== undefined) {
+      const steps = moved.steps;
+      await notifs.waitFor((cards) => cards.some((n) => n.band.includes(`+${steps}`)), {timeoutMs: 25_000}).catch(() => undefined);
     }
+    seenCards = everyCard(await notifs.values());
 
     expect(moved, 'MarsBot never advanced on the Hydronetwork').toBeDefined();
     // ONE heat per ACTUAL row the bot took — the same rule a human move obeys,

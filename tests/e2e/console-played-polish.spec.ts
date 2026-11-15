@@ -133,7 +133,7 @@ test.describe(`«РАЗЫГРАНО» polish · ${PRESET.id}`, () => {
     });
     await press(page, 'Enter', 200);
     await expect(page.locator('.con-played-cat'), 'the category scene mounts — never a shortcut to the viewer').toHaveCount(1, {timeout: 8_000});
-    expect(await page.locator('dialog.con-zoom[open]').count(), 'no fullscreen before the scene').toBe(0);
+    await expect.poll(() => page.locator('dialog.con-zoom[open]').count(), {message: 'no fullscreen before the scene'}).toBe(0);
     await expect(page.locator('.con-played-cat--framed'), 'the card landed').toHaveCount(1, {timeout: 15_000});
     await settle(page).catch(() => undefined);
     const flips = (await readTransient<number | null>(page, 'p88-flip')).map((x) => x.v).filter((v): v is number => v !== null);
@@ -222,7 +222,7 @@ test.describe(`«РАЗЫГРАНО» polish · ${PRESET.id}`, () => {
     await focusStack(page, 'prelude');
     await press(page, 'Enter', 1500);
     await expect(page.locator('.con-played-cat'), 'A opened the CATEGORY').toHaveCount(1, {timeout: 10_000});
-    expect(await page.locator('.con-draftws').count(), 'the draft did NOT come back').toBe(0);
+    await expect.poll(() => page.locator('.con-draftws').count(), {message: 'the draft did NOT come back'}).toBe(0);
     await shoot(page, 'm-category-over-collapsed-draft');
     await press(page, 'Escape', 1600);
     await expect(page.locator('.con-played-cat')).toHaveCount(0, {timeout: 15_000});

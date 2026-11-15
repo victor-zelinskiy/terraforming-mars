@@ -428,12 +428,12 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 500);
       await expect(page.locator('.con-ptsel'), 'answered').toHaveCount(0);
       expect(await text(page, `${composer} .con-composer__row`), 'the source row: the role and this card\'s 2 → 1').toMatch(/Карта-источник[\s\S]*2\s*→\s*1/);
-      expect(await page.locator(`${composer} .con-composer__branches .con-vchoice__opt`).count(), 'two variants').toBe(2);
+      await expect.poll(() => page.locator(`${composer} .con-composer__branches .con-vchoice__opt`).count(), {message: 'two variants'}).toBe(2);
       // PL-074 — the price both variants share is printed ONCE, on the price side, before a variant is chosen; the
       // variant cards read only what each gives.
       expect(await text(page, `${composer} .con-composer__hero`), 'the formula states the common price').toMatch(/Будет списано/);
-      expect(await page.locator(`${composer} .con-composer__branches .con-vchoice__opt .action-effect-chip--cost`).count(), 'no variant card repeats it').toBe(0);
-      expect(await page.locator(`${composer} .con-composer__branches .con-vchoice__opt .action-effect-chip--gain`).count(), 'each card keeps its result').toBeGreaterThanOrEqual(2);
+      await expect.poll(() => page.locator(`${composer} .con-composer__branches .con-vchoice__opt .action-effect-chip--cost`).count(), {message: 'no variant card repeats it'}).toBe(0);
+      await expect.poll(() => page.locator(`${composer} .con-composer__branches .con-vchoice__opt .action-effect-chip--gain`).count(), {message: 'each card keeps its result'}).toBeGreaterThanOrEqual(2);
       await pickVariant(page, 0);
       await toCommitRow(page);
       expect(seen.posts, 'nothing sent before A').toEqual([]);
@@ -660,7 +660,7 @@ for (const preset of PRESETS) {
       await openComposer(page, CARD);
       const refused = page.locator(`${composer} .con-composer__branches .con-vchoice__reason`);
       await expect(refused, 'one variant refused').toHaveCount(1);
-      expect(await refused.textContent(), 'with its reason').toContain('Нет вашей карты для мехов');
+      await expect.poll(() => refused.textContent(), {message: 'with its reason'}).toContain('Нет вашей карты для мехов');
       await pickCard(page, /Выберите карту-источник/, 'self');
       await expect(page.locator(`${composer} .con-composer__row`), 'no target row — the source alone').toHaveCount(1);
       await toCommitRow(page);

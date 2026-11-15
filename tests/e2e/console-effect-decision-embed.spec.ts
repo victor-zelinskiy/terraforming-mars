@@ -21,14 +21,21 @@
  *      draw follows the answer directly. It is the shape that proves the tail
  *      is HANDED ON at a submit rather than retracted.
  *
- * Watched FRAME BY FRAME, because every failure guarded here is a one-frame
- * ownership question: «did the workspace let go before its own effect was
- * finished?».
+ * RECORDED STATE BY STATE (FLAKE ZERO — a witness armed before the confirm,
+ * `settled`: every state a task leaves), because every failure guarded here is
+ * a one-frame ownership question: «did the workspace let go before its own
+ * effect was finished?». The driver only DRIVES (each press act → verify on the
+ * chain's own state); what the chain was is read off the record.
  */
 import {expect, test, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
-import {answerTableQuestions, bootIntoGame, cinematicBeat, press, settle, soloGameConfig, TableQuestionAnswer} from './consoleStart';
+import {
+  answerTableQuestions, bootIntoGame, cinematicBeat, finiteMotion, press, pressUntil, settle, soloGameConfig,
+  TableQuestionAnswer, walkFocusUntil,
+} from './consoleStart';
+import {armWitness, Witness, witnessOf} from './witness';
+import type {ObservedSample} from './observeCore';
 
 const OUT_DIR = path.join(__dirname, '..', '..', 'screenshots', 'effect-decision-embed');
 
@@ -55,24 +62,74 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
+/** One state of the chain as the page painted it — what the record keeps and what the driver reads to press. */
+type ChainState = {
+  hand: boolean,
+  decision: boolean,
+  decisionEmbedded: boolean,
+  reveal: boolean,
+  revealEmbedded: boolean,
+  /** The overlay stands in its own STANDALONE (full-bleed) mode. */
+  revealStandalone: boolean,
+  viewer: boolean,
+  /** The pick BRIDGE has borrowed the shelf — the workspace's own browse layer IS the picker («--stagepaused» →
+   *  data-flow) — or an album that IS the question (its decline plate in the question line). */
+  picking: boolean,
+  focusedDecisionRow: boolean,
+  /** The decision's cursor stands on its DECLINE row. */
+  onDecline: boolean,
+  /** The workspace crumb's live tail — the ONE segment allowed to change. */
+  stage: string,
+  /** The reveal's own take state (what a take changes). */
+  revealSig: string,
+};
+
 /**
- * The workspace crumb's live tail — the ONE segment allowed to change.
+ * The reader of {@link ChainState} — in the page, self-contained.
  *
- * ⚠️ EVERY step node, not the first. The tail CROSSFADES (deliberately, never
+ * ⚠️ The crumb tail is EVERY step node, not the first. The tail CROSSFADES (deliberately, never
  * `mode="out-in"` — see `ConsoleWsHead`), so the outgoing and incoming words
  * coexist for the whole transition, and reading `querySelector` there reports
  * the stage the player has just LEFT: this probe first accused the flow of
  * never naming its effect while the word was on screen beside the old one.
  * The LAST node is the incoming one.
  */
-async function crumbTail(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const steps = Array.from(document.querySelectorAll(
-      '.con-wshead__layer--deep:not(.con-wshead__layer--out) .con-wshead__step'))
-      .map((el) => (el.textContent ?? '').trim())
-      .filter((t) => t !== '');
-    return steps[steps.length - 1] ?? '';
-  });
+function readChain(): ChainState {
+  const steps = Array.from(document.querySelectorAll(
+    '.con-wshead__layer--deep:not(.con-wshead__layer--out) .con-wshead__step'))
+    .map((el) => (el.textContent ?? '').trim())
+    .filter((t) => t !== '');
+  const reveal = document.querySelector('.con-reveal');
+  return {
+    hand: document.querySelector('.con-hand__frame') !== null,
+    decision: document.querySelector('.con-decision') !== null,
+    decisionEmbedded: document.querySelector('.con-hand__outcome .con-decision') !== null,
+    reveal: reveal !== null,
+    revealEmbedded: document.querySelector('.con-hand__outcome .con-reveal') !== null,
+    // A FULL-BLEED band is the overlay in its own standalone mode — never the embedded one caught between two tasks of
+    // its host's teardown (the frame leaves a task before its teleported stage does).
+    revealStandalone: document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null,
+    viewer: document.querySelector('dialog.con-zoom[open]') !== null,
+    picking: document.querySelector('.con-hand[data-flow="picking"], .con-hand__question [data-decline-plate]') !== null,
+    focusedDecisionRow: document.querySelector('.con-decision .con-vchoice__opt--focused') !== null,
+    onDecline: document.querySelector('.con-decision .con-vchoice__opt--focused[data-decision-role="decline"]') !== null,
+    stage: steps[steps.length - 1] ?? '',
+    revealSig: reveal === null ? '' :
+      `${reveal.querySelectorAll('[data-zoom-slot]').length}|${reveal.querySelectorAll('.con-reveal__takenmark').length}|${reveal.getAttribute('data-take') ?? ''}`,
+  };
+}
+
+const CHAIN_WITNESS = 'effect-chain';
+
+/** Arm the chain's record — before the press that starts it. `settled`: «the workspace never let go while its own
+ *  effect was asking» and «the decision never stood as a band of its own» are coexistence claims. */
+async function armChainWitness(page: Page): Promise<Witness<ChainState>> {
+  return armWitness<ChainState>(page, CHAIN_WITNESS, readChain, {settled: true});
+}
+
+/** The motion of an arrival at rest (bounded — a screenshot's pacing, never a claim). */
+async function motionAtRest(page: Page): Promise<void> {
+  await expect.poll(() => finiteMotion(page), {timeout: 5_000}).toBe(0).catch(() => undefined);
 }
 
 async function bootWithHand(page: Page, request: APIRequestContext, cards: ReadonlyArray<string>): Promise<void> {
@@ -86,33 +143,35 @@ async function bootWithHand(page: Page, request: APIRequestContext, cards: Reado
  * Open the hand workspace, walk the cursor onto `card`, descend into it, answer
  * the table's questions in its composer and CONFIRM the play — the ordinary
  * console road, verified at every step (a press landing on a busy frame is
- * deliberately consumed).
+ * deliberately consumed). `beforeConfirm` arms what must record the play from
+ * before its press.
  */
-async function playFromHand(page: Page, card: string, answers: Readonly<Record<string, TableQuestionAnswer>> = {}): Promise<void> {
-  for (let i = 0; i < 6 && await page.locator('.con-hand__frame').count() === 0; i++) {
+async function playFromHand(page: Page, card: string, answers: Readonly<Record<string, TableQuestionAnswer>> = {},
+  beforeConfirm?: (page: Page) => Promise<unknown>): Promise<void> {
+  const frame = page.locator('.con-hand__frame');
+  // RT wheel → the centre slot (the hand): each round verified by the frame standing, given the press's whole window.
+  for (let i = 0; i < 6 && await frame.count() === 0; i++) {
     await press(page, 'Period', 800);
-    await press(page, 'Enter', 1100);
+    await pressUntil(page, 'Enter', async () => await frame.count() > 0, {tries: 1, settleMs: 1100});
   }
-  await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 20_000});
+  await expect(frame).toBeVisible({timeout: 20_000});
   await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
-  await page.waitForTimeout(800);
+  // The dock-to-hand reveal gates input on purpose — the hand is walked once it has landed.
+  await page.locator('.con-hand:not(.con-hand--transit)').first().waitFor({state: 'visible', timeout: 20_000}).catch(() => undefined);
 
-  const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${card}"]`).count();
-  let lastSelected = '';
-  for (let i = 0; i < 60 && await onTarget() === 0; i++) {
-    const selected = await page.evaluate(() =>
-      document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
-    await press(page, selected === lastSelected && i > 0 ? 'ArrowDown' : 'ArrowRight', 260);
-    lastSelected = selected;
-  }
-  expect(await onTarget(), `the hand cursor never reached ${card}`).toBeGreaterThan(0);
-  await press(page, 'Enter', 900);
+  const onTarget = page.locator(`.con-hand__slot--selected[data-zoom-slot="${card}"]`);
+  const selected = () => page.evaluate(() =>
+    document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
+  await walkFocusUntil(page, async () => await onTarget.count() > 0, selected, 60, 260);
+  await expect(onTarget, `the hand cursor never reached ${card}`).not.toHaveCount(0);
+  await pressUntil(page, 'Enter', async () => await page.locator('.con-hand__stage .con-composer--play').count() > 0, {tries: 1, settleMs: 900});
   await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 20_000});
   await settle(page);
   await answerTableQuestions(page, answers);
   await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 20_000});
-  await page.waitForTimeout(1000);
-  await page.keyboard.press('Enter');
+  await settle(page);
+  await beforeConfirm?.(page);
+  await press(page, 'Enter', 400);
 }
 
 type ChainLog = {
@@ -141,11 +200,79 @@ type ChainOpts = {
 };
 
 /**
- * Watch the whole episode after the confirm, pressing A through it (every stage
- * of this chain is answered with A by contract) and recording — per frame — WHO
- * owns the screen and what the crumb's tail says.
+ * Drive the whole episode after the confirm, pressing A through it (every stage
+ * of this chain is answered with A by contract) — each press act → verify on
+ * the chain's own state (the press's whole window before the next look) — and
+ * read off the RECORD, state by state, WHO owned the screen and what the
+ * crumb's tail said. The record is armed BEFORE the confirm (`armChainWitness`);
+ * the driver never decides what happened, only what to press next.
  */
 async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts = {}): Promise<ChainLog> {
+  let shotDecision = false;
+  let shotPick = false;
+  let shotDraw = false;
+  for (let i = 0; i < 160; i++) {
+    const s = await page.evaluate(readChain);
+    if (!s.hand) {
+      // The workspace LEFT — the chain is over once the console is at rest and the frame has not come back.
+      await settle(page);
+      if (!(await page.evaluate(readChain)).hand) {
+        break;
+      }
+      continue;
+    }
+    // The screenshots are evidence of the arrival frames (diagnostic only — every claim is judged on the record).
+    if (s.decisionEmbedded && !shotDecision) {
+      shotDecision = true;
+      // The ARRIVAL frame (the relieved tableau is still dissolving under it)
+      // and the SETTLED one — the handoff is only continuous if BOTH read as
+      // one surface.
+      await shoot(page, `${shotPrefix}-arriving`);
+      await motionAtRest(page);
+      await shoot(page, `${shotPrefix}-decision`);
+    }
+    if (s.picking && !shotPick) {
+      shotPick = true;
+      await shoot(page, `${shotPrefix}-discard`);
+    }
+    if (s.revealEmbedded && !shotDraw) {
+      shotDraw = true;
+      await shoot(page, `${shotPrefix}-draw`);
+    }
+    // A drives the whole chain: take the offer, discard the focused card, take
+    // the drawn one. Every one of them is «A» by contract — with two OPT-IN
+    // variations that mirror real gestures: RT takes a whole batch at once
+    // («Забрать все» — the reported bug's own press), and a declining player
+    // walks the cursor to the decline row before pressing.
+    let key = '';
+    let settleMs = 800;
+    if (s.revealEmbedded && opts.takeAll === true) {
+      key = 'Period';
+    } else if (s.picking && opts.decline === true) {
+      // The decline is a BUTTON (2026-10-13): RT in the album, whose question line names it.
+      key = 'Period';
+    } else if (s.focusedDecisionRow && opts.decline === true) {
+      key = s.onDecline ? 'Enter' : 'ArrowDown';
+      settleMs = s.onDecline ? 800 : 300;
+    } else if (s.focusedDecisionRow || s.picking || s.revealEmbedded) {
+      key = 'Enter';
+    }
+    if (key === '') {
+      // Nothing to answer yet (a beat between two stages): wait for the next state the chain ASKS — or its leave.
+      await expect.poll(async () => {
+        const n = await page.evaluate(readChain);
+        return !n.hand || n.focusedDecisionRow || n.picking || n.revealEmbedded;
+      }, {timeout: 5_000}).toBe(true).catch(() => undefined);
+      continue;
+    }
+    const before = JSON.stringify(s);
+    await pressUntil(page, key, async () => JSON.stringify(await page.evaluate(readChain)) !== before, {tries: 1, settleMs});
+  }
+  return foldChain(await witnessOf<ChainState>(page, CHAIN_WITNESS).stop());
+}
+
+/** What the record says the chain was — the same per-state reading the old frame loop made, on every state kept. */
+function foldChain(samples: ReadonlyArray<ObservedSample<ChainState>>): ChainLog {
   const log: ChainLog = {
     decisionEmbedded: false,
     decisionStandaloneFrames: 0,
@@ -166,34 +293,15 @@ async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts 
       log.stages.push(stage);
     }
   };
-  let shotDecision = false;
-  let shotDraw = false;
-  let goneStreak = 0;
   /** The chain's first surface has shown — the play's OWN stage is over. A
-   *  frame with nothing on it after that is a hand-off gap between two stages
+   *  state with nothing on it after that is a hand-off gap between two stages
    *  (batch gone, decision not mounted yet), never the play again. */
   let chainStarted = false;
-  for (let i = 0; i < 160; i++) {
-    const s = await page.evaluate(() => {
-      const decision = document.querySelector('.con-decision');
-      const reveal = document.querySelector('.con-reveal');
-      return {
-        hand: document.querySelector('.con-hand__frame') !== null,
-        decision: decision !== null,
-        decisionEmbedded: document.querySelector('.con-hand__outcome .con-decision') !== null,
-        reveal: reveal !== null,
-        revealEmbedded: document.querySelector('.con-hand__outcome .con-reveal') !== null,
-        viewer: document.querySelector('dialog.con-zoom[open]') !== null,
-        // The pick BRIDGE has borrowed the shelf — the workspace's own browse
-        // layer IS the picker («--stagepaused» → data-flow).
-        // (…or an album that IS the question — its decline plate in the question line, with or without a descent.)
-        picking: document.querySelector('.con-hand[data-flow="picking"], .con-hand__question [data-decline-plate]') !== null,
-        focusedDecisionRow: document.querySelector('.con-decision .con-vchoice__opt--focused') !== null,
-      };
-    });
-    const stage = await crumbTail(page);
+  const t0 = samples[0]?.t ?? 0;
+  for (const {t, v: s} of samples) {
+    const stage = s.stage;
     noteStage(stage);
-    log.trace.push(`${i} h:${s.hand ? 1 : 0} d:${s.decision ? 1 : 0}/${s.decisionEmbedded ? 'e' : '-'} ` +
+    log.trace.push(`${t - t0} h:${s.hand ? 1 : 0} d:${s.decision ? 1 : 0}/${s.decisionEmbedded ? 'e' : '-'} ` +
       `p:${s.picking ? 1 : 0} r:${s.reveal ? 1 : 0}/${s.revealEmbedded ? 'e' : '-'} «${stage}»`);
 
     if (s.decision || s.picking || s.reveal) {
@@ -205,24 +313,15 @@ async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts 
       // last-write capture here reads the chain's first stage, not the play's.
       log.stageAtPlay = stage;
     }
-    // STAGE CAPTURES ARE FIRST-FRAME, deliberately. The tail moves FORWARD at
+    // STAGE CAPTURES ARE FIRST-STATE, deliberately. The tail moves FORWARD at
     // a hand-off (the take names the coming effect while the batch is still
     // painting its leave — «they never coexist» is true of the decision, not
-    // of the DOM), so the LAST frame of a departing surface legitimately reads
+    // of the DOM), so the LAST state of a departing surface legitimately reads
     // the NEXT stage's name. What each stage was ANNOUNCED as is its first
-    // frame's read.
+    // state's read.
     if (s.decisionEmbedded) {
       log.decisionEmbedded = true;
       log.stageAtDecision = log.stageAtDecision === '' ? stage : log.stageAtDecision;
-      if (!shotDecision) {
-        shotDecision = true;
-        // The ARRIVAL frame (the relieved tableau is still dissolving under it)
-        // and the SETTLED one — the handoff is only continuous if BOTH read as
-        // one surface.
-        await shoot(page, `${shotPrefix}-arriving`);
-        await page.waitForTimeout(900);
-        await shoot(page, `${shotPrefix}-decision`);
-      }
     }
     if (s.decision && !s.decisionEmbedded) {
       log.decisionStandaloneFrames++;
@@ -231,53 +330,18 @@ async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts 
       log.decisionOrphanFrames++;
     }
     if (s.picking) {
-      if (!log.pickedInPlace) {
-        await shoot(page, `${shotPrefix}-discard`);
-      }
       log.pickedInPlace = true;
       log.stageAtPick = log.stageAtPick === '' ? stage : log.stageAtPick;
     }
     if (s.revealEmbedded) {
       log.drawEmbedded = true;
       log.stageAtDraw = log.stageAtDraw === '' ? stage : log.stageAtDraw;
-      if (!shotDraw) {
-        shotDraw = true;
-        await shoot(page, `${shotPrefix}-draw`);
-      }
     }
-    if (s.reveal && !s.revealEmbedded) {
+    if (s.revealStandalone) {
       log.revealStandaloneFrames++;
     }
     if (s.reveal && s.viewer) {
       log.viewerFrames++;
-    }
-
-    if (!s.hand) {
-      goneStreak++;
-      if (goneStreak >= 12) {
-        break;
-      }
-    } else {
-      goneStreak = 0;
-    }
-    // A drives the whole chain: take the offer, discard the focused card, take
-    // the drawn one. Every one of them is «A» by contract — with two OPT-IN
-    // variations that mirror real gestures: RT takes a whole batch at once
-    // («Забрать все» — the reported bug's own press), and a declining player
-    // walks the cursor to the decline row before pressing.
-    if (s.revealEmbedded && opts.takeAll === true) {
-      await press(page, 'Period', 800);
-    } else if (s.picking && opts.decline === true) {
-      // The decline is a BUTTON (2026-10-13): RT in the album, whose question line names it.
-      await press(page, 'Period', 800);
-    } else if (s.focusedDecisionRow && opts.decline === true) {
-      const onDecline = await page.evaluate(() =>
-        document.querySelector('.con-decision .con-vchoice__opt--focused[data-decision-role="decline"]') !== null);
-      await press(page, onDecline ? 'Enter' : 'ArrowDown', onDecline ? 800 : 300);
-    } else if (s.focusedDecisionRow || s.picking || s.revealEmbedded) {
-      await press(page, 'Enter', 800);
-    } else {
-      await page.waitForTimeout(250);
     }
   }
   return log;
@@ -343,7 +407,7 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
    */
   test('«Марсианский университет»: answered before the press — the draw arrives in the same zone, one crumb', async ({page, request}) => {
     await bootWithHand(page, request, [MARS_UNIVERSITY, ...FILLER]);
-    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'discard'});
+    await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'discard'}, armChainWitness);
     const log = await watchEffectChain(page, 'mu');
     console.log(`[mars university trace]\n${log.trace.join('\n')}`);
     console.log(`[crumb stages] ${log.stages.join(' › ')}`);
@@ -374,10 +438,10 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     // takes one silently), so this workspace finishes on its own.
     await playFromHand(page, OLYMPUS);
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
-    await page.waitForTimeout(1500);
+    await settle(page); // the first play's leave and landing at rest before the next one opens
 
     // The SECOND science tag is the one the conference answers — «remove to draw», in the composer.
-    await playFromHand(page, SCIENCE_TAG, {[OLYMPUS]: 'first'});
+    await playFromHand(page, SCIENCE_TAG, {[OLYMPUS]: 'first'}, armChainWitness);
     const log = await watchEffectChain(page, 'olympus');
     console.log(`[olympus trace]\n${log.trace.join('\n')}`);
     console.log(`[crumb stages] ${log.stages.join(' › ')}`);
@@ -422,15 +486,22 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     // workspace: the university's one answer is a card from the hand, so it stands as the ALBUM (the shelf picks in
     // place), its decline named in the album's question line — no decision screen before it.
     const embedded = page.locator('.con-hand .con-hand__question [data-decline-plate]');
+    const batch = page.locator('.con-hand__outcome .con-reveal');
     for (let i = 0; i < 12 && await embedded.count() === 0; i++) {
       await page.locator('.con-hand__outcome .con-reveal, .con-hand__question [data-decline-plate]').first().waitFor({timeout: 60_000});
-      if (await page.locator('.con-hand__outcome .con-reveal').count() > 0) {
-        await press(page, 'Period', 800);
+      if (await batch.count() > 0) {
+        // RT takes the batch — verified by the reveal's own take state moving (busy, a card taken, or the reveal gone);
+        // then its leave runs out, so a second RT can never land on the album the take hands over to (RT there DECLINES).
+        const takeSig = () => batch.first().evaluate((r) =>
+          `${r.getAttribute('data-take') ?? ''}|${r.querySelectorAll('.con-reveal__takenmark').length}`, undefined, {timeout: 1_000}).catch(() => 'gone');
+        const before = await takeSig();
+        await pressUntil(page, 'Period', async () => await takeSig() !== before, {tries: 1, settleMs: 800});
+        await batch.first().waitFor({state: 'detached', timeout: 15_000}).catch(() => undefined);
       }
     }
     await expect(embedded).toBeVisible({timeout: 60_000});
     await expect(page.locator('.con-decision'), 'no decision screen before the album').toHaveCount(0);
-    await page.waitForTimeout(900); // let the arrival settle before minimizing
+    await motionAtRest(page); // the arrival at rest before minimizing
     await shoot(page, 'collapse-before');
 
     // B = «свернуть». The stack parks at full depth and the board-home card
@@ -452,18 +523,28 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     await shoot(page, 'collapse-restored');
 
     // …and it STAYS served. The strand guard is debounced over two 1 Hz passes,
-    // so a broken restore needs a few seconds to shout — watch that whole window
-    // rather than sampling the frame right after the press.
-    for (let i = 0; i < 8; i++) {
-      await page.waitForTimeout(600);
-      expect(await page.locator('.con-stranded').count(),
-        'no stranded-prompt guard over a restored embedded question').toBe(0);
-      expect(await page.locator('.con-decision').count(),
-        'the restored question never fell back to a decision band of its own').toBe(0);
-    }
+    // so a broken restore needs a few seconds to shout — the WHOLE window is
+    // RECORDED (`armWitness`, every state the page stands in), and the window is
+    // the detector's own: five of its passes after the restore
+    // (`__conScreenShadow` counts every pass it judges), never a wall-clock pause.
+    const served = await armWitness<{stranded: number, decision: number}>(page, 'collapse-restore-served', () => ({
+      stranded: document.querySelectorAll('.con-stranded').length,
+      decision: document.querySelectorAll('.con-decision').length,
+    }));
+    const detectorPasses = () => page.evaluate(() => {
+      const shadow = (window as unknown as {__conScreenShadow?: () => {stats?: {verdicts?: Record<string, number>}}}).__conScreenShadow?.();
+      return Object.values(shadow?.stats?.verdicts ?? {}).reduce((a, b) => a + b, 0);
+    });
+    const passesAtRestore = await detectorPasses();
+    await expect.poll(async () => await detectorPasses() - passesAtRestore,
+      {timeout: 20_000, message: 'the leak detector judged the restored screen over several of its passes'}).toBeGreaterThanOrEqual(5);
+    const servedStates = (await served.stop()).map((s) => s.v);
+    expect(servedStates.some((s) => s.stranded > 0), 'no stranded-prompt guard over a restored embedded question').toBe(false);
+    expect(servedStates.some((s) => s.decision > 0), 'the restored question never fell back to a decision band of its own').toBe(false);
 
     // The round trip cost the flow nothing: it still finishes, and it still
-    // finishes by LEAVING.
+    // finishes by LEAVING — recorded from here on.
+    await armChainWitness(page);
     const log = await watchEffectChain(page, 'collapse-resume');
     console.log(`[collapse+resume trace]\n${log.trace.join('\n')}`);
     expect(log.decisionStandaloneFrames,
@@ -498,10 +579,10 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     // workspace finishes.
     await playFromHand(page, MARS_UNIVERSITY, {[MARS_UNIVERSITY]: 'decline'});
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
-    await page.waitForTimeout(1500);
+    await settle(page); // the first play's leave and landing at rest before the next one opens
 
     // The SECOND play is the subject: batch + effect, one response.
-    await playFromHand(page, DRAW_AND_TAG);
+    await playFromHand(page, DRAW_AND_TAG, {}, armChainWitness);
     const log = await watchEffectChain(page, 'batch-effect', {takeAll: true, decline: true});
     console.log(`[batch+effect trace]\n${log.trace.join('\n')}`);
     console.log(`[crumb stages] ${log.stages.join(' › ')}`);

@@ -223,7 +223,7 @@ test.describe('Modular Floodgates (DP11) · fhd', () => {
     // one card («Вариант 1/2» + «или» join) — neither refused.
     const tiles = page.locator('.con-cardactions__tile');
     await expect(tiles, 'both variants stand as tiles').toHaveCount(2, {timeout: 10_000});
-    expect(await page.locator('.con-cardactions__tile--rules').count(), 'no variant is rule-dead').toBe(0);
+    await expect.poll(() => page.locator('.con-cardactions__tile--rules').count(), {message: 'no variant is rule-dead'}).toBe(0);
     await shoot(page, '01-two-variants');
 
     // Walk the grid until the DEPLOY variant (Option 2/2) is focused.
@@ -253,7 +253,7 @@ test.describe('Modular Floodgates (DP11) · fhd', () => {
     // the cell in front of their marker — and NO movement grammar.
     await expect(page.locator('.con-hydro__esprow')).toHaveCount(1);
     await expect(page.locator('.con-hydro__gate--ghost')).toHaveCount(1);
-    expect(await page.locator('.con-hydro__ghostlink-path').count(), 'no movement arc — nothing moves').toBe(0);
+    await expect.poll(() => page.locator('.con-hydro__ghostlink-path').count(), {message: 'no movement arc — nothing moves'}).toBe(0);
     await shoot(page, '02-target-pick');
 
     // A on the (focused) legal candidate returns the pick to the composer.

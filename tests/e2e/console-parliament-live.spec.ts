@@ -296,7 +296,7 @@ for (const preset of PRESETS) {
       const crumb = (await crumbText(page)).toUpperCase();
       expect(crumb, `one crumb: the menu, the law (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
       expect(crumb).toContain('ЖИВЫЕ ЭКСПЕРИМЕНТЫ');
-      expect(await page.locator(READY).count(), 'an empty slot arms nothing').toBe(0);
+      await expect.poll(() => page.locator(READY).count(), {message: 'an empty slot arms nothing'}).toBe(0);
       await shoot(page, preset.id, '02-law-stage-empty-slot');
 
       // ── ③ A ON THE SLOT: the ALBUM stands up as a step of the stage, over the law's PROMISE.
@@ -538,7 +538,7 @@ for (const preset of PRESETS) {
         'the law\'s commit is taken').toBeTruthy();
       await expect(page.locator(voteMode), 'the law\'s commit opens the vote inside its stage').toHaveCount(1, {timeout: 30_000});
       await settle(page, {timeoutMs: 20_000});
-      expect(await page.locator('.con-parl').count(), 'ONE Parliament — the hosted one').toBe(1);
+      await expect.poll(() => page.locator('.con-parl').count(), {message: 'ONE Parliament — the hosted one'}).toBe(1);
       expect(posts, 'the law\'s commit sent NOTHING — the vote is still ahead').toEqual([]);
       expect((await wireOf(request, playerId)).game.gameAge, 'the server\'s change counter stands still').toBe(before.game.gameAge);
       const voteCrumb = (await crumbText(page)).toUpperCase();

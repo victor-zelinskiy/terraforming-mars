@@ -152,7 +152,7 @@ test.describe(`MarsBot × random milestones and awards · ${PROFILE.id}`, () => 
     const briefing = page.locator('[data-bot-briefing]');
     await expect(briefing, 'the set\'s briefing stands in the bot screen').toHaveCount(1);
     await expect(briefing.locator('.con-botscr__prose').first()).not.toBeEmpty();
-    expect(await briefing.innerText(), 'no raw template').not.toMatch(/\$\{\d\}/);
+    await expect.poll(() => briefing.innerText(), {message: 'no raw template'}).not.toMatch(/\$\{\d\}/);
     await shoot(page, '10-briefing');
     await openBotBoardDetail(page);
     const mat = page.locator('.mb-tracks');
@@ -181,7 +181,7 @@ test.describe(`MarsBot × random milestones and awards · ${PROFILE.id}`, () => 
     const rule = page.locator('.con-mafocus [data-ma-bot-rule]');
     await expect(rule, 'the inspected milestone names the bot\'s rule').toHaveCount(1);
     expect((await rule.innerText()).trim().length).toBeGreaterThan(0);
-    expect(await rule.innerText(), 'no raw template').not.toMatch(/\$\{\d\}/);
+    await expect.poll(() => rule.innerText(), {message: 'no raw template'}).not.toMatch(/\$\{\d\}/);
     await shoot(page, '12-milestone-bot-rule');
     for (let i = 0; i < 4 && await page.locator('.con-ma').count() > 0; i++) {
       await press(page, 'Escape', 900);

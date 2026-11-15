@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootWithCards, focusCard, playCardFromHand, press, soloGameConfig, turnChip, waitForTurn} from './consoleStart';
+import {armWitness, pageNow} from './witness';
 
 /**
  * MARSBOT TURN LATENCY — the client's own numbers for «сколько бот думает».
@@ -163,7 +164,7 @@ test.describe('MarsBot turn latency', () => {
     //    waiting out a card's lifetime.
     const card = page.locator('.con-notif.notification-card--variant-bot-turn');
     await card.first().waitFor({timeout: 15_000}).catch(() => {});
-    expect(await card.count(), 'the bot-turn card never presented during the run').toBeGreaterThan(0);
+    await expect.poll(() => card.count(), {message: 'the bot-turn card never presented during the run'}).toBeGreaterThan(0);
     const before = (await diag(page)).map((t) => t.key);
     await press(page, 'Escape', 900);
     await pumpFrames(page, 1_200);
@@ -202,11 +203,42 @@ test.describe('MarsBot turn latency', () => {
 async function handOverAndTime(page: Page, after: (p: Page) => Promise<void>): Promise<number> {
   await press(page, 'Comma', 900); // LT → the basic-actions wheel
   await press(page, 'ArrowUp', 500); // «Пропустить ход»
-  const t0 = Date.now();
+  // H — timed on the PAGE's clock: the chip and the applied game age recorded from before the press; control is back at
+  // the first moment the SERVER has moved on (a newer applied view) and the chip is the viewer's again. A lone bot turn
+  // can land in ONE view — the chip never leaves — so «it left and came back» is not the fact; «a newer view, my turn» is.
+  const chip = await armTurnChip(page);
+  const t0 = await pageNow(page);
+  const age0 = await appliedAge(page);
   await page.keyboard.press('Enter'); // ← the hand-over itself; no settle pause
   await after(page);
   await expect(turnChip(page)).toHaveCount(1, {timeout: 90_000});
-  return Date.now() - t0;
+  return backAfter(await chip.samples(), t0, age0);
+}
+
+type TurnSeen = {on: boolean, age: number};
+
+/** A presence of the viewer's turn (`selector`), recorded with the game age the page had applied at that moment. */
+function armTurnPresence(page: Page, key: string, selector: string) {
+  return armWitness<TurnSeen, string>(page, key, (sel) => ({
+    on: document.querySelector(sel) !== null,
+    age: (window as unknown as {__conReady?: () => {transport?: {gameAge?: number}}}).__conReady?.().transport?.gameAge ?? -1,
+  }), {args: selector});
+}
+
+/** The viewer's turn chip (`turnChip`), recorded. */
+function armTurnChip(page: Page) {
+  return armTurnPresence(page, 'turn-chip', '.con-status__player--me.con-status__player--active .con-status__pstatus-counter');
+}
+
+/** The game age the page has applied now. */
+async function appliedAge(page: Page): Promise<number> {
+  return page.evaluate(() => (window as unknown as {__conReady?: () => {transport?: {gameAge?: number}}}).__conReady?.().transport?.gameAge ?? -1);
+}
+
+/** The page time from `t0` to the first sample with a NEWER applied view than `age0` and the presence on (Infinity: never). */
+function backAfter(samples: ReadonlyArray<{t: number, v: TurnSeen}>, t0: number, age0: number): number {
+  const back = samples.find((x) => x.t >= t0 && x.v.age > age0 && x.v.on);
+  return back === undefined ? Infinity : back.t - t0;
 }
 
 test.describe('MarsBot turn latency · inside a workspace', () => {
@@ -286,7 +318,10 @@ test.describe('MarsBot turn latency · a RUN watched from a workspace', () => {
     // Pass, then walk into the hand workspace and stay there.
     await press(page, 'Comma', 900);
     await press(page, 'ArrowDown', 500); // «Пас»
-    const t0 = Date.now();
+    // H — the run is timed on the PAGE's clock: the viewer's «active» presence recorded from before the pass.
+    const active = await armTurnPresence(page, 'viewer-active', '.con-status__player--me.con-status__player--active');
+    const t0 = await pageNow(page);
+    const age0 = await appliedAge(page);
     await page.keyboard.press('Enter');
     await press(page, 'Period', 400); // RT → the quick wheel
     await press(page, 'Enter', 600); // centre → «КАРТЫ»
@@ -316,7 +351,7 @@ test.describe('MarsBot turn latency · a RUN watched from a workspace', () => {
       }
       await pumpFrames(page, 250);
     }
-    const elapsed = Date.now() - t0;
+    const elapsed = backAfter(await active.samples(), t0, age0);
     console.log('[bot-turn-latency] pass → control back, inside a workspace:', elapsed, 'ms');
     console.log('[bot-turn-latency] foreground timeline:\n  ' + seen.join('\n  '));
     console.log('[bot-turn-latency] turns:', JSON.stringify(await diag(page)));
@@ -380,7 +415,10 @@ test.describe('MarsBot turn latency · a play that ends the turn', () => {
     const composer = page.locator('.con-composer--play');
     await composer.first().waitFor({timeout: 8_000});
 
-    const t0 = Date.now();
+    // H — timed on the PAGE's clock: the turn chip recorded from before the confirm.
+    const chip = await armTurnChip(page);
+    const t0 = await pageNow(page);
+    const age0 = await appliedAge(page);
     for (let i = 0; i < 5 && await composer.count() > 0; i++) {
       await page.keyboard.press('Enter'); // the confirm — no settle pause, the clock is running
       await pumpFrames(page, 700);
@@ -402,7 +440,7 @@ test.describe('MarsBot turn latency · a play that ends the turn', () => {
       }
       await pumpFrames(page, 250);
     }
-    const elapsed = Date.now() - t0;
+    const elapsed = backAfter(await chip.samples(), t0, age0);
     console.log('[bot-turn-latency] play-ends-turn → control back:', elapsed, 'ms');
     console.log('[bot-turn-latency] foreground timeline:\n  ' + seen.join('\n  '));
     console.log('[bot-turn-latency] turns:', JSON.stringify(await diag(page)));

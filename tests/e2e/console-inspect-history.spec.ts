@@ -133,9 +133,8 @@ for (const profile of PROFILES) {
       // second copy inside the panel was pure duplication», the command bar
       // owns the verb. The verb itself is proved where it matters, one beat
       // below: X opens the dossier.
-      expect(await page.locator('.con-cardactions .con-cardhist').count(), 'usage ledger removed from the browser').toBe(0);
-      expect(await page.locator('.con-cardactions__detail .gp-glyph').count(),
-        'no in-panel inspect hint — the command bar owns that verb').toBe(0);
+      await expect.poll(() => page.locator('.con-cardactions .con-cardhist').count(), {message: 'usage ledger removed from the browser'}).toBe(0);
+      await expect.poll(() => page.locator('.con-cardactions__detail .gp-glyph').count(), {message: 'no in-panel inspect hint — the command bar owns that verb'}).toBe(0);
       await shoot(page, `${profile.tag}-01-browser-clean`);
 
       // ── 2. X inspects the FOCUSED action (Extractor Balloons is the first

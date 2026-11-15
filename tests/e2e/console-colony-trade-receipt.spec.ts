@@ -149,8 +149,8 @@ async function openColonies(page: Page): Promise<void> {
     await key(page, 'Period', 1100); // RT — the action-categories wheel
     await key(page, 'ArrowRight', 1300); // «Торговля»
   }
-  expect(await colonies.count(), 'the colonies section did not open').toBeGreaterThan(0);
-  expect(await page.locator('.con-coltile--focused').count(), 'a colony tile is focused').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'the colonies section did not open'}).toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-coltile--focused').count(), {message: 'a colony tile is focused'}).toBeGreaterThan(0);
 }
 
 test('the committed trade presents a RECEIPT, and its closing beats take turns', async ({page, request}) => {
@@ -162,7 +162,7 @@ test('the committed trade presents a RECEIPT, and its closing beats take turns',
   await openColonies(page);
   await key(page, 'Enter', 1400); // A → the colony focus stage
   const stage = page.locator('.con-colfocus');
-  expect(await stage.count(), 'the colony focus stage did not open').toBeGreaterThan(0);
+  await expect.poll(() => stage.count(), {message: 'the colony focus stage did not open'}).toBeGreaterThan(0);
   await shoot(page, 'configure');
 
   // PRE-COMMIT the stage is a FORM: the payment paths are a real list.
@@ -228,13 +228,12 @@ test('the CARD door commits into a receipt too — the next trade never re-light
   await press(page, 'Enter', 2200); // → the colony grid, inside the workspace
   await press(page, 'Enter', 2600); // → the colony's focus stage, fee pinned
   const stage = page.locator('.con-colfocus');
-  expect(await stage.count(), 'the hosted colony focus stage opened').toBeGreaterThan(0);
+  await expect.poll(() => stage.count(), {message: 'the hosted colony focus stage opened'}).toBeGreaterThan(0);
   await shoot(page, 'card-door-configure');
 
   // PRE-COMMIT the fee is FIXED by the entry, so the list is a single locked
   // row — the other paths are unreachable, not merely unpicked.
-  expect(await page.locator('.con-colfocus__payrow').count(),
-    'the entry pins exactly one payment path').toBeLessThanOrEqual(1);
+  await expect.poll(() => page.locator('.con-colfocus__payrow').count(), {message: 'the entry pins exactly one payment path'}).toBeLessThanOrEqual(1);
 
   await armReceiptProbe(page);
   await press(page, 'KeyX', 200); // X = confirm

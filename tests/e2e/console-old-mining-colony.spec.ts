@@ -352,7 +352,7 @@ test.describe('P55 — Old Mining Colony: the colony, then the discard — two s
     expect(((await wireOf(request, id)).waitingFor?.cards ?? []).length, 'three candidates: the bought card + Pluto\'s two').toBe(3);
     // The +2 are presented first — INSIDE the colony step (its own follow-up) — and taken; only then the discard step stands.
     await page.locator('.con-reveal').first().waitFor({timeout: 40_000});
-    expect(await page.locator('.con-start__handslot').count(), 'no discard step while the draw stands').toBe(0);
+    await expect.poll(() => page.locator('.con-start__handslot').count(), {message: 'no discard step while the draw stands'}).toBe(0);
     await takeRevealCards(page);
     await shoot(page, 'D-pluto-drawn');
     await discardInStart(page, request, id);

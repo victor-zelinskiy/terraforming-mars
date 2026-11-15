@@ -214,7 +214,7 @@ for (const preset of PRESETS) {
       // ① THE TAKE stands INSIDE the stage's own zone — two cards (influence 2), withheld until taken.
       const take = page.locator('.con-extdraw');
       await expect(take, 'the take surface is on screen').toHaveCount(1, {timeout: 90_000});
-      expect(await page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw').count(), 'in the stage\'s zone').toBe(1);
+      await expect.poll(() => page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw').count(), {message: 'in the stage\'s zone'}).toBe(1);
       await expect(page.locator('.con-extdraw .con-cards__slot'), 'two cards').toHaveCount(2, {timeout: 20_000});
       await waitSittingAtRest(page, 20_000).catch(() => undefined);
       await shoot(page, preset.id, '02-take-in-stage');
@@ -227,9 +227,9 @@ for (const preset of PRESETS) {
       await expect(receipt, 'the receipt of the table stands').toHaveCount(1, {timeout: 30_000});
       await expect(receipt.locator('[data-receipt-card]')).toHaveCount(4);
       expect(await receipt.locator('[data-receipt-card]').evaluateAll((els) => els.map((e) => e.getAttribute('data-receipt-card'))), 'the counted cards, in play order').toEqual(RECEIVERS);
-      expect(await receipt.locator('[data-receipt-card="Fish"]').getAttribute('data-receipt-kind')).toBe('animal');
-      expect(await receipt.locator('[data-receipt-card="Dirigibles"]').getAttribute('data-receipt-kind')).toBe('floater');
-      expect(await receipt.locator('[data-receipt-card="Supercomputer"]').getAttribute('data-receipt-kind')).toBe('data');
+      await expect.poll(() => receipt.locator('[data-receipt-card="Fish"]').getAttribute('data-receipt-kind')).toBe('animal');
+      await expect.poll(() => receipt.locator('[data-receipt-card="Dirigibles"]').getAttribute('data-receipt-kind')).toBe('floater');
+      await expect.poll(() => receipt.locator('[data-receipt-card="Supercomputer"]').getAttribute('data-receipt-kind')).toBe('data');
       // The receipt leaves by itself once every token has landed.
       await expect(receipt, 'the receipt leaves when the wave has landed').toHaveCount(0, {timeout: 30_000});
 

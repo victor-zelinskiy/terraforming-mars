@@ -1,7 +1,12 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {fillPicks, NO_PAYMENT, press, reloadConsole, sendPlayerInput, submitSummary, summaryVisible, walkToSummary} from './consoleStart';
+import {
+  cinematicBeat, fillPicks, NO_PAYMENT, press, pressUntil, pressUntilGone, pressUntilVisible, reloadConsole, sendPlayerInput, settle,
+  submitSummary, summaryVisible, syncClient, walkToSummary,
+} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * DRAFT FINALE PROBE — a fast drive to the draft's closing stretch (the
@@ -93,17 +98,23 @@ function roadAnswer(prompt: WirePrompt): Record<string, unknown> {
 }
 
 async function passIntoDrafting(page: Page, request: APIRequestContext, firstId: string, secondId: string): Promise<void> {
+  const passed = async () => {
+    const m1 = await modelOf(request, firstId);
+    return m1.game.phase !== 'action' || m1.waitingFor === undefined || m1.waitingFor.type !== 'or';
+  };
+  const wheel = page.locator('.con-quick');
   let passedOnUi = false;
   for (let i = 0; i < 5 && !passedOnUi; i++) {
+    // RT held: the wheel stands up; on the wheel the direction IS the activation (the pass), and the wheel leaving is
+    // its witness — each step of the gesture waits for the state the last one made, never a duration.
     await page.keyboard.down('Period');
-    await page.waitForTimeout(550);
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(450);
+    if (await expect(wheel).toHaveCount(1, {timeout: 5000}).then(() => true, () => false)) {
+      await page.keyboard.press('ArrowDown');
+      await expect(wheel).toHaveCount(0, {timeout: 5000}).catch(() => undefined);
+    }
     await page.keyboard.up('Period');
-    await page.waitForTimeout(1600);
-    const m1 = await modelOf(request, firstId);
-    passedOnUi = m1.game.phase !== 'action' || m1.waitingFor === undefined ||
-      m1.waitingFor.type !== 'or';
+    // «Done» is the SERVER moving on — a bounded wait for it; a pass that never landed is retried, then answered below.
+    passedOnUi = await expect.poll(passed, {timeout: 8000}).toBe(true).then(() => true, () => false);
   }
   if (!passedOnUi) {
     console.log('[drive] UI pass did not land — API pass + reload');
@@ -217,35 +228,32 @@ test.describe('draft finale probe', () => {
       await sendPlayerInput(request, second.id, roadAnswer(m2.waitingFor) as never);
     }
     await page.waitForSelector('.con-start--ceremony', {timeout: 60_000});
-    const startRoot = page.locator('.con-start');
-    for (let i = 0; i < 25 && await startRoot.count() > 0; i++) {
-      await press(page, 'Enter', 1300);
-    }
-    expect(await startRoot.count(), 'start workspace released').toBe(0);
+    // A through the start's ceremony until the workspace releases — act → verify → retry (the shared driver).
+    await pressUntilGone(page, 'Enter', '.con-start', {tries: 25, settleMs: 1300});
+    await expect.poll(() => page.locator('.con-start').count(), {message: 'start workspace released'}).toBe(0);
     await passIntoDrafting(page, request, first.id, second.id);
 
-    // Open the workspace via the mandatory plate.
-    await expect.poll(async () => {
-      const plate = await page.locator('.con-mandatory').count();
-      if (plate === 0) {
-        await press(page, 'Escape', 500);
-      }
-      return plate;
-    }, {timeout: 90_000}).toBeGreaterThan(0);
-    await press(page, 'Enter', 900);
-    await page.waitForSelector('.con-draftws', {timeout: 45_000});
-    await page.waitForTimeout(4200);
+    // Open the workspace via the mandatory plate: B dismisses whatever presents over the board until the plate stands
+    // (act → verify → retry — never a press inside a poll), then A — the one explicit door, verified the same way.
+    expect(await pressUntilVisible(page, 'Escape', '.con-mandatory', {tries: 40, settleMs: 1500}),
+      'the draft plate stands').toBe(true);
+    expect(await pressUntilVisible(page, 'Enter', '.con-draftws', {tries: 6, settleMs: 1200}),
+      'A opens the draft workspace').toBe(true);
+    await settle(page, {timeoutMs: 20_000}); // the deal cinematic holds release when it lands
 
     // Three interactive picks (P2 answers over the API); the 4th card
     // auto-passes at the research transition — the ARRIVAL under test.
+    // Between two picks the next packet is the SERVER's: the page applies it, then its spread settles.
     console.log('[probe] pick 1');
     await pickOnUi(page, request, first.id);
     await secondPicksFirstCard(request, second.id);
-    await page.waitForTimeout(2500);
+    await syncClient(page, request, first.id);
+    await settle(page, {timeoutMs: 20_000});
     console.log('[probe] pick 2');
     await pickOnUi(page, request, first.id);
     await secondPicksFirstCard(request, second.id);
-    await page.waitForTimeout(2500);
+    await syncClient(page, request, first.id);
+    await settle(page, {timeoutMs: 20_000});
     console.log('[probe] pick 3 (last interactive)');
     await pickOnUi(page, request, first.id);
     console.log('[probe] p2 last pick — the transition fires now');
@@ -254,46 +262,34 @@ test.describe('draft finale probe', () => {
     // The rise scene: burst-shoot the arrival + lift-off + flights.
     for (let i = 0; i < 14; i++) {
       await shoot(page, `rise-${String(i).padStart(2, '0')}`);
-      await page.waitForTimeout(260);
+      await cinematicBeat(page, 260, 'the rise storyboard — one frame per beat of the arrival and the lift');
     }
     await expect.poll(async () => page.evaluate(() => {
       const el = document.querySelector('.con-draftws__stage--buy');
       return el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
     }), {timeout: 45_000}).toBeTruthy();
-    await page.waitForTimeout(2000);
+    await settle(page, {timeoutMs: 25_000}); // the rise scene holds release at its end
     await shoot(page, 'buy-settled');
 
-    // ZERO-BUY: RT with no picks («Пропустить»). The ghost probe is ARMED
+    // ZERO-BUY: RT with no picks («Пропустить»). The ghost witness is ARMED
     // BEFORE the press (tests.md: an order claim cannot be sampled three
     // round-trips late): while the committed exit plays (`__row--departing`
     // present), NO slot may still carry the focus/picked chrome — the
     // reported «контур фокуса» stood exactly there, because the TV
     // profile's couch-ring rule out-specified the departing suppression.
-    await page.evaluate(() => {
-      const st = {witnessed: 0, ringFrames: 0, timer: 0};
-      const scan = () => {
-        const row = document.querySelector('.con-draftws__stage--buy .con-draftws__row--departing');
-        if (row === null) {
-          return;
-        }
-        st.witnessed++;
-        if (row.querySelector('.con-cards__slot--focused, .con-cards__slot--picked') !== null) {
-          st.ringFrames++;
-        }
+    // `settled`: «no frame paints the chrome» is a claim about what a frame can paint.
+    const ghost = await armWitness(page, 'draft-finale-ghost', () => {
+      const row = document.querySelector('.con-draftws__stage--buy .con-draftws__row--departing');
+      return {
+        departing: row !== null,
+        ring: row !== null && row.querySelector('.con-cards__slot--focused, .con-cards__slot--picked') !== null,
       };
-      st.timer = window.setInterval(scan, 32) as unknown as number;
-      const mo = new MutationObserver(scan);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      (window as unknown as {__ghost?: typeof st, __ghostMo?: MutationObserver}).__ghost = st;
-      (window as unknown as {__ghostMo?: MutationObserver}).__ghostMo = mo;
-    });
+    }, {settled: true});
     console.log('[probe] zero-buy commit');
-    let committed = false;
-    for (const deadline = Date.now() + 60_000; !committed && Date.now() < deadline;) {
-      await press(page, 'Period', 900);
+    const committed = await pressUntil(page, 'Period', async () => {
       const m = await modelOf(request, first.id);
-      committed = m.thisPlayer?.needsToResearch === false || m.game.phase === 'action';
-    }
+      return m.thisPlayer?.needsToResearch === false || m.game.phase === 'action';
+    }, {tries: 40, settleMs: 900});
     expect(committed, 'RT committed the zero-buy').toBeTruthy();
     // Burst-shoot the exit: cards tumble out; anything left painting a ring
     // in the emptied stage is the reported artifact.
@@ -303,21 +299,23 @@ test.describe('draft finale probe', () => {
         const rings = await ringSweep(page);
         console.log(`[rings @exit-${i}]`, JSON.stringify(rings));
       }
-      await page.waitForTimeout(300);
+      await cinematicBeat(page, 300, 'the exit storyboard — one frame per beat of the cards tumbling out');
     }
-    const late = await ringSweep(page);
-    console.log('[rings late]', JSON.stringify(late));
-    const ghost = await page.evaluate(() => {
-      const w = window as unknown as {__ghost: {witnessed: number, ringFrames: number, timer: number}, __ghostMo?: MutationObserver};
-      window.clearInterval(w.__ghost.timer);
-      w.__ghostMo?.disconnect();
-      return {witnessed: w.__ghost.witnessed, ringFrames: w.__ghost.ringFrames};
+    // The emptied stage AT REST: a ring still painted there is the artifact, never a frame of the exit. Two sweeps agree
+    // when the SAME elements paint a ring (an endless loop may move a box or a shadow's phase — a standing state).
+    const late = await readSettled(page, () => ringSweep(page), {
+      message: 'the ring sweep of the emptied stage',
+      same: (a, b) => JSON.stringify(a.map((r) => r.cls)) === JSON.stringify(b.map((r) => r.cls)),
     });
-    console.log('[ghost probe]', JSON.stringify(ghost));
-    // A witness that saw nothing proves nothing — the probe must have caught
-    // the departing window itself (it spans ~600ms of exit + the done wait).
-    expect(ghost.witnessed, 'the ghost probe observed the departing exit').toBeGreaterThan(3);
-    expect(ghost.ringFrames, 'no frame paints focus/picked chrome past the commit boundary').toBe(0);
+    console.log('[rings late]', JSON.stringify(late));
+    const seen = await ghost.stop();
+    const departing = seen.filter((s) => s.v.departing);
+    console.log('[ghost witness]', JSON.stringify({departing: departing.length, ring: departing.filter((s) => s.v.ring).length}));
+    // A witness that saw nothing proves nothing — the record must hold the
+    // departing window itself (it spans ~600ms of exit + the done wait); only
+    // a DEAD witness records none of it (a count of frames is the machine's).
+    expect(departing.length, 'the ghost witness observed the departing exit').toBeGreaterThan(0);
+    expect(departing.filter((s) => s.v.ring).length, 'no frame paints focus/picked chrome past the commit boundary').toBe(0);
     await shoot(page, 'released');
   });
 });

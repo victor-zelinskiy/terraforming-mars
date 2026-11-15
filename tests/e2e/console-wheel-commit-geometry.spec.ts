@@ -217,7 +217,7 @@ for (const profile of PROFILES) {
       const playerId = await createGameWithCards(request, [], {config});
       await bootSeededGame(page, request, playerId, {buy: 2, query: profile.query});
       await toBoard(page);
-      expect(await page.locator('.con-board').count(), 'never reached the board home').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-board').count(), {message: 'never reached the board home'}).toBeGreaterThan(0);
 
       await installProbe(page);
       let walked = 0;

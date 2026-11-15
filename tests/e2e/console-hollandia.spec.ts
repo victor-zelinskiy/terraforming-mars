@@ -97,7 +97,7 @@ async function leaveInspection(page: Page): Promise<void> {
 async function startGreenery(page: Page, request: APIRequestContext, playerId: string): Promise<void> {
   await press(page, 'Comma', 1200);
   await press(page, 'Enter', 1400);
-  expect(await page.locator('.con-stdp').count(), 'standard projects did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-stdp').count(), {message: 'standard projects did not open'}).toBeGreaterThan(0);
   const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
   const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
   for (let i = 0; i < 18 && !/^\s*озеленение\s*$/i.test(await focusedName()); i++) {
@@ -186,7 +186,7 @@ test.describe(`Hollandia (fan map) · ${PROFILE.id}`, () => {
     expect(centre.match(/пока ВСЕ ваши тайлы/g)?.length ?? 0, 'the rule is not said twice in the section').toBe(0);
     expect(await dossier(page), 'the rule stands at the foot of the marker\'s cell').toMatch(/пока ВСЕ ваши тайлы/);
     expect(centre, 'red: inside AND outside').toMatch(/Тайлы вне зоны/);
-    expect(await page.locator('.con-context [data-dossier-section="zone"] .con-context__grp').count(), 'a group per seat').toBe(2);
+    await expect.poll(() => page.locator('.con-context [data-dossier-section="zone"] .con-context__grp').count(), {message: 'a group per seat'}).toBe(2);
     expect(await page.evaluate(() => document.querySelector('.con-context .con-cellp__hex--c')?.className ?? ''),
       'the portrait wears the zone\'s ground').toMatch(/con-cellp__hex--deflection/);
     await settle(page);

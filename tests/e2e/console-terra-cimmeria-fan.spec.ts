@@ -85,7 +85,7 @@ for (const profile of PROFILES) {
       const expected = MARKERS.filter((id) => !occupied.has(id));
       expect(expected.length, 'the setup leaves at least one volcano open').toBeGreaterThan(0);
       expect(board.markers, 'every EMPTY volcano carries a marker, and nothing else does').toEqual(expected.map((id) => `board-space-${id}`));
-      expect(await page.locator('.special-cell-marker--active').count(), 'no marker lights up for an invisible cursor').toBe(0);
+      await expect.poll(() => page.locator('.special-cell-marker--active').count(), {message: 'no marker lights up for an invisible cursor'}).toBe(0);
 
       // ── A GREENERY on the richest energy cell ──────────────────────────────
       const before = await view(request, playerId);
@@ -94,7 +94,7 @@ for (const profile of PROFILES) {
 
       await press(page, 'Comma', 1200);
       await press(page, 'Enter', 1400);
-      expect(await page.locator('.con-stdp').count(), 'standard projects did not open').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-stdp').count(), {message: 'standard projects did not open'}).toBeGreaterThan(0);
       const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
       const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
       for (let i = 0; i < 18 && !/^\s*озеленение\s*$/i.test(await focusedName()); i++) {

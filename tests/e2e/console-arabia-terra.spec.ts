@@ -88,7 +88,7 @@ const dossier = async (page: Page): Promise<string> =>
 async function startStandardProject(page: Page, request: APIRequestContext, playerId: string, name: RegExp, label: string): Promise<void> {
   await press(page, 'Comma', 1200);
   await press(page, 'Enter', 1400);
-  expect(await page.locator('.con-stdp').count(), 'standard projects did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-stdp').count(), {message: 'standard projects did not open'}).toBeGreaterThan(0);
   const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
   const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
   for (let i = 0; i < 18 && !name.test(await focusedName()); i++) {
@@ -131,7 +131,7 @@ for (const profile of PROFILES) {
       const occupied = new Set(before.game.spaces.filter((s) => s.tileType !== undefined).map((s) => s.id));
       const expected = VOLCANIC.filter((id) => !occupied.has(id));
       expect(board.markers, 'every EMPTY volcanic cell carries a marker, and nothing else does').toEqual(expected.map((id) => `board-space-${id}`));
-      expect(await page.locator('.special-cell-marker--active').count(), 'no marker lights up for an invisible cursor').toBe(0);
+      await expect.poll(() => page.locator('.special-cell-marker--active').count(), {message: 'no marker lights up for an invisible cursor'}).toBe(0);
       expect(board.coves, 'the empty coves are drawn as coves').toBeGreaterThan(0);
 
       // A named volcano, hovered: the popover carries the name the board printed.
@@ -356,7 +356,7 @@ for (const profile of PROFILES) {
       await shoot(page, '50a-science-card-received');
       expect(await takeRevealCard(page), 'the drawn card is taken').toBe(true);
       await settle(page, {timeoutMs: 30_000});
-      expect(await page.locator('.con-task-host').count(), 'one holder is no question').toBe(0);
+      await expect.poll(() => page.locator('.con-task-host').count(), {message: 'one holder is no question'}).toBe(0);
       await shoot(page, '51-science-landed');
 
       const witness = await transferWitness(page);

@@ -288,7 +288,7 @@ for (const profile of PROFILES) {
         await press(page, 'ArrowRight', 450);
         await press(page, 'Enter', 600);
       }
-      expect(await page.locator('.con-cards__slot--picked').count(), 'two picks held').toBe(2);
+      await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'two picks held'}).toBe(2);
       await shoot(page, profile.name, '02-stage5-pick');
       await press(page, 'Period', 1500); // RT — «Подтвердить»
 
@@ -431,7 +431,7 @@ for (const profile of PROFILES) {
         await press(page, 'Enter', 900);
       }
       await page.waitForSelector('.con-hydro__result-stages', {timeout: 90_000});
-      expect(await page.locator('.con-hydro__result-stagerow').count(), 'seven stages, one row each').toBe(7);
+      await expect.poll(() => page.locator('.con-hydro__result-stagerow').count(), {message: 'seven stages, one row each'}).toBe(7);
       await shoot(page, profile.name, '05-result');
 
       const model = await fetchPlayerModel(request, id) as Wire;

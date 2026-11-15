@@ -54,7 +54,7 @@ async function openColonies(page: Page): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
 }
 
 async function focusTile(page: Page, target: string): Promise<void> {
@@ -68,7 +68,7 @@ async function focusTile(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
@@ -138,7 +138,7 @@ test('Pluto Redux: the tile, the dossier and the stage name the refusal; the lob
 
   // ── B → back; A → the stage carries the refusal with its reason. ──
   await press(page, 'Escape', 1600);
-  expect(await page.locator('.con-colinspect').count(), 'B folded the dossier').toBe(0);
+  await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'B folded the dossier'}).toBe(0);
   await press(page, 'Enter', 2200);
   await shoot(page, '02-stage');
   const stage = await page.evaluate(() => ({

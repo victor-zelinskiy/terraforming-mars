@@ -21,6 +21,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {cinematicBeat, openConsole, press, walkToSpace} from './consoleStart';
+import {armWitness, pageNow} from './witness';
 import {
   FINALE_BLOCK, armFinaleWitness, disarmFinaleWitness, finaleStage, forceFrame, getModel, openFinaleOnBoard, placeFinaleGreenery,
   postInput, readFinaleWitness, shoot, waitWithFrames,
@@ -123,7 +124,7 @@ for (const profile of PROFILES) {
       await cinematicBeat(page, 1_500, "the landing's story settles and the wait line reads the live poll's answer");
       const line = await waitLine(page);
       expect(line, 'the wait line names the seat the table waits on').toContain(ownerName);
-      expect(await page.locator(FINALE_BLOCK).count(), 'the finale block stands').toBe(1);
+      await expect.poll(() => page.locator(FINALE_BLOCK).count(), {message: 'the finale block stands'}).toBe(1);
       expect(await page.evaluate(() => document.querySelector('.con-board--pfocus-settled') !== null), 'the planet focus is held').toBe(true);
       // The bar absorbs input (and shows nothing) for the landing's own holds; the finale's run stands once they let go.
       await waitWithFrames(page, async () => /Завершить свою партию/i.test(await barText(page)) && /Свернуть/i.test(await barText(page)),
@@ -156,12 +157,17 @@ for (const profile of PROFILES) {
 
       // ── ④ the owner answers → the viewer's pick is back within the socket's beat, through the same context ──
       await armFinaleWitness(page);
-      const t0 = Date.now();
+      // H — the hand-off is timed on the PAGE's clock: a reading before the owner's answer, the pick's first recorded
+      // moment back on the board (never the driver's own poll of it).
+      const pickBack = await armWitness<boolean, string>(page, 'finale-pick-back', (block) =>
+        (document.querySelector(block) as HTMLElement | null)?.dataset.finaleStage === 'pick' &&
+        document.querySelector('.con-board--placing') !== null, {args: FINALE_BLOCK});
+      const t0 = await pageNow(page);
       await postInput(request, owner, {type: 'resources', units: {megacredits: 1, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0}});
       await waitWithFrames(page, async () => (await finaleStage(page)) === 'pick' &&
         await page.evaluate(() => document.querySelector('.con-board--placing') !== null),
       30_000, 'the pick back on the board after the owner\'s answer');
-      const backAfterMs = Date.now() - t0;
+      const backAfterMs = ((await pickBack.firstWhere((back) => back))?.t ?? Infinity) - t0;
       const witness = await readFinaleWitness(page);
       await disarmFinaleWitness(page);
       expect(witness.panelRemounts, 'the dossier never re-mounted on the way back').toBe(0);

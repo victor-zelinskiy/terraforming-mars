@@ -75,7 +75,7 @@ async function focusPluto(page: Page): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), 'could not focus Pluto in the hosted colony grid').toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: 'could not focus Pluto in the hosted colony grid'}).toBeGreaterThan(0);
 }
 
 /**
@@ -87,7 +87,7 @@ async function focusPluto(page: Page): Promise<void> {
 async function buildOnPluto(page: Page): Promise<void> {
   await press(page, 'Comma', 1200);
   await press(page, 'Enter', 1400);
-  expect(await page.locator('.con-stdp').count(), 'standard projects did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-stdp').count(), {message: 'standard projects did not open'}).toBeGreaterThan(0);
   const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
   const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
   for (let i = 0; i < 18 && !/колони/i.test(await focusedName()); i++) {
@@ -136,11 +136,10 @@ for (const profile of RESUME_PROFILES) {
       await focusTradeVariantTile(page);
       await openActionFocus(page);
       await press(page, 'Enter', 2000); // «Выбрать колонию» → the hosted grid
-      expect(await page.locator('.con-cardactions .con-colonies').count(),
-        'the colony step did not open inside the card-actions workspace').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-cardactions .con-colonies').count(), {message: 'the colony step did not open inside the card-actions workspace'}).toBeGreaterThan(0);
       await focusPluto(page);
       await press(page, 'Enter', 2600); // the colony focus stage, fee pinned
-      expect(await page.locator('.con-colfocus').count(), 'the trade stage did not open').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the trade stage did not open'}).toBeGreaterThan(0);
       await page.keyboard.press('KeyX'); // the trade's own confirm — the one commit
       await page.waitForSelector('.con-reveal .con-cards__slot--focused', {timeout: 30_000});
       await shoot(page, `${profile.tag}-01-payout`);
@@ -177,10 +176,8 @@ for (const profile of RESUME_PROFILES) {
         const headText = await page.locator('.con-cardactions__head').innerText();
         expect(headText.toUpperCase(), `cycle ${cycle}: no Pluto context in a fresh open`)
           .not.toContain('ПЛУТОН');
-        expect(await page.locator('.con-cardactions .con-colonies').count(),
-          `cycle ${cycle}: the parked colonies never render under a fresh open`).toBe(0);
-        expect(await page.locator('.con-composer--stage').count(),
-          `cycle ${cycle}: no adopted composer in a fresh open`).toBe(0);
+        await expect.poll(() => page.locator('.con-cardactions .con-colonies').count(), {message: `cycle ${cycle}: the parked colonies never render under a fresh open`}).toBe(0);
+        await expect.poll(() => page.locator('.con-composer--stage').count(), {message: `cycle ${cycle}: no adopted composer in a fresh open`}).toBe(0);
         const browse = page.locator('.con-cardactions__browse');
         await expect(browse, `cycle ${cycle}: the plain browse owns the fresh open`).toBeVisible();
         // The one honest reason, stated on the surface — when a tile is on screen
@@ -192,8 +189,7 @@ for (const profile of RESUME_PROFILES) {
         }
         // A must NOT descend while the decision is owed (empty grid: A is inert).
         await press(page, 'Enter', 1200);
-        expect(await page.locator('.con-composer--stage').count(),
-          `cycle ${cycle}: A cannot start another action while one is owed`).toBe(0);
+        await expect.poll(() => page.locator('.con-composer--stage').count(), {message: `cycle ${cycle}: A cannot start another action while one is owed`}).toBe(0);
         if (cycle === 0) {
           await shoot(page, `${profile.tag}-04-fresh-look`);
         }
@@ -209,8 +205,7 @@ for (const profile of RESUME_PROFILES) {
       await press(page, 'Enter', 2600);
       await expect(embeddedHand, 'the discard did not come back embedded on resume')
         .toBeVisible({timeout: 12_000});
-      expect(await page.locator('.con-cardactions .con-colonies').count(),
-        'the resumed colonies are not hosted by the card-actions root').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-cardactions .con-colonies').count(), {message: 'the resumed colonies are not hosted by the card-actions root'}).toBeGreaterThan(0);
       const resumed = await crumb(page);
       expect(resumed.subject.toUpperCase(), 'the resumed crumb keeps the origin card')
         .toContain('ЛЕТАЮЩАЯ');

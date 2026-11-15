@@ -205,7 +205,7 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   // FOCUS STAGE (destination slot ringed, the grant on screen)…
   await key(page, 'Enter', 1400);
   await page.waitForSelector('.con-colfocus', {timeout: 10_000});
-  expect(await page.locator('.con-colfocus__berth--dest').count(), 'the destination berth is ringed').toBe(1);
+  await expect.poll(() => page.locator('.con-colfocus__berth--dest').count(), {message: 'the destination berth is ringed'}).toBe(1);
   await shoot(page, `${tag}-11b-build-focus`);
   // …and A CONFIRMS there: arm + submit; the hero flies the REAL PlayerCube
   // into the stage's own big berth (the live anchor while the stage is up).
@@ -214,7 +214,7 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   // The proxy stage must appear (the transaction is live)…
   await page.waitForSelector('.con-colonybuild__cube', {timeout: 12_000});
   // …and while it is up, the slot paints NO new static cube (one object).
-  expect(await slotCubes.count(), 'a second cube appeared during the flight').toBe(before);
+  await expect.poll(() => slotCubes.count(), {message: 'a second cube appeared during the flight'}).toBe(before);
   await shoot(page, `${tag}-12-hero-flight`);
   await page.waitForTimeout(420);
   await shoot(page, `${tag}-13-hero-landing`);
@@ -236,8 +236,8 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   }
   await page.waitForSelector('.con-colonies', {timeout: 10_000});
   await page.waitForTimeout(600);
-  expect(await slotCubes.count(), 'the seated static cube did not paint').toBe(before + 1);
-  expect(await page.locator('.con-colonybuild__cube').count(), 'the hero replayed on reopen').toBe(0);
+  await expect.poll(() => slotCubes.count(), {message: 'the seated static cube did not paint'}).toBe(before + 1);
+  await expect.poll(() => page.locator('.con-colonybuild__cube').count(), {message: 'the hero replayed on reopen'}).toBe(0);
   await shoot(page, `${tag}-15-seated`);
   return testAttr;
 }
@@ -266,7 +266,7 @@ test.describe('console colonies · premium PlayerCube marker', () => {
       await key(page, 'KeyX', 1400);
       const stage = page.locator('.con-colfocus');
       if (await stage.count() > 0) {
-        expect(await stage.locator('.con-colfocus__berth-seat .player-cube').count()).toBeGreaterThan(0);
+        await expect.poll(() => stage.locator('.con-colfocus__berth-seat .player-cube').count()).toBeGreaterThan(0);
         await shoot(page, 'red1080-16-inspect');
         await key(page, 'Escape', 800);
       }

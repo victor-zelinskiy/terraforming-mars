@@ -190,8 +190,8 @@ test.describe('Colonization Funding · standard-1080', () => {
     const face = page.locator(`.con-parl__slot[data-instance="${FUNDING_INSTANCE}"] .pcard`);
     await expect(face, 'Colonization Funding stands in the voting area').toHaveCount(1);
     await expect(face).toHaveClass(FUNDING_CLASS);
-    expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX08');
-    expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'Unity\'s emblem').toContain('unity');
+    await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX08');
+    await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'Unity\'s emblem'}).toContain('unity');
     const cityIcons = face.locator('.pcard__mech .pcard-ic').filter({has: page.locator(':scope')});
     const cityCount = await cityIcons.evaluateAll((els) => els.filter((el) => getComputedStyle(el).backgroundImage.includes('city.png')).length);
     expect(cityCount, 'the printed city tile on the face').toBeGreaterThanOrEqual(1);

@@ -119,7 +119,7 @@ for (const preset of PROFILES) {
       await expect(page.locator('.con-composer--play .con-cwhy [data-count-zero]'), 'the zero in words').toHaveText(/Рядом с вашими тайлами нет пустых клеток/);
       await shot(page, preset.id, 'B-zero');
       await press(page, 'KeyC', 900);
-      expect(await page.locator('.con-root--board-peek').count(), 'nothing to show on the board — L3 opens nothing').toBe(0);
+      await expect.poll(() => page.locator('.con-root--board-peek').count(), {message: 'nothing to show on the board — L3 opens nothing'}).toBe(0);
     });
   });
 }

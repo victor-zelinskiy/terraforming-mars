@@ -210,8 +210,8 @@ test.describe('Jovian Tax Rights · standard-1080', () => {
       const face = page.locator(`.con-parl__slot[data-instance="${RIGHTS_INSTANCE}"] .pcard`);
       await expect(face, 'Jovian Tax Rights stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(RIGHTS_CLASS);
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX17');
-      expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'Unity\'s emblem').toContain('unity');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX17');
+      await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'Unity\'s emblem'}).toContain('unity');
       await expect(face.locator('.pcard__mech .pcard-prod'), 'one production box — the counted formula').toHaveCount(1);
       await expect(face.locator('.pcard__quest-graphic'), 'the two-Jovian-tags quest as a graphic').toHaveCount(1);
       await shoot(page, '01-overview');

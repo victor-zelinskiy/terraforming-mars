@@ -166,7 +166,7 @@ for (const profile of PROFILES) {
       const embeddedHost = page.locator('[data-embed-slot="workspace-reveal"] .con-task-host--embedded');
       await expect(embeddedHost).toHaveCount(1, {timeout: 25_000});
       // Never a standalone band while the workspace owns the outcome.
-      expect(await page.locator('.con-task-host:not(.con-task-host--embedded)').count()).toBe(0);
+      await expect.poll(() => page.locator('.con-task-host:not(.con-task-host--embedded)').count()).toBe(0);
       // The workspace chrome and the source hero never went anywhere.
       await expect(page.locator('.con-cardactions')).toHaveCount(1);
       await expect(page.locator('.con-composer--stage [data-action-focus-card][data-zoom-slot="Business Network"]')).toHaveCount(1);
@@ -236,11 +236,11 @@ for (const profile of PROFILES) {
         });
         expect(headStyle, `heading ${JSON.stringify(headStyle)}`).toEqual({size: '26px', weight: '700'});
       }
-      expect(await page.locator('.con-ws-stage-badge').count(), 'the counters fold away for one card').toBe(0);
+      await expect.poll(() => page.locator('.con-ws-stage-badge').count(), {message: 'the counters fold away for one card'}).toBe(0);
       // The status line carries the economics and NO duplicated command chips.
       await expect(page.locator('.con-cards__verdict--price')).toBeVisible();
-      expect(await page.locator('.con-cards__verdictbar .con-cards__verdict--zoom').count()).toBe(0);
-      expect(await page.locator('.con-cards__verdictbar .con-cards__verdict--go').count()).toBe(0);
+      await expect.poll(() => page.locator('.con-cards__verdictbar .con-cards__verdict--zoom').count()).toBe(0);
+      await expect.poll(() => page.locator('.con-cards__verdictbar .con-cards__verdict--go').count()).toBe(0);
       // No stage-specific labels under the SOURCE card — its column must be
       // byte-identical across phases (the stability contract), so it holds the
       // card's wrap and nothing else; the L3 verb lives in the ONE command bar.

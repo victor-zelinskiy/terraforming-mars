@@ -156,7 +156,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 30_000});
       await waitForBoardHome(page, 30);
       await expect(handPicking(page), 'the hand screen never comes back in discard / pick mode').toHaveCount(0);
-      expect(await page.locator('.con-cards__pickband--discard').count(), 'no discard band on screen').toBe(0);
+      await expect.poll(() => page.locator('.con-cards__pickband--discard').count(), {message: 'no discard band on screen'}).toBe(0);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
       expect(seen.errors, 'no page errors').toEqual([]);
       await shoot(page, preset.id, '04-board');

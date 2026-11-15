@@ -239,7 +239,7 @@ test.describe('my campaigns list', () => {
         document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflowX, `horizontal overflow at ${vp.label}`).toBeLessThanOrEqual(1);
       const rowBox = (await row.boundingBox())!;
-      expect(await page.locator('.cm-overlay').count(), 'the list is a screen, not a dialog').toBe(0);
+      await expect.poll(() => page.locator('.cm-overlay').count(), {message: 'the list is a screen, not a dialog'}).toBe(0);
       const cardBox = (await page.locator('.cm-screen__stage').first().boundingBox())!;
       expect(rowBox.x).toBeGreaterThanOrEqual(cardBox.x - 1);
       expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);

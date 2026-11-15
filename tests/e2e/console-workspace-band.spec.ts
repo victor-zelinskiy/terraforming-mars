@@ -276,7 +276,7 @@ for (const profile of PROFILES) {
       const playerId = await createGameWithCards(request, [], {config: cfg()});
       await bootSeededGame(page, request, playerId, {buy: 2, query: profile.query});
       await toBoard(page);
-      expect(await page.locator('.con-board').count(), 'never reached the board home').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-board').count(), {message: 'never reached the board home'}).toBeGreaterThan(0);
 
       // Every surface reached in this walk, checked + shot. The set is
       // deliberately opened through the REAL command grammar; a surface the
@@ -369,7 +369,7 @@ for (const profile of PROFILES) {
       for (let tries = 0; tries < 4 && await page.locator('.con-quick').count() === 0; tries++) {
         await key(page, 'Comma', 900);
       }
-      expect(await page.locator('.con-quick').count(), 'the LT wheel never opened').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-quick').count(), {message: 'the LT wheel never opened'}).toBeGreaterThan(0);
       await assertBand(page, '.con-quick', 'wheel @ open size');
 
       // …shrink INSIDE the same profile band (a profile flip is a different

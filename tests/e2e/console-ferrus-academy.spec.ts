@@ -16,6 +16,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
+import {armWitness, pageNow} from './witness';
 import {
   bootIntoGame, cinematicBeat, confirmLockedPlacement, visibleSurfaces, fetchPlayerModel, press, pressUntil, readiness, settle, soloGameConfig, walkToSpace,
 } from './consoleStart';
@@ -224,6 +225,10 @@ test.describe(`console · TR79 Ferrus Academy · ${PRESET.id}`, () => {
     const decision = page.locator('.con-task');
     // The question is the NEXT surface of this press: it must rise within a few beats, never behind a safety net. A trail
     // of the product's own readiness (holds, transport, depth) names what kept it if it does not.
+    // H — the rise is timed on the PAGE's clock: a reading now, the question's first recorded moment on screen (the trail
+    // below is diagnosis only, on the driver's clock).
+    const rose = await armWitness(page, 'ferrus-question', () => document.querySelector('.con-task') !== null);
+    const askedOnPage = await pageNow(page);
     const asked = Date.now();
     const trail: Array<string> = [];
     page.on('console', (msg) => {
@@ -239,7 +244,8 @@ test.describe(`console · TR79 Ferrus Academy · ${PRESET.id}`, () => {
     }
     console.log(`── question after ${Date.now() - asked} ms\n${trail.join('\n')}`);
     await expect(decision, 'the question surfaces').toBeVisible({timeout: 5_000});
-    expect(Date.now() - asked, 'the question rises with the landing, not behind a safety net').toBeLessThan(15_000);
+    expect(((await rose.firstWhere((up) => up))?.t ?? Infinity) - askedOnPage, 'the question rises with the landing, not behind a safety net')
+      .toBeLessThan(15_000);
     await expect(decision.locator('.con-task__disabled'), '«3 data» stands disabled').toContainText(/данных/i);
     await expect(decision.locator('.con-task__disabled'), '…with its reason').toContainText(/Нет карты, принимающей данные/i);
     await shoot(page, '07-question-data-disabled');

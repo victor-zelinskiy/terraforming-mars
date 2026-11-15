@@ -217,7 +217,7 @@ for (const preset of PRESETS) {
       // ── 1. The overview ───────────────────────────────────────────────────
       await openColonies(page);
       await expect(page.locator(`.con-colonies__grid [data-fleet-dock="${DOCK}"]`), 'the dock stands as a cell of the colony grid').toHaveCount(1);
-      expect(await page.locator('[data-fleet-dock-status="free"]').count(), 'the dock is free').toBe(1);
+      await expect.poll(() => page.locator('[data-fleet-dock-status="free"]').count(), {message: 'the dock is free'}).toBe(1);
       // THE DOCK IS ONE MORE CELL (the owner, 2026-10-25 + ledger EZ): the colony tile's chassis and size, last in the grid.
       await expect(page.locator(`.con-colonies__grid .con-coltile.con-coltile--dock[data-fleet-dock="${DOCK}"]`), 'a tile of the colony family').toHaveCount(1);
       const sizes = await tileSizes(page);
@@ -261,7 +261,7 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-fleetdock').count() > 0, {tries: 3, settleMs: 2500}),
         'A opened the dock\'s stage').toBe(true);
       await settle(page, {timeoutMs: 15_000});
-      expect(await page.locator('.con-ws').count(), 'one workspace — the stage is inside it').toBe(1);
+      await expect.poll(() => page.locator('.con-ws').count(), {message: 'one workspace — the stage is inside it'}).toBe(1);
       const crumb = ((await page.locator('.con-colonies .con-wshead').textContent()) ?? '').toUpperCase();
       expect(crumb, 'the crumb names the card').toContain(DOCK_RU);
       expect(crumb, 'the crumb keeps its root').toContain('КОЛОНИИ');
@@ -345,7 +345,7 @@ for (const preset of PRESETS) {
       // ── 7. The board ──────────────────────────────────────────────────────
       await settle(page, {timeoutMs: 20_000});
       await shoot(page, preset.id, '04-board');
-      expect(await page.locator('.con-ws').count(), 'no workspace').toBe(0);
+      await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace'}).toBe(0);
       expect(samples.some((s) => s.stranded), 'nothing stranded on the way').toBe(false);
       expect(await strandedReports(page), 'no prompt was stranded').toEqual([]);
       expect(overflow, `no [console-overflow] — ${overflow.join(' | ')}`).toEqual([]);

@@ -263,7 +263,7 @@ for (const preset of PRESETS) {
       const timeline = page.locator(`${composer} [data-capsule-timeline]`);
       await expect(timeline, 'ONE chip for the card\'s capsule').toHaveCount(1);
       expect((await timeline.locator('.action-effect-chip__value').textContent() ?? '').replace(/\s+/g, ''), 'start → end').toBe('1→0');
-      expect(await timeline.locator('.action-effect-chip__move').allTextContents(), 'its two movements, in order').toEqual(['+1', '−2']);
+      await expect.poll(() => timeline.locator('.action-effect-chip__move').allTextContents(), {message: 'its two movements, in order'}).toEqual(['+1', '−2']);
       const formula = await text(page, `${composer} .con-composer__hero`);
       expect(formula, `the rating N → N + 1 — got «${formula}»`).toMatch(new RegExp(`${N}\\s*→\\s*${N + 1}`));
       expect(formula, 'nothing reads as a PRICE: the spend is the action\'s consequence').not.toMatch(/Будет списано/i);
@@ -340,7 +340,7 @@ for (const preset of PRESETS) {
       // ── 4. The board, the server.
       await waitForBoardHome(page);
       await shoot(page, preset.id, '02-board');
-      expect(await page.locator('.con-ws').count(), 'no workspace').toBe(0);
+      await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace'}).toBe(0);
       expect(samples.some((s) => s.stranded), 'nothing stranded on the way').toBe(false);
       expect(await strandedReports(page), 'no prompt was stranded').toEqual([]);
       expect(seen.overflow, `no [console-overflow] — ${seen.overflow.join(' | ')}`).toEqual([]);

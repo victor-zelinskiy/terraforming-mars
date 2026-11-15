@@ -295,7 +295,7 @@ test('a paid effect: the price and the result are shown BEFORE it is spent', asy
   await expect(page.locator('.con-decision [data-decision-action]').nth(0)).toContainText('144');
   await expect(page.locator('.con-decision [data-decision-action]').nth(0)).toContainText('142');
   // An immediate action promises no second screen.
-  expect(await page.locator('.con-decision [data-decision-action]').nth(0).locator('.con-vchoice__door').count()).toBe(0);
+  await expect.poll(() => page.locator('.con-decision [data-decision-action]').nth(0).locator('.con-vchoice__door').count()).toBe(0);
   // The decline speaks this decision's language.
   await expect(page.locator('.con-decision [data-decision-action]').nth(1).locator('.con-vchoice__title'))
     .toHaveText(/Не покупать карту/i);

@@ -117,8 +117,7 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-composer--stage .con-verdict'))
         .toHaveCount(1, {timeout: 15_000});
       // The DIRECT door draws its own stage — the overlay is not re-homed there.
-      expect(await page.locator('.con-reveal').count(),
-        'the card-actions stage draws its own verdict').toBe(0);
+      await expect.poll(() => page.locator('.con-reveal').count(), {message: 'the card-actions stage draws its own verdict'}).toBe(0);
       await press(page, 'Enter', 3500); // ОК — the activation is over
       await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 10_000});
       await page.waitForTimeout(1500);
@@ -166,7 +165,7 @@ for (const profile of PROFILES) {
       await expect(page.locator('[data-embed-slot="hand-outcome"] .con-verdict'))
         .toHaveCount(1, {timeout: 20_000});
       // …and it is the SAME instance, not a second copy standing in a band.
-      expect(await page.locator('.con-reveal').count(), 'one reveal, one home').toBe(1);
+      await expect.poll(() => page.locator('.con-reveal').count(), {message: 'one reveal, one home'}).toBe(1);
       // The crumb only ever GAINS a tail: the workspace and the played card stay,
       // the stage segment is the verdict's own name (handed UP by the surface).
       await expect(page.locator('.con-wshead__step')).toHaveText(/ВСКРЫТ/i, {timeout: 10_000});
@@ -246,8 +245,7 @@ for (const profile of PROFILES) {
       //    server-side `lastReveal` would return as the legacy modal). ───────
       await press(page, 'Escape', 900);
       await expect(embedded, 'B must not minimize a verdict').toHaveCount(1);
-      expect(await page.locator('.con-reveal').count(),
-        'B must not summon the standalone modal').toBe(1);
+      await expect.poll(() => page.locator('.con-reveal').count(), {message: 'B must not summon the standalone modal'}).toBe(1);
 
       // ── «ОК» ENDS THE FLOW: the workspace leaves with its stage, and nothing
       //    is left behind for the standalone presenter to pick up. ───────────

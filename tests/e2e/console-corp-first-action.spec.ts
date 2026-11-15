@@ -94,14 +94,11 @@ test.describe('console corp first action — the start workspace stage', () => {
 
     // The RETIRED surfaces must never appear in the start flow: the standalone
     // confirm modal and the announce plate (the workspace IS the presentation).
-    expect(await page.locator('.con-composer--corpfirst').count(),
-      'the standalone first-action modal must never rise inside the start flow').toBe(0);
-    expect(await page.locator('.con-mandatory').count(),
-      'no announce plate — the stage presents the action itself').toBe(0);
+    await expect.poll(() => page.locator('.con-composer--corpfirst').count(), {message: 'the standalone first-action modal must never rise inside the start flow'}).toBe(0);
+    await expect.poll(() => page.locator('.con-mandatory').count(), {message: 'no announce plate — the stage presents the action itself'}).toBe(0);
 
     // The corporation card stands on the SOURCE SEAT (one physical card).
-    expect(await page.locator('.con-start__embedsource [data-embed-source-slot] :is(.card-container, .pcard, [class*="plite"])').count())
-      .toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-start__embedsource [data-embed-source-slot] :is(.card-container, .pcard, [class*="plite"])').count()).toBeGreaterThan(0);
 
     // Mandatory framing + the printed ask (Tharsis: place a city tile).
     const kicker = (await stage.locator('.con-start__firstact-kicker').innerText()).toUpperCase();
@@ -114,7 +111,7 @@ test.describe('console corp first action — the start workspace stage', () => {
     // pictogram (the shared «ДАЛЕЕ» presenter — composer parity).
     const notes = await stage.locator('.con-start__firstact-next').allInnerTexts();
     expect(notes.join(' ')).toContain('тайл города');
-    expect(await stage.locator('.con-start__firstact-next-tile').count()).toBeGreaterThan(0);
+    await expect.poll(() => stage.locator('.con-start__firstact-next-tile').count()).toBeGreaterThan(0);
 
     // The continuous breadcrumb: the stage advanced ONLY the tail.
     const crumb = (await page.locator('.con-wshead').innerText()).toUpperCase();

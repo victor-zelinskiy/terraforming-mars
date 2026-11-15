@@ -47,7 +47,7 @@ async function openColoniesAndFocus(page: Page, target: string): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
   const focused = page.locator(`.con-coltile--focused[data-test="con-colony-${target}"]`);
   for (let i = 0; i < 10 && await focused.count() === 0; i++) {
     await press(page, 'ArrowRight', 380);
@@ -58,7 +58,7 @@ async function openColoniesAndFocus(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 /** The command bar's live contract, as the player reads it. */
@@ -86,7 +86,7 @@ test('the colonies OVERVIEW: A «Выбрать» enters the act, X «Осмот
   // X READS: the dossier opens — never the act's stage — and only there does
   // A name the act it leads on to.
   expect(await pressUntilVisible(page, 'KeyX', '.con-colinspect'), 'X did not open the colony dossier').toBe(true);
-  expect(await page.locator('.con-colfocus').count(), 'X opened the act stage instead of the dossier').toBe(0);
+  await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'X opened the act stage instead of the dossier'}).toBe(0);
   await expect(page.locator('.con-cmdbar'), 'the dossier\'s A does not lead on to the act').toContainText(/К торговле/i);
 });
 
@@ -95,7 +95,7 @@ test('the summary rail reads as a reward PACKAGE (total · breakdown · others)'
   await bootSeededGame(page, request, await createGame(request), {buy: 1, keepColony: 'Io'});
   await openColoniesAndFocus(page, 'Io');
   await press(page, 'Enter', 2200); // A = the focus stage (the act)
-  expect(await page.locator('.con-colfocus').count(), 'the focus stage did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the focus stage did not open'}).toBeGreaterThan(0);
   await shoot(page, '02-reward-rail');
 
   const rail = page.locator('.con-colfocus__result');
@@ -120,6 +120,5 @@ test('the summary rail reads as a reward PACKAGE (total · breakdown · others)'
 
   // The chip / cover LAUNCH ANCHOR survived the rework — it now rides the
   // track's own value inside the breakdown.
-  expect(await page.locator('.con-colfocus [data-colony-trade-source="Io"]').count(),
-    'the trade-income launch anchor is gone from the rail').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-colfocus [data-colony-trade-source="Io"]').count(), {message: 'the trade-income launch anchor is gone from the rail'}).toBeGreaterThan(0);
 });

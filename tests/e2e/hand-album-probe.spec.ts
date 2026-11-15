@@ -573,7 +573,7 @@ for (const tail of [1, 2, 3] as const) {
       expect((await readAlbum(page)).indicator.replace(/\s/g, '')).toContain('1/4');
       expect(home.zoom, 'page 1 came back unchanged').toBe(full.zoom);
       expect(home.pageW, 'page 1 came back unchanged').toBe(full.pageW);
-      expect(await page.locator('.con-hand__slot--selected').count(), 'focus is still on a real card').toBe(1);
+      await expect.poll(() => page.locator('.con-hand__slot--selected').count(), {message: 'focus is still on a real card'}).toBe(1);
 
       // ── a FILTER whose whole result is thin is the same page ─────────
       // (RT cycles the tag filter; a tag with 1..4 hits leaves a single

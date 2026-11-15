@@ -32,7 +32,7 @@ for (const profile of PROFILES) {
       const markers = await page.evaluate(() => Array.from(document.querySelectorAll('.special-cell-marker')).map((m) =>
         Array.from(m.classList).find((c) => /^board-space-c?\d+$/.test(c)) ?? '?').filter((c) => !/^board-space-c0[12]$/.test(c)).sort());
       expect(markers, 'exactly the South Pole carries a marker on the surface').toEqual([`board-space-${SOUTH_POLE}`]);
-      expect(await page.locator('.special-cell-marker--active').count(), 'no marker lights up for an invisible cursor').toBe(0);
+      await expect.poll(() => page.locator('.special-cell-marker--active').count(), {message: 'no marker lights up for an invisible cursor'}).toBe(0);
 
       await page.locator(`[data_space_id="${SOUTH_POLE}"]`).hover();
       await expect.poll(async () => (await page.locator('.board-cell-popover').innerText().catch(() => '')).replace(/\s+/g, ' '),

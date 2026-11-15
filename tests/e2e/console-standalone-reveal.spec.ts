@@ -256,7 +256,7 @@ for (const preset of PRESETS) {
       const samples = await readEntrySampler(page);
       const g = await geometry(page);
 
-      expect(await page.locator('dialog.con-zoom[open]').count(), 'a lone reward card opens no fullscreen viewer').toBe(0);
+      await expect.poll(() => page.locator('dialog.con-zoom[open]').count(), {message: 'a lone reward card opens no fullscreen viewer'}).toBe(0);
       expect(g.slots, 'one slot for one card').toHaveLength(1);
       expect(samples.findIndex((s) => s.landed > 0), 'the lone cover lands in its own slot').toBeGreaterThanOrEqual(0);
       expect(samples.filter((s) => s.cards && s.frame < 0.05), 'the card never stands without its scene').toHaveLength(0);

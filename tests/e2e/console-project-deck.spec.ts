@@ -109,7 +109,7 @@ test.describe('console top HUD · project draw pile', () => {
 
     // 4 · informational only — no button, not focusable.
     await expect(deck.locator('button')).toHaveCount(0);
-    expect(await deck.getAttribute('tabindex')).toBeNull();
+    await expect.poll(() => deck.getAttribute('tabindex')).toBeNull();
 
     fs.mkdirSync(OUT_DIR, {recursive: true});
     await page.locator('.con-status').screenshot({path: path.join(OUT_DIR, 'top-bar.png')});

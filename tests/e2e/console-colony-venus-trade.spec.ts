@@ -50,7 +50,7 @@ async function openColonies(page: Page): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
 }
 
 async function focusTile(page: Page, target: string): Promise<void> {
@@ -64,7 +64,7 @@ async function focusTile(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 async function focusedRowText(page: Page): Promise<string> {
@@ -165,19 +165,19 @@ test('Venus trade: the pre-selected target lands on a standing card, the owner b
   await openColonies(page);
   await focusTile(page, VENUS);
   await press(page, 'Enter', 2000);
-  expect(await page.locator('.con-colfocus').count(), 'the trade stage did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the trade stage did not open'}).toBeGreaterThan(0);
   await shoot(page, '00-trade-review');
 
   // The target decision: descend, walk onto the named holder, choose.
   await focusTargetRow(page);
   await press(page, 'Enter', 1200);
-  expect(await page.locator('.con-colfocus__targetstage').count(), 'the embedded target step stands').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-colfocus__targetstage').count(), {message: 'the embedded target step stands'}).toBeGreaterThan(0);
   for (let i = 0; i < 4 && (await focusedCandidate(page)) !== TARGET; i++) {
     await press(page, 'ArrowRight', 450);
   }
   expect(await focusedCandidate(page), 'the cursor reached the named holder').toBe(TARGET);
   await press(page, 'Enter', 1000);
-  expect(await page.locator('.con-colfocus__targetstage').count(), 'the pick returns to the review').toBe(0);
+  await expect.poll(() => page.locator('.con-colfocus__targetstage').count(), {message: 'the pick returns to the review'}).toBe(0);
   const row = await targetRowText(page);
   console.log('target row:', row);
   expect(row, 'the row shows the chosen card with its before → after').toMatch(/\d+\s*→\s*\d+/);

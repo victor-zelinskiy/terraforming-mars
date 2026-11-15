@@ -11,7 +11,7 @@
  *   2. the RT collect is PHYSICAL — a dock-flight proxy is airborne right
  *      after the advance press;
  *   3. after the summary commit the root `.con-start` NEVER unmounts until
- *      the deployment settles (polled continuously — a single absent frame
+ *      the deployment settles (recorded continuously — a single absent frame
  *      fails the run: that gap is what stranded the corporation hero);
  *   4. the deployment plays through the REAL receiving stage
  *      (`.con-start__playstage .con-recv`), resolved cards physically reach
@@ -24,8 +24,11 @@
  * under reduced motion.
  */
 import {expect, test, Page, APIRequestContext} from './consoleTest';
-import {press} from './consoleStart';
+import {openHandPlayComposer, pickCards, press, pressUntil, settle, waitStepDealSettled} from './consoleStart';
+import type {ObservedSample} from './observeCore';
+import {readSettled} from './settledRead';
 import {readTransient, recordTransient} from './transientRecorder';
+import {armWitness, Witness} from './witness';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -141,6 +144,103 @@ type StartLog = {
   trace: Array<string>,
 };
 
+/** One observation of the start scene — what a frame of it paints (`armStartWitness`). */
+type StartSeen = {
+  start: boolean, ceremony: boolean, hudprev: boolean, dockProxy: boolean,
+  playedZone: boolean, playedSlots: number, queueCards: number, stol: boolean, centralStage: boolean,
+  embedReveal: boolean, standalone: boolean, handDock: boolean, flowReady: boolean,
+};
+/** The start scene's witness key — one game per page. */
+const START_SCENE = 'play-landing-start';
+
+/**
+ * THE START IS RECORDED FROM THE FIRST FRAME (`armWitness`, FLAKE ZERO): every fact the start contract asserts — the
+ * root's continuous life, the dock proxy of an RT collect, the played zone, the queue, the never-rendered «СТОЛ», the
+ * standalone overlay — is observed in the task that wrote it, so a frame the drive below was busy pressing through is
+ * still a frame of the record. `settled`: «the root never absent», «no overlay» are claims about what a frame paints.
+ * The two TEXT reads (a whole subtree's `textContent`) run at most every 100 ms — the witness may not be the load.
+ */
+async function armStartWitness(page: Page): Promise<Witness<StartSeen>> {
+  return armWitness<StartSeen>(page, START_SCENE, () => {
+    const startEl = document.querySelector('.con-start');
+    const start = startEl !== null;
+    const w = window as unknown as {__plStartText?: {at: number, stol: boolean, playedZone: boolean}};
+    const now = performance.now();
+    if (w.__plStartText === undefined || now - w.__plStartText.at >= 100) {
+      const played = document.querySelector('.con-start__played');
+      w.__plStartText = {
+        at: now,
+        stol: /СТОЛ(?![А-ЯЁ])/.test(startEl?.textContent ?? ''),
+        playedZone: (played?.textContent ?? '').toUpperCase().includes('РАЗЫГРАНО'),
+      };
+    }
+    return {
+      start,
+      ceremony: document.querySelector('.con-start--ceremony') !== null,
+      hudprev: document.querySelector('.con-start__hudprev') !== null,
+      dockProxy: document.querySelector('.con-startdock-proxy') !== null,
+      playedZone: start && w.__plStartText.playedZone,
+      playedSlots: document.querySelectorAll('.con-start__played [data-played-key]').length,
+      queueCards: document.querySelectorAll('.con-start [data-queue-slot]').length,
+      stol: start && w.__plStartText.stol,
+      centralStage: document.querySelector('.con-start .con-recv') !== null,
+      embedReveal: document.querySelector('.con-start__embed *') !== null,
+      standalone: document.querySelector('.con-played:not(.con-played--embedded)') !== null,
+      handDock: document.querySelector('.con-handdock') !== null,
+      flowReady: start && document.querySelector('.con-jrail')?.getAttribute('data-presentation') === 'complete',
+    };
+  }, {settled: true, rafTick: false, max: 20_000});
+}
+
+/**
+ * The start contract's facts, read off the record. The DEPLOYMENT window opens with the ceremony; the gap claim («the
+ * root never absent between the commit and the first play») is every sample of that window, before the first played
+ * card, in which the root was gone — a count of zero is «never», whatever the frame rate.
+ */
+function startFacts(samples: ReadonlyArray<ObservedSample<StartSeen>>, log: StartLog): void {
+  const values = samples.map((s) => s.v);
+  const from = values.findIndex((v) => v.ceremony);
+  const deployment = from < 0 ? [] : values.slice(from);
+  const firstPlay = deployment.findIndex((v) => v.playedSlots > 0);
+  const beforeFirstPlay = firstPlay < 0 ? deployment : deployment.slice(0, firstPlay);
+  const inStart = deployment.filter((v) => v.start);
+  log.sawDockProxy = log.sawDockProxy || values.some((v) => v.dockProxy);
+  log.sawHudPreview = log.sawHudPreview || values.some((v) => v.hudprev);
+  log.sawCeremony = log.sawCeremony || from >= 0;
+  log.goneFramesDuringDeployment = beforeFirstPlay.filter((v) => !v.start).length;
+  log.standaloneFrames = deployment.filter((v) => v.standalone).length;
+  log.stolFrames = inStart.filter((v) => v.stol).length;
+  log.centralStageFrames = inStart.filter((v) => v.centralStage).length;
+  log.sawPlayedZone = inStart.some((v) => v.playedZone);
+  log.sawEmbeddedReveal = inStart.some((v) => v.embedReveal);
+  log.sawHandDock = inStart.some((v) => v.handDock);
+  log.sawReady = log.sawReady || inStart.some((v) => v.flowReady);
+  log.maxPlayedSlots = Math.max(0, ...inStart.map((v) => v.playedSlots));
+  log.maxQueueCards = Math.max(0, ...inStart.map((v) => v.queueCards));
+  log.trace.push(`[startrec] samples=${samples.length} deployment=${deployment.length} gone-before-first-play=` +
+    `${log.goneFramesDuringDeployment} played-max=${log.maxPlayedSlots} queue-max=${log.maxQueueCards}`);
+}
+
+/** The flow rail's terminal pose — the rendered boxes (TV scale is applied through an ancestor zoom, so computed rem
+ *  and the painted rail live in different coordinate spaces; the ratio is scale-invariant). */
+async function readyPose(page: Page): Promise<{posed: boolean, railW: number, terminalW: number}> {
+  return page.evaluate(() => {
+    const rail = document.querySelector<HTMLElement>('.con-jrail--presentation-complete');
+    const terminal = rail?.querySelector<HTMLElement>('.con-jrail__view--terminal') ?? null;
+    if (rail === null || terminal === null) {
+      return {posed: false, railW: 0, terminalW: 0};
+    }
+    const railW = Math.round(rail.getBoundingClientRect().width);
+    const terminalW = Math.round(terminal.getBoundingClientRect().width);
+    return {posed: Number(getComputedStyle(terminal).opacity) > 0.98 && terminalW > 0 && railW <= terminalW * 6, railW, terminalW};
+  });
+}
+
+/** The start wizard's live step chip, upper-cased ('' between steps). */
+async function activeStep(page: Page): Promise<string> {
+  return page.evaluate(() => (document.querySelector('.con-jrail__item--current')?.textContent ?? '').toUpperCase());
+}
+
 /** Create a game and drive the WHOLE Game Start Workspace; returns the log. */
 async function bootGame(page: Page, request: APIRequestContext, withPreludes = false,
   shotPrefix = 'gsw', captureReady = false): Promise<StartLog> {
@@ -161,13 +261,15 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
   // slept through the whole READY pose (CI 2026-11-09 — 3/3 red, the box 9/9, the scene's own release beat shown).
   await recordTransient(page, 'start-ready', () => document.querySelector('.con-start') !== null &&
     document.querySelector('.con-jrail')?.getAttribute('data-presentation') === 'complete');
+  // …and so is EVERY fact of the start contract: the drive below only PRESSES, the record OBSERVES.
+  const startRec = await armStartWitness(page);
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
   // The ASSET WARM-UP veil (.boot-loader) sits over the scene long on a cold
   // bundle — pressing through it works (input bridges), but every screenshot
   // would show the curtain instead of the workspace. Wait it out.
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
-  await page.waitForTimeout(3500); // deal cinematic settle
+  await waitStepDealSettled(page); // the deal cinematic has landed on the first step
 
   // ── PREPARATION SHELL facts (the full-bleed contract). ──
   const shell = await page.evaluate(() => {
@@ -187,215 +289,104 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
   log.sawCrewStrip = shell.crew;
   log.dockPilesAtStart = shell.piles;
 
-  // ── the start wizard: STATE-DRIVEN by the active step chip (a blind key
-  //    walk drifts — the 4K deal cinematic swallowed its first press). ──
+  // ── the start wizard: STATE-DRIVEN by the active step chip; each step's picks go through the shared `pickCards`
+  //    (the deal settled first, the focus walked by the wall-turning walk, every pick verified) — a hand-rolled walk
+  //    drifted (the 4K deal cinematic swallowed its first press) and rewound with a blind key series. ──
   const frame = page.locator('.con-start__frame');
   const targets = [GREEN, BLUE, EVENT, TILE_EVENT];
-  let lastFocused = '';
-  let stalls = 0;
-  const queue: Array<string> = [];
-  const step = async (focused: string) => {
-    if (focused === '') {
-      await page.waitForTimeout(400); // the deal cinematic is still dealing
-      return;
-    }
-    if (focused === lastFocused) {
-      stalls++;
-    } else {
-      stalls = 0;
-    }
-    if (stalls === 1) {
-      await key(page, 'ArrowDown', 260);
-    } else if (stalls >= 2) {
-      queue.push(...Array(10).fill('ArrowLeft'), ...Array(4).fill('ArrowUp'));
-      stalls = 0;
-    } else {
-      await key(page, 'ArrowRight', 260);
-    }
-    lastFocused = focused;
-  };
-  /** RT advance + a fast proxy sniff (the collect must be PHYSICAL). */
+  /** RT — advance with the physical collect (its dock proxy is RECORDED by the start witness); the walk reads the step
+   *  again only once it CHANGED (a second RT on an unchanged step would advance twice). */
   const advance = async () => {
-    await page.keyboard.press('Period');
-    for (let p = 0; p < 8 && !log.sawDockProxy; p++) {
-      if (await page.locator('.con-startdock-proxy').count() > 0) {
-        log.sawDockProxy = true;
-      }
-      await page.waitForTimeout(60);
-    }
-    await page.waitForTimeout(1100);
-    lastFocused = '';
+    const before = await activeStep(page);
+    await key(page, 'Period', 400);
+    await expect.poll(async () => await activeStep(page) !== before ||
+      await page.locator('.con-start--ceremony').count() > 0, {timeout: 10_000}).toBe(true).catch(() => undefined);
   };
-  for (let i = 0; i < 260 && await frame.count() > 0; i++) {
-    if (queue.length > 0) {
-      await key(page, queue.shift() as string, 200);
-      continue;
-    }
-    const s = await page.evaluate(() => ({
-      active: (document.querySelector('.con-jrail__item--current')?.textContent ?? '').toUpperCase(),
-      focused: document.querySelector('.con-cards__slot--focused')?.getAttribute('data-zoom-slot') ?? '',
-      // VISIBLE picks only — the parked panes keep every earlier step's picked
-      // slots in the DOM (that is the caching contract), so an unscoped query
-      // counts the corporation on the preludes step and lies to the walker.
-      picked: Array.from(document.querySelectorAll('.con-cards__slot--picked'))
-        .filter((el) => (el as HTMLElement).offsetParent !== null)
-        .map((el) => el.getAttribute('data-zoom-slot') ?? ''),
-      ceremony: document.querySelector('.con-start--ceremony') !== null,
-      hudprev: document.querySelector('.con-start__hudprev') !== null,
-    }));
+  for (let i = 0; i < 60 && await frame.count() > 0; i++) {
+    const active = await activeStep(page);
     // The wizard flows STRAIGHT into the deployment inside the same frame
     // (no unmount gap — the whole point): hand over to the ceremony loop.
-    if (s.ceremony) {
+    if (await page.locator('.con-start--ceremony').count() > 0) {
       log.sawCeremony = true;
       break;
     }
-    if (s.active.includes('КОРПОРАЦ')) {
-      if (s.picked.includes('CrediCor')) {
+    if (active.includes('КОРПОРАЦ')) {
+      if ((await pickCards(page, ['CrediCor'])).includes('CrediCor')) {
         await shoot(page, `${shotPrefix}-1-corp-picked`);
         await advance();
-      } else if (s.focused === 'CrediCor') {
-        await key(page, 'Enter', 700);
-      } else {
-        await step(s.focused);
       }
       continue;
     }
-    if (s.active.includes('ПРОЛОГ')) {
-      // BIOLAB (the draw prelude) MUST be in the set — walk to it first,
-      // then choose Allied Bank explicitly. A random second prelude can own a
-      // board-placement child workspace, which belongs to the dedicated
-      // placement probe rather than this landing / terminal-flow harness.
-      if (s.picked.length >= 2) {
+    if (active.includes('ПРОЛОГ')) {
+      // BIOLAB (the draw prelude) MUST be in the set, beside Allied Bank and
+      // nothing else: a random second prelude can own a board-placement child
+      // workspace, which belongs to the dedicated placement probe rather than
+      // this landing / terminal-flow harness.
+      if ((await pickCards(page, [DRAW_PRELUDE, SAFE_PRELUDE], 34, {exclusive: true})).length >= 2) {
         await advance();
-      } else if (!s.picked.includes(DRAW_PRELUDE)) {
-        if (s.focused === DRAW_PRELUDE) {
-          await key(page, 'Enter', 420);
-          lastFocused = '';
-        } else {
-          await step(s.focused);
-        }
-      } else if (!s.picked.includes(SAFE_PRELUDE) && s.focused === SAFE_PRELUDE) {
-        await key(page, 'Enter', 420);
-        lastFocused = '';
-      } else {
-        await step(s.focused);
       }
       continue;
     }
-    if (s.active.includes('ПРОЕКТ')) {
-      const missing = targets.filter((t) => !s.picked.includes(t));
-      if (missing.length === 0) {
+    if (active.includes('ПРОЕКТ')) {
+      if ((await pickCards(page, targets)).length >= targets.length) {
         await advance();
-      } else if (missing.includes(s.focused)) {
-        await key(page, 'Enter', 420);
-        lastFocused = ''; // a pick re-reads fresh — never counts as a stall
-      } else {
-        await step(s.focused);
       }
       continue;
     }
-    // The summary: the Expanded Startup Status Preview must stand; A commits.
-    if (s.active.includes('СВОДКА') || s.active.includes('SUMMARY')) {
-      log.sawHudPreview = log.sawHudPreview || s.hudprev;
+    // The summary: the Expanded Startup Status Preview must stand (recorded); A commits.
+    if (active.includes('СВОДКА') || active.includes('SUMMARY')) {
       await shoot(page, `${shotPrefix}-2-summary`);
     }
     await key(page, 'Enter', 1300);
   }
 
   // ── the DEPLOYMENT: the root `.con-start` must exist CONTINUOUSLY from the
-  //    commit to the settle (the lifetime hold). Press A whenever a CTA
-  //    stands (queue plays, the purchase, the embedded reveal's takes); the
-  //    release (scene gone AND stays gone) ends the loop. ──
+  //    commit to the settle (the lifetime hold — the RECORD judges it). Press
+  //    A whenever a CTA stands (queue plays, the purchase, the embedded
+  //    reveal's takes); between two answers wait for the next one to stand.
+  //    The release (the scene gone, and still gone once the screen settled)
+  //    ends the drive. ──
+  const deployState = () => page.evaluate(() => {
+    const start = document.querySelector('.con-start') !== null;
+    return {
+      start,
+      cta: start && document.querySelector('.con-start__slot-a') !== null,
+      embedReveal: document.querySelector('.con-start__embed *') !== null,
+      playedSlots: document.querySelectorAll('.con-start__played [data-played-key]').length,
+      queueCards: document.querySelectorAll('.con-start [data-queue-slot]').length,
+      handDock: document.querySelector('.con-handdock') !== null,
+      mandatory: document.querySelector('.con-mandatory') !== null,
+      flowReady: document.querySelector('.con-jrail')?.getAttribute('data-presentation') === 'complete',
+    };
+  });
   let shotDeploy = false;
   let shotPlayed = false;
   let shotReveal = false;
   let shotReady = false;
-  let goneStreak = 0;
-  for (let i = 0; i < 240; i++) {
-    const s = await page.evaluate((drawCard) => {
-      const start = document.querySelector('.con-start') !== null;
-      const played = document.querySelector('.con-start__played');
-      const bodyText = document.querySelector('.con-start')?.textContent ?? '';
-      return {
-        start,
-        cta: start && document.querySelector('.con-start__slot-a') !== null,
-        playedZone: played !== null && played.textContent !== null &&
-          played.textContent.toUpperCase().includes('РАЗЫГРАНО'),
-        playedSlots: document.querySelectorAll('.con-start__played [data-played-key]').length,
-        queueCards: document.querySelectorAll('.con-start [data-queue-slot]').length,
-        stol: /СТОЛ(?![А-ЯЁ])/.test(bodyText),
-        centralStage: document.querySelector('.con-start .con-recv') !== null,
-        embedReveal: document.querySelector('.con-start__embed *') !== null,
-        standalone: document.querySelector('.con-played:not(.con-played--embedded)') !== null,
-        handDock: document.querySelector('.con-handdock') !== null,
-        mandatory: document.querySelector('.con-mandatory') !== null,
-        drawQueued: document.querySelector(`.con-start [data-queue-slot="${drawCard}"]`) !== null,
-        flowReady: document.querySelector('.con-jrail')?.getAttribute('data-presentation') === 'complete',
-      };
-    }, DRAW_PRELUDE);
+  for (let i = 0, deadline = Date.now() + 170_000; Date.now() < deadline; i++) {
+    const s = await deployState();
     log.trace.push(`d${i} start:${s.start ? 1 : 0} cta:${s.cta ? 1 : 0} q:${s.queueCards} p:${s.playedSlots} emb:${s.embedReveal ? 1 : 0} hd:${s.handDock ? 1 : 0}`);
-    if (s.standalone) {
-      log.standaloneFrames++;
-    }
     if (s.start) {
-      goneStreak = 0;
-      if (s.playedZone) {
-        log.sawPlayedZone = true;
+      if (s.embedReveal && !shotReveal) {
+        shotReveal = true;
+        await shoot(page, `${shotPrefix}-5-embedded-reveal`);
       }
-      if (s.stol) {
-        log.stolFrames++;
+      if (s.flowReady && captureReady && !shotReady) {
+        shotReady = true;
+        // `data-presentation="complete"` flips at the START of the physical
+        // consolidation. Wait for the real computed pose at rest, not a
+        // guessed delay, so Calm/Standard/Swift all capture the terminal pose.
+        //
+        // A POSE GATE FOR A PHOTOGRAPH IS NOT AN ASSERTION: the fact this
+        // block exists for (`sawReady`) is RECORDED, and all the wait buys is
+        // a shot of the SETTLED rail rather than one taken mid-consolidation.
+        // On a loaded 4K frame that consolidation runs long, and the old bare
+        // 2 s budget failed the whole start probe over a screenshot — so the
+        // budget is generous AND the miss is caught.
+        await readSettled(page, () => readyPose(page), {settle: false, timeoutMs: 8_000, message: 'the flow rail terminal pose'})
+          .catch(() => undefined);
+        await shoot(page, `${shotPrefix}-6-flow-ready`);
       }
-      if (s.centralStage) {
-        log.centralStageFrames++;
-      }
-      if (s.embedReveal) {
-        log.sawEmbeddedReveal = true;
-        if (!shotReveal) {
-          shotReveal = true;
-          await shoot(page, `${shotPrefix}-5-embedded-reveal`);
-        }
-      }
-      if (s.handDock) {
-        log.sawHandDock = true;
-      }
-      if (s.flowReady) {
-        log.sawReady = true;
-        if (captureReady && !shotReady) {
-          shotReady = true;
-          // `data-presentation="complete"` flips at the START of the physical
-          // consolidation. Wait for the real computed width, not a guessed
-          // delay, so Calm/Standard/Swift all capture the terminal pose.
-          //
-          // A POSE GATE FOR A PHOTOGRAPH IS NOT AN ASSERTION: the fact this
-          // block exists for (`sawReady`) is already recorded above, and all
-          // the wait buys is a shot of the SETTLED rail rather than one taken
-          // mid-consolidation. On a loaded 4K frame that consolidation runs
-          // long, and the old bare 2 s budget failed the whole start probe
-          // over a screenshot — so the budget is generous AND the miss is
-          // caught.
-          await page.waitForFunction(() => {
-            const rail = document.querySelector<HTMLElement>('.con-jrail--presentation-complete');
-            const terminal = rail?.querySelector<HTMLElement>('.con-jrail__view--terminal');
-            if (!rail || !terminal) {
-              return false;
-            }
-            /* Compare rendered boxes, not `rem` against the document root:
-             * TV scale is applied through an ancestor zoom, so computed rem
-             * and the physically painted rail live in different coordinate
-             * spaces. The ratio is scale-invariant and proves both that the
-             * terminal layer is visible and that the 44rem expanded reserve
-             * has actually consolidated around it. */
-            const railWidth = rail.getBoundingClientRect().width;
-            const terminalWidth = terminal.getBoundingClientRect().width;
-            return Number(getComputedStyle(terminal).opacity) > 0.98 &&
-              terminalWidth > 0 && railWidth <= terminalWidth * 6;
-          }, undefined, {timeout: 8_000}).catch(() => {});
-          await page.waitForTimeout(50);
-          await shoot(page, `${shotPrefix}-6-flow-ready`);
-        }
-      }
-      log.maxPlayedSlots = Math.max(log.maxPlayedSlots, s.playedSlots);
-      log.maxQueueCards = Math.max(log.maxQueueCards, s.queueCards);
       if (!shotPlayed && s.playedSlots > 0) {
         shotPlayed = true;
         await shoot(page, `${shotPrefix}-4-played-dock`);
@@ -407,31 +398,32 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
       if (s.cta || s.embedReveal) {
         await key(page, 'Enter', 700);
       } else {
-        await page.waitForTimeout(180);
+        // Nothing to answer yet — wait (bounded) for the next thing the drive answers, or for the scene to go.
+        await expect.poll(async () => {
+          const n = await deployState();
+          return !n.start || n.cta || n.embedReveal || (n.flowReady && captureReady && !shotReady);
+        }, {timeout: 3_000, intervals: [180]}).toBe(true).catch(() => undefined);
       }
       continue;
-    }
-    // The scene is gone. Before every consequence resolved that is the old
-    // close bug; after, it is the release — confirm it STAYS gone.
-    goneStreak++;
-    if (log.sawCeremony && log.maxPlayedSlots === 0 && goneStreak === 1) {
-      log.goneFramesDuringDeployment++;
-    }
-    if (goneStreak >= 8) {
-      break;
     }
     if (s.mandatory) {
       break; // post-release first-action announce — the start flow is over
     }
-    await page.waitForTimeout(300);
+    // The scene is gone. A release STAYS gone: it is believed once the screen has settled without it (a scene that
+    // comes back is driven on — and its gap is the record's to judge, never this loop's).
+    await settle(page);
+    if (await page.locator('.con-start').count() === 0) {
+      break;
+    }
   }
   await expect(page.locator('.con-start')).toHaveCount(0, {timeout: 30_000});
+  startFacts(await startRec.stop(), log);
   const ready = await readTransient<boolean>(page, 'start-ready');
   if (ready.some((x) => x.v)) {
     log.sawReady = true;
   }
   log.trace.push(`[ready] ${ready.map((x) => `${x.v ? 'READY' : '-'}@${Math.round(x.t)}`).join(' ')}`);
-  await page.waitForTimeout(4500); // hand intake settle (slower at 4K)
+  await settle(page); // the hand intake lands (slower at 4K)
   return log;
 }
 
@@ -460,63 +452,19 @@ function assertStart(log: StartLog, opts: {withPreludes: boolean, strictMotion: 
 }
 
 
-/** Walk the hand cursor onto `card` and open the workspace descent. */
+/**
+ * The hand → `card` focused → the workspace DESCENDS into the play level (the embedded composer) — the shared driver
+ * (`openHandPlayComposer`: the hand through the RT wheel's centre slot — never a blind B first, B on a pending start
+ * prompt DEFERS it —, the hand's own «input released» signal before the walk, the focus walked by the wall-turning
+ * walk, A verified by the composer standing, the sheet LOADED). The hand-rolled walk this probe kept knocked
+ * ArrowRight / ArrowDown for 60 rounds.
+ */
 async function descendIntoPlay(page: Page, card: string): Promise<void> {
-  // Enter the hand workspace via the RT action-category quick selector
-  // (A = Cards is its centre slot). Never a blind B first — B on a pending
-  // start prompt DEFERS it and every hand card goes «завершите действие».
-  for (let i = 0; i < 6 && await page.locator('.con-hand__frame').count() === 0; i++) {
-    await key(page, 'Period', 800);
-    await key(page, 'Enter', 1100);
-  }
-  await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 10_000});
-  // The hand INTAKE may still be flying the starting cards in (slower at 4K)
-  // — walk the cursor only over a populated grid, never into a void.
-  await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
-  // …and the dock→grid OPEN REVEAL gates nav until its flights settle —
-  // LONGEST at 4K, where it can outlast the whole walk budget below (the
-  // cursor then «never reaches» a card on a perfectly healthy grid). Wait for
-  // the hand's own structural ready signal first — the same marker the shared
-  // driver's playCardFromHand waits on (`.con-hand--transit` falls when the
-  // reveal episode releases input). The catch keeps the old patient walk as
-  // the bounded fallback rather than failing the boot on a missing marker.
-  await page.locator('.con-hand:not(.con-hand--transit)')
-    .waitFor({state: 'visible', timeout: 25_000}).catch(() => {});
-  await page.waitForTimeout(800);
-
-  // Cursor onto the target card (right-major adaptive walk with a down fallback).
-  const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${card}"]`).count();
-  let lastSelected = '';
-  const walkTrace: Array<string> = [];
-  // 60 patient iterations: right after the start release the hand's OPEN
-  // reveal episode gates nav until its flights settle (longest at 4K) — the
-  // walk simply keeps knocking until the grid answers.
-  for (let i = 0; i < 60 && await onTarget() === 0; i++) {
-    const st = await page.evaluate(() => ({
-      selected: document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '',
-      wheel: document.querySelector('.con-quick') !== null,
-      zoom: document.querySelector('.con-zoom') !== null,
-      start: document.querySelector('.con-start') !== null,
-      mandatory: document.querySelector('.con-mandatory') !== null,
-      slots: document.querySelectorAll('.con-hand__slot').length,
-      overlays: Array.from(document.querySelectorAll('[data-motion-surface]')).map((el) => el.getAttribute('data-motion-surface')).join(','),
-    }));
-    const selected = st.selected;
-    walkTrace.push(`${i}:${selected}|w${st.wheel ? 1 : 0}z${st.zoom ? 1 : 0}s${st.start ? 1 : 0}m${st.mandatory ? 1 : 0}n${st.slots}|${st.overlays}`);
-    await key(page, selected === lastSelected && i > 0 ? 'ArrowDown' : 'ArrowRight', 260);
-    lastSelected = selected;
-  }
-  if (await onTarget() === 0) {
-    console.log(`[hand walk trace] ${walkTrace.join(' ')}`);
-  }
-  expect(await onTarget(), `hand cursor never reached ${card}`).toBeGreaterThan(0);
-
-  // A → the workspace DESCENDS into the play level (embedded composer).
-  await key(page, 'Enter', 600);
+  await openHandPlayComposer(page, card);
   await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 10_000});
-  // Let the descent phrase + preview settle, and the CTA arm.
+  // The descent phrase + preview settle, and the CTA arms.
   await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 10_000});
-  await page.waitForTimeout(1400);
+  await settle(page);
 }
 
 type SceneLog = {
@@ -541,6 +489,28 @@ type SceneLog = {
   trace: Array<string>,
 };
 
+/** One observation of the landing episode — what a frame of the scene shows (`runLandingScene`'s witness). */
+type SceneSeen = {
+  standalone: boolean, fullOverlay: boolean, proxy: boolean, stageUp: boolean, hand: boolean, step: string,
+  composer: boolean, cardColHidden: boolean, reserved: boolean, docked: boolean, minis: number, destCount: number,
+};
+/** The episode's witness key — one landing at a time (the FHD test plays four cards on one page; re-arming starts a
+ *  fresh record). */
+const LANDING_SCENE = 'play-landing-scene';
+
+/** The first sample after the stage where the workspace folded — the episode's end (undefined while it stands). */
+function foldOf(samples: ReadonlyArray<ObservedSample<SceneSeen>>): ObservedSample<SceneSeen> | undefined {
+  const at = samples.findIndex((s) => s.v.stageUp);
+  return at < 0 ? undefined : samples.slice(at + 1).find((s) => !s.v.composer && !s.v.stageUp);
+}
+
+/** Wait (bounded, NEVER a verdict — the verdicts are `assertScene`'s) until the episode's record holds `reached`. */
+async function sceneReaches(scene: Witness<SceneSeen>, reached: (samples: ReadonlyArray<ObservedSample<SceneSeen>>) => boolean,
+  deadline: number): Promise<boolean> {
+  return expect.poll(async () => reached(await scene.samples()), {timeout: Math.max(1, deadline - Date.now()), intervals: [70]})
+    .toBe(true).then(() => true, () => false);
+}
+
 /** Confirm the play and observe the whole landing episode frame-by-frame. */
 async function runLandingScene(page: Page, card: string, isEvent: boolean, shotPrefix: string, shots = true): Promise<SceneLog> {
   const log: SceneLog = {
@@ -548,220 +518,83 @@ async function runLandingScene(page: Page, card: string, isEvent: boolean, shotP
     sawStepPlayed: false, sawDocked: false, sawCardColHidden: false, maxMinis: 0, maxEvents: 0,
     handSurvivedUntilStage: false, trace: [],
   };
-  // THE WHOLE EPISODE IS RECORDED IN-PAGE, NEVER ONLY POLLED (TEST_CONTOUR §5).
+  // THE WHOLE EPISODE IS RECORDED, NEVER POLLED (TEST_CONTOUR §5; FLAKE ZERO — `armWitness`).
   //
-  // On a loaded 4K frame the Playwright-side loop below undersamples brutally:
-  // a healthy local run measured THREE samples across the 16 s window, with a
+  // On a loaded 4K frame a Playwright-side poll undersamples brutally: a
+  // healthy local run measured THREE samples across the 16 s window, with a
   // 6.7 s hole — an `evaluate` round-trip plus one 4K `screenshot()` costs
   // seconds, and the landing's whole dock beat fits inside such a hole. The
   // product docked the card, the sampler slept through it, and the spec
   // reported «the card never took the front» about a front it never looked at
-  // (the crumb tail lost the same way first, which is why `__stepRec` exists;
-  // the fix belongs to EVERY fact the scene asserts, not just that one).
+  // (the crumb tail lost the same way first; the fix belongs to EVERY fact the
+  // scene asserts, not just that one).
   //
-  // A MutationObserver + a 50 ms interval run on the PAGE's own loop, so they
-  // see every state the episode passes through whatever the round-trip latency
-  // is — the same window that yielded 3 Playwright samples yielded 76 in-page
-  // ones. `attributes: true` is load-bearing: the front anchor announces the
-  // dock by rewriting `data-played-key`, which is an attribute mutation.
+  // The witness observes the product's own writes in the task that makes them
+  // (+ a frame tick for what only a computed style moves), whatever the
+  // round-trip latency is. `attributes` are observed: the front anchor
+  // announces the dock by rewriting `data-played-key`.
   //
-  // The Playwright loop stays — it owns the SCREENSHOTS and the episode's end
-  // — but it no longer owns the observation, so a slow frame can only cost a
-  // photograph, never a fact.
-  await page.evaluate((card) => {
-    const w = window as unknown as {__sceneRec?: unknown, __sceneRecStop?: () => void};
-    // A scene may run several times on ONE page (the FHD test plays four
-    // cards): tear the previous recorder down first, or every earlier
-    // observer keeps firing on this episode's frames for nothing.
-    w.__sceneRecStop?.();
-    const rec = {
-      samples: 0,
-      standaloneFrames: 0, fullOverlayFrames: 0, sawStage: false, sawReserved: false,
-      sawProxy: false, sawDocked: false, sawCardColHidden: false,
-      handSurvivedUntilStage: false, maxMinis: 0, maxEvents: 0,
-      steps: [] as Array<string>,
+  // The Playwright side owns only the SCREENSHOTS and the episode's end — a
+  // slow frame can cost a photograph, never a fact.
+  const scene = await armWitness<SceneSeen, string>(page, LANDING_SCENE, (c) => {
+    const recv = document.querySelector('.con-composer__playstage .con-recv');
+    const front = recv?.querySelector('[data-recv-front]') ?? null;
+    const key = front?.getAttribute('data-played-key') ?? '';
+    const count = recv?.querySelector('.con-recv__caption-count')?.textContent ?? '';
+    const playCard = document.querySelector('.con-composer__playcard');
+    return {
+      standalone: document.querySelector('.con-played:not(.con-played--embedded)') !== null,
+      fullOverlay: document.querySelector('.con-composer__playstage .con-played') !== null,
+      proxy: document.querySelector('.con-played-hero__proxy') !== null,
+      stageUp: document.querySelector('.con-composer__playstage--up') !== null,
+      hand: document.querySelector('.con-hand') !== null,
+      step: (document.querySelector('.con-wshead__step')?.textContent ?? '').trim().toUpperCase(),
+      composer: document.querySelector('.con-composer--play') !== null,
+      cardColHidden: playCard !== null && getComputedStyle(playCard).visibility === 'hidden',
+      reserved: front !== null && key === '',
+      docked: key === c,
+      minis: recv === null ? 0 : recv.querySelectorAll('.con-recv__mini').length,
+      destCount: count === '' ? -1 : Number(count),
     };
-    w.__sceneRec = rec;
-    // COALESCED: the observer fires on every class/attribute the cinematic
-    // touches, and a read that costs eight `querySelector`s per mutation
-    // would slow down the very frames it is here to measure. One read per
-    // rendered frame at most; the interval guarantees the floor.
-    let last = -1;
-    const read = () => {
-      const now = performance.now();
-      if (now - last < 16) {
-        return;
-      }
-      last = now;
-      rec.samples++;
-      const step = (document.querySelector('.con-wshead__step')?.textContent ?? '').trim().toUpperCase();
-      if (step !== '' && rec.steps[rec.steps.length - 1] !== step) {
-        rec.steps.push(step);
-      }
-      if (document.querySelector('.con-played:not(.con-played--embedded)') !== null) {
-        rec.standaloneFrames++;
-      }
-      if (document.querySelector('.con-composer__playstage .con-played') !== null) {
-        rec.fullOverlayFrames++;
-      }
-      if (document.querySelector('.con-played-hero__proxy') !== null) {
-        rec.sawProxy = true;
-      }
-      const recv = document.querySelector('.con-composer__playstage .con-recv');
-      if (recv !== null) {
-        const front = recv.querySelector('[data-recv-front]');
-        const key = front?.getAttribute('data-played-key') ?? '';
-        if (front !== null && key === '') {
-          rec.sawReserved = true;
-        }
-        if (key === card) {
-          rec.sawDocked = true;
-        }
-      }
-      if (document.querySelector('.con-composer__playstage--up') === null) {
-        return;
-      }
-      rec.sawStage = true;
-      if (document.querySelector('.con-hand') !== null) {
-        rec.handSurvivedUntilStage = true;
-      }
-      const playCard = document.querySelector('.con-composer__playcard');
-      if (playCard !== null && getComputedStyle(playCard).visibility === 'hidden') {
-        rec.sawCardColHidden = true;
-      }
-      if (recv !== null) {
-        rec.maxMinis = Math.max(rec.maxMinis, recv.querySelectorAll('.con-recv__mini').length);
-        const count = recv.querySelector('.con-recv__caption-count')?.textContent ?? '';
-        if (count !== '') {
-          rec.maxEvents = Math.max(rec.maxEvents, Number(count));
-        }
-      }
-    };
-    read();
-    const mo = new MutationObserver(read);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    const iv = setInterval(read, 50);
-    w.__sceneRecStop = () => {
-      mo.disconnect();
-      clearInterval(iv);
-    };
-    setTimeout(() => w.__sceneRecStop?.(), 20_000);
-  }, card);
+  }, {args: card, max: 20_000});
   await key(page, 'Enter', 60); // A · Разыграть карту
   const deadline = Date.now() + 16_000;
-  let shotFlight = false;
-  let shotDock = false;
-  while (Date.now() < deadline) {
-    const snap = await page.evaluate((args) => {
-      const {card} = args as {card: string, isEvent: boolean};
-      const standalone = document.querySelector('.con-played:not(.con-played--embedded)') !== null;
-      const stageUp = document.querySelector('.con-composer__playstage--up') !== null;
-      const recv = document.querySelector('.con-composer__playstage .con-recv');
-      const fullOverlay = document.querySelector('.con-composer__playstage .con-played') !== null;
-      const proxy = document.querySelector('.con-played-hero__proxy') !== null;
-      const hand = document.querySelector('.con-hand') !== null;
-      const step = (document.querySelector('.con-wshead__step')?.textContent ?? '').trim().toUpperCase();
-      const composer = document.querySelector('.con-composer--play') !== null;
-      const playCard = document.querySelector('.con-composer__playcard');
-      const cardColHidden = playCard !== null && getComputedStyle(playCard).visibility === 'hidden';
-      let reserved = false;
-      let docked = false;
-      let minis = 0;
-      let destCount = -1;
-      if (recv !== null) {
-        const front = recv.querySelector('[data-recv-front]');
-        const key = front?.getAttribute('data-played-key') ?? '';
-        reserved = front !== null && key === '';
-        docked = key === card;
-        minis = recv.querySelectorAll('.con-recv__mini').length;
-        const count = recv.querySelector('.con-recv__caption-count')?.textContent ?? '';
-        destCount = count === '' ? -1 : Number(count);
-      }
-      return {standalone, stageUp, fullOverlay, proxy, hand, step, composer, cardColHidden, reserved, docked, minis, destCount};
-    }, {card, isEvent});
+  if (shots && await sceneReaches(scene, (ss) => ss.some((s) => s.v.proxy && s.v.stageUp), deadline)) {
+    await shoot(page, `${shotPrefix}-1-flight`);
+  }
+  if (shots && await sceneReaches(scene, (ss) => ss.some((s) => s.v.docked), deadline)) {
+    await shoot(page, `${shotPrefix}-2-docked`);
+  }
+  // The workspace folded — the episode is over (bounded: the facts below judge an episode that never ended).
+  await sceneReaches(scene, (ss) => foldOf(ss) !== undefined, deadline);
+  const samples = await scene.stop();
+  const values = samples.map((s) => s.v);
+  const t0 = samples[0]?.t ?? 0;
+  log.trace.push(`[scene] ${card} ${isEvent ? 'event (face-down pile)' : 'card (front anchor)'} — ${samples.length} recorded states`);
+  for (const s of samples) {
+    const v = s.v;
     log.trace.push(
-      `t${Date.now() % 100000} comp:${snap.composer ? 1 : 0} stage:${snap.stageUp ? 1 : 0} res:${snap.reserved ? 1 : 0} ` +
-      `dock:${snap.docked ? 1 : 0} prx:${snap.proxy ? 1 : 0} minis:${snap.minis} n:${snap.destCount} col:${snap.cardColHidden ? 1 : 0} step:${snap.step}`);
-
-    if (snap.standalone) {
-      log.standaloneFrames++;
-    }
-    if (snap.fullOverlay) {
-      log.fullOverlayFrames++;
-    }
-    if (snap.stageUp) {
-      log.sawStage = true;
-      log.maxMinis = Math.max(log.maxMinis, snap.minis);
-      if (snap.hand) {
-        log.handSurvivedUntilStage = true;
-      }
-      if (snap.cardColHidden) {
-        log.sawCardColHidden = true;
-      }
-      if (snap.destCount > log.maxEvents) {
-        log.maxEvents = snap.destCount;
-      }
-    }
-    if (snap.reserved) {
-      log.sawReserved = true;
-    }
-    if (snap.proxy) {
-      log.sawProxy = true;
-      if (shots && !shotFlight && snap.stageUp) {
-        shotFlight = true;
-        await shoot(page, `${shotPrefix}-1-flight`);
-      }
-    }
-    if (snap.step === 'РАЗЫГРАНО') {
-      log.sawStepPlayed = true;
-    }
-    if (snap.docked) {
-      if (shots && !shotDock) {
-        shotDock = true;
-        await shoot(page, `${shotPrefix}-2-docked`);
-      }
-      log.sawDocked = true;
-    }
-    if (!snap.composer && !snap.stageUp && log.sawStage) {
-      break; // the workspace folded — the episode is over
-    }
-    await page.waitForTimeout(70);
+      `t${Math.round(s.t - t0)} comp:${v.composer ? 1 : 0} stage:${v.stageUp ? 1 : 0} res:${v.reserved ? 1 : 0} ` +
+      `dock:${v.docked ? 1 : 0} prx:${v.proxy ? 1 : 0} minis:${v.minis} n:${v.destCount} col:${v.cardColHidden ? 1 : 0} step:${v.step}`);
   }
-  // Merge the in-page recorder (armed before the press): the episode's whole
-  // journey, immune to the poll holes above. The Playwright poll above only
-  // ADDS to it (it never overrides) — every fact is the OR of the two, so the
-  // spec sees the union of what both samplers caught. The sample count rides
-  // the trace, so a dead recorder is visible in the failure it would cause.
-  const rec = await page.evaluate(() => (window as unknown as {__sceneRec?: {
-    samples: number, standaloneFrames: number, fullOverlayFrames: number,
-    sawStage: boolean, sawReserved: boolean, sawProxy: boolean, sawDocked: boolean,
-    sawCardColHidden: boolean, handSurvivedUntilStage: boolean,
-    maxMinis: number, maxEvents: number, steps: Array<string>,
-  }}).__sceneRec);
-  log.trace.push(`[scenerec] samples=${rec?.samples ?? 0} steps=${(rec?.steps ?? []).join('›')} ` +
-    `stage:${rec?.sawStage ? 1 : 0} res:${rec?.sawReserved ? 1 : 0} dock:${rec?.sawDocked ? 1 : 0} ` +
-    `prx:${rec?.sawProxy ? 1 : 0} col:${rec?.sawCardColHidden ? 1 : 0} minis:${rec?.maxMinis ?? 0} ` +
-    `n:${rec?.maxEvents ?? 0} standalone:${rec?.standaloneFrames ?? 0} full:${rec?.fullOverlayFrames ?? 0}`);
-  // A DEAD recorder must fail here, not silently downgrade the spec back to
-  // the poll it replaces. Deliberately low: the shortest episode is the
-  // reduced-motion one, where the flights resolve instantly.
-  expect(rec?.samples ?? 0, 'the in-page scene recorder ran').toBeGreaterThan(3);
-  if (rec !== undefined) {
-    // The two NEGATIVE facts stay a SUM (a leaked overlay must fail whichever
-    // sampler saw it); every positive fact is an OR.
-    log.standaloneFrames += rec.standaloneFrames;
-    log.fullOverlayFrames += rec.fullOverlayFrames;
-    log.sawStage = log.sawStage || rec.sawStage;
-    log.sawReserved = log.sawReserved || rec.sawReserved;
-    log.sawProxy = log.sawProxy || rec.sawProxy;
-    log.sawDocked = log.sawDocked || rec.sawDocked;
-    log.sawCardColHidden = log.sawCardColHidden || rec.sawCardColHidden;
-    log.handSurvivedUntilStage = log.handSurvivedUntilStage || rec.handSurvivedUntilStage;
-    log.maxMinis = Math.max(log.maxMinis, rec.maxMinis);
-    log.maxEvents = Math.max(log.maxEvents, rec.maxEvents);
-    log.sawStepPlayed = log.sawStepPlayed || rec.steps.includes('РАЗЫГРАНО');
-  }
-  await page.waitForTimeout(900);
+  // The facts, read off the record: the two NEGATIVE ones are counts of recorded states (zero = «never», whatever the
+  // frame rate); every positive one is «did it ever happen»; the stage-scoped ones count only while the stage stood.
+  const staged = values.filter((v) => v.stageUp);
+  log.standaloneFrames = values.filter((v) => v.standalone).length;
+  log.fullOverlayFrames = values.filter((v) => v.fullOverlay).length;
+  log.sawStage = staged.length > 0;
+  log.sawReserved = values.some((v) => v.reserved);
+  log.sawProxy = values.some((v) => v.proxy);
+  log.sawDocked = values.some((v) => v.docked);
+  log.sawStepPlayed = values.some((v) => v.step === 'РАЗЫГРАНО');
+  log.sawCardColHidden = staged.some((v) => v.cardColHidden);
+  log.handSurvivedUntilStage = staged.some((v) => v.hand);
+  log.maxMinis = Math.max(0, ...staged.map((v) => v.minis));
+  log.maxEvents = Math.max(0, ...staged.map((v) => v.destCount));
+  // A DEAD witness must fail here, not silently pass every negative fact. Only a dead one records nothing — a count
+  // of samples is a count of frames, i.e. of the machine's speed (the shortest episode is the reduced-motion one).
+  expect(samples.length, 'the landing scene witness recorded').toBeGreaterThan(0);
+  await settle(page);
   await shoot(page, `${shotPrefix}-3-after`);
   return log;
 }
@@ -831,7 +664,10 @@ test.describe('console Game Start Workspace + play landing', () => {
     //    So here the assertions are the staged boundary: the workspace yields,
     //    the placement is served, and no landing scene ever armed.
     await descendIntoPlay(page, TILE_EVENT);
-    await page.keyboard.press('Enter'); // «Разыграть на поле» — no submit yet
+    // «Разыграть на поле» — no submit yet. Act → verify → retry, with a whole window before a second A (on the board a
+    // second A would LOCK a cell).
+    await pressUntil(page, 'Enter', async () =>
+      await page.locator('.con-context').filter({hasText: /размещение тайла/i}).count() > 0, {tries: 3, settleMs: 3000});
     await expect(page.locator('.con-context'), 'the staged placement never took the board')
       .toContainText(/размещение тайла/i, {timeout: 30_000});
     await expect(page.locator('.con-hand')).toHaveCount(0);

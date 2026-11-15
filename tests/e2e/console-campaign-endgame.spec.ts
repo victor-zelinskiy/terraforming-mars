@@ -70,8 +70,7 @@ test.describe('campaign finale — the champion ceremony', () => {
       await page.keyboard.press(key);
       await forceFrame(page);
     }
-    expect(await page.locator('.con-eg__actions').count(),
-      'input during the champion ceremony must not fast-forward it').toBe(0);
+    await expect.poll(() => page.locator('.con-eg__actions').count(), {message: 'input during the champion ceremony must not fast-forward it'}).toBe(0);
     await expect(page.locator('.con-endgame'), 'B must not collapse the mandatory scene').toBeVisible();
 
     // The plate transformation: «ПОБЕДИТЕЛЬ» → «ЧЕМПИОН КАМПАНИИ» + 4 pips.
@@ -80,7 +79,7 @@ test.describe('campaign finale — the champion ceremony', () => {
     30_000, 'the champion plate');
     await shoot(page, SHOT_DIR, '2p-champion-plate');
     await expect(page.locator('.con-eg__champline').first()).toContainText(/Чемпион кампании/i);
-    expect(await page.locator('.con-eg__champline-pip').count()).toBe(4);
+    await expect.poll(() => page.locator('.con-eg__champline-pip').count()).toBe(4);
 
     // Control returns ATOMICALLY at the settle; the layout never moved.
     await waitWithFrames(page, async () =>
@@ -91,8 +90,8 @@ test.describe('campaign finale — the champion ceremony', () => {
     // The settled CAMPAIGN state: header, plate, keel — and the logical next
     // focus is the campaign map door («Хроника кампании», the list's head).
     await expect(page.locator('.con-eg__kicker').first()).toContainText(/Кампания завершена/i);
-    expect(await page.locator('.con-eg__champline').count()).toBeGreaterThan(0);
-    expect(await page.locator('.con-eg__champ-keel').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__champline').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__champ-keel').count()).toBeGreaterThan(0);
     await expect(page.locator('.con-eg__action--focused')).toContainText(/Хроника кампании/i);
     await shoot(page, SHOT_DIR, '2p-champion-settled');
 
@@ -124,7 +123,7 @@ test.describe('campaign finale — the champion ceremony', () => {
     }
     expect(sawChampionPhase, 'a reload must land settled, never replay the ceremony').toBe(false);
     await expect(page.locator('.con-eg__kicker').first()).toContainText(/Кампания завершена/i);
-    expect(await page.locator('.con-eg__champline').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-eg__champline').count()).toBeGreaterThan(0);
     await shoot(page, SHOT_DIR, '2p-reload-settled');
 
     // ── «Повторить подсчёт» replays the FULL act, champion beat included ───
@@ -195,7 +194,7 @@ test.describe('campaign finale — five players at 4K TV scale', () => {
     }
 
     await journeyToEndgame(page, request, ids);
-    expect(await page.locator('.con-eg__row').count()).toBe(5);
+    await expect.poll(() => page.locator('.con-eg__row').count()).toBe(5);
 
     await waitWithFrames(page, async () =>
       (await page.locator('.con-endgame--champion').count()) > 0,
@@ -218,7 +217,7 @@ test.describe('campaign finale — five players at 4K TV scale', () => {
     60_000, 'the settle (5p)');
     expect(await rectsNow(), 'the dense table re-flowed under the ceremony').toEqual(rowsBefore);
     await expect(page.locator('.con-eg__kicker').first()).toContainText(/Кампания завершена/i);
-    expect(await page.locator('.con-eg__champline-pip').count()).toBe(4);
+    await expect.poll(() => page.locator('.con-eg__champline-pip').count()).toBe(4);
     await shoot(page, SHOT_DIR, '5p-4k-settled');
 
     // Everything fits at TV scale — the workspace never scrolls.
@@ -431,6 +430,6 @@ test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
     // The winner's «ПОБЕДИТЕЛЬ» yielded to its Governor crest — one anchor, one honour.
     const ribbon = await page.locator('.con-eg__ribbon').evaluateAll((els) => els.map((el) => Number(getComputedStyle(el).opacity)));
     expect(ribbon.every((o) => o < 0.05), `the ribbon yields to the Governor crest (opacities ${ribbon.join(', ')})`).toBe(true);
-    expect(await page.locator('.con-eg__place-num').count(), 'every seat carries its place medal').toBe(4);
+    await expect.poll(() => page.locator('.con-eg__place-num').count(), {message: 'every seat carries its place medal'}).toBe(4);
   });
 });

@@ -169,7 +169,7 @@ for (const preset of PRESETS) {
       await press(page, 'ArrowLeft', 300);
       expect(await focusedPos(page), '← wraps back').toBe(2);
       await shoot(page, preset.id, 'atmo-02-cursor-heat');
-      expect(await page.locator(`${TILES}.con-vchoice__opt--selected`).count(), 'moving the cursor selects nothing').toBe(0);
+      await expect.poll(() => page.locator(`${TILES}.con-vchoice__opt--selected`).count(), {message: 'moving the cursor selects nothing'}).toBe(0);
 
       // A seals the heat tile; the cursor advances to the commit row; the other tiles recede.
       await press(page, 'Enter', 500);

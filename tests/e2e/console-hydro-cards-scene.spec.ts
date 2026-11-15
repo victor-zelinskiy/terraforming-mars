@@ -204,7 +204,7 @@ for (const profile of PROFILES) {
 
       // ── Pick ONE card, then COLLAPSE. ──
       await press(page, 'Enter', 700);
-      expect(await page.locator('.con-cards__slot--picked').count(), 'one draft pick held').toBe(1);
+      await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'one draft pick held'}).toBe(1);
       const pickedName = await page.evaluate(() =>
         document.querySelector('.con-cards__slot--picked')?.getAttribute('data-deckpick-slot') ?? '');
       await press(page, 'Escape', 1600);
@@ -245,7 +245,7 @@ for (const profile of PROFILES) {
         await press(page, 'ArrowRight', 450);
         await press(page, 'Enter', 600);
       }
-      expect(await page.locator('.con-cards__slot--picked').count(), 'two picks held').toBe(2);
+      await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'two picks held'}).toBe(2);
       await press(page, 'Period', 2500); // RT — «Подтвердить»
       await expect.poll(async () => (await serverState(request, id)).hand,
         {timeout: 25_000, message: 'the two picks reached the hand'}).toBe(before.hand + 2);

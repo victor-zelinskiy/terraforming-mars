@@ -62,7 +62,7 @@ async function openTerraformer(page: Page): Promise<void> {
     const [curRow, tgtRow] = [Math.floor(at.cur / 2), Math.floor(at.target / 2)];
     await press(page, curRow !== tgtRow ? (curRow < tgtRow ? 'ArrowDown' : 'ArrowUp') : (at.cur % 2 < at.target % 2 ? 'ArrowRight' : 'ArrowLeft'), 300);
   }
-  expect(await page.locator('.con-ma__card--focused').getAttribute('data-ma-row'), 'the cursor on Terraformer').toMatch(/^Terraformer/);
+  await expect.poll(() => page.locator('.con-ma__card--focused').getAttribute('data-ma-row'), {message: 'the cursor on Terraformer'}).toMatch(/^Terraformer/);
   await press(page, 'Enter', 1200);
   await page.waitForSelector('.con-mafocus', {timeout: 8_000});
   await cinematicBeat(page, 500, 'the detail must be READABLE before its commit arms (COMMIT_ARM_MS)');

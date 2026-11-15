@@ -185,7 +185,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       // «Зал» v7 (Ф4): the mode is ONE block — the reading stands, the party box does not (its formula is the
       // government's / the dossier's; the box exists only under TR03's door, which pays the party).
       expect(base['.con-parl__info-own'], `${preset.id}: the reading block stands`).toBeDefined();
-      expect(await page.locator('.con-parl__info-party').count(), `${preset.id}: no party box on the panel`).toBe(0);
+      await expect.poll(() => page.locator('.con-parl__info-party').count(), {message: `${preset.id}: no party box on the panel`}).toBe(0);
       const trail: Array<string> = [];
       for (const [key, label] of [['ArrowRight', '→ 1'], ['ArrowRight', '→ 2'], ['ArrowLeft', '← 1'], ['ArrowLeft', '← 2']] as const) {
         await press(page, key, 700);

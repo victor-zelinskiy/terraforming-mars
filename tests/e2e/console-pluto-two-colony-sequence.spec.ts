@@ -209,9 +209,9 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   await shoot(page, 'cycle-1');
 
   // 1 · CYCLE 1 — one active zone, one SEALED place (its card lies face-down under the seal), one open card.
-  expect(await page.locator('.con-reveal__bonus-zone').count(), 'one zone per cube').toBe(2);
-  expect(await page.locator('.con-reveal__bonus-zone--active').count()).toBe(1);
-  expect(await page.locator('.con-reveal__bonus-zone--sealed').count()).toBe(1);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone').count(), {message: 'one zone per cube'}).toBe(2);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone--active').count()).toBe(1);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone--sealed').count()).toBe(1);
   await expect(page.locator('.con-reveal__bonus-zone--sealed [data-settlement-seal]'), 'the sealed place wears its seal').toHaveCount(1);
 
   // 2 · take it, then open the discard step.
@@ -222,7 +222,7 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   await page.waitForTimeout(1400);
   await shoot(page, 'discard-1');
   // THE TABLE PARKS, it does not unmount (colony polish 1): it waits under the receded stage, unseen.
-  expect(await page.locator('.con-reveal:visible').count(), 'the step hides the table').toBe(0);
+  await expect.poll(() => page.locator('.con-reveal:visible').count(), {message: 'the step hides the table'}).toBe(0);
 
   // 3 · answer the discard — the response carries cycle 2. A is the discard
   //     itself here (the hand's single-select verb); the press is repeated
@@ -277,7 +277,6 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   // product's stranded-stage net could not see a NEWER cycle's marker (`discardStageStrandedFor`, spec'd in
   // `tests/console/settlementTable.spec.ts`) — so any discard scene that aborted left the stage up forever.
   expect(zoneUp, 'cycle 2 presents its place inside the colony workspace').toBe(true);
-  expect(await page.locator('.con-reveal__bonus-zone--done').count(), 'colony 1 is finished').toBe(1);
-  expect(await page.locator('.con-reveal__strip .con-cards__slot :is(.pcard, .card-container)').count(),
-    'exactly one card is on the table').toBe(1);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone--done').count(), {message: 'colony 1 is finished'}).toBe(1);
+  await expect.poll(() => page.locator('.con-reveal__strip .con-cards__slot :is(.pcard, .card-container)').count(), {message: 'exactly one card is on the table'}).toBe(1);
 });

@@ -14,13 +14,17 @@
  *
  * The landing now WAITS for a board the player can actually see, holding its
  * tile hidden meanwhile (the cell keeps reading as untouched). This probe
- * watches that order frame by frame, because the whole difference is WHEN:
+ * RECORDS that order from before the confirm (FLAKE ZERO — `armWitness`,
+ * `settled`: an ORDER claim is judged on the states a task leaves, never on
+ * the gap between two writes of one task), because the whole difference is
+ * WHEN:
  *
  *   workspace up  → the reserved cell is still EMPTY;
  *   workspace gone → a proxy flies → and only then does the tile appear.
  */
 import {expect, test, Page, APIRequestContext} from './consoleTest';
-import {press} from './consoleStart';
+import {bootSeededGame, openHandPlayComposer, press, settle} from './consoleStart';
+import {armWitness} from './witness';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -85,79 +89,60 @@ function newGameConfig() {
   };
 }
 
-async function key(page: Page, code: string, settleMs = 400): Promise<void> {
-  await press(page, code, settleMs);
-}
-
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT_DIR, {recursive: true});
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-/** Boot + drive the start wizard, buying the probe's cards into the hand. */
+/** What the landing probe observes in one state of the page — the reserved cell, the play workspace, the proxy. */
+type LandingState = {
+  /** The hand workspace (the play's own surface) still stands. */
+  hand: boolean,
+  /** The remote/own landing proxy on the shared placement layer. */
+  proxy: boolean,
+  /** The reserved cell reads TILED (a held tile keeps reading as an empty cell). */
+  tiled: boolean,
+  /** The board section is laid out (not `display: none`). */
+  boardShown: boolean,
+};
+
+/**
+ * The reader of {@link LandingState} — in the page, self-contained (the cell id comes through `args`).
+ * ⚠️ The tile's own element carries `board-space board-space-tile--<type>` — there is no bare `.board-space-tile`
+ * class to match on (the child is the tile only when it has a TYPE suffix), and `--placement-cleared` is exactly how
+ * a held tile keeps reading as an empty cell.
+ */
+function readLanding(id: string): LandingState {
+  const tile = document.querySelector(`.board-space[data_space_id="${id}"] [class*="board-space-tile--"]`);
+  const board = document.querySelector('.con-board');
+  return {
+    hand: document.querySelector('.con-hand') !== null,
+    proxy: document.querySelector('.con-tileplace__tile--remote') !== null,
+    tiled: tile !== null && !tile.className.includes('board-space-tile--placement-cleared'),
+    boardShown: board !== null && (board as HTMLElement).offsetParent !== null,
+  };
+}
+
+/** The phase of the story a state belongs to — the order claim's alphabet. The tile outranks the proxy: a proxy still
+ *  painted over a cell that already reads tiled is the landing's last frame, not a flight. */
+function phaseOf(s: LandingState): string {
+  if (s.hand) {
+    return s.tiled ? 'workspace+tile' : 'workspace';
+  }
+  if (s.tiled) {
+    return 'landed';
+  }
+  return s.proxy ? 'flight' : 'board';
+}
+
+/** Boot into the game with the probe's cards in the hand — the pregame ANSWERED over the API (setup, never the
+ *  subject), the console opened on the board home. */
 async function openAtBoard(page: Page, request: APIRequestContext): Promise<void> {
   const created = await request.post('/api/creategame', {data: newGameConfig()});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
   const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
-  await page.waitForTimeout(3000);
-
-  const buy = [TILE_CARD, ...FILLER];
-  let lastFocused = '';
-  let stalls = 0;
-  for (let i = 0; i < 220 && await page.locator('.con-start__frame').count() > 0; i++) {
-    const s = await page.evaluate(() => ({
-      active: (document.querySelector('.con-jrail__item--current')?.textContent ?? '').toUpperCase(),
-      focused: document.querySelector('.con-cards__slot--focused')?.getAttribute('data-zoom-slot') ?? '',
-      picked: Array.from(document.querySelectorAll('.con-cards__slot--picked'))
-        .filter((el) => (el as HTMLElement).offsetParent !== null)
-        .map((el) => el.getAttribute('data-zoom-slot') ?? ''),
-      ceremony: document.querySelector('.con-start--ceremony') !== null,
-    }));
-    if (s.ceremony) {
-      break;
-    }
-    const walk = async () => {
-      stalls = s.focused === lastFocused ? stalls + 1 : 0;
-      await key(page, stalls >= 1 ? 'ArrowDown' : 'ArrowRight', 240);
-      lastFocused = s.focused;
-    };
-    if (s.active.includes('КОРПОРАЦ')) {
-      if (s.picked.includes('CrediCor')) {
-        await key(page, 'Period', 1100);
-      } else if (s.focused === 'CrediCor') {
-        await key(page, 'Enter', 600);
-      } else {
-        await walk();
-      }
-      continue;
-    }
-    if (s.active.includes('ПРОЕКТ')) {
-      const missing = buy.filter((c) => !s.picked.includes(c));
-      if (missing.length === 0) {
-        await key(page, 'Period', 1100);
-      } else if (missing.includes(s.focused)) {
-        await key(page, 'Enter', 420);
-        lastFocused = '';
-      } else {
-        await walk();
-      }
-      continue;
-    }
-    await key(page, 'Enter', 1200);
-  }
-  // The deployment plays the corporation on its own; press A through it.
-  for (let i = 0; i < 120 && await page.locator('.con-start').count() > 0; i++) {
-    if (await page.locator('.con-start__slot-a').count() > 0) {
-      await key(page, 'Enter', 700);
-    } else {
-      await page.waitForTimeout(300);
-    }
-  }
-  await expect(page.locator('.con-start')).toHaveCount(0, {timeout: 60_000});
-  await page.waitForTimeout(3500);
+  await bootSeededGame(page, request, model.players[0].id, {cards: [TILE_CARD, ...FILLER], corporation: 'CrediCor'});
+  await settle(page);
 }
 
 test.describe('an auto-placed tile lands on a board the player can see', () => {
@@ -166,95 +151,47 @@ test.describe('an auto-placed tile lands on a board the player can see', () => {
   test('a reserved-slot city waits for the workspace to leave, then FLIES in', async ({page, request}) => {
     await openAtBoard(page, request);
 
-    // ── into the hand workspace, onto the card, one level deeper. ──
-    for (let i = 0; i < 6 && await page.locator('.con-hand__frame').count() === 0; i++) {
-      await key(page, 'Period', 800);
-      await key(page, 'Enter', 1100);
-    }
-    await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 15_000});
-    await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
-    await page.waitForTimeout(800);
-    const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${TILE_CARD}"]`).count();
-    let lastSelected = '';
-    for (let i = 0; i < 60 && await onTarget() === 0; i++) {
-      const selected = await page.evaluate(() =>
-        document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
-      await key(page, selected === lastSelected && i > 0 ? 'ArrowDown' : 'ArrowRight', 260);
-      lastSelected = selected;
-    }
-    expect(await onTarget(), `hand cursor never reached ${TILE_CARD}`).toBeGreaterThan(0);
-    await key(page, 'Enter', 600);
+    // ── into the hand workspace, onto the card, one level deeper (act → verify on the composer standing). ──
+    await openHandPlayComposer(page, TILE_CARD);
     await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 15_000});
     await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 15_000});
-    await page.waitForTimeout(1200);
+    // The sheet's entrance at rest before the baseline is read and the confirm goes out.
+    await settle(page);
 
     // The reserved slot is empty before the play — the baseline every
     // assertion below is measured against.
-    // ⚠️ The tile's own element carries `board-space board-space-tile--<type>`
-    // — there is no bare `.board-space-tile` class to match on (the child is
-    // the tile only when it has a TYPE suffix), and `--placement-cleared` is
-    // exactly how a held tile keeps reading as an empty cell.
-    const tiled = async () => (await page.evaluate((id) => {
-      const el = document.querySelector(`.board-space[data_space_id="${id}"] [class*="board-space-tile--"]`);
-      return el !== null && !el.className.includes('board-space-tile--placement-cleared');
-    }, TILE_SPACE));
-    expect(await tiled(), 'the reserved slot starts empty').toBeFalsy();
+    await expect.poll(() => page.evaluate(readLanding, TILE_SPACE).then((s) => s.tiled),
+      {message: 'the reserved slot starts empty', timeout: 5_000}).toBe(false);
 
-    // ── CONFIRM, and watch the ORDER of the three events. ──
-    await page.keyboard.press('Enter');
-    const log = {
-      /** Frames where the tile was already on the board while the workspace
-       *  still covered it — the bug: the placement happened off screen. */
-      tiledUnderWorkspace: 0,
-      /** A landing proxy was airborne (the flight actually ran). */
-      sawProxy: false,
-      /** The workspace had left by the time the proxy flew. */
-      proxyOverBoard: false,
-      tiled: false,
-      trace: [] as Array<string>,
-    };
-    for (let i = 0; i < 160; i++) {
-      const s = await page.evaluate((id) => {
-        const tile = document.querySelector(`.board-space[data_space_id="${id}"] [class*="board-space-tile--"]`);
-        return {
-          hand: document.querySelector('.con-hand') !== null,
-          // The remote/own landing proxy on the shared placement layer.
-          proxy: document.querySelector('.con-tileplace__tile--remote') !== null,
-          tiled: tile !== null && !tile.className.includes('board-space-tile--placement-cleared'),
-          boardShown: (() => {
-            const board = document.querySelector('.con-board');
-            return board !== null && (board as HTMLElement).offsetParent !== null;
-          })(),
-        };
-      }, TILE_SPACE);
-      log.trace.push(`${i} h:${s.hand ? 1 : 0} b:${s.boardShown ? 1 : 0} p:${s.proxy ? 1 : 0} t:${s.tiled ? 1 : 0}`);
-      if (s.tiled && s.hand) {
-        log.tiledUnderWorkspace++;
-      }
-      if (s.proxy) {
-        log.sawProxy = true;
-        if (!s.hand) {
-          log.proxyOverBoard = true;
-          await shoot(page, 'tile-flight-over-board');
-        }
-      }
-      if (s.tiled) {
-        log.tiled = true;
-        if (!s.hand) {
-          break;
-        }
-      }
-      await page.waitForTimeout(150);
+    // ── CONFIRM, and RECORD the ORDER of the three events from before the press. ──
+    const landing = await armWitness<LandingState, string>(page, 'auto-tile-landing', readLanding, {args: TILE_SPACE, settled: true});
+    await press(page, 'Enter', 400);
+    // The flight over the board is screenshotted when the record first shows it (diagnostic only — the claims below
+    // are judged on the record); the story ends with the tile on a board the workspace no longer covers.
+    const overBoard = await landing.waitFor((s) => !s.hand && (s.proxy || s.tiled), {timeoutMs: 40_000,
+      message: 'the workspace never left the board with the landing on its way'}).catch(() => undefined);
+    if (overBoard?.v.proxy === true) {
+      await shoot(page, 'tile-flight-over-board');
     }
-    console.log(`[auto tile trace]\n${log.trace.join('\n')}`);
+    await landing.waitFor((s) => s.tiled && !s.hand, {timeoutMs: 40_000, message: 'the city must end up on the board'})
+      .catch(() => undefined);
+    const samples = await landing.stop();
+    const t0 = samples[0]?.t ?? 0;
+    console.log(`[auto tile trace]\n${samples.map((s) =>
+      `${s.t - t0} h:${s.v.hand ? 1 : 0} b:${s.v.boardShown ? 1 : 0} p:${s.v.proxy ? 1 : 0} t:${s.v.tiled ? 1 : 0}`).join('\n')}`);
+    const ever = (pred: (s: LandingState) => boolean) => samples.some((s) => pred(s.v));
+    const story = samples.map((s) => phaseOf(s.v)).filter((k, i, all) => i === 0 || all[i - 1] !== k);
 
-    expect(log.tiled, 'the city must end up on the board').toBeTruthy();
+    expect(ever((s) => s.tiled), 'the city must end up on the board').toBeTruthy();
     // THE POINT OF THE WHOLE CHANGE: the placement is never spent behind the
     // workspace. While that screen is up the reserved cell still reads empty.
-    expect(log.tiledUnderWorkspace, 'the tile must not appear while the workspace covers the board').toBe(0);
-    expect(log.sawProxy, 'the landing FLEW — a tile that places itself is still placed').toBeTruthy();
-    expect(log.proxyOverBoard, 'and it flew over a board the player could see').toBeTruthy();
-    await page.waitForTimeout(600);
+    expect(ever((s) => s.tiled && s.hand), 'the tile must not appear while the workspace covers the board').toBe(false);
+    expect(ever((s) => s.proxy), 'the landing FLEW — a tile that places itself is still placed').toBeTruthy();
+    expect(ever((s) => s.proxy && !s.hand), 'and it flew over a board the player could see').toBeTruthy();
+    // …and in THIS order: the workspace with the cell empty, then the flight over the board, then the tile.
+    expect(await landing.happenedInOrder((s) => phaseOf(s), ['workspace', 'flight', 'landed']),
+      `workspace up (cell empty) → workspace gone, a proxy flies → the tile appears — the story was: ${story.join(' → ')}`).toBe(true);
+    await settle(page);
     await shoot(page, 'tile-landed');
   });
 });

@@ -154,9 +154,8 @@ for (const preset of PRESETS) {
       const face = page.locator(`.con-parl__slot[data-instance="${GRID_INSTANCE}"] .pcard`);
       await expect(face, 'Central Power Grid stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(/pcard--resolution-art/);
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX04');
-      expect(await face.locator('.pcard__party-emblem').getAttribute('src'),
-        'the gear-and-factory emblem the project already ships — never the globe of the printed card').toContain('industrialists');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX04');
+      await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'the gear-and-factory emblem the project already ships — never the globe of the printed card'}).toContain('industrialists');
       // The mechanics print the power TAG medallion, and never the card glyph of a per-CARD rule.
       const tagIcons = face.locator('.pcard__mech .pcard-ic--tag');
       await expect(tagIcons, 'the printed power tag on the face').toHaveCount(1);

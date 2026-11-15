@@ -278,7 +278,7 @@ test.describe('a copied action walks onto the board · fhd', () => {
       await press(page, 'ArrowRight', 450);
       await press(page, 'Enter', 600);
     }
-    expect(await page.locator('.con-cards__slot--picked').count(), 'two picks held').toBe(2);
+    await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'two picks held'}).toBe(2);
     await press(page, 'Period', 1500); // RT — «Подтвердить»
 
     // ── THE PLACEMENT. It is the copy's honest follow-up, so it may only exist

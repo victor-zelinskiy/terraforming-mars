@@ -188,7 +188,7 @@ test.describe('console colonies · double-nested continuation (sponsor → card 
     for (let i = 0; i < 12 && !(await page.locator('.con-hand').count() > 0); i++) {
       await press(page, 'Enter', 1800);
     }
-    expect(await page.locator('.con-start .con-hand').count(), 'the sponsor hand opened INSIDE the start').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-start .con-hand').count(), {message: 'the sponsor hand opened INSIDE the start'}).toBeGreaterThan(0);
     await shoot(page, '01-sponsor-hand');
 
     // ── Play Trading Colony (the only card): A opens the composer, A plays. ──

@@ -154,13 +154,13 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
 
   // 1 · THREE zones — one live, the rest waiting face-down.
   const zones = page.locator('.con-reveal__bonus-zone');
-  expect(await zones.count(), 'one zone per colony').toBe(3);
-  expect(await page.locator('.con-reveal__bonus-zone--active').count()).toBe(1);
-  expect(await page.locator('.con-reveal__bonus-zone--sealed').count()).toBe(2);
+  await expect.poll(() => zones.count(), {message: 'one zone per colony'}).toBe(3);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone--active').count()).toBe(1);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone--sealed').count()).toBe(2);
   await expect(page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-zone-label')).toContainText('1/3');
   // A SEALED place offers nothing and says why — by its condition, never a bare «wait» (colony polish 1: the
   // place opens after the discard for the bonus before it).
-  expect(await page.locator('.con-reveal__bonus-zone--sealed .con-reveal__closer').count()).toBe(0);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone--sealed .con-reveal__closer').count()).toBe(0);
   await expect(page.locator('.con-reveal__bonus-zone--sealed .con-reveal__sealcond').first()).toContainText(/после сброса за бонус 1/i);
 
   // 2 · the live colony's card is OPEN with no input given.
@@ -183,7 +183,7 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   //     locked CTA + «Сначала заберите…» — one host, one voice, never both.)
   await expect(page.locator('.con-reveal__namebar .con-cards__verdict-name')).toBeVisible();
   await expect(page.locator('.con-cmdbar')).toContainText(/Взять/i);
-  expect(await closer.count(), 'no closing verb while the take is owed').toBe(0);
+  await expect.poll(() => closer.count(), {message: 'no closing verb while the take is owed'}).toBe(0);
 
   // 4 · THE ZONE'S FOOTPRINT IS FIXED across the take — the card leaves an EMPTY
   //     SOCKET of exactly its size, «so nothing resizes or shifts»
@@ -210,16 +210,15 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   // back, which would read as a card still lying on the table.
   // (Scoped to THIS colony's place: a settlement table keeps the taken INCOME cards' sockets too — colony polish 1 —
   // so the row never re-centres under the places that are still waiting.)
-  expect(await page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-socket').count(), 'the taken card leaves its socket').toBe(1);
-  expect(await page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-cover').count(),
-    'the resolved colony must NOT show a card back').toBe(0);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-socket').count(), {message: 'the taken card leaves its socket'}).toBe(1);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-cover').count(), {message: 'the resolved colony must NOT show a card back'}).toBe(0);
   const after = await zoneSlotBox();
   expect(after, `the socket keeps the card's footprint (${JSON.stringify(before)} → ${JSON.stringify(after)})`)
     .toEqual(before);
-  expect(await page.locator('.con-reveal').count(), 'the modal must NOT be dismissable').toBe(1);
+  await expect.poll(() => page.locator('.con-reveal').count(), {message: 'the modal must NOT be dismissable'}).toBe(1);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(600);
-  expect(await page.locator('.con-reveal').count(), 'a second B must not close it either').toBe(1);
+  await expect.poll(() => page.locator('.con-reveal').count(), {message: 'a second B must not close it either'}).toBe(1);
 
   // 6 · unlocked, and the command bar's A now IS this colony's step (singular).
   await expect(page.locator('.con-reveal__closer-cta--locked')).toHaveCount(0);
@@ -230,5 +229,5 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   await page.waitForTimeout(1200);
   await shoot(page, 'handed-over');
   // The table PARKS under the receded stage (colony polish 1) — out of sight, never unmounted.
-  expect(await page.locator('.con-reveal:visible').count(), 'the step must release the modal').toBe(0);
+  await expect.poll(() => page.locator('.con-reveal:visible').count(), {message: 'the step must release the modal'}).toBe(0);
 });

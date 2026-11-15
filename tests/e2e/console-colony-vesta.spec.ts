@@ -71,7 +71,7 @@ async function openColonies(page: Page): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
 }
 
 async function focusTile(page: Page, target: string): Promise<void> {
@@ -85,7 +85,7 @@ async function focusTile(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 /**
@@ -359,7 +359,7 @@ test.describe('Vesta at 1080', () => {
 
     // ── B → back; A → the stage carries the refusal with its reason. ──
     await press(page, 'Escape', 1600);
-    expect(await page.locator('.con-colinspect').count(), 'B folded the dossier').toBe(0);
+    await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'B folded the dossier'}).toBe(0);
     await press(page, 'Enter', 2200);
     await shoot(page, '02-stage');
     const stage = await page.evaluate(() => ({
@@ -400,7 +400,7 @@ test.describe('Vesta at 1080', () => {
     await openColonies(page);
     await focusTile(page, VESTA);
     await press(page, 'Enter', 2000);
-    expect(await page.locator('.con-colfocus').count(), 'the trade stage did not open').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the trade stage did not open'}).toBeGreaterThan(0);
     await shoot(page, '10-trade-review');
 
     // The stage's track is the WIDE host: each sprite takes the footprint a single icon has on this track (40 px).
@@ -423,7 +423,7 @@ test.describe('Vesta at 1080', () => {
     // The target decision: descend, walk onto the asteroid holder, choose.
     await focusTargetRow(page);
     await press(page, 'Enter', 1200);
-    expect(await page.locator('.con-colfocus__targetstage').count(), 'the embedded target step stands').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-colfocus__targetstage').count(), {message: 'the embedded target step stands'}).toBeGreaterThan(0);
     const candidates = await page.evaluate(() => Array.from(document.querySelectorAll('[data-ptsel-cell] [data-zoom-slot]')).map((el) => el.getAttribute('data-zoom-slot')));
     console.log('── candidates ──', JSON.stringify(candidates));
     expect(candidates, 'both holders are candidates — the holders of ANY kind').toEqual(expect.arrayContaining([TARGET, OTHER]));
@@ -450,7 +450,7 @@ test.describe('Vesta at 1080', () => {
     expect(focusedIcon.rail).toMatch(/0\s*→\s*2/);
     await shoot(page, '11-target-step');
     await press(page, 'Enter', 1000);
-    expect(await page.locator('.con-colfocus__targetstage').count(), 'the pick returns to the review').toBe(0);
+    await expect.poll(() => page.locator('.con-colfocus__targetstage').count(), {message: 'the pick returns to the review'}).toBe(0);
     const picked = await page.evaluate((kinds) => ({
       rows: Array.from(document.querySelectorAll('.con-colfocus__rcard')).map((r) => ({
         text: (r.textContent ?? '').replace(/\s+/g, ' ').trim(),

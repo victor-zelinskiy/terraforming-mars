@@ -23,8 +23,9 @@
 import {expect, test, Page} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
-import {bootIntoGame, forceSwiftPlacement, soloGameConfig, press, walkToSpace} from './consoleStart';
+import {bootIntoGame, cinematicBeat, forceSwiftPlacement, openHandPlayComposer, placeTile, soloGameConfig, press, pressUntil, settle, walkToSpace} from './consoleStart';
 import {expectSeeThrough, expectUncovers} from './peekWitness';
+import {armWitness} from './witness';
 
 const OUT = path.resolve('screenshots', 'tile-replacement');
 
@@ -89,55 +90,35 @@ async function growAGreenery(page: Page): Promise<string> {
   await press(page, 'ArrowLeft', 2600);
   const kicker = page.locator('.con-context__task-kicker');
   await expect(kicker, 'the convert-plants placement never opened').toHaveCount(1, {timeout: 20_000});
-  const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowUp'];
-  for (let i = 0; i < 24 && await kicker.count() > 0; i++) {
-    await press(page, 'Enter', 1200);
-    if (await kicker.count() === 0) {
-      break;
-    }
-    await press(page, dirs[i % dirs.length], 350);
-  }
-  // The greenery's own landing hero runs here — let it finish before reading.
-  await page.waitForTimeout(4000);
+  // The shared placement driver: walk until a press RESOLVES the placement — the server's question moving on
+  // (`promptId`), never only «the kicker left».
+  await placeTile(page);
+  // The greenery's own landing hero runs here — let it finish before reading: the console at rest, the tile on the
+  // board (a poll — the cell paints a beat after the landing).
+  await settle(page, {timeoutMs: 30_000});
+  await expect.poll(async () => (await greeneries(page)).filter((id) => !before.has(id)),
+    {message: 'convert-plants did not leave a greenery on the board'}).toHaveLength(1);
   const grown = (await greeneries(page)).filter((id) => !before.has(id));
-  expect(grown, 'convert-plants did not leave a greenery on the board').toHaveLength(1);
   return grown[0];
 }
 
 /** Answer whatever the play raised (the drawn card's reveal) until the board
  *  placement stands. A single response carries the finished draw AND the
  *  `SelectSpace`, and the console admits the placement only once every card
- *  has been TAKEN — so this is «press A until the board is asking». */
+ *  has been TAKEN — so this is «press A until the board is asking» (act →
+ *  verify: each press gets its whole window before the next). */
 async function reachPlacement(page: Page, maxPresses = 20): Promise<void> {
   const kicker = page.locator('.con-context__task-kicker');
-  for (let i = 0; i < maxPresses && await kicker.count() === 0; i++) {
-    await press(page, 'Enter', 1300);
-  }
+  await pressUntil(page, 'Enter', async () => await kicker.count() > 0, {tries: maxPresses, settleMs: 1300});
 }
 
-/** Open the hand album, select the card, and confirm the play. */
+/** Open the hand album, select the card, and confirm the play — the shared, verified opener (the hand's own «input
+ *  released» signal, the focus walk turning at a wall, the composer LOADED), then the commit once it is ready. */
 async function playFromHand(page: Page, card: string): Promise<void> {
-  for (let i = 0; i < 6 && await page.locator('.con-hand__frame').count() === 0; i++) {
-    await press(page, 'Period', 800);
-    await press(page, 'Enter', 1100);
-  }
-  await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 15_000});
-  await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
-  await page.waitForTimeout(800);
-
-  const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${card}"]`).count();
-  let lastSelected = '';
-  for (let i = 0; i < 60 && await onTarget() === 0; i++) {
-    const selected = await page.evaluate(() =>
-      document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
-    await press(page, selected === lastSelected && i > 0 ? 'ArrowDown' : 'ArrowRight', 260);
-    lastSelected = selected;
-  }
-  expect(await onTarget(), `the hand cursor never reached ${card}`).toBeGreaterThan(0);
-  await press(page, 'Enter', 600);
+  await openHandPlayComposer(page, card);
   await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 15_000});
   await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 15_000});
-  await page.waitForTimeout(1000);
+  await settle(page);
   await press(page, 'Enter', 2500);
 }
 
@@ -157,7 +138,6 @@ test.describe('a tile that REPLACES one of yours is placed, not swapped', () => 
     // The card draws as it resolves; that reveal stands between the play and
     // the placement (a prompt is admitted only once the arrival chain is done).
     await reachPlacement(page);
-    await page.waitForTimeout(1500);
 
     // ── The pick. The doomed greenery must be STANDING here: the player is
     //    choosing which of their tiles to sacrifice, and it is also what the
@@ -167,39 +147,48 @@ test.describe('a tile that REPLACES one of yours is placed, not swapped', () => 
     await expect(page.locator('.con-context__task-kicker'),
       'the Kaguya placement never opened').toHaveCount(1, {timeout: 30_000});
     await expect(cell).toHaveClass(/board-space--available/, {timeout: 15_000});
-    const atPick = await readCell(page, greenery);
-    expect(atPick.tile, 'the greenery must be VISIBLE while it is being chosen').toBe('greenery');
-    expect(atPick.cleared, 'nothing is removed yet — the window opens at the commit').toBeFalsy();
+    await settle(page); // the placement's entrance (the camera, the grid) is over before the pick is read
+    await expect.poll(async () => (await readCell(page, greenery)).tile,
+      {message: 'the greenery must be VISIBLE while it is being chosen'}).toBe('greenery');
+    await expect.poll(async () => (await readCell(page, greenery)).cleared,
+      {message: 'nothing is removed yet — the window opens at the commit'}).toBeFalsy();
     // THE SEE-THROUGH («ПРОСВЕТ», TR47 — a remove-and-replace lifts a piece too): with the cursor on the doomed
     // greenery it goes translucent with its cube, the cell's printed bonus (if any) is painted under it, and the
     // dossier says the bonus is uncovered AND collected at once — the commit pays it, so the peek promises nothing else.
     await walkToSpace(page, greenery);
     const peek = await expectSeeThrough(page, greenery, 'top', 'the Kaguya pick', {reticle: 'projection'});
     await expectUncovers(page, [peek.bonusIcons > 0 ? /Откроется — и сразу будет получено/ : /Бонуса нет — открывать нечего/], 'the Kaguya pick');
-    expect((await readCell(page, greenery)).cleared, 'the see-through is not the removal window').toBeFalsy();
+    await expect.poll(async () => (await readCell(page, greenery)).cleared, {message: 'the see-through is not the removal window'})
+      .toBeFalsy();
     await shoot(page, '2-picking-the-greenery');
 
     // ── CONFIRM, and watch the order of the beats. ──
     //
-    // The sampler is armed IN THE PAGE and BEFORE the press: the tile
+    // The scene is RECORDED from before the press (`armWitness` — the
+    // product's own writes observed in the task that makes them, plus a frame
+    // tick for what only a computed style moves; replace-proof): the tile
     // confirmation dialog is off by default (`hide_tile_confirmation`), so the
     // click IS the commit, and the whole removal + landing is over in about a
     // second — a Node-side loop of `page.evaluate` round trips samples it
-    // three beats late and sees only the end state. `setInterval`, never
-    // `requestAnimationFrame`: headless Chromium drives rAF off the compositor
-    // and stops it exactly when the screen goes quiet.
+    // three beats late and sees only the end state, and a page-side timer
+    // sampler sleeps through a short pose on a starved renderer.
     //
     // Both proxies are MOUNTED for the whole transaction (the layer renders on
     // `active`, which is set at the arm), so presence proves nothing — each is
     // judged by what the director actually posed on it (`autoAlpha` writes
     // visibility + opacity).
-    await page.evaluate((spaceId) => {
-      type Sample = {
-        t: number, depart: boolean, landing: boolean, departCube: boolean,
-        tile: string | undefined, cleared: boolean, bonusIcons: number, uncovering: boolean,
-      };
-      const w = window as unknown as {__repl?: {samples: Array<Sample>, stop: () => void}};
-      const samples: Array<Sample> = [];
+    //
+    // The record is `settled` — every state a task LEAVES, i.e. every state a
+    // frame can paint (what the old timer sampler, itself a task of its own,
+    // could see — minus its gaps): the claims are ORDER and COEXISTENCE («one
+    // leaves, THEN the other arrives», «never the city while the old tile
+    // still leaves») as much as «did it happen», and all of them are about
+    // what the player could see.
+    type Beat = {
+      depart: boolean, landing: boolean, departCube: boolean,
+      tile: string | null, cleared: boolean, bonusIcons: number, uncovering: boolean,
+    };
+    const beats = await armWitness<Beat, string>(page, 'kaguya-beats', (spaceId) => {
       const shown = (el: Element | null): boolean => {
         if (el === null) {
           return false;
@@ -207,82 +196,75 @@ test.describe('a tile that REPLACES one of yours is placed, not swapped', () => 
         const cs = getComputedStyle(el);
         return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.02;
       };
-      const t0 = performance.now();
-      const timer = window.setInterval(() => {
-        const cell = document.querySelector(`.board-space[data_space_id="${spaceId}"]`);
-        const tileEl = cell?.querySelector('[class*="board-space-tile--"]') ?? null;
-        const cleared = tileEl !== null && tileEl.className.includes('board-space-tile--placement-cleared');
-        const match = /board-space-tile--([a-z0-9-]+)/.exec(tileEl?.className ?? '');
-        const departEl = document.querySelector('.con-tileplace__tile--depart');
-        // The owner marker LEAVES ON the tile it was marking: a cube twin rides
-        // the proxy, and it must sit INSIDE the proxy's own box (the board
-        // authors that socket in px against an unscaled hex, so a proxy posed
-        // at the measured — already zoomed — rect has to re-derive it).
-        const cubeEl = departEl?.querySelector('.player-cube') ?? null;
-        const inside = (outer: Element | null, inner: Element | null): boolean => {
-          if (outer === null || inner === null) {
-            return false;
-          }
-          const o = outer.getBoundingClientRect();
-          const i = inner.getBoundingClientRect();
-          return i.width > 2 && i.left >= o.left - 1 && i.right <= o.right + 1 &&
-            i.top >= o.top - 1 && i.bottom <= o.bottom + 1;
-        };
-        samples.push({
-          t: Math.round(performance.now() - t0),
-          departCube: shown(cubeEl) && inside(departEl, cubeEl),
-          depart: shown(departEl),
-          landing: shown(document.querySelector(
-            '.con-tileplace__tile:not(.con-tileplace__tile--depart):not(.con-tileplace__tile--remote)')),
-          tile: cleared || match === null ? undefined : match[1],
-          cleared,
-          bonusIcons: cell?.querySelectorAll('.board-space-bonus').length ?? 0,
-          uncovering: cell?.querySelector('.board-space-bonuses.con-tileplace-reveal') !== null &&
-            cell?.querySelector('.board-space-bonuses.con-tileplace-reveal') !== undefined,
-        });
-      }, 30);
-      w.__repl = {samples, stop: () => window.clearInterval(timer)};
-    }, greenery);
+      const cell = document.querySelector(`.board-space[data_space_id="${spaceId}"]`);
+      const tileEl = cell?.querySelector('[class*="board-space-tile--"]') ?? null;
+      const cleared = tileEl !== null && tileEl.className.includes('board-space-tile--placement-cleared');
+      const match = /board-space-tile--([a-z0-9-]+)/.exec(tileEl?.className ?? '');
+      const departEl = document.querySelector('.con-tileplace__tile--depart');
+      // The owner marker LEAVES ON the tile it was marking: a cube twin rides
+      // the proxy, and it must sit INSIDE the proxy's own box (the board
+      // authors that socket in px against an unscaled hex, so a proxy posed
+      // at the measured — already zoomed — rect has to re-derive it).
+      const cubeEl = departEl?.querySelector('.player-cube') ?? null;
+      const inside = (outer: Element | null, inner: Element | null): boolean => {
+        if (outer === null || inner === null) {
+          return false;
+        }
+        const o = outer.getBoundingClientRect();
+        const i = inner.getBoundingClientRect();
+        return i.width > 2 && i.left >= o.left - 1 && i.right <= o.right + 1 &&
+          i.top >= o.top - 1 && i.bottom <= o.bottom + 1;
+      };
+      return {
+        departCube: shown(cubeEl) && inside(departEl, cubeEl),
+        depart: shown(departEl),
+        landing: shown(document.querySelector(
+          '.con-tileplace__tile:not(.con-tileplace__tile--depart):not(.con-tileplace__tile--remote)')),
+        tile: cleared || match === null ? null : match[1],
+        cleared,
+        bonusIcons: cell?.querySelectorAll('.board-space-bonus').length ?? 0,
+        uncovering: cell?.querySelector('.board-space-bonuses.con-tileplace-reveal') !== null &&
+          cell?.querySelector('.board-space-bonuses.con-tileplace-reveal') !== undefined,
+      };
+    }, {args: greenery, settled: true});
 
     await cell.click();
     // The scene: removal (≈0.5 s) → flight + settle (≈0.7 s) → reward beat.
     // The stills are EVIDENCE, not assertions (a screenshot is slow enough to
-    // drift a beat); the sampler above is what the claims are made against.
-    await page.waitForTimeout(120);
+    // drift a beat); the record above is what the claims are made against.
+    await cinematicBeat(page, 120, 'a still of the greenery departing — evidence only');
     await shoot(page, '3-greenery-departing');
-    await page.waitForTimeout(430);
+    await cinematicBeat(page, 430, 'a still of the uncovered cell — evidence only');
     await shoot(page, '4-cell-uncovered');
-    await page.waitForTimeout(350);
+    await cinematicBeat(page, 350, 'a still of the city flying in — evidence only');
     await shoot(page, '5-city-flying-in');
-    await page.waitForTimeout(1100);
+    await cinematicBeat(page, 1100, 'a still of the bonus paying out — evidence only');
     await shoot(page, '6-bonus-paying-out');
-    await page.waitForTimeout(7000);
-    const samples = await page.evaluate(() => {
-      const w = window as unknown as {__repl: {samples: Array<Record<string, unknown>>, stop: () => void}};
-      w.__repl.stop();
-      return w.__repl.samples;
-    }) as Array<{
-      t: number, depart: boolean, landing: boolean, departCube: boolean,
-      tile: string | undefined, cleared: boolean, bonusIcons: number, uncovering: boolean,
-    }>;
+    // The scene's END is a state: the city stands on the cell (bounded), then the console's own quiet (the reward
+    // beat, the landing's holds) — the verdict below reads the record, whatever it holds.
+    await beats.waitFor((b) => b.tile === 'city', {timeoutMs: 30_000}).catch(() => undefined);
+    await settle(page, {timeoutMs: 30_000});
+    const recorded = await beats.stop();
+    const samples = recorded.map((s) => s.v);
     await shoot(page, '7-city-landed');
 
-    const first = (pred: (s: typeof samples[number]) => boolean) => samples.findIndex(pred);
-    const departAt = first((s) => s.depart);
-    const clearedAt = first((s) => s.cleared);
-    const uncoveredAt = first((s) => s.cleared && s.bonusIcons > 0);
-    const landingAt = first((s) => s.landing);
-    const cityAt = first((s) => s.tile === 'city');
+    const departAt = samples.findIndex((s) => s.depart);
+    const clearedAt = samples.findIndex((s) => s.cleared);
+    const uncoveredAt = samples.findIndex((s) => s.cleared && s.bonusIcons > 0);
+    const landingAt = samples.findIndex((s) => s.landing);
+    const cityAt = samples.findIndex((s) => s.tile === 'city');
     const cityWhileLeaving = samples.filter((s) => s.tile === 'city' && s.depart).length;
     const cubeRodeAlong = samples.filter((s) => s.depart && s.departCube).length;
-    console.log(`[replacement] ${samples.length} samples over ${samples[samples.length - 1]?.t}ms\n` +
-      samples.map((s) =>
-        `${s.t} dep:${s.depart ? 1 : 0}${s.departCube ? '+cube' : ''} ` +
+    const t0 = recorded[0]?.t ?? 0;
+    console.log(`[replacement] ${samples.length} recorded states over ${(recorded.at(-1)?.t ?? t0) - t0}ms\n` +
+      recorded.map(({t, v: s}) =>
+        `${t - t0} dep:${s.depart ? 1 : 0}${s.departCube ? '+cube' : ''} ` +
         `land:${s.landing ? 1 : 0} clr:${s.cleared ? 1 : 0} ` +
         `bon:${s.bonusIcons} unc:${s.uncovering ? 1 : 0} tile:${s.tile ?? '-'}`).join('\n'));
 
-    // A dead sampler must fail loudly rather than pass every claim vacuously.
-    expect(samples.length, 'the in-page sampler never ran').toBeGreaterThan(30);
+    // A dead recorder must fail loudly rather than pass every claim vacuously (it recorded at all — a count of
+    // recorded STATES is no statement about the machine, so the floor is only «not dead»).
+    expect(samples.length, 'the scene recorder never ran').toBeGreaterThan(0);
     expect(departAt, 'the doomed greenery must physically LEAVE the cell').toBeGreaterThanOrEqual(0);
     expect(clearedAt, 'the emptied cell must read as a bare hex between the two tiles')
       .toBeGreaterThanOrEqual(0);

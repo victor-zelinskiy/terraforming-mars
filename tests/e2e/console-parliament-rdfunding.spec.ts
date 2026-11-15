@@ -132,7 +132,7 @@ test.describe(`R&D Funding · ${PRESET.id}`, () => {
     const crumb = (await crumbText(page)).toUpperCase();
     expect(crumb, `one crumb: the menu, the law, the stage (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
     expect(crumb).toContain('ФИНАНСИРОВАНИЕ ИССЛЕДОВАНИЙ');
-    expect(await page.locator(`${STAGE} .con-composer__cta--ready`).count(), 'an empty slot arms nothing').toBe(0);
+    await expect.poll(() => page.locator(`${STAGE} .con-composer__cta--ready`).count(), {message: 'an empty slot arms nothing'}).toBe(0);
     await shoot(page, '02-repeat-slot-empty');
 
     // ── ③ A ON THE SLOT opens the SHARED pick: the ДЕЙСТВИЯ КАРТ list in repeat

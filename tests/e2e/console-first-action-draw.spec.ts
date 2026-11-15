@@ -97,8 +97,7 @@ test.describe('console first action · a drawn pick (Valley Trust)', () => {
     const shelfBox = await page.locator('.con-splayed').boundingBox();
     expect((stageBox?.y ?? 0) + (stageBox?.height ?? 0),
       'and the briefing is laid out above it, never over it').toBeLessThanOrEqual(shelfBox?.y ?? 0);
-    expect(await page.locator('[data-played-key="Valley Trust"] .con-splayed__place').count(),
-      'the seated corporation left its place empty').toBe(1);
+    await expect.poll(() => page.locator('[data-played-key="Valley Trust"] .con-splayed__place').count(), {message: 'the seated corporation left its place empty'}).toBe(1);
 
     // A performs the first action → the three preludes are drawn as a PICK.
     await page.keyboard.press('Enter');

@@ -149,8 +149,8 @@ test.describe('Medical Database · standard-1080', () => {
       await expect(face, 'Medical Database stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(MEDICAL_CLASS);
       await expect(face.locator('.pcard__code'), 'the printed code (opted in)').toHaveText('RX18');
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the code').toContain('RX18');
-      expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'the Scientists\' emblem').toContain('scientists');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the code'}).toContain('RX18');
+      await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'the Scientists\' emblem'}).toContain('scientists');
       const formula = await face.locator('.pcard-bill__articles').evaluate((el) => {
         const urls = Array.from(el.querySelectorAll<HTMLElement>('img, [style*="background-image"]')).map((node) =>
           node instanceof HTMLImageElement ? node.src : node.style.backgroundImage);

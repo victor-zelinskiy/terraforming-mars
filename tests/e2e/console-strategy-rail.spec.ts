@@ -255,7 +255,7 @@ test.describe('console strategy rail — FHD', () => {
     // The SAME seam token → the same rendered width, to the pixel budget.
     expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(1.5);
     // No hidden spacer: the old wide panel is unmounted on the idle home.
-    expect(await page.locator('.con-inspector').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-inspector').count()).toBe(0);
     // The board section really spans between the two rails.
     const board = await page.locator('.con-board').boundingBox();
     expect(board).not.toBeNull();
@@ -263,15 +263,15 @@ test.describe('console strategy rail — FHD', () => {
     expect(board!.x + board!.width).toBeLessThanOrEqual(right.x + 2);
 
     // Both zones stand with their medal stacks and door caps.
-    expect(await page.locator('.con-strat__zone--milestones .con-strat__item').count()).toBeGreaterThan(0);
-    expect(await page.locator('.con-strat__zone--awards .con-strat__item').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-strat__zone--milestones .con-strat__item').count()).toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-strat__zone--awards .con-strat__item').count()).toBeGreaterThan(0);
     await expect(page.locator('.con-strat__head .gp-glyph').first()).toBeVisible();
     // ONE compact head line: the slot tray lives inside the door button;
     // the PRICE is deliberately absent from the standing HUD (it belongs to
     // the workspace where the claim/fund decision is made) — and the NAME
     // never ellipsizes to make room for the tray.
-    expect(await page.locator('.con-strat__head .con-strat__pip').count()).toBe(6);
-    expect(await page.locator('.con-strat .resource_icon--megacredits').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-strat__head .con-strat__pip').count()).toBe(6);
+    await expect.poll(() => page.locator('.con-strat .resource_icon--megacredits').count()).toBe(0);
     await expectTitlesFit(page, 'FHD');
 
     await page.screenshot({path: 'screenshots/strategy-rail/fhd-home.png', fullPage: false});
@@ -351,7 +351,7 @@ test.describe('console strategy rail — 4K TV profile', () => {
 
     const {left, right} = await railBoxes(page);
     expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(2);
-    expect(await page.locator('.con-inspector').count()).toBe(0);
+    await expect.poll(() => page.locator('.con-inspector').count()).toBe(0);
     // Nothing overflows the rail: every medal row lies inside the rail box.
     const rows = await page.locator('.con-strat__item').all();
     expect(rows.length).toBeGreaterThan(0);

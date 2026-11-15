@@ -3,8 +3,9 @@
  * harness, not a regression gate. Env-gated (`PLAYED_PERF=1`), skipped in
  * every ordinary run. The measurement idiom mirrors
  * `console-recv-perf-probe.spec.ts` (CDP metrics + long-task observer +
- * 16 ms interval jitter — rAF is compositor-starved headless, so jank is
- * judged by main-thread availability; see [[e2e-raf-probe-dies-headless]]).
+ * the 16 ms tick jitter of a TIMING witness — rAF is compositor-starved
+ * headless, so jank is judged by main-thread availability; see
+ * [[e2e-raf-probe-dies-headless]]).
  *
  * WHAT IT MEASURES, per tableau size (20/50/100/200) and per display profile
  * (deck-handheld 1280×800 with 4× CPU throttle ≈ a Steam-Deck-class main
@@ -39,7 +40,9 @@
  *     npx playwright test tests/e2e/console-played-perf-probe.spec.ts --workers=1
  */
 import {expect, test, Page, CDPSession} from './consoleTest';
-import {focusInfoZone} from './consoleStart';
+import {cinematicBeat, focusInfoZone, pressUntilGone, pressUntilVisible, settle} from './consoleStart';
+import type {ObservedSample} from './observeCore';
+import {armWitness, witnessOf} from './witness';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -56,22 +59,33 @@ const PROFILES = [
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv', cpuThrottle: 1},
 ] as const;
 
-// ── in-page samplers (recv-perf idiom) ─────────────────────────────────────
+// ── in-page instrumentation (recv-perf idiom) ──────────────────────────────
 
-type PerfWindow = {
-  longTasks: number, longTaskMax: number, longTaskTotal: number,
-  tickCount: number, tickJank50: number, tickJank120: number, tickMax: number,
-};
+type LongTasks = {longTasks: number, longTaskMax: number, longTaskTotal: number};
+type PerfWindow = LongTasks & {tickCount: number, tickJank50: number, tickJank120: number, tickMax: number};
 
+/** The perf window's TIMING witness — one window at a time (re-arming starts a fresh record). */
+const PERF_WINDOW = 'played-perf-window';
+/** The recorder's TIMER tick (the old jitter meter's period): a free main thread runs it every 16 ms, a stalled one
+ *  runs nothing — so a gap in the stamped series IS a stall. */
+const TICK_MS = 16;
+/** One stamped call of the recorder — the page's `performance.now()`. */
+type PerfTick = {t: number};
+
+/**
+ * Arm a perf window: the page's own LONG-TASK API (a `PerformanceObserver` — the browser's record of a busy main thread,
+ * not a sampler) + the tick jitter as a TIMING witness (`armWitness` + `tickMs`, FLAKE ZERO recipe 9): the reader stamps
+ * every call, the series is read as recorded and a gap over 50 / 120 ms is a stall (`tickJitter`).
+ */
 async function armPerfWindow(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as any;
-    w.__perfStop?.();
-    const rec = {longTasks: 0, longTaskMax: 0, longTaskTotal: 0, tickCount: 0, tickJank50: 0, tickJank120: 0, tickMax: 0};
+    w.__perfObs?.disconnect();
+    w.__perfTick = undefined;
+    const rec = {longTasks: 0, longTaskMax: 0, longTaskTotal: 0};
     w.__perfWin = rec;
-    let obs: PerformanceObserver | undefined;
     try {
-      obs = new PerformanceObserver((list) => {
+      const obs = new PerformanceObserver((list) => {
         for (const e of list.getEntries()) {
           rec.longTasks++;
           rec.longTaskTotal += e.duration;
@@ -79,34 +93,48 @@ async function armPerfWindow(page: Page): Promise<void> {
         }
       });
       obs.observe({entryTypes: ['longtask']});
-    } catch { /* jitter meter still stands */ }
-    let last = performance.now();
-    const iv = setInterval(() => {
-      const now = performance.now();
-      const dt = now - last;
-      last = now;
-      rec.tickCount++;
-      rec.tickMax = Math.max(rec.tickMax, dt);
-      if (dt > 50) {
-        rec.tickJank50++;
-      }
-      if (dt > 120) {
-        rec.tickJank120++;
-      }
-    }, 16);
-    w.__perfStop = () => {
-      obs?.disconnect();
-      clearInterval(iv);
-    };
+      w.__perfObs = obs;
+    } catch { /* the tick series still stands */ }
   });
+  await armWitness<PerfTick>(page, PERF_WINDOW, () => {
+    // EVERY CALL IS STAMPED (so the recording keeps it — the series is the page's pace), at most one per 4 ms: the
+    // observer and the timer tick may both call within one frame.
+    const w = window as unknown as {__perfTick?: PerfTick};
+    const now = performance.now();
+    if (w.__perfTick !== undefined && now - w.__perfTick.t < 4) {
+      return w.__perfTick;
+    }
+    w.__perfTick = {t: Math.round(now * 10) / 10};
+    return w.__perfTick;
+  }, {rafTick: false, tickMs: TICK_MS, max: 50_000});
+}
+
+/** The tick jitter of a recorded series — one document's stamps (a reload restarts `performance.now()`), never filled in. */
+function tickJitter(samples: ReadonlyArray<ObservedSample<PerfTick>>): Omit<PerfWindow, keyof LongTasks> {
+  const doc = samples.at(-1)?.doc;
+  const stamps = samples.filter((s) => s.doc === doc).map((s) => s.v.t);
+  const out = {tickCount: Math.max(0, stamps.length - 1), tickJank50: 0, tickJank120: 0, tickMax: 0};
+  for (let i = 1; i < stamps.length; i++) {
+    const dt = stamps[i] - stamps[i - 1];
+    out.tickMax = Math.max(out.tickMax, dt);
+    if (dt > 50) {
+      out.tickJank50++;
+    }
+    if (dt > 120) {
+      out.tickJank120++;
+    }
+  }
+  return out;
 }
 
 async function readPerfWindow(page: Page): Promise<PerfWindow> {
-  return await page.evaluate(() => {
+  const ticks = await witnessOf<PerfTick>(page, PERF_WINDOW).stop();
+  const long = await page.evaluate(() => {
     const w = window as any;
-    w.__perfStop?.();
+    w.__perfObs?.disconnect();
     return w.__perfWin;
-  }) as PerfWindow;
+  }) as LongTasks;
+  return {...long, ...tickJitter(ticks)};
 }
 
 type CdpMetrics = Record<string, number>;
@@ -149,13 +177,26 @@ function snapshotOf(m: CdpMetrics): CdpMetrics {
  * open never shows). There the pump is the pause alone.
  */
 const PUMP_BY_CAPTURE = process.env.TM_E2E_GPU !== '1';
+/** ONE forced BeginFrame (the old headless shell only) — no pause of its own. */
+async function pumpFrame(page: Page): Promise<void> {
+  if (PUMP_BY_CAPTURE) {
+    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
+  }
+}
+/** A MEASURED WINDOW's frames: `times` beats of `gapMs`, each with its forced frame — the window's length IS the
+ *  measurement (what lands in its long tasks / CDP deltas), never a wait for a state. */
 async function pumpFrames(page: Page, times: number, gapMs: number): Promise<void> {
   for (let i = 0; i < times; i++) {
-    if (PUMP_BY_CAPTURE) {
-      await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-    }
-    await page.waitForTimeout(gapMs);
+    await pumpFrame(page);
+    await cinematicBeat(page, gapMs, 'a frame beat of a measured window — its length is the measurement');
   }
+}
+
+/** The board home at rest: the boot veil gone, then the console quiet (holds, transport, finite motion). */
+async function boardAtRest(page: Page): Promise<void> {
+  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
+  await pumpFrame(page);
+  await settle(page);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -182,78 +223,111 @@ async function overlayCensus(page: Page): Promise<Record<string, number>> {
   });
 }
 
-/** Arm the open-latency probe: keydown timestamp + overlay/content mutation
- *  timestamps, plus a face-count settle tracker. */
+type OpenProbe = {pressAt: number, rootAt: number, lastGrowthAt: number, faceCount: number, proxyMax: number};
+type OpenArgs = {keyCode: string, rootSel: string, arm: number, censusMs: number};
+/** The open probe's witness key — one open at a time; `openArm` tells a re-arm's fresh state from the last one's. */
+const OPEN_PROBE = 'played-open-probe';
+/** The face census's period (the old sampler's): the census runs at most this often, and the timer tick keeps it going. */
+const CENSUS_MS = 40;
+let openArm = 0;
+
+/**
+ * Arm the open-latency probe — a TIMING witness (`armWitness`, FLAKE ZERO): the keydown timestamp (a capture listener
+ * the reader installs with its fresh state), the root's arrival (stamped in the recorder's mutation callback — the task
+ * that inserted it) and a face-count settle tracker. Every value is stamped by the reader itself, so the recording
+ * keeps only CHANGES and the numbers are the page's `performance.now()`.
+ *
+ * THE WITNESS MAY NOT BE THE LOAD (PL-623): the census runs at most once per `CENSUS_MS` (the timer tick keeps it
+ * going on a still page), over LIVE collections (a still DOM answers their length from cache). Counting every `.pcard`
+ * on every mutation batch ran inside the very task it measured — and at 4K it inflated the open's long task from
+ * ≈ 0.25 s to 0.8–2 s and the category's to 1.6–3.1 s (a Chromium trace of the same open,
+ * `screenshots/tr65/perf.stand.spec.ts`).
+ */
 async function armOpenProbe(page: Page, keyCode: string, rootSel: string): Promise<void> {
-  await page.evaluate(({keyCode, rootSel}) => {
-    const w = window as any;
-    w.__openStop?.();
-    const t = {pressAt: 0, rootAt: 0, lastGrowthAt: 0, faceCount: 0, proxyMax: 0};
-    w.__openT = t;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code === keyCode && t.pressAt === 0) {
-        t.pressAt = performance.now();
-      }
+  openArm++;
+  await armWitness<OpenProbe, OpenArgs>(page, OPEN_PROBE, ({keyCode, rootSel, arm, censusMs}) => {
+    type State = OpenProbe & {
+      arm: number, censusAt: number, onKey: (e: KeyboardEvent) => void,
+      root: Element | null, faces: HTMLCollection | null, proxies: HTMLCollection,
     };
-    window.addEventListener('keydown', onKey, true);
-    // THE WITNESS MAY NOT BE THE LOAD (PL-623): the mutation callback only stamps the root's arrival and marks the
-    // DOM dirty; the face census runs on a 40 ms sampler. Counting every `.pcard` inside the callback ran once per
-    // mutation batch — inside the very task it measured — and at 4K it inflated the open's long task from ≈ 0.25 s to
-    // 0.8–2 s and the category's to 1.6–3.1 s (a Chromium trace of the same open, `screenshots/tr65/perf.stand.spec.ts`).
-    let dirty = true;
-    const census = () => {
-      if (!dirty) {
-        return;
+    const w = window as unknown as {__playedOpenProbe?: State};
+    let s = w.__playedOpenProbe;
+    if (s === undefined || s.arm !== arm) {
+      if (s !== undefined) {
+        window.removeEventListener('keydown', s.onKey, true);
       }
-      dirty = false;
-      const root = document.querySelector(rootSel);
-      if (root !== null) {
-        const n = root.querySelectorAll('.pcard').length;
-        if (n !== t.faceCount) {
-          t.faceCount = n;
-          t.lastGrowthAt = performance.now();
+      const fresh: State = {
+        arm, pressAt: 0, rootAt: 0, lastGrowthAt: 0, faceCount: 0, proxyMax: 0, censusAt: -Infinity,
+        onKey: () => undefined, root: null, faces: null,
+        proxies: document.getElementsByClassName('con-played-cat__proxy'),
+      };
+      fresh.onKey = (e: KeyboardEvent) => {
+        if (e.code === keyCode && fresh.pressAt === 0) {
+          fresh.pressAt = performance.now();
+        }
+      };
+      window.addEventListener('keydown', fresh.onKey, true);
+      w.__playedOpenProbe = fresh;
+      s = fresh;
+    }
+    const now = performance.now();
+    const root = document.querySelector(rootSel);
+    if (s.rootAt === 0 && root !== null) {
+      s.rootAt = now;
+    }
+    if (now - s.censusAt >= censusMs) {
+      s.censusAt = now;
+      if (root !== s.root) {
+        s.root = root;
+        s.faces = root === null ? null : root.getElementsByClassName('pcard');
+      }
+      if (s.faces !== null) {
+        const n = s.faces.length;
+        if (n !== s.faceCount) {
+          s.faceCount = n;
+          s.lastGrowthAt = now;
         }
       }
-      t.proxyMax = Math.max(t.proxyMax, document.querySelectorAll('.con-played-cat__proxy').length);
-    };
-    const mo = new MutationObserver(() => {
-      dirty = true;
-      if (t.rootAt === 0 && document.querySelector(rootSel) !== null) {
-        t.rootAt = performance.now();
-      }
-    });
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
-    const iv = window.setInterval(census, 40);
-    w.__openStop = () => {
-      census();
-      window.clearInterval(iv);
-      window.removeEventListener('keydown', onKey, true);
-      mo.disconnect();
-    };
-  }, {keyCode, rootSel});
+      s.proxyMax = Math.max(s.proxyMax, s.proxies.length);
+    }
+    return {pressAt: s.pressAt, rootAt: s.rootAt, lastGrowthAt: s.lastGrowthAt, faceCount: s.faceCount, proxyMax: s.proxyMax};
+  }, {args: {keyCode, rootSel, arm: openArm, censusMs: CENSUS_MS}, rafTick: false, tickMs: CENSUS_MS});
 }
-
-type OpenProbe = {pressAt: number, rootAt: number, lastGrowthAt: number, faceCount: number, proxyMax: number};
 
 async function readOpenProbe(page: Page): Promise<OpenProbe> {
-  return await page.evaluate(() => {
-    const w = window as any;
-    w.__openStop?.();
-    return w.__openT;
-  }) as OpenProbe;
+  const last = (await witnessOf<OpenProbe>(page, OPEN_PROBE).stop()).at(-1)?.v;
+  await page.evaluate(() => {
+    const s = (window as unknown as {__playedOpenProbe?: {onKey: (e: KeyboardEvent) => void}}).__playedOpenProbe;
+    if (s !== undefined) {
+      window.removeEventListener('keydown', s.onKey, true);
+    }
+  });
+  return last ?? {pressAt: 0, rootAt: 0, lastGrowthAt: 0, faceCount: 0, proxyMax: 0};
 }
 
-/** Click-based open of a category (focus click + open click) — the table is one page, every zone ONE stack. */
+/**
+ * Click-based open of a category — the table is one page, every zone ONE stack. A stack is FOCUSED by one click and
+ * opened by the next (the pad's two-step feel): the second click goes once the first one's focus stands (a focused stack
+ * opens on the first).
+ */
 async function openCategory(page: Page, key: string): Promise<void> {
   const zone = page.locator(`[data-played-cat="${key}"]`).first();
-  await zone.click();
-  await page.waitForTimeout(80);
+  const focused = /con-played__family--focused/;
+  if (!focused.test(await zone.getAttribute('class') ?? '')) {
+    await zone.click();
+    await expect(zone, `the «${key}» stack takes the focus click`).toHaveClass(focused, {timeout: 15_000});
+  }
   await zone.click();
 }
 
 /** Per-press nav latency inside the category grid: keydown → the focused
- *  slot class moving (attribute mutation). DOM-update latency — paint is
- *  compositor-gated headless, but the JS+render cost is what scales. */
+ *  slot class moving (attribute mutation, recorded in the task that wrote it).
+ *  DOM-update latency — paint is compositor-gated headless, but the JS+render
+ *  cost is what scales. The presses go at a fixed CADENCE (one step per
+ *  180 ms — a player stepping through the grid): the cadence is part of what
+ *  is measured, so it is a beat, never a wait for the previous step. A press
+ *  that moves nothing (a wall) simply records no latency — the report's
+ *  `samples` says how many did. */
 async function navLatencyProbe(page: Page, presses: number): Promise<Array<number>> {
   await page.evaluate(() => {
     const w = window as any;
@@ -287,7 +361,7 @@ async function navLatencyProbe(page: Page, presses: number): Promise<Array<numbe
   });
   for (let i = 0; i < presses; i++) {
     await page.keyboard.press(i % 3 === 2 ? 'ArrowDown' : 'ArrowRight');
-    await page.waitForTimeout(180);
+    await cinematicBeat(page, 180, 'the nav cadence — one grid step per 180 ms is the rate the latency is measured at');
   }
   return await page.evaluate(() => {
     const w = window as any;
@@ -336,14 +410,12 @@ test.describe('console played-tableau performance probe', () => {
 
         await page.goto(`/player?id=${seeded.playerId}&console=1${profile.query}`);
         await page.locator('.con-root').waitFor({state: 'visible', timeout: 60_000});
-        // Let the board settle (fit engines, fonts, first data render).
-        await pumpFrames(page, 4, 250);
-        await page.waitForTimeout(1500);
-        await pumpFrames(page, 2, 120);
+        // Let the board settle (fit engines, fonts, first data render): the veil gone, the console quiet.
+        await boardAtRest(page);
 
         // ── 6a. closed-state idle BEFORE first open ──────────────────────
         await armPerfWindow(page);
-        await page.waitForTimeout(3000);
+        await cinematicBeat(page, 3000, 'the closed-state idle window IS the measurement');
         report.idleBefore = await readPerfWindow(page);
         await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
         const closedBefore = await cdpMetrics(cdp);
@@ -356,7 +428,7 @@ test.describe('console played-tableau performance probe', () => {
         await page.keyboard.press('KeyX');
         await page.locator('.con-played').waitFor({state: 'visible', timeout: 30_000});
         await pumpFrames(page, 6, 120);
-        await page.waitForTimeout(600);
+        await cinematicBeat(page, 600, 'the tail of the open window —the measured window runs this long past the arrival');
         const openProbe = await readOpenProbe(page);
         const mOpen1 = await cdpMetrics(cdp);
         report.openWindow = await readPerfWindow(page);
@@ -390,21 +462,18 @@ test.describe('console played-tableau performance probe', () => {
         const catT0 = Date.now();
         await openCategory(page, biggest);
         await page.locator('.con-played-cat').waitFor({state: 'visible', timeout: 60_000});
-        // The flight needs frames to advance; pump until framed or timeout.
-        for (let i = 0; i < 40; i++) {
-          await pumpFrames(page, 1, 90);
-          const framed = await page.locator('.con-played-cat--framed').count();
-          if (framed > 0) {
-            break;
-          }
-        }
+        // The flight needs frames to advance; pump until the grid stands framed.
+        await expect.poll(async () => {
+          await pumpFrame(page);
+          return page.locator('.con-played-cat--framed').count();
+        }, {message: `the «${biggest}» category frames its grid`, timeout: 60_000, intervals: [90]}).toBeGreaterThan(0);
         await pumpFrames(page, 4, 120);
-        await page.waitForTimeout(400);
+        await cinematicBeat(page, 400, 'the tail of the category window —the measured window runs this long past the framing');
         const catProbe = await readOpenProbe(page);
         // GC before the read: the Nodes/Heap delta should mean RETAINED, not
         // «churned and not yet collected».
         await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
-        await page.waitForTimeout(120);
+        await cinematicBeat(page, 120, 'the heap is read a beat after the forced GC — the own protocol of the measurement');
         const mCat1 = await cdpMetrics(cdp);
         report.catOpenWindow = await readPerfWindow(page);
         report.catOpen = {
@@ -423,13 +492,11 @@ test.describe('console played-tableau performance probe', () => {
         await armPerfWindow(page);
         const mCatC0 = await cdpMetrics(cdp);
         await page.keyboard.press('Escape');
-        for (let i = 0; i < 40; i++) {
-          await pumpFrames(page, 1, 90);
-          const up = await page.locator('.con-played-cat').count();
-          if (up === 0) {
-            break;
-          }
-        }
+        // The window closes with the category: pump until it has left.
+        await expect.poll(async () => {
+          await pumpFrame(page);
+          return page.locator('.con-played-cat').count();
+        }, {message: 'Escape closes the category', timeout: 30_000, intervals: [90]}).toBe(0);
         const mCatC1 = await cdpMetrics(cdp);
         report.catCloseWindow = await readPerfWindow(page);
         report.catClose = {metrics: metricsDelta(mCatC0, mCatC1)};
@@ -451,13 +518,15 @@ test.describe('console played-tableau performance probe', () => {
           await page.keyboard.press('KeyX');
           await page.locator('.con-played').waitFor({state: 'visible', timeout: 30_000});
           cycleOpenMs.push(Date.now() - t0);
-          await page.waitForTimeout(seeded.n >= 100 ? 350 : 200);
+          // THE CYCLE'S RHYTHM IS THE MEASUREMENT: the table is closed this long after it arrived (an Escape mid-entrance
+          // on a big table included) and the next open follows a short rest — beats, never a wait for the table at rest.
+          await cinematicBeat(page, seeded.n >= 100 ? 350 : 200, 'the dwell of a cycle on the open table');
           await page.keyboard.press('Escape');
           await page.locator('.con-played').waitFor({state: 'detached', timeout: 30_000});
-          await page.waitForTimeout(120);
+          await cinematicBeat(page, 120, 'the rest between two cycles');
           if (i === 1 || i === 5 || i === 10 || i === 20) {
             await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
-            await page.waitForTimeout(150);
+            await cinematicBeat(page, 150, 'the heap is read a beat after the forced GC — the own protocol of the measurement');
             const m = await cdpMetrics(cdp);
             cycles.push({cycle: i, ...snapshotOf(m)});
           }
@@ -473,9 +542,9 @@ test.describe('console played-tableau performance probe', () => {
 
         // ── 6b. closed-state idle AFTER the last close ───────────────────
         await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
-        await page.waitForTimeout(300);
+        await cinematicBeat(page, 300, 'the idle window opens a beat after the forced GC — the own protocol of the measurement');
         await armPerfWindow(page);
-        await page.waitForTimeout(3000);
+        await cinematicBeat(page, 3000, 'the closed-state idle window IS the measurement');
         report.idleAfter = await readPerfWindow(page);
         const closedAfter = await cdpMetrics(cdp);
         report.closedAfter = snapshotOf(closedAfter);
@@ -484,10 +553,8 @@ test.describe('console played-tableau performance probe', () => {
         // ── 7. THE INFOPANEL DOOR ────────────────────────────────────────
         // The Information Workspace is a DOSSIER since TR60: «Разыграно» is a zone of its ring, opened with A from its
         // tile (X no longer reaches it — the probe's old door). Walk the ring with the shared driver, then press.
-        await page.keyboard.press('KeyY');
-        await page.locator('.con-info').waitFor({state: 'visible', timeout: 30_000});
-        await pumpFrames(page, 2, 150);
-        await page.waitForTimeout(400);
+        expect(await pressUntilVisible(page, 'KeyY', '.con-info'), 'Y opens the Information workspace').toBe(true);
+        await settle(page);
         expect(await focusInfoZone(page, 'played'), 'the ring reaches «Разыграно»').toBe(true);
         await armOpenProbe(page, 'Enter', '.con-info .con-played');
         await armPerfWindow(page);
@@ -495,7 +562,7 @@ test.describe('console played-tableau performance probe', () => {
         await page.keyboard.press('Enter');
         await page.locator('.con-info .con-played').waitFor({state: 'visible', timeout: 30_000});
         await pumpFrames(page, 4, 120);
-        await page.waitForTimeout(500);
+        await cinematicBeat(page, 500, 'the tail of the info open window —the measured window runs this long past the arrival');
         const infoProbe = await readOpenProbe(page);
         const mInfo1 = await cdpMetrics(cdp);
         report.infoOpenWindow = await readPerfWindow(page);
@@ -506,10 +573,8 @@ test.describe('console played-tableau performance probe', () => {
           metrics: metricsDelta(mInfo0, mInfo1),
         };
         await shoot(page, `${profile.id}-n${seeded.n}-3-info`);
-        await page.keyboard.press('Escape');
-        await page.waitForTimeout(250);
-        await page.keyboard.press('Escape');
-        await page.waitForTimeout(250);
+        await pressUntilGone(page, 'Escape', '.con-info .con-played');
+        await pressUntilGone(page, 'Escape', '.con-info');
 
         // sanity: the probe drove the real flow
         expect((report.open as {faces: number}).faces).toBeGreaterThan(0);

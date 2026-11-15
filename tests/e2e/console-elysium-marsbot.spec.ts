@@ -136,7 +136,7 @@ test.describe('ELYSIUM + MarsBot — the real product', () => {
     for (let i = 0; Date.now() < walkUntil && await startScene.count() > 0; i++) {
       await key(page, i % 4 === 3 ? 'Period' : 'Enter', 800);
     }
-    expect(await startScene.count(), 'the start wizard finished').toBe(0);
+    await expect.poll(() => startScene.count(), {message: 'the start wizard finished'}).toBe(0);
     await page.waitForTimeout(2500);
     await shoot(page, '02-board');
 

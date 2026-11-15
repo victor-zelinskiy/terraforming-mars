@@ -1,9 +1,11 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, crumbText, fetchPlayerModel, openMandatoryAnnounce, openHandPlayComposer, press, settle} from './consoleStart';
+import {bootFixtureSeats, crumbText, fetchPlayerModel, openMandatoryAnnounce, openHandPlayComposer, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
+import {sequenceOf} from './observeCore';
 import {closeSitting, closeSittingAs, enterSittingByPass, turnTo, waitSittingAtRest} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR78 ARWIND INC. — a WALK OF THE CAREER owes a fighter per step (`ICard.onAgendaWalked`: ONE answer per walk), the
@@ -75,75 +77,74 @@ async function diag(page: Page): Promise<string> {
 
 type FlowProbe = {
   crumbs: Array<string>, bands: number, plates: number, picks: number, stages: Array<string>,
-  /** Samples with the ASKER's face standing at the reaction layer, every layer face's name, the director's `reaction:*` trail. */
+  /** Recorded states with the ASKER's face standing at the reaction layer, every layer face's name, the director's `reaction:*` trail. */
   reactionFaces: number, reactionFaceNames: Array<string>, reactions: Array<string>,
 };
 
-/** Every sample the crumb read, every band / plate that stood, every answer stage seen (mode), the asker at the reaction layer. */
+/** One recorded observation of the flow — what stands NOW (the folding into a `FlowProbe` is the Node side's). */
+type FlowSeen = {
+  crumb: string, loose: boolean, plate: boolean, pick: boolean, stage: string,
+  faces: Array<string>, asker: boolean, reactions: Array<{t: number, line: string}>,
+};
+const FLOW_WITNESS = 'arwind-flow';
+
+/**
+ * Every crumb the head read, every band / plate that stood, every answer stage seen (mode), the asker at the reaction
+ * layer — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns the state of
+ * the moment, the counts and the order are folded over the record in `readFlowProbe`. The claims made of it are «never»
+ * (a band, the asker's second face, a crumb without the flow) and «in order» (no verdict after the answer) — so it
+ * records `settled`: the state a task LEAVES, never the gap between two writes of one task that no frame paints.
+ */
 async function armFlowProbe(page: Page): Promise<void> {
-  await page.evaluate((asker: string) => {
-    const w = window as unknown as {__arwind: FlowProbeLike};
-    type FlowProbeLike = {
-      crumbs: Array<string>, bands: number, plates: number, picks: number, stages: Array<string>,
-      reactionFaces: number, reactionFaceNames: Array<string>, reactions: Array<string>,
-    };
-    w.__arwind = {crumbs: [], bands: 0, plates: 0, picks: 0, stages: [], reactionFaces: 0, reactionFaceNames: [], reactions: []};
-    const seenTrail = new Set<number>();
-    const sample = () => {
-      const heads = Array.from(document.querySelectorAll('.con-wshead'))
-        .filter((el) => (el as HTMLElement).offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
-      const crumb = (heads[heads.length - 1]?.textContent ?? '').replace(/\s+/g, ' ').trim();
-      if (crumb !== '' && w.__arwind.crumbs[w.__arwind.crumbs.length - 1] !== crumb) {
-        w.__arwind.crumbs.push(crumb);
-      }
+  await armWitness<FlowSeen, string>(page, FLOW_WITNESS, (asker) => {
+    const heads = Array.from(document.querySelectorAll('.con-wshead'))
+      .filter((el) => (el as HTMLElement).offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
+    const crumb = (heads[heads.length - 1]?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const stage = document.querySelector('[data-parl-answer]');
+    // The ASKER's face at the reaction LAYER (the framework's stage at the rail's edge) — a SECOND telling of the same
+    // answer. Another reactor of the same response (the ruling party's charter answering the Career's M€) rises there
+    // legitimately: the framework's own place for a card with no painted face in this flow.
+    const faces = Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card]')).map((f) => f.getAttribute('data-reaction-card') ?? '?');
+    // The director's own trail (`reaction:seed` / `reaction:rise` with its `via` and the places it refused) — read on
+    // every sample, because the readiness tail keeps only the last 40 transfer events.
+    const ready = (window as unknown as {__conReady?: () => {transfer?: {trail?: ReadonlyArray<{t: number, ev: string, detail?: unknown}>}}}).__conReady?.();
+    return {
+      crumb,
       // A pick standing OUTSIDE the Parliament / the hand (a task band of its own) is the defect this spec exists for.
-      const loose = Array.from(document.querySelectorAll('.con-cards__slot')).some((el) => el.closest('.con-parl') === null && el.closest('.con-hand') === null);
-      if (loose) {
-        w.__arwind.bands++;
-      }
-      if (document.querySelector('.con-mandatory') !== null) {
-        w.__arwind.plates++;
-      }
-      if (document.querySelector('.con-parl [data-embed-slot] .con-cards__slot') !== null) {
-        w.__arwind.picks++;
-      }
-      const stage = document.querySelector('[data-parl-answer]');
-      if (stage !== null) {
-        const tag = `${stage.getAttribute('data-tans-mode')}:${stage.getAttribute('data-tans-asker')}`;
-        if (w.__arwind.stages[w.__arwind.stages.length - 1] !== tag) {
-          w.__arwind.stages.push(tag);
-        }
-      }
-      // The ASKER's face at the reaction LAYER (the framework's stage at the rail's edge) — a SECOND telling of the same
-      // answer. Another reactor of the same response (the ruling party's charter answering the Career's M€) rises there
-      // legitimately: the framework's own place for a card with no painted face in this flow.
-      const faces = Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card]'));
-      for (const face of faces) {
-        const name = face.getAttribute('data-reaction-card') ?? '?';
-        if (!w.__arwind.reactionFaceNames.includes(name)) {
-          w.__arwind.reactionFaceNames.push(name);
-        }
-      }
-      if (faces.some((f) => f.getAttribute('data-reaction-card') === asker)) {
-        w.__arwind.reactionFaces++;
-      }
-      // The director's own trail (`reaction:seed` / `reaction:rise` with its `via` and the places it refused) — read on
-      // every sample, because the readiness tail keeps only the last 40 transfer events.
-      const ready = (window as unknown as {__conReady?: () => {transfer?: {trail?: ReadonlyArray<{t: number, ev: string, detail?: unknown}>}}}).__conReady?.();
-      for (const e of ready?.transfer?.trail ?? []) {
-        if (e.ev.startsWith('reaction:') && !seenTrail.has(e.t)) {
-          seenTrail.add(e.t);
-          w.__arwind.reactions.push(`${Math.round(e.t)} ${e.ev} ${JSON.stringify(e.detail ?? null)}`);
-        }
-      }
+      loose: Array.from(document.querySelectorAll('.con-cards__slot')).some((el) => el.closest('.con-parl') === null && el.closest('.con-hand') === null),
+      plate: document.querySelector('.con-mandatory') !== null,
+      pick: document.querySelector('.con-parl [data-embed-slot] .con-cards__slot') !== null,
+      stage: stage === null ? '' : `${stage.getAttribute('data-tans-mode')}:${stage.getAttribute('data-tans-asker')}`,
+      faces,
+      asker: faces.includes(asker),
+      reactions: (ready?.transfer?.trail ?? []).filter((e) => e.ev.startsWith('reaction:'))
+        .map((e) => ({t: e.t, line: `${Math.round(e.t)} ${e.ev} ${JSON.stringify(e.detail ?? null)}`})),
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 40);
-  }, ARWIND);
+  }, {args: ARWIND, settled: true, max: 20_000});
 }
 
+/** The record folded: the crumbs and stages in order (repeats collapsed), how many recorded states showed each defect. */
 async function readFlowProbe(page: Page): Promise<FlowProbe> {
-  return await page.evaluate(() => (window as unknown as {__arwind: FlowProbe}).__arwind);
+  const samples = await witnessOf<FlowSeen>(page, FLOW_WITNESS).samples();
+  const seen = samples.map((s) => s.v);
+  const reactions = new Map<string, string>();
+  for (const s of samples) {
+    for (const r of s.v.reactions) {
+      if (!reactions.has(`${s.doc}:${r.t}`)) {
+        reactions.set(`${s.doc}:${r.t}`, r.line);
+      }
+    }
+  }
+  return {
+    crumbs: sequenceOf(seen.map((v) => v.crumb).filter((c) => c !== ''), (c) => c),
+    bands: seen.filter((v) => v.loose).length,
+    plates: seen.filter((v) => v.plate).length,
+    picks: seen.filter((v) => v.pick).length,
+    stages: sequenceOf(seen.map((v) => v.stage).filter((s) => s !== ''), (s) => s),
+    reactionFaces: seen.filter((v) => v.asker).length,
+    reactionFaceNames: [...new Set(seen.flatMap((v) => v.faces))],
+    reactions: [...reactions.values()],
+  };
 }
 
 /** The answer is told ONCE — never a second face at the reaction layer's stage; a red names the face and the director's trail. */
@@ -151,13 +152,15 @@ function expectToldOnce(probe: FlowProbe, why: string): void {
   expect(probe.reactionFaces, `${why}\nfaces: ${probe.reactionFaceNames.join(', ') || '—'}\n${probe.reactions.join('\n')}`).toBe(0);
 }
 
-/** Focus `card` in the hosted pick and press A — the slot's own focus, walked by the d-pad. */
+/**
+ * Focus `card` in the hosted pick and press A — the slot's own focus, walked by the d-pad through the ONE walk
+ * (`walkFocusUntil`: a hop that moves nothing turns it around — the strip clamps at its ends).
+ */
 async function pickHosted(page: Page, zone: string, card: string): Promise<void> {
-  const focused = () => page.locator(`${zone} .con-cards__slot--focused`).getAttribute('data-zoom-slot');
-  for (let i = 0; i < 6 && await focused() !== card; i++) {
-    await press(page, 'ArrowRight', 400);
-  }
-  expect(await focused(), `the pick focuses «${card}»`).toBe(card);
+  const focusedSlot = page.locator(`${zone} .con-cards__slot--focused`);
+  const where = () => page.evaluate((sel) => document.querySelector(sel)?.getAttribute('data-zoom-slot') ?? '', `${zone} .con-cards__slot--focused`);
+  await walkFocusUntil(page, async () => await where() === card, where, 6, 400);
+  await expect(focusedSlot, `the pick focuses «${card}»`).toHaveAttribute('data-zoom-slot', card);
   await press(page, 'Enter', 1200);
 }
 
@@ -237,11 +240,10 @@ test.describe('Arwind Inc. · a walk of the Career answered by the table, on one
     await expect(lanes, 'two fighters to lay out').toHaveAttribute('data-lanes-left', '2');
     await expect(row, 'the row holds the commit while the layout is incomplete').toHaveClass(/con-composer__row--missing/);
     // Walk the cursor onto the row (the composer's own stops), then lay the units out: RB here, → to the ships, RB.
-    const onRow = () => page.locator(`.con-composer--play .con-composer__row--focused[data-reaction-card="${ARWIND}"]`).count();
-    for (let i = 0; i < 8 && await onRow() === 0; i++) {
-      await press(page, 'ArrowDown', 250);
-    }
-    expect(await onRow(), 'the cursor stands on the layout row').toBe(1);
+    // act → verify (D): each ↓ gives the row's focus its whole window before the next one — never a step past the row.
+    const focusedRow = page.locator(`.con-composer--play .con-composer__row--focused[data-reaction-card="${ARWIND}"]`);
+    await pressUntil(page, 'ArrowDown', async () => await focusedRow.count() > 0, {tries: 8, settleMs: 250});
+    await expect(focusedRow, 'the cursor stands on the layout row').toHaveCount(1);
     await shoot(page, 'A2-1-layout-empty');
     await press(page, 'KeyE', 300);
     await expect(row.locator(`[data-lane-card="${ARWIND}"]`), 'RB: one fighter on the corporation\'s lane').toHaveAttribute('data-lane-amount', '1');
@@ -296,8 +298,8 @@ test.describe('Arwind Inc. · a walk of the Career answered by the table, on one
     const wf = (await wireOf(request, playerId)).waitingFor;
     expect(wf?.agendaWalkPrompt, 'the server asks — the quest\'s walk').toMatchObject({reason: 'quest', from: 1, to: 2});
     await settle(page, {timeoutMs: 20_000});
-    const crumb = (await crumbText(page)).toUpperCase();
-    expect(crumb, 'the crumb: the quest\'s flow, the stage «ИСТРЕБИТЕЛЬ»').toMatch(/ПРЕДСЕДАТЕЛЬСТВО.*ИСТРЕБИТЕЛЬ/);
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {timeout: 10_000,
+      message: 'the crumb: the quest\'s flow, the stage «ИСТРЕБИТЕЛЬ»'}).toMatch(/ПРЕДСЕДАТЕЛЬСТВО.*ИСТРЕБИТЕЛЬ/);
     await shoot(page, 'B1-quest-question');
     await armTransferWitness(page);
     await pickHosted(page, ANSWER_ZONE, SHIPS);
@@ -368,7 +370,8 @@ test.describe('Arwind Inc. · a walk of the Career answered by the table, on one
     }
     await expect(page.locator(`${LAYER} [data-tans-asker-face] .pcard`), 'the asker on the layer\'s hero').toHaveCount(1);
     await settle(page, {timeoutMs: 20_000});
-    expect((await crumbText(page)).toUpperCase(), 'the crumb: the sitting, the stage «ИСТРЕБИТЕЛЬ»').toMatch(/ЗАСЕДАНИЕ.*ИСТРЕБИТЕЛЬ/);
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {timeout: 10_000,
+      message: 'the crumb: the sitting, the stage «ИСТРЕБИТЕЛЬ»'}).toMatch(/ЗАСЕДАНИЕ.*ИСТРЕБИТЕЛЬ/);
     await shoot(page, 'C1-sitting-question');
     await pickHosted(page, ANSWER_ZONE, SHIPS);
     await expect.poll(async () => fightersOn(await wireOf(request, playerId), SHIPS), {timeout: 30_000, message: 'the fighter lands'}).toBe(1);
@@ -411,7 +414,8 @@ test.describe('Arwind Inc. · a walk of the Career answered by the table, on one
       console.log('[arwind-sitting-solo]', await diag(page));
       throw e;
     }
-    expect((await crumbText(page)).toUpperCase(), 'the crumb names the stage').toMatch(/ЗАСЕДАНИЕ.*ИСТРЕБИТЕЛЬ/);
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {timeout: 10_000, message: 'the crumb names the stage'})
+      .toMatch(/ЗАСЕДАНИЕ.*ИСТРЕБИТЕЛЬ/);
     await shoot(page, 'C2-1-sitting-receipt');
     await expect(page.locator(LAYER), 'the layer folds').toHaveCount(0, {timeout: 60_000});
     await waitSittingAtRest(page, 60_000);
@@ -438,6 +442,6 @@ test.describe('Arwind Inc. · a walk of the Career answered by the table, on one
     await openPlay(page, 'Satellites');
     await shoot(page, 'D1-pay-composer');
     const lane = page.locator('.con-composer--play .card-resource-fighter, .con-composer--play [class*="fighter"]');
-    expect(await lane.count(), 'the payment shows the fighters\' lane').toBeGreaterThan(0);
+    await expect.poll(() => lane.count(), {message: 'the payment shows the fighters\' lane'}).toBeGreaterThan(0);
   });
 });

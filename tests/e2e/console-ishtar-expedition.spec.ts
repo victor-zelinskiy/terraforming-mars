@@ -294,7 +294,7 @@ test.describe(`P76 Ishtar Expedition · a play from the hand with a reward and a
     if (Number.isFinite(dockBefore) && Number.isFinite(dockAfter)) {
       expect(dockAfter - dockBefore, 'two cards landed in the dock').toBe(2);
     }
-    expect(await page.locator('.con-ws').count(), 'no workspace left standing').toBe(0);
+    await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace left standing'}).toBe(0);
     const after = await wireOf(request, id);
     for (const name of FOUND) {
       expect(after.cardsInHand?.map((c) => c.name), `«${name}» in hand`).toContain(name);

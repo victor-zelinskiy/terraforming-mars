@@ -207,8 +207,8 @@ test.describe('Plant Ban · standard-1080', () => {
       const face = page.locator(`.con-parl__slot[data-instance="${BAN_INSTANCE}"] .pcard`);
       await expect(face, 'Plant Ban stands in the voting area').toHaveCount(1);
       await expect(face).toHaveClass(BAN_CLASS);
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX25');
-      expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'the Reds\' emblem').toContain('reds');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX25');
+      await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'the Reds\' emblem'}).toContain('reds');
       await expect(face.locator('.pcard__mech'), 'the printed rule, with the limit as a positive number').toContainText(/макс|max/i);
       await expect(face.locator('.pcard__mech'), 'no minus on the face').not.toContainText('−');
       await expect(face.locator('.pcard__quest-graphic'), 'the 4-delegates quest as a graphic').toHaveCount(1);

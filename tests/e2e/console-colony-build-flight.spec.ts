@@ -90,7 +90,7 @@ async function openColoniesAndFocus(page: Page, target: string): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
   const focused = page.locator(`.con-coltile--focused[data-test="con-colony-${target}"]`);
   for (let i = 0; i < 10 && await focused.count() === 0; i++) {
     await press(page, 'ArrowRight', 380);
@@ -101,7 +101,7 @@ async function openColoniesAndFocus(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 type FlightWatch = {
@@ -223,7 +223,7 @@ test('Pluto BUILD: the bonus cards physically leave the slot and fly into the re
   // The Build Colony standard project → the colony pick → the focus stage.
   await press(page, 'Comma', 1200);
   await press(page, 'Enter', 1400);
-  expect(await page.locator('.con-stdp').count(), 'standard projects did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-stdp').count(), {message: 'standard projects did not open'}).toBeGreaterThan(0);
   const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
   const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
   for (let i = 0; i < 18 && !/колони/i.test(await focusedName()); i++) {
@@ -234,7 +234,7 @@ test('Pluto BUILD: the bonus cards physically leave the slot and fly into the re
   await page.waitForSelector('.con-colonies', {timeout: 15_000});
   await openColoniesAndFocus(page, 'Pluto');
   await press(page, 'Enter', 2000); // descend — build intent
-  expect(await page.locator('.con-colfocus').count(), 'the build stage did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the build stage did not open'}).toBeGreaterThan(0);
   await shoot(page, '01-build-stage');
 
   const watching = watchFlight(page, 12_000);

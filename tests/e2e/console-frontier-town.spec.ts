@@ -250,7 +250,7 @@ test.describe(`P74 Frontier Town · the cell's reward on the cell, with its mult
     await press(page, 'Enter', 900);
     await expect(page.locator('.con-board--placing'), 'the city placement opened').toBeVisible({timeout: 20_000});
     await settle(page);
-    expect(await page.locator('.board-space--available').count(), 'the grid is lit').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.board-space--available').count(), {message: 'the grid is lit'}).toBeGreaterThan(0);
     await expect(page.locator('[data-bonus-times]'), 'an ordinary city marks nothing').toHaveCount(0);
     await shoot(page, 'd-ordinary');
   });

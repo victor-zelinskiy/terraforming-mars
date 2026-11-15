@@ -1,7 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {cinematicBeat, fillPicks, focusCard, NO_PAYMENT, press, pressUntilVisible, reloadConsole, sendPlayerInput, settle, submitSummary, summaryVisible, waitStepDealSettled, walkToSummary} from './consoleStart';
+import {cinematicBeat, fillPicks, focusCard, NO_PAYMENT, press, pressUntil, pressUntilVisible, reloadConsole, sendPlayerInput, settle, submitSummary, summaryVisible, waitStepDealSettled, walkToSummary} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow} from './witness';
 
 /**
  * THE DRAFT WORKSPACE («ДРАФТ») — the between-generations draft + research
@@ -22,6 +24,11 @@ import {cinematicBeat, fillPicks, focusCard, NO_PAYMENT, press, pressUntilVisibl
  *  · the research buy rises inside the same workspace (financial strip,
  *    toggle picks, RT commit), bought cards fly to the dock, the terminal
  *    «ГОТОВО» beat plays, and the board returns.
+ *
+ * FLAKE ZERO: each state is judged on ONE settled read of the workspace
+ * (`settledSurface` — its status block is measured), the pass turn and the
+ * inspect's leave are RECORDED from before the press (`armWitness`), and every
+ * press is act → verify (`pressUntil`) — no pause stands in for a state.
  */
 
 const OUT_DIR = path.resolve('screenshots', 'draft-workspace');
@@ -117,17 +124,24 @@ async function passIntoDrafting(page: Page, request: APIRequestContext, firstId:
   // P1's pass: HOLD RT (the quick wheel is press-release: a quick tap commits
   // the CENTER slot), steer to the 'down' slot («Пас»), release to commit.
   // Press-verify-retry: the server model is the only truth about the pass.
+  // Every step waits for its STATE, never a pause: the held RT has opened the
+  // wheel before the arrow goes; the arrow's release (the quick-select commit
+  // edge) has taken the wheel down before RT is let go (bounded — a refused
+  // slot keeps it standing, and the server's verdict decides); the pass is
+  // the server moving on, given its whole window.
+  const passed = async (): Promise<boolean> => {
+    const m1 = await modelOf(request, firstId);
+    return m1.game.phase !== 'action' || m1.waitingFor === undefined || m1.waitingFor.type !== 'or';
+  };
+  const wheel = page.locator('.con-quick').first();
   let passedOnUi = false;
   for (let i = 0; i < 5 && !passedOnUi; i++) {
     await page.keyboard.down('Period');
-    await page.waitForTimeout(550);
+    await wheel.waitFor({state: 'visible', timeout: 5_000}).catch(() => undefined);
     await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(450);
+    await wheel.waitFor({state: 'detached', timeout: 3_000}).catch(() => undefined);
     await page.keyboard.up('Period');
-    await page.waitForTimeout(1600);
-    const m1 = await modelOf(request, firstId);
-    passedOnUi = m1.game.phase !== 'action' || m1.waitingFor === undefined ||
-      m1.waitingFor.type !== 'or';
+    passedOnUi = await expect.poll(passed, {timeout: 8_000, intervals: [400]}).toBe(true).then(() => true, () => false);
   }
   if (!passedOnUi) {
     // The honest fallback: pass P1 over the API and RELOAD the page so it
@@ -164,17 +178,17 @@ async function passIntoDrafting(page: Page, request: APIRequestContext, firstId:
 async function pickOnUi(page: Page, request: APIRequestContext, id: string): Promise<void> {
   type M = WireModel & {draftedCards?: Array<unknown>};
   const before = ((await modelOf(request, id)) as M).draftedCards?.length ?? 0;
-  for (let i = 0; i < 10; i++) {
-    await press(page, 'Enter', 1500);
+  const landed = async (): Promise<boolean> => {
     const m = await modelOf(request, id) as M;
     const drafted = m.draftedCards?.length ?? 0;
     const wf = m.waitingFor as (WirePrompt & {optional?: boolean}) | undefined;
-    if (drafted > before || m.game.phase === 'research' ||
-        wf === undefined || wf.optional === true) {
-      return;
-    }
+    return drafted > before || m.game.phase === 'research' || wf === undefined || wf.optional === true;
+  };
+  // ACT → VERIFY: a retry happens only when the server shows no pick for the press's WHOLE window — never a second A
+  // on whatever the first one opened because the answer was a beat late.
+  if (!await pressUntil(page, 'Enter', landed, {tries: 10, settleMs: 1500})) {
+    throw new Error('the pick never landed on the UI');
   }
-  throw new Error('the pick never landed on the UI');
 }
 
 /** The second player's current prompt (asserting it is a card pick). */
@@ -236,6 +250,11 @@ async function surface(page: Page) {
   });
 }
 
+/** `surface` AT REST — the one read a state is judged on (its status block is MEASURED: two equal reads a frame apart). */
+async function settledSurface(page: Page, what: string): Promise<Awaited<ReturnType<typeof surface>>> {
+  return readSettled(page, () => surface(page), {message: what});
+}
+
 test.describe('draft workspace · the between-generations flow', () => {
   test.use({viewport: {width: 3840, height: 2160}});
 
@@ -285,10 +304,9 @@ test.describe('draft workspace · the between-generations flow', () => {
     // draft must stand on a clean stack, exactly as in live play).
     await page.waitForSelector('.con-start--ceremony', {timeout: 60_000});
     const startRoot = page.locator('.con-start');
-    for (let i = 0; i < 25 && await startRoot.count() > 0; i++) {
-      await press(page, 'Enter', 1300);
-    }
-    expect(await startRoot.count(), 'the start workspace released after the deployment').toBe(0);
+    // A through the deployment until the start releases — act → verify, each press given its whole window.
+    await pressUntil(page, 'Enter', async () => await startRoot.count() === 0, {tries: 25, settleMs: 1300});
+    await expect.poll(() => startRoot.count(), {message: 'the start workspace released after the deployment'}).toBe(0);
     await passIntoDrafting(page, request, first.id, second.id);
 
     // ── 1 · THE PENDING ACTION: the workspace does NOT auto-open on the
@@ -296,15 +314,11 @@ test.describe('draft workspace · the between-generations flow', () => {
     //    its plate presents only after the ordinary-notification feed has
     //    fully finished (P2's pass card, the new-generation card — B flushes
     //    them faster than their TTL), and only the player's A opens the
-    //    workspace.
-    await expect.poll(async () => {
-      const plate = await page.locator('.con-mandatory').count();
-      if (plate === 0) {
-        await press(page, 'Escape', 500); // B: dismiss a presenting toast
-      }
-      return plate;
-    }, {timeout: 90_000}).toBeGreaterThan(0);
-    expect(await page.locator('.con-draftws').count(), 'the workspace never opens uninvited').toBe(0);
+    //    workspace. B while the plate is not up (act → verify — never a press
+    //    inside a poll), ~90 s of it.
+    expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-mandatory').count() > 0,
+      {tries: 45, settleMs: 1500}), 'the draft\'s plate presented').toBe(true);
+    await expect.poll(() => page.locator('.con-draftws').count(), {message: 'the workspace never opens uninvited'}).toBe(0);
     await shoot(page, '00-draft-announce');
     // A — the one explicit door into the draft, act→verify→retry. A single
     // blind press is not enough here and never was: the announce plate is
@@ -314,7 +328,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     expect(await pressUntilVisible(page, 'Enter', '.con-draftws', {tries: 6, settleMs: 1200}),
       'A never opened the draft workspace').toBeTruthy();
     await settle(page, {timeoutMs: 20_000}); // the deal cinematic holds release when it lands
-    let s = await surface(page);
+    let s = await settledSurface(page, 'the first packet');
     console.log('[first packet]', JSON.stringify(s));
     await shoot(page, '01-first-packet');
     expect(s.workspace, 'the draft workspace stands').toBeTruthy();
@@ -354,8 +368,7 @@ test.describe('draft workspace · the between-generations flow', () => {
       };
     });
     // The name is the one thing the zone ALWAYS states, in both states.
-    expect(await page.locator('.con-draftws__statusbar .con-dread__name').count(),
-      'the status zone names the focused card whatever its verdict').toBe(1);
+    await expect.poll(() => page.locator('.con-draftws__statusbar .con-dread__name').count(), {message: 'the status zone names the focused card whatever its verdict'}).toBe(1);
     await press(page, 'KeyX', 2600); // X — fullscreen (the open flight settles)
     await page.waitForSelector('dialog.con-zoom[open]', {timeout: 20_000});
     await settle(page);
@@ -387,20 +400,33 @@ test.describe('draft workspace · the between-generations flow', () => {
     //    passes on; P2 has not picked yet → the calm waiting state.
     //    The PASS is a physical turn: the leaving cards rotate through a real
     //    intermediate rotateY (never a one-frame face→back swap) — witnessed
-    //    by sampling the flip child's computed matrix during the exit.
-    await page.evaluate(() => {
-      type FlipSt = {timer: number, samples: number, mid: number, max: number, first: string, ts: Array<string>, refMax: number, winT0: number, midWindow: number};
-      const w = window as unknown as {__flip?: FlipSt};
-      const st: FlipSt = {timer: 0, samples: 0, mid: 0, max: 0, first: '', ts: [], refMax: 0, winT0: 0, midWindow: 0};
-      const t0 = performance.now();
-      // The A/B REFERENCE — a CONTROL for «does this page run a rotateY right now at all». The pass turn is a
-      // WAAPI animation (the slots carry `__passFlip` and one live Animation), so the control is one too: a
-      // visible 40×56 element turned by the same kind of animation over the same window. It USED to be a slot
-      // with the pass classes, flipped by a CSS animation that no longer exists — it read 0° in every run,
-      // green ones included (rerun 2026-09-30: real slots 82°, reference 0°), so it could not tell a starved
-      // compositor (the WAAPI animations stay PENDING for the whole window: real 0°, reference 0°) from the
-      // hidden-stage regression it exists for (real 0°, reference turning).
-      let ref: HTMLElement | undefined;
+    //    by RECORDING the flip children's computed matrix through the exit
+    //    (`armWitness`, armed before the press: every frame and every write of
+    //    the product is observed, so a starved renderer slows the turn but can
+    //    never hide it; the reader returns what stands NOW, the fold is below).
+    //
+    //    The A/B REFERENCE — a CONTROL for «does this page run a rotateY right now at all». The pass turn is a WAAPI
+    //    animation (the slots carry `__passFlip` and one live Animation), so the control is one too: a visible 40×56
+    //    element turned by the same kind of animation over the same window, created ONCE by the reader the moment the
+    //    turn first stands (a write on change only — never on every call). It USED to be a slot with the pass
+    //    classes, flipped by a CSS animation that no longer exists — it read 0° in every run, green ones included
+    //    (rerun 2026-09-30: real slots 82°, reference 0°), so it could not tell a starved compositor (the WAAPI
+    //    animations stay PENDING for the whole window: real 0°, reference 0°) from the hidden-stage regression it
+    //    exists for (real 0°, reference turning).
+    type FlipSeen = {
+      /** Passing flip children on stage (0 — the turn is not under way, or it is over). */
+      slots: number,
+      /** The largest rotateY among them now, in whole degrees. */
+      maxAngle: number,
+      /** Any of them mid-turn (15° … 165°). */
+      mid: boolean,
+      /** The control's angle now (0 before the turn first stands). */
+      ref: number,
+      /** The first child's animation, for the trail: marked + live count / play state @ its own clock. */
+      clock: string,
+    };
+    const flipWitness = await armWitness<FlipSeen>(page, 'draft-pass-flip', () => {
+      const w = window as unknown as {__flipRef?: HTMLElement};
       const angOf = (tf: string): number => {
         if (!tf.startsWith('matrix3d')) {
           return 0;
@@ -408,92 +434,70 @@ test.describe('draft workspace · the between-generations flow', () => {
         const m = tf.slice(9, -1).split(',').map(Number);
         return Math.acos(Math.max(-1, Math.min(1, m[0]))) * 180 / Math.PI;
       };
-      const scan = () => {
-        const els = Array.from(document.querySelectorAll<HTMLElement>('.con-draftws__slot--passing .con-draftws__slot-flip'));
-        if (els.length > 0 && ref === undefined) {
-          ref = document.createElement('div');
-          ref.style.cssText = 'position:fixed;left:4px;top:4px;width:40px;height:56px;opacity:0.02;pointer-events:none;';
-          document.body.appendChild(ref);
-          ref.animate([{transform: 'rotateY(0deg)'}, {transform: 'rotateY(180deg)'}], {duration: 1200, fill: 'forwards'});
-          (w as unknown as {__flipRef?: HTMLElement}).__flipRef = ref;
-        }
-        if (ref !== undefined) {
-          st.refMax = Math.max(st.refMax, angOf(getComputedStyle(ref).transform));
-        }
-        for (const el of els) {
-          st.samples++;
-          const tf = getComputedStyle(el).transform;
-          const ang = angOf(tf);
-          if (st.ts.length < 40) {
-            const marked = (el as unknown as {__passFlip?: boolean}).__passFlip === true ? 'M' : 'x';
-            const nAnims = (el.getAnimations?.() ?? []).length;
-            st.ts.push(`${Math.round(performance.now() - t0)}:${Math.round(ang)}:${marked}${nAnims}`);
-          }
-          // Samples inside the turn's own window (delay-matched: the flip
-          // rides its slot's 260+70·order delay, then turns 12%..68% of
-          // 820ms) — the honest denominator for «was an angle witnessed».
-          if (st.winT0 === 0) {
-            st.winT0 = performance.now();
-          }
-          const rel = performance.now() - st.winT0;
-          if (rel > 380 && rel < 1350) {
-            st.midWindow++;
-          }
-          if (st.first === '') {
-            const anims = (el.getAnimations?.() ?? [])
-              .map((a) => `${(a as unknown as {animationName?: string}).animationName ?? '?'}:${a.playState}`).join('+');
-            st.first = `an=${getComputedStyle(el).animationName} live=${anims || '-'} tf=${tf.slice(0, 28)}`;
-          }
-          // The clock trace: does the animation's own currentTime ADVANCE
-          // while the transform stays flat? (frozen clock = paused/throttled
-          // timeline; advancing clock + flat transform = keyframes resolve
-          // to nothing at runtime).
-          if (st.ts.length >= 12 && st.ts.length < 36) {
-            const a = (el.getAnimations?.() ?? [])[0];
-            st.ts.push(`${Math.round(performance.now() - t0)}@${a === undefined ? 'x' : `${a.playState}/${Math.round(Number(a.currentTime ?? -1))}`}=${Math.round(ang)}`);
-          }
-          st.max = Math.max(st.max, ang);
-          if (ang > 15 && ang < 165) {
-            st.mid++;
-          }
-        }
+      const els = Array.from(document.querySelectorAll<HTMLElement>('.con-draftws__slot--passing .con-draftws__slot-flip'));
+      if (els.length > 0 && w.__flipRef === undefined) {
+        const ref = document.createElement('div');
+        ref.style.cssText = 'position:fixed;left:4px;top:4px;width:40px;height:56px;opacity:0.02;pointer-events:none;';
+        document.body.appendChild(ref);
+        ref.animate([{transform: 'rotateY(0deg)'}, {transform: 'rotateY(180deg)'}], {duration: 1200, fill: 'forwards'});
+        w.__flipRef = ref;
+      }
+      const angles = els.map((el) => angOf(getComputedStyle(el).transform));
+      const head = els[0];
+      const anims = head === undefined ? [] : (head.getAnimations?.() ?? []);
+      // The clock trace: does the animation's own currentTime ADVANCE while the transform stays flat? (frozen clock =
+      // paused/throttled timeline; advancing clock + flat transform = keyframes resolve to nothing at runtime).
+      const marked = head !== undefined && (head as unknown as {__passFlip?: boolean}).__passFlip === true ? 'M' : 'x';
+      const a = anims[0];
+      return {
+        slots: els.length,
+        maxAngle: Math.round(Math.max(0, ...angles)),
+        mid: angles.some((ang) => ang > 15 && ang < 165),
+        ref: w.__flipRef === undefined ? 0 : Math.round(angOf(getComputedStyle(w.__flipRef).transform)),
+        clock: head === undefined ? '' :
+          `${marked}${anims.length}/${a === undefined ? 'x' : `${a.playState}@${Math.round(Number(a.currentTime ?? -1))}`}`,
       };
-      st.timer = window.setInterval(scan, 16) as unknown as number;
-      const mo = new MutationObserver(scan);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      (w as unknown as {__flipMo?: MutationObserver}).__flipMo = mo;
-      w.__flip = st;
     });
+    // The page's motion scale — the turn's own clock (`consoleMotionMs`), so the fold below judges it in its units.
+    const motionScale = await page.evaluate(() =>
+      Number(getComputedStyle(document.documentElement).getPropertyValue('--motion-scale')) || 1);
     await pickOnUi(page, request, first.id);
     await expect.poll(async () => (await surface(page)).wait, {timeout: 20_000}).toBeTruthy();
-    const flip = await page.evaluate(() => {
-      const w = window as unknown as {__flip: {timer: number, samples: number, mid: number, max: number, first: string, ts: Array<string>, refMax: number, midWindow: number}, __flipMo?: MutationObserver};
-      window.clearInterval(w.__flip.timer);
-      w.__flipMo?.disconnect(); // the probe may not keep taxing the rest of the tour
-      (w as unknown as {__flipRef?: HTMLElement}).__flipRef?.remove();
-      return {samples: w.__flip.samples, mid: w.__flip.mid, max: Math.round(w.__flip.max),
-        refMax: Math.round(w.__flip.refMax), midWindow: w.__flip.midWindow, first: w.__flip.first, ts: w.__flip.ts.slice(0, 40)};
-    });
+    const flipRecord = await flipWitness.stop();
+    await page.evaluate(() => (window as unknown as {__flipRef?: HTMLElement}).__flipRef?.remove());
+    // THE FOLD. How long the passing children STOOD (first sighting → the first state with none — the page's clock):
+    // the first slot's turn rides a 260 ms delay and is mid-angle until 68 % of its 820 ms (both motion-scaled), so
+    // children that stood past that point had their whole mid-turn on stage — and the record saw every frame of it.
+    const passing = flipRecord.filter((r) => r.v.slots > 0);
+    const firstSeen = passing[0]?.t;
+    const leftAt = firstSeen === undefined ? undefined : flipRecord.find((r) => r.t >= firstSeen && r.v.slots === 0)?.t;
+    const stoodMs = firstSeen === undefined ? 0 : (leftAt ?? await pageNow(page)) - firstSeen;
+    const firstTurnEndsMs = (260 + 0.68 * 820) * motionScale;
+    const flip = {
+      states: passing.length,
+      mid: passing.filter((r) => r.v.mid).length,
+      max: Math.max(0, ...passing.map((r) => r.v.maxAngle)),
+      refMax: Math.max(0, ...flipRecord.map((r) => r.v.ref)),
+      stoodMs, firstTurnEndsMs,
+      ts: passing.slice(0, 40).map((r) => `${r.t - (firstSeen ?? 0)}:${r.v.maxAngle}:${r.v.clock}`),
+    };
     console.log('[pass-flip]', JSON.stringify(flip));
-    expect(flip.samples, 'the pass exit was sampled at all').toBeGreaterThan(2);
-    // The floor sits where only a DEAD turn fails (the tests.md sampler
-    // law). Under runner jank the sampler's window drifts against the real
-    // clocks (late winT0, wall-clock passTimer) and legitimately misses the
-    // moving part — so the assert names the BUG SHAPE it exists for: a
-    // HEALTHY sampler across the whole pass that never saw ANY 3D transform
-    // (the hidden-stage regression measured midWindow 41..274 with max=0).
-    // …and ONLY when the page was animating at all: the control turned (a starved compositor leaves every WAAPI
-    // animation pending — the real slots AND the control read 0°, and that says nothing about the product).
-    if (flip.max === 0 && flip.midWindow >= 60 && flip.refMax > 0) {
-      expect(flip.mid, `the pass physically TURNS (a healthy sampler saw no rotateY at all while the control turned ${flip.refMax}° — the hidden-stage shape)`).toBeGreaterThan(0);
+    // A dead recorder fails; a count of recorded states is no statement about the machine (its floor is «not dead»).
+    expect(flip.states, 'the pass exit was recorded at all').toBeGreaterThan(0);
+    // The assert names the BUG SHAPE it exists for: the passing children STOOD through the first slot's whole turn
+    // (the record is healthy by construction — every frame, every write) and never showed ANY 3D transform (the
+    // hidden-stage regression: max=0). …and ONLY when the page was animating at all: the control turned (a starved
+    // compositor leaves every WAAPI animation pending — the real slots AND the control read 0°, and that says nothing
+    // about the product).
+    if (flip.max === 0 && flip.stoodMs >= flip.firstTurnEndsMs && flip.refMax > 0) {
+      expect(flip.mid, `the pass physically TURNS (a healthy record saw no rotateY at all while the control turned ${flip.refMax}° — the hidden-stage shape)`).toBeGreaterThan(0);
     } else if (flip.mid === 0) {
-      console.log(`[pass-flip] no angle witnessed and the control turned ${flip.refMax}° — ${flip.refMax > 0 ? 'the window drifted under jank' : 'the page ran no WAAPI transform in the window (a starved compositor)'}; angle assertion skipped`);
+      console.log(`[pass-flip] no angle witnessed and the control turned ${flip.refMax}° — ${flip.refMax > 0 ? `the children stood ${flip.stoodMs} ms, short of the first turn (${flip.firstTurnEndsMs} ms)` : 'the page ran no WAAPI transform in the window (a starved compositor)'}; angle assertion skipped`);
     }
     await expect.poll(async () => (await surface(page)).shelfCards, {timeout: 20_000}).toBe(1);
-    s = await surface(page);
+    s = await settledSurface(page, 'the waiting state');
     console.log('[waiting]', JSON.stringify(s));
     expect(s.pick, 'the packet stage yielded').toBeFalsy();
-    await page.waitForTimeout(900);
     await shoot(page, '02-waiting');
 
     // ── 3 · RELOAD MID-WAIT: the pending action re-derives (reconnect
@@ -506,7 +510,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     await press(page, 'Enter', 900);
     await page.waitForSelector('.con-draftws', {timeout: 45_000});
     await settle(page, {timeoutMs: 20_000});
-    s = await surface(page);
+    s = await settledSurface(page, 'the waiting state after the reload');
     console.log('[reloaded]', JSON.stringify(s));
     expect(s.wait, 'reload lands back in the waiting state').toBeTruthy();
     expect(s.shelfCards, 'the shelf survives the reload').toBe(1);
@@ -516,13 +520,13 @@ test.describe('draft workspace · the between-generations flow', () => {
     //    packet arriving DURING the inspect never tears it.
     await press(page, 'Comma', 1200);
     await expect.poll(async () => (await surface(page)).inspect, {timeout: 15_000}).toBeTruthy();
-    s = await surface(page);
+    s = await settledSurface(page, 'the drafted-cards sub-stage');
     expect(s.inspectSlots, 'the drafted card is on the big row').toBe(1);
     expect(s.railPresentation, 'the flow rail compacts under the sub-stage').toBe('compact');
     await shoot(page, '04-inspect');
     await secondPicksFirstCard(request, second.id); // the packet arrives now
     await settle(page, {timeoutMs: 20_000});
-    s = await surface(page);
+    s = await settledSurface(page, 'the sub-stage while the packet arrived');
     console.log('[inspect while packet arrived]', JSON.stringify(s));
     expect(s.inspect, 'the inspect stays while the packet arrives').toBeTruthy();
 
@@ -530,48 +534,41 @@ test.describe('draft workspace · the between-generations flow', () => {
     // used to release every hold one tick before the stage stopped being the
     // zone, and a `v-show` stage keeps PAINTING through its leave transition:
     // for those frames the full-size cards were back on a stage the player
-    // had watched them leave. Watch the MIDDLE, per frame: a painted inspect
-    // slot that is NOT held is the bug.
-    const flashWatch = page.evaluate(() => new Promise<{witnessed: number, violations: number}>((resolve) => {
-      let witnessed = 0;
-      let violations = 0;
-      const started = performance.now();
-      const tick = () => {
-        const stage = document.querySelector('.con-draftws__stage--inspect');
-        const painted = stage !== null &&
-          (stage as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
-        // THE MIDDLE, and only the middle: a card is legitimately live while
-        // the player BROWSES the sub-stage. It stops being legitimate the
-        // moment the collect starts (its clones are in the air) and through
-        // the stage's own leave transition — which is exactly the window the
-        // flash lived in.
-        const leaving = document.querySelector('.con-draftws-flights') !== null ||
-          (stage !== null && stage.classList.contains('con-draftws-stage-leave-active'));
-        if (painted && leaving) {
-          witnessed++;
-          const slots = Array.from(document.querySelectorAll('.con-draftws__stage--inspect .con-cards__slot'));
-          if (slots.some((el) => !el.classList.contains('con-deal-hold'))) {
-            violations++;
-          }
-        }
-        if (performance.now() - started < 3000) {
-          requestAnimationFrame(tick);
-        } else {
-          resolve({witnessed, violations});
-        }
-      };
-      requestAnimationFrame(tick);
-    }));
+    // had watched them leave. Watch the MIDDLE — RECORDED from before the B
+    // (`armWitness`, `settled`: «no frame paints X» is judged on the states a
+    // task leaves, the ones a frame can paint): a painted inspect slot that is
+    // NOT held is the bug.
+    type FlashSeen = {inLeave: boolean, unheld: boolean};
+    const flashWitness = await armWitness<FlashSeen>(page, 'draft-inspect-leave', () => {
+      const stage = document.querySelector('.con-draftws__stage--inspect');
+      const painted = stage !== null &&
+        (stage as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
+      // THE MIDDLE, and only the middle: a card is legitimately live while
+      // the player BROWSES the sub-stage. It stops being legitimate the
+      // moment the collect starts (its clones are in the air) and through
+      // the stage's own leave transition — which is exactly the window the
+      // flash lived in.
+      const leaving = document.querySelector('.con-draftws-flights') !== null ||
+        (stage !== null && stage.classList.contains('con-draftws-stage-leave-active'));
+      const inLeave = painted && leaving;
+      const slots = Array.from(document.querySelectorAll('.con-draftws__stage--inspect .con-cards__slot'));
+      return {inLeave, unheld: inLeave && slots.some((el) => !el.classList.contains('con-deal-hold'))};
+    }, {settled: true});
     await press(page, 'Escape', 1800);
-    const flash = await flashWatch;
-    console.log('[flash watch]', JSON.stringify(flash));
-    // A witness that saw nothing proves nothing — the probe must have caught
-    // the leave itself before its verdict means anything.
-    expect(flash.witnessed, 'the flash witness actually observed the leave').toBeGreaterThan(3);
-    expect(flash.violations, 'no frame paints an un-held inspect card while it leaves').toBe(0);
     await expect.poll(async () => (await surface(page)).pick, {timeout: 25_000}).toBeTruthy();
+    const flashRecord = (await flashWitness.stop()).map((r) => r.v);
+    const flash = {
+      witnessed: flashRecord.filter((v) => v.inLeave).length,
+      violations: flashRecord.filter((v) => v.unheld).length,
+    };
+    console.log('[flash watch]', JSON.stringify(flash));
+    // A witness that saw nothing proves nothing — the record must hold the
+    // leave itself before its verdict means anything (a count of its states is
+    // no statement about the machine: the floor is «it was seen»).
+    expect(flash.witnessed, 'the flash witness actually observed the leave').toBeGreaterThan(0);
+    expect(flash.violations, 'no frame paints an un-held inspect card while it leaves').toBe(0);
     await settle(page, {timeoutMs: 20_000}); // the received packet's spread registers holds
-    s = await surface(page);
+    s = await settledSurface(page, 'the second packet');
     console.log('[second packet]', JSON.stringify(s));
     expect(s.packetSlots, 'the passed packet has one card fewer').toBe(3);
     await shoot(page, '05-second-packet');
@@ -594,7 +591,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     // past the console's quiet; read the purchase when it stands, never mid-deal.
     await expect.poll(async () => (await surface(page)).finstrip, {timeout: 30_000,
       message: 'the wallet plate stands in the reading row (T10 · CE)'}).toBeTruthy();
-    s = await surface(page);
+    s = await settledSurface(page, 'the purchase');
     console.log('[purchase]', JSON.stringify(s));
     expect(s.buySlots, 'the whole drafted set is the purchase row').toBe(4);
     expect(s.finstrip, 'the wallet plate stands in the reading row (T10 · CE)').toBeTruthy();
@@ -604,16 +601,13 @@ test.describe('draft workspace · the between-generations flow', () => {
 
     // ── 7 · PICK TWO CARDS + COMMIT: bought cards fly to the dock, the rest
     //    tumbles out, the terminal beat plays, the board returns.
+    // A toggles a pick — act → verify on the picked count (a press is repeated only when it changed nothing).
     const pickedCount = async () => page.locator('.con-draftws__stage--buy .con-cards__slot--picked').count();
-    for (let i = 0; i < 6 && await pickedCount() < 1; i++) {
-      await press(page, 'Enter', 1000);
-    }
+    await pressUntil(page, 'Enter', async () => await pickedCount() >= 1, {tries: 6, settleMs: 1000});
     await press(page, 'ArrowRight', 700);
-    for (let i = 0; i < 6 && await pickedCount() < 2; i++) {
-      await press(page, 'Enter', 1000);
-    }
-    expect(await pickedCount(), 'two cards selected for purchase').toBe(2);
-    s = await surface(page);
+    await pressUntil(page, 'Enter', async () => await pickedCount() >= 2, {tries: 6, settleMs: 1000});
+    await expect.poll(pickedCount, {message: 'two cards selected for purchase'}).toBe(2);
+    s = await settledSurface(page, 'the purchase with two picks');
     expect(s.statusLine.length, 'the status rail explains the focused card').toBeGreaterThan(0);
     expect(s.statusClipped, 'the RU availability block fits its reserved zone (never clipped)').toBeFalsy();
     await shoot(page, '07-purchase-picked');
@@ -623,7 +617,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     //    one button whose whole promise is that the decision waits.
     await press(page, 'Escape', 1400);
     await page.waitForSelector('.con-mandatory', {timeout: 20_000});
-    expect(await surface(page).then((v) => v.workspace), 'the parked workspace is off screen').toBeFalsy();
+    await expect.poll(async () => (await surface(page)).workspace, {message: 'the parked workspace is off screen'}).toBeFalsy();
     await press(page, 'Enter', 1600);
     await page.waitForSelector('.con-draftws', {timeout: 20_000});
     await expect.poll(pickedCount, {timeout: 15_000}).toBe(2);
@@ -638,14 +632,13 @@ test.describe('draft workspace · the between-generations flow', () => {
     let committed = false;
     let seen = await surface(page);
     for (const deadline = Date.now() + 90_000; !committed && Date.now() < deadline;) {
-      seen = await surface(page);
       // PRESS INTO THE STAGE THAT COMMITS, never blindly. The restore brings
       // the workspace back through its own entry motion, and an RT that lands
       // before the BUY stage is painted is swallowed — forty of those look
       // exactly like a server refusing to commit, and that is the reading this
-      // loop reported.
+      // loop reported. (The wait for the stage is a STATE — bounded per round.)
+      await expect.poll(async () => (seen = await surface(page)).buy, {timeout: 5_000}).toBe(true).catch(() => undefined);
       if (!seen.buy) {
-        await page.waitForTimeout(500);
         continue;
       }
       await press(page, 'Period', 1400);
@@ -755,10 +748,8 @@ test.describe('draft workspace · the between-generations flow', () => {
     }
     await page.waitForSelector('.con-start--ceremony', {timeout: 60_000});
     const startRoot = page.locator('.con-start');
-    for (let i = 0; i < 25 && await startRoot.count() > 0; i++) {
-      await press(page, 'Enter', 1300);
-    }
-    expect(await startRoot.count(), 'the start workspace released after the deployment').toBe(0);
+    await pressUntil(page, 'Enter', async () => await startRoot.count() === 0, {tries: 25, settleMs: 1300});
+    await expect.poll(() => startRoot.count(), {message: 'the start workspace released after the deployment'}).toBe(0);
     // The scenario is only real with Helion in P1's OWN seat (P2's public
     // tableau also says «Helion», so a model-wide search is a false green) AND
     // heat to spend at the buy (+3 heat production pays out as gen 1 ends).
@@ -770,13 +761,8 @@ test.describe('draft workspace · the between-generations flow', () => {
 
     // ── The draft: A opens the workspace off the plate; three interactive
     //    pick rounds (the 4th card auto-passes by the rules).
-    await expect.poll(async () => {
-      const plate = await page.locator('.con-mandatory').count();
-      if (plate === 0) {
-        await press(page, 'Escape', 500);
-      }
-      return plate;
-    }, {timeout: 90_000}).toBeGreaterThan(0);
+    expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-mandatory').count() > 0,
+      {tries: 45, settleMs: 1500}), 'the draft\'s plate presented').toBe(true);
     await press(page, 'Enter', 900);
     await page.waitForSelector('.con-draftws', {timeout: 45_000});
     await cinematicBeat(page, 2200,
@@ -804,15 +790,13 @@ test.describe('draft workspace · the between-generations flow', () => {
     //    `needsToResearch` stays true until the payment resolves, so the main
     //    tour's flag would read «never committed» over a perfect commit.
     const pickedCount = async () => page.locator('.con-draftws__stage--buy .con-cards__slot--picked').count();
-    for (let i = 0; i < 6 && await pickedCount() < 1; i++) {
-      await press(page, 'Enter', 1000);
-    }
-    expect(await pickedCount(), 'one card selected for purchase').toBe(1);
+    await pressUntil(page, 'Enter', async () => await pickedCount() >= 1, {tries: 6, settleMs: 1000});
+    await expect.poll(pickedCount, {message: 'one card selected for purchase'}).toBe(1);
     let paymentAsked = false;
     for (const deadline = Date.now() + 90_000; !paymentAsked && Date.now() < deadline;) {
-      const now = await surface(page);
-      if (!now.buy) {
-        await page.waitForTimeout(500);
+      // Into the stage that commits only — a STATE, bounded per round.
+      const buyUp = await expect.poll(async () => (await surface(page)).buy, {timeout: 5_000}).toBe(true).then(() => true, () => false);
+      if (!buyUp) {
         continue;
       }
       await press(page, 'Period', 1400);
@@ -830,7 +814,7 @@ test.describe('draft workspace · the between-generations flow', () => {
       const el = document.querySelector('.con-draftws [data-draft-pay-slot] .con-task-host');
       return el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
     }), {timeout: 15_000}).toBeTruthy();
-    const payS = await surface(page);
+    const payS = await settledSurface(page, 'the embedded payment stage');
     console.log('[helion pay stage]', JSON.stringify(payS));
     expect(payS.workspace, 'the workspace never leaves under its own payment').toBeTruthy();
     expect(payS.taskHostBands, 'the payment never rises as a standalone band').toBe(0);

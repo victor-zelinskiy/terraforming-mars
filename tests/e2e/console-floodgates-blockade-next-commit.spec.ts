@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, openActionFocus, openCardActions, press, settle, waitForBoardHome} from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * «ПОСЛЕ БЛОКАДЫ ДЕЙСТВИЯ НЕ ЗАВИСАЮТ» — the owner's field log of 2026-10-28.
@@ -89,11 +90,15 @@ test.describe(`console-floodgates-blockade-next-commit · ${PROFILE.id}`, () => 
     }
     await expect(page.locator(`${COMPOSER} .con-composer__cta--focused`), 'the cursor stands on the commit row').toHaveCount(1);
 
-    const pressedAt = Date.now();
+    // H — how long «Выполняется…» STOOD, on the PAGE's clock: its first and its last recorded moment.
+    const waiting = await armWitness(page, 'cta-waiting', () => document.querySelector('.con-composer__cta--waiting') !== null);
     await press(page, 'Enter', 0);
     await page.waitForSelector('.con-composer__cta--waiting', {timeout: 5000});
     await page.waitForSelector('.con-composer__cta--waiting', {state: 'detached', timeout: 15_000});
-    const busyMs = Date.now() - pressedAt;
+    const shown = await waiting.samples();
+    const rose = shown.findIndex((s) => s.v);
+    const fell = shown.findIndex((s, i) => i > rose && !s.v);
+    const busyMs = rose < 0 || fell < 0 ? Infinity : shown[fell].t - shown[rose].t;
     expect(busyMs, `«Выполняется…» stood ${busyMs} ms — the fold waited for something past its own phrase`).toBeLessThan(FOLD_BUDGET_MS);
     expect(warnings, 'no rail half waited for its ceiling, no surface folded under its token').toEqual([]);
   });

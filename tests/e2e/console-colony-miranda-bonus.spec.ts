@@ -55,7 +55,7 @@ async function openColoniesAndFocus(page: Page, target: string): Promise<void> {
     await press(page, 'Period', 1100);
     await press(page, 'ArrowRight', 1300);
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
   const focused = page.locator(`.con-coltile--focused[data-test="con-colony-${target}"]`);
   for (let i = 0; i < 10 && await focused.count() === 0; i++) {
     await press(page, 'ArrowRight', 380);
@@ -66,7 +66,7 @@ async function openColoniesAndFocus(page: Page, target: string): Promise<void> {
       await press(page, 'ArrowLeft', 320);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
 test.describe.configure({mode: 'serial'});
@@ -84,7 +84,7 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   //      OWN a settlement there for the trade to pay them an owner bonus. ──
   await press(page, 'Comma', 1200);
   await press(page, 'Enter', 1400);
-  expect(await page.locator('.con-stdp').count(), 'standard projects did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-stdp').count(), {message: 'standard projects did not open'}).toBeGreaterThan(0);
   const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
   const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
   for (let i = 0; i < 18 && !/колони/i.test(await focusedName()); i++) {
@@ -137,7 +137,7 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   //      card this probe is about. ───────────────────────────────────────────
   await openColoniesAndFocus(page, 'Miranda');
   await press(page, 'Enter', 2000);
-  expect(await page.locator('.con-colfocus').count(), 'the trade stage did not open').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the trade stage did not open'}).toBeGreaterThan(0);
 
   /*
    * THE TRACK RESET IS THE RESOLUTION'S LAST BEAT — it may only start once
@@ -326,8 +326,7 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   expect(box, 'the bonus card has no box').not.toBeNull();
   expect(box?.width ?? 0, 'the bonus card rendered collapsed').toBeGreaterThan(60);
   // …and it presents INSIDE the colony workspace, like every other payout.
-  expect(await page.locator('.con-colonies .con-reveal, .con-colfocus .con-reveal').count(),
-    'the payout did not present inside the colony workspace').toBeGreaterThan(0);
+  await expect.poll(() => page.locator('.con-colonies .con-reveal, .con-colfocus .con-reveal').count(), {message: 'the payout did not present inside the colony workspace'}).toBeGreaterThan(0);
 
   // ── 4 · «Взять» must actually take it: the card leaves the reveal and the
   //      dock's count grows (the take used to be a dead press — with no slot

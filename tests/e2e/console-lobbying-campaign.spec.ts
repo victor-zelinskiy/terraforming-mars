@@ -156,7 +156,7 @@ test.describe('TRP1 — Lobbying Campaign: a Prelude\'s vote and walk, inside th
     await expect.poll(async () => (await crumbText(page)).toUpperCase(), {timeout: 20_000, message: 'the crumb: the start\'s flow, one level deeper'})
       .toMatch(/СТАРТ ПАРТИИ.*ГОЛОСОВАНИЕ/);
     await expect(page.locator('.con-parl:not([data-parl-leaving])'), 'ONE Parliament instance').toHaveCount(1);
-    expect(await page.locator('.con-parl__slot').count(), 'three cards on offer').toBeGreaterThanOrEqual(3);
+    await expect.poll(() => page.locator('.con-parl__slot').count(), {message: 'three cards on offer'}).toBeGreaterThanOrEqual(3);
     await shoot(page, '02-vote-in-start');
 
     // THE PRESS: two delegates from the RESERVE onto the chosen card — then the marker walks, in the same step.

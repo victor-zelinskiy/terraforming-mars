@@ -232,11 +232,11 @@ test.describe('console placement · on-field relations + reticle hierarchy', () 
     const relCountBeforeLock = await page.locator('.board-space.con-rel').count();
     await key(page, 'Enter', 700);
     await expect(page.locator('.con-bcur--locked')).toHaveCount(1);
-    expect(await page.locator('.board-space.con-rel').count(), 'the lock replayed/lost the relation marks').toBe(relCountBeforeLock);
+    await expect.poll(() => page.locator('.board-space.con-rel').count(), {message: 'the lock replayed/lost the relation marks'}).toBe(relCountBeforeLock);
     await shoot(page, '03-locked');
     await key(page, 'Escape', 700);
     await expect(page.locator('.con-bcur--locked')).toHaveCount(0);
-    expect(await page.locator('.board-space.con-rel').count(), 'unlock disturbed the relation marks').toBe(relCountBeforeLock);
+    await expect.poll(() => page.locator('.board-space.con-rel').count(), {message: 'unlock disturbed the relation marks'}).toBe(relCountBeforeLock);
     // Cancel the whole placement — nothing may linger.
     await key(page, 'Escape', 1200);
     await expect.poll(() => page.locator('.board-space.con-rel').count(), {timeout: 5_000}).toBe(0);

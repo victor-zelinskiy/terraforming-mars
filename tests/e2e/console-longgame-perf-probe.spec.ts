@@ -2,8 +2,8 @@
  * CONSOLE LONG-GAME PERFORMANCE PROBE v2 — a MEASUREMENT harness, not a
  * regression gate. Env-gated (`LONGGAME_PERF=1`), skipped in every ordinary
  * run. Idiom mirrors console-played-perf-probe.spec.ts (CDP metrics +
- * long-task observer + 16 ms tick jitter; rAF is compositor-starved headless,
- * so jank is judged by main-thread availability).
+ * long-task observer + the 16 ms tick jitter of a TIMING witness; rAF is
+ * compositor-starved headless, so jank is judged by main-thread availability).
  *
  * Iteration-3 methodology upgrades over v1:
  *   - WARM-UP cycles before the measured batch; cold / warm / late-repeat are
@@ -33,6 +33,10 @@
  *     npx playwright test tests/e2e/console-longgame-perf-probe.spec.ts --workers=1
  */
 import {expect, test, Page, CDPSession} from './consoleTest';
+import {cinematicBeat, pressUntilGone, settle} from './consoleStart';
+import type {ObservedSample} from './observeCore';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -76,22 +80,33 @@ const WHEEL_LATE = 6;
 const HAND_TRIPS = 6;
 const INGEST_PAIRS = 3; // (sell → undo) pairs = 6 poll-driven updates
 
-// ── in-page samplers (recv/played-perf idiom) ──────────────────────────────
+// ── in-page instrumentation (recv/played-perf idiom) ───────────────────────
 
-type PerfWindow = {
-  longTasks: number, longTaskMax: number, longTaskTotal: number,
-  tickCount: number, tickJank50: number, tickJank120: number, tickMax: number,
-};
+type LongTasks = {longTasks: number, longTaskMax: number, longTaskTotal: number};
+type PerfWindow = LongTasks & {tickCount: number, tickJank50: number, tickJank120: number, tickMax: number};
 
+/** The perf window's TIMING witness — one window at a time (re-arming starts a fresh record). */
+const PERF_WINDOW = 'longgame-perf-window';
+/** The recorder's TIMER tick (the old jitter meter's period): a free main thread runs it every 16 ms, a stalled one
+ *  runs nothing — so a gap in the stamped series IS a stall. */
+const TICK_MS = 16;
+/** One stamped call of the recorder — the page's `performance.now()`. */
+type PerfTick = {t: number};
+
+/**
+ * Arm a perf window: the page's own LONG-TASK API (a `PerformanceObserver` — the browser's record of a busy main thread,
+ * not a sampler) + the tick jitter as a TIMING witness (`armWitness` + `tickMs`, FLAKE ZERO recipe 9): the reader stamps
+ * every call, the series is read as recorded and a gap over 50 / 120 ms is a stall (`tickJitter`).
+ */
 async function armPerfWindow(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as any;
-    w.__perfStop?.();
-    const rec = {longTasks: 0, longTaskMax: 0, longTaskTotal: 0, tickCount: 0, tickJank50: 0, tickJank120: 0, tickMax: 0};
+    w.__perfObs?.disconnect();
+    w.__perfTick = undefined;
+    const rec = {longTasks: 0, longTaskMax: 0, longTaskTotal: 0};
     w.__perfWin = rec;
-    let obs: PerformanceObserver | undefined;
     try {
-      obs = new PerformanceObserver((list) => {
+      const obs = new PerformanceObserver((list) => {
         for (const e of list.getEntries()) {
           rec.longTasks++;
           rec.longTaskTotal += e.duration;
@@ -99,34 +114,48 @@ async function armPerfWindow(page: Page): Promise<void> {
         }
       });
       obs.observe({entryTypes: ['longtask']});
-    } catch { /* jitter meter still stands */ }
-    let last = performance.now();
-    const iv = setInterval(() => {
-      const now = performance.now();
-      const dt = now - last;
-      last = now;
-      rec.tickCount++;
-      rec.tickMax = Math.max(rec.tickMax, dt);
-      if (dt > 50) {
-        rec.tickJank50++;
-      }
-      if (dt > 120) {
-        rec.tickJank120++;
-      }
-    }, 16);
-    w.__perfStop = () => {
-      obs?.disconnect();
-      clearInterval(iv);
-    };
+      w.__perfObs = obs;
+    } catch { /* the tick series still stands */ }
   });
+  await armWitness<PerfTick>(page, PERF_WINDOW, () => {
+    // EVERY CALL IS STAMPED (so the recording keeps it — the series is the page's pace), at most one per 4 ms: the
+    // observer and the timer tick may both call within one frame.
+    const w = window as unknown as {__perfTick?: PerfTick};
+    const now = performance.now();
+    if (w.__perfTick !== undefined && now - w.__perfTick.t < 4) {
+      return w.__perfTick;
+    }
+    w.__perfTick = {t: Math.round(now * 10) / 10};
+    return w.__perfTick;
+  }, {rafTick: false, tickMs: TICK_MS, max: 50_000});
+}
+
+/** The tick jitter of a recorded series — one document's stamps (a reload restarts `performance.now()`), never filled in. */
+function tickJitter(samples: ReadonlyArray<ObservedSample<PerfTick>>): Omit<PerfWindow, keyof LongTasks> {
+  const doc = samples.at(-1)?.doc;
+  const stamps = samples.filter((s) => s.doc === doc).map((s) => s.v.t);
+  const out = {tickCount: Math.max(0, stamps.length - 1), tickJank50: 0, tickJank120: 0, tickMax: 0};
+  for (let i = 1; i < stamps.length; i++) {
+    const dt = stamps[i] - stamps[i - 1];
+    out.tickMax = Math.max(out.tickMax, dt);
+    if (dt > 50) {
+      out.tickJank50++;
+    }
+    if (dt > 120) {
+      out.tickJank120++;
+    }
+  }
+  return out;
 }
 
 async function readPerfWindow(page: Page): Promise<PerfWindow> {
-  return await page.evaluate(() => {
+  const ticks = await witnessOf<PerfTick>(page, PERF_WINDOW).stop();
+  const long = await page.evaluate(() => {
     const w = window as any;
-    w.__perfStop?.();
+    w.__perfObs?.disconnect();
     return w.__perfWin;
-  }) as PerfWindow;
+  }) as LongTasks;
+  return {...long, ...tickJitter(ticks)};
 }
 
 type CdpMetrics = Record<string, number>;
@@ -148,12 +177,25 @@ function snapshotOf(m: CdpMetrics): CdpMetrics {
   return out;
 }
 
-/** Headless Chromium starves rAF on a static frame — force BeginFrames. */
+/** Headless Chromium starves rAF on a static frame — force ONE BeginFrame (no pause of its own). */
+async function pumpFrame(page: Page): Promise<void> {
+  await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
+}
+
+/** A MEASURED WINDOW's frames: `times` beats of `gapMs`, each with its forced frame — the window's length IS the
+ *  measurement (what lands in its long tasks), never a wait for a state. */
 async function pumpFrames(page: Page, times: number, gapMs: number): Promise<void> {
   for (let i = 0; i < times; i++) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-    await page.waitForTimeout(gapMs);
+    await pumpFrame(page);
+    await cinematicBeat(page, gapMs, 'a frame beat of a measured window — its length is the measurement');
   }
+}
+
+/** The board home at rest: the boot veil gone, then the console quiet (holds, transport, finite motion). */
+async function boardAtRest(page: Page): Promise<void> {
+  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
+  await pumpFrame(page);
+  await settle(page);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -211,17 +253,18 @@ async function readOpenProbe(page: Page): Promise<{pressAt: number, syncAt: numb
   }) as {pressAt: number, syncAt: number, rootAt: number};
 }
 
-/** The board-stability census: container + per-hazard-tile rects, running
- *  tile animations, lingering one-shot classes. */
-type BoardCensus = {
+/** The board-stability census: container + per-hazard-tile rects (the GEOMETRY — read at rest), running tile
+ *  animations, lingering one-shot classes (the MOTION — read at a fixed beat after the return, see `boardMotion`). */
+type BoardGeometry = {
   cont: {x: number, y: number, w: number, h: number} | null,
   hazards: Array<{cls: string, x: number, y: number, w: number, h: number}>,
-  tileAnimations: number,
-  intensifying: number,
-  placing: number,
 };
+type BoardMotion = {tileAnimations: number, intensifying: number, placing: number};
+type BoardCensus = BoardGeometry & BoardMotion;
 
-async function boardCensus(page: Page): Promise<BoardCensus> {
+/** The board's geometry — a comparison of two of them (before / after a trip) is only as settled as its least settled
+ *  side, so every read of it goes through `readSettled` (`boardAtRestCensus`). */
+async function boardGeometry(page: Page): Promise<BoardGeometry> {
   return await page.evaluate(() => {
     const r = (el: Element) => {
       const b = el.getBoundingClientRect();
@@ -233,6 +276,14 @@ async function boardCensus(page: Page): Promise<BoardCensus> {
       '[class*="board-space-tile--dust-storm"], [class*="board-space-tile--erosion"]').forEach((el) => {
       hazards.push({cls: (el as HTMLElement).className, ...r(el)});
     });
+    return {cont: cont === null ? null : r(cont), hazards};
+  });
+}
+
+/** What still MOVES on the board: running tile animations and the one-shot classes. Read at a fixed beat after a return
+ *  (a one-shot replayed by the return is running then — at rest it would be over), never through a settled read. */
+async function boardMotion(page: Page): Promise<BoardMotion> {
+  return await page.evaluate(() => {
     let tileAnimations = 0;
     try {
       for (const a of document.getAnimations()) {
@@ -243,8 +294,6 @@ async function boardCensus(page: Page): Promise<BoardCensus> {
       }
     } catch { /* getAnimations unavailable → counted as 0 */ }
     return {
-      cont: cont === null ? null : r(cont),
-      hazards,
       tileAnimations,
       intensifying: document.querySelectorAll('.board-space-tile--intensifying').length,
       placing: document.querySelectorAll('.board-space-tile--placing').length,
@@ -252,11 +301,16 @@ async function boardCensus(page: Page): Promise<BoardCensus> {
   });
 }
 
+/** The board's geometry AT REST (`readSettled`: two equal reads a frame apart, after `settle`). */
+async function boardAtRestCensus(page: Page): Promise<BoardGeometry> {
+  return readSettled(page, () => boardGeometry(page), {message: 'the board container + hazard tiles'});
+}
+
 /** Pairwise by DOCUMENT ORDER — several hazards share one class+size, so a
  *  keyed match collides (it once compared two different erosion tiles and
  *  reported a 235 px "drift" on a perfectly still board). querySelectorAll
  *  order is stable for an unchanged tree; a changed count reports -1. */
-function maxHazardDrift(a: BoardCensus, b: BoardCensus): number {
+function maxHazardDrift(a: BoardGeometry, b: BoardGeometry): number {
   if (a.hazards.length !== b.hazards.length) {
     return -1;
   }
@@ -269,11 +323,12 @@ function maxHazardDrift(a: BoardCensus, b: BoardCensus): number {
   return drift;
 }
 
-/** One-shot paint/display census: what the profile ACTUALLY rasterizes —
+/** Paint/display census: what the profile ACTUALLY rasterizes —
  *  real uiScale/DPR, running animations by name, will-change population,
  *  viewport-scale shadow/gradient surfaces, images decoded far above their
  *  displayed size, and a decoded-image memory estimate. Heavy (computed style
- *  per element) — probe-only. */
+ *  per element) — probe-only. Its areas classify the surfaces, so it is read
+ *  at REST (`readSettled` — see the board home's census). */
 async function paintCensus(page: Page): Promise<Record<string, unknown>> {
   return await page.evaluate(() => {
     const vw = window.innerWidth;
@@ -366,26 +421,29 @@ function stats(values: Array<number>): Record<string, number> {
 
 /** Open the hand workspace — the DOCK is the mouse door to «Карты в руке»
  *  (onHandDockOpen → the same RT path). Act → verify → retry: the press can be
- *  legitimately swallowed by a settling episode. */
+ *  legitimately swallowed by a settling episode, so a click is repeated only
+ *  when the hand did not stand up for a WHOLE window after it (frames forced
+ *  while it waits — the old headless shell starves rAF). */
 async function openHand(page: Page): Promise<boolean> {
+  const hand = page.locator('.con-hand');
   for (let attempt = 0; attempt < 8; attempt++) {
     await page.locator('.con-handdock').click({timeout: 3000}).catch(() => {});
-    await pumpFrames(page, 3, 150);
-    if (await page.locator('.con-hand').count() > 0) {
+    const opened = await expect.poll(async () => {
+      await pumpFrame(page);
+      return hand.count();
+    }, {timeout: 5000, intervals: [150]}).toBeGreaterThan(0).then(() => true, () => false);
+    if (opened) {
       return true;
     }
   }
   return false;
 }
 
+/** Back to the board home — B until no surface of the trips stands (act → verify → retry, the shared driver; the
+ *  probe's old cadence — a press, then a 240 ms window for it to take effect — so the reads after a return keep their
+ *  offset from the B). */
 async function closeToBoard(page: Page): Promise<void> {
-  for (let attempt = 0; attempt < 6; attempt++) {
-    if (await page.locator('.con-hand, .con-colonies, .con-quick').count() === 0) {
-      return;
-    }
-    await page.keyboard.press('Escape');
-    await pumpFrames(page, 2, 120);
-  }
+  await pressUntilGone(page, 'Escape', '.con-hand, .con-colonies, .con-quick', {tries: 6, settleMs: 240});
 }
 
 /** One wheel open/close cycle with phase stamps + a long-task window.
@@ -405,7 +463,8 @@ async function wheelCycle(page: Page, shootName?: string): Promise<WheelCycle> {
     await shoot(page, shootName);
   }
   await closeToBoard(page);
-  await page.waitForTimeout(250);
+  // The next cycle presses on a board at rest — the close's tail is not the next open's cost.
+  await settle(page);
   return {
     toSync: ms(t.pressAt, t.syncAt),
     toDom: ms(t.pressAt, t.rootAt),
@@ -470,9 +529,7 @@ test.describe('console long-game performance probe', () => {
       await page.goto(`/player?id=${GAME.playerId}&console=1${profile.query}`);
       await page.locator('.con-root').waitFor({state: 'visible', timeout: 60_000});
       const rootVisibleMs = Date.now() - navStart;
-      await pumpFrames(page, 4, 250);
-      await page.waitForTimeout(1500);
-      await pumpFrames(page, 2, 120);
+      await boardAtRest(page);
       report.initialLoad = {
         rootVisibleMs,
         navigation: await page.evaluate(() => {
@@ -487,13 +544,19 @@ test.describe('console long-game performance probe', () => {
       await shoot(page, `${profile.id}-0-board`);
 
       // ── 0. What does this profile ACTUALLY rasterize? ────────────────────
-      report.paintCensus = await paintCensus(page);
+      // Heavy (computed style per element, ×4 CPU on the Deck rows) — the settled read's budget is the census's own. Two
+      // censuses agree when they CLASSIFY the same surfaces (an endless loop may move one sample box — a standing state).
+      const classified = (c: Record<string, unknown>) => JSON.stringify(
+        [c.willChange, c.bigShadow, c.bigGradient, c.hugeEl, c.imgCount, c.uniqueImgCount, c.docNodes]);
+      report.paintCensus = await readSettled(page, () => paintCensus(page), {
+        message: 'the paint census', timeoutMs: 60_000, same: (a, b) => classified(a) === classified(b),
+      });
 
       // ── 2. IDLE on the settled board home ────────────────────────────────
       await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
       const idleStart = await cdpMetrics(cdp);
       await armPerfWindow(page);
-      await page.waitForTimeout(4000);
+      await cinematicBeat(page, 4000, 'the idle window on the board home IS the measurement');
       report.idleBefore = await readPerfWindow(page);
       report.idleBeforeSnapshot = snapshotOf(idleStart);
 
@@ -514,10 +577,10 @@ test.describe('console long-game performance probe', () => {
       const cycleSnapshots: Array<Record<string, number>> = [];
       let openedEver = false;
       for (let i = 1; i <= HAND_TRIPS; i++) {
-        const before = await boardCensus(page);
+        const before = await boardAtRestCensus(page);
         const opened = await openHand(page);
         openedEver = openedEver || opened;
-        await pumpFrames(page, 3, 120);
+        await settle(page);
         if (i === 1) {
           await shoot(page, `${profile.id}-2-hand`);
           // Image reality INSIDE the one art-bearing surface (the album):
@@ -549,23 +612,25 @@ test.describe('console long-game performance probe', () => {
           });
         }
         await closeToBoard(page);
-        // Let the return settle, then read the board's state.
+        // What still MOVES is read at a fixed beat after the return (the old read point: a one-shot the return
+        // replayed is running then); the GEOMETRY once the return has settled — the drift compares two boards at rest.
         await pumpFrames(page, 3, 140);
-        await page.waitForTimeout(400);
-        const after = await boardCensus(page);
+        await cinematicBeat(page, 400, 'the motion of the board is read this long after the return — a replayed one-shot still runs then');
+        const motion = await boardMotion(page);
+        const after = await boardAtRestCensus(page);
         trips.push({
           trip: i,
           opened,
           hazardDrift: maxHazardDrift(before, after),
           contBefore: before.cont, contAfter: after.cont,
-          tileAnimationsAfterClose: after.tileAnimations,
-          intensifyingAfterClose: after.intensifying,
-          placingAfterClose: after.placing,
+          tileAnimationsAfterClose: motion.tileAnimations,
+          intensifyingAfterClose: motion.intensifying,
+          placingAfterClose: motion.placing,
           hazardCount: after.hazards.length,
         });
         if (i === 1 || i === 3 || i === HAND_TRIPS) {
           await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
-          await page.waitForTimeout(150);
+          await cinematicBeat(page, 150, 'the heap is read a beat after the forced GC — the own protocol of the measurement');
           cycleSnapshots.push({trip: i, ...snapshotOf(await cdpMetrics(cdp))});
         }
       }
@@ -581,16 +646,16 @@ test.describe('console long-game performance probe', () => {
 
       // ── 6. Final idle window ─────────────────────────────────────────────
       await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
-      await page.waitForTimeout(300);
+      await cinematicBeat(page, 300, 'the idle window opens a beat after the forced GC — the own protocol of the measurement');
       await armPerfWindow(page);
-      await page.waitForTimeout(4000);
+      await cinematicBeat(page, 4000, 'the final idle window IS the measurement');
       report.idleAfter = await readPerfWindow(page);
       report.idleAfterSnapshot = snapshotOf(await cdpMetrics(cdp));
       await shoot(page, `${profile.id}-3-final`);
 
       // The report is written BEFORE the sanity asserts — a failed sanity must
       // still leave the collected evidence on disk.
-      const finalCensus = await boardCensus(page);
+      const finalCensus: BoardCensus = {...await boardMotion(page), ...await boardAtRestCensus(page)};
       report.finalCensus = finalCensus;
       fs.mkdirSync(OUT, {recursive: true});
       fs.writeFileSync(
@@ -625,8 +690,7 @@ test.describe('console long-game performance probe', () => {
 
     await page.goto(`/player?id=${b.playerId}&console=1&consoleProfile=tv&perf=1`);
     await page.locator('.con-root').waitFor({state: 'visible', timeout: 60_000});
-    await pumpFrames(page, 4, 250);
-    await page.waitForTimeout(1500);
+    await boardAtRest(page);
 
     const report: Record<string, unknown> = {
       label: LABEL, scenario: 'ingest', viewport: '1920x1080', cpuThrottle: 4,
@@ -661,13 +725,11 @@ test.describe('console long-game performance probe', () => {
       await armPerfWindow(page);
       const postedAt = Date.now();
       const ok = await rivalAct(kind);
-      // Wait for the viewer's client to fully apply the update (flush mark).
-      let applied = false;
-      for (let i = 0; i < 100 && !applied; i++) {
-        await page.waitForTimeout(120);
-        applied = await page.evaluate(() =>
-          performance.getEntriesByName('ingest:flush:done', 'mark').length > 0);
-      }
+      // Wait for the viewer's client to fully apply the update (flush mark) — a bounded wait, never a verdict: an update
+      // that never arrived is `applied: false` in the report, and the summary's count is the sanity check.
+      const applied = await expect.poll(() => page.evaluate(() =>
+        performance.getEntriesByName('ingest:flush:done', 'mark').length > 0), {timeout: 12_000, intervals: [120]})
+        .toBe(true).then(() => true, () => false);
       const wallMs = Date.now() - postedAt;
       const w = await readPerfWindow(page);
       const marks = await page.evaluate(() => {
@@ -695,8 +757,8 @@ test.describe('console long-game performance probe', () => {
         totalMs: d(marks.fetchStart, marks.flushDone),
         longTasks: w.longTasks, longTaskMax: Math.round(w.longTaskMax * 10) / 10,
       });
-      await pumpFrames(page, 2, 120);
-      await page.waitForTimeout(300);
+      // The next cycle starts from a client at rest — this update's tail is not the next one's cost.
+      await settle(page);
     };
 
     for (let pair = 0; pair < INGEST_PAIRS; pair++) {

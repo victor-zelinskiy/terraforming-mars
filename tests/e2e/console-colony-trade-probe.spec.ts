@@ -187,7 +187,7 @@ async function openColoniesAndFocus(page: Page, tag: string, target: string): Pr
     await key(page, 'Period', 1100); // RT — action categories wheel
     await key(page, 'ArrowRight', 1300); // trading
   }
-  expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+  await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
   await shoot(page, `${tag}-colonies`);
 
   const focused = page.locator(`.con-coltile--focused[data-test="con-colony-${target}"]`);
@@ -200,7 +200,7 @@ async function openColoniesAndFocus(page: Page, tag: string, target: string): Pr
       await key(page, 'ArrowLeft', 400);
     }
   }
-  expect(await focused.count(), `could not focus ${target}`).toBeGreaterThan(0);
+  await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
   // Never press A while the setup pick still owns the section — that press
   // would REMOVE the focused colony instead of opening the trade composer.
   expect(await removalPickLive(page), 'the setup removal pick is still live').toBe(false);
@@ -268,7 +268,7 @@ async function armSightings(page: Page): Promise<void> {
 async function tradeAndObserve(page: Page, tag: string, journal: Array<string>, windowMs: number): Promise<Observation> {
   await key(page, 'Enter', 1400); // A = Trade → the COLONY FOCUS STAGE (the workspace descend)
   const stage = page.locator('.con-colfocus');
-  expect(await stage.count(), 'the colony focus stage did not open').toBeGreaterThan(0);
+  await expect.poll(() => stage.count(), {message: 'the colony focus stage did not open'}).toBeGreaterThan(0);
   await shoot(page, `${tag}-composer`);
   // Arm BEFORE the commit — the cover leaves the tile on the very next frames.
   await armSightings(page);
@@ -394,12 +394,12 @@ test('visual: a merged trade batch renders the labelled colony-bonus zone', asyn
   // ONE zone per owned colony (index 1 of 2 → an ACTIVE zone + a FUTURE
   // placeholder), each labelled — the sequence reads as a table.
   const zone = page.locator('.con-reveal__bonus-zone');
-  expect(await zone.count(), 'one zone per colony of the sequence').toBe(2);
-  expect(await page.locator('.con-reveal__bonus-zone--active').count(), 'exactly one ACTIVE zone').toBe(1);
+  await expect.poll(() => zone.count(), {message: 'one zone per colony of the sequence'}).toBe(2);
+  await expect.poll(() => page.locator('.con-reveal__bonus-zone--active').count(), {message: 'exactly one ACTIVE zone'}).toBe(1);
   await expect(page.locator('.con-reveal__bonus-zone-label').first()).toHaveText(/Бонус колонии/i);
   // The income cards stay OUTSIDE the zones, on the ordinary strip.
   const strip = page.locator('.con-reveal__strip');
-  expect(await strip.locator('.con-cards__slot').count()).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => strip.locator('.con-cards__slot').count()).toBeGreaterThanOrEqual(2);
 });
 
 test('solo (gated path): the trade cinematic claims the Pluto reveal', async ({page, request}) => {

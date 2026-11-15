@@ -239,7 +239,7 @@ test.describe(`P49 Floating Trade Hub · the dial and the wild resource after it
     await openCardActions(page);
     const removeTile = page.locator(`.con-cardactions__tile[data-action-card="${CARD}"]`).nth(REMOVE);
     await expect(removeTile, 'the «remove» row is shown').toBeVisible();
-    expect(await removeTile.getAttribute('data-action-verdict'), 'refused, never hidden').not.toBe('available');
+    await expect.poll(() => removeTile.getAttribute('data-action-verdict'), {message: 'refused, never hidden'}).not.toBe('available');
     await expect(removeTile, 'its reason, in words').toContainText('Нет аэростатов на этой карте');
     await shoot(page, 'e-browse');
     await openVariant(page, ADD);

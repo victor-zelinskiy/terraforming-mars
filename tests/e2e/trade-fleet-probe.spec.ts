@@ -72,7 +72,7 @@ test.describe('trade fleet probe', () => {
       await key(page, 'Period', 1100);
       await key(page, 'ArrowRight', 1300);
     }
-    expect(await colonies.count(), 'colonies section did not open').toBeGreaterThan(0);
+    await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
     await page.waitForTimeout(1500);
     await shoot(page, '01-colonies-overview');
 
@@ -87,11 +87,11 @@ test.describe('trade fleet probe', () => {
         await key(page, 'ArrowLeft', 400);
       }
     }
-    expect(await focused.count(), 'could not focus Pluto').toBeGreaterThan(0);
+    await expect.poll(() => focused.count(), {message: 'could not focus Pluto'}).toBeGreaterThan(0);
     expect(await removalPickLive(page), 'setup removal pick still live').toBe(false);
 
     await key(page, 'Enter', 1400); // A — the focus stage
-    expect(await page.locator('.con-colfocus').count(), 'focus stage did not open').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'focus stage did not open'}).toBeGreaterThan(0);
     await shoot(page, '02-focus-stage');
 
     // Confirm — the fleet lifts off. Burst-shoot the flight.

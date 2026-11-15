@@ -97,7 +97,7 @@ for (const profile of PROFILES) {
 
       // The board's idle selection seeds on the centre, but nobody is inspecting: its marker stays calm (the owner's
       // frame of 2026-11-02 — the «i» on 33 read as focused on a board the player had never entered).
-      expect(await page.locator('.special-cell-marker--active').count(), 'no marker lights up for an invisible cursor').toBe(0);
+      await expect.poll(() => page.locator('.special-cell-marker--active').count(), {message: 'no marker lights up for an invisible cursor'}).toBe(0);
 
       // The centre, hovered: the popover names its rule (the engine's own `restricted` fact).
       await page.locator(`[data_space_id="${RESTRICTED}"]`).hover();
@@ -120,7 +120,7 @@ for (const profile of PROFILES) {
 
       await press(page, 'Comma', 1200);
       await press(page, 'Enter', 1400);
-      expect(await page.locator('.con-stdp').count(), 'standard projects did not open').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-stdp').count(), {message: 'standard projects did not open'}).toBeGreaterThan(0);
       const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
       const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
       for (let i = 0; i < 18 && !/^\s*озеленение\s*$/i.test(await focusedName()); i++) {

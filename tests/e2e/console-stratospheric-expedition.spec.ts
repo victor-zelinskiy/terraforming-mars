@@ -160,7 +160,7 @@ async function take(page: Page): Promise<void> {
   await press(page, 'Escape', 600);
   await expect(page.locator('.con-hand'), 'the workspace leaves after the take').toHaveCount(0, {timeout: 30_000});
   await settle(page, {timeoutMs: 30_000});
-  expect(await page.locator('.con-ws').count(), 'no workspace left standing').toBe(0);
+  await expect.poll(() => page.locator('.con-ws').count(), {message: 'no workspace left standing'}).toBe(0);
 }
 
 test.describe(`P84 Stratospheric Expedition · 2 floaters to ANY card + the search for 2 Venus cards, an event that pays before its lift · ${PRESET.id}`, () => {
@@ -254,7 +254,7 @@ test.describe(`P84 Stratospheric Expedition · 2 floaters to ANY card + the sear
     const posts = watchPosts(page);
     await openComposer(page);
     await expect(page.locator(`${COMPOSER} .con-composer__row--missing`), 'nothing left open').toHaveCount(0);
-    expect(await page.locator(`${COMPOSER} [data-seeded]`).count(), 'the one holder seeded and SHOWN').toBeGreaterThan(0);
+    await expect.poll(() => page.locator(`${COMPOSER} [data-seeded]`).count(), {message: 'the one holder seeded and SHOWN'}).toBeGreaterThan(0);
     await shoot(page, 'b-composer-seeded');
     await commit(page, posts);
     const body = JSON.parse(posts[0]) as {responses?: Array<{type: string, cards?: Array<string>}>};

@@ -89,7 +89,7 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the gate that ends the t
 
       await press(page, 'Enter', 900);
       await settle(page, {timeoutMs: 20_000});
-      expect(await page.locator('.con-parl').count(), 'the finished flow LEAVES').toBe(0);
+      await expect.poll(() => page.locator('.con-parl').count(), {message: 'the finished flow LEAVES'}).toBe(0);
     });
   }
 
@@ -124,7 +124,7 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the gate that ends the t
     expect(ceilings, 'no hold outlived its ceiling, no beat was settled unplayed').toEqual([]);
     await press(page, 'Enter', 900);
     await settle(page, {timeoutMs: 20_000});
-    expect(await page.locator('.con-parl').count(), 'the finished flow LEAVES').toBe(0);
+    await expect.poll(() => page.locator('.con-parl').count(), {message: 'the finished flow LEAVES'}).toBe(0);
   });
 
   test('the field case whole: the PLAY from the hand closes the quest, its gate rides the landing, the gate ends the turn', async ({page, request}) => {
@@ -147,7 +147,7 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the gate that ends the t
     expect(lying.length, `no «На поле» over the flow\n${timeline(samples)}`).toBe(0);
     await press(page, 'Enter', 900);
     await settle(page, {timeoutMs: 20_000});
-    expect(await page.locator('.con-parl').count(), 'the finished flow LEAVES').toBe(0);
+    await expect.poll(() => page.locator('.con-parl').count(), {message: 'the finished flow LEAVES'}).toBe(0);
   });
 
   test('the field lock of 2026-11-07: the VOTE closes the quest — the finished vote hands its screen to the gate in place, no plate, no stall', async ({page, request}) => {
@@ -173,9 +173,9 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the gate that ends the t
     const samples = await readFlowProbe(page);
     expect(samples.some((s) => s.stage === 'landed'), `the vote landed first\n${timeline(samples)}`).toBe(true);
     expect(samples.every((s) => s.section), `the Parliament never left between the vote and the quest\n${timeline(samples)}`).toBe(true);
-    expect(await page.locator('.con-mandatory').count(), 'no announce plate over a Parliament already serving the gate').toBe(0);
+    await expect.poll(() => page.locator('.con-mandatory').count(), {message: 'no announce plate over a Parliament already serving the gate'}).toBe(0);
     await press(page, 'Enter', 900);
     await settle(page, {timeoutMs: 20_000});
-    expect(await page.locator('.con-parl').count(), 'the finished flow LEAVES').toBe(0);
+    await expect.poll(() => page.locator('.con-parl').count(), {message: 'the finished flow LEAVES'}).toBe(0);
   });
 });

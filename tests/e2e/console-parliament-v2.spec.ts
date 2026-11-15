@@ -447,10 +447,10 @@ for (const preset of PRESETS) {
       //    it), ◀ from the track is the engine (the chair with its quest), ▲ from the engine is the ruler's medallion.
       // Парламент v8: the career is ONE stop (◀ ▶ walk no steps), ▲ from the quest is «ВАШИ ЭФФЕКТЫ», ▲ again the ruler.
       await press(page, 'ArrowDown', 400);
-      expect(await parliament(page).getAttribute('data-zone'), '▼ from the table: the career').toBe('agenda');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: '▼ from the table: the career'}).toBe('agenda');
       await expect(page.locator('.con-parl__agenda--focus'), 'the career wears the cursor as ONE object').toHaveCount(1);
       await press(page, 'ArrowRight', 400);
-      expect(await parliament(page).getAttribute('data-zone'), '▶ on the career moves nothing — no step is a stop').toBe('agenda');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: '▶ on the career moves nothing — no step is a stop'}).toBe('agenda');
       // X on the CAREER reads the track's own dossier — every seat's place, the ladder of twelve, the rules in words.
       expect(await pressUntil(page, 'KeyX', async () => await page.locator('[data-parl-career-dossier]').count() === 1, {tries: 3, settleMs: 700}), 'X opens the career dossier').toBe(true);
       await expect(page.locator('[data-parl-career-dossier] [data-parl-cd-step]'), 'the twelve steps').toHaveCount(12);
@@ -458,7 +458,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '01d-career-dossier');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('[data-parl-career-dossier]').count() === 0, {tries: 3, settleMs: 700}), 'B closes the dossier').toBe(true);
       await press(page, 'ArrowLeft', 400);
-      expect(await parliament(page).getAttribute('data-zone'), '◀ from the career: the quest').toBe('engine');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: '◀ from the career: the quest'}).toBe('engine');
       // X on the QUEST reads the QUEST (the owner's point 5) — its own dossier: the chair, the quest with its race, the
       // rules in words; never the ruling party's inspector. B closes it onto the same stop.
       expect(await pressUntil(page, 'KeyX', async () => await page.locator('[data-parl-quest-dossier]').count() === 1, {tries: 3, settleMs: 700}), 'X opens the quest dossier').toBe(true);
@@ -467,16 +467,16 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-quest-dossier] [data-parl-qd-rules]'), 'the rules in words').toContainText(/Условие|Condition/);
       await shoot(page, preset.id, '01c-quest-dossier');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('[data-parl-quest-dossier]').count() === 0, {tries: 3, settleMs: 700}), 'B closes the dossier').toBe(true);
-      expect(await parliament(page).getAttribute('data-zone'), 'back on the quest').toBe('engine');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: 'back on the quest'}).toBe('engine');
       await press(page, 'ArrowUp', 400);
-      expect(await parliament(page).getAttribute('data-zone'), '▲ from the quest: your effects').toBe('effects');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: '▲ from the quest: your effects'}).toBe('effects');
       await press(page, 'ArrowUp', 400);
-      expect(await parliament(page).getAttribute('data-zone'), '▲ from the effects: the ruler').toBe('ruler');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: '▲ from the effects: the ruler'}).toBe('ruler');
       // ── «ВАШИ ЭФФЕКТЫ», the inner step (Парламент v8 § 6; a HOST since ONE FRAMEWORK С6): A on the block opens the
       //    seat's actions as the «Действия карт» tiles and its standing effects as the effects explorer, on the chamber's
       //    rect — the crumb names it, ONE cursor stands in the zone that owns it, B folds it back onto the block.
       await press(page, 'ArrowDown', 400);
-      expect(await parliament(page).getAttribute('data-zone'), '▼ from the ruler: your effects').toBe('effects');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: '▼ from the ruler: your effects'}).toBe('effects');
       expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-parl-fxstep]').count() === 1, {tries: 3, settleMs: 700}), 'A opens the inner step').toBe(true);
       expect((await crumbText(page)).toUpperCase(), 'the crumb names the step').toContain('ВАШИ ЭФФЕКТЫ');
       const step = page.locator('[data-parl-effects-step]');
@@ -499,7 +499,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 8_000});
       await shoot(page, preset.id, '01b-effects-step');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('[data-parl-fxstep]').count() === 0, {tries: 3, settleMs: 700}), 'B folds the step').toBe(true);
-      expect(await parliament(page).getAttribute('data-zone'), 'back on the block').toBe('effects');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: 'back on the block'}).toBe('effects');
       await press(page, 'ArrowUp', 400);
       await focusVoting(page);
 
@@ -533,7 +533,7 @@ for (const preset of PRESETS) {
       expect(await viewerCard(page), 'the viewer shows the bill under the cursor').toContain('pcard--rdx-');
       await closeZoomViewer(page);
       await settle(page, {timeoutMs: 4_000});
-      expect(await parliament(page).getAttribute('data-zone'), 'the focus is where it was').toBe('voting');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: 'the focus is where it was'}).toBe('voting');
 
       // ── A: the VOTE MODE — three cards in a row, the zone above, the info below.
       //    It opens on the FIRST card (the tie order's head); the crumb is the
@@ -677,8 +677,8 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 8_000});
       await expect(page.locator('.con-parl__slot-home .con-parl__slot'), 'every slot is home').toHaveCount(3);
       await expectOneOfEach(page, before, `${preset.id} after B`);
-      expect(await parliament(page).getAttribute('data-zone'), 'the focus is where it was').toBe('voting');
-      expect(await parliament(page).getAttribute('data-stage')).toBe('browse');
+      await expect.poll(() => parliament(page).getAttribute('data-zone'), {message: 'the focus is where it was'}).toBe('voting');
+      await expect.poll(() => parliament(page).getAttribute('data-stage')).toBe('browse');
       await expectFits(page, `${preset.id} after B`);
       await shoot(page, preset.id, '06-mode-cancelled');
 
@@ -1029,7 +1029,7 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     await settle(page, {timeoutMs: 8_000});
     // The parties: several effects held at once; the used action stamped on its badge.
     await focusParliamentZone(page, 'parties');
-    expect(await page.locator('.con-parl__party--held').count(), 'several party effects at once').toBeGreaterThanOrEqual(3);
+    await expect.poll(() => page.locator('.con-parl__party--held').count(), {message: 'several party effects at once'}).toBeGreaterThanOrEqual(3);
     await expect(page.locator('.con-parl__party[data-action-state="used"] .con-pseal__action-mark'), 'the used action is stamped').toHaveCount(1);
     await expectFits(page, preset);
     await shoot(page, preset, '23-dense-parties');

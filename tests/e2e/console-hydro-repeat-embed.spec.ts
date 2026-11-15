@@ -186,8 +186,7 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
     await press(page, 'ArrowRight', 450);
     await press(page, 'Enter', 900);
-    expect(await page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(),
-      'both choices resolved').toBe(2);
+    await expect.poll(() => page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(), {message: 'both choices resolved'}).toBe(2);
 
     // ── The seat moved ON to the REPEAT row (the focus contract) — open the
     //    picker (the pick bridge: the hydro workspace hides, ДЕЙСТВИЯ КАРТ
@@ -202,8 +201,7 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     await press(page, 'Enter', 2500); // A — «Выбрать это действие»
     await page.waitForSelector('.con-hydro', {timeout: 15_000});
     await page.waitForTimeout(800);
-    expect(await page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(),
-      'the repeat pick is captured too').toBe(3);
+    await expect.poll(() => page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(), {message: 'the repeat pick is captured too'}).toBe(3);
     await shoot(page, '03-plan-complete');
 
     // ── ARM the probes BEFORE the commit: the traversal walk, the viewer
@@ -276,7 +274,7 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
       await press(page, 'ArrowRight', 450);
       await press(page, 'Enter', 600);
     }
-    expect(await page.locator('.con-cards__slot--picked').count(), 'two picks held').toBe(2);
+    await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'two picks held'}).toBe(2);
     await press(page, 'Period', 1500); // RT — «Подтвердить»
 
     // ── THE REPEAT'S OWN DRAW EMBEDS: the drained tail answered in the same
@@ -340,8 +338,7 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     expect(hero.scrollers, `no scrolling container on a console stage (${JSON.stringify(hero.scrollers)})`)
       .toEqual([]);
     // The seat is CONTEXT: it is in no selection and takes no focus.
-    expect(await page.locator('.con-hydro__embedsource .con-cards__slot').count(),
-      'the source is not one of the drawn cards').toBe(0);
+    await expect.poll(() => page.locator('.con-hydro__embedsource .con-cards__slot').count(), {message: 'the source is not one of the drawn cards'}).toBe(0);
     await shoot(page, '04-embedded-reveal');
     // A — take every card of the embedded batch (one press per card; the
     // arrival gate may swallow an early press, so press until it clears).

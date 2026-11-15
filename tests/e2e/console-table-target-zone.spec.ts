@@ -79,7 +79,7 @@ test.describe(`console · the table's targets are ONE zone · ${PRESET.id}`, () 
     expect(bot, 'the bot sits at the table').toBeDefined();
     await openZone(page);
 
-    expect(await page.locator('.con-cardactions .con-composer__sublist').count(), 'no «карты / бот» list before the cards').toBe(0);
+    await expect.poll(() => page.locator('.con-cardactions .con-composer__sublist').count(), {message: 'no «карты / бот» list before the cards'}).toBe(0);
     await expect(page.locator(STEP), 'every group on screen — the BANDS layout').toHaveAttribute('data-mode', 'board');
     const owners = await page.locator(`${STEP} .con-ptsel__owner`).count();
     expect(owners, 'red, the bot, and blue\'s own').toBe(3);

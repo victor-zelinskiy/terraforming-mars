@@ -1,7 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {CORP_WITH_FIRST_ACTION, fetchPlayerModel, NO_PAYMENT, openConsole, press, reloadConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome} from './consoleStart';
+import {cinematicBeat, CORP_WITH_FIRST_ACTION, fetchPlayerModel, NO_PAYMENT, openConsole, press, pressUntil, reloadConsole, seedGameOverApi, sendPlayerInput, settle, soloGameConfig, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow} from './witness';
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
 
 /**
@@ -33,6 +35,9 @@ import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
  * And the FINISHED BODY (§ the case/spine geometry): the display case and
  * its spine terminate INSIDE the viewport — the glass never reads as
  * cropped by the screen edge.
+ *
+ * Every geometry claim is read AT REST (FLAKE ZERO, class C — `readSettled`: one settled read per state), and the
+ * live activation phrase is RECORDED from before the rivals pass (`armWitness`), never sampled.
  */
 
 const OUT = path.resolve('screenshots', 'strategy-rail');
@@ -284,36 +289,34 @@ async function passGeneration(request: APIRequestContext, pid: string): Promise<
  * no-op. Bounded and structural — never a fixed blind script.
  */
 async function clearTransientChrome(page: Page): Promise<void> {
-  for (let i = 0; i < 6; i++) {
-    const zoom = await page.locator('dialog.con-zoom[open]').count();
-    const toast = await page.locator('.con-notice').count();
-    if (zoom === 0 && toast === 0) {
-      return;
-    }
-    await press(page, 'Escape', 700);
-  }
+  // ACT → VERIFY: B only while the noise stands, each press given its whole window to clear it.
+  const noise = page.locator('dialog.con-zoom[open], .con-notice');
+  await pressUntil(page, 'Escape', async () => await noise.count() === 0, {tries: 6, settleMs: 700});
 }
 
 /**
  * A REFERENCE frame needs a QUIET window, not just an instant with no toast:
  * the shell's own late arrivals (the foreground watchdog's one self-heal
  * card, a queued notification) race any single cleanup pass. Consume noise
- * as it appears and return only after `quietMs` of silence.
+ * as it appears and return only after `quietMs` of silence — the silence is
+ * judged IN THE PAGE, on the page's clock (a wait for a state: «noise», or
+ * «quiet for `quietMs`»), never a driver-side sleep between two looks.
  */
 async function waitToastQuiet(page: Page, quietMs = 1600, maxMs = 14_000): Promise<void> {
   const started = Date.now();
-  let quietSince = Date.now();
   while (Date.now() - started < maxMs) {
-    const noise = await page.locator('.con-notice, dialog.con-zoom[open]').count();
-    if (noise > 0) {
-      await press(page, 'Escape', 500);
-      quietSince = Date.now();
-      continue;
+    const from = await pageNow(page);
+    const verdict = await page.waitForFunction(({ms, since}) => {
+      if (document.querySelector('.con-notice, dialog.con-zoom[open]') !== null) {
+        return 'noise';
+      }
+      return Date.now() - since >= ms ? 'quiet' : false;
+    }, {ms: quietMs, since: from}, {polling: 100, timeout: Math.max(1, maxMs - (Date.now() - started))})
+      .then((h) => h.jsonValue(), () => 'timeout');
+    if (verdict !== 'noise') {
+      return; // quiet for the whole window — or the budget is spent, as before
     }
-    if (Date.now() - quietSince >= quietMs) {
-      return;
-    }
-    await page.waitForTimeout(250);
+    await press(page, 'Escape', 500);
   }
 }
 
@@ -408,8 +411,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     mark('console painted');
     // Fail FAST and by name if the shell lost its server (the connection
     // alert otherwise turns every later wait into a silent 600s burn).
-    expect(await page.locator('.con-alert').count(),
-      'the shell must be connected (no СБОЙ СИСТЕМЫ alert)').toBe(0);
+    await expect.poll(() => page.locator('.con-alert').count(), {message: 'the shell must be connected (no СБОЙ СИСТЕМЫ alert)'}).toBe(0);
     await waitForBoardHome(page, 25);
     await clearTransientChrome(page);
     mark('board home live');
@@ -418,15 +420,24 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     // viewport (right border + terminators on screen — never a crop), and
     // the two rails stay footprint twins.
     const vw = page.viewportSize()!.width;
-    const caseBox = await page.locator('.con-strat__case').boundingBox();
-    const spineBox = await page.locator('.con-strat__spine').boundingBox();
+    // ONE settled read of the four boxes (a box with no layout reads null — the `boundingBox()` convention).
+    const body = await readSettled(page, () => page.evaluate(() => {
+      const box = (sel: string) => {
+        const el = document.querySelector(sel);
+        if (el === null) {
+          return null;
+        }
+        const r = el.getBoundingClientRect();
+        return r.width === 0 && r.height === 0 ? null : {x: r.left, y: r.top, width: r.width, height: r.height};
+      };
+      return {caseBox: box('.con-strat__case'), spineBox: box('.con-strat__spine'), leftRail: box('.con-res'), rightRail: box('.con-strat')};
+    }), {message: 'the strategy rail\'s finished body'});
+    const {caseBox, spineBox, leftRail, rightRail} = body;
     expect(caseBox, 'the display case must render').not.toBeNull();
     expect(spineBox, 'the spine must render').not.toBeNull();
     expect(caseBox!.x + caseBox!.width, 'the case ends inside the viewport').toBeLessThan(vw - 2);
     expect(spineBox!.x + spineBox!.width, 'the spine ends inside the viewport').toBeLessThan(vw - 1);
     expect(spineBox!.x, 'the case seats INTO the spine').toBeGreaterThan(caseBox!.x + caseBox!.width - 4);
-    const leftRail = await page.locator('.con-res').boundingBox();
-    const rightRail = await page.locator('.con-strat').boundingBox();
     expect(Math.abs(leftRail!.width - rightRail!.width), 'twin footprints').toBeLessThanOrEqual(2);
 
     // STATE B — Mayor is MET (green ✓, full meter, mint rim) but NOT
@@ -435,15 +446,12 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     const mayor = page.locator('[data-ma-hud="milestones:Mayor"]');
     await expect(mayor, 'Mayor must be met-but-waiting').toHaveClass(/con-strat__item--ready/, {timeout: 20_000});
     await expect(mayor.locator('.con-strat__readymark')).toHaveCount(1);
-    expect(await mayor.locator('.con-strat__avail').count(), 'no «ДОСТУПНО» while not actionable').toBe(0);
-    const fillW = await mayor.locator('.con-strat__meter-fill').evaluate((el) => (el as HTMLElement).style.width);
-    expect(fillW, 'State B keeps the FULL meter').toBe('100%');
-    expect(await page.locator('.con-strat__item--activating').count(),
-      'a page LOAD must never replay the activation ceremony').toBe(0);
-    expect(await page.locator('.con-strat__zone--awards .con-strat__head--armed').count(),
-      'the awards door must not look action-ready off-turn').toBe(0);
-    expect(await page.locator('.con-strat__pip--next').count(),
-      'no gold slot outline off-turn').toBe(0);
+    await expect.poll(() => mayor.locator('.con-strat__avail').count(), {message: 'no «ДОСТУПНО» while not actionable'}).toBe(0);
+    await expect.poll(() => mayor.locator('.con-strat__meter-fill').evaluate((el) => (el as HTMLElement).style.width),
+      {message: 'State B keeps the FULL meter'}).toBe('100%');
+    await expect.poll(() => page.locator('.con-strat__item--activating').count(), {message: 'a page LOAD must never replay the activation ceremony'}).toBe(0);
+    await expect.poll(() => page.locator('.con-strat__zone--awards .con-strat__head--armed').count(), {message: 'the awards door must not look action-ready off-turn'}).toBe(0);
+    await expect.poll(() => page.locator('.con-strat__pip--next').count(), {message: 'no gold slot outline off-turn'}).toBe(0);
     // Landlord: funded — the sponsor CUBE in the emblem socket (no colour
     // disc), the crown + silver-second podium (3 players, single leader),
     // no roman numerals anywhere.
@@ -453,14 +461,14 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await expect(landlord.locator('.con-strat__unitbody--lead .con-strat__num')).toHaveText('3');
     await expect(landlord.locator('.con-strat__unitbody--ii')).toHaveCount(1);
     // A podium level reads its score alone — no rank glyph beside it.
-    const levelTexts = await page.locator('.con-strat__unitbody').allTextContents();
-    expect(levelTexts.filter((t) => /[IVX]/.test(t)), 'no roman numerals anywhere').toEqual([]);
+    await expect.poll(async () => (await page.locator('.con-strat__unitbody').allTextContents()).filter((t) => /[IVX]/.test(t)),
+      {message: 'no roman numerals anywhere'}).toEqual([]);
     await expect(page.locator('.con-strat__zone--awards .con-strat__pip--set')).toHaveCount(1);
     await expect(page.locator('.con-strat__zone--awards .con-strat__item--now')).toHaveCount(0);
     // THE CASSETTE AXES (±1 rendered px): both levels' cubes share one
     // horizontal centre; both scores share one right edge — the crown-cap
     // is an overlay and may not push the leader cube into a ladder.
-    const axes = await landlord.evaluate((row) => {
+    const axes = await readSettled(page, () => landlord.evaluate((row) => {
       const units = Array.from(row.querySelectorAll('.con-strat__unitbody'));
       const cubes = units.map((u) => u.querySelector('.con-strat__cube')!.getBoundingClientRect());
       const nums = units.map((u) => u.querySelector('.con-strat__num')!.getBoundingClientRect());
@@ -469,7 +477,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
         numRights: nums.map((r) => r.right),
         medalW: (row.querySelector('.con-strat__medal') as HTMLElement).getBoundingClientRect().width,
       };
-    });
+    }), {message: 'the Landlord cassette\'s axes'});
     expect(axes.cubeCenters.length, 'two ranked levels stand').toBe(2);
     expect(Math.abs(axes.cubeCenters[0] - axes.cubeCenters[1]),
       'both levels\' cubes share ONE horizontal centre').toBeLessThanOrEqual(1);
@@ -488,47 +496,26 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     // ── 5 · the LIVE B→C flip: blue (and green, if the order holds it)
     //   passes over the API while the page watches the board — red's turn
     //   arrives and the ACTIVATION phrase must play exactly once. ──────────
-    // The PROBE is page-side (MutationObserver + interval — NEVER rAF: a
-    // quiet headless screen starves rAF exactly when this fires): a 1.1s
-    // one-shot class is far above its 60ms tick, while a CDP round-trip
-    // loop at 4K can genuinely be too slow to promise a catch.
-    await page.evaluate(() => {
-      const w = window as unknown as Record<string, unknown>;
-      const log: Array<Record<string, unknown>> = [];
-      w.__actLog = log;
-      const snap = (why: string) => {
-        const vis = (sel: string) => {
-          const el = document.querySelector(sel) as HTMLElement | null;
-          return el !== null && el.checkVisibility({opacityProperty: true, visibilityProperty: true});
-        };
-        const diag = (w as {__stratDiag?: () => unknown}).__stratDiag;
-        log.push({
-          why, t: Date.now(),
-          activating: document.querySelectorAll('.con-strat__item--activating').length,
-          repulse: document.querySelectorAll('.con-strat__item--repulse').length,
-          now: document.querySelectorAll('.con-strat__item--now').length,
-          start: vis('.con-start'), reveal: vis('.con-reveal'), notice: vis('.con-notice'),
-          diag: diag !== undefined ? diag() : null,
-        });
+    // The phrase is RECORDED from before the passes (`armWitness` — the
+    // product's own class writes observed in the very task that makes them,
+    // replace-proof): a 1.1 s one-shot class can never slip between two
+    // looks, and a quiet headless screen starving rAF does not blind it (the
+    // observer fires on the write itself). The reader returns what the rail
+    // shows NOW; «the phrase played» and «C arrived» are folded from the record.
+    type ActSeen = {activating: number, repulse: number, now: number, start: boolean, reveal: boolean, notice: boolean};
+    const act = await armWitness<ActSeen>(page, 'strat-activation', () => {
+      const vis = (sel: string) => {
+        const el = document.querySelector(sel) as HTMLElement | null;
+        return el !== null && el.checkVisibility({opacityProperty: true, visibilityProperty: true});
       };
-      snap('install');
-      const probe = () => {
-        if (document.querySelector('.con-strat__item--activating, .con-strat__item--repulse') !== null) {
-          snap('hit');
-        }
+      return {
+        activating: document.querySelectorAll('.con-strat__item--activating').length,
+        repulse: document.querySelectorAll('.con-strat__item--repulse').length,
+        now: document.querySelectorAll('.con-strat__item--now').length,
+        start: vis('.con-start'), reveal: vis('.con-reveal'), notice: vis('.con-notice'),
       };
-      const root = document.querySelector('.con-strat');
-      if (root !== null) {
-        new MutationObserver(probe).observe(root, {attributes: true, subtree: true, attributeFilter: ['class']});
-      }
-      w.__actInt = setInterval(() => {
-        probe();
-        const nowUp = document.querySelector('.con-strat__item--now') !== null;
-        if (nowUp && log.every((e) => e.why !== 'now-first-seen')) {
-          snap('now-first-seen');
-        }
-      }, 60);
     });
+    const phraseUp = (v: ActSeen) => v.activating > 0 || v.repulse > 0;
     await passGeneration(request, p2);
     for (let i = 0; i < 12; i++) {
       const g = await fetchPlayerModel(request, p3);
@@ -545,45 +532,25 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
       await new Promise((res) => setTimeout(res, 250));
     }
     mark('rivals passed — waiting for the live flip');
-    const flipDeadline = Date.now() + 30_000;
-    let sawPhrase = false;
-    let reachedNow = false;
-    while (Date.now() < flipDeadline) {
-      const {hits, now} = await page.evaluate(() => {
-        const w = window as unknown as {__actLog?: Array<{why: string}>};
-        const log = w.__actLog ?? [];
-        return {
-          hits: log.filter((e) => e.why === 'hit').length,
-          now: log.some((e) => e.why === 'now-first-seen'),
-        };
-      });
-      if (hits > 0) {
-        sawPhrase = true;
-        break;
-      }
-      if (now) {
-        reachedNow = true;
-        // C arrived — give the phrase one more beat to register, then stop.
-        await page.waitForTimeout(1400);
-        const late = await page.evaluate(() =>
-          ((window as unknown as {__actLog?: Array<{why: string}>}).__actLog ?? [])
-            .some((e) => e.why === 'hit'));
-        sawPhrase = late;
-        break;
-      }
-      await page.waitForTimeout(150);
+    // The phrase — or C arriving first; then the phrase gets one more beat (a
+    // bounded wait for it, never a sleep) to register.
+    const firstEdge = await act.waitFor((v) => phraseUp(v) || v.now > 0, {timeoutMs: 30_000}).catch(() => undefined);
+    const reachedNow = await act.ever((v) => v.now > 0);
+    if (firstEdge !== undefined && !phraseUp(firstEdge.v)) {
+      await act.waitFor(phraseUp, {timeoutMs: 1_400}).catch(() => undefined);
     }
+    const sawPhrase = await act.ever(phraseUp);
     // The animation record: a burst of rail frames across the phrase
     // (element shots also force compositor frames — headless rAF stays fed).
     for (let f = 0; f < 6; f++) {
       await page.locator('.con-strat').screenshot({path: path.join(OUT, `tv4k-activation-f${f}.png`)});
-      await page.waitForTimeout(150);
+      await cinematicBeat(page, 150, 'a burst of rail stills across the activation phrase — evidence frames, never asserted');
     }
-    const actLog = await page.evaluate(() => {
-      const w = window as unknown as {__actLog?: Array<unknown>, __stratDiag?: () => unknown};
-      (w.__actLog ?? []).push({why: 'final', diag: w.__stratDiag !== undefined ? w.__stratDiag() : null});
-      return JSON.stringify(w.__actLog ?? []);
+    const stratDiag = await page.evaluate(() => {
+      const w = window as unknown as {__stratDiag?: () => unknown};
+      return w.__stratDiag !== undefined ? w.__stratDiag() : null;
     });
+    const actLog = JSON.stringify({record: (await act.stop()).map((s) => ({t: s.t, ...s.v})), final: stratDiag});
     expect(sawPhrase,
       `the live rising edge must play the activation phrase (reachedNow=${reachedNow}) — probe log: ${actLog}`)
       .toBe(true);
@@ -593,8 +560,8 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     // gold-white rim + «ДОСТУПНО» replacing the meter in the fixed foot.
     await expect(mayor).toHaveClass(/con-strat__item--now/, {timeout: 10_000});
     await expect(mayor.locator('.con-strat__avail')).toHaveCount(1);
-    expect((await mayor.locator('.con-strat__avail').innerText()).trim().length).toBeGreaterThan(0);
-    expect(await mayor.locator('.con-strat__meter').count(), 'the word replaces the meter in C').toBe(0);
+    await expect.poll(async () => (await mayor.locator('.con-strat__avail').innerText()).trim().length).toBeGreaterThan(0);
+    await expect.poll(() => mayor.locator('.con-strat__meter').count(), {message: 'the word replaces the meter in C'}).toBe(0);
     await expect(page.locator('.con-strat__zone--milestones .con-strat__pip--next')).toHaveCount(1);
     await waitToastQuiet(page);
     await shoot(page, 'tv4k-states-02-claim-now');
@@ -615,26 +582,30 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
       const row = Math.floor(at / 2);
       await press(page, at % 2 === (row % 2) ? (row % 2 === 0 ? 'ArrowRight' : 'ArrowLeft') : 'ArrowDown', 320);
     }
-    expect(await goFocused.count(), 'a claimable milestone card must take the focus').toBeGreaterThan(0);
+    await expect.poll(() => goFocused.count(), {message: 'a claimable milestone card must take the focus'}).toBeGreaterThan(0);
     await press(page, 'Enter', 1000);
     await page.waitForSelector('.con-mafocus', {timeout: 10_000});
-    await page.waitForTimeout(700); // past the commit arm
-    await page.keyboard.press('Enter');
+    // Past the commit arm: the driver's press waits out the decision's own settle
+    // window and the commit row's arrival (the product says how much is left)
+    // before it sends a deciding key — never a guessed pause.
+    await press(page, 'Enter', 700);
     await page.waitForSelector('.con-mafocus__cere', {timeout: 20_000});
     // The ceremony timeline and the auto-close ride GSAP/rAF — and a quiet
     // headless screen STARVES rAF exactly here ([[e2e-forceframe-wakes-raf]]):
     // a passive waitForSelector never sends a frame, so the timeline freezes
-    // mid-ceremony and the close never comes. PUMP BeginFrames while waiting.
+    // mid-ceremony and the close never comes. PUMP BeginFrames while waiting —
+    // between two pumps the wait is for the workspace to LEAVE (bounded by one
+    // pump), never a sleep.
     const maGone = async () => (await page.locator('.con-ma').count()) === 0;
     const closeDeadline = Date.now() + 45_000;
     while (Date.now() < closeDeadline && !(await maGone())) {
       await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
-      await page.waitForTimeout(280);
+      await page.locator('.con-ma').first().waitFor({state: 'detached', timeout: 280}).catch(() => undefined);
     }
-    expect(await maGone(), 'the MA workspace must auto-close after its ceremony').toBe(true);
-    await page.waitForTimeout(500); // the uncover flush + the seal's first beat
+    await expect(page.locator('.con-ma'), 'the MA workspace must auto-close after its ceremony').toHaveCount(0);
+    await cinematicBeat(page, 500, 'the uncover flush + the seal\'s first beat — a still of the seal mid-phrase, evidence only');
     await shoot(page, 'tv4k-states-03-sealing');
-    await page.waitForTimeout(1600); // the seal settles
+    await settle(page); // the seal settles
     await waitToastQuiet(page);
     await expect(mayor).toHaveClass(/con-strat__item--taken/, {timeout: 12_000});
     // The calm horizontal owner line: cube (who) · ПОЛУЧЕНО · ✓ (done) — and
@@ -644,12 +615,10 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await expect(mayor.locator('.con-strat__ownseal--mine'), 'my claim is white-rimmed').toHaveCount(1);
     await expect(mayor.locator('.con-strat__ownseal-cube')).toHaveCount(1);
     await expect(mayor.locator('.con-strat__ownseal-tick')).toHaveText('✓');
-    expect((await seal.locator('.con-strat__ownseal-word').innerText()).trim().length,
-      'the seal carries its word').toBeGreaterThan(0);
-    expect(await mayor.locator('.con-strat__medal .con-strat__gem').count(),
-      'the claimed emblem carries no floating cube').toBe(0);
-    expect(await mayor.locator('.con-strat__avail').count(),
-      'no availability word survives the claim').toBe(0);
+    await expect.poll(async () => (await seal.locator('.con-strat__ownseal-word').innerText()).trim().length,
+      {message: 'the seal carries its word'}).toBeGreaterThan(0);
+    await expect.poll(() => mayor.locator('.con-strat__medal .con-strat__gem').count(), {message: 'the claimed emblem carries no floating cube'}).toBe(0);
+    await expect.poll(() => mayor.locator('.con-strat__avail').count(), {message: 'no availability word survives the claim'}).toBe(0);
     await expect(mayor.locator('.con-strat__cell'), 'no numbers return after the claim').toHaveCount(0);
     await expect(page.locator('.con-strat__zone--milestones .con-strat__pip--set')).toHaveCount(1);
     await shoot(page, 'tv4k-states-04-claimed');
@@ -680,7 +649,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
       'a tie for 1st awards no 2nd place — no silver second line').toHaveCount(0);
     // ZERO OVERLAP: the tied cubes' content boxes may not intersect (equals
     // stand whole, side by side) — and the crown centres over the GROUP.
-    const tie = await tied.evaluate((unit) => {
+    const tie = await readSettled(page, () => tied.evaluate((unit) => {
       const boxes = Array.from(unit.querySelectorAll('.con-strat__cube'))
         .map((c) => c.getBoundingClientRect())
         .sort((a, b) => a.left - b.left);
@@ -691,7 +660,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
         clusterCenter: (boxes[0].left + boxes[boxes.length - 1].right) / 2,
         crownCenter: crown.left + crown.width / 2,
       };
-    });
+    }), {message: 'the tied podium'});
     expect(tie.gap, 'tied cubes never overlap (content boxes apart)').toBeGreaterThan(0);
     expect(Math.abs(tie.widths[0] - tie.widths[1]), 'tied cubes stay equal').toBeLessThanOrEqual(0.5);
     expect(Math.abs(tie.crownCenter - tie.clusterCenter),
@@ -724,8 +693,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await openConsole(page, p1, '&consoleProfile=tv');
     await waitForBoardHome(page, 25);
     await expect(page.locator('.con-strat__zone--awards .con-strat__pip--set')).toHaveCount(2, {timeout: 20_000});
-    expect(await page.locator('.con-strat__zone--awards.con-strat__zone--done').count(),
-      'two sponsorships keep the zone FULL').toBe(0);
+    await expect.poll(() => page.locator('.con-strat__zone--awards.con-strat__zone--done').count(), {message: 'two sponsorships keep the zone FULL'}).toBe(0);
 
     // BLUE funds the third award over the API — the live third seal, the
     // read beat, then the FLIP into the compact pose, all on screen. Blue
@@ -738,8 +706,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
       'the third seal composes the compact pose').toHaveCount(1, {timeout: 45_000});
     await expect(page.locator('.con-strat__zone--awards .con-strat__item')).toHaveCount(3, {timeout: 10_000});
     // INDEPENDENT triggers: the milestones zone stays FULL.
-    expect(await page.locator('.con-strat__zone--milestones.con-strat__zone--done').count(),
-      'the milestones zone must not follow the awards compose').toBe(0);
+    await expect.poll(() => page.locator('.con-strat__zone--milestones.con-strat__zone--done').count(), {message: 'the milestones zone must not follow the awards compose'}).toBe(0);
     // Every sponsored emblem carries its PROVENANCE socket (red, red, blue
     // — «спонсированы разными игроками»), and a fresh sponsorship's empty
     // rank rail dissolves to the calm centred dash.
@@ -772,8 +739,8 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     // the same sockets (the seed-then-diff contract).
     await expect(page.locator('.con-strat__zone--awards.con-strat__zone--done')).toHaveCount(1, {timeout: 20_000});
     await expect(page.locator('.con-strat__zone--awards .con-strat__medal .con-strat__gem')).toHaveCount(3);
-    expect(await page.locator('.con-strat__item--sealing').count(), 'no seal beat replays on reload').toBe(0);
-    expect(await page.locator('.con-strat__zone--arriving').count(), 'no pose arrival replays on reload').toBe(0);
+    await expect.poll(() => page.locator('.con-strat__item--sealing').count(), {message: 'no seal beat replays on reload'}).toBe(0);
+    await expect.poll(() => page.locator('.con-strat__zone--arriving').count(), {message: 'no pose arrival replays on reload'}).toBe(0);
 
     // COMPACT CLEANLINESS: no vertical decoration inside the ranking zone
     // (the full pose's guide crossed the emblem's wing and the sponsor
@@ -782,7 +749,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     // the sponsor socket stays anchored to the EMBLEM wrapper.
     const rankedRow = page.locator('.con-strat__zone--awards .con-strat__item:has(.con-strat__unitbody--i)').first();
     await expect(rankedRow, 'the built city gives compact a live rank rail').toHaveCount(1, {timeout: 30_000});
-    const clean = await rankedRow.evaluate((row) => {
+    const clean = await readSettled(page, () => rankedRow.evaluate((row) => {
       const px = (v: string) => (v.endsWith('px') ? Number.parseFloat(v) : Number.NaN);
       const cassette = row.querySelector('.con-strat__cassette') as HTMLElement;
       const medal = (row.querySelector('.con-strat__medal') as HTMLElement).getBoundingClientRect();
@@ -805,7 +772,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
         gemRight: gem.right,
         gemInsideMedalBand: gem.left >= medal.left && gem.left <= medal.right,
       };
-    });
+    }), {message: 'the compact ranked row'});
     // The socket is the TOP layer at its own centre: the ranking zone's
     // material may never wash over it (a translucent dark plate lying on
     // the cube reads as an unfinished glass contour).
@@ -816,7 +783,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     // the ranking zone's material reaching left onto a socket, and a
     // NEIGHBOUR row's art — drawn larger than its medal box — reaching up
     // over the row above it.
-    const socketClear = await page.locator('.con-strat__zone--awards').evaluate((zone) => {
+    const socketClear = await readSettled(page, () => page.locator('.con-strat__zone--awards').evaluate((zone) => {
       const rows = [...zone.querySelectorAll('.con-strat__item')];
       const boxes = rows.map((row) => ({
         gem: row.querySelector('.con-strat__gem')?.getBoundingClientRect(),
@@ -842,7 +809,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
       });
       const cassette = rows[0].querySelector('.con-strat__cassette') as HTMLElement;
       return {foreignArt, plate: getComputedStyle(cassette).backgroundImage};
-    });
+    }), {message: 'the awards zone\'s sponsor sockets'});
     expect(socketClear.foreignArt, 'no neighbour row\'s art reaches over a sponsor socket').toBe(0);
     // (The zone's BOX may span past a socket — it paints nothing there:
     // the plate is gone and the divider starts well to its right, both

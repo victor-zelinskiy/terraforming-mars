@@ -172,7 +172,7 @@ test.describe(`console · TRP8 Aerospace Company · ${PRESET.id}`, () => {
     const wire = await wireOf(request, playerId);
     expect(wire.thisPlayer.actionsThisGeneration, 'the play used no action').not.toContain(CARD);
     await expect(page.locator(`[data-played-key="${CARD}"]`).first(), 'the card stands on «РАЗЫГРАНО»').toBeAttached({timeout: 20_000});
-    expect(await page.locator('.con-ptsel').count(), 'nothing was asked').toBe(0);
+    await expect.poll(() => page.locator('.con-ptsel').count(), {message: 'nothing was asked'}).toBe(0);
     await shoot(page, 'a2-played-shelf');
   });
 

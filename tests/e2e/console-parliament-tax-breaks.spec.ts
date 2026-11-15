@@ -160,7 +160,7 @@ for (const preset of PRESETS) {
       await openParliament(page);
       const face = page.locator(`.con-parl__slot[data-instance="${TAX_INSTANCE}"] .pcard`);
       await expect(face, 'Tax Breaks stands in the voting area').toHaveCount(1);
-      expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX41');
+      await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX41');
       // THE FACE's counted object: the holder carrying ONE printed «?» — never RX40's three cubes.
       await expect(face.locator('.pcard__mech .presourcecard--wild'), 'the holder with the printed «?»').toHaveCount(1);
       await expect(face.locator('.pcard__mech .presourcecard__cube'), 'no three cubes on this face').toHaveCount(0);

@@ -164,7 +164,7 @@ for (const profile of PROFILES) {
       const phaseShade = await sampleShadeContinuity(page, 10, 45);
       expect(phaseShade.every(Boolean), `shade blinked during confirm→reveal: ${phaseShade}`).toBeTruthy();
       await expect(page.locator('.con-composer--stage .con-composer__revealzone')).toHaveCount(1, {timeout: 10_000});
-      expect(await page.locator('.con-reveal').count(), 'no standalone overlay for the claimed reveal').toBe(0);
+      await expect.poll(() => page.locator('.con-reveal').count(), {message: 'no standalone overlay for the claimed reveal'}).toBe(0);
       // The source-card anchor never left the stage (the hero column holds).
       await expect(page.locator('.con-composer--stage [data-motion-anchor="card:Search For Life"]')).toHaveCount(1);
       // The outcome settles (deck flight + the in-place flip). The longer
@@ -187,8 +187,7 @@ for (const profile of PROFILES) {
       // collapse, no B, «ОК» is the way out (consoleWorkspaceFlow 'verdict').
       await key(page, 'Escape', 500);
       await expect(page.locator('.con-composer--stage .con-verdict')).toHaveCount(1);
-      expect(await page.locator('.con-reveal').count(),
-        'B on the verdict must not summon the standalone reveal modal').toBe(0);
+      await expect.poll(() => page.locator('.con-reveal').count(), {message: 'B on the verdict must not summon the standalone reveal modal'}).toBe(0);
 
       // ── 6. OK ENDS THE OPERATION — one press, and the player is on the
       // board. THE CONCLUSION (`workspaceConclusionFor`): past the commit

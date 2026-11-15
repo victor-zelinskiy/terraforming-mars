@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {expect, test, Page} from './consoleTest';
-import {cinematicBeat, fillPicks, openConsole, pickedCards, press, pressUntil, waitStepDealSettled} from './consoleStart';
+import {cinematicBeat, fillPicks, openConsole, pickedCards, press, pressUntil, waitStepDealSettled, walkFocusUntil} from './consoleStart';
 import {campaignBase, createCampaign, devCommit, launchMission} from './campaignFixtures';
 import {titleOf} from './consoleEndgameHarness';
+import {readSettled} from './settledRead';
 import {readTransient, recordTransient} from './transientRecorder';
 
 /*
@@ -39,6 +40,12 @@ async function model(request: Parameters<typeof createCampaign>[0], id: string):
 function stepCards(m: WireModel, title: RegExp): Array<string> {
   const step = (m.waitingFor?.options ?? []).find((o) => title.test(titleOf(o as never)));
   return (step?.cards ?? []).map((c) => c.name);
+}
+
+/** Two at-rest reads agree to the half pixel — a subpixel that jitters is not motion. */
+function samePx<T>(a: T, b: T): boolean {
+  const px = (_key: string, v: unknown) => typeof v === 'number' ? Math.round(v * 2) / 2 : v;
+  return JSON.stringify(a, px) === JSON.stringify(b, px);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -143,14 +150,14 @@ test.describe('campaign «Тендеры» — the storyboard at TV 4K', () => {
       await press(page, 'KeyC', 600);
       await expect(list).toHaveClass(/con-tport--live/, {timeout: 15_000});
     };
+    // The certificate under the cursor — a focus walk is the shared primitive's (every hop given its window, a wall
+    // turned around), never a private «ArrowRight until it reads».
+    const focusedKind = () => page.evaluate(() =>
+      document.querySelector('[data-tport-focused="yes"]')?.getAttribute('data-tport-kind') ?? '');
     const focusTender = async (kind: string) => {
-      for (let i = 0; i < 8; i++) {
-        if (await page.locator('[data-tport-focused="yes"]').getAttribute('data-tport-kind') === kind) {
-          return;
-        }
-        await press(page, 'ArrowRight', 250);
+      if (!await walkFocusUntil(page, async () => await focusedKind() === kind, focusedKind, 8, 250)) {
+        throw new Error(`never focused the «${kind}» certificate`);
       }
-      throw new Error(`never focused the «${kind}» certificate`);
     };
     const openSheetOf = async (kind: string, still: string) => {
       await openDoor();
@@ -187,7 +194,9 @@ test.describe('campaign «Тендеры» — the storyboard at TV 4K', () => {
       const dealt = await dealtSinceMark();
       expect(dealt.filter((n) => before.includes(n)), `${kind}: no card already on the table is dealt again (${dealt.join(',')})`).toEqual([]);
       expect(dealt.length, `${kind}: exactly the new cards came off the deck`).toBe(by);
-      const geometry = await page.evaluate((s) => {
+      // The grown row AT REST (class C): the storyboard's beats are over, so its geometry is read settled — the same
+      // boxes twice in a row — never wherever the last glide had got to on a slow frame.
+      const geometry = await readSettled(page, () => page.evaluate((s) => {
         const body = document.querySelector('.con-start__body--cards')!.getBoundingClientRect();
         const els = Array.from(document.querySelectorAll<HTMLElement>(`[data-step-slot^="${s}|"]`));
         const slots = els.map((el) => el.getBoundingClientRect());
@@ -196,7 +205,7 @@ test.describe('campaign «Тендеры» — the storyboard at TV 4K', () => {
         return {top: body.top, bottom: body.bottom, left: body.left, right: body.right, widths,
           minTop: Math.min(...slots.map((r) => r.top)), maxBottom: Math.max(...slots.map((r) => r.bottom)),
           minLeft: Math.min(...slots.map((r) => r.left)), maxRight: Math.max(...slots.map((r) => r.right))};
-      }, slot);
+      }, slot), {message: `${kind}: the grown row`, same: samePx});
       expect(geometry.widths.length, `${kind}: one card size for the whole grown row ${JSON.stringify(geometry)}`).toBe(1);
       expect(geometry.minTop, `${kind}: the grown deal is whole in the body ${JSON.stringify(geometry)}`).toBeGreaterThanOrEqual(geometry.top - 1);
       expect(geometry.maxBottom, `${kind}: the grown deal is whole in the body ${JSON.stringify(geometry)}`).toBeLessThanOrEqual(geometry.bottom + 1);
@@ -250,8 +259,12 @@ test.describe('campaign «Тендеры» — the storyboard at TV 4K', () => {
     await fillPicks(page, 3, 24);
     const ledger = page.locator('[data-purchase-ledger]');
     await expect(ledger).toBeVisible();
-    const price0 = Number(await ledger.getAttribute('data-purchase-cost'));
-    const left0 = Number(await ledger.getAttribute('data-purchase-left'));
+    // The ledger's numbers as they STAND after the last pick — two equal reads, never the one the last pick's tick
+    // had not reached yet (every price claim below is computed from these).
+    const {price0, left0} = await readSettled(page, async () => ({
+      price0: Number(await ledger.getAttribute('data-purchase-cost')),
+      left0: Number(await ledger.getAttribute('data-purchase-left')),
+    }), {message: 'the purchase ledger before «Субсидия»'});
     await shoot(page, 's08-projects-ledger');
     await openSheetOf('researchSubsidy', 's09-subsidy-sheet');
     // The price ticks on the PURCHASE page the player returns to — never under the sheet's stamp.

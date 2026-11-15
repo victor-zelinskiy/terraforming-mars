@@ -210,8 +210,8 @@ test.describe('Migration Funding · standard-1080', () => {
     const face = page.locator(`.con-parl__slot[data-instance="${MIGRATION_INSTANCE}"] .pcard`);
     await expect(face, 'Migration Funding stands in the voting area').toHaveCount(1);
     await expect(face).toHaveClass(MIGRATION_CLASS);
-    expect(await face.locator('.pcard__art img').getAttribute('src'), 'the 3:2 art is keyed by the printed code').toContain('RX21');
-    expect(await face.locator('.pcard__party-emblem').getAttribute('src'), 'the Mars First emblem').toContain('mars');
+    await expect.poll(() => face.locator('.pcard__art img').getAttribute('src'), {message: 'the 3:2 art is keyed by the printed code'}).toContain('RX21');
+    await expect.poll(() => face.locator('.pcard__party-emblem').getAttribute('src'), {message: 'the Mars First emblem'}).toContain('mars');
     const cityCount = await face.locator('.pcard__mech .pcard-ic').evaluateAll((els) => els.filter((el) => getComputedStyle(el).backgroundImage.includes('city.png')).length);
     expect(cityCount, 'the printed city tile on the face').toBeGreaterThanOrEqual(1);
     await expect(face.locator('.pcard__mech .pcard-sym--asterix'), 'NO footnote spark: a city ON Mars, not a space city').toHaveCount(0);

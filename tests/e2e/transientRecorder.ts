@@ -33,6 +33,10 @@ import type {Page} from '@playwright/test';
  *
  * A NEW probe of a transient is this, never a `setInterval` (ratcheted in `tests/console/e2eDriverGuard.spec.ts`).
  *
+ * `tickMs` — a TIMER tick beside the observer and the frame tick, for a TIMING witness only: the subject there is how
+ * long the page was ALIVE (a still screen paints no frame and writes nothing, a stalled main thread runs no timer either —
+ * only a timer that keeps firing on the still screen tells the two apart; the reader stamps each call so it is kept).
+ *
  * ⭐ `settled: true` — WHAT IS PAINTED AT ONCE IS WHAT A TASK LEAVES, never what stands between two of its writes.
  * The observer's callback runs at the microtask checkpoint — after the product's FIRST write of the task and before
  * the writes the same task still owes: a tween's tick moves a proxy and calls «the card left its tile», the tile is
@@ -77,10 +81,10 @@ function stateOf(page: Page): PageState {
   return s;
 }
 
-type InstallArgs = {key: string, src: string, args: unknown, rafTick: boolean, settled: boolean};
+type InstallArgs = {key: string, src: string, args: unknown, rafTick: boolean, settled: boolean, tickMs: number};
 
 /** The page half — runs in every document (init script) and once in the current one. Self-contained. */
-function installTransient({key, src, args, rafTick, settled}: InstallArgs): void {
+function installTransient({key, src, args, rafTick, settled, tickMs}: InstallArgs): void {
   type Live = {flush: () => Promise<unknown>, stop: () => void};
   const w = window as unknown as {
     __tmTransientPush?: (key: string, t: number, v: unknown, doc: string) => Promise<unknown>,
@@ -109,6 +113,7 @@ function installTransient({key, src, args, rafTick, settled}: InstallArgs): void
   };
   let live = true;
   let mo: MutationObserver | undefined;
+  let timer: number | undefined;
   const start = () => {
     if (!live || document.documentElement === null) {
       return;
@@ -129,6 +134,9 @@ function installTransient({key, src, args, rafTick, settled}: InstallArgs): void
     if (rafTick) {
       window.requestAnimationFrame(tick);
     }
+    if (tickMs > 0) {
+      timer = window.setInterval(() => void sample(), tickMs);
+    }
     void sample();
   };
   // An init script runs before the document has an element — start once it does.
@@ -142,6 +150,9 @@ function installTransient({key, src, args, rafTick, settled}: InstallArgs): void
     stop: () => {
       live = false;
       mo?.disconnect();
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+      }
     },
   };
 }
@@ -151,11 +162,13 @@ function installTransient({key, src, args, rafTick, settled}: InstallArgs): void
  * product included). `args` is passed to the reader as its one argument. `max` caps the kept samples.
  */
 export async function recordTransient<A, T>(page: Page, key: string, reader: (args: A) => T,
-  opts: {args?: A, max?: number, rafTick?: boolean, /** the state a task LEAVES — for a coexistence / order claim */ settled?: boolean} = {}): Promise<void> {
+  opts: {args?: A, max?: number, rafTick?: boolean, /** the state a task LEAVES — for a coexistence / order claim */ settled?: boolean,
+    /** A TIMER tick too (ms) — only for a TIMING witness that must tell a still screen from a stalled main thread. */ tickMs?: number} = {}): Promise<void> {
   const state = stateOf(page);
   await state.bound;
   state.recs.set(key, {samples: [], stopped: false, max: opts.max ?? 4000});
-  const install: InstallArgs = {key, src: reader.toString(), args: opts.args ?? null, rafTick: opts.rafTick ?? true, settled: opts.settled ?? false};
+  const install: InstallArgs = {key, src: reader.toString(), args: opts.args ?? null, rafTick: opts.rafTick ?? true, settled: opts.settled ?? false,
+    tickMs: opts.tickMs ?? 0};
   await page.addInitScript(installTransient, install);
   await page.evaluate(installTransient, install).catch(() => undefined); // a navigating page: the init script covers it
 }

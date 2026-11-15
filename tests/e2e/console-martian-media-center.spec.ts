@@ -501,7 +501,7 @@ for (const preset of PRESETS) {
         await focusMediaCenter(page);
         const tile = page.locator(`.con-cardactions__tile[data-action-card="${CARD}"]`);
         await expect(tile.locator('.con-cardactions__tile-reason'), 'the reason is named').toContainText(reason);
-        expect(await tile.locator('.con-cardactions__tile-reason').count(), 'ONE reason').toBe(1);
+        await expect.poll(() => tile.locator('.con-cardactions__tile-reason').count(), {message: 'ONE reason'}).toBe(1);
         await shot(page, preset.id, label);
       });
     }

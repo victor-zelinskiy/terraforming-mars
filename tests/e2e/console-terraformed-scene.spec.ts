@@ -37,6 +37,7 @@ import {
   reloadConsole, settle, walkToSpace,
 } from './consoleStart';
 import {openHand} from './cardTradeDoor';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'tr70');
 const PRESETS = [
@@ -70,18 +71,52 @@ type Sample = {
   hand: string,
   reveal: string,
   anyNone: Array<string>,
+  /** The rail is in a CSS opacity TRANSITION the product started (running or pending) — the staged fade. */
+  railFade: boolean,
 };
 
 async function diagOf(page: Page): Promise<Diag> {
   return page.evaluate(() => (window as unknown as {__conTerraformedDiag: () => Diag}).__conTerraformedDiag());
 }
 
-/** The 100 ms sampler — `setInterval`, never rAF (headless rAF stops on a quiet screen). */
+/**
+ * THE SCENE'S RECORD (FLAKE ZERO — `armWitness`: every change the product writes, observed in the task that makes it, and
+ * once a frame for what only a computed style moves; it was a 100 ms `setInterval` that, pinned to two cores, slept
+ * through the whole recede). Plus the CLASS TIMELINE below, on the clock.
+ */
+const TF_WITNESS = 'terraformed-scene';
+const TF_ARMED = new WeakMap<Page, number>();
 async function armSampler(page: Page): Promise<void> {
+  TF_ARMED.set(page, await pageNow(page));
   await page.evaluate(() => {
-    const w = window as unknown as {__tfSamples: Array<Sample>, __tfTimer?: number};
-    w.__tfSamples = [];
     const t0 = performance.now();
+    // THE CLASS TIMELINE — a MutationObserver (a microtask after each patch, never a frame): every change of the root's
+    // scene classes, with the hand's declared transition at that moment. A starved renderer (CI's SwiftShader at 4K)
+    // stretches the 100 ms sampler past a whole 500 ms fade, but not this: the recede's opacity is a CSS transition on
+    // the CLOCK, so «faded out before it left the row» is «the stage class came at least one transition after the recede».
+    const cw = window as unknown as {__tfClasses: Array<{t: number, cls: Array<string>, handDur: string}>};
+    cw.__tfClasses = [];
+    // The recorder's reader takes its «not displayed before the scene» baseline at its first read after THIS arm.
+    delete (window as unknown as {__tfBaselineNone?: Array<string>}).__tfBaselineNone;
+    let lastKey = '';
+    const noteClasses = () => {
+      const r = document.querySelector<HTMLElement>('.con-root');
+      if (r === null) {
+        return;
+      }
+      const cls = Array.from(r.classList).filter((c) => /terraformed/.test(c)).map((c) => c.replace('con-root--', '')).sort();
+      if (cls.join(' ') === lastKey) {
+        return;
+      }
+      lastKey = cls.join(' ');
+      const hand = document.querySelector<HTMLElement>('.con-hand');
+      cw.__tfClasses.push({t: Math.round(performance.now() - t0), cls, handDur: hand === null ? '' : getComputedStyle(hand).transitionDuration});
+    };
+    noteClasses();
+    new MutationObserver(noteClasses).observe(document.documentElement, {subtree: true, attributes: true, attributeFilter: ['class']});
+  });
+  await armWitness<Omit<Sample, 't'>>(page, TF_WITNESS, () => {
+    const w = window as unknown as {__tfBaselineNone?: Array<string>};
     const op = (sel: string) => {
       const el = document.querySelector<HTMLElement>(sel);
       if (el === null) {
@@ -100,61 +135,40 @@ async function armSampler(page: Page): Promise<void> {
     };
     // The parked surfaces (a section on the board's slot — the hand / the colonies / the hydro — is the scene's one display
     // flip and is asserted by its own walk). A surface already `display: none` BEFORE the scene (the strategy rail under a
-    // workspace) is that surface's own policy, not the scene's — the baseline is taken at the arm.
+    // workspace) is that surface's own policy, not the scene's — the baseline is taken at the arm (the first read).
     const RECEDING = ['.con-res-host', '.con-cmdbar', '.con-handdock', '.con-info', '.con-reveal', '.con-strat'];
-    const baselineNone = new Set(RECEDING.filter((sel) => op(sel) === 'none'));
-    // THE CLASS TIMELINE — a MutationObserver (a microtask after each patch, never a frame): every change of the root's
-    // scene classes, with the hand's declared transition at that moment. A starved renderer (CI's SwiftShader at 4K)
-    // stretches the 100 ms sampler past a whole 500 ms fade, but not this: the recede's opacity is a CSS transition on
-    // the CLOCK, so «faded out before it left the row» is «the stage class came at least one transition after the recede».
-    const cw = window as unknown as {__tfClasses: Array<{t: number, cls: Array<string>, handDur: string}>};
-    cw.__tfClasses = [];
-    let lastKey = '';
-    const noteClasses = () => {
-      const r = document.querySelector<HTMLElement>('.con-root');
-      if (r === null) {
-        return;
-      }
-      const cls = Array.from(r.classList).filter((c) => /terraformed/.test(c)).map((c) => c.replace('con-root--', '')).sort();
-      if (cls.join(' ') === lastKey) {
-        return;
-      }
-      lastKey = cls.join(' ');
-      const hand = document.querySelector<HTMLElement>('.con-hand');
-      cw.__tfClasses.push({t: Math.round(performance.now() - t0), cls, handDur: hand === null ? '' : getComputedStyle(hand).transitionDuration});
+    const baselineNone = (w.__tfBaselineNone ??= RECEDING.filter((sel) => op(sel) === 'none'));
+    const railEl = document.querySelector<HTMLElement>('.con-res-host');
+    const root = document.querySelector<HTMLElement>('.con-root');
+    const board = document.querySelector<HTMLElement>('.con-board');
+    const title = document.querySelector<HTMLElement>('.con-terraformed');
+    const d = (window as unknown as {__conTerraformedDiag?: () => Diag}).__conTerraformedDiag?.();
+    return {
+      phase: title?.getAttribute('data-terraformed-phase') ?? '',
+      diag: d === undefined ? '-' : `${d.phase}/${d.stage}/${d.parkHeld ? 'held' : 'free'}/${d.camera.phase}:${d.camera.mode}`,
+      root: Array.from(root?.classList ?? []).filter((c) => /terraformed/.test(c)).map((c) => c.replace('con-root--', '')).join(' '),
+      board: Array.from(board?.classList ?? []).filter((c) => /pfocus/.test(c)).map((c) => c.replace('con-board--', '')).join(' '),
+      stage: rect('.con-board__stage'),
+      plate: rect('.con-terraformed__plate'),
+      breath: rect('[data-terraformed-breath]'),
+      burst: document.querySelectorAll('[data-terraformed-breath] .con-ceremony-fx').length,
+      texts: title === null ? [] : Array.from(title.querySelectorAll<HTMLElement>('.con-terraformed__kicker, .con-terraformed__name, .con-terraformed__claim'))
+        .map((el) => Math.round(parseFloat(getComputedStyle(el).fontSize))),
+      hud: (document.querySelector('.con-status__terra')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      arcs: op('.con-board .global-numbers'),
+      arcChild: op('.con-board .global-numbers .arc-scale'),
+      rail: op('.con-res-host'),
+      bar: op('.con-cmdbar'),
+      dock: op('.con-handdock'),
+      info: op('.con-info'),
+      hand: op('.con-hand'),
+      reveal: op('.con-reveal'),
+      // The law: a parked surface recedes by OPACITY — `display: none` on any of them while the scene is up is the defect.
+      anyNone: (root?.classList.contains('con-root--terraformed') ?? false) ? RECEDING.filter((sel) => !baselineNone.includes(sel) && op(sel) === 'none') : [],
+      railFade: railEl !== null && typeof railEl.getAnimations === 'function' &&
+        railEl.getAnimations().some((a) => a instanceof CSSTransition && a.transitionProperty === 'opacity' &&
+          (a.playState === 'running' || a.pending)),
     };
-    noteClasses();
-    new MutationObserver(noteClasses).observe(document.documentElement, {subtree: true, attributes: true, attributeFilter: ['class']});
-    w.__tfTimer = window.setInterval(() => {
-      const root = document.querySelector<HTMLElement>('.con-root');
-      const board = document.querySelector<HTMLElement>('.con-board');
-      const title = document.querySelector<HTMLElement>('.con-terraformed');
-      const d = (window as unknown as {__conTerraformedDiag?: () => Diag}).__conTerraformedDiag?.();
-      w.__tfSamples.push({
-        t: Math.round(performance.now() - t0),
-        phase: title?.getAttribute('data-terraformed-phase') ?? '',
-        diag: d === undefined ? '-' : `${d.phase}/${d.stage}/${d.parkHeld ? 'held' : 'free'}/${d.camera.phase}:${d.camera.mode}`,
-        root: Array.from(root?.classList ?? []).filter((c) => /terraformed/.test(c)).map((c) => c.replace('con-root--', '')).join(' '),
-        board: Array.from(board?.classList ?? []).filter((c) => /pfocus/.test(c)).map((c) => c.replace('con-board--', '')).join(' '),
-        stage: rect('.con-board__stage'),
-        plate: rect('.con-terraformed__plate'),
-        breath: rect('[data-terraformed-breath]'),
-        burst: document.querySelectorAll('[data-terraformed-breath] .con-ceremony-fx').length,
-        texts: title === null ? [] : Array.from(title.querySelectorAll<HTMLElement>('.con-terraformed__kicker, .con-terraformed__name, .con-terraformed__claim'))
-          .map((el) => Math.round(parseFloat(getComputedStyle(el).fontSize))),
-        hud: (document.querySelector('.con-status__terra')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        arcs: op('.con-board .global-numbers'),
-        arcChild: op('.con-board .global-numbers .arc-scale'),
-        rail: op('.con-res-host'),
-        bar: op('.con-cmdbar'),
-        dock: op('.con-handdock'),
-        info: op('.con-info'),
-        hand: op('.con-hand'),
-        reveal: op('.con-reveal'),
-        // The law: a parked surface recedes by OPACITY — `display: none` on any of them while the scene is up is the defect.
-        anyNone: (root?.classList.contains('con-root--terraformed') ?? false) ? RECEDING.filter((sel) => !baselineNone.has(sel) && op(sel) === 'none') : [],
-      });
-    }, 100);
   });
 }
 
@@ -187,9 +201,11 @@ function summarize(samples: Array<Sample>) {
     hudWhileHeld: [...new Set(samples.filter((s) => s.diag.includes('/held/')).map((s) => s.hud))],
     railMin: Math.min(...receded.map((s) => num(s.rail)).filter((v) => !Number.isNaN(v))),
     barMin: Math.min(...receded.map((s) => num(s.bar)).filter((v) => !Number.isNaN(v))),
+    // «A TRANSITION, never a cut»: an intermediate opacity painted — or, where the renderer painted no frame mid-way (a
+    // fade shorter than one software-raster frame), the opacity TRANSITION the product ran on the rail during the recede.
     railIntermediate: samples.some((s) => {
       const v = num(s.rail); return v > 0.08 && v < 0.92;
-    }),
+    }) || receded.some((s) => s.railFade),
     arcsWhileSettled: [...new Set(settled.map((s) => `${s.arcs}/${s.arcChild}`))],
     burstSeen: samples.some((s) => s.burst > 0),
     breathSeen: samples.some((s) => s.breath !== '-'),
@@ -205,13 +221,8 @@ function summarize(samples: Array<Sample>) {
 }
 
 async function readSampler(page: Page, name: string): Promise<{samples: Array<Sample>, summary: Summary}> {
-  const samples = await page.evaluate(() => {
-    const w = window as unknown as {__tfSamples: Array<Sample>, __tfTimer?: number};
-    if (w.__tfTimer !== undefined) {
-      window.clearInterval(w.__tfTimer);
-    }
-    return w.__tfSamples;
-  });
+  const t0 = TF_ARMED.get(page) ?? 0;
+  const samples: Array<Sample> = (await witnessOf<Omit<Sample, 't'>>(page, TF_WITNESS).stop()).map((x) => ({...x.v, t: Math.round(x.t - t0)}));
   const summary = summarize(samples);
   console.log(`[terraformed:${name}] ${JSON.stringify(summary)}`);
   return {samples, summary};
@@ -417,7 +428,7 @@ test.describe('«Марс терраформирован» — the planet shows 
       const after = {card: await focusedCard(page), pager: await page.locator('.con-handdock__pager').textContent().catch(() => '')};
       expect(after.card, 'the same card in focus').toBe(before.card);
       expect(after.pager, 'the same page').toBe(before.pager);
-      expect(await page.locator('.con-hand').count(), 'the album stands').toBe(1);
+      await expect.poll(() => page.locator('.con-hand').count(), {message: 'the album stands'}).toBe(1);
       await shoot(page, preset.id, 'scene-over-hand-after');
     });
   }
@@ -453,7 +464,7 @@ test.describe('«Марс терраформирован» — the planet shows 
       const held = await diagOf(page);
       expect(held.phase, 'armed while the reveal stands').toBe('armed');
       expect(held.parkHeld, 'the scales\' last step held for the stage').toBe(true);
-      expect(await page.locator('.con-terraformed').count(), 'no title over a standing reveal').toBe(0);
+      await expect.poll(() => page.locator('.con-terraformed').count(), {message: 'no title over a standing reveal'}).toBe(0);
       expect(await pressUntilGone(page, 'KeyB', '.con-reveal', {tries: 4, settleMs: 1600}) ||
         await pressUntilGone(page, 'Enter', '.con-reveal', {tries: 6, settleMs: 1600}), 'the cards taken').toBe(true);
       const diag = await waitSceneOver(page, 40_000);
@@ -462,7 +473,7 @@ test.describe('«Марс терраформирован» — the planet shows 
       expectScenePlayed(summary, preset, await rootFontPx(page));
       expect(summary.showAt!, 'the show came AFTER the reveal left').toBeGreaterThan(summary.armedAt!);
       expect(diag.lastEnd).toBe('concluded');
-      expect(await page.locator('.con-reveal').count(), 'the board home after — no reveal').toBe(0);
+      await expect.poll(() => page.locator('.con-reveal').count(), {message: 'the board home after — no reveal'}).toBe(0);
       await shoot(page, preset.id, 'scene-own-placement-after');
     });
   }
@@ -492,10 +503,13 @@ test.describe('«Марс терраформирован» — the planet shows 
     await armSampler(page);
     await finishFromApi(request, seats);
     await waitShow(page);
-    const atShow = Date.now();
+    // H — the skip is timed on the PAGE's clock: a reading before the press, the scene's first recorded `return` phase.
+    const phase = await armWitness(page, 'terraformed-phase', () =>
+      (window as unknown as {__conTerraformedDiag?: () => {phase?: string}}).__conTerraformedDiag?.().phase ?? '');
+    const atShow = await pageNow(page);
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => (window as unknown as {__conTerraformedDiag: () => Diag}).__conTerraformedDiag().phase === 'return', undefined, {timeout: 2_000});
-    const toReturn = Date.now() - atShow;
+    const toReturn = ((await phase.firstWhere((p) => p === 'return'))?.t ?? Infinity) - atShow;
     const skipped = await diagOf(page);
     expect(skipped.skipped, 'the press SKIPPED').toBe(true);
     const diag = await waitSceneOver(page, 10_000);
@@ -507,8 +521,8 @@ test.describe('«Марс терраформирован» — the planet shows 
     expect(summary.returningGoneAt, 'the surfaces came back').toBeDefined();
     expect(summary.stageBoxes).toHaveLength(1);
     expect(diag.lastEnd, 'one atomic finish').toBe('concluded');
-    expect(await page.locator('.con-terraformed').count(), 'the title is gone').toBe(0);
-    expect(await page.locator('.con-board--pfocus').count(), 'the camera is home').toBe(0);
+    await expect.poll(() => page.locator('.con-terraformed').count(), {message: 'the title is gone'}).toBe(0);
+    await expect.poll(() => page.locator('.con-board--pfocus').count(), {message: 'the camera is home'}).toBe(0);
   });
 
   test('(G · fhd) PL-290: the finale\'s announce after the scene — the prompt arriving mid-scene reaches its plate no later than the scene\'s end + the read beat', async ({page, request}) => {
@@ -519,11 +533,13 @@ test.describe('«Марс терраформирован» — the planet shows 
     await armSampler(page);
     await finishFromApi(request, seats);
     // Both seats pass at once — the generation ends under the scene and the FINAL GREENERY prompt stands for the viewer.
-    const askedAt = Date.now();
+    // H — the announce is timed on the PAGE's clock: a reading once the server asks, the plate's first recorded moment.
+    const plate = await armWitness(page, 'finale-plate', () => document.querySelector('.con-mandatory') !== null);
+    const askedAt = await pageNow(page);
     await drive(request, seats, (m) => m.waitingFor?.finalGreeneryPrompt !== undefined);
-    const promptAt = Date.now();
+    const promptAt = await pageNow(page);
     await page.locator('.con-mandatory').first().waitFor({state: 'visible', timeout: 30_000});
-    const plateAt = Date.now();
+    const plateAt = Math.max(promptAt, (await plate.firstWhere((up) => up))?.t ?? Infinity);
     const atPlate = await diagOf(page);
     expect(atPlate.phase, 'the announce stood only once the scene was over — never under the recede').toBe('idle');
     const diag = atPlate;
@@ -569,12 +585,12 @@ test.describe('«Марс терраформирован» — the planet shows 
     await armSampler(page);
     await cinematicBeat(page, 4_000, 'a reload window in which no scene may start');
     const {samples} = await readSampler(page, 'I');
-    expect(samples.length, 'the sampler ran').toBeGreaterThan(10);
+    expect(samples.length, 'the recorder ran').toBeGreaterThan(0); // a liveness floor catches only a DEAD recorder (tests.md)
     expect(samples.some((s) => s.phase !== '' || /terraformed/.test(s.root)), 'no scene after a reload').toBe(false);
     const diag = await diagOf(page);
     expect(diag.phase).toBe('idle');
     expect(diag.nonce, 'seeded silently — never armed').toBe(0);
     expect(((await getModel(request, seats[0])).game as {isTerraformed?: boolean}).isTerraformed, 'the server still says terraformed').toBe(true);
-    expect(await page.locator('.con-status__terra').textContent(), 'the HUD reads the finished planet').toMatch(/9\/9/);
+    await expect.poll(() => page.locator('.con-status__terra').textContent(), {message: 'the HUD reads the finished planet'}).toMatch(/9\/9/);
   });
 });

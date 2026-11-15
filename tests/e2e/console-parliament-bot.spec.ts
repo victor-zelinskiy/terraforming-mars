@@ -313,7 +313,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       const bot = botSeatOf(before);
       expect(before.game.phase, 'one pass before the sitting').toBe('action');
       const ocean = page.locator('.board-space [class*="board-space-tile--ocean"]');
-      expect(await ocean.count(), 'no ocean on the board before the sitting').toBe(0);
+      await expect.poll(() => ocean.count(), {message: 'no ocean on the board before the sitting'}).toBe(0);
 
       // A probe over the band and the panel: the words the spectator is shown, and the remote tile stage.
       // …and the VERDICT page's own reading (the walk turns it by itself — the soft gates — so it is sampled, never read late).

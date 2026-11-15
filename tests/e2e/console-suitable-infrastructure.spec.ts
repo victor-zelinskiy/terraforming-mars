@@ -164,7 +164,7 @@ test.describe(`P63 Suitable Infrastructure · a prelude-reactor on production, o
     expect(await walkFocusUntil(page, async () => await focused() === empire, focused, 8), 'Business Empire focused in the queue').toBe(true);
     await expect.poll(() => forecastMc(page, '[data-start-prelude-forecast]'), {timeout: 20_000,
       message: '«Сработает» on the rail names P63\'s +2'}).toMatch(/\+2/);
-    expect(await page.locator('.con-start [data-forecast-row]').count(), 'the answer stands ONCE on the scene').toBe(1);
+    await expect.poll(() => page.locator('.con-start [data-forecast-row]').count(), {message: 'the answer stands ONCE on the scene'}).toBe(1);
     await shoot(page, 'A-02-queue-forecast');
 
     await armTransferWitness(page);
@@ -342,6 +342,6 @@ ${trail})`).toBe(true);
     expect(await p63LogLines(request, playerId), 'no journal line names P63 — the hook is silent in the PARLIAMENT phase').toBe(logBefore);
     const poses = await readTransient<ReactionPose>(page, 'p63-d');
     expect(poses.every((s) => s.v.lifted === 0 && s.v.emerged === 0 && s.v.atStage === 0), 'P63 never rose').toBe(true);
-    expect(await page.locator(`[data-forecast-row] ${MC_CHIP}`).count(), 'nothing promises P63\'s M€ on the sitting').toBe(0);
+    await expect.poll(() => page.locator(`[data-forecast-row] ${MC_CHIP}`).count(), {message: 'nothing promises P63\'s M€ on the sitting'}).toBe(0);
   });
 });

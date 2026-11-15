@@ -225,14 +225,14 @@ for (const profile of PROFILES) {
       await page.waitForTimeout(600);
 
       // ── CONFIGURE: no panel, no scroll pressure, the honest price line. ──
-      expect(await page.locator('.con-hydro .con-pay').count(), 'no payment panel on Configure').toBe(0);
+      await expect.poll(() => page.locator('.con-hydro .con-pay').count(), {message: 'no payment panel on Configure'}).toBe(0);
       const reqText = await page.locator('.con-hydro__reqline').innerText();
       expect(reqText, 'affordability must not live inside ТРЕБОВАНИЯ').not.toContain('У вас');
       const payline = await page.locator('.con-hydro__payline').innerText();
       expect(payline.toUpperCase()).toContain('ЭНЕРГИЯ И/ИЛИ СТАЛЬ');
       expect(payline.toUpperCase()).toContain('ДАЛЕЕ: СОСТАВ ОПЛАТЫ');
       expect(payline).toContain('Дельтовые сооружения');
-      expect(await page.locator('.con-hydro__payline-price .resource_icon').count(), 'the ⚡/🔩 pair').toBe(2);
+      await expect.poll(() => page.locator('.con-hydro__payline-price .resource_icon').count(), {message: 'the ⚡/🔩 pair'}).toBe(2);
       const draft0 = await readDraft(page, '.con-hydro__payline-mix');
       expect(draft0).toEqual(['1', '0']); // energy-first default at cost 1
       const bar0 = await barText(page);
@@ -284,10 +284,10 @@ for (const profile of PROFILES) {
       // ── PAYMENT → CONFIGURE (B): the substep folds; the chosen reward and
       //    the dialed draft both survive the walk back. ──
       await press(page, 'Escape', 900);
-      expect(await page.locator('.con-hydro__layer--payment').count(), 'B folded the substep').toBe(0);
+      await expect.poll(() => page.locator('.con-hydro__layer--payment').count(), {message: 'B folded the substep'}).toBe(0);
       await page.waitForSelector('.con-hydro__payline', {timeout: 6_000});
       expectSameAnchor(a0, await hydroAnchor(page), 'payment → back to preview');
-      expect(await page.locator('.con-hydro__gains-choice').count(), 'the reward pick survives B').toBe(0);
+      await expect.poll(() => page.locator('.con-hydro__gains-choice').count(), {message: 'the reward pick survives B'}).toBe(0);
       expect(await readDraft(page, '.con-hydro__payline-mix'), 'the dialed draft survives B').toEqual(['0', '1']);
       await shoot(page, `${profile.tag}-hydro-03-back`);
 
@@ -331,7 +331,7 @@ for (const profile of PROFILES) {
         await press(page, 'Period', 1100);
         await press(page, 'ArrowRight', 1400);
       }
-      expect(await colonies.count(), 'the colonies section opened').toBeGreaterThan(0);
+      await expect.poll(() => colonies.count(), {message: 'the colonies section opened'}).toBeGreaterThan(0);
       // Focus LUNA specifically — the resolve assertions read its visitor.
       const luna = page.locator('.con-coltile--focused[data-test="con-colony-Luna"]');
       for (let i = 0; i < 10 && await luna.count() === 0; i++) {
@@ -343,7 +343,7 @@ for (const profile of PROFILES) {
           await press(page, 'ArrowLeft', 400);
         }
       }
-      expect(await luna.count(), 'Luna focused').toBeGreaterThan(0);
+      await expect.poll(() => luna.count(), {message: 'Luna focused'}).toBeGreaterThan(0);
       await press(page, 'Enter', 1600);
       await page.waitForSelector('.con-colfocus', {timeout: 10_000});
       await page.waitForSelector('.con-colfocus__payrow', {timeout: 10_000});
@@ -351,12 +351,12 @@ for (const profile of PROFILES) {
 
       // ── CONFIGURE: compact list, both icons, draft, next-step tag, NO panel,
       //    NO scroll — every family row (M€ included) inside the scroll box. ──
-      expect(await page.locator('.con-colfocus .con-pay').count(), 'no inline panel on Configure').toBe(0);
+      await expect.poll(() => page.locator('.con-colfocus .con-pay').count(), {message: 'no inline panel on Configure'}).toBe(0);
       const rowTitles = await page.locator('.con-colfocus__payrow-title').allInnerTexts();
       expect(rowTitles.find((t) => t.includes('энергия и/или сталь')),
         `the flexible family names both sources — got ${JSON.stringify(rowTitles)}`).toBeTruthy();
       const energyRow = page.locator('.con-colfocus__payrow').filter({hasText: 'энергия и/или сталь'});
-      expect(await energyRow.locator('.con-colfocus__payrow-icon').count(), 'the ⚡/🔩 icon pair on the row').toBe(2);
+      await expect.poll(() => energyRow.locator('.con-colfocus__payrow-icon').count(), {message: 'the ⚡/🔩 icon pair on the row'}).toBe(2);
       expect((await energyRow.locator('.con-colfocus__payrow-next').innerText()).toUpperCase())
         .toContain('ДАЛЕЕ: СОСТАВ ОПЛАТЫ');
       const scroll = await page.evaluate(() => {
@@ -394,7 +394,7 @@ for (const profile of PROFILES) {
       // ── CONFIGURE → PAYMENT (X) ──
       await press(page, 'KeyX', 1200);
       await page.waitForSelector('.con-colfocus__mixstep .con-pay', {timeout: 8_000});
-      expect(await page.locator('.con-colfocus__payrow').count(), 'the family list yielded the area').toBe(0);
+      await expect.poll(() => page.locator('.con-colfocus__payrow').count(), {message: 'the family list yielded the area'}).toBe(0);
       const barMix = await barText(page);
       expect(barMix).toContain('СОСТАВ ОПЛАТЫ');
       expect(barMix).toContain('ПОДТВЕРДИТЬ ТОРГОВЛЮ');
@@ -411,7 +411,7 @@ for (const profile of PROFILES) {
 
       // ── PAYMENT → CONFIGURE (B): family, draft and summary survive. ──
       await press(page, 'Escape', 900);
-      expect(await page.locator('.con-colfocus__mixstep').count(), 'B folded the substep').toBe(0);
+      await expect.poll(() => page.locator('.con-colfocus__mixstep').count(), {message: 'B folded the substep'}).toBe(0);
       await page.waitForSelector('.con-colfocus__payrow', {timeout: 6_000});
       expect(await readDraft(page, '.con-colfocus__payrow-mix'), 'the dialed draft survives B').toEqual(['2', '1']);
       expect((await readOutcomePay(page)).map((r) => r.icon)).toEqual(['energy', 'steel']);

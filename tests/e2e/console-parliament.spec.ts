@@ -408,7 +408,7 @@ for (const preset of PRESETS) {
 
       // The parties: several effects held at once, the action used this generation.
       await focusParliamentZone(page, 'parties');
-      expect(await page.locator('.con-parl__party--held').count(), 'several party effects at once').toBeGreaterThanOrEqual(3);
+      await expect.poll(() => page.locator('.con-parl__party--held').count(), {message: 'several party effects at once'}).toBeGreaterThanOrEqual(3);
       await expect(page.locator('.con-parl__party[data-action-state="used"]')).toHaveCount(1);
       await expectFits(page, preset);
       await shoot(page, preset, '22-dense-parties');

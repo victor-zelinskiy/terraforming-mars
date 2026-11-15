@@ -94,12 +94,12 @@ test.describe(`console · Virus's targets are ONE zone · ${PRESET.id}`, () => {
     await openPlayComposer(page);
     await openZone(page);
 
-    expect(await page.locator(`${PLAY_COMPOSER} .con-composer__sublist`).count(), 'no list of names').toBe(0);
+    await expect.poll(() => page.locator(`${PLAY_COMPOSER} .con-composer__sublist`).count(), {message: 'no list of names'}).toBe(0);
     // Two groups side by side (`split` — the planner's two-group case), every group on screen either way.
     expect(['split', 'board'], 'every group on screen').toContain(await page.locator(STEP).getAttribute('data-mode'));
     await expect(page.locator(`${STEP} .con-ptsel__contract-title`), 'a TARGET, never «a card» — players are targets too')
       .toHaveText('Выберите цель за столом', {ignoreCase: true});
-    expect(await page.locator(`${STEP} .con-ptsel__owner`).count(), 'red and the bot — Virus takes from the OTHER players').toBe(2);
+    await expect.poll(() => page.locator(`${STEP} .con-ptsel__owner`).count(), {message: 'red and the bot — Virus takes from the OTHER players'}).toBe(2);
     await expect(page.locator(`${STEP} .con-ptsel__slot[data-zoom-slot="Birds"]`), 'red\'s Birds is a card in red\'s group').toHaveCount(1);
     const botAnimals = page.locator(`${STEP} [data-ptsel-stand="animal"]`);
     await expect(botAnimals, 'the bot\'s animals — ONE stand-in tile').toHaveCount(1);
@@ -107,7 +107,7 @@ test.describe(`console · Virus's targets are ONE zone · ${PRESET.id}`, () => {
     const delta = ((await botAnimals.locator('[data-ptsel-bot-delta]').textContent()) ?? '').match(/(\d+)\s*→\s*(\d+)/);
     expect(delta, 'the tile reads «from → to»').not.toBeNull();
     expect(Number(delta![1]) - Number(delta![2]), 'up to two animals').toBe(2);
-    expect(await page.locator(`${STEP} [data-ptsel-stand="plants"]`).count(), 'red\'s plants and the bot\'s stand as tiles').toBe(2);
+    await expect.poll(() => page.locator(`${STEP} [data-ptsel-stand="plants"]`).count(), {message: 'red\'s plants and the bot\'s stand as tiles'}).toBe(2);
     await shoot(page, 'a1-one-zone');
 
     // Group to group, until the cursor stands on the bot's animals: side by side (`split`) the d-pad crosses spatially —

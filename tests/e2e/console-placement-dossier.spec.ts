@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, bootSeededGame, createGameWithCards, playCardFromHand, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, bootSeededGame, createGameWithCards, playCardFromHand, press, pressUntil, pressUntilGone, pressUntilVisible, settle, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE PLACEMENT DOSSIER — the right-hand board panel, photographed.
@@ -105,8 +106,20 @@ async function pump(page: Page): Promise<void> {
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
 }
 
-async function key(page: Page, code: string, settle = 420): Promise<void> {
-  await press(page, code, settle);
+/** The planet's box (the board container — Planet Focus scales it), rounded: a subpixel that jitters is not motion. */
+async function planetBox(page: Page): Promise<{x: number, y: number, w: number, h: number} | null> {
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-board__stage > .board-cont');
+    if (el === null) {
+      return null;
+    }
+    const b = el.getBoundingClientRect();
+    return {x: Math.round(b.left), y: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height)};
+  });
+}
+
+async function key(page: Page, code: string, settleMs = 420): Promise<void> {
+  await press(page, code, settleMs);
   await pump(page);
 }
 
@@ -133,21 +146,63 @@ async function focusedCell(page: Page): Promise<{id: string, legal: boolean}> {
 }
 
 /**
+ * The focused cell AND what the dossier says about it, in ONE page read — a
+ * pair the walk only believes once it holds still (`settledReading`).
+ */
+type CellReading = {id: string, legal: boolean, text: string};
+async function cellReading(page: Page): Promise<CellReading> {
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-cell-sel[data_space_id]');
+    const panel = document.querySelector('.con-context') as HTMLElement | null;
+    return {
+      id: el?.getAttribute('data_space_id') ?? '',
+      legal: el?.classList.contains('board-space--available') ?? false,
+      text: panel?.innerText ?? '',
+    };
+  });
+}
+
+/**
+ * THE DOSSIER OF THE CELL UNDER THE CURSOR, AT REST. A d-pad step swaps the
+ * panel's content, and the per-cell preview arrives a beat after the cursor
+ * (`cellController.loadCellPreview` — the previous cell's preview stands until
+ * the new one lands). Read once right after the press, the walk judged one
+ * cell by the next cell's text. The read is the cell id + legality + the text
+ * TOGETHER, settled (`readSettled` — the same value twice, a frame apart): a
+ * cursor or a panel still moving resets the streak, so what the walk judges is
+ * what the panel says about THAT cell.
+ */
+async function settledReading(page: Page, what: string): Promise<CellReading> {
+  return readSettled(page, () => cellReading(page), {message: `the dossier at rest — ${what}`});
+}
+
+/**
+ * ONE VERIFIED HOP of a d-pad walk: the press, then the WHOLE window for
+ * `where()` to move (act → verify — a move lands a beat after the press's
+ * quiet). False = it stood still: a wall, or a swallowed press.
+ */
+async function hop(page: Page, code: string, where: () => Promise<string>, settleMs = 300): Promise<boolean> {
+  const at = await where();
+  return pressUntil(page, code, async () => (await where()) !== at, {tries: 1, settleMs});
+}
+
+/**
  * Drive the board cursor to a KNOWN corner.
  *
  * The sweep below has to start somewhere reproducible: the cursor is seeded
  * wherever the placement opened it, and the previous sweep left it wherever
- * its own target was. Both arrow axes CLAMP at the board's edge, so spamming
- * up-left is a homing move that costs nothing and cannot overshoot.
+ * its own target was. Both arrow axes CLAMP at the board's edge, so pressing
+ * up-left is a homing move that cannot overshoot — and the corner is reached
+ * when the cursor stops moving: TWO still hops in a row (a wall and a swallowed
+ * arrow read the same for one press — `walkFocusUntil`'s lesson).
  */
 async function homeCursor(page: Page): Promise<void> {
-  for (let i = 0; i < 12; i++) {
-    await page.keyboard.press('ArrowUp');
-    await page.waitForTimeout(90);
-  }
-  for (let i = 0; i < 12; i++) {
-    await page.keyboard.press('ArrowLeft');
-    await page.waitForTimeout(90);
+  const where = async () => (await focusedCell(page)).id;
+  for (const code of ['ArrowUp', 'ArrowLeft']) {
+    let still = 0;
+    for (let i = 0; i < 14 && still < 2; i++) {
+      still = await hop(page, code, where) ? 0 : still + 1;
+    }
   }
   await pump(page);
 }
@@ -175,7 +230,6 @@ async function walkUntil(
   hit: (text: string, cell: {id: string, legal: boolean}) => boolean,
   opts: {budget?: number, home?: boolean} = {}): Promise<string> {
   const budget = opts.budget ?? 150;
-  const panel = panelOf(page);
   // HOMING SERVES THE SEARCH FOR A RARE CELL, and only that. A caller looking
   // for ANY legal cell wants the one NEAR the cursor the placement seeded —
   // sending it to the corner first is strictly worse, and turned a two-step
@@ -204,8 +258,8 @@ async function walkUntil(
       }
       newThisLane = 0;
     }
-    const cell = await focusedCell(page);
-    const text = await panel.innerText().catch(() => '');
+    // The cell and its dossier, read once both hold still for THAT cell — never the panel a step behind the cursor.
+    const {text, ...cell} = await settledReading(page, `sweep step ${i}`);
     if (text !== '' && hit(text, cell)) {
       return text;
     }
@@ -226,6 +280,17 @@ async function placementLive(page: Page): Promise<boolean> {
 }
 
 /**
+ * Wait (bounded, never a throw) for the board's placement to stand — a poll of
+ * the state that pumps a frame per look (see `pump`). True once it stands.
+ */
+async function awaitPlacement(page: Page, maxMs: number): Promise<boolean> {
+  return expect.poll(async () => {
+    await pump(page);
+    return placementLive(page);
+  }, {timeout: maxMs}).toBe(true).then(() => true, () => false);
+}
+
+/**
  * THE PANEL MUST FIT. A standard placement that overflows is the defect this
  * iteration exists to remove: the scroll cut the endgame block off, and the
  * `R3 ПРОКРУТКА` badge then sat ON the text it was hiding.
@@ -241,7 +306,8 @@ async function panelFit(page: Page): Promise<{overflow: number, scrollHint: numb
 }
 
 async function expectFits(page: Page, what: string): Promise<void> {
-  const fit = await panelFit(page);
+  // The fit of the panel AT REST — an overflow read while a value still swaps in is the machine's frame, not the panel.
+  const fit = await readSettled(page, () => panelFit(page), {message: `the panel's fit — ${what}`});
   // NAME THE CELL. The board is not reproducible (see `aresConfig`), so «the
   // panel overflowed» is only actionable together with WHICH cell was under
   // the cursor — the density that overflows lives on some cells and not on
@@ -263,21 +329,23 @@ test.describe('console placement dossier · 4K TV', () => {
 
     const playerId = await createGameWithCards(request, [], {config: aresConfig()});
     await bootSeededGame(page, request, playerId, {query: '&consoleProfile=tv'});
-    await page.waitForTimeout(1200);
+    await settle(page);
     await shoot(page, '00-board-home');
 
     // LT wheel → «КОНВЕРТАЦИЯ РАСТЕНИЙ» is the LEFT slot. The wheel is
     // PRESS→RELEASE: the direction ARMS the slot and FIRES it on key-up, so
-    // the arrow alone activates it (an extra Enter would commit the tile).
-    await key(page, 'Comma', 1400);
-    await key(page, 'ArrowLeft', 2800);
-    expect(await placementLive(page), 'never reached the board placement').toBeTruthy();
+    // the arrow alone activates it (an extra Enter would commit the tile) —
+    // and the wheel's own disappearance is the witness that it landed.
+    expect(await pressUntilVisible(page, 'Comma', '.con-quick', {settleMs: 1400}), 'the LT wheel never opened').toBe(true);
+    await pressUntilGone(page, 'ArrowLeft', '.con-quick', {tries: 3, settleMs: 2800});
+    await expect.poll(() => placementLive(page), {timeout: 30_000, message: 'never reached the board placement'}).toBe(true);
 
     // ── 1 · A PLAIN legal cell: no toll, the ordinary result.
     const plain = await walkUntil(page, (text, cell) =>
       cell.legal && !text.includes('Снизить производство'));
     expect(plain, 'no plain legal cell surfaced').not.toBe('');
-    await page.waitForTimeout(700); // the per-cell preview is fetched
+    // The dossier was read at rest for THIS cell (the walk); the shot waits for the console's rest.
+    await settle(page);
     await pump(page);
     await shoot(page, '01-greenery-plain-cell');
     await expectFits(page, 'a plain greenery cell');
@@ -288,7 +356,7 @@ test.describe('console placement dossier · 4K TV', () => {
     const taxed = await walkUntil(page, (text, cell) =>
       cell.legal && text.includes('Снизить производство'));
     expect(taxed, 'no hazard-adjacent cell surfaced a production penalty').not.toBe('');
-    await page.waitForTimeout(700);
+    await settle(page);
     await pump(page);
     await shoot(page, '02-greenery-hazard-penalty');
     await expectFits(page, 'a hazard-taxed greenery cell');
@@ -298,7 +366,7 @@ test.describe('console placement dossier · 4K TV', () => {
     await key(page, 'KeyV', 1200); // R3 — inspect all cells
     const illegal = await walkUntil(page, (_text, cell) => cell.id !== '' && !cell.legal);
     expect(illegal, 'no illegal cell surfaced a refusal').not.toBe('');
-    await page.waitForTimeout(700);
+    await settle(page);
     await pump(page);
     await shoot(page, '03-greenery-illegal-cell');
     await expectFits(page, 'an illegal cell');
@@ -321,33 +389,39 @@ test.describe('console placement dossier · 4K TV', () => {
 
     const playerId = await createGameWithCards(request, [], {config: aresConfig({seed: 0.42})});
     await bootSeededGame(page, request, playerId, {query: '&consoleProfile=tv'});
-    await page.waitForTimeout(1200);
+    await settle(page);
 
     // LT wheel → «СТАНДАРТНЫЕ ПРОЕКТЫ» (the centre slot) → the projects sheet.
-    await key(page, 'Comma', 1500);
-    await key(page, 'Enter', 1900);
+    expect(await pressUntilVisible(page, 'Comma', '.con-quick', {settleMs: 1500}), 'the LT wheel never opened').toBe(true);
+    // The centre slot fires on A; the wheel leaving is the witness that it landed (a retry only while it stands —
+    // never a second A into the sheet it opened). The walk starts once the sheet's cursor stands.
+    await pressUntilGone(page, 'Enter', '.con-quick', {tries: 3, settleMs: 1900});
+    await page.locator('.con-stdp__card--focused').first().waitFor({timeout: 30_000});
     const focusedProject = () =>
       page.locator('.con-stdp__card--focused .con-stdp__name').innerText().catch(() => '');
     const walk = ['ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft',
       'ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowDown'];
+    // Every hop waits for ITS move (the focused name changing) before the next one — a name read a beat late took
+    // one more press than the walk needed, off «Город».
     for (let i = 0; i <= walk.length && !/город/i.test(await focusedProject()); i++) {
-      await key(page, walk[i % walk.length], 430);
+      await hop(page, walk[i % walk.length], focusedProject, 430);
     }
-    expect(await focusedProject(), 'never focused «Город»').toMatch(/город/i);
+    await expect.poll(() => focusedProject(), {message: 'never focused «Город»'}).toMatch(/город/i);
     await key(page, 'Enter', 2000);
-    if (/ОПЛАТА/.test(await page.locator('.con-root').innerText())) {
-      await key(page, 'KeyX', 2800);
+    // The project either goes straight to the board or stops at its payment («ОПЛАТА») first — wait for whichever
+    // answers, never read the screen once a beat after the press.
+    const paying = async () => /ОПЛАТА/.test(await page.locator('.con-root').innerText().catch(() => ''));
+    await expect.poll(async () => await placementLive(page) || await paying(),
+      {timeout: 30_000, message: 'the city project neither asked for its payment nor reached the board'}).toBe(true);
+    if (!(await placementLive(page)) && await paying()) {
+      await pressUntil(page, 'KeyX', async () => await placementLive(page) || !(await paying()), {tries: 3, settleMs: 2800});
     }
-    for (let i = 0; i < 10 && !(await placementLive(page)); i++) {
-      await pump(page);
-      await page.waitForTimeout(700);
-    }
-    expect(await placementLive(page), 'the city project never reached the board').toBeTruthy();
+    await expect.poll(() => placementLive(page), {timeout: 30_000, message: 'the city project never reached the board'}).toBe(true);
 
     const plain = await walkUntil(page, (text, cell) =>
       cell.legal && !text.includes('Снизить производство'));
     expect(plain, 'no plain legal cell surfaced').not.toBe('');
-    await page.waitForTimeout(800);
+    await settle(page);
     await pump(page);
     await shoot(page, '05-city-plain-cell');
     await expectFits(page, 'a plain city cell');
@@ -355,7 +429,7 @@ test.describe('console placement dossier · 4K TV', () => {
     const taxed = await walkUntil(page, (text, cell) =>
       cell.legal && text.includes('Снизить производство'));
     expect(taxed, 'no hazard-adjacent cell surfaced a production penalty').not.toBe('');
-    await page.waitForTimeout(800);
+    await settle(page);
     await pump(page);
     await shoot(page, '06-city-hazard-penalty');
     await expectFits(page, 'a hazard-taxed city cell');
@@ -377,18 +451,14 @@ test.describe('console placement dossier · 4K TV', () => {
       cards: ['Natural Preserve:ares'],
       query: '&consoleProfile=tv',
     });
-    await page.waitForTimeout(1200);
+    await settle(page);
 
     expect(await playCardFromHand(page, 'Natural Preserve:ares'), 'never played the card').toBeTruthy();
-    for (let i = 0; i < 14 && !(await placementLive(page)); i++) {
-      await pump(page);
-      await page.waitForTimeout(800);
-    }
-    for (let i = 0; i < 3 && !(await placementLive(page)); i++) {
-      await press(page, 'Enter', 1500);
-      await pump(page);
-    }
-    expect(await placementLive(page), 'the tile never reached the board').toBeTruthy();
+    // The play's own landing scene runs before the board takes over — wait for the board's placement itself; only a
+    // composer still standing after that (a leftover confirm) is answered with A, each A verified by the placement.
+    await awaitPlacement(page, 11_200);
+    await pressUntil(page, 'Enter', () => placementLive(page), {tries: 3, settleMs: 1500});
+    await expect.poll(() => placementLive(page), {message: 'the tile never reached the board'}).toBe(true);
     // The sweep HOMES first, so a tiny budget no longer means «a few steps
     // from wherever the placement seeded the cursor» — it means «a few steps
     // from the corner», which reaches no legal cell at all. Let the sweep run:
@@ -404,7 +474,7 @@ test.describe('console placement dossier · 4K TV', () => {
     // this (unseeded, see `aresConfig`) board shows it, THAT is the finding.
     expect(await walkUntil(page, (text, cell) => cell.legal && /ПРИ РАЗМЕЩЕНИИ РЯДОМ/i.test(text)),
       "no legal cell showed the tile's own adjacency mechanic").not.toBe('');
-    await page.waitForTimeout(900);
+    await settle(page);
     await pump(page);
     await shoot(page, '07-natural-preserve-adjacency');
 
@@ -417,15 +487,16 @@ test.describe('console placement dossier · 4K TV', () => {
 
     // ② The trigger → outcome sentence is COMPLETE — nothing clipped. A
     //    text assertion cannot prove visibility (innerText survives a clamp),
-    //    so measure the note's own box: a clamped element overflows itself.
-    const clip = await page.evaluate(() => {
+    //    so measure the note's own box: a clamped element overflows itself —
+    //    at rest (a box read while a value swaps in is the frame's, not the row's).
+    const clip = await readSettled(page, () => page.evaluate(() => {
       const notes = Array.from(document.querySelectorAll(
         '.con-context__sec--tile .con-dossier-row__note, .con-context__sec--tile .con-dossier-row__title'));
       return notes.map((el) => ({
         text: (el.textContent ?? '').slice(0, 40),
         overflow: el.scrollHeight - el.clientHeight,
       }));
-    });
+    }), {message: 'the trigger rows\' boxes'});
     expect(clip.length, 'the trigger row renders its sentence').toBeGreaterThan(0);
     for (const c of clip) {
       expect(c.overflow, `«${c.text}…» is clipped by ${c.overflow}px`).toBeLessThanOrEqual(2);
@@ -453,20 +524,14 @@ test.describe('console placement dossier · 4K TV', () => {
       cards: ['Restricted Area'],
       query: '&consoleProfile=tv',
     });
-    await page.waitForTimeout(1200);
+    await settle(page);
 
     expect(await playCardFromHand(page, 'Restricted Area'), 'never played the card').toBeTruthy();
-    // The play's own landing scene runs before the board takes over.
-    for (let i = 0; i < 12 && !(await placementLive(page)); i++) {
-      await pump(page);
-      await page.waitForTimeout(900);
-    }
-    // A composer still standing (a leftover confirm) yields to A.
-    for (let i = 0; i < 3 && !(await placementLive(page)); i++) {
-      await press(page, 'Enter', 1500);
-      await pump(page);
-    }
-    expect(await placementLive(page), 'the special tile never reached the board').toBeTruthy();
+    // The play's own landing scene runs before the board takes over — wait for the board's placement itself.
+    await awaitPlacement(page, 10_800);
+    // A composer still standing (a leftover confirm) yields to A — each A verified by the placement.
+    await pressUntil(page, 'Enter', () => placementLive(page), {tries: 3, settleMs: 1500});
+    await expect.poll(() => placementLive(page), {message: 'the special tile never reached the board'}).toBe(true);
     expect(await walkUntil(page, (_text, cell) => cell.legal, {budget: 24, home: false}),
       'no legal cell surfaced for the special tile').not.toBe('');
     // ⚠️ LET THE PLANET SETTLE BEFORE SHOOTING. Planet focus zooms the board
@@ -474,11 +539,13 @@ test.describe('console placement dossier · 4K TV', () => {
     // compositor — on a quiet screen the zoom simply stops half-way, and the
     // screenshot then shows a planet that is neither the old size nor the new
     // one (it read as a geometry regression until a second run disproved it).
-    // Pumping frames is what finishes it.
-    for (let i = 0; i < 8; i++) {
+    // Pumping frames is what finishes it — and the planet's own box, read at
+    // rest (the same box twice, a frame apart, a frame pumped per read), says
+    // when it has.
+    await readSettled(page, async () => {
       await pump(page);
-      await page.waitForTimeout(220);
-    }
+      return planetBox(page);
+    }, {message: 'the planet at rest'});
     await shoot(page, '04-special-tile');
   });
 });

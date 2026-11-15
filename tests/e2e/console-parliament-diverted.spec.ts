@@ -212,7 +212,7 @@ for (const preset of PRESETS) {
       await expect(toast.locator('.con-notif__action--detail'), 'hold X → Осмотреть').toContainText(/Осмотреть/i);
       await cinematicBeat(page, 300, 'the toast finishes its entrance before the frame is taken');
       await shoot(page, preset.id, '05-law-toast');
-      expect(await toast.count(), 'the card still stands for the hold (its lifetime outlives the frame)').toBe(1);
+      await expect.poll(() => toast.count(), {message: 'the card still stands for the hold (its lifetime outlives the frame)'}).toBe(1);
       await page.keyboard.down('KeyX');
       await cinematicBeat(page, 900, 'the X-hold fills past NOTIF_HOLD_MS (500 ms)');
       await page.keyboard.up('KeyX');
