@@ -24,6 +24,7 @@
 import {Phase} from '../../common/Phase';
 import {GameId} from '../../common/Types';
 import {IGame} from '../IGame';
+import {BotTurnScheduler} from '../automa/BotTurnScheduler';
 import {reportServerError} from '../diagnostics/serverDiagnostics';
 
 /** A table is called dead only when two looks this far apart both found it so. */
@@ -39,12 +40,18 @@ export type TableLook =
   /** Confirmed dead and said; nothing put a question back. */
   | 'dead';
 
-/** IS NOBODY ASKED, WITH NOTHING ON ITS WAY? Pure: a reading of the game as it stands between two requests. */
-export function tableStandsDead(game: IGame): boolean {
+/**
+ * IS NOBODY ASKED, WITH NOTHING ON ITS WAY? A reading of the game as it stands between two requests.
+ *
+ * «On its way» is the bot's pending turn WITH the scheduler's session behind it (`BotTurnScheduler.turnOnItsWay`) —
+ * the pending marker alone is a field of the game and proves nothing: it outlives a lost timer, a resolve that never
+ * came back, a save loaded by a process whose scheduler is not running.
+ */
+export function tableStandsDead(game: IGame, botOnItsWay: boolean = BotTurnScheduler.getInstance().turnOnItsWay(game.id)): boolean {
   if (game.phase === Phase.END) {
     return false;
   }
-  if (game.automa?.pendingTurn === true) {
+  if (game.automa?.pendingTurn === true && botOnItsWay) {
     return false;
   }
   return game.players.every((player) => player.getWaitingFor() === undefined);
@@ -53,7 +60,7 @@ export function tableStandsDead(game: IGame): boolean {
 /** What stood, for the report — no id of the game or of a seat: the report leaves the device. */
 function describe(game: IGame): string {
   const active = game.activePlayer;
-  return `nobody is asked and no bot turn is pending — phase ${game.phase}, generation ${game.generation}, ` +
+  return `nobody is asked and no bot turn is on its way${game.automa?.pendingTurn === true ? ' (its pending marker stands, with no session behind it)' : ''} — phase ${game.phase}, generation ${game.generation}, ` +
     `active: ${active === undefined ? 'nobody' : active.isMarsBot ? 'MarsBot' : 'a player'}, deferred: ${game.deferredActions.length}`;
 }
 
@@ -86,6 +93,8 @@ export function lookAtTable(game: IGame, now: number = Date.now()): TableLook {
     return 'dead';
   }
   try {
+    // (A stale session of the scheduler — a resolve that never came back — must not resolve the turn a second time.)
+    BotTurnScheduler.getInstance().forget(game.id);
     game.resumeActionPhase();
     // The pages learn of it the way they learn of any move.
     game.gameAge++;

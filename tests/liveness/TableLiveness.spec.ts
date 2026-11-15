@@ -3,7 +3,7 @@ import {CardName} from '../../src/common/cards/CardName';
 import {Phase} from '../../src/common/Phase';
 import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
 import {IGame} from '../../src/server/IGame';
-import {BotTurnScheduler} from '../../src/server/automa/BotTurnScheduler';
+import {BOT_TURN_ON_ITS_WAY_MAX_MS, BotTurnScheduler} from '../../src/server/automa/BotTurnScheduler';
 import {ServerDiagSignal, setServerDiagnosticsSink} from '../../src/server/diagnostics/serverDiagnostics';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
@@ -46,13 +46,16 @@ describe('TableLiveness — a table that asks nobody', () => {
     actionPhase(game, human);
     expect(tableStandsDead(game)).eq(false);
     expect(lookAtTable(game, 0)).eq('alive');
-    // Nobody asked, the bot's pending marker standing — the scheduler's bounded idle before its turn.
+    // Nobody asked, the bot's turn PENDING with the scheduler's session behind it — its bounded idle before the turn.
     human.popWaitingFor();
     game.activePlayer = bot;
     game.automa!.pendingTurn = true;
-    expect(tableStandsDead(game)).eq(false);
+    expect(tableStandsDead(game, true)).eq(false);
+    // …the pending MARKER alone is no answer (a lost timer, a resolve that never came back)…
+    expect(tableStandsDead(game, false)).eq(true);
+    expect(tableStandsDead(game), 'no session of the scheduler stands behind it').eq(true);
     game.automa!.pendingTurn = false;
-    expect(tableStandsDead(game)).eq(true);
+    expect(tableStandsDead(game, true), '…and a session with no pending turn is no answer either').eq(true);
     game.phase = Phase.END;
     expect(tableStandsDead(game), 'the end asks nobody by right').eq(false);
     expect(said).has.length(0);
@@ -74,7 +77,7 @@ describe('TableLiveness — a table that asks nobody', () => {
 
     // Said — with what stood and no id of the game or of a seat…
     expect(said).has.length(1);
-    expect(said[0].text).to.match(/^\[server-error\] a dead table: Error: nobody is asked and no bot turn is pending — phase action, generation 1, active: MarsBot, deferred: 0/);
+    expect(said[0].text).to.match(/^\[server-error\] a dead table: Error: nobody is asked and no bot turn is on its way — phase action, generation 1, active: MarsBot, deferred: 0/);
     expect(said[0].text).not.to.contain(game.id);
     // …and the game went on: the human is asked their action again, the pages are told a move happened.
     expect(game.activePlayer.id).eq(human.id);
@@ -82,6 +85,44 @@ describe('TableLiveness — a table that asks nobody', () => {
     expect(game.gameAge).gt(age);
     expect(lookAtTable(game, 60_000)).eq('alive');
     expect(said).has.length(1);
+  });
+
+  it('a PENDING bot turn whose resolve never came back: «on its way» only within its bound — then the loader\'s road takes the turn', async () => {
+    const [game, human, bot] = testAutomaGame();
+    actionPhase(game, human);
+    const scheduler = BotTurnScheduler.getInstance();
+    let clock = 1_000;
+    scheduler.enableForTesting();
+    scheduler.configureForTesting({
+      now: () => clock,
+      setTimer: () => 0 as unknown as ReturnType<typeof setTimeout>,
+      connectedProvider: () => new Set(),
+      // The save cannot be loaded: the due resolve rejects — and the session is left standing.
+      gameProvider: () => Promise.reject(new Error('the save could not be read')),
+    });
+    human.popWaitingFor();
+    game.activePlayer = bot;
+    game.automa!.actionDeck = [];
+    scheduler.onBotTurnDue(game);
+    expect(game.automa!.pendingTurn).eq(true);
+    expect(scheduler.turnOnItsWay(game.id)).eq(true);
+    expect(lookAtTable(game, clock), 'a pending turn with its session is a live table').eq('alive');
+
+    await scheduler.fireDueForTesting(game.id).catch(() => undefined);
+    // Twenty-nine seconds on: still «on its way» by the bound — nobody is judged.
+    clock += BOT_TURN_ON_ITS_WAY_MAX_MS - 1_000;
+    expect(lookAtTable(game, clock)).eq('alive');
+    // Past the bound the marker is a claim nothing stands behind.
+    clock += 2_000;
+    expect(scheduler.turnOnItsWay(game.id)).eq(false);
+    expect(lookAtTable(game, clock)).eq('suspect');
+    clock += DEAD_TABLE_CONFIRM_MS;
+    expect(lookAtTable(game, clock)).eq('recovered');
+    expect(said.some((s) => /a dead table: Error: nobody is asked and no bot turn is on its way \(its pending marker stands, with no session behind it\)/.test(s.text))).eq(true);
+    // The loader's road took the pending turn (an empty deck: the bot passed) and the game went on to a seat that is asked.
+    expect(game.automa!.pendingTurn).eq(false);
+    expect(game.players.some((p) => p.getWaitingFor() !== undefined)).eq(true);
+    expect(scheduler.hasSessionForTesting(game.id), 'the stale session is gone — it can not take the turn again').eq(false);
   });
 
   it('a HUMAN active with no question (the action phase) is asked their action again', () => {

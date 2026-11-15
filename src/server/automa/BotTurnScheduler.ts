@@ -62,6 +62,14 @@ export const BOT_TURN_MAX_EXTENSIONS_MULTI = 6;
  */
 export const UNACKED_MAX_AGE_MS = 10_000;
 
+/**
+ * A pending bot turn is «on its way» for this long after its session began — far above the longest lawful pacing
+ * (the initial idle and every extension: a few seconds) and the save's load. Past it the pending marker is a claim
+ * nothing stands behind (a resolve that never came back, a timer that was lost): the table's liveness judge
+ * (`liveness/TableLiveness.ts`) no longer takes it for an answer.
+ */
+export const BOT_TURN_ON_ITS_WAY_MAX_MS = 30_000;
+
 type TimerHandle = ReturnType<typeof setTimeout>;
 type SetTimer = (cb: () => void, ms: number) => TimerHandle;
 type ClearTimer = (handle: TimerHandle) => void;
@@ -86,6 +94,8 @@ interface PendingSession {
   readonly gameId: GameId;
   /** Unique per pending window — the idempotency / staleness guard. */
   readonly token: number;
+  /** When the pending window began (the scheduler's clock) — `turnOnItsWay` reads it. */
+  readonly startedAt: number;
   extensions: number;
   timer: TimerHandle | undefined;
 }
@@ -209,7 +219,7 @@ export class BotTurnScheduler {
   private startSession(gameId: GameId): void {
     this.cancel(gameId);
     const token = ++this.tokenSeq;
-    const session: PendingSession = {gameId, token, extensions: 0, timer: undefined};
+    const session: PendingSession = {gameId, token, startedAt: this.now(), extensions: 0, timer: undefined};
     this.sessions.set(gameId, session);
     session.timer = this.setTimer(() => this.onDue(gameId, token), BOT_TURN_INITIAL_DELAY_MS);
   }
@@ -228,7 +238,23 @@ export class BotTurnScheduler {
       return; // superseded by a newer turn, or cancelled
     }
     session.timer = undefined;
-    void this.resolveDue(gameId, token);
+    // (A resolve that REJECTS — the save could not be loaded — used to be an unhandled rejection with the session left
+    // standing and the pending marker with it: a turn «on its way» for ever. It is said; the session stays for the
+    // table's liveness judge to outlast — `turnOnItsWay`.)
+    this.resolveDue(gameId, token).catch((err) => {
+      console.error(`BotTurnScheduler: the due bot turn of game ${gameId} could not be resolved`, err);
+      reportServerError('resolving a due MarsBot turn', err);
+    });
+  }
+
+  /**
+   * IS THE BOT'S PENDING TURN REALLY ON ITS WAY? A session of this scheduler stands for the game and is younger than
+   * `BOT_TURN_ON_ITS_WAY_MAX_MS`. The pending MARKER alone proves nothing: it is a field of the game, and outlives a
+   * lost timer, a resolve that never came back, a scheduler that is not running.
+   */
+  public turnOnItsWay(gameId: GameId): boolean {
+    const session = this.sessions.get(gameId);
+    return session !== undefined && this.now() - session.startedAt < BOT_TURN_ON_ITS_WAY_MAX_MS;
   }
 
   private async resolveDue(gameId: GameId, token: number): Promise<void> {
