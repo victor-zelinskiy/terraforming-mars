@@ -264,7 +264,7 @@ inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many inst
   plugin-vue reads `vapor` off the descriptor itself. The unit bundle compiles every component as the product ships it
   — the template INLINE (S3; guard `tests/client/vapor/sfcCompileParity.spec.ts`), where the webpack unit bundle had
   compiled it separately. Measured on the production build of the V4 client: build 265 s → ~50 s, `vendors.js` −36 %
-  (the runtime-only Vue), the main menu's cold load 977 → ~600 ms (`stack.md` § 3).
+  (the runtime-only Vue), the main menu's cold load −15 % (441 → ~370 ms, `stack.md` § 3).
 
 ### 3.8 The protocol of the NEXT bump (a new RC · 3.6 final)
 1. `node scripts/vapor/reactivity-facts.cjs <old node_modules>` and `<new>` → diff. What it prints differently is

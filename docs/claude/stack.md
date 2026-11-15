@@ -18,7 +18,7 @@ what is left. What the other sessions do after the move: `stack-migration-notice
 | M7 dependencies cleaned / updated | done — § 4 |
 | M8 CI / release / Docker | done in the files (one action version each, `.nvmrc`, Vite in the release, `ts7-preview`); the verdict is the owner's CI run — Docker cannot be built on this laptop (no daemon) |
 | M9 TS 7.1 non-blocking check | done — `scripts/stack/ts7-check.mjs` + CI `ts7-preview` |
-| M10 docs, notice, acceptance on the laptop | — |
+| M10 docs, notice, acceptance on the laptop | done — `npm ci` + both builds on a clean clone; lint · typecheck · build:test · test:server (23 062) · test:client (9 953) · test:bottle green; the packed app over `app://` (host mode, a game started, 0 console errors); the dev server with HMR; the diagnostics probe (page · main · server arrived); 53 e2e on the laptop (see the move's report) |
 
 ## 1. Decision journal
 
@@ -76,7 +76,9 @@ bundle reuses) · `scripts/build-node.mts` (the four Node lanes) · `scripts/cli
 
 Method: `docs/claude/diagnostics.md` § 9.1 — the baseline is the commit the work stands on (`9539df61b8`), built the old
 way on this laptop; the new build is measured on the same machine. Cold load: `node scripts/stack/cold-load.mjs` (a
-fresh Chromium context per run, `/` → the main menu, median of 9).
+fresh Chromium context per run, `/` → the main menu, median of 9), the two clients measured ALTERNATELY, twice each,
+behind the SAME server bundle (the baseline's own tsc server no longer runs: its packages left) — an earlier pair on a
+busy laptop read 433 / 977 ms against 260–320 / 585–690 ms, the same direction.
 
 | | webpack (`9539df61b8`) | Vite |
 | --- | --- | --- |
@@ -86,12 +88,12 @@ fresh Chromium context per run, `/` → the main menu, median of 9).
 | `npm run build:desktop` (static + desktop client + the three Node lanes + the start check) | ~6 min (webpack 279 s + 40 s + 2 s + `tsc`) | 58 s |
 | embedded server bundle · hub · Electron main | 40 s · 2 s · `tsc` | 2.4 s for the three |
 | server build | `tsc --build` + `tsc-alias` | 2 s (bundle) — the type check is `npm run typecheck` |
-| `main.js` | 3 019 115 B · 517 575 B br | 2 870 129 B · 503 791 B br (−5 % / −3 %) |
-| `vendors.js` | 541 503 B · 165 134 B br | 346 058 B · 105 778 B br (−36 %) |
-| lazy chunks | 37 files · 5 317 466 B · 1 107 600 B br | 58 files · 4 604 761 B · 1 071 766 B br |
-| cold load — boot mark (`app:bootstrap:start`) | 433 ms | 260–320 ms |
-| cold load — the main menu laid out | 977 ms | 585–690 ms |
-| cold load — script bytes fetched | 825 798 B | 694 816 B |
+| `main.js` | 3 019 115 B · 517 575 B br | 2 869 873 B · 503 472 B br (−5 % / −3 %) |
+| `vendors.js` | 541 503 B · 165 134 B br | 334 552 B · 102 779 B br (−38 %) |
+| lazy chunks | 37 files · 5 317 466 B · 1 107 600 B br | 58 files · 4 605 599 B · 1 070 645 B br |
+| cold load — boot mark (`app:bootstrap:start`) | 202–204 ms | 164–173 ms (−17 %) |
+| cold load — the main menu laid out | 440–442 ms | 363–376 ms (−15 %) |
+| cold load — script bytes fetched (br) | 825 798 B | 691 542 B (−16 %) |
 | unit run (`test:client`, 9951 → 9953 tests) | 438 s (bundle 122 s) | 223–351 s (bundle 25–41 s) |
 | server suite (`test:server`, 23 058 tests) | — (not re-measured) | 426–473 s |
 | type checks | inside `build:server` (`tsc --build`) + `lint:client` | `typecheck` 18–30 s · `lint:client` 82–98 s · `build:test` 113–140 s |
