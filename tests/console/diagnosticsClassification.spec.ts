@@ -25,6 +25,8 @@ const TREES = ['src/client', 'electron'];
 /** file → the tags its indirect sites print ([] = they print an untagged value: an error object, a server's status text). */
 const INDIRECT: Readonly<Record<string, ReadonlyArray<string>>> = {
   'src/client/components/App.vue': [],
+  // `console.error(err)` — the error a failed fetch / apply of the view threw, as it is.
+  'src/client/components/viewFailure.ts': [],
   'src/client/components/auth/LoginHome.vue': [],
   'src/client/components/LoadGameForm.vue': [],
   'src/client/components/drawnCards/drawnCardsState.ts': [],

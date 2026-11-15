@@ -28,9 +28,10 @@ import {captureDiagEvidence, withDiagEvidence} from '@/client/diagnostics/diagno
 
 /**
  * Who may ask: the arbiter past its last rung · the witness of the arbiter's own pulse, outside the shell
- * (`supervisorPulse.ts` — a game screen whose supervisor completes no pass has nobody else to ask).
+ * (`supervisorPulse.ts` — a game screen whose supervisor completes no pass has nobody else to ask) · the view's road,
+ * for a fetched view that THREW while it was applied (`App.viewFailed` — the page may hold half of it).
  */
-export type RebuildAsker = 'liveness' | 'pulse';
+export type RebuildAsker = 'liveness' | 'pulse' | 'view';
 
 export type RebuildAsk = {
   by: RebuildAsker;

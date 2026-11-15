@@ -39,7 +39,7 @@ import raw_settings from '@/genfiles/settings.json';
 import {onRealtimeWake} from '@/client/components/realtime/realtimeSync';
 import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import {midPromptRefreshEnabled, serverAheadOfView, viewLagIsALie, viewLagOf} from '@/client/components/realtime/viewFreshness';
-import {deferredViewRefreshArmed} from '@/client/components/deferredViewRefresh';
+import {deferredViewRefreshArmed, noteViewCommitted} from '@/client/components/deferredViewRefresh';
 import {registerTruthWitness} from '@/client/console/presentationLedger';
 import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
 import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
@@ -198,6 +198,8 @@ const SERVER_NOT_RESPONDING = 'The server has not answered your move for a minut
  * the only bound on a half-dead link.
  */
 const POLL_XHR_TIMEOUT_MS = 15_000;
+/** …and past its timeout by this much with NO terminal event at all, the chain asks again by itself (see `askForUpdate`). */
+const POLL_ANSWER_SLACK_MS = 5_000;
 
 // The spinning ◑◒◐◓ symbol used to indicate it's your turn.
 const TURN_SEQUENCE = '◑◒◐◓';
@@ -382,6 +384,12 @@ let animationFrame = 0;
  * re-arm is likewise suppressed.
  */
 let pollStopped = true;
+/**
+ * THE SERVER'S WORD THE VIEW HAS NOT HEARD (`viewDelivery.ts`): the poll said «you are being waited on» while the
+ * applied view asked nothing — since when, and of which view. Spent by the view that replaces that one, by a question
+ * arriving in it, by the player's own submit (the next poll says it again if it still holds).
+ */
+let askedBeyondView: {since: number, view: unknown} | undefined;
 let onVisibilityChange: (() => void) | undefined;
 let realtimeWakeOff: (() => void) | undefined;
 let freshnessWitnessOff: (() => void) | undefined;
@@ -535,8 +543,34 @@ export function startGameTransport(transportRoot: TransportRoot): void {
   });
 }
 
+function noteServerWord(go: boolean): void {
+  const view = root?.playerView;
+  if (!go || view === undefined || currentWaitingFor() !== undefined || root?.isServerSideRequestInProgress === true) {
+    askedBeyondView = undefined;
+    return;
+  }
+  if (askedBeyondView === undefined || askedBeyondView.view !== view) {
+    askedBeyondView = {since: Date.now(), view};
+  }
+}
+
+/**
+ * Since when the SERVER asks this player while the applied view asks nothing (0 = no such debt) — the arbiter's
+ * delivery judge reads it once a second (`supervisorController.checkLiveness`).
+ */
+export function undeliveredQuestionSince(): number {
+  if (askedBeyondView === undefined || pollStopped || root === undefined) {
+    return 0;
+  }
+  if (root.playerView !== askedBeyondView.view || currentWaitingFor() !== undefined || root.isServerSideRequestInProgress === true) {
+    return 0;
+  }
+  return askedBeyondView.since;
+}
+
 /** Stop the transport (leaving the game screen / END). Detaches everything. */
 export function stopGameTransport(): void {
+  askedBeyondView = undefined;
   if (freshnessWitnessOff !== undefined) {
     freshnessWitnessOff();
     freshnessWitnessOff = undefined;
@@ -1625,6 +1659,8 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
   const request = typeof AbortController === 'function' ? new AbortController() : undefined;
   const submit: LiveSubmit = {scope, flow, gates: new Set()};
   liveSubmit.value = submit;
+  // (The player answered: whatever the poll last said of an undelivered question is spent — it says it again if so.)
+  askedBeyondView = undefined;
   r.isServerSideRequestInProgress = true;
   transportState.requestInProgress = true;
   transportState.requestSince = Date.now();
@@ -1824,6 +1860,81 @@ function applyPlayerView(playerView: PlayerViewModel | undefined): void {
     // Bump the transient-UI reset epoch (the former remount trigger).
     r.playerkey++;
   }
+  // The page shows the server's truth as of this answer: a refresh still parked owes only what came after it.
+  noteViewCommitted();
+}
+
+/**
+ * ONE ANSWER OF THE POLL, TAKEN — the server's word of who is waited on, and what the page does with it. Apart from
+ * the chain that asked: a throw in here (a malformed answer, a refresh that could not start) is the answer's failure,
+ * never the chain's — `waitForUpdate` says it and goes on.
+ */
+function takePollAnswer(result: WaitingForModel | null): void {
+  const r = theRoot();
+  if (result === null || typeof result !== 'object' || !Array.isArray(result.waitingFor)) {
+    throw new Error('not a waiting-for model');
+  }
+  // THE SERVER'S WORD, KEPT APART FROM THE VIEW (`viewDelivery.ts`): «you are being waited on».
+  noteServerWord(result.result === 'GO');
+  // Bubble the live "who's currently being waited on" list to the
+  // root so siblings (status strip pills, cubes) can react to it
+  // without doing a full playerView refresh.
+  transportState.playersWaitingFor = result.waitingFor;
+  r.playersWaitingFor = result.waitingFor;
+
+  // While the viewer is mid-prompt a full refresh would reset their
+  // partial input state (selected cards, etc.). Skip it — the bubbled
+  // list above is enough to keep other players' status in sync.
+  //
+  // EXCEPTION: an OPTIONAL prompt (draft re-pick, upstream #8151) is
+  // NOT real mid-input — this fork suppresses its UI and shows the
+  // waiting view, so there is no partial input to protect. It MUST
+  // count as "no prompt" here, otherwise when the server clears the
+  // optional re-pick and hands the viewer their next REQUIRED prompt
+  // (the next draft set), the 'GO' below is skipped and the player is
+  // stuck on the waiting view forever — a draft deadlock.
+  const wf = currentWaitingFor();
+  const viewerHasPrompt = wf !== undefined && wf.optional !== true;
+  /*
+   * MID-PROMPT REFRESH (mechanism A of presentation-reconciliation).
+   * Historically a GO/REFRESH landing while the viewer held a prompt
+   * was DROPPED — so for as long as a player aimed a tile placement,
+   * no remote change reached them at all (another player's tile stayed
+   * invisible, the scales stale), the WS wake was consumed for
+   * nothing, and the world arrived up to LONG_POLL_MS late. Now the
+   * refresh APPLIES: `App.update`'s prompt-preserving epoch rule keeps
+   * partial input alive when the fetched view carries the SAME
+   * `promptId` (the ordinary case — the viewer's prompt object stood
+   * untouched on the server), and a CHANGED promptId applies with the
+   * ordinary reset epoch, which is exactly what the STALE_PROMPT
+   * healing would have done one failed submit later.
+   *
+   * Guards: only on a real change (the server's own `changed` cursor
+   * bit — GO answers on every poll, so without it this would re-fetch
+   * once per interval), never while this client's own submit is in
+   * flight (the response's cinematic diffs must see the view they were
+   * armed against), and behind the `?midpromptrefresh=0` kill switch.
+   */
+  const midPromptRefresh = viewerHasPrompt &&
+    midPromptRefreshEnabled() &&
+    !r.isServerSideRequestInProgress &&
+    (result.changed === true || serverAheadOfView(currentView().game));
+
+  if (result.result === 'GO') {
+    if (!viewerHasPrompt) {
+      // Their prompt just appeared — fetch the new view.
+      r.updatePlayer();
+      notifyTurn();
+    } else if (midPromptRefresh) {
+      r.updatePlayer();
+    }
+  } else if (result.result === 'REFRESH') {
+    if (!viewerHasPrompt || midPromptRefresh) {
+      // Game advanced — refresh. Off-prompt this is the historical
+      // path; mid-prompt it rides the prompt-preserving apply.
+      r.updatePlayer();
+    }
+  }
 }
 
 /**
@@ -1882,85 +1993,53 @@ export function waitForUpdate(immediate = false): void {
       waitForUpdate(true);
     };
     xhr.onerror = function() {
+      // (The alert owns the chain from here — a wait on the player, in plain view; its dismissal re-arms.)
+      disarmPoll();
+      disarmPoll = () => {};
       r.showAlert('Error fetching state', CANNOT_CONTACT_SERVER, () => waitForUpdate());
     };
     xhr.onload = () => {
       if (pollStopped || root === undefined) {
         return;
       }
-      if (xhr.status === statusCode.ok) {
-        const result = xhr.response as WaitingForModel;
-        // Bubble the live "who's currently being waited on" list to the
-        // root so siblings (status strip pills, cubes) can react to it
-        // without doing a full playerView refresh.
-        transportState.playersWaitingFor = result.waitingFor;
-        r.playersWaitingFor = result.waitingFor;
-
-        // While the viewer is mid-prompt a full refresh would reset their
-        // partial input state (selected cards, etc.). Skip it — the bubbled
-        // list above is enough to keep other players' status in sync.
-        //
-        // EXCEPTION: an OPTIONAL prompt (draft re-pick, upstream #8151) is
-        // NOT real mid-input — this fork suppresses its UI and shows the
-        // waiting view, so there is no partial input to protect. It MUST
-        // count as "no prompt" here, otherwise when the server clears the
-        // optional re-pick and hands the viewer their next REQUIRED prompt
-        // (the next draft set), the 'GO' below is skipped and the player is
-        // stuck on the waiting view forever — a draft deadlock.
-        const wf = currentWaitingFor();
-        const viewerHasPrompt = wf !== undefined && wf.optional !== true;
-        /*
-         * MID-PROMPT REFRESH (mechanism A of presentation-reconciliation).
-         * Historically a GO/REFRESH landing while the viewer held a prompt
-         * was DROPPED — so for as long as a player aimed a tile placement,
-         * no remote change reached them at all (another player's tile stayed
-         * invisible, the scales stale), the WS wake was consumed for
-         * nothing, and the world arrived up to LONG_POLL_MS late. Now the
-         * refresh APPLIES: `App.update`'s prompt-preserving epoch rule keeps
-         * partial input alive when the fetched view carries the SAME
-         * `promptId` (the ordinary case — the viewer's prompt object stood
-         * untouched on the server), and a CHANGED promptId applies with the
-         * ordinary reset epoch, which is exactly what the STALE_PROMPT
-         * healing would have done one failed submit later.
-         *
-         * Guards: only on a real change (the server's own `changed` cursor
-         * bit — GO answers on every poll, so without it this would re-fetch
-         * once per interval), never while this client's own submit is in
-         * flight (the response's cinematic diffs must see the view they were
-         * armed against), and behind the `?midpromptrefresh=0` kill switch.
-         */
-        const midPromptRefresh = viewerHasPrompt &&
-          midPromptRefreshEnabled() &&
-          !r.isServerSideRequestInProgress &&
-          (result.changed === true || serverAheadOfView(currentView().game));
-
-        if (result.result === 'GO') {
-          if (!viewerHasPrompt) {
-            // Their prompt just appeared — fetch the new view.
-            r.updatePlayer();
-            notifyTurn();
-          } else if (midPromptRefresh) {
-            r.updatePlayer();
-          }
-        } else if (result.result === 'REFRESH') {
-          if (!viewerHasPrompt || midPromptRefresh) {
-            // Game advanced — refresh. Off-prompt this is the historical
-            // path; mid-prompt it rides the prompt-preserving apply.
-            r.updatePlayer();
-          }
-        }
-        /*
-         * ALWAYS keep polling — whichever path `updatePlayer` takes, this
-         * chain stays the one live poller (a re-arm clears the pending
-         * timer, so only one chain runs at a time).
-         */
-        waitForUpdate();
-      } else {
+      if (xhr.status !== statusCode.ok) {
+        // (The alert owns the chain from here — a wait on the player, in plain view; its dismissal re-arms.)
+        disarmPoll();
+        disarmPoll = () => {};
         r.showAlert('Error with input', `Received unexpected response from server (${xhr.status}). This is often due to the server restarting.`, () => waitForUpdate());
+        return;
       }
+      try {
+        takePollAnswer(xhr.response as WaitingForModel | null);
+      } catch (err) {
+        // THE CHAIN OUTLIVES ITS ANSWER: the re-arm below used to be the LAST statement of this handler — any throw
+        // above it (a body that is not a model, a refresh that threw) ended the chain for good, in silence.
+        console.warn(`[transport] the poll's answer could not be taken — ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)} — the chain goes on`);
+        console.error(err);
+      }
+      // ALWAYS keep polling — whichever path `updatePlayer` took, this chain stays the one live poller (a re-arm
+      // clears the pending timer, so only one chain runs at a time).
+      waitForUpdate();
     };
     xhr.responseType = 'json';
     xhr.send();
+    // THE CHAIN CANNOT DIE WITH ITS REQUEST. Its liveness used to ride the request's own terminal events — an answer
+    // taken to the end, an error's alert dismissed, the timeout — and nothing stood for «none of them came» (a
+    // request cut under it, a handler that never ran). The answer is a GUARANTEE of the transport's scope like the
+    // next look is: at every moment of a live chain exactly one of the two stands, so there is no state of it in
+    // which nothing will ever ask again.
+    disarmPoll = transportScope().guarantee(POLL_XHR_TIMEOUT_MS + POLL_ANSWER_SLACK_MS, 'the poll\'s answer', () => {
+      xhr.onload = null;
+      xhr.onerror = null;
+      xhr.ontimeout = null;
+      try {
+        xhr.abort();
+      } catch {
+        // A request that cannot even be cut is still a request nobody waits for any more.
+      }
+      console.warn('[transport] the poll never ended — no answer, no error, no timeout — asked again');
+      waitForUpdate(true);
+    });
   };
   if (immediate) {
     // Poll RIGHT NOW instead of after the interval. Used when the tab
@@ -1983,8 +2062,14 @@ function notifyTurn(): void {
     SoundManager.playActivePlayerSound();
   }
 
+  // A platform with no Notification API at all (an embedded web view) has no turn notification — and must not turn
+  // «it is your turn» into a throw inside the poll's answer (found by `gameTransportPoll.spec`: the bare identifier
+  // was a ReferenceError there, on the very answer that brings the player's question).
+  if (typeof Notification === 'undefined') {
+    return;
+  }
   if (Notification.permission !== 'granted') {
-    Notification.requestPermission();
+    void Promise.resolve(Notification.requestPermission()).catch(() => undefined);
   } else if (Notification.permission === 'granted') {
     const notificationOptions = {
       icon: 'favicon.ico',

@@ -258,4 +258,93 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     await bottle.advance(1_500);
     expect(document.querySelector('.con-mandatory'), 'B: the plate is back on the board').to.not.equal(null);
   });
+
+  /*
+   * THE VIEW THAT NEVER ARRIVED (1) — a scene flag that never releases (`deferred-refresh/overruled/<scene>`).
+   * Not walked into by a monkey: audited in the code (2026-11-15 — every one of the nine scene flags the root parks
+   * a view behind can stay raised: an end skipped by a throw, a recovery that threw before it lowered the flag). The
+   * poll brings the player's question, the root fetches the view, refuses to commit it over the «scene» and parks —
+   * and at the park's ceiling its own guard parked it AGAIN, for ever: the page stood on «the other seat's turn», a
+   * healthy accepting screen, while the server waited for this player. The law: a scene may hold the view only
+   * within a scene's own legal life (`deferredViewRefresh.VIEW_SCENE_HOLD_MAX_MS`) — past it the view is committed
+   * over the flag, the flag is named, and it holds the view no longer.
+   *
+   * (The flag is made to stay raised the way a recovery that throws leaves it: every write of `false` is refused.)
+   */
+  it('a scene flag that NEVER releases while the server asks: the view is committed over it at the bound — the question is served, nothing is rebuilt', async () => {
+    const table = await bottleServer().bootFixture('eden-alliance-enact-remote');
+    bottle = await bootBottle(table);
+    await bottle.advance(3_000);
+    const {tradeFleetState} = await import('@/client/console/colonyFleet/consoleTradeFleet');
+    const {toRaw} = await import('vue');
+    Object.defineProperty(toRaw(tradeFleetState), 'active', {configurable: true, get: () => true, set() {/* every write is refused */}});
+    try {
+      expect(tradeFleetState.active, 'the flag stands, and nothing lowers it').to.equal(true);
+      tradeFleetState.active = false;
+      expect(tradeFleetState.active).to.equal(true);
+
+      expect(await bottle.otherSeatMoves(1), 'the other seat passes — the server now asks THIS player').to.equal('pass');
+      // Twenty seconds in: the poll said so long ago, and the view is still parked behind the flag — as it lawfully may be.
+      await bottle.advance(20_000);
+      expect(bottle.view()?.waitingFor, 'the view is parked: the page still knows nothing of its question').to.equal(undefined);
+      expect(bottle.rebuildsAsked()).to.equal(0);
+
+      const served = await bottle.until(() => document.querySelectorAll('.con-mandatory').length > 0, 40_000);
+      expect(served, 'past a scene\'s legal life the view is committed over the flag: the sitting\'s plate stands').to.equal(true);
+      expect(bottle.view()?.waitingFor, 'the page holds the question').to.not.equal(undefined);
+      const overruled = bottle.journal().filter((entry) => entry.cause?.cls === 'deferred-refresh/overruled/trade-fleet');
+      expect(overruled.length, 'said once, by the scene\'s name').to.equal(1);
+      expect(bottle.rebuildsAsked(), 'the page was not rebuilt — the road cured itself').to.equal(0);
+      expect(classes().filter((cls) => cls.startsWith('liveness/') || cls.startsWith('session-rebuild/')), 'and the arbiter had nothing to judge').to.deep.equal([]);
+    } finally {
+      delete (toRaw(tradeFleetState) as {active?: boolean}).active;
+      toRaw(tradeFleetState).active = false;
+    }
+  });
+
+  /*
+   * THE VIEW THAT NEVER ARRIVED (2) — ASKED IS THE SERVER'S WORD (`liveness/stall/unserved/…/view:<holder>`).
+   * The arbiter read «the server asks» off the APPLIED view — so whatever kept a view from arriving left a healthy
+   * screen with nobody asked, and no judge. Here the cause is one no construction closes: the view's fetch never
+   * comes back (every attempt is cut at its bound and tried again by the poll). The poll's own word — GO, «you are
+   * being waited on» — is kept apart from the view (`gameTransport.undeliveredQuestionSince`); while somebody
+   * provably holds the debt (a fetch on the wire) it is in flight, within `VIEW_DELIVERY_BOUND_MS`; past it the
+   * arbiter judges an unserved question like any other — the ladder, and past it THE LAST LINE: the page is rebuilt
+   * from the server's view.
+   */
+  it('the server asks and the view never arrives: the arbiter judges the DELIVERY — the ladder, then the page is rebuilt', async () => {
+    const table = await bottleServer().bootFixture('eden-alliance-enact-remote');
+    bottle = await bootBottle(table);
+    await bottle.advance(3_000);
+    const host = globalThis as {fetch: typeof fetch};
+    const wire = host.fetch;
+    // The view's fetch leaves and never comes back (its bound cuts it; nothing else does).
+    host.fetch = ((url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if (!String(url).includes('api/player')) {
+        return wire(url, init);
+      }
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('The view\'s fetch was cut at its bound', 'AbortError')));
+      });
+    }) as typeof fetch;
+    try {
+      expect(await bottle.otherSeatMoves(1), 'the other seat passes — the server now asks THIS player').to.equal('pass');
+      // Half a minute: the debt has a holder (a fetch on the wire, again and again) — in flight, nobody is judged.
+      await bottle.advance(30_000);
+      expect(bottle.view()?.waitingFor, 'the page knows nothing of its question').to.equal(undefined);
+      expect(bottle.rebuildsAsked()).to.equal(0);
+      expect(classes().filter((cls) => cls.startsWith('liveness/')), 'inside the bound a held debt is no stall').to.deep.equal([]);
+
+      const rebuilt = await bottle.until(() => (bottle?.rebuildsAsked() ?? 0) > 0, 90_000);
+      expect(rebuilt, 'past the bound, the grace and the spent ladder: the last line').to.equal(true);
+      const stall = bottle.journal().find((entry) => entry.text.startsWith('[liveness] stall'));
+      expect(stall?.text, 'the stall names what was asked and who held it').to.match(/asked: undelivered; .*holder: view:(fetch|nobody);/);
+      // (The rebuild's own line is folded into the episode it ends — read off the page's console.)
+      const line = bottle.lines().find((text) => text.includes('[session-rebuild] page'));
+      expect(line, 'the rebuild is for the question the page was never given').to.match(/\(undelivered@\d+\) — by liveness:/);
+      expect(bottle.rebuildsAsked(), 'asked once').to.equal(1);
+    } finally {
+      host.fetch = wire;
+    }
+  });
 });

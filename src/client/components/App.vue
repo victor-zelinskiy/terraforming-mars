@@ -304,25 +304,20 @@ import HazardCleanupOverlay from '@/client/components/feedback/HazardCleanupOver
 import {
   detectEnergyConversion,
   endEnergyConversion,
-  isEnergyConversionActive,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
-import {isTradeFleetActive} from '@/client/console/colonyFleet/consoleTradeFleet';
-import {isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
-import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
-import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
-import {isCardDiscardActive} from '@/client/console/cardDiscard/consoleCardDiscard';
-import {isTilePlacementActive} from '@/client/console/tilePlacement/consoleTilePlacement';
-import {isNomadMoveActive, stageRemoteNomadMove} from '@/client/console/nomads/consoleNomadMove';
+import {stageRemoteNomadMove} from '@/client/console/nomads/consoleNomadMove';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
-import {armDeferredViewRefresh, disarmDeferredViewRefresh} from '@/client/components/deferredViewRefresh';
+import {armDeferredViewRefresh, disarmDeferredViewRefresh, scenesHoldingView} from '@/client/components/deferredViewRefresh';
+import {liveViewScenes} from '@/client/components/viewScenes';
+import {viewFailed} from '@/client/components/viewFailure';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
 import {watchSupervisorPulse} from '@/client/console/session/supervisorPulse';
+import {noteViewFetch} from '@/client/console/transport/viewDelivery';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
   endHazardCleanup,
-  isHazardCleanupActive,
   runHazardCleanup,
 } from '@/client/components/feedback/hazardCleanupTransition';
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
@@ -529,8 +524,8 @@ function showAlert(title: string, message: string, cb: () => void = () => {}): v
     buttonElement.addEventListener('click', handler);
     showModal(dialogElement);
   } else {
-    alert(message);
-    cb();
+    // (Never the browser's own `alert`: a blocking dialog no pad reaches — `nativeDialogGuard.spec`.)
+    showConsoleAlert(title, message, cb);
   }
 }
 function setVisibilityState(targetVar: string, isVisible: boolean) {
@@ -542,6 +537,12 @@ function setVisibilityState(targetVar: string, isVisible: boolean) {
 function getVisibilityState(targetVar: string): boolean {
   return componentsVisibility.value[targetVar] ? true : false;
 }
+/** The view's fetch is cut at this bound: a request that neither answers nor fails is a failure, said. */
+const VIEW_FETCH_TIMEOUT_MS = 15_000;
+
+/** The view's failure, said and ended (`viewFailure.ts` — never a native dialog). */
+const viewFailedHere = (phase: 'fetch' | 'apply', err: unknown) => viewFailed(phase, err, playerView.value as PlayerViewModel | undefined);
+
 function update(path: typeof paths.PLAYER): void {
   const currentPathname = getLastPathSegment();
 
@@ -551,7 +552,21 @@ function update(path: typeof paths.PLAYER): void {
   // fetch → json → commit → flush deltas off these to attribute a model
   // update's cost between network/server, parse, reactive apply and render.
   perfMark('ingest:fetch:start');
-  fetch(url)
+  // THE FETCH IS BOUNDED AND COUNTED (`console/transport/viewDelivery.ts`): a request that neither answers nor fails
+  // is cut at its bound, and the arbiter's delivery judge knows a view is on the wire while it is.
+  const cut = typeof AbortController === 'function' ? new AbortController() : undefined;
+  let phase: 'fetch' | 'apply' = 'fetch';
+  let onWire = true;
+  noteViewFetch(true);
+  const stopBound = consoleAppScope().after(VIEW_FETCH_TIMEOUT_MS, 'the view\'s fetch', () => cut?.abort());
+  const landed = (): void => {
+    if (onWire) {
+      onWire = false;
+      noteViewFetch(false);
+      stopBound();
+    }
+  };
+  fetch(url, cut === undefined ? undefined : {signal: cut.signal})
     .then((resp) => {
       if (!resp.ok) {
         throw new Error(`Error getting game data: ${resp.statusText}`);
@@ -560,6 +575,8 @@ function update(path: typeof paths.PLAYER): void {
       return resp.json();
     })
     .then((model: ViewModel) => {
+      landed();
+      phase = 'apply';
       perfMark('ingest:json:done');
       /*
        * Re-entrancy guard for live scene transitions: while one is
@@ -577,14 +594,9 @@ function update(path: typeof paths.PLAYER): void {
        * refusal parks a retry that re-runs `update()` the moment the
        * scenes release (bounded — see deferredViewRefresh.ts).
        */
-      // (The scenes are NAMED: a park that runs to its ceiling says which flag never released — `deferredViewRefresh.ts`.)
-      const scenes = (): Array<string> => [
-        isEnergyConversionActive() ? 'energy-conversion' : '', isHazardCleanupActive() ? 'hazard-cleanup' : '',
-        isTradeFleetActive() ? 'trade-fleet' : '', isHydroMarkerActive() ? 'hydro-marker' : '',
-        isPlayedHeroActive() ? 'played-hero' : '', isPatentSaleActive() ? 'patent-sale' : '',
-        isCardDiscardActive() ? 'card-discard' : '', isTilePlacementActive() ? 'tile-placement' : '',
-        isNomadMoveActive() ? 'nomad-move' : '',
-      ].filter((scene) => scene !== '');
+      // (The scenes are NAMED: a park that runs to its ceiling says which flag never released — and a flag that held
+      // the view for a scene's whole legal life holds it no longer: `deferredViewRefresh.scenesHoldingView`.)
+      const scenes = (): Array<string> => scenesHoldingView(liveViewScenes());
       const sceneBlocked = () => scenes().length > 0;
       if (sceneBlocked()) {
         armDeferredViewRefresh(sceneBlocked, () => update(path), () => scenes().join('+'));
@@ -839,10 +851,11 @@ function update(path: typeof paths.PLAYER): void {
       // through the deferred corporationPlay + hero landing.
       const conversionEvent = detectEnergyConversion(prevView, model as PlayerViewModel);
       if (conversionEvent !== undefined) {
-        runEnergyConversion(conversionEvent).then(() => {
-          commit();
-          nextTick(() => endEnergyConversion());
-        });
+        // (The scene's END never rides the commit: a commit that throws is the view's failure — said, cured by the
+        // last line — and the flag is lowered all the same.)
+        runEnergyConversion(conversionEvent).then(commit)
+          .catch((err) => viewFailedHere('apply', err))
+          .finally(() => nextTick(() => endEnergyConversion()));
         return;
       }
       /*
@@ -858,23 +871,16 @@ function update(path: typeof paths.PLAYER): void {
         runHazardCleanup(
           hazardCleanups,
           () => applyHazardTileSwap(prevView.game.spaces, model.game.spaces, hazardCleanups),
-        ).then(() => {
-          commit();
-          nextTick(() => endHazardCleanup());
-        });
+        ).then(commit)
+          .catch((err) => viewFailedHere('apply', err))
+          .finally(() => nextTick(() => endHazardCleanup()));
         return;
       }
       commit();
     })
     .catch((err) => {
-      // Under the loading curtain the failure becomes the premium
-      // error/retry state (P10) — never a bare browser alert there.
-      if (loadingScreenState.active) {
-        failLoading('Error getting game data');
-      } else {
-        alert('Error getting game data');
-      }
-      console.error(err);
+      landed();
+      viewFailedHere(phase, err);
     });
 }
 function updatePlayer() {
@@ -909,7 +915,8 @@ function applyRoute(): void {
         );
       })
       .catch((err) => {
-        alert('Error getting game data');
+        // The route's own boot fetch: its failure is the loading curtain's error state — never a native dialog.
+        failLoading('Error getting game data');
         console.error(err);
       });
   } else if (currentPathname === paths.GAMES_OVERVIEW) {

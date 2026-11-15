@@ -15,7 +15,11 @@ import {scopedState} from '@/client/console/session/scopedState';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
-import {transportDiagFacts, transportState} from '@/client/console/transport/gameTransport';
+import {transportDiagFacts, transportState, undeliveredQuestionSince} from '@/client/console/transport/gameTransport';
+import {lookAtViewDebt, ViewDebtLook, viewFetchOnWire} from '@/client/console/transport/viewDelivery';
+import {scenesHoldingView} from '@/client/components/deferredViewRefresh';
+import {liveViewScenes} from '@/client/components/viewScenes';
+import {botStagingState} from '@/client/components/marsbot/marsBotStagedCommits';
 import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
 import {activeAnimationHoldLabels, activeAnimationHoldWaits, AnimationHold, beginAnimationHold, blockingAnimationHoldCount, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
 import {isTransientBeat, resetBeatStall, transientSurfaceBeats, WORKSPACE_BEAT_STALL_MS} from '@/client/console/workspaceBeatStall';
@@ -390,10 +394,11 @@ export function createSupervisorController(shell: SupervisorPort) {
   }
 
   /** WHO HOLDS THE QUESTION — the facts the holder's word is named from (`stallHolder`), every one already sampled here. */
-  function holderFacts(beat: string | undefined, deaf: boolean): StallHolderFacts {
+  function holderFacts(beat: string | undefined, deaf: boolean, view: string): StallHolderFacts {
     const dead = deadLiveFrames();
     const blocking = activeAnimationHoldWaits().filter((h) => h.scope === 'blocking').sort((a, b) => a.since - b.since)[0];
     return {
+      view,
       stranded: leakDetectorState.stranded !== undefined,
       claim: workspaceOutcomeClaimed() ? `${workspaceOutcomeState.host ?? ''}:${workspaceOutcomeState.stage}` : '',
       deadFrame: dead.length > 0 && handoffPendingEntries.size === 0 && !shell.parliamentLeaving ? dead[0] : '',
@@ -417,14 +422,15 @@ export function createSupervisorController(shell: SupervisorPort) {
     const task = taskFor(shell.playerView);
     const expected = task === undefined ? [] : expectedScreenOwners(task);
     const serving = task === undefined ? undefined : frameServing(task.kind);
-    const question = wf === undefined ? 'nothing asked' :
+    const debt = viewDebtNow();
+    const question = wf === undefined ? (debt.undelivered ? `the SERVER asks — the view was not delivered (${debt.holder})` : 'nothing asked') :
       `asked ${wf.type}#${wf.promptId ?? ''}${wf.optional === true ? ' (optional)' : ''} · task ${task?.kind ?? 'none'} · ` +
       `may serve: ${typeof expected === 'string' ? `scope ${expected}` : expected.join(',') || 'nobody'} · ` +
       `serving frame: ${serving === undefined ? 'none' : `${serving.kind}:${serving.phase}`} · top: ${topWord()} · ` +
       `section: ${consoleState.section}/${consoleState.sheet ?? ''} · stranded: ${leakDetectorState.stranded?.inputType ?? 'no'} · ` +
       `set aside: ${consoleState.task.deferred ? 'yes' : 'no'}`;
     const beat = judgedTransientBeat();
-    const holders: Array<string> = [`holder: ${stallHolder(holderFacts(beat, false))}`];
+    const holders: Array<string> = [`holder: ${stallHolder(holderFacts(beat, false, debt.holder))}`];
     if (beat !== undefined) {
       holders.push(`beat ${beat}`);
     }
@@ -460,6 +466,17 @@ export function createSupervisorController(shell: SupervisorPort) {
     holders.push(`frames: ${workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`).join(';') || 'none'}` +
       `${workspaceStackCollapsed() ? ' (collapsed)' : ''}${stackYieldedToBoard() ? ' (aside for the board)' : ''}${shell.placementActive ? ' (placement)' : ''}`);
     return buildStallEvidence({question, holders}, now);
+  }
+
+  /** THE VIEW'S DEBT as it stands (`transport/viewDelivery.ts`): the server asks, the applied view does not know — and who holds it. */
+  function viewDebtNow(): ViewDebtLook {
+    const owedSince = undeliveredQuestionSince();
+    return lookAtViewDebt({
+      since: owedSince,
+      fetching: owedSince !== 0 && viewFetchOnWire(),
+      scenes: owedSince === 0 ? '' : scenesHoldingView(liveViewScenes()).join('+'),
+      botRun: owedSince !== 0 && botStagingState.active,
+    }, Date.now());
   }
 
   function checkLiveness(): void {
@@ -515,6 +532,14 @@ export function createSupervisorController(shell: SupervisorPort) {
       if (story.ageMs < LIVENESS_STORY_GRACE_MS) {
         inFlight.push(`story:${story.id}`);
       }
+    }
+    // ASKED IS THE SERVER'S WORD (`transport/viewDelivery.ts`): the poll says «you are being waited on» while the
+    // applied view asks nothing — the view was not DELIVERED (a commit that threw, a scene flag that never released,
+    // a fetch that never came back). The page reads «the other seat's turn» and accepts; the server waits for this
+    // player. Judged like any unserved question — in flight while somebody provably holds it, within the bound.
+    const viewDebt = viewDebtNow();
+    if (viewDebt.inFlight !== '') {
+      inFlight.push(viewDebt.inFlight);
     }
     reapStaleFreeTurnFrame(inFlight);
     const dom = (s: string) => document.querySelectorAll(s).length;
@@ -586,8 +611,10 @@ export function createSupervisorController(shell: SupervisorPort) {
     });
     const verdict = tickLiveness({
       now: Date.now(),
-      promptLive: wf !== undefined && wf.optional !== true,
-      accepting,
+      // …asked by the applied view — or by the server's own word the view has not heard: nothing on the page can
+      // accept a question the page was never given.
+      promptLive: (wf !== undefined && wf.optional !== true) || viewDebt.undelivered,
+      accepting: accepting && !viewDebt.undelivered,
       inFlight,
       // A / B on any device — an optional verb with nothing to do is an honest no-op, never a wedge; an accepting
       // screen is judged only by the A / B nobody took.
@@ -617,7 +644,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     // WHAT STOOD is read BEFORE the rung runs — the holder's word and the claim for the line (the cause class reads them:
     // `common/diagnostics/shapes.ts`), and on the stall's first line the whole evidence (`stallEvidence.ts`). Read after
     // the rung they would describe the cure: a claim the rung released would name no claim at all.
-    const holder = stallHolder(holderFacts(beat, verdict.reason === 'presses-no-effect' && accepting));
+    const holder = stallHolder(holderFacts(beat, verdict.reason === 'presses-no-effect' && accepting, viewDebt.holder));
     const top = topWord();
     const task = taskFor(shell.playerView)?.kind ?? 'none';
     const claim = claimLine();
@@ -644,7 +671,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     // the zone it publishes (and whether that node stands), the beat, the arrival — and what the host prompt did with it
     // (`claimLine`, read above — before the rung). `task` · `top` · `holder` are the words the cause class is made of.
     withDiagEvidence(stood, () => console.warn(`[liveness] stall (${verdict.reason}): ${Math.round(verdict.quietMs / 1000)}s without progress, ${verdict.presses} presses; ` +
-      `asked: ${wf?.type ?? 'none'}; task: ${task}; top: ${top}; holder: ${holder}; beat: ${beat ?? 'none'}; stranded: ${leakDetectorState.stranded?.inputType ?? 'no'}; ` +
+      `asked: ${wf?.type ?? (viewDebt.undelivered ? 'undelivered' : 'none')}; task: ${task}; top: ${top}; holder: ${holder}; beat: ${beat ?? 'none'}; stranded: ${leakDetectorState.stranded?.inputType ?? 'no'}; ` +
       `last in flight: ${verdict.lastInFlight.join(', ') || 'nothing'}; claim: ${claim}; holds: ${holds} — ` +
       (did === undefined ? 'the ladder is spent' : `rung ${verdict.rung}: ${did}`)));
     // NO NOTICE TO THE PLAYER (the owner, 2026-11-07: «чтобы для пользователя выглядело как будто зависания нет»):
@@ -661,7 +688,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     if (line.due) {
       rebuildConsoleSession({
         by: 'liveness', seat: shell.playerView.id ?? '',
-        question: wf === undefined ? '' : `${wf.type}#${wf.promptId ?? ''}`, task,
+        question: wf !== undefined ? `${wf.type}#${wf.promptId ?? ''}` : viewDebt.undelivered ? `undelivered@${shell.playerView.game.gameAge}` : '', task,
         why: verdict.unserved ?
           `the ladder is spent and the screen stood ${Math.round(verdict.quietMs / 1000)}s` :
           `the ladder is spent and ${verdict.presses} presses moved nothing in ${Math.round(verdict.quietMs / 1000)}s`,

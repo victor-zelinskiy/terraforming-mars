@@ -45,6 +45,8 @@ const STALL: ReadonlyArray<string> = [
   'cursor', 'realtime',
   // A question the engine asked that has no answer (`common/inputs/promptAnswerable.ts`) — served, and dead.
   'question',
+  // The road of the view between the server and the page (`components/viewFailure.ts`).
+  'view',
   // The last line: the console session rebuilt from the server's view (`console/session/sessionRebuild.ts`).
   'session-rebuild',
   // The main process's watch over a renderer that stopped answering (`electron/rendererHangWatch.ts`).

@@ -54,9 +54,46 @@ export const DEFERRED_REFRESH_CHECK_MS = 200;
 /** Past this, fire anyway (with a warn) — never go silent behind a stuck flag. */
 export const DEFERRED_REFRESH_MAX_MS = 15_000;
 
+/**
+ * A SCENE MAY HOLD THE VIEW ONLY WITHIN A SCENE'S OWN LEGAL LIFE (FREEZE ZERO — PLAN §4).
+ *
+ * The overdue refresh above «fires anyway» — and its own guard parks it again behind the same flag: a scene flag that
+ * NEVER releases (an end skipped by a throw, a recovery that threw before it lowered the flag — audited 2026-11-15:
+ * every one of the nine can) parked the view for ever, one defect line per 15 s and a player watching «the other
+ * seat's turn» while the server waited for them. No scene lawfully outlives the hold registry's ceiling
+ * (`animationHold.DEFAULT_MAX_HOLD_MS`, 35 s): a view owed for that long is committed OVER the scenes that still
+ * hold it, they are named, and their flags no longer hold the view until they have been seen released.
+ */
+export const VIEW_SCENE_HOLD_MAX_MS = 35_000;
+
+/** A park that stands again this soon after the last one ended is the SAME debt (the overdue re-run's own re-park). */
+export const VIEW_DEBT_CONTINUITY_MS = 2_000;
+
+export type ParkStep = 'wait' | 'release' | 'overdue' | 'overrule';
+
+/**
+ * ONE TICK of a parked refresh. Pure. The release edge first; then the DEBT's bound (the view has been owed for a
+ * scene's whole legal life — whoever still holds it is overruled); then the park's own window.
+ */
+export function parkStep(f: {now: number, armedAt: number, debtSince: number, blocked: boolean}): ParkStep {
+  if (!f.blocked) {
+    return 'release';
+  }
+  if (f.now - f.debtSince >= VIEW_SCENE_HOLD_MAX_MS) {
+    return 'overrule';
+  }
+  return f.now - f.armedAt > DEFERRED_REFRESH_MAX_MS ? 'overdue' : 'wait';
+}
+
 /** The parked tick's stop — defined exactly while a refresh is parked. */
 let timer: (() => void) | undefined;
 let armedAt = 0;
+/** Since when the view has been OWED — it outlives one park (an overdue re-run that parks again is the same debt). */
+let debtSince = 0;
+/** When the last park ended (the debt's continuity is read off it). */
+let droppedAt = 0;
+/** The scenes whose flag outlived a scene's legal life: they no longer hold the view, until seen released. */
+const overruled = new Set<string>();
 let pendingBlocked: (() => boolean) | undefined;
 let pendingRefresh: (() => void) | undefined;
 /** WHICH scenes keep the screen — said by whoever refused the refresh; the overdue line and the diagnostics name them. */
@@ -64,7 +101,7 @@ let pendingWhy: (() => string) | undefined;
 
 /** Diagnostics (the `__foregroundDiag` family): how often the poll path had to
  *  park a refresh, and the longest such park this session. */
-export const deferredViewRefreshStats = {deferred: 0, fired: 0, maxWaitMs: 0, overdue: 0};
+export const deferredViewRefreshStats = {deferred: 0, fired: 0, maxWaitMs: 0, overdue: 0, overruled: 0};
 
 /**
  * Park a refused refresh until `blocked()` releases (or the ceiling). The
@@ -80,20 +117,36 @@ export function armDeferredViewRefresh(blocked: () => boolean, refresh: () => vo
   }
   deferredViewRefreshStats.deferred++;
   armedAt = Date.now();
+  // The same debt, or a new one? (A park right behind the last one is the overdue re-run parking again.)
+  if (debtSince === 0 || armedAt - droppedAt > VIEW_DEBT_CONTINUITY_MS) {
+    debtSince = armedAt;
+  }
   const owner = consoleSessionScope();
   const stopTick = owner.every(DEFERRED_REFRESH_CHECK_MS, 'the parked view refresh re-checks the screen', () => {
-    const waited = Date.now() - armedAt;
-    const overdue = waited > DEFERRED_REFRESH_MAX_MS;
-    if (!overdue && pendingBlocked?.() === true) {
+    const now = Date.now();
+    const waited = now - armedAt;
+    const step = parkStep({now, armedAt, debtSince, blocked: pendingBlocked?.() === true});
+    if (step === 'wait') {
       return;
     }
     const run = pendingRefresh;
-    // WHO held it, read BEFORE the park is dropped: a scene flag that never releases is the defect this line names.
-    const held = overdue ? parkedWhy() : '';
-    disarmDeferredViewRefresh();
+    // WHO held it, read BEFORE the park is dropped: a scene flag that never releases is the defect these lines name.
+    const held = step === 'release' ? '' : parkedWhy();
+    dropPark();
     deferredViewRefreshStats.fired++;
     deferredViewRefreshStats.maxWaitMs = Math.max(deferredViewRefreshStats.maxWaitMs, waited);
-    if (overdue) {
+    if (step === 'overrule') {
+      // THE DEBT'S BOUND: the scenes that still hold the view are overruled — the re-run below is no longer parked
+      // behind them (`scenesHoldingView`), and a fresh debt starts for whatever else may hold it.
+      deferredViewRefreshStats.overruled++;
+      for (const scene of held.split('+')) {
+        if (scene !== '') {
+          overruled.add(scene);
+        }
+      }
+      debtSince = 0;
+      console.warn(`[deferred-refresh] «${held === '' ? 'unnamed' : held}» held the view for over ${VIEW_SCENE_HOLD_MAX_MS}ms — the view is committed over it`);
+    } else if (step === 'overdue') {
       deferredViewRefreshStats.overdue++;
       console.warn(`[deferred-refresh] the screen stayed busy for over ${DEFERRED_REFRESH_MAX_MS}ms — refreshing anyway${held === '' ? '' : ` — held by ${held}`}`);
     }
@@ -109,8 +162,43 @@ export function armDeferredViewRefresh(blocked: () => boolean, refresh: () => vo
     if (timer === parked) {
       disarmDeferredViewRefresh();
     }
+    // The session's scenes end with it: nobody is overruled in the next one.
+    overruled.clear();
   });
   timer = parked;
+}
+
+/**
+ * THE SCENES THAT MAY HOLD THE VIEW'S COMMIT — the live ones (`viewScenes.liveViewScenes`) minus the overruled. A
+ * scene seen RELEASED is forgiven: its next raise is a new scene with a whole life of its own.
+ */
+export function scenesHoldingView(live: ReadonlyArray<string>): Array<string> {
+  for (const scene of [...overruled]) {
+    if (!live.includes(scene)) {
+      overruled.delete(scene);
+    }
+  }
+  return live.filter((scene) => !overruled.has(scene));
+}
+
+/**
+ * A view was COMMITTED by another road (the transport's own apply of a submit's answer): what the page shows is the
+ * server's truth as of now — a park still standing owes only what came after.
+ */
+export function noteViewCommitted(): void {
+  debtSince = timer === undefined ? 0 : Date.now();
+}
+
+/** End the park (the tick fired, or it is superseded) — the debt it stood for is NOT forgotten here. */
+function dropPark(): void {
+  if (timer !== undefined) {
+    timer();
+    timer = undefined;
+    droppedAt = Date.now();
+  }
+  pendingBlocked = undefined;
+  pendingRefresh = undefined;
+  pendingWhy = undefined;
 }
 
 /**
@@ -119,13 +207,10 @@ export function armDeferredViewRefresh(blocked: () => boolean, refresh: () => vo
  * after it would only burn a request.
  */
 export function disarmDeferredViewRefresh(): void {
-  if (timer !== undefined) {
-    timer();
-    timer = undefined;
-  }
-  pendingBlocked = undefined;
-  pendingRefresh = undefined;
-  pendingWhy = undefined;
+  dropPark();
+  // …and the debt is PAID: the next park is a new one.
+  debtSince = 0;
+  droppedAt = 0;
 }
 
 function parkedWhy(): string {
@@ -157,4 +242,12 @@ export function resetDeferredViewRefreshForTesting(): void {
   deferredViewRefreshStats.fired = 0;
   deferredViewRefreshStats.maxWaitMs = 0;
   deferredViewRefreshStats.overdue = 0;
+  deferredViewRefreshStats.overruled = 0;
+  overruled.clear();
+}
+
+/** Test seam: the standing park and its debt are `ms` older (a spec does not wait out a scene's legal life). */
+export function __ageDeferredViewRefreshForTesting(ms: number): void {
+  armedAt -= ms;
+  debtSince -= ms;
 }

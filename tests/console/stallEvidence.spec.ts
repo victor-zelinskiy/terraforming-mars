@@ -9,11 +9,11 @@ import {DIAG_EVIDENCE_LINE_MAX, DIAG_EVIDENCE_TREE_MAX} from '../../src/common/d
  * WHAT STOOD (`supervisor/stallEvidence.ts` — docs/claude/console/freeze-zero/PLAN.md §2.2): the one word that names
  * a stall's holder — the tail of its cause class — and the snapshot its event carries.
  */
-const NOBODY: StallHolderFacts = {stranded: false, claim: '', deadFrame: '', beat: false, awaiting: '', block: '', hold: '', deaf: false};
+const NOBODY: StallHolderFacts = {view: '', stranded: false, claim: '', deadFrame: '', beat: false, awaiting: '', block: '', hold: '', deaf: false};
 
 describe('stall evidence — who holds the question, in one word', () => {
   it('ONE precedence: no surface at all, then what keeps a standing surface from taking input, then the circumstantial', () => {
-    const all: StallHolderFacts = {stranded: true, claim: 'card-actions:awaiting', deadFrame: 'parliament', beat: true, awaiting: 'hand', block: 'reveal', hold: 'card-receive', deaf: true};
+    const all: StallHolderFacts = {view: '', stranded: true, claim: 'card-actions:awaiting', deadFrame: 'parliament', beat: true, awaiting: 'hand', block: 'reveal', hold: 'card-receive', deaf: true};
     expect(stallHolder(all), 'a stranded question names the claim beside it (an orphaned claim suppresses the question\'s own surface)').to.eq('stranded+claim:card-actions:awaiting');
     expect(stallHolder({...all, claim: ''})).to.eq('stranded');
     expect(stallHolder({...all, stranded: false})).to.eq('dead-frame:parliament');
@@ -23,6 +23,9 @@ describe('stall evidence — who holds the question, in one word', () => {
     expect(stallHolder({...NOBODY, claim: 'hand:presenting', hold: 'card-receive', deaf: true})).to.eq('claim:hand:presenting');
     expect(stallHolder({...NOBODY, hold: 'card-receive', deaf: true})).to.eq('hold:card-receive');
     expect(stallHolder({...NOBODY, deaf: true}), 'the screen accepts and the presses change nothing').to.eq('deaf');
+    // A question the page was never GIVEN comes before everything that could hold a question it has.
+    expect(stallHolder({...all, view: 'view:scene:played-hero'}), 'the view was not delivered').to.eq('view:scene:played-hero');
+    expect(stallHolder({...NOBODY, view: 'view:nobody'})).to.eq('view:nobody');
     expect(stallHolder(NOBODY)).to.eq('none');
   });
 });

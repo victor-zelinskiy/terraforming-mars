@@ -22,6 +22,8 @@ import {waitGraphSnapshot} from '@/client/console/waitGraph/waitGraph';
 
 /** What the supervisor knows of the screen that a holder is named from — every term a fact it already samples. */
 export type StallHolderFacts = {
+  /** THE VIEW was not delivered — the server asks, the applied view does not know: who holds it (`view:nobody`, `view:scene:played-hero`; '' = delivered). */
+  view: string;
   /** The leak detector found NO surface serving the live question. */
   stranded: boolean;
   /** A claim stands: `<host>:<stage>` ('' = none). */
@@ -47,6 +49,10 @@ export type StallHolderFacts = {
  * what suppresses the question's own surface (the Hi-Tech Lab class).
  */
 export function stallHolder(f: StallHolderFacts): string {
+  // A question the page was never GIVEN comes before everything that could hold a question it has.
+  if (f.view !== '') {
+    return f.view;
+  }
   if (f.stranded) {
     return f.claim !== '' ? `stranded+claim:${f.claim}` : 'stranded';
   }

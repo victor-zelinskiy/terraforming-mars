@@ -170,6 +170,35 @@ completed (`noteSupervisorPass()` after `checkLiveness()` returned; a pass that 
   real app: a minute healthy → nothing; broken → ONE rebuild under its cause), `tests/e2e/console-stall-cause.spec.ts`
   «who watches the watcher» (the real page: replaced once, the hand served again, silent afterwards).
 
+### 3c. Asked is the SERVER's word — the view's delivery is judged too (2026-11-15)
+
+The invariant of §2 begins «while the server asks the player something». Until 2026-11-15 the arbiter read that off
+the APPLIED view (`playerView.waitingFor`) — so the whole road between the server and that view stood outside every
+judge: a view the page could not apply, a commit parked behind a scene flag that never released, a fetch that never
+came back each left the page on its last view — «the other seat's turn», a healthy accepting screen, nobody asked —
+while the server waited for THIS player.
+
+- **The fact.** The page holds the server's word apart from the view: the poll's answer (`GO` — «you are being
+  waited on»). `gameTransport.undeliveredQuestionSince()` — since when the poll says GO while the applied view asks
+  nothing; spent by the view that replaces that one, by a question arriving in it, by the player's own submit.
+- **The judge is the same arbiter** (`supervisorController.viewDebtNow` → `transport/viewDelivery.lookAtViewDebt`):
+  an undelivered question is `promptLive` and nothing accepts it. It is IN FLIGHT while somebody provably holds the
+  view — by one precedence: the fetch on the wire, the scenes the root parks a commit behind, the bot's run being
+  walked onto the board — within `VIEW_DELIVERY_BOUND_MS` (45 s; every lawful holder ends below it). Held by nobody,
+  or past the bound: the ordinary grace, the ladder, the last line. The stall's line says `asked: undelivered` and
+  `holder: view:<who>`; the rebuild's question is `undelivered@<gameAge>`.
+- **The cure is the last line, and nothing new** (decision F16): a rebuilt page fetches the view by the boot road —
+  no scene, no park, no previous view to differ from. No rung was added: the poll already re-fetches on every look.
+- **Closed by construction beside it** (so that the judge has nothing to do on a healthy build): the poll chain
+  cannot die with its request (`waitForUpdate` — the answer is a guarantee of the transport's scope, its taking is
+  contained); a scene may hold the view only within a scene's own legal life (`deferredViewRefresh.parkStep`); the
+  view's road has one ending for a failure and it is never a native dialog (`components/viewFailure.ts`,
+  `nativeDialogGuard.spec`).
+- **What it cannot see:** a poll chain with no answer at all AND no socket (the server is unreachable — the poll's
+  own alert tells the player), and a server that asks NOBODY (the server's own judge: `src/server/liveness/TableLiveness.ts`).
+- Specs: `tests/console/viewDelivery.spec.ts`, `tests/client/console/gameTransportPoll.spec.ts`,
+  `tests/client/bottle/classReplays.bottle.ts` (8) (9).
+
 ## 4. What it does not replace
 
 The arbiter is the net under the nets. A stall it cures is a defect upstream of it — the harness turns the marker red

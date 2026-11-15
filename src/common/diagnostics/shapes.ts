@@ -254,6 +254,8 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
   ],
   'deferred-refresh': [
     {name: 'overdue', re: /^the screen stayed busy for over \d+ms — refreshing anyway(?: — held by (\S+))?/, tier: 'defect', parts: [1]},
+    // A scene flag that held the view for a scene's whole legal life: the view is committed over it (`VIEW_SCENE_HOLD_MAX_MS`).
+    {name: 'overruled', re: /^«([^»]*)» held the view for over \d+ms — the view is committed over it/, tier: 'defect', parts: [1]},
   ],
   // ── the transport, the kernel ───────────────────────────────────────────────────────────────────────────────────
   // ── the last line (`console/session/sessionRebuild.ts`) — never a cure: every one of them is a defect ──────────────
@@ -263,7 +265,14 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'refused-rate', re: /^refused \(rate\) — «([^»]*)» \(.*?\) stays as it stands: the window of rebuilds is full — by (\S+): /, tier: 'defect', dims: {source: 1, by: 2}},
     {name: 'refused-off', re: /^refused \(off\) — «([^»]*)» \(.*?\) stays as it stands: the last line is switched off /, tier: 'info', parts: [1], why: 'the line is switched off on purpose (`?rebuild=0`: a control spec, a diagnosis) — the episode it stands in is the defect'},
   ],
+  // ── the view's road (`App.viewFailed`): a fetch that failed is the network's word — a throw of the apply is the
+  //    last line's (`session-rebuild/page/view-apply`) ──
+  'view': [
+    {name: 'fetch-failed', re: /^fetch failed — /, tier: 'info', why: 'the network\'s word, not the page\'s: nothing was applied, the poll re-asks and owns the «cannot contact the server» alert'},
+  ],
   'transport': [
+    {name: 'poll-answer', re: /^the poll's answer could not be taken — /, tier: 'defect'},
+    {name: 'poll-never-ended', re: /^the poll never ended — /, tier: 'defect'},
     {name: 'gate-bound', re: /^gate «([^»]*)» of \S+ outlived its bound/, tier: 'defect', parts: [1]},
     {name: 'abandoned', re: /^\S+ abandoned — its presentation never ended/, tier: 'defect'},
     {name: 'server-silent', re: /^the server did not answer the submit for /, tier: 'defect'},
