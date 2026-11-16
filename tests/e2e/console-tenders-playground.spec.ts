@@ -1,6 +1,7 @@
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * «ВИТРИНА ТЕНДЕРОВ» (docs/CAMPAIGN_CONCESSIONS_DESIGN.md §17.4 / §18) — the Playground stand is the ACCEPTANCE surface
@@ -105,7 +106,8 @@ test.describe('the tenders playground — the certificate at the table size fits
     await page.locator('[data-tdpg-catalog]').screenshot({path: path.join(OUT, 'catalog.png')});
     await page.locator('[data-tdpg-sizes]').screenshot({path: path.join(OUT, 'sizes.png')});
     await page.locator('[data-tdpg-states]').screenshot({path: path.join(OUT, 'states.png')});
-    const report = await auditCatalog(page);
+    // The audit reads boxes — taken AT REST (C — `readSettled`: the same report twice, a frame apart).
+    const report = await readSettled(page, () => auditCatalog(page), {message: 'the catalog\'s face audit'});
     const red = report.filter((r) => r.problems.length > 0);
     expect(red, 'certificates with a defect at the table size:\n' + red.map((r) => `  ${r.id} «${r.name}» tier ${r.tier}: ${r.problems.join('; ')}`).join('\n')).toEqual([]);
     // The ladder is in use: the longest names took a tighter tier, the short ones the base.

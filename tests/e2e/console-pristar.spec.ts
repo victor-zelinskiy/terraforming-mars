@@ -7,6 +7,8 @@ import {
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness, TransferWitness} from './transferWitness';
 import {storyboard} from './consoleEndgameHarness';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * R07 · PRISTAR — the fourth and last classic Turmoil corporation adapted in place. «During the production phase, if
@@ -58,7 +60,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 /** A close-up of the rail's score cap (the rating cell and its marks) — the frame the owner reads the mark on. */
 async function shootCell(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
-  const box = await page.locator('.con-score').first().boundingBox();
+  const box = await readSettled(page, () => page.locator('.con-score').first().boundingBox(), {message: 'the score cap'});
   if (box !== null) {
     await page.screenshot({path: path.join(OUT, `${name}.png`), clip: {x: box.x, y: Math.max(0, box.y - 20), width: box.width, height: box.height + 40}});
   }
@@ -84,6 +86,9 @@ const cellRead = (page: Page) => page.evaluate(() => {
     mark: rect(mark), veto: rect(veto), digits: rect(value), icon: rect(icon), cell: rect(cell ?? null),
   };
 });
+/** {@link cellRead} AT REST (`readSettled` — two equal reads a frame apart, after `settle`): a crossfade or an entrance
+ *  still running is never the cell's state, its geometry never a pose mid-motion. */
+const settledCell = (page: Page) => readSettled(page, () => cellRead(page), {message: 'the rating cell'});
 
 type Box = {x: number, y: number, w: number, h: number};
 const overlaps = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -99,42 +104,43 @@ async function passOnUi(page: Page): Promise<void> {
   await press(page, 'Enter', 300);
 }
 
-/** ARM the mark probe: every state the cell shows and every animation that runs on the mark or the cell. */
+/** What the cell shows in one frame: its state, the token charging, the animations running on the mark or the cell. */
+type MarkSeen = {state: string, charged: boolean, animations: Array<string>};
+const MARK_WITNESS = 'pristarMark';
+
+/** ARM the mark witness (FLAKE ZERO — `armWitness`, armed before the press, recorded off the product's own writes):
+ *  every state the cell shows and every animation that runs on the mark or the cell. */
 async function armMarkProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const st = {states: [] as Array<string>, animations: [] as Array<string>, charged: false};
-    (window as unknown as {__pristarMark?: typeof st}).__pristarMark = st;
-    const read = () => {
-      const cell = document.querySelector<HTMLElement>('.con-res .con-score__cell--tr');
-      const state = cell?.getAttribute('data-tr-pristar') ?? '';
-      if (st.states[st.states.length - 1] !== state) {
-        st.states.push(state);
-      }
-      const mark = cell?.querySelector<HTMLElement>('.con-score__pristar');
-      // The payout's own one-shot: the token charges before the coins are born out of it.
-      st.charged = st.charged || mark?.hasAttribute('data-income-charging') === true;
-      for (const el of [cell, mark]) {
-        for (const a of (el?.getAnimations?.({subtree: false}) ?? [])) {
-          const name = a instanceof CSSTransition ? `transition:${a.transitionProperty}` : a instanceof CSSAnimation ? `animation:${a.animationName}` : 'web-animation';
-          if (!st.animations.includes(name)) {
-            st.animations.push(name);
-          }
+  await armWitness<MarkSeen>(page, MARK_WITNESS, () => {
+    const cell = document.querySelector<HTMLElement>('.con-res .con-score__cell--tr');
+    const mark = cell?.querySelector<HTMLElement>('.con-score__pristar');
+    const animations: Array<string> = [];
+    for (const el of [cell, mark]) {
+      for (const a of (el?.getAnimations?.({subtree: false}) ?? [])) {
+        const name = a instanceof CSSTransition ? `transition:${a.transitionProperty}` : a instanceof CSSAnimation ? `animation:${a.animationName}` : 'web-animation';
+        if (!animations.includes(name)) {
+          animations.push(name);
         }
       }
+    }
+    return {
+      state: cell?.getAttribute('data-tr-pristar') ?? '',
+      // The payout's own one-shot: the token charges before the coins are born out of it.
+      charged: mark?.hasAttribute('data-income-charging') === true,
+      animations,
     };
-    read();
-    const mo = new MutationObserver(read);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-    const iv = setInterval(read, 30);
-    setTimeout(() => {
-      clearInterval(iv);
-      mo.disconnect();
-    }, 120_000);
   });
 }
 type MarkProbe = {states: Array<string>, animations: Array<string>, charged: boolean};
+/** The record folded on the Node side: the states in order (repeats collapsed), every animation seen, «ever charged». */
 async function markProbe(page: Page): Promise<MarkProbe> {
-  return page.evaluate(() => (window as unknown as {__pristarMark?: MarkProbe}).__pristarMark ?? {states: [], animations: [], charged: false});
+  const w = witnessOf<MarkSeen>(page, MARK_WITNESS);
+  const seen = await w.values();
+  return {
+    states: await w.sequence((v) => v.state),
+    animations: [...new Set(seen.flatMap((v) => v.animations))],
+    charged: seen.some((v) => v.charged),
+  };
 }
 
 /** The landings on each rail row and the births by anchor. */
@@ -182,7 +188,7 @@ test.describe('R07 Pristar · tv4k', () => {
     expect(m.thisPlayer.tableau.some((c) => c.name === PRISTAR), 'the server: Pristar played').toBe(true);
     expect(m.thisPlayer.terraformRating, 'the solo start (14) two steps down').toBe(12);
     expect(m.thisPlayer.ratingRaisedThisGeneration, 'the lowering is no rise').toBe(false);
-    const cell = await cellRead(page);
+    const cell = await settledCell(page);
     expect(cell.value, 'the rail reads the server\'s rating').toBe(String(m.thisPlayer.terraformRating));
     expect(cell.state, 'the token stands «waiting»').toBe('waiting');
     expect(cell.painted, 'the token is PAINTED').toBe(true);
@@ -217,7 +223,7 @@ test.describe('R07 Pristar · tv4k', () => {
 
     const after = await wireOf(request, playerId);
     expect(after.thisPlayer.terraformRating, 'the conversion paid its rating').toBe(19);
-    const cell = await cellRead(page);
+    const cell = await settledCell(page);
     expect(cell.markClass, 'the same token, struck').toContain('con-score__pristar--spent');
     expect(cell.painted, 'still PAINTED — dimmed, never gone').toBe(true);
     expect(cell.hint, `the hint says the effect will not trigger: ${cell.hint}`).toMatch(/Pristar: РТ в этом поколении вырос — эффект не сработает/);
@@ -249,12 +255,12 @@ test.describe('R07 Pristar · tv4k', () => {
     // RB walks the inspected seat until the rail shows the rival (its colour on the info root).
     const rivalShown = await pressUntil(page, 'BracketRight', async () => await page.locator(MARK).count() === 0, {tries: 4, settleMs: 1100});
     expect(rivalShown, 'the rail inspecting the rival shows a clean rating cell').toBe(true);
-    const clean = await cellRead(page);
+    const clean = await settledCell(page);
     expect(clean.state, 'no state on the rival\'s cell').toBe('');
     expect(clean.hint, 'no hint on the rival\'s cell').toBe('');
     await shoot(page, 'c-01-info-rival-clean');
     expect(await pressUntil(page, 'BracketRight', async () => await page.locator(MARK).count() === 1, {tries: 4, settleMs: 1100}), 'back on the own seat — the token').toBe(true);
-    expect((await cellRead(page)).state).toBe('waiting');
+    expect((await settledCell(page)).state).toBe('waiting');
     await shoot(page, 'c-02-info-own-token');
     for (let i = 0; i < 6 && await page.locator('.con-info').count() > 0; i++) {
       await press(page, 'Escape', 700);
@@ -269,7 +275,7 @@ test.describe('R07 Pristar · tv4k', () => {
     expect(m.thisPlayer.terraformRating, 'the fixture: red first by rating at 30').toBe(30);
     expect(m.thisPlayer.tableau.some((c) => c.name === PRISTAR), 'the fixture: red on Pristar').toBe(true);
     await expect(page.locator(`${CELL}[data-tr-vetoed="30"][data-tr-pristar="waiting"]`), 'both marks on the one cell').toHaveCount(1, {timeout: 15_000});
-    const cell = await cellRead(page);
+    const cell = await settledCell(page);
     expect(cell.mark, 'the token is painted').toBeDefined();
     expect(cell.veto, 'the stamp is painted').toBeDefined();
     expect(overlaps(cell.mark!, cell.digits!), 'the token never covers the digits').toBe(false);
@@ -319,7 +325,7 @@ test.describe('R07 Pristar · tv4k', () => {
     expect(witness.landings.some((l) => /^aux:/.test(l.under)), `the preservation lands on the satellite — trail:\n${transferTrail(witness)}`).toBe(true);
     expect((await markProbe(page)).charged, 'the token charged before its payout was born').toBe(true);
     expect(endsOverGlass(witness), 'no end of a flight over glass').toEqual([]);
-    expect((await cellRead(page)).state, 'a new generation — the token «waiting» again').toBe('waiting');
+    expect((await settledCell(page)).state, 'a new generation — the token «waiting» again').toBe('waiting');
   });
 
   test('F — the generation scene after a rise: the token «spent» until the flip; no hook token, no +6', async ({page, request}) => {
@@ -339,7 +345,7 @@ test.describe('R07 Pristar · tv4k', () => {
     expect(after.thisPlayer.megacredits, 'the server: the income alone').toBe(20 + 22 + 3);
     expect(pristarResources(after), 'no preservation').toBe(pristarResources(before));
     expect(witness.births, `nothing flies: no hook paid, and the standard income ticks as chips — trail:\n${transferTrail(witness)}`).toEqual([]);
-    expect((await cellRead(page)).state, 'the flip reset the flag — «waiting»').toBe('waiting');
+    expect((await settledCell(page)).state, 'the flip reset the flag — «waiting»').toBe('waiting');
     await shoot(page, 'f-02-purchase');
   });
 });
@@ -360,12 +366,12 @@ for (const preset of SMALL_PROFILES) {
         await settle(page);
         const state = fixture === 'pristar' ? 'waiting' : 'spent';
         await expect(page.locator(`${CELL}[data-tr-pristar="${state}"]`)).toHaveCount(1, {timeout: 15_000});
-        const cell = await cellRead(page);
+        const cell = await settledCell(page);
         expect(cell.painted, 'the token is PAINTED').toBe(true);
         expect(Math.min(cell.mark!.w, cell.mark!.h), `the token's side (${cell.mark!.w}×${cell.mark!.h} px)`).toBeGreaterThanOrEqual(12);
         expect(overlaps(cell.mark!, cell.digits!), 'the token never covers the digits').toBe(false);
         fs.mkdirSync(path.resolve('screenshots', 'pristar', preset.id), {recursive: true});
-        const box = await page.locator('.con-score').first().boundingBox();
+        const box = await readSettled(page, () => page.locator('.con-score').first().boundingBox(), {message: 'the score cap'});
         if (box !== null) {
           await page.screenshot({path: path.resolve('screenshots', 'pristar', preset.id, `g-cell-${state}.png`), clip: {x: box.x, y: Math.max(0, box.y - 10), width: box.width, height: box.height + 20}});
         }

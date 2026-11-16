@@ -2,14 +2,16 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi,
-  sendPlayerInput, soloGameConfig, waitForBoardHome,
+  sendPlayerInput, settle, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * P0.1 REPRO PROBE — the exact 20260830201630 sequence: a DP07 traversal with
- * the stage-5 deck stop and the stage-7 repeat. Samples EVERY frame-ish tick:
- * which card surfaces exist, which batch's cards each renders, and the
- * deck-pick flow phase — to catch the frame where TWO batches coexist.
+ * the stage-5 deck stop and the stage-7 repeat. RECORDS every painted state
+ * (`armWitness`, settled): which card surfaces exist, which batch's cards each
+ * renders, and the deck-pick flow phase — to catch the frame where TWO batches
+ * coexist.
  */
 
 const OUT = path.resolve('screenshots', 'batch-overlap');
@@ -104,7 +106,8 @@ test.describe('batch overlap repro · fhd', () => {
       await press(page, 'Enter', 900);
     }
     await page.waitForSelector('.con-reveal', {state: 'detached', timeout: 25_000});
-    await page.waitForTimeout(1800);
+    // The taken cards' flight into the hand and the reveal's leave are over (the console at rest) before the board walk.
+    await settle(page, {timeoutMs: 30_000});
     await waitForBoardHome(page, 25);
 
     await press(page, 'Period', 1100);
@@ -149,58 +152,32 @@ test.describe('batch overlap repro · fhd', () => {
     await press(page, 'Enter', 2000);
     await press(page, 'Enter', 2500);
     await page.waitForSelector('.con-hydro', {timeout: 15_000});
-    await page.waitForTimeout(800);
+    // The track back at rest (the repeat's return played out) before the commit is pressed.
+    await settle(page, {timeoutMs: 30_000});
 
-    // ── THE PROBE: per-tick, the FULL surface census. ──
-    await page.evaluate(() => {
-      const w = window as unknown as {
-        __frames?: Array<{
-          t: number,
-          pickPhase: string | null,
-          pickCards: string[],
-          revealOn: boolean,
-          revealKind: string,
-          revealCards: string[],
-          revealFit: string | null,
-        }>,
-        __probeStop?: () => void,
+    // ── THE PROBE: the FULL surface census, RECORDED (`armWitness`, settled — «two batches never share a frame» is a
+    //    coexistence claim about painted states), never a timer sampler. ──
+    const probe = await armWitness(page, 'batch-overlap', () => {
+      const pick = document.querySelector('.con-deckpick');
+      const pickCards = pick === null ? [] :
+        Array.from(pick.querySelectorAll('[data-deckpick-slot]'))
+          .filter((el) => (el as HTMLElement).offsetParent !== null &&
+            window.getComputedStyle(el).opacity !== '0')
+          .map((el) => el.getAttribute('data-deckpick-slot') ?? '');
+      const reveal = document.querySelector('.con-reveal');
+      const revealKind = reveal === null ? 'none' :
+        reveal.classList.contains('con-reveal--headless') ? 'headless' :
+          reveal.closest('.con-hydro__embed') !== null ? 'embedded' : 'fullscreen';
+      const revealCards = reveal === null ? [] :
+        Array.from(reveal.querySelectorAll('[data-zoom-slot]'))
+          .map((el) => el.getAttribute('data-zoom-slot') ?? '');
+      const strip = reveal?.querySelector('.con-reveal__strip') as HTMLElement | null | undefined;
+      return {
+        pickPhase: pick?.getAttribute('data-flow') ?? null,
+        pickCards, revealOn: reveal !== null, revealKind, revealCards,
+        revealFit: strip?.dataset.fit ?? null,
       };
-      w.__frames = [];
-      const sample = () => {
-        const pick = document.querySelector('.con-deckpick');
-        const pickCards = pick === null ? [] :
-          Array.from(pick.querySelectorAll('[data-deckpick-slot]'))
-            .filter((el) => (el as HTMLElement).offsetParent !== null &&
-              window.getComputedStyle(el).opacity !== '0')
-            .map((el) => el.getAttribute('data-deckpick-slot') ?? '');
-        const reveal = document.querySelector('.con-reveal');
-        const revealKind = reveal === null ? 'none' :
-          reveal.classList.contains('con-reveal--headless') ? 'headless' :
-            reveal.closest('.con-hydro__embed') !== null ? 'embedded' : 'fullscreen';
-        const revealCards = reveal === null ? [] :
-          Array.from(reveal.querySelectorAll('[data-zoom-slot]'))
-            .map((el) => el.getAttribute('data-zoom-slot') ?? '');
-        const strip = reveal?.querySelector('.con-reveal__strip') as HTMLElement | null | undefined;
-        const frames = w.__frames!;
-        const entry = {
-          t: Math.round(performance.now()),
-          pickPhase: pick?.getAttribute('data-flow') ?? null,
-          pickCards, revealOn: reveal !== null, revealKind, revealCards,
-          revealFit: strip?.dataset.fit ?? null,
-        };
-        const prev = frames[frames.length - 1];
-        if (prev === undefined || JSON.stringify({...prev, t: 0}) !== JSON.stringify({...entry, t: 0})) {
-          frames.push(entry);
-        }
-      };
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      const iv = setInterval(sample, 40);
-      w.__probeStop = () => {
-        mo.disconnect();
-        clearInterval(iv);
-      };
-    });
+    }, {settled: true, max: 20_000});
 
     // COMMIT → stage-5 stop → pick 2 → confirm → watch the handover.
     await press(page, 'Enter', 1500);
@@ -218,10 +195,8 @@ test.describe('batch overlap repro · fhd', () => {
       await press(page, 'Enter', 900);
     }
     await page.waitForSelector('.con-hydro__result-stages', {timeout: 90_000});
-    await page.evaluate(() => (window as unknown as {__probeStop?: () => void}).__probeStop?.());
-
-    const frames = await page.evaluate(() =>
-      (window as unknown as {__frames?: unknown[]}).__frames ?? []);
+    // Every distinct state, in order, with its time on the page's clock.
+    const frames = (await probe.stop()).map((x) => ({t: Math.round(x.t), ...x.v}));
     fs.mkdirSync(OUT, {recursive: true});
     fs.writeFileSync(path.join(OUT, 'frames.json'), JSON.stringify(frames, null, 1));
 

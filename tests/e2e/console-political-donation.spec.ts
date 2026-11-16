@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR03 «ПОЛИТИЧЕСКОЕ ПОЖЕРТВОВАНИЕ» — THE STAGED VOTE, the vote's third door
@@ -75,7 +77,7 @@ type Box = {x: number, y: number, w: number, h: number};
 type Flight = {first: Box, last: Box, n: number, firstAt: number, lastAt: number};
 type Probe = {
   samples: number;
-  /** Interval (task) samples only — the probe's own liveness floor. */
+  /** The recorded states (a state is kept when it CHANGES) — the probe's own liveness floor. */
   ticks: number;
   /** The crumb's stage words, deduped in order of first appearance. */
   steps: Array<string>;
@@ -97,93 +99,124 @@ type Probe = {
   lobbyEmptied: boolean;
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/** One observation of the flow (the witness's reader) — the crumb, the instances, the flights, the four counts. */
+type FlowObs = {
+  head: {root: string, subjects: Array<string>, steps: Array<string>} | null,
+  parls: number, parlOutsideHand: boolean, ownHead: boolean, degraded: Array<string>, ws: number, stranded: boolean,
+  flights: Array<{id: string} & Box>,
+  pool: string | null, shown: string | null, reserve: string | null, votes: string | null,
+  lobbyEmpty: boolean,
+};
+const PROBE_KEY = 'tr03-flow';
+
+/**
+ * A RECORDING (`armWitness`, settled — «the cubes in turn», «the count drops on the lift» are ORDER claims about painted
+ * states), never a timer sampler; folded on the Node side by `readProbe`, times in ms from the arm on the page's clock.
+ */
 async function armProbe(page: Page, viewer: string): Promise<void> {
-  await page.evaluate(({viewer, card, root}) => {
-    const w = window as unknown as {__tr03: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false,
-      degraded: [], stranded: false, flights: {}, pool: [], shown: [], reserve: [], votes: [], lobbyEmptied: false,
-    };
-    w.__tr03 = p;
-    const t0 = Date.now();
+  await armWitness(page, PROBE_KEY, (v: string): FlowObs => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Array<[number, number]>, raw: string | null | undefined) => {
-      if (raw === null || raw === undefined || raw === '') {
+    const headEl = document.querySelector('.con-hand')?.querySelector('.con-wshead') ?? null;
+    const parls = Array.from(document.querySelectorAll('.con-parl'));
+    const degraded: Array<string> = [];
+    for (const el of parls) {
+      const d = el.getAttribute('data-parl-grant-degraded') ?? el.getAttribute('data-renewal-degraded');
+      if (d !== null && !degraded.includes(d)) {
+        degraded.push(d);
+      }
+    }
+    const flights: Array<{id: string} & Box> = [];
+    document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || getComputedStyle(el).visibility === 'hidden') {
         return;
       }
-      const value = Number(raw);
-      if (Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
-      }
+      flights.push({id: el.getAttribute('data-parl-flight') ?? '?', x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height});
+    });
+    const lobby = document.querySelector(`[data-parl-seat-lobby="${v}"]`);
+    return {
+      head: headEl === null ? null : {
+        root: text(headEl.querySelector('.con-wshead__root')),
+        subjects: Array.from(headEl.querySelectorAll('.con-wshead__subject')).map(text),
+        steps: Array.from(headEl.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
+      },
+      parls: parls.length,
+      parlOutsideHand: parls.some((el) => el.closest('.con-hand') === null || el.classList.contains('con-ws')),
+      ownHead: parls.some((el) => el.querySelector('.con-wshead') !== null),
+      degraded,
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
+      flights,
+      pool: document.querySelector('[data-parl-neutral-cube]')?.getAttribute('data-count') ?? null,
+      shown: document.querySelector('[data-parl-vote-support]')?.getAttribute('data-support-shown') ?? null,
+      reserve: document.querySelector(`[data-parl-seat-reserve="${v}"]`)?.getAttribute('data-count') ?? null,
+      votes: document.querySelector('[data-parl-vote-ribbon]')?.getAttribute('data-votes') ?? null,
+      lobbyEmpty: lobby !== null && lobby.classList.contains('con-parl__socket--empty'),
     };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const hand = document.querySelector('.con-hand');
-      const head = hand?.querySelector('.con-wshead') ?? null;
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-      }
-      const parls = document.querySelectorAll('.con-parl');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      parls.forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        }
-        if (el.querySelector('.con-wshead') !== null) {
-          p.ownHead = true;
-        }
-        const degraded = el.getAttribute('data-parl-grant-degraded') ?? el.getAttribute('data-renewal-degraded');
-        if (degraded !== null && !p.degraded.includes(degraded)) {
-          p.degraded.push(degraded);
-        }
-      });
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.width < 2 || getComputedStyle(el).visibility === 'hidden') {
-          return;
-        }
-        const id = el.getAttribute('data-parl-flight') ?? '?';
-        const now = {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
-        const rec = p.flights[id] ?? (p.flights[id] = {first: now, last: now, n: 0, firstAt: Date.now() - t0, lastAt: 0});
-        rec.last = now;
-        rec.lastAt = Date.now() - t0;
-        rec.n++;
-      });
-      note(p.pool, document.querySelector('[data-parl-neutral-cube]')?.getAttribute('data-count'));
-      note(p.shown, document.querySelector('[data-parl-vote-support]')?.getAttribute('data-support-shown'));
-      note(p.reserve, document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count'));
-      note(p.votes, document.querySelector('[data-parl-vote-ribbon]')?.getAttribute('data-votes'));
-      const lobby = document.querySelector(`[data-parl-seat-lobby="${viewer}"]`);
-      if (lobby !== null && lobby.classList.contains('con-parl__socket--empty')) {
-        p.lobbyEmptied = true;
-      }
-    };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  }, {viewer, card: CARD_RU, root: ROOT_RU});
+  }, {args: viewer, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr03: Probe}).__tr03);
+/**
+ * The record folded: the crumb's misses, the steps in order, every flight's first and last pose, the four series (on
+ * change). A flight's `lastAt` is the END of its visibility — the first state recorded WITHOUT it (a state is kept only
+ * when it changes, so the last state WITH it may have been written before it stopped standing).
+ */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<FlowObs>(page, PROBE_KEY).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const p: Probe = {
+    samples: samples.length, ticks: samples.length, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false,
+    degraded: [], stranded: false, flights: {}, pool: [], shown: [], reserve: [], votes: [], lobbyEmptied: false,
+  };
+  const note = (series: Array<[number, number]>, at: number, raw: string | null) => {
+    if (raw === null || raw === '') {
+      return;
+    }
+    const value = Number(raw);
+    if (Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
+      series.push([at, value]);
+    }
+  };
+  samples.forEach(({t, v}, i) => {
+    const at = Math.round(t - t0);
+    if (v.head !== null) {
+      if (v.head.root.toLowerCase() !== ROOT_RU.toLowerCase() || !v.head.subjects.some((s) => s.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${at}ms root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+        }
+      }
+      for (const step of v.head.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    p.parlMax = Math.max(p.parlMax, v.parls);
+    p.wsMax = Math.max(p.wsMax, v.ws);
+    p.parlOutsideHand ||= v.parlOutsideHand;
+    p.ownHead ||= v.ownHead;
+    p.stranded ||= v.stranded;
+    p.lobbyEmptied ||= v.lobbyEmpty;
+    for (const d of v.degraded) {
+      if (!p.degraded.includes(d)) {
+        p.degraded.push(d);
+      }
+    }
+    const endAt = Math.round((samples[i + 1]?.t ?? t) - t0);
+    for (const f of v.flights) {
+      const now = {x: f.x, y: f.y, w: f.w, h: f.h};
+      const rec = p.flights[f.id] ?? (p.flights[f.id] = {first: now, last: now, n: 0, firstAt: at, lastAt: 0});
+      rec.last = now;
+      rec.lastAt = endAt;
+      rec.n++;
+    }
+    note(p.pool, at, v.pool);
+    note(p.shown, at, v.shown);
+    note(p.reserve, at, v.reserve);
+    note(p.votes, at, v.votes);
+  });
+  return p;
+}
 
 /** An element's centre box and whether the player can actually SEE it (a rect, an effective opacity, not `visibility: hidden`). */
 async function seen(page: Page, selector: string): Promise<(Box & {visible: boolean}) | undefined> {
@@ -223,34 +256,23 @@ const supportReading = (page: Page) => page.evaluate((sel) => {
 }, supportBlock);
 
 /**
- * A box, SETTLED — both sides of a «nothing moved» comparison go through this. Two waits, because there are two
- * ways to read a box that is not the resting one: ① the panel's bodies CROSSFADE on a card change, and the
- * entering body is born 0.25rem low (`con-parl-xfade-enter-from`) until Vue swaps its classes on a FRAME — on a
- * loaded headless 4K runner that frame can be hundreds of ms away, so «three equal reads» alone measured a body
- * still standing in its enter pose (10 px off, reproducibly); ② the entrance itself. So: no crossfade class left
- * in the panel, THEN three equal reads 100 ms apart. Timers, never rAF — the wait must not stall with the frames.
+ * A box, SETTLED — both sides of a «nothing moved» comparison go through this (`readSettled`). Two ways to read a box
+ * that is not the resting one: ① the panel's bodies CROSSFADE on a card change, and the entering body is born 0.25rem
+ * low (`con-parl-xfade-enter-from`) until Vue swaps its classes on a FRAME — on a loaded headless 4K runner that frame
+ * can be hundreds of ms away, so «equal reads» alone measured a body still standing in its enter pose (10 px off,
+ * reproducibly) — so a read taken while a crossfade class stands is never one of the equal reads; ② the entrance
+ * itself — `readSettled`'s own finite-motion gate. Three equal reads a frame apart.
  */
-const boxOf = (page: Page, selector: string) => page.evaluate(async (sel) => {
-  const pause = () => new Promise((resolve) => setTimeout(resolve, 100));
-  const crossfading = () => document.querySelector(
-    '.con-parl-xfade-enter-from, .con-parl-xfade-enter-active, .con-parl-xfade-leave-active') !== null;
-  for (let i = 0; i < 80 && crossfading(); i++) {
-    await pause();
-  }
-  const read = () => {
+const boxOf = async (page: Page, selector: string): Promise<Array<number> | undefined> => {
+  const box = await readSettled(page, () => page.evaluate((sel) => {
+    if (document.querySelector('.con-parl-xfade-enter-from, .con-parl-xfade-enter-active, .con-parl-xfade-leave-active') !== null) {
+      return 'crossfading';
+    }
     const r = document.querySelector(sel)?.getBoundingClientRect();
     return r === undefined ? '' : [r.left, r.top, r.width, r.height].map(Math.round).join(',');
-  };
-  let last = read();
-  let equal = 0;
-  for (let i = 0; i < 60 && equal < 2; i++) {
-    await pause();
-    const now = crossfading() ? '' : read();
-    equal = now === last && now !== '' ? equal + 1 : 0;
-    last = now;
-  }
-  return last === '' ? undefined : last.split(',').map(Number);
-}, selector);
+  }, selector), {equal: 3, same: (a, b) => a === b && a !== 'crossfading', timeoutMs: 14_000, message: `the box of ${selector}`});
+  return box === '' ? undefined : box.split(',').map(Number);
+};
 
 /** The vote mode's cursor: the index of the selected slot (-1 while no slot is selected). */
 const selectedSlot = (page: Page) => page.evaluate(() =>
@@ -390,14 +412,17 @@ for (const preset of PRESETS) {
       // ── 4b. in again; A is the play's ONE POST, addressed to the card ──
       await chooseResolution(page);
       const reserveStack = `[data-parl-seat-reserve="${viewer}"]`;
-      const sources = {
-        reserve: await seen(page, reserveStack),
-        pool: await seen(page, '[data-parl-neutral-cube]'),
-      };
-      const targets = {
-        ribbon: await seen(page, '[data-parl-vote-ribbon]'),
-        places: [await seen(page, `${supportBlock} [data-support-place="1"]`), await seen(page, `${supportBlock} [data-support-place="2"]`), await seen(page, `${supportBlock} [data-support-place="3"]`)],
-      };
+      // The flights' two ends, measured AT REST (`readSettled` — the vote mode's entrance may still be moving).
+      const {sources, targets} = await readSettled(page, async () => ({
+        sources: {
+          reserve: await seen(page, reserveStack),
+          pool: await seen(page, '[data-parl-neutral-cube]'),
+        },
+        targets: {
+          ribbon: await seen(page, '[data-parl-vote-ribbon]'),
+          places: [await seen(page, `${supportBlock} [data-support-place="1"]`), await seen(page, `${supportBlock} [data-support-place="2"]`), await seen(page, `${supportBlock} [data-support-place="3"]`)],
+        },
+      }), {message: 'the reserve, the supply, the ribbon and the support places'});
       expect(sources.reserve?.visible, 'the reserve stack is on screen').toBe(true);
       expect(sources.pool?.visible, 'the neutral supply is on screen').toBe(true);
       expect(targets.ribbon?.visible, 'the card\'s ribbon is on screen').toBe(true);
@@ -442,7 +467,8 @@ for (const preset of PRESETS) {
         flights: Object.values(probe.flights).map((f) => [Math.round(f.first.x), Math.round(f.first.y), Math.round(f.last.x), Math.round(f.last.y), f.n])});
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/political-donation-${preset.id}.json`, JSON.stringify(probe, null, 1));
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+      // The recorder's own liveness floor — only a DEAD recorder fails it (a count of samples is a count of frames).
+      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(0);
 
       // ── 2. one flow: the crumb, the one instance ──
       expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);

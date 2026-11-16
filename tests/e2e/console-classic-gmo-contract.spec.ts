@@ -18,8 +18,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openZoomViewer, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openZoomViewer, pressUntil, settle} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness} from './witness';
 
 const PROFILES = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -55,15 +56,12 @@ async function openComposer(page: Page, card: string): Promise<void> {
 }
 
 async function playAndWait(page: Page, request: APIRequestContext, playerId: string, card: string): Promise<Wire> {
-  for (let i = 0; i < 5 && await page.locator('.con-composer--play').count() > 0; i++) {
-    await press(page, 'Enter', 900);
-  }
-  let after = await serverModel(request, playerId);
-  for (let i = 0; i < 120 && !after.thisPlayer.tableau.some((c) => c.name === card); i++) {
-    await new Promise((r) => setTimeout(r, 250));
-    after = await serverModel(request, playerId);
-  }
-  expect(after.thisPlayer.tableau.some((c) => c.name === card), `${card} is on the table`).toBe(true);
+  // A plays it — each A gets its whole window before another (the composer leaves with the play) …
+  await pressUntil(page, 'Enter', async () => await page.locator('.con-composer--play').count() === 0, {tries: 5, settleMs: 900});
+  // … and «done» is the SERVER's: the card on the table.
+  await expect.poll(async () => (await fetchPlayerModel(request, playerId) as unknown as Wire).thisPlayer.tableau.some((c) => c.name === card),
+    {timeout: 30_000, intervals: [250], message: `${card} is on the table`}).toBe(true);
+  const after = await serverModel(request, playerId);
   await expect(page.locator('.con-ws'), 'the scene left').toHaveCount(0, {timeout: 45_000});
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('.con-transfer__chip').length), {timeout: 20_000}).toBe(0);
   await settle(page, {timeoutMs: 30_000});
@@ -117,24 +115,18 @@ for (const preset of PROFILES) {
       await shot(page, preset.id, 'C-composer');
       await armTransferWitness(page);
       // THE RECEIVER ANNOUNCES ITSELF (the owner's decision 7): while the «+2» is in the air a ring stands over the M€ ink.
-      await page.evaluate(() => {
-        const w = window as unknown as {__expectHits?: Array<number>};
-        w.__expectHits = [];
-        const timer = window.setInterval(() => {
-          const digits = document.querySelector('.con-res__row--megacredits .con-res__digits')?.getBoundingClientRect();
-          for (const ring of Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__expect[data-expect-resource="megacredits"]'))) {
-            const r = ring.getBoundingClientRect();
-            const op = Number(getComputedStyle(ring).opacity);
-            if (digits !== undefined && op > 0.3 && r.left <= digits.left + 2 && r.right >= digits.right - 2 && r.top <= digits.top + 2 && r.bottom >= digits.bottom - 2) {
-              w.__expectHits!.push(op);
-            }
-          }
-        }, 16);
-        window.setTimeout(() => window.clearInterval(timer), 30_000);
+      // RECORDED from before the press (`armWitness` — «did it ever stand», caught in the task that drew it).
+      const ring = await armWitness(page, 't06-expect-ring', () => {
+        const digits = document.querySelector('.con-res__row--megacredits .con-res__digits')?.getBoundingClientRect();
+        return Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__expect[data-expect-resource="megacredits"]')).some((el) => {
+          const r = el.getBoundingClientRect();
+          const op = Number(getComputedStyle(el).opacity);
+          return digits !== undefined && op > 0.3 && r.left <= digits.left + 2 && r.right >= digits.right - 2 && r.top <= digits.top + 2 && r.bottom >= digits.bottom - 2;
+        });
       });
       const after = await playAndWait(page, request, playerId, 'Lichen');
-      const ringHits = await page.evaluate(() => (window as unknown as {__expectHits?: Array<number>}).__expectHits?.length ?? 0);
-      expect(ringHits, 'a ring stood over the M€ ink while the answer flew').toBeGreaterThan(0);
+      expect(await ring.ever((over) => over), 'a ring stood over the M€ ink while the answer flew').toBe(true);
+      await ring.stop();
       const w = await transferWitness(page);
       fs.mkdirSync(path.join(OUT, preset.id), {recursive: true});
       fs.writeFileSync(path.join(OUT, preset.id, 'card-C-trail.txt'), transferTrail(w) + '\n');

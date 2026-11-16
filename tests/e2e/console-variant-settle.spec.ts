@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, focusCard, openActionFocus, openCardActions, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * CHOOSING A VARIANT MOVES NOTHING THE PLAYER IS LOOKING AT (the owner's 4K report of 2026-10-14: «after choosing an
@@ -31,55 +33,36 @@ async function shoot(page: Page, preset: string, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${preset}-${name}.png`)});
 }
 
-type Probe = {frames: Array<Record<string, number | null>>, stop: boolean};
+type Tops = Record<string, number | null>;
 
-/** Arm a sampler over named blocks — the FIRST sample is synchronous (the press patches before the next tick). */
-async function arm(page: Page, named: Record<string, string>): Promise<void> {
-  await page.evaluate((sel) => {
-    const probe: Probe = {frames: [], stop: false};
-    (window as unknown as {__variantSettle: Probe}).__variantSettle = probe;
-    const sample = () => {
-      const f: Record<string, number | null> = {};
-      for (const [k, s] of Object.entries(sel)) {
-        const el = document.querySelector(s);
-        f[k] = el === null ? null : Math.round(el.getBoundingClientRect().top);
-      }
-      probe.frames.push(f);
-    };
-    sample();
-    // An interval, never rAF: a measurement probe may not depend on the frame loop for its liveness (rule § A MEASUREMENT
-    // PROBE MAY NOT DEPEND ON rAF) — 16 ms still reads every step of a 240 ms slide.
-    const iv = window.setInterval(() => {
-      if (probe.stop) {
-        window.clearInterval(iv);
-        return;
-      }
-      sample();
-    }, 16);
-  }, named);
+/** The named blocks' tops (a page reader, self-contained: it is serialized into the page). */
+function topsOf(sel: Record<string, string>): Tops {
+  const f: Record<string, number | null> = {};
+  for (const [k, s] of Object.entries(sel)) {
+    const el = document.querySelector(s);
+    f[k] = el === null ? null : Math.round(el.getBoundingClientRect().top);
+  }
+  return f;
 }
 
 /**
- * Wait until the press's consequences have SETTLED — a state, never a duration: the probe's last 12 samples (≈ 200 ms at
- * the 16 ms interval) are identical in every block, after at least 20 samples were taken.
+ * Arm a RECORD over named blocks (FLAKE ZERO — `armWitness`): the FIRST sample is the state it was armed in — the layout
+ * BEFORE the press — and every top the product writes after it is kept (the column's GSAP slide writes every step it
+ * paints).
  */
-async function settled(page: Page): Promise<void> {
-  await expect.poll(async () => page.evaluate(() => {
-    const frames = (window as unknown as {__variantSettle: Probe}).__variantSettle.frames;
-    if (frames.length < 20) {
-      return false;
-    }
-    const tail = frames.slice(-12).map((f) => JSON.stringify(f));
-    return tail.every((f) => f === tail[0]);
-  }), {timeout: 15_000, intervals: [120], message: 'the layout settles after the press'}).toBe(true);
+async function arm(page: Page, named: Record<string, string>): Promise<Witness<Tops>> {
+  return armWitness<Tops, Record<string, string>>(page, 'variant-settle', topsOf, {args: named});
 }
 
-async function read(page: Page): Promise<Array<Record<string, number | null>>> {
-  return await page.evaluate(() => {
-    const p = (window as unknown as {__variantSettle: Probe}).__variantSettle;
-    p.stop = true;
-    return p.frames;
-  });
+/**
+ * Wait until the press's consequences have SETTLED — a state, never a duration: the console at rest (no hold, no
+ * request, no finite motion), then the blocks themselves at rest (the column's slide is a GSAP tween no `settle` sees —
+ * equal reads a frame apart), then stop the record: its last state is where the layout rests.
+ */
+async function settled(page: Page, record: Witness<Tops>, named: Record<string, string>): Promise<Array<Tops>> {
+  await settle(page, {timeoutMs: 15_000});
+  await readSettled(page, () => page.evaluate(topsOf, named), {settle: false, timeoutMs: 15_000, message: 'the layout settles after the press'});
+  return (await record.stop()).map((x) => x.v);
 }
 
 /** The seal's visible share inside the nearest scroller (100 = whole). */
@@ -135,15 +118,15 @@ for (const preset of PRESETS) {
       }
       expect(await focusedTile(page, ROOT)).toBe(2);
       await shoot(page, preset.id, 'a-01-before');
-      await arm(page, {
+      const named = {
         plate: `${ROOT} .con-composer__surface`,
         hero: `${ROOT} .con-composer__hero`,
         group: `${ROOT} .con-vchoice`,
         cta: `${ROOT} .con-composer__cta`,
-      });
+      };
+      const record = await arm(page, named);
       await page.keyboard.press('Enter');
-      await settled(page);
-      const frames = await read(page);
+      const frames = await settled(page, record, named);
       const first = frames[0];
       const last = frames[frames.length - 1];
       for (const k of ['plate', 'hero', 'group', 'cta']) {
@@ -152,7 +135,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${ROOT} [data-hero-pending]`), 'the slot is filled').toHaveCount(0);
       await expect(page.locator(`${ROOT} .con-composer__hero`), 'by the chosen outcome').toContainText(/6\s*→\s*10/);
       await expect(page.locator(`${ROOT} .con-composer__cta-hint`), 'the hint left its lane').toHaveCount(0);
-      expect(await sealVisible(page, ROOT), 'the seal stands wholly inside the scroller').toBe(100);
+      expect(await readSettled(page, () => sealVisible(page, ROOT), {message: 'the seal in its scroller'}), 'the seal stands wholly inside the scroller').toBe(100);
       await shoot(page, preset.id, 'a-02-after');
     });
 
@@ -178,14 +161,14 @@ for (const preset of PRESETS) {
       }
       expect(await focusedTile(page, ROOT), 'the cursor stands on a tile').toBeGreaterThanOrEqual(0);
       await shoot(page, preset.id, 'b-01-before');
-      await arm(page, {
+      const named = {
         scroll: `${ROOT} .con-composer__playsheet > .con-composer__scroll`,
         group: `${ROOT} .con-vchoice`,
         cta: `${ROOT} .con-composer__cta`,
-      });
+      };
+      const record = await arm(page, named);
       await page.keyboard.press('Enter');
-      await settled(page);
-      const frames = await read(page);
+      const frames = await settled(page, record, named);
       const first = frames[0];
       const last = frames[frames.length - 1];
       expect(Math.abs((last.scroll ?? 0) - (first.scroll ?? 0)), `the work column's top stays (${first.scroll} → ${last.scroll})`).toBeLessThanOrEqual(2);
@@ -193,14 +176,14 @@ for (const preset of PRESETS) {
       const ctaMoved = Math.abs((last.cta ?? 0) - (first.cta ?? 0));
       if (ctaMoved > 2) {
         // A CUT is two positions, before and after; a slide passes through at least one in between. The floor is set where
-        // only a cut fails — a loaded 4K runner starves the frame loop, so the count of intermediate samples is the
+        // only a cut fails — a loaded 4K runner starves the frame loop, so the count of intermediate poses is the
         // machine's, not the product's (measured 1–5).
         const lo = Math.min(first.cta ?? 0, last.cta ?? 0);
         const hi = Math.max(first.cta ?? 0, last.cta ?? 0);
         const between = frames.filter((f) => f.cta !== null && (f.cta as number) > lo + 1 && (f.cta as number) < hi - 1).length;
         expect(between, `the commit rail SLIDES its ${ctaMoved} px (positions ${distinct(frames, 'cta')}) — never one cut`).toBeGreaterThanOrEqual(1);
       }
-      expect(await sealVisible(page, ROOT), 'the seal stands wholly inside the scroller').toBe(100);
+      expect(await readSettled(page, () => sealVisible(page, ROOT), {message: 'the seal in its scroller'}), 'the seal stands wholly inside the scroller').toBe(100);
       await shoot(page, preset.id, 'b-02-after');
     });
   });

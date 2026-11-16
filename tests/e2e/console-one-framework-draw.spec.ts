@@ -2,6 +2,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, fetchPlayerModel, openCardActions, press, pressUntil, settle, takeRevealCards, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * «ОДИН ФРЕЙМВОРК» · П3 — THE A/B OF THE DRAW (Turmoil Redux, the owner's own example, 2026-10-24): the Reds' «draw 2»
@@ -27,7 +29,8 @@ async function focusActionTile(page: Page, selector: string): Promise<void> {
   await expect(page.locator(`.con-cardactions__tile${selector}`), `the tile ${selector} is in the menu`).toHaveCount(1);
   const focused = () => page.evaluate((sel) => document.querySelector(`.con-cardactions__tile--focused${sel}`) !== null, selector);
   for (let i = 0; i < 20 && !await focused(); i++) {
-    const dir = await page.evaluate((sel) => {
+    // The direction is read off the tiles AT REST (C — `readSettled`), never off a grid still laying itself out.
+    const dir = await readSettled(page, () => page.evaluate((sel) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(`.con-cardactions__tile${sel}`)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -39,58 +42,55 @@ async function focusActionTile(page: Page, selector: string): Promise<void> {
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, selector);
+    }, selector), {settle: false, message: `the direction to ${selector}`});
     await press(page, dir, 300);
   }
   expect(await focused(), `the cursor stands on ${selector}`).toBe(true);
 }
 
-/** Arm the sampler (MutationObserver + a 16 ms interval — never rAF): the prepared beat slots, the landed slots, any standalone reveal. */
+/** What one painted state shows of the draw zone (the reader's observation). */
+type DrawSeen = {prepared: Array<Rect>, landed: Array<Rect>, standalone: boolean};
+const DRAW_WITNESS = 'one-framework-draw';
+
+/**
+ * Arm the draw's recording — RECORDED (FLAKE ZERO — `armWitness`, armed before the commit, replace-proof): the prepared
+ * beat slots, the landed slots, any standalone reveal, in every state the zone stood in. «Never a standalone reveal» is
+ * a claim about every painted state, so the record is `settled` — the state a task LEAVES.
+ */
 async function armDrawSampler(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type R = {w: number, h: number, top: number, left: number, lifted?: boolean};
-    const w = window as unknown as {__oneFw?: {landed: Array<R>, prepared: Array<R>, standalone: number, samples: number}, __oneFwStop?: () => void};
-    w.__oneFwStop?.();
-    const rec = {landed: [] as Array<R>, prepared: [] as Array<R>, standalone: 0, samples: 0};
-    w.__oneFw = rec;
-    const rectOf = (el: Element): R => {
+  await armWitness<DrawSeen>(page, DRAW_WITNESS, () => {
+    const rectOf = (el: Element): Rect => {
       const r = el.getBoundingClientRect();
       const lifted = el.classList.contains('con-cards__slot--focused');
       return {w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top), left: Math.round(r.left), ...(lifted ? {lifted} : {})};
     };
-    const sample = () => {
-      rec.samples++;
-      const prepared = Array.from(document.querySelectorAll('.con-composer__revealzone--draw .con-composer__beatslot')).map(rectOf).filter((r) => r.w > 4);
-      if (prepared.length > 0) {
-        rec.prepared = prepared;
-      }
-      const landed = Array.from(document.querySelectorAll('.con-composer__revealzone--draw .con-reveal .con-cards__slot')).map(rectOf).filter((r) => r.w > 4);
-      if (landed.length > 0) {
-        rec.landed = landed;
-      }
-      if (document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null) {
-        rec.standalone++;
-      }
+    return {
+      prepared: Array.from(document.querySelectorAll('.con-composer__revealzone--draw .con-composer__beatslot')).map(rectOf).filter((r) => r.w > 4),
+      landed: Array.from(document.querySelectorAll('.con-composer__revealzone--draw .con-reveal .con-cards__slot')).map(rectOf).filter((r) => r.w > 4),
+      standalone: document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null,
     };
-    const timer = window.setInterval(sample, 16);
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-    w.__oneFwStop = () => {
-      // The READ is a sample too: the last timer tick can predate the pose's final frame (a starved renderer measured
-      // the lift at 973 px of its 977).
-      sample();
-      window.clearInterval(timer);
-      mo.disconnect();
-    };
-  });
+  }, {settled: true, max: 20_000});
 }
 
+/**
+ * The record, stopped and folded: the LAST prepared and the LAST landed slots the zone showed, how many states held a
+ * standalone reveal. The stop is a sample too (the recorder flushes the page's last state before it is read).
+ */
 async function readDrawSampler(page: Page): Promise<DrawSample> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__oneFw?: DrawSample, __oneFwStop?: () => void};
-    w.__oneFwStop?.();
-    return w.__oneFw ?? {landed: [], prepared: [], standalone: 0, samples: 0};
-  }) as Promise<DrawSample>;
+  const recorded = await witnessOf<DrawSeen>(page, DRAW_WITNESS).stop();
+  const out: DrawSample = {landed: [], prepared: [], standalone: 0, samples: recorded.length};
+  for (const s of recorded) {
+    if (s.v.prepared.length > 0) {
+      out.prepared = s.v.prepared;
+    }
+    if (s.v.landed.length > 0) {
+      out.landed = s.v.landed;
+    }
+    if (s.v.standalone) {
+      out.standalone++;
+    }
+  }
+  return out;
 }
 
 async function waitingType(request: APIRequestContext, playerId: string): Promise<string | undefined> {
@@ -162,7 +162,8 @@ for (const profile of PROFILES) {
       const report = `ai-central ${JSON.stringify(central)}\nreds ${JSON.stringify(reds)}`;
       fs.mkdirSync(path.join(OUT, profile.id), {recursive: true});
       fs.writeFileSync(path.join(OUT, profile.id, 'draw-ab.txt'), report + '\n');
-      expect(central.samples, `the sampler ran (${report})`).toBeGreaterThan(10);
+      // The recorder's liveness only (a dead recorder): it keeps distinct STATES, never frames.
+      expect(central.samples, `the sampler ran (${report})`).toBeGreaterThan(0);
       expect(central.landed.length, `AI Central landed two slots (${report})`).toBe(2);
       expect(reds.landed.length, `the Reds landed two slots (${report})`).toBe(2);
       for (let i = 0; i < 2; i++) {

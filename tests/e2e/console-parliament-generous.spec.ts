@@ -5,6 +5,7 @@ import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, pre
 import {
   armLeakWitness, awaitSittingUp, expectDossierIsRules, expectParliamentFits, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * GENEROUS FUNDING (Turmoil Redux, RX13) — the first counted term that reads
@@ -28,9 +29,10 @@ import {
  *     the landing's frame with its delta chip, and — a card that asks nothing
  *     — the results follow.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF; a sample
- * carries whether the source and the destination were VISIBLE (a non-zero
- * rect, a non-zero effective opacity, nothing over their centre).
+ * The probe is RECORDED (`armWitness` — the product's own writes plus a frame
+ * tick, every distinct state with the page's time); a sample carries whether
+ * the source and the destination were VISIBLE (a non-zero rect, a non-zero
+ * effective opacity, nothing over their centre).
  * Fixture: `parliament-generous-vote`. Screenshots under
  * screenshots/parliament-generous/standard-1080/.
  */
@@ -77,12 +79,15 @@ type Sample = {
   stock: string; deltas: number; contexts: Array<string>;
 };
 type Probe = {samples: Array<Sample>};
+const PROBE_WITNESS = 'generous-wave';
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
+/**
+ * THE PROBE — armed BEFORE the gate is answered, RECORDED (FLAKE ZERO — `armWitness`, replace-proof). Its claims are
+ * ORDER (the counter never before the chip left the card) and the chip's birth / landing beside what was painted there,
+ * so the record is `settled` — the state a task LEAVES, what a frame can paint.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__generousProbe: Probe};
-    w.__generousProbe = {samples: []};
+  await armWitness<Omit<Sample, 't'>>(page, PROBE_WITNESS, () => {
     const rectOf = (el: Element | null): Rect | undefined => {
       if (el === null) {
         return undefined;
@@ -107,48 +112,45 @@ async function armProbe(page: Page): Promise<void> {
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return hit !== null && (el.contains(hit) || hit.contains(el));
     };
-    const sample = () => {
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
-        const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
-        return {id: `${el.dataset.transferId ?? '?'}:${res}`, x: r.left + r.width / 2, y: r.top + r.height / 2, res, amt: el.textContent?.trim() ?? ''};
-      });
-      const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
-      const mech = card?.querySelector('.pcard__mech') ?? null;
-      const row = document.querySelector('.con-res__row--megacredits');
-      const cell = row?.querySelector('.con-res__stockwrap') ?? null;
-      w.__generousProbe.samples.push({
-        t: performance.now(),
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        chips,
-        mech: rectOf(mech),
-        mechVisible: visible(mech),
-        cell: rectOf(cell),
-        cellVisible: visible(cell),
-        stock: row?.querySelector('.con-res__digits')?.textContent?.trim() ?? '',
-        deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
-        contexts: Array.from(document.querySelectorAll('.con-band [data-yield-context]')).map((el) => el.getAttribute('data-yield-context') ?? ''),
-      });
-      if (w.__generousProbe.samples.length > 9000) {
-        w.__generousProbe.samples.splice(0, 1500);
-      }
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
+      const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
+      return {id: `${el.dataset.transferId ?? '?'}:${res}`, x: r.left + r.width / 2, y: r.top + r.height / 2, res, amt: el.textContent?.trim() ?? ''};
+    });
+    const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
+    const mech = card?.querySelector('.pcard__mech') ?? null;
+    const row = document.querySelector('.con-res__row--megacredits');
+    const cell = row?.querySelector('.con-res__stockwrap') ?? null;
+    return {
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      chips,
+      mech: rectOf(mech),
+      mechVisible: visible(mech),
+      cell: rectOf(cell),
+      cellVisible: visible(cell),
+      stock: row?.querySelector('.con-res__digits')?.textContent?.trim() ?? '',
+      deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
+      contexts: Array.from(document.querySelectorAll('.con-band [data-yield-context]')).map((el) => el.getAttribute('data-yield-context') ?? ''),
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-sit-step', 'data-yield-context']});
-    window.setInterval(sample, 16);
-  });
+  }, {settled: true, max: 20_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__generousProbe: Probe}).__generousProbe);
 
-/** A red run carries its own evidence: the probe's tail rides the report. */
+/** The recording — every distinct state with its time on the PAGE's clock (`stop` ends it). */
+async function readProbe(page: Page, stop = false): Promise<Probe> {
+  const w = witnessOf<Omit<Sample, 't'>>(page, PROBE_WITNESS);
+  const recorded = stop ? await w.stop() : await w.samples();
+  return {samples: recorded.map((s) => ({...s.v, t: s.t}))};
+}
+
+/** A red run carries its own evidence: the probe's tail rides the report (the record lives on the Node side). */
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__generousProbe?: Probe, __conReady?: () => unknown};
-    return {samples: w.__generousProbe?.samples.slice(-3000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
+  const samples = (await readProbe(page).catch(() => ({samples: []}))).samples.slice(-3000);
+  const ready = await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()).catch(() => undefined);
+  const evidence = samples.length > 0 || ready !== undefined ? {samples, ready} : undefined;
   if (evidence !== undefined) {
     const file = testInfo.outputPath('generous-probe.json');
     fs.writeFileSync(file, JSON.stringify(evidence));
@@ -243,12 +245,12 @@ test.describe('Generous Funding · standard-1080', () => {
     await shoot(page, '04-sitting-up');
 
     // ── THE WAVE: the +8 chip born inside the carrier card's mechanic, landing on the M€ cell of the rail.
-    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.res === 'megacredits')),
-      {timeout: 30_000, message: 'the M€ wave left the card on the reward page'}).toBe(true);
+    await witnessOf<Omit<Sample, 't'>>(page, PROBE_WITNESS).waitFor((s) => s.stage === 'reward' && s.chips.some((c) => c.res === 'megacredits'),
+      {timeoutMs: 30_000, message: 'the M€ wave left the card on the reward page'});
     // The reward page of a card that asks nothing stands only while its chip flies — the frame is taken in flight.
     await shoot(page, '05-reward-wave');
     await waitSittingAtRest(page, 30_000);
-    const probe = await readProbe(page);
+    const probe = await readProbe(page, true);
     const firstReading = probe.samples.findIndex((s) => s.stage === 'reward' && s.contexts.length > 0);
     expect(firstReading, 'the reward page read what was coming').toBeGreaterThanOrEqual(0);
     expect(probe.samples[firstReading].contexts.every((ctx) => ctx === 'resolving'), `«this payout» before the record, got ${probe.samples[firstReading].contexts.join(',')}`).toBe(true);

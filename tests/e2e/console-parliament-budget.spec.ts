@@ -5,6 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, pressUntil, settle,
 } from './consoleStart';
 import {armLeakWitness, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * INDUSTRIALIST BUDGET (Turmoil Redux, RX15) — the ONE e2e of the family's new
@@ -30,7 +31,7 @@ import {armLeakWitness, enterSittingByPass, expectDossierIsRules, expectParliame
  *   production zone. Three parts of one seat, in turn, never on top of each
  *   other. The results read the parts signed and the NET «= −3».
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF; every sample
+ * The probe is a RECORDING (`armWitness` — every state the product writes); every sample
  * carries whether the source and the destination were VISIBLE and where each
  * chip stood, so a claim of «born here, landed there» is judged on frames.
  * Screens under screenshots/parliament-budget/standard-1080/.
@@ -78,12 +79,16 @@ type Sample = {
   stock: string; production: string; deltas: number;
 };
 type Probe = {samples: Array<Sample>};
+const BUDGET_WITNESS = 'parliament-budget-waves';
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
+/**
+ * THE PROBE — armed BEFORE the gate is answered. RECORDED (FLAKE ZERO — `armWitness`, replace-proof): every state the
+ * product writes, with the page's time, off its own writes and a frame tick — a short chip can no longer be slept
+ * through. `settled`: the claims are ORDERS (the tick on the departure, never before the birth; the payout only after the
+ * levy landed) — a sample is the state a task LEAVES, never the gap between two of its writes.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__budgetProbe: Probe};
-    w.__budgetProbe = {samples: []};
+  await armWitness<Omit<Sample, 't'>>(page, BUDGET_WITNESS, () => {
     const rectOf = (el: Element | null): Rect | undefined => {
       if (el === null) {
         return undefined;
@@ -108,52 +113,46 @@ async function armProbe(page: Page): Promise<void> {
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return hit !== null && (el.contains(hit) || hit.contains(el));
     };
-    const sample = () => {
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        const kind: 'stock' | 'production' = el.classList.contains('con-transfer__chip--production') ? 'production' : 'stock';
-        return {
-          id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, kind,
-          dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? '',
-        };
-      });
-      const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
-      const mech = card?.querySelector('.pcard__mech') ?? null;
-      const row = document.querySelector('.con-res__row--megacredits');
-      const cell = row?.querySelector('.con-res__stockwrap') ?? null;
-      const prod = row?.querySelector('.con-res__prod') ?? null;
-      w.__budgetProbe.samples.push({
-        t: performance.now(),
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        chips,
-        mech: rectOf(mech),
-        mechVisible: visible(mech),
-        cell: rectOf(cell),
-        cellVisible: visible(cell),
-        prod: rectOf(prod),
-        stock: row?.querySelector('.con-res__digits')?.textContent?.trim() ?? '',
-        production: prod?.textContent?.trim() ?? '',
-        deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
-      });
-      if (w.__budgetProbe.samples.length > 9000) {
-        w.__budgetProbe.samples.splice(0, 1500);
-      }
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      const kind: 'stock' | 'production' = el.classList.contains('con-transfer__chip--production') ? 'production' : 'stock';
+      return {
+        id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, kind,
+        dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? '',
+      };
+    });
+    const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
+    const mech = card?.querySelector('.pcard__mech') ?? null;
+    const row = document.querySelector('.con-res__row--megacredits');
+    const cell = row?.querySelector('.con-res__stockwrap') ?? null;
+    const prod = row?.querySelector('.con-res__prod') ?? null;
+    return {
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      chips,
+      mech: rectOf(mech),
+      mechVisible: visible(mech),
+      cell: rectOf(cell),
+      cellVisible: visible(cell),
+      prod: rectOf(prod),
+      stock: row?.querySelector('.con-res__digits')?.textContent?.trim() ?? '',
+      production: prod?.textContent?.trim() ?? '',
+      deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-sit-step']});
-    window.setInterval(sample, 16);
-  });
+  }, {settled: true, max: 20_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__budgetProbe: Probe}).__budgetProbe);
+/** The record with each state's time on the PAGE's clock. */
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Omit<Sample, 't'>>(page, BUDGET_WITNESS).samples()).map((s) => ({...s.v, t: s.t}))});
 
 /** A red run carries its own evidence: the probe's tail rides the report. */
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__budgetProbe?: Probe, __conReady?: () => unknown};
-    return {samples: w.__budgetProbe?.samples.slice(-3000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
+  const evidence = await (async () => ({
+    samples: (await readProbe(page)).samples.slice(-3000),
+    ready: await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()).catch(() => undefined),
+  }))().catch(() => undefined);
   if (evidence !== undefined) {
     const file = testInfo.outputPath('budget-probe.json');
     fs.writeFileSync(file, JSON.stringify(evidence));
@@ -224,7 +223,7 @@ test.describe('Industrialist Budget · standard-1080', () => {
       await settle(page, {timeoutMs: 15_000});
       const block = page.locator('[data-parl-vote-yield]');
       await expect(block, 'the levy + production count → M€ block').toHaveCount(1);
-      expect(await readingsIn(page, '[data-parl-vote-yield]')).toEqual([
+      await expect.poll(() => readingsIn(page, '[data-parl-vote-yield]'), {message: 'the readings of the levy + production block'}).toEqual([
         {effect: 'megacredits', context: 'estimate', count: '5', influence: '2', amount: '7', net: '-3', skipped: null},
         {effect: 'production', context: 'estimate', count: null, influence: '2', amount: '4', net: null, skipped: null},
       ]);

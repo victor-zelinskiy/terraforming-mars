@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, fetchPlayerModel, press, pressUntil} from './consoleStart';
 import {answerAsksAs, enterSittingByPass} from './parliamentDrive';
-import {armWitness, pageNow} from './witness';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * THE PARLIAMENT'S SITTING — the MOTION half (Э4 of
@@ -30,8 +30,8 @@ import {armWitness, pageNow} from './witness';
  *   · durations within the storyboard's budget; every `parliament-sitting:*`
  *     hold released at rest.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF (headless
- * Chromium starves it on a quiet screen). Screenshots under
+ * The probe is a RECORDING (`armWitness` — every state the product writes, never a
+ * sampler that sleeps through a beat). Screenshots under
  * screenshots/parliament-sitting-motion/.
  */
 const OUT = path.resolve('screenshots', 'parliament-sitting-motion');
@@ -50,88 +50,100 @@ const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => 
 type ProxySample = {id: string, body: string, face: string, x: number, y: number, rotY: number | undefined, filter: string};
 type Sample = {t: number, motion: string, stage: string, holds: Array<string>, proxies: Array<ProxySample>, dealing: number, govAwaiting: boolean, lit: number, govCard: number, rowShown: boolean, reading: boolean, deck: number, faces: Record<string, number>, resultsHidden: boolean};
 type Probe = {samples: Array<Sample>};
+const SIT_WITNESS = 'parliament-sitting-motion';
 
-/** THE PROBE — armed BEFORE the press. `setInterval` + `MutationObserver`, never rAF. */
+/**
+ * THE PROBE — armed BEFORE the press. RECORDED (FLAKE ZERO — `armWitness`, replace-proof): every state the product
+ * writes (a proxy's every GSAP `style` write included), with the page's time, off its own writes and a frame tick.
+ * `settled`: the claims are about PAINTED frames (the row in view on every frame, a card painted once, the pile thinning
+ * per body) — a sample is the state a task LEAVES, never the gap between two of its writes.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__sitProbe: Probe, __conReady?: () => {holds: Array<string>}};
-    w.__sitProbe = {samples: []};
-    const sample = () => {
-      const proxies = Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
-        const r = el.getBoundingClientRect();
-        const inner = el.querySelector<HTMLElement>('.con-card3d');
-        // GSAP writes the body's transform; a rotateY of exactly 0 is omitted from its string — a written
-        // transform with no rotateY IS face-up, an unwritten one is not yet posed.
-        const m = inner === null ? null : /rotateY\(([-\d.]+)deg\)/.exec(inner.style.transform);
-        const rotY = m !== null ? Number(m[1]) : (inner !== null && inner.style.transform !== '' ? 0 : undefined);
-        return {
-          id: el.getAttribute('data-parl-flight') ?? '', body: el.getAttribute('data-parl-flight-body') ?? 'cube',
-          face: el.getAttribute('data-parl-flight-face') ?? '', x: r.left + r.width / 2, y: r.top + r.height / 2,
-          rotY, filter: getComputedStyle(el).filter,
-        };
-      });
-      // Every painted premium face per resolution slug — a card at rest is painted ONCE.
-      const faces: Record<string, number> = {};
-      for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-parl .pcard, [data-parl-flight] .pcard'))) {
-        // ON SCREEN, not merely in the DOM: since v4 the reading panel is `v-show`n (its teleport targets must
-        // outlive the table stages), so a hidden pose legitimately holds a second copy of the same face.
-        const r = el.getBoundingClientRect();
-        if (getComputedStyle(el).visibility === 'hidden' || r.width < 2 || r.height < 2) {
-          continue;
-        }
-        // …and PAINTED: v8's results card stands over the chamber (the government receded to opacity 0) and leads with
-        // the enacted face itself — the receded government's copy is in the DOM, not on screen.
-        let ink = 1;
-        for (let a: Element | null = el; a !== null && a !== document.documentElement; a = a.parentElement) {
-          ink *= Number(getComputedStyle(a).opacity || '1');
-        }
-        if (ink < 0.5) {
-          continue;
-        }
-        const slug = Array.from(el.classList).find((c) => c.startsWith('pcard--rdx-')) ?? '';
-        if (slug !== '') {
-          faces[slug] = (faces[slug] ?? 0) + 1;
-        }
+  await armWitness<Omit<Sample, 't'>>(page, SIT_WITNESS, () => {
+    const w = window as unknown as {__conReady?: () => {holds: Array<string>}};
+    const proxies = Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
+      const r = el.getBoundingClientRect();
+      const inner = el.querySelector<HTMLElement>('.con-card3d');
+      // GSAP writes the body's transform; a rotateY of exactly 0 is omitted from its string — a written
+      // transform with no rotateY IS face-up, an unwritten one is not yet posed.
+      const m = inner === null ? null : /rotateY\(([-\d.]+)deg\)/.exec(inner.style.transform);
+      const rotY = m !== null ? Number(m[1]) : (inner !== null && inner.style.transform !== '' ? 0 : undefined);
+      return {
+        id: el.getAttribute('data-parl-flight') ?? '', body: el.getAttribute('data-parl-flight-body') ?? 'cube',
+        face: el.getAttribute('data-parl-flight-face') ?? '', x: r.left + r.width / 2, y: r.top + r.height / 2,
+        rotY, filter: getComputedStyle(el).filter,
+      };
+    });
+    // Every painted premium face per resolution slug — a card at rest is painted ONCE.
+    const faces: Record<string, number> = {};
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-parl .pcard, [data-parl-flight] .pcard'))) {
+      // ON SCREEN, not merely in the DOM: since v4 the reading panel is `v-show`n (its teleport targets must
+      // outlive the table stages), so a hidden pose legitimately holds a second copy of the same face.
+      const r = el.getBoundingClientRect();
+      if (getComputedStyle(el).visibility === 'hidden' || r.width < 2 || r.height < 2) {
+        continue;
       }
-      w.__sitProbe.samples.push({
-        t: performance.now(),
-        motion: document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '',
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament-sitting')),
-        proxies,
-        dealing: document.querySelectorAll('.con-parl__card--dealing').length,
-        govAwaiting: document.querySelector('.con-parl__gov-card--awaiting') !== null,
-        lit: document.querySelectorAll('.con-parl__slot--lit').length,
-        govCard: document.querySelectorAll('.con-parl__gov-card').length,
-        // СТОЛ и ЧТЕНИЕ (v4): the row's own marker and the presence of a reading panel — the peek is retired.
-        rowShown: document.querySelector('[data-parl-row-shown]') !== null,
-        reading: (() => {
-          // By SIGHT: the reading panel is `v-show`n (v4), so its node stands for the whole sitting.
-          const el = document.querySelector<HTMLElement>('[data-parl-reading]');
-          const r = el?.getBoundingClientRect();
-          return el !== null && r !== undefined && r.width > 1 && Number(getComputedStyle(el).opacity || 1) > 0.02;
-        })(),
-        deck: Number(document.querySelector('[data-parl-deck-pile]')?.getAttribute('data-count') ?? '-1'),
-        faces,
-        resultsHidden: document.querySelector('[data-sit-results-hidden]') !== null,
-      });
-      if (w.__sitProbe.samples.length > 6000) {
-        w.__sitProbe.samples.splice(0, 1000);
+      // …and PAINTED: v8's results card stands over the chamber (the government receded to opacity 0) and leads with
+      // the enacted face itself — the receded government's copy is in the DOM, not on screen.
+      let ink = 1;
+      for (let a: Element | null = el; a !== null && a !== document.documentElement; a = a.parentElement) {
+        ink *= Number(getComputedStyle(a).opacity || '1');
       }
+      if (ink < 0.5) {
+        continue;
+      }
+      const slug = Array.from(el.classList).find((c) => c.startsWith('pcard--rdx-')) ?? '';
+      if (slug !== '') {
+        faces[slug] = (faces[slug] ?? 0) + 1;
+      }
+    }
+    return {
+      motion: document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '',
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament-sitting')),
+      proxies,
+      dealing: document.querySelectorAll('.con-parl__card--dealing').length,
+      govAwaiting: document.querySelector('.con-parl__gov-card--awaiting') !== null,
+      lit: document.querySelectorAll('.con-parl__slot--lit').length,
+      govCard: document.querySelectorAll('.con-parl__gov-card').length,
+      // СТОЛ и ЧТЕНИЕ (v4): the row's own marker and the presence of a reading panel — the peek is retired.
+      rowShown: document.querySelector('[data-parl-row-shown]') !== null,
+      reading: (() => {
+        // By SIGHT: the reading panel is `v-show`n (v4), so its node stands for the whole sitting.
+        const el = document.querySelector<HTMLElement>('[data-parl-reading]');
+        const r = el?.getBoundingClientRect();
+        return el !== null && r !== undefined && r.width > 1 && Number(getComputedStyle(el).opacity || 1) > 0.02;
+      })(),
+      deck: Number(document.querySelector('[data-parl-deck-pile]')?.getAttribute('data-count') ?? '-1'),
+      faces,
+      resultsHidden: document.querySelector('[data-sit-results-hidden]') !== null,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-motion', 'data-count']});
-    window.setInterval(sample, 16);
-  });
+  }, {settled: true, max: 30_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__sitProbe: Probe}).__sitProbe);
+/** The record: every state with its time on the PAGE's clock. */
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Omit<Sample, 't'>>(page, SIT_WITNESS).samples()).map((s) => ({...s.v, t: s.t}))});
 
 const stageAttr = (page: Page) => page.locator('.con-parl').getAttribute('data-sitting-stage');
 const motionAttr = (page: Page) => page.locator('.con-parl').getAttribute('data-sitting-motion');
 
-/** The span (ms) the stage's beats were playing, from the samples. */
+/**
+ * The span (ms) the stage's beats were playing, from the record: from the first state that wears the stage's motion to
+ * the state that LEFT it (the record keeps a state only when it changes, so a still last stretch of the beat has no
+ * sample of its own — the moment the motion ended is the next recorded state's time).
+ */
 function motionSpan(samples: ReadonlyArray<Sample>, stage: string): number {
-  const own = samples.filter((s) => s.motion === stage);
-  return own.length === 0 ? 0 : own[own.length - 1].t - own[0].t;
+  const first = samples.findIndex((s) => s.motion === stage);
+  if (first < 0) {
+    return 0;
+  }
+  let last = first;
+  samples.forEach((s, i) => {
+    if (s.motion === stage) {
+      last = i;
+    }
+  });
+  return (samples[last + 1]?.t ?? samples[last].t) - samples[first].t;
 }
 
 /** The displacement of every proxy id across its samples (px). */
@@ -217,7 +229,7 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     // was mounted over it. Scoped to those beats on purpose — the samples run on to the reward, where the panel
     // legitimately takes the tier and the row legitimately recedes.
     const physical = enactSamples.filter((x) => x.motion === 'enact');
-    expect(physical.length, 'the physical beats were sampled').toBeGreaterThan(10);
+    expect(physical.length, 'the physical beats were recorded (a dead recorder records nothing)').toBeGreaterThan(0);
     expect(physical.every((s) => s.rowShown), 'the parties row was shown for every frame of the physical beats').toBe(true);
     expect(physical.some((s) => s.reading), 'no reading panel stood over the table').toBe(false);
     // The government's face waited until the card landed, then showed — and stayed painted ONCE.
@@ -345,7 +357,7 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     // rest» inside that window is a walk that has not played the page YET, and a probe read there never saw the
     // stage — a race the 1 s poll above decided by its phase (a ±20 ms shift of the enactment flipped it, TR04).
     // The beat has to have STARTED before its rest means anything.
-    await expect.poll(() => page.evaluate(() => (window as unknown as {__sitProbe: Probe}).__sitProbe.samples.some((s) => s.motion === 'results')),
+    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.motion === 'results'),
       {timeout: 20_000, intervals: [50], message: 'the results page played its beat'}).toBe(true);
     await waitAtRest(page, 20_000);
     const probe = await readProbe(page);

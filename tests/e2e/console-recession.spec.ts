@@ -1,8 +1,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, openConsole, playCardFromHand, press, settle, walkFocusUntil} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, openConsole, playCardFromHand, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P59 RECESSION — the forty-first Prelude 2 card, the series' first CROSS-PLAYER one (ledgers FU / FV): «EACH OPPONENT
@@ -89,38 +91,39 @@ const railImpact = (page: Page) => page.evaluate((sel) => {
 }, RAIL);
 
 type NotifSample = {id: string, at: number, negative: boolean, card: string, actor: boolean, text: string};
-/** From BEFORE the foreign play: every painted notification card's first frame (atomicity — no late hero). */
+const NOTIF_WITNESS = 'p59-notification-cards';
+/**
+ * From BEFORE the foreign play: every painted notification card's first frame (atomicity — no late hero). RECORDED
+ * (FLAKE ZERO — `armWitness`): the reader returns the cards painted NOW; each card's first frame is folded on the Node
+ * side. `settled`: a «first painted frame» is the state a task LEAVES — never a card caught between two of its writes.
+ */
 async function armNotifAuditor(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__p59notif: Array<{id: string, at: number, negative: boolean, card: string, actor: boolean, text: string}>};
-    w.__p59notif = [];
-    const t0 = performance.now();
-    const seen = new Set<string>();
-    const read = () => {
-      for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-notif'))) {
-        const id = el.getAttribute('data-notif-id') ?? '';
-        const r = el.getBoundingClientRect();
-        if (seen.has(id) || r.width === 0 || getComputedStyle(el).visibility === 'hidden') {
-          continue;
-        }
-        seen.add(id);
-        w.__p59notif.push({
-          id,
-          at: Math.round(performance.now() - t0),
-          negative: el.classList.contains('con-notif--sign-negative'),
-          card: el.querySelector('[data-notif-type-card]')?.textContent?.trim() ?? '',
-          actor: el.querySelector('[data-notif-actor]') !== null,
-          text: (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        });
-      }
-    };
-    read();
-    new MutationObserver(read).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(read, 40);
-  });
+  await armWitness<Array<Omit<NotifSample, 'at'>>>(page, NOTIF_WITNESS, () =>
+    Array.from(document.querySelectorAll<HTMLElement>('.con-notif')).filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width !== 0 && getComputedStyle(el).visibility !== 'hidden';
+    }).map((el) => ({
+      id: el.getAttribute('data-notif-id') ?? '',
+      negative: el.classList.contains('con-notif--sign-negative'),
+      card: el.querySelector('[data-notif-type-card]')?.textContent?.trim() ?? '',
+      actor: el.querySelector('[data-notif-actor]') !== null,
+      text: (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    })), {settled: true});
 }
-const notifSamples = (page: Page): Promise<Array<NotifSample>> =>
-  page.evaluate(() => (window as unknown as {__p59notif: Array<NotifSample>}).__p59notif);
+/** Each card's FIRST painted frame, in the order the cards appeared (`at` — ms since the arm, the page's clock). */
+async function notifSamples(page: Page): Promise<Array<NotifSample>> {
+  const recorded = await witnessOf<Array<Omit<NotifSample, 'at'>>>(page, NOTIF_WITNESS).samples();
+  const t0 = recorded[0]?.t ?? 0;
+  const firsts = new Map<string, NotifSample>();
+  for (const s of recorded) {
+    for (const card of s.v) {
+      if (!firsts.has(card.id)) {
+        firsts.set(card.id, {...card, at: s.t - t0});
+      }
+    }
+  }
+  return [...firsts.values()];
+}
 
 test.describe(`P59 Recession · every opponent hit, SEEN before the press · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
@@ -144,7 +147,7 @@ test.describe(`P59 Recession · every opponent hit, SEEN before the press · ${P
 
     await focusRecessionInPick(page);
     await expect.poll(async () => (await railImpact(page)).painted, {message: 'the victims line stands on the pick\'s rail', timeout: 20_000}).toBe(true);
-    const impact = await railImpact(page);
+    const impact = await readSettled(page, () => railImpact(page), {settle: false, message: 'the victims line (inside the pick — no settle)'});
     expect(impact.seats, 'red — the only opponent — with both scopes, the server\'s numbers').toEqual([
       {seat: 'red', rows: ['stock:30 → 25', 'production:1 → 0'], spared: ''},
     ]);
@@ -154,9 +157,8 @@ test.describe(`P59 Recession · every opponent hit, SEEN before the press · ${P
     await armTransferWitness(page);
     await press(page, 'Enter', 400);
     await settle(page, {timeoutMs: 20_000}).catch(() => undefined);
-    for (let i = 0; i < 3 && !(await wireOf(request, playerId)).thisPlayer.tableau.some((c) => c.name === CARD); i++) {
-      await press(page, 'Period', 1500);
-    }
+    // act → verify (the SERVER's table) → retry.
+    await pressUntil(page, 'Period', async () => (await wireOf(request, playerId)).thisPlayer.tableau.some((c) => c.name === CARD), {tries: 3, settleMs: 1500});
     const after = await untilServer(request, playerId, (m) => m.thisPlayer.tableau.some((c) => c.name === CARD), 'Recession on the table');
     expect(after.thisPlayer.megacredits, '20 − 9 (WG Project) + 10').toBe(21);
     await settle(page, {timeoutMs: 40_000}).catch(() => undefined);
@@ -174,7 +176,8 @@ ${trail})`).toMatch(/^printed:|^prelude-seat$/);
 ${trail})`).toBe('rail:megacredits');
     }
     // Which printed M€ tile: the nearest one on the seated card must read «10» — never the «−5» or the production «−1».
-    const nearest = await page.evaluate(({x, y}) => {
+    // Measured AT REST (`readSettled`; no `settle` — the scene's own quiet was waited for softly above).
+    const nearest = await readSettled(page, () => page.evaluate(({x, y}) => {
       const tiles = Array.from(document.querySelectorAll<HTMLElement>('[data-prelude-played-seat] .pcard-mi--mc'));
       let best: {text: string, d: number} | undefined;
       for (const t of tiles) {
@@ -185,7 +188,7 @@ ${trail})`).toBe('rail:megacredits');
         }
       }
       return best;
-    }, {x: births[0].x, y: births[0].y});
+    }, {x: births[0].x, y: births[0].y}), {settle: false, message: 'the printed M€ tiles of the seated card'});
     if (nearest !== undefined) {
       expect(nearest.text, `the +10 was born on the printed «10» (trail:
 ${trail})`).toBe('10');
@@ -222,15 +225,14 @@ ${trail})`).toBe('10');
     await settle(page);
     await focusRecessionInPick(page);
     await expect.poll(async () => (await railImpact(page)).painted, {message: 'the victims line stands on the pick\'s rail', timeout: 20_000}).toBe(true);
-    const impact = await railImpact(page);
+    const impact = await readSettled(page, () => railImpact(page), {settle: false, message: 'the victims line (inside the pick — no settle)'});
     expect(impact.seats.map((s) => s.rows), 'the M€ only — the production is spared').toEqual([['stock:30 → 25']]);
     expect(impact.seats[0].spared, 'the spared step NAMED with its reason').toMatch(/Производство защищено/);
     await shoot(page, 'C-01-protected');
     await press(page, 'Enter', 400);
     await settle(page, {timeoutMs: 20_000}).catch(() => undefined);
-    for (let i = 0; i < 3 && !(await wireOf(request, playerId)).thisPlayer.tableau.some((c) => c.name === CARD); i++) {
-      await press(page, 'Period', 1500);
-    }
+    // act → verify (the SERVER's table) → retry.
+    await pressUntil(page, 'Period', async () => (await wireOf(request, playerId)).thisPlayer.tableau.some((c) => c.name === CARD), {tries: 3, settleMs: 1500});
     await untilServer(request, playerId, (m) => m.thisPlayer.tableau.some((c) => c.name === CARD), 'Recession on the table');
     const red = await untilServer(request, seats[1], (m) => m.thisPlayer.megacredits === 25, 'red at 25 M€');
     expect(red.thisPlayer.megacreditProduction, 'Private Security kept red\'s production').toBe(1);

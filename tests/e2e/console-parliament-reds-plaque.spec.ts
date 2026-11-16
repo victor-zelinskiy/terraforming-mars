@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, settle} from './consoleStart';
 import {openParliament, PARLIAMENT_PRESETS} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * THE RULING PARTY'S PLAQUE FITS ITS CHIP (the 2026-09-28 report, item 6):
@@ -104,7 +105,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       await openParliament(page);
       await shoot(page, `${preset.id}-overview`);
 
-      const fits = await plaqueFits(page);
+      // Every fit is read AT REST (the overview's entrance is no layout to judge).
+      const fits = await readSettled(page, () => plaqueFits(page), {message: 'the plaques'});
       console.log(`── plaques (${preset.id}) ──`, JSON.stringify(fits));
       const ruler = fits.find((f) => f.zone === 'ruler');
       expect(ruler, 'a party stands in the government\'s slot').toBeDefined();
@@ -115,7 +117,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         expect(fit.formula, `${fit.zone} ${fit.party}: a medallion prints no formula`).toBe(false);
       }
       expect(fits.filter((f) => f.zone === 'row').length, 'the five opposition rows').toBe(5);
-      const strip = await stripFit(page, 'Reds');
+      const strip = await readSettled(page, () => stripFit(page, 'Reds'), {message: 'the Reds\' strip row'});
       expect(strip, 'the Reds\' formula stands in «ВАШИ ЭФФЕКТЫ»').toBeDefined();
       for (const side of ['left', 'right', 'top', 'bottom'] as const) {
         expect(strip!.spill[side], `the Reds' graphic reaches past its strip row's ${side} edge`).toBeLessThanOrEqual(1);

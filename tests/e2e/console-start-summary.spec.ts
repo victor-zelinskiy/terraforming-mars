@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {press} from './consoleStart';
+import {press, pressUntil, settle, waitPressable, waitStepDealSettled} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -102,29 +102,28 @@ async function walkToSummaryHere(page: Page): Promise<void> {
     // cinematic runs — its release is the exact "presses act now" gate.
     // A press SKIPS the cinematic, so nudge while waiting: on a loaded /
     // backgrounded context the deal's GSAP can stretch far past any budget.
-    for (let w = 0; w < 40 &&
-         (await page.locator('.con-start__status-inner:not(.con-start__status-inner--held)').count()) === 0; w++) {
-      if (w % 4 === 3) {
-        await page.keyboard.press('Enter');
-      }
-      await page.waitForTimeout(500);
-    }
+    // ONE primitive for that (`waitPressable` — it never nudges the summary
+    // itself, and takes back a pick its nudge made on a pick step).
+    await waitPressable(page);
     await page.waitForSelector('.con-start__status-inner:not(.con-start__status-inner--held)', {timeout: 10_000});
-    await page.waitForTimeout(400);
+    // The step's OWN readiness (its deal landed, the focused card published,
+    // no cursor pending) — the state the A below needs, never a fixed 400 ms.
+    await waitStepDealSettled(page);
     const before = (await subject.innerText()).toLowerCase();
     if (/корпорац|директор/.test(before)) {
       await key(page, 'Enter', 700); // A — select the focused corporation
     }
     await key(page, 'Period', 1400); // RT — advance with the physical collect
     // Let the step actually change before looking again — otherwise the next
-    // iteration fires into the outgoing frame.
-    for (let w = 0; w < 20 && !(await summary.isVisible().catch(() => false)) &&
-         (await subject.innerText()).toLowerCase() === before; w++) {
-      await page.waitForTimeout(250);
-    }
+    // iteration fires into the outgoing frame (a STATE, bounded; never a throw:
+    // the loop looks again either way).
+    await expect.poll(async () => await summary.isVisible().catch(() => false) ||
+      (await subject.innerText()).toLowerCase() !== before, {timeout: 5_000, intervals: [100, 250]}).toBe(true).catch(() => undefined);
   }
   await expect(summary).toBeVisible();
-  await page.waitForTimeout(600);
+  // The summary's arrival is over (its convoy, its finite motion) — a state, waited for softly: the start is a
+  // phase-long scene (`console-corp-first-action`'s own form), never a fixed 600 ms.
+  await settle(page, {timeoutMs: 20_000}).catch(() => undefined);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -176,9 +175,7 @@ test.describe('console start scene · the summary launch', () => {
     // Press-verify-retry: a press that lands while the summary's reveal
     // convoy still runs is ABSORBED by the flow gate (the double-submit
     // guard) — a real player simply presses again, and so does the spec.
-    for (let i = 0; i < 5 && (await page.locator('.con-start__skipwarn').count()) === 0; i++) {
-      await key(page, 'Enter', 700);
-    }
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-start__skipwarn').count() > 0, {tries: 5, settleMs: 700});
     await expect(page.locator('.con-start__skipwarn')).toHaveCount(1);
     await expect(summary).toBeVisible(); // still here — nothing was sent
     await shoot(page, '02-skip-armed');
@@ -234,9 +231,8 @@ test.describe('console start scene · the summary launch', () => {
     await walkToSummaryHere(annaPage);
     // Press-verify-retry (see test 1): a press absorbed by the reveal
     // convoy's flow gate is pressed again, exactly like a real player.
-    for (let i = 0; i < 5 && (await annaPage.locator('.con-start__skipwarn').count()) === 0; i++) {
-      await key(annaPage, 'Enter', 700); // arms the zero-projects warning
-    }
+    // arms the zero-projects warning
+    await pressUntil(annaPage, 'Enter', async () => await annaPage.locator('.con-start__skipwarn').count() > 0, {tries: 5, settleMs: 700});
     await expect(annaPage.locator('.con-start__skipwarn')).toHaveCount(1);
     await key(annaPage, 'Enter', 2500); // submits
 

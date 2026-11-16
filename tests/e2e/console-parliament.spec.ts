@@ -6,6 +6,7 @@ import {
   pressUntil, reloadConsole, settle, visibleSurfaces, walkFocusUntil, focusInfoZone,
 } from './consoleStart';
 import {expectDossierIsRules, focusParliamentZone} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * THE MARS PARLIAMENT (Turmoil Redux) — the reworked workspace
@@ -72,10 +73,11 @@ async function openParliament(page: Page): Promise<void> {
  * Nothing of the workspace may stick out of the viewport (no scroll, no crop),
  * no block may spill out of its own tier, and no READING text may be cut: the
  * party states, the tally, the focus rail's consequences, the quest reward,
- * the party detail — each is laid out whole on every profile.
+ * the party detail — each is laid out whole on every profile. Read AT REST (`readSettled` — two equal reads a frame
+ * apart, after `settle`): a box measured mid-entrance is where the machine had got to.
  */
 async function expectFits(page: Page, preset: Preset): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => page.evaluate(() => {
     const root = document.querySelector('.con-parl');
     if (root === null) {
       return ['no root'];
@@ -132,7 +134,7 @@ async function expectFits(page: Page, preset: Preset): Promise<void> {
       }
     }
     return out;
-  });
+  }), {message: `${preset.id}: the parliament's fit`});
   expect(problems, `${preset.id}: every parliament block fits, nothing read is cut`).toEqual([]);
 }
 
@@ -416,10 +418,19 @@ for (const preset of PRESETS) {
       const partyFocused = () => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
       const seen = new Set<string>();
       // «Зал» v7: the column walks with ▲ ▼ — up to its head from wherever the entry row is, then down its five rows.
-      for (const key of ['ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) {
-        await press(page, key, 300);
-        seen.add(await partyFocused());
-        await expectFits(page, preset);
+      // Every hop is verified by ITS effect (the focused party changed — act → verify → retry); a hop that moves nothing
+      // twice is the column's end, never a swallowed press read as a wall.
+      const hopColumn = async (key: string): Promise<boolean> => {
+        const at = await partyFocused();
+        return pressUntil(page, key, async () => await partyFocused() !== at, {tries: 2, settleMs: 600});
+      };
+      seen.add(await partyFocused());
+      for (const key of ['ArrowUp', 'ArrowDown']) {
+        // At most four hops each way — the walk's own reach (four ▲ from any entry row, four ▼ down the column).
+        for (let hop = 0; hop < 4 && await hopColumn(key); hop++) {
+          seen.add(await partyFocused());
+          await expectFits(page, preset);
+        }
       }
       // v3: the row holds the FIVE opposition tiles; the ruling party's tile is the government's own focus stop.
       expect([...seen].filter((p) => p !== ''), 'the walk visited every opposition party').toHaveLength(5);

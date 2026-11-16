@@ -4,7 +4,9 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, openCardActions, placeTile, press, pressUntil, settle, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, effectiveVisibility, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * LIVE EXPERIMENTS (Turmoil Redux, RX36) — the ONE e2e of an action whose
@@ -125,7 +127,9 @@ async function focusLawTile(page: Page): Promise<void> {
   const focused = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-resolution') ?? '');
   await expect(page.locator(`.con-cardactions__tile[data-action-resolution="${LAW}"]`), 'the law\'s tile is in the menu').toHaveCount(1);
   for (let i = 0; i < 16 && await focused() !== LAW; i++) {
-    const dir = await page.evaluate((target) => {
+    // The direction is read off the tiles AT REST (C — `readSettled`: the same answer twice, a frame apart), never off a
+    // grid still laying itself out.
+    const dir = await readSettled(page, () => page.evaluate((target) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(`.con-cardactions__tile[data-action-resolution="${target}"]`)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -137,7 +141,7 @@ async function focusLawTile(page: Page): Promise<void> {
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, LAW);
+    }, LAW), {settle: false, message: 'the direction to the law\'s tile'});
     await press(page, dir, 260);
   }
   if (await focused() !== LAW) {
@@ -191,12 +195,18 @@ async function fillLawSlot(page: Page, card: string): Promise<void> {
   await expect(page.locator(READY), 'the commit is ready').toHaveCount(1);
 }
 
-type LiveSample = {t: number, mc: string, chip: string, up: boolean, recv: boolean, ws: boolean, table: boolean, hand: boolean, setup: boolean, bill: string, host: string, phase: string};
+type LiveSeen = {mc: string, chip: string, up: boolean, recv: boolean, ws: boolean, table: boolean, hand: boolean, setup: boolean, bill: string, host: string, phase: string};
+type LiveSample = LiveSeen & {t: number};
+const LIVE_WITNESS = 'parliament-live-commit';
 
-/** ARM the commit probe (MutationObserver + setInterval — never rAF): what the rail, the stage and the scene show. */
+/**
+ * ARM the commit probe — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): what the rail, the
+ * stage and the scene show, kept on every change with the page's time. Its claims are ORDER (14 before 3) and
+ * COEXISTENCE (the receiving stage up inside the standing workspace, the setup never painted past the lift), so the
+ * record is `settled` — the state a task LEAVES, the state a frame can paint.
+ */
 async function armLiveProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type Sample = {t: number, mc: string, chip: string, up: boolean, recv: boolean, ws: boolean, table: boolean, hand: boolean, setup: boolean, bill: string, host: string, phase: string};
+  await armWitness<LiveSeen>(page, LIVE_WITNESS, () => {
     // Is an element PAINTED (any ancestor hidden or nearly transparent says no)?
     const painted = (el: Element | null): boolean => {
       if (el === null) {
@@ -213,47 +223,33 @@ async function armLiveProbe(page: Page): Promise<void> {
       return op > 0.1;
     };
     type Ready = {playedHero?: {bill?: string, host?: string, phase?: string}};
-    const w = window as unknown as {__liveProbe?: {samples: Array<Sample>, stop: () => void}, __conReady?: () => Ready};
-    w.__liveProbe?.stop();
-    const samples: Array<Sample> = [];
-    const t0 = performance.now();
-    const sample = () => {
-      const ready = w.__conReady?.();
-      // The digits span carries the row's number AND its delta chip («14−6»): the number leads, the chip follows.
-      const digits = (document.querySelector('.con-res .con-res__row--megacredits .con-res__digits')?.textContent ?? '').replace(/\s+/g, '');
-      const lead = /^\d+/.exec(digits)?.[0] ?? '';
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        mc: lead,
-        chip: digits.slice(lead.length),
-        up: document.querySelector('[data-law-landing].con-composer__playstage--up') !== null,
-        recv: document.querySelector('[data-law-landing] .con-recv') !== null,
-        ws: document.querySelector('.con-cardactions') !== null,
-        table: document.querySelector('.con-played') !== null,
-        hand: document.querySelector('.con-cardactions .con-hand') !== null,
-        // The law's SETUP (the composer's decision surface) still painted in the stage — it must let go under the landing.
-        setup: Array.from(document.querySelectorAll('.con-cardactions .con-composer__surface')).some((el) => painted(el)),
-        bill: ready?.playedHero?.bill ?? '',
-        host: ready?.playedHero?.host ?? '',
-        phase: ready?.playedHero?.phase ?? '',
-      });
+    const w = window as unknown as {__conReady?: () => Ready};
+    const ready = w.__conReady?.();
+    // The digits span carries the row's number AND its delta chip («14−6»): the number leads, the chip follows.
+    const digits = (document.querySelector('.con-res .con-res__row--megacredits .con-res__digits')?.textContent ?? '').replace(/\s+/g, '');
+    const lead = /^\d+/.exec(digits)?.[0] ?? '';
+    return {
+      mc: lead,
+      chip: digits.slice(lead.length),
+      up: document.querySelector('[data-law-landing].con-composer__playstage--up') !== null,
+      recv: document.querySelector('[data-law-landing] .con-recv') !== null,
+      ws: document.querySelector('.con-cardactions') !== null,
+      table: document.querySelector('.con-played') !== null,
+      hand: document.querySelector('.con-cardactions .con-hand') !== null,
+      // The law's SETUP (the composer's decision surface) still painted in the stage — it must let go under the landing.
+      setup: Array.from(document.querySelectorAll('.con-cardactions .con-composer__surface')).some((el) => painted(el)),
+      bill: ready?.playedHero?.bill ?? '',
+      host: ready?.playedHero?.host ?? '',
+      phase: ready?.playedHero?.phase ?? '',
     };
-    const timer = window.setInterval(sample, 16);
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-    w.__liveProbe = {samples, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-    }};
-  });
+  }, {settled: true, max: 20_000});
 }
 
+/** The recording, stopped — every distinct state with its page time from the arm. */
 async function readLiveProbe(page: Page): Promise<Array<LiveSample>> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__liveProbe?: {samples: Array<LiveSample>, stop: () => void}};
-    w.__liveProbe?.stop();
-    return w.__liveProbe?.samples ?? [];
-  });
+  const samples = await witnessOf<LiveSeen>(page, LIVE_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  return samples.map((s) => ({...s.v, t: s.t - t0}));
 }
 
 /** The probe as one line per CHANGE — for a red's message. */
@@ -339,8 +335,8 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '05-slot-filled-total');
 
       // ── ⑤ ONE COMMIT: 20 → 3, Grass on the table, the use spent, the journal names the waiver.
-      //    The probe is armed BEFORE the press (MutationObserver + setInterval — never rAF): the rail's M€ digits,
-      //    the landing layer inside the stage, the workspace, the standalone table, the scene's bill and host.
+      //    The probe is RECORDED from BEFORE the press (`armWitness`): the rail's M€ digits, the landing layer inside
+      //    the stage, the workspace, the standalone table, the scene's bill and host.
       await armTransferWitness(page);
       await armLiveProbe(page);
       const stopStory = await storyboard(page, preset.id, 'commit');
@@ -355,7 +351,8 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '06-after-commit');
       const samples = await readLiveProbe(page);
       const trail = probeTrail(samples);
-      expect(samples.length, 'the probe was alive').toBeGreaterThan(20);
+      // The recorder's liveness only (a dead recorder): it keeps distinct STATES, never frames.
+      expect(samples.length, 'the probe was alive').toBeGreaterThan(0);
       // PL-725 — two prices in turn: the rail reads 14 (the law's 6 gone) before it ever reads 3 (the card's 11).
       const first14 = samples.findIndex((x) => x.mc === '14');
       const first3 = samples.findIndex((x) => x.mc === '3');
@@ -487,10 +484,7 @@ for (const preset of PRESETS) {
       //    The press took when the placement let go or the stage is back — never «press until the stage shows»: a
       //    second B on the restored stage is the stage's own back.
       const backTaken = async () => !await boardPlacing(page) || await page.locator(STAGE).count() > 0;
-      for (let attempt = 0; attempt < 3 && !await backTaken(); attempt++) {
-        await press(page, 'Escape', 300);
-        await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
-      }
+      await pressUntil(page, 'Escape', backTaken, {tries: 3, settleMs: 3_000});
       await expect(page.locator(`${STAGE} [data-law-play-name]`), 'B gives the law\'s stage back with the card in the slot')
         .toHaveText(/Мангров|Mangrove/i, {timeout: 20_000});
       await settle(page, {timeoutMs: 20_000});
@@ -547,21 +541,19 @@ for (const preset of PRESETS) {
       // beside the vote — the owner, 2026-10-24).
       await expect.poll(async () => (await effectiveVisibility(page, `${STAGE} .con-composer__actcardwrap`)).visible,
         {timeout: 5_000, message: 'the law\'s face is parked under the step'}).toBe(false);
-      const share = await page.evaluate((stage) => {
+      // Both widths read AT REST (C — `readSettled`), never mid-entrance of the step.
+      const share = await readSettled(page, () => page.evaluate((stage) => {
         const parl = document.querySelector(`${stage} [data-embed-slot="action-parliament"] .con-parl`)?.getBoundingClientRect();
         const host = document.querySelector(stage)?.getBoundingClientRect();
-        return parl === undefined || host === undefined || host.width < 2 ? 0 : parl.width / host.width;
-      }, STAGE);
+        return parl === undefined || host === undefined || host.width < 2 ? 0 : Math.round(parl.width / host.width * 10_000) / 10_000;
+      }, STAGE), {message: 'the Parliament\'s share of the law\'s stage'});
       expect(share, 'the Parliament spans the law\'s whole stage').toBeGreaterThan(0.95);
       await shoot(page, preset.id, 'v2-vote-in-stage');
 
       // ── ③ B: the step leaves, the slot as it was, nothing sent.
       const backTaken = () => page.evaluate(() =>
         document.querySelector('.con-parl') === null || document.querySelector('.con-parl[data-parl-leaving]') !== null);
-      for (let attempt = 0; attempt < 3 && !await backTaken(); attempt++) {
-        await press(page, 'Escape', 300);
-        await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
-      }
+      await pressUntil(page, 'Escape', backTaken, {tries: 3, settleMs: 3_000});
       await expect(page.locator('.con-parl'), 'the step left').toHaveCount(0, {timeout: 15_000});
       await settle(page, {timeoutMs: 20_000});
       await expect(page.locator(`${STAGE} [data-law-play-name]`), 'the card stands in the slot').toHaveText(/Политическое пожертвование|Political Donation/i);
@@ -576,10 +568,7 @@ for (const preset of PRESETS) {
         'the law\'s commit is taken again').toBeTruthy();
       await expect(page.locator(voteMode), 'the vote opens again').toHaveCount(1, {timeout: 30_000});
       await settle(page, {timeoutMs: 20_000});
-      for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-        await press(page, 'Enter', 300);
-        await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
-      }
+      await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 3_000});
       expect(posts.map((x) => x.path), 'the play is ONE batch POST').toEqual(['/player/input-batch']);
       const sent = JSON.parse(posts[0].body) as {responses?: Array<Record<string, unknown>>} | Array<Record<string, unknown>>;
       const responses = Array.isArray(sent) ? sent : sent.responses ?? [];
@@ -635,10 +624,7 @@ for (const preset of PRESETS) {
 
       // ── ③ B: the live composer comes back INSIDE the law's stage — the same card; nothing sent.
       const backTaken = async () => !await boardPlacing(page) || await page.locator('.con-composer--play').count() > 0;
-      for (let attempt = 0; attempt < 3 && !await backTaken(); attempt++) {
-        await press(page, 'Escape', 300);
-        await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
-      }
+      await pressUntil(page, 'Escape', backTaken, {tries: 3, settleMs: 3_000});
       await expect(page.locator('.con-cardactions .con-composer--play'), 'B gives the live composer back inside the law\'s stage')
         .toHaveCount(1, {timeout: 20_000});
       await expect(page.locator('.con-composer--play'), 'the same card').toContainText(/Мангров|Mangrove/i);

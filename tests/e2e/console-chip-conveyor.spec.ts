@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {CORP_WITH_FIRST_ACTION, cinematicBeat, fetchPlayerModel, openConsole, reloadConsole, sendPlayerInput, settle, soloGameConfig} from './consoleStart';
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE TOP-BAR CHIP CONVEYOR (statusChipConveyor.ts) — the generation-order
@@ -16,10 +17,11 @@ import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
  * through the left edge of the players window while the same player's chip
  * (new content, new status) materializes through the right edge.
  *
- * A frame probe (MutationObserver-free: plain setInterval — rAF dies on a
- * quiet headless screen) samples chips, ghosts and the bar geometry every
- * ~16 ms across the flip and pins the guarantees that make the motion
- * premium rather than merely present:
+ * A frame probe — RECORDED (FLAKE ZERO — `armWitness`: the product's own
+ * writes plus a frame tick, every distinct state kept with the page's time,
+ * `settled` — the state a task leaves, what a frame can paint) — records
+ * chips, ghosts and the bar geometry across the flip and pins the guarantees
+ * that make the motion premium rather than merely present:
  *  · the bar's own box never moves — height stable, chips never leave it;
  *  · real chips NEVER overlap (the rigid belt's structural guarantee);
  *  · exactly ONE conveyor episode per generation flip (status churn around
@@ -163,62 +165,53 @@ type ProbeSample = {
 };
 type ProbeData = {samples: Array<ProbeSample>};
 
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__chipProbe?: {samples: Array<unknown>, timer: number}};
-    if (w.__chipProbe !== undefined) {
-      clearInterval(w.__chipProbe.timer);
+/** Arm the film's recording under `key` (one key per flip) — the bar's state in every painted frame; null with no bar. */
+async function armProbe(page: Page, key: string): Promise<void> {
+  await armWitness<Omit<ProbeSample, 'at'> | null>(page, key, () => {
+    const bar = document.querySelector('.con-status');
+    const cont = document.querySelector('.con-status__players');
+    if (bar === null || cont === null) {
+      return null;
     }
-    const samples: Array<unknown> = [];
-    const sample = () => {
-      const bar = document.querySelector('.con-status');
-      const cont = document.querySelector('.con-status__players');
-      if (bar === null || cont === null) {
-        return;
-      }
-      const barR = bar.getBoundingClientRect();
-      const chips = Array.from(cont.querySelectorAll<HTMLElement>('.con-status__player[data-color]')).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          c: el.dataset.color ?? '', l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width,
-          tf: getComputedStyle(el).transform,
-        };
-      });
-      const ghosts = Array.from(cont.querySelectorAll<HTMLElement>('.con-status__pghost')).map((el) => {
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        return {
-          l: r.left, t: r.top, r: r.right, b: r.bottom, op: cs.opacity, tf: cs.transform,
-          pos: cs.position, sw: el.style.width, sl: el.style.left,
-          host: el.parentElement instanceof HTMLElement ? (el.parentElement.dataset.color ?? el.parentElement.className) : '?',
-          txt: (el.textContent ?? '').replace(/\s+/g, ' ').slice(0, 30),
-        };
-      });
-      const ribbon = cont.querySelector('.con-status__ribbon');
-      samples.push({
-        at: performance.now(), chips, ghosts,
-        conveyorOn: cont.classList.contains('con-status__players--conveyor'),
-        barTop: barR.top, barH: barR.height,
-        rt: ribbon === null ? '' : getComputedStyle(ribbon).transform,
-      });
+    const barR = bar.getBoundingClientRect();
+    const chips = Array.from(cont.querySelectorAll<HTMLElement>('.con-status__player[data-color]')).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        c: el.dataset.color ?? '', l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width,
+        tf: getComputedStyle(el).transform,
+      };
+    });
+    const ghosts = Array.from(cont.querySelectorAll<HTMLElement>('.con-status__pghost')).map((el) => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return {
+        l: r.left, t: r.top, r: r.right, b: r.bottom, op: cs.opacity, tf: cs.transform,
+        pos: cs.position, sw: el.style.width, sl: el.style.left,
+        host: el.parentElement instanceof HTMLElement ? (el.parentElement.dataset.color ?? el.parentElement.className) : '?',
+        txt: (el.textContent ?? '').replace(/\s+/g, ' ').slice(0, 30),
+      };
+    });
+    const ribbon = cont.querySelector('.con-status__ribbon');
+    return {
+      chips, ghosts,
+      conveyorOn: cont.classList.contains('con-status__players--conveyor'),
+      barTop: barR.top, barH: barR.height,
+      rt: ribbon === null ? '' : getComputedStyle(ribbon).transform,
     };
-    const timer = window.setInterval(sample, 16);
-    w.__chipProbe = {samples, timer};
-    sample();
-  });
+  }, {settled: true, max: 20_000});
 }
 
-async function collectProbe(page: Page): Promise<ProbeData> {
-  return await page.evaluate(() => {
-    const w = window as unknown as {__chipProbe?: {samples: Array<unknown>, timer: number}};
-    if (w.__chipProbe === undefined) {
-      return {samples: []};
+/** The film, stopped — every recorded state of the bar, its time on the PAGE's clock. */
+async function collectProbe(page: Page, key: string): Promise<ProbeData> {
+  const recorded = await witnessOf<Omit<ProbeSample, 'at'> | null>(page, key).stop();
+  const t0 = recorded[0]?.t ?? 0;
+  const samples: Array<ProbeSample> = [];
+  for (const s of recorded) {
+    if (s.v !== null) {
+      samples.push({...s.v, at: s.t - t0});
     }
-    clearInterval(w.__chipProbe.timer);
-    const data = {samples: w.__chipProbe.samples};
-    w.__chipProbe = undefined;
-    return data as never;
-  });
+  }
+  return {samples};
 }
 
 /** The rendered chip color order, straight off the DOM. */
@@ -239,8 +232,8 @@ async function waitForOrder(page: Page, expected: Array<string>, timeoutMs = 45_
 /** One generation flip's structural claims over the probe's film. */
 function assertConveyorFilm(data: ProbeData, label: string): void {
   const samples = data.samples;
-  // A dead sampler is the only thing this floor may catch.
-  expect(samples.length, `${label}: the sampler must have run (got ${samples.length})`).toBeGreaterThan(8);
+  // A dead recorder is the only thing this floor may catch (it keeps distinct STATES, never frames).
+  expect(samples.length, `${label}: the sampler must have run (got ${samples.length})`).toBeGreaterThan(0);
 
   const txOf = (tf: string): number => {
     const m = /^matrix\(([^)]+)\)$/.exec(tf);
@@ -377,7 +370,7 @@ test.describe('console: generation-order chip conveyor', () => {
     expect(await domOrder(page), 'generation 1 renders [red, green]').toEqual(['red', 'green']);
 
     // ── FLIP 1: [red, green] → [green, red] ─────────────────────────────
-    await armProbe(page);
+    await armProbe(page, 'chip-flip1');
     const stopFilm1 = await startFilm(page, 'flip1');
     await passGeneration(request, p2);
     await waitForOrder(page, ['green', 'red']);
@@ -385,7 +378,7 @@ test.describe('console: generation-order chip conveyor', () => {
     // it, and a loaded 4K runner is still mid-glide there («mask class gone at rest» on the film's last frame).
     await expect(page.locator('.con-status__players--conveyor'), 'the conveyor glide finished').toHaveCount(0, {timeout: 15_000});
     const frames1 = await stopFilm1();
-    const film1 = await collectProbe(page);
+    const film1 = await collectProbe(page, 'chip-flip1');
     assertConveyorFilm(film1, 'flip 1');
     expect(frames1, 'the screencast filmed the flip').toBeGreaterThan(0);
     await page.screenshot({path: path.join(OUT, 'flip1-rest.png')});
@@ -394,7 +387,7 @@ test.describe('console: generation-order chip conveyor', () => {
     await declineResearch(request, p1);
     await declineResearch(request, p2);
     await passGeneration(request, p2); // green leads generation 2
-    await armProbe(page);
+    await armProbe(page, 'chip-flip2');
     const stopFilm2 = await startFilm(page, 'flip2');
     await passGeneration(request, p1); // the last pass — generation 3, red leads
     await waitForOrder(page, ['red', 'green']);
@@ -402,7 +395,7 @@ test.describe('console: generation-order chip conveyor', () => {
     // it, and a loaded 4K runner is still mid-glide there («mask class gone at rest» on the film's last frame).
     await expect(page.locator('.con-status__players--conveyor'), 'the conveyor glide finished').toHaveCount(0, {timeout: 15_000});
     await stopFilm2();
-    const film2 = await collectProbe(page);
+    const film2 = await collectProbe(page, 'chip-flip2');
     assertConveyorFilm(film2, 'flip 2');
 
     // ── Reload: the standing order shows immediately, with no animation ──
@@ -421,13 +414,14 @@ test.describe('console: generation-order chip conveyor', () => {
     await page.emulateMedia({reducedMotion: 'reduce'});
     await declineResearch(request, p1);
     await declineResearch(request, p2);
-    await armProbe(page);
+    await armProbe(page, 'chip-flip3-reduced');
     await passGeneration(request, p1); // red leads generation 3
     await passGeneration(request, p2); // the last pass — generation 4
     await waitForOrder(page, ['green', 'red']);
     await cinematicBeat(page, 900, 'give a wrong-path belt time to show itself before collecting');
-    const reducedFilm = await collectProbe(page);
-    expect(reducedFilm.samples.length, 'the reduced-motion probe sampled').toBeGreaterThan(8);
+    const reducedFilm = await collectProbe(page, 'chip-flip3-reduced');
+    // A dead recorder is the only thing this floor may catch (it keeps distinct STATES, never frames).
+    expect(reducedFilm.samples.length, 'the reduced-motion probe sampled').toBeGreaterThan(0);
     expect(reducedFilm.samples.some((s) => s.conveyorOn), 'reduced motion never starts the belt').toBe(false);
     expect(reducedFilm.samples.every((s) => s.ghosts.length === 0), 'no ghosts under reduced motion').toBe(true);
     await page.emulateMedia({reducedMotion: null});
@@ -459,7 +453,7 @@ test.describe('console: chip conveyor at 4 seats on the TV profile', () => {
 
     // Two rivals pass while the probe watches: status churn with NO order
     // change must not start an episode; the LAST pass rotates the ring.
-    await armProbe(page);
+    await armProbe(page, 'chip-flip-4p');
     const stopFilm = await startFilm(page, 'flip-4p');
     await passGeneration(request, p2);
     await passGeneration(request, p3);
@@ -469,7 +463,7 @@ test.describe('console: chip conveyor at 4 seats on the TV profile', () => {
     // it, and a loaded 4K runner is still mid-glide there («mask class gone at rest» on the film's last frame).
     await expect(page.locator('.con-status__players--conveyor'), 'the conveyor glide finished').toHaveCount(0, {timeout: 15_000});
     await stopFilm();
-    const film = await collectProbe(page);
+    const film = await collectProbe(page, 'chip-flip-4p');
     fs.mkdirSync(OUT, {recursive: true});
     fs.writeFileSync(path.join(OUT, 'flip-4p-film.json'), JSON.stringify(film, null, 1));
     assertConveyorFilm(film, '4-seat flip');

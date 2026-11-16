@@ -5,6 +5,8 @@ import {
   bootFixtureSeats, crumbText, fetchPlayerModel, openMandatoryAnnounce, press, pressUntil, reloadConsole, sendPlayerInput, settle,
 } from './consoleStart';
 import {closeSitting, closeSittingAs, enterSittingByPass, waitSittingAtRest} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 
 /**
@@ -62,9 +64,9 @@ async function hotVerb(page: Page): Promise<string> {
   return labels.map((l) => l.trim()).join(' | ');
 }
 
-/** Nothing of the sitting sticks out of the viewport and no block spills. */
+/** Nothing of the sitting sticks out of the viewport and no block spills — read AT REST (C — `readSettled`). */
 async function expectFits(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => page.evaluate(() => {
     const root = document.querySelector('.con-parl');
     if (root === null) {
       return ['no root'];
@@ -91,7 +93,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
       }
     }
     return out;
-  });
+  }), {message: `${label}: the sitting's layout`});
   expect(problems, `${label}: layout problems`).toEqual([]);
 }
 
@@ -133,28 +135,26 @@ for (const preset of PRESETS) {
       const before = await wireOf(request, playerId);
       expect(before.game.phase, 'one pass before the sitting').toBe('action');
       expect(before.game.parliament?.phase, 'no sitting yet').toBeUndefined();
-      // THE VERDICT PAGE turns by itself (the director's read), so what it shows is SAMPLED on a task clock — never read late.
-      await page.evaluate(() => {
-        const w = window as unknown as {__verdict: Array<Record<string, unknown>>};
-        w.__verdict = [];
-        window.setInterval(() => {
-          if (document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') !== 'verdict') {
-            return;
-          }
-          w.__verdict.push({
-            crumb: (Array.from(document.querySelectorAll('.con-wshead')).map((el) => el.textContent ?? '').join(' ')).toUpperCase(),
-            band: document.querySelectorAll('.con-band[data-parl-band-kicker="Verdict"]').length,
-            player: document.querySelectorAll('.con-band [data-parl-band-chip="player"]').length,
-            resolution: document.querySelectorAll('.con-band [data-parl-band-chip="resolution"]').length,
-            row: document.querySelectorAll('.con-parl [data-parl-row-shown]').length,
-            winning: document.querySelectorAll('.con-parl__slot--winning').length,
-            liveBadge: document.querySelectorAll('.con-parl__slot-win:not(.con-parl__slot-win--verdict)').length,
-            verdictSign: document.querySelectorAll('[data-parl-slot-verdict]').length,
-            basis: document.querySelector('[data-parl-gov]')?.getAttribute('data-parl-gov-basis') ?? '',
-            lit: document.querySelectorAll('.con-parl__gov--lit').length,
-          });
-        }, 40);
-      });
+      // THE VERDICT PAGE turns by itself (the director's read), so what it shows is RECORDED from before the pass
+      // (FLAKE ZERO — `armWitness`, the product's own writes) — never read late. Its claims hold for EVERY state the page
+      // stood in, so the record is `settled` (the state a task leaves — what a frame can paint); off the verdict, null.
+      const verdictWitness = await armWitness<Record<string, unknown> | null>(page, 'sitting-verdict', () => {
+        if (document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') !== 'verdict') {
+          return null;
+        }
+        return {
+          crumb: (Array.from(document.querySelectorAll('.con-wshead')).map((el) => el.textContent ?? '').join(' ')).toUpperCase(),
+          band: document.querySelectorAll('.con-band[data-parl-band-kicker="Verdict"]').length,
+          player: document.querySelectorAll('.con-band [data-parl-band-chip="player"]').length,
+          resolution: document.querySelectorAll('.con-band [data-parl-band-chip="resolution"]').length,
+          row: document.querySelectorAll('.con-parl [data-parl-row-shown]').length,
+          winning: document.querySelectorAll('.con-parl__slot--winning').length,
+          liveBadge: document.querySelectorAll('.con-parl__slot-win:not(.con-parl__slot-win--verdict)').length,
+          verdictSign: document.querySelectorAll('[data-parl-slot-verdict]').length,
+          basis: document.querySelector('[data-parl-gov]')?.getAttribute('data-parl-gov-basis') ?? '',
+          lit: document.querySelectorAll('.con-parl__gov--lit').length,
+        };
+      }, {settled: true});
 
       // ── THE PASS: the whole sitting rides it — up to the law's take of this seat — and the sitting comes up.
       await enterSittingByPass(page, request, playerId);
@@ -173,12 +173,12 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 2000);
       await expect(parliament(page), 'the sitting is back').toHaveCount(1, {timeout: 20_000});
 
-      // ── THE VERDICT, read on the samples: the crumb continuous, the row of parties the body, the decided table with
+      // ── THE VERDICT, read on the record: the crumb continuous, the row of parties the body, the decided table with
       //    the verdict's own sign, the previous government — nothing has happened yet.
-      await expect.poll(async () => (await page.evaluate(() => (window as unknown as {__verdict: Array<unknown>}).__verdict.length)), {timeout: 20_000,
-        message: 'the verdict page was sampled'}).toBeGreaterThan(0);
+      await verdictWitness.waitFor((v) => v !== null, {timeoutMs: 20_000, message: 'the verdict page was sampled'});
       await expect.poll(() => sittingStage(page), {timeout: 30_000, message: 'the verdict turns by itself'}).not.toBe('verdict');
-      const verdict = await page.evaluate(() => (window as unknown as {__verdict: Array<Record<string, unknown>>}).__verdict);
+      // The record stops here — the verdict has turned; what comes after (the reload included) is another page.
+      const verdict = (await verdictWitness.stop()).map((s) => s.v).filter((v): v is Record<string, unknown> => v !== null);
       const first = verdict[0];
       expect(String(first.crumb), `the crumb, got «${String(first.crumb)}»`).toMatch(/ПАРЛАМЕНТ|PARLIAMENT/);
       expect(verdict.some((s) => /ЗАСЕДАНИЕ|SITTING/.test(String(s.crumb)) && /ВЕРДИКТ|VERDICT/.test(String(s.crumb))), 'ПАРЛАМЕНТ › ЗАСЕДАНИЕ › ВЕРДИКТ').toBe(true);
@@ -262,7 +262,7 @@ for (const preset of PRESETS) {
       // PL-812 · FG: the card's three columns stand on ONE top line — the enacted face, the first payout plate, the next
       // vote's first face — and a payout plate is as tall as its content (two seats were two column-high plates with
       // their lines floating in the middle).
-      const cols = await sitting(page).evaluate((root) => {
+      const cols = await readSettled(page, () => sitting(page).evaluate((root) => {
         const top = (sel: string) => root.querySelector(sel)?.getBoundingClientRect().top;
         const plates = Array.from(root.querySelectorAll<HTMLElement>('[data-sit-payout]')).map((p) => {
           const box = p.getBoundingClientRect();
@@ -272,7 +272,7 @@ for (const preset of PRESETS) {
         });
         const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
         return {rem, enacted: top('[data-sit-section="enacted"] .pcard'), payout: top('[data-sit-payout]'), fresh: top('[data-sit-section="table"] .con-sit__fresh'), plates};
-      });
+      }), {message: 'PL-812: the results card\'s columns'});
       const tol = 1.5 * cols.rem;
       expect(Math.abs((cols.payout ?? 0) - (cols.enacted ?? 0)), `PL-812: the first payout plate starts on the enacted face's line (${JSON.stringify(cols)})`).toBeLessThanOrEqual(tol);
       if (cols.fresh !== undefined) {

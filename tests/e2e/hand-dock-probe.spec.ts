@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {bootIntoGame, press, waitForBoardHome} from './consoleStart';
+import {bootIntoGame, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -112,7 +113,8 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   // then legitimately suppressed and every dock claim below reads a busy
   // screen, not the standing pose this spec is about.
   await waitForBoardHome(page);
-  await page.waitForTimeout(1200);
+  // …and the board home at rest (the shell finishing its opening) before any pose is read.
+  await settle(page, {timeoutMs: 30_000});
   return playerId;
 }
 
@@ -124,13 +126,14 @@ async function assertDockCentered(page: Page): Promise<void> {
   const vw = page.viewportSize()!.width;
   const dock = page.locator('.con-handdock');
   await expect(dock).toHaveCount(1);
-  const box = await dock.boundingBox();
+  const bay = page.locator('.con-cmdbar__bay');
+  await expect(bay).toHaveCount(1);
+  // Both boxes read AT REST (no `settle`: an overlay may legitimately stand over the dock while it is measured).
+  const {box, bb} = await readSettled(page, async () => ({box: await dock.boundingBox(), bb: await bay.boundingBox()}),
+    {settle: false, message: 'the dock and its bar bay'});
   expect(box, 'dock has a box').toBeTruthy();
   const center = box!.x + box!.width / 2;
   expect(Math.abs(center - vw / 2), `dock centre ${center} vs viewport ${vw / 2}`).toBeLessThan(1.5);
-  const bay = page.locator('.con-cmdbar__bay');
-  await expect(bay).toHaveCount(1);
-  const bb = await bay.boundingBox();
   const bayCenter = bb!.x + bb!.width / 2;
   expect(Math.abs(bayCenter - vw / 2), `bay centre ${bayCenter} vs viewport ${vw / 2}`).toBeLessThan(1.5);
 }
@@ -174,7 +177,11 @@ test.describe('hand dock · standard 1080', () => {
 
     // ── hover → focused-lite (spread/lift) ──────────────────────────
     await dock.hover();
-    await page.waitForTimeout(600);
+    // The hover pose (spread / lift) at rest — the bodies stand still.
+    await readSettled(page, () => page.locator('.con-handbody').evaluateAll((els) => els.map((el) => {
+      const r = el.getBoundingClientRect();
+      return [Math.round(r.x), Math.round(r.y)];
+    })), {settle: false, message: 'the hover pose of the dock'});
     await shoot(page, '02-board-hover');
     await page.mouse.move(400, 400);
 
@@ -194,16 +201,17 @@ test.describe('hand dock · standard 1080', () => {
 
     // ── LT → Standard Projects screen: the dock stays WELDED (identical
     // visuals), only the click affordance drops. ─────────────────────
-    await key(page, 'Comma', 900);
-    await key(page, 'Enter', 1100);
+    // (each press waits for ITS effect and is pressed again only without one — act → verify → retry)
+    await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {tries: 3, settleMs: 900});
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-stdp').count() > 0, {tries: 3, settleMs: 1100});
     await expect(dock).not.toHaveClass(/con-handdock--live/);
     await shoot(page, '04-overlay-static');
     await key(page, 'Escape', 800);
 
     // ── hand section: still welded in place, non-interactive ─────────
     // RT wheel → A (РУКА) is the canonical route to the hand section.
-    await key(page, 'Period', 900);
-    await key(page, 'Enter', 1400);
+    await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0, {tries: 3, settleMs: 900});
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-hand').count() > 0, {tries: 3, settleMs: 1400});
     await expect(dock).not.toHaveClass(/con-handdock--live/);
     await shoot(page, '05-hand-section');
     await key(page, 'Escape', 1000); // B → back to the board home
@@ -228,11 +236,12 @@ test.describe('hand dock · standard 1080', () => {
 
     // Standard project → greenery placement: the board (with its dock
     // clearance) + the live dock coexist without overlap.
-    await key(page, 'Comma', 900);
-    await key(page, 'Enter', 1100);
-    await key(page, 'ArrowDown', 600);
-    await key(page, 'ArrowDown', 600);
-    await key(page, 'Enter', 1500);
+    // (evidence only — but each press still waits for ITS effect: act → verify → retry only without one)
+    const focusedProject = () => page.locator('.con-stdp__card--focused .con-stdp__name').innerText().catch(() => '');
+    await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {tries: 3, settleMs: 900});
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-stdp').count() > 0, {tries: 3, settleMs: 1100});
+    await pressUntil(page, 'ArrowDown', async () => /озелен|greenery/i.test(await focusedProject()), {tries: 4, settleMs: 600});
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-context__task-kicker').count() > 0, {tries: 1, settleMs: 1500});
     if (await page.locator('.con-context__task-kicker').count() > 0) {
       await shoot(page, '07-placement');
     }

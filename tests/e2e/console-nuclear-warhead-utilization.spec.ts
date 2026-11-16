@@ -12,7 +12,7 @@
  *   D · `vp-cell-rival` — red's greenery beside blue's city (red answers over the API): blue's score cell holds until the
  *       greenery has LANDED on blue's screen, the token is born on that cell (`cell:<id>`), lands on `rail:vp`.
  *
- * The probe samples the cells on the PAGE's clock (`setInterval` + `MutationObserver`, never rAF) and reads the VP
+ * The probe RECORDS the cells on the PAGE's clock (`armWitness`, settled — the product's own writes) and reads the VP
  * token's contact beat (`.con-transfer__beat--vp` painted) as its touchdown. The flight ends are WITNESSED
  * (`transferWitness.ts` — `endsOverGlass` empty). 4K timing claims: `TM_E2E_GPU=1`, `--workers=1`.
  */
@@ -24,6 +24,8 @@ import {
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {storyboard} from './consoleEndgameHarness';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 const PROFILES = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -68,60 +70,57 @@ type ScoreProbe = {
   reasons: Array<string>,
 };
 
-/** The score probe — the VP cell, the energy row, the VP token's birth and its contact beat, the named causes. */
-async function armScoreProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__vpc?: ScoreProbe & {stop: () => void}};
-    w.__vpc?.stop();
-    const t0 = performance.now();
+/** One observation of the score cell, the energy row, the VP token and its contact beat, the named cause. */
+type ScoreObs = {vp: string, energy: string, chip: boolean, beat: boolean, reason: string};
+
+/**
+ * The score probe — the VP cell, the energy row, the VP token's birth and its contact beat, the named causes. A
+ * RECORDING (`armWitness`, settled — «the cell never ahead of its token» is an ORDER claim about painted states), on the
+ * PAGE's clock; a re-arm under the same key starts a fresh record.
+ */
+async function armScoreProbe(page: Page): Promise<Witness<ScoreObs>> {
+  return armWitness(page, 'vp-score-cell', (): ScoreObs => {
     const text = (sel: string) => document.querySelector(sel)?.textContent?.trim() ?? '';
     const painted = (el: Element | null) => el !== null && Number(getComputedStyle(el).opacity) > 0.05 && getComputedStyle(el).visibility !== 'hidden';
-    const probe = {samples: 0, vp: [] as Array<[number, string]>, energy: [] as Array<[number, string]>, reasons: [] as Array<string>,
-      vpChipAt: undefined as number | undefined, vpBeatAt: undefined as number | undefined, stop: () => {}};
-    let lastVp = '';
-    let lastEnergy = '';
-    const sample = () => {
-      const t = Math.round(performance.now() - t0);
-      probe.samples++;
-      const vp = text('.con-res .con-score__cell--vp .con-score__value');
-      if (vp !== lastVp) {
-        probe.vp.push([t, vp]);
-        lastVp = vp;
-      }
+    return {
+      vp: text('.con-res .con-score__cell--vp .con-score__value'),
       // The digits' own number (its ±N delta chip lives inside the same box).
-      const energy = (text('.con-res .con-res__row--energy .con-res__digits').match(/^-?\d+/) ?? [''])[0];
-      if (energy !== lastEnergy) {
-        probe.energy.push([t, energy]);
-        lastEnergy = energy;
-      }
-      if (probe.vpChipAt === undefined && painted(document.querySelector('.con-transfer__chip--vp'))) {
-        probe.vpChipAt = t;
-      }
-      if (probe.vpBeatAt === undefined && painted(document.querySelector('.con-transfer__beat--vp'))) {
-        probe.vpBeatAt = t;
-      }
-      const reason = text('[data-vp-reason]');
-      if (reason !== '' && !probe.reasons.includes(reason)) {
-        probe.reasons.push(reason);
-      }
+      energy: (text('.con-res .con-res__row--energy .con-res__digits').match(/^-?\d+/) ?? [''])[0],
+      chip: painted(document.querySelector('.con-transfer__chip--vp')),
+      beat: painted(document.querySelector('.con-transfer__beat--vp')),
+      reason: text('[data-vp-reason]'),
     };
-    const timer = window.setInterval(sample, 16);
-    const observer = new MutationObserver(sample);
-    observer.observe(document.body, {subtree: true, childList: true, characterData: true});
-    probe.stop = () => {
-      window.clearInterval(timer);
-      observer.disconnect();
-    };
-    sample();
-    (window as unknown as {__vpc: typeof probe}).__vpc = probe;
-  });
+  }, {settled: true});
 }
 
-async function readScoreProbe(page: Page): Promise<ScoreProbe> {
-  return page.evaluate(() => {
-    const p = (window as unknown as {__vpc: ScoreProbe}).__vpc;
-    return {samples: p.samples, vp: p.vp, energy: p.energy, vpChipAt: p.vpChipAt, vpBeatAt: p.vpBeatAt, reasons: p.reasons};
-  });
+/** The record folded on the Node side — every time in ms from the arm, on the page's clock. */
+async function readScoreProbe(score: Witness<ScoreObs>): Promise<ScoreProbe> {
+  const samples = await score.samples();
+  const t0 = samples[0]?.t ?? 0;
+  const probe: ScoreProbe = {samples: samples.length, vp: [], energy: [], reasons: []};
+  let lastVp = '';
+  let lastEnergy = '';
+  for (const s of samples) {
+    const t = Math.round(s.t - t0);
+    if (s.v.vp !== lastVp) {
+      probe.vp.push([t, s.v.vp]);
+      lastVp = s.v.vp;
+    }
+    if (s.v.energy !== lastEnergy) {
+      probe.energy.push([t, s.v.energy]);
+      lastEnergy = s.v.energy;
+    }
+    if (probe.vpChipAt === undefined && s.v.chip) {
+      probe.vpChipAt = t;
+    }
+    if (probe.vpBeatAt === undefined && s.v.beat) {
+      probe.vpBeatAt = t;
+    }
+    if (s.v.reason !== '' && !probe.reasons.includes(s.v.reason)) {
+      probe.reasons.push(s.v.reason);
+    }
+  }
+  return probe;
 }
 
 /**
@@ -129,7 +128,8 @@ async function readScoreProbe(page: Page): Promise<ScoreProbe> {
  * and reached `to` no earlier than that beat — never in the frame the view applied.
  */
 function expectVpOnItsToken(probe: ScoreProbe, to: number, label: string): void {
-  expect(probe.samples, `${label}: the sampler ran`).toBeGreaterThan(10);
+  // The recorder's own liveness floor — only a DEAD recorder fails it (a count of samples is a count of frames).
+  expect(probe.samples, `${label}: the sampler ran`).toBeGreaterThan(0);
   expect(probe.vpBeatAt, `${label}: the VP token touched down (samples ${JSON.stringify(probe.vp)})`).toBeDefined();
   const first = Number(probe.vp[0]?.[1]);
   const reached = probe.vp.find(([, v]) => Number(v) === to);
@@ -147,19 +147,19 @@ for (const preset of PROFILES) {
       test.setTimeout(240_000);
       const {playerId} = await bootFixtureSeats(page, request, 'nuclear-warhead-utilization', {query: preset.query});
       const before = await serverModel(request, playerId);
-      await armScoreProbe(page);
+      const score = await armScoreProbe(page);
       await armTransferWitness(page);
       const stop = await storyboard(page, path.join(OUT, preset.id), 'play');
       expect(await playCardFromHand(page, TR55), 'TR55 was played from the hand').toBe(true);
       const after = await untilServer(request, playerId, (m) => m.thisPlayer.tableau.some((c) => c.name === TR55), 'TR55 on the table');
       expect(after.thisPlayer.energy - before.thisPlayer.energy, 'the server: +9 energy').toBe(9);
       expect(after.thisPlayer.victoryPointsBreakdown.total - before.thisPlayer.victoryPointsBreakdown.total, 'the server: +2 VP').toBe(2);
-      await expect.poll(async () => (await readScoreProbe(page)).vp.at(-1)?.[1], {timeout: 30_000, message: 'the VP cell never reached the server\'s score'})
+      await expect.poll(async () => (await readScoreProbe(score)).vp.at(-1)?.[1], {timeout: 30_000, message: 'the VP cell never reached the server\'s score'})
         .toBe(String(after.thisPlayer.victoryPointsBreakdown.total));
       await settle(page, {timeoutMs: 30_000});
       await stop();
       await page.screenshot({path: path.join(OUT, preset.id, 'A-after.png')});
-      const probe = await readScoreProbe(page);
+      const probe = await readScoreProbe(score);
       expectVpOnItsToken(probe, after.thisPlayer.victoryPointsBreakdown.total, 'A');
       const energyTick = probe.energy.find(([, v], i) => i > 0 && Number(v) === after.thisPlayer.energy);
       expect(energyTick, `A: the energy row ticked to ${after.thisPlayer.energy}: ${JSON.stringify(probe.energy)}`).toBeDefined();
@@ -197,26 +197,18 @@ for (const preset of PROFILES) {
           });
         }
         await bootFixtureSeats(page, request, 'nuclear-warhead-utilization', {query: preset.query});
-        // The workspace's presence on the page's clock (its every edge), the play's POST from the resource timing.
-        await page.evaluate(() => {
-          const w = window as unknown as {__ab: {edges: Array<[number, boolean]>}};
-          w.__ab = {edges: []};
-          let last: boolean | undefined;
-          window.setInterval(() => {
-            const open = document.querySelector('.con-ws') !== null;
-            if (open !== last) {
-              w.__ab.edges.push([performance.now(), open]);
-              last = open;
-            }
-          }, 8);
-        });
+        // The workspace's presence on the page's clock (its every edge — RECORDED in the task that writes it, never a
+        // timer sampler), the play's POST from the resource timing (the same epoch clock: `timeOrigin + startTime`).
+        const presence = await armWitness(page, 'ab-workspace', () => document.querySelector('.con-ws') !== null);
         expect(await playCardFromHand(page, TR55)).toBe(true);
-        const measure = () => page.evaluate(() => {
-          const post = performance.getEntriesByType('resource').find((e) => e.name.includes('/player/input'))?.startTime;
-          const edges = (window as unknown as {__ab: {edges: Array<[number, boolean]>}}).__ab.edges;
-          const gone = post === undefined ? undefined : edges.find(([t, open]) => t > post && !open)?.[0];
+        const measure = async () => {
+          const post = await page.evaluate(() => {
+            const at = performance.getEntriesByType('resource').find((e) => e.name.includes('/player/input'))?.startTime;
+            return at === undefined ? undefined : performance.timeOrigin + at;
+          });
+          const gone = post === undefined ? undefined : (await presence.samples()).find((x) => x.t > post && !x.v)?.t;
           return {post, gone};
-        });
+        };
         await expect.poll(async () => (await measure()).gone, {timeout: 40_000}).toBeDefined();
         const ab = await measure();
         const ms = Math.round(ab.gone! - ab.post!);
@@ -246,33 +238,33 @@ for (const preset of PROFILES) {
       const {playerId} = await bootFixtureSeats(page, request, 'vp-cell-sources', {query: preset.query});
       // (1) SECURITY FLEET — the fighter lands in the hero's capsule and brings its point WITH it.
       const v0 = (await serverModel(request, playerId)).thisPlayer.victoryPointsBreakdown.total;
-      await armScoreProbe(page);
+      let score = await armScoreProbe(page);
       await openCardActions(page);
       await openActionFocus(page);
       const stopFleet = await storyboard(page, path.join(OUT, preset.id), 'fleet');
       await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions').count() === 0, {tries: 4, settleMs: 2500});
       const fleet = await untilServer(request, playerId, (m) => (m.thisPlayer.tableau.find((c) => c.name === 'Security Fleet')?.resources ?? 0) === 1, 'a fighter on Security Fleet');
       expect(fleet.thisPlayer.victoryPointsBreakdown.total - v0, 'the server: the fighter is 1 VP').toBe(1);
-      await expect.poll(async () => (await readScoreProbe(page)).vp.at(-1)?.[1], {timeout: 30_000}).toBe(String(v0 + 1));
+      await expect.poll(async () => (await readScoreProbe(score)).vp.at(-1)?.[1], {timeout: 30_000}).toBe(String(v0 + 1));
       await settle(page, {timeoutMs: 30_000});
       await stopFleet();
-      const fleetProbe = await readScoreProbe(page);
+      const fleetProbe = await readScoreProbe(score);
       expect(fleetProbe.reasons, 'C1: the fighter IS the cause — nothing named').toEqual([]);
       expect(fleetProbe.vp.length, `C1: one step, ${JSON.stringify(fleetProbe.vp)}`).toBe(2);
 
       // (2) TERRAFORMER — the +5 leaves the ceremony's «+5» for the score cell.
-      await armScoreProbe(page);
+      score = await armScoreProbe(page);
       await armTransferWitness(page);
       await pressUntil(page, 'KeyQ', async () => await page.locator('.con-ma').count() > 0, {tries: 4, settleMs: 1400});
       await pressUntil(page, 'Enter', async () => await page.locator('.con-mafocus').count() > 0, {tries: 4, settleMs: 1300});
       const stopMa = await storyboard(page, path.join(OUT, preset.id), 'milestone');
       await press(page, 'Enter', 400);
       const ma = await untilServer(request, playerId, (m) => m.game.milestones.some((x) => x.name.startsWith('Terraformer') && x.color !== undefined), 'Terraformer claimed');
-      await expect.poll(async () => (await readScoreProbe(page)).vp.at(-1)?.[1], {timeout: 40_000})
+      await expect.poll(async () => (await readScoreProbe(score)).vp.at(-1)?.[1], {timeout: 40_000})
         .toBe(String(ma.thisPlayer.victoryPointsBreakdown.total));
       await settle(page, {timeoutMs: 30_000});
       await stopMa();
-      const maProbe = await readScoreProbe(page);
+      const maProbe = await readScoreProbe(score);
       expectVpOnItsToken(maProbe, ma.thisPlayer.victoryPointsBreakdown.total, 'C2');
       const witness = await transferWitness(page);
       const born = witness.births.find((b) => vpTokenValue('+5')(b.value));
@@ -291,19 +283,19 @@ for (const preset of PROFILES) {
       const fund = menu.findIndex((o) => (o.options ?? []).some((n) => titleOf(n) === 'Landlord'));
       expect(fund, 'red\'s menu offers the award funding with Landlord').toBeGreaterThanOrEqual(0);
       const landlord = menu[fund].options!.findIndex((n) => titleOf(n) === 'Landlord');
-      await armScoreProbe(page);
+      const score = await armScoreProbe(page);
       await armTransferWitness(page);
       await sendPlayerInput(request, red, {type: 'or', index: fund, response: {type: 'or', index: landlord, response: {type: 'option'}}});
       const after = await untilServer(request, playerId, (m) => m.thisPlayer.victoryPointsBreakdown.total !== v0, 'blue\'s score moved');
       expect(after.thisPlayer.victoryPointsBreakdown.total - v0, 'the server: blue leads Landlord, +5').toBe(5);
-      await expect.poll(async () => (await readScoreProbe(page)).reasons.length, {timeout: 30_000, message: 'the cell never named its cause'}).toBeGreaterThan(0);
+      await expect.poll(async () => (await readScoreProbe(score)).reasons.length, {timeout: 30_000, message: 'the cell never named its cause'}).toBeGreaterThan(0);
       await cinematicBeat(page, 400, 'the ticket\'s fade-in settles before the frame is taken');
       await page.screenshot({path: path.join(OUT, preset.id, 'E-named-cause.png')});
       // The cause is read WHOLE: the ticket's label is never cut by an ellipsis.
       const cut = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-score__reason-label'))
         .some((el) => el.scrollWidth > el.clientWidth + 1));
       expect(cut, 'E: the cause is never cut').toBe(false);
-      const probe = await readScoreProbe(page);
+      const probe = await readScoreProbe(score);
       expect(probe.reasons.join(' | '), 'the ticket names the award and its place').toMatch(/\+5.*Награда «Собственник»: место 1/);
       expect(probe.vpChipAt, 'no body on this screen — no token flies').toBeUndefined();
       expect(probe.vp.at(-1)?.[1]).toBe(String(v0 + 5));
@@ -320,14 +312,15 @@ for (const preset of PROFILES) {
       const index = (redModel.waitingFor?.options ?? []).findIndex((o) => o.type === 'space');
       expect(index, 'red\'s menu offers the plants conversion').toBeGreaterThanOrEqual(0);
       const cells = redModel.waitingFor!.options![index].spaces ?? [];
-      const adjacent = await page.evaluate((city) => {
+      // The board's own geometry decides «beside» — measured AT REST (`readSettled`), both reads.
+      const adjacent = await readSettled(page, () => page.evaluate((city) => {
         // The board's own geometry decides «beside»: the nearest legal cell to blue's city by centre distance.
         const at = (id: string) => document.querySelector(`.board-space[data_space_id="${id}"]`)?.getBoundingClientRect();
         const c = at(city);
         return c === undefined ? undefined : {cx: c.x + c.width / 2, cy: c.y + c.height / 2, w: c.width};
-      }, blueCity!.id);
+      }, blueCity!.id), {message: 'blue\'s city on the board'});
       expect(adjacent, 'blue\'s city is drawn').toBeDefined();
-      const greenery = await page.evaluate(({ids, c}) => {
+      const greenery = await readSettled(page, () => page.evaluate(({ids, c}) => {
         let best: {id: string, d: number} | undefined;
         for (const id of ids) {
           const r = document.querySelector(`.board-space[data_space_id="${id}"]`)?.getBoundingClientRect();
@@ -340,19 +333,19 @@ for (const preset of PROFILES) {
           }
         }
         return best?.id;
-      }, {ids: cells, c: adjacent!});
+      }, {ids: cells, c: adjacent!}), {message: 'the legal cell nearest blue\'s city'});
       expect(greenery, 'a legal greenery cell beside blue\'s city').toBeDefined();
       const v0 = model.thisPlayer.victoryPointsBreakdown.total;
-      await armScoreProbe(page);
+      const score = await armScoreProbe(page);
       await armTransferWitness(page);
       const stop = await storyboard(page, path.join(OUT, preset.id), 'rival');
       await sendPlayerInput(request, red, {type: 'or', index, response: {type: 'space', spaceId: greenery!}});
       const after = await untilServer(request, playerId, (m) => m.thisPlayer.victoryPointsBreakdown.total !== v0, 'blue\'s score moved');
       expect(after.thisPlayer.victoryPointsBreakdown.total - v0, 'the server: the city\'s adjacency +1').toBe(1);
-      await expect.poll(async () => (await readScoreProbe(page)).vp.at(-1)?.[1], {timeout: 40_000}).toBe(String(v0 + 1));
+      await expect.poll(async () => (await readScoreProbe(score)).vp.at(-1)?.[1], {timeout: 40_000}).toBe(String(v0 + 1));
       await settle(page, {timeoutMs: 30_000});
       await stop();
-      const probe = await readScoreProbe(page);
+      const probe = await readScoreProbe(score);
       expectVpOnItsToken(probe, v0 + 1, 'D');
       const witness = await transferWitness(page);
       const born = witness.births.find((b) => vpTokenValue('+1')(b.value));

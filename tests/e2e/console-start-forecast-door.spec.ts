@@ -5,6 +5,8 @@ import {
   createGameWithCards, crumbText, fetchPlayerModel, focusCard, openConsole, pickCards, playQueueCard, pressUntil, sendPlayerInput,
   settle, soloGameConfig, submitSummary, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE WITNESS OF «СРАБОТАЕТ» ON THE PRELUDES' DEPLOYMENT (P79 · DI, the owner's frame of 2026-10-31: «убрать из центра
@@ -37,8 +39,7 @@ const MOHOLE = 'Mohole';
 const MARTIAN = 'Martian Industries';
 
 type Box = {x: number, y: number, w: number, h: number};
-type Sample = {
-  t: number,
+type Seen = {
   panel?: Box,
   painted?: Box,
   hero?: Box,
@@ -48,6 +49,8 @@ type Sample = {
   shelfAlpha: number,
   rail?: Box,
 };
+/** A recorded state with its time on the PAGE's clock, from the arm. */
+type Sample = Seen & {t: number};
 
 const proteusData = async (request: APIRequestContext, id: string): Promise<number> =>
   ((await fetchPlayerModel(request, id) as unknown as {thisPlayer: {tableau: Array<{name: string, resources?: number}>}})
@@ -58,7 +61,7 @@ async function shoot(page: Page, preset: Preset, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, preset.id, `${name}.png`)});
 }
 
-/** The scene's door, rail and queue as they stand. */
+/** The scene's door, rail and queue as they stand — read through `readSettled` (C: at rest, never mid-entrance). */
 async function doorRead(page: Page) {
   return page.evaluate(() => {
     const box = (el: Element | null): Box | undefined => {
@@ -96,12 +99,14 @@ async function doorRead(page: Page) {
   });
 }
 
-/** Arm the transition probe BEFORE the press: a MutationObserver + a 16 ms task clock, never rAF. */
-async function armDoorProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__door: Array<Sample>};
-    w.__door = [];
-    const t0 = performance.now();
+/**
+ * Arm the transition probe BEFORE the press — RECORDED (FLAKE ZERO — `armWitness`, the product's own writes, every
+ * distinct state with the page's time). Its claims hold for EVERY state of the window (the hero's box and paint, the
+ * rail) and for its first and last painted state, so the record is `settled` — the state a task LEAVES, what a frame
+ * can paint.
+ */
+async function armDoorProbe(page: Page, key: string): Promise<void> {
+  await armWitness<Seen>(page, key, () => {
     const box = (r: DOMRect): Box => ({x: r.left, y: r.top, w: r.width, h: r.height});
     const alpha = (el: Element | null): number => {
       let a = 1;
@@ -114,48 +119,47 @@ async function armDoorProbe(page: Page): Promise<void> {
       }
       return Math.round(a * 1000) / 1000;
     };
-    const sample = () => {
-      const surface = document.querySelector<HTMLElement>('.con-start [data-forecast-surface]');
-      const hero = document.querySelector('.con-start__qcard[data-forecast-hero]');
-      const s: Sample = {
-        t: Math.round(performance.now() - t0),
-        heroAlpha: alpha(hero),
-        queueAlpha: alpha(document.querySelector('.con-start__queue')),
-        othersAlpha: Array.from(document.querySelectorAll('.con-start__queue-row > *')).filter((el) => el !== hero).map(alpha),
-        shelfAlpha: alpha(document.querySelector('.con-start__played')),
-      };
-      if (hero !== null) {
-        s.hero = box(hero.getBoundingClientRect());
-      }
-      const rail = document.querySelector('.con-start__statusrail');
-      if (rail !== null) {
-        s.rail = box(rail.getBoundingClientRect());
-      }
-      if (surface !== null) {
-        const r = surface.getBoundingClientRect();
-        s.panel = box(r);
-        // What of the panel is PAINTED: its box minus the unfold's clip (`inset(t r b l …)` in its own px).
-        const m = /inset\(([-\d.]+)px(?:\s+([-\d.]+)px)?(?:\s+([-\d.]+)px)?(?:\s+([-\d.]+)px)?/.exec(getComputedStyle(surface).clipPath);
-        const k = surface.offsetWidth > 0 ? r.width / surface.offsetWidth : 1;
-        if (m !== null) {
-          const top = parseFloat(m[1]);
-          const right = m[2] === undefined ? top : parseFloat(m[2]);
-          const bottom = m[3] === undefined ? top : parseFloat(m[3]);
-          const left = m[4] === undefined ? right : parseFloat(m[4]);
-          s.painted = {x: r.left + left * k, y: r.top + top * k, w: r.width - (left + right) * k, h: r.height - (top + bottom) * k};
-        } else {
-          s.painted = s.panel;
-        }
-      }
-      w.__door.push(s);
+    const surface = document.querySelector<HTMLElement>('.con-start [data-forecast-surface]');
+    const hero = document.querySelector('.con-start__qcard[data-forecast-hero]');
+    const s: Seen = {
+      heroAlpha: alpha(hero),
+      queueAlpha: alpha(document.querySelector('.con-start__queue')),
+      othersAlpha: Array.from(document.querySelectorAll('.con-start__queue-row > *')).filter((el) => el !== hero).map(alpha),
+      shelfAlpha: alpha(document.querySelector('.con-start__played')),
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 16);
-  });
+    if (hero !== null) {
+      s.hero = box(hero.getBoundingClientRect());
+    }
+    const rail = document.querySelector('.con-start__statusrail');
+    if (rail !== null) {
+      s.rail = box(rail.getBoundingClientRect());
+    }
+    if (surface !== null) {
+      const r = surface.getBoundingClientRect();
+      s.panel = box(r);
+      // What of the panel is PAINTED: its box minus the unfold's clip (`inset(t r b l …)` in its own px). (A string
+      // pattern: the flake scanner's bracket matcher does not read a regex literal's escaped parentheses.)
+      const m = new RegExp('inset\\(([-\\d.]+)px(?:\\s+([-\\d.]+)px)?(?:\\s+([-\\d.]+)px)?(?:\\s+([-\\d.]+)px)?').exec(getComputedStyle(surface).clipPath);
+      const k = surface.offsetWidth > 0 ? r.width / surface.offsetWidth : 1;
+      if (m !== null) {
+        const top = parseFloat(m[1]);
+        const right = m[2] === undefined ? top : parseFloat(m[2]);
+        const bottom = m[3] === undefined ? top : parseFloat(m[3]);
+        const left = m[4] === undefined ? right : parseFloat(m[4]);
+        s.painted = {x: r.left + left * k, y: r.top + top * k, w: r.width - (left + right) * k, h: r.height - (top + bottom) * k};
+      } else {
+        s.painted = s.panel;
+      }
+    }
+    return s;
+  }, {settled: true, max: 20_000});
 }
 
-async function doorSamples(page: Page): Promise<Array<Sample>> {
-  return page.evaluate(() => (window as unknown as {__door?: Array<Sample>}).__door ?? []);
+/** The recording, stopped — every distinct state with its page time from the arm. */
+async function doorSamples(page: Page, key: string): Promise<Array<Sample>> {
+  const recorded = await witnessOf<Seen>(page, key).stop();
+  const t0 = recorded[0]?.t ?? 0;
+  return recorded.map((x) => ({...x.v, t: x.t - t0}));
 }
 
 const near = (a: Box | undefined, b: Box | undefined, tol = 1): boolean =>
@@ -215,7 +219,7 @@ for (const preset of PRESETS) {
       expect(await focusCard(page, MARTIAN), `never focused «${MARTIAN}»`).toBe(true);
       await expect(page.locator('[data-start-prelude-forecast] [data-forecast-row]'), '«Сработает» stands on the rail').toHaveCount(1, {timeout: 20_000});
       await settle(page);
-      const before = await doorRead(page);
+      const before = await readSettled(page, () => doorRead(page), {message: 'the door before R3'});
       await shoot(page, preset, 'g-queue-one-answer');
       console.log(`[forecast-door] ${preset.id} before: ${JSON.stringify(before)}`);
       expect(before.rows, '(а) ONE «Сработает» row on the scene').toBe(1);
@@ -234,15 +238,15 @@ for (const preset of PRESETS) {
 
       // ── (в) (г) R3 → the layer grows out of the rail into the queue's space ──
       const postsBefore = posts.length;
-      await armDoorProbe(page);
+      await armDoorProbe(page, 'p79-door-open');
       expect(await pressUntil(page, 'KeyV', async () => await page.locator('.con-start [data-forecast-layer]').count() > 0, {tries: 3, settleMs: 1100}),
         'R3 opens the «Эффекты» layer').toBeTruthy();
       await settle(page);
       expect((await crumbText(page)).toUpperCase(), '(г) the crumb gains its tail').toMatch(/ЭФФЕКТЫ/);
       await expect(page.locator('.con-cmdbar'), '(г) the bar is the layer\'s').toContainText(/Закрыть/i);
       await shoot(page, preset, 'e-layer-open');
-      const open = await doorRead(page);
-      const samples = await doorSamples(page);
+      const open = await readSettled(page, () => doorRead(page), {message: 'the door under the layer'});
+      const samples = await doorSamples(page, 'p79-door-open');
       const withPanel = samples.filter((s) => s.panel !== undefined && s.painted !== undefined && s.painted.w > 0 && s.painted.h > 0);
       expect(withPanel.length, 'the probe saw the panel').toBeGreaterThan(0);
       const first = withPanel[0];
@@ -274,13 +278,13 @@ for (const preset of PRESETS) {
       expect(open.scrolls, '(е) the deployment never scrolls under the layer').toBe(false);
 
       // ── (д) B folds it back ──
-      await armDoorProbe(page);
+      await armDoorProbe(page, 'p79-door-fold');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-start [data-forecast-layer]').count() === 0, {tries: 3, settleMs: 900}),
         'B folds the layer').toBeTruthy();
       await settle(page);
       await shoot(page, preset, 'h-folded');
-      const after = await doorRead(page);
-      const back = await doorSamples(page);
+      const after = await readSettled(page, () => doorRead(page), {message: 'the door folded back'});
+      const back = await doorSamples(page, 'p79-door-fold');
       const rest = back[back.length - 1];
       expect((await crumbText(page)).toUpperCase(), '(г) the tail is gone with the layer').not.toMatch(/ЭФФЕКТЫ/);
       expect(after.focused, '(д) the focus on the same card').toBe(MARTIAN);

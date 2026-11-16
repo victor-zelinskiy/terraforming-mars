@@ -21,9 +21,13 @@
 import {expect, test, Page} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
-import {bootWithCards, press, soloGameConfig, takeRevealCards, waitForBoardHome} from './consoleStart';
+import {bootWithCards, composerLoaded, press, pressUntil, settle, soloGameConfig, takeRevealCards, waitForBoardHome} from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 const OUT_DIR = path.join(__dirname, '..', '..', 'screenshots', 'venus-bonus-park');
+
+/** One recorded state of the crossing play: the hand, a fullscreen surface, the stranded guard, the HUD's Venus. */
+type Seen = {hand: boolean, reveal: boolean, zoom: boolean, stranded: boolean, strip: string};
 
 /** Venus +3 steps (0% → 6%) — the setup play, crossing nothing. Cost 27. */
 const SHADE = 'Giant Solar Shade';
@@ -42,15 +46,16 @@ async function venusStrip(page: Page): Promise<string> {
     (document.querySelector('.con-status__param--venus .con-status__value')?.textContent ?? '').trim());
 }
 
-/** Open the hand workspace, walk onto `card`, descend, CONFIRM the play. */
-async function playFromHand(page: Page, card: string): Promise<void> {
+/** Open the hand workspace, walk onto `card`, descend, CONFIRM the play (`beforeCommit` runs right before the A). */
+async function playFromHand(page: Page, card: string, beforeCommit: () => Promise<unknown> = async () => undefined): Promise<void> {
   for (let i = 0; i < 6 && await page.locator('.con-hand__frame').count() === 0; i++) {
     await press(page, 'Period', 800);
     await press(page, 'Enter', 1100);
   }
   await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 20_000});
   await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
-  await page.waitForTimeout(800);
+  // The open episode settles — a STATE (holds, the flights home, finite motion), never a fixed 800 ms.
+  await settle(page);
 
   const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${card}"]`).count();
   let lastSelected = '';
@@ -64,8 +69,12 @@ async function playFromHand(page: Page, card: string): Promise<void> {
   await press(page, 'Enter', 900);
   await expect(page.locator('.con-hand__stage .con-composer--play')).toBeVisible({timeout: 20_000});
   await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 20_000});
-  await page.waitForTimeout(1000);
-  await page.keyboard.press('Enter');
+  // The sheet has its preview and stands still (its readiness marker, then the console at rest) — never a fixed 1 s;
+  // the driver's A then waits out the commit row's own arrival window by itself.
+  await composerLoaded(page);
+  await settle(page);
+  await beforeCommit();
+  await press(page, 'Enter', 400);
 }
 
 test.describe('the Venus 8% bonus waits for the workspace to leave', () => {
@@ -94,66 +103,50 @@ test.describe('the Venus 8% bonus waits for the workspace to leave', () => {
       .toBe('6%');
     await shoot(page, 'venus-6-baseline');
 
-    // ── THE CROSSING PLAY, watched frame by frame. ──
-    await playFromHand(page, GHG);
-    const log = {
-      /** A fullscreen surface (reveal band / zoom viewer) over the OPEN hand
-       *  workspace — the reported bug's first half. Must be 0. */
-      fullscreenUnderHand: 0,
-      /** The HUD read the TRUTH («8%») while the workspace still owned the screen — state delivery, 2026-10-28:
-       *  the instrument flips at once, the board tells the story later. Must be > 0 (it used to be the held-value
-       *  contract's violation; the owner reversed that law: «состояния в top bar — сразу же»). */
-      strip8UnderHand: 0,
-      /** The stranded-prompt guard fired — the «workspace завис» detector. */
-      strandedFrames: 0,
-      handGone: false,
-      sawFullscreenOverBoard: false,
-      sawStrip8OverBoard: false,
-      trace: [] as Array<string>,
-    };
-    for (let i = 0; i < 300; i++) {
-      const s = await page.evaluate(() => ({
+    // ── THE CROSSING PLAY, RECORDED from the commit's own A (FLAKE ZERO — `armWitness`: every state the product
+    //    writes, never a 150 ms poll that sleeps through a surface). `settled`: «a fullscreen over the OPEN
+    //    workspace» is a COEXISTENCE — a sample is the state a task LEAVES, never the gap between two of its writes.
+    const armed: Array<Witness<Seen>> = [];
+    await playFromHand(page, GHG, async () => {
+      armed.push(await armWitness<Seen>(page, 'venus-bonus-park', () => ({
         hand: document.querySelector('.con-hand') !== null,
         reveal: document.querySelector('.con-reveal') !== null,
         zoom: document.querySelector('.card-zoom-dialog') !== null,
         stranded: document.querySelector('.con-stranded') !== null,
         strip: (document.querySelector('.con-status__param--venus .con-status__value')?.textContent ?? '').trim(),
-      }));
-      const fullscreen = s.reveal || s.zoom;
-      log.trace.push(`${i} h:${s.hand ? 1 : 0} r:${s.reveal ? 1 : 0} z:${s.zoom ? 1 : 0} v:${s.strip}`);
-      if (s.stranded) {
-        log.strandedFrames++;
-      }
-      if (s.hand) {
-        if (fullscreen) {
-          log.fullscreenUnderHand++;
-          await shoot(page, 'BUG-fullscreen-under-workspace');
-        }
-        if (s.strip.includes('8')) {
-          log.strip8UnderHand++;
-        }
-      } else {
-        log.handGone = true;
-        if (fullscreen) {
-          if (!log.sawFullscreenOverBoard) {
-            await shoot(page, 'bonus-over-board');
-          }
-          log.sawFullscreenOverBoard = true;
-          // The take is the surface's own A — pressing it here keeps the
-          // loop watching the closing half (viewer → intake → board home).
-          await page.keyboard.press('Enter');
-          await page.waitForTimeout(500);
-        }
-        if (s.strip.includes('8')) {
-          log.sawStrip8OverBoard = true;
-        }
-        // The whole story has been told: scales at 8%, no surface left up.
-        if (log.sawFullscreenOverBoard && log.sawStrip8OverBoard && !fullscreen) {
-          break;
-        }
-      }
-      await page.waitForTimeout(150);
+      }), {settled: true}));
+    });
+    const w = armed[0];
+    const fullscreen = (s: Seen) => s.reveal || s.zoom;
+    // The bonus presented over the board the player can see (the workspace gone) — waited for as a STATE.
+    const overBoard = await w.waitFor((s) => !s.hand && fullscreen(s), {timeoutMs: 45_000}).then(() => true, () => false);
+    if (overBoard) {
+      await shoot(page, 'bonus-over-board');
+      // The take is the surface's own A — act → verify (the surface left) → retry; the record keeps watching the
+      // closing half (viewer → intake → board home).
+      await pressUntil(page, 'Enter', async () => await page.locator('.con-reveal, .card-zoom-dialog').count() === 0, {tries: 8, settleMs: 1500});
     }
+    // The whole story has been told: scales at 8%, no surface left up — the END STATE the window runs to.
+    await w.waitFor((s) => !s.hand && s.strip.includes('8') && !fullscreen(s), {timeoutMs: 30_000}).catch(() => undefined);
+    const seen = (await w.stop()).map((x) => x.v);
+    if (seen.some((s) => s.hand && fullscreen(s))) {
+      await shoot(page, 'BUG-fullscreen-under-workspace');
+    }
+    const log = {
+      /** A fullscreen surface (reveal band / zoom viewer) over the OPEN hand
+       *  workspace — the reported bug's first half. Must be 0 (recorded states, never frames). */
+      fullscreenUnderHand: seen.filter((s) => s.hand && fullscreen(s)).length,
+      /** The HUD read the TRUTH («8%») while the workspace still owned the screen — state delivery, 2026-10-28:
+       *  the instrument flips at once, the board tells the story later. Must be > 0 (it used to be the held-value
+       *  contract's violation; the owner reversed that law: «состояния в top bar — сразу же»). */
+      strip8UnderHand: seen.filter((s) => s.hand && s.strip.includes('8')).length,
+      /** The stranded-prompt guard fired — the «workspace завис» detector. */
+      strandedFrames: seen.filter((s) => s.stranded).length,
+      handGone: seen.some((s) => !s.hand),
+      sawFullscreenOverBoard: seen.some((s) => !s.hand && fullscreen(s)),
+      sawStrip8OverBoard: seen.some((s) => !s.hand && s.strip.includes('8')),
+      trace: seen.map((s, i) => `${i} h:${s.hand ? 1 : 0} r:${s.reveal ? 1 : 0} z:${s.zoom ? 1 : 0} v:${s.strip}`),
+    };
     console.log(`[venus bonus trace]\n${log.trace.join('\n')}`);
 
     // THE ORDER — the whole point of the board-beat park:

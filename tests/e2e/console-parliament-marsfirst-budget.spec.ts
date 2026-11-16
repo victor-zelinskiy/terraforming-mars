@@ -8,6 +8,8 @@ import {
   armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, ledgerRecords, hotVerb, openParliament, parliament, parliamentWire, sittingStage,
   sittingStep, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * MARS FIRST BUDGET (Turmoil Redux, RX38) — the ONE e2e of the card: the sixth budget assembled from shipped parts
@@ -34,7 +36,7 @@ import {
  *   (the world beat) — the remote landing flies on the board blue sees, blue's own placement stays shut behind its door
  *   the whole time — and comes back for blue's door «К полю». Never a landing degraded by a long read at the door.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF. Screens under screenshots/parliament-marsfirst-budget/<profile>/.
+ * The probe is a RECORDING (`armWitness` — every state the product writes). Screens under screenshots/parliament-marsfirst-budget/<profile>/.
  */
 const OUT_ROOT = path.resolve('screenshots', 'parliament-marsfirst-budget');
 const PRESETS = [
@@ -143,12 +145,17 @@ type Sample = {
   botCell: string,
 };
 type Probe = {samples: Array<Sample>};
+const MFB_WITNESS = 'parliament-marsfirst-budget';
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
+/**
+ * THE PROBE — armed BEFORE the gate is answered. RECORDED (FLAKE ZERO — `armWitness`, replace-proof): every state the
+ * product writes, stamped with the page's clock (its `t` is also the WALL a screencast frame is matched against), off
+ * its own writes and a frame tick. `settled`: every claim here is an ORDER or a COEXISTENCE («never in the same frame»,
+ * «never under blue's card», «the payout after the levy landed») — a sample is the state a task LEAVES. Its cap is far
+ * above a sitting's states, so the indices the spec keeps into the record never shift.
+ */
 async function armProbe(page: Page, cells: {bot: string, blue: string}): Promise<void> {
-  await page.evaluate((c) => {
-    const w = window as unknown as {__mfbProbe: Probe};
-    w.__mfbProbe = {samples: []};
+  await armWitness<Omit<Sample, 't' | 'wall'>, {bot: string, blue: string}>(page, MFB_WITNESS, (c) => {
     // PAINTED, not merely present: a held cell keeps its tile element (art suppressed) until the remote proxy lands,
     // so the witness reads the hold's class, the opacity chain and the visibility of the tile it finds.
     const cityOn = (id: string) => {
@@ -169,61 +176,53 @@ async function armProbe(page: Page, cells: {bot: string, blue: string}): Promise
       const r = tile.getBoundingClientRect();
       return opacity > 0.5 && r.width > 2 && r.height > 2;
     };
-    const sample = () => {
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        return {id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? ''};
-      });
-      const digits = (row: string) => ((document.querySelector(`.con-res__row--${row} .con-res__digits`)?.textContent?.trim() ?? '').match(/^-?\d+/) ?? [''])[0];
-      w.__mfbProbe.samples.push({
-        t: performance.now(),
-        wall: Date.now(),
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
-        chips,
-        mc: digits('megacredits'),
-        steel: digits('steel'),
-        remote: document.querySelector('.con-tileplace__tile--remote') !== null,
-        botCity: cityOn(c.bot),
-        blueCity: cityOn(c.blue),
-        placing: document.querySelector('.con-board--placing') !== null ? 'placing' : '',
-        band: (document.querySelector('.con-band__line')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 160),
-        botCell: (() => {
-          const cell = document.querySelector<HTMLElement>(`.board-space[data_space_id="${c.bot}"]`);
-          const tile = cell?.querySelector<HTMLElement>('[class*="board-space-tile"]') ?? null;
-          if (tile === null) {
-            return 'none';
-          }
-          let op = 1;
-          for (let el: HTMLElement | null = tile; el !== null && el !== document.body; el = el.parentElement) {
-            op *= Number(getComputedStyle(el).opacity);
-          }
-          return `${tile.className.replace(/\s+/g, '.')} op:${op.toFixed(2)}`;
-        })(),
-        reveal: document.querySelector('.con-reveal') !== null,
-        deckdraw: document.querySelector('.con-deckdraw') !== null,
-        parl: document.querySelector('.con-parl') !== null,
-      });
-      if (w.__mfbProbe.samples.length > 12000) {
-        w.__mfbProbe.samples.splice(0, 2000);
-      }
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      return {id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? ''};
+    });
+    const digits = (row: string) => ((document.querySelector(`.con-res__row--${row} .con-res__digits`)?.textContent?.trim() ?? '').match(/^-?\d+/) ?? [''])[0];
+    return {
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
+      chips,
+      mc: digits('megacredits'),
+      steel: digits('steel'),
+      remote: document.querySelector('.con-tileplace__tile--remote') !== null,
+      botCity: cityOn(c.bot),
+      blueCity: cityOn(c.blue),
+      placing: document.querySelector('.con-board--placing') !== null ? 'placing' : '',
+      band: (document.querySelector('.con-band__line')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 160),
+      botCell: (() => {
+        const cell = document.querySelector<HTMLElement>(`.board-space[data_space_id="${c.bot}"]`);
+        const tile = cell?.querySelector<HTMLElement>('[class*="board-space-tile"]') ?? null;
+        if (tile === null) {
+          return 'none';
+        }
+        let op = 1;
+        for (let el: HTMLElement | null = tile; el !== null && el !== document.body; el = el.parentElement) {
+          op *= Number(getComputedStyle(el).opacity);
+        }
+        return `${tile.className.replace(/\s+/g, '.')} op:${op.toFixed(2)}`;
+      })(),
+      reveal: document.querySelector('.con-reveal') !== null,
+      deckdraw: document.querySelector('.con-deckdraw') !== null,
+      parl: document.querySelector('.con-parl') !== null,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true,
-      attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-sit-step']});
-    window.setInterval(sample, 16);
-  }, cells);
+  }, {args: cells, settled: true, max: 60_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__mfbProbe: Probe}).__mfbProbe);
+/** The record: each state with the page's clock as both its `t` and its `wall`. */
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Omit<Sample, 't' | 'wall'>>(page, MFB_WITNESS).samples()).map((s) => ({...s.v, t: s.t, wall: s.t}))});
 
 /** A red run carries its own evidence: the probe's tail rides the report. */
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__mfbProbe?: Probe, __conReady?: () => unknown};
-    return {samples: w.__mfbProbe?.samples.slice(-12000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
+  const evidence = await (async () => ({
+    samples: (await readProbe(page)).samples.slice(-12000),
+    ready: await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()).catch(() => undefined),
+  }))().catch(() => undefined);
   if (evidence !== undefined) {
     const file = testInfo.outputPath('marsfirst-probe.json');
     fs.writeFileSync(file, JSON.stringify(evidence));
@@ -313,7 +312,7 @@ for (const preset of PRESETS) {
       const greeneries = before.game.spaces.filter((s) => s.tileType === GREENERY && s.color === undefined).map((s) => s.id);
       expect(greeneries, 'the fixture\'s three greeneries').toHaveLength(3);
       const free = before.game.spaces.filter((s) => s.spaceType === 'land' && s.tileType === undefined).map((s) => s.id);
-      const near = await neighboursOf(page, [...free, ...greeneries]);
+      const near = await readSettled(page, () => neighboursOf(page, [...free, ...greeneries]), {message: 'the board cell centres'});
       const site = free.find((id) => greeneries.every((g) => near[g]?.includes(id)));
       expect(site, 'the bot\'s site — the cell beside all three greeneries').toBeDefined();
       const oceans = new Set(before.game.spaces.filter((s) => s.spaceType === 'ocean').map((s) => s.id));
@@ -363,7 +362,7 @@ for (const preset of PRESETS) {
       if (await placementState(page) === 'none') {
         await settle(page, {timeoutMs: 20_000});
         await expect.poll(() => hotVerb(page), {message: 'the door\'s verb', timeout: 10_000}).toMatch(/К полю|Onto the board/i);
-        expect((await crumbText(page)).toUpperCase()).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
+        await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the crumb names the placement', timeout: 10_000}).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
         await shoot(page, preset.id, '03-door');
         await press(page, 'Enter', 800);
       }
@@ -490,7 +489,7 @@ for (const preset of PRESETS) {
       const greeneries = before.game.spaces.filter((s) => s.tileType === GREENERY && s.color === undefined).map((s) => s.id);
       expect(greeneries, 'the fixture\'s three greeneries').toHaveLength(3);
       const free = before.game.spaces.filter((s) => s.spaceType === 'land' && s.tileType === undefined).map((s) => s.id);
-      const near = await neighboursOf(page, [...free, ...greeneries]);
+      const near = await readSettled(page, () => neighboursOf(page, [...free, ...greeneries]), {message: 'the board cell centres'});
       const site = free.find((id) => greeneries.every((g) => near[g]?.includes(id)));
       expect(site, 'the bot\'s site — the cell beside all three greeneries').toBeDefined();
 
@@ -557,7 +556,7 @@ for (const preset of PRESETS) {
         }
       }
       await settle(page, {timeoutMs: 20_000});
-      expect((await crumbText(page)).toUpperCase()).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
+      await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the crumb names the placement', timeout: 10_000}).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
       await shoot(page, preset.id, '08e-botfirst-door');
 
       // ── BLUE'S CITY through its own door, then the results: blue four parts, the bot ONE.

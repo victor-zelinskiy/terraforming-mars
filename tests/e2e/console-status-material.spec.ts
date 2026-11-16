@@ -23,6 +23,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import {STATUS_MOCKS, StatusMock} from './statusMaterialMocks';
 
 const PROFILES = [
@@ -41,9 +42,10 @@ const FIXTURE = (process.env.TM_E2E_STATUS_FIXTURE ?? 'event-analysts') as 'even
 type Rect = {x: number, y: number, w: number, h: number};
 type Anchors = Record<string, Rect>;
 
-/** Every anchor a flight, a probe or a seam reads off the strip — the selectors are the contract, never renamed. */
+/** Every anchor a flight, a probe or a seam reads off the strip — the selectors are the contract, never renamed. Read AT
+ *  REST (`readSettled` — two equal reads a frame apart, after `settle`): both sides of every comparison. */
 async function readAnchors(page: Page): Promise<Anchors> {
-  return page.evaluate(() => {
+  return readSettled(page, () => page.evaluate(() => {
     const out: Record<string, {x: number, y: number, w: number, h: number}> = {};
     const put = (key: string, el: Element | null | undefined) => {
       if (el === null || el === undefined) {
@@ -87,7 +89,7 @@ async function readAnchors(page: Page): Promise<Anchors> {
     out['hud-h'] = {x: 0, y: 0, w: 0, h: strip === null || strip === undefined ? 0 : Math.round(strip.getBoundingClientRect().height * 10) / 10};
     out['hud-h.token'] = {x: 0, y: 0, w: Number.parseFloat(hud) || 0, h: 0};
     return out;
-  });
+  }), {message: 'the strip anchors'});
 }
 
 /**
@@ -128,13 +130,19 @@ async function stripAtRest(page: Page): Promise<void> {
 async function stripShot(page: Page, profile: string, name: string): Promise<void> {
   fs.mkdirSync(path.join(OUT, profile), {recursive: true});
   await page.screenshot({path: path.join(OUT, profile, `${name}.png`)});
-  const box = await page.locator('.con-status').boundingBox();
+  // The frames are clipped to boxes read AT REST (`readSettled`).
+  const boxes = await readSettled(page, async () => ({
+    box: await page.locator('.con-status').boundingBox(),
+    seats: await page.locator('.con-status__players').boundingBox(),
+    instruments: await page.locator('.con-status__params').boundingBox(),
+  }), {message: 'the strip and its halves'});
+  const box = boxes.box;
   if (box !== null) {
     const vp = page.viewportSize()!;
     await page.screenshot({path: path.join(OUT, profile, `${name}-strip.png`), clip: {x: 0, y: 0, width: vp.width, height: Math.min(vp.height, box.height * 2.4)}});
     // …and the two halves at full size (the seats, the instruments) — the frames the owner reads the paint on.
-    for (const [half, sel] of [['seats', '.con-status__players'], ['instruments', '.con-status__params']] as const) {
-      const r = await page.locator(sel).boundingBox();
+    for (const half of ['seats', 'instruments'] as const) {
+      const r = boxes[half];
       if (r !== null) {
         const pad = box.height * .3;
         await page.screenshot({path: path.join(OUT, profile, `${name}-${half}.png`),

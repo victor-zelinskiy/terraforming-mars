@@ -2,8 +2,9 @@ import {test, expect} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  fillPicks, openConsole, pickCards, playStartQueue, submitSummary, walkToSummary,
+  fillPicks, openConsole, pickCards, playStartQueue, settle, submitSummary, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {armWitness, pageNow} from './witness';
 
 /**
  * THE FIRST-ACTION STAGE ENTRY — the frame-by-frame witness.
@@ -11,8 +12,9 @@ import {
  * The player reported the stage APPEARING as a «рывок»: the briefing panel,
  * the seated corporation, the crumb tail and the room all change at once, and
  * something in that chord reads as a jump rather than as the descend phrase.
- * This probe samples every moving part of the entry at ~16 ms and prints the
- * TIMELINE, so the defect is named by measurement, not by feel:
+ * This probe RECORDS every moving part of the entry (`armWitness` — every state
+ * the product writes, never a sampler's ticks) and prints the TIMELINE, so the
+ * defect is named by measurement, not by feel:
  *
  *   · the queue's recede (opacity/scale — it must LEAVE, not blink);
  *   · the played shelf's pose (the corp face must step away only under a
@@ -104,15 +106,18 @@ test.describe('first-action stage entry · frame witness', () => {
     });
     await submitSummary(page);
     await page.waitForSelector('.con-start__queue [data-queue-slot]', {timeout: 30_000});
-    await page.waitForTimeout(2500);
+    // The deployment's own readiness (cards standing, nothing in the air, the rail released) — never a fixed 2.5 s.
+    await waitQueueIdle(page);
 
     // ARM THE WITNESS before the queue is played out — the stage entry fires
-    // on the heels of the last prelude's own landing.
-    await page.evaluate(() => {
-      const w = window as unknown as {__fa: {frames: Array<unknown>, t0: number, timer: number}};
-      const t0 = performance.now();
-      const state = {frames: [] as Array<unknown>, t0, timer: 0};
-      w.__fa = state as never;
+    // on the heels of the last prelude's own landing. RECORDED (FLAKE ZERO —
+    // `armWitness`): every state the product writes, with the page's time, off
+    // its own writes and a frame tick. `settled`: the claims below are about one
+    // PAINTED frame (a blink, a doubled corp, a proxy over the panel's first
+    // frame) — a sample is the state a task leaves, never the gap between two
+    // of its writes.
+    const t0 = await pageNow(page);
+    const witness = await armWitness<Omit<Frame, 't'>>(page, 'firstact-entry', () => {
       const rect = (el: Element | null): string => {
         if (el === null) {
           return '-';
@@ -120,57 +125,49 @@ test.describe('first-action stage entry · frame witness', () => {
         const r = el.getBoundingClientRect();
         return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)}`;
       };
-      const sample = () => {
-        const queue = document.querySelector<HTMLElement>('.con-start__queue');
-        const zone = document.querySelector<HTMLElement>('.con-start__embed');
-        const seat = document.querySelector<HTMLElement>('.con-start__embedsource-card');
-        const panel = document.querySelector<HTMLElement>('.con-start__firstact');
-        const shelfFace = document.querySelector<HTMLElement>('.con-start__played [data-played-key="Philares"] .con-splayed__face');
-        const deploy = document.querySelector<HTMLElement>('.con-start__deploy');
-        const shelf = document.querySelector<HTMLElement>('.con-start__played');
-        const crumbEl = document.querySelector<HTMLElement>('.con-wshead__layer--deep');
-        const qs = queue === null ? undefined : getComputedStyle(queue);
-        const ps = panel === null ? undefined : getComputedStyle(panel);
-        const zs = zone === null ? undefined : getComputedStyle(zone);
-        (w.__fa.frames as Array<unknown>).push({
-          t: Math.round(performance.now() - t0),
-          queueOp: qs === undefined ? '-' : Number(qs.opacity).toFixed(2),
-          queueTf: qs === undefined ? '-' : (qs.transform === 'none' ? 'none' : 'tf'),
-          zoneLive: zone !== null && zone.classList.contains('con-start__embed--live'),
-          zoneAnim: zs === undefined ? '-' : (zs.animationName === 'none' ? '-' : `${zs.animationName}@${zs.animationPlayState}`),
-          zoneCls: zone === null ? '-' : Array.from(zone.classList).filter((c) => c.includes('--')).map((c) => c.slice(18)).join(','),
-          seatUp: seat !== null,
-          seatHeld: seat !== null && seat.classList.contains('con-deal-hold'),
-          seatRect: rect(seat),
-          panelUp: panel !== null,
-          panelOp: ps === undefined ? '-' : Number(ps.opacity).toFixed(2),
-          panelTf: ps === undefined ? '-' : (ps.transform === 'none' ? 'none' : ps.transform.slice(0, 40)),
-          proxies: document.querySelectorAll('.con-startdock-proxy').length,
-          heroPr: document.querySelectorAll('.con-played-hero__proxy').length,
-          shelfFaceUp: shelfFace !== null && shelfFace.checkVisibility({opacityProperty: true, visibilityProperty: true}),
-          shelfRect: rect(shelf),
-          deployRect: rect(deploy),
-          crumb: crumbEl === null ? '-' : (crumbEl.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
-        } satisfies Frame);
+      const queue = document.querySelector<HTMLElement>('.con-start__queue');
+      const zone = document.querySelector<HTMLElement>('.con-start__embed');
+      const seat = document.querySelector<HTMLElement>('.con-start__embedsource-card');
+      const panel = document.querySelector<HTMLElement>('.con-start__firstact');
+      const shelfFace = document.querySelector<HTMLElement>('.con-start__played [data-played-key="Philares"] .con-splayed__face');
+      const deploy = document.querySelector<HTMLElement>('.con-start__deploy');
+      const shelf = document.querySelector<HTMLElement>('.con-start__played');
+      const crumbEl = document.querySelector<HTMLElement>('.con-wshead__layer--deep');
+      const qs = queue === null ? undefined : getComputedStyle(queue);
+      const ps = panel === null ? undefined : getComputedStyle(panel);
+      const zs = zone === null ? undefined : getComputedStyle(zone);
+      return {
+        queueOp: qs === undefined ? '-' : Number(qs.opacity).toFixed(2),
+        queueTf: qs === undefined ? '-' : (qs.transform === 'none' ? 'none' : 'tf'),
+        zoneLive: zone !== null && zone.classList.contains('con-start__embed--live'),
+        zoneAnim: zs === undefined ? '-' : (zs.animationName === 'none' ? '-' : `${zs.animationName}@${zs.animationPlayState}`),
+        zoneCls: zone === null ? '-' : Array.from(zone.classList).filter((c) => c.includes('--')).map((c) => c.slice(18)).join(','),
+        seatUp: seat !== null,
+        seatHeld: seat !== null && seat.classList.contains('con-deal-hold'),
+        seatRect: rect(seat),
+        panelUp: panel !== null,
+        panelOp: ps === undefined ? '-' : Number(ps.opacity).toFixed(2),
+        panelTf: ps === undefined ? '-' : (ps.transform === 'none' ? 'none' : ps.transform.slice(0, 40)),
+        proxies: document.querySelectorAll('.con-startdock-proxy').length,
+        heroPr: document.querySelectorAll('.con-played-hero__proxy').length,
+        shelfFaceUp: shelfFace !== null && shelfFace.checkVisibility({opacityProperty: true, visibilityProperty: true}),
+        shelfRect: rect(shelf),
+        deployRect: rect(deploy),
+        crumb: crumbEl === null ? '-' : (crumbEl.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
       };
-      state.timer = window.setInterval(sample, 16) as unknown as number;
-      new MutationObserver(sample).observe(document.body, {childList: true, subtree: true, attributes: true});
-      sample();
-    });
+    }, {settled: true, max: 20_000});
 
     // Play the whole queue — the first-action stage arms after the last card.
     await playStartQueue(page);
 
-    // Wait for the briefing to stand (structural, not textual).
+    // Wait for the briefing to stand (structural, not textual) — and its entry to be OVER (a state: the console at
+    // rest, its finite motion ended), never a fixed 1.6 s. The start is a phase-long scene, so its quiet is waited for
+    // softly (`console-corp-first-action`'s own form): the window ends on the rest, or on the settle's bound.
     await page.waitForSelector('.con-start__firstact', {timeout: 60_000});
-    await page.waitForTimeout(1600); // let the entry finish + settle
+    await settle(page, {timeoutMs: 20_000}).catch(() => undefined);
     await page.screenshot({path: path.join(OUT_DIR, 'stage-standing.png')});
 
-    const frames = await page.evaluate(() => {
-      const w = window as unknown as {__fa: {frames: Array<Frame>, timer: number}};
-      window.clearInterval(w.__fa.timer);
-      return w.__fa.frames;
-    });
+    const frames: Array<Frame> = (await witness.stop()).map((s) => ({...s.v, t: s.t - t0}));
 
     // ── THE TIMELINE around the panel's first frame ──────────────────────
     const first = frames.findIndex((f) => f.panelUp);
@@ -223,7 +220,7 @@ test.describe('first-action stage entry · frame witness', () => {
     //     the same frame (one physical object). Scanned over the LAST seat
     //     episode only — earlier episodes seat the PRELUDES, whose effects
     //     legitimately run while the Philares face stands in the shelf (the
-    //     sampler tracks card identity by nothing, so a whole-run scan is a
+    //     record tracks card identity by nothing, so a whole-run scan is a
     //     false positive by construction).
     for (const f of frames.slice(episodeStart)) {
       if (f.seatUp && !f.seatHeld && f.proxies === 0 && f.shelfFaceUp) {

@@ -2,6 +2,8 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootIntoGame, fillPicks, pickCards, press, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * Console-native · VITOR'S FREE AWARD SPONSORSHIP is a SCENE STEP of the
@@ -110,39 +112,39 @@ test.describe('console Vitor · the free sponsorship is a start-workspace step',
     await stage.waitFor({state: 'visible', timeout: 120_000});
     const cta = stage.locator('.con-start__firstact-cta-label');
     await cta.waitFor({state: 'visible', timeout: 120_000});
-    await page.waitForTimeout(1200); // the rise + panel entrance settle
+    // The rise + panel entrance settle: the stage stands still (no `settle` — the start scene stands across the opening).
+    await readSettled(page, () => stage.boundingBox(), {settle: false, message: 'the first-action stage\'s rise + entrance'});
     await shoot(page, '01-first-action-stage');
 
     // ── A performs the action → the awards arrive as a HOSTED SCENE STEP.
     await key(page, 'Enter', 1200);
     await page.waitForSelector('.con-ma', {timeout: 30_000});
-    await page.waitForTimeout(900); // the entrance settles
+    // The entrance settles: the step's surface stands still.
+    await readSettled(page, () => page.locator('.con-ma').first().boundingBox(), {settle: false, message: 'the awards step\'s entrance'});
     await shoot(page, '02-awards-step');
 
     // 1 · The START stops painting — the reported bleed-through (two headers
     //     over each other) is the forbidden state.
-    expect(await startPainted(page),
-      'the start workspace must hand the scene over — never paint under the step').toBeFalsy();
-    expect(await page.evaluate(() => document.querySelector('.con-start') !== null),
-      '…but it stays MOUNTED underneath (state, claims, the return beat)').toBeTruthy();
+    await expect.poll(() => startPainted(page),
+      {message: 'the start workspace must hand the scene over — never paint under the step'}).toBe(false);
+    await expect.poll(() => page.evaluate(() => document.querySelector('.con-start') !== null),
+      {message: '…but it stays MOUNTED underneath (state, claims, the return beat)'}).toBe(true);
 
     // 2 · The header states the FLOW, not this screen's name: root =
-    //     «СТАРТ ПАРТИИ», subject = the corporation, tail = «НАГРАДЫ».
-    const crumb = await maCrumbText(page);
-    expect(crumb, 'the crumb roots at the flow the player entered').toContain('СТАРТ ПАРТИИ');
-    expect(crumb, 'the corporation stays the carried subject').toContain('VITOR');
-    expect(crumb, 'the tail names the stage').toContain('НАГРАДЫ');
+    //     «СТАРТ ПАРТИИ», subject = the corporation, tail = «НАГРАДЫ» (live strings — read by a poll).
+    await expect.poll(() => maCrumbText(page), {message: 'the crumb roots at the flow the player entered'}).toContain('СТАРТ ПАРТИИ');
+    await expect.poll(() => maCrumbText(page), {message: 'the corporation stays the carried subject'}).toContain('VITOR');
+    await expect.poll(() => maCrumbText(page), {message: 'the tail names the stage'}).toContain('НАГРАДЫ');
     // The free-sponsorship economics stay stated (the task surface's promise) — on the awards workspace's head-tally.
     await expect(page.locator('.con-ma.con-ma--awards'), 'the hosted step: the awards workspace').toHaveCount(1);
-    const tally = (await page.locator('.con-ma__wshead [data-ma-tally]').innerText()).replace(/\s+/g, ' ').toUpperCase();
-    expect(tally, 'the price chip reads «БЕСПЛАТНО»').toContain('БЕСПЛАТНО');
+    await expect.poll(async () => (await page.locator('.con-ma__wshead [data-ma-tally]').innerText()).replace(/\s+/g, ' ').toUpperCase(),
+      {message: 'the price chip reads «БЕСПЛАТНО»'}).toContain('БЕСПЛАТНО');
 
     // 3 · The command bar: the intent verb + «СВЕРНУТЬ», and NO category
     //     bumper — a mandatory step is not a dashboard stroll.
-    const bar = await barText(page);
-    expect(bar).toContain('СПОНСИРОВАТЬ');
-    expect(bar).toContain('СВЕРНУТЬ');
-    expect(bar, 'the milestones bumper must not be offered inside the step').not.toContain('ДОСТИЖЕНИЯ');
+    await expect.poll(() => barText(page)).toContain('СПОНСИРОВАТЬ');
+    await expect.poll(() => barText(page)).toContain('СВЕРНУТЬ');
+    await expect.poll(() => barText(page), {message: 'the milestones bumper must not be offered inside the step'}).not.toContain('ДОСТИЖЕНИЯ');
 
     // ── «СВЕРНУТЬ» is a ROUND TRIP: the whole flow parks, the board-home
     //    restore card is the way back — at full depth, crumb intact.
@@ -152,19 +154,18 @@ test.describe('console Vitor · the free sponsorship is a start-workspace step',
     await shoot(page, '03-collapsed-restore-card');
     await key(page, 'Enter', 1600);
     await page.waitForSelector('.con-ma', {timeout: 15_000});
-    const restored = await maCrumbText(page);
-    expect(restored, 'the restore lands back INSIDE the flow').toContain('СТАРТ ПАРТИИ');
-    expect(restored).toContain('НАГРАДЫ');
-    expect(await startPainted(page), 'the start stays yielded under the restored step').toBeFalsy();
+    await expect.poll(() => maCrumbText(page), {message: 'the restore lands back INSIDE the flow'}).toContain('СТАРТ ПАРТИИ');
+    await expect.poll(() => maCrumbText(page)).toContain('НАГРАДЫ');
+    await expect.poll(() => startPainted(page), {message: 'the start stays yielded under the restored step'}).toBe(false);
 
     // ── A = descend into the focused fundable award; the crumb only gains a
     //    tail (root and subject never restart).
     await key(page, 'Enter', 700);
     await page.waitForSelector('.con-mafocus', {timeout: 8_000});
-    await page.waitForTimeout(1100); // the reveal waves + the commit arm
-    const detailCrumb = await maCrumbText(page);
-    expect(detailCrumb, 'the root survives the descend').toContain('СТАРТ ПАРТИИ');
-    expect(detailCrumb, 'the tail deepens to the funding stage').toContain('СПОНСОРСТВО');
+    // The reveal waves settle (the commit's own arm is a gate the press waits out — `press`).
+    await readSettled(page, () => page.locator('.con-mafocus').first().boundingBox(), {settle: false, message: 'the detail\'s reveal waves'});
+    await expect.poll(() => maCrumbText(page), {message: 'the root survives the descend'}).toContain('СТАРТ ПАРТИИ');
+    await expect.poll(() => maCrumbText(page), {message: 'the tail deepens to the funding stage'}).toContain('СПОНСОРСТВО');
     // PC01 · GO: Vitor's sponsorship is FREE by its own rule — never a waived price, never a struck table price.
     await expect(page.locator('.con-mafocus [data-ma-ladder-step][data-ma-price-kind="free"]'), 'the next step reads free').toHaveCount(1);
     await expect(page.locator('.con-mafocus [data-ma-price-kind="waived"]'), 'nothing reads waived').toHaveCount(0);
@@ -179,20 +180,19 @@ test.describe('console Vitor · the free sponsorship is a start-workspace step',
 
     // ── The START is revealed again and finishes its own leave: the first
     //    action is done, the deployment concludes — a settled end state is
-    //    either the returned scene or the board home past it.
-    let settled = false;
-    let startCameBack = false;
-    for (let i = 0; i < 120 && !settled; i++) {
-      const painted = await startPainted(page);
-      if (painted) {
-        startCameBack = true;
-      }
-      const gone = await page.evaluate(() => document.querySelector('.con-start') === null);
-      if (gone) {
-        settled = true;
-      }
-      await page.waitForTimeout(300);
-    }
+    //    either the returned scene or the board home past it. RECORDED from the
+    //    step's leave on (FLAKE ZERO — `armWitness`: a 300 ms poll could sleep
+    //    through the scene's return; the record cannot).
+    const after = await armWitness(page, 'vitor-start-return', () => {
+      const el = document.querySelector('.con-start');
+      return {
+        painted: el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true}),
+        gone: el === null,
+      };
+    });
+    const settled = await after.waitFor((v) => v.gone, {timeoutMs: 36_000}).then(() => true, () => false);
+    const startCameBack = await after.ever((v) => v.painted);
+    await after.stop();
     await shoot(page, '06-after-the-step');
     expect(startCameBack || settled,
       'the start must take the scene back (or conclude) after the step').toBeTruthy();

@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * TR07 «СПОНСОРЫ КОЛОНИЙ» — THE STAGED COLONY, the staged play's fourth target
@@ -70,7 +72,6 @@ const lunaTrack = (wire: Wire) => wire.game.colonies.find((c) => c.name === 'Lun
 type Box = {x: number, y: number, w: number, h: number};
 type Probe = {
   samples: number;
-  ticks: number;
   steps: Array<string>;
   crumbMisses: Array<string>;
   coloniesOutsideHand: boolean;
@@ -87,114 +88,135 @@ type Probe = {
   marker: Array<[number, number]>;
   /** The stage's readout text, on every change: [ms, text]. */
   readout: Array<[number, string]>;
-  /** The track-move proxy: its first and last seen centre, the sample count. */
+  /** The track-move proxy: its first and last seen centre, the recorded states it stood in. */
   proxy: {first?: Box, last?: Box, n: number, firstAt: number, lastAt: number};
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({card, root}) => {
-    const w = window as unknown as {__tr07: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, steps: [], crumbMisses: [], coloniesOutsideHand: false, coloniesMax: 0, wsMax: 0, toolbarInZone: false,
-      degraded: [], stranded: false, leaveMisses: [], passed: [], marker: [], readout: [], proxy: {n: 0, firstAt: 0, lastAt: 0},
-    };
-    w.__tr07 = p;
-    const t0 = Date.now();
+/** One recorded state of the flow — what the reader observes (the record stamps it with the page's clock). */
+type FlowSeen = {
+  /** The hand's head: its root and subjects (null — no head) and its tail's steps. */
+  root: string | null, subjects: Array<string>, steps: Array<string>,
+  colonies: number, coloniesOutside: boolean, toolbarInZone: boolean, ws: number, stranded: boolean,
+  /** The track stage stands · the grid stands un-parked · what the hand looked like then (a `fixed` hand is its dissolve). */
+  stage: boolean, unparked: boolean, stageIntent: string, hand: string,
+  /** The stage's own reading: its confessed degrade, its lit cells, its marker cell, its readout (null — no stage). */
+  degraded: string | null, passedCells: Array<number>, marker: number | null, readout: string | null,
+  /** The visible track-move proxies. */
+  proxies: Array<Box>,
+};
+
+/**
+ * THE FLOW'S RECORD (FLAKE ZERO — `armWitness`, armed before the door): every state the product writes, recorded in the
+ * task that writes it and folded on the Node side — a sampler's 30 ms tick could sleep through a lit cell or a pose of
+ * the proxy, the record cannot. `settled`: «the readout only AFTER the landing», «the marker never went back» are ORDER
+ * claims and «the grid never came back under the stage» a coexistence one — the state a task LEAVES is what a frame
+ * can paint.
+ */
+async function armProbe(page: Page): Promise<Witness<FlowSeen>> {
+  return armWitness<FlowSeen>(page, 'colony-sponsors-flow', () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    let stageSeen = false;
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const hand = document.querySelector('.con-hand');
-      const head = hand?.querySelector('.con-wshead') ?? null;
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-      }
-      const colonies = document.querySelectorAll('.con-colonies');
-      p.coloniesMax = Math.max(p.coloniesMax, colonies.length);
-      colonies.forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.coloniesOutsideHand = true;
-        }
-        if (el.querySelector('.con-colonies__toolbar') !== null) {
-          p.toolbarInZone = true;
-        }
-      });
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      const stage = document.querySelector('.con-colfocus[data-colony-intent="track"]');
-      if (stage !== null) {
-        stageSeen = true;
-      }
-      if (stageSeen && colonies.length > 0 && p.leaveMisses.length < 6) {
-        const browse = document.querySelector('.con-colonies__browse');
-        if (browse !== null && !browse.classList.contains('con-colonies__browse--parked')) {
-          const hand = document.querySelector<HTMLElement>('.con-hand');
-          // What it was looking at: the stage still standing, and the hand (a `fixed` hand is its dissolve).
-          p.leaveMisses.push(`${Date.now() - t0}ms the grid un-parked under the stage · stage=${document.querySelector('.con-colfocus')?.getAttribute('data-colony-intent') ?? 'none'} hand=${hand === null ? 'none' : `${hand.style.position || 'in-flow'}·opacity ${getComputedStyle(hand).opacity}`} ws=${document.querySelectorAll('.con-ws').length}`);
-        }
-        if (stage === null) {
-          p.leaveMisses.push(`${Date.now() - t0}ms the stage let go while the colonies still stood`);
-        }
-      }
-      if (stage !== null) {
-        const degraded = stage.getAttribute('data-colony-track-degraded');
-        if (degraded !== null && !p.degraded.includes(degraded)) {
-          p.degraded.push(degraded);
-        }
-        const cells = Array.from(stage.querySelectorAll('.con-colfocus__xcell'));
-        cells.forEach((cell, i) => {
-          if (i > 2 && cell.classList.contains('con-colfocus__xcell--passed') && !p.passed.some(([, c]) => c === i)) {
-            p.passed.push([Date.now() - t0, i]);
-          }
-        });
-        const marker = cells.findIndex((cell) => cell.classList.contains('con-colfocus__xcell--marker'));
-        if (marker !== -1 && p.marker[p.marker.length - 1]?.[1] !== marker) {
-          p.marker.push([Date.now() - t0, marker]);
-        }
-        const readout = text(stage.querySelector('[data-colony-track-readout]'));
-        if (readout !== '' && p.readout[p.readout.length - 1]?.[1] !== readout) {
-          p.readout.push([Date.now() - t0, readout]);
-        }
-      }
-      document.querySelectorAll<HTMLElement>('.con-coltrade-marker').forEach((el) => {
+    const hand = document.querySelector<HTMLElement>('.con-hand');
+    const head = hand?.querySelector('.con-wshead') ?? null;
+    const colonies = Array.from(document.querySelectorAll('.con-colonies'));
+    const stage = document.querySelector('.con-colfocus[data-colony-intent="track"]');
+    const browse = document.querySelector('.con-colonies__browse');
+    const cells = stage === null ? [] : Array.from(stage.querySelectorAll('.con-colfocus__xcell'));
+    const marker = cells.findIndex((cell) => cell.classList.contains('con-colfocus__xcell--marker'));
+    const readout = stage === null ? '' : text(stage.querySelector('[data-colony-track-readout]'));
+    return {
+      root: head === null ? null : text(head.querySelector('.con-wshead__root')),
+      subjects: head === null ? [] : Array.from(head.querySelectorAll('.con-wshead__subject')).map(text),
+      steps: head === null ? [] : Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((step) => step !== ''),
+      colonies: colonies.length,
+      coloniesOutside: colonies.some((el) => el.closest('.con-hand') === null || el.classList.contains('con-ws')),
+      toolbarInZone: colonies.some((el) => el.querySelector('.con-colonies__toolbar') !== null),
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
+      stage: stage !== null,
+      unparked: browse !== null && !browse.classList.contains('con-colonies__browse--parked'),
+      stageIntent: document.querySelector('.con-colfocus')?.getAttribute('data-colony-intent') ?? 'none',
+      hand: hand === null ? 'none' : `${hand.style.position || 'in-flow'}·opacity ${getComputedStyle(hand).opacity}`,
+      degraded: stage?.getAttribute('data-colony-track-degraded') ?? null,
+      passedCells: cells.map((cell, i) => i > 2 && cell.classList.contains('con-colfocus__xcell--passed') ? i : -1).filter((i) => i >= 0),
+      marker: marker === -1 ? null : marker,
+      readout: readout === '' ? null : readout,
+      proxies: Array.from(document.querySelectorAll<HTMLElement>('.con-coltrade-marker')).flatMap((el) => {
         const r = el.getBoundingClientRect();
         if (r.width < 2 || Number(getComputedStyle(el).opacity) < 0.2) {
-          return;
+          return [];
         }
-        const now = {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
-        if (p.proxy.first === undefined) {
-          p.proxy.first = now;
-          p.proxy.firstAt = Date.now() - t0;
-        }
-        p.proxy.last = now;
-        p.proxy.lastAt = Date.now() - t0;
-        p.proxy.n++;
-      });
+        return [{x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height}];
+      }),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  }, {card: CARD_RU, root: ROOT_RU});
+  }, {settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr07: Probe}).__tr07);
+/** The record folded: the crumb, the tail, the stage's cells / marker / readout series and the proxy (ms since arming). */
+async function readProbe(witness: Witness<FlowSeen>): Promise<Probe> {
+  const samples = await witness.samples();
+  const t0 = samples[0]?.t ?? 0;
+  const p: Probe = {
+    samples: samples.length, steps: [], crumbMisses: [], coloniesOutsideHand: false, coloniesMax: 0, wsMax: 0, toolbarInZone: false,
+    degraded: [], stranded: false, leaveMisses: [], passed: [], marker: [], readout: [], proxy: {n: 0, firstAt: 0, lastAt: 0},
+  };
+  let stageSeen = false;
+  for (const {t, v} of samples) {
+    const at = t - t0;
+    if (v.root !== null) {
+      if (v.root.toLowerCase() !== ROOT_RU.toLowerCase() || !v.subjects.some((s) => s.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${at}ms root=«${v.root}» subject=«${v.subjects.join('|')}»`);
+        }
+      }
+      for (const step of v.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    p.coloniesMax = Math.max(p.coloniesMax, v.colonies);
+    p.coloniesOutsideHand ||= v.coloniesOutside;
+    p.toolbarInZone ||= v.toolbarInZone;
+    p.wsMax = Math.max(p.wsMax, v.ws);
+    p.stranded ||= v.stranded;
+    stageSeen ||= v.stage;
+    if (stageSeen && v.colonies > 0 && p.leaveMisses.length < 6) {
+      if (v.unparked) {
+        // What it was looking at: the stage still standing, and the hand (a `fixed` hand is its dissolve).
+        p.leaveMisses.push(`${at}ms the grid un-parked under the stage · stage=${v.stageIntent} hand=${v.hand} ws=${v.ws}`);
+      }
+      if (!v.stage) {
+        p.leaveMisses.push(`${at}ms the stage let go while the colonies still stood`);
+      }
+    }
+    if (v.stage) {
+      if (v.degraded !== null && !p.degraded.includes(v.degraded)) {
+        p.degraded.push(v.degraded);
+      }
+      for (const i of v.passedCells) {
+        if (!p.passed.some(([, c]) => c === i)) {
+          p.passed.push([at, i]);
+        }
+      }
+      if (v.marker !== null && p.marker[p.marker.length - 1]?.[1] !== v.marker) {
+        p.marker.push([at, v.marker]);
+      }
+      if (v.readout !== null && p.readout[p.readout.length - 1]?.[1] !== v.readout) {
+        p.readout.push([at, v.readout]);
+      }
+    }
+    for (const now of v.proxies) {
+      if (p.proxy.first === undefined) {
+        p.proxy.first = now;
+        p.proxy.firstAt = at;
+      }
+      p.proxy.last = now;
+      p.proxy.lastAt = at;
+      p.proxy.n++;
+    }
+  }
+  return p;
+}
 
 /** An element's centre box and whether the player can actually SEE it (a rect, an effective opacity, not hidden). */
 async function seen(page: Page, selector: string): Promise<(Box & {visible: boolean}) | undefined> {
@@ -218,23 +240,13 @@ async function seen(page: Page, selector: string): Promise<(Box & {visible: bool
 
 const dist = (a: {x: number, y: number}, b: {x: number, y: number}) => Math.hypot(a.x - b.x, a.y - b.y);
 
-/** A box, SETTLED: three equal reads 100 ms apart (timers, never rAF). */
-const boxOf = (page: Page, selector: string) => page.evaluate(async (sel) => {
-  const pause = () => new Promise((resolve) => setTimeout(resolve, 100));
-  const read = () => {
-    const r = document.querySelector(sel)?.getBoundingClientRect();
-    return r === undefined ? '' : [r.left, r.top, r.width, r.height].map(Math.round).join(',');
-  };
-  let last = read();
-  let equal = 0;
-  for (let i = 0; i < 60 && equal < 2; i++) {
-    await pause();
-    const now = read();
-    equal = now === last && now !== '' ? equal + 1 : 0;
-    last = now;
-  }
-  return last === '' ? undefined : last.split(',').map(Number);
-}, selector);
+/** A box, SETTLED: three equal reads a frame apart, at rest (no `settle` — the staged pick is mid-flow); an absent box
+ *  never counts as one. */
+const boxOf = (page: Page, selector: string) => readSettled(page, () => page.evaluate((sel) => {
+  const r = document.querySelector(sel)?.getBoundingClientRect();
+  return r === undefined ? '' : [r.left, r.top, r.width, r.height].map(Math.round).join(',');
+}, selector), {settle: false, equal: 3, same: (a, b) => a === b && a !== '', message: `the box of ${selector}`})
+  .then((last) => last === '' ? undefined : last.split(',').map(Number));
 
 const textOf = (page: Page, selector: string) => page.evaluate((sel) =>
   (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ' ').trim(), selector);
@@ -308,7 +320,7 @@ for (const preset of PRESETS) {
       const paymentBefore = await textOf(page, `${composer} .con-pay`);
       expect(paymentBefore, 'the payment line states the price').toContain('5');
 
-      await armProbe(page);
+      const flow = await armProbe(page);
 
       // ── 1. «Выбрать колонию»: nothing is sent ──
       await chooseColony(page);
@@ -365,8 +377,11 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${stage} [data-colony-track-reading]`), 'the reading: «торговля здесь»').toContainText('Торговля здесь');
       await expect(page.locator(`${stage} [data-colony-track-readout]`), 'the readout: «3/7 → 7/7»').toContainText('3/7');
       expect(posts, 'the descent sends nothing').toEqual([]);
-      const source = await seen(page, `${stage} [data-colony-track-cell="Luna#2"]`);
-      const destination = await seen(page, `${stage} [data-colony-track-cell="Luna#6"]`);
+      // Both cells read AT REST (the stage's own entrance is no layout to judge).
+      const [source, destination] = await readSettled(page, async () => [
+        await seen(page, `${stage} [data-colony-track-cell="Luna#2"]`),
+        await seen(page, `${stage} [data-colony-track-cell="Luna#6"]`),
+      ], {message: 'the move\'s two cells'});
       expect(source?.visible, 'the move\'s source cell is on screen').toBe(true);
       expect(destination?.visible, 'the move\'s destination cell is on screen').toBe(true);
 
@@ -397,11 +412,13 @@ for (const preset of PRESETS) {
       await expect(page.locator(composer), 'the composer never comes back past the commit').toHaveCount(0);
       expect(posts.length, 'and nothing else was sent').toBe(1);
 
-      const probe = await readProbe(page);
+      const probe = await readProbe(flow);
+      await flow.stop();
       const dump = JSON.stringify({steps: probe.steps, passed: probe.passed, marker: probe.marker, readout: probe.readout, proxy: probe.proxy});
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/colony-sponsors-${preset.id}.json`, JSON.stringify(probe, null, 1));
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+      // (a record keeps distinct states, not ticks — only a recorder that never ran has none)
+      expect(probe.samples, `the probe's recorder ran (${probe.samples} samples)`).toBeGreaterThan(0);
 
       // ── 2. one flow ──
       expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);
@@ -430,7 +447,8 @@ for (const preset of PRESETS) {
       expect(probe.readout.slice(0, landedReadout).every(([, t]) => t.startsWith('3/7→7/7')),
         `before that the readout read «3/7 → 7/7» (${dump})`).toBe(true);
       // Law 17: the source was visible, the destination was visible, and the marker travelled between them.
-      expect(probe.proxy.n, `the marker proxy was seen moving (${dump})`).toBeGreaterThanOrEqual(2);
+      // (EVER, never a count of frames: that it MOVED is the two claims below — born on the 3rd cell, landed on the 7th)
+      expect(probe.proxy.n, `the marker proxy was seen (${dump})`).toBeGreaterThan(0);
       const slack = preset.viewport.width / 40;
       expect(dist(probe.proxy.first!, source!) <= slack + source!.w, `the proxy left the 3rd cell (${dump})`).toBe(true);
       expect(dist(probe.proxy.last!, destination!) <= slack + destination!.w, `…and arrived on the 7th (${dump})`).toBe(true);

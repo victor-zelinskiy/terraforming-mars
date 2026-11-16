@@ -25,6 +25,9 @@ import {
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
+import {armWitness, witnessOf} from './witness';
+
+const SCENE_KEY = 'frl-scene';
 
 const PROFILES = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -61,11 +64,26 @@ async function untilServer(request: APIRequestContext, playerId: string, ok: (m:
   throw new Error(`the server never reached «${what}» — last: ${JSON.stringify(last?.thisPlayer.tableau.map((c) => [c.name, c.resources]))}`);
 }
 
-/** A sampler (task clock, never rAF): did a draft departure / a headless viewer / the field's receiving card ever paint? */
+/** One observation of the scene (the witness's reader): what stood, what painted, what is in the air — never a count. */
+type SceneObs = {
+  /** THE TRAIL line — what stood: a red names the state it timed out in. */
+  line: string,
+  /** The drawn card came off the deck by the workspace's own DEAL (the composer's beat launched its proxies). */
+  dealt: boolean,
+  reject: boolean,
+  headless: boolean,
+  citypay: string,
+  /** The drawn card's second bodies standing AWAY from it (see below) — described, never timed. */
+  doubles: Array<string>,
+};
+
+/**
+ * A RECORDING (`armWitness`, settled — «never on screen twice» is a coexistence claim about painted states): did a draft
+ * departure / a headless viewer / the field's receiving card ever paint? Armed under ONE key, so `sceneProbe` asks the
+ * same record wherever it was armed.
+ */
 async function armSceneProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__frl: {reject: number, headless: number, citypay: Array<string>, samples: number, trail: Array<string>, doubles: Array<string>, dealt: boolean}};
-    w.__frl = {reject: 0, headless: 0, citypay: [], samples: 0, trail: [], doubles: [], dealt: false};
+  await armWitness(page, SCENE_KEY, (): SceneObs => {
     /** Painted for the eye: a box, and no ancestor below half opacity / hidden. */
     const painted = (el: Element): boolean => {
       const r = el.getBoundingClientRect();
@@ -82,86 +100,98 @@ async function armSceneProbe(page: Page): Promise<void> {
       }
       return o >= 0.5;
     };
-    const t0 = performance.now();
-    let last = '';
-    const sample = () => {
-      w.__frl.samples++;
-      // THE TRAIL — what stood, line by line on change: a red names the state it timed out in.
-      const ready = (window as unknown as {__conReady?: () => {
-        holds?: Array<string>,
-        actionCommitRail?: {phase: string, link: number, lastEnd: string, capsules: Array<string>, fallback: string},
-        outcome?: {stage: string, beatDone: boolean, arrivalFlown: boolean, arrivalDone: boolean},
-      }}).__conReady?.() ?? {};
-      const oc = ready.outcome;
-      // The drawn card came off the deck by the workspace's own DEAL (the composer's beat launched its proxies).
-      if (oc?.arrivalFlown === true) {
-        w.__frl.dealt = true;
-      }
-      const rail = ready.actionCommitRail;
-      const line = `host=${document.querySelector('.con-task-host') === null ? 0 : 1} ` +
-        `pay=${document.querySelector('.con-citypay')?.getAttribute('data-city-payout') ?? '-'} ` +
-        `rail=${rail === undefined ? '-' : `${rail.phase}:${rail.link}:${rail.lastEnd}:${rail.capsules.join('+')}:${rail.fallback}`} ` +
-        `rows=${Array.from(document.querySelectorAll('.con-cardactions .con-composer [data-composer-card]')).map((e) => e.getAttribute('data-composer-card')).join('+')} ` +
-        `zone=${document.querySelector('.con-cardactions [data-embed-slot="workspace-reveal"]') === null ? 0 : 1} ` +
-        `outcome=${oc === undefined ? '-' : `${oc.stage}:beat${oc.beatDone ? 'Done' : 'Owed'}:${oc.arrivalFlown ? 'flown' : 'still'}:${oc.arrivalDone ? 'in' : 'arriving'}`} ` +
-        `deal=${document.querySelectorAll('.con-cardactions .con-deal-proxy').length}/` +
-        `${document.querySelectorAll('.con-cardactions .con-reveal--embedded .con-cards__slot').length} ` +
-        `holds=${(ready.holds ?? []).join(',')}`;
-      if (line !== last) {
-        w.__frl.trail.push(`${Math.round(performance.now() - t0)} ${line}`);
-        last = line;
-      }
-      if (document.querySelector('.con-exit-reject') !== null) {
-        w.__frl.reject++;
-      }
-      // THE DUPLICATE CARD (the owner's field report 2026-11-07): the drawn card painted in the stage AND a second
-      // body of it somewhere else — the composer's deal proxy still TRAVELLING (its centre away from every real card),
-      // or the SAME card's hand body already painted in the dock before its take. At the handoff the proxy stands ON
-      // the real card (held invisible beneath it) and the hand's OTHER cards rest in the dock: neither is counted.
-      const realSlots = Array.from(document.querySelectorAll('.con-cardactions .con-reveal--embedded .con-cards__slot'))
-        .filter((el) => painted(el));
-      const real = realSlots.map((el) => el.getBoundingClientRect());
-      const drawn = realSlots.map((el) => (el.getAttribute('data-zoom-slot') ?? '').replace(/#\d+$/, '')).filter((n) => n !== '');
-      if (real.length > 0) {
-        const doubles = [
-          ...Array.from(document.querySelectorAll('.con-cardactions .con-deal-proxy')),
-          ...Array.from(document.querySelectorAll('.con-handbody[data-hand-dock-card]'))
-            .filter((el) => drawn.includes(el.getAttribute('data-hand-dock-card') ?? '')),
-        ];
-        for (const proxy of doubles) {
-          if (!painted(proxy)) {
-            continue;
-          }
-          const p = proxy.getBoundingClientRect();
-          const away = real.every((r) => Math.hypot((p.left + p.width / 2) - (r.left + r.width / 2), (p.top + p.height / 2) - (r.top + r.height / 2)) > 24);
-          if (away && w.__frl.doubles.length < 8) {
-            w.__frl.doubles.push(`${Math.round(performance.now() - t0)}ms ${proxy.getAttribute('data-hand-dock-card') ?? 'deal-proxy'}` +
-              `@${Math.round(p.left)},${Math.round(p.top)} ${Math.round(p.width)}x${Math.round(p.height)} ` +
-              `real=${drawn.join('+')}@${real.map((r) => `${Math.round(r.left)},${Math.round(r.top)}`).join('+')}`);
-          }
+    const ready = (window as unknown as {__conReady?: () => {
+      holds?: Array<string>,
+      actionCommitRail?: {phase: string, link: number, lastEnd: string, capsules: Array<string>, fallback: string},
+      outcome?: {stage: string, beatDone: boolean, arrivalFlown: boolean, arrivalDone: boolean},
+    }}).__conReady?.() ?? {};
+    const oc = ready.outcome;
+    const rail = ready.actionCommitRail;
+    const line = `host=${document.querySelector('.con-task-host') === null ? 0 : 1} ` +
+      `pay=${document.querySelector('.con-citypay')?.getAttribute('data-city-payout') ?? '-'} ` +
+      `rail=${rail === undefined ? '-' : `${rail.phase}:${rail.link}:${rail.lastEnd}:${rail.capsules.join('+')}:${rail.fallback}`} ` +
+      `rows=${Array.from(document.querySelectorAll('.con-cardactions .con-composer [data-composer-card]')).map((e) => e.getAttribute('data-composer-card')).join('+')} ` +
+      `zone=${document.querySelector('.con-cardactions [data-embed-slot="workspace-reveal"]') === null ? 0 : 1} ` +
+      `outcome=${oc === undefined ? '-' : `${oc.stage}:beat${oc.beatDone ? 'Done' : 'Owed'}:${oc.arrivalFlown ? 'flown' : 'still'}:${oc.arrivalDone ? 'in' : 'arriving'}`} ` +
+      `deal=${document.querySelectorAll('.con-cardactions .con-deal-proxy').length}/` +
+      `${document.querySelectorAll('.con-cardactions .con-reveal--embedded .con-cards__slot').length} ` +
+      `holds=${(ready.holds ?? []).join(',')}`;
+    // THE DUPLICATE CARD (the owner's field report 2026-11-07): the drawn card painted in the stage AND a second
+    // body of it somewhere else — the composer's deal proxy still TRAVELLING (its centre away from every real card),
+    // or the SAME card's hand body already painted in the dock before its take. At the handoff the proxy stands ON
+    // the real card (held invisible beneath it) and the hand's OTHER cards rest in the dock: neither is counted.
+    const doubles: Array<string> = [];
+    const realSlots = Array.from(document.querySelectorAll('.con-cardactions .con-reveal--embedded .con-cards__slot'))
+      .filter((el) => painted(el));
+    const real = realSlots.map((el) => el.getBoundingClientRect());
+    const drawn = realSlots.map((el) => (el.getAttribute('data-zoom-slot') ?? '').replace(/#\d+$/, '')).filter((n) => n !== '');
+    if (real.length > 0) {
+      const others = [
+        ...Array.from(document.querySelectorAll('.con-cardactions .con-deal-proxy')),
+        ...Array.from(document.querySelectorAll('.con-handbody[data-hand-dock-card]'))
+          .filter((el) => drawn.includes(el.getAttribute('data-hand-dock-card') ?? '')),
+      ];
+      for (const proxy of others) {
+        if (!painted(proxy)) {
+          continue;
+        }
+        const p = proxy.getBoundingClientRect();
+        const away = real.every((r) => Math.hypot((p.left + p.width / 2) - (r.left + r.width / 2), (p.top + p.height / 2) - (r.top + r.height / 2)) > 24);
+        if (away) {
+          doubles.push(`${proxy.getAttribute('data-hand-dock-card') ?? 'deal-proxy'}` +
+            `@${Math.round(p.left)},${Math.round(p.top)} ${Math.round(p.width)}x${Math.round(p.height)} ` +
+            `real=${drawn.join('+')}@${real.map((r) => `${Math.round(r.left)},${Math.round(r.top)}`).join('+')}`);
         }
       }
+    }
+    return {
+      line,
+      dealt: oc?.arrivalFlown === true,
+      reject: document.querySelector('.con-exit-reject') !== null,
       // The headless fullscreen viewer of a drawn card — a draw that escaped its workspace: the zoom with its
       // «ПОЛУЧЕННАЯ КАРТА» pill (the overlay's own `--headless` root paints nothing — it may stand a gap frame while
       // the claimed batch waits for its zone).
-      if (document.querySelector('.con-zoom .con-zoom__status--received') !== null) {
-        w.__frl.headless++;
-      }
-      const card = document.querySelector<HTMLElement>('.con-citypay__card[data-played-key]');
-      const key = card?.getAttribute('data-played-key') ?? '';
-      if (key !== '' && !w.__frl.citypay.includes(key)) {
-        w.__frl.citypay.push(key);
-      }
+      headless: document.querySelector('.con-zoom .con-zoom__status--received') !== null,
+      citypay: document.querySelector<HTMLElement>('.con-citypay__card[data-played-key]')?.getAttribute('data-played-key') ?? '',
+      doubles,
     };
-    window.setInterval(sample, 20);
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true});
-  });
+  }, {settled: true, max: 20_000});
 }
 
 type SceneProbe = {reject: number, headless: number, citypay: Array<string>, samples: number, trail: Array<string>, doubles: Array<string>, dealt: boolean};
 
+/** The record folded on the Node side: «ever» claims and the first distinct facts — every time on the PAGE's clock. */
 async function sceneProbe(page: Page): Promise<SceneProbe> {
-  return page.evaluate(() => (window as unknown as {__frl: SceneProbe}).__frl);
+  const samples = await witnessOf<SceneObs>(page, SCENE_KEY).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const trail: Array<string> = [];
+  const doubles: Array<string> = [];
+  const citypay: Array<string> = [];
+  let last = '';
+  for (const s of samples) {
+    if (s.v.line !== last) {
+      trail.push(`${Math.round(s.t - t0)} ${s.v.line}`);
+      last = s.v.line;
+    }
+    for (const d of s.v.doubles) {
+      if (doubles.length < 8) {
+        doubles.push(`${Math.round(s.t - t0)}ms ${d}`);
+      }
+    }
+    if (s.v.citypay !== '' && !citypay.includes(s.v.citypay)) {
+      citypay.push(s.v.citypay);
+    }
+  }
+  return {
+    // States the product was SEEN in (each a recorded state, never a tick): asserted zero = «never».
+    reject: samples.filter((s) => s.v.reject).length,
+    headless: samples.filter((s) => s.v.headless).length,
+    citypay,
+    samples: samples.length,
+    trail,
+    doubles,
+    dealt: samples.some((s) => s.v.dealt),
+  };
 }
 
 /** The probe's trail as one message (the last lines — a red names what stood). */
@@ -270,7 +300,8 @@ for (const profile of PROFILES) {
       expect(witness.landings.some((e) => e.under === 'composer-card:Tardigrades'),
         `the unit lands on the chosen miniature:\n${trail}\n— scene: ${await trailOf(page)}`).toBe(true);
       const probe = await sceneProbe(page);
-      expect(probe.samples, 'the scene sampler ran').toBeGreaterThan(5);
+      // The recorder's own liveness floor — only a DEAD recorder fails it (a count of samples is a count of frames).
+      expect(probe.samples, 'the scene sampler ran').toBeGreaterThan(0);
       expect(probe.headless, 'the drawn card never opened the headless fullscreen viewer').toBe(0);
       // …and it CAME OFF THE DECK (physical causality): a beat backstop counted from the press ran out before the deal
       // launched (the rail half took ~2.3 s) and the card simply appeared in its slot.

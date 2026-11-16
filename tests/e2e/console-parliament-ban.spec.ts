@@ -6,6 +6,7 @@ import {
   armLeakWitness, enterSittingByPass, expectParliamentFits, openParliament, sittingStage, strandedReports,
   waitSittingAtRest,
 } from './parliamentDrive';
+import {armWitness, Witness, witnessOf} from './witness';
 
 /**
  * PLANT BAN (Turmoil Redux, RX25) — the ONE e2e of the new mechanic: a LEVEL
@@ -26,10 +27,10 @@ import {
  *   backwards, over a resource that is not M€. Seven plants become four, and
  *   the results row states the loss as a PART, never a skip.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF; every sample
- * carries whether the source and the destination were VISIBLE and where the
- * chip stood, so «born here, landed there, moving between them» is judged on
- * frames. Screens under screenshots/parliament-ban/standard-1080/.
+ * The probe is a RECORDING (`armWitness`) of the product's own writes; every
+ * state carries whether the source and the destination were VISIBLE and where
+ * the chip stood, so «born here, landed there, moving between them» is judged
+ * on the states a frame can paint. Screens under screenshots/parliament-ban/standard-1080/.
  */
 const OUT_DIR = path.resolve('screenshots', 'parliament-ban', 'standard-1080');
 const BAN_ID = 'RDX_REDS_PLANT_BAN';
@@ -75,13 +76,19 @@ type Sample = {
   kicker: string; bandState: string;
 };
 type Probe = {samples: Array<Sample>};
+/** One recorded state — what the reader observes (the record stamps it with the page's clock). */
+type Seen = Omit<Sample, 't'>;
+const PROBE = 'parliament-ban-probe';
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__banProbe: Probe};
-    w.__banProbe = {samples: []};
-    const rectOf = (el: Element | null): Rect | undefined => {
+/**
+ * THE PROBE — armed BEFORE the gate is answered (FLAKE ZERO — `armWitness`): every state the product writes, recorded in
+ * the task that writes it, replace-proof, stamped with the page's clock. `settled`: «the counter ticked BEFORE the chip
+ * landed», «never before it was born» and «the kicker and the state word in the SAME sample» are order / coexistence
+ * claims — the state a task LEAVES is what a frame can paint.
+ */
+async function armProbe(page: Page): Promise<Witness<Seen>> {
+  return armWitness<Seen>(page, PROBE, () => {
+    const rectOf = (el: Element | null): {x: number, y: number, w: number, h: number} | undefined => {
       if (el === null) {
         return undefined;
       }
@@ -105,51 +112,46 @@ async function armProbe(page: Page): Promise<void> {
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return hit !== null && (el.contains(hit) || hit.contains(el));
     };
-    const sample = () => {
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2,
-          dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? '',
-        };
-      });
-      const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
-      const mech = card?.querySelector('.pcard__mech') ?? null;
-      const row = document.querySelector('.con-res__row--plants');
-      const cell = row?.querySelector('.con-res__stockwrap') ?? null;
-      const bandEl = document.querySelector('.con-band[data-parl-band-zone]');
-      w.__banProbe.samples.push({
-        t: performance.now(),
-        kicker: bandEl?.getAttribute('data-parl-band-kicker') ?? '',
-        bandState: bandEl?.querySelector('[data-parl-band-state]')?.getAttribute('data-parl-band-state') ?? '',
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        chips,
-        mech: rectOf(mech),
-        mechVisible: visible(mech),
-        cell: rectOf(cell),
-        cellVisible: visible(cell),
-        plants: row?.querySelector('.con-res__digits')?.textContent?.trim() ?? '',
-        deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
-      });
-      if (w.__banProbe.samples.length > 9000) {
-        w.__banProbe.samples.splice(0, 1500);
-      }
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2,
+        dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? '',
+      };
+    });
+    const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
+    const mech = card?.querySelector('.pcard__mech') ?? null;
+    const row = document.querySelector('.con-res__row--plants');
+    const cell = row?.querySelector('.con-res__stockwrap') ?? null;
+    const bandEl = document.querySelector('.con-band[data-parl-band-zone]');
+    return {
+      kicker: bandEl?.getAttribute('data-parl-band-kicker') ?? '',
+      bandState: bandEl?.querySelector('[data-parl-band-state]')?.getAttribute('data-parl-band-state') ?? '',
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      chips,
+      mech: rectOf(mech),
+      mechVisible: visible(mech),
+      cell: rectOf(cell),
+      cellVisible: visible(cell),
+      plants: row?.querySelector('.con-res__digits')?.textContent?.trim() ?? '',
+      deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-sit-step']});
-    window.setInterval(sample, 16);
-  });
+  }, {settled: true, max: 20_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__banProbe: Probe}).__banProbe);
+
+/** Every recorded state, in order, `t` on the page's clock. */
+async function readProbe(probe: Witness<Seen>): Promise<Probe> {
+  return {samples: (await probe.samples()).map((x) => ({...x.v, t: x.t}))};
+}
 
 /** A red run carries its own evidence: the probe's tail rides the report. */
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__banProbe?: Probe, __conReady?: () => unknown};
-    return {samples: w.__banProbe?.samples.slice(-3000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
+  const samples = await readProbe(witnessOf<Seen>(page, PROBE)).then((p) => p.samples.slice(-3000)).catch(() => []);
+  const evidence = await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.())
+    .then((ready) => ({samples, ready})).catch(() => undefined);
   if (evidence !== undefined) {
     const file = testInfo.outputPath('ban-probe.json');
     fs.writeFileSync(file, JSON.stringify(evidence));
@@ -244,25 +246,25 @@ test.describe('Plant Ban · standard-1080', () => {
     const before = await wireOf(request, playerId);
     expect(before.thisPlayer.plants, 'the viewer holds seven plants one pass before the sitting (no plant production)').toBe(7);
     await enterSittingByPass(page, request, playerId);
-    await armProbe(page);
+    const probeRecord = await armProbe(page);
     await shoot(page, '03-sitting-up');
 
     // ── THE ONE WAVE of the viewer's seat, and it goes OUT.
-    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.dir === 'loss')),
+    await expect.poll(async () => (await readProbe(probeRecord)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.dir === 'loss')),
       {timeout: 30_000, message: 'the cut\'s chip left the rail on the reward page'}).toBe(true);
     await shoot(page, '04-plants-leave');
     // …and the BAND over it never calls a cut a reward: the kicker names what LEAVES, the state word with it — read
     // off the probe's samples of the reward page (the live band has moved on to the results by the time a 4K frame
     // is taken: the first full baseline read «Results» there, at motion ×1 too).
-    const onCut = (await readProbe(page)).samples.filter((s) => s.stage === 'reward' && s.chips.some((c) => c.dir === 'loss'));
+    const onCut = (await readProbe(probeRecord)).samples.filter((s) => s.stage === 'reward' && s.chips.some((c) => c.dir === 'loss'));
     expect(onCut.some((s) => s.kicker === 'What you lose'), `the reward beat names the loss (${[...new Set(onCut.map((s) => s.kicker))].join(' | ')})`).toBe(true);
     expect(onCut.filter((s) => s.kicker === 'Your reward'), 'never a reward for a cut').toEqual([]);
     const states = onCut.map((s) => s.bandState).filter((v) => v !== '');
     expect(states.length, 'the band carries a state word on the cut').toBeGreaterThan(0);
     expect(states.filter((v) => !/This loss|Taken/.test(v)), 'never «получено» for a cut').toEqual([]);
-    await expect.poll(async () => (await readProbe(page)).samples.slice(-1)[0].chips.length, {timeout: 60_000, message: 'the chip landed'}).toBe(0);
+    await expect.poll(async () => (await probeRecord.last())?.chips.length, {timeout: 60_000, message: 'the chip landed'}).toBe(0);
 
-    const probe = await readProbe(page);
+    const probe = await readProbe(probeRecord);
     const tracks = tracksOf(probe.samples).filter((tr) => tr[0].s.stage === 'reward');
     const loss = tracks.find((tr) => tr[0].c.dir === 'loss');
     expect(loss, 'a LOSS chip flew on the reward page').toBeDefined();

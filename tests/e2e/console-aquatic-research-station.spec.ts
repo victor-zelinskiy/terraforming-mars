@@ -3,6 +3,8 @@ import type {Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, confirmLockedPlacement, cinematicBeat, commitFocusedSpace, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, placementState, press, pressUntil, settle, waitForBoardHome, walkToSpace} from './consoleStart';
 import {expectSeeThrough, expectUncovers} from './peekWitness';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
+import type {ObservedSample} from './observeCore';
 import {TileType} from '../../src/common/TileType';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -123,10 +125,7 @@ async function openComposer(page: Page, card: string = CARD): Promise<void> {
 async function playOnTheBoard(page: Page): Promise<void> {
   const taken = () => page.evaluate((sel) =>
     document.querySelector('.con-composer--submitting, .con-composer--landing') !== null || document.querySelector(sel) === null, composer);
-  for (let attempt = 0; attempt < 3 && !await taken(); attempt++) {
-    await press(page, 'Enter', 300);
-    await expect.poll(taken, {timeout: 2_500}).toBe(true).catch(() => undefined);
-  }
+  await pressUntil(page, 'Enter', taken, {tries: 3, settleMs: 2_500});
   await expect.poll(() => placementState(page), {timeout: 30_000, message: 'the staged placement never took the board'}).toBe('aiming');
   await expect(page.locator(composer), 'the composer left with the landing scene').toHaveCount(0, {timeout: 15_000});
   await settle(page, {timeoutMs: 20_000});
@@ -134,32 +133,33 @@ async function playOnTheBoard(page: Page): Promise<void> {
 
 type LandingProbe = {
   samples: number;
-  ticks: number;
-  /** Interval samples on which the target cell painted NO water — neither on top nor as the pile's base. */
+  /** Painted states in which the target cell showed NO water — neither on top nor as the pile's base. */
   noWater: Array<string>;
-  /** Interval samples on which a city painted over the cell with its water gone (a one-tile cell) — the lie this scene forbids. */
+  /** Painted states in which a city stood over the cell with its water gone (a one-tile cell) — the lie this scene forbids. */
   bareCity: Array<string>;
   proxySeen: boolean;
   firstProxyAt?: number;
   lastProxyAt?: number;
   splashAt?: number;
   pileAt?: number;
-  /** The HUD's ocean counter on every tick — it must never move. */
+  /** The HUD's ocean counter in every painted state — it must never move. */
   hud: Array<string>;
   mc: Array<[number, string]>;
 };
 
+/** What one painted state shows of the landing (the reader's observation). */
+type LandingSeen = {top: string, water: boolean, bareCity: boolean, proxy: boolean, splash: boolean, pile: boolean, hud: string, mc: string};
+const LANDING_WITNESS = 'tr44-landing';
+
 /**
- * THE LANDING PROBE — MutationObserver + setInterval, never rAF. The claim is about FRAMES: the water under the city is
- * painted on EVERY interval sample from the press to the pile — as the plain ocean before the flight, as the held
- * water under the proxy, as the base of the pile after the paint.
+ * THE LANDING PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof). The claim is about
+ * FRAMES: the water under the city is painted in EVERY state from the press to the pile — as the plain ocean before the
+ * flight, as the held water under the proxy, as the base of the pile after the paint. «Every painted state» is the
+ * record's `settled` sample (the state a task LEAVES — the old sampler judged its interval ticks only, never a state
+ * between two writes of one task).
  */
 async function armLandingProbe(page: Page, target: string): Promise<void> {
-  await page.evaluate((id) => {
-    const w = window as unknown as {__tr44: LandingProbe};
-    const p: LandingProbe = {samples: 0, ticks: 0, noWater: [], bareCity: [], proxySeen: false, hud: [], mc: []};
-    w.__tr44 = p;
-    const t0 = Date.now();
+  await armWitness<LandingSeen, string>(page, LANDING_WITNESS, (id) => {
     const shown = (el: Element | null): boolean => {
       if (el === null) {
         return false;
@@ -168,52 +168,60 @@ async function armLandingProbe(page: Page, target: string): Promise<void> {
       const r = el.getBoundingClientRect();
       return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05 && r.width > 2 && r.height > 2;
     };
-    const cell = () => document.querySelector<HTMLElement>(`.board-space[data_space_id="${id}"]`);
-    const sample = (tick: boolean) => {
-      p.samples++;
-      const now = Date.now() - t0;
-      const c = cell();
-      const top = c?.querySelector<HTMLElement>('[data-test="tile"]') ?? null;
-      const topClasses = top?.className ?? '';
-      const waterOnTop = /board-space-tile--ocean\b/.test(topClasses) && !/placement-cleared/.test(topClasses);
-      const waterBase = c?.querySelector('[data-stack-tier].board-space-tile--ocean') !== null;
-      const cityOnTop = /board-space-tile--city\b/.test(topClasses);
-      const proxy = Array.from(document.querySelectorAll<HTMLElement>('.con-tileplace__tile')).find(shown);
-      if (proxy !== undefined) {
-        p.proxySeen = true;
-        p.firstProxyAt ??= now;
-        p.lastProxyAt = now;
-      }
-      if (shown(document.querySelector('.con-tileplace__splash'))) {
-        p.splashAt ??= now;
-      }
-      if (c?.querySelector('[data-stack-under-tile="board-space-tile--ocean"]') !== null) {
-        p.pileAt ??= now;
-      }
-      if (tick) {
-        p.ticks++;
-        if (!waterOnTop && !waterBase) {
-          p.noWater.push(`t${now} top=${topClasses.replace(/\s+/g, '.')}`);
-        }
-        if (cityOnTop && !waterBase) {
-          p.bareCity.push(`t${now}`);
-        }
-        const hud = Array.from(document.querySelectorAll('.con-status__param')).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).find((t) => /\/9\b/.test(t)) ?? '';
-        if (p.hud[p.hud.length - 1] !== hud) {
-          p.hud.push(hud);
-        }
-        const mc = (document.querySelector('.con-res__row--megacredits .con-res__digits')?.textContent ?? '').trim();
-        if (mc !== '' && p.mc[p.mc.length - 1]?.[1] !== mc) {
-          p.mc.push([now, mc]);
-        }
-      }
+    const c = document.querySelector<HTMLElement>(`.board-space[data_space_id="${id}"]`);
+    const top = c?.querySelector<HTMLElement>('[data-test="tile"]') ?? null;
+    const topClasses = top?.className ?? '';
+    const waterOnTop = /board-space-tile--ocean\b/.test(topClasses) && !/placement-cleared/.test(topClasses);
+    const waterBase = c?.querySelector('[data-stack-tier].board-space-tile--ocean') !== null;
+    const cityOnTop = /board-space-tile--city\b/.test(topClasses);
+    return {
+      top: topClasses.replace(/\s+/g, '.'),
+      water: waterOnTop || waterBase,
+      bareCity: cityOnTop && !waterBase,
+      proxy: Array.from(document.querySelectorAll<HTMLElement>('.con-tileplace__tile')).some(shown),
+      splash: shown(document.querySelector('.con-tileplace__splash')),
+      pile: c?.querySelector('[data-stack-under-tile="board-space-tile--ocean"]') !== null,
+      hud: Array.from(document.querySelectorAll('.con-status__param')).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).find((t) => /\/9\b/.test(t)) ?? '',
+      mc: (document.querySelector('.con-res__row--megacredits .con-res__digits')?.textContent ?? '').trim(),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
-    setInterval(() => sample(true), 16);
-  }, target);
+  }, {args: target, settled: true, max: 20_000});
 }
 
-const readLandingProbe = (page: Page) => page.evaluate(() => (window as unknown as {__tr44: LandingProbe}).__tr44);
+/** The record folded into the landing's facts — times are the PAGE's, from the arm. */
+function foldLanding(samples: ReadonlyArray<ObservedSample<LandingSeen>>): LandingProbe {
+  const p: LandingProbe = {samples: samples.length, noWater: [], bareCity: [], proxySeen: false, hud: [], mc: []};
+  const t0 = samples[0]?.t ?? 0;
+  for (const s of samples) {
+    const now = s.t - t0;
+    const v = s.v;
+    if (v.proxy) {
+      p.proxySeen = true;
+      p.firstProxyAt ??= now;
+      p.lastProxyAt = now;
+    }
+    if (v.splash) {
+      p.splashAt ??= now;
+    }
+    if (v.pile) {
+      p.pileAt ??= now;
+    }
+    if (!v.water) {
+      p.noWater.push(`t${now} top=${v.top}`);
+    }
+    if (v.bareCity) {
+      p.bareCity.push(`t${now}`);
+    }
+    if (p.hud[p.hud.length - 1] !== v.hud) {
+      p.hud.push(v.hud);
+    }
+    if (v.mc !== '' && p.mc[p.mc.length - 1]?.[1] !== v.mc) {
+      p.mc.push([now, v.mc]);
+    }
+  }
+  return p;
+}
+
+const readLandingProbe = async (page: Page): Promise<LandingProbe> => foldLanding(await witnessOf<LandingSeen>(page, LANDING_WITNESS).samples());
 
 
 // ── THE ACTION: «Действия карт» → the station's tile → its composer; the data pick is a step INSIDE it. ──
@@ -313,10 +321,7 @@ const legalCells = (page: Page) => page.evaluate(() =>
 async function playMoveOnTheBoard(page: Page): Promise<void> {
   const taken = () => page.evaluate((sel) =>
     document.querySelector('.con-composer--submitting, .con-composer--landing') !== null || document.querySelector(sel) === null, composer);
-  for (let attempt = 0; attempt < 3 && !await taken(); attempt++) {
-    await press(page, 'Enter', 300);
-    await expect.poll(taken, {timeout: 2_500}).toBe(true).catch(() => undefined);
-  }
+  await pressUntil(page, 'Enter', taken, {tries: 3, settleMs: 2_500});
   await expect.poll(() => moveLevel(page), {timeout: 30_000, message: 'the staged move never took the board at its source level'}).toBe('source');
   await expect(page.locator(composer), 'the composer left with the landing scene').toHaveCount(0, {timeout: 15_000});
   await settle(page, {timeoutMs: 20_000});
@@ -324,19 +329,15 @@ async function playMoveOnTheBoard(page: Page): Promise<void> {
 
 /** A LIFTS the focused ocean — one press, verified by the level. */
 async function liftOcean(page: Page): Promise<void> {
-  for (let attempt = 0; attempt < 3 && await moveLevel(page) !== 'cell'; attempt++) {
-    await press(page, 'Enter', 250);
-    await expect.poll(() => moveLevel(page), {timeout: 2_500}).toBe('cell').catch(() => undefined);
-  }
+  await pressUntil(page, 'Enter', async () => await moveLevel(page) === 'cell', {tries: 3, settleMs: 2_500});
   expect(await moveLevel(page), 'A on the ocean lifts it').toBe('cell');
 }
 
 type LiftProbe = {
   samples: number;
-  ticks: number;
-  /** Interval samples on which the SOURCE cell painted no city on top — the lie this scene forbids (the city stays). */
+  /** Painted states in which the SOURCE cell showed no city on top — the lie this scene forbids (the city stays). */
   noCity: Array<string>;
-  /** Interval samples on which the source cell still painted its water base AFTER the destination had its ocean — two oceans. */
+  /** Painted states in which the source cell still showed its water base AFTER the destination had its ocean — two oceans. */
   twoOceans: Array<string>;
   proxyArt: Array<string>;
   cubeOnProxy: Array<string>;
@@ -345,22 +346,33 @@ type LiftProbe = {
   /** The COVER of the city that stays: first seen / last seen (it must be gone before the water lands). */
   coverSeenAt?: number;
   coverLastAt?: number;
-  /** The first tick the source cell wore the DRY beat. */
+  /** The same two moments as positions in the record — an ORDER, whatever the clock's resolution. */
+  coverLastIdx?: number;
+  /** The first state the source cell wore the DRY beat. */
   driedAt?: number;
-  /** The first tick the source cell had no buried-ocean mark. */
+  /** The first state the source cell had no buried-ocean mark. */
   underGoneAt?: number;
-  /** The first tick the destination painted an ocean on top. */
+  /** The first state the destination painted an ocean on top. */
   landedAt?: number;
+  landedIdx?: number;
   degraded: boolean;
   hud: Array<string>;
 };
 
+/** What one painted state shows of the lift (the reader's observation). */
+type LiftSeen = {
+  cover: boolean, proxy: boolean, proxyArt: Array<string>, cube: string, degraded: boolean,
+  srcTop: string, srcCity: boolean, srcWater: boolean, srcUnder: boolean, dried: boolean, destOcean: boolean, hud: string,
+};
+const LIFT_WITNESS = 'tr44-lift';
+
+/**
+ * THE LIFT PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the commit): every distinct state with the page's
+ * time. Its claims are about every PAINTED state (the city on its cell, never two oceans) and ORDER (the cover gone
+ * before the water lands), so the record is `settled` — the state a task LEAVES.
+ */
 async function armLiftProbe(page: Page, source: string, dest: string): Promise<void> {
-  await page.evaluate(([from, to]) => {
-    const w = window as unknown as {__tr44lift: LiftProbe};
-    const p: LiftProbe = {samples: 0, ticks: 0, noCity: [], twoOceans: [], proxyArt: [], cubeOnProxy: [], degraded: false, hud: []};
-    w.__tr44lift = p;
-    const t0 = Date.now();
+  await armWitness<LiftSeen, [string, string]>(page, LIFT_WITNESS, ([from, to]) => {
     const shown = (el: Element | null): boolean => {
       if (el === null) {
         return false;
@@ -371,63 +383,75 @@ async function armLiftProbe(page: Page, source: string, dest: string): Promise<v
     };
     const cell = (id: string) => document.querySelector<HTMLElement>(`.board-space[data_space_id="${id}"]`);
     const topArt = (id: string) => cell(id)?.querySelector<HTMLElement>('[data-test="tile"]')?.className ?? '';
-    const sample = (tick: boolean) => {
-      p.samples++;
-      const now = Date.now() - t0;
-      const proxy = Array.from(document.querySelectorAll<HTMLElement>('.con-tileplace__tile[data-tile-move]')).find(shown);
-      const cover = Array.from(document.querySelectorAll<HTMLElement>('.con-tileplace__tile[data-tile-cover]')).find(shown);
-      if (cover !== undefined) {
-        p.coverSeenAt ??= now;
-        p.coverLastAt = now;
-      }
-      if (proxy !== undefined) {
-        p.firstProxyAt ??= now;
-        p.lastProxyAt = now;
-        if (p.proxyArt.length === 0) {
-          p.proxyArt = (proxy.querySelector('.con-tileplace__art')?.className ?? '').split(/\s+/).filter((c) => c.startsWith('board-space-tile--'));
-        }
-        const cube = proxy.querySelector('.player-cube, .board-owner-cube');
-        if (cube !== null && shown(cube) && p.cubeOnProxy.length < 6) {
-          p.cubeOnProxy.push(`${now}ms ${cube.className}`);
-        }
-      }
-      if (document.querySelector('[data-tile-move-degraded]') !== null) {
-        p.degraded = true;
-      }
-      const src = cell(from);
-      const srcTop = topArt(from);
-      const srcWater = src?.querySelector('[data-stack-tier].board-space-tile--ocean') !== null;
-      const srcUnder = src?.querySelector('[data-stack-under]') !== null;
-      const destOcean = /board-space-tile--ocean\b/.test(topArt(to)) && !/placement-cleared/.test(topArt(to));
-      if (src?.classList.contains('board-space--dried')) {
-        p.driedAt ??= now;
-      }
-      if (!srcUnder) {
-        p.underGoneAt ??= now;
-      }
-      if (destOcean) {
-        p.landedAt ??= now;
-      }
-      if (tick) {
-        p.ticks++;
-        if (!/board-space-tile--city\b/.test(srcTop)) {
-          p.noCity.push(`t${now} top=${srcTop.replace(/\s+/g, '.')}`);
-        }
-        if (destOcean && srcWater) {
-          p.twoOceans.push(`t${now}`);
-        }
-        const hud = Array.from(document.querySelectorAll('.con-status__param')).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).find((t) => /\/9\b/.test(t)) ?? '';
-        if (hud !== '' && p.hud[p.hud.length - 1] !== hud) {
-          p.hud.push(hud);
-        }
-      }
+    const proxy = Array.from(document.querySelectorAll<HTMLElement>('.con-tileplace__tile[data-tile-move]')).find(shown);
+    const cube = proxy?.querySelector('.player-cube, .board-owner-cube') ?? null;
+    const src = cell(from);
+    const srcTop = topArt(from);
+    return {
+      cover: Array.from(document.querySelectorAll<HTMLElement>('.con-tileplace__tile[data-tile-cover]')).some(shown),
+      proxy: proxy !== undefined,
+      proxyArt: proxy === undefined ? [] :
+        (proxy.querySelector('.con-tileplace__art')?.className ?? '').split(/\s+/).filter((c) => c.startsWith('board-space-tile--')),
+      cube: cube !== null && shown(cube) ? cube.className : '',
+      degraded: document.querySelector('[data-tile-move-degraded]') !== null,
+      srcTop: srcTop.replace(/\s+/g, '.'),
+      srcCity: /board-space-tile--city\b/.test(srcTop),
+      srcWater: src?.querySelector('[data-stack-tier].board-space-tile--ocean') !== null,
+      srcUnder: src?.querySelector('[data-stack-under]') !== null,
+      dried: src?.classList.contains('board-space--dried') === true,
+      destOcean: /board-space-tile--ocean\b/.test(topArt(to)) && !/placement-cleared/.test(topArt(to)),
+      hud: Array.from(document.querySelectorAll('.con-status__param')).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).find((t) => /\/9\b/.test(t)) ?? '',
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
-    setInterval(() => sample(true), 16);
-  }, [source, dest]);
+  }, {args: [source, dest], settled: true, max: 20_000});
 }
 
-const readLiftProbe = (page: Page) => page.evaluate(() => (window as unknown as {__tr44lift: LiftProbe}).__tr44lift);
+/** The record folded into the lift's facts — times are the PAGE's, from the arm. */
+function foldLift(samples: ReadonlyArray<ObservedSample<LiftSeen>>): LiftProbe {
+  const p: LiftProbe = {samples: samples.length, noCity: [], twoOceans: [], proxyArt: [], cubeOnProxy: [], degraded: false, hud: []};
+  const t0 = samples[0]?.t ?? 0;
+  samples.forEach((s, i) => {
+    const now = s.t - t0;
+    const v = s.v;
+    if (v.cover) {
+      p.coverSeenAt ??= now;
+      p.coverLastAt = now;
+      p.coverLastIdx = i;
+    }
+    if (v.proxy) {
+      p.firstProxyAt ??= now;
+      p.lastProxyAt = now;
+      if (p.proxyArt.length === 0) {
+        p.proxyArt = v.proxyArt;
+      }
+      if (v.cube !== '' && p.cubeOnProxy.length < 6) {
+        p.cubeOnProxy.push(`${now}ms ${v.cube}`);
+      }
+    }
+    p.degraded ||= v.degraded;
+    if (v.dried) {
+      p.driedAt ??= now;
+    }
+    if (!v.srcUnder) {
+      p.underGoneAt ??= now;
+    }
+    if (v.destOcean && p.landedAt === undefined) {
+      p.landedAt = now;
+      p.landedIdx = i;
+    }
+    if (!v.srcCity) {
+      p.noCity.push(`t${now} top=${v.srcTop}`);
+    }
+    if (v.destOcean && v.srcWater) {
+      p.twoOceans.push(`t${now}`);
+    }
+    if (v.hud !== '' && p.hud[p.hud.length - 1] !== v.hud) {
+      p.hud.push(v.hud);
+    }
+  });
+  return p;
+}
+
+const readLiftProbe = async (page: Page): Promise<LiftProbe> => foldLift(await witnessOf<LiftSeen>(page, LIFT_WITNESS).samples());
 
 for (const preset of PRESETS) {
   test.describe(`TR44 Aquatic Research Station · two tiles on one cell · ${preset.id}`, () => {
@@ -587,8 +611,9 @@ for (const preset of PRESETS) {
       await stop();
       const landedMs = Date.now() - pressedAt;
       const probe = await readLandingProbe(page);
-      console.log(`[${preset.id} landing] samples ${probe.samples} ticks ${probe.ticks} · proxy ${probe.firstProxyAt}→${probe.lastProxyAt} ms · splash ${probe.splashAt} · pile ${probe.pileAt} · settled ${landedMs} ms · hud ${probe.hud.join(' | ')} · mc ${probe.mc.map((m) => m[1]).join('→')}`);
-      expect(probe.ticks, 'the probe sampled').toBeGreaterThan(10);
+      console.log(`[${preset.id} landing] samples ${probe.samples} · proxy ${probe.firstProxyAt}→${probe.lastProxyAt} ms · splash ${probe.splashAt} · pile ${probe.pileAt} · settled ${landedMs} ms · hud ${probe.hud.join(' | ')} · mc ${probe.mc.map((m) => m[1]).join('→')}`);
+      // The recorder's liveness only (a dead recorder): it keeps distinct STATES, never frames.
+      expect(probe.samples, 'the probe sampled').toBeGreaterThan(0);
       expect(probe.proxySeen, 'the city flew').toBe(true);
       expect(probe.splashAt, 'the water answered the mass').toBeDefined();
       expect(probe.noWater, 'the water was painted on EVERY frame').toEqual([]);
@@ -735,13 +760,14 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 30_000});
       await stop();
       const probe = await readLiftProbe(page);
-      console.log(`[${preset.id} lift] samples ${probe.samples} ticks ${probe.ticks} · proxy ${probe.firstProxyAt}→${probe.lastProxyAt} ms · cover ${probe.coverSeenAt}→${probe.coverLastAt} · dried ${probe.driedAt} · under gone ${probe.underGoneAt} · landed ${probe.landedAt} · art ${probe.proxyArt.join(',')} · hud ${probe.hud.join(' | ')}`);
+      console.log(`[${preset.id} lift] samples ${probe.samples} · proxy ${probe.firstProxyAt}→${probe.lastProxyAt} ms · cover ${probe.coverSeenAt}→${probe.coverLastAt} · dried ${probe.driedAt} · under gone ${probe.underGoneAt} · landed ${probe.landedAt} · art ${probe.proxyArt.join(',')} · hud ${probe.hud.join(' | ')}`);
       // THE WATER COMES OUT FROM UNDER THE CITY, never through it: the city's cover stands over the water's proxy from
       // the proxy's birth and is gone before the water lands on the reserve.
       expect(probe.coverSeenAt, 'the city\'s cover stood over the leaving water').toBeDefined();
       expect(probe.coverSeenAt!, 'the cover stands from the water\'s birth').toBeLessThanOrEqual(probe.firstProxyAt! + 40);
-      expect(probe.coverLastAt!, 'the cover is gone before the water lands').toBeLessThan(probe.landedAt!);
-      expect(probe.ticks, 'the probe sampled').toBeGreaterThan(20);
+      expect(probe.coverLastIdx!, `the cover is gone before the water lands (cover last ${probe.coverLastAt} ms, landed ${probe.landedAt} ms)`).toBeLessThan(probe.landedIdx!);
+      // The recorder's liveness only (a dead recorder): it keeps distinct STATES, never frames.
+      expect(probe.samples, 'the probe sampled').toBeGreaterThan(0);
       expect(probe.degraded, 'the move never degraded').toBe(false);
       expect(probe.proxyArt, 'THE PIECE THAT TRAVELS is the ocean').toContain('board-space-tile--ocean');
       expect(probe.cubeOnProxy, 'an ocean has no owner — no cube rides the proxy').toEqual([]);

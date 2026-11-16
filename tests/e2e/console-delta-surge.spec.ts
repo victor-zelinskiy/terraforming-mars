@@ -2,8 +2,9 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi,
-  sendPlayerInput, soloGameConfig, waitForBoardHome,
+  sendPlayerInput, settle, soloGameConfig, waitForBoardHome, waitStepDealSettled,
 } from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * DELTA SURGE (DP07) — the ordered MULTI-REWARD traversal, live.
@@ -139,9 +140,9 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
     await press(page, 'ArrowLeft', 1600);
     await page.waitForSelector('.con-hydro', {timeout: 10_000});
     await press(page, 'Period', 900); // RT — «К дальнему»
-    const focused = await page.evaluate(() =>
-      document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-    expect(focused, 'the farthest legal stage is 5').toBe('5');
+    await expect.poll(() => page.evaluate(() =>
+      document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? ''),
+    {message: 'the farthest legal stage is 5'}).toBe('5');
 
     // ── THE PLAN: the modifier's promise named; the route cells lit as
     //    PAYING stops; TWO standing reward-choice decisions on the rail. ──
@@ -174,73 +175,46 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
     await expect.poll(() => page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(), {message: 'both choices resolved'}).toBe(2);
     await shoot(page, '02-choices-made');
 
-    // ── ARM the sequence probes BEFORE the commit: the traversal strip's
-    //    done-count must grow MONOTONICALLY (never a teleport), and the
-    //    viewer's marker may never stand past the strip's own cursor. ──
-    await page.evaluate(() => {
-      const w = window as unknown as {
-        __doneSeq?: Array<number>, __viewerCells?: Array<number>,
-        __deals?: number, __probeStop?: () => void,
-        __result?: {rows: number, excl: number},
+    // ── ARM the sequence RECORDING BEFORE the commit (`armWitness`, settled — an ORDER claim): the traversal
+    //    strip's done-count must grow MONOTONICALLY (never a teleport), and the viewer's marker may never stand
+    //    past the strip's own cursor. ──
+    const probe = await armWitness(page, 'delta-surge-walk', () => {
+      const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
+      const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
+      // THE RESULT IS A TRANSIENT — it reads for its hold and the flow leaves on its own, so it is RECORDED the
+      // moment it stands (tests.md ④), never looked for after a press whose settle waits out the table's answer
+      // (since PL-1799 and animations.md § slow frame law 8 that answer rises AFTER the result, inside the window).
+      const stages = document.querySelector('.con-hydro__result-stages');
+      const result = stages !== null && stages.getBoundingClientRect().height > 0 && getComputedStyle(stages).visibility !== 'hidden' ? {
+        rows: document.querySelectorAll('.con-hydro__result-stagerow').length,
+        excl: document.querySelectorAll('.con-hydro__result-stagerow--excl').length,
+      } : null;
+      return {
+        done: document.querySelectorAll('.con-hydro__travchip--done').length,
+        viewer: cellAttr === undefined || cellAttr === null ? null : Number(cellAttr),
+        result,
+        dealing: document.querySelector('.con-deal-proxy') !== null,
       };
-      w.__doneSeq = [];
-      w.__viewerCells = [];
-      w.__deals = 0;
-      const seenProxies = new WeakSet<Element>();
-      const sample = () => {
-        const done = document.querySelectorAll('.con-hydro__travchip--done').length;
-        const seq = w.__doneSeq!;
-        if (seq.length === 0 || seq[seq.length - 1] !== done) {
-          seq.push(done);
-        }
-        const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
-        const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
-        if (cellAttr !== undefined && cellAttr !== null) {
-          const cell = Number(cellAttr);
-          const cells = w.__viewerCells!;
-          if (cells.length === 0 || cells[cells.length - 1] !== cell) {
-            cells.push(cell);
-          }
-        }
-        // THE RESULT IS A TRANSIENT — it reads for its hold and the flow leaves on its own, so it is RECORDED the
-        // moment it stands (tests.md ④), never looked for after a press whose settle waits out the table's answer
-        // (since PL-1799 and animations.md § slow frame law 8 that answer rises AFTER the result, inside the window).
-        const stages = document.querySelector('.con-hydro__result-stages');
-        if (w.__result === undefined && stages !== null && stages.getBoundingClientRect().height > 0 &&
-            getComputedStyle(stages).visibility !== 'hidden') {
-          w.__result = {
-            rows: document.querySelectorAll('.con-hydro__result-stagerow').length,
-            excl: document.querySelectorAll('.con-hydro__result-stagerow--excl').length,
-          };
-        }
-        document.querySelectorAll('.con-deal-proxy').forEach((el) => {
-          if (!seenProxies.has(el)) {
-            seenProxies.add(el);
-            w.__deals = (w.__deals ?? 0) + 1;
-          }
-        });
-      };
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      const iv = setInterval(sample, 80);
-      w.__probeStop = () => {
-        mo.disconnect();
-        clearInterval(iv);
-      };
-    });
+    }, {settled: true});
 
     // ── COMMIT: one press (all mandatory decisions made → the CTA). ──
     await press(page, 'Enter', 1500);
     // The stage-5 deck pick arrives only after the marker has walked the
     // whole path and every crossed reward has flown.
     await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 60_000});
-    await page.waitForTimeout(900);
+    // …and its dealt cards stand (no card still arriving, the cursor on one) before the stop is photographed / picked.
+    await waitStepDealSettled(page);
     await shoot(page, '03-stage5-stop');
 
-    const walk = await page.evaluate(() => {
-      const w = window as unknown as {__doneSeq?: Array<number>, __viewerCells?: Array<number>, __deals?: number};
-      return {doneSeq: w.__doneSeq ?? [], viewerCells: w.__viewerCells ?? [], deals: w.__deals ?? 0};
-    });
+    const values = await probe.values();
+    // The viewer's marker cells, consecutive repeats collapsed (a cell is pushed when the marker stands on a new one).
+    const viewerCells = values.flatMap((v) => v.viewer === null ? [] : [v.viewer])
+      .filter((cell, i, all) => i === 0 || all[i - 1] !== cell);
+    const walk = {
+      doneSeq: await probe.sequence((v) => v.done),
+      viewerCells,
+      deals: await probe.ever((v) => v.dealing) ? 1 : 0,
+    };
     // The strip's done-count grows one cell at a time — the ordered walk.
     expect(walk.doneSeq.length, `the walk was sampled (${walk.doneSeq.join(',')})`).toBeGreaterThan(2);
     for (let i = 1; i < walk.doneSeq.length; i++) {
@@ -282,12 +256,11 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
       {timeout: 30_000, message: 'the two picks reached the hand'}).toBe(handBefore + 2);
 
     // The per-stage result: five rows (stages 1..5), each named.
-    const recorded = () => page.evaluate(() => (window as unknown as {__result?: {rows: number, excl: number}}).__result ?? null);
-    await expect.poll(recorded, {timeout: 30_000, message: 'the per-stage result stood on screen'}).not.toBeNull();
-    const result = (await recorded())!;
+    const stood = await probe.waitFor((v) => v.result !== null, {timeoutMs: 30_000, message: 'the per-stage result stood on screen'});
+    const result = stood.v.result!;
     expect(result.rows, 'five stages, one row each').toBe(5);
     expect(result.excl, 'nothing excluded on this path').toBe(0);
-    await page.evaluate(() => (window as unknown as {__probeStop?: () => void}).__probeStop?.());
+    await probe.stop();
     await shoot(page, '04-result');
 
     // ── THE TRACK'S OWN HISTORY — a crossing that PAID is not a miss. ──────
@@ -308,7 +281,8 @@ test.describe('Delta Surge — the ordered multi-reward traversal · fhd', () =>
     await press(page, 'Period', 1100);
     await press(page, 'ArrowLeft', 1600);
     await page.waitForSelector('.con-hydro__stop', {timeout: 20_000});
-    await page.waitForTimeout(900);
+    // The track's entrance and its focused stage's roster at rest before it is read.
+    await settle(page);
     // THE CURRENT TRACK-HISTORY CONTRACT (the cells carry only the player
     // markers; «who and what happened here» is READING and lives in the
     // focused stage's ROSTER — the per-cell ✓/⇢/↷ badges and the trail row

@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, press, settle, waitForBoardHome} from './consoleStart';
+import {bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
@@ -75,9 +76,7 @@ async function openPlayComposerOf(page: Page, card: string): Promise<void> {
   await settle(page);
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
   expect(await focusCard(page, card, slots * 2 + 6), `never focused «${card}» in the hand`).toBe(true);
-  for (let i = 0; i < 3 && await page.locator(PLAY_COMPOSER).count() === 0; i++) {
-    await press(page, 'Enter', 900);
-  }
+  await pressUntil(page, 'Enter', async () => await page.locator(PLAY_COMPOSER).count() > 0, {tries: 3, settleMs: 900});
   await expect(page.locator(PLAY_COMPOSER), 'the play composer stands').toHaveCount(1);
   await settle(page);
 }
@@ -126,7 +125,7 @@ async function openTargetStep(page: Page): Promise<void> {
 /**
  * PL-170 — the target step's composition, read off the live DOM: the focused card's RING (its outer edge,
  * the spread of the face's box-shadow above the transformed rect) against the owner name's line box, and
- * the lone owner group's centre against its zone's.
+ * the lone owner group's centre against its zone's. Read through `readSettled` (C: at rest, never mid-entrance).
  */
 async function targetStepGeometry(page: Page): Promise<{ringTop: number, nameBottom: number, ownerCentre: number, zoneCentre: number, zoneW: number, owners: number}> {
   return page.locator('.con-ptsel').evaluate((root) => {
@@ -155,9 +154,7 @@ async function targetStepGeometry(page: Page): Promise<{ringTop: number, nameBot
 
 async function confirmTarget(page: Page): Promise<void> {
   const step = page.locator('.con-ptsel');
-  for (let i = 0; i < 4 && await step.count() > 0; i++) {
-    await press(page, 'Enter', 1200);
-  }
+  await pressUntil(page, 'Enter', async () => await step.count() === 0, {tries: 4, settleMs: 1200});
   await expect(step, 'A on the candidate answers the target').toHaveCount(0, {timeout: 8000});
   await settle(page);
 }
@@ -166,10 +163,8 @@ async function commit(page: Page, posts: Array<string>): Promise<void> {
   for (let i = 0; i < 8 && await page.locator(`${PLAY_COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
     await press(page, 'ArrowDown', 250);
   }
-  for (let attempt = 0; attempt < 4 && posts.length === 0; attempt++) {
-    await press(page, 'Enter', 400);
-    await expect.poll(() => posts.length, {timeout: 5000}).toBeGreaterThan(0).catch(() => undefined);
-  }
+  // A → one POST (a retry only while nothing was sent — the POST is the press's witness).
+  await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 4, settleMs: 5000});
   expect(posts.length, 'A sent exactly one request').toBe(1);
 }
 
@@ -210,7 +205,7 @@ for (const preset of PRESETS) {
       await openTargetStep(page);
       expect((await crumbText(page)).toLowerCase(), 'the crumb names the card the step belongs to').toContain(CARD_RU.toLowerCase());
       // PL-170: the focused card's ring never stands on its owner's name, and a lone group stands in the middle of its room.
-      const geo = await targetStepGeometry(page);
+      const geo = await readSettled(page, () => targetStepGeometry(page), {message: 'PL-170: the target step\'s composition'});
       expect(geo.ringTop, `the ring clears the owner's name ${JSON.stringify(geo)}`).toBeGreaterThanOrEqual(geo.nameBottom);
       expect(geo.owners, 'one owner group (the fixture: the viewer\'s two holders)').toBe(1);
       expect(Math.abs(geo.ownerCentre - geo.zoneCentre), `the lone group is centred in its zone ${JSON.stringify(geo)}`).toBeLessThan(geo.zoneW * 0.03);

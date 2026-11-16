@@ -2,6 +2,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, fetchPlayerModel, openActionFocus, openCardActions, press, settle, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * A TOKEN LANDS ON THE NUMBER IT CHANGES (PL-094), A PRICE ON THE RAIL IS A
@@ -25,8 +27,8 @@ import {bootFixture, fetchPlayerModel, openActionFocus, openCardActions, press, 
  * SIDEWAYS (PL-104): never higher than its own row's ink, so it never crosses
  * the counters above it on the way to the card.
  *
- * Three flights, two profiles, one probe (`MutationObserver` + `setInterval`,
- * never rAF), armed before the press:
+ * Three flights, two profiles, one RECORDING (`armWitness` — the product's own writes, settled), armed before the
+ * press:
  *  · TR13 Political Think Tank — «OK» on the verdict: the 5 M€ off the verdict's
  *    own reward chip (`revealHandoff`) onto the M€ digits;
  *  · Electro Catapult — the ACTION COMMIT: «−1» plant off the plants digits
@@ -57,12 +59,16 @@ type Sample = {
   targets: Record<string, Rect>, readouts: Record<string, string>, ws: number,
 };
 
-/** Arm the landing probe: `targets` — the INK boxes tokens must land on / leave from; `readouts` — the counters. */
-async function armProbe(page: Page, targets: Record<string, string>, readouts: Record<string, string>): Promise<void> {
-  await page.evaluate(([targetSels, readoutSels]) => {
-    const t0 = performance.now();
-    const samples: Array<unknown> = [];
-    const rectOf = (sel: string) => {
+type Observation = Omit<Sample, 't'>;
+
+/**
+ * Arm the landing probe: `targets` — the INK boxes tokens must land on / leave from; `readouts` — the counters. A
+ * RECORDING (`armWitness`, settled — every claim is an order / coexistence claim: the chip and its contact beat in one
+ * painted state, the tick no earlier than the touchdown), never a timer sampler.
+ */
+async function armProbe(page: Page, targets: Record<string, string>, readouts: Record<string, string>): Promise<Witness<Observation>> {
+  return armWitness(page, 'rail-landing', ([targetSels, readoutSels]: [Record<string, string>, Record<string, string>]): Observation => {
+    const rectOf = (sel: string): Rect => {
       const el = document.querySelector(sel);
       if (el === null) {
         return null;
@@ -81,57 +87,34 @@ async function armProbe(page: Page, targets: Record<string, string>, readouts: R
       }
       return op;
     };
-    let last = '';
-    const sample = (tick: boolean) => {
-      if (samples.length > 9000) {
-        return;
-      }
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          id: el.getAttribute('data-transfer-id') ?? '', v: (el.textContent ?? '').trim(),
-          x: +(r.left + r.width / 2).toFixed(1), y: +(r.top + r.height / 2).toFixed(1), w: +r.width.toFixed(1), op: +visible(el).toFixed(2),
-        };
-      }).filter((c) => c.op > 0.05);
-      const beats = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {x: +(r.left + r.width / 2).toFixed(1), y: +(r.top + r.height / 2).toFixed(1), op: visible(el)};
-      }).filter((b) => b.op > 0.05).map((b) => ({x: b.x, y: b.y}));
-      const targets: Record<string, unknown> = {};
-      for (const [key, sel] of Object.entries(targetSels as Record<string, string>)) {
-        targets[key] = rectOf(sel);
-      }
-      const readouts: Record<string, string> = {};
-      for (const [key, sel] of Object.entries(readoutSels as Record<string, string>)) {
-        readouts[key] = (document.querySelector(sel)?.textContent ?? '').trim().match(/^[-+]?\d+/)?.[0] ?? '';
-      }
-      const s = {
-        t: +(performance.now() - t0).toFixed(1), chips, beats, targets, readouts,
-        ws: document.querySelectorAll('.con-ws').length,
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        id: el.getAttribute('data-transfer-id') ?? '', v: (el.textContent ?? '').trim(),
+        x: +(r.left + r.width / 2).toFixed(1), y: +(r.top + r.height / 2).toFixed(1), w: +r.width.toFixed(1), op: +visible(el).toFixed(2),
       };
-      const key = JSON.stringify({...s, t: 0});
-      if (tick || key !== last) {
-        last = key;
-        samples.push(s);
-      }
-    };
-    sample(true);
-    const timer = window.setInterval(() => sample(true), 30);
-    const mo = new MutationObserver(() => sample(false));
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, characterData: true, attributeFilter: ['class', 'style']});
-    (window as unknown as {__railLanding: unknown}).__railLanding = {samples, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-    }};
-  }, [targets, readouts]);
+    }).filter((c) => c.op > 0.05);
+    const beats = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {x: +(r.left + r.width / 2).toFixed(1), y: +(r.top + r.height / 2).toFixed(1), op: visible(el)};
+    }).filter((b) => b.op > 0.05).map((b) => ({x: b.x, y: b.y}));
+    const rects: Record<string, Rect> = {};
+    for (const [key, sel] of Object.entries(targetSels)) {
+      rects[key] = rectOf(sel);
+    }
+    const counters: Record<string, string> = {};
+    for (const [key, sel] of Object.entries(readoutSels)) {
+      counters[key] = (document.querySelector(sel)?.textContent ?? '').trim().match(/^[-+]?\d+/)?.[0] ?? '';
+    }
+    return {chips, beats, targets: rects, readouts: counters, ws: document.querySelectorAll('.con-ws').length};
+  }, {args: [targets, readouts], settled: true, max: 20_000});
 }
 
-async function readProbe(page: Page): Promise<Array<Sample>> {
-  return await page.evaluate(() => {
-    const p = (window as unknown as {__railLanding: {samples: Array<unknown>, stop: () => void}}).__railLanding;
-    p.stop();
-    return p.samples;
-  }) as Array<Sample>;
+/** Stop the recording; every distinct state with its time on the PAGE's clock, from the arm (ms). */
+async function readProbe(probe: Witness<Observation>): Promise<Array<Sample>> {
+  const recorded = await probe.stop();
+  const t0 = recorded[0]?.t ?? 0;
+  return recorded.map((x) => ({...x.v, t: x.t - t0}));
 }
 
 function watchPage(page: Page): {watchdog: Array<string>, errors: Array<string>} {
@@ -177,9 +160,10 @@ async function readyToCommit(page: Page): Promise<void> {
   await expect(page.locator(`${COMPOSER} .con-composer__cta--focused`), 'the cursor stands on the commit row').toHaveCount(1);
 }
 
-/** The hero card's printed icons of one sprite (`'plant.'`) or its M€ tiles (`'mc'`) — the birth / absorb places. */
+/** The hero card's printed icons of one sprite (`'plant.'`) or its M€ tiles (`'mc'`) — the birth / absorb places, read AT
+ *  REST (`readSettled`): the composer may still be settling its cursor when the commit row is reached. */
 async function heroIcons(page: Page, needle: string): Promise<Array<NonNullable<Rect>>> {
-  return await page.evaluate(([hero, n]) => {
+  return readSettled(page, () => page.evaluate(([hero, n]) => {
     const els = n === 'mc' ?
       Array.from(document.querySelectorAll<HTMLElement>(`${hero} .pcard-mi--mc`)) :
       Array.from(document.querySelectorAll<HTMLElement>(`${hero} .pcard-ic`)).filter((el) => (el.style.backgroundImage ?? '').includes(n));
@@ -187,7 +171,7 @@ async function heroIcons(page: Page, needle: string): Promise<Array<NonNullable<
       const r = el.getBoundingClientRect();
       return {l: r.left, t: r.top, r: r.right, b: r.bottom};
     }).filter((r) => r.r - r.l > 4);
-  }, [HERO, needle]);
+  }, [HERO, needle]), {message: `the hero's printed «${needle}» icons`});
 }
 
 async function mcOf(request: APIRequestContext, playerId: string): Promise<number> {
@@ -234,8 +218,9 @@ function landingOf(samples: Array<Sample>, amount: string): {s: Sample, chip: Ch
  * — never before the chip got there.
  */
 function expectLanding(tag: string, samples: Array<Sample>, amount: string, target: string, readout: string, before: string, after: string): {s: Sample, chip: Chip} {
+  // «Was it in the air» is asked of the record (ever), never as a count of samples — that count is a count of frames.
   const withChips = samples.filter((s) => s.chips.some((c) => c.v === amount));
-  expect(withChips.length, `${tag}: a «${amount}» chip was seen in the air`).toBeGreaterThan(3);
+  expect(withChips.length, `${tag}: a «${amount}» chip was seen in the air`).toBeGreaterThan(0);
   const landing = landingOf(samples, amount);
   expect(landing, `${tag}: the contact beat played while the «${amount}» chip stood on its destination`).toBeTruthy();
   const ink = landing!.s.targets[target];
@@ -304,7 +289,7 @@ for (const profile of PROFILES) {
       const playerId = await bootFixture(page, request, 'political-think-tank', {query: profile.query});
       await openAction(page, 'Political Think Tank');
       await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 20_000});
-      await armProbe(page, {mc: M_DIGITS}, {mc: M_DIGITS});
+      const probe = await armProbe(page, {mc: M_DIGITS}, {mc: M_DIGITS});
       await press(page, 'Enter', 800);
       await expect(page.locator(`${COMPOSER} .con-verdict`)).toHaveClass(/con-verdict--met/, {timeout: 30_000});
       await settle(page, {timeoutMs: 30_000});
@@ -313,7 +298,7 @@ for (const profile of PROFILES) {
       await noChipsLeft(page);
       await settle(page, {timeoutMs: 30_000});
       await waitForBoardHome(page, 30);
-      const samples = await readProbe(page);
+      const samples = await readProbe(probe);
       await shoot(page, `${profile.tag}-tr13-board`);
       expectLanding(`tr13-${profile.tag}`, samples, '+5', 'mc', 'mc', '12', '17');
       expect(seen.watchdog, 'no foreground-watchdog recovery during the verdict\'s handoff').toEqual([]);
@@ -332,14 +317,14 @@ for (const profile of PROFILES) {
       const plantIcons = await heroIcons(page, 'plant.');
       expect(mcTiles.length, 'the hero prints its M€ tiles').toBeGreaterThan(0);
       expect(plantIcons.length, 'the hero prints its plant').toBeGreaterThan(0);
-      await armProbe(page, {mc: M_DIGITS, plants: PLANT_DIGITS}, {mc: M_DIGITS, plants: PLANT_DIGITS});
+      const probe = await armProbe(page, {mc: M_DIGITS, plants: PLANT_DIGITS}, {mc: M_DIGITS, plants: PLANT_DIGITS});
       await shoot(page, `${profile.tag}-catapult-setup`);
       await press(page, 'Enter', 300);
       await expect(page.locator(M_DIGITS)).toContainText(String(mc0 + 7), {timeout: 30_000});
       await noChipsLeft(page);
       await settle(page, {timeoutMs: 30_000});
       await waitForBoardHome(page, 30);
-      const samples = await readProbe(page);
+      const samples = await readProbe(probe);
       await shoot(page, `${profile.tag}-catapult-board`);
       const tag = `catapult-${profile.tag}`;
       expectDeparture(tag, samples, '−1', 'plants', 'plants', '4', '3', plantIcons, '+7');
@@ -360,13 +345,13 @@ for (const profile of PROFILES) {
       await readyToCommit(page);
       const mcTiles = await heroIcons(page, 'mc');
       expect(mcTiles.length, 'the hero prints its M€ tile').toBeGreaterThan(0);
-      await armProbe(page, {mc: M_DIGITS, eprod: ENERGY_PROD}, {mc: M_DIGITS, eprod: ENERGY_PROD});
+      const probe = await armProbe(page, {mc: M_DIGITS, eprod: ENERGY_PROD}, {mc: M_DIGITS, eprod: ENERGY_PROD});
       await press(page, 'Enter', 300);
       await expect(page.locator(ENERGY_PROD)).toHaveText(/\+1/, {timeout: 30_000});
       await noChipsLeft(page);
       await settle(page, {timeoutMs: 30_000});
       await waitForBoardHome(page, 30);
-      const samples = await readProbe(page);
+      const samples = await readProbe(probe);
       await shoot(page, `${profile.tag}-mirrors-board`);
       const tag = `mirrors-${profile.tag}`;
       expectDeparture(tag, samples, '−7', 'mc', 'mc', String(mc0), String(mc0 - 7), mcTiles, '+1');

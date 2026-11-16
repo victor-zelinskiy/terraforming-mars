@@ -1,6 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, settle} from './consoleStart';
 import {enterSittingByPass, openParliament, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 
 /**
@@ -17,12 +19,13 @@ import {enterSittingByPass, openParliament, parliamentWire, sittingStage, waitSi
  *    At a touchdown ONE socket answers and nothing else on the tiers changes (the traffic light of v2 is
  *    gone: no party tile carries a stage accent at all).
  *
- * The sampler is `setInterval` + `MutationObserver`, never rAF.
+ * The sitting is RECORDED off the product's own writes (`armWitness`, settled), never sampled on a timer.
  */
 type Rect = {x: number, y: number, w: number, h: number};
 type Flight = {id: string, x: number, y: number, shown: boolean};
-type V3Sample = {
-  t: number, motion: string, beat: string, stage: string,
+/** One observation of the sitting (the witness stamps it with the page's time `t`). */
+type V3Obs = {
+  motion: string, beat: string, stage: string,
   /** The government's accent, and the party of the tile standing in its slot — the two must never disagree. */
   accent: string, rulerTile: string, accentOf: Record<string, string>,
   /** The enacted card's own slug and the quest's text — the caption may never move before its object. */
@@ -31,12 +34,15 @@ type V3Sample = {
   lit: number, landed: number, landedAt: Array<string>, flights: Array<Flight>,
   supply: Rect | undefined, cards: Record<string, Rect>, ribbons: Record<string, Rect>,
 };
-type V3Probe = {samples: Array<V3Sample>};
+type V3Sample = V3Obs & {t: number};
 
-async function armV3Probe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__v3: V3Probe};
-    w.__v3 = {samples: []};
+/**
+ * The sitting, RECORDED (`armWitness`, settled — every claim below is a coexistence / order claim: the accent and the
+ * tile, the quest and its card, one socket at a time, a cube's birthplace — judged on the state a task leaves, the one
+ * a frame can paint). No `.con-parl` → null (not a sample of the sitting).
+ */
+async function armV3Probe(page: Page): Promise<Witness<V3Obs | null>> {
+  return armWitness(page, 'sitting-v3', (): V3Obs | null => {
     const rect = (el: Element | null): Rect | undefined => {
       if (el === null) {
         return undefined;
@@ -44,69 +50,63 @@ async function armV3Probe(page: Page): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width === 0 && r.height === 0 ? undefined : {x: r.left, y: r.top, w: r.width, h: r.height};
     };
-    const sample = () => {
-      const root = document.querySelector<HTMLElement>('.con-parl');
-      if (root === null) {
-        return;
+    const root = document.querySelector<HTMLElement>('.con-parl');
+    if (root === null) {
+      return null;
+    }
+    const gov = root.querySelector<HTMLElement>('.con-parl__gov');
+    const accentOf: Record<string, string> = {};
+    for (const tile of Array.from(root.querySelectorAll<HTMLElement>('.con-parl__party[data-party]'))) {
+      const party = tile.getAttribute('data-party') ?? '';
+      const plaque = tile.querySelector<HTMLElement>('.con-pseal');
+      accentOf[party] = (plaque === null ? '' : getComputedStyle(plaque).getPropertyValue('--parl-accent')).trim();
+    }
+    const support: Record<string, number> = {};
+    for (const box of Array.from(root.querySelectorAll<HTMLElement>('[data-parl-support]'))) {
+      support[box.getAttribute('data-parl-support') ?? ''] = box.querySelectorAll('.con-pseal__support-place--on').length;
+    }
+    const cards: Record<string, Rect> = {};
+    const ribbons: Record<string, Rect> = {};
+    for (const slot of Array.from(root.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]'))) {
+      const key = slot.getAttribute('data-instance') ?? '';
+      const c = rect(slot.querySelector('.con-parl__card'));
+      const r = rect(slot.querySelector('.con-parl__ribbon'));
+      if (c !== undefined) {
+        cards[key] = c;
       }
-      const gov = root.querySelector<HTMLElement>('.con-parl__gov');
-      const accentOf: Record<string, string> = {};
-      for (const tile of Array.from(root.querySelectorAll<HTMLElement>('.con-parl__party[data-party]'))) {
-        const party = tile.getAttribute('data-party') ?? '';
-        const plaque = tile.querySelector<HTMLElement>('.con-pseal');
-        accentOf[party] = (plaque === null ? '' : getComputedStyle(plaque).getPropertyValue('--parl-accent')).trim();
+      if (r !== undefined) {
+        ribbons[key] = r;
       }
-      const support: Record<string, number> = {};
-      for (const box of Array.from(root.querySelectorAll<HTMLElement>('[data-parl-support]'))) {
-        support[box.getAttribute('data-parl-support') ?? ''] = box.querySelectorAll('.con-pseal__support-place--on').length;
-      }
-      const cards: Record<string, Rect> = {};
-      const ribbons: Record<string, Rect> = {};
-      for (const slot of Array.from(root.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]'))) {
-        const key = slot.getAttribute('data-instance') ?? '';
-        const c = rect(slot.querySelector('.con-parl__card'));
-        const r = rect(slot.querySelector('.con-parl__ribbon'));
-        if (c !== undefined) {
-          cards[key] = c;
-        }
-        if (r !== undefined) {
-          ribbons[key] = r;
-        }
-      }
-      w.__v3.samples.push({
-        t: performance.now(),
-        motion: root.getAttribute('data-sitting-motion') ?? '',
-        beat: root.getAttribute('data-sitting-beat') ?? '',
-        stage: root.getAttribute('data-sitting-stage') ?? '',
-        accent: gov === null ? '' : getComputedStyle(gov).getPropertyValue('--parl-accent').trim(),
-        rulerTile: root.querySelector('[data-parl-ruler] .con-parl__party')?.getAttribute('data-party') ?? '',
-        accentOf,
-        card: Array.from(root.querySelector('.con-parl__gov-card .pcard')?.classList ?? []).find((c) => c.startsWith('pcard--rdx-')) ?? '',
-        quest: root.querySelector('[data-parl-quest]')?.getAttribute('data-parl-quest-text') ?? '',
-        questClosed: root.querySelector('[data-parl-quest][data-parl-quest-closed]') !== null,
-        row: Array.from(root.querySelectorAll<HTMLElement>('.con-parl__parties .con-parl__party')).map((el) => el.getAttribute('data-party') ?? ''),
-        support,
-        lit: root.querySelectorAll('.con-parl__party--lit').length,
-        landed: root.querySelectorAll('.con-pseal__support-place--landed').length,
-        // WHICH sockets answer, so a crowded frame names its pair instead of a bare count.
-        landedAt: Array.from(root.querySelectorAll<HTMLElement>('.con-pseal__support-place--landed')).map((el) =>
-          (el.closest('[data-parl-support]')?.getAttribute('data-parl-support') ?? '?') + '#' + (el.getAttribute('data-support-place') ?? '?')),
-        flights: Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
-          const r = el.getBoundingClientRect();
-          return {id: el.getAttribute('data-parl-flight') ?? '', x: r.left + r.width / 2, y: r.top + r.height / 2, shown: getComputedStyle(el).visibility !== 'hidden'};
-        }),
-        supply: rect(root.querySelector('[data-parl-neutral-cube]')),
-        cards, ribbons,
-      });
-      if (w.__v3.samples.length > 9000) {
-        w.__v3.samples.splice(0, 1500);
-      }
+    }
+    return {
+      motion: root.getAttribute('data-sitting-motion') ?? '',
+      beat: root.getAttribute('data-sitting-beat') ?? '',
+      stage: root.getAttribute('data-sitting-stage') ?? '',
+      accent: gov === null ? '' : getComputedStyle(gov).getPropertyValue('--parl-accent').trim(),
+      rulerTile: root.querySelector('[data-parl-ruler] .con-parl__party')?.getAttribute('data-party') ?? '',
+      accentOf,
+      card: Array.from(root.querySelector('.con-parl__gov-card .pcard')?.classList ?? []).find((c) => c.startsWith('pcard--rdx-')) ?? '',
+      quest: root.querySelector('[data-parl-quest]')?.getAttribute('data-parl-quest-text') ?? '',
+      questClosed: root.querySelector('[data-parl-quest][data-parl-quest-closed]') !== null,
+      row: Array.from(root.querySelectorAll<HTMLElement>('.con-parl__parties .con-parl__party')).map((el) => el.getAttribute('data-party') ?? ''),
+      support,
+      lit: root.querySelectorAll('.con-parl__party--lit').length,
+      landed: root.querySelectorAll('.con-pseal__support-place--landed').length,
+      // WHICH sockets answer, so a crowded frame names its pair instead of a bare count.
+      landedAt: Array.from(root.querySelectorAll<HTMLElement>('.con-pseal__support-place--landed')).map((el) =>
+        (el.closest('[data-parl-support]')?.getAttribute('data-parl-support') ?? '?') + '#' + (el.getAttribute('data-support-place') ?? '?')),
+      flights: Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
+        const r = el.getBoundingClientRect();
+        return {id: el.getAttribute('data-parl-flight') ?? '', x: r.left + r.width / 2, y: r.top + r.height / 2, shown: getComputedStyle(el).visibility !== 'hidden'};
+      }),
+      supply: rect(root.querySelector('[data-parl-neutral-cube]')),
+      cards, ribbons,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-motion', 'data-party']});
-    window.setInterval(sample, 16);
-  });
+  }, {settled: true, max: 20_000});
 }
-const readV3 = (page: Page): Promise<V3Probe> => page.evaluate(() => (window as unknown as {__v3: V3Probe}).__v3);
+/** The recorded observations of the sitting, in order (the page's time on each). */
+const readV3 = async (w: Witness<V3Obs | null>): Promise<Array<V3Sample>> =>
+  (await w.samples()).flatMap((x) => x.v === null ? [] : [{...x.v, t: x.t}]);
 
 /** Is a point inside a rect, with a tolerance? */
 function inside(p: {x: number, y: number}, r: Rect | undefined, slack: number): boolean {
@@ -121,18 +121,19 @@ test.describe('the sitting v3 (standard-1080)', () => {
     // Architecture Award: RED wins from the middle slot and the government changes (the Greens' starting rule → Mars First).
     // ONE PASS before its sitting (the soft gates): the pass runs it, the walk turns the verdict by itself.
     const {playerId} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: '&consoleProfile=auto'});
-    await armV3Probe(page);
+    const v3 = await armV3Probe(page);
     await enterSittingByPass(page, request, playerId);
     // THE VERDICT already states the CHAIRMANSHIP's outcome (v3 В2): the generation is over, so the quest
-    // block reads closed — the enactment then has nothing left to add to it. (Sampled: the page turns by itself.)
-    await expect.poll(async () => (await readV3(page)).samples.some((x) => x.stage === 'verdict' && x.questClosed), {timeout: 20_000,
-      message: 'the quest reads closed at the verdict'}).toBe(true);
+    // block reads closed — the enactment then has nothing left to add to it. (Recorded: the page turns by itself.)
+    await v3.waitFor((x) => x !== null && x.stage === 'verdict' && x.questClosed, {timeoutMs: 20_000,
+      message: 'the quest reads closed at the verdict'});
     await expect.poll(() => sittingStage(page), {timeout: 40_000}).not.toBe('verdict');
     await waitSittingAtRest(page, 40_000);
     await settle(page, {timeoutMs: 20_000});
 
-    const s = (await readV3(page)).samples;
-    expect(s.length, 'the sampler ran').toBeGreaterThan(20);
+    const s = await readV3(v3);
+    // The recorder's own liveness floor: only a DEAD recorder fails it (a count of samples is a count of frames).
+    expect(s.length, 'the recorder ran').toBeGreaterThan(0);
     const first = s[0];
     const rest = s[s.length - 1];
     expect(first.rulerTile, 'the Greens ruled at the verdict').toBe('Greens');
@@ -167,14 +168,14 @@ test.describe('the sitting v3 (standard-1080)', () => {
     test.setTimeout(300_000);
     // ONE PASS before its sitting (the soft gates): arm first, the pass runs it, read the server's own payment after.
     const {playerId} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto'});
-    await armV3Probe(page);
+    const v3 = await armV3Probe(page);
     await enterSittingByPass(page, request, playerId);
     await expect.poll(() => sittingStage(page), {timeout: 40_000}).not.toBe('verdict');
     await waitSittingAtRest(page, 40_000);
     const wire = await parliamentWire(request, playerId);
     const record = (wire.game.parliament?.phase?.summary?.support ?? []).filter((e) => e.gained > 0);
     expect(record.length, 'the server paid somebody').toBeGreaterThan(0);
-    const s = (await readV3(page)).samples;
+    const s = await readV3(v3);
 
     // ① THE SOCKETS ARE ALWAYS RESERVED: three places per party, in every frame — the arrival is never a layout jump.
     const places = await page.evaluate(() => Array.from(document.querySelectorAll('[data-parl-support]')).map((el) => el.querySelectorAll('.con-pseal__support-place').length));
@@ -229,7 +230,8 @@ test.describe('the sitting v3 (standard-1080)', () => {
     await bootFixtureSeats(page, request, 'parliament', {query: '&consoleProfile=auto', landing: 'board'});
     await openParliament(page);
     await settle(page, {timeoutMs: 20_000});
-    const read = await page.evaluate(() => {
+    // Measured AT REST (two equal reads a frame apart): the track's discs may still be entering after the quiet.
+    const read = await readSettled(page, () => page.evaluate(() => {
       const nodes = Array.from(document.querySelectorAll<HTMLElement>('.con-parl__track .con-parl__step:not(.con-parl__step--start) .con-parl__step-node'));
       const head = document.querySelector<HTMLElement>('.con-parl__agenda-next');
       return {
@@ -240,7 +242,7 @@ test.describe('the sitting v3 (standard-1080)', () => {
         })),
         headText: head?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
       };
-    });
+    }), {message: 'the Agenda track\'s nodes'});
     // ① ONE DISC for the three rewards — an influence step is not a different shape.
     const widths = new Set(read.boxes.map((b) => b[0]));
     const heights = new Set(read.boxes.map((b) => b[1]));

@@ -1,6 +1,11 @@
 import {test, expect} from './consoleTest';
 import type {Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, placeTile, placementState, press, settle, waitForBoardHome, walkToSpace} from './consoleStart';
+import {
+  bootFixtureSeats, dossierLoaded, fetchPlayerModel, focusCard, focusedSpaceId, placeTile, placementState, press, pressUntil, settle,
+  waitForBoardHome, walkToSpace,
+} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -99,60 +104,65 @@ async function readColumn(page: Page, couch = COUCH): Promise<ColumnRead> {
   }, couch);
 }
 
-/** Walk to a cell in the L3 inspection and wait for ITS portrait (the hover answer of that very cell). */
+/** The column read AT REST (`readSettled` — two equal reads a frame apart): its box, its content share and its type are
+ *  the layout, never a pose of the step's swap. */
+async function columnAtRest(page: Page, what: string, opts: {settle?: boolean} = {}): Promise<ColumnRead> {
+  return readSettled(page, () => readColumn(page), {message: `the column (${what})`, settle: opts.settle});
+}
+
+/** Walk to a cell in the L3 inspection and wait for ITS dossier (class F — the hover answer of that very cell, loaded),
+ *  then its portrait; the read is taken at rest. */
 async function inspect(page: Page, id: string): Promise<ColumnRead> {
   await walkToSpace(page, id);
+  await dossierLoaded(page, id);
   await expect.poll(async () => (await readColumn(page)).space, {timeout: 15_000, message: `the portrait of ${id}`}).toBe(id);
   await settle(page).catch(() => undefined);
-  return readColumn(page);
+  return columnAtRest(page, `the portrait of ${id}`, {settle: false});
 }
 
-/** Every running animation / transition inside the column, apart from the value flick (the one allowed motion). */
-async function armMotionProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__cellMotion?: {foreign: Array<string>, boxes: Array<string>, timer: number}};
-    const state = {foreign: [] as Array<string>, boxes: [] as Array<string>, timer: 0};
-    state.timer = window.setInterval(() => {
-      const col = document.querySelector<HTMLElement>('.con-context');
-      if (col === null) {
-        return;
-      }
-      const r = col.getBoundingClientRect();
-      const box = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}×${Math.round(r.height)}`;
-      if (!state.boxes.includes(box)) {
-        state.boxes.push(box);
-      }
-      for (const a of document.getAnimations()) {
-        const target = (a.effect as KeyframeEffect | null)?.target as Element | null;
-        if (target === null || target === undefined) {
-          continue;
-        }
-        const inColumn = col.contains(target);
-        const onFieldMark = target.classList?.contains('con-rel') === true;
-        const name = (a as unknown as {animationName?: string, transitionProperty?: string}).animationName ??
-          (a as unknown as {transitionProperty?: string}).transitionProperty ?? 'anim';
-        if ((inColumn || onFieldMark) && name !== 'con-dossier-val-in' && a.playState === 'running') {
-          const tag = `${String((target as HTMLElement).className).split(' ')[0]}:${name}`;
-          if (!state.foreign.includes(tag)) {
-            state.foreign.push(tag);
-          }
-        }
-      }
-    }, 40);
-    w.__cellMotion = state;
-  });
-}
+type MotionObs = {box: string, foreign: Array<string>} | null;
 
-async function readMotionProbe(page: Page): Promise<{foreign: Array<string>, boxes: Array<string>}> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__cellMotion?: {foreign: Array<string>, boxes: Array<string>, timer: number}};
-    const s = w.__cellMotion;
-    if (s === undefined) {
-      return {foreign: ['no probe'], boxes: []};
+/**
+ * Every running animation / transition inside the column, apart from the value flick (the one allowed motion), and the
+ * column's outer box — RECORDED (`armWitness`, settled: «the box is constant» is a claim about painted states), never a
+ * timer sampler. No column → null.
+ */
+async function armMotionProbe(page: Page): Promise<Witness<MotionObs>> {
+  return armWitness(page, 'cell-motion', (): MotionObs => {
+    const col = document.querySelector<HTMLElement>('.con-context');
+    if (col === null) {
+      return null;
     }
-    window.clearInterval(s.timer);
-    return {foreign: s.foreign, boxes: s.boxes};
-  });
+    const r = col.getBoundingClientRect();
+    const box = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}×${Math.round(r.height)}`;
+    const foreign: Array<string> = [];
+    for (const a of document.getAnimations()) {
+      const target = (a.effect as KeyframeEffect | null)?.target as Element | null;
+      if (target === null || target === undefined) {
+        continue;
+      }
+      const inColumn = col.contains(target);
+      const onFieldMark = target.classList?.contains('con-rel') === true;
+      const name = (a as unknown as {animationName?: string, transitionProperty?: string}).animationName ??
+        (a as unknown as {transitionProperty?: string}).transitionProperty ?? 'anim';
+      if ((inColumn || onFieldMark) && name !== 'con-dossier-val-in' && a.playState === 'running') {
+        const tag = `${String((target as HTMLElement).className).split(' ')[0]}:${name}`;
+        if (!foreign.includes(tag)) {
+          foreign.push(tag);
+        }
+      }
+    }
+    return {box, foreign: foreign.sort()};
+  }, {settled: true});
+}
+
+/** Stop the recording: every foreign motion it ever saw, every distinct outer box. */
+async function readMotionProbe(probe: Witness<MotionObs>): Promise<{foreign: Array<string>, boxes: Array<string>}> {
+  const seen = (await probe.stop()).flatMap((x) => x.v === null ? [] : [x.v]);
+  return {
+    foreign: [...new Set(seen.flatMap((v) => v.foreign))],
+    boxes: [...new Set(seen.map((v) => v.box))],
+  };
 }
 
 function expectHonest(read: ColumnRead, what: string): void {
@@ -278,18 +288,25 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'a6-capital-x');
       await press(page, 'Escape', 900);
       await expect(page.locator('.con-zoom')).toHaveCount(0, {timeout: 10_000});
-      expect((await readColumn(page)).space, 'the inspection stands where it was').toBe(STAND.capital);
+      await expect.poll(async () => (await readColumn(page)).space, {message: 'the inspection stands where it was'}).toBe(STAND.capital);
 
       // ── THE WALK: six d-pad steps — the drawer's outer box never moves, nothing animates in it or on the marks. ──
-      await armMotionProbe(page);
+      // Each step is verified by ITS effect (the cursor moved — act → verify → retry, an edge simply stays), and the
+      // player READS the cell it lands on: the step waits for that cell's dossier to load (class F) before the next.
+      const motionProbe = await armMotionProbe(page);
       for (const k of ['ArrowLeft', 'ArrowUp', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown']) {
-        await press(page, k, 450);
+        const at = await focusedSpaceId(page);
+        await pressUntil(page, k, async () => await focusedSpaceId(page) !== at, {tries: 2, settleMs: 450});
+        const now = await focusedSpaceId(page);
+        if (now !== '') {
+          await dossierLoaded(page, now);
+        }
       }
       await settle(page).catch(() => undefined);
-      const motion = await readMotionProbe(page);
+      const motion = await readMotionProbe(motionProbe);
       expect(motion.foreign, 'nothing animates while the player points (the value flick aside)').toEqual([]);
       expect(motion.boxes, 'the drawer\'s outer box is constant').toHaveLength(1);
-      const last = await readColumn(page);
+      const last = await columnAtRest(page, 'after the walk', {settle: false});
       expectHonest(last, 'after the walk');
       console.log(`[${preset.id} L3] content share: city ${city.contentShare}% · greenery ${between.contentShare}% · land ${land.contentShare}% · ocean ${ocean.contentShare}% · capital ${capital.contentShare}%`);
 
@@ -311,9 +328,10 @@ for (const preset of PRESETS) {
         await shoot(page, preset.id, 'b2-composer-ready');
         await playOnTheBoard(page);
         await walkToSpace(page, STAND.reserve);
+        await dossierLoaded(page, STAND.reserve);
         await expect.poll(async () => (await readColumn(page)).space, {timeout: 15_000, message: 'the reserve\'s portrait'}).toBe(STAND.reserve);
         await expect.poll(async () => (await readColumn(page)).ring, {timeout: 15_000, message: 'the paying ocean lit by the preview'}).toContain(STAND.ocean);
-        const aimed = await readColumn(page);
+        const aimed = await columnAtRest(page, 'the placement');
         expectHonest(aimed, 'the placement');
         await expect(page.locator('.con-context [data-dossier-section="gain"]')).toContainText(/Соседство с океаном/);
         await shoot(page, preset.id, 'b3-placement');
@@ -353,7 +371,7 @@ for (const preset of PRESETS) {
         await expect(page.locator('.con-context [data-track-step]'), 'the step plate').toBeVisible({timeout: 10_000});
         await expect(page.locator('.con-context [data-track-title]')).not.toHaveText('');
         await expect(page.locator('.con-context [data-dossier-section="track-when"]')).toContainText(/Когда/i);
-        const read = await readColumn(page);
+        const read = await columnAtRest(page, 'R3');
         expect(read.below, 'R3: no text under the couch floor').toEqual([]);
         expect(read.scroll).toBeLessThanOrEqual(2);
         await shoot(page, preset.id, 'd1-r3');

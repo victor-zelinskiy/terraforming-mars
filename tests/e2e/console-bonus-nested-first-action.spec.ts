@@ -2,6 +2,7 @@ import {test, expect} from './consoleTest';
 import {
   createGameWithCards, fetchPlayerModel, openConsole, seedGameOverApi, soloGameConfig,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * «ФОРА» + A CORP WITH A MANDATORY FIRST ACTION — the NESTED case.
@@ -81,8 +82,8 @@ test.describe('console — nested first action inside the bonus window', () => {
       .toContainText('Обязательное первое действие');
     await expect(plan.nth(0).locator('.con-start__planrow-corp')).toContainText('Inventrix');
     await expect(plan.nth(0)).toHaveClass(/--current/);
-    const crumb = (await page.locator('.con-wshead').textContent()) ?? '';
-    expect(crumb, 'the crumb keeps the WINDOW as the subject').toMatch(/Фора/);
+    await expect.poll(async () => (await page.locator('.con-wshead').textContent()) ?? '',
+      {message: 'the crumb keeps the WINDOW as the subject'}).toMatch(/Фора/);
 
     // ── 1b. THE SHELF STAYS ON STAGE, and the seat's absence is visible ────
     // The seated card physically LEFT «РАЗЫГРАНО», so its place stands empty
@@ -94,16 +95,18 @@ test.describe('console — nested first action inside the bonus window', () => {
       'the prelude\'s place is empty — its card is on stage').toHaveCount(1);
     await expect(page.locator('[data-played-key="Inventrix"] .con-splayed__face'),
       'the corporation is still lying in the shelf').toHaveCount(1);
-    // …and the stage is laid out ABOVE it, never over it.
-    const panelBox = await page.locator('.con-start__bonusact').boundingBox();
-    const shelfBox = await shelf.boundingBox();
+    // …and the stage is laid out ABOVE it, never over it — both boxes measured AT REST (`readSettled`).
+    const {panelBox, shelfBox} = await readSettled(page, async () => ({
+      panelBox: await page.locator('.con-start__bonusact').boundingBox(),
+      shelfBox: await shelf.boundingBox(),
+    }), {message: 'the bonus plate and the played shelf'});
     expect((panelBox?.y ?? 0) + (panelBox?.height ?? 0),
       'the plate clears the shelf band').toBeLessThanOrEqual(shelfBox?.y ?? 0);
 
     // ── 2. THE RAIL STAYS ON THE BONUS CHAPTER ──────────────────────────────
-    const rail = await page.locator('.con-jrail__item').allTextContents();
-    expect(rail.join(' | ')).toMatch(/Бонусные действия/);
-    expect(rail.join(' | '), 'no separate first-action chapter for a nested stage')
+    const rail = async () => (await page.locator('.con-jrail__item').allTextContents()).join(' | ');
+    await expect.poll(rail).toMatch(/Бонусные действия/);
+    await expect.poll(rail, {message: 'no separate first-action chapter for a nested stage'})
       .not.toMatch(/Первое действие/);
 
     // ── 3. THE CURSOR WALKS THE PANEL THE WAY THE EYE READS IT ─────────────
@@ -114,7 +117,9 @@ test.describe('console — nested first action inside the bonus window', () => {
     await expect(rows).toHaveCount(2);
     await expect(page.locator('.con-start__gainrow-formula'), 'the M€ row shows its rate')
       .toContainText('по 2');
-    const boxBefore = await page.locator('.con-start__bonusact').boundingBox();
+    // The panel's box before and after the cursor moves — both AT REST (`readSettled`).
+    const panelAtRest = () => readSettled(page, () => page.locator('.con-start__bonusact').boundingBox(), {message: 'the bonus plate'});
+    const boxBefore = await panelAtRest();
     await page.keyboard.press('ArrowUp');
     await expect(rows.nth(1), '↑ lands on the row NEAREST the CTA').toHaveClass(/--focused/);
     // …and EXACTLY ONE «A» is lit: the CTA keeps its plate and gives up the
@@ -122,7 +127,7 @@ test.describe('console — nested first action inside the bonus window', () => {
     await expect(page.locator('.con-start__bonusact-cta-glyph')).toHaveClass(/--idle/);
     await expect(page.locator('.con-start__gainrow').nth(1).locator('.con-start__gainrow-glyph'))
       .not.toHaveClass(/--idle/);
-    const boxAfter = await page.locator('.con-start__bonusact').boundingBox();
+    const boxAfter = await panelAtRest();
     expect(Math.abs((boxAfter?.x ?? 0) - (boxBefore?.x ?? 0)), 'the panel does not move').toBeLessThan(1);
     expect(Math.abs((boxAfter?.width ?? 0) - (boxBefore?.width ?? 0)), 'nor re-fit').toBeLessThan(1);
 
@@ -146,9 +151,9 @@ test.describe('console — nested first action inside the bonus window', () => {
     await expect(page.locator('.con-start__firstact-bonusctx')).toContainText('1/2');
     await expect(page.locator('.con-start__embedsource .pcard__title').first(),
       'the seat premium-swaps to the corporation').toHaveText(/Inventrix/i, {timeout: 15_000});
-    const subCrumb = (await page.locator('.con-wshead').textContent()) ?? '';
-    expect(subCrumb, 'the crumb still leads with the WINDOW\'s card').toMatch(/Фора/);
-    expect(subCrumb).toMatch(/Первое действие/i);
+    const subCrumb = async () => (await page.locator('.con-wshead').textContent()) ?? '';
+    await expect.poll(subCrumb, {message: 'the crumb still leads with the WINDOW\'s card'}).toMatch(/Фора/);
+    await expect.poll(subCrumb).toMatch(/Первое действие/i);
     // The claim made on the overview is the SAME state — one row left here too.
     await expect(page.locator('.con-start__gainrow')).toHaveCount(1);
     // THE SWAP HAPPENED IN THE SHELF, in full view: the two places traded.

@@ -2,9 +2,10 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  deploymentActive, focusCard, focusedCard, openConsole, press, soloGameConfig, stepKind,
-  stepSubject, summaryVisible, visibleSurfaces, waitPressable,
+  deploymentActive, focusCard, focusedCard, openConsole, openZoomViewer, press, soloGameConfig, stepKind,
+  stepSubject, summaryVisible, visibleSurfaces, waitPressable, waitStepDealSettled,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE STARTING HAND'S REQUIREMENT HEAD-UP — the between-generation draft's
@@ -50,9 +51,10 @@ async function forceFrame(page: Page): Promise<void> {
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
 }
 
-/** The rail's block + the boxes that decide whether it is readable. */
+/** The rail's block + the boxes that decide whether it is readable — read AT REST (`readSettled`: two equal reads a
+ *  frame apart, after `settle`), so two readouts compared with each other are both the layout, never a pose. */
 async function railReadout(page: Page) {
-  return await page.evaluate(() => {
+  return readSettled(page, () => page.evaluate(() => {
     const rail = document.querySelector<HTMLElement>('.con-start__statusrail');
     const block = document.querySelector<HTMLElement>('.con-start__statusrail .con-cardavail');
     const body = document.querySelector<HTMLElement>('.con-start__body--cards');
@@ -73,7 +75,7 @@ async function railReadout(page: Page) {
       cardTop: box(firstCard)?.top,
       bodyOverflow: body === null ? 0 : body.scrollHeight - body.clientHeight,
     };
-  });
+  }), {message: 'the status rail and the card scene'});
 }
 
 /** The fullscreen viewer's availability aside (the shared panel density). */
@@ -118,20 +120,21 @@ for (const preset of PRESETS) {
         break;
       }
       await waitPressable(page);
-      await page.waitForTimeout(300);
+      // The step's deal on screen and still — a press into a card still arriving is swallowed by design.
+      await waitStepDealSettled(page);
       const before = await stepSubject(page);
       await press(page, 'Enter', 800); // one corporation / one CEO — nothing else
       if (await stepSubject(page) === before && !(await summaryVisible(page))) {
         await press(page, 'Period', 1500); // RT: advance with the physical collect
       }
-      for (let w = 0; w < 12 && await stepSubject(page) === before && !(await summaryVisible(page)); w++) {
-        await page.waitForTimeout(250);
-      }
+      // Let the step actually change before looking again (bounded — the next round reads whatever stands).
+      await expect.poll(async () => await stepSubject(page) !== before || await summaryVisible(page), {timeout: 3_000})
+        .toBe(true).catch(() => undefined);
     }
     expect(stepKind(await stepSubject(page)) === 'project' && !(await deploymentActive(page)),
       `the wizard stopped on the project buy — showing ${JSON.stringify(await visibleSurfaces(page))}`).toBeTruthy();
     await waitPressable(page);
-    await page.waitForTimeout(400);
+    await waitStepDealSettled(page);
 
     expect(await focusCard(page, CARD), `«${CARD}» was dealt and could be focused`).toBeTruthy();
     expect(await focusedCard(page)).toBe(CARD);
@@ -178,15 +181,14 @@ for (const preset of PRESETS) {
     expect(back.severity, 'the verdict returned with the focus').toBe('pending');
 
     // The fullscreen viewer speaks the same voice, one level deeper.
+    // X → verified by the dialog, never re-pressed into an open still in flight (that ABORTS it) — `openZoomViewer`.
     const zoom = page.locator('dialog.con-zoom[open]');
-    for (let i = 0; i < 10 && await zoom.count() === 0; i++) {
-      await press(page, 'KeyX', 900);
-      await forceFrame(page);
-    }
+    await openZoomViewer(page);
     await expect(zoom, 'the fullscreen viewer opened').toHaveCount(1, {timeout: 8_000});
-    await page.waitForTimeout(1300);
     await forceFrame(page);
-    const panel = await zoomAvailability(page);
+    // The aside is read once it stands and holds still — its entrance rides the viewer's open flight.
+    await expect(page.locator('.con-zoom-sidecol .con-cardavail--panel'), 'the viewer shows the availability aside').toHaveCount(1, {timeout: 10_000});
+    const panel = await readSettled(page, () => zoomAvailability(page), {message: 'the availability aside of the viewer'});
     await shoot(page, preset.tag, 'projects-zoom');
     expect(panel, 'the viewer shows the availability aside').toBeDefined();
     expect(panel!.severity, 'the same verdict as the rail — one model, two densities').toBe('pending');

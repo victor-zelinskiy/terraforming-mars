@@ -5,6 +5,7 @@ import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, pre
 import {
   armLeakWitness, awaitSittingUp, expectDossierIsRules, expectParliamentFits, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * COLONIZATION FUNDING (Turmoil Redux, RX08) — the first counted term that
@@ -26,7 +27,7 @@ import {
  *     TICKS in the landing's frame with its delta chip, the reading turns
  *     «received», and — a card that asks nothing — the results follow.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF; a sample
+ * The probe is a RECORDING (`armWitness`, settled — the product's own writes); a sample
  * carries whether the source and the destination were VISIBLE (a non-zero
  * rect, a non-zero effective opacity, nothing over their centre) — a probe
  * that only saw an event fire is treated as absent.
@@ -73,11 +74,11 @@ type Sample = {
 };
 type Probe = {samples: Array<Sample>};
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
+/** THE PROBE — armed BEFORE the gate is answered. A RECORDING (`armWitness`, settled — «the tick rides the touchdown» and
+ *  «never before the chip left» are ORDER claims about painted states), never a timer sampler. */
+const PROBE_KEY = 'funding-probe';
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__fundingProbe: Probe};
-    w.__fundingProbe = {samples: []};
+  await armWitness(page, PROBE_KEY, (): Omit<Sample, 't'> => {
     const rectOf = (el: Element | null): Rect | undefined => {
       if (el === null) {
         return undefined;
@@ -104,55 +105,45 @@ async function armProbe(page: Page): Promise<void> {
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return hit !== null && (el.contains(hit) || hit.contains(el));
     };
-    const sample = () => {
-      // A chip is sampled once the director has POSED it (its inline transform is written on the tick after
-      // its mount); its identity is the flight layer's own id — a list index shifts as earlier chips are absorbed.
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
-        const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
-        return {id: `${el.dataset.transferId ?? '?'}:${res}`, x: r.left + r.width / 2, y: r.top + r.height / 2, res, amt: el.textContent?.trim() ?? ''};
-      });
-      const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
-      const mech = card?.querySelector('.pcard__mech') ?? null;
-      const row = document.querySelector('.con-res__row--megacredits');
-      const cell = row?.querySelector('.con-res__prod') ?? null;
-      w.__fundingProbe.samples.push({
-        t: performance.now(),
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        chips,
-        mech: rectOf(mech),
-        mechVisible: visible(mech),
-        cell: rectOf(cell),
-        cellVisible: visible(cell),
-        prod: cell?.textContent?.trim() ?? '',
-        deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
-        contexts: Array.from(document.querySelectorAll('.con-band [data-yield-context]')).map((el) => el.getAttribute('data-yield-context') ?? ''),
-      });
-      if (w.__fundingProbe.samples.length > 9000) {
-        w.__fundingProbe.samples.splice(0, 1500);
-      }
+    // A chip is sampled once the director has POSED it (its inline transform is written on the tick after
+    // its mount); its identity is the flight layer's own id — a list index shifts as earlier chips are absorbed.
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
+      const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
+      return {id: `${el.dataset.transferId ?? '?'}:${res}`, x: r.left + r.width / 2, y: r.top + r.height / 2, res, amt: el.textContent?.trim() ?? ''};
+    });
+    const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
+    const mech = card?.querySelector('.pcard__mech') ?? null;
+    const row = document.querySelector('.con-res__row--megacredits');
+    const cell = row?.querySelector('.con-res__prod') ?? null;
+    return {
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      chips,
+      mech: rectOf(mech),
+      mechVisible: visible(mech),
+      cell: rectOf(cell),
+      cellVisible: visible(cell),
+      prod: cell?.textContent?.trim() ?? '',
+      deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
+      contexts: Array.from(document.querySelectorAll('.con-band [data-yield-context]')).map((el) => el.getAttribute('data-yield-context') ?? ''),
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-sit-step', 'data-yield-context']});
-    window.setInterval(sample, 16);
-  });
+  }, {settled: true, max: 20_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__fundingProbe: Probe}).__fundingProbe);
+/** Every recorded state, in order, with its time on the PAGE's clock. */
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Omit<Sample, 't'>>(page, PROBE_KEY).samples()).map((x) => ({...x.v, t: x.t}))});
 
 /** A red run carries its own evidence: the probe's tail rides the report. */
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__fundingProbe?: Probe, __conReady?: () => unknown};
-    return {samples: w.__fundingProbe?.samples.slice(-3000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
-  if (evidence !== undefined) {
-    const file = testInfo.outputPath('funding-probe.json');
-    fs.writeFileSync(file, JSON.stringify(evidence));
-    await testInfo.attach('funding-probe', {path: file, contentType: 'application/json'});
-  }
+  const samples = await readProbe(page).then((p) => p.samples.slice(-3000)).catch(() => []);
+  const ready = await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()).catch(() => undefined);
+  const file = testInfo.outputPath('funding-probe.json');
+  fs.writeFileSync(file, JSON.stringify({samples, ready}));
+  await testInfo.attach('funding-probe', {path: file, contentType: 'application/json'});
 });
 
 function inside(p: {x: number, y: number}, r: Rect | undefined, slack = 2): boolean {

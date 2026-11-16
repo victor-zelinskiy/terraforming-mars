@@ -7,6 +7,7 @@ import {
   sittingStage, sittingStep, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 import {armSittingProbe, beatOrder, beatStart, readSittingProbe} from './parliamentDriveV2';
+import {readSettled} from './settledRead';
 
 
 /**
@@ -158,7 +159,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect.poll(() => sittingStep(page), {timeout: 20_000}).toBe('placement');
       // v5: the winner's tile reads as a chip of the BAND; the DOOR is still the command bar's own «К полю».
       await expect(page.locator('.con-band [data-parl-band-chip="tile"]'), 'the band names the tile').toHaveCount(1);
-      expect((await crumbText(page)).toUpperCase()).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
+      await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the crumb names the placement', timeout: 10_000}).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
       await expect.poll(() => hotVerb(page), {timeout: 10_000}).toMatch(/К полю|Onto the board/i);
       await settle(page, {timeoutMs: 20_000});
       expect(await placementState(page), 'the board waits for the press').toBe('none');
@@ -168,12 +169,13 @@ for (const preset of PARLIAMENT_PRESETS) {
       // column outright: the reward's whole reading is the BAND's single line, so the law it enforced is now
       // structural (a line has one left edge by construction) and what is left to check is that the line is
       // THERE and reads on ONE row, never wrapped inside a strip of fixed height.
-      const r30 = await page.evaluate(() => {
+      // Read AT REST (`readSettled` — two equal reads a frame apart): the band's line may still be entering after the quiet.
+      const r30 = await readSettled(page, () => page.evaluate(() => {
         const band = document.querySelector<HTMLElement>('.con-band');
         const line = document.querySelector<HTMLElement>('.con-band__line');
         const lefts = Array.from(document.querySelectorAll<HTMLElement>('.con-band__yield .con-iyield__reading')).map((el) => Math.round(el.getBoundingClientRect().left));
         return {lefts, bandH: Math.round(band?.getBoundingClientRect().height ?? -1), lineH: Math.round(line?.getBoundingClientRect().height ?? -1)};
-      });
+      }), {message: `${preset.id}: the reward band's line`});
       expect(r30.lefts.length, 'the reward\'s payout reads in the band').toBeGreaterThan(0);
       expect(r30.lineH, `the line is ONE line inside the band (${r30.lineH} of ${r30.bandH})`).toBeLessThanOrEqual(r30.bandH);
       expect(Math.max(...r30.lefts) - Math.min(...r30.lefts), `${preset.id}: a wandering left edge is impossible on one line (${r30.lefts.join(', ')})`).toBeLessThanOrEqual(1);
@@ -212,7 +214,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(renewalPlayed.every((st) => !st.resultsHidden), 'no results card exists on the renewal page').toBe(true);
       const revealed = probeNow.samples.filter((st) => st.stage === 'results');
       expect(revealed[0]?.resultsHidden, 'the card was HIDDEN when its page opened, revealed by its own beat').toBe(true);
-      expect((await crumbText(page)).toUpperCase()).toMatch(/ИТОГИ|RESULTS/);
+      await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the crumb names the results', timeout: 10_000}).toMatch(/ИТОГИ|RESULTS/);
       // The close names where it leads when the next workspace is known (the owner, 2026-10-30).
       await expect.poll(() => hotVerb(page), {timeout: 10_000}).toMatch(/Закрыть заседание|Close the sitting|К исследованию|To the research|К драфту|To the draft/i);
       await expect(page.locator('[data-sit-results] [data-sit-fresh]'), 'the new resolutions with their parties').not.toHaveCount(0);
@@ -221,14 +223,16 @@ for (const preset of PARLIAMENT_PRESETS) {
       // hidden under the plate, its nodes peeking below — on every profile). The stage grows out of its tier by
       // content, so the honest states are two: the card INSIDE the tier (1080 / TV), or the stage taking the
       // track WHOLE (the Deck, by its own rule) — never a half.
-      const agendaCover = () => page.evaluate(() => {
+      // Read AT REST (`readSettled`): the results panel grows out of its tier by content — a box mid-growth is no pose.
+      // The sitting's own rest (`waitSittingAtRest`) is the boundary here, so no second `settle` inside the read.
+      const agendaCover = () => readSettled(page, () => page.evaluate(() => {
         const stage = document.querySelector('.con-parl__stage')?.getBoundingClientRect();
         const agenda = document.querySelector('.con-parl__agenda')?.getBoundingClientRect();
         if (stage === undefined || agenda === undefined) {
           return {overlap: -1, track: 0};
         }
         return {overlap: Math.max(0, Math.min(stage.bottom, agenda.bottom) - Math.max(stage.top, agenda.top)), track: agenda.height};
-      });
+      }), {settle: false, message: 'the results stage over the Agenda track'});
       const expectWholeOrNone = async (label: string) => {
         const c = await agendaCover();
         // v5 («whole or none», generalized to EVERY profile): the results panel takes the Agenda track WHOLE — the body

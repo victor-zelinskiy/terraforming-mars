@@ -1,8 +1,13 @@
 import {test, expect, Page} from './consoleTest';
 import {
   corporationsExcluding, createGameWithCards, fetchPlayerModel, openConsole,
-  seedGameOverApi, soloGameConfig,
+  pressUntil, seedGameOverApi, settle, soloGameConfig,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
+
+/** The two recorded flights: the claimed steel, and the M€ that resolve by themselves on the return. */
+const CLAIM_FLIGHT = 'head-start-claim-flight';
+const AUTO_FLIGHT = 'head-start-auto-flight';
 
 /**
  * «ФОРА» (Head Start) — THE BONUS-ACTION TURN, end to end.
@@ -48,20 +53,6 @@ function preludeConfig(): Record<string, unknown> {
   });
 }
 
-/** Is the start workspace PAINTING? */
-async function workspaceVisible(page: Page): Promise<boolean> {
-  return page.evaluate(() => {
-    const el = document.querySelector('.con-start');
-    if (el === null) {
-      return false;
-    }
-    const rect = el.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 &&
-      getComputedStyle(el).visibility !== 'hidden' &&
-      getComputedStyle(el).display !== 'none';
-  });
-}
-
 /**
  * Spend ONE bonus action FROM THE BROWSER — LT wheel → «Конвертация тепла»
  * (the one basic action that needs no payment, no board space and no
@@ -74,50 +65,42 @@ async function workspaceVisible(page: Page): Promise<boolean> {
  * nothing about the product.
  */
 async function spendOneBonus(page: Page): Promise<void> {
-  await page.keyboard.press('Comma');
-  await expect(page.locator('.con-quick'), 'the basic-actions wheel').toBeVisible({timeout: 10_000});
+  // act → verify → retry: LT until the wheel stands (a press swallowed by a beat of the last spend is sent again).
+  expect(await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {tries: 4, settleMs: 900}),
+    'the basic-actions wheel').toBe(true);
   await page.keyboard.press('ArrowRight'); // the heat-conversion slot
-  await page.waitForTimeout(1500);
+  // ON A QUICK WHEEL THE DIRECTION PRESS *IS* THE ACTIVATION — the wheel's own departure is the witness it landed.
+  await expect(page.locator('.con-quick'), 'the heat slot activated — the wheel left').toHaveCount(0, {timeout: 10_000});
 }
 
+/** One frame of the resource-transfer language: chips in the air, and what the panel reads WHILE they fly. */
+type TransferSeen = {chips: number, panel: string};
+
 /**
- * WATCH THE RESOURCE-TRANSFER LANGUAGE — chips in the air, and what the panel
- * was reading WHILE they flew.
- *
- * ⚠️ `setInterval`, never `requestAnimationFrame`: headless Chromium drives rAF
- * off the compositor, so a rAF sampler stops sampling exactly when the screen
- * goes quiet — and «quiet» is most of a short flight. The probe asserts its own
- * `samples`, or a dead probe passes.
+ * WATCH THE RESOURCE-TRANSFER LANGUAGE — RECORDED (FLAKE ZERO — `armWitness`,
+ * armed before the press, off the product's own writes): a short flight can
+ * no longer be slept through. `settled`: «the panel was still holding when the
+ * chip took off» is an ORDER claim — a sample is the state a task LEAVES.
  */
-async function startTransferProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__xfer?: unknown, __xferTimer?: number};
-    const state = {samples: 0, maxChips: 0, heldPanel: [] as Array<string>};
-    w.__xfer = state;
-    const read = (key: string): string =>
-      document.querySelector(`.con-res__row--${key} .con-res__value`)?.textContent?.trim() ?? '';
-    w.__xferTimer = window.setInterval(() => {
-      state.samples++;
-      const chips = document.querySelectorAll('.con-transfer__chip').length;
-      state.maxChips = Math.max(state.maxChips, chips);
-      if (chips > 0) {
-        state.heldPanel.push(`${read('steel')}|${read('megacredits')}`);
-      }
-    }, 60);
-  });
+async function startTransferProbe(page: Page, key: string): Promise<void> {
+  await armWitness<TransferSeen>(page, key, () => {
+    const read = (row: string): string =>
+      document.querySelector(`.con-res__row--${row} .con-res__value`)?.textContent?.trim() ?? '';
+    const chips = document.querySelectorAll('.con-transfer__chip').length;
+    return {chips, panel: chips > 0 ? `${read('steel')}|${read('megacredits')}` : ''};
+  }, {settled: true});
 }
 
 type TransferProbe = {samples: number, maxChips: number, heldPanel: Array<string>};
 
-async function readTransferProbe(page: Page): Promise<TransferProbe> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__xfer?: TransferProbe, __xferTimer?: number};
-    if (w.__xferTimer !== undefined) {
-      window.clearInterval(w.__xferTimer);
-      w.__xferTimer = undefined;
-    }
-    return w.__xfer ?? {samples: 0, maxChips: 0, heldPanel: []};
-  });
+/** The record, stopped and folded on the Node side (`samples` = distinct states, never frames). */
+async function readTransferProbe(page: Page, key: string): Promise<TransferProbe> {
+  const seen = (await witnessOf<TransferSeen>(page, key).stop()).map((s) => s.v);
+  return {
+    samples: seen.length,
+    maxChips: Math.max(0, ...seen.map((v) => v.chips)),
+    heldPanel: seen.filter((v) => v.chips > 0).map((v) => v.panel),
+  };
 }
 
 /** The blocked slots' reasons, read out of the open LT wheel. */
@@ -176,7 +159,7 @@ test.describe('console — Head Start bonus actions', () => {
     // delta chip firing at the TOUCHDOWN. It used to be a number that simply
     // changed — no flight, no contact, nothing to connect the card to the
     // counter.
-    await startTransferProbe(page);
+    await startTransferProbe(page, CLAIM_FLIGHT);
     await page.keyboard.press('Enter');
     await expect(page.locator('.con-start__gainrow'), 'the claimed row is gone')
       .toHaveCount(1, {timeout: 20_000});
@@ -191,8 +174,8 @@ test.describe('console — Head Start bonus actions', () => {
       .poll(() => page.locator('.con-res__row--steel .con-res__value').first().textContent(),
         {timeout: 20_000, message: 'the steel lands on the panel'})
       .toBe('502');
-    const claimFlight = await readTransferProbe(page);
-    expect(claimFlight.samples, 'the probe was alive (a dead sampler passes everything)').toBeGreaterThan(5);
+    const claimFlight = await readTransferProbe(page, CLAIM_FLIGHT);
+    expect(claimFlight.samples, 'the probe was alive (a dead recorder passes everything)').toBeGreaterThan(0);
     expect(claimFlight.maxChips, 'the steel physically flew to the panel').toBeGreaterThan(0);
     // …and THE PANEL WAS STILL HOLDING when the chip took off — that hold is
     // what makes the delta chip fire at the CONTACT instead of at the commit,
@@ -213,7 +196,9 @@ test.describe('console — Head Start bonus actions', () => {
 
     // ── 3. THE HAND IS THE PLAYER'S OWN SCREEN, WITH THEIR CARDS IN IT ──────
     await page.keyboard.press('Period'); // RT wheel
-    await page.waitForTimeout(900);
+    // The wheel STANDS and its entrance is over (a state — never a fixed 900 ms) before the A that picks «Карты».
+    await expect(page.locator('.con-quick'), 'the RT wheel opens').toBeVisible({timeout: 10_000});
+    await settle(page);
     await page.keyboard.press('Enter'); // «Карты»
     await expect(page.locator('.con-hand'), 'the hand opens').toBeVisible({timeout: 20_000});
     await expect
@@ -246,12 +231,11 @@ test.describe('console — Head Start bonus actions', () => {
     // the player is still on the board. What they must not meet on their return
     // is a number that changed while they were not looking: the M€ come out of
     // «Фора» itself, in the workspace, once it is back.
-    await startTransferProbe(page);
+    await startTransferProbe(page, AUTO_FLIGHT);
     await spendOneBonus(page);
-    await expect
-      .poll(() => workspaceVisible(page),
-        {timeout: 40_000, message: 'the workspace returns to finish the preparation'})
-      .toBe(true);
+    // The start workspace PAINTS again (a laid-out box, not hidden, not `display: none` — the locator's own visibility).
+    await expect(page.locator('.con-start').first(), 'the workspace returns to finish the preparation')
+      .toBeVisible({timeout: 40_000});
     // …and it returns to the DEPLOYMENT, not to the bonus stage it just left.
     await expect(page.locator('.con-start__bonusact')).toHaveCount(0);
 
@@ -268,8 +252,8 @@ test.describe('console — Head Start bonus actions', () => {
       .poll(() => page.locator('.con-res__row--megacredits .con-res__value').first().textContent(),
         {timeout: 20_000, message: 'the M€ land on the panel'})
       .toBe('506');
-    const autoFlight = await readTransferProbe(page);
-    expect(autoFlight.samples, 'the probe was alive').toBeGreaterThan(5);
+    const autoFlight = await readTransferProbe(page, AUTO_FLIGHT);
+    expect(autoFlight.samples, 'the probe was alive').toBeGreaterThan(0);
     expect(autoFlight.maxChips, 'the auto-resolved M€ flew out of «Фора» on the return')
       .toBeGreaterThan(0);
     expect(autoFlight.heldPanel[0],

@@ -7,6 +7,7 @@ import {
   waitSittingAtRest,
 } from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * SPONSORED PROJECTS (Turmoil Redux, RX40) — the ONE e2e of the card: the first law that pays the seats' CARDS WITHOUT
@@ -26,7 +27,7 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *   PART 0 (`parliament-sponsored-vote` — the same table before blue's vote): the vote panel reads BOTH payouts —
  *   the draw and the cards it would feed (the holders' count) — inside the panel, before A.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF. Screens + the storyboard under
+ * The probe is a RECORDING (`armWitness`, settled — the product's own writes). Screens + the storyboard under
  * screenshots/parliament-sponsored/<profile>/ (the 4K storyboard is trusted on the GPU only — `TM_E2E_GPU=1`).
  */
 const OUT_ROOT = path.resolve('screenshots', 'parliament-sponsored');
@@ -90,14 +91,19 @@ function writeFrameAt(frames: ReadonlyArray<CastFrame>, wall: number, preset: st
   console.log(`[sponsored ${preset}] ${name}: frame Δ${Math.round(best.wall - wall)} ms`);
 }
 
-type Sample = {t: number, wall: number, tick: boolean, receipt: boolean, phase: string, take: boolean, counts: Record<string, string>, chips: number, beat: string};
+type Sample = {t: number, receipt: boolean, phase: string, take: boolean, counts: Record<string, string>, chips: number, beat: string};
 type Probe = {samples: Array<Sample>};
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
+/**
+ * THE PROBE — armed BEFORE the gate is answered. A RECORDING (`armWitness`, settled — «the receipt never under the
+ * take» is a coexistence claim, «the count ticks on its own touchdown» an order claim), never a timer sampler; every
+ * sample is stamped on the PAGE's clock (epoch ms). The beat line reads the intake's own JS state, which no DOM write
+ * announces when it ends — so the reader is also asked on a 16 ms timer (`tickMs`, the old sampler's cadence): a
+ * change is still kept only when it CHANGES, and «the intake ended» is the first state recorded without it.
+ */
+const PROBE_KEY = 'sponsored-probe';
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__rx40: Probe};
-    w.__rx40 = {samples: []};
+  await armWitness(page, PROBE_KEY, (): Omit<Sample, 't'> => {
     const visible = (el: Element | null): boolean => {
       if (el === null) {
         return false;
@@ -113,54 +119,41 @@ async function armProbe(page: Page): Promise<void> {
       const r = el.getBoundingClientRect();
       return opacity > 0.3 && r.width > 1 && r.height > 1;
     };
-    const sample = (tick: boolean) => {
-      const receipt = document.querySelector('[data-sit-receipt]');
-      const counts: Record<string, string> = {};
-      for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-sit-receipt] [data-receipt-card]'))) {
-        counts[card.dataset.receiptCard ?? '?'] = card.dataset.receiptCount ?? '';
-      }
-      w.__rx40.samples.push({
-        t: performance.now(),
-        wall: Date.now(),
-        tick,
-        receipt: visible(receipt),
-        phase: document.querySelector('[data-table-receipt]')?.getAttribute('data-receipt-phase') ?? '',
-        take: visible(document.querySelector('.con-extdraw')),
-        counts,
-        chips: Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => visible(el)).length,
-        // The director's own state on the section root — what the sitting is doing between the take and the receipt.
-        beat: (() => {
-          const root = document.querySelector('.con-parl');
-          const intake = (window as unknown as {__conIntakeDiag?: () => {activeRuns: number, episodes: Array<{role: string, phase: string}>}}).__conIntakeDiag?.();
-          const step = document.querySelector('[data-sit-zone-step]') === null ? '' : ' step';
-          const runs = intake === undefined || intake.activeRuns === 0 ? '' : ` intake:${intake.activeRuns}[${intake.episodes.map((e) => `${e.role}:${e.phase}`).join(',')}]`;
-          return `${root?.getAttribute('data-sitting-page') ?? ''}/${root?.getAttribute('data-sitting-motion') ?? ''}/${root?.getAttribute('data-sitting-beat') ?? ''}${step}${runs}`;
-        })(),
-      });
-      if (w.__rx40.samples.length > 16000) {
-        w.__rx40.samples.splice(0, 2000);
-      }
+    const receipt = document.querySelector('[data-sit-receipt]');
+    const counts: Record<string, string> = {};
+    for (const card of Array.from(document.querySelectorAll<HTMLElement>('[data-sit-receipt] [data-receipt-card]'))) {
+      counts[card.dataset.receiptCard ?? '?'] = card.dataset.receiptCount ?? '';
+    }
+    return {
+      receipt: visible(receipt),
+      phase: document.querySelector('[data-table-receipt]')?.getAttribute('data-receipt-phase') ?? '',
+      take: visible(document.querySelector('.con-extdraw')),
+      counts,
+      chips: Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => visible(el)).length,
+      // The director's own state on the section root — what the sitting is doing between the take and the receipt.
+      beat: (() => {
+        const root = document.querySelector('.con-parl');
+        const intake = (window as unknown as {__conIntakeDiag?: () => {activeRuns: number, episodes: Array<{role: string, phase: string}>}}).__conIntakeDiag?.();
+        const step = document.querySelector('[data-sit-zone-step]') === null ? '' : ' step';
+        const runs = intake === undefined || intake.activeRuns === 0 ? '' : ` intake:${intake.activeRuns}[${intake.episodes.map((e) => `${e.role}:${e.phase}`).join(',')}]`;
+        return `${root?.getAttribute('data-sitting-page') ?? ''}/${root?.getAttribute('data-sitting-motion') ?? ''}/${root?.getAttribute('data-sitting-beat') ?? ''}${step}${runs}`;
+      })(),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true,
-      attributeFilter: ['style', 'class', 'data-receipt-phase', 'data-receipt-count']});
-    window.setInterval(() => sample(true), 16);
-  });
+  }, {settled: true, max: 20_000, tickMs: 16});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__rx40: Probe}).__rx40);
+/** Every recorded state, in order, stamped on the page's clock (epoch ms — the screencast's clock too). */
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Omit<Sample, 't'>>(page, PROBE_KEY).samples()).map((x) => ({...x.v, t: x.t}))});
 
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__rx40?: Probe, __conReady?: () => unknown};
-    return {samples: w.__rx40?.samples.slice(-16000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
-  if (evidence !== undefined) {
-    const file = testInfo.outputPath('sponsored-probe.json');
-    fs.writeFileSync(file, JSON.stringify(evidence));
-    await testInfo.attach('sponsored-probe', {path: file, contentType: 'application/json'});
-  }
+  const samples = await readProbe(page).then((p) => p.samples.slice(-16000)).catch(() => []);
+  const ready = await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()).catch(() => undefined);
+  const file = testInfo.outputPath('sponsored-probe.json');
+  fs.writeFileSync(file, JSON.stringify({samples, ready}));
+  await testInfo.attach('sponsored-probe', {path: file, contentType: 'application/json'});
 });
 
 /** Bring the sitting to its take: the announce, the verdict's A (red over the API), the take standing in the stage. */
@@ -234,14 +227,16 @@ for (const preset of PRESETS) {
       await expect(receipt, 'the receipt leaves when the wave has landed').toHaveCount(0, {timeout: 30_000});
 
       const probe = await readProbe(page);
-      const ticks = probe.samples.filter((s) => s.tick);
+      // Every recorded state (a state is kept when it CHANGES — never a count of frames).
+      const ticks = probe.samples;
+      const tOrigin = ticks[0]?.t ?? 0;
       {
         let lastKey = '';
         const lines: Array<string> = [];
         ticks.forEach((s) => {
           const key = `${s.beat} rc:${s.receipt ? 1 : 0} ph:${s.phase} take:${s.take ? 1 : 0} chips:${s.chips} ${Object.entries(s.counts).map(([k, v]) => `${k}=${v}`).join(',')}`;
           if (key !== lastKey) {
-            lines.push(`${Math.round(s.t)} ${key}`);
+            lines.push(`${Math.round(s.t - tOrigin)} ${key}`);
             lastKey = key;
           }
         });
@@ -250,11 +245,15 @@ for (const preset of PRESETS) {
       // THE TAKE FIRST: never a sample with the receipt and the take both on screen.
       expect(probe.samples.filter((s) => s.receipt && s.take).length, 'the receipt never stands under the take').toBe(0);
       // …AND NO DEAD TIME after it: the receipt stands as soon as the take's cards are in the hand (the take's beats
-      // once outlived their surface by the refusal grace — 1.5 s of an empty stage, PL-798).
-      const enterAt = ticks.find((s) => s.phase === 'enter');
-      const lastIntake = enterAt === undefined ? undefined : ticks.filter((s) => s.t < enterAt.t && s.beat.includes(' intake:')).pop();
+      // once outlived their surface by the refusal grace — 1.5 s of an empty stage, PL-798). The intake's END is the
+      // first state recorded WITHOUT it (a state is kept only when it changes, so the last state WITH it was written
+      // when the intake last changed, not when it ended).
+      const enterIdx = ticks.findIndex((s) => s.phase === 'enter');
+      const enterAt = enterIdx < 0 ? undefined : ticks[enterIdx];
+      const lastIntakeIdx = enterIdx < 0 ? -1 : ticks.slice(0, enterIdx).map((s) => s.beat.includes(' intake:')).lastIndexOf(true);
+      const lastIntake = lastIntakeIdx < 0 ? undefined : ticks[lastIntakeIdx + 1];
       if (enterAt !== undefined && lastIntake !== undefined) {
-        expect(enterAt.t - lastIntake.t, `the receipt stands right after the take's cards land (intake end ${Math.round(lastIntake.t)} → receipt ${Math.round(enterAt.t)})`).toBeLessThan(800);
+        expect(enterAt.t - lastIntake.t, `the receipt stands right after the take's cards land (intake end ${Math.round(lastIntake.t - tOrigin)} → receipt ${Math.round(enterAt.t - tOrigin)})`).toBeLessThan(800);
       }
       const firstReceipt = ticks.findIndex((s) => s.receipt);
       expect(firstReceipt, 'the receipt was painted').toBeGreaterThanOrEqual(0);
@@ -285,7 +284,8 @@ for (const preset of PRESETS) {
       const touches = [...ladder].sort((a, b) => a - b);
       expect(touches[touches.length - 1] - touches[0], 'the wave lands within 1.5 s').toBeLessThan(1500);
       // THE COUNT TICKS ON ITS OWN TOUCHDOWN: a face shows its «after» only from its token's contact on — never before.
-      const witnessT0 = await page.evaluate(() => (window as unknown as {__transferWitness?: {t0: number}}).__transferWitness?.t0 ?? 0);
+      // The transfer witness's times are ms since ITS arm; its origin on the same epoch clock the probe stamps with.
+      const witnessT0 = await page.evaluate(() => performance.timeOrigin + ((window as unknown as {__transferWitness?: {t0: number}}).__transferWitness?.t0 ?? 0));
       for (const card of RECEIVERS) {
         const shown = probe.samples.filter((s) => s.counts[card] !== undefined);
         const values = Array.from(new Set(shown.map((s) => s.counts[card])));
@@ -293,7 +293,7 @@ for (const preset of PRESETS) {
         const tickedAt = shown.find((s) => s.counts[card] === values[1])!.t;
         const landing = receiptLandings.find((end) => end.under === `receipt:${card}`)!;
         const touchedAt = witnessT0 + (landing.touched ?? landing.t);
-        expect(tickedAt, `${card} ticks on its own token's touchdown, not before (tick ${Math.round(tickedAt)} · touch ${Math.round(touchedAt)})`).toBeGreaterThanOrEqual(touchedAt - 40);
+        expect(tickedAt, `${card} ticks on its own token's touchdown, not before (tick ${Math.round(tickedAt - tOrigin)} · touch ${Math.round(touchedAt - tOrigin)})`).toBeGreaterThanOrEqual(touchedAt - 40);
       }
 
       // THE STORYBOARD (4K on the GPU): the receipt before the wave, the wave in the air, the read.
@@ -305,7 +305,7 @@ for (const preset of PRESETS) {
       await cast.stop();
       for (const [sample, name] of [[enter, '03-receipt-before-wave'], [air, '04-receipt-wave'], [read, '04b-receipt-read']] as const) {
         if (sample !== undefined) {
-          writeFrameAt(cast.frames, sample.wall, preset.id, name);
+          writeFrameAt(cast.frames, sample.t, preset.id, name);
         }
       }
 
@@ -340,14 +340,23 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-extdraw').count() === 0, {tries: 6, settleMs: 1800}), 'taken').toBe(true);
       const receipt = page.locator('[data-sit-receipt]');
       await expect(receipt.locator('[data-receipt-card]'), 'eight faces').toHaveCount(8, {timeout: 30_000});
-      // ONE ROW, inside the pane: every face's box within the pane's, all on one line.
-      await expect.poll(async () => receipt.evaluate((pane) => {
+      // ONE ROW, inside the pane: every face's box within the pane's, all on one line. The receipt is a TRANSIENT (it
+      // leaves once its wave has landed), so its layout is RECORDED (`armWitness`, settled — a painted state, never a
+      // pose between two writes of one task) and asked after: the row stood whole.
+      const fit = await armWitness(page, 'sponsored-eight-fit', (): string => {
+        const pane = document.querySelector('[data-sit-receipt]');
+        if (pane === null) {
+          return 'no receipt';
+        }
         const box = pane.getBoundingClientRect();
         const faces = Array.from(pane.querySelectorAll('[data-receipt-card]')).map((el) => el.getBoundingClientRect());
         const inside = faces.every((r) => r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1);
         const oneRow = faces.every((r) => Math.abs(r.top - faces[0].top) < 2);
-        return inside && oneRow ? 'fits' : `faces ${faces.map((r) => `${Math.round(r.left)},${Math.round(r.top)}-${Math.round(r.right)},${Math.round(r.bottom)}`).join(' ')} in ${Math.round(box.left)},${Math.round(box.top)}-${Math.round(box.right)},${Math.round(box.bottom)}`;
-      }), {timeout: 10_000, message: 'eight faces in one row inside the pane'}).toBe('fits');
+        return faces.length === 8 && inside && oneRow ? 'fits' : `faces ${faces.map((r) => `${Math.round(r.left)},${Math.round(r.top)}-${Math.round(r.right)},${Math.round(r.bottom)}`).join(' ')} in ${Math.round(box.left)},${Math.round(box.top)}-${Math.round(box.right)},${Math.round(box.bottom)}`;
+      }, {settled: true});
+      await expect.poll(async () => await fit.ever((v) => v === 'fits') ? 'fits' : (await fit.last() ?? 'no read'),
+        {timeout: 10_000, message: 'eight faces in one row inside the pane'}).toBe('fits');
+      await fit.stop();
       // EVERY FACE WITH ITS PICTURE: the art was warmed at the seed, so the faces paint it while the pane opens —
       // never a row of empty art windows over the payout (the first 1080 frame had three).
       const artFrom = Date.now();

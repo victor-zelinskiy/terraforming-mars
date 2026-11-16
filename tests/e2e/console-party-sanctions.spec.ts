@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixture, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
+import {bootFixture, fetchPlayerModel, focusCard, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
+import type {ObservedSample} from './observeCore';
 
 /**
  * TR12 «ПАРТИЙНЫЕ САНКЦИИ» — THE SUPPORT-AREA MODE, the staged party pick of an AREA
@@ -73,8 +76,6 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
 type Series = Array<[number, number]>;
 type Probe = {
   samples: number;
-  /** Interval (task) samples only — the probe's own liveness floor. */
-  ticks: number;
   steps: Array<string>;
   crumbMisses: Array<string>;
   parlOutsideHand: boolean;
@@ -83,107 +84,134 @@ type Probe = {
   ownHead: boolean;
   degraded: Array<string>;
   stranded: boolean;
-  /** Task samples: the cubes Mars First's plaque draws · the supply's shown count · the step the viewer's real cube stands on · the rail's rating. */
+  /** Painted states: the cubes Mars First's plaque draws · the supply's shown count · the step the viewer's real cube stands on · the rail's rating. */
   places: Series;
   pool: Series;
   cube: Series;
   tr: Series;
-  /** The neutral cubes' proxies seen in flight (task samples) and the marker's. */
+  /** The neutral cubes' proxies seen in flight (painted states) and the marker's. */
   neutralFlights: number;
   markerFlights: number;
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/** What one painted state shows (the reader's observation). */
+type Seen = {
+  head: {root: string, subjects: Array<string>, steps: Array<string>} | null,
+  parls: Array<{outside: boolean, ownHead: boolean, degraded: Array<string>}>,
+  ws: number, stranded: boolean,
+  places: number | null, pool: number | null, cubeSteps: Array<number>, tr: string,
+  neutralFlights: number, markerFlights: number,
+};
+const PROBE_WITNESS = 'tr12-sanctions';
+
+/**
+ * THE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the door, replace-proof): the reader returns what stands
+ * now, every distinct state is kept with the page's time and the folding (the crumb's tail, the series) is `foldProbe`'s.
+ * The claims are about painted states and their ORDER, so the record is `settled` — the state a task LEAVES (the old
+ * sampler made its frame claims on its timer ticks only: a microtask sees states never painted).
+ */
 async function armProbe(page: Page, viewer: string): Promise<void> {
-  await page.evaluate(({viewer, card, root, mars}) => {
-    const w = window as unknown as {__tr12: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false,
-      degraded: [], stranded: false, places: [], pool: [], cube: [], tr: [], neutralFlights: 0, markerFlights: 0,
-    };
-    w.__tr12 = p;
-    const t0 = Date.now();
+  await armWitness<Seen, {viewer: string, mars: string}>(page, PROBE_WITNESS, ({viewer, mars}) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Series, value: number | undefined) => {
-      if (value !== undefined && Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
+    const hand = document.querySelector('.con-hand');
+    const head = hand?.querySelector('.con-wshead') ?? null;
+    const plaque = document.querySelector(`[data-parl-support="${mars}"]`);
+    const pool = document.querySelector('[data-parl-neutral-cube]')?.getAttribute('data-count');
+    const cubeSteps: Array<number> = [];
+    for (let step = 0; step <= 12; step++) {
+      const cube = document.querySelector<HTMLElement>(`[data-agenda-markers="${step}"] [data-agenda-cube="${viewer}"]`);
+      if (cube !== null && !cube.classList.contains('con-parl__agenda-cube--hidden') && cube.getBoundingClientRect().width > 1) {
+        cubeSteps.push(step);
       }
+    }
+    let neutralFlights = 0;
+    let markerFlights = 0;
+    document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
+      if (getComputedStyle(el).visibility === 'hidden' || el.getBoundingClientRect().width < 2) {
+        return;
+      }
+      if (el.classList.contains('con-parl__flight--agenda')) {
+        markerFlights++;
+      } else {
+        neutralFlights++;
+      }
+    });
+    return {
+      head: head === null ? null : {
+        root: text(head.querySelector('.con-wshead__root')),
+        subjects: Array.from(head.querySelectorAll('.con-wshead__subject')).map(text),
+        steps: Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((x) => x !== ''),
+      },
+      parls: Array.from(document.querySelectorAll('.con-parl')).map((el) => ({
+        outside: el.closest('.con-hand') === null || el.classList.contains('con-ws'),
+        ownHead: el.querySelector('.con-wshead') !== null,
+        degraded: ['data-parl-support-degraded', 'data-parl-grant-degraded', 'data-renewal-degraded']
+          .map((attr) => el.getAttribute(attr)).filter((x): x is string => x !== null),
+      })),
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
+      places: plaque === null ? null : plaque.querySelectorAll('.con-pseal__support-place--on').length,
+      pool: pool === null || pool === undefined ? null : Number(pool),
+      cubeSteps,
+      tr: text(document.querySelector('.con-res .con-score__value--tr')),
+      neutralFlights,
+      markerFlights,
     };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const hand = document.querySelector('.con-hand');
-      const head = hand?.querySelector('.con-wshead') ?? null;
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-      }
-      const parls = document.querySelectorAll('.con-parl');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      parls.forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        }
-        if (el.querySelector('.con-wshead') !== null) {
-          p.ownHead = true;
-        }
-        for (const attr of ['data-parl-support-degraded', 'data-parl-grant-degraded', 'data-renewal-degraded']) {
-          const degraded = el.getAttribute(attr);
-          if (degraded !== null && !p.degraded.includes(degraded)) {
-            p.degraded.push(degraded);
-          }
-        }
-      });
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      if (!tick) {
-        return; // the frame claims below are made on the task samples only (a microtask sees states never painted)
-      }
-      const plaque = document.querySelector(`[data-parl-support="${mars}"]`);
-      if (plaque !== null) {
-        note(p.places, plaque.querySelectorAll('.con-pseal__support-place--on').length);
-      }
-      const pool = document.querySelector('[data-parl-neutral-cube]')?.getAttribute('data-count');
-      note(p.pool, pool === null || pool === undefined ? undefined : Number(pool));
-      for (let step = 0; step <= 12; step++) {
-        const cube = document.querySelector<HTMLElement>(`[data-agenda-markers="${step}"] [data-agenda-cube="${viewer}"]`);
-        if (cube !== null && !cube.classList.contains('con-parl__agenda-cube--hidden') && cube.getBoundingClientRect().width > 1) {
-          note(p.cube, step);
-        }
-      }
-      note(p.tr, Number(text(document.querySelector('.con-res .con-score__value--tr'))));
-      document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
-        if (getComputedStyle(el).visibility === 'hidden' || el.getBoundingClientRect().width < 2) {
-          return;
-        }
-        if (el.classList.contains('con-parl__flight--agenda')) {
-          p.markerFlights++;
-        } else {
-          p.neutralFlights++;
-        }
-      });
-    };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  }, {viewer, card: CARD_RU, root: ROOT_RU, mars: MARS});
+  }, {args: {viewer, mars: MARS}, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr12: Probe}).__tr12);
+/** The record folded into the flow's facts — times are the PAGE's, from the arm. */
+function foldProbe(samples: ReadonlyArray<ObservedSample<Seen>>): Probe {
+  const p: Probe = {
+    samples: samples.length, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false,
+    degraded: [], stranded: false, places: [], pool: [], cube: [], tr: [], neutralFlights: 0, markerFlights: 0,
+  };
+  const t0 = samples[0]?.t ?? 0;
+  for (const s of samples) {
+    const now = s.t - t0;
+    const v = s.v;
+    const note = (series: Series, value: number | null) => {
+      if (value !== null && Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
+        series.push([now, value]);
+      }
+    };
+    if (v.head !== null) {
+      if (v.head.root.toLowerCase() !== ROOT_RU.toLowerCase() || !v.head.subjects.some((x) => x.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${now}ms root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+        }
+      }
+      for (const step of v.head.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    p.parlMax = Math.max(p.parlMax, v.parls.length);
+    for (const parl of v.parls) {
+      p.parlOutsideHand ||= parl.outside;
+      p.ownHead ||= parl.ownHead;
+      for (const degraded of parl.degraded) {
+        if (!p.degraded.includes(degraded)) {
+          p.degraded.push(degraded);
+        }
+      }
+    }
+    p.wsMax = Math.max(p.wsMax, v.ws);
+    p.stranded ||= v.stranded;
+    note(p.places, v.places);
+    note(p.pool, v.pool);
+    for (const step of v.cubeSteps) {
+      note(p.cube, step);
+    }
+    note(p.tr, Number(v.tr));
+    p.neutralFlights += v.neutralFlights;
+    p.markerFlights += v.markerFlights;
+  }
+  return p;
+}
+
+const readProbe = async (page: Page): Promise<Probe> => foldProbe(await witnessOf<Seen>(page, PROBE_WITNESS).stop());
 
 const composer = '.con-composer--play';
 /** The support-area mode ON SCREEN. After B the composer still declares its hosted step and PL-127 keeps the Parliament
@@ -195,24 +223,12 @@ const supportMode = '.con-hand .con-parl--embedded.con-parl--support:not(.con-pa
 const cursorParty = (page: Page) => page.evaluate(() =>
   document.querySelector('[data-parl-support-reading]')?.getAttribute('data-support-party') ?? undefined);
 
-/** Every party plaque's box (rounded) — the ring the cursor walks; nothing in it may move. */
-const plaqueBoxes = (page: Page) => page.evaluate(async () => {
-  const pause = () => new Promise((resolve) => setTimeout(resolve, 100));
-  const read = () => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__party[data-party]'))
-    .map((el) => {
-      const r = el.getBoundingClientRect();
-      return `${el.getAttribute('data-party')}:${[r.left, r.top, r.width, r.height].map(Math.round).join(',')}`;
-    }).sort().join('|');
-  let last = read();
-  let equal = 0;
-  for (let i = 0; i < 40 && equal < 2; i++) {
-    await pause();
-    const now = read();
-    equal = now === last ? equal + 1 : 0;
-    last = now;
-  }
-  return last;
-});
+/** Every party plaque's box (rounded), read AT REST (C — `readSettled`) — the ring the cursor walks; nothing in it may move. */
+const plaqueBoxes = (page: Page) => readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__party[data-party]'))
+  .map((el) => {
+    const r = el.getBoundingClientRect();
+    return `${el.getAttribute('data-party')}:${[r.left, r.top, r.width, r.height].map(Math.round).join(',')}`;
+  }).sort().join('|')), {message: 'the party plaques\' ring'});
 
 /** Walk the cursor to `party` down / up the opposition COLUMN (the hall's own geometry) — one press at a time, each VERIFIED by the cursor itself (never a blind count). */
 async function moveCursorTo(page: Page, party: string, dir: 'ArrowDown' | 'ArrowUp'): Promise<void> {
@@ -231,10 +247,7 @@ async function moveCursorTo(page: Page, party: string, dir: 'ArrowDown' | 'Arrow
 async function chooseParty(page: Page): Promise<void> {
   const taken = () => page.evaluate((sel) =>
     document.querySelector('.con-composer--submitting, .con-composer--landing') !== null || document.querySelector(sel) !== null, supportMode);
-  for (let attempt = 0; attempt < 3 && !await taken(); attempt++) {
-    await press(page, 'Enter', 300);
-    await expect.poll(taken, {timeout: 2_500}).toBe(true).catch(() => undefined);
-  }
+  await pressUntil(page, 'Enter', taken, {tries: 3, settleMs: 2_500});
   await page.locator(supportMode).waitFor({timeout: 30_000});
   await expect(page.locator(composer), 'the composer left with the landing scene').toHaveCount(0, {timeout: 15_000});
   await settle(page, {timeoutMs: 20_000});
@@ -317,10 +330,7 @@ for (const preset of PRESETS) {
       const backTaken = () => page.evaluate((sel) =>
         document.querySelector(sel) !== null || document.querySelector('.con-parl:not(.con-parl--warm)') === null ||
         document.querySelector('.con-parl[data-parl-leaving]') !== null, composer);
-      for (let attempt = 0; attempt < 3 && !await backTaken(); attempt++) {
-        await press(page, 'Escape', 300);
-        await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
-      }
+      await pressUntil(page, 'Escape', backTaken, {tries: 3, settleMs: 3_000});
       await expect(page.locator(composer), 'B restores the composer').toHaveCount(1, {timeout: 15_000});
       // …the hosted step LEFT. The composer still declares its hosted step, so the Parliament's surface is WARMED under it
       // again (PL-127: mounted invisible, `.con-parl--warm`) — that instance is not the step coming back.
@@ -332,10 +342,7 @@ for (const preset of PRESETS) {
       // ── 4. in again; A on Mars First is the play's ONE POST, addressed to the card ──
       await chooseParty(page);
       await moveCursorTo(page, MARS, 'ArrowDown');
-      for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-        await press(page, 'Enter', 300);
-        await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
-      }
+      await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 3_000});
       expect(posts.map((p) => new URL(p.url).pathname), 'the play is ONE batch POST').toEqual(['/player/input-batch']);
       const sent = JSON.parse(posts[0].body) as {responses?: Array<Record<string, unknown>>} | Array<Record<string, unknown>>;
       const responses = Array.isArray(sent) ? sent : sent.responses ?? [];
@@ -368,7 +375,8 @@ for (const preset of PRESETS) {
         flights: [probe.neutralFlights, probe.markerFlights]});
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/party-sanctions-${preset.id}.json`, JSON.stringify(probe, null, 1));
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+      // The recorder's liveness only (a dead recorder): it keeps distinct STATES, never frames.
+      expect(probe.samples, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(0);
 
       // ── 2. one flow: the crumb, the one instance ──
       expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);

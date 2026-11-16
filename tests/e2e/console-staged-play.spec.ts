@@ -1,5 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootIntoGame, bootFixture, focusCard, press, placeTile, soloGameConfig, fetchPlayerModel, playCardFromHand, openCardActions, openActionFocus, walkToSpace, commitFocusedSpace} from './consoleStart';
+import {bootIntoGame, bootFixture, focusCard, press, placeTile, settle, soloGameConfig, fetchPlayerModel, playCardFromHand, openCardActions, openActionFocus, walkToSpace, commitFocusedSpace} from './consoleStart';
+import {armWitness} from './witness';
 import {TileType} from '../../src/common/TileType';
 
 /**
@@ -86,44 +87,29 @@ test.describe('staged play — the cell is the last reversible step', () => {
     await openPlayComposer(page, CARD);
     const ageBeforePlay = await gameAge(request, playerId);
 
-    // THE CEREMONY WITNESS, armed BEFORE the press (MutationObserver +
-    // setInterval — never rAF, which stalls headless): the staged landing must
-    // really play (a hero proxy flies onto the receiving stage) before the
-    // board takes over. Without this the spec passes on a silent no-flight
-    // degrade too, which is exactly the regression it must catch.
-    await page.evaluate(() => {
-      const w = window as unknown as {__stagedCeremony: {proxy: number, recv: number, samples: number}};
-      w.__stagedCeremony = {proxy: 0, recv: 0, samples: 0};
-      const tick = () => {
-        w.__stagedCeremony.samples++;
-        if (document.querySelector('.con-played-hero__proxy') !== null) {
-          w.__stagedCeremony.proxy++;
-        }
-        if (document.querySelector('.con-recv') !== null) {
-          w.__stagedCeremony.recv++;
-        }
-      };
-      const iv = setInterval(tick, 40);
-      const mo = new MutationObserver(tick);
-      mo.observe(document.body, {childList: true, subtree: true});
-      setTimeout(() => {
-        clearInterval(iv);
-        mo.disconnect();
-      }, 15_000);
-    });
+    // THE CEREMONY WITNESS, armed BEFORE the press (FLAKE ZERO — a RECORD of the
+    // product's own writes, `armWitness`: a sampler could sleep through the
+    // flight, the record cannot): the staged landing must really play (a hero
+    // proxy flies onto the receiving stage) before the board takes over.
+    // Without this the spec passes on a silent no-flight degrade too, which is
+    // exactly the regression it must catch.
+    const ceremony = await armWitness(page, 'staged-ceremony', () => ({
+      proxy: document.querySelector('.con-played-hero__proxy') !== null,
+      recv: document.querySelector('.con-recv') !== null,
+    }));
     await press(page, 'Enter', 900); // the composer CTA (AUTO payment → ready)
 
     await expect(panel, 'the staged placement never took the board').toContainText(
       /размещение тайла/i, {timeout: 30_000});
     await expect(composer, 'the composer must yield to the board').toHaveCount(0);
 
-    const ceremony = await page.evaluate(() =>
-      (window as unknown as {__stagedCeremony: {proxy: number, recv: number, samples: number}}).__stagedCeremony);
-    expect(ceremony.samples, 'the ceremony probe never ran').toBeGreaterThan(5);
-    expect(ceremony.proxy, `the staged landing ceremony never flew a card (samples=${ceremony.samples})`)
-      .toBeGreaterThan(0);
-    expect(ceremony.recv, `the receiving stage never presented (samples=${ceremony.samples})`)
-      .toBeGreaterThan(0);
+    const seen = await ceremony.stop();
+    // (a record keeps distinct states, not ticks — only a recorder that never ran has none)
+    expect(seen.length, 'the ceremony probe never ran').toBeGreaterThan(0);
+    expect(seen.some((x) => x.v.proxy), `the staged landing ceremony never flew a card (states=${seen.length})`)
+      .toBe(true);
+    expect(seen.some((x) => x.v.recv), `the receiving stage never presented (states=${seen.length})`)
+      .toBe(true);
 
     // NOTHING was submitted: the server's change counter stands still and the
     // card is still in the hand — the reversibility is a server-side fact,
@@ -158,7 +144,7 @@ test.describe('staged play — the cell is the last reversible step', () => {
 
     // …and the flow ENDED ON THE BOARD: no hand workspace came back for a
     // second confirm or a result screen.
-    await page.waitForTimeout(4_000); // let the tile hero + rewards settle
+    await settle(page, {timeoutMs: 30_000}); // the tile hero + rewards settle
     await expect(page.locator('.con-hand')).toHaveCount(0);
     await expect(composer).toHaveCount(0);
   });
@@ -333,7 +319,7 @@ test.describe('staged play — the cell is the last reversible step', () => {
     // The card itself places nothing on play — an ordinary (non-staged) play.
     expect(await playCardFromHand(page, 'Aquifer Pumping'),
       'Aquifer Pumping must have been played').toBe(true);
-    await page.waitForTimeout(4_000); // the landing story settles
+    await settle(page, {timeoutMs: 30_000}); // the landing story settles
 
     // ── activate: Действия карт → the action's composer ──────────────────
     await openCardActions(page);
@@ -368,7 +354,7 @@ test.describe('staged play — the cell is the last reversible step', () => {
       message: 'the committed action never reached the server',
       timeout: 30_000,
     }).toBeGreaterThan(ageBefore);
-    await page.waitForTimeout(3_000); // the tile hero settles
+    await settle(page, {timeoutMs: 30_000}); // the tile hero settles
     await expect(workspace, 'the flow must end on the board — no workspace bow').toHaveCount(0);
   });
 });

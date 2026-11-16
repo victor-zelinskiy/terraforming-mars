@@ -6,6 +6,7 @@ import {
   openZoomViewer, placeTile, placementState, press, pressUntil, settle, waitForBoardHome, walkToSpace,
 } from './consoleStart';
 import {closeSittingAs, expectDossierIsRules, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * BIODOME CONTEST (Turmoil Redux, RX03) — «plants for everyone by influence +
@@ -98,9 +99,9 @@ const yieldReadings = (page: Page, scope: string) => page.evaluate((sel) => {
   }));
 }, scope);
 
-/** Nothing of the workspace sticks out of the viewport and no block spills. */
+/** Nothing of the workspace sticks out of the viewport and no block spills — read AT REST (`readSettled`). */
 async function expectFits(page: Page, label: string, rootSelector = '.con-parl'): Promise<void> {
-  const problems = await page.evaluate((rootSel) => {
+  const problems = await readSettled(page, () => page.evaluate((rootSel) => {
     const root = document.querySelector(rootSel);
     if (root === null) {
       return ['no root'];
@@ -143,13 +144,13 @@ async function expectFits(page: Page, label: string, rootSelector = '.con-parl')
       }
     }
     return out;
-  }, rootSelector);
+  }, rootSelector), {message: `${label}: the fit`});
   expect(problems, `${label}: layout problems`).toEqual([]);
 }
 
-/** The mandatory plate reads WHOLE: no ellipsized line, inside the viewport. */
+/** The mandatory plate reads WHOLE: no ellipsized line, inside the viewport — read AT REST (`readSettled`). */
 async function expectPlateReadsWhole(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => page.evaluate(() => {
     const plate = document.querySelector<HTMLElement>('.con-mandatory');
     if (plate === null) {
       return ['no plate'];
@@ -165,7 +166,7 @@ async function expectPlateReadsWhole(page: Page, label: string): Promise<void> {
       }
     }
     return out;
-  });
+  }), {message: `${label}: the plate`});
   expect(problems, `${label}: the plate does not read whole`).toEqual([]);
 }
 

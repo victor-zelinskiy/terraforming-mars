@@ -1,7 +1,8 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, waitForBoardHome} from './consoleStart';
+import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
+import {armWitness, pageNow} from './witness';
 
 /**
  * THE «ПОЧЕМУ»-ZONE — the flagship regression of the provenance iteration:
@@ -66,13 +67,43 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-/** Keep the compositor producing frames (headless rAF starves on quiet screens). */
-async function pumpFrames(page: Page, ms: number): Promise<void> {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-    await page.waitForTimeout(100);
+type Box = {x: number, y: number, width: number, height: number};
+/** The positive card as it stands: at REST or not, and its band's, zone's and own boxes. */
+type StandingCard = {rest: boolean, band: Box | null, why: Box | null, card: Box};
+
+/**
+ * THE CARD STANDS AT REST — read in the frame it does (a page reader, self-contained: it is serialized into the page).
+ * At rest = the opacity chain at 1 and no FINITE animation left on the card or an ancestor (its entrance is over — the
+ * product's own motion, never a guessed interval); the card's own TTL bar is a descendant and does not count. The boxes
+ * are taken in THAT sample: a card leaves by its own TTL — read later, it may be gone.
+ */
+function readStandingCard(sel: string): StandingCard | null {
+  const card = document.querySelector<HTMLElement>(sel);
+  if (card === null) {
+    return null;
   }
+  let opacity = 1;
+  for (let a: HTMLElement | null = card; a !== null; a = a.parentElement) {
+    opacity *= Number(getComputedStyle(a).opacity);
+  }
+  const moving = document.getAnimations().some((anim) => {
+    const target = (anim.effect as KeyframeEffect | null)?.target ?? null;
+    return target !== null && target.contains(card) && (anim.playState === 'running' || anim.pending) &&
+      anim.effect?.getComputedTiming().endTime !== Infinity;
+  });
+  const box = (el: Element | null) => {
+    if (el === null) {
+      return null;
+    }
+    const r = el.getBoundingClientRect();
+    return {x: r.x, y: r.y, width: r.width, height: r.height};
+  };
+  return {
+    rest: opacity > 0.999 && !moving,
+    band: box(card.querySelector('.con-notif__you')),
+    why: box(card.querySelector('.con-notif__why')),
+    card: box(card)!,
+  };
 }
 
 type WireMenu = {
@@ -167,15 +198,23 @@ for (const profile of PROFILES) {
 
       await openConsole(page, viewer, '');
       await waitForBoardHome(page, 25);
-      await pumpFrames(page, 2_500); // the seeded stream diffs silently
+      // The card is RECORDED from before the act (FLAKE ZERO — `armWitness`; its frame tick also keeps the compositor
+      // painting on a quiet headless screen) — and the seeded stream has diffed silently once the feed stands quiet.
+      const standing = await armWitness(page, 'notification-cause-card', readStandingCard, {args: '.con-notif--sign-positive'});
+      await settle(page, {timeoutMs: 30_000, notifications: true});
 
       // ── the ACT: the rival builds a CITY (standard project) ────────────
+      const actFrom = await pageNow(page);
       await rivalBuildsCity(request, rival);
 
       // ── the CARD: one card, band first, the zone right under it ────────
       const card = page.locator('.con-notif--sign-positive');
       await card.waitFor({timeout: 30_000});
-      await pumpFrames(page, 900);
+      // …read in the frame its entrance is over (the record says when).
+      await expect.poll(async () => (await standing.samples()).some((x) => x.t >= actFrom && x.v !== null && x.v.rest),
+        {timeout: 15_000, message: 'the payout card comes to rest'}).toBe(true);
+      const atRest = (await standing.samples()).find((x) => x.t >= actFrom && x.v !== null && x.v.rest)!.v!;
+      await standing.stop();
       await shoot(page, `${profile.tag}-01-tharsis-payout`);
 
       // WHAT leads: the band states the viewer's own production gain.
@@ -199,8 +238,8 @@ for (const profile of PROFILES) {
 
       // The zone BELONGS to the band geometrically: it sits directly under it
       // (no other block between), left-aligned into the band's column.
-      const bandBox = await band.boundingBox();
-      const whyBox = await why.boundingBox();
+      const bandBox = atRest.band;
+      const whyBox = atRest.why;
       expect(bandBox, 'band measured').toBeTruthy();
       expect(whyBox, 'zone measured').toBeTruthy();
       expect(whyBox!.y, 'the zone hangs directly off the band').toBeGreaterThan(bandBox!.y);
@@ -209,7 +248,7 @@ for (const profile of PROFILES) {
 
       // No truncation of the long RU corp name: the zone's content fits the
       // card (nothing overflows the card's box horizontally).
-      const cardBox = await card.boundingBox();
+      const cardBox = atRest.card;
       expect(whyBox!.x + whyBox!.width, 'the zone stays inside the card')
         .toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
 

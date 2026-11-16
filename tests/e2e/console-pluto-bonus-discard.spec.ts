@@ -1,7 +1,8 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, openMandatoryAnnounce, reloadConsole} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * PLUTO'S PAYOUT CLOSES INSIDE THE REVEAL MODAL — ONE COLONY AT A TIME.
@@ -125,6 +126,20 @@ async function injectPayout(page: Page, cubes: number): Promise<void> {
   });
 }
 
+/** The live colony's slot — its FOOTPRINT (the socket a taken card leaves must keep it). */
+async function activeSlotBox(page: Page): Promise<{w: number, h: number}> {
+  return page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-slot').evaluate((el) => {
+    const b = el.getBoundingClientRect(); return {w: Math.round(b.width), h: Math.round(b.height)};
+  });
+}
+
+/** The live colony's place on the table — where the re-centring glide leaves it. */
+async function activeZonePose(page: Page): Promise<{x: number, y: number}> {
+  return page.locator('.con-reveal__bonus-zone--active').evaluate((el) => {
+    const b = el.getBoundingClientRect(); return {x: Math.round(b.left), y: Math.round(b.top)};
+  });
+}
+
 test('the merged payout closes with its MANDATORY discard step', async ({page, request}) => {
   test.setTimeout(150_000);
   const playerId = await createGame(request);
@@ -147,7 +162,9 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   // stage's vertical budget. The ZONES are the payout's own layout either way,
   // so they are what says «the stage is up».
   await page.waitForSelector('.con-reveal__bonus-zone', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(3000); // the entrance + the card's own turn settle
+  // The entrance + the card's own turn are over when the reveal says its card can be TAKEN (`data-take`: arriving /
+  // a turn in flight read «held»).
+  await expect(page.locator('.con-reveal'), 'the payout stands ready to take').toHaveAttribute('data-take', 'ready', {timeout: 20_000});
   await shoot(page, 'locked');
   /** The payout's closing step, wherever it is hosted (one bar when embedded). */
   const closer = page.locator('.con-reveal__namebar .con-cards__verdict, .con-reveal__closer-cta');
@@ -192,18 +209,16 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   //     that selector silently RE-POINTS once the income cards are taken (its
   //     first match becomes the bonus slot), so it compared two different
   //     elements and reported the difference as a resize.
-  const zoneSlotBox = () => page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-slot')
-    .evaluate((el) => {
-      const b = el.getBoundingClientRect(); return {w: Math.round(b.width), h: Math.round(b.height)};
-    });
-  const before = await zoneSlotBox();
+  //     Both sides are read AT REST (a comparison is as settled as its least settled side) — and without `settle`:
+  //     inside the payout's chain a blocking hold legitimately stands until the discard is answered.
+  const before = await readSettled(page, () => activeSlotBox(page), {settle: false, message: 'the live slot before the take'});
 
   // 5 · B is the take-all shortcut, never an exit.
   await page.keyboard.press('Escape');
   // …and once every card is taken the SAME bar becomes the closing step.
   await expect(closer).toContainText(/Выбрать карту для сброса/i, {timeout: 20_000});
   await expect(page.locator('.con-reveal__closer-cta--locked')).toHaveCount(0);
-  await page.waitForTimeout(900); // the re-centring glide settles
+  await readSettled(page, () => activeZonePose(page), {settle: false, message: 'the re-centring glide settles'});
   await shoot(page, 'ready');
 
   // …and the taken bonus card left an EMPTY SOCKET at the same size — never its
@@ -212,12 +227,12 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   // so the row never re-centres under the places that are still waiting.)
   await expect.poll(() => page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-socket').count(), {message: 'the taken card leaves its socket'}).toBe(1);
   await expect.poll(() => page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-cover').count(), {message: 'the resolved colony must NOT show a card back'}).toBe(0);
-  const after = await zoneSlotBox();
+  const after = await readSettled(page, () => activeSlotBox(page), {settle: false, message: 'the socket after the take'});
   expect(after, `the socket keeps the card's footprint (${JSON.stringify(before)} → ${JSON.stringify(after)})`)
     .toEqual(before);
   await expect.poll(() => page.locator('.con-reveal').count(), {message: 'the modal must NOT be dismissable'}).toBe(1);
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(600);
+  // (a press the product may swallow on purpose — `absorbed: 'allow'`; it returns once the console is quiet again)
+  await press(page, 'Escape', 600, {absorbed: 'allow'});
   await expect.poll(() => page.locator('.con-reveal').count(), {message: 'a second B must not close it either'}).toBe(1);
 
   // 6 · unlocked, and the command bar's A now IS this colony's step (singular).
@@ -225,9 +240,8 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   await expect(page.locator('.con-cmdbar')).toContainText(/Выбрать карту для сброса/i);
 
   // 7 · pressing it hands over to the single-select hand pick.
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(1200);
-  await shoot(page, 'handed-over');
+  await press(page, 'Enter', 1200);
   // The table PARKS under the receded stage (colony polish 1) — out of sight, never unmounted.
   await expect.poll(() => page.locator('.con-reveal:visible').count(), {message: 'the step must release the modal'}).toBe(0);
+  await shoot(page, 'handed-over');
 });

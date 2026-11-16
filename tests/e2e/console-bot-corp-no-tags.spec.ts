@@ -1,5 +1,6 @@
 import {expect, test, Page} from './consoleTest';
-import {bootSeededGame, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootSeededGame, openInfoPlayedTable, press, pressUntil, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * TYCHO MAGNETICS (C46) — the emptiest face in the set: no starting tags, no
@@ -39,9 +40,7 @@ test.describe('console: the MarsBot corporation whose whole rule is a bonus card
     await key(page, 'KeyY', 1200);
     await expect(page.locator('.con-info'), `info mode must open; visible: ${(await visibleSurfaces(page)).join(', ')}`).toBeVisible();
     const corpLine = page.locator('.con-info__corp--bot');
-    for (let i = 0; i < 4 && await corpLine.count() === 0; i++) {
-      await key(page, 'KeyE', 900);
-    }
+    await pressUntil(page, 'KeyE', async () => await corpLine.count() > 0, {tries: 4, settleMs: 900});
     await expect(corpLine).toContainText(/tycho/i);
 
     // The bot's «РАЗЫГРАНО» — the corporation slot is a real `.pcard`.
@@ -57,8 +56,9 @@ test.describe('console: the MarsBot corporation whose whole rule is a bonus card
     // The mechanics zone is the only printed content, and it must hold height.
     const mech = slot.locator('.pcard__mech');
     await expect(mech).toBeVisible();
-    const cardRect = await slot.boundingBox();
-    const mechRect = await mech.boundingBox();
+    // Both boxes read AT REST (C — `readSettled`: the same answer twice, a frame apart).
+    const {cardRect, mechRect} = await readSettled(page, async () => ({cardRect: await slot.boundingBox(), mechRect: await mech.boundingBox()}),
+      {message: 'the face and its mechanics zone'});
     expect(cardRect, 'the face is laid out').not.toBeNull();
     expect(mechRect, 'the mechanics zone is laid out').not.toBeNull();
     expect(mechRect!.height, `the mechanics zone must hold real height, saw ${mechRect!.height}`).toBeGreaterThan(24);
@@ -73,7 +73,7 @@ test.describe('console: the MarsBot corporation whose whole rule is a bonus card
     // left-align BOTH lines, hanging the short box off the left edge.
     // Measured on the group's CONTENT box (the corner reserve is real padding),
     // per rendered LINE — so the claim holds whether the row wraps or not.
-    const lines = await slot.locator('.pcard-mech-group').last().evaluate((group) => {
+    const lines = await readSettled(page, () => slot.locator('.pcard-mech-group').last().evaluate((group) => {
       const style = getComputedStyle(group);
       const box = group.getBoundingClientRect();
       const left = box.left + Number.parseFloat(style.paddingLeft);
@@ -91,7 +91,7 @@ test.describe('console: the MarsBot corporation whose whole rule is a bonus card
         drift: Math.abs((line.min + line.max) / 2 - (left + right) / 2),
         width: line.max - line.min,
       }));
-    });
+    }), {message: 'the mechanics group\'s lines'});
     expect(lines.length, `the plate makes the action box fill a line of its own, so the row wraps: ${JSON.stringify(lines)}`).toBe(2);
     for (const [i, line] of lines.entries()) {
       expect(line.drift, `line ${i} (${line.width.toFixed(1)}px of ink) must sit on the row's centre, drifted ${line.drift.toFixed(1)}px`)

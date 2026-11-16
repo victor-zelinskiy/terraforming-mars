@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, focusCard, openActionFocus, openCardActions, press, settle, walkFocusUntil} from './consoleStart';
+import {bootFixtureSeats, cinematicBeat, focusCard, openActionFocus, openCardActions, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
 import {armFocusWitness, focusWitness, focusWitnessSummary} from './focusWitness';
+import {readSettled} from './settledRead';
 
 /**
  * «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ · ЕДИНСТВЕННАЯ ЦЕЛЬ» — the pre-select stand of T14 (ledger CC,
@@ -148,9 +149,8 @@ async function openPlayComposer(page: Page, card: string): Promise<void> {
   await settle(page);
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
   expect(await focusCard(page, card, slots * 2 + 6), `never focused «${card}» in the hand`).toBe(true);
-  for (let i = 0; i < 3 && await page.locator(PLAY).count() === 0; i++) {
-    await press(page, 'Enter', 900);
-  }
+  // act → verify → retry: A again only while no composer stood up within the press's window.
+  await pressUntil(page, 'Enter', async () => await page.locator(PLAY).count() > 0, {tries: 3, settleMs: 900});
   await expect(page.locator(PLAY), 'the play composer stands').toHaveCount(1);
   await settle(page);
 }
@@ -180,7 +180,8 @@ async function openPartyComposerOf(page: Page, party: string): Promise<void> {
   // The menu is a 2-D grid (groups flow in columns): each hop goes toward the target's measured rect (the
   // parliament-actions spec's own steering), the ring walk only as the fallback.
   for (let i = 0; i < 16 && await focused() !== party; i++) {
-    const dir = await page.evaluate((target) => {
+    // The two rects AT REST (`readSettled`): a hop's glide still running would steer by a tile mid-flight.
+    const dir = await readSettled(page, () => page.evaluate((target) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(`.con-cardactions__tile[data-action-party="${target}"]`)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -192,7 +193,7 @@ async function openPartyComposerOf(page: Page, party: string): Promise<void> {
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, party);
+    }, party), {settle: false, message: `the steering toward the «${party}» tile`});
     await press(page, dir, 260);
   }
   if (await focused() !== party) {
@@ -200,9 +201,7 @@ async function openPartyComposerOf(page: Page, party: string): Promise<void> {
   }
   expect(await focused(), `never focused the «${party}» party tile`).toBe(party);
   const composer = `${ACTION}[data-composer-source="party:${party}"]`;
-  for (let i = 0; i < 3 && await page.locator(composer).count() === 0; i++) {
-    await press(page, 'Enter', 1100);
-  }
+  await pressUntil(page, 'Enter', async () => await page.locator(composer).count() > 0, {tries: 3, settleMs: 1100});
   await expect(page.locator(composer), 'the card composer stands for the party').toHaveCount(1);
   await settle(page, {timeoutMs: 8_000});
 }
@@ -282,7 +281,8 @@ test.describe('the composer pre-select', () => {
       const s = await seeds(page, PLAY);
       const witness = await focusWitness(page);
       await shoot(page, preset, 'a-01-open');
-      const ctaVisible = await page.evaluate((r) => {
+      // How much of the commit is in view — read AT REST (`readSettled`), never a box mid-entrance.
+      const ctaVisible = await readSettled(page, () => page.evaluate((r) => {
         const cta = document.querySelector(`${r} .con-composer__cta`)?.getBoundingClientRect();
         const vp = document.querySelector(`${r} .con-composer__cta`)?.closest('.con-scroll-area__viewport')?.getBoundingClientRect();
         if (cta === undefined) {
@@ -291,7 +291,7 @@ test.describe('the composer pre-select', () => {
         const box = vp ?? {top: 0, bottom: window.innerHeight};
         const h = Math.max(0, Math.min(cta.bottom, box.bottom) - Math.max(cta.top, box.top));
         return Math.round(100 * h / Math.max(1, cta.height));
-      }, PLAY);
+      }, PLAY), {message: 'the commit\'s share in view'});
       // A on the seeded row opens the choice — one card — and B brings the seed back untouched.
       let reopened = 'skipped';
       if (AFTER && s.seeded > 0) {

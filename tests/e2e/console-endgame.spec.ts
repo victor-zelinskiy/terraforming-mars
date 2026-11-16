@@ -28,11 +28,14 @@
  *
  * ⚠ Headless Chromium starves rAF on a quiet screen — every wait pumps a
  * tiny screenshot (a real BeginFrame), or the GSAP ceremony never advances.
- * Probes are setInterval-driven (never rAF) for the same reason.
+ * The stability probe is RECORDED (FLAKE ZERO — `armWitness`): the product's
+ * own writes plus a frame tick — every pumped frame and every write is a
+ * sample, so a starved compositor can slow the ceremony but never hide a state.
  */
 import {test, expect, Page} from './consoleTest';
 import {createTable, fixtureTable, journeyToEndgame, forceFrame, waitWithFrames, shoot, getModel} from './consoleEndgameHarness';
-import {walkFocusUntil} from './consoleStart';
+import {cinematicBeat, walkFocusUntil} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 const SHOT_DIR = 'screenshots/console-endgame';
 
@@ -47,65 +50,67 @@ type StabilitySample = {
   rowBoxes: Record<string, string>,
 };
 
-declare global {
-  var __egStability: {samples: Array<StabilitySample>, stop: () => void} | undefined;
-}
+const STABILITY_WITNESS = 'eg-stability';
 
-/** The audit probe, installed for the whole ceremony: opacity + boxes. */
+/**
+ * The audit probe, installed for the whole ceremony: opacity + boxes — RECORDED, every distinct state with the page's
+ * time. Its claims hold for EVERY state the scene stood in (no dip, one box per seat), so the record is `settled` — the
+ * state a task LEAVES, what a frame can paint (never a state between two writes of one task). Null with no scene.
+ */
 async function installStabilityProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const samples: Array<StabilitySample> = [];
-    const t0 = performance.now();
-    const timer = window.setInterval(() => {
-      const scene = document.querySelector<HTMLElement>('.con-endgame');
-      if (scene === null) {
-        return;
+  await armWitness<Omit<StabilitySample, 't'> | null>(page, STABILITY_WITNESS, () => {
+    const scene = document.querySelector<HTMLElement>('.con-endgame');
+    if (scene === null) {
+      return null;
+    }
+    const cs = getComputedStyle(scene);
+    // A live opacity CSSTransition = the deliberate con-layer fade (the
+    // collapse/overview round trips) — the ONLY sanctioned transparency.
+    // ⚠ It must be read from the ANIMATION OBJECT, not the classes: in
+    // headless the animation timeline freezes between pumped frames, so
+    // Vue's wall-clock fallback strips the classes while the transition
+    // object still holds the element at its from-state. A keyframe RESTART
+    // (the real flash bug) is a CSSAnimation and stays flagged.
+    const fading = scene.getAnimations().some((a) =>
+      (a as CSSTransition).transitionProperty === 'opacity');
+    // Per SEAT (TR69 — the seats stand side by side): its bar's LEFT|WIDTH|HEIGHT and its own WIDTH|HEIGHT. During the
+    // count none of them may move; the ranking and the crowning are the podium's deliberate moves, after it.
+    const barBoxes: Record<string, string> = {};
+    const rowBoxes: Record<string, string> = {};
+    document.querySelectorAll<HTMLElement>('[data-eg-row]').forEach((row) => {
+      const color = row.dataset.egRow ?? '?';
+      const r = row.getBoundingClientRect();
+      rowBoxes[color] = `${r.width.toFixed(1)}|${r.height.toFixed(1)}`;
+      const bar = row.querySelector('.con-eg__bar');
+      if (bar !== null) {
+        const b = bar.getBoundingClientRect();
+        barBoxes[color] = `${b.left.toFixed(1)}|${b.width.toFixed(1)}|${b.height.toFixed(1)}`;
       }
-      const cs = getComputedStyle(scene);
-      // A live opacity CSSTransition = the deliberate con-layer fade (the
-      // collapse/overview round trips) — the ONLY sanctioned transparency.
-      // ⚠ It must be read from the ANIMATION OBJECT, not the classes: in
-      // headless the animation timeline freezes between pumped frames, so
-      // Vue's wall-clock fallback strips the classes while the transition
-      // object still holds the element at its from-state. A keyframe RESTART
-      // (the real flash bug) is a CSSAnimation and stays flagged.
-      const fading = scene.getAnimations().some((a) =>
-        (a as CSSTransition).transitionProperty === 'opacity');
-      // Per SEAT (TR69 — the seats stand side by side): its bar's LEFT|WIDTH|HEIGHT and its own WIDTH|HEIGHT. During the
-      // count none of them may move; the ranking and the crowning are the podium's deliberate moves, after it.
-      const barBoxes: Record<string, string> = {};
-      const rowBoxes: Record<string, string> = {};
-      document.querySelectorAll<HTMLElement>('[data-eg-row]').forEach((row) => {
-        const color = row.dataset.egRow ?? '?';
-        const r = row.getBoundingClientRect();
-        rowBoxes[color] = `${r.width.toFixed(1)}|${r.height.toFixed(1)}`;
-        const bar = row.querySelector('.con-eg__bar');
-        if (bar !== null) {
-          const b = bar.getBoundingClientRect();
-          barBoxes[color] = `${b.left.toFixed(1)}|${b.width.toFixed(1)}|${b.height.toFixed(1)}`;
-        }
-      });
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        phase: [...scene.classList].filter((c) => c.startsWith('con-endgame--')).join(','),
-        opacity: cs.opacity,
-        display: cs.display,
-        transitioning: fading ||
-          scene.classList.contains('con-layer-enter-active') ||
-          scene.classList.contains('con-layer-leave-active'),
-        barBoxes,
-        rowBoxes,
-      });
-    }, 45);
-    globalThis.__egStability = {samples, stop: () => window.clearInterval(timer)};
-  });
+    });
+    return {
+      phase: [...scene.classList].filter((c) => c.startsWith('con-endgame--')).join(','),
+      opacity: cs.opacity,
+      display: cs.display,
+      transitioning: fading ||
+        scene.classList.contains('con-layer-enter-active') ||
+        scene.classList.contains('con-layer-leave-active'),
+      barBoxes,
+      rowBoxes,
+    };
+  }, {settled: true, max: 20_000});
 }
 
+/** The record, stopped — every state the scene stood in, its time on the PAGE's clock from the arm. */
 async function readStabilityProbe(page: Page): Promise<Array<StabilitySample>> {
-  return await page.evaluate(() => {
-    globalThis.__egStability?.stop();
-    return globalThis.__egStability?.samples ?? [];
-  });
+  const recorded = await witnessOf<Omit<StabilitySample, 't'> | null>(page, STABILITY_WITNESS).stop();
+  const t0 = recorded[0]?.t ?? 0;
+  const out: Array<StabilitySample> = [];
+  for (const s of recorded) {
+    if (s.v !== null) {
+      out.push({...s.v, t: s.t - t0});
+    }
+  }
+  return out;
 }
 
 test.describe('console endgame workspace — 2p, full journey', () => {
@@ -156,7 +161,8 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     await expect(page.locator('.con-strat')).toBeVisible();
     await expect(page.locator('.con-cmdbar')).toContainText(/Итоги партии/i);
     const phaseWhileParked = await page.locator('.con-endgame').getAttribute('class');
-    await page.waitForTimeout(1600);
+    // The window IS the claim: a ceremony running in the background would have moved on within it.
+    await cinematicBeat(page, 1600, 'the parked ceremony is given the time it would need to move on — the claim is that it does not');
     await forceFrame(page);
     // Paused, not running in the background: the phase class has not moved on.
     await expect.poll(() => page.locator('.con-endgame').getAttribute('class')).toBe(phaseWhileParked);
@@ -173,7 +179,8 @@ test.describe('console endgame workspace — 2p, full journey', () => {
 
     // 4 · THE STABILITY VERDICTS (the audit's three regressions).
     const samples = await readStabilityProbe(page);
-    expect(samples.length).toBeGreaterThan(60);
+    // The recorder's liveness only (a dead recorder): it keeps distinct STATES, never frames.
+    expect(samples.length).toBeGreaterThan(0);
     const visible = samples.filter((s) => s.display !== 'none' && !s.transitioning);
     // The settled-scene flash: NO transparent frame outside the layer
     // transitions — the finalize moment included.
@@ -183,7 +190,7 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     // are the podium's deliberate moves after it) no seat's bar LEFT|WIDTH|HEIGHT and no seat's WIDTH|HEIGHT
     // re-solves — one distinct box per seat (the audit measured 36 on the old rows).
     const counting = visible.filter((s) => s.phase.includes('con-endgame--scoring'));
-    expect(counting.length, 'the probe saw the count').toBeGreaterThan(10);
+    expect(counting.length, 'the probe saw the count').toBeGreaterThan(0);
     for (const color of Object.keys(counting[0].barBoxes)) {
       const bars = new Set(counting.map((s) => s.barBoxes[color]).filter((b) => b !== undefined));
       expect([...bars], `${color}'s bar boxes during the count: ${[...bars].join(' ')}`).toHaveLength(1);

@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, fetchPlayerModel, openActionFocus, openCardActions, playCardFromHand, press, pressUntil, settle, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * Console REPEAT-ACTION PICK · the source composer survives the bridge.
@@ -89,14 +89,14 @@ test.describe('console repeat-action pick', () => {
   test('the source composer comes back PAINTED — from B and from a real pick', async ({page, request}) => {
     test.setTimeout(600_000);
 
-    await bootWithCards(page, request, {
+    const playerId = await bootWithCards(page, request, {
       cards: ['Physics Complex'],
       corporation: 'Viron',
       config: GAME_CONFIG,
       step: 0.013,
     });
     await waitForTurn(page);
-    await page.waitForTimeout(3000);
+    await settle(page, {timeoutMs: 30_000});
 
     expect(await playCardFromHand(page, 'Physics Complex'), 'Physics Complex played').toBe(true);
 
@@ -105,15 +105,17 @@ test.describe('console repeat-action pick', () => {
     expect(await walkToSource(page, 'Physics Complex'), 'focus Physics Complex').toBe(true);
     await openActionFocus(page);
     await press(page, 'Enter', 4000); // confirm — a single branch, no decisions
-    await page.waitForTimeout(4000);
+    // «Done» is the SERVER's: the action is used this generation — then the screen at rest.
+    await expect.poll(async () => ((await fetchPlayerModel(request, playerId)).thisPlayer as {actionsThisGeneration?: Array<string>})
+      .actionsThisGeneration ?? [], {timeout: 30_000, message: 'the Physics Complex action was used'}).toContain('Physics Complex');
+    await settle(page, {timeoutMs: 30_000});
 
     // ── Viron's own action → the repeat pick. ────────────────────────────
     await waitForTurn(page);
     await openCardActions(page);
     expect(await walkToSource(page, 'Viron'), 'focus Viron').toBe(true);
     await openActionFocus(page);
-    const opened = await stageContentPainted(page);
-    expect(opened.panel, 'the stage paints when it opens').toBe('1/visible');
+    await expect.poll(async () => (await stageContentPainted(page)).panel, {message: 'the stage paints when it opens'}).toBe('1/visible');
 
     // A on the repeat row hands the choice to the ДЕЙСТВИЯ КАРТ surface in
     // repeat mode — TWO roots: the hidden source + the pick standing over it.
@@ -123,25 +125,28 @@ test.describe('console repeat-action pick', () => {
 
     // ── B: back to the source. ───────────────────────────────────────────
     await press(page, 'Escape', 2500);
-    await page.waitForTimeout(1500);
     await expect(page.locator('.con-cardactions')).toHaveCount(1);
+    // The return's own motion at rest — then the content is asked by a POLL: a composer that never comes back painted
+    // (the empty frame) stays red; one still finishing its entrance is not read half-way.
+    await settle(page);
     await shoot(page, '02-after-cancel');
-    const afterCancel = await stageContentPainted(page);
-    expect(afterCancel, 'B returns to a PAINTED composer, never an empty frame').toEqual({
+    await expect.poll(() => stageContentPainted(page), {message: 'B returns to a PAINTED composer, never an empty frame'}).toEqual({
       panel: '1/visible', hero: '1/visible', surface: '1/visible',
     });
 
     // ── …and the same for a real choice. ─────────────────────────────────
     await press(page, 'Enter', 2500); // re-open the pick
     await expect(page.locator('.con-cardactions')).toHaveCount(2);
-    await press(page, 'Enter', 2000); // A = «Выбрать» the focused candidate
+    // A = «Выбрать» the focused candidate — its composer opens inside the pick (the source's stays mounted, hidden):
+    // the next A waits for THAT, never a blind second press (one press, verified — a retry would land on the CTA).
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions .con-composer').count() > 1, {tries: 1, settleMs: 5000}),
+      'A on the candidate opens its composer in the pick').toBe(true);
     await press(page, 'Enter', 2500); // A = «Выбрать это действие» (its CTA)
     await expect(page.locator('.con-cardactions'), 'the pick resolved back to the source')
       .toHaveCount(1, {timeout: 10_000});
-    await page.waitForTimeout(1500);
+    await settle(page);
     await shoot(page, '03-after-resolve');
-    const afterResolve = await stageContentPainted(page);
-    expect(afterResolve, 'a resolved pick returns to a PAINTED composer').toEqual({
+    await expect.poll(() => stageContentPainted(page), {message: 'a resolved pick returns to a PAINTED composer'}).toEqual({
       panel: '1/visible', hero: '1/visible', surface: '1/visible',
     });
   });

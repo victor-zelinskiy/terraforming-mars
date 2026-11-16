@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 
 /**
@@ -99,7 +100,8 @@ for (const profile of PROFILES) {
           await settle(page, {timeoutMs: 30_000});
           await openColonies(page);
           console.log(`[${profile.id}] group ${g + 1} @${position}: the table stands`);
-          const cells = await readCells(page);
+          // Read AT REST (a comparison of a text with its box is as settled as the box).
+          const cells = await readSettled(page, () => readCells(page), {message: `the cells at position ${position}`});
           expect(cells.length, `the table laid out ${GROUP} tiles (two cells each) at position ${position}`).toBe(GROUP * 2);
           for (const c of cells) {
             measured++;

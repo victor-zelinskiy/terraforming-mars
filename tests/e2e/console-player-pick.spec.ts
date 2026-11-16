@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, focusCard, press, settle} from './consoleStart';
+import {bootFixtureSeats, focusCard, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * A PLAYER target pick of a play — Asteroid Mining Consortium («decrease ANY titanium production 1 step») on a
@@ -33,9 +34,8 @@ async function openPlayComposer(page: Page): Promise<void> {
   await settle(page);
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
   expect(await focusCard(page, CARD, slots * 2 + 6), `the cursor reaches «${CARD}»`).toBe(true);
-  for (let i = 0; i < 3 && await page.locator(PLAY).count() === 0; i++) {
-    await press(page, 'Enter', 900);
-  }
+  // act → verify → retry: A again only while no composer stood up within the press's window.
+  await pressUntil(page, 'Enter', async () => await page.locator(PLAY).count() > 0, {tries: 3, settleMs: 900});
   await expect(page.locator(PLAY)).toHaveCount(1);
   await settle(page);
 }
@@ -70,20 +70,18 @@ for (const preset of PRESETS) {
       await settle(page);
       await openPlayComposer(page);
       const rowText = () => page.evaluate((play) => (document.querySelector(`${play} .con-composer__row--focused`)?.textContent ?? '').replace(/\s+/g, ' ').trim(), PLAY);
-      for (let i = 0; i < 8 && !/игрок/i.test(await rowText()); i++) {
-        await press(page, 'ArrowDown', 300);
-      }
-      expect(await rowText(), 'the cursor stands on the player row').toMatch(/игрок/i);
-      for (let i = 0; i < 3 && await page.locator(LIST).count() === 0; i++) {
-        await press(page, 'Enter', 1000);
-      }
+      // Walked to its EFFECT (the focused row reads the player question), never a blind series.
+      await pressUntil(page, 'ArrowDown', async () => /игрок/i.test(await rowText()), {tries: 8, settleMs: 300});
+      await expect.poll(rowText, {message: 'the cursor stands on the player row'}).toMatch(/игрок/i);
+      await pressUntil(page, 'Enter', async () => await page.locator(LIST).count() > 0, {tries: 3, settleMs: 1000});
       await expect(page.locator(LIST), 'the player list opens').toBeVisible({timeout: 10_000});
       await settle(page);
       await shoot(page, preset.id, 'a-01-list');
 
-      const rs = await rows(page);
+      // The rows and the column measured AT REST (`readSettled` — two equal reads a frame apart, after `settle`).
+      const rs = await readSettled(page, () => rows(page), {message: 'the player rows'});
       expect(rs.map((r) => r.name).length, 'three seats').toBe(3);
-      const column = await page.locator(`${PLAY} .con-composer__scroll-body`).boundingBox();
+      const column = await readSettled(page, () => page.locator(`${PLAY} .con-composer__scroll-body`).boundingBox(), {message: 'the composer\'s column'});
       for (const r of rs) {
         expect(r.chips, `«${r.name}» reads its before → after`).toBeGreaterThanOrEqual(1);
         expect(r.reading, `«${r.name}»: the reading is a before → after`).toMatch(/\d+\s*→\s*\d+/);
@@ -97,7 +95,7 @@ for (const preset of PRESETS) {
 
       // The cursor walks the rows; A picks ONE — the seal, and the composer takes the answer back.
       await press(page, 'ArrowDown', 350);
-      const after = await rows(page);
+      const after = await readSettled(page, () => rows(page), {message: 'the player rows after ↓'});
       expect(after.findIndex((r) => r.focused), '↓ moves the cursor to the second seat').toBe(1);
       await shoot(page, preset.id, 'a-02-cursor');
       await press(page, 'Enter', 700);

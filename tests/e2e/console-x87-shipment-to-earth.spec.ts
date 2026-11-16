@@ -2,9 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openZoomViewer, press, settle, waitForBoardHome,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openZoomViewer, press, pressUntil, settle, waitForBoardHome,
 } from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * X87 «ПОСТАВКА НА ЗЕМЛЮ» — THE PRICE A PLAY TAKES OFF THE RAIL IS A DEPARTURE
@@ -20,8 +21,8 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *      the shipment FIRST (5 → 2, 4 → 1), the rating N → N + 3, the «+4» for
  *      two Earth tags; nothing sent. R3 opens the effects layer INSIDE the
  *      composer and B returns to it whole.
- *   3. A → EXACTLY ONE POST. The phrase, by ORDER (MutationObserver +
- *      setInterval — never rAF): the «−3» plant token is BORN on the plants
+ *   3. A → EXACTLY ONE POST. The phrase, by ORDER (a RECORDING — `armWitness`,
+ *      settled): the «−3» plant token is BORN on the plants
  *      row's digits, leaves SIDEWAYS (never above its own row's ink) and is
  *      absorbed at the printed plant icon of the card still STANDING in the
  *      composer; the plants row reads 5 on every sample before the birth and 2
@@ -116,9 +117,8 @@ async function openHandOn(page: Page, card: string): Promise<void> {
 /** …and A: the play composer of `card`, nothing sent. */
 async function openPlayComposerOf(page: Page, card: string): Promise<void> {
   await openHandOn(page, card);
-  for (let i = 0; i < 3 && await page.locator(composer).count() === 0; i++) {
-    await press(page, 'Enter', 900);
-  }
+  // A → verified by the composer standing (a second A on a slow composer would be its COMMIT).
+  await pressUntil(page, 'Enter', async () => await page.locator(composer).count() > 0, {tries: 3, settleMs: 900});
   await expect(page.locator(composer), 'the play composer stands').toHaveCount(1);
   await settle(page);
 }
@@ -127,7 +127,7 @@ type Rect = {l: number, t: number, r: number, b: number};
 /** One flying token: its centre, its size and its KIND with its signed amount (`plants−3` · `tr+3` · `mc+4`). */
 type Chip = {x: number, y: number, w: number, h: number, v: string};
 type Sample = {
-  t: number, tick: boolean, ws: number, phase: string, shipment: string,
+  t: number, ws: number, phase: string, shipment: string,
   plants: string, steel: string, mc: string, tr: string,
   chips: Array<Chip>, stranded: boolean,
   /** The INK of the plants / steel rows (where a price token is born). */
@@ -138,14 +138,17 @@ type Sample = {
   front?: Rect, trIcon?: Rect,
 };
 type Probe = {samples: Array<Sample>, ticks: number};
+const PROBE_KEY = 'x87-play';
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/**
+ * A RECORDING (`armWitness`, settled — every claim is an ORDER: born → absorbed → lifted → paid back), never a timer
+ * sampler. The scene's phase and its shipment's ending are the played hero's JS state (`__conReady`), which no DOM
+ * write announces — so the reader is also asked on the old sampler's 30 ms timer (`tickMs`; a TIMING spec), a state
+ * still kept only when it CHANGES. Times: ms from the arm, on the page's clock.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__x87: Probe, __conReady?: () => {playedHero: {phase: string, shipment: string}}};
-    const p: Probe = {samples: [], ticks: 0};
-    w.__x87 = p;
-    const t0 = performance.now();
+  await armWitness(page, PROBE_KEY, (): Omit<Sample, 't'> => {
+    const w = window as unknown as {__conReady?: () => {playedHero: {phase: string, shipment: string}}};
     const read = (sel: string) => (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const digits = (sel: string) => (read(sel).match(/^-?\d+/) ?? [''])[0];
     const shown = (el: HTMLElement) => {
@@ -173,59 +176,48 @@ async function armProbe(page: Page): Promise<void> {
       const icon = Array.from(card?.querySelectorAll<HTMLElement>('.pcard-ic') ?? []).find((el) => el.style.backgroundImage.includes(needle));
       return icon !== undefined && shown(icon) ? rect(icon) : undefined;
     };
-    const sample = (tick: boolean) => {
-      if (tick) {
-        p.ticks++;
-      }
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10,
-          w: Math.round(r.width), h: Math.round(r.height),
-          v: `${kindOf(el)}${(el.querySelector('.con-transfer__amt')?.textContent ?? '').replace(/\s+/g, '')}`,
-        };
-      });
-      let phase = '';
-      let shipment = '';
-      try {
-        const ready = w.__conReady?.();
-        phase = ready?.playedHero.phase ?? '';
-        shipment = ready?.playedHero.shipment ?? '';
-      } catch {
-        // the readiness snapshot is diagnostics — never a reason to stop sampling
-      }
-      const s: Sample = {
-        t: Math.round(performance.now() - t0),
-        tick,
-        ws: document.querySelectorAll('.con-ws').length,
-        phase, shipment,
-        plants: digits('.con-res .con-res__row--plants .con-res__digits'),
-        steel: digits('.con-res .con-res__row--steel .con-res__digits'),
-        mc: digits('.con-res .con-res__row--megacredits .con-res__digits'),
-        tr: read('.con-res .con-score__value--tr'),
-        chips,
-        stranded: document.querySelector('.con-stranded') !== null,
-        plantsRow: rect(document.querySelector('.con-res .con-res__row--plants .con-res__digits')),
-        steelRow: rect(document.querySelector('.con-res .con-res__row--steel .con-res__digits')),
-        plantIcon: printed('plant.'),
-        steelIcon: printed('steel.'),
-        front: rect(document.querySelector('.con-recv [data-recv-front]')),
-        trIcon: printed('tr.'),
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10,
+        w: Math.round(r.width), h: Math.round(r.height),
+        v: `${kindOf(el)}${(el.querySelector('.con-transfer__amt')?.textContent ?? '').replace(/\s+/g, '')}`,
       };
-      const last = p.samples[p.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
-        p.samples.push(s);
-      }
-    };
-    sample(true);
-    new MutationObserver(() => sample(false)).observe(document.body, {
-      subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style'],
     });
-    window.setInterval(() => sample(true), 30);
-  });
+    let phase = '';
+    let shipment = '';
+    try {
+      const ready = w.__conReady?.();
+      phase = ready?.playedHero.phase ?? '';
+      shipment = ready?.playedHero.shipment ?? '';
+    } catch {
+      // the readiness snapshot is diagnostics — never a reason to stop sampling
+    }
+    return {
+      ws: document.querySelectorAll('.con-ws').length,
+      phase, shipment,
+      plants: digits('.con-res .con-res__row--plants .con-res__digits'),
+      steel: digits('.con-res .con-res__row--steel .con-res__digits'),
+      mc: digits('.con-res .con-res__row--megacredits .con-res__digits'),
+      tr: read('.con-res .con-score__value--tr'),
+      chips,
+      stranded: document.querySelector('.con-stranded') !== null,
+      plantsRow: rect(document.querySelector('.con-res .con-res__row--plants .con-res__digits')),
+      steelRow: rect(document.querySelector('.con-res .con-res__row--steel .con-res__digits')),
+      plantIcon: printed('plant.'),
+      steelIcon: printed('steel.'),
+      front: rect(document.querySelector('.con-recv [data-recv-front]')),
+      trIcon: printed('tr.'),
+    };
+  }, {settled: true, tickMs: 30, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__x87: Probe}).__x87);
+/** Every distinct recorded state, in order — times in ms from the arm (the page's clock). */
+async function readProbe(page: Page): Promise<Probe> {
+  const recorded = await witnessOf<Omit<Sample, 't'>>(page, PROBE_KEY).samples();
+  const t0 = recorded[0]?.t ?? 0;
+  return {samples: recorded.map((x) => ({...x.v, t: Math.round(x.t - t0)})), ticks: recorded.length};
+}
 
 const inside = (chip: Chip, rect: Rect, slack: number) =>
   chip.x >= rect.l - slack && chip.x <= rect.r + slack && chip.y >= rect.t - slack && chip.y <= rect.b + slack;
@@ -266,7 +258,7 @@ function lastSeen(samples: ReadonlyArray<Sample>, v: string, from: number): numb
 
 function trail(samples: ReadonlyArray<Sample>): string {
   return samples.slice(0, 260).map((s) =>
-    `${s.t}${s.tick ? 't' : 'm'} ws=${s.ws} ph=${s.phase} sh=${s.shipment} pl=${s.plants} st=${s.steel} mc=${s.mc} tr=${s.tr}` +
+    `${s.t} ws=${s.ws} ph=${s.phase} sh=${s.shipment} pl=${s.plants} st=${s.steel} mc=${s.mc} tr=${s.tr}` +
     ` plRow=${s.plantsRow === undefined ? '-' : `${s.plantsRow.l},${s.plantsRow.t},${s.plantsRow.r},${s.plantsRow.b}`}` +
     ` plIcon=${s.plantIcon === undefined ? '-' : `${s.plantIcon.l},${s.plantIcon.t}`} stIcon=${s.steelIcon === undefined ? '-' : `${s.steelIcon.l},${s.steelIcon.t}`}` +
     ` front=${s.front === undefined ? '-' : `${s.front.l},${s.front.t}`} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}`).join('\n');
@@ -444,7 +436,8 @@ for (const preset of PRESETS) {
       fs.mkdirSync(path.join(OUT, preset.id), {recursive: true});
       fs.writeFileSync(path.join(OUT, preset.id, 'play-trail.txt'), log);
       console.log(log);
-      expect(probe.ticks, 'the probe was alive').toBeGreaterThan(10);
+      // The recorder's own liveness floor — only a DEAD recorder fails it (a count of samples is a count of frames).
+      expect(probe.ticks, 'the probe was alive').toBeGreaterThan(0);
       expect(seen.posts.length, 'A sent EXACTLY ONE request').toBe(1);
 
       // The shipment: the plants, then the steel — each off its row's digits, sideways, into the printed icon.

@@ -4,6 +4,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, placeTile, press, pressUntil, reloadConsole, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {DOCK_WALK, dockStatusLines, docksInGrid, enterDocks, tileSizes} from './fleetDockDriver';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR06 «ПЕРЕВОЗКА ВОДЫ» — A TRADE WHOSE DESTINATION IS A CARD
@@ -86,23 +88,16 @@ async function openColonies(page: Page): Promise<void> {
 /**
  * The planet tiles' boxes, SETTLED — both sides of the «nothing moved» comparison go through this. The grid's
  * entry cascade grows the tiles for a while after the workspace stands, and on a starved headless compositor a
- * tween does not finish, it FREEZES: «two equal reads» then reports the middle of the entry. So every read is
- * preceded by a FORCED frame (a tiny screenshot is a BeginFrame), and three equal reads end the wait.
+ * tween does not finish, it FREEZES: «two equal reads» then reports the middle of the entry. So the read is
+ * `readSettled` (no read counts while a finite animation runs or is pending; a frame between reads) and THREE
+ * equal reads end the wait.
  */
 async function tileRects(page: Page): Promise<Array<string>> {
-  const read = () => page.evaluate(() => Array.from(document.querySelectorAll('.con-colonies__slot')).map((el) => {
+  const rects = await readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll('.con-colonies__slot')).map((el) => {
     const r = el.getBoundingClientRect();
     return [r.left, r.top, r.width, r.height].map(Math.round).join(',');
-  }).join(' '));
-  let last = await read();
-  let equal = 0;
-  for (let i = 0; i < 60 && equal < 2; i++) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
-    const now = await read();
-    equal = now === last ? equal + 1 : 0;
-    last = now;
-  }
-  return last.split(' ');
+  }).join(' ')), {equal: 3, message: 'the planet tiles'});
+  return rects.split(' ');
 }
 
 /** Walk onto the dock's cell — ▶ in the grid's reading order (the dock is the cell after the last colony). */
@@ -112,77 +107,62 @@ async function focusDock(page: Page): Promise<void> {
 }
 
 type Box = {x: number, y: number, w: number};
-type Sample = {
-  t: number, tick: boolean, ws: number, crumb: string, stage: boolean, ship: Box | undefined, padHidden: boolean,
+/** One recorded state of the trade (an observation; the record keeps it with the page's time). */
+type Seen = {
+  ws: number, crumb: string, stage: boolean, ship: Box | undefined, padHidden: boolean,
   mark: boolean, energy: string, placing: boolean, stranded: boolean, scene: string, holds: string,
 };
-type Probe = {samples: Array<Sample>, ticks: number};
-
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__tr06: Probe};
-    const p: Probe = {samples: [], ticks: 0};
-    w.__tr06 = p;
-    const t0 = performance.now();
-    const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      if (tick) {
-        p.ticks++;
-      }
-      const ship = document.querySelector<HTMLElement>('.con-fleet-ship');
-      const r = ship?.getBoundingClientRect();
-      const visible = ship !== null && ship !== undefined && r !== undefined && r.width > 2 && getComputedStyle(ship).visibility !== 'hidden' && Number(getComputedStyle(ship).opacity) > 0.05;
-      const s: Sample = {
-        t: Math.round(performance.now() - t0),
-        tick,
-        ws: document.querySelectorAll('.con-ws').length,
-        crumb: text(document.querySelector('.con-colonies .con-wshead')).toUpperCase(),
-        stage: document.querySelector('.con-fleetdock') !== null,
-        ship: visible && r !== undefined ? {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width)} : undefined,
-        padHidden: document.querySelector('.con-colonies__fleetdock.con-fleet-launching') !== null,
-        mark: document.querySelector('.con-fleetdock .pcard-fleet .colony-fleet-icon') !== null,
-        energy: text(document.querySelector('.con-res .con-res__row--energy .con-res__digits')),
-        placing: document.querySelector('.con-board--placing') !== null,
-        stranded: document.querySelector('.con-stranded') !== null,
-        scene: document.querySelector('[data-fleet-dock-scene]')?.getAttribute('data-fleet-dock-scene') ?? '',
-        holds: JSON.stringify((window as unknown as {__conReady?: () => {holds?: unknown}}).__conReady?.()?.holds ?? null),
-      };
-      const last = p.samples[p.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
-        p.samples.push(s);
-      }
-      if (p.samples.length > 8000) {
-        p.samples.splice(0, 1000);
-      }
-    };
-    sample(true);
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'data-fleet-dock-scene']});
-    window.setInterval(() => sample(true), 30);
-  });
-}
-
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr06: Probe}).__tr06);
+/** A recorded state with its time on the PAGE's clock, from the arm (ms). */
+type Sample = Seen & {t: number};
+type Probe = {samples: Array<Sample>};
+const TR06_WITNESS = 'tr06-water-hauling';
 
 /**
- * An anchor's centre box, SETTLED the same way as the tiles (forced frames, three equal reads): the stage's
+ * THE TRADE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): every state the
+ * product writes (the ship's every `style` write included), with the page's time, off its own writes and a frame
+ * tick. `settled`: the claims are ORDERS (the mark and the fee only after the touchdown, the pad empty no later than
+ * the flight, the workspace gone before the placement) — a sample is the state a task LEAVES.
+ */
+async function armProbe(page: Page): Promise<void> {
+  await armWitness<Seen>(page, TR06_WITNESS, () => {
+    const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const ship = document.querySelector<HTMLElement>('.con-fleet-ship');
+    const r = ship?.getBoundingClientRect();
+    const visible = ship !== null && ship !== undefined && r !== undefined && r.width > 2 && getComputedStyle(ship).visibility !== 'hidden' && Number(getComputedStyle(ship).opacity) > 0.05;
+    return {
+      ws: document.querySelectorAll('.con-ws').length,
+      crumb: text(document.querySelector('.con-colonies .con-wshead')).toUpperCase(),
+      stage: document.querySelector('.con-fleetdock') !== null,
+      ship: visible && r !== undefined ? {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width)} : undefined,
+      padHidden: document.querySelector('.con-colonies__fleetdock.con-fleet-launching') !== null,
+      mark: document.querySelector('.con-fleetdock .pcard-fleet .colony-fleet-icon') !== null,
+      energy: text(document.querySelector('.con-res .con-res__row--energy .con-res__digits')),
+      placing: document.querySelector('.con-board--placing') !== null,
+      stranded: document.querySelector('.con-stranded') !== null,
+      scene: document.querySelector('[data-fleet-dock-scene]')?.getAttribute('data-fleet-dock-scene') ?? '',
+      holds: JSON.stringify((window as unknown as {__conReady?: () => {holds?: unknown}}).__conReady?.()?.holds ?? null),
+    };
+  }, {settled: true, max: 20_000});
+}
+
+/** The record: every distinct state with its time from the arm (the page's clock). */
+async function readProbe(page: Page): Promise<Probe> {
+  const recorded = await witnessOf<Seen>(page, TR06_WITNESS).samples();
+  const t0 = recorded[0]?.t ?? 0;
+  return {samples: recorded.map((s) => ({...s.v, t: s.t - t0}))};
+}
+
+/**
+ * An anchor's centre box, SETTLED the same way as the tiles (`readSettled`, three equal reads): the stage's
  * entrance carries the hero card in from the tile, and a starved 4K compositor freezes that carry mid-way — a
  * one-shot read then measured a ▲ the card had not reached yet (the ship, aiming at the resting rect, landed
  * on the right one).
  */
 async function settledCentre(page: Page, selector: string): Promise<Box | undefined> {
-  const read = () => page.evaluate((sel) => {
+  const last = await readSettled(page, () => page.evaluate((sel) => {
     const r = document.querySelector(sel)?.getBoundingClientRect();
     return r === undefined ? '' : [r.left + r.width / 2, r.top + r.height / 2, r.width].map(Math.round).join(',');
-  }, selector);
-  let last = await read();
-  let equal = 0;
-  for (let i = 0; i < 60 && equal < 2; i++) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
-    const now = await read();
-    equal = now === last ? equal + 1 : 0;
-    last = now;
-  }
+  }, selector), {equal: 3, message: `the centre of ${selector}`});
   if (last === '') {
     return undefined;
   }
@@ -236,9 +216,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '01-overview-dock');
       // X on the dock LIFTS THE CARD ITSELF out of its tile (physical: the tile's card place is held while it is up).
       const zoom = page.locator('dialog.con-zoom[open]');
-      for (let tries = 0; tries < 3 && await zoom.count() === 0; tries++) {
-        await press(page, 'KeyX', 1500);
-      }
+      await pressUntil(page, 'KeyX', async () => await zoom.count() > 0, {tries: 3, settleMs: 1500});
       await expect(zoom, 'X opens the card fullscreen').toHaveCount(1, {timeout: 8000});
       await expect(page.locator('.con-colonies__grid [data-fleet-dock] .con-zoom-hold'), 'the card left its tile\'s medallion — not a second copy').toHaveCount(1, {timeout: 4000});
       await shoot(page, preset.id, '01b-dock-card-zoom');
@@ -262,9 +240,9 @@ for (const preset of PRESETS) {
         'A opened the dock\'s stage').toBe(true);
       await settle(page, {timeoutMs: 15_000});
       await expect.poll(() => page.locator('.con-ws').count(), {message: 'one workspace — the stage is inside it'}).toBe(1);
-      const crumb = ((await page.locator('.con-colonies .con-wshead').textContent()) ?? '').toUpperCase();
-      expect(crumb, 'the crumb names the card').toContain(DOCK_RU);
-      expect(crumb, 'the crumb keeps its root').toContain('КОЛОНИИ');
+      const crumb = async () => ((await page.locator('.con-colonies .con-wshead').textContent()) ?? '').toUpperCase();
+      await expect.poll(crumb, {message: 'the crumb names the card'}).toContain(DOCK_RU);
+      await expect.poll(crumb, {message: 'the crumb keeps its root'}).toContain('КОЛОНИИ');
       await expect(page.locator('.con-fleetdock [data-fleet-dock-hero] .pcard'), 'the hero is the card\'s own face').toHaveCount(1);
       // THE COLONY TRADE'S MATERIALS: the same surface and columns, the laconic line under the card, the verdict.
       await expect(page.locator('.con-fleetdock .con-colfocus__surface .con-colfocus__hero [data-fleet-dock-hero]'), 'the card stands where a colony stands its planet').toHaveCount(1);
@@ -273,9 +251,9 @@ for (const preset of PRESETS) {
       const barX = page.locator('.con-cmdbar .con-cmdbar__cmd', {hasText: /Подтвердить торговлю/i});
       await expect(barX, 'X trades — the colony trade\'s verb').toHaveCount(1);
       await expect(page.locator('.con-fleetdock .con-colfocus__payrow').first(), 'the payment paths stand').toBeVisible();
-      const result = ((await page.locator('[data-fleet-dock-result]').textContent()) ?? '').replace(/\s+/g, ' ');
-      expect(result, `the result reads the oceans and the fleets — got «${result}»`).toMatch(/2\s*→\s*1/);
-      expect(result).toMatch(new RegExp(`${before.game.oceans}\\s*→\\s*${before.game.oceans + 1}`));
+      const result = async () => ((await page.locator('[data-fleet-dock-result]').textContent()) ?? '').replace(/\s+/g, ' ');
+      await expect.poll(result, {message: 'the result reads the oceans and the fleets'}).toMatch(/2\s*→\s*1/);
+      await expect.poll(result, {message: 'the result reads the oceans'}).toMatch(new RegExp(`${before.game.oceans}\\s*→\\s*${before.game.oceans + 1}`));
       await expect(page.locator('[data-fleet-dock-note]'), 'the reward\'s next step is named').toHaveCount(1);
       expect(posts, 'nothing reached the server before A').toEqual([]);
       const pad = await launchPad(page);
@@ -298,13 +276,13 @@ for (const preset of PRESETS) {
       // The flight's trail, printed BEFORE any claim about it — a red run names its own frames.
       console.log(`[${preset.id}] pad=${JSON.stringify(pad)} berth=${JSON.stringify(berth)}\n` +
         samples.slice(0, 60).map((s) => `${s.t} ship=${JSON.stringify(s.ship)} scene=${s.scene} stage=${+s.stage} mark=${+s.mark} ws=${s.ws} holds=${s.holds}`).join('\n'));
-      expect(probe.ticks, 'the probe was alive').toBeGreaterThan(10);
+      expect(samples.length, 'the probe was alive (a dead recorder records nothing)').toBeGreaterThan(0);
       expect(posts.length, 'X sent EXACTLY ONE request').toBe(1);
       expect(posts[0].body, 'the destination is the card').toContain(`"fleetDock":"${DOCK}"`);
       expect(posts[0].body, 'no colony is named').not.toContain('colonyName');
 
       const shipSamples = samples.filter((s) => s.ship !== undefined);
-      expect(shipSamples.length, 'the ship flew').toBeGreaterThan(2);
+      expect(shipSamples.length, 'the ship flew (recorded at all — the travel below is the motion claim)').toBeGreaterThan(0);
       const first = shipSamples[0].ship!;
       const last = shipSamples[shipSamples.length - 1].ship!;
       expect(Math.hypot(first.x - pad!.x, first.y - pad!.y), 'the ship left from the pad').toBeLessThan(pad!.w * 3 + 40);
@@ -375,8 +353,8 @@ for (const preset of PRESETS) {
       await focusDock(page);
       await press(page, 'Enter', 900);
       await expect(page.locator('[data-fleet-dock-verdict]'), 'the stage refuses with ONE reason').toHaveCount(1, {timeout: 10_000});
-      const reason = ((await page.locator('[data-fleet-dock-verdict]').textContent()) ?? '').trim();
-      expect(reason, 'the reason is the busy berth').toMatch(/поколени/i);
+      await expect.poll(async () => ((await page.locator('[data-fleet-dock-verdict]').textContent()) ?? '').trim(),
+        {message: 'the reason is the busy berth'}).toMatch(/поколени/i);
       await shoot(page, preset.id, '05-dock-busy');
       const posts: Array<string> = [];
       page.on('request', (req) => {
@@ -392,9 +370,7 @@ for (const preset of PRESETS) {
       // Back to the grid: a colony is offered to the second fleet. ◀ off the dock lands on the last colony of the ONE
       // grid walk — which may be an inactive tile (the fixture's Miranda): walk on to the first active one.
       await press(page, DOCK_WALK.prev, 400);
-      for (let i = 0; i < 6 && await page.locator('.con-coltile--focused.con-coltile--inactive').count() > 0; i++) {
-        await press(page, DOCK_WALK.prev, 400);
-      }
+      await pressUntil(page, DOCK_WALK.prev, async () => await page.locator('.con-coltile--focused.con-coltile--inactive').count() === 0, {tries: 6, settleMs: 400});
       await expect(page.locator('.con-coltile--focused:not(.con-coltile--inactive):not([data-fleet-dock])'), 'the cursor stands on an active colony').toHaveCount(1);
       const tradeable = await wireOf(request, playerId);
       expect(tradeable.thisPlayer.tradesThisGeneration).toBe(1);

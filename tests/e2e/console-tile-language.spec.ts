@@ -2,6 +2,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {NO_PAYMENT, bootFixtureSeats, commitFocusedSpace, fetchPlayerModel, placementState, press, sendPlayerInput, settle, walkToSpace} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * THE TILE LANGUAGE (the owner's decisions of 2026-10-20 — W1 · W2/W3/W4 · W6 · W7; contract
@@ -18,7 +20,8 @@ import {NO_PAYMENT, bootFixtureSeats, commitFocusedSpace, fetchPlayerModel, plac
  *       red's chip.
  *   D · RED'S OCEAN: the water answers the contact with its splash.
  *
- * The probe is `setInterval` + `MutationObserver` — never rAF. Screens under screenshots/tile-language/<profile>/.
+ * The probe is a RECORDING (`armWitness`) of the product's own writes — never a sampler. Screens under
+ * screenshots/tile-language/<profile>/.
  */
 const OUT_ROOT = path.resolve('screenshots', 'tile-language');
 const PRESETS = [
@@ -68,13 +71,17 @@ type Sample = {
   /** The acting seat's chip in the status strip. */
   chip: Box | null,
 };
-type Probe = {samples: Array<Sample>, stop: () => void};
+/** One recorded state of the scene — what the reader observes (the record stamps it with the page's clock). */
+type Seen = Omit<Sample, 't'>;
 
-async function armProbe(page: Page, watch: {cell: string, seat?: string}): Promise<void> {
-  await page.evaluate((c) => {
-    const w = window as unknown as {__tlProbe?: Probe};
-    w.__tlProbe?.stop();
-    const t0 = performance.now();
+/**
+ * THE SCENE'S RECORD (FLAKE ZERO — `armWitness`, armed before the commit): every state the product writes, recorded in
+ * the task that writes it — a starved 4K frame can slow a 230 ms dust puff or a remote tile's first pose, never hide it —
+ * replace-proof, stamped with the page's clock. `settled`: W6's «several tokens in the air AT ONCE» is a coexistence
+ * claim — the state a task LEAVES is the state a frame can paint.
+ */
+async function armProbe(page: Page, key: string, watch: {cell: string, seat?: string}): Promise<Witness<Seen>> {
+  return armWitness<Seen, {cell: string, seat?: string}>(page, `tile-language-${key}`, (c) => {
     const op = (el: Element | null): number => {
       let o = 1;
       for (let e: Element | null = el; e !== null && e !== document.documentElement; e = e.parentElement) {
@@ -86,7 +93,7 @@ async function armProbe(page: Page, watch: {cell: string, seat?: string}): Promi
       }
       return Math.round(o * 100) / 100;
     };
-    const box = (el: Element | null): Box | null => {
+    const box = (el: Element | null): {x: number, y: number, w: number, h: number, o: number} | null => {
       if (el === null) {
         return null;
       }
@@ -94,57 +101,46 @@ async function armProbe(page: Page, watch: {cell: string, seat?: string}): Promi
       return {x: r.left, y: r.top, w: r.width, h: r.height, o: op(el)};
     };
     const strongest = (sel: string) => Math.max(0, ...[...document.querySelectorAll(sel)].map(op));
-    const samples: Array<Sample> = [];
-    const sample = () => {
-      const cell = document.querySelector(`.board-space[data_space_id="${c.cell}"]`);
-      const tile = cell?.querySelector('[class*="board-space-tile--"]') ?? null;
-      const beacon = document.querySelector<HTMLElement>('.con-tileplace__beacon');
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        // HELD = standing and NOT leaving: a `<transition>` keeps the leaving element's last attributes until its
-        // `transitionend`, which a starved renderer delivers hundreds of ms after the 70–140 ms fade (CI: «held 294 ms»,
-        // box: 312 / 396) — the let-go is the leave's START, the product's own edge.
-        marker: document.querySelector('.con-bcur[data-landing-marker]:not(.con-bcur-out-leave-active)')?.getAttribute('data-landing-marker') ?? null,
-        own: box(document.querySelector('.con-tileplace__tile:not(.con-tileplace__tile--remote):not(.con-tileplace__tile--depart):not(.con-tileplace__tile--cover)')),
-        remote: box(document.querySelector('.con-tileplace__tile--remote')),
-        beacon: beacon === null ? null : {o: op(beacon), color: beacon.dataset.beaconColor ?? ''},
-        dust: strongest('.con-tileplace__dust-mote'),
-        splash: strongest('.con-tileplace__splash-ring'),
-        dustBox: strongest('.con-tileplace__dust'),
-        splashBox: strongest('.con-tileplace__splash'),
-        chips: [...document.querySelectorAll<HTMLElement>('.con-transfer__chip')].filter((el) => el.style.transform !== '' && op(el) > 0.05)
-          .map((el) => {
-            const r = el.getBoundingClientRect();
-            return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-          }),
-        board: (document.querySelector('.con-board')?.getAttribute('class') ?? '').split(' ').filter((k) => /pfocus|placing/.test(k)).join(' '),
-        oxy: document.querySelector<HTMLElement>('.scale-marker[data-scale-marker="oxygen"]')?.dataset.scaleMarkerAt ?? '~',
-        painted: tile !== null && !tile.classList.contains('board-space-tile--placement-cleared') && op(tile) > 0.5,
-        cell: box(cell),
-        chip: c.seat === undefined ? null : box(document.querySelector(`.con-status__player .player_bg_color_${c.seat}`)),
-      });
-      if (samples.length > 20000) {
-        samples.splice(0, 4000);
-      }
+    const cell = document.querySelector(`.board-space[data_space_id="${c.cell}"]`);
+    const tile = cell?.querySelector('[class*="board-space-tile--"]') ?? null;
+    const beacon = document.querySelector<HTMLElement>('.con-tileplace__beacon');
+    return {
+      // HELD = standing and NOT leaving: a `<transition>` keeps the leaving element's last attributes until its
+      // `transitionend`, which a starved renderer delivers hundreds of ms after the 70–140 ms fade (CI: «held 294 ms»,
+      // box: 312 / 396) — the let-go is the leave's START, the product's own edge.
+      marker: document.querySelector('.con-bcur[data-landing-marker]:not(.con-bcur-out-leave-active)')?.getAttribute('data-landing-marker') ?? null,
+      own: box(document.querySelector('.con-tileplace__tile:not(.con-tileplace__tile--remote):not(.con-tileplace__tile--depart):not(.con-tileplace__tile--cover)')),
+      remote: box(document.querySelector('.con-tileplace__tile--remote')),
+      beacon: beacon === null ? null : {o: op(beacon), color: beacon.dataset.beaconColor ?? ''},
+      dust: strongest('.con-tileplace__dust-mote'),
+      splash: strongest('.con-tileplace__splash-ring'),
+      dustBox: strongest('.con-tileplace__dust'),
+      splashBox: strongest('.con-tileplace__splash'),
+      chips: [...document.querySelectorAll<HTMLElement>('.con-transfer__chip')].filter((el) => el.style.transform !== '' && op(el) > 0.05)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+        }),
+      board: (document.querySelector('.con-board')?.getAttribute('class') ?? '').split(' ').filter((k) => /pfocus|placing/.test(k)).join(' '),
+      oxy: document.querySelector<HTMLElement>('.scale-marker[data-scale-marker="oxygen"]')?.dataset.scaleMarkerAt ?? '~',
+      painted: tile !== null && !tile.classList.contains('board-space-tile--placement-cleared') && op(tile) > 0.5,
+      cell: box(cell),
+      chip: c.seat === undefined ? null : box(document.querySelector(`.con-status__player .player_bg_color_${c.seat}`)),
     };
-    const timer = window.setInterval(sample, 12);
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'data-scale-marker-at']});
-    w.__tlProbe = {samples, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-    }};
-  }, watch);
+  }, {args: watch, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__tlProbe: Probe}).__tlProbe.samples);
-const stopProbe = (page: Page) => page.evaluate(() => (window as unknown as {__tlProbe?: Probe}).__tlProbe?.stop());
+/** Every recorded state, `t` in ms since the record was armed (the page's clock). */
+async function readProbe(probe: Witness<Seen>): Promise<Array<Sample>> {
+  const samples = await probe.samples();
+  const t0 = samples[0]?.t ?? 0;
+  return samples.map((x) => ({...x.v, t: x.t - t0}));
+}
 
-/** The scene is over: the cell paints its tile, nothing flies, no hold stands. */
-async function waitSceneOver(page: Page, what: string): Promise<void> {
+/** The scene is over: the cell paints its tile, nothing flies, no hold stands — the LAST state the product wrote. */
+async function waitSceneOver(page: Page, probe: Witness<Seen>, what: string): Promise<void> {
   await expect.poll(async () => {
-    const samples = await readProbe(page);
-    const last = samples[samples.length - 1];
+    const last = await probe.last();
     return last !== undefined && last.painted && last.own === null && (last.remote === null || last.remote.o === 0) && last.chips.length === 0;
   }, {timeout: 45_000, message: `${what}: the tile stands and nothing is in the air`}).toBe(true);
   await settle(page, {timeoutMs: 30_000});
@@ -194,11 +190,11 @@ for (const preset of PRESETS) {
         placed.add(cell);
         await walkToSpace(page, cell);
         await settle(page, {timeoutMs: 15_000});
-        await armProbe(page, {cell});
+        const probe = await armProbe(page, 'A', {cell});
         expect(await commitFocusedSpace(page, 0), 'the city committed').toBe(true);
-        await waitSceneOver(page, 'A');
-        const s = await readProbe(page);
-        await stopProbe(page);
+        await waitSceneOver(page, probe, 'A');
+        const s = await readProbe(probe);
+        await probe.stop();
         const flying = s.filter((x) => x.own !== null && x.own.o > 0.05);
         expect(flying.length, 'the city flew in').toBeGreaterThan(0);
         expect(flying.some((x) => x.marker === cell), 'W1: the marker holds the cell WHILE the tile is in the air').toBe(true);
@@ -229,17 +225,16 @@ for (const preset of PRESETS) {
         await walkToSpace(page, cell);
         await settle(page, {timeoutMs: 15_000});
         const oxygenBefore = (await readOxygen(page)) ?? '0';
-        await armProbe(page, {cell});
+        const probe = await armProbe(page, 'B', {cell});
         expect(await commitFocusedSpace(page, 0), 'the greenery committed').toBe(true);
-        await waitSceneOver(page, 'B');
+        await waitSceneOver(page, probe, 'B');
         // …and the scales' story has been told: the oxygen cursor rests on its new division.
         await expect.poll(async () => {
-          const samples = await readProbe(page);
-          const last = samples[samples.length - 1];
-          return last.oxy !== '~' && last.oxy !== oxygenBefore && last.chips.length === 0 && !/pfocus/.test(last.board);
+          const last = await probe.last();
+          return last !== undefined && last.oxy !== '~' && last.oxy !== oxygenBefore && last.chips.length === 0 && !/pfocus/.test(last.board);
         }, {timeout: 30_000, message: 'the oxygen cursor rests on its new division'}).toBe(true);
-        const s = await readProbe(page);
-        await stopProbe(page);
+        const s = await readProbe(probe);
+        await probe.stop();
         // W7: GROWN out of the cell — the tile's first visible frame stands on its own hex, never at the table edge.
         const born = s.find((x) => x.own !== null && x.own.o > 0.05);
         expect(born, 'the greenery appeared').toBeDefined();
@@ -264,11 +259,11 @@ for (const preset of PRESETS) {
         const legal = await pickProjectCellsAhead(request, red, 'City');
         const cell = richCell(await wireOf(request, red), legal, placed);
         placed.add(cell);
-        await armProbe(page, {cell, seat: redColor});
+        const probe = await armProbe(page, 'C', {cell, seat: redColor});
         await sendPlayerInput(request, red, {type: 'space', spaceId: cell});
-        await waitSceneOver(page, 'C');
-        const s = await readProbe(page);
-        await stopProbe(page);
+        await waitSceneOver(page, probe, 'C');
+        const s = await readProbe(probe);
+        await probe.stop();
         const air = s.filter((x) => x.remote !== null && x.remote.o > 0.05);
         expect(air.length, 'the remote city flew').toBeGreaterThan(0);
         expect(air.filter((x) => x.remote!.y < -1).length, 'W2: no frame of the flight behind the screen\'s top edge').toBe(0);
@@ -297,11 +292,11 @@ for (const preset of PRESETS) {
         const legal = await pickProjectCellsAhead(request, red, 'Aquifer');
         const cell = richCell(await wireOf(request, red), legal, placed);
         placed.add(cell);
-        await armProbe(page, {cell, seat: redColor});
+        const probe = await armProbe(page, 'D', {cell, seat: redColor});
         await sendPlayerInput(request, red, {type: 'space', spaceId: cell});
-        await waitSceneOver(page, 'D');
-        const s = await readProbe(page);
-        await stopProbe(page);
+        await waitSceneOver(page, probe, 'D');
+        const s = await readProbe(probe);
+        await probe.stop();
         expect(s.some((x) => x.remote !== null && x.remote.o > 0.05), 'the remote ocean flew').toBe(true);
         expect(s.some((x) => x.splashBox > 0.5 || x.splash > 0.1),
           `W7: the ocean lands with its splash (the strongest ring painted: ${Math.max(0, ...s.map((x) => x.splash))})`).toBe(true);
@@ -322,7 +317,8 @@ async function openStandardProject(page: Page, card: string): Promise<void> {
   await expect(page.locator('.con-stdp'), 'the standard projects stand').toBeVisible({timeout: 15_000});
   let hit = false;
   for (let i = 0; i < 16 && !hit; i++) {
-    const step = await page.evaluate((c) => {
+    // The way is read AT REST (the cursor's own glide between two cards is no position to steer from).
+    const step = await readSettled(page, () => page.evaluate((c) => {
       const at = document.querySelector('.con-stdp__card--focused');
       const target = document.querySelector(`.con-stdp__card[data-stdp-card="${c}"]`);
       if (at === null || target === null) {
@@ -336,7 +332,7 @@ async function openStandardProject(page: Page, card: string): Promise<void> {
       const dx = (b.left + b.width / 2) - (a.left + a.width / 2);
       const dy = (b.top + b.height / 2) - (a.top + a.height / 2);
       return Math.abs(dy) > a.height / 2 ? (dy > 0 ? 'ArrowDown' : 'ArrowUp') : (dx > 0 ? 'ArrowRight' : 'ArrowLeft');
-    }, card);
+    }, card), {settle: false, message: `the cursor's way to ${card}`});
     expect(step, `the ${card} card stands on the screen`).not.toBe('none');
     hit = step === 'hit';
     if (!hit) {

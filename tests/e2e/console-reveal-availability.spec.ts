@@ -1,5 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {press} from './consoleStart';
+import {press, settle, takeRevealCards} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -117,7 +118,9 @@ async function runWizard(page: Page, corp: string): Promise<void> {
   let stalls = 0;
   const walk = async (focused: string) => {
     if (focused === '') {
-      await page.waitForTimeout(400);
+      // The deal cinematic owns the row — wait for the STATE a walk needs (a focused card; bounded), never a pause.
+      await page.locator('.con-cards__slot--focused, .con-start--ceremony').first()
+        .waitFor({state: 'attached', timeout: 5_000}).catch(() => undefined);
       return;
     }
     stalls = focused === lastFocused ? stalls + 1 : 0;
@@ -169,7 +172,7 @@ async function serverReveal(request: APIRequestContext, playerId: string): Promi
   return (model.cardDrawReveals?.[0]?.cards ?? []) as Array<ModelCard>;
 }
 
-/** The reveal's status rail, read whole (box + content). */
+/** The reveal's status rail, read whole (box + content) — through `readSettled` when it is compared or asserted. */
 async function railReadout(page: Page) {
   return await page.evaluate(() => {
     const bar = document.querySelector<HTMLElement>('.con-reveal__namebar');
@@ -206,7 +209,8 @@ for (const preset of PRESETS) {
       await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
       await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
       await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
-      await page.waitForTimeout(3000); // deal cinematic settle
+      // The deal cinematic settles — the console's own quiet, not a pause (the wizard walk reads what stands either way).
+      await settle(page, {timeoutMs: 30_000}).catch(() => { /* the walk reads what stands */ });
       await runWizard(page, 'Inventrix');
 
       // ── The deployment plays the corp; A performs the mandatory first
@@ -221,7 +225,10 @@ for (const preset of PRESETS) {
         if (cta.pill || cta.briefing || cta.mandatory) {
           await key(page, 'Enter', 700);
         } else {
-          await page.waitForTimeout(400);
+          // The loop's tick is a STATE — the batch, or a CTA / briefing / plate to press (bounded: the loop re-reads).
+          await page.waitForFunction(() => document.querySelector('.con-reveal') !== null ||
+            document.querySelector('.con-start__slot-a') !== null || document.querySelector('.con-start__firstact--ready') !== null ||
+            document.querySelector('.con-mandatory') !== null, undefined, {timeout: 5_000, polling: 100}).catch(() => undefined);
         }
       }
       await expect(page.locator('.con-reveal'), 'the drawn batch presented').toHaveCount(1, {timeout: 30_000});
@@ -241,8 +248,9 @@ for (const preset of PRESETS) {
         expect(req?.effectiveCount, `«${card.name}»: Inventrix's ±2 shifted the bound`).toBeDefined();
       }
 
-      // ── 1 · the focused card: the rail speaks the model, compactly. ──
-      const first = await railReadout(page);
+      // ── 1 · the focused card: the rail speaks the model, compactly. Read AT REST (C — `readSettled`; inside the
+      //    standing batch — no `settle`: the reveal waits for the take). ──
+      const first = await readSettled(page, () => railReadout(page), {settle: false, message: 'the rail of the first focused card'});
       const focusedName = first.focusedSlot.split('#')[0];
       const focusedModel = drawn.find((c) => c.name === focusedName);
       expect(focusedModel, `the focused slot «${first.focusedSlot}» is one of the server's drawn cards`).toBeDefined();
@@ -262,7 +270,7 @@ for (const preset of PRESETS) {
       // ── 2 · the LAYOUT INVARIANT: focus moves, the rail box does not. ──
       if (drawn.length > 1) {
         await key(page, 'ArrowRight', 500);
-        const second = await railReadout(page);
+        const second = await readSettled(page, () => railReadout(page), {settle: false, message: 'the rail of the next focused card'});
         expect(second.box, 'the rail box never moves with the focus').toEqual(first.box);
         expect(second.name.length, 'the rail names the newly focused card').toBeGreaterThan(0);
         await key(page, 'ArrowLeft', 500);
@@ -271,15 +279,16 @@ for (const preset of PRESETS) {
       // ── 3 · X-fullscreen: the detailed panel, same severity; B returns. ──
       await key(page, 'KeyX', 400);
       await page.waitForSelector('dialog.con-zoom[open]', {timeout: 15_000});
-      await page.waitForTimeout(1200);
-      const panel = await page.evaluate(() => {
+      // The viewer's panel STANDS, then is read at rest (its entrance over) — never a pause before a one-shot read.
+      await expect(page.locator('.con-zoom-sidecol .con-cardavail--panel'), 'the fullscreen shows the availability panel').toHaveCount(1, {timeout: 15_000});
+      const panel = await readSettled(page, () => page.evaluate(() => {
         const el = document.querySelector<HTMLElement>('.con-zoom-sidecol .con-cardavail--panel');
         return el === null ? undefined : {
           severity: el.getAttribute('data-severity') ?? '',
           text: (el.querySelector<HTMLElement>('.con-cardavail__text')?.innerText ?? '').replace(/\s+/g, ' ').trim(),
           mods: (el.querySelector<HTMLElement>('.con-cardavail__mods')?.innerText ?? '').replace(/\s+/g, ' ').trim(),
         };
-      });
+      }), {settle: false, message: 'the fullscreen availability panel'});
       await shoot(page, preset.tag, '02-fullscreen-panel');
       expect(panel, 'the fullscreen shows the availability panel').toBeDefined();
       expect(panel?.severity, 'one model — same verdict as the rail').toBe('pending');
@@ -288,14 +297,12 @@ for (const preset of PRESETS) {
 
       await key(page, 'Escape', 600);
       await expect.poll(async () => page.locator('dialog.con-zoom[open]').count(), {timeout: 15_000}).toBe(0);
-      const back = await railReadout(page);
+      const back = await readSettled(page, () => railReadout(page), {settle: false, message: 'the rail after B'});
       expect(back.name, 'B returned to the reveal with focus intact').toBe(first.name);
       expect(back.severity).toBe('pending');
 
       // ── 4 · take everything — the flow completes and cleans up. ──
-      for (let i = 0; i < 8 && await page.locator('.con-reveal').count() > 0; i++) {
-        await key(page, 'Enter', 900); // A takes card by card (embedded batch)
-      }
+      await takeRevealCards(page, 8); // A takes card by card (embedded batch)
       await expect.poll(async () => page.locator('.con-reveal').count(), {timeout: 45_000}).toBe(0);
       await shoot(page, preset.tag, '03-after-take');
     });

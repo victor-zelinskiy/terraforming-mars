@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import {
   bootFixture, fetchPlayerModel, openActionFocus, openCardActions, press, settle, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow, Witness} from './witness';
 
 /**
  * TR13 — POLITICAL THINK TANK («Политический аналитический центр»): the third
@@ -16,9 +18,9 @@ import {
  * TR15, Mars First: the Redux deck's own copy, moved to the top) and
  * `political-think-tank-miss` (the dealt top card, no party requirement).
  *
- * The claims are about ORDER, read by ONE probe (`MutationObserver` +
- * `setInterval` — never rAF: headless drives it off the compositor and it goes
- * quiet exactly during the beats under test), armed BEFORE the first press:
+ * The claims are about ORDER, read by ONE probe (a RECORD of the product's own
+ * writes — `armWitness`, `settled`: the state a task leaves is what a frame
+ * paints), armed BEFORE the first press:
  *  1. the composer states the check by its glyph, the two gain chips and the
  *     composition (with the amber warning at zero); A sends exactly ONE POST;
  *  2. the card leaves `.con-deckstack__pile` face down and is turned over in
@@ -79,11 +81,16 @@ type Sample = {
   degraded: string,
 };
 
-/** Arm the order probe — before the first press. */
-async function armProbe(page: Page, kept: string): Promise<void> {
-  await page.evaluate((keptName) => {
-    const t0 = performance.now();
-    const samples: Array<unknown> = [];
+/** One recorded state — what the reader observes (the record stamps it with the page's clock). */
+type Seen = Omit<Sample, 't'>;
+
+/**
+ * Arm the order probe — before the first press (FLAKE ZERO — `armWitness`: every state the product writes, recorded in
+ * the task that writes it, stamped with the page's clock). `settled`: «the workspace left BEFORE the card landed», «the
+ * chip in the air before the counter ticked» are ORDER claims — the state a task LEAVES is what a frame can paint.
+ */
+async function armProbe(page: Page, key: string, kept: string): Promise<Witness<Seen>> {
+  return armWitness<Seen, string>(page, `think-tank-${key}`, (keptName) => {
     // A PAINTED proxy only: the chassis mounts at its natural box in the corner and is posed
     // (and faded in) by the director a frame later — that unposed frame is invisible.
     const centre = (el: Element | null) => {
@@ -97,41 +104,25 @@ async function armProbe(page: Page, kept: string): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 0 ? {x: +(r.left + r.width / 2).toFixed(1), y: +(r.top + r.height / 2).toFixed(1)} : null;
     };
-    const scan = () => {
-      if (samples.length > 6000) {
-        return;
-      }
-      const body = document.querySelector(`.con-handbody[data-hand-dock-card="${keptName}"]`);
-      const verdict = document.querySelector('.con-verdict');
-      samples.push({
-        t: +(performance.now() - t0).toFixed(1),
-        proxy: centre(document.querySelector('.con-composer__revealfly .con-deal-proxy')),
-        verdict: verdict === null ? '' : (verdict.classList.contains('con-verdict--met') ? 'met' : 'miss'),
-        mc: (document.querySelector('.con-res__row--megacredits .con-res__value')?.textContent ?? '').trim(),
-        dockCard: body !== null && !body.classList.contains('con-handbody--held'),
-        delivery: document.querySelectorAll(`[data-delivery-card="${keptName}"]`).length,
-        discardProxy: document.querySelectorAll('.con-discard-proxy').length,
-        transfer: document.querySelectorAll('.con-transfer [data-transfer-id]').length,
-        ws: document.querySelectorAll('.con-ws').length,
-        degraded: document.documentElement.getAttribute('data-reveal-handoff-degraded') ?? '',
-      });
+    const body = document.querySelector(`.con-handbody[data-hand-dock-card="${keptName}"]`);
+    const verdict = document.querySelector('.con-verdict');
+    return {
+      proxy: centre(document.querySelector('.con-composer__revealfly .con-deal-proxy')),
+      verdict: verdict === null ? '' : (verdict.classList.contains('con-verdict--met') ? 'met' : 'miss'),
+      mc: (document.querySelector('.con-res__row--megacredits .con-res__value')?.textContent ?? '').trim(),
+      dockCard: body !== null && !body.classList.contains('con-handbody--held'),
+      delivery: document.querySelectorAll(`[data-delivery-card="${keptName}"]`).length,
+      discardProxy: document.querySelectorAll('.con-discard-proxy').length,
+      transfer: document.querySelectorAll('.con-transfer [data-transfer-id]').length,
+      ws: document.querySelectorAll('.con-ws').length,
+      degraded: document.documentElement.getAttribute('data-reveal-handoff-degraded') ?? '',
     };
-    const timer = window.setInterval(scan, 16);
-    const mo = new MutationObserver(scan);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, characterData: true});
-    (window as unknown as {__tank: unknown}).__tank = {samples, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-    }};
-  }, kept);
+  }, {args: kept, settled: true, max: 20_000});
 }
 
-async function readProbe(page: Page): Promise<Array<Sample>> {
-  return await page.evaluate(() => {
-    const p = (window as unknown as {__tank: {samples: Array<unknown>, stop: () => void}}).__tank;
-    p.stop();
-    return p.samples;
-  }) as Array<Sample>;
+/** Stop the record; every recorded state, `t` on the page's clock. */
+async function readProbe(probe: Witness<Seen>): Promise<Array<Sample>> {
+  return (await probe.stop()).map((x) => ({...x.v, t: x.t}));
 }
 
 /** ДЕЙСТВИЯ КАРТ → the TR13 row → the setup stage, with the preview landed. */
@@ -211,9 +202,9 @@ for (const profile of PROFILES) {
       await expect(stage.locator('.con-composer__warn'), 'no «unwinnable» warning while such a card exists').toHaveCount(0);
       await shoot(page, `${profile.tag}-01-setup`);
 
-      const deck = await deckRect(page);
+      const deck = await readSettled(page, () => deckRect(page), {message: 'the HUD deck pile'});
       expect(deck, 'the HUD deck pile stands').not.toBeNull();
-      await armProbe(page, KEPT);
+      const probe = await armProbe(page, 'match', KEPT);
       const postsBefore = posts.length;
 
       // ── 2. A → the deck pull, the flip, the verdict. ──
@@ -238,19 +229,17 @@ for (const profile of PROFILES) {
       await shoot(page, `${profile.tag}-02-verdict`);
 
       // ── 3. «OK» → the outcome detaches; the workspace leaves; card + chip land. ──
-      const okAt = await page.evaluate(() => {
-        const p = (window as unknown as {__tank: {samples: Array<{t: number}>}}).__tank;
-        return p.samples[p.samples.length - 1]?.t ?? 0;
-      });
+      const okAt = await pageNow(page);
       await press(page, 'Enter', 400);
       await expect(page.locator(`.con-handbody[data-hand-dock-card="${KEPT}"]:not(.con-handbody--held)`),
         'the card landed in the dock').toHaveCount(1, {timeout: 20_000});
       await expect(page.locator('.con-res__row--megacredits .con-res__value'), 'the M€ ticked on the touchdown').toHaveText('17', {timeout: 20_000});
       await settle(page, {timeoutMs: 30_000});
       await waitForBoardHome(page, 30);
-      const samples = await readProbe(page);
+      const samples = await readProbe(probe);
 
-      expect(samples.length, 'the probe lived').toBeGreaterThan(100);
+      // (a record keeps distinct states, not ticks — only a recorder that never ran has none)
+      expect(samples.length, 'the probe lived').toBeGreaterThan(0);
       // The deck pull: the FIRST proxy sample stands over the HUD pile (face down, leaving it).
       const firstProxy = samples.find((s) => s.proxy !== null);
       expect(firstProxy, 'the reveal flight was seen').toBeTruthy();
@@ -319,7 +308,7 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-composer__cta--ready'), 'revealing and discarding is a legal move').toBeVisible();
       await shoot(page, `${profile.tag}-04-setup-pool`);
 
-      await armProbe(page, '__none__');
+      const probe = await armProbe(page, 'miss', '__none__');
       await press(page, 'Enter', 800);
       const verdict = page.locator('.con-composer--stage .con-verdict');
       await expect(verdict).toHaveClass(/con-verdict--miss/, {timeout: 20_000});
@@ -328,20 +317,18 @@ for (const profile of PROFILES) {
       await expect(verdict.locator('.con-verdict__found--no')).toHaveCount(1);
       await expect(verdict).toContainText('не получена');
       await expect(verdict.locator('.con-verdict__fate--discard')).toContainText('в сброс');
-      const verdictBox = await verdict.boundingBox();
+      const verdictBox = await readSettled(page, () => verdict.boundingBox(), {message: 'the miss verdict'});
       await shoot(page, `${profile.tag}-05-verdict-miss`);
       const atVerdict = await tankState(request, playerId);
 
-      const okAt = await page.evaluate(() => {
-        const p = (window as unknown as {__tank: {samples: Array<{t: number}>}}).__tank;
-        return p.samples[p.samples.length - 1]?.t ?? 0;
-      });
+      const okAt = await pageNow(page);
       await press(page, 'Enter', 400);
       await expect(page.locator('.con-cardactions'), 'the finished flow leaves').toHaveCount(0, {timeout: 20_000});
       await settle(page, {timeoutMs: 30_000});
       await waitForBoardHome(page, 30);
-      const samples = await readProbe(page);
-      expect(samples.length, 'the probe lived').toBeGreaterThan(50);
+      const samples = await readProbe(probe);
+      // (a record keeps distinct states, not ticks — only a recorder that never ran has none)
+      expect(samples.length, 'the probe lived').toBeGreaterThan(0);
       const after = samples.filter((s) => s.t > okAt);
       expect(after.some((s) => s.discardProxy > 0), 'the card flew to the discard pile').toBe(true);
       expect(samples.every((s) => s.mc === '12'), 'the M€ never moved').toBe(true);

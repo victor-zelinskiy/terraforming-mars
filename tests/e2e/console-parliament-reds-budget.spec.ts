@@ -5,6 +5,7 @@ import {bootFixtureSeats, fetchPlayerModel, pressUntil, settle} from './consoleS
 import {
   armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, ledgerRecords, openParliament, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * REDS BUDGET (Turmoil Redux, RX39) — the ONE e2e of the card: the last budget assembled from shipped parts (the levy of
@@ -25,7 +26,8 @@ import {
  *   ④ the results: three parts for blue (levy · payout · step) and three for the bot (D16 — paid like every seat).
  *   Server truth: blue's TR +1, M€ 15 − 10 + 4 = 9; Agenda 2 and 7; the bot's M€ moved by its own levy, payout and card.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF; the frame claims are made on the TASK samples only.
+ * The probe is RECORDED (FLAKE ZERO — `armWitness`, `settled`): every sample is the state a TASK leaves — what a frame
+ * can paint — so the frame claims are made on every recorded state.
  * Screens and the storyboard under screenshots/parliament-reds-budget/<profile>/ (the 4K storyboard is trusted on the
  * GPU only — `TM_E2E_GPU=1`).
  */
@@ -99,10 +101,9 @@ function writeFrameAt(frames: ReadonlyArray<CastFrame>, wall: number, preset: st
 
 type Chip = {id: string, x: number, y: number, dir: string, amt: string, rating: boolean};
 type Sample = {
+  /** The PAGE's clock (ms) — the same wall clock the screencast stamps its frames with. */
   t: number,
   wall: number,
-  /** A TASK sample (setInterval) — the only kind a claim about painted frames is made on. */
-  tick: boolean,
   stage: string,
   /** The law's walk now playing: whose, and its phase (`impulse` · `walk` · `landed`) — the band's own witness. */
   careerSeat: string, careerPhase: string,
@@ -122,12 +123,16 @@ type Sample = {
   bandBonus: string,
 };
 type Probe = {samples: Array<Sample>};
+type Seen = Omit<Sample, 't' | 'wall'>;
+const PROBE_WITNESS = 'rx39-sitting';
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
+/**
+ * THE PROBE — armed BEFORE the gate is answered, RECORDED (FLAKE ZERO — `armWitness`, replace-proof): every distinct
+ * state with the page's time. `settled` — each sample is the state a task LEAVES (what the old timer tick saw, what a
+ * frame can paint), never a state between two writes of one task — so every recorded state is a frame claim's.
+ */
 async function armProbe(page: Page, colors: {blue: string, bot: string}): Promise<void> {
-  await page.evaluate((c) => {
-    const w = window as unknown as {__rx39: Probe};
-    w.__rx39 = {samples: []};
+  await armWitness<Seen, {blue: string, bot: string}>(page, PROBE_WITNESS, (c) => {
     const visible = (el: HTMLElement | null): boolean => {
       if (el === null) {
         return false;
@@ -153,52 +158,46 @@ async function armProbe(page: Page, colors: {blue: string, bot: string}): Promis
       return -1;
     };
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      const band = document.querySelector<HTMLElement>('[data-parl-band-zone]');
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        return {id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, dir: el.dataset.transferDirection ?? 'gain',
-          amt: el.textContent?.trim() ?? '', rating: el.querySelector('.resource_icon--rating') !== null};
-      });
-      const insignia = document.querySelector<HTMLElement>('[data-parl-sit-hero] .pcard-ic[style*="agenda-step"], [data-parl-gov-carry] .pcard-ic[style*="agenda-step"]');
-      w.__rx39.samples.push({
-        t: performance.now(),
-        wall: Date.now(),
-        tick,
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        careerSeat: band?.getAttribute('data-parl-career-seat') ?? '',
-        careerPhase: band?.getAttribute('data-parl-career-phase') ?? '',
-        blueStep: stepOf(c.blue),
-        botStep: stepOf(c.bot),
-        proxy: visible(document.querySelector<HTMLElement>('.con-parl__flight--agenda')),
-        insignia: insignia !== null && insignia.style.transform !== '' && insignia.style.transform !== 'none',
-        insW: insignia === null ? 0 : insignia.getBoundingClientRect().width,
-        careerMark: visible(document.querySelector<HTMLElement>('[data-parl-gov-career]')) && document.querySelector('.con-parl__gov-card--lit') !== null,
-        chips,
-        tr: text(document.querySelector('.con-res .con-score__value--tr')),
-        mc: (text(document.querySelector('.con-res__row--megacredits .con-res__digits')).match(/^-?\d+/) ?? [''])[0],
-        bandBonus: Array.from(document.querySelectorAll('[data-parl-band-chip="agenda"] [data-parl-band-bonus]')).map((el) => el.getAttribute('data-parl-band-bonus') ?? '?').join(','),
-      });
-      if (w.__rx39.samples.length > 14000) {
-        w.__rx39.samples.splice(0, 2000);
-      }
+    const band = document.querySelector<HTMLElement>('[data-parl-band-zone]');
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      return {id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, dir: el.dataset.transferDirection ?? 'gain',
+        amt: el.textContent?.trim() ?? '', rating: el.querySelector('.resource_icon--rating') !== null};
+    });
+    const insignia = document.querySelector<HTMLElement>('[data-parl-sit-hero] .pcard-ic[style*="agenda-step"], [data-parl-gov-carry] .pcard-ic[style*="agenda-step"]');
+    return {
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      careerSeat: band?.getAttribute('data-parl-career-seat') ?? '',
+      careerPhase: band?.getAttribute('data-parl-career-phase') ?? '',
+      blueStep: stepOf(c.blue),
+      botStep: stepOf(c.bot),
+      proxy: visible(document.querySelector<HTMLElement>('.con-parl__flight--agenda')),
+      insignia: insignia !== null && insignia.style.transform !== '' && insignia.style.transform !== 'none',
+      insW: insignia === null ? 0 : insignia.getBoundingClientRect().width,
+      careerMark: visible(document.querySelector<HTMLElement>('[data-parl-gov-career]')) && document.querySelector('.con-parl__gov-card--lit') !== null,
+      chips,
+      tr: text(document.querySelector('.con-res .con-score__value--tr')),
+      mc: (text(document.querySelector('.con-res__row--megacredits .con-res__digits')).match(/^-?\d+/) ?? [''])[0],
+      bandBonus: Array.from(document.querySelectorAll('[data-parl-band-chip="agenda"] [data-parl-band-bonus]')).map((el) => el.getAttribute('data-parl-band-bonus') ?? '?').join(','),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true,
-      attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-parl-career-phase', 'data-parl-career-seat']});
-    window.setInterval(() => sample(true), 16);
-  }, colors);
+  }, {args: colors, settled: true, max: 30_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__rx39: Probe}).__rx39);
 
-/** A red run carries its own evidence: the probe's tail rides the report. */
+/** The recording, stopped — every distinct state with its page time (the screencast's wall clock). */
+async function readProbe(page: Page, stop = false): Promise<Probe> {
+  const w = witnessOf<Seen>(page, PROBE_WITNESS);
+  const recorded = stop ? await w.stop() : await w.samples();
+  return {samples: recorded.map((s) => ({...s.v, t: s.t, wall: s.t}))};
+}
+
+/** A red run carries its own evidence: the probe's tail rides the report (the record lives on the Node side). */
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__rx39?: Probe, __conReady?: () => unknown};
-    return {samples: w.__rx39?.samples.slice(-14000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
+  const samples = (await readProbe(page).catch(() => ({samples: []}))).samples.slice(-14000);
+  const ready = await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()).catch(() => undefined);
+  const evidence = samples.length > 0 || ready !== undefined ? {samples, ready} : undefined;
   if (evidence !== undefined) {
     const file = testInfo.outputPath('reds-budget-probe.json');
     fs.writeFileSync(file, JSON.stringify(evidence));
@@ -306,8 +305,9 @@ for (const preset of PRESETS) {
       await expect.poll(() => sittingStage(page), {timeout: 180_000, message: 'the walk reaches the results'}).toBe('results');
       await waitSittingAtRest(page, 40_000);
       await cast.stop();
-      const probe = await readProbe(page);
-      const ticks = probe.samples.filter((s) => s.tick);
+      const probe = await readProbe(page, true);
+      // Every recorded state is a TASK's (the record is `settled`) — the states a frame claim is made on.
+      const ticks = probe.samples;
       {
         let lastKey = '';
         const lines: Array<string> = [];
@@ -350,12 +350,13 @@ for (const preset of PRESETS) {
       const tickedAt = probe.samples.findIndex((s, i) => i > impulseSample && s.tr === trAfter);
       expect(tickedAt, 'the rating ticks only once its token has flown, never before it').toBeGreaterThan(ratingBirth);
 
-      // PL-784 · FG: the SOURCE reads by material for the whole beat — every task sample with a walk playing shows the
-      // law's card lit gold with its «КАРЬЕРА» word (a 320 ms pulse of a 40 px glyph was what the eye missed).
+      // PL-784 · FG: the SOURCE reads by material for the whole beat — every recorded state with a walk playing shows the
+      // law's card lit gold with its «КАРЬЕРА» word (a 320 ms pulse of a 40 px glyph was what the eye missed). The slack
+      // of two is counted in distinct STATES (a slower machine records fewer of them, never more).
       const walking = ticks.filter((s) => s.careerSeat !== '');
       expect(walking.length, 'the Career beat was sampled').toBeGreaterThan(0);
       const unmarked = walking.filter((s) => !s.careerMark).length;
-      expect(unmarked, `PL-784: the source mark stands through the beat (${unmarked} of ${walking.length} samples without it)`).toBeLessThanOrEqual(2);
+      expect(unmarked, `PL-784: the source mark stands through the beat (${unmarked} of ${walking.length} states without it)`).toBeLessThanOrEqual(2);
       expect(ticks.filter((s) => s.careerSeat === '' && s.careerMark).length, 'PL-784: and only through it').toBeLessThanOrEqual(2);
 
       // ③ THE BOT'S STEP: after blue's walk has landed — never two markers at once — with «+1 M€» named in the band.

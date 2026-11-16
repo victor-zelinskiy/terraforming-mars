@@ -16,14 +16,16 @@
  *  4. THE PLAYED CARD IS THE TOP OF THE PILE. After it lands it must not sink
  *     under the previous card's still-open face.
  *
- * Sampling is per-frame-ish (~60 ms) because every one of these is a WINDOW,
- * not an end state — the defects were all invisible in the settled screenshot.
+ * RECORDED (`armWitness`, settled — the product's own writes, every frame) because every one of these is a WINDOW,
+ * not an end state — the defects were all invisible in the settled screenshot. The windows are bounded by the page's
+ * clock (`pageNow`) and close on the END STATE they wait for, never on a duration.
  */
 import {test, expect, Page} from './consoleTest';
 import {
   soloGameConfig, walkToSummary, submitSummary, press, fillPicks,
-  playStartQueue, StepKind,
+  playStartQueue, settle, StepKind, waitQueueIdle,
 } from './consoleStart';
+import {armWitness, pageNow} from './witness';
 
 type Sample = {
   proxies: number,
@@ -50,12 +52,12 @@ type Sample = {
 };
 
 /**
- * ONE evaluate = one frame of evidence. Everything is read structurally; the
- * pile verdict uses `elementFromPoint`, i.e. what the BROWSER says is on top,
+ * ONE observation = one painted state of evidence (the witness's reader — runs in the page, self-contained).
+ * Everything is read structurally; the pile verdict uses `elementFromPoint`, i.e. what the BROWSER says is on top,
  * never a z-index we would then have to interpret ourselves.
  */
-async function sample(page: Page): Promise<Sample> {
-  return page.evaluate(() => {
+async function armStartProbe(page: Page) {
+  return armWitness(page, 'start-flow-polish', (): Sample => {
     const box = (el: Element) => {
       const r = el.getBoundingClientRect();
       return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`;
@@ -154,7 +156,7 @@ async function sample(page: Page): Promise<Sample> {
       pileState,
       frozenHeader,
     } as Sample;
-  });
+  }, {settled: true, max: 60_000});
 }
 
 test('the start flow lands its cards, keeps its light on the card, coalesces its chips and stacks its pile', async ({page, request}) => {
@@ -170,14 +172,7 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
 
-  const samples: Array<Sample> = [];
-  let sampling = true;
-  const pump = (async () => {
-    while (sampling) {
-      samples.push(await sample(page).catch(() => undefined as unknown as Sample));
-      await page.waitForTimeout(40);
-    }
-  })();
+  const probe = await armStartProbe(page);
 
   // ── the wizard: a corporation, both preludes, a handful of projects (the
   //    projects are what later arrive in the hand dock one by one). ──
@@ -192,14 +187,15 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
       }
     },
   });
-  const atSummary = samples.length;
+  const atSummary = await pageNow(page);
 
   await submitSummary(page);
-  // Long enough that the settled tail is EVIDENCE, not a rounding error: the
-  // convoy plus its dissolve is ~3 s, and the sampler's cadence collapses while
-  // GSAP owns the main thread, so a short wait leaves a handful of frames.
-  await page.waitForTimeout(7000);
-  const afterMaterialization = samples.length;
+  // The materialization episode ends on its END STATE, never on a duration: the convoy and its dissolve are down —
+  // the deployment queue is IDLE (cards standing, nothing in the air, the rail released) and the start is at rest.
+  // Every frame up to there is recorded, so the settled tail is evidence however slow the machine paints.
+  await waitQueueIdle(page);
+  await settle(page, {timeoutMs: 30_000});
+  const afterMaterialization = await pageNow(page);
 
   // ── the deployment: play the queue so cards land on the РАЗЫГРАНО shelf.
   //    THE DRIVER, never a hand-rolled loop: the purchase block is a queue
@@ -208,12 +204,13 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
   //    on a non-empty family, i.e. the only one this probe's pile claim can be
   //    made about. ──
   await playStartQueue(page, {plays: 10});
-  await page.waitForTimeout(1500);
+  // The last play's landing is recorded to its end: the console at rest, never a fixed tail.
+  await settle(page, {timeoutMs: 30_000});
 
-  sampling = false;
-  await pump;
-  const live = samples.filter((s) => s !== undefined);
-  expect(live.length, 'the probe collected frames').toBeGreaterThan(60);
+  const recorded = await probe.stop();
+  const live = recorded.map((x) => x.v);
+  // The recorder's own liveness floor — only a DEAD recorder fails it (a count of samples is a count of frames).
+  expect(live.length, 'the probe collected frames').toBeGreaterThan(0);
 
   // ── 1. THE GLINT NEVER LEAVES THE CARD ───────────────────────────────────
   // Soft throughout: every claim here is independent, and one run should report
@@ -230,7 +227,7 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
   // ── 2. THE LANDING IS FINAL ──────────────────────────────────────────────
   // From the frame the materialization convoy is down to the end of the
   // episode, no queue card / shelf may move.
-  const mat = live.slice(atSummary, afterMaterialization);
+  const mat = recorded.filter((x) => x.t >= atSummary && x.t <= afterMaterialization).map((x) => x.v);
   const frozenHeaders = mat
     .map((s) => s.frozenHeader)
     .filter((s): s is NonNullable<Sample['frozenHeader']> => s !== undefined);
@@ -245,7 +242,8 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
   const lastAirborne = mat.map((s) => s.proxies > 0).lastIndexOf(true);
   expect.soft(lastAirborne, 'the materialization convoy was actually airborne').toBeGreaterThan(-1);
   const settled = mat.slice(lastAirborne + 1).filter((s) => Object.keys(s.rects).length > 0);
-  expect.soft(settled.length, 'there are frames after the convoy landed').toBeGreaterThan(3);
+  // A recording keeps a state only when it CHANGES: one recorded state after the landing is the landed scene standing.
+  expect.soft(settled.length, 'there are frames after the convoy landed').toBeGreaterThan(0);
   const baseline = settled[0]?.rects ?? {};
   const shifted: Array<string> = [];
   for (const s of settled) {

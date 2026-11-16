@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, closeZoomViewer, fetchPlayerModel, openQuickWheel, openZoomViewer, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE VOTE PANEL — ONE NUMBER (Turmoil Redux, docs/TURMOIL_REDUX_PARLIAMENT_VOTE_ONE_NUMBER.md).
@@ -27,7 +28,7 @@ import {bootFixture, closeZoomViewer, fetchPlayerModel, openQuickWheel, openZoom
  *   (д) a screenshot per profile and fixture, and the panel/card metrics for
  *       the before/after table.
  *
- * Probes are `setInterval`/DOM-free reads — never rAF.
+ * Every box is read AT REST (`readSettled` — two equal reads a frame apart, after `settle`) — never mid-entrance.
  */
 const OUT_ROOT = path.resolve('screenshots', 'parliament-vote-fit');
 
@@ -124,7 +125,7 @@ const clipProblems = (page: Page) => page.evaluate(() => {
 
 /** (б) Every block of the mode stands whole in the viewport and inside its tier. */
 async function expectVoteFits(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => page.evaluate(() => {
     const root = document.querySelector('.con-parl__vote');
     if (root === null) {
       return ['no vote layer'];
@@ -152,7 +153,7 @@ async function expectVoteFits(page: Page, label: string): Promise<void> {
       }
     }
     return out;
-  });
+  }), {message: `${label}: the vote mode's blocks`});
   expect(problems, `${label}: every block of the vote mode fits`).toEqual([]);
 }
 
@@ -312,7 +313,7 @@ for (const preset of PRESETS) {
         const playerId = await bootFixture(page, request, fixture.name, {query: preset.query});
         const wire = await fetchPlayerModel(request, playerId) as unknown as Wire;
         await openParliament(page);
-        const overviewCard = await page.locator('.con-parl__slot .pcard').first().boundingBox();
+        const overviewCard = await readSettled(page, () => page.locator('.con-parl__slot .pcard').first().boundingBox(), {message: 'the overview\'s card'});
 
         // ── the mode
         expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}),
@@ -322,11 +323,12 @@ for (const preset of PRESETS) {
 
         // ── (а) + (б)
         // MEASURE FIRST: a fit that fails is a claim about pixels, and the numbers belong in the message.
-        const measured = await metricsOf(page);
-        // Polled, not read once: the entrance travels the late items in on a transform, and a
+        const measured = await readSettled(page, () => metricsOf(page), {message: 'the panel\'s metrics'});
+        // Read AT REST, never once: the entrance travels the late items in on a transform, and a
         // transformed box is scrollable overflow while it moves — a one-shot read on a loaded runner
-        // sampled «clipped-y … 402 > 384» mid-flight; a real clip persists and fails here the same way.
-        await expect.poll(() => clipProblems(page), {timeout: 8_000, message: `${fixture.name} @ ${preset.id}: nothing under the vote layer is clipped or scrollable (${JSON.stringify(measured)})`}).toEqual([]);
+        // sampled «clipped-y … 402 > 384» mid-flight; a real clip STANDS at rest and fails here the same way.
+        const clipped = await readSettled(page, () => clipProblems(page), {message: 'the clip probe under the vote layer'});
+        expect(clipped, `${fixture.name} @ ${preset.id}: nothing under the vote layer is clipped or scrollable (${JSON.stringify(measured)})`).toEqual([]);
         await expectVoteFits(page, `${fixture.name} @ ${preset.id}`);
 
         // ── THE LEDGER OF OUTCOMES: one chip per PARTICIPATING seat at ITS OWN influence, the viewer's
@@ -387,7 +389,7 @@ for (const preset of PRESETS) {
         }
         expect(budget.words, `≤ ${WORD_LIMIT} words on the panel: «${budget.text}»`).toBeLessThanOrEqual(WORD_LIMIT);
         expect(budget.gone, 'what left the panel stays off it').toEqual([]);
-        const metrics = await metricsOf(page);
+        const metrics = await readSettled(page, () => metricsOf(page), {message: 'the panel\'s metrics'});
         // Парламент v8 (§ 5, the HALL): the bills do not move — the mode's card IS the overview's card.
         expect(Math.abs((metrics.card?.h ?? 0) - Math.round(overviewCard?.height ?? 0)) <= 1, `the mode's card is the overview's (${Math.round(overviewCard?.height ?? 0)} → ${metrics.card?.h})`).toBeTruthy();
 
@@ -419,7 +421,7 @@ for (const preset of PRESETS) {
         await expect(page.locator('.con-parl__vote.con-parl__vote--up'), 'the mode survives the inspector').toHaveCount(1);
         const panelAfter = await panelSignature(page);
         expect(panelAfter, 'the panel under the inspector is the same afterwards').toBe(panelBefore);
-        await expect.poll(() => clipProblems(page), {timeout: 8_000, message: 'still nothing clipped after the inspector'}).toEqual([]);
+        expect(await readSettled(page, () => clipProblems(page), {message: 'the clip probe after the inspector'}), 'still nothing clipped after the inspector').toEqual([]);
 
         await press(page, 'Escape', 900);
       });
@@ -487,7 +489,7 @@ for (const preset of LEDGER_PRESETS) {
 
       // MEASURE FIRST, JUDGE AFTER: a fit that fails must still leave its numbers and its picture behind —
       // «the row does not fit» is a claim about how many pixels, and the answer belongs in the artifact.
-      const metrics = await metricsOf(page);
+      const metrics = await readSettled(page, () => metricsOf(page), {message: 'the panel\'s metrics'});
       const dir = path.join(OUT_ROOT, preset.id);
       fs.mkdirSync(dir, {recursive: true});
       await page.screenshot({path: path.join(dir, 'RX15-parliament-budget-vote-six.png')});
@@ -499,7 +501,8 @@ for (const preset of LEDGER_PRESETS) {
       test.fixme(!LEDGER_FIT_HOLDS.includes(preset.id),
         `a FULL table of six does not fit beside the widest reading on ${preset.id} — measured: own content ` +
         `${metrics.ownScroll} of ${metrics.own?.h}, the row ${metrics.ledgerRow?.h} px on one line. The panel may not grow (§9.2).`);
-      await expect.poll(() => clipProblems(page), {timeout: 8_000, message: `six seats @ ${preset.id}: nothing clipped or scrollable (${JSON.stringify(metrics)})`}).toEqual([]);
+      const clipped = await readSettled(page, () => clipProblems(page), {message: 'the clip probe under the vote layer'});
+      expect(clipped, `six seats @ ${preset.id}: nothing clipped or scrollable (${JSON.stringify(metrics)})`).toEqual([]);
       await expectVoteFits(page, `six seats @ ${preset.id}`);
 
       await press(page, 'Escape', 900);

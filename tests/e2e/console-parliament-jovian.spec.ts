@@ -5,6 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, pressUntil, settle,
 } from './consoleStart';
 import {armLeakWitness, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armWitness, Witness, witnessOf} from './witness';
 
 /**
  * JOVIAN TAX RIGHTS (Turmoil Redux, RX17) — the ONE e2e of the card's new
@@ -31,9 +32,10 @@ import {armLeakWitness, enterSittingByPass, expectDossierIsRules, expectParliame
  *   one seat, in turn. The record is the server's — titanium, then production
  *   with the frozen list of tiles — and the results read the parts «+3 · +4».
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF; every sample
- * carries whether the source and the destination were VISIBLE and where each
- * chip stood, so a claim of «born here, landed there» is judged on frames.
+ * The probe is a RECORDING (`armWitness`) of the product's own writes; every
+ * state carries whether the source and the destination were VISIBLE and where
+ * each chip stood, so a claim of «born here, landed there» is judged on the
+ * states a frame can paint.
  * Screens under screenshots/parliament-jovian/standard-1080/.
  */
 const OUT_DIR = path.resolve('screenshots', 'parliament-jovian', 'standard-1080');
@@ -78,13 +80,19 @@ type Sample = {
   titanium: string; production: string;
 };
 type Probe = {samples: Array<Sample>};
+/** One recorded state — what the reader observes (the record stamps it with the page's clock). */
+type Seen = Omit<Sample, 't'>;
+const PROBE = 'parliament-jovian-probe';
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__jovianProbe: Probe};
-    w.__jovianProbe = {samples: []};
-    const rectOf = (el: Element | null): Rect | undefined => {
+/**
+ * THE PROBE — armed BEFORE the gate is answered (FLAKE ZERO — `armWitness`): every state the product writes, recorded in
+ * the task that writes it, replace-proof, stamped with the page's clock. `settled`: «the tick rides the touchdown» and
+ * «the production step only once the titanium had landed» are ORDER claims — the state a task LEAVES is what a frame
+ * can paint.
+ */
+async function armProbe(page: Page): Promise<Witness<Seen>> {
+  return armWitness<Seen>(page, PROBE, () => {
+    const rectOf = (el: Element | null): {x: number, y: number, w: number, h: number} | undefined => {
       if (el === null) {
         return undefined;
       }
@@ -108,52 +116,47 @@ async function armProbe(page: Page): Promise<void> {
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return hit !== null && (el.contains(hit) || hit.contains(el));
     };
-    const sample = () => {
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        const kind: 'stock' | 'production' = el.classList.contains('con-transfer__chip--production') ? 'production' : 'stock';
-        return {
-          id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, kind,
-          dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? '',
-        };
-      });
-      const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
-      const mech = card?.querySelector('.pcard__mech') ?? null;
-      const titaniumRow = document.querySelector('.con-res__row--titanium');
-      const titaniumCell = titaniumRow?.querySelector('.con-res__stockwrap') ?? null;
-      const mcRow = document.querySelector('.con-res__row--megacredits');
-      const prod = mcRow?.querySelector('.con-res__prod') ?? null;
-      w.__jovianProbe.samples.push({
-        t: performance.now(),
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        chips,
-        mech: rectOf(mech),
-        mechVisible: visible(mech),
-        titaniumCell: rectOf(titaniumCell),
-        titaniumVisible: visible(titaniumCell),
-        prod: rectOf(prod),
-        titanium: titaniumRow?.querySelector('.con-res__digits')?.textContent?.trim() ?? '',
-        production: prod?.textContent?.trim() ?? '',
-      });
-      if (w.__jovianProbe.samples.length > 9000) {
-        w.__jovianProbe.samples.splice(0, 1500);
-      }
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      const kind: 'stock' | 'production' = el.classList.contains('con-transfer__chip--production') ? 'production' : 'stock';
+      return {
+        id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, kind,
+        dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? '',
+      };
+    });
+    const card = document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') ?? document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard');
+    const mech = card?.querySelector('.pcard__mech') ?? null;
+    const titaniumRow = document.querySelector('.con-res__row--titanium');
+    const titaniumCell = titaniumRow?.querySelector('.con-res__stockwrap') ?? null;
+    const mcRow = document.querySelector('.con-res__row--megacredits');
+    const prod = mcRow?.querySelector('.con-res__prod') ?? null;
+    return {
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      chips,
+      mech: rectOf(mech),
+      mechVisible: visible(mech),
+      titaniumCell: rectOf(titaniumCell),
+      titaniumVisible: visible(titaniumCell),
+      prod: rectOf(prod),
+      titanium: titaniumRow?.querySelector('.con-res__digits')?.textContent?.trim() ?? '',
+      production: prod?.textContent?.trim() ?? '',
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-sit-step']});
-    window.setInterval(sample, 16);
-  });
+  }, {settled: true, max: 20_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__jovianProbe: Probe}).__jovianProbe);
+
+/** Every recorded state, in order, `t` on the page's clock. */
+async function readProbe(probe: Witness<Seen>): Promise<Probe> {
+  return {samples: (await probe.samples()).map((x) => ({...x.v, t: x.t}))};
+}
 
 /** A red run carries its own evidence: the probe's tail rides the report. */
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__jovianProbe?: Probe, __conReady?: () => unknown};
-    return {samples: w.__jovianProbe?.samples.slice(-3000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
+  const samples = await readProbe(witnessOf<Seen>(page, PROBE)).then((p) => p.samples.slice(-3000)).catch(() => []);
+  const evidence = await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.())
+    .then((ready) => ({samples, ready})).catch(() => undefined);
   if (evidence !== undefined) {
     const file = testInfo.outputPath('jovian-probe.json');
     fs.writeFileSync(file, JSON.stringify(evidence));
@@ -263,19 +266,19 @@ test.describe('Jovian Tax Rights · standard-1080', () => {
     await armLeakWitness(page);
     const before = await wireOf(request, playerId);
     await enterSittingByPass(page, request, playerId);
-    await armProbe(page);
+    const probeRecord = await armProbe(page);
     await shoot(page, '04-sitting-up');
 
     // ── THE TWO WAVES of the viewer's seat: a titanium gain IN, then a production step IN.
-    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.kind === 'stock')),
+    await expect.poll(async () => (await readProbe(probeRecord)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.kind === 'stock')),
       {timeout: 30_000, message: 'the titanium chip flew on the reward page'}).toBe(true);
     await shoot(page, '05-titanium-flies');
-    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.chips.some((c) => c.kind === 'production')),
+    await expect.poll(async () => (await readProbe(probeRecord)).samples.some((s) => s.chips.some((c) => c.kind === 'production')),
       {timeout: 60_000, message: 'the production step\'s chip flew'}).toBe(true);
-    await expect.poll(async () => (await readProbe(page)).samples.slice(-1)[0].chips.length, {timeout: 60_000, message: 'the last chip landed'}).toBe(0);
+    await expect.poll(async () => (await probeRecord.last())?.chips.length, {timeout: 60_000, message: 'the last chip landed'}).toBe(0);
     await shoot(page, '06-production-lands');
 
-    const probe = await readProbe(page);
+    const probe = await readProbe(probeRecord);
     const tracks = tracksOf(probe.samples).filter((tr) => tr[0].s.stage === 'reward');
     const gain = tracks.find((tr) => tr[0].c.kind === 'stock');
     const prod = tracks.find((tr) => tr[0].c.kind === 'production');
@@ -314,7 +317,7 @@ test.describe('Jovian Tax Rights · standard-1080', () => {
     expect(inside({x: prodFirst.c.x, y: prodFirst.c.y}, prodFirst.s.mech, 8), 'the production step is BORN inside the card\'s printed mechanic').toBe(true);
     const prodLast = prod[prod.length - 1];
     expect(inside({x: prodLast.c.x, y: prodLast.c.y}, prodLast.s.prod, 10), 'the production step LANDED on the M€ production zone').toBe(true);
-    await expect.poll(async () => digitsOf((await readProbe(page)).samples.slice(-1)[0].production), {timeout: 10_000, message: 'the production readout reached +4'}).toBe(4);
+    await expect.poll(async () => digitsOf((await probeRecord.last())?.production ?? ''), {timeout: 10_000, message: 'the production readout reached +4'}).toBe(4);
 
     // ── THE RECORD is the server's: +3 titanium by influence 3, then +4 production from FOUR cubes with the frozen LIST — the printed order.
     const wire = await wireOf(request, playerId);

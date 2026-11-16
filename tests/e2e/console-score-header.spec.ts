@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, press, reloadConsole, soloGameConfig} from './consoleStart';
+import {bootIntoGame, fetchPlayerModel, press, pressUntil, reloadConsole, settle, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * Console score header (.con-score — TR + VP above the resource rows):
@@ -44,11 +45,17 @@ async function shoot(page: Page, preset: Preset, name: string): Promise<void> {
   await page.screenshot({path: path.join(dir, `${name}.png`)});
 }
 
+type Box = {x: number, y: number, width: number, height: number};
+
+/** The rail host's box, read AT REST — the clip of every rail shot (a mid-scene shot reuses one read before it). */
+async function railHostBox(page: Page): Promise<Box | null> {
+  return readSettled(page, () => page.locator('.con-res-host').boundingBox(), {message: 'the rail host'});
+}
+
 /** The rail + a margin of board context (chips / aux column live just outside). */
-async function shootRail(page: Page, preset: Preset, name: string): Promise<void> {
+async function shootRail(page: Page, preset: Preset, name: string, box: Box | null): Promise<void> {
   const dir = path.join(OUT_ROOT, preset.id);
   fs.mkdirSync(dir, {recursive: true});
-  const box = await page.locator('.con-res-host').boundingBox();
   if (box === null) {
     return;
   }
@@ -92,27 +99,32 @@ for (const preset of PRESETS) {
       await expect(score).toBeVisible();
       await expect(page.locator('.con-score__value--tr')).toHaveText(/^\d+$/);
       await expect(page.locator('.con-score__cell--vp .con-score__value')).toHaveText(/^-?\d+$/);
-      // The cap never overflows its rail horizontally.
-      const railBox = await page.locator('.con-res').boundingBox();
-      const capBox = await score.boundingBox();
+      // The cap never overflows its rail horizontally — both boxes read at rest.
+      const {railBox, capBox} = await readSettled(page, async () => ({
+        railBox: await page.locator('.con-res').boundingBox(),
+        capBox: await score.boundingBox(),
+      }), {message: 'the rail and its score cap'});
       expect(capBox!.x).toBeGreaterThanOrEqual(railBox!.x - 1);
       expect(capBox!.x + capBox!.width).toBeLessThanOrEqual(railBox!.x + railBox!.width + 1);
 
       await shoot(page, preset, '01-board');
-      await shootRail(page, preset, '02-rail');
+      const hostBox = await railHostBox(page);
+      await shootRail(page, preset, '02-rail', hostBox);
 
       // Live score delta chip (1080 only): the Asteroid standard project
       // raises TR by 1 — the cap's TR cell must fire the existing score chip.
-      // Evidence-only (bounded, no assertions — the chip is transient).
+      // Evidence-only (bounded, no assertions — the chip is transient). Each press still waits for ITS effect and is
+      // pressed again only without one (act → verify → retry): a swallowed key no longer desyncs the walk.
       if (preset.id === 'tv-4k') {
-        await key(page, 'Comma', 1000);        // LT wheel
-        await key(page, 'Enter', 1400);        // centre slot = Standard Projects
-        await key(page, 'ArrowDown', 400);
-        await key(page, 'ArrowDown', 400);     // → Asteroid (raise temperature)
-        await key(page, 'Enter', 900);         // open / confirm
-        await key(page, 'Enter', 700);         // confirm dialog (if shown)
-        await shootRail(page, preset, '04-rail-tr-chip');
-        await page.waitForTimeout(2500);       // chip settles
+        const trOf = async () => ((await fetchPlayerModel(request, playerId)).thisPlayer as {terraformRating: number}).terraformRating;
+        const trBefore = await trOf();
+        const focusedProject = () => page.locator('.con-stdp__card--focused .con-stdp__name').innerText().catch(() => '');
+        await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {tries: 4, settleMs: 1000}); // LT wheel
+        await pressUntil(page, 'Enter', async () => await page.locator('.con-stdp').count() > 0, {tries: 3, settleMs: 1400}); // centre slot = Standard Projects
+        await pressUntil(page, 'ArrowDown', async () => /астероид|asteroid/i.test(await focusedProject()), {tries: 4, settleMs: 400}); // → Asteroid (raise temperature)
+        await pressUntil(page, 'Enter', async () => await trOf() > trBefore, {tries: 2, settleMs: 1600}); // open / confirm (+ the confirm dialog, if shown)
+        await shootRail(page, preset, '04-rail-tr-chip', hostBox);
+        await settle(page, {timeoutMs: 20_000}); // the chip settles
         await key(page, 'Escape', 600);
       }
 
@@ -123,11 +135,11 @@ for (const preset of PRESETS) {
       await reloadConsole(page);
       await page.waitForSelector('.con-root', {timeout: 45_000});
       await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-      await page.waitForTimeout(3000);
+      await settle(page, {timeoutMs: 30_000});
       await expect(page.locator('.con-score .vp-private')).toBeVisible();
       await expect.poll(() => page.locator('.con-score__cell--vp .con-score__value').count()).toBe(0);
       await expect(page.locator('.con-score__value--tr')).toHaveText(/^\d+$/);
-      await shootRail(page, preset, '03-rail-vp-masked');
+      await shootRail(page, preset, '03-rail-vp-masked', await railHostBox(page));
       await page.evaluate((id) => localStorage.removeItem('tm.privateScoreDisplay.' + id), playerId);
     });
   });

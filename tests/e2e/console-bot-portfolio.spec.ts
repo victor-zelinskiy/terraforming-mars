@@ -1,5 +1,6 @@
 import {Locator, Page, expect, test} from './consoleTest';
 import {bootFixture, bootSeededGame, fetchPlayerModel, openBotScreenHub, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE BOT'S PORTFOLIO (docs/claude/prompts/marsbot-portfolio-dividends.md) —
@@ -78,8 +79,8 @@ async function expectLedgerReadsServer(page: Page, rules: Locator, model: unknow
   const goalsVp = goalTerms.reduce((sum, t) => sum + t.vp, 0);
   await expect(ledger.locator('[data-dividend-vp]'), 'the total WITH the goals').toHaveText(String(row.vp));
   await expect(ledger.locator('[data-dividend-total]')).toContainText(`формула ${row.vp - goalsVp} + цели ${goalsVp}`);
-  // Read whole: inside the rules panel, nothing of it cut.
-  const inside = await page.evaluate((sel) => {
+  // Read whole: inside the rules panel, nothing of it cut — read AT REST (the viewer's entrance is no layout).
+  const inside = await readSettled(page, () => page.evaluate((sel) => {
     const panel = document.querySelector('.con-zoom-rules');
     const el = document.querySelector(sel);
     if (panel === null || el === null) {
@@ -88,7 +89,7 @@ async function expectLedgerReadsServer(page: Page, rules: Locator, model: unknow
     const p = panel.getBoundingClientRect();
     const b = el.getBoundingClientRect();
     return b.left >= p.left - 1 && b.right <= p.right + 1 && b.bottom <= p.bottom + 1;
-  }, `[data-rules-group="botcorp:${corp}:dividend"] [data-dividend-ledger]`);
+  }, `[data-rules-group="botcorp:${corp}:dividend"] [data-dividend-ledger]`), {message: 'the ledger in its rules panel'});
   expect(inside, 'the ledger stands inside the rules panel').toBe(true);
   return goalTerms;
 }
@@ -148,8 +149,8 @@ for (const profile of PROFILES) {
         const holding = portfolio.locator(`[data-holding="${id}"]`);
         await expect(holding.locator('.pcard'), `${id}: its face`).toBeVisible();
       }
-      // Nothing of the plate may be cut: the holdings stand INSIDE the corporation plate.
-      const fits = await page.evaluate(() => {
+      // Nothing of the plate may be cut: the holdings stand INSIDE the corporation plate — read AT REST.
+      const fits = await readSettled(page, () => page.evaluate(() => {
         const plate = document.querySelector('.con-botscr__plate--corp');
         const box = document.querySelector('[data-bot-portfolio]');
         if (plate === null || box === null) {
@@ -158,7 +159,7 @@ for (const profile of PROFILES) {
         const p = plate.getBoundingClientRect();
         const b = box.getBoundingClientRect();
         return b.top >= p.top - 1 && b.bottom <= p.bottom + 1 && b.left >= p.left - 1 && b.right <= p.right + 1;
-      });
+      }), {message: 'the portfolio on its plate'});
       expect(fits, 'the portfolio fits inside its plate').toBe(true);
       await page.screenshot({path: `screenshots/bot-portfolio-${profile.id}.png`, fullPage: false});
 

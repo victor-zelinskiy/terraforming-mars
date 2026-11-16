@@ -6,6 +6,7 @@ import {
   pressUntil, sendPlayerInput, settle, walkToSpace, focusInfoZone,
 } from './consoleStart';
 import {closeSittingAs, closeSitting, armLeakWitness, mandatoryPlate, parliament, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {armWitness} from './witness';
 
 /**
  * SKYSCRAPERS (Turmoil Redux, RX20) — the ONE e2e of the card, on one profile:
@@ -18,7 +19,7 @@ import {closeSittingAs, closeSitting, armLeakWitness, mandatoryPlate, parliament
  *     placement whose ONE candidate is still asked; the dossier on the city
  *     promises the stack's scoring («1 → 2 tiers») and says out loud that the
  *     cell pays no bonus; L3 opens the source;
- *   · the SCENE (the owner's order, sampled in-page at 30 ms): the tier swings
+ *   · the SCENE (the owner's order, recorded in-page off its own writes): the tier swings
  *     over the site (its x still moving), HANGS while the base takes the load
  *     (the cell's `--stack-loading`, the counter at «×1»), comes STRAIGHT DOWN
  *     (x fixed on the stack's centre, y monotone), and at CONTACT the counter
@@ -103,15 +104,21 @@ function writeFrameAt(frames: ReadonlyArray<CastFrame>, wall: number, name: stri
   return true;
 }
 
-type Sample = {
-  t: number,
-  /** WALL clock, so a sample can be matched against a screencast frame's own timestamp. */
-  wall: number,
+/** One recorded state of the scene (the witness's observation). */
+type SkySeen = {
   /** The flying tier's proxy: shown, and its centre. */
   landing: boolean, lx: number, ly: number,
+  /** The proxy's centre x whenever it has a box, shown or not — its first value is where it was BORN (the supply). */
+  px: number | null,
   /** The real cell: the counter's text, the model's height, the scene's two states, the dust. */
   count: string | undefined, height: string | undefined, loading: boolean, contact: boolean, dust: boolean,
   cellVisible: boolean,
+};
+type Sample = SkySeen & {
+  /** Since the record was armed (the page's clock). */
+  t: number,
+  /** WALL clock (the page's), so a sample can be matched against a screencast frame's own timestamp. */
+  wall: number,
 };
 
 /** The board-cursor walk to the city + the two-press commit. */
@@ -191,14 +198,13 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     await closeZoomViewer(page);
     await expect.poll(async () => await placementState(page), {timeout: 10_000, message: 'inspection does not cancel the placement'}).not.toBe('none');
 
-    // ── THE SCENE, sampled IN THE PAGE before the press (a Node loop samples three beats late).
-    //    `setInterval`, never rAF — headless Chromium stops rAF the moment the screen goes quiet.
+    // ── THE SCENE, RECORDED before the press (FLAKE ZERO — `armWitness`: every state the product writes, in the task
+    //    that writes it, stamped with the page's clock; a starved renderer can slow the scene, never hide a beat of it).
+    //    `settled`: the claims below are «in the SAME sample» claims — the state a task LEAVES is the state a frame paints
+    //    (the product sets the load and its «×1», the contact, the «×2», the height and the dust each in ONE turn).
     const mcBefore = (await wireOf(request, playerId)).thisPlayer.megacredits;
     const cast = await recordFrames(page);
-    await page.evaluate((spaceId) => {
-      type S = {t: number, wall: number, landing: boolean, lx: number, ly: number, count: string | undefined, height: string | undefined, loading: boolean, contact: boolean, dust: boolean, cellVisible: boolean};
-      const w = window as unknown as {__sky?: {samples: Array<S>, stop: () => void}};
-      const samples: Array<S> = [];
+    const sky = await armWitness<SkySeen, string>(page, 'skyscrapers-scene', (spaceId) => {
       const shown = (el: Element | null): boolean => {
         if (el === null) {
           return false;
@@ -207,61 +213,37 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
         const r = el.getBoundingClientRect();
         return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.02 && r.width > 2 && r.height > 2;
       };
-      const t0 = performance.now();
-      const timer = window.setInterval(() => {
-        const cell = document.querySelector<HTMLElement>(`.board-space[data_space_id="${spaceId}"]`);
-        const proxy = document.querySelector<HTMLElement>('.con-tileplace__tile:not(.con-tileplace__tile--depart):not(.con-tileplace__tile--remote)');
-        const pr = proxy?.getBoundingClientRect();
-        const cr = cell?.getBoundingClientRect();
-        samples.push({
-          t: Math.round(performance.now() - t0),
-          wall: Date.now(),
-          landing: shown(proxy),
-          lx: pr === undefined ? -1 : pr.left + pr.width / 2,
-          ly: pr === undefined ? -1 : pr.top + pr.height / 2,
-          count: cell?.querySelector('[data-stack-count]')?.textContent?.trim() ?? undefined,
-          height: cell?.getAttribute('data-stack-height') ?? undefined,
-          loading: cell?.classList.contains('board-space--stack-loading') ?? false,
-          contact: cell?.classList.contains('board-space--stack-contact') ?? false,
-          dust: shown(document.querySelector('.con-tileplace__dust')),
-          cellVisible: cr !== undefined && cr.width > 8 && cr.height > 8,
-        });
-      }, 30);
-      // THE BIRTH POINT: the swing lasts ~150 ms at the functional pace — on a starved renderer the 30 ms timer's first
-      // visible sample can already be its tail (CI run 40255070349 saw 17 px of travel). The proxy's position the moment
-      // it is INSERTED is where it came from (the supply), whatever the timer manages to see after.
-      const born = {x: undefined as number | undefined};
-      const mo = new MutationObserver(() => {
-        if (born.x !== undefined) {
-          return;
-        }
-        const proxy = document.querySelector<HTMLElement>('.con-tileplace__tile:not(.con-tileplace__tile--depart):not(.con-tileplace__tile--remote)');
-        const r = proxy?.getBoundingClientRect();
-        if (r !== undefined && r.width > 2) {
-          born.x = r.left + r.width / 2;
-        }
-      });
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class']});
-      (w as unknown as {__skyBorn: typeof born}).__skyBorn = born;
-      w.__sky = {samples, stop: () => {
-        window.clearInterval(timer);
-        mo.disconnect();
-      }};
-    }, city);
+      const cell = document.querySelector<HTMLElement>(`.board-space[data_space_id="${spaceId}"]`);
+      const proxy = document.querySelector<HTMLElement>('.con-tileplace__tile:not(.con-tileplace__tile--depart):not(.con-tileplace__tile--remote)');
+      const pr = proxy?.getBoundingClientRect();
+      const cr = cell?.getBoundingClientRect();
+      return {
+        landing: shown(proxy),
+        lx: pr === undefined ? -1 : pr.left + pr.width / 2,
+        ly: pr === undefined ? -1 : pr.top + pr.height / 2,
+        // THE BIRTH POINT: the swing lasts ~150 ms at the functional pace — on a starved renderer its first VISIBLE
+        // pose can already be its tail (CI run 40255070349 saw 17 px of travel). The proxy's position the moment it has
+        // a box is where it came from (the supply), whatever pose is painted after.
+        px: pr !== undefined && pr.width > 2 ? pr.left + pr.width / 2 : null,
+        count: cell?.querySelector('[data-stack-count]')?.textContent?.trim() ?? undefined,
+        height: cell?.getAttribute('data-stack-height') ?? undefined,
+        loading: cell?.classList.contains('board-space--stack-loading') ?? false,
+        contact: cell?.classList.contains('board-space--stack-contact') ?? false,
+        dust: shown(document.querySelector('.con-tileplace__dust')),
+        cellVisible: cr !== undefined && cr.width > 8 && cr.height > 8,
+      };
+    }, {args: city, settled: true});
     await commitOnCity(page, city);
-    // THE SCENE'S END is a STATE the sampler itself reads: the stack at 2, the proxy gone, the cell's states and
-    // the dust released — held for a run of samples (the settled frame the report picks is a frame at rest).
-    await expect.poll(async () => await page.evaluate(() => {
-      const w = window as unknown as {__sky: {samples: Array<{height?: string, landing: boolean, loading: boolean, contact: boolean, dust: boolean}>}};
-      const tail = w.__sky.samples.slice(-12);
-      return tail.length === 12 && tail.every((s) => s.height === '2' && !s.landing && !s.loading && !s.contact && !s.dust);
-    }), {timeout: 30_000, message: 'the scene comes to rest on a stack of 2'}).toBe(true);
-    const samples = await page.evaluate(() => {
-      const w = window as unknown as {__sky: {samples: Array<Record<string, unknown>>, stop: () => void}};
-      w.__sky.stop();
-      return w.__sky.samples;
-    }) as Array<Sample>;
-    await cast.stop();
+    // THE SCENE'S END is a STATE the record itself reads: the stack at 2, the proxy gone, the cell's states and the
+    // dust released — the LAST state the product wrote (a recording keeps a state until it changes).
+    const atRest = (s: SkySeen) => s.height === '2' && !s.landing && !s.loading && !s.contact && !s.dust;
+    await expect.poll(async () => {
+      const now = await sky.last();
+      return now !== undefined && atRest(now);
+    }, {timeout: 30_000, message: 'the scene comes to rest on a stack of 2'}).toBe(true);
+    const recorded = await sky.stop();
+    const t0 = recorded[0]?.t ?? 0;
+    const samples: Array<Sample> = recorded.map((s) => ({...s.v, t: s.t - t0, wall: s.t}));
     const first = (pred: (s: Sample) => boolean) => samples.findIndex(pred);
     const loadingAt = first((s) => s.loading);
     const count1At = first((s) => s.count === '×1');
@@ -276,8 +258,9 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     await test.info().attach('skyscrapers-scene-trail', {body: trail, contentType: 'text/plain'});
     const at = (i: number) => i < 0 ? '—' : `${samples[i].t}ms`;
     console.log(`[skyscrapers] ${samples.length} samples over ${samples[samples.length - 1]?.t}ms · fly ${at(landingAt)} · load ${at(loadingAt)} (×1 ${at(count1At)}) · contact ${at(contactAt)} (×2 ${at(count2At)}, h2 ${at(height2At)}, dust ${at(dustAt)})`);
-    // A dead sampler must fail loudly rather than pass every claim vacuously.
-    expect(samples.length, 'the in-page sampler never ran').toBeGreaterThan(30);
+    // A dead recorder must fail loudly rather than pass every claim vacuously (a record keeps distinct states, not
+    // frames — only a recorder that never ran has none).
+    expect(samples.length, 'the in-page recorder never ran').toBeGreaterThan(0);
     // THE STAGE IS VISIBLE: the target cell is on screen and the tier physically flew (the source and the destination both seen).
     expect(samples.every((s) => s.cellVisible), 'the target cell stays visible through the scene').toBe(true);
     expect(landingAt, 'the tier must physically FLY to the stack').toBeGreaterThanOrEqual(0);
@@ -293,13 +276,15 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     expect(Math.abs(dustAt - contactAt)).toBeLessThanOrEqual(2);
     // THE SWING: before the load the tier's x is still moving (it comes from the supply, not from nowhere).
     const swing = samples.filter((s, i) => s.landing && i < loadingAt);
-    const bornX = await page.evaluate(() => (window as unknown as {__skyBorn?: {x?: number}}).__skyBorn?.x);
+    const bornX = samples.find((s) => s.px !== null)?.px ?? undefined;
     const xs = [...swing.map((s) => s.lx), ...(bornX === undefined ? [] : [bornX])];
-    expect(swing.length, 'the swing was sampled').toBeGreaterThan(2);
+    // (EVER, never a count of frames: how many poses of a 150 ms swing get painted is the machine's)
+    expect(swing.length, 'the swing was recorded').toBeGreaterThan(0);
     expect(Math.max(...xs) - Math.min(...xs), `the tier travels horizontally on its way to the site (born at ${bornX?.toFixed(0) ?? '—'})`).toBeGreaterThan(30);
     // THE VERTICAL DESCENT: from the load to the contact the tier's x is FIXED on the stack's centre and its y only grows (screen down).
     const descent = samples.filter((s, i) => s.landing && i >= loadingAt && i < contactAt);
-    expect(descent.length, 'the descent was sampled').toBeGreaterThan(4);
+    // (EVER, never a count of frames — the claims below judge the poses the product painted)
+    expect(descent.length, 'the descent was recorded').toBeGreaterThan(0);
     const dx = Math.max(...descent.map((s) => s.lx)) - Math.min(...descent.map((s) => s.lx));
     expect(dx, `the lowering is VERTICAL — x fixed (spread ${dx.toFixed(1)} px)`).toBeLessThanOrEqual(2);
     // (the only upward motion allowed is the contact's damped settle — under 3 px, the mass being felt once)
@@ -311,9 +296,13 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     // the contact (the counter's «×2» in that very frame), the settled stack with its dust down.
     const hangingAt = Math.min(samples.length - 1, loadingAt + 2);
     const settledAt = samples.findIndex((s, i) => i > contactAt && !s.landing && !s.dust);
+    const settledWall = samples[settledAt < 0 ? samples.length - 1 : settledAt].wall;
+    // The screencast keeps running until it has painted the settled stack (a frame stamped at or after that state).
+    await expect.poll(() => cast.frames.some((f) => f.wall >= settledWall), {timeout: 15_000, message: 'the screencast painted the settled stack'}).toBe(true);
+    await cast.stop();
     expect(writeFrameAt(cast.frames, samples[hangingAt].wall, '04-tier-hanging'), 'a frame of the tier hanging').toBe(true);
     expect(writeFrameAt(cast.frames, samples[height2At].wall, '05-contact'), 'a frame of the contact').toBe(true);
-    expect(writeFrameAt(cast.frames, samples[settledAt < 0 ? samples.length - 1 : settledAt].wall, '06-stack-settled'), 'a frame of the settled stack').toBe(true);
+    expect(writeFrameAt(cast.frames, settledWall, '06-stack-settled'), 'a frame of the settled stack').toBe(true);
     // THE END: a stack of 2, its scene states released, nothing hanging.
     const last = samples[samples.length - 1];
     expect(last.height).toBe('2');

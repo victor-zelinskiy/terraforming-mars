@@ -1,6 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, settle} from './consoleStart';
 import {mandatoryPlate, PARLIAMENT_PRESETS} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /*
  * THE SITTING'S ANNOUNCE PLATE stands in the prompt band and covers no board
@@ -97,7 +98,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       await bootFixtureSeats(page, request, 'parliament-climate-adjourn', {query: preset.query, landing: 'prompt'});
       await expect(mandatoryPlate(page), 'the sitting is announced').toBeVisible({timeout: 30_000});
       await settle(page, {timeoutMs: 20_000});
-      const m = await measure(page);
+      // Measured AT REST (two equal reads a frame apart) — the plate's entrance may still be moving after the quiet.
+      const m = await readSettled(page, () => measure(page), {message: `${preset.id}: the announce plate and the board spaces`});
       expect(m.plate, 'the plate is laid out').not.toBeNull();
       const plate = m.plate!;
       // The SHARED position: the token's own arithmetic, centred on the root — no parliament offset.

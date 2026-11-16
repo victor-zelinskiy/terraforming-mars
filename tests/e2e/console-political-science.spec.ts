@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, cinematicBeat} from './consoleStart';
 import {enterSittingByPass, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR02 POLITICAL SCIENCE — a CARD ANSWERS A LEAVE of the renewal (docs/TURMOIL_REDUX_POLITICAL_SCIENCE.md).
@@ -20,7 +21,8 @@ import {enterSittingByPass, parliamentWire, sittingStage, waitSittingAtRest} fro
  *  5. СЕРВЕР    the card holds 2 data; the journal carries `card-effect` count 2 right after the Greens' leave;
  *  6. ТАБЛО     the tableau's card reads «2» on the wire — the very number the premium capsule paints.
  *
- * `MutationObserver` + `setInterval`, never rAF; `waitForTimeout` = 0. Screenshots under screenshots/political-science/.
+ * RECORDED (`armWitness`, `settled` — every sample is the state a task leaves, what a frame can paint); `waitForTimeout`
+ * = 0. Screenshots under screenshots/political-science/.
  */
 const OUT = path.resolve('screenshots', 'political-science');
 
@@ -33,24 +35,29 @@ type Rect = {x: number, y: number, w: number, h: number};
 type Vis = {box: boolean, ink: number, free: boolean};
 type Proxy = {id: string, body: string, color: string, amount: string, text: string, x: number, y: number, w: number, h: number, shown: boolean};
 type Sample = {
-  src: 'mo' | 'tick', t: number, stage: string, motion: string, degraded: string,
+  /** The PAGE's clock (ms). */
+  t: number, stage: string, motion: string, degraded: string,
   proxies: Array<Proxy>,
   reserves: Record<string, {rect: Rect | undefined, count: number, vis: Vis}>,
   slots: Array<{instance: string, rect: Rect | undefined}>,
   band: {kicker: string, text: string, lines: number},
 };
 type Probe = {samples: Array<Sample>};
+const PROBE_WITNESS = 'polsci-renewal';
 
 type Journal = Array<
   | {kind: 'leave', instance: string, resolution: string, party: string, slot: number, returned: Array<{owner: string, count: number}>}
   | {kind: 'card-effect', player: string, card: string, resource: string, count: number, instance: string}
   | {kind: string}>;
 
-/** THE PROBE — armed BEFORE the press. */
+/**
+ * THE PROBE — armed BEFORE the press, RECORDED (FLAKE ZERO — `armWitness`, replace-proof): every distinct state with the
+ * page's time; null while no Parliament stands. The claims are about painted states and their order (the landing, then
+ * the token; the token's rise), so the record is `settled` — the state a task LEAVES (the old sampler judged its timer
+ * ticks only for exactly that reason).
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__polsci: Probe};
-    w.__polsci = {samples: []};
+  await armWitness<Omit<Sample, 't'> | null>(page, PROBE_WITNESS, () => {
     const rect = (el: Element | null | undefined): Rect | undefined => {
       if (el === null || el === undefined) {
         return undefined;
@@ -78,65 +85,65 @@ async function armProbe(page: Page): Promise<void> {
       const free = hit !== null && (hit === el || el.contains(hit) || hit.contains(el) || hit.closest('[data-parl-flight]') !== null);
       return {box: r.w > 1 && r.h > 1, ink, free};
     };
-    const sample = (src: 'mo' | 'tick') => {
-      const root = document.querySelector<HTMLElement>('.con-parl');
-      if (root === null) {
-        return;
-      }
-      const proxies: Array<Proxy> = Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
-        const r = el.getBoundingClientRect();
-        const color = el.querySelector<HTMLElement>('[data-player-token]')?.getAttribute('data-player-token') ?? '';
-        const cs = getComputedStyle(el);
-        return {
-          id: el.getAttribute('data-parl-flight') ?? '', body: el.getAttribute('data-parl-flight-body') ?? 'cube', color,
-          amount: el.getAttribute('data-parl-token-amount') ?? '', text: (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
-          x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height,
-          shown: cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0.02,
-        };
-      });
-      const reserves: Sample['reserves'] = {};
-      for (const stack of Array.from(root.querySelectorAll<HTMLElement>('[data-parl-seat-reserve]'))) {
-        const color = stack.getAttribute('data-parl-seat-reserve') ?? '';
-        reserves[color] = {rect: rect(stack), count: Number(stack.getAttribute('data-count') ?? '0'), vis: vis(stack)};
-      }
-      const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-parl__slots > .con-parl__slot-home')).map((home) => ({
-        instance: home.getAttribute('data-home') ?? '',
-        rect: rect(home.querySelector('.con-parl__card .pcard') ?? home.querySelector('.con-parl__card') ?? home.querySelector('.con-parl__slot-empty-card')),
-      }));
-      const bandLines = Array.from(root.querySelectorAll<HTMLElement>('.con-band__line'));
-      w.__polsci.samples.push({
-        src, t: performance.now(),
-        stage: root.getAttribute('data-sitting-stage') ?? '',
-        motion: root.getAttribute('data-sitting-motion') ?? '',
-        degraded: root.getAttribute('data-renewal-degraded') ?? '',
-        proxies, reserves, slots,
-        band: {
-          kicker: bandLines.map((l) => l.querySelector('.con-band__kicker')?.textContent?.trim() ?? '').join('|'),
-          text: bandLines.map((l) => (l.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' || '),
-          lines: Math.max(0, ...bandLines.map((l) => Math.round(l.getBoundingClientRect().height / Math.max(1, parseFloat(getComputedStyle(l).lineHeight) || 1)))),
-        },
-      });
-      if (w.__polsci.samples.length > 9000) {
-        w.__polsci.samples.splice(0, 1500);
-      }
+    const root = document.querySelector<HTMLElement>('.con-parl');
+    if (root === null) {
+      return null;
+    }
+    const proxies: Array<Proxy> = Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
+      const r = el.getBoundingClientRect();
+      const color = el.querySelector<HTMLElement>('[data-player-token]')?.getAttribute('data-player-token') ?? '';
+      const cs = getComputedStyle(el);
+      return {
+        id: el.getAttribute('data-parl-flight') ?? '', body: el.getAttribute('data-parl-flight-body') ?? 'cube', color,
+        amount: el.getAttribute('data-parl-token-amount') ?? '', text: (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height,
+        shown: cs.visibility !== 'hidden' && Number(cs.opacity || 1) > 0.02,
+      };
+    });
+    const reserves: Sample['reserves'] = {};
+    for (const stack of Array.from(root.querySelectorAll<HTMLElement>('[data-parl-seat-reserve]'))) {
+      const color = stack.getAttribute('data-parl-seat-reserve') ?? '';
+      reserves[color] = {rect: rect(stack), count: Number(stack.getAttribute('data-count') ?? '0'), vis: vis(stack)};
+    }
+    const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-parl__slots > .con-parl__slot-home')).map((home) => ({
+      instance: home.getAttribute('data-home') ?? '',
+      rect: rect(home.querySelector('.con-parl__card .pcard') ?? home.querySelector('.con-parl__card') ?? home.querySelector('.con-parl__slot-empty-card')),
+    }));
+    const bandLines = Array.from(root.querySelectorAll<HTMLElement>('.con-band__line'));
+    return {
+      stage: root.getAttribute('data-sitting-stage') ?? '',
+      motion: root.getAttribute('data-sitting-motion') ?? '',
+      degraded: root.getAttribute('data-renewal-degraded') ?? '',
+      proxies, reserves, slots,
+      band: {
+        kicker: bandLines.map((l) => l.querySelector('.con-band__kicker')?.textContent?.trim() ?? '').join('|'),
+        text: bandLines.map((l) => (l.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' || '),
+        lines: Math.max(0, ...bandLines.map((l) => Math.round(l.getBoundingClientRect().height / Math.max(1, parseFloat(getComputedStyle(l).lineHeight) || 1)))),
+      },
     };
-    new MutationObserver(() => sample('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-motion', 'data-sitting-stage', 'data-count', 'data-parl-token-amount']});
-    window.setInterval(() => sample('tick'), 16);
-  });
+  }, {settled: true, max: 20_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__polsci: Probe}).__polsci);
+
+/** The recording, stopped — every state with a Parliament on screen, its time on the PAGE's clock. */
+async function readProbe(page: Page): Promise<Probe> {
+  const recorded = await witnessOf<Omit<Sample, 't'> | null>(page, PROBE_WITNESS).stop();
+  const samples: Array<Sample> = [];
+  for (const s of recorded) {
+    if (s.v !== null) {
+      samples.push({...s.v, t: s.t});
+    }
+  }
+  return {samples};
+}
 
 const center = (r: Rect): {x: number, y: number} => ({x: r.x + r.w / 2, y: r.y + r.h / 2});
 const dist = (a: {x: number, y: number}, b: {x: number, y: number}): number => Math.hypot(a.x - b.x, a.y - b.y);
 const visible = (v: Vis): boolean => v.box && v.ink > 0.9;
 
-/** Every sample of one proxy id, in order, shown frames only. */
-function track(samples: ReadonlyArray<Sample>, id: string, clock: 'tick' | 'any' = 'tick'): Array<{s: Sample, p: Proxy}> {
+/** Every recorded state of one proxy id, in order, shown frames only (every state is a painted one — the record is `settled`). */
+function track(samples: ReadonlyArray<Sample>, id: string): Array<{s: Sample, p: Proxy}> {
   const out: Array<{s: Sample, p: Proxy}> = [];
   for (const s of samples) {
-    if (clock === 'tick' && s.src !== 'tick') {
-      continue;
-    }
     const p = s.proxies.find((x) => x.id === id);
     if (p !== undefined && p.shown) {
       out.push({s, p});
@@ -203,13 +210,14 @@ test.describe('TR02 Political Science · the renewal\'s card-effect (standard-10
     const renewalStart = all.findIndex((s) => s.stage === 'renewal');
     expect(renewalStart, 'the renewal page was sampled').toBeGreaterThan(0);
     const tact = all.slice(renewalStart).filter((s) => s.motion === 'renewal');
-    expect(tact.length, 'the tact was sampled').toBeGreaterThan(30);
+    // The recorder's liveness only (a dead recorder): it keeps distinct STATES, never frames.
+    expect(tact.length, 'the tact was sampled').toBeGreaterThan(0);
 
     // ── 4. ЧЕСТНОСТЬ: no hold folded without its flight.
     expect(all.filter((s) => s.degraded !== '').map((s) => s.degraded).slice(0, 3), 'no renewal event settled without a flight').toEqual([]);
 
     // ── 1. ВОЗВРАТ: both cubes off the loser, into blue's reserve (visible at the landing).
-    const beforeLift = all.slice(0, renewalStart).filter((s) => s.src === 'tick' && s.stage !== '');
+    const beforeLift = all.slice(0, renewalStart).filter((s) => s.stage !== '');
     const lastBefore = beforeLift[beforeLift.length - 1];
     const home = lastBefore.slots.find((sl) => sl.instance === leave.instance);
     expect(home?.rect, 'the loser stood in its slot before the tact').toBeDefined();
@@ -239,8 +247,8 @@ test.describe('TR02 Political Science · the renewal\'s card-effect (standard-10
     // ── 2. ЖЕТОН: born over blue's reserve AFTER the last landing, «+2», rose monotonically, dissolved.
     const tokens = ids(tact, 'token');
     expect(tokens.length, 'exactly one token — one card answered one leave of blue\'s').toBe(1);
-    const token = track(tact, tokens[0], 'any');
-    expect(token.length, 'the token was sampled').toBeGreaterThan(3);
+    const token = track(tact, tokens[0]);
+    expect(token.length, 'the token was sampled').toBeGreaterThan(0);
     expect(token[0].p.amount, 'the token announces the count').toBe('2');
     expect(token[0].p.text, 'the token reads «+2»').toContain('+2');
     expect(token[0].s.t, 'the token was born after the last cube landed').toBeGreaterThanOrEqual(lastLanding - 20);
@@ -248,8 +256,9 @@ test.describe('TR02 Political Science · the renewal\'s card-effect (standard-10
     expect(reserveAtBirth?.rect !== undefined && visible(reserveAtBirth.vis), 'blue\'s reserve was visible when the token was born').toBe(true);
     expect(Math.abs(token[0].p.x - center(reserveAtBirth!.rect!).x), 'born centred over the reserve').toBeLessThan(reserveAtBirth!.rect!.w);
     expect(reserveAtBirth!.rect!.y - token[0].p.y, 'born just above the stack').toBeGreaterThan(0);
-    const ys = token.filter(({s}) => s.src === 'tick').map(({p}) => p.y);
-    expect(ys.length).toBeGreaterThan(2);
+    // Its rise is judged on every recorded pose — the rise and its direction, never how many frames a sampler caught.
+    const ys = token.map(({p}) => p.y);
+    expect(ys.length).toBeGreaterThan(0);
     expect(ys[0] - ys[ys.length - 1], 'the token ROSE').toBeGreaterThan(8);
     for (let i = 1; i < ys.length; i++) {
       expect(ys[i], `the token rises one way, never back (${ys.map((y) => Math.round(y)).join(',')})`).toBeLessThanOrEqual(ys[i - 1] + 0.5);

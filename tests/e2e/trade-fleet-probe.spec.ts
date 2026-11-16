@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, press} from './consoleStart';
+import {bootSeededGame, cinematicBeat, press, settle} from './consoleStart';
 
 /**
  * TRADE FLEET VISUAL PROBE — drives a real solo colonies game to a trade and
@@ -64,7 +64,7 @@ test.describe('trade fleet probe', () => {
     const playerId = model.players[0].id;
 
     await bootSeededGame(page, request, playerId, {buy: 2, keepColony: 'Pluto', query: '&consoleProfile=tv'});
-    await page.waitForTimeout(1500);
+    await settle(page); // the board at rest — a state, never a fixed 1.5 s
 
     // Open the colonies section (RT wheel → right slot).
     const colonies = page.locator('.con-colonies');
@@ -73,7 +73,7 @@ test.describe('trade fleet probe', () => {
       await key(page, 'ArrowRight', 1300);
     }
     await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
-    await page.waitForTimeout(1500);
+    await settle(page); // the overview's entry cascade is over before the frame — a state, never a fixed 1.5 s
     await shoot(page, '01-colonies-overview');
 
     // Focus Pluto.
@@ -98,15 +98,22 @@ test.describe('trade fleet probe', () => {
     await page.keyboard.press('KeyX');
     for (let i = 0; i < 16; i++) {
       await shoot(page, `flight-${String(i).padStart(2, '0')}`);
-      await page.waitForTimeout(180);
+      await cinematicBeat(page, 180, 'the burst: one frame of the launch → transit → dock flight every ~180 ms');
     }
-    await page.waitForTimeout(3000);
+    // The flight's END: the trade landed (server truth), then the screen at rest — never a fixed 3 s. A probe, not a
+    // guard: both are waited for softly (Pluto's draw → discard can hold a [blocking] beat for its own answer), and the
+    // log below says what the server holds.
+    const plutoNow = async () => {
+      const resp = await request.get(`/api/player?id=${playerId}`);
+      const view = await resp.json() as {game: {colonies: Array<{name: string, visitor?: string}>}};
+      return view.game.colonies.find((c) => c.name === 'Pluto');
+    };
+    await expect.poll(async () => (await plutoNow())?.visitor, {timeout: 30_000}).toBeDefined().catch(() => undefined);
+    await settle(page, {timeoutMs: 10_000}).catch(() => undefined);
     await shoot(page, '03-after-dock');
 
     // The trade landed (server truth).
-    const resp = await request.get(`/api/player?id=${playerId}`);
-    const view = await resp.json() as {game: {colonies: Array<{name: string, visitor?: string}>}};
-    const pluto = view.game.colonies.find((c) => c.name === 'Pluto');
+    const pluto = await plutoNow();
     console.log('[probe] pluto after trade:', JSON.stringify(pluto));
   });
 });

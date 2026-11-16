@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {NO_PAYMENT, bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, pressUntil, sendPlayerInput, settle} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR24 «ВЕНЕРИАНСКАЯ ПЕРЕПИСЬ» — THE SCALE STEP PAYS
@@ -100,13 +101,36 @@ type ScaleProbe = {
   stranded: boolean;
 };
 
-/** THE PROBE — MutationObserver + setInterval, never rAF; claims about frames are made on interval ticks. */
+/** One observation of the scene (the witness's reader). Elements are named by a per-document id (a WeakMap on window). */
+type SceneObs = {
+  marker: string | null, markerBox?: Box,
+  aux: string | null, auxBox?: Box,
+  ownerChip?: Box, ownerIntake?: Box,
+  ws: boolean, phase: string, degraded: boolean, stranded: boolean,
+  /** The scene's tokens painted now. */
+  tokens: Array<{id: number, at: Pt}>,
+  /** The scene's flight chips (card resource / M€ only) painted now, while the scene pays. */
+  chips: Array<{id: number, at: Pt, kind: string}>,
+};
+const PROBE_KEY = 'tr24-scene';
+
+/**
+ * THE PROBE — a RECORDING (`armWitness`, settled — «the marker before the token», «the tick never ahead of its
+ * touchdown» are ORDER claims about painted states), never a timer sampler; folded on the Node side by `readProbe`,
+ * times in ms from the arm on the page's clock. A re-arm under the same key starts a fresh record.
+ */
 async function armProbe(page: Page, owner: string): Promise<void> {
-  await page.evaluate((ownerColor) => {
-    const w = window as unknown as {__tr24: ScaleProbe, __tr24stop?: () => void};
-    // A re-arm stops the previous sampler: two samplers on one page write two clocks into one record.
-    w.__tr24stop?.();
-    const chipsByEl = new Map<Element, ScaleProbe['chips'][number]>();
+  await armWitness(page, PROBE_KEY, (ownerColor: string): SceneObs => {
+    const w = window as unknown as {__tr24ids?: WeakMap<Element, number>, __tr24seq?: number};
+    const ids = (w.__tr24ids ??= new WeakMap<Element, number>());
+    const idOf = (el: Element): number => {
+      let id = ids.get(el);
+      if (id === undefined) {
+        id = (w.__tr24seq = (w.__tr24seq ?? 0) + 1);
+        ids.set(el, id);
+      }
+      return id;
+    };
     const boxOf = (el: Element | null): Box | undefined => {
       if (el === null) {
         return undefined;
@@ -114,12 +138,6 @@ async function armProbe(page: Page, owner: string): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 1 && r.height > 1 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
     };
-    const p: ScaleProbe = {
-      samples: 0, ticks: 0, marker: [], tokens: [], chips: [], aux: [], phases: [],
-      wsSeen: false, degraded: false, stranded: false,
-    };
-    w.__tr24 = p;
-    const t0 = Date.now();
     const shown = (el: Element): boolean => {
       let node: Element | null = el;
       let opacity = 1;
@@ -138,92 +156,86 @@ async function armProbe(page: Page, owner: string): Promise<void> {
       const r = el.getBoundingClientRect();
       return {x: r.left + r.width / 2, y: r.top + r.height / 2};
     };
-    const inBox = (pt: Pt, b: Box | undefined, pad: number): boolean => b !== undefined &&
-      pt.x >= b.x - pad && pt.x <= b.x + b.w + pad && pt.y >= b.y - pad && pt.y <= b.y + b.h + pad;
-    const seen = new Set<Element>();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const now = Date.now() - t0;
-      const marker = document.querySelector('.scale-marker[data-scale-marker="venus"]');
-      const at = marker?.getAttribute('data-scale-marker-at') ?? '';
-      if (marker !== null && p.marker[p.marker.length - 1]?.[1] !== at) {
-        p.marker.push([now, at]);
-      }
-      const aux = document.querySelector('.con-res-aux__cell[data-aux-resource="data"]');
-      const auxValue = (aux?.querySelector('.con-res-aux__value')?.textContent ?? '').trim();
-      if (aux !== null && auxValue !== '' && p.aux[p.aux.length - 1]?.[1] !== auxValue) {
-        p.aux.push([now, auxValue]);
-      }
-      const auxBox = boxOf(aux);
-      if (auxBox !== undefined) {
-        p.auxBox = auxBox;
-      }
-      const dot = document.querySelector(`.con-status__player .player_bg_color_${ownerColor}`);
-      const dotBox = boxOf(dot);
-      if (dotBox !== undefined) {
-        p.ownerChip = dotBox;
-      }
-      const intakeBox = boxOf(document.querySelector(`[data-intake-seat="${ownerColor}"]`));
-      if (intakeBox !== undefined) {
-        p.ownerIntake = intakeBox;
-      }
-      if (document.querySelector('.con-ws') !== null) {
-        p.wsSeen = true;
-      } else if (p.wsSeen) {
-        p.wsGoneAt ??= now;
-      }
-      const root = document.querySelector('.con-scalepay');
-      const phase = root?.getAttribute('data-scale-reward') ?? 'gone';
-      if (p.phases[p.phases.length - 1] !== phase) {
-        p.phases.push(phase);
-      }
-      if (root?.getAttribute('data-scale-reward-degraded') !== null && root !== null) {
-        p.degraded = true;
-      }
-      for (const el of Array.from(document.querySelectorAll('.con-scalepay__token'))) {
-        if (!seen.has(el) && shown(el.querySelector('.con-tileplace__coin-body') ?? el)) {
-          seen.add(el);
-          p.tokens.push({t: now, at: centre(el), marker: boxOf(marker)});
-        }
-      }
-      if (phase === 'paying') {
-        document.querySelectorAll('.con-transfer__chip--cardres, .con-transfer__chip--mc').forEach((el) => {
-          if (!shown(el)) {
-            return;
-          }
-          const c = centre(el);
-          const rec = chipsByEl.get(el);
-          const kind = el.classList.contains('con-transfer__chip--cardres') ? 'data' : 'mc';
-          if (rec === undefined) {
-            chipsByEl.set(el, {first: c, last: c, t0: now, t1: now, kind});
-          } else {
-            rec.last = c;
-            rec.t1 = now;
-            if (rec.arrivedAt === undefined && (inBox(c, p.auxBox, 6) || inBox(c, p.ownerChip, 40) || inBox(c, p.ownerIntake, 6))) {
-              rec.arrivedAt = now;
-            }
-          }
-        });
-      }
-      p.chips = Array.from(chipsByEl.values());
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
+    const marker = document.querySelector('.scale-marker[data-scale-marker="venus"]');
+    const aux = document.querySelector('.con-res-aux__cell[data-aux-resource="data"]');
+    const root = document.querySelector('.con-scalepay');
+    const phase = root?.getAttribute('data-scale-reward') ?? 'gone';
+    return {
+      marker: marker === null ? null : marker.getAttribute('data-scale-marker-at') ?? '',
+      markerBox: boxOf(marker),
+      aux: aux === null ? null : (aux.querySelector('.con-res-aux__value')?.textContent ?? '').trim(),
+      auxBox: boxOf(aux),
+      ownerChip: boxOf(document.querySelector(`.con-status__player .player_bg_color_${ownerColor}`)),
+      ownerIntake: boxOf(document.querySelector(`[data-intake-seat="${ownerColor}"]`)),
+      ws: document.querySelector('.con-ws') !== null,
+      phase,
+      degraded: root !== null && root.getAttribute('data-scale-reward-degraded') !== null,
+      stranded: document.querySelector('.con-stranded') !== null,
+      tokens: Array.from(document.querySelectorAll('.con-scalepay__token'))
+        .filter((el) => shown(el.querySelector('.con-tileplace__coin-body') ?? el))
+        .map((el) => ({id: idOf(el), at: centre(el)})),
+      chips: phase !== 'paying' ? [] : Array.from(document.querySelectorAll('.con-transfer__chip--cardres, .con-transfer__chip--mc'))
+        .filter((el) => shown(el))
+        .map((el) => ({id: idOf(el), at: centre(el), kind: el.classList.contains('con-transfer__chip--cardres') ? 'data' : 'mc'})),
     };
-    const mo = new MutationObserver(() => sample(false));
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    const timer = window.setInterval(() => sample(true), 16);
-    w.__tr24stop = () => {
-      mo.disconnect();
-      window.clearInterval(timer);
-    };
-  }, owner);
+  }, {args: owner, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<ScaleProbe> => page.evaluate(() => (window as unknown as {__tr24: ScaleProbe}).__tr24);
+/** The record folded exactly as the old page-side probe kept it — per recorded state, in order. */
+async function readProbe(page: Page): Promise<ScaleProbe> {
+  const samples = await witnessOf<SceneObs>(page, PROBE_KEY).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const p: ScaleProbe = {
+    samples: samples.length, ticks: samples.length, marker: [], tokens: [], chips: [], aux: [], phases: [],
+    wsSeen: false, degraded: false, stranded: false,
+  };
+  const inBox = (pt: Pt, b: Box | undefined, pad: number): boolean => b !== undefined &&
+    pt.x >= b.x - pad && pt.x <= b.x + b.w + pad && pt.y >= b.y - pad && pt.y <= b.y + b.h + pad;
+  const tokensSeen = new Set<number>();
+  const chipsById = new Map<number, ScaleProbe['chips'][number]>();
+  for (const {t, v} of samples) {
+    const now = Math.round(t - t0);
+    if (v.marker !== null && p.marker[p.marker.length - 1]?.[1] !== v.marker) {
+      p.marker.push([now, v.marker]);
+    }
+    if (v.aux !== null && v.aux !== '' && p.aux[p.aux.length - 1]?.[1] !== v.aux) {
+      p.aux.push([now, v.aux]);
+    }
+    p.auxBox = v.auxBox ?? p.auxBox;
+    p.ownerChip = v.ownerChip ?? p.ownerChip;
+    p.ownerIntake = v.ownerIntake ?? p.ownerIntake;
+    if (v.ws) {
+      p.wsSeen = true;
+    } else if (p.wsSeen) {
+      p.wsGoneAt ??= now;
+    }
+    if (p.phases[p.phases.length - 1] !== v.phase) {
+      p.phases.push(v.phase);
+    }
+    p.degraded ||= v.degraded;
+    p.stranded ||= v.stranded;
+    for (const token of v.tokens) {
+      if (!tokensSeen.has(token.id)) {
+        tokensSeen.add(token.id);
+        p.tokens.push({t: now, at: token.at, marker: v.markerBox});
+      }
+    }
+    for (const chip of v.chips) {
+      const rec = chipsById.get(chip.id);
+      if (rec === undefined) {
+        chipsById.set(chip.id, {first: chip.at, last: chip.at, t0: now, t1: now, kind: chip.kind});
+      } else {
+        rec.last = chip.at;
+        rec.t1 = now;
+        if (rec.arrivedAt === undefined && (inBox(chip.at, p.auxBox, 6) || inBox(chip.at, p.ownerChip, 40) || inBox(chip.at, p.ownerIntake, 6))) {
+          rec.arrivedAt = now;
+        }
+      }
+    }
+  }
+  p.chips = Array.from(chipsById.values());
+  return p;
+}
 
 async function shoot(page: Page, preset: string, name: string): Promise<void> {
   const dir = path.join(OUT, preset);
@@ -273,7 +285,8 @@ function expectCauseBeforeConsequence(probe: ScaleProbe, label: string, arrivedA
     expect(travel, `${label}: each token MOVED from the marker to its destination`).toBeGreaterThan(40);
     expect(chip.arrivedAt, `${label}: each token reached its destination — ${JSON.stringify(chip)}`).toBeDefined();
   }
-  expect(probe.ticks, `${label}: the probe's interval sampler ran`).toBeGreaterThan(3);
+  // The recorder's own liveness floor — only a DEAD recorder fails it (a count of samples is a count of frames).
+  expect(probe.ticks, `${label}: the probe's interval sampler ran`).toBeGreaterThan(0);
 }
 
 /** The satellite's counter: `from` until the first touchdown, then one step per touchdown, never ahead of one. */
@@ -285,7 +298,7 @@ function expectTicksOnTouchdowns(probe: ScaleProbe, label: string, from: number,
   expect(run.map(([, v]) => v), `${label}: ${from} → … → ${to}, one unit per touchdown`).toEqual(Array.from({length: to - from + 1}, (_, i) => from + i));
   const arrivals = probe.chips.filter((c) => c.kind === 'data').map((c) => c.arrivedAt ?? Infinity).sort((a, b) => a - b);
   run.slice(1).forEach(([t], i) => {
-    // A tick is NEVER ahead of its touchdown (a frame of slack for the sampler's own clock).
+    // A tick is NEVER ahead of its touchdown (a frame of slack for the recorder's own clock).
     expect(t, `${label}: tick ${i + 1} at ${t} ms is not ahead of its token's touchdown (${arrivals[i]} ms)`).toBeGreaterThanOrEqual(arrivals[i] - 20);
   });
 }
@@ -366,9 +379,8 @@ for (const preset of PRESETS) {
       expect(await focusCard(page, ASTEROID, 24), `never focused «${ASTEROID}»`).toBeTruthy();
       await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
       const composer = page.locator('.con-composer--play');
-      for (let i = 0; i < 4 && await composer.count() === 0; i++) {
-        await press(page, 'Enter', 1200);
-      }
+      // A → verified by the composer standing (a second A on a slow composer would be its COMMIT).
+      await pressUntil(page, 'Enter', async () => await composer.count() > 0, {tries: 4, settleMs: 1200});
       await composer.waitFor({timeout: 15_000});
       await settle(page);
       // BEFORE A: «Сработает» +4 — the census's data (the compact row is bare deltas; the layer names the card).

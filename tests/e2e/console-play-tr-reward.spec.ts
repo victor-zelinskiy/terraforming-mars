@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, settle, waitForBoardHome} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * PL-001 FOR PLAYS — A CARD PLAY'S DIRECT TR IS A REWARD (docs/claude/console/
@@ -12,7 +14,7 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *   1. «Карты в руке» → the card → its composer: the rating N → N + k and the
  *      ruling Greens' «+2k» named before the press; nothing sent.
  *   2. A → EXACTLY ONE POST.
- *   3. The landing, by ORDER (MutationObserver + setInterval — never rAF): the
+ *   3. The landing, by ORDER (RECORDED from before the press — `armWitness`): the
  *      price ticks with the card's landing, the card's OWN gains fly first (the
  *      Dome's production wave), the TR token is BORN on the landed card's
  *      printed TR — an EVENT's on the card still STANDING in the composer: it pays
@@ -93,22 +95,25 @@ async function rectOf(page: Page, selector: string): Promise<Rect | undefined> {
 
 /** One flying token: its centre, its size and its KIND (`tr` · `prod:<res>` · `mc` · `<res>`) with its amount. */
 type Chip = {x: number, y: number, w: number, h: number, v: string};
-type Sample = {
-  t: number, tick: boolean, ws: number, tr: string, vp: string, mc: string, chips: Array<Chip>, stranded: boolean,
+type Seen = {
+  ws: number, tr: string, vp: string, mc: string, chips: Array<Chip>, stranded: boolean,
   /** The card's printed TR icon — on the landed face, or (an event, P84 · DK) on the card standing in the composer — and the landing place. */
   icon?: Rect, front?: Rect,
   /** The hero scene's phase (`data-hero-phase`) — an event pays in `shipping`, before its lift. */
   phase?: string,
 };
-type Probe = {samples: Array<Sample>, ticks: number};
+/** A recorded state with its time on the PAGE's clock, from the arm. */
+type Sample = Seen & {t: number};
+const PROBE_WITNESS = 'pl001-landing';
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/**
+ * THE LANDING PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns
+ * what stands now (the rail's cells, every token in the air, the card's printed TR), every distinct state is kept with
+ * the page's time. Its claims are ORDER (the card's gains, then its VP, then its TR; the tick on the touchdown) and
+ * COEXISTENCE (the rating reads N while its token flies), so the record is `settled` — the state a task LEAVES.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__pl001: Probe};
-    const p: Probe = {samples: [], ticks: 0};
-    w.__pl001 = p;
-    const t0 = performance.now();
+  await armWitness<Seen>(page, PROBE_WITNESS, () => {
     const read = (sel: string) => (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const shown = (el: HTMLElement) => {
       const r = el.getBoundingClientRect();
@@ -134,50 +139,39 @@ async function armProbe(page: Page): Promise<void> {
       }
       return el.classList.contains('con-transfer__chip--production') ? `prod:${res}` : res;
     };
-    const sample = (tick: boolean) => {
-      if (tick) {
-        p.ticks++;
-      }
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10,
-          w: Math.round(r.width), h: Math.round(r.height),
-          v: `${kindOf(el)}${(el.querySelector('.con-transfer__amt')?.textContent ?? '').replace(/\s+/g, '')}`,
-        };
-      });
-      const front = document.querySelector('.con-recv [data-recv-front]');
-      const trIn = (scope: Element | null) =>
-        Array.from(scope?.querySelectorAll<HTMLElement>('.pcard-ic') ?? []).find((el) => el.style.backgroundImage.includes('tr.'));
-      const icon = trIn(front) ?? trIn(document.querySelector('.con-composer--play .con-composer__playcard'));
-      const s: Sample = {
-        t: Math.round(performance.now() - t0),
-        tick,
-        ws: document.querySelectorAll('.con-ws').length,
-        tr: read('.con-res .con-score__value--tr'),
-        // The VP cell states its value in its own aria-label («Победные очки: 20» — absent while the score is masked).
-        vp: ((document.querySelector('.con-res .con-score__cell--vp')?.getAttribute('aria-label') ?? '').match(/(-?\d+)\s*$/) ?? ['', ''])[1],
-        mc: (read('.con-res .con-res__row--megacredits .con-res__digits').match(/^-?\d+/) ?? [''])[0],
-        chips,
-        stranded: document.querySelector('.con-stranded') !== null,
-        icon: rect(icon),
-        front: rect(front),
-        phase: document.querySelector<HTMLElement>('.con-played-hero')?.dataset.heroPhase,
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10,
+        w: Math.round(r.width), h: Math.round(r.height),
+        v: `${kindOf(el)}${(el.querySelector('.con-transfer__amt')?.textContent ?? '').replace(/\s+/g, '')}`,
       };
-      const last = p.samples[p.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
-        p.samples.push(s);
-      }
-    };
-    sample(true);
-    new MutationObserver(() => sample(false)).observe(document.body, {
-      subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style'],
     });
-    window.setInterval(() => sample(true), 30);
-  });
+    const front = document.querySelector('.con-recv [data-recv-front]');
+    const trIn = (scope: Element | null) =>
+      Array.from(scope?.querySelectorAll<HTMLElement>('.pcard-ic') ?? []).find((el) => el.style.backgroundImage.includes('tr.'));
+    const icon = trIn(front) ?? trIn(document.querySelector('.con-composer--play .con-composer__playcard'));
+    return {
+      ws: document.querySelectorAll('.con-ws').length,
+      tr: read('.con-res .con-score__value--tr'),
+      // The VP cell states its value in its own aria-label («Победные очки: 20» — absent while the score is masked).
+      vp: ((document.querySelector('.con-res .con-score__cell--vp')?.getAttribute('aria-label') ?? '').match(/(-?\d+)\s*$/) ?? ['', ''])[1],
+      mc: (read('.con-res .con-res__row--megacredits .con-res__digits').match(/^-?\d+/) ?? [''])[0],
+      chips,
+      stranded: document.querySelector('.con-stranded') !== null,
+      icon: rect(icon),
+      front: rect(front),
+      phase: document.querySelector<HTMLElement>('.con-played-hero')?.dataset.heroPhase,
+    };
+  }, {settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__pl001: Probe}).__pl001);
+/** The recording, stopped — every distinct state with its page time from the arm. */
+async function readProbe(page: Page): Promise<Array<Sample>> {
+  const recorded = await witnessOf<Seen>(page, PROBE_WITNESS).stop();
+  const t0 = recorded[0]?.t ?? 0;
+  return recorded.map((s) => ({...s.v, t: s.t - t0}));
+}
 
 const inside = (chip: Chip, rect: Rect, slack: number) =>
   chip.x >= rect.l - slack && chip.x <= rect.r + slack && chip.y >= rect.t - slack && chip.y <= rect.b + slack;
@@ -207,7 +201,7 @@ function births(samples: ReadonlyArray<Sample>): Array<{at: number, chip: Chip}>
 
 function trail(samples: ReadonlyArray<Sample>): string {
   return samples.slice(0, 160).map((s) =>
-    `${s.t}${s.tick ? 't' : 'm'} ws=${s.ws} tr=${s.tr} vp=${s.vp} mc=${s.mc} icon=${s.icon === undefined ? '-' : `${s.icon.l},${s.icon.t}`} front=${s.front === undefined ? '-' : `${s.front.l},${s.front.t},${s.front.r},${s.front.b}`} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}`).join('\n');
+    `${s.t} ws=${s.ws} tr=${s.tr} vp=${s.vp} mc=${s.mc} icon=${s.icon === undefined ? '-' : `${s.icon.l},${s.icon.t}`} front=${s.front === undefined ? '-' : `${s.front.l},${s.front.t},${s.front.r},${s.front.b}`} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}`).join('\n');
 }
 
 /** RT → «КАРТЫ» → the card → A: the play composer of `card`, nothing sent. */
@@ -218,19 +212,14 @@ async function openPlayComposerOf(page: Page, card: string): Promise<void> {
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
   expect(await focusCard(page, card, slots * 2 + 6), `never focused «${card}» in the hand`).toBe(true);
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
-  for (let i = 0; i < 3 && await page.locator(composer).count() === 0; i++) {
-    await press(page, 'Enter', 900);
-  }
+  await pressUntil(page, 'Enter', async () => await page.locator(composer).count() > 0, {tries: 3, settleMs: 900});
   await expect(page.locator(composer), 'the play composer stands').toHaveCount(1);
   await settle(page);
 }
 
-/** A → one POST (a retry only while nothing was sent). */
+/** A → one POST (a retry only while nothing was sent — the POST is the press's witness). */
 async function commit(page: Page, posts: Array<string>): Promise<void> {
-  for (let attempt = 0; attempt < 4 && posts.length === 0; attempt++) {
-    await press(page, 'Enter', 300);
-    await expect.poll(() => posts.length, {timeout: 5000}).toBeGreaterThan(0).catch(() => undefined);
-  }
+  await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 4, settleMs: 5000});
 }
 
 function watchPage(page: Page): {posts: Array<string>, errors: Array<string>, overflow: Array<string>} {
@@ -282,7 +271,7 @@ for (const preset of PRESETS) {
         expect(reading, `the rating N → N + ${c.tr} — got «${reading.slice(0, 400)}»`).toMatch(new RegExp(`${N}\\s*→\\s*${N + c.tr}`));
         expect(reading, `the Greens' «+${2 * c.tr}» named before the press`).toMatch(new RegExp(`\\+\\s*${2 * c.tr}`));
         expect(seen.posts, 'nothing sent before A').toEqual([]);
-        const ratingCell = await rectOf(page, '.con-res .con-score__cell--tr .con-score__valwrap');
+        const ratingCell = await readSettled(page, () => rectOf(page, '.con-res .con-score__cell--tr .con-score__valwrap'), {message: 'the rail\'s rating cell'});
         expect(ratingCell, 'the rail\'s rating cell').toBeDefined();
         await shoot(page, preset.id, `${c.key}-01-composer`);
 
@@ -294,13 +283,13 @@ for (const preset of PRESETS) {
         await expect.poll(() => page.locator('.con-ws').count(), {timeout: 45_000, message: 'the workspace left'}).toBe(0);
         await settle(page, {timeoutMs: 30_000});
         await stop();
-        const probe = await readProbe(page);
-        const samples = probe.samples;
+        const samples = await readProbe(page);
         const log = `[${preset.id}] ${c.card} N=${N} mc0=${mc0} cell=${JSON.stringify(ratingCell)}\n${trail(samples)}`;
         fs.mkdirSync(path.join(OUT, preset.id), {recursive: true});
         fs.writeFileSync(path.join(OUT, preset.id, `${c.key}-trail.txt`), log);
         console.log(log);
-        expect(probe.ticks, 'the probe was alive').toBeGreaterThan(10);
+        // The recorder's liveness only (a dead recorder): it keeps distinct STATES, never frames.
+        expect(samples.length, 'the probe was alive').toBeGreaterThan(0);
         expect(seen.posts.length, 'A sent EXACTLY ONE request').toBe(1);
 
         const born = births(samples);
@@ -392,9 +381,7 @@ for (const preset of PRESETS) {
           await press(red, 'KeyY', 1200);
           await expect(red.locator('.con-info'), 'red opened the Information workspace').toBeVisible();
           const onBlue = async () => ((await red.locator('.con-info .con-wshead').textContent()) ?? '').includes('player1');
-          for (let i = 0; i < 4 && !await onBlue(); i++) {
-            await press(red, 'KeyE', 900);
-          }
+          await pressUntil(red, 'KeyE', onBlue, {tries: 4, settleMs: 900});
           expect(await onBlue(), 'blue\'s seat is on stage').toBe(true);
           await expect.poll(() => text(red, '.con-res .con-score__value--tr'), {timeout: 20_000, message: 'red reads blue\'s rating'}).toBe(String(N + c.tr));
           await shoot(red, preset.id, `${c.key}-03-watcher-blue-seat`);

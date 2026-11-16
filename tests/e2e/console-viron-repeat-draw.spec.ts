@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, composerLoaded, openActionFocus, openCardActions, playCardFromHand, press, pressUntil, settle, soloGameConfig, waitForTurn} from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * Console VIRON REPEAT · a copied DRAW presents INSIDE the workspace.
@@ -22,8 +23,8 @@ import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, press
  * final submit (Viron)»); this spec proves the whole chain at the real
  * surface: final submit → the workspace's own pending stage → the batch lands
  * EMBEDDED (`[data-embed-slot="workspace-reveal"] .con-reveal--embedded`) —
- * and the standalone band NEVER mounts, not even for a frame (probe armed
- * before the press; a dead probe fails on its own sample count).
+ * and the standalone band NEVER mounts, not even for a frame (a RECORDING armed
+ * before the press — `armWitness`; a dead recorder fails on its own sample count).
  */
 
 const OUT_DIR = path.resolve('screenshots', 'console-viron-repeat-draw');
@@ -64,10 +65,7 @@ async function takeEmbeddedCard(page: Page): Promise<void> {
   await expect(page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot--focused'))
     .toHaveCount(1, {timeout: 15_000});
   const workspace = page.locator('.con-cardactions');
-  for (let tries = 0; tries < 4 && await workspace.count() > 0; tries++) {
-    await press(page, 'Enter', 800);
-    await workspace.first().waitFor({state: 'detached', timeout: 8000}).catch(() => { /* dropped — retry */ });
-  }
+  await pressUntil(page, 'Enter', async () => await workspace.count() === 0, {tries: 4, settleMs: 8000});
   await expect(workspace, 'the taken outcome concludes the workspace').toHaveCount(0, {timeout: 10_000});
 }
 
@@ -84,7 +82,7 @@ test.describe('console viron repeat draw', () => {
       step: 0.017,
     });
     await waitForTurn(page);
-    await page.waitForTimeout(3000);
+    await settle(page, {timeoutMs: 30_000});
 
     expect(await playCardFromHand(page, 'Development Center'), 'Development Center played').toBe(true);
 
@@ -95,7 +93,7 @@ test.describe('console viron repeat draw', () => {
     await openActionFocus(page);
     await press(page, 'Enter', 2000); // confirm — single branch, no decisions
     await takeEmbeddedCard(page);
-    await page.waitForTimeout(2500);
+    await settle(page, {timeoutMs: 30_000});
 
     // ── Viron's own action → the repeat pick → compose the copy. ──────────
     await waitForTurn(page);
@@ -105,41 +103,31 @@ test.describe('console viron repeat draw', () => {
     await press(page, 'Enter', 2500); // A on the repeat slot → the pick browser
     await expect(page.locator('.con-cardactions'), 'the repeat surface stands up').toHaveCount(2);
     await shoot(page, '01-repeat-pick');
-    await press(page, 'Enter', 2000); // A = «Выбрать» the (only) candidate
+    // A = «Выбрать» the (only) candidate — its composer opens inside the pick (the source's stays mounted, hidden):
+    // the next A waits for THAT, never a blind second press (one press, verified — a retry would land on the CTA).
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions .con-composer').count() > 1, {tries: 1, settleMs: 5000}),
+      'A on the candidate opens its composer in the pick').toBe(true);
     await press(page, 'Enter', 2500); // A = «Выбрать это действие» (its CTA)
     await expect(page.locator('.con-cardactions'), 'the pick resolved back to the source')
       .toHaveCount(1, {timeout: 10_000});
-    await page.waitForTimeout(1200);
+    // The source composer re-shows with the copy — its own readiness (the preview loaded), then the screen at rest.
+    await composerLoaded(page);
+    await settle(page);
     await shoot(page, '02-composed');
 
-    // ── ARM THE STANDALONE-BAND PROBE, then the FINAL submit. ─────────────
-    // MutationObserver + interval, never rAF (headless Chromium parks rAF on a
-    // quiet screen — exactly when the standalone band mounts). `samples` is
-    // asserted, so a dead probe fails instead of passing.
-    await page.evaluate(() => {
-      const st = {standalone: 0, samples: 0};
-      (window as unknown as {__vrd?: typeof st}).__vrd = st;
-      const scan = () => {
-        st.samples++;
-        if (document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null) {
-          st.standalone++;
-        }
-      };
-      const mo = new MutationObserver(scan);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      const iv = setInterval(scan, 16);
-      setTimeout(() => {
-        clearInterval(iv);
-        mo.disconnect();
-      }, 20_000);
-    });
+    // ── ARM THE STANDALONE-BAND RECORDING, then the FINAL submit. ─────────
+    // RECORDED off the product's own writes (`armWitness`, `settled` — the state a task leaves: a teardown's
+    // in-between is not a band on screen). The sample count is asserted, so a dead recorder fails instead of passing.
+    const band = await armWitness(page, 'viron-standalone-band', () => document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null,
+      {settled: true});
 
     // The final A submits from the composer — unless the cursor is still ON
     // the repeat slot, where A means «сменить» and re-opens the pick: close
-    // it, step off the slot, and try again.
+    // it, step off the slot, and try again. Each A gets its whole window: the reveal stands, or the pick re-opened.
     const embedded = page.locator('[data-embed-slot="workspace-reveal"] .con-reveal--embedded');
     for (let tries = 0; tries < 4 && await embedded.count() === 0; tries++) {
-      await press(page, 'Enter', 1800);
+      await pressUntil(page, 'Enter', async () => await embedded.count() > 0 || await page.locator('.con-cardactions').count() > 1,
+        {tries: 1, settleMs: 1800});
       if (await page.locator('.con-cardactions').count() > 1) {
         await press(page, 'Escape', 1800); // the pick keeps the prior choice
         await press(page, 'ArrowDown', 500);
@@ -151,11 +139,12 @@ test.describe('console viron repeat draw', () => {
     await expect.poll(() => page.locator('.con-cardactions').count(), {message: 'the workspace is still standing under its own outcome'}).toBeGreaterThan(0);
     await shoot(page, '03-embedded-draw');
 
-    const probe = await page.evaluate(() =>
-      (window as unknown as {__vrd: {standalone: number, samples: number}}).__vrd);
-    expect(probe.samples, 'the probe must actually have sampled').toBeGreaterThan(20);
+    const recorded = await band.stop();
+    const probe = {samples: recorded.length, standalone: recorded.filter((x) => x.v).length};
+    // The recorder's liveness only (a dead recorder): it keeps distinct STATES, never frames.
+    expect(probe.samples, 'the probe must actually have sampled').toBeGreaterThan(0);
     expect(probe.standalone,
-      `the standalone reveal band mounted over the workspace (${probe.standalone} of ${probe.samples} samples)`)
+      `the standalone reveal band mounted over the workspace (${probe.standalone} of ${probe.samples} states)`)
       .toBe(0);
 
     // ── …and the take concludes the flow, exactly like a direct draw. ─────

@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, press, pressUntil, settle} from './consoleStart';
 import {focusParliamentZone, openParliament} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * «ЗАДАНИЕ ПРЕДСЕДАТЕЛЯ» — THE PLATE HOLDS ITS FORMULA (the owner's 4K frame of 2026-10-24: «кресло непропорционально
@@ -106,16 +107,10 @@ async function readPlate(page: Page): Promise<PlateRead> {
   });
 }
 
-/** Two equal reads in a row — the fit and the fonts have settled (a comparison is as settled as its least settled side). */
+/** Two equal reads in a row, a frame apart, at rest — the fit and the fonts have settled (a comparison is as settled as
+ *  its least settled side). */
 async function settledPlate(page: Page): Promise<PlateRead> {
-  let last = '';
-  await expect.poll(async () => {
-    const now = JSON.stringify(await readPlate(page));
-    const same = now === last;
-    last = now;
-    return same;
-  }, {message: 'the quest plate settles', intervals: [150], timeout: 6_000}).toBe(true);
-  return JSON.parse(last) as PlateRead;
+  return readSettled(page, () => readPlate(page), {message: 'the quest plate settles', timeoutMs: 6_000});
 }
 
 for (const preset of PROFILES) {
@@ -201,8 +196,9 @@ test.describe('the Parliament «ВАШИ ЭФФЕКТЫ» · tv4k', () => {
     const english = /[A-Za-z]{3,}[ ,.]+[A-Za-z]{2,}[ ,.]+[A-Za-z]{2,}/;
     const seen: Array<string> = [];
     for (let i = 0; i < 4; i++) {
-      // EVERY TILE READS WHOLE: its head's words (the ordinal, the family) never cut, its printed formula inside the tile.
-      const cut = await page.evaluate(() => {
+      // EVERY TILE READS WHOLE: its head's words (the ordinal, the family) never cut, its printed formula inside the tile —
+      // read at REST (the step's cursor move just pressed may still be settling a tile).
+      const cut = await readSettled(page, () => page.evaluate(() => {
         const out: Array<string> = [];
         document.querySelectorAll<HTMLElement>('.con-parl-fxhost .con-efx__tile').forEach((tile) => {
           const t = tile.getBoundingClientRect();
@@ -226,7 +222,7 @@ test.describe('the Parliament «ВАШИ ЭФФЕКТЫ» · tv4k', () => {
           });
         });
         return out;
-      });
+      }), {message: `the effect tiles at rest (step ${i})`});
       expect(cut, `every effect tile reads whole (step ${i})`).toEqual([]);
       const text = (await host.innerText()).replace(/s+/g, ' ');
       seen.push(text);

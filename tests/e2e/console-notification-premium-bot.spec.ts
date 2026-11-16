@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, playCardFromHand, press, settle, soloGameConfig, waitForTurn} from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * THE BOT TURN AS A PREMIUM STORY — iteration 2's neutral-card contract.
@@ -36,14 +37,13 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-/** Keep the page painting (headless rAF starves on quiet frames). */
-async function pumpFrames(page: Page, ms: number): Promise<void> {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-    await page.waitForTimeout(100);
-  }
-}
+/** One recorded state of the notification column during the bot's run: the queue tail (if it stands) and the banner. */
+type QueueSeen = {
+  tail: {text: string, left: number, top: number} | null,
+  cardBottom: number, mid: number,
+  /** The old centre-stage «События в очереди» banner is on screen. */
+  banner: boolean,
+};
 
 test.describe('bot turn card · premium neutral story', () => {
   test('one actor statement, ownership clusters, quiet queue tail, no (s)-compromises', async ({page, request}) => {
@@ -51,20 +51,21 @@ test.describe('bot turn card · premium neutral story', () => {
 
     await bootWithCards(page, request, {cards: [CHEAP_CARD], config: CONFIG});
     await waitForTurn(page);
-    await pumpFrames(page, 1_500);
+    await settle(page); // the board at rest — a state, never a fixed 1.5 s
 
     // Hand the turn over: play the cheap card, then skip (LT wheel ↑).
     expect(await playCardFromHand(page, CHEAP_CARD), `${CHEAP_CARD} must have been played`).toBe(true);
-    await pumpFrames(page, 1_200);
+    await settle(page); // the play's scene is over before the wheel
     await press(page, 'Comma', 900);
     await press(page, 'ArrowUp', 500);
     await press(page, 'Enter', 1200);
 
     const card = page.locator('.con-notif.notification-card--variant-bot-turn');
     await card.first().waitFor({timeout: 30_000});
-    await pumpFrames(page, 900);
     await shoot(page, 'bot-turn-neutral');
 
+    // The card is ATOMIC — final from its first painted frame (the notification contract) — so it is read as it
+    // stands; no fixed pause before it (the bot's turn may keep the console busy while the card stands).
     const audit = await page.evaluate(() => {
       const root = document.querySelector('.con-notif.notification-card--variant-bot-turn');
       if (root === null) {
@@ -118,37 +119,38 @@ test.describe('bot turn card · premium neutral story', () => {
     // ── the QUEUE TAIL, live: pass — the bot plays the round out as a RUN,
     //    whose cards arrive faster than one lifetime, so a backlog forms.
     //    The count presents as the quiet chip UNDER the stack, and the centre
-    //    banner never returns. (The run may drain quickly — poll, don't pose.)
+    //    banner never returns. (The run may drain quickly — RECORDED from before
+    //    the pass, `armWitness`: a tail that stood for one frame is still seen.)
+    const queue = await armWitness<QueueSeen>(page, 'bot-run-queue-tail', () => {
+      const el = document.querySelector('.con-notifq') as HTMLElement | null;
+      const card = document.querySelector('.con-notif');
+      const tailRect = el?.getBoundingClientRect();
+      return {
+        tail: el === null || tailRect === undefined ? null : {
+          text: el.innerText.replace(/\s+/g, ' ').trim(),
+          // The tail rides INSIDE the layer column, under the card — never
+          // centre stage (its box starts right of the screen's midline).
+          left: Math.round(tailRect.left),
+          top: Math.round(tailRect.top),
+        },
+        cardBottom: Math.round((card as HTMLElement | null)?.getBoundingClientRect().bottom ?? 0),
+        mid: window.innerWidth / 2,
+        banner: [...document.querySelectorAll('.con-banner')].some((b) => /События в очереди/i.test(b.textContent ?? '')),
+      };
+    }, {max: 20_000});
     await press(page, 'Comma', 900);
     await press(page, 'ArrowDown', 500); // «Пас»
     await page.keyboard.press('Enter');
-    let sawTail = false;
-    const deadline = Date.now() + 45_000;
-    while (Date.now() < deadline) {
-      if (await page.locator('.con-notifq').count() > 0) {
-        sawTail = true;
-        break;
-      }
-      if (await page.locator('.con-banner', {hasText: /События в очереди/i}).count() > 0) {
-        throw new Error('the centre-stage queue banner came back');
-      }
-      await pumpFrames(page, 250);
-    }
+    // The window ends on the tail's first stand, or 45 s of a run that formed no backlog.
+    const sawTail = await queue.waitFor((v) => v.tail !== null, {timeoutMs: 45_000}).then(() => true, () => false);
+    const seen = await queue.stop();
+    const tailAt = seen.findIndex((s) => s.v.tail !== null);
+    const beforeTail = tailAt < 0 ? seen : seen.slice(0, tailAt);
+    expect(beforeTail.some((s) => s.v.banner), 'the centre-stage queue banner came back').toBe(false);
     if (sawTail) {
       await shoot(page, 'queue-tail');
-      const tail = await page.evaluate(() => {
-        const el = document.querySelector('.con-notifq') as HTMLElement | null;
-        const card = document.querySelector('.con-notif');
-        return {
-          text: el?.innerText.replace(/\s+/g, ' ').trim() ?? '',
-          // The tail rides INSIDE the layer column, under the card — never
-          // centre stage (its box starts right of the screen's midline).
-          left: el?.getBoundingClientRect().left ?? 0,
-          cardBottom: (card as HTMLElement | null)?.getBoundingClientRect().bottom ?? 0,
-          top: el?.getBoundingClientRect().top ?? 0,
-          mid: window.innerWidth / 2,
-        };
-      });
+      const first = seen[tailAt].v;
+      const tail = {...first.tail!, cardBottom: first.cardBottom, mid: first.mid};
       console.log('[notification-premium] queue tail:', JSON.stringify(tail));
       expect(tail.text).toMatch(/\+\d+/);
       expect(tail.left, 'the tail hangs in the notification column, not centre stage').toBeGreaterThan(tail.mid);

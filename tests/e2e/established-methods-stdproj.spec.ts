@@ -1,5 +1,6 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import {
+  cinematicBeat,
   createGameWithCards,
   openConsole,
   pickCards,
@@ -10,6 +11,7 @@ import {
   submitSummary,
   walkToSummary,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 // Regression: Established Methods makes the player perform TWO standard
 // projects in sequence. Both top-level projectCard prompts must be served by
@@ -97,7 +99,9 @@ async function openStandardProjectPrompt(page: Page, ordinal: string): Promise<v
     if (await mandatory.isVisible().catch(() => false)) {
       await press(page, 'Enter', 700);
     } else {
-      await page.waitForTimeout(250);
+      // The loop's tick is a STATE — the workspace or its announcement standing (bounded: the loop re-checks the guard).
+      await expect.poll(async () => await standardProjects.isVisible().catch(() => false) || await mandatory.isVisible().catch(() => false),
+        {timeout: 2_000}).toBe(true).catch(() => undefined);
     }
   }
 
@@ -108,8 +112,9 @@ async function openStandardProjectPrompt(page: Page, ordinal: string): Promise<v
 
   // The leak detector confirms a stranded prompt after two one-second ticks.
   // Keep the real workspace standing beyond that boundary and prove the guard
-  // never competes with it.
-  await page.waitForTimeout(2_750);
+  // never competes with it — the window IS the claim (the detector publishes no
+  // tick of its own to wait for).
+  await cinematicBeat(page, 2_750, 'the workspace stands past the leak detector\'s two-tick confirmation window');
   await expect(standardProjects).toBeVisible();
   await expect(stranded, `${ordinal} prompt showed the stranded guard`).toHaveCount(0);
 }
@@ -138,21 +143,18 @@ test('EstablishedMethods: both std-project prompts served by .con-stdp, never st
   // Keep what the server ACTUALLY said, so a failure names the half that did not
   // happen (production vs the next prompt) instead of a bare boolean.
   let seen = '(never polled)';
+  // The server's answer to one press — the press's own witness (and what a failure names).
+  const serverResolved = async (): Promise<boolean> => {
+    const view = await (await request.get(`/api/player?id=${playerId}`)).json() as
+      {thisPlayer: {energyProduction: number}, waitingFor?: {type?: string, title?: unknown}};
+    seen = `energyProduction=${view.thisPlayer.energyProduction} (want ${target.energyProduction}), ` +
+      `waitingFor.type=${String(view.waitingFor?.type)} (want ${target.promptType})`;
+    return view.thisPlayer.energyProduction === target.energyProduction && view.waitingFor?.type === target.promptType;
+  };
   for (let attempt = 0; attempt < 4 && !resolved; attempt++) {
     await page.keyboard.press('Enter');
-    const deadline = Date.now() + 6_000;
-    while (Date.now() < deadline) {
-      const view = await (await request.get(`/api/player?id=${playerId}`)).json() as
-        {thisPlayer: {energyProduction: number}, waitingFor?: {type?: string, title?: unknown}};
-      seen = `energyProduction=${view.thisPlayer.energyProduction} (want ${target.energyProduction}), ` +
-        `waitingFor.type=${String(view.waitingFor?.type)} (want ${target.promptType})`;
-      resolved = view.thisPlayer.energyProduction === target.energyProduction &&
-        view.waitingFor?.type === target.promptType;
-      if (resolved) {
-        break;
-      }
-      await page.waitForTimeout(150);
-    }
+    // act → verify: the whole 6 s window for the server to move on, polled — then a retry only on the same row.
+    resolved = await expect.poll(serverResolved, {timeout: 6_000, intervals: [150]}).toBe(true).then(() => true, () => false);
     if (!resolved) {
       await expect(page.locator('.con-stdp__card--focused .std-icon--energy'),
         'Power Plant stayed actionable after a guarded press').toHaveCount(1);
@@ -200,7 +202,9 @@ test('EstablishedMethods: B → A brings the Standard Projects workspace back on
   test.setTimeout(360_000);
   await prepareEstablishedMethods(page, request);
   await openStandardProjectPrompt(page, 'first');
-  expect((await stdpStands(page)).ok, `before the round trip — ${(await stdpStands(page)).state}`).toBeTruthy();
+  // Read AT REST (C — `readSettled`: the hit test at the focused row, the same answer twice).
+  const standing = await readSettled(page, () => stdpStands(page), {message: 'the Standard Projects before the round trip'});
+  expect(standing.ok, `before the round trip — ${standing.state}`).toBeTruthy();
 
   for (let round = 1; round <= 2; round++) {
     // B — «свернуть»: the decision is set aside, the board home carries the way back.
@@ -212,7 +216,7 @@ test('EstablishedMethods: B → A brings the Standard Projects workspace back on
     await pressUntil(page, 'Enter', async () => (await stdpStands(page)).ok, {tries: 3, settleMs: 1800});
     await expect.poll(async () => (await stdpStands(page)).ok, {timeout: 15_000, intervals: [250]}).toBe(true)
       .catch(() => undefined);
-    const back = await stdpStands(page);
+    const back = await readSettled(page, () => stdpStands(page), {message: `the Standard Projects after B → A (round ${round})`});
     await page.screenshot({path: `test-results/em-collapse-${round}-restored.png`});
     expect(back.ok, `B → A (round ${round}): the Standard Projects stand on top — ${back.state}`).toBeTruthy();
   }
@@ -224,7 +228,7 @@ test('EstablishedMethods: B → A brings the Standard Projects workspace back on
   }
   await expect.poll(async () => (await stdpStands(page)).ok, {timeout: 30_000, intervals: [250]}).toBe(true)
     .catch(() => undefined);
-  const reloaded = await stdpStands(page);
+  const reloaded = await readSettled(page, () => stdpStands(page), {message: 'the Standard Projects after the reload'});
   await page.screenshot({path: 'test-results/em-collapse-reloaded.png'});
   expect(reloaded.ok, `after a reload the Standard Projects stand on top — ${reloaded.state}`).toBeTruthy();
 });

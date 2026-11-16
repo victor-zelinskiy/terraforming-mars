@@ -2,14 +2,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, press, settle} from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * «РАЗЫГРАНО» — THE CATEGORY'S LANDING (the owner, 2026-11-01: «when a category opens and the cards fly to their place
  * IN THE CATEGORY — 15–20 automated cards — they skip and bounce on landing: no smooth, premium, seamless touchdown»).
  *
- * A TIMING probe (motion ×1, one worker): the 50-card table, the big «АВТОМАТИЧЕСКИЕ» category opened. A sampler armed
- * BEFORE the press records, every frame, each airborne proxy's box and opacity and each real slot's card box and
- * paint. It names:
+ * A TIMING probe (motion ×1, one worker): the 50-card table, the big «АВТОМАТИЧЕСКИЕ» category opened. A RECORD armed
+ * BEFORE the press (`armWitness`) keeps every state the product writes — each airborne proxy's box and opacity and each
+ * real slot's card box and paint. It names:
  *   · the HANDOFF error — at the moment the proxies start to dissolve, the distance between each proxy and the real
  *     card painting under it (a mismatch is a visible jump the instant the real card shows);
  *   · the SETTLE motion — how far each real card's box moves after it first paints (a landed card must stand still);
@@ -75,60 +76,51 @@ test.describe(`«Разыграно» · the category's landing · ${PRESET.id}`
       expect(await focusedZone(page)).toBe(zone);
       const count = Number(await page.locator(`[data-played-stack="${zone}"] .con-played__caption-count`).first().textContent() ?? '0');
 
-      await page.evaluate((zoneKey) => {
-        const w = window as unknown as {__landing: Array<unknown>};
-        w.__landing = [];
-        (window as unknown as {__landingDone: boolean}).__landingDone = false;
-        const t0 = performance.now();
+      // THE RECORD (FLAKE ZERO — `armWitness`, armed before the press): every state the product writes, recorded in the
+      // task that writes it (a CSS-only pose through the frame tick), stamped with the page's clock. `settled`: the
+      // handoff is a COEXISTENCE claim (a proxy standing over its painted card) — the state a task LEAVES is what a frame
+      // can paint.
+      const landing = await armWitness<Omit<Frame, 't'>, string>(page, `played-landing-${zone}`, (zoneKey) => {
         const box = (el: Element) => {
           const r = el.getBoundingClientRect();
           return {x: Math.round(r.x * 10) / 10, y: Math.round(r.y * 10) / 10, w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10};
         };
-        const sample = () => {
-          const view = document.querySelector('.con-played-cat');
-          const proxies = [...document.querySelectorAll('.con-played-cat__proxy')].map((el) => ({...box(el), o: Number(getComputedStyle(el).opacity)}));
-          const slots = [...document.querySelectorAll('.con-played-cat__slot')].map((slot) => {
-            const face = slot.querySelector('.con-played-cat__face > *');
-            const lift = slot.querySelector<HTMLElement>('.con-played-cat__lift');
-            return {
-              ...(face === null ? {x: 0, y: 0, w: 0, h: 0} : box(face)),
-              name: slot.getAttribute('data-zoom-slot') ?? '',
-              painted: face !== null && lift !== null && getComputedStyle(lift).visibility !== 'hidden',
-            };
-          });
-          const grid = document.querySelector<HTMLElement>('.con-played-cat__grid');
-          const albumbox = document.querySelector<HTMLElement>('.con-played-cat__albumbox');
-          const stack = document.querySelector(`[data-played-cat="${zoneKey}"]`);
-          w.__landing.push({
-            t: Math.round(performance.now() - t0),
-            kind: albumbox !== null ? `album ${albumbox.clientWidth}x${albumbox.clientHeight}` : grid !== null ? `grid ${grid.clientWidth}x${grid.clientHeight}` : 'none',
-            stackW: stack === null ? 0 : Math.round(stack.getBoundingClientRect().width),
-            proxies, slots,
-            held: view?.classList.contains('con-played-cat--held') === true,
-            phase: view === null ? 'none' : (view.classList.contains('con-played-cat--framed') ? 'framed' : 'flying'),
-          });
+        const view = document.querySelector('.con-played-cat');
+        const proxies = [...document.querySelectorAll('.con-played-cat__proxy')].map((el) => ({...box(el), o: Number(getComputedStyle(el).opacity)}));
+        const slots = [...document.querySelectorAll('.con-played-cat__slot')].map((slot) => {
+          const face = slot.querySelector('.con-played-cat__face > *');
+          const lift = slot.querySelector<HTMLElement>('.con-played-cat__lift');
+          return {
+            ...(face === null ? {x: 0, y: 0, w: 0, h: 0} : box(face)),
+            name: slot.getAttribute('data-zoom-slot') ?? '',
+            painted: face !== null && lift !== null && getComputedStyle(lift).visibility !== 'hidden',
+          };
+        });
+        const grid = document.querySelector<HTMLElement>('.con-played-cat__grid');
+        const albumbox = document.querySelector<HTMLElement>('.con-played-cat__albumbox');
+        const stack = document.querySelector(`[data-played-cat="${zoneKey}"]`);
+        return {
+          kind: albumbox !== null ? `album ${albumbox.clientWidth}x${albumbox.clientHeight}` : grid !== null ? `grid ${grid.clientWidth}x${grid.clientHeight}` : 'none',
+          stackW: stack === null ? 0 : Math.round(stack.getBoundingClientRect().width),
+          proxies, slots,
+          held: view?.classList.contains('con-played-cat--held') === true,
+          phase: view === null ? 'none' : (view.classList.contains('con-played-cat--framed') ? 'framed' : 'flying'),
         };
-        // The window is the EPISODE, never a duration: sample until the proxies are gone over a framed view (+ a short
-        // tail to see the landed cards stand still) — a starved renderer stretches the flight, it does not end it early.
-        let quietSince = -1;
-        const tick = () => {
-          sample();
-          const last = w.__landing[w.__landing.length - 1] as {proxies: Array<unknown>, phase: string};
-          const now = performance.now();
-          quietSince = last.proxies.length === 0 && last.phase === 'framed' ? (quietSince < 0 ? now : quietSince) : -1;
-          if ((quietSince >= 0 && now - quietSince > 600) || now - t0 > 20_000) {
-            (window as unknown as {__landingDone: boolean}).__landingDone = true;
-            return;
-          }
-          requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      }, zone);
+      }, {args: zone, settled: true, max: 20_000});
       const stop = await storyboard(page, zone);
       await press(page, 'Enter', 200);
-      await page.waitForFunction(() => (window as unknown as {__landingDone?: boolean}).__landingDone === true, undefined, {timeout: 40_000});
+      // The window is the EPISODE, never a duration: recorded until the proxies are gone over a framed view, then until
+      // the screen is at REST (a landed card still moving keeps it busy — and the record sees every pose of it) — a
+      // starved renderer stretches the flight, it does not end it early.
+      await expect.poll(async () => {
+        const last = await landing.last();
+        return last !== undefined && last.proxies.length === 0 && last.phase === 'framed';
+      }, {timeout: 40_000, message: 'the proxies are gone over a framed view'}).toBe(true);
+      await settle(page);
       await stop();
-      const frames = await page.evaluate(() => (window as unknown as {__landing: Array<unknown>}).__landing) as Array<Frame>;
+      const recorded = await landing.stop();
+      const t0 = recorded[0]?.t ?? 0;
+      const frames: Array<Frame> = recorded.map((x) => ({...x.v, t: x.t - t0}));
 
       // ── the HANDOFF: the first frame the real cards paint while proxies still stand ──
       const handoff = frames.find((f) => f.proxies.length > 0 && f.slots.some((s) => s.painted));

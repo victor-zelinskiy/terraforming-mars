@@ -1,6 +1,7 @@
 import {test, expect} from './consoleTest';
 import loreTexts from '../../assets/text/lore_texts.json';
 import ruLore from '../../src/locales/ru/lore_texts.json';
+import {readSettled} from './settledRead';
 
 /**
  * THE ARCHIVE ENTRY, MEASURED OVER THE WHOLE RU CORPUS.
@@ -205,7 +206,10 @@ test.describe('archive entry · the measure fits the corpus', () => {
       });
       expect(fontsReady, 'Literata upright loaded — a fallback face invalidates the whole probe').toBe(true);
 
-      const measured = await page.evaluate(({items, fit}) => {
+      // Read AT REST (`readSettled` — the same measurement twice, a frame apart): a web font or a late stylesheet rule
+      // landing between two reads would re-flow the corpus, and a one-shot read would keep whatever it caught. The budget
+      // is the read's own: ONE pass lays out the whole corpus (~450 entries), several seconds on a software raster.
+      const measured = await readSettled(page, () => page.evaluate(({items, fit}) => {
         const host = document.createElement('div');
         host.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden';
         document.body.appendChild(host);
@@ -284,7 +288,7 @@ test.describe('archive entry · the measure fits the corpus', () => {
         const columnW = aside.getBoundingClientRect().width;
         host.remove();
         return {rows: out, frameH, remPx, columnW};
-      }, {items: entries, fit: profile.fit});
+      }, {items: entries, fit: profile.fit}), {timeoutMs: 60_000, message: `the lore corpus at ${profile.tag}`});
 
       const {rows, frameH, remPx, columnW} = measured;
       const wrapped = rows.filter((r) => r.measure !== undefined);

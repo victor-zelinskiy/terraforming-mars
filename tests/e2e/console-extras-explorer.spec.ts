@@ -2,6 +2,8 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootIntoGame, closeZoomViewer, openZoomViewer, playCardFromHand, press, pressUntil, settle, soloGameConfig, waitForTurn} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * THE EXTRAS EXPLORER — the «Доп. ресурсы» rework probe.
@@ -84,43 +86,32 @@ type AuxSample = {
   cells: Array<{key: string, x: number, y: number, w: number, h: number, text: string, opacity: string, visibility: string}>;
 };
 
-/** Arm the in-page anchor sampler — setInterval, never rAF (headless
- *  Chromium starves rAF exactly when the screen goes quiet). */
-async function armAuxSampler(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__auxSamples?: Array<AuxSample>, __auxTimer?: number};
-    w.__auxSamples = [];
-    w.__auxTimer = window.setInterval(() => {
-      const cells = Array.from(document.querySelectorAll<HTMLElement>('.con-res-aux__cell'));
-      const sample = {
-        t: Date.now(),
-        cells: cells.map((cell) => {
-          const r = cell.getBoundingClientRect();
-          const value = cell.querySelector<HTMLElement>('.con-res-aux__value');
-          const cs = value !== null ? getComputedStyle(value) : undefined;
-          return {
-            key: cell.getAttribute('data-exr-type') ?? '',
-            x: r.left, y: r.top, w: r.width, h: r.height,
-            text: (value?.textContent ?? '').trim(),
-            opacity: cs?.opacity ?? '',
-            visibility: cs?.visibility ?? '',
-          };
-        }),
+/**
+ * Arm the satellite's RECORD (FLAKE ZERO — `armWitness`): every state of the cells the product writes, recorded in the
+ * task that writes it (a CSS-only motion through the frame tick) — a 40 ms sampler could sleep through a one-frame
+ * blink, the record cannot. `settled`: «never vanishes for a single frame» is a claim about PAINTED states — the state
+ * a task LEAVES is what a frame can paint.
+ */
+async function armAuxRecord(page: Page, key: string): Promise<Witness<Omit<AuxSample, 't'>>> {
+  return armWitness<Omit<AuxSample, 't'>>(page, `extras-aux-${key}`, () => ({
+    cells: Array.from(document.querySelectorAll<HTMLElement>('.con-res-aux__cell')).map((cell) => {
+      const r = cell.getBoundingClientRect();
+      const value = cell.querySelector<HTMLElement>('.con-res-aux__value');
+      const cs = value !== null ? getComputedStyle(value) : undefined;
+      return {
+        key: cell.getAttribute('data-exr-type') ?? '',
+        x: r.left, y: r.top, w: r.width, h: r.height,
+        text: (value?.textContent ?? '').trim(),
+        opacity: cs?.opacity ?? '',
+        visibility: cs?.visibility ?? '',
       };
-      w.__auxSamples!.push(sample);
-    }, 40);
-  });
+    }),
+  }), {settled: true, max: 20_000});
 }
 
-async function takeAuxSamples(page: Page): Promise<Array<AuxSample>> {
-  return await page.evaluate(() => {
-    const w = window as unknown as {__auxSamples?: Array<AuxSample>, __auxTimer?: number};
-    if (w.__auxTimer !== undefined) {
-      window.clearInterval(w.__auxTimer);
-      w.__auxTimer = undefined;
-    }
-    return w.__auxSamples ?? [];
-  });
+/** Stop the record and hand back every recorded state (the page's clock). */
+async function takeAuxRecord(record: Witness<Omit<AuxSample, 't'>>): Promise<Array<AuxSample>> {
+  return (await record.stop()).map((x) => ({t: x.t, cells: x.v.cells}));
 }
 
 // The flow video — continuity evidence for the transition review. Kept at
@@ -165,8 +156,8 @@ for (const preset of PRESETS) {
       expect(await cellKeys()).toEqual(LANES);
       await shoot(page, preset, '01-board-satellite');
 
-      // ── THE PIXEL PROBE: sample the cells through the WHOLE flow. ─────
-      await armAuxSampler(page);
+      // ── THE PIXEL PROBE: record the cells through the WHOLE flow. ─────
+      const flowRecord = await armAuxRecord(page, 'flow');
 
       await openInfo(page);
       await settle(page, {timeoutMs: 20_000});
@@ -228,10 +219,14 @@ for (const preset of PRESETS) {
       // never eyeballed: every slot (face + meta plate) sits fully inside
       // the page box (CSS `zoom` under-reports height to flex, which is
       // exactly how two profiles shipped clipped meta plates once).
-      const pageBox = await explorer.locator('.con-exr__page').boundingBox();
+      // Both sides read AT REST (a comparison is as settled as its least settled side).
+      const gallery = await readSettled(page, async () => ({
+        page: await explorer.locator('.con-exr__page').boundingBox(),
+        slots: await Promise.all((await explorer.locator('.con-exr__slot').all()).map((slot) => slot.boundingBox())),
+      }), {message: 'the gallery page and its slots'});
+      const pageBox = gallery.page;
       expect(pageBox, 'the gallery page is measurable').toBeTruthy();
-      for (const slotBox of await explorer.locator('.con-exr__slot').all()) {
-        const b = await slotBox.boundingBox();
+      for (const b of gallery.slots) {
         expect(b, 'a slot is measurable').toBeTruthy();
         if (pageBox && b) {
           expect(b.y, `slot top inside the page (Δ=${(pageBox.y - b.y).toFixed(1)}px)`).toBeGreaterThanOrEqual(pageBox.y - 1);
@@ -294,8 +289,9 @@ for (const preset of PRESETS) {
       await shoot(page, preset, '06-board-restored');
 
       // ── THE PIXEL VERDICT over every sampled frame. ───────────────────
-      const samples = await takeAuxSamples(page);
-      expect(samples.length, 'the sampler must have lived through the flow').toBeGreaterThan(10);
+      const samples = await takeAuxRecord(flowRecord);
+      // (a record keeps distinct states, not ticks — only a recorder that never ran has none)
+      expect(samples.length, 'the recorder must have lived through the flow').toBeGreaterThan(0);
       const byKey = new Map<string, Array<{x: number, y: number, w: number, h: number, text: string, opacity: string, visibility: string}>>();
       for (const s of samples) {
         for (const c of s.cells) {
@@ -307,7 +303,7 @@ for (const preset of PRESETS) {
       for (const type of LANES) {
         const list = byKey.get(type) ?? [];
         expect(list.length, `${type}: the cell may not vanish for a single frame ` +
-          `(present in ${list.length}/${samples.length} samples)`).toBe(samples.length);
+          `(present in ${list.length}/${samples.length} recorded states)`).toBe(samples.length);
         const first = list[0];
         for (const c of list) {
           expect(Math.abs(c.x - first.x), `${type}: x must hold (Δ=${Math.abs(c.x - first.x)}px)`).toBeLessThanOrEqual(1);
@@ -344,12 +340,17 @@ for (const preset of PRESETS) {
       // ── THE SEAT-SWITCH FRAME CONTRACT: RB again returns to the human —
       // the incoming composition must own its FINAL slots from the first
       // painted frame («mounted below the departing cells, then rose» is
-      // the removed defect). Sample per 40ms through the whole switch and
+      // the removed defect). Record every state through the whole switch — to
+      // its END: the human composition back whole and the screen at rest — and
       // demand every painted cell sits ON the canonical slot grid captured
       // during the earlier flow. ─────────────────────────────────────────
-      await armAuxSampler(page);
+      const switchRecord = await armAuxRecord(page, 'switch');
       await key(page, 'KeyE', 1100); // RB → the ring wraps back to the human
-      const switchSamples = await takeAuxSamples(page);
+      await expect.poll(async () => (await switchRecord.last())?.cells.map((c) => c.key), {
+        timeout: 15_000, message: 'the switch ends on the human composition',
+      }).toEqual(LANES);
+      await settle(page, {timeoutMs: 20_000});
+      const switchSamples = await takeAuxRecord(switchRecord);
       const canonical = LANES
         .map((k) => (byKey.get(k) ?? [])[0])
         .filter((f): f is NonNullable<typeof f> => f !== undefined);
@@ -371,7 +372,7 @@ for (const preset of PRESETS) {
             'a seat switch must own the final layout from its first frame').toBeLessThanOrEqual(maxY + 2);
         }
       }
-      expect(seenCells, 'the sampler saw the human chips arrive').toBeGreaterThan(0);
+      expect(seenCells, 'the record saw the human chips arrive').toBeGreaterThan(0);
       expect(await cellKeys(), 'the human composition is back whole').toEqual(LANES);
       await key(page, 'Escape', 800);
       await key(page, 'KeyY', 800);

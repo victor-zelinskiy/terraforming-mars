@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR74 «ВЕРБОВКА» (Recruitment:redux) — THE DELEGATE MODE AS AN EXCHANGE (`delegatePrompt.source: 'exchange'`,
@@ -91,82 +93,104 @@ type Probe = {
   flights: number;
 };
 
+/** One observation of the flow (the witness's reader): the crumb, the Parliament instances, the table's three counts. */
+type FlowObs = {
+  head: {root: string, subjects: Array<string>, steps: Array<string>} | null,
+  parls: number, parlOutsideHand: boolean, ownHead: boolean, degraded: Array<string>, stranded: boolean,
+  /** The VISIBLE figures on the Greens' ribbon · blue's reserve · the neutral supply (null when not on screen). */
+  ribbon: number | null, reserve: number | null, pool: number | null,
+  /** A figure is in flight (visible). */
+  flight: boolean,
+};
+const PROBE_KEY = 'tr74-flow';
+
+/**
+ * THE PROBE — a RECORDING (`armWitness`, settled — «2 → 1 → supply +1 → reserve −1 → 2» is an ORDER claim about painted
+ * states), never a timer sampler; folded on the Node side by `readProbe`, times in ms from the arm on the page's clock.
+ */
 async function armProbe(page: Page, viewer: string): Promise<void> {
-  await page.evaluate(({card, root, greens, viewer}) => {
-    const w = window as unknown as {__tr74: Probe};
-    const p: Probe = {samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, ownHead: false,
-      degraded: [], stranded: false, ribbon: [], reserve: [], pool: [], flights: 0};
-    w.__tr74 = p;
-    const t0 = Date.now();
+  await armWitness(page, PROBE_KEY, ({greens, viewer}: {greens: string, viewer: string}): FlowObs => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Series, value: number | undefined) => {
-      if (value !== undefined && Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
-      }
-    };
     const count = (sel: string) => {
       const raw = document.querySelector(sel)?.getAttribute('data-count');
-      return raw === null || raw === undefined ? undefined : Number(raw);
+      return raw === null || raw === undefined ? null : Number(raw);
     };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const head = document.querySelector('.con-hand')?.querySelector('.con-wshead') ?? null;
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-      }
-      const parls = document.querySelectorAll('.con-parl:not(.con-parl--warm)');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      parls.forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        }
-        if (el.querySelector('.con-wshead') !== null) {
-          p.ownHead = true;
-        }
-        const degraded = el.getAttribute('data-parl-delegate-degraded');
-        if (degraded !== null && !p.degraded.includes(degraded)) {
-          p.degraded.push(degraded);
-        }
-      });
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      if (!tick) {
-        return;
-      }
-      const slot = document.querySelector(`.con-parl__slot[data-party="${greens}"]`);
-      if (slot !== null) {
-        note(p.ribbon, slot.querySelectorAll('.con-parl__ribbon .con-parl__vote-cube:not(.con-parl__vote-cube--place):not(.con-parl__vote-cube--hidden)').length);
-      }
-      note(p.reserve, count(`[data-parl-seat-reserve="${viewer}"]`));
-      note(p.pool, count('[data-parl-neutral-cube]'));
-      document.querySelectorAll<HTMLElement>('.con-parl__flight:not(.con-parl__flight--agenda)').forEach((el) => {
-        if (getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().width > 2) {
-          p.flights++;
-        }
-      });
+    const headEl = document.querySelector('.con-hand')?.querySelector('.con-wshead') ?? null;
+    const head = headEl === null ? null : {
+      root: text(headEl.querySelector('.con-wshead__root')),
+      subjects: Array.from(headEl.querySelectorAll('.con-wshead__subject')).map(text),
+      steps: Array.from(headEl.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  }, {card: CARD_RU, root: ROOT_RU, greens: GREENS, viewer});
+    const parls = Array.from(document.querySelectorAll('.con-parl:not(.con-parl--warm)'));
+    const degraded: Array<string> = [];
+    for (const el of parls) {
+      const d = el.getAttribute('data-parl-delegate-degraded');
+      if (d !== null && !degraded.includes(d)) {
+        degraded.push(d);
+      }
+    }
+    const slot = document.querySelector(`.con-parl__slot[data-party="${greens}"]`);
+    return {
+      head,
+      parls: parls.length,
+      parlOutsideHand: parls.some((el) => el.closest('.con-hand') === null || el.classList.contains('con-ws')),
+      ownHead: parls.some((el) => el.querySelector('.con-wshead') !== null),
+      degraded,
+      stranded: document.querySelector('.con-stranded') !== null,
+      ribbon: slot === null ? null :
+        slot.querySelectorAll('.con-parl__ribbon .con-parl__vote-cube:not(.con-parl__vote-cube--place):not(.con-parl__vote-cube--hidden)').length,
+      reserve: count(`[data-parl-seat-reserve="${viewer}"]`),
+      pool: count('[data-parl-neutral-cube]'),
+      flight: Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight:not(.con-parl__flight--agenda)'))
+        .some((el) => getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().width > 2),
+    };
+  }, {args: {greens: GREENS, viewer}, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr74: Probe}).__tr74);
+/** The record folded: the crumb's misses, the steps in order, the three series (on change), the flights seen. */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<FlowObs>(page, PROBE_KEY).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const p: Probe = {samples: samples.length, ticks: samples.length, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, ownHead: false,
+    degraded: [], stranded: false, ribbon: [], reserve: [], pool: [], flights: 0};
+  const note = (series: Series, at: number, value: number | null) => {
+    if (value !== null && Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
+      series.push([at, value]);
+    }
+  };
+  for (const {t, v} of samples) {
+    const at = Math.round(t - t0);
+    if (v.head !== null) {
+      if (v.head.root.toLowerCase() !== ROOT_RU.toLowerCase() || !v.head.subjects.some((s) => s.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${at}ms root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+        }
+      }
+      for (const step of v.head.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    p.parlMax = Math.max(p.parlMax, v.parls);
+    p.parlOutsideHand ||= v.parlOutsideHand;
+    p.ownHead ||= v.ownHead;
+    p.stranded ||= v.stranded;
+    for (const d of v.degraded) {
+      if (!p.degraded.includes(d)) {
+        p.degraded.push(d);
+      }
+    }
+    note(p.ribbon, at, v.ribbon);
+    note(p.reserve, at, v.reserve);
+    note(p.pool, at, v.pool);
+    // A recorded STATE with a figure in the air (never a count of frames): asserted «> 0» = seen, «0» = never.
+    if (v.flight) {
+      p.flights++;
+    }
+  }
+  return p;
+}
 
 const composer = '.con-composer--play';
 const delegateMode = '.con-hand .con-parl--embedded.con-parl--delegate:not(.con-parl--warm) [data-parl-delegate-mode]';
@@ -177,24 +201,14 @@ const cursorFigure = (page: Page) => page.evaluate(() => {
   return el === null ? undefined : `${el.getAttribute('data-delegate-place')}:${el.getAttribute('data-delegate-party')}:${el.getAttribute('data-delegate-owner')}`;
 });
 
-/** Every bill's and plaque's box (rounded, settled) — nothing the cursor walks over may move. */
-const tableBoxes = (page: Page) => page.evaluate(async () => {
-  const pause = () => new Promise((resolve) => setTimeout(resolve, 100));
-  const read = () => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance], .con-parl__party[data-party]'))
+/** Every bill's and plaque's box (rounded) — nothing the cursor walks over may move. Read AT REST (`readSettled`: two
+ *  equal reads a frame apart, after `settle`), both sides of the comparison. */
+const tableBoxes = (page: Page) => readSettled(page, () => page.evaluate(() =>
+  Array.from(document.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance], .con-parl__party[data-party]'))
     .map((el) => {
       const r = el.getBoundingClientRect();
       return `${el.getAttribute('data-instance') ?? el.getAttribute('data-party')}:${[r.left, r.top, r.width, r.height].map(Math.round).join(',')}`;
-    }).sort().join('|');
-  let last = read();
-  let equal = 0;
-  for (let i = 0; i < 40 && equal < 2; i++) {
-    await pause();
-    const now = read();
-    equal = now === last ? equal + 1 : 0;
-    last = now;
-  }
-  return last;
-});
+    }).sort().join('|')), {message: 'the bills and the plaques'});
 
 /** Walk the cursor until the panel reads `figure` — one press at a time, each VERIFIED by the panel. */
 async function moveCursorTo(page: Page, figure: string, dir: 'ArrowRight' | 'ArrowLeft'): Promise<void> {
@@ -294,7 +308,11 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '02-mode-mars-neutral');
       const seen = new Set<string>();
       for (const dir of ['ArrowLeft', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft'] as const) {
+        // Each press is given its whole window to move the panel's figure (a wall legitimately moves nothing) before the
+        // stop is read — never a read of the figure that stood a frame before the move.
+        const at = await cursorFigure(page);
         await press(page, dir, 250);
+        await expect.poll(() => cursorFigure(page), {timeout: 1_500}).not.toBe(at).catch(() => undefined);
         seen.add(String(await cursorFigure(page)));
       }
       expect([...seen].sort(), 'the stops are the two neutral figures — no seat\'s cube, no support area').toEqual(
@@ -330,8 +348,8 @@ for (const preset of PRESETS) {
       await moveCursorTo(page, `resolution:${GREENS}:neutral`, 'ArrowRight');
       await commitPick(page, posts);
       expect(posts.map((p) => new URL(p.url).pathname), 'the play is ONE batch POST').toEqual(['/player/input-batch']);
-      await expect.poll(() => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight:not(.con-parl__flight--agenda)'))
-        .some((el) => getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().width > 2)), {timeout: 8_000, intervals: [16]}).toBe(true).catch(() => undefined);
+      // The frame is taken once the record has SEEN a figure in the air (best effort — the photograph, not a claim).
+      await expect.poll(() => witnessOf<FlowObs>(page, PROBE_KEY).ever((v) => v.flight), {timeout: 8_000, intervals: [16]}).toBe(true).catch(() => undefined);
       await shoot(page, preset.id, '04-flight');
       await expect(page.locator('[data-parl-delegate-reading][data-delegate-sole]'),
         'past the press the reading is the CHOSEN figure — no cursor mark, even though the answer left a ring of one').toHaveCount(0);
@@ -366,7 +384,8 @@ for (const preset of PRESETS) {
       const dump = JSON.stringify({steps: probe.steps, ribbon: probe.ribbon, reserve: probe.reserve, pool: probe.pool, flights: probe.flights});
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/recruitment-${preset.id}.json`, JSON.stringify(probe, null, 1));
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+      // The recorder's own liveness floor — only a DEAD recorder fails it (a count of samples is a count of frames).
+      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(0);
 
       // ── б. one flow ──
       expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);
