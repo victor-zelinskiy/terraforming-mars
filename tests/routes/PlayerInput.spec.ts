@@ -6,6 +6,7 @@ import {TestPlayer} from '../TestPlayer';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {UndoActionOption} from '../../src/server/inputs/UndoActionOption';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
+import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {RouteTestScaffolding} from './RouteTestScaffolding';
 import {cast} from '@/common/utils/utils';
 import {OrOptionsResponse} from '../../src/common/inputs/InputResponse';
@@ -122,5 +123,30 @@ describe('PlayerInput', () => {
     await Promise.all(([emit, post]));
 
     expect(res.content).matches(/Unexpected token/);
+  });
+
+  // A QUESTION NOBODY CAN ANSWER IS NEVER ASKED (`liveness/UnanswerablePrompt.ts`): through the real door — the
+  // answer that would have led to one fails with its reason, the seat's own question stands, and the table goes on.
+  it('an answer that leads to a question nobody can answer: 400 with the reason — and the seat still holds its question', async () => {
+    const player = TestPlayer.BLUE.newPlayer();
+    scaffolding.url = `/player/input?id=${player.id}`;
+    const game = Game.newInstance('gameid-dead-question', [player], player, 'spectatorid');
+    await scaffolding.ctx.gameLoader.add(game);
+    player.popWaitingFor();
+    const first = new SelectOption('Do it').andThen(() => new SelectCard('Select a card to discard', 'Discard', []));
+    player.setWaitingFor(first, () => game.deferredActions.runAll(() => {}));
+    const serial = player.waitingForSerial;
+
+    const post = scaffolding.post(PlayerInput.INSTANCE, res);
+    const emit = Promise.resolve().then(() => {
+      scaffolding.req.emitter.emit('data', JSON.stringify({type: 'option'}));
+      scaffolding.req.emitter.emit('end');
+    });
+    await Promise.all(([emit, post]));
+
+    expect(res.statusCode).eq(statusCode.badRequest);
+    expect(JSON.parse(res.content).message).to.match(/^A question nobody can answer was not asked — card «Select a card to discard»: 1 card\(s\) asked of 0/);
+    expect(player.getWaitingFor(), 'the seat keeps the question it answered').eq(first);
+    expect(player.waitingForSerial, 'under the identity the page still shows — a retry is not stale').eq(serial);
   });
 });

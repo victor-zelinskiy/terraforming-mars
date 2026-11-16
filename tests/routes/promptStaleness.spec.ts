@@ -78,7 +78,8 @@ describe('promptStaleness (the prompt identity gate)', () => {
 
   it('the serialized waitingFor model carries the live serial as promptId', () => {
     const [/* game */, player] = testGame(2);
-    player.setWaitingFor(cast(new SelectCard('pick', 'Pick', []), SelectCard), () => {});
+    // («Pick up to one of none» — a question with an answer: one that has none is refused, `liveness/UnanswerablePrompt.ts`.)
+    player.setWaitingFor(cast(new SelectCard('pick', 'Pick', [], {min: 0}), SelectCard), () => {});
     const model = Server.getWaitingFor(player, player.getWaitingFor());
     expect(model?.promptId).eq(player.waitingForSerial);
   });

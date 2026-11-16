@@ -111,6 +111,7 @@ import {From} from './logs/From';
 import type {CardResourceBasis} from '../common/events/EventImpact';
 import {SelectStandardProjectToPlay} from './inputs/SelectStandardProjectToPlay';
 import {ResolutionId} from '../common/parliament/ParliamentTypes';
+import {refuseUnanswerableInput} from './liveness/UnanswerablePrompt';
 
 const THROW_STATE_ERRORS = Boolean(process.env.THROW_STATE_ERRORS);
 
@@ -3654,6 +3655,10 @@ export class Player implements IPlayer {
   }
 
   public setWaitingFor(input: PlayerInput, cb: () => void = () => {}): void {
+    // A QUESTION NOBODY CAN ANSWER IS NEVER ASKED (`liveness/UnanswerablePrompt.ts` — the engine's own precedent is
+    // `SelectSpace`): refused HERE, before anything of the seat is touched, so the action that would have asked it
+    // fails where it runs and the seat keeps the question it had.
+    refuseUnanswerableInput(this, input);
     // THE EARLY CLOSE of a sitting still running is a courtesy, never a question: anything the seat is asked supersedes
     // it (the sitting offers it again after the answer — `SittingAcks.offerEarly`).
     if (isEarlySittingAck(this.waitingFor)) {
