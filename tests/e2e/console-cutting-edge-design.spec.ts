@@ -7,7 +7,8 @@
  * it is printed». The probe walks the class on every surface the player meets, with the server's numbers:
  *  (A) the journey (fhd + tv4k): TR49's composer names what it ARMS (the result's `armed` section — an event with no
  *      behavior once read «Метки события» alone); the press: the arm token is born on the face's PRINTED plate and lands
- *      on the dock's «⚡» chip (both ends painted — the witness samples the token, never rAF); the hand album's strip, the
+ *      on the dock's «⚡» chip (both ends painted — the witness RECORDS the token off the product's own writes, never a
+ *      sampler); the hand album's strip, the
  *      lifted requirement on Lake Marineris' cassette (`waived`) and its plate; Lake Marineris' composer: the requirement
  *      row («требование игнорируется»), the «Сработает» modifier chip and its R3 tile; the press: the spend token leaves
  *      the dock chip into the face's cassette, the chip is gone, the server spent it; the SECOND CLIENT reads the armed
@@ -26,6 +27,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, bootFixture, focusCard, openConsole, placeTile, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'cutting-edge-design');
 const CED = 'Cutting-Edge Design';
@@ -78,45 +81,43 @@ async function storyboard(page: Page, preset: string, name: string): Promise<() 
 
 type Box = {x: number, y: number, w: number, h: number};
 type TokenTrace = {dir: string, source: string, first?: Box, last?: Box, frames: number};
+/** One painted token of the class's flight layer, as one recorded state shows it. */
+type TokenSeen = {id: string, dir: string, source: string, box: Box};
 
 /**
- * THE TOKEN WITNESS — samples the class's flight layer on a MutationObserver (scoped to the layer) and a 16 ms
- * interval (never rAF: headless rAF stops when the screen goes quiet); a token counts from its first painted frame.
+ * THE TOKEN WITNESS — RECORDS the class's flight layer off the product's own writes (`armWitness`: a MutationObserver
+ * over the document + a frame tick, every state pushed to the Node side), never a sampler that sleeps through a beat;
+ * a token counts from its first painted state (opacity ≥ 0.3, not hidden). The reader returns what stands NOW — the
+ * first / last box per token is folded on the Node side (`tokens`).
  */
-async function armTokenWitness(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = {samples: 0, tokens: {} as Record<string, {dir: string, source: string, first?: object, last?: object, frames: number}>};
-    (window as unknown as {__armfly: typeof w}).__armfly = w;
-    const sample = () => {
-      w.samples++;
-      for (const el of document.querySelectorAll<HTMLElement>('.con-armfly__chip')) {
-        if (Number(getComputedStyle(el).opacity) < 0.3 || getComputedStyle(el).visibility === 'hidden') {
-          continue;
-        }
-        const r = el.getBoundingClientRect();
-        const id = el.dataset.armflyId ?? '?';
-        const rec = w.tokens[id] ??= {dir: el.dataset.armflyDirection ?? '', source: el.dataset.armflySource ?? '', frames: 0};
-        const box = {x: r.x, y: r.y, w: r.width, h: r.height};
-        rec.first ??= box;
-        rec.last = box;
-        rec.frames++;
-      }
-    };
-    const layer = document.querySelector('[data-armed-flight]');
-    if (layer !== null) {
-      new MutationObserver(sample).observe(layer, {subtree: true, childList: true, attributes: true});
+async function armTokenWitness(page: Page, key: string): Promise<void> {
+  await armWitness<Array<TokenSeen>>(page, key, () => Array.from(document.querySelectorAll<HTMLElement>('.con-armfly__chip'))
+    .filter((el) => Number(getComputedStyle(el).opacity) >= 0.3 && getComputedStyle(el).visibility !== 'hidden')
+    .map((el) => {
+      const r = el.getBoundingClientRect();
+      const q = (n: number) => Math.round(n * 10) / 10;
+      return {id: el.dataset.armflyId ?? '?', dir: el.dataset.armflyDirection ?? '', source: el.dataset.armflySource ?? '',
+        box: {x: q(r.x), y: q(r.y), w: q(r.width), h: q(r.height)}};
+    }));
+}
+
+/** The record, stopped and folded: every token's first and last painted box, and how many recorded states showed it. */
+async function tokens(page: Page, key: string): Promise<{samples: number, tokens: Array<TokenTrace>}> {
+  const seen = (await witnessOf<Array<TokenSeen>>(page, key).stop()).map((s) => s.v);
+  const byId = new Map<string, TokenTrace>();
+  for (const state of seen) {
+    for (const t of state) {
+      const rec = byId.get(t.id) ?? {dir: t.dir, source: t.source, frames: 0};
+      rec.first ??= t.box;
+      rec.last = t.box;
+      rec.frames++;
+      byId.set(t.id, rec);
     }
-    window.setInterval(sample, 16);
-  });
+  }
+  return {samples: seen.length, tokens: [...byId.values()]};
 }
 
-async function tokens(page: Page): Promise<{samples: number, tokens: Array<TokenTrace>}> {
-  return await page.evaluate(() => {
-    const w = (window as unknown as {__armfly: {samples: number, tokens: Record<string, TokenTrace>}}).__armfly;
-    return {samples: w.samples, tokens: Object.values(w.tokens)};
-  });
-}
-
+/** An element's box (rounded: a subpixel that jitters is not motion) — read AT REST through `boxAtRest`. */
 async function boxOf(page: Page, selector: string): Promise<Box | undefined> {
   return await page.evaluate((sel) => {
     const el = document.querySelector(sel);
@@ -124,8 +125,13 @@ async function boxOf(page: Page, selector: string): Promise<Box | undefined> {
       return undefined;
     }
     const r = el.getBoundingClientRect();
-    return r.width > 0 ? {x: r.x, y: r.y, w: r.width, h: r.height} : undefined;
+    const q = (n: number) => Math.round(n * 10) / 10;
+    return r.width > 0 ? {x: q(r.x), y: q(r.y), w: q(r.width), h: q(r.height)} : undefined;
   }, selector);
+}
+
+async function boxAtRest(page: Page, selector: string, what: string): Promise<Box | undefined> {
+  return readSettled(page, () => boxOf(page, selector), {message: what});
 }
 
 function centreInside(token: Box, host: Box, slack: number): boolean {
@@ -166,13 +172,9 @@ async function rivalSeesArmed(page: Page): Promise<boolean> {
   expect(await pressUntil(page, 'KeyY', async () => await page.locator('.con-info .con-info__layout').count() > 0, {tries: 4, settleMs: 900}),
     'the rival opens Information').toBe(true);
   await settle(page, {timeoutMs: 15_000});
-  for (let i = 0; i < 4; i++) {
-    if (await page.locator('[data-zone="effects"] [data-dossier-effect="armed"]').count() > 0) {
-      return true;
-    }
-    await press(page, 'KeyE', 700);
-  }
-  return false;
+  // act → verify → retry (D): RB walks the seats, each press given its whole window before the next.
+  return pressUntil(page, 'KeyE', async () => await page.locator('[data-zone="effects"] [data-dossier-effect="armed"]').count() > 0,
+    {tries: 4, settleMs: 700});
 }
 
 test.describe('TR49 — the one-play class', () => {
@@ -195,22 +197,23 @@ test.describe('TR49 — the one-play class', () => {
       await shoot(page, preset.id, '01-tr49-composer-arms');
 
       // ── The press: the arm token leaves the face's printed plate and lands on the dock's chip.
-      const card = await boxOf(page, `${COMPOSER} .con-composer__playcard`);
+      const card = await boxAtRest(page, `${COMPOSER} .con-composer__playcard`, 'the played card in its composer');
       expect(card, 'the played card stands in its composer').toBeDefined();
-      await armTokenWitness(page);
+      await armTokenWitness(page, 'armfly-arm');
       const stopArm = await storyboard(page, preset.id, 'arm');
       await commit(page);
       await expect(page.locator(`${dockChip(CED)}:not(.con-armed--arriving)`), 'the dock wears «⚡ ТРЕБ.»').toHaveCount(1, {timeout: 30_000});
       await stopArm();
       await waitForBoardHome(page, 25);
-      const armTrace = await tokens(page);
-      expect(armTrace.samples, 'the witness sampled').toBeGreaterThan(20);
-      const trail = await page.locator('[data-armed-flight]').getAttribute('data-armed-flight-trail') ?? '';
-      expect(trail, 'the arm token landed (the trail names any degradation)').toContain('arm:landed');
+      const armTrace = await tokens(page, 'armfly-arm');
+      // The recorder's own liveness (it keeps DISTINCT states, never frames): only a dead recorder fails this floor.
+      expect(armTrace.samples, 'the witness recorded').toBeGreaterThan(0);
+      await expect.poll(async () => await page.locator('[data-armed-flight]').getAttribute('data-armed-flight-trail') ?? '',
+        {message: 'the arm token landed (the trail names any degradation)'}).toContain('arm:landed');
       const arm = armTrace.tokens.find((t) => t.dir === 'arm');
       expect(arm, `an arm token was painted (${JSON.stringify(armTrace.tokens)})`).toBeDefined();
       expect(centreInside(arm!.first!, card!, 8), `born ON the standing card (${JSON.stringify(arm!.first)} in ${JSON.stringify(card)})`).toBe(true);
-      const chipBox = await boxOf(page, dockChip(CED));
+      const chipBox = await boxAtRest(page, dockChip(CED), 'the dock chip');
       expect(chipBox, 'the dock chip is on screen').toBeDefined();
       expect(centreInside(arm!.last!, chipBox!, 24), `landed ON the dock chip (${JSON.stringify(arm!.last)} on ${JSON.stringify(chipBox)})`).toBe(true);
       const armed = await wireOf(request, id);
@@ -256,9 +259,9 @@ test.describe('TR49 — the one-play class', () => {
       // ── The press — a STAGED play (Lake Marineris places its oceans before the one POST): the landing ritual draws the
       //    armed effect out of the dock into the card's cassette (the server's forecast — the answer is not known yet),
       //    the chip stays gone on the board, and the POST after the second ocean spends it on the server.
-      const lakeCard = await boxOf(page, `${COMPOSER} .con-composer__playcard`);
-      const dockBefore = await boxOf(page, dockChip(CED));
-      await armTokenWitness(page);
+      const lakeCard = await boxAtRest(page, `${COMPOSER} .con-composer__playcard`, 'Lake Marineris in its composer');
+      const dockBefore = await boxAtRest(page, dockChip(CED), 'the dock chip before the spend');
+      await armTokenWitness(page, 'armfly-spend');
       const stopSpend = await storyboard(page, preset.id, 'spend');
       await commit(page);
       await expect.poll(async () => await page.locator('[data-armed-flight]').getAttribute('data-armed-flight-trail') ?? '', {timeout: 30_000})
@@ -266,7 +269,7 @@ test.describe('TR49 — the one-play class', () => {
       await page.locator('.con-context__task-kicker').waitFor({timeout: 30_000});
       await stopSpend();
       await expect(page.locator(dockChip(CED)), 'the chip is gone from the ritual on').toHaveCount(0, {timeout: 30_000});
-      const spendTrace = await tokens(page);
+      const spendTrace = await tokens(page, 'armfly-spend');
       const spend = spendTrace.tokens.find((t) => t.dir === 'spend');
       expect((await wireOf(request, id)).thisPlayer.armedPlayEffects?.length, 'nothing posted yet — the board decides first').toBe(1);
       await shoot(page, preset.id, '07-board-chip-gone');
@@ -335,7 +338,8 @@ test.describe('TR49 — the one-play class', () => {
       await expect(grassMod.locator('[data-req-mark="card"]'), 'the two standing sources are cards on the table').toHaveCount(2);
       await expect(grassMod.locator('[data-req-mark="once"]'), 'the armed source is the one-play bolt').toHaveCount(1);
       await expect(page.locator(`${slot(GRASS)} [data-req-decisive]`).first(), 'met THANKS TO the modifiers').toBeVisible();
-      const seal = await page.evaluate((sel) => {
+      // The seal's place in its face — measured AT REST (the album's page may still be settling).
+      const seal = await readSettled(page, () => page.evaluate((sel) => {
         const mods = document.querySelector(sel);
         const face = mods?.closest('.pcard');
         if (mods === null || mods === undefined || face === null || face === undefined) {
@@ -348,7 +352,7 @@ test.describe('TR49 — the one-play class', () => {
           art: marks.filter((m) => getComputedStyle(m).backgroundImage.includes('card-images')).length,
           inside: r.left >= f.left - 1 && r.right <= f.right + 1 && r.top >= f.top - 1 && r.bottom <= f.bottom + 1,
         };
-      }, `${slot(GRASS)} [data-req-state="eased"] [data-req-marks]`);
+      }, `${slot(GRASS)} [data-req-state="eased"] [data-req-marks]`), {message: 'Grass\'s modifier seal in its face'});
       expect(seal?.art, 'a mark is a symbol, never the source\'s art').toBe(0);
       expect(seal?.inside, 'the seal stays inside the card face').toBe(true);
       await expect(page.locator(`${slot(GRASS)} [data-hand-ease] [data-req-marks="3"]`), 'the tile\'s plate marks the three sources').toHaveCount(1);
@@ -370,14 +374,15 @@ test.describe('TR49 — the one-play class', () => {
       await expect(req.locator('[data-req-mark]'), 'each share leads with its mark').toHaveCount(3);
       await expect(req).toContainText('Inventrix');
       await expect(req.locator('[data-composer-req-total]'), 'the composition ends on the sum').toHaveText('= ±6');
-      const clipped = await req.evaluate((row) => {
+      // The row's composition measured AT REST — the composer's entrance is over before a share is called cut.
+      const clipped = await readSettled(page, () => req.evaluate((row) => {
         const box = row.getBoundingClientRect();
         return [...row.querySelectorAll('[data-composer-req-share], [data-composer-req-total]')]
           .filter((el) => {
             const r = el.getBoundingClientRect();
             return r.width === 0 || r.right > box.right + 1 || r.bottom > box.bottom + 1;
           }).map((el) => el.textContent?.trim());
-      });
+      }), {message: 'the requirement row\'s shares'});
       expect(clipped, 'every share stands whole inside the row — nothing cut').toEqual([]);
       await expect(page.locator(`${COMPOSER} [data-forecast-chip="modifier"] [data-req-mark]`), 'every «Сработает» modifier chip leads with its mark').toHaveCount(3);
       await shoot(page, preset.id, 'D2-grass-composer');

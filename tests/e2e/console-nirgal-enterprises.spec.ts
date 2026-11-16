@@ -5,6 +5,7 @@ import {
   bootFixture, bootFixtureSeats, bootIntoGame, cinematicBeat, fetchPlayerModel, openConsole, press, pressUntilVisible, reloadConsole, settle,
   soloGameConfig, waitForBoardHome,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, transferTrail, transferWitness} from './transferWitness';
 import {readTransient, recordTransient} from './transientRecorder';
 
@@ -85,7 +86,10 @@ async function openItem(page: Page, match: (name: string) => boolean, label: str
 }
 
 type StepRead = {kind: string | null, printed: string | null, source: string | null, text: string, sponsor: boolean, fits: boolean};
-/** Every step of the open ladder as PAINTED: its reading's kind, the struck price, the seal's source, whole or cut. */
+/**
+ * Every step of the open ladder as PAINTED: its reading's kind, the struck price, the seal's source, whole or cut — read
+ * AT REST (`ladderAtRest`): a step measured mid-entrance is not «wrapped».
+ */
 async function ladderOf(page: Page): Promise<Array<StepRead>> {
   return await page.locator('.con-mafocus [data-ma-ladder-step]').evaluateAll((steps) => steps.map((s) => {
     const el = s as HTMLElement;
@@ -100,7 +104,7 @@ async function ladderOf(page: Page): Promise<Array<StepRead>> {
   }));
 }
 
-/** The ladder row itself stands whole: no step wraps under another, the row is not wider than its plate. */
+/** The ladder row itself stands whole: no step wraps under another, the row is not wider than its plate (at rest). */
 async function ladderWhole(page: Page): Promise<{whole: boolean, detail: string}> {
   return await page.locator('.con-mafocus [data-ma-ladder]').evaluate((row) => {
     const el = row as HTMLElement;
@@ -111,6 +115,14 @@ async function ladderWhole(page: Page): Promise<{whole: boolean, detail: string}
     return {whole: oneLine && inPlate && el.scrollWidth <= el.clientWidth + 1,
       detail: `tops=${tops.join(',')} row=${el.scrollWidth}/${el.clientWidth} inPlate=${inPlate}`};
   });
+}
+
+async function ladderAtRest(page: Page, what: string): Promise<Array<StepRead>> {
+  return readSettled(page, () => ladderOf(page), {message: what});
+}
+
+async function ladderWholeAtRest(page: Page, what: string): Promise<{whole: boolean, detail: string}> {
+  return readSettled(page, () => ladderWhole(page), {message: what});
 }
 
 async function effectStat(request: APIRequestContext, id: string, color: string): Promise<{triggerCount: number, megacreditsSaved: number} | undefined> {
@@ -205,11 +217,11 @@ test.describe(`PC01 Nirgal Enterprises · the price names its cause · ${TV.id}`
     await expect(page.locator('[data-ma-price="awards"]')).toHaveAttribute('data-ma-price-kind', 'waived');
     const first = (await page.locator('.con-ma__card').first().getAttribute('data-ma-row')) ?? '';
     await openItem(page, (n) => n === first, first);
-    const steps = await ladderOf(page);
+    const steps = await ladderAtRest(page, 'the ladder before');
     expect(steps.map((s) => [s.kind, s.printed, s.source]), 'the ladder before: 8 → 0 · 14 → 0 · 20 → 0, each with the seal')
       .toEqual([['waived', '8', NIRGAL], ['waived', '14', NIRGAL], ['waived', '20', NIRGAL]]);
     expect(steps.every((s) => s.fits), `no step wrapped or cut — ${JSON.stringify(steps)}`).toBe(true);
-    const whole = await ladderWhole(page);
+    const whole = await ladderWholeAtRest(page, 'the ladder row before');
     expect(whole.whole, `the ladder stands whole in its plate — ${whole.detail}`).toBe(true);
     await expect(page.locator('.con-mafocus [data-ma-price-target]'), 'nothing to fly into').toHaveCount(0);
     await shoot(page, 'c-ladder-before');
@@ -227,7 +239,7 @@ test.describe(`PC01 Nirgal Enterprises · the price names its cause · ${TV.id}`
     const unfunded = await page.locator('.con-ma__card').evaluateAll((cards, name) => cards
       .map((c) => c.getAttribute('data-ma-row') ?? '').filter((n) => n !== name), first);
     await openItem(page, (n) => n === unfunded[0], unfunded[0]);
-    const later = await ladderOf(page);
+    const later = await ladderAtRest(page, 'the ladder after the first funding');
     expect(later[0], 'the funded slot reads «0» with the seal and its sponsor').toMatchObject({kind: 'waived', printed: null, source: NIRGAL, sponsor: true});
     expect([later[1].kind, later[1].printed], 'the next step: 14 → 0').toEqual(['waived', '14']);
     expect([later[2].kind, later[2].printed], 'the step after it: the table\'s 20, struck').toEqual(['waived', '20']);
@@ -255,7 +267,7 @@ test.describe(`PC01 Nirgal Enterprises · the price names its cause · ${TV.id}`
     const wire = await wireOf(request, seats[1]);
     const open = wire.game.awards.find((a) => a.color === undefined)?.name ?? '';
     await openItem(page, (n) => n === open, open);
-    const steps = await ladderOf(page);
+    const steps = await ladderAtRest(page, 'the rival\'s ladder');
     expect(steps[0], 'Nirgal\'s slot: «0» with the seal — never «8»').toMatchObject({kind: 'waived', printed: null, source: NIRGAL, sponsor: true});
     expect(steps[0].text, 'no rules\' price on the waived slot').not.toContain('8');
     expect([steps[1].kind, steps[1].text], 'the rival\'s own slot: 14').toEqual(['paid', '14']);
@@ -333,21 +345,22 @@ for (const profile of [TV, DECK]) {
       await openKind(page, 'awards');
       await expect(page.locator('.con-ma__card'), 'six awards on the Venus table').toHaveCount(6);
       await expect(page.locator('[data-ma-price="awards"]')).toHaveAttribute('data-ma-price-kind', 'waived');
-      const fit = await page.locator('.con-ma__scroll-host').evaluate((host) => {
+      // The grid measured AT REST — a card mid-entrance is not a third column.
+      const fit = await readSettled(page, () => page.locator('.con-ma__scroll-host').evaluate((host) => {
         const el = host as HTMLElement;
         const cards = [...el.querySelectorAll('.con-ma__card')].map((c) => c.getBoundingClientRect());
         const lefts = new Set(cards.map((r) => Math.round(r.left)));
         const widths = new Set(cards.map((r) => Math.round(r.width)));
         return {columns: lefts.size, widths: widths.size, scrolls: el.scrollHeight > el.clientHeight + 1};
-      });
+      }), {message: 'the awards grid'});
       expect(fit, 'two columns of one width, nothing to scroll').toEqual({columns: 2, widths: 1, scrolls: false});
       const chipFits = await page.locator('[data-ma-price="awards"]').evaluate((c) => (c as HTMLElement).scrollWidth <= (c as HTMLElement).clientWidth + 1);
       expect(chipFits, 'the waived chip is whole').toBe(true);
       const first = (await page.locator('.con-ma__card').first().getAttribute('data-ma-row')) ?? '';
       await openItem(page, (n) => n === first, first);
-      const steps = await ladderOf(page);
+      const steps = await ladderAtRest(page, 'the ladder');
       expect(steps.every((s) => s.fits), `no step wrapped or cut — ${JSON.stringify(steps)}`).toBe(true);
-      const whole = await ladderWhole(page);
+      const whole = await ladderWholeAtRest(page, 'the ladder row');
       expect(whole.whole, `the ladder stands whole — ${whole.detail}`).toBe(true);
       await shoot(page, `g-${profile.id}`);
     });

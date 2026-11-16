@@ -205,6 +205,21 @@ describe('the two paints of a flight — the DOM half (T12 / CA)', () => {
       expect(chip.style.pointerEvents, 'and given back').eq('none');
     });
 
+    it('under a FULL-SCREEN overlay the player called up mid-flight (the turn review, the card viewer, the system menu) the token is under a scene that took the screen — no paint defect; a hull surface over it is still named', () => {
+      for (const cls of ['con-bot-review', 'con-zoom-veil', 'con-sys con-sys--menu']) {
+        const overlay = document.createElement('div');
+        overlay.className = cls;
+        const inner = document.createElement('section');
+        overlay.appendChild(inner);
+        document.body.appendChild(overlay);
+        document.elementsFromPoint = () => [inner, overlay, chip, rail];
+        expect(tokenPaintedUnder(chip), `under .${cls.split(' ')[0]}`).eq(undefined);
+        overlay.remove();
+      }
+      document.elementsFromPoint = () => [row, chip];
+      expect(tokenPaintedUnder(chip), 'the rail over the token is still a defect').eq('div.con-res__row in div.con-res');
+    });
+
     it('an off-screen or unmounted token is not asked', () => {
       document.elementsFromPoint = () => [row];
       chip.remove();

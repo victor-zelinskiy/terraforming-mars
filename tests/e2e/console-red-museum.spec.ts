@@ -3,6 +3,8 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, confirmLockedPlacement, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
 import {TileType} from '../../src/common/TileType';
+import {armWitness, Witness} from './witness';
+import {readSettled} from './settledRead';
 
 /**
  * TR30 «КРАСНЫЙ МУЗЕЙ» — A TILE PAYS A CARD, AND THE CELL DECIDES WHETHER
@@ -80,8 +82,8 @@ const dataOn = (wire: Wire, name: string) => wire.thisPlayer.tableau.find((c) =>
 type Pt = {x: number, y: number};
 type Box = {x: number, y: number, w: number, h: number};
 type MuseumProbe = {
+  /** The recorded observations — the probe's own liveness floor (a dead recorder records nothing). */
   samples: number;
-  ticks: number;
   /** The placed cell's hex (measured at arm — the tiles' sender). */
   hex: Box;
   aux?: Box;
@@ -111,132 +113,192 @@ type MuseumProbe = {
   stranded: boolean;
 };
 
+/** ONE frame of the «tile pays» scene as the page paints it — the observation the scene probe records. */
+type MuseumFrame = {
+  /** The placed cell's hex and the satellite's data cell (null: no box). */
+  hex: Box | null;
+  aux: Box | null;
+  /** The placed cell paints a tile. */
+  tile: boolean;
+  /** The scene's root: its phase (null: no root), its mode, whether it degraded. */
+  phase: string | null;
+  mode: string | null;
+  degraded: boolean;
+  /** Every token element, and the ones painted (identity kept across frames). */
+  tokenCount: number;
+  tokens: Array<{id: number, at: Pt, kind: string}>;
+  /** The risen holder's plate: its box, and its centre when painted. */
+  cardBox: Box | null;
+  card: Pt | null;
+  count: string;
+  aux_: string;
+  auxAnimal: string;
+  vp: string;
+  tr: string;
+  mc: string;
+  /** The painted transfer chips (identity kept across frames). */
+  chips: Array<{id: number, at: Pt}>;
+  stranded: boolean;
+};
+
+/** The page reader of the scene probe (self-contained — serialized into the page; element identity is a WeakMap there). */
+function readMuseumFrame({cellId, dataKey}: {cellId: string, dataKey: string}): MuseumFrame {
+  const w = window as unknown as {__tr30ids?: WeakMap<Element, number>, __tr30seq?: number};
+  const ids = w.__tr30ids ?? (w.__tr30ids = new WeakMap());
+  const idOf = (el: Element): number => {
+    let id = ids.get(el);
+    if (id === undefined) {
+      id = (w.__tr30seq ?? 0) + 1;
+      w.__tr30seq = id;
+      ids.set(el, id);
+    }
+    return id;
+  };
+  const boxOf = (el: Element | null): Box | null => {
+    if (el === null) {
+      return null;
+    }
+    const r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1 ? {x: r.left, y: r.top, w: r.width, h: r.height} : null;
+  };
+  const shown = (el: Element): boolean => {
+    let node: Element | null = el;
+    let opacity = 1;
+    while (node !== null) {
+      const cs = getComputedStyle(node);
+      if (cs.visibility === 'hidden' || cs.display === 'none') {
+        return false;
+      }
+      opacity *= Number(cs.opacity);
+      node = node.parentElement;
+    }
+    const r = el.getBoundingClientRect();
+    return opacity > 0.05 && r.width > 2 && r.height > 2;
+  };
+  const centre = (el: Element): Pt => {
+    const r = el.getBoundingClientRect();
+    return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+  };
+  const digits = (sel: string): string => (document.querySelector(sel)?.textContent ?? '').replace(/\D/g, '');
+  const tile = document.querySelector(`.board-space[data_space_id="${cellId}"] > [class*="board-space-tile--"]`);
+  const root = document.querySelector('.con-citypay');
+  const tokens = Array.from(document.querySelectorAll('.con-tileplace__oceancoin--data, .con-tileplace__oceancoin--animal'));
+  const card = document.querySelector('.con-citypay__card');
+  const mcDigits = document.querySelector('.con-res__row .resource_icon--megacredits')?.closest('.con-res__row')?.querySelector('.con-res__digits');
+  return {
+    hex: boxOf(document.querySelector(`.board-space[data_space_id="${cellId}"]`)),
+    aux: boxOf(document.querySelector(`.con-res-aux__cell[data-aux-resource="${dataKey}"]`)),
+    tile: tile !== null && shown(tile),
+    phase: root === null ? null : root.getAttribute('data-city-payout') ?? '',
+    mode: root?.getAttribute('data-city-payout-mode') ?? null,
+    degraded: root !== null && root.getAttribute('data-city-payout-degraded') !== null,
+    tokenCount: tokens.length,
+    tokens: tokens.filter((el) => shown(el.querySelector('.con-tileplace__coin-body') ?? el)).map((el) => ({
+      id: idOf(el), at: centre(el), kind: el.classList.contains('con-tileplace__oceancoin--animal') ? 'animal' : 'data',
+    })),
+    cardBox: boxOf(card),
+    card: card !== null && shown(card) ? centre(card) : null,
+    count: card?.getAttribute('data-city-payout-count') ?? '',
+    aux_: digits(`.con-res-aux__cell[data-aux-resource="${dataKey}"]`),
+    auxAnimal: digits('.con-res-aux__cell[data-aux-resource="animal"]'),
+    vp: digits('.con-res .con-score__cell--vp .con-score__value'),
+    tr: digits('.con-res .con-score__cell--tr .con-score__value'),
+    mc: (mcDigits?.childNodes[0]?.textContent ?? '').trim(),
+    chips: Array.from(document.querySelectorAll('.con-transfer__chip')).filter(shown).map((el) => ({id: idOf(el), at: centre(el)})),
+    stranded: document.querySelector('.con-stranded') !== null,
+  };
+}
+
 /**
- * THE SCENE PROBE — MutationObserver + setInterval, never rAF; claims about frames are made on interval ticks.
+ * THE SCENE PROBE — a RECORDING of the product's own writes (`armWitness`: the observer + the frame tick, replace-proof),
+ * armed above the confirm; the claims are folded on the Node side. Its claims are about ORDER and about what a frame
+ * shows at once (the VP cell net of the TR cell's own ticks), so the record is `settled`: every sample is the state a
+ * task LEAVES — what a frame can paint.
  * `dataKey` is the satellite cell the paid data lands on: the museum's plain `data` chip, or — for a holder whose
  * role CLAIMS something about every unit (TR15 Martian Census: a delegate per data) — its own split chip
  * `data:delegate` (PL-030; the plain `data` address beside it is Martian Fiber's, standing at 0 for good).
  */
-async function armProbe(page: Page, cell: string, dataKey = 'data'): Promise<void> {
-  await page.evaluate(({cellId, dataKey}) => {
-    const w = window as unknown as {__tr30: MuseumProbe, __tr30chips: Map<Element, {first: Pt, last: Pt}>};
-    const boxOf = (el: Element | null): Box | undefined => {
-      if (el === null) {
-        return undefined;
-      }
-      const r = el.getBoundingClientRect();
-      return r.width > 1 && r.height > 1 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
-    };
-    const p: MuseumProbe = {
-      samples: 0, ticks: 0, hex: boxOf(document.querySelector(`.board-space[data_space_id="${cellId}"]`))!,
-      aux: boxOf(document.querySelector(`.con-res-aux__cell[data-aux-resource="${dataKey}"]`)),
-      tokens: [], tokenMax: 0, cardSeen: 0, counts: [], aux_: [], auxAnimal: [], vp: [], tr: [], mc: [], chipMinY: Infinity, chips: [],
-      modes: [], phases: [], degraded: false, stranded: false,
-    };
-    w.__tr30 = p;
-    w.__tr30chips = new Map();
-    const t0 = Date.now();
-    const shown = (el: Element): boolean => {
-      let node: Element | null = el;
-      let opacity = 1;
-      while (node !== null) {
-        const cs = getComputedStyle(node);
-        if (cs.visibility === 'hidden' || cs.display === 'none') {
-          return false;
-        }
-        opacity *= Number(cs.opacity);
-        node = node.parentElement;
-      }
-      const r = el.getBoundingClientRect();
-      return opacity > 0.05 && r.width > 2 && r.height > 2;
-    };
-    const centre = (el: Element): Pt => {
-      const r = el.getBoundingClientRect();
-      return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-    };
-    const push = (list: Array<[number, string]>, now: number, value: string) => {
-      if (value !== '' && list[list.length - 1]?.[1] !== value) {
-        list.push([now, value]);
-      }
-    };
-    const seenTokens = new Set<Element>();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const now = Date.now() - t0;
-      const tile = document.querySelector(`.board-space[data_space_id="${cellId}"] > [class*="board-space-tile--"]`);
-      if (tile !== null && shown(tile)) {
-        p.tileAt ??= now;
-      }
-      const root = document.querySelector('.con-citypay');
-      if (root !== null) {
-        const phase = root.getAttribute('data-city-payout') ?? '';
-        if (p.phases[p.phases.length - 1] !== phase) {
-          p.phases.push(phase);
-          if (phase === 'idle') {
-            p.idleAt ??= now;
-          }
-        }
-        const mode = root.getAttribute('data-city-payout-mode');
-        if (mode !== null && !p.modes.includes(mode)) {
-          p.modes.push(mode);
-        }
-        if (root.getAttribute('data-city-payout-degraded') !== null) {
-          p.degraded = true;
-        }
-      } else if (p.phases.length > 0 && p.phases[p.phases.length - 1] !== 'gone') {
-        p.phases.push('gone');
-        p.idleAt ??= now;
-      }
-      const tokens = Array.from(document.querySelectorAll('.con-tileplace__oceancoin--data, .con-tileplace__oceancoin--animal'));
-      p.tokenMax = Math.max(p.tokenMax, tokens.length);
-      for (const el of tokens) {
-        if (!seenTokens.has(el) && shown(el.querySelector('.con-tileplace__coin-body') ?? el)) {
-          seenTokens.add(el);
-          p.tokens.push({at: centre(el), t: now, hex: boxOf(document.querySelector(`.board-space[data_space_id="${cellId}"]`)),
-            // The risen holder's plate, measured in the SAME sample — its printed icon is the birth place (CN).
-            card: boxOf(document.querySelector('.con-citypay__card')),
-            kind: el.classList.contains('con-tileplace__oceancoin--animal') ? 'animal' : 'data'});
-        }
-      }
-      const card = document.querySelector('.con-citypay__card');
-      if (card !== null && shown(card)) {
-        p.cardSeen++;
-        p.cardFirst ??= {t: now, at: centre(card)};
-      }
-      push(p.counts, now, card?.getAttribute('data-city-payout-count') ?? '');
-      push(p.aux_, now, (document.querySelector(`.con-res-aux__cell[data-aux-resource="${dataKey}"]`)?.textContent ?? '').replace(/\D/g, ''));
-      push(p.auxAnimal, now, (document.querySelector('.con-res-aux__cell[data-aux-resource="animal"]')?.textContent ?? '').replace(/\D/g, ''));
-      push(p.vp, now, (document.querySelector('.con-res .con-score__cell--vp .con-score__value')?.textContent ?? '').replace(/\D/g, ''));
-      push(p.tr, now, (document.querySelector('.con-res .con-score__cell--tr .con-score__value')?.textContent ?? '').replace(/\D/g, ''));
-      const mcDigits = document.querySelector('.con-res__row .resource_icon--megacredits')?.closest('.con-res__row')?.querySelector('.con-res__digits');
-      push(p.mc, now, (mcDigits?.childNodes[0]?.textContent ?? '').trim());
-      document.querySelectorAll('.con-transfer__chip').forEach((el) => {
-        if (!shown(el)) {
-          return;
-        }
-        const c = centre(el);
-        p.chipMinY = Math.min(p.chipMinY, c.y);
-        const rec = w.__tr30chips.get(el);
-        if (rec === undefined) {
-          w.__tr30chips.set(el, {first: c, last: c});
-        } else {
-          rec.last = c;
-        }
-      });
-      p.chips = Array.from(w.__tr30chips.values());
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-    };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample(true), 16);
-  }, {cellId: cell, dataKey});
+async function armProbe(page: Page, cell: string, dataKey = 'data'): Promise<Witness<MuseumFrame>> {
+  return armWitness(page, `tr30-scene-${cell}-${dataKey}`, readMuseumFrame, {args: {cellId: cell, dataKey}, settled: true, max: 50_000});
 }
 
-const readProbe = (page: Page): Promise<MuseumProbe> => page.evaluate(() => (window as unknown as {__tr30: MuseumProbe}).__tr30);
+/** The fold of the recording — the scene's facts, on the page's clock (`t` relative to the arm). */
+async function readProbe(witness: Witness<MuseumFrame>): Promise<MuseumProbe> {
+  const samples = await witness.samples();
+  const t0 = samples[0]?.t ?? 0;
+  const first = samples[0]?.v;
+  const p: MuseumProbe = {
+    samples: samples.length, hex: first?.hex ?? {x: 0, y: 0, w: 0, h: 0}, aux: first?.aux ?? undefined,
+    tokens: [], tokenMax: 0, cardSeen: 0, counts: [], aux_: [], auxAnimal: [], vp: [], tr: [], mc: [], chipMinY: Infinity, chips: [],
+    modes: [], phases: [], degraded: false, stranded: false,
+  };
+  const push = (list: Array<[number, string]>, now: number, value: string) => {
+    if (value !== '' && list[list.length - 1]?.[1] !== value) {
+      list.push([now, value]);
+    }
+  };
+  const seenTokens = new Set<number>();
+  const chips = new Map<number, {first: Pt, last: Pt}>();
+  for (const {t, v} of samples) {
+    const now = t - t0;
+    if (v.tile) {
+      p.tileAt ??= now;
+    }
+    if (v.phase !== null) {
+      if (p.phases[p.phases.length - 1] !== v.phase) {
+        p.phases.push(v.phase);
+        if (v.phase === 'idle') {
+          p.idleAt ??= now;
+        }
+      }
+      if (v.mode !== null && !p.modes.includes(v.mode)) {
+        p.modes.push(v.mode);
+      }
+      p.degraded ||= v.degraded;
+    } else if (p.phases.length > 0 && p.phases[p.phases.length - 1] !== 'gone') {
+      p.phases.push('gone');
+      p.idleAt ??= now;
+    }
+    p.tokenMax = Math.max(p.tokenMax, v.tokenCount);
+    for (const token of v.tokens) {
+      if (!seenTokens.has(token.id)) {
+        seenTokens.add(token.id);
+        // The risen holder's plate and the placed hex, measured in the SAME sample — its printed icon is the birth place (CN).
+        p.tokens.push({at: token.at, t: now, hex: v.hex ?? undefined, card: v.cardBox ?? undefined, kind: token.kind});
+      }
+    }
+    if (v.card !== null) {
+      p.cardSeen++;
+      p.cardFirst ??= {t: now, at: v.card};
+    }
+    push(p.counts, now, v.count);
+    push(p.aux_, now, v.aux_);
+    push(p.auxAnimal, now, v.auxAnimal);
+    push(p.vp, now, v.vp);
+    push(p.tr, now, v.tr);
+    push(p.mc, now, v.mc);
+    for (const chip of v.chips) {
+      p.chipMinY = Math.min(p.chipMinY, chip.at.y);
+      const rec = chips.get(chip.id);
+      if (rec === undefined) {
+        chips.set(chip.id, {first: chip.at, last: chip.at});
+      } else {
+        rec.last = chip.at;
+      }
+    }
+    p.stranded ||= v.stranded;
+  }
+  p.chips = [...chips.values()];
+  return p;
+}
+
+/** The bottom-centre of a seat's chip in the status strip (undefined: no chip). */
+async function seatChipFoot(page: Page, color: string): Promise<Pt | undefined> {
+  return page.evaluate((color) => {
+    const r = document.querySelector(`.con-status__player .player_bg_color_${color}`)?.getBoundingClientRect();
+    return r === undefined ? undefined : {x: r.left + r.width / 2, y: r.bottom};
+  }, color);
+}
 
 const panel = '.con-context';
 
@@ -347,7 +409,7 @@ function vpNetOfRating(probe: MuseumProbe): Array<[number, number]> {
  */
 function expectOwnScene(probe: MuseumProbe, from: number, label: string, cardVp = 0, tableAnswer = 0): void {
   const to = from + 2;
-  expect(probe.ticks, `${label}: the probe sampled`).toBeGreaterThan(10);
+  expect(probe.samples, `${label}: the probe sampled`).toBeGreaterThan(0);
   expect(probe.degraded, `${label}: the scene never degraded`).toBe(false);
   expect(probe.stranded, `${label}: nothing stranded`).toBe(false);
   expect(probe.modes, `${label}: the own scene`).toEqual(['own']);
@@ -490,18 +552,19 @@ for (const preset of PRESETS) {
       expect(posts.length, 'pointing sends nothing').toBe(postsBefore);
 
       // ── 2. THE COMMIT — ONE POST, then the tile pays ──
-      await armProbe(page, CLEAN);
-      await armProbe(redPage, CLEAN);
+      const ownScene = await armProbe(page, CLEAN);
+      const redScene = await armProbe(redPage, CLEAN);
       const stopOwn = await storyboard(page, preset.id, 'own');
       const stopRed = await storyboard(redPage, preset.id, 'opponent');
       await confirmCell(page);
       await expect.poll(async () => cellOf(await wireOf(request, playerId), CLEAN)?.tileType,
         {timeout: 30_000, message: 'the city never reached the clean cell on the server'}).toBe(TileType.CITY);
       expect(posts.length - postsBefore, `exactly ONE POST: ${posts.slice(postsBefore).join(', ')}`).toBe(1);
-      await expect.poll(async () => (await readProbe(page)).idleAt, {timeout: 40_000, message: 'the museum\'s scene never ended'}).toBeDefined();
+      await expect.poll(async () => (await readProbe(ownScene)).idleAt, {timeout: 40_000, message: 'the museum\'s scene never ended'}).toBeDefined();
       await settle(page, {timeoutMs: 30_000});
       await stopOwn();
-      const own = await readProbe(page);
+      const own = await readProbe(ownScene);
+      await ownScene.stop(); // the scene's window is over — the special tile arms its own record below
       await shoot(page, preset.id, '03-after-city');
       expectOwnScene(own, 0, 'the city');
       test.info().annotations.push({type: 'tr30-scene', description: `${preset.id}: tile ${own.tileAt}ms · card ${own.cardFirst?.t}ms · tokens ${JSON.stringify(own.tokens.map((t) => t.t))} · counts ${JSON.stringify(own.counts)} · vp ${JSON.stringify(own.vp)} · aux ${JSON.stringify(own.aux_)} · M€ ${JSON.stringify(own.mc)} · idle ${own.idleAt}ms`});
@@ -518,9 +581,9 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-ws'), 'the flow ends on the board').toHaveCount(0, {timeout: 20_000});
 
       // ── 3. THE OPPONENT — the tokens go to blue's chip; blue's museum never rises on red's screen ──
-      await expect.poll(async () => (await readProbe(redPage)).idleAt, {timeout: 40_000, message: 'red never saw the tile pay'}).toBeDefined();
+      await expect.poll(async () => (await readProbe(redScene)).idleAt, {timeout: 40_000, message: 'red never saw the tile pay'}).toBeDefined();
       await stopRed();
-      const remote = await readProbe(redPage);
+      const remote = await readProbe(redScene);
       expect(remote.modes, 'red plays the REMOTE scene').toEqual(['remote']);
       expect(remote.degraded, 'red\'s scene never degraded').toBe(false);
       expect(remote.cardSeen, 'blue\'s card never rises on red\'s screen').toBe(0);
@@ -529,10 +592,8 @@ for (const preset of PRESETS) {
         expect(inside(token.at, token.hex ?? remote.hex, 2), `red: a token is born inside the placed hex (${JSON.stringify(token.at)} in ${JSON.stringify(token.hex)})`).toBe(true);
         expect(token.t, 'red: after the tile sat').toBeGreaterThan(remote.tileAt ?? 0);
       }
-      const blueChip = await redPage.evaluate((color) => {
-        const r = document.querySelector(`.con-status__player .player_bg_color_${color}`)?.getBoundingClientRect();
-        return r === undefined ? undefined : {x: r.left + r.width / 2, y: r.bottom};
-      }, viewer);
+      // Read at rest (two equal reads a frame apart): the chip's box, not wherever a strip's re-layout had got to.
+      const blueChip = await readSettled(redPage, () => seatChipFoot(redPage, viewer), {settle: false, message: 'blue\'s chip on red\'s strip'});
       expect(blueChip, 'blue\'s chip stands in red\'s status strip').toBeDefined();
       const towardBlue = remote.chips.filter((c) => dist(c.last, blueChip!) < dist(c.first, blueChip!) - 40);
       expect(towardBlue.length, `the tokens fly to blue's chip (${JSON.stringify(remote.chips)})`).toBeGreaterThanOrEqual(2);
@@ -559,19 +620,19 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 20_000});
       await walkToSpace(page, SPECIAL);
       await expect(page.locator(panel), 'the special tile\'s clean cell pays').toContainText('Рядом нет озеленения и океана', {timeout: 15_000});
-      await armProbe(page, SPECIAL);
+      const specialScene = await armProbe(page, SPECIAL);
       const stopNz = await storyboard(page, preset.id, 'special');
       await confirmCell(page);
       await expect.poll(async () => cellOf(await wireOf(request, playerId), SPECIAL)?.tileType,
         {timeout: 30_000, message: 'Nuclear Zone never reached its cell on the server'}).toBe(TileType.NUCLEAR_ZONE);
-      await expect.poll(async () => (await readProbe(page)).idleAt, {timeout: 40_000, message: 'the special tile\'s scene never ended'}).toBeDefined();
+      await expect.poll(async () => (await readProbe(specialScene)).idleAt, {timeout: 40_000, message: 'the special tile\'s scene never ended'}).toBeDefined();
       await settle(page, {timeoutMs: 30_000});
       // The table's answer plays AFTER the scene — wait for the M€ row to reach the server's number before reading.
       const serverMc = (await wireOf(request, playerId)).thisPlayer.megacredits;
-      await expect.poll(async () => Number(((await readProbe(page)).mc.at(-1)?.[1] ?? '').replace(/\D/g, '')),
+      await expect.poll(async () => Number(((await readProbe(specialScene)).mc.at(-1)?.[1] ?? '').replace(/\D/g, '')),
         {timeout: 30_000, message: 'the M€ row never reached the server\'s number after the special tile'}).toBe(serverMc);
       await stopNz();
-      const special = await readProbe(page);
+      const special = await readProbe(specialScene);
       await shoot(page, preset.id, '06-after-special');
       // The ruling Greens answer the tile's rating: 2 M€ per step of TR the rating cell gained.
       const trGain = Number(special.tr.at(-1)?.[1] ?? 0) - Number(special.tr[0]?.[1] ?? 0);
@@ -591,14 +652,14 @@ for (const preset of PRESETS) {
       await openCityProject(page);
       await walkToSpace(page, BESIDE_OCEAN);
       await expect(page.locator(panel)).toContainText(/Рядом 1 океан — данных не будет/, {timeout: 15_000});
-      await armProbe(page, BESIDE_OCEAN);
+      const oceanScene = await armProbe(page, BESIDE_OCEAN);
       await confirmCell(page);
       await expect.poll(async () => cellOf(await wireOf(request, playerId), BESIDE_OCEAN)?.tileType,
         {timeout: 30_000, message: 'the city never reached the cell beside the ocean'}).toBe(TileType.CITY);
       await settle(page, {timeoutMs: 30_000});
       // Settled past every board beat: a scene that was going to play would have started by now.
-      await expect.poll(async () => (await readProbe(page)).tileAt, {timeout: 10_000}).toBeDefined();
-      const probe = await readProbe(page);
+      await expect.poll(async () => (await readProbe(oceanScene)).tileAt, {timeout: 10_000}).toBeDefined();
+      const probe = await readProbe(oceanScene);
       expect(probe.phases, 'no «tile pays» scene at all').toEqual([]);
       expect(probe.tokens, 'no token').toEqual([]);
       expect(probe.aux_.every(([, v]) => v === '0' || v === ''), `the satellite stays at 0: ${JSON.stringify(probe.aux_)}`).toBe(true);
@@ -626,16 +687,16 @@ for (const preset of PRESETS) {
       await openCityProject(redPage);
       await walkToSpace(redPage, CLEAN);
       // The census's data is a DELEGATE-role chip on blue's satellite (PL-030) — its own address, beside Fiber's plain one.
-      await armProbe(page, CLEAN, 'data:delegate');
-      await armProbe(redPage, CLEAN);
+      const blueScene = await armProbe(page, CLEAN, 'data:delegate');
+      const redScene = await armProbe(redPage, CLEAN);
       const stopBlue = await storyboard(page, preset.id, 'rival-blue');
       await confirmCell(redPage);
       await expect.poll(async () => cellOf(await wireOf(request, playerId), CLEAN)?.tileType,
         {timeout: 30_000, message: 'red\'s city never reached the clean cell'}).toBe(TileType.CITY);
-      await expect.poll(async () => (await readProbe(page)).idleAt, {timeout: 40_000, message: 'blue never saw the city pay'}).toBeDefined();
+      await expect.poll(async () => (await readProbe(blueScene)).idleAt, {timeout: 40_000, message: 'blue never saw the city pay'}).toBeDefined();
       await settle(page, {timeoutMs: 30_000});
       await stopBlue();
-      const blue = await readProbe(page);
+      const blue = await readProbe(blueScene);
       await shoot(page, preset.id, '08-rival-blue-after');
       // BLUE: the city lands FIRST, then each card's unit leaves it — never a count ahead of the landing (PL-034).
       expect(blue.tileAt, 'red\'s city painted on blue\'s board').toBeDefined();
@@ -662,12 +723,10 @@ for (const preset of PRESETS) {
       expect(firstData.t, 'the engine\'s order: the census\'s record, then Pets\'').toBeLessThan(firstAnimal.t);
       test.info().annotations.push({type: 'tr30-rival', description: `${preset.id}: tile ${blue.tileAt}ms · tokens ${JSON.stringify(blue.tokens.map((t) => [t.kind, t.t]))} · data ${JSON.stringify(blue.aux_)} · animal ${JSON.stringify(blue.auxAnimal)}`});
       // RED: its own placement's hero plays BLUE's records — the tokens go to blue's chip.
-      const red = await readProbe(redPage);
+      const red = await readProbe(redScene);
       expect(red.tokens.length, `red sees both of blue's tokens (${JSON.stringify(red.tokens)})`).toBe(2);
-      const blueChip = await redPage.evaluate((color) => {
-        const r = document.querySelector(`.con-status__player .player_bg_color_${color}`)?.getBoundingClientRect();
-        return r === undefined ? undefined : {x: r.left + r.width / 2, y: r.bottom};
-      }, viewer);
+      // Read at rest (two equal reads a frame apart): the chip's box, not wherever a strip's re-layout had got to.
+      const blueChip = await readSettled(redPage, () => seatChipFoot(redPage, viewer), {settle: false, message: 'blue\'s chip on red\'s strip'});
       expect(blueChip, 'blue\'s chip stands in red\'s status strip').toBeDefined();
       const towardBlue = red.chips.filter((c) => dist(c.last, blueChip!) < dist(c.first, blueChip!) - 40);
       expect(towardBlue.length, `on red's screen the tokens fly to blue's chip (${JSON.stringify(red.chips)})`).toBeGreaterThanOrEqual(2);

@@ -5,6 +5,7 @@ import {bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, press, pressUn
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {storyboard} from './consoleEndgameHarness';
+import {readSettled} from './settledRead';
 
 /**
  * TR56 «ФАБРИКА РОБОТОВ» and the iteration «КУДА ЛЯЖЕТ» (docs/TURMOIL_REDUX_ROBOTICS_FACTORY.md): «put N on ANY card» is
@@ -126,6 +127,11 @@ async function targetRow(page: Page): Promise<{state: string, payload: string, s
   }));
 }
 
+/** The target row read at REST (C — `readSettled`: the same reading twice, a frame apart — never a row mid-entrance). */
+async function targetRowAtRest(page: Page, what: string): Promise<Awaited<ReturnType<typeof targetRow>>> {
+  return readSettled(page, () => targetRow(page), {message: what});
+}
+
 async function openStep(page: Page): Promise<void> {
   const step = page.locator('.con-ptsel');
   for (let i = 0; i < 5 && await step.count() === 0; i++) {
@@ -163,6 +169,11 @@ async function stepGeometry(page: Page): Promise<{payload: string, offset: numbe
       })),
     };
   });
+}
+
+/** The step's composition read at REST (C — `readSettled`). */
+async function stepGeometryAtRest(page: Page, what: string): Promise<Awaited<ReturnType<typeof stepGeometry>>> {
+  return readSettled(page, () => stepGeometry(page), {message: what});
 }
 
 async function focusStepCard(page: Page, card: string): Promise<void> {
@@ -228,7 +239,7 @@ for (const preset of PRESETS) {
       // ── П2: the floaters → the target row asks WHERE with the payload's own print, the candidates as a strip.
       await chooseTile(page, 2);
       await settle(page);
-      const open = await targetRow(page);
+      const open = await targetRowAtRest(page, 'the floaters\' row');
       expect(open, 'the unanswered row: «КУДА: 6 [аэростат]» and the two holders\' faces').toMatchObject({state: 'open', payload: 'floater', strip: [DIR, MAP]});
       await expect(page.locator(`${PLAY} [data-composer-target-row]`), 'never «эту карту», never a second «выберите»').not.toContainText(/эту карту|Выберите карту-получатель/i);
       await expect(page.locator(`${PLAY} .con-composer__cta`), 'the ask stands in ONE place — the commit rail').toContainText('Выберите карту-получатель');
@@ -236,8 +247,9 @@ for (const preset of PRESETS) {
 
       // ── П3 / П4: the step names its payload, the crumb its stage; the group centred; the count leads every tag.
       await openStep(page);
-      expect((await crumbText(page)).toLowerCase(), 'the crumb: the card, then «ЦЕЛЬ»').toMatch(new RegExp(`${CARD_RU.toLowerCase()}.*цель`));
-      const floaters = await stepGeometry(page);
+      await expect.poll(async () => (await crumbText(page)).toLowerCase(), {message: 'the crumb: the card, then «ЦЕЛЬ»'})
+        .toMatch(new RegExp(`${CARD_RU.toLowerCase()}.*цель`));
+      const floaters = await stepGeometryAtRest(page, 'the floaters\' step');
       expect(floaters.payload, '«КУДА: 6 [аэростат]» in the contract').toBe('floater');
       expect(floaters.cards.sort()).toEqual([DIR, MAP].sort());
       expect(Math.abs(floaters.offset), `the group stands in the middle of its zone ${JSON.stringify(floaters)}`).toBeLessThan(floaters.zoneW * 0.03);
@@ -246,17 +258,19 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'a-03-step-floaters');
       await focusStepCard(page, DIR);
       await confirmTarget(page);
-      const answered = await targetRow(page);
+      const answered = await targetRowAtRest(page, 'the answered row');
       expect(answered, 'answered: Dirigibles in the row, the question unchanged').toMatchObject({state: 'answered', payload: 'floater', answered: [DIR]});
       await expect(page.locator(`${PLAY} [data-composer-target-row] [data-ptsel-tag-lead]`), 'the step\'s tag read again beside the answer').toHaveCount(1);
       await shoot(page, preset.id, 'a-04-floaters-answered');
 
       // ── П5: the change of variant lets the answer go — the strip of the NEW kind, the column still.
-      const colTop = async () => page.evaluate((sel) => Math.round(document.querySelector(sel)?.getBoundingClientRect().top ?? -1), `${PLAY} .con-composer__resulthero`);
+      // The column's top at REST on both sides (C — a comparison is only as settled as its least settled side).
+      const colTop = () => readSettled(page, () => page.evaluate((sel) => Math.round(document.querySelector(sel)?.getBoundingClientRect().top ?? -1),
+        `${PLAY} .con-composer__resulthero`), {message: 'the column\'s top'});
       const top0 = await colTop();
       await chooseTile(page, 0);
       await settle(page);
-      const reset = await targetRow(page);
+      const reset = await targetRowAtRest(page, 'the row after the change of variant');
       // The old answer goes with its variant; the MECH kind has ONE holder (Construction Mechs) — SEEDED with it, shown and
       // marked (T14 · CC «ЕДИНСТВЕННАЯ ЦЕЛЬ»), never left as a question with one answer.
       expect(reset, 'the row lets the old answer go and SEEDS the mech kind\'s one holder').toMatchObject({state: 'answered', payload: 'mech', answered: [CM]});
@@ -267,7 +281,7 @@ for (const preset of PRESETS) {
 
       // ── the mechs: ONE candidate, the protagonist — A on the seeded row still opens the step.
       await openStep(page);
-      const mechs = await stepGeometry(page);
+      const mechs = await stepGeometryAtRest(page, 'the mechs\' step');
       expect(mechs.payload).toBe('mech');
       expect(mechs.cards).toEqual([CM]);
       expect(mechs.cardH / mechs.bandH, `the lone candidate stands a third of the zone or more ${JSON.stringify(mechs)}`).toBeGreaterThan(1 / 3);
@@ -322,10 +336,10 @@ for (const preset of PRESETS) {
       expect(opened[2], 'the lone open tile: chosen for the player, its one holder named').toMatchObject({selected: true, dest: [DIR], destCount: '1'});
       await shoot(page, preset.id, 'b-01-composer');
       // The lone holder is SEEDED — answered, shown and marked (T14 · CC); A on the row still opens it: SHOWN, never silent.
-      expect(await targetRow(page)).toMatchObject({state: 'answered', payload: 'floater', answered: [DIR]});
+      expect(await targetRowAtRest(page, 'the seeded row')).toMatchObject({state: 'answered', payload: 'floater', answered: [DIR]});
       await expect(page.locator(`${PLAY} [data-composer-target-row][data-seeded="sole"]`), 'seeded by the composer').toHaveCount(1);
       await openStep(page);
-      expect((await stepGeometry(page)).cards, 'the lone holder is SHOWN — never applied silently').toEqual([DIR]);
+      expect((await stepGeometryAtRest(page, 'the lone holder\'s step')).cards, 'the lone holder is SHOWN — never applied silently').toEqual([DIR]);
       await confirmTarget(page);
       await commit(page, seen.posts);
       const batch = batchOf(seen.posts[0]);

@@ -19,9 +19,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, focusCard, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness, TransferWitness} from './transferWitness';
 import {storyboard} from './consoleEndgameHarness';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 const PROFILES = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -129,6 +131,16 @@ async function readPalette(page: Page): Promise<PaletteRead> {
   }, PALETTE);
 }
 
+/** The palette read AT REST (FLAKE ZERO — `readSettled`: its boxes the same across frames, after `settle`). */
+async function settledPalette(page: Page): Promise<PaletteRead> {
+  return readSettled(page, () => readPalette(page), {message: 'the palette'});
+}
+
+/** The palette group's top edge (−1 when absent). */
+async function groupTopOf(page: Page): Promise<number> {
+  return page.evaluate((sel) => document.querySelector(sel)?.getBoundingClientRect().top ?? -1, PALETTE);
+}
+
 /** The resource the palette's cursor stands on. */
 async function focusedResource(page: Page): Promise<string> {
   return page.evaluate((sel) => document.querySelector(`${sel} .con-vchoice__opt--focused`)?.getAttribute('data-palette-resource') ?? '', PALETTE);
@@ -136,24 +148,20 @@ async function focusedResource(page: Page): Promise<string> {
 
 /** Walk the palette's row with → until the cursor stands on `resource` (the row wraps; never a counted guess). */
 async function walkTo(page: Page, resource: string): Promise<void> {
-  for (let i = 0; i < 8 && (await focusedResource(page)) !== resource; i++) {
-    await press(page, 'ArrowRight', 250);
-  }
+  await walkFocusUntil(page, async () => await focusedResource(page) === resource, () => focusedResource(page), 8, 250);
   expect(await focusedResource(page), `the cursor stands on ${resource}`).toBe(resource);
 }
 
 /** A seals the focused tile; then ↓ to the commit row and A — the play's one POST. */
 async function sealAndCommit(page: Page, resource: string): Promise<{groupTopBefore: number, groupTopAfter: number}> {
-  const groupTop = () => page.evaluate((sel) => document.querySelector(sel)?.getBoundingClientRect().top ?? -1, PALETTE);
-  const groupTopBefore = await groupTop();
+  // Both sides of «the row did not move» are read AT REST (a comparison is only as settled as its least settled side).
+  const groupTopBefore = await readSettled(page, () => groupTopOf(page), {message: 'the palette\'s top before the seal'});
   await press(page, 'Enter', 500);
-  const sealed = await page.evaluate((sel) => document.querySelector(`${sel} .con-vchoice__opt--selected`)?.getAttribute('data-palette-resource') ?? '', PALETTE);
-  expect(sealed, 'A seals the tile the cursor stands on').toBe(resource);
-  const groupTopAfter = await groupTop();
+  await expect.poll(() => page.evaluate((sel) => document.querySelector(`${sel} .con-vchoice__opt--selected`)?.getAttribute('data-palette-resource') ?? '', PALETTE),
+    {message: 'A seals the tile the cursor stands on'}).toBe(resource);
+  const groupTopAfter = await readSettled(page, () => groupTopOf(page), {message: 'the palette\'s top after the seal'});
   const cta = page.locator('.con-composer--play .con-composer__cta--focused');
-  for (let i = 0; i < 8 && await cta.count() === 0; i++) {
-    await press(page, 'ArrowDown', 250);
-  }
+  await pressUntil(page, 'ArrowDown', async () => await cta.count() > 0, {tries: 8, settleMs: 250});
   await expect(cta, 'the cursor reached the commit row').toHaveCount(1);
   return {groupTopBefore, groupTopAfter};
 }
@@ -173,7 +181,7 @@ for (const preset of PROFILES) {
       await openComposer(page);
       await shot(page, preset.id, 'A-1-palette');
 
-      const p = await readPalette(page);
+      const p = await settledPalette(page);
       console.log(`[tr54 ${preset.id}] kicker «${p.kicker}»`);
       expect(p.radios, 'six radios — the zeros stand').toBe(6);
       expect(p.tiles.map((t) => t.resource)).toEqual(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
@@ -198,7 +206,7 @@ for (const preset of PROFILES) {
       expect(await focusedResource(page), 'the cursor opens on the first tile').toBe('megacredits');
       expect(p.tiles.some((t) => t.selected), 'nothing is chosen before a press').toBe(false);
       await press(page, 'ArrowLeft', 250);
-      expect(await focusedResource(page), '← from the first tile wraps to the last').toBe('heat');
+      await expect.poll(() => focusedResource(page), {message: '← from the first tile wraps to the last'}).toBe('heat');
       await walkTo(page, 'plants');
       await expect.poll(() => page.locator(`${PALETTE} .con-vchoice__opt--selected`).count(), {message: 'walking selects nothing'}).toBe(0);
       const {groupTopBefore, groupTopAfter} = await sealAndCommit(page, 'plants');
@@ -234,25 +242,10 @@ for (const preset of PROFILES) {
       await openComposer(page);
       await walkTo(page, 'energy');
       await sealAndCommit(page, 'energy');
-      // The energy row's own number on the page's clock: 5 → 2 on the price's departure, → 3 on the gain's touchdown.
-      await page.evaluate(() => {
-        const out: Array<string> = [];
-        const read = () => (document.querySelector('.con-res .con-res__row--energy .con-res__digits')?.textContent?.match(/^-?\d+/) ?? [''])[0];
-        const sample = () => {
-          const v = read();
-          if (v !== '' && v !== out[out.length - 1]) {
-            out.push(v);
-          }
-        };
-        const timer = window.setInterval(sample, 16);
-        const mo = new MutationObserver(sample);
-        mo.observe(document.body, {subtree: true, childList: true, characterData: true});
-        sample();
-        (window as unknown as {__energy: {out: Array<string>, stop: () => void}}).__energy = {out, stop: () => {
-          window.clearInterval(timer);
-          mo.disconnect();
-        }};
-      });
+      // The energy row's own number on the page's clock: 5 → 2 on the price's departure, → 3 on the gain's touchdown —
+      // RECORDED (FLAKE ZERO — `armWitness`: every number the product writes, in the task that writes it).
+      const energyRow = await armWitness<string>(page, 'tr54-energy', () =>
+        (document.querySelector('.con-res .con-res__row--energy .con-res__digits')?.textContent?.match(/^-?\d+/) ?? [''])[0]);
       await armTransferWitness(page);
       const stop = await storyboard(page, path.join(OUT, preset.id), 'commit-energy');
       await press(page, 'Enter', 400);
@@ -261,11 +254,8 @@ for (const preset of PROFILES) {
       await settle(page, {timeoutMs: 30_000});
       await stop();
       await shot(page, preset.id, 'Aprime-after');
-      const energy = await page.evaluate(() => {
-        const e = (window as unknown as {__energy: {out: Array<string>, stop: () => void}}).__energy;
-        e.stop();
-        return e.out;
-      });
+      const energy = (await energyRow.stop()).map((s) => s.v).filter((v) => v !== '')
+        .filter((v, i, all) => i === 0 || v !== all[i - 1]);
       expect(energy, `the energy row reads 5 → 2 → 3, never a netted 5 → 3: ${JSON.stringify(energy)}`).toEqual(['5', '2', '3']);
       const w = await transferWitness(page);
       const price = birthOf(w, '−3') ?? birthOf(w, '-3');
@@ -310,7 +300,7 @@ test.describe('TR54 · the standard-resource palette · deck', () => {
     await bootFixtureSeats(page, request, 'overclocked-equipment', {query: '&consoleProfile=handheld'});
     await openComposer(page);
     await shot(page, 'deck', 'A-1-palette');
-    const p = await readPalette(page);
+    const p = await settledPalette(page);
     expect(p.radios).toBe(6);
     const perRow = [...p.tiles.reduce((m, t) => m.set(t.offsetTop, (m.get(t.offsetTop) ?? 0) + 1), new Map<number, number>()).values()];
     expect([[6], [3, 3]], `one row or 3 + 3: ${JSON.stringify(perRow)}`).toContainEqual(perRow);
@@ -322,9 +312,9 @@ test.describe('TR54 · the standard-resource palette · deck', () => {
       expect(p.axis, 'a folded palette walks as a grid').toBe('grid');
       expect(await focusedResource(page)).toBe('megacredits');
       await press(page, 'ArrowDown', 250);
-      expect(await focusedResource(page), '↓ to the same column of the row below').toBe('plants');
+      await expect.poll(() => focusedResource(page), {message: '↓ to the same column of the row below'}).toBe('plants');
       await press(page, 'ArrowRight', 250);
-      expect(await focusedResource(page), '→ along that row').toBe('energy');
+      await expect.poll(() => focusedResource(page), {message: '→ along that row'}).toBe('energy');
     } else {
       expect(p.axis).toBe('row');
     }

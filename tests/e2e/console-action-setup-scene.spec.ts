@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixture, FixtureName, openActionFocus, openCardActions, press, settle, walkFocusUntil} from './consoleStart';
+import {bootFixture, FixtureName, openActionFocus, openCardActions, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE ACTION SETUP STAGE IS ONE SCENE WITH THE CARD (docs/claude/prompts/prelude2-p73-floating-refinery.md §4 —
@@ -134,6 +135,11 @@ async function readScene(page: Page): Promise<Scene> {
   }, STAGE);
 }
 
+/** The scene AT REST (FLAKE ZERO — `readSettled`: the console settled, then the same reading on two frames in a row). */
+async function settledScene(page: Page, what: string): Promise<Scene> {
+  return readSettled(page, () => readScene(page), {message: what});
+}
+
 /** A blurred OUTER shadow in a light colour (the glow the restraint law forbids for a standing state). */
 function hasLightHalo(shadow: string): boolean {
   if (shadow === '' || shadow === 'none') {
@@ -166,9 +172,7 @@ const focusedTile = (page: Page) => page.evaluate(() => {
 async function openSetup(page: Page, c: Case): Promise<void> {
   await openCardActions(page);
   const want = `${c.card}#${c.variant}`;
-  for (let i = 0; i < 4 && !(await focusedTile(page)).startsWith(c.card); i++) {
-    await press(page, 'ArrowDown', 400);
-  }
+  await pressUntil(page, 'ArrowDown', async () => (await focusedTile(page)).startsWith(c.card), {tries: 4, settleMs: 400});
   // A card's variants stand side by side on a wide profile and STACK on the Deck — the walk goes along the row, then
   // down the column when the row holds no further tile.
   for (let i = 0; i < 6 && (await focusedTile(page)).startsWith(c.card) && await focusedTile(page) !== want; i++) {
@@ -237,27 +241,22 @@ for (const profile of PROFILES) {
         const dir = path.join(OUT, profile.id);
         fs.mkdirSync(dir, {recursive: true});
         // The commit row in its «ready» pose where the action has nothing to ask; the cursor stays off it for (e).
-        const first = await readScene(page);
+        const first = await settledScene(page, `${profile.id} ${c.id}: the setup scene`);
         await page.screenshot({path: path.join(dir, `${c.id}-a.png`)});
         console.log(`[setup-scene] ${profile.id} ${c.id} ${JSON.stringify(first)}`);
         expectSetupScene(first, `${profile.id} ${c.id}`, profile.id === 'deck', c.context);
         if (c.pick !== undefined) {
           // (b) THE FRAME DOES NOT MOVE while the player answers inside it: open the source step, choose, compare.
-          for (let i = 0; i < 6 && await page.locator(`${STAGE} .con-composer__row--focused.con-composer__row--missing`).count() === 0; i++) {
-            await press(page, 'ArrowUp', 250);
-          }
+          await pressUntil(page, 'ArrowUp', async () => await page.locator(`${STAGE} .con-composer__row--focused.con-composer__row--missing`).count() > 0,
+            {tries: 6, settleMs: 250});
           await press(page, 'Enter', 600);
           await expect(page.locator('.con-ptsel'), 'the source step opened').toBeVisible();
           const focused = () => page.evaluate(() => document.querySelector('.con-ptsel__cell[data-focused="1"] [data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '');
-          for (const key of ['ArrowRight', 'ArrowLeft']) {
-            for (let i = 0; i < 6 && await focused() !== c.pick; i++) {
-              await press(page, key, 220);
-            }
-          }
+          await walkFocusUntil(page, async () => await focused() === c.pick, focused, 12, 220);
           await press(page, 'Enter', 600);
           await expect(page.locator('.con-ptsel'), 'the step answered').toHaveCount(0);
           await settle(page);
-          const answered = await readScene(page);
+          const answered = await settledScene(page, `${profile.id} ${c.id}: the answered scene`);
           await page.screenshot({path: path.join(dir, `${c.id}-b.png`)});
           const moved = ['t', 'b', 'l', 'r'].filter((k) => Math.abs(answered.sheet[k as keyof Rect] - first.sheet[k as keyof Rect]) > 1);
           expect(moved, `${profile.id} ${c.id}: (b) the sheet keeps its box across the answer — ${JSON.stringify(first.sheet)} → ${JSON.stringify(answered.sheet)}`).toEqual([]);

@@ -3,9 +3,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   createGameWithCards, openConsole, seedGameOverApi, soloGameConfig,
-  waitForBoardHome, press,
+  waitForBoardHome, press, settle, walkFocusUntil,
 } from './consoleStart';
 import {openHand} from './cardTradeDoor';
+import {readSettled} from './settledRead';
 
 /**
  * CARD AVAILABILITY — the unified system at its real surface, and the RIGHT
@@ -54,7 +55,7 @@ async function openZoomForced(page: Page): Promise<void> {
     await forceFrame(page);
   }
   await expect(zoom, 'the fullscreen viewer opened').toHaveCount(1, {timeout: 8_000});
-  await page.waitForTimeout(1300); // the open flight + settle nonce
+  await settle(page); // the open flight + settle nonce — the screen at rest, never a fixed beat
 }
 
 async function closeZoomForced(page: Page): Promise<void> {
@@ -87,21 +88,14 @@ async function handVerdict(page: Page) {
  */
 async function focusHandCardByRuName(page: Page, ruName: string): Promise<void> {
   const target = ruName.toLowerCase();
-  let dir: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
-  let previous = '';
-  for (let i = 0; i < 10; i++) {
-    const name = (await handVerdict(page)).name.toLowerCase();
-    if (name === target) {
-      return;
-    }
-    if (name === previous) {
-      dir = dir === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight'; // an album edge
-    }
-    previous = name;
-    await press(page, dir, 650);
+  // THE ONE WALK (`walkFocusUntil` — a hop that moves nothing is an album edge, and it turns around). The reader forces
+  // a BeginFrame first: headless Chromium starves rAF on a static frame.
+  const verdictName = async () => {
     await forceFrame(page);
-  }
-  expect((await handVerdict(page)).name.toLowerCase(), `focused «${ruName}»`).toBe(target);
+    return (await handVerdict(page)).name.toLowerCase();
+  };
+  await walkFocusUntil(page, async () => await verdictName() === target, verdictName, 10, 650);
+  await expect.poll(verdictName, {message: `focused «${ruName}»`}).toBe(target);
 }
 
 async function zoomAvailability(page: Page) {
@@ -175,6 +169,15 @@ async function sideColumnGeometry(page: Page) {
 
 type Geometry = Awaited<ReturnType<typeof sideColumnGeometry>>;
 
+/**
+ * The viewer's availability panel and its column geometry, read at REST (C — `readSettled`: the same reading twice, a
+ * frame apart — never a column mid-flight, never a panel that has not joined it yet).
+ */
+async function zoomAtRest(page: Page, what: string) {
+  return readSettled(page, async () => ({panel: await zoomAvailability(page), geometry: await sideColumnGeometry(page)}),
+    {message: what});
+}
+
 /** Every panel of the column sits ABOVE the command bar and inside the viewport. */
 function assertColumnFits(g: Geometry, label: string): void {
   expect(g.footerTop, `${label}: the command bar is measurable`).toBeTruthy();
@@ -246,8 +249,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset.tag, '01-hand-blocked-verdict');
 
       await openZoomForced(page);
-      const panel = await zoomAvailability(page);
-      const g1 = await sideColumnGeometry(page);
+      const {panel, geometry: g1} = await zoomAtRest(page, 'the blocked card\'s column');
       console.log(`[${preset.tag}] blocked fullscreen`, JSON.stringify({panel, g1}));
       expect(panel, 'the availability panel joined the column').toBeTruthy();
       expect(panel?.severity).toBe('blocked');
@@ -274,8 +276,7 @@ for (const preset of PRESETS) {
       const stock = await handVerdict(page);
       console.log(`[${preset.tag}] livestock verdict`, JSON.stringify(stock));
       await openZoomForced(page);
-      const stockPanel = await zoomAvailability(page);
-      const g2 = await sideColumnGeometry(page);
+      const {panel: stockPanel, geometry: g2} = await zoomAtRest(page, 'the dense card\'s column');
       console.log(`[${preset.tag}] livestock fullscreen`, JSON.stringify({stockPanel, g2}));
       expect(stockPanel, 'the dense card still shows its availability').toBeTruthy();
       expect(stockPanel?.reasons.length, 'every reason is listed in the fullscreen').toBeGreaterThan(0);
@@ -309,8 +310,7 @@ for (const preset of PRESETS) {
       const ok = await handVerdict(page);
       expect(ok.ok, 'the playable card wears the green verdict').toBeTruthy();
       await openZoomForced(page);
-      const noPanel = await zoomAvailability(page);
-      const g3 = await sideColumnGeometry(page);
+      const {panel: noPanel, geometry: g3} = await zoomAtRest(page, 'the playable card\'s column');
       console.log(`[${preset.tag}] playable fullscreen`, JSON.stringify({noPanel, g3}));
       expect(noPanel, 'a playable card shows NO availability panel').toBeUndefined();
       assertColumnFits(g3, 'playable card');

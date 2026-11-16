@@ -3,7 +3,9 @@ import * as path from 'path';
 import {expect, test, Page} from './consoleTest';
 import {cinematicBeat, press} from './consoleStart';
 import {campaignBase, campaignModelAs, createCampaign, devCommit, launchMission, openMapAs} from './campaignFixtures';
+import {readSettled} from './settledRead';
 import {readTransient, recordTransient} from './transientRecorder';
+import {armWitness} from './witness';
 
 /**
  * The «ДВЕРЬ» iteration's NEW copy (§19), read in either language: the box's locale bundle is ONE shared copy every
@@ -57,7 +59,7 @@ function watchCarryPosts(page: Page): Array<string> {
 
 /** The focused slot's card name (the ONE cursor — `--selected`). */
 const focused = (page: Page) => page.locator(`${SLOT}--selected`).getAttribute('data-album-slot');
-/** The cards standing on screen (inside the album's clip). */
+/** The cards standing on screen (inside the album's clip) — asserted by a poll, or read AT REST. */
 const onScreen = (page: Page) => page.evaluate(() => {
   const box = document.querySelector('.con-carry .con-album')!.getBoundingClientRect();
   return Array.from(document.querySelectorAll<HTMLElement>('.con-carry .con-album__slot')).filter((el) => {
@@ -65,6 +67,29 @@ const onScreen = (page: Page) => page.evaluate(() => {
     return r.left >= box.left - 1 && r.right <= box.right + 1;
   }).map((el) => el.dataset.albumSlot);
 });
+
+/** The album's own box, rounded — compared only AT REST (`readSettled`): «the box never moved» is a claim about rest. */
+const albumBox = (page: Page) => page.locator('.con-carry .con-album').evaluate((el) => {
+  const r = el.getBoundingClientRect();
+  return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)}`;
+});
+
+/** What a deal / a hand-over flight shows in ONE recorded state. */
+type CarryFlightSeen = {flight: boolean, held: boolean, receiving: boolean};
+
+/**
+ * THE CARRY FLIGHTS — recorded off the product's own writes from the moment armed (`armWitness`, re-installed in every
+ * document of the page — armed before the map opens, it records the deal from its first frame), never a sampler on a
+ * clock of its own. The reader returns what stands NOW; «a deal flew» / «the slots waited» / «the card answered» are
+ * `ever` questions over the record.
+ */
+async function armCarryFlights(page: Page, key: string) {
+  return armWitness<CarryFlightSeen>(page, key, () => ({
+    flight: document.querySelector('.con-carry-flight') !== null,
+    held: document.querySelector('.con-album__slot--held') !== null,
+    receiving: document.querySelector('.cmap__card--receiving') !== null,
+  }));
+}
 
 async function interlude(request: Parameters<typeof createCampaign>[0], hand: Array<string>, limits?: Record<number, number>) {
   const {id} = await createCampaign(request);
@@ -80,43 +105,31 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     test.setTimeout(240_000);
     const id = await interlude(request, HAND);
     const posts = watchCarryPosts(page);
-    // Arm the deal witness before the stage opens itself.
-    await page.addInitScript(() => {
-      const w = window as unknown as {__carryDeal: {flight: number, held: number}};
-      w.__carryDeal = {flight: 0, held: 0};
-      const tick = () => {
-        if (document.querySelector('.con-carry-flight') !== null) {
-          w.__carryDeal.flight++;
-        }
-        if (document.querySelector('.con-album__slot--held') !== null) {
-          w.__carryDeal.held++;
-        }
-      };
-      // A sampler on the page clock (the ratchet keeps rAF out of the specs).
-      window.setInterval(tick, 16);
-    });
+    // Arm the deal witness before the stage opens itself (the recorder re-installs itself in the map's document).
+    const deal = await armCarryFlights(page, 'carry-deal');
     await openMapAs(page, id, 'Bruno');
     await page.waitForSelector('.con-carry .con-album', {timeout: 20_000});
     await shoot(page, 'a-01-enter');
 
     // THE ENTRY: the hand was dealt (clones in the air, slots held until their touchdown) and settles.
     await expect.poll(() => page.locator(`${SLOT}--held`).count(), {timeout: 10_000}).toBe(0);
-    const deal = await page.evaluate(() => (window as unknown as {__carryDeal: {flight: number, held: number}}).__carryDeal);
-    expect(deal.flight, 'a deal layer flew').toBeGreaterThan(0);
-    expect(deal.held, 'the slots waited for their cards').toBeGreaterThan(0);
+    expect(await deal.ever((v) => v.flight), 'a deal layer flew').toBe(true);
+    expect(await deal.ever((v) => v.held), 'the slots waited for their cards').toBe(true);
+    await deal.stop();
 
     // THE CHASSIS: the ONE head, strict pages (10 on screen), the spine «1 / 2», the manifest of two seats.
     await expect(page.locator('.con-carry .con-wshead')).toBeVisible();
-    expect((await onScreen(page)).length, 'a 5 × 2 page').toBe(10);
+    expect((await readSettled(page, () => onScreen(page), {message: 'the first page'})).length, 'a 5 × 2 page').toBe(10);
     await expect(page.locator('.con-carry [data-album-spine] .con-handdock__pager-now')).toHaveText('1');
     await expect(page.locator('.con-carry [data-album-spine] .con-handdock__pager-total')).toHaveText('2');
     await expect(page.locator('.con-carry [data-carry-seat]')).toHaveCount(2);
-    expect(await focused(page)).toBe(HAND[0]);
+    // The cursor is a live state — polled, never read once.
+    await expect.poll(() => focused(page)).toBe(HAND[0]);
     await shoot(page, 'a-02-settled');
 
     // RB — the page turns; A keeps a page-2 card IN PLACE.
     await press(page, 'KeyE', 500);
-    expect(await focused(page)).toBe(HAND[10]);
+    await expect.poll(() => focused(page)).toBe(HAND[10]);
     await expect.poll(async () => (await onScreen(page)).length).toBe(4);
     await expect(page.locator('.con-carry [data-album-spine] .con-handdock__pager-now')).toHaveText('2');
     await press(page, 'Enter', 400);
@@ -127,7 +140,7 @@ test.describe('«Наследие проектов» — the hand album\'s chass
 
     // LB — back to page 1: the manifest still names the page-2 card.
     await press(page, 'KeyQ', 500);
-    expect(await focused(page)).toBe(HAND[0]);
+    await expect.poll(() => focused(page)).toBe(HAND[0]);
     await expect(page.locator('.con-carry [data-carry-seat="1"]')).toHaveAttribute('data-carry-seat-card', HAND[10]);
     await press(page, 'Enter', 400);
     await expect(page.locator(`${SLOT}--picked`)).toHaveCount(2);
@@ -143,9 +156,9 @@ test.describe('«Наследие проектов» — the hand album\'s chass
 
     // A on a KEPT card returns it — the same key, the same object; the next card moves up a seat.
     await press(page, 'KeyE', 500);
-    expect(await focused(page)).toBe(HAND[11]);
+    await expect.poll(() => focused(page)).toBe(HAND[11]);
     await press(page, 'ArrowLeft', 300);
-    expect(await focused(page)).toBe(HAND[10]);
+    await expect.poll(() => focused(page)).toBe(HAND[10]);
     await press(page, 'Enter', 400);
     await expect(page.locator(`${SLOT}--picked`)).toHaveCount(1);
     await expect(page.locator('.con-carry [data-carry-seat="1"]')).toHaveAttribute('data-carry-seat-card', HAND[0]);
@@ -164,28 +177,14 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await shoot(page, 'a-05-two-kept');
 
     // RT — ONE POST in seat order; the kept cards fly into the next mission's card, which answers the touch.
-    await page.evaluate(() => {
-      const w = window as unknown as {__carryExit: {flight: number, receiving: number}};
-      w.__carryExit = {flight: 0, receiving: 0};
-      const tick = () => {
-        if (document.querySelector('.con-carry-flight') !== null) {
-          w.__carryExit.flight++;
-        }
-        if (document.querySelector('.cmap__card--receiving') !== null) {
-          w.__carryExit.receiving++;
-        }
-      };
-      // A sampler on the page clock (the ratchet keeps rAF out of the specs).
-      window.setInterval(tick, 16);
-    });
+    const exit = await armCarryFlights(page, 'carry-exit');
     await press(page, 'Period', 300);
     await page.waitForSelector('.cmap__wait-strip--ready', {timeout: 20_000});
     expect(posts.length, 'ONE POST').toBe(1);
     expect(JSON.parse(posts[0]).cards, 'the seats\' order').toEqual([HAND[0], HAND[1]]);
-    await expect.poll(() => page.evaluate(() => (window as unknown as {__carryExit: {receiving: number}}).__carryExit.receiving),
-      {timeout: 5_000, message: 'the mission card answered the touchdown'}).toBeGreaterThan(0);
-    const exit = await page.evaluate(() => (window as unknown as {__carryExit: {flight: number}}).__carryExit);
-    expect(exit.flight, 'the kept cards flew').toBeGreaterThan(0);
+    await exit.waitFor((v) => v.receiving, {timeoutMs: 5_000, message: 'the mission card answered the touchdown'});
+    expect(await exit.ever((v) => v.flight), 'the kept cards flew').toBe(true);
+    await exit.stop();
     await expect(page.locator('[data-cmap-seat-you] [data-cmap-seat-carry]')).toBeVisible();
     await shoot(page, 'a-06-ready');
     const model = await campaignModelAs(request, id, 'Bruno');
@@ -194,15 +193,16 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     expect(seat.count).toBe(2);
     expect(seat.limit).toBe(2);
 
-    // Y — the SAME stage with both kept cards already in their kant; nothing is dealt (the cards are «here»).
-    await page.evaluate(() => {
-      (window as unknown as {__carryDeal: {flight: number}}).__carryDeal.flight = 0;
-    });
+    // Y — the SAME stage with both kept cards already in their kant; nothing is dealt (the cards are «here»). The
+    // record is armed HERE — the window of the claim starts at the revision's press (the state standing then included,
+    // as the old counter, zeroed here, counted it).
+    const revise = await armCarryFlights(page, 'carry-revise');
     await press(page, 'KeyY', 800);
     await page.waitForSelector('.con-carry .con-album', {timeout: 10_000});
     await expect(page.locator(`${SLOT}--picked`)).toHaveCount(2);
     await cinematicBeat(page, 600, 'a revision must not deal — give a deal the window it would have taken to start');
-    expect(await page.evaluate(() => (window as unknown as {__carryDeal: {flight: number}}).__carryDeal.flight), 'no deal on a revision').toBe(0);
+    expect(await revise.ever((v) => v.flight), 'no deal on a revision').toBe(false);
+    await revise.stop();
     await shoot(page, 'a-07-revise');
   });
 
@@ -214,8 +214,10 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await expect.poll(() => page.locator(`${SLOT}--held`).count(), {timeout: 10_000}).toBe(0);
     await expect(page.locator('.con-carry [data-carry-seat]')).toHaveCount(3);
     await expect(page.locator('.con-carry [data-carry-ask]')).toContainText('3');
+    // Each A verified by ITS effect (one more kept card) before the cursor moves on — never a blind series.
     for (let i = 0; i < 3; i++) {
       await press(page, 'Enter', 400);
+      await expect(page.locator(`${SLOT}--picked`), `keep ${i + 1}`).toHaveCount(i + 1);
       await press(page, 'ArrowRight', 300);
     }
     await expect(page.locator(`${SLOT}--picked`)).toHaveCount(3);
@@ -319,10 +321,6 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     const bar = () => page.locator('.con-cmdbar').innerText();
     const head = () => page.locator('.con-carry .con-wshead').innerText();
     const door = page.locator('.con-carry [data-carry-tender-door]');
-    const albumBox = () => page.locator('.con-carry .con-album').evaluate((el) => {
-      const r = el.getBoundingClientRect();
-      return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)}`;
-    });
     /** ONE press, then the state — L3 is the door's toggle (a re-press mid-phrase would close what it opened). */
     const openDoor = async () => {
       await press(page, 'KeyC', 600);
@@ -337,7 +335,7 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await expect(page.locator('.con-cmdbar .con-cmdbar__cmd--hot', {hasText: /тендеры/i}), 'the door verb is LIT on this page').toHaveCount(1, {timeout: 5_000});
     await expect(page.locator('.con-carry [data-carry-preludes]')).toHaveAttribute('data-carry-preludes-locked', 'yes');
     await expect(page.locator('.con-carry [data-carry-seat]')).toHaveCount(2);
-    const album0 = await albumBox();
+    const album0 = await readSettled(page, () => albumBox(page), {message: 'the album before the activations'});
     await shoot(page, 'f-01-album-door');
 
     // The ghost seat is a moment of the hand-over now (the sheet's A brings the album back with it, the answer follows):
@@ -382,7 +380,7 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     expect((await campaignModelAs(request, id, 'Bruno')).carryover?.yourLimit, 'the server opened the seat').toBe(3);
     await expect.poll(head, {timeout: 5_000}).not.toMatch(/расширенное наследие/i);
     expect(await ghostsSeen(), 'the album came back with the GHOST seat before the server opened it').toContain('3');
-    expect(await albumBox(), 'the album\'s box never moved').toBe(album0);
+    expect(await readSettled(page, () => albumBox(page), {message: 'the album after the seat opened'}), 'the album\'s box never moved').toBe(album0);
     await shoot(page, 'f-04-seat-opened');
 
     // ── The readiness RT while «Продление программы» is still held: the WARNING names it; B disarms. ──
@@ -409,7 +407,8 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await expect(page.locator('.con-carry [data-carry-preludes]')).not.toHaveAttribute('data-carry-preludes-locked', 'yes');
     await expect(page.locator('.con-carry [data-carry-prelude]')).toHaveCount(2);
     await expect(page.locator('.con-carry [data-carry-prelude-count]')).toHaveText('0 / 1');
-    expect(await albumBox(), 'the band was reserved — the album\'s box never moved').toBe(album0);
+    expect(await readSettled(page, () => albumBox(page), {message: 'the album after the band unlocked'}),
+      'the band was reserved — the album\'s box never moved').toBe(album0);
     await expect(door).toHaveAttribute('data-carry-tender-door-ready', '0');
     expect(await ghostsSeen(), 'the prelude seat stood as its GHOST first').toContain('p1');
     await shoot(page, 'f-06-band-unlocked');

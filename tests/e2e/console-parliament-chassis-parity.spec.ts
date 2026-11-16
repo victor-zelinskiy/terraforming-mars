@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
-import {bootFixtureSeats, openQuickWheel, press, settle} from './consoleStart';
+import {bootFixtureSeats, openQuickWheel, press, pressUntil, settle} from './consoleStart';
 import {openParliament, parliament, PARLIAMENT_PRESETS} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /*
  * THE PARLIAMENT STANDS ON THE SAME CHASSIS AS EVERY OTHER WORKSPACE
@@ -63,6 +64,11 @@ async function chassisOf(page: Page, headSelector: string): Promise<Chassis> {
   }, headSelector);
 }
 
+/** The chassis read at REST (C — `readSettled`: the same reading twice, a frame apart — never a head mid-entrance). */
+async function chassisAtRest(page: Page, headSelector: string): Promise<Chassis> {
+  return readSettled(page, () => chassisOf(page, headSelector), {message: `the chassis under ${headSelector}`});
+}
+
 /** Every workspace the quick wheel's other arms open (up · left · right), measured and closed again. */
 async function referenceChassis(page: Page): Promise<Array<Chassis>> {
   const out: Array<Chassis> = [];
@@ -78,10 +84,9 @@ async function referenceChassis(page: Page): Promise<Array<Chassis>> {
       continue;
     }
     await settle(page, {timeoutMs: 20_000});
-    out.push(await chassisOf(page, '.con-wshead:not(.con-parl__head)'));
-    for (let i = 0; i < 4 && await page.locator('.con-wshead').count() > 0; i++) {
-      await press(page, 'Escape', 900);
-    }
+    out.push(await chassisAtRest(page, '.con-wshead:not(.con-parl__head)'));
+    // Back out level by level — act → verify → retry: Escape again only while a head still stands.
+    await pressUntil(page, 'Escape', async () => await page.locator('.con-wshead').count() === 0, {tries: 4, settleMs: 900});
     await expect(page.locator('.con-wshead')).toHaveCount(0, {timeout: 15_000});
   }
   return out;
@@ -100,7 +105,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await openParliament(page);
       await expect(parliament(page).locator('.con-parl__head'), 'the parliament head stands').toHaveCount(1, {timeout: 20_000});
       await settle(page, {timeoutMs: 20_000});
-      const parl = await chassisOf(page, '.con-parl__head');
+      const parl = await chassisAtRest(page, '.con-parl__head');
       fs.mkdirSync('tmp', {recursive: true});
       fs.writeFileSync(`tmp/chassis-${preset.id}.json`, JSON.stringify([parl, ...refs], null, 2));
       const table = [parl, ...refs].map((c) => `${c.name}: ident top ${c.identTop} left ${c.identLeft} h ${c.identH} · root ${c.rootFont} · context ${c.contextFont} · cmdbar ${c.cmdbarH} · stage ${c.stage}`).join('\n');

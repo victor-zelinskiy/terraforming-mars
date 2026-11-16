@@ -1,5 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, press, reloadConsole} from './consoleStart';
+import {bootSeededGame, press, reloadConsole, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -89,6 +90,18 @@ async function key(page: Page, k: string, wait = 600): Promise<void> {
   await press(page, k, wait);
 }
 
+/**
+ * The source card's width against the box it explains, AT REST (both sides through one settled read): a width read
+ * once is wherever the entrance had got to. Rounded — a subpixel that jitters is not motion.
+ */
+async function widthsAtRest(page: Page, card: string, body: string, what: string): Promise<{card: number | null, body: number | null}> {
+  return readSettled(page, async () => {
+    const c = await page.locator(card).first().boundingBox();
+    const b = await page.locator(body).boundingBox();
+    return {card: c === null ? null : Math.round(c.width * 10) / 10, body: b === null ? null : Math.round(b.width * 10) / 10};
+  }, {message: what});
+}
+
 async function createGame(request: APIRequestContext): Promise<string> {
   const created = await request.post('/api/creategame', {data: newGameConfig()});
   expect(created.ok(), `create-game failed: ${created.status()} ${await created.text()}`).toBeTruthy();
@@ -145,7 +158,7 @@ test('a resource distribution names the card that caused it', async ({page, requ
   await injectPhilaresPrompt(page);
   await reloadConsole(page);
   await page.waitForSelector('.con-task', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1500);
+  await settle(page); // the surface at rest before the frame — a state, never a pause
   await shoot(page, '1-distribute-with-source');
 
   // 1 · the classification and the ask are unchanged…
@@ -162,12 +175,11 @@ test('a resource distribution names the card that caused it', async ({page, requ
   // 3 · it is COMPACT — context, never the subject. The six lanes the player is
   //     actually answering must outweigh the card that produced them.
   await expect(source).toHaveClass(/con-src--compact/);
-  const card = await source.locator('.pcard, .card-container').first().boundingBox();
-  const body = await page.locator('.con-task__body').boundingBox();
-  expect(card).not.toBeNull();
-  expect(body).not.toBeNull();
-  expect(card!.width, 'the source card is narrower than the lanes it explains')
-    .toBeLessThan(body!.width);
+  const widths = await widthsAtRest(page, '.con-src .pcard, .con-src .card-container', '.con-task__body', 'the source card and the lanes');
+  expect(widths.card).not.toBeNull();
+  expect(widths.body).not.toBeNull();
+  expect(widths.card!, 'the source card is narrower than the lanes it explains')
+    .toBeLessThan(widths.body!);
 
   // 4 · and it can be READ — L3 opens it fullscreen. The verb lives in the ONE
   //     command bar; the dock draws no badge of its own.
@@ -225,7 +237,7 @@ test('a forced production loss names what forced it — card and hazard alike', 
   await injectPrompt(page, productionLossPrompt({type: 'card', card: 'Caesar'}));
   await reloadConsole(page);
   await page.waitForSelector('.con-prodloss', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1500);
+  await settle(page); // the surface at rest before the frame — a state, never a pause
   await shoot(page, '5-prodloss-card-source');
 
   const source = page.locator('.con-prodloss .con-src');
@@ -234,9 +246,9 @@ test('a forced production loss names what forced it — card and hazard alike', 
   await expect.poll(() => source.locator('.pcard, .card-container').count(), {message: 'a card cause renders the REAL premium card face, not a name in a chip'}).toBeGreaterThan(0);
   await expect(page.locator('.con-cmdbar').first()).toContainText(/ИСТОЧНИК/i);
   // …and the six rows are still the subject: they get the width.
-  const cardBox = await source.locator('.pcard, .card-container').first().boundingBox();
-  const rowsBox = await page.locator('.con-prodloss__rows').boundingBox();
-  expect(cardBox !== null && rowsBox !== null && cardBox.width < rowsBox.width,
+  const widths = await widthsAtRest(page, '.con-prodloss .con-src .pcard, .con-prodloss .con-src .card-container', '.con-prodloss__rows',
+    'the source card and the rows');
+  expect(widths.card !== null && widths.body !== null && widths.card < widths.body,
     'the source must not out-weigh the rows the player is answering').toBeTruthy();
 
   await key(page, 'KeyC', 1800); // L3
@@ -250,7 +262,7 @@ test('a forced production loss names what forced it — card and hazard alike', 
   await injectPrompt(page, productionLossPrompt({type: 'hazard'}));
   await reloadConsole(page);
   await page.waitForSelector('.con-prodloss', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1500);
+  await settle(page); // the surface at rest before the frame — a state, never a pause
   await shoot(page, '7-prodloss-hazard-source');
 
   const hazard = page.locator('.con-prodloss .con-src');

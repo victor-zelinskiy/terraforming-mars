@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import {NO_PAYMENT, bootFixtureSeats, fetchPlayerModel, pressUntil, sendPlayerInput, settle} from './consoleStart';
 import {TileType} from '../../src/common/TileType';
 import {notificationHonesty} from './notificationWitness';
+import {armWitness, Witness} from './witness';
 
 /**
  * TR59 · THE SOURCE OF A PAYOUT ON THE VIEWER'S OWN TILE — the STAND of the iteration.
@@ -91,73 +92,51 @@ async function shootCrop(page: Page, profile: string, name: string, box: {x: num
   return file;
 }
 
-/**
- * THE CARD LOG — every notification card that ever mounts, by id: its sign, variant and its LAST text (a
- * MutationObserver + a setInterval floor, never rAF). The record outlives the card's own TTL, so the test output
- * names what the viewer was shown even when a frame is missed.
- */
-async function armCardLog(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__tr59Cards?: Record<string, {sign: string, variant: string, text: string, firstText?: string, firstAt: number, lastAt: number}>};
-    w.__tr59Cards = {};
-    const t0 = Date.now();
-    const sample = (): void => {
-      for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-notif'))) {
-        const id = el.getAttribute('data-notif-id') ?? '(no id)';
-        const cls = Array.from(el.classList);
-        const entry = w.__tr59Cards![id] ?? {sign: '', variant: '', text: '', firstAt: Date.now() - t0, lastAt: 0};
-        entry.sign = (cls.find((c) => c.startsWith('con-notif--sign-')) ?? '').replace('con-notif--sign-', '');
-        entry.variant = (cls.find((c) => c.startsWith('notification-card--variant-')) ?? '').replace('notification-card--variant-', '');
-        const text = el.innerText.replace(/\s+/g, ' ').trim();
-        if (text !== '') {
-          entry.text = text;
-          entry.firstText = entry.firstText ?? text;
-        }
-        entry.lastAt = Date.now() - t0;
-        w.__tr59Cards![id] = entry;
-      }
+/** One frame of the feed: every notification card's id, sign, variant and text (a page reader — self-contained). */
+type FeedFrame = Array<{id: string, sign: string, variant: string, text: string}>;
+function readFeedCards(): FeedFrame {
+  return Array.from(document.querySelectorAll<HTMLElement>('.con-notif')).map((el) => {
+    const cls = Array.from(el.classList);
+    return {
+      id: el.getAttribute('data-notif-id') ?? '(no id)',
+      sign: (cls.find((c) => c.startsWith('con-notif--sign-')) ?? '').replace('con-notif--sign-', ''),
+      variant: (cls.find((c) => c.startsWith('notification-card--variant-')) ?? '').replace('notification-card--variant-', ''),
+      text: el.innerText.replace(/\s+/g, ' ').trim(),
     };
-    new MutationObserver(sample).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-notif-id']});
-    setInterval(sample, 150);
-    sample();
   });
+}
+
+/**
+ * THE CARD LOG — every notification card that ever mounts, by id: its sign, variant and its LAST text — a RECORDING of
+ * the product's own writes (`armWitness`, replace-proof; `settled`: the text a frame can paint, never one caught
+ * between two writes of one task). The record outlives the card's own TTL, so the test output names what the viewer
+ * was shown even when a frame is missed.
+ */
+async function armCardLog(page: Page): Promise<Witness<FeedFrame>> {
+  return armWitness(page, 'tr59-card-log', readFeedCards, {settled: true, max: 20_000});
 }
 
 type LoggedCard = {sign: string, variant: string, text: string, firstText?: string, firstAt: number, lastAt: number};
 
-async function cardLog(page: Page): Promise<Record<string, LoggedCard>> {
-  return await page.evaluate(() => (window as unknown as {__tr59Cards?: Record<string, LoggedCard>}).__tr59Cards ?? {});
-}
-
-/**
- * The card STANDS AT REST: two consecutive equal samples of its box with the opacity chain at 1. Each sample is
- * preceded by a tiny screenshot, which forces a compositor frame (headless Chromium parks rAF on a quiet screen,
- * and the entrance would never finish without one).
- */
-async function cardAtRest(page: Page, selector: string, maxSamples = 120): Promise<{x: number, y: number, width: number, height: number}> {
-  let previous = '';
-  let last = '';
-  for (let i = 0; i < maxSamples; i++) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => undefined);
-    last = await page.evaluate((sel) => {
-      const el = document.querySelector<HTMLElement>(sel);
-      if (el === null) {
-        return '';
+/** The log folded by card id (times on the page's clock, relative to the arm). */
+async function cardLog(log: Witness<FeedFrame>): Promise<Record<string, LoggedCard>> {
+  const samples = await log.samples();
+  const t0 = samples[0]?.t ?? 0;
+  const out: Record<string, LoggedCard> = {};
+  for (const {t, v} of samples) {
+    for (const card of v) {
+      const entry = out[card.id] ?? {sign: '', variant: '', text: '', firstAt: t - t0, lastAt: 0};
+      entry.sign = card.sign;
+      entry.variant = card.variant;
+      if (card.text !== '') {
+        entry.text = card.text;
+        entry.firstText = entry.firstText ?? card.text;
       }
-      const r = el.getBoundingClientRect();
-      let opacity = 1;
-      for (let a: HTMLElement | null = el; a !== null; a = a.parentElement) {
-        opacity *= Number(getComputedStyle(a).opacity);
-      }
-      return `${r.x.toFixed(1)},${r.y.toFixed(1)},${r.width.toFixed(1)},${r.height.toFixed(1)},${opacity.toFixed(3)}`;
-    }, selector);
-    if (last !== '' && last === previous && last.endsWith(',1.000')) {
-      const [x, y, width, height] = last.split(',').map(Number);
-      return {x, y, width, height};
+      entry.lastAt = t - t0;
+      out[card.id] = entry;
     }
-    previous = last;
   }
-  throw new Error(`the card «${selector}» never came to rest — last sample ${last || '(gone)'}`);
+  return out;
 }
 
 type CardAudit = {
@@ -177,11 +156,38 @@ type CardAudit = {
   floor: {floorPx: number, below: Array<string>},
 };
 
-/** Every zone of the card in the DOM's own words, its painted type sizes, its box against the screen and the HUD
- *  members it stands over (the strategy rail first) — the record the fix is judged against. */
-async function auditCard(page: Page, selector: string): Promise<CardAudit> {
-  return await page.evaluate((sel) => {
-    const card = document.querySelector<HTMLElement>(sel)!;
+/** The positive card as it stands: its box and opacity chain, whether it (or an ancestor) is still in finite motion,
+ *  and — on the FIRST frame it stands at rest — its audit, kept for that card. */
+type StandingCard = {box: {x: number, y: number, width: number, height: number}, opacity: number, moving: boolean, audit: CardAudit | null};
+
+/**
+ * THE CARD STANDS AT REST — read in the frame it does (a page reader, self-contained: it is serialized into the page).
+ * At rest = the opacity chain at 1 and no FINITE animation left on the card or an ancestor (its entrance is over — the
+ * product's own motion, never two samples a guessed interval apart); the card's own TTL bar is a descendant and does
+ * not count. On that frame the AUDIT is taken — every zone of the card in the DOM's own words, its painted type sizes,
+ * its box against the screen and the HUD members it stands over (the strategy rail first), the record the fix is judged
+ * against — once per card (kept in a WeakMap on the page), because a card leaves by its own TTL: read later, it may be
+ * gone (the first full baseline read it off the live card after two 4K frames and found it gone).
+ */
+function readStandingCard(sel: string): StandingCard | null {
+  const card = document.querySelector<HTMLElement>(sel);
+  if (card === null) {
+    return null;
+  }
+  const rect = card.getBoundingClientRect();
+  let opacity = 1;
+  for (let a: HTMLElement | null = card; a !== null; a = a.parentElement) {
+    opacity *= Number(getComputedStyle(a).opacity);
+  }
+  const moving = document.getAnimations().some((anim) => {
+    const target = (anim.effect as KeyframeEffect | null)?.target ?? null;
+    return target !== null && target.contains(card) && (anim.playState === 'running' || anim.pending) &&
+      anim.effect?.getComputedTiming().endTime !== Infinity;
+  });
+  const box = {x: Number(rect.x.toFixed(1)), y: Number(rect.y.toFixed(1)), width: Number(rect.width.toFixed(1)), height: Number(rect.height.toFixed(1))};
+  const store = window as unknown as {__tr59Audits?: WeakMap<Element, CardAudit>};
+  const audits = store.__tr59Audits ?? (store.__tr59Audits = new WeakMap());
+  const auditOf = (): CardAudit => {
     const textOf = (el: Element) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim();
     const all = (q: string) => Array.from(card.querySelectorAll(q)).map(textOf).filter((t) => t !== '');
     const zones: Record<string, Array<string>> = {
@@ -290,7 +296,13 @@ async function auditCard(page: Page, selector: string): Promise<CardAudit> {
         area: Math.round(r.width * r.height / (vw * vh) * 1000) / 1000},
       covers, under,
     };
-  }, selector);
+  };
+  let audit = audits.get(card) ?? null;
+  if (audit === null && opacity.toFixed(3) === '1.000' && !moving) {
+    audit = auditOf();
+    audits.set(card, audit);
+  }
+  return {box, opacity: Number(opacity.toFixed(3)), moving, audit};
 }
 
 /** The record into the test output AND the report: what the viewer read, zone by zone. */
@@ -307,10 +319,15 @@ function report(scene: string, audit: CardAudit, files: Array<string>): void {
 async function recordPositiveCard(page: Page, profile: string, scene: string): Promise<CardAudit> {
   const card = page.locator(POSITIVE).first();
   await card.waitFor({state: 'visible', timeout: 60_000});
-  const box = await cardAtRest(page, POSITIVE);
-  // The AUDIT first, the frames after: a card leaves by its own TTL, and two 4K screenshots under a parallel run
-  // outlasted it — `auditCard` then read a card that was gone (`querySelector(…)` null, the first full baseline).
-  const audit = await auditCard(page, POSITIVE);
+  // The AUDIT first, the frames after — and the audit is taken IN the frame the card comes to rest (RECORDED, so a card
+  // that rests between two reads is still seen): a card leaves by its own TTL, and two 4K screenshots under a parallel
+  // run outlasted it — the audit then read a card that was gone (`querySelector(…)` null, the first full baseline).
+  const standing = await armWitness(page, `tr59-standing-${scene}`, readStandingCard, {args: POSITIVE});
+  const stood = await standing.waitFor((v) => v !== null && v.audit !== null,
+    {timeoutMs: 20_000, message: `the card «${POSITIVE}» never came to rest`});
+  await standing.stop();
+  const box = stood.v!.box;
+  const audit = stood.v!.audit!;
   // FK — the card as it STANDS: the number whole, in its lane (never over the strategy rail), no row of the cause
   // starting with «·», no pictograph, the source named once.
   const honesty = await notificationHonesty(page);
@@ -349,7 +366,7 @@ async function shootSettled(page: Page, profile: string, scene: string): Promise
  * the band; it stands in the CENTRAL OPENING (never over the strategy rail); on the TV every zone at or above the
  * couch's type floor; the visible card never changes in place.
  */
-async function expectAfterContract(page: Page, profile: string, audit: CardAudit, expected: {actor: RegExp, via: RegExp}): Promise<void> {
+async function expectAfterContract(cards: Witness<FeedFrame>, profile: string, audit: CardAudit, expected: {actor: RegExp, via: RegExp}): Promise<void> {
   if (PREFIX === 'before') {
     return;
   }
@@ -373,7 +390,7 @@ async function expectAfterContract(page: Page, profile: string, audit: CardAudit
     expect(audit.floor.below, `every zone at or above the TV floor (${audit.floor.floorPx}px)`).toEqual([]);
   }
   // ITERATION 3 — the visible card never changes in place.
-  const log = await cardLog(page);
+  const log = await cardLog(cards);
   const entry = log[audit.id];
   expect(entry?.firstText, 'the card was logged from its first frame').toBeTruthy();
   expect(entry?.text, 'the text the card was born with is the text it keeps').toBe(entry?.firstText);
@@ -418,7 +435,7 @@ for (const profile of PROFILES) {
       expect(await tileOn(request, viewer, VIEWER_TILE), 'the viewer\'s Restricted Area stands on 47')
         .toEqual({tileType: TileType.RESTRICTED_AREA, color: (await wireOf(request, viewer)).thisPlayer.color});
       await settle(page, {timeoutMs: 20_000});
-      await armCardLog(page);
+      const cards = await armCardLog(page);
       const before = megacreditsOf(await wireOf(request, viewer));
 
       // ── THE ACT: the rival's City standard project on 48, next to the viewer's tile.
@@ -428,9 +445,9 @@ for (const profile of PROFILES) {
 
       // ── THE CARD the viewer reads.
       const audit = await recordPositiveCard(page, profile.id, 'a-ares-human');
-      await expectAfterContract(page, profile.id, audit, {actor: /player2/, via: /ход: Город|move: City/i});
+      await expectAfterContract(cards, profile.id, audit, {actor: /player2/, via: /ход: Город|move: City/i});
       await shootSettled(page, profile.id, 'a-ares-human');
-      console.log(`[tr59] a-ares-human · ${PREFIX} · every card shown: ${JSON.stringify(await cardLog(page), null, 1)}`);
+      console.log(`[tr59] a-ares-human · ${PREFIX} · every card shown: ${JSON.stringify(await cardLog(cards), null, 1)}`);
     });
 
     test(`B · MarsBot's city beside the viewer's Restricted Area (${profile.id})`, async ({page, request}) => {
@@ -440,7 +457,7 @@ for (const profile of PROFILES) {
         .toEqual({tileType: TileType.RESTRICTED_AREA, color: (await wireOf(request, viewer)).thisPlayer.color});
       expect((await tileOn(request, viewer, CITY_CELL)).tileType, '48 is still free').toBeUndefined();
       await settle(page, {timeoutMs: 20_000});
-      await armCardLog(page);
+      const cards = await armCardLog(page);
 
       // ── THE ACT: the viewer passes on the LT wheel (the real player's road — an API pass would leave the open
       //    page on a stale prompt); the bot's B05 then lands its city on 48.
@@ -456,9 +473,9 @@ for (const profile of PROFILES) {
 
       // ── THE CARD the viewer reads.
       const audit = await recordPositiveCard(page, profile.id, 'b-ares-bot');
-      await expectAfterContract(page, profile.id, audit, {actor: /Бот|MarsBot/, via: /ход: Ускоренное строительство|move: Expedited Construction/i});
+      await expectAfterContract(cards, profile.id, audit, {actor: /Бот|MarsBot/, via: /ход: Ускоренное строительство|move: Expedited Construction/i});
       await shootSettled(page, profile.id, 'b-ares-bot');
-      console.log(`[tr59] b-ares-bot · ${PREFIX} · every card shown: ${JSON.stringify(await cardLog(page), null, 1)}`);
+      console.log(`[tr59] b-ares-bot · ${PREFIX} · every card shown: ${JSON.stringify(await cardLog(cards), null, 1)}`);
     });
 
     test(`A2 · «Только моё»: the same payout, nothing but the answer (${profile.id})`, async ({page, request}) => {

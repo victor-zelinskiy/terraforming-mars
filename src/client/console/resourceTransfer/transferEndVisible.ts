@@ -40,12 +40,22 @@ export type TransferEndVerdict =
 export const TRANSFER_END_MIN_OPACITY = 0.5;
 
 /**
+ * THE FULL-SCREEN OVERLAYS — scenes the player calls up OVER the whole frame, standing above the flight layer by
+ * contract: the card viewer's veil, the system menu, the legacy card zoom, and the MarsBot TURN REVIEW («Разбор хода»,
+ * a body-level full cover — FLAKE ZERO, `console-notification-bonus-attack`: the review raised from the live card by
+ * an X-hold, and an M€ token of the bot's attack was born under `.mbr__chains`, painted under the review's panel).
+ * ONE list for every question asked of them: an end under one is covered, an end inside one is no flight end, a bare
+ * point under one is covered, and a token under one is under a scene that took the screen — not a paint defect.
+ */
+export const FULLSCREEN_OVERLAYS = '.con-zoom-veil, .con-sys, .card-zoom-container, .con-bot-review';
+
+/**
  * What COVERS an end: a band surface — and a FULL-SCREEN overlay standing over the whole frame (ledger HC, the monkey's
  * day2 finding on `parliament-aquifer-enact`: X opened the card viewer mid-payout and an animal token for Fish was born
  * UNDER its veil). The viewer and the system menu stand above the flight layer by contract; an end under them is not
  * painted for the eye, so the flight degrades to its counter's tick instead of a token nobody can see.
  */
-const COVERING_SURFACES = '.con-ws, .con-zoom-veil, .con-sys, .card-zoom-container';
+const COVERING_SURFACES = `.con-ws, ${FULLSCREEN_OVERLAYS}`;
 
 /**
  * A BARE POINT under a full-screen overlay (the card viewer's veil, the system menu) — the one cover a point can be
@@ -57,8 +67,14 @@ export function fullscreenCoverAt(p: {x: number, y: number}): string | undefined
     return undefined;
   }
   const top = document.elementsFromPoint(p.x, p.y).find((e) => e.closest('.con-transfer') === null);
-  const overlay = top?.closest('.con-zoom-veil, .con-sys, .card-zoom-container');
+  const overlay = top?.closest(FULLSCREEN_OVERLAYS);
   return overlay === null || overlay === undefined ? undefined : surfaceName(overlay);
+}
+
+/** The full-screen overlay an element stands in (or under, when it is the hit test's top) — its name, or undefined. */
+export function fullscreenOverlayOf(el: Element): string | undefined {
+  const overlay = el.closest(FULLSCREEN_OVERLAYS);
+  return overlay === null ? undefined : surfaceName(overlay);
 }
 
 function surfaceName(surface: Element): string {
@@ -116,7 +132,7 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
   // AN END INSIDE A FULL-SCREEN OVERLAY is never a flight end (ledger HC, the monkey's day2 table: X lifted Fish into
   // the card viewer mid-payout, and its capsule — visible, INSIDE the viewer — was the token's birth). The flight
   // layer stands under every scene that takes the screen by contract, so a token there is painted under the veil.
-  const screenTaker = el.closest('.con-zoom, .con-zoom-veil, .con-zoom-flight-layer, .con-sys, .card-zoom-container');
+  const screenTaker = el.closest(`.con-zoom, .con-zoom-flight-layer, ${FULLSCREEN_OVERLAYS}`);
   if (screenTaker !== null) {
     return {visible: false, why: 'covered', by: surfaceName(screenTaker)};
   }

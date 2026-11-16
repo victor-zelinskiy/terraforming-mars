@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootIntoGame, soloGameConfig, playCardFromHand, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE RAIL PROTECTION MARKS in the real shell: play «Protected Habitats» and
@@ -45,11 +46,16 @@ type RailShot = {
   },
 };
 
+/**
+ * The rail as painted — read AT REST (`railAtRest`): the before/after comparison is only as settled as its least settled
+ * side. Lengths rounded to 0.1 px: a subpixel that jitters is not motion.
+ */
 async function readRail(page: Page): Promise<RailShot> {
   return await page.evaluate(() => {
+    const q = (n: number) => Math.round(n * 10) / 10;
     const box = (el: Element): Box => {
       const b = el.getBoundingClientRect();
-      return {x: b.left, y: b.top, w: b.width, h: b.height, r: b.right, b: b.bottom};
+      return {x: q(b.left), y: q(b.top), w: q(b.width), h: q(b.height), r: q(b.right), b: q(b.bottom)};
     };
     type Box = {x: number, y: number, w: number, h: number, r: number, b: number};
     const rows = [...document.querySelectorAll('.con-res__row')];
@@ -60,8 +66,8 @@ async function readRail(page: Page): Promise<RailShot> {
       plants?: {kind: string, label: string, shield: Box, icon: Box, row: Box, coin?: Box},
     } = {
       shields: document.querySelectorAll('.con-shieldmark').length,
-      rowHeights: rows.map((r) => r.getBoundingClientRect().height),
-      iconXs: rows.map((r) => r.querySelector('.con-res__icon')?.getBoundingClientRect().left ?? -1),
+      rowHeights: rows.map((r) => q(r.getBoundingClientRect().height)),
+      iconXs: rows.map((r) => q(r.querySelector('.con-res__icon')?.getBoundingClientRect().left ?? -1)),
     };
     const shield = document.querySelector('[data-protection="plants"]');
     const row = document.querySelector('.con-res__row--plants');
@@ -81,6 +87,10 @@ async function readRail(page: Page): Promise<RailShot> {
   });
 }
 
+async function railAtRest(page: Page, what: string): Promise<RailShot> {
+  return readSettled(page, () => readRail(page), {message: what});
+}
+
 for (const profile of PROFILES) {
   test.describe(`rail protection · ${profile.tag}`, () => {
     test.use({
@@ -97,19 +107,18 @@ for (const profile of PROFILES) {
         query: profile.query,
       });
       await page.waitForSelector('.con-res__row--plants', {timeout: 15_000});
-      await page.waitForTimeout(600);
 
-      const before = await readRail(page);
+      // The rail at rest — a state, never a pause.
+      const before = await railAtRest(page, 'the rail before the play');
       expect(before.shields, 'no shield before the card is played').toBe(0);
 
       const played = await playCardFromHand(page, 'Protected Habitats');
       expect(played, 'Protected Habitats must reach the tableau').toBe(true);
       await waitForBoardHome(page, 40);
       await page.waitForSelector('[data-protection="plants"]', {timeout: 20_000});
-      await page.waitForTimeout(900); // the mark's own settle finishes
+      // The mark's own settle is over when two reads a frame apart agree — then the frame.
+      const after = await railAtRest(page, 'the rail with the mark');
       await shoot(page, `${profile.tag}-protected`);
-
-      const after = await readRail(page);
       const plants = after.plants;
       expect(plants, 'the plants row carries the mark').toBeDefined();
       if (plants === undefined) {
@@ -189,10 +198,9 @@ test.describe('rail protection · the three materials (fhd)', () => {
     // view came through the stub (a WS push would carry the raw model).
     await bootIntoGame(page, request, {config: soloGameConfig(), query: '&realtime=0'});
     await page.waitForSelector('[data-protection="plants"]', {timeout: 25_000});
-    await page.waitForTimeout(900);
-    await shoot(page, 'fhd-materials');
 
-    const marks = await page.evaluate(() => {
+    // The three marks read AT REST (their paint may still transition) — a state, never a pause; then the frame.
+    const marks = await readSettled(page, () => page.evaluate(() => {
       const read = (sel: string) => {
         const el = document.querySelector(sel);
         if (el === null) {
@@ -213,7 +221,8 @@ test.describe('rail protection · the three materials (fhd)', () => {
         steelProduction: read('[data-protection-production="steel"]'),
         animals: read('.con-res-aux__cell [data-protection]'),
       };
-    });
+    }), {message: 'the three materials'});
+    await shoot(page, 'fhd-materials');
     console.log(`[RAILPROT:materials] ${JSON.stringify(marks)}`);
 
     expect(marks.plants?.kind, 'Botanical Experience reads half').toBe('half');

@@ -1,7 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, openCardActions, press, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootIntoGame, openCardActions, press, pressUntil, settle, soloGameConfig, waitForTurn} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * Console CARD ACTION · «получите любой стандартный ресурс» is an EMBEDDED
@@ -68,10 +70,10 @@ async function descendToResourceBranch(page: Page): Promise<boolean> {
   const tiles = page.locator('.con-cardactions__tile');
   const tileCount = await tiles.count();
   for (let tile = 0; tile < Math.max(1, tileCount); tile++) {
-    // Walk the browse cursor to this tile, then descend.
-    for (let i = 0; i < tile; i++) {
-      await press(page, 'ArrowDown', 350);
-    }
+    // Walk the browse cursor to this tile (act → verify: the focused tile's own index), then descend.
+    const focusedTile = () => page.evaluate(() => Array.from(document.querySelectorAll('.con-cardactions__tile'))
+      .findIndex((el) => el.classList.contains('con-cardactions__tile--focused')));
+    await pressUntil(page, 'ArrowDown', async () => await focusedTile() === tile, {tries: tile + 2, settleMs: 350});
     for (let i = 0; i < 4 && await stage.count() === 0; i++) {
       await press(page, 'Enter', 1000);
     }
@@ -95,7 +97,7 @@ async function descendToResourceBranch(page: Page): Promise<boolean> {
         for (let i = 0; i < branchCount + 1 && (await focusedPos()) !== target; i++) {
           await press(page, row ? 'ArrowRight' : 'ArrowDown', 300);
         }
-        expect(await focusedPos(), `the cursor stands on branch ${target}`).toBe(target);
+        await expect.poll(focusedPos, {message: `the cursor stands on branch ${target}`}).toBe(target);
         await press(page, 'Enter', 700); // A SELECTS the branch
       }
       // A required, unanswered row is the step's own signature.
@@ -151,7 +153,7 @@ for (const profile of PROFILES) {
         query: profile.query,
       });
       await waitForTurn(page);
-      await page.waitForTimeout(2500);
+      await settle(page);
 
       await openCardActions(page);
       expect(await descendToResourceBranch(page),
@@ -162,17 +164,18 @@ for (const profile of PROFILES) {
       //       (icon + current → resulting), never a bare word. ─────────────
       const rows = optionRows(page);
       await expect.poll(() => rows.count(), {message: 'six standard resources'}).toBe(6);
-      const withChips = await page.locator('.con-composer__sublist .con-vchoice__opt .action-effect-chip').count();
-      expect(withChips, 'every option renders its own ActionEffectChip').toBeGreaterThanOrEqual(6);
-      const chipText = await page.locator('.con-composer__sublist .con-vchoice__opt').first().innerText();
-      expect(chipText, `the first option must state a before→after: «${chipText}»`).toMatch(/\d+\s*→\s*\d+/);
+      await expect.poll(() => page.locator('.con-composer__sublist .con-vchoice__opt .action-effect-chip').count(),
+        {message: 'every option renders its own ActionEffectChip'}).toBeGreaterThanOrEqual(6);
+      await expect.poll(() => page.locator('.con-composer__sublist .con-vchoice__opt').first().innerText(),
+        {message: 'the first option must state a before→after'}).toMatch(/\d+\s*→\s*\d+/);
       // Every tile leads with a real resource sprite (the hero), not a text fallback.
       await expect.poll(() => page.locator('.con-composer__sublist .con-vchoice__opt .con-vchoice__heroicon.resource_icon').count()).toBeGreaterThanOrEqual(6);
 
       // ── THE PALETTE (TR54): one row of six equal tiles, the hero louder than the chip, the «?» on the kicker, no
       //    medallion, ←→ along the row. ──
       await expect(page.locator('.con-composer__sublist.con-vchoice--palette'), 'the pick is the palette').toHaveCount(1);
-      const geometry = await page.evaluate(() => {
+      // Read at REST (C — `readSettled`: the same reading twice, a frame apart — never a palette mid-entrance).
+      const geometry = await readSettled(page, () => page.evaluate(() => {
         const group = document.querySelector('.con-composer__sublist')!;
         const tiles = Array.from(group.querySelectorAll<HTMLElement>('.con-vchoice__opt'));
         return {
@@ -185,7 +188,7 @@ for (const profile of PROFILES) {
           emblem: group.querySelector('[data-vchoice-emblem="wild"]') !== null,
           medals: group.querySelectorAll('.con-vchoice__or').length,
         };
-      });
+      }), {message: 'the palette'});
       expect(geometry.axis, 'the palette walks as a row').toBe('row');
       expect(geometry.tops, `ONE row: ${JSON.stringify(geometry.tops)}`).toHaveLength(1);
       expect(Math.max(...geometry.widths) - Math.min(...geometry.widths), `equal tiles: ${geometry.widths}`).toBeLessThanOrEqual(2);
@@ -195,11 +198,11 @@ for (const profile of PROFILES) {
       expect(geometry.medals, 'a palette draws no «ИЛИ» medallion').toBe(0);
       const focusedAt = () => page.evaluate(() => Array.from(document.querySelectorAll('.con-composer__sublist .con-vchoice__opt'))
         .findIndex((el) => el.classList.contains('con-vchoice__opt--focused')));
-      expect(await focusedAt(), 'the cursor opens on the first tile').toBe(0);
+      await expect.poll(focusedAt, {message: 'the cursor opens on the first tile'}).toBe(0);
       await press(page, 'ArrowRight', 300);
-      expect(await focusedAt(), '→ walks the row').toBe(1);
+      await expect.poll(focusedAt, {message: '→ walks the row'}).toBe(1);
       await press(page, 'ArrowLeft', 300);
-      expect(await focusedAt(), '← walks it back').toBe(0);
+      await expect.poll(focusedAt, {message: '← walks it back'}).toBe(0);
 
       // ── The breadcrumb never left the workspace while the step is open. ──
       await expect(page.locator('.con-cardactions')).toHaveCount(1);
@@ -218,18 +221,23 @@ for (const profile of PROFILES) {
         'the answered step must stop blocking the commit').toHaveCount(0, {timeout: 5000});
       await shoot(page, `${profile.tag}-2-answered`);
 
+      // «No band after the confirm» is a claim about the WHOLE window after the press — RECORDED from before it
+      // (FLAKE ZERO — `armWitness`), never one look a fixed pause later.
+      const band = await armWitness(page, 'astro-standalone-band', () => document.querySelector('.con-task-host.con-ws') !== null);
       await page.keyboard.press('Enter'); // COMMIT
-      await page.waitForTimeout(3500);
 
-      // ── 3. NO standalone band. The task host may only appear EMBEDDED. ──
-      const standalone = page.locator('.con-task-host.con-ws');
-      await expect.poll(() => standalone.count(), {message: 'a follow-up band after the confirm is the regression this spec exists for'}).toBe(0);
-      await shoot(page, `${profile.tag}-3-after-commit`);
-
-      // ── 4. The promised resource actually landed on the rail. ───────────
+      // ── 4. The promised resource actually landed on the rail (the answer applied) — then the screen at rest. ──
       await expect
         .poll(async () => page.locator('.con-res').innerText().catch(() => ''), {timeout: 15_000})
         .toContain(String(to));
+      await settle(page);
+
+      // ── 3. NO standalone band. The task host may only appear EMBEDDED. ──
+      const standalone = page.locator('.con-task-host.con-ws');
+      expect(await band.ever((up) => up), 'a follow-up band after the confirm is the regression this spec exists for').toBe(false);
+      await expect.poll(() => standalone.count(), {message: 'a follow-up band after the confirm is the regression this spec exists for'}).toBe(0);
+      await band.stop();
+      await shoot(page, `${profile.tag}-3-after-commit`);
     });
   });
 }

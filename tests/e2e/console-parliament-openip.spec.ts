@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, crumbText, fetchPlayerModel, openCardActions, press, pressUntil, settle, takeRevealCards, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * OPEN IP TRADE (Turmoil Redux, RX24) — the FIRST resolution with an ACTION, and since «один фреймворк» (С4) the
@@ -20,8 +22,9 @@ import {
  *     reveal, are taken into the hand, and the flow LEAVES;
  *   · the server agrees: hand −2 +2, M€ +6, the action spent; the menu lists the law's tile as ACTIVATED.
  *
- * The probe samples on a clock of its own (`setInterval`, never rAF) and every sample carries what it saw: the order
- * of the stages is asserted over the samples, the visibility of the source and the target at every beat too.
+ * The probe is a witness RECORDED off the product's own writes (`armWitness`, `settled` — every state a task leaves,
+ * the one a frame can paint) and every state carries what it saw: the order of the stages is asserted over the record,
+ * the visibility of the source and the target at every beat too.
  *
  * Fixture `parliament-openip-enacted` (the law enacted, red opening generation 2 with a hand to pick from).
  * Screens under screenshots/parliament-openip/.
@@ -59,10 +62,15 @@ type Sample = {
 };
 type Probe = {samples: Array<Sample>};
 
+const PROBE_WITNESS = 'openip';
+
+/**
+ * THE PROBE — every state recorded off the product's own writes from before the action menu opens, never a sampler that
+ * sleeps through a beat. `settled`: «the counter never shows +6 while the token is still flying» and «the draw after the
+ * token» are claims of COEXISTENCE / ORDER — a sample is the state a task LEAVES, the one a frame can paint.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate((stage) => {
-    const w = window as unknown as {__openipProbe: Probe};
-    w.__openipProbe = {samples: []};
+  await armWitness<Omit<Sample, 't'>, string>(page, PROBE_WITNESS, (stage) => {
     const rectOf = (el: Element | null): Rect | undefined => {
       if (el === null) {
         return undefined;
@@ -92,47 +100,44 @@ async function armProbe(page: Page): Promise<void> {
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return hit !== null && (el.contains(hit) || hit.contains(el));
     };
-    const sample = () => {
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
-        const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
-        return {id: `${el.dataset.transferId ?? '?'}:${res}`, x: r.left + r.width / 2, y: r.top + r.height / 2, res, amt: el.textContent?.trim() ?? ''};
-      });
-      const row = document.querySelector('.con-res__row--megacredits');
-      const cell = row?.querySelector('.con-res__stockwrap') ?? null;
-      const hero = document.querySelector(`${stage} .con-composer__actlaw`);
-      w.__openipProbe.samples.push({
-        t: Math.round(performance.now()),
-        album: visible(document.querySelector('.con-hand'), false),
-        hero: rectOf(hero),
-        heroVisible: visible(hero, false),
-        chips,
-        cell: rectOf(cell),
-        cellVisible: visible(cell),
-        // The digits alone: the delta chip's own «+6» rides inside the same node while it ticks.
-        stock: (row?.querySelector('.con-res__digits')?.textContent?.trim() ?? '').replace(/[^0-9].*$/s, ''),
-        deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
-        reveal: document.querySelector(`${stage} .con-composer__revealzone--draw .con-reveal`) !== null,
-      });
-      if (w.__openipProbe.samples.length > 9000) {
-        w.__openipProbe.samples.splice(0, 1500);
-      }
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
+      const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
+      return {id: `${el.dataset.transferId ?? '?'}:${res}`, x: r.left + r.width / 2, y: r.top + r.height / 2, res, amt: el.textContent?.trim() ?? ''};
+    });
+    const row = document.querySelector('.con-res__row--megacredits');
+    const cell = row?.querySelector('.con-res__stockwrap') ?? null;
+    const hero = document.querySelector(`${stage} .con-composer__actlaw`);
+    return {
+      album: visible(document.querySelector('.con-hand'), false),
+      hero: rectOf(hero),
+      heroVisible: visible(hero, false),
+      chips,
+      cell: rectOf(cell),
+      cellVisible: visible(cell),
+      // The digits alone: the delta chip's own «+6» rides inside the same node while it ticks.
+      stock: (row?.querySelector('.con-res__digits')?.textContent?.trim() ?? '').replace(/[^0-9].*$/s, ''),
+      deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
+      reveal: document.querySelector(`${stage} .con-composer__revealzone--draw .con-reveal`) !== null,
     };
-    sample();
-    setInterval(sample, 40);
-  }, STAGE);
+  }, {args: STAGE, settled: true, max: 20_000});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__openipProbe: Probe}).__openipProbe);
+
+/** The record as the probe's samples — each state with its time on the PAGE's clock. */
+async function readProbe(page: Page): Promise<Probe> {
+  return {samples: (await witnessOf<Omit<Sample, 't'>>(page, PROBE_WITNESS).samples()).map((s) => ({t: s.t, ...s.v}))};
+}
 
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
+  const samples = await readProbe(page).then((p) => p.samples.slice(-3000)).catch(() => []);
   const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__openipProbe?: Probe, __conReady?: () => unknown};
-    return {samples: w.__openipProbe?.samples.slice(-3000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
+    const w = window as unknown as {__conReady?: () => unknown};
+    return {ready: w.__conReady?.()};
+  }).then((ready) => ({samples, ...ready})).catch(() => undefined);
   if (evidence !== undefined) {
     const file = testInfo.outputPath('openip-probe.json');
     fs.writeFileSync(file, JSON.stringify(evidence));
@@ -149,7 +154,8 @@ async function focusLawTile(page: Page): Promise<void> {
   const focused = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-resolution') ?? '');
   await expect(page.locator(`.con-cardactions__tile[data-action-resolution="${LAW}"]`), 'the law\'s tile is in the menu').toHaveCount(1);
   for (let i = 0; i < 16 && await focused() !== LAW; i++) {
-    const dir = await page.evaluate((target) => {
+    // The way is read off the tiles AT REST — a focused tile mid-lift is not where the cursor stands.
+    const dir = await readSettled(page, () => page.evaluate((target) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(`.con-cardactions__tile[data-action-resolution="${target}"]`)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -161,13 +167,13 @@ async function focusLawTile(page: Page): Promise<void> {
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, LAW);
+    }, LAW), {message: 'the way to the law\'s tile'});
     await press(page, dir, 260);
   }
   if (await focused() !== LAW) {
     await walkFocusUntil(page, async () => await focused() === LAW, focused, 30);
   }
-  expect(await focused(), 'never focused the law\'s tile').toBe(LAW);
+  await expect.poll(focused, {message: 'never focused the law\'s tile'}).toBe(LAW);
 }
 
 test.describe(`Open IP Trade · ${PRESET.id}`, () => {
@@ -197,9 +203,10 @@ test.describe(`Open IP Trade · ${PRESET.id}`, () => {
       'A opens the law\'s composer').toBeTruthy();
     await expect(page.locator(`${STAGE} .con-composer__actlaw .pcard`), 'the law\'s face is the hero').toBeVisible({timeout: 20_000});
     await settle(page, {timeoutMs: 15_000});
-    let crumb = (await crumbText(page)).toUpperCase();
-    expect(crumb, `one crumb: the menu, the law (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
-    expect(crumb).toContain('ОТКРЫТАЯ ТОРГОВЛЯ ПАТЕНТАМИ');
+    // The crumb is a live string — polled, never read once.
+    const crumb = async () => (await crumbText(page)).toUpperCase();
+    await expect.poll(crumb, {message: 'one crumb: the menu, the law'}).toContain('ДЕЙСТВИЯ КАРТ');
+    await expect.poll(crumb, {message: 'one crumb: the law'}).toContain('ОТКРЫТАЯ ТОРГОВЛЯ ПАТЕНТАМИ');
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-hand__salebar--select').count() > 0, {tries: 3, settleMs: 1100}),
       'A on the pick row opens the hand (a card from the hand is chosen in the hand)').toBeTruthy();
     await settle(page, {timeoutMs: 15_000});
@@ -221,8 +228,8 @@ test.describe(`Open IP Trade · ${PRESET.id}`, () => {
     // ── ③ A COMMITS: the ACTION COMMIT — the token is born on the law's face and lands on the rail.
     expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).game.parliament?.viewer?.resolutionAction?.usesLeft === 0,
       {tries: 3, settleMs: 2500}), 'A commits the action').toBeTruthy();
-    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.chips.some((c) => c.res === 'megacredits')), {timeout: 30_000,
-      message: 'the payout token flies'}).toBe(true);
+    await witnessOf<Omit<Sample, 't'>>(page, PROBE_WITNESS).waitFor((s) => s.chips.some((c) => c.res === 'megacredits'),
+      {timeoutMs: 30_000, message: 'the payout token flies'});
     await shoot(page, '03-commit-token');
     await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.megacredits, {timeout: 60_000,
       message: 'the server paid 3 M€ per card'}).toBe(before.thisPlayer.megacredits + 6);
@@ -231,9 +238,8 @@ test.describe(`Open IP Trade · ${PRESET.id}`, () => {
     const reveal = page.locator(`${STAGE} .con-composer__revealzone--draw .con-reveal`);
     await expect(reveal, 'the drawn cards present INSIDE the stage').toHaveCount(1, {timeout: 60_000});
     await settle(page, {timeoutMs: 20_000});
-    crumb = (await crumbText(page)).toUpperCase();
-    expect(crumb, `the crumb still names the law (${crumb})`).toContain('ОТКРЫТАЯ ТОРГОВЛЯ ПАТЕНТАМИ');
-    expect(crumb).toContain('ДОБОР');
+    await expect.poll(crumb, {message: 'the crumb still names the law'}).toContain('ОТКРЫТАЯ ТОРГОВЛЯ ПАТЕНТАМИ');
+    await expect.poll(crumb, {message: 'the crumb names the draw'}).toContain('ДОБОР');
     await expect(page.locator('.con-reveal:not(.con-reveal--embedded)'), 'never a standalone reveal').toHaveCount(0);
     await shoot(page, '04-draw-in-the-stage');
 

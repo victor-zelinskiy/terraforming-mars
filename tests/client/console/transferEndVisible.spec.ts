@@ -107,6 +107,29 @@ describe('transferEndVerdict — a place a token may be born on or land on', () 
     expect(fullscreenCoverAt({x: 250, y: 230}), 'nothing over the frame — the point is painted').eq(undefined);
   });
 
+  it('the MarsBot TURN REVIEW is a full-screen overlay too (FLAKE ZERO, bonus-card attack): an end under it is covered, one inside it is no flight end, a bare point under it is covered', () => {
+    // The review raised by an X-hold from the live card, over the rail whose M€ row a token of the bot's attack
+    // would have been born on (`[transfer] token painted under section.mbr__chains at the birth`).
+    const review = document.createElement('div');
+    review.className = 'con-bot-review';
+    const chains = document.createElement('section');
+    chains.className = 'mbr__chains';
+    review.appendChild(chains);
+    const row = document.createElement('div');
+    row.className = 'con-res__row';
+    root.append(review, row);
+    for (const el of [review, chains, row]) {
+      box(el, {left: 200, top: 200, width: 100, height: 60});
+    }
+    stack(chains, review, row);
+    expect(transferEndVerdict(row), 'the rail row under the review is no place to be born').to.deep.eq({visible: false, why: 'covered', by: 'con-bot-review'});
+    expect(transferEndVerdict(chains), 'an end INSIDE the review is no flight end').to.deep.eq({visible: false, why: 'covered', by: 'con-bot-review'});
+    expect(fullscreenCoverAt({x: 250, y: 230})).eq('con-bot-review');
+    // The PEEK lets the board read through (`pointer-events: none` — the hit test passes it): the row is painted again.
+    stack(row);
+    expect(transferEndVerdict(row)).to.deep.eq({visible: true});
+  });
+
   it('COVERED BY PAINT: a foreign .con-ws over the centre refuses; the element\'s own .con-ws, the board, a transfer chip do not', () => {
     const composer = document.createElement('div');
     composer.className = 'con-ws con-cardactions';

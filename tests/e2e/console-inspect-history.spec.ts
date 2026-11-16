@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, openCardActions, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, openCardActions, playCardFromHand, press, pressUntil, settle, soloGameConfig, waitForTurn} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * Console Action Browser · the inspect DOSSIER (ПРАВИЛА / СТАТИСТИКА).
@@ -39,8 +40,9 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await press(page, code, settleMs);
 }
 
-async function expectLocalizedTabBarToFit(page: Page): Promise<void> {
-  const fit = await page.locator('.con-inspect-side__tabs').evaluate((tabs) => {
+/** The tab bar's fit, as one reading. */
+async function tabBarFit(page: Page): Promise<{clientWidth: number, scrollWidth: number, panelRight: number, rightKeyRight: number}> {
+  return page.locator('.con-inspect-side__tabs').evaluate((tabs) => {
     const bounds = tabs.getBoundingClientRect();
     const keys = tabs.querySelectorAll('.con-inspect-side__tab-key');
     const rightKey = keys.item(keys.length - 1).getBoundingClientRect();
@@ -51,6 +53,17 @@ async function expectLocalizedTabBarToFit(page: Page): Promise<void> {
       rightKeyRight: rightKey.right,
     };
   });
+}
+
+/** The big card's width on the inspect stage (0 when none) — the «never re-created» signature. */
+async function bigCardWidth(page: Page): Promise<number> {
+  return page.locator('.con-zoom .card-zoom-stage .pcard, .con-zoom .card-zoom-stage .card-container').first()
+    .evaluate((el) => Math.round((el as HTMLElement).getBoundingClientRect().width * 10) / 10).catch(() => 0);
+}
+
+async function expectLocalizedTabBarToFit(page: Page): Promise<void> {
+  // Read AT REST (FLAKE ZERO — `readSettled`): a bar measured mid-entrance is wherever the machine had got to.
+  const fit = await readSettled(page, () => tabBarFit(page), {message: 'the dossier\'s tab bar'});
   expect(fit.scrollWidth, 'localized tab labels stay inside the dossier').toBeLessThanOrEqual(fit.clientWidth + 1);
   expect(fit.rightKeyRight, 'the RB glyph stays inside the tab bar').toBeLessThanOrEqual(fit.panelRight + 1);
 }
@@ -119,7 +132,8 @@ for (const profile of PROFILES) {
         query: profile.query,
       });
       await waitForTurn(page);
-      await page.waitForTimeout(3500);
+      // The turn has come to rest (the console quiet) before the play — the state the old 3.5 s stood in for.
+      await settle(page);
 
       // Play Extractor Balloons so it has a tableau action + 3 stored floaters
       // (its on-play adds them, which is what the СТАТИСТИКА tab reads).
@@ -144,9 +158,7 @@ for (const profile of PROFILES) {
       //  a second press on an OPEN dossier would be a different verb — so this
       //  presses only while there is nothing there.)
       const dossier = page.locator('.con-inspect-side');
-      for (let tries = 0; tries < 3 && await dossier.count() === 0; tries++) {
-        await key(page, 'KeyX', 1400);
-      }
+      await pressUntil(page, 'KeyX', async () => await dossier.count() > 0, {tries: 3, settleMs: 1400});
       await expect(dossier).toHaveCount(1, {timeout: 10_000});
       // Default tab is ПРАВИЛА (the rules panel embedded).
       const rulesTab = page.locator('.con-inspect-side__tab--active', {hasText: 'ПРАВИЛА'});
@@ -154,8 +166,8 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-inspect-side .con-zoom-rules')).toHaveCount(1);
       await expect(page.locator('.con-cardhist')).toHaveCount(0);
       await expectLocalizedTabBarToFit(page);
-      const cardSig = await page.locator('.con-zoom .card-zoom-stage .pcard, .con-zoom .card-zoom-stage .card-container').first()
-        .evaluate((el) => (el as HTMLElement).getBoundingClientRect().width).catch(() => 0);
+      // Both sides of «the big card is stable» are read AT REST (a comparison is only as settled as its least settled side).
+      const cardSig = await readSettled(page, () => bigCardWidth(page), {message: 'the big card on ПРАВИЛА'});
       await shoot(page, `${profile.tag}-02-inspect-rules`);
 
       // ── 3. RB → СТАТИСТИКА; the card is unchanged, the history block shows. ─
@@ -166,8 +178,7 @@ for (const profile of PROFILES) {
       // Card history block present (stored floaters from the on-play +3).
       await expect(page.locator('.con-cardhist__group--card')).toBeVisible();
       // The big card did NOT re-create (same width — never a new modal).
-      const cardSig2 = await page.locator('.con-zoom .card-zoom-stage .pcard, .con-zoom .card-zoom-stage .card-container').first()
-        .evaluate((el) => (el as HTMLElement).getBoundingClientRect().width).catch(() => 0);
+      const cardSig2 = await readSettled(page, () => bigCardWidth(page), {message: 'the big card on СТАТИСТИКА'});
       expect(Math.abs(cardSig2 - cardSig), 'the big card is stable across the tab swap').toBeLessThan(2);
       await shoot(page, `${profile.tag}-03-inspect-history`);
 

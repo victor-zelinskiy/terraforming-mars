@@ -12,7 +12,8 @@
  *       strategy rail are not crossed and stay LIT — no rail digit under the dim or the scene), the head is ONE row
  *       that says «Получены карты» once and names the paying cell by its printed bonuses, the status line stands
  *       right under the row, the cards are at least a third of the opening; the ENTRY is assembled by the cards
- *       (a `MutationObserver` + `setInterval` sampler armed before the press — never rAF): no frame where the scene's
+ *       (a witness RECORDED off the product's writes from before the press, every state a task leaves — `settled`, an
+ *       order claim): no frame where the scene's
  *       chrome is visible before a cover has touched its slot, none where a real card shows while the head is unseen;
  *       L3 shows the paying cell on the board (the scene recedes, the cell is ringed) and L3 brings the cards back;
  *       A takes a card into the hand — one per press, the second closes the scene.
@@ -22,13 +23,14 @@
 import {expect, test, Page} from './consoleTest';
 import {bootSeededGame, closeZoomViewer, fetchPlayerModel, forceSwiftPlacement, openZoomViewer, press, pressUntil, takeRevealCard} from './consoleStart';
 import {STEEL_CARD_CELL, TWO_CARDS_CELL, createCleanTcnGame, openConvertPlants, walkBoardCursorTo} from './boardCellBonus';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 const PRESETS = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 
 type Sample = {
-  t: number,
   /** Covers / proxies painted. */
   proxies: number,
   /** …of which stand ON a slot of the scene (their box within a few px of a slot card's box). */
@@ -39,10 +41,15 @@ type Sample = {
   cards: boolean,
 };
 
-async function armEntrySampler(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const samples: Array<unknown> = [];
-    const t0 = performance.now();
+const ENTRY_WITNESS = 'reveal-entry';
+
+/**
+ * THE ENTRY WITNESS — every state the product writes, recorded from before the press (`armWitness`, `settled`: the
+ * claims are of ORDER — «no chrome before a touch», «no card without its head» — so a sample is the state a task LEAVES,
+ * the one a frame can paint). The reader returns what stands NOW; the claims are judged over the record (`entryRecord`).
+ */
+async function armEntryWitness(page: Page): Promise<void> {
+  await armWitness<Sample>(page, ENTRY_WITNESS, () => {
     const op = (el: Element | null): number => {
       let v = 1;
       for (let e: Element | null = el; e !== null; e = e.parentElement) {
@@ -54,39 +61,26 @@ async function armEntrySampler(page: Page): Promise<void> {
       }
       return el === null ? 0 : v;
     };
-    const sample = () => {
-      const proxies = Array.from(document.querySelectorAll('.con-bonusfly-proxy'))
-        .filter((p) => getComputedStyle(p).visibility !== 'hidden' && Number(getComputedStyle(p).opacity) > 0.05);
-      const slotCards = Array.from(document.querySelectorAll('.con-reveal [data-zoom-slot] :is(.card-container, .pcard)'));
-      const slotBoxes = slotCards.map((c) => c.getBoundingClientRect());
-      const landed = proxies.filter((p) => {
-        const r = p.getBoundingClientRect();
-        return slotBoxes.some((s) => Math.abs(s.left - r.left) < 6 && Math.abs(s.top - r.top) < 6 && Math.abs(s.width - r.width) < 8);
-      }).length;
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        proxies: proxies.length,
-        landed,
-        frame: op(document.querySelector('.con-reveal--scene .con-reveal__card')),
-        cards: slotCards.some((c) => op(c) > 0.5),
-      });
+    const proxies = Array.from(document.querySelectorAll('.con-bonusfly-proxy'))
+      .filter((p) => getComputedStyle(p).visibility !== 'hidden' && Number(getComputedStyle(p).opacity) > 0.05);
+    const slotCards = Array.from(document.querySelectorAll('.con-reveal [data-zoom-slot] :is(.card-container, .pcard)'));
+    const slotBoxes = slotCards.map((c) => c.getBoundingClientRect());
+    const landed = proxies.filter((p) => {
+      const r = p.getBoundingClientRect();
+      return slotBoxes.some((s) => Math.abs(s.left - r.left) < 6 && Math.abs(s.top - r.top) < 6 && Math.abs(s.width - r.width) < 8);
+    }).length;
+    return {
+      proxies: proxies.length,
+      landed,
+      frame: op(document.querySelector('.con-reveal--scene .con-reveal__card')),
+      cards: slotCards.some((c) => op(c) > 0.5),
     };
-    const timer = window.setInterval(sample, 25);
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
-    (window as unknown as {__scene: unknown}).__scene = {samples, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-    }};
-  });
+  }, {settled: true});
 }
 
-async function readEntrySampler(page: Page): Promise<Array<Sample>> {
-  return await page.evaluate(() => {
-    const w = window as unknown as {__scene: {samples: Array<unknown>, stop: () => void}};
-    w.__scene.stop();
-    return w.__scene.samples;
-  }) as Array<Sample>;
+/** The record, stopped: every distinct state of the entry, in order. */
+async function entryRecord(page: Page): Promise<Array<Sample>> {
+  return (await witnessOf<Sample>(page, ENTRY_WITNESS).stop()).map((s) => s.v);
 }
 
 type Geometry = {
@@ -105,6 +99,7 @@ type Geometry = {
   rem: number,
 };
 
+/** The scene's geometry — read AT REST (`geometryAtRest`): the scene has stood, its boxes no longer move. */
 async function geometry(page: Page): Promise<Geometry> {
   return await page.evaluate(() => {
     const html = getComputedStyle(document.documentElement);
@@ -141,6 +136,13 @@ async function geometry(page: Page): Promise<Geometry> {
       rem: parseFloat(html.fontSize) || 20,
     };
   });
+}
+
+async function geometryAtRest(page: Page, what: string): Promise<Geometry> {
+  // No `settle`: the scene STANDS for the player's take, and what the board owes behind it (the scale step's rating,
+  // `scale-step-rating`) is legitimately held until the take uncovers the board — the console is not quiet by design.
+  // Two equal reads a frame apart are the rest that matters here.
+  return readSettled(page, () => geometry(page), {settle: false, message: what});
 }
 
 /** The scene stands: unveiled, its cards handed over (no cover left painted), the status line live and opaque. */
@@ -188,11 +190,11 @@ for (const preset of PRESETS) {
       expect(await walkBoardCursorTo(page, TWO_CARDS_CELL), `the cursor never reached cell ${TWO_CARDS_CELL}`).toBeTruthy();
       const handBefore = ((await fetchPlayerModel(request, playerId)) as unknown as {cardsInHand: Array<unknown>}).cardsInHand.length;
 
-      await armEntrySampler(page);
+      await armEntryWitness(page);
       await press(page, 'Enter', 200);
       await waitForScene(page);
-      const samples = await readEntrySampler(page);
-      const g = await geometry(page);
+      const samples = await entryRecord(page);
+      const g = await geometryAtRest(page, 'the two-card scene');
 
       // THE COUNT IS THE BATCH and the slots are its cards.
       expect(Math.max(...samples.map((s) => s.proxies)), 'two covers for two cards').toBe(2);
@@ -204,7 +206,8 @@ for (const preset of PRESETS) {
       expect(chromeBeforeTouch, 'the scene\'s chrome (head · status · floor) stood before any card had touched — a frame round nothing').toHaveLength(0);
       const cardsWithoutHead = samples.filter((s) => s.cards && s.frame < 0.05);
       expect(cardsWithoutHead, 'a real card painted while the head was unseen — slots without their scene').toHaveLength(0);
-      expect(samples.length, 'the entry sampler never ran').toBeGreaterThan(20);
+      // The recorder's own liveness (it keeps DISTINCT states, never frames): only a dead recorder fails this floor.
+      expect(samples.length, 'the entry witness never recorded').toBeGreaterThan(0);
 
       expectInOpening(g, 'two cards');
       // THE HEAD SAYS IT ONCE and names the cell by its printed face.
@@ -250,11 +253,11 @@ for (const preset of PRESETS) {
       await openConvertPlants(page);
       expect(await walkBoardCursorTo(page, STEEL_CARD_CELL), `the cursor never reached cell ${STEEL_CARD_CELL}`).toBeTruthy();
 
-      await armEntrySampler(page);
+      await armEntryWitness(page);
       await press(page, 'Enter', 200);
       await waitForScene(page);
-      const samples = await readEntrySampler(page);
-      const g = await geometry(page);
+      const samples = await entryRecord(page);
+      const g = await geometryAtRest(page, 'the one-card scene');
 
       await expect.poll(() => page.locator('dialog.con-zoom[open]').count(), {message: 'a lone reward card opens no fullscreen viewer'}).toBe(0);
       expect(g.slots, 'one slot for one card').toHaveLength(1);

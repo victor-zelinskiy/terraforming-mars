@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, press, settle, walkFocusUntil} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR32 «ТЕХНОКОНВЕНТ КРАСНЫХ» — THE DRAW'S NEGATIVE FILTER, named everywhere by
@@ -101,8 +103,8 @@ async function storyboard(page: Page, preset: string, name: string): Promise<() 
 
 type Series = Array<[number, string]>;
 type Probe = {
+  /** Recorded (settled) states — never a count of frames. */
   samples: number;
-  ticks: number;
   steps: Array<string>;
   crumbMisses: Array<string>;
   phases: Series;
@@ -122,84 +124,115 @@ type Probe = {
   minProxyAt: string;
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/** One recorded state of the search — what stands NOW (an observation; the probe's series are folded on the Node side). */
+type SearchSeen = {
+  head: {root: string, subjects: Array<string>, steps: Array<string>} | null;
+  phase: string | null;
+  deck: string | null;
+  deckCell: string;
+  tray: string;
+  found: string;
+  /** Every reveal on screen: inside the hand's outcome zone, or standing (laid out) outside it. */
+  revealIn: boolean;
+  revealOut: boolean;
+  ws: number;
+  dock: string | null;
+  stranded: boolean;
+  /** The highest deck-draw proxy now (its top, height, card, the scene's phase) — null when none is laid out. */
+  topProxy: {top: number, h: number, card: string | null, phase: string | null} | null;
+};
+const SEARCH_WITNESS = 'tr32-search';
+
+/**
+ * THE SEARCH PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns
+ * what stands now, every change is kept with the page's time, off the product's own writes (an observer + a frame
+ * tick). Its claims are about ORDER (the server's order of the tosses and the finds) and FRAMES («no card above the
+ * screen»), so the record is `settled` — the state a task LEAVES, the state a frame can paint.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({card, root}) => {
-    const w = window as unknown as {__tr32: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, steps: [], crumbMisses: [], phases: [], deck: [], deckUp: [], tray: [], found: [],
-      revealOutsideHand: false, revealInHand: false, wsMax: 0, dock: [], stranded: false, minProxyY: Infinity, minProxyH: 0, minProxyAt: '',
-    };
-    w.__tr32 = p;
-    const t0 = Date.now();
+  await armWitness<SearchSeen>(page, SEARCH_WITNESS, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Series, value: string | undefined) => {
-      if (value !== undefined && value !== '' && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
-      }
-    };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const head = document.querySelector('.con-hand .con-wshead');
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-      }
-      note(p.phases, document.querySelector('.con-deckdraw')?.getAttribute('data-dd-phase') ?? undefined);
+    const head = document.querySelector('.con-hand .con-wshead');
+    const reveals = Array.from(document.querySelectorAll('.con-reveal'));
+    const revealIn = reveals.some((el) => el.closest('.con-hand__outcome') !== null);
+    const revealOut = reveals.some((el) => el.closest('.con-hand__outcome') === null && el.getBoundingClientRect().width > 1);
+    const phase = document.querySelector('.con-deckdraw')?.getAttribute('data-dd-phase') ?? null;
+    const proxies = Array.from(document.querySelectorAll<HTMLElement>('.con-deckdraw-proxy'))
+      .map((el) => ({el, r: el.getBoundingClientRect()}))
+      .filter(({r}) => r.width > 1)
+      .sort((x, y) => x.r.top - y.r.top);
+    const topProxy = proxies.length === 0 ? null :
+      {top: proxies[0].r.top, h: proxies[0].r.height, card: proxies[0].el.getAttribute('data-dd-card'), phase};
+    return {
+      head: head === null ? null : {
+        root: text(head.querySelector('.con-wshead__root')),
+        subjects: Array.from(head.querySelectorAll('.con-wshead__subject')).map(text),
+        steps: Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
+      },
+      phase,
       // The SHOWN count (the widget's own aria value — never the flip's two digit rows or its delta chip).
-      note(p.deck, document.querySelector('.con-deckstack')?.getAttribute('aria-label')?.match(/(\d+)\s*$/)?.[1]);
-      const cell = text(document.querySelector('.con-deckstack__count'));
-      if (cell.includes('+') && !p.deckUp.includes(cell) && p.deckUp.length < 8) {
-        p.deckUp.push(cell);
-      }
+      deck: document.querySelector('.con-deckstack')?.getAttribute('aria-label')?.match(/(\d+)\s*$/)?.[1] ?? null,
+      deckCell: text(document.querySelector('.con-deckstack__count')),
       // The table's ONE discard pile (TR52, PL-260): its count ticks on each card's contact.
-      note(p.tray, document.querySelector('[data-discard-pile]')?.getAttribute('data-discard-pile-count') ?? '');
-      const found = Array.from(document.querySelectorAll('.con-deckdraw-proxy.con-deckdraw-proxy--found'))
-        .map((el) => el.getAttribute('data-dd-card') ?? '?');
-      note(p.found, found.join(','));
-      document.querySelectorAll('.con-reveal').forEach((el) => {
-        if (el.closest('.con-hand__outcome') !== null) {
-          p.revealInHand = true;
-        } else if (el.getBoundingClientRect().width > 1) {
-          p.revealOutsideHand = true;
-        }
-      });
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      note(p.dock, document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? undefined);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      if (tick) {
-        document.querySelectorAll<HTMLElement>('.con-deckdraw-proxy').forEach((el) => {
-          const r = el.getBoundingClientRect();
-          if (r.width > 1 && r.top < p.minProxyY) {
-            p.minProxyY = r.top;
-            p.minProxyH = r.height;
-            p.minProxyAt = `${Date.now() - t0}ms ${el.getAttribute('data-dd-card')} h=${Math.round(r.height)} phase=${document.querySelector('.con-deckdraw')?.getAttribute('data-dd-phase')}`;
-          }
-        });
-      }
+      tray: document.querySelector('[data-discard-pile]')?.getAttribute('data-discard-pile-count') ?? '',
+      found: Array.from(document.querySelectorAll('.con-deckdraw-proxy.con-deckdraw-proxy--found')).map((el) => el.getAttribute('data-dd-card') ?? '?').join(','),
+      revealIn,
+      revealOut,
+      ws: document.querySelectorAll('.con-ws').length,
+      dock: document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? null,
+      stranded: document.querySelector('.con-stranded') !== null,
+      topProxy,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample(true), 30);
-  }, {card: CARD_RU, root: ROOT_RU});
+  }, {settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr32: Probe}).__tr32);
+/** The record folded into the probe — times are the PAGE's, from the arm (the record's first sample is the baseline). */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<SearchSeen>(page, SEARCH_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  const p: Probe = {
+    samples: samples.length, steps: [], crumbMisses: [], phases: [], deck: [], deckUp: [], tray: [], found: [],
+    revealOutsideHand: false, revealInHand: false, wsMax: 0, dock: [], stranded: false, minProxyY: Infinity, minProxyH: 0, minProxyAt: '',
+  };
+  const note = (series: Series, value: string | null, now: number) => {
+    if (value !== null && value !== '' && series[series.length - 1]?.[1] !== value) {
+      series.push([now, value]);
+    }
+  };
+  for (const {t, v} of samples) {
+    const now = t - t0;
+    if (v.head !== null) {
+      if (v.head.root.toLowerCase() !== ROOT_RU.toLowerCase() || !v.head.subjects.some((s) => s.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${now}ms root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+        }
+      }
+      for (const step of v.head.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    note(p.phases, v.phase, now);
+    note(p.deck, v.deck, now);
+    if (v.deckCell.includes('+') && !p.deckUp.includes(v.deckCell) && p.deckUp.length < 8) {
+      p.deckUp.push(v.deckCell);
+    }
+    note(p.tray, v.tray, now);
+    note(p.found, v.found, now);
+    p.revealInHand ||= v.revealIn;
+    p.revealOutsideHand ||= v.revealOut;
+    p.wsMax = Math.max(p.wsMax, v.ws);
+    note(p.dock, v.dock, now);
+    p.stranded ||= v.stranded;
+    if (v.topProxy !== null && v.topProxy.top < p.minProxyY) {
+      p.minProxyY = v.topProxy.top;
+      p.minProxyH = v.topProxy.h;
+      p.minProxyAt = `${now}ms ${v.topProxy.card} h=${Math.round(v.topProxy.h)} phase=${v.topProxy.phase}`;
+    }
+  }
+  return p;
+}
 
 const composer = '.con-composer--play';
 
@@ -296,7 +329,8 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '02-reveal');
 
       const probe = await readProbe(page);
-      expect(probe.ticks, 'the probe sampled (a dead sampler proves nothing)').toBeGreaterThan(10);
+      // The record's own liveness floor: only a DEAD recorder fails it (recorded states, never frames).
+      expect(probe.samples, 'the probe sampled (a dead sampler proves nothing)').toBeGreaterThan(0);
       expect(probe.crumbMisses, 'the crumb keeps its root and the card on every sample').toEqual([]);
       expect(probe.steps.length, 'the tail only grows').toBeGreaterThan(0);
       expect(probe.steps[probe.steps.length - 1], 'the last stage: the draw').toMatch(/добор карт/i);
@@ -415,31 +449,23 @@ test.describe('TR32 · the class on a neighbour — TR05 Vector Computations (a 
     await settle(page);
     const stage = page.locator('.con-cardactions__stagewrap .con-composer--stage');
     await expect(stage.locator('.action-effect-chip [data-draw-search]'), 'PL-021: the chip names the Space rule').toHaveAttribute('data-draw-search', 'with:space');
-    // The bar's context and the crumb's tail, sampled through the whole beat: never two different words.
-    await page.evaluate(() => {
-      const w = window as unknown as {__stageMisses: Array<string>, __stageSamples: number};
-      w.__stageMisses = [];
-      w.__stageSamples = 0;
+    // The bar's context and the crumb's tail, RECORDED through the whole beat (`armWitness`, armed before the press):
+    // never two different words. A coexistence claim, so the record is `settled` — the state a task leaves; both are
+    // TEXT (DOM writes), so no frame tick — a frame callback can run ahead of the product's own frame work.
+    const stageWords = await armWitness(page, 'tr05-stage-words', () => {
       const text = (sel: string) => (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-      window.setInterval(() => {
-        // The tail CROSSFADES in one cell: the leaving word stands beside the arriving one for the swap — read the arriving one.
-        const crumb = text('.con-cardactions .con-wshead__step:not(.con-wshead-swap-leave-active)');
-        const bar = text('.con-cmdbar__context');
-        if (crumb === '' || bar === '') {
-          return;
-        }
-        w.__stageSamples++;
-        if (crumb !== bar && w.__stageMisses.length < 6) {
-          w.__stageMisses.push(`crumb «${crumb}» bar «${bar}»`);
-        }
-      }, 30);
-    });
+      // The tail CROSSFADES in one cell: the leaving word stands beside the arriving one for the swap — read the arriving one.
+      const crumb = text('.con-cardactions .con-wshead__step:not(.con-wshead-swap-leave-active)');
+      const bar = text('.con-cmdbar__context');
+      return crumb === '' || bar === '' ? null : {crumb, bar};
+    }, {settled: true, rafTick: false});
     await press(page, 'Enter', 400);
     await expect(page.locator('.con-cmdbar'), 'the batch landed: R3 is offered').toContainText(/сброшенные/i, {timeout: 30_000});
     await settle(page);
-    const misses = await page.evaluate(() => (window as unknown as {__stageMisses: Array<string>}).__stageMisses);
-    const samples = await page.evaluate(() => (window as unknown as {__stageSamples: number}).__stageSamples);
-    expect(samples, 'the stage sampler ran').toBeGreaterThan(10);
+    const words = (await stageWords.stop()).map((s) => s.v).filter((v): v is {crumb: string, bar: string} => v !== null);
+    const misses = words.filter((v) => v.crumb !== v.bar).slice(0, 6).map((v) => `crumb «${v.crumb}» bar «${v.bar}»`);
+    // The record's own liveness floor: only a DEAD recorder fails it (recorded states, never frames).
+    expect(words.length, 'the stage sampler ran').toBeGreaterThan(0);
     expect(misses, 'the bar never names a stage the crumb has left').toEqual([]);
     await expect(page.locator('[data-reveal-search]'), 'the summary').toHaveAttribute('data-search-discarded', '1');
     const verdict = page.locator('.con-zoom [data-zoom-discard-verdict]');
@@ -479,12 +505,14 @@ test.describe('TR32 Red Tech Convention · the Deck, reduced motion', () => {
     await expect(summary).toHaveAttribute('data-search-revealed', '6');
     await expect(page.locator('[data-discard-pile]')).toHaveAttribute('data-discard-pile-count', '3');
     // The summary is ONE line and is never cut by its row (the head reserves one row).
-    const fits = await summary.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().right <= window.innerWidth);
+    // Measured at REST (C — `readSettled`: the same reading twice, a frame apart).
+    const fits = await readSettled(page, () => summary.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().right <= window.innerWidth),
+      {message: 'the summary\'s fit'});
     expect(fits, 'the summary fits its own box and the screen').toBe(true);
     // PL-091 (the owner's decision 2026-10-07): no card of the row runs under the discard pile (on the Deck the last
     // card's VP badge did, under the old corner berth). Since TR52 the pile is the TABLE's, beside the HUD deck under
     // the status strip — outside the zone by construction; asserted against the plate the player sees.
-    const hits = await page.evaluate(() => {
+    const hits = await readSettled(page, () => page.evaluate(() => {
       const plate = document.querySelector('[data-discard-pile] .con-dpile__plate')?.getBoundingClientRect();
       if (plate === undefined) {
         return ['no pile'];
@@ -493,7 +521,7 @@ test.describe('TR32 Red Tech Convention · the Deck, reduced motion', () => {
         .map((el) => el.getBoundingClientRect())
         .filter((r) => r.right > plate.left && r.left < plate.right && r.bottom > plate.top && r.top < plate.bottom)
         .map((r) => `slot ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} vs pile ${Math.round(plate.left)},${Math.round(plate.top)}`);
-    });
+    }), {message: 'the row against the discard pile'});
     expect(hits, 'no card under the discard pile').toEqual([]);
     // PL-092: the status line's NAME yields only when the line is full — «Горнопромышленный район» (the second
     // card) used to be cut to «…рай…» by a flat 17rem cap with a whole empty line on either side. Walk the row and
@@ -503,7 +531,8 @@ test.describe('TR32 Red Tech Convention · the Deck, reduced motion', () => {
       if (i > 0) {
         await press(page, 'ArrowRight', 500);
       }
-      nameCuts.push(await page.evaluate(() => {
+      // Read at REST (C — `readSettled`): the name of the card the cursor stands on, never a bar mid-swap.
+      nameCuts.push(await readSettled(page, () => page.evaluate(() => {
         const bar = document.querySelector<HTMLElement>('.con-hand__outcome .con-reveal__namebar');
         const name = bar?.querySelector<HTMLElement>('.con-cards__verdict-name');
         if (bar === null || bar === undefined || name === null || name === undefined) {
@@ -520,7 +549,7 @@ test.describe('TR32 Red Tech Convention · the Deck, reduced motion', () => {
         const ns = getComputedStyle(name);
         const kids = Array.from(bar.children).map((k) => `${k.className.split(' ')[0]}:${k.clientWidth}/${k.scrollWidth}`).join(' ');
         return `«${name.textContent?.trim()}» cut at ${name.clientWidth} of ${name.scrollWidth} px — bar ${bar.clientWidth}/${bar.scrollWidth} in a column of ${column?.clientWidth}; kids ${kids}; name max-width ${ns.maxWidth}, flex ${ns.flex}`;
-      }));
+      }), {message: `the name bar of card ${i + 1}`}));
     }
     expect(nameCuts.filter((c) => c !== ''), 'no name cut while its line has room').toEqual([]);
     await press(page, 'ArrowLeft', 400);

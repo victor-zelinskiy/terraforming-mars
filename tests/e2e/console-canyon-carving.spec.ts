@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, confirmLockedPlacement, fetchPlayerModel, focusCard, focusedSpaceId, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
+import {bootFixtureSeats, confirmLockedPlacement, dossierLoaded, fetchPlayerModel, focusCard, focusedSpaceId, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
 import {expectSeeThrough, expectUncovers} from './peekWitness';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 import {TileType} from '../../src/common/TileType';
 
 /**
@@ -111,12 +113,12 @@ const cellOf = (wire: Wire, id: string) => wire.game.spaces.find((s) => s.id ===
 
 type Box = {x: number, y: number, w: number, h: number};
 type MoveProbe = {
+  /** Recorded (settled) states — the probe's own liveness floor; never a count of frames. */
   samples: number;
-  /** Interval (task) samples only — the probe's own liveness floor, and the only samples a claim about FRAMES is made on. */
-  ticks: number;
+  /** The two cells' boxes as the record was ARMED with them. */
   a: Box;
   b: Box;
-  /** The move proxy's centre on every sample it was visible. */
+  /** The move proxy's centre on every recorded state it was visible. */
   track: Array<{t: number, x: number, y: number}>;
   proxyMax: number;
   /** The proxy's art classes on the first sample it was seen (the piece that travels). */
@@ -154,27 +156,52 @@ type MoveProbe = {
   eaten: boolean;
 };
 
+/** One recorded state of the scene — what stands NOW (an observation; the probe's series are folded on the Node side). */
+type MoveSeen = {
+  /** The two cells' boxes now (the fold judges against the boxes the record was ARMED with). */
+  a: Box | null;
+  b: Box | null;
+  /** How many move proxies are shown, and the first one's centre / art / riding cube. */
+  proxies: number;
+  proxy: {x: number, y: number, art: Array<string>, cube: string | null} | null;
+  /** Any OTHER tile proxy shown (an arrival «from the table», a plain lift). */
+  foreign: Array<string>;
+  oceanA: boolean;
+  oceanB: boolean;
+  vacated: boolean;
+  /** The scene's own word for the contact (own: the phase; remote: the real ocean revealed on B). */
+  landed: boolean;
+  phase: string | null;
+  degraded: boolean;
+  eaten: boolean;
+  stranded: boolean;
+  digit: string;
+  marker: string;
+  hud: string;
+  notifs: Array<string>;
+  plants: string;
+  mc: string;
+  tr: string;
+};
+const MOVE_WITNESS = 'tr39-move';
+
 /**
- * THE SCENE PROBE — MutationObserver + setInterval, never rAF (headless drives
- * rAF off the compositor: it stops when the screen is quiet). A claim about
- * FRAMES («two oceans», «no ocean», «the scale moved») is made on the interval
- * samples only: an observer sample runs as a microtask and legitimately sees
- * a state the browser never paints.
+ * THE SCENE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns what
+ * stands now, every change is kept with the page's time, off the product's own writes (an observer + a frame tick), so a
+ * starved renderer can slow the move but never hide a pose of it. A claim about FRAMES («two oceans», «no ocean», «the
+ * scale moved») is a coexistence claim, so the record is `settled` — the state a task LEAVES, the state a frame can paint
+ * (an observer's microtask legitimately sees a state the browser never paints).
  */
 async function armProbe(page: Page, kind: 'own' | 'remote'): Promise<void> {
-  await page.evaluate(({kind, from, to, cardRu}) => {
-    const w = window as unknown as {__tr39: MoveProbe};
-    const rectOf = (id: string): Box => {
-      const r = document.querySelector(`.board-space[data_space_id="${id}"]`)!.getBoundingClientRect();
+  await armWitness<MoveSeen, {kind: string, from: string, to: string, cardRu: string}>(page, MOVE_WITNESS, ({kind, from, to, cardRu}) => {
+    const rectOf = (id: string): {x: number, y: number, w: number, h: number} | null => {
+      const el = document.querySelector(`.board-space[data_space_id="${id}"]`);
+      if (el === null) {
+        return null;
+      }
+      const r = el.getBoundingClientRect();
       return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
     };
-    const p: MoveProbe = {
-      samples: 0, ticks: 0, a: rectOf(from), b: rectOf(to), track: [], proxyMax: 0, proxyArt: [], cubeOnProxy: [], foreign: [],
-      twoOceans: [], noOcean: [], phases: [], plants: [], tr: [], mc: [], scaleDigits: [], markerBoxes: [], hud: [], notifs: [],
-      degraded: false, stranded: false, eaten: false,
-    };
-    w.__tr39 = p;
-    const t0 = Date.now();
     const shown = (el: Element): boolean => {
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
@@ -183,129 +210,150 @@ async function armProbe(page: Page, kind: 'own' | 'remote'): Promise<void> {
     const oceanOn = (id: string): boolean =>
       document.querySelector(`.board-space[data_space_id="${id}"] > .board-space-tile--ocean:not(.board-space-tile--placement-cleared)`) !== null;
     const counter = (selector: string): string => (document.querySelector(selector)?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (list: Array<[number, string]>, value: string, now: number) => {
-      if (value !== '' && list[list.length - 1]?.[1] !== value) {
-        list.push([now, value]);
+    const proxies = Array.from(document.querySelectorAll<HTMLElement>(`.con-tileplace__tile[data-tile-move="${kind}"]`)).filter(shown);
+    const foreign: Array<string> = [];
+    document.querySelectorAll<HTMLElement>('.con-tileplace__tile').forEach((el) => {
+      if (el.getAttribute('data-tile-move') !== kind && shown(el)) {
+        foreign.push(el.className.replace(/\s+/g, '.'));
       }
-    };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      const now = Date.now() - t0;
-      const proxies = Array.from(document.querySelectorAll<HTMLElement>(`.con-tileplace__tile[data-tile-move="${kind}"]`)).filter(shown);
-      p.proxyMax = Math.max(p.proxyMax, proxies.length);
-      document.querySelectorAll<HTMLElement>('.con-tileplace__tile').forEach((el) => {
-        if (el.getAttribute('data-tile-move') !== kind && shown(el)) {
-          const name = el.className.replace(/\s+/g, '.');
-          if (!p.foreign.includes(name)) {
-            p.foreign.push(name);
-          }
-        }
-      });
-      const proxy = proxies[0];
-      let centre: {x: number, y: number} | undefined;
-      if (proxy !== undefined) {
-        const r = proxy.getBoundingClientRect();
-        centre = {x: r.left + r.width / 2, y: r.top + r.height / 2};
-        p.track.push({t: now, ...centre});
-        p.firstProxyAt ??= now;
-        p.lastProxyAt = now;
-        if (p.proxyArt.length === 0) {
-          const art = proxy.querySelector('.con-tileplace__art');
-          p.proxyArt = (art?.className ?? '').split(/\s+/).filter((c) => c.startsWith('board-space-tile--'));
-        }
-        const cube = proxy.querySelector('.player-cube, .board-owner-cube, [class*="cube"]');
-        if (cube !== null && shown(cube) && p.cubeOnProxy.length < 6) {
-          p.cubeOnProxy.push(`${now}ms ${cube.className}`);
-        }
-      }
-      const oceanA = oceanOn(from);
-      const oceanB = oceanOn(to);
-      if (!oceanA) {
-        p.sourceBareAt ??= now;
-      }
-      if (oceanB) {
-        p.appliedAt ??= now;
-        // The REMOTE stage holds the committed tile hidden until its proxy's touchdown (`remoteRevealHold` — the cell
-        // reads «cleared» till then): the real ocean appearing on B IS that touchdown. The hero's own landing is its
-        // scene's phase (below) — its real tile can stand in the DOM under the proxy while the proxy is still flying.
-        if (kind === 'remote') {
-          p.landedAt ??= now;
-        }
-      }
-      if (document.querySelector(`.board-space[data_space_id="${from}"] > .board-space-tile--vacated`) !== null) {
-        p.vacatedAt ??= now;
-      }
-      if (tick) {
-        p.ticks++;
-        const far = (c: {x: number, y: number}, box: Box) => Math.hypot(c.x - box.x, c.y - box.y) > box.w * 0.5;
-        const two = (oceanA && oceanB) || (centre !== undefined && ((oceanA && far(centre, p.a)) || (oceanB && far(centre, p.b))));
-        if (two && p.twoOceans.length < 6) {
-          p.twoOceans.push(`${now}ms a=${oceanA} b=${oceanB} proxy=${centre === undefined ? '-' : `${Math.round(centre.x)},${Math.round(centre.y)}`}`);
-        }
-        if (!oceanA && !oceanB && centre === undefined && p.noOcean.length < 6) {
-          p.noOcean.push(`${now}ms`);
-        }
-        // THE OCEAN PARAMETER stands still: its scale digit, its marker's box and the HUD's «N/9» on every tick.
-        const digit = counter('.arc-scale--oceans .arc-scale__digit--current');
-        if (digit !== '' && p.scaleDigits[p.scaleDigits.length - 1] !== digit) {
-          p.scaleDigits.push(digit);
-        }
-        // The marker's place is read RELATIVE to the board's own box: the camera (Planet Focus) moves the whole board
-        // after the landing, and a marker that rides with it has not moved on its scale.
-        const marker = document.querySelector('.scale-marker--oceans');
-        // …relative to its OWN track (the arc scale), which the camera moves together with the marker.
-        const stage = document.querySelector('.arc-scale--oceans') ?? document.querySelector('.board-cont');
-        if (marker !== null && stage !== null) {
-          const r = marker.getBoundingClientRect();
-          const h = stage.getBoundingClientRect();
-          const box = h.width < 40 ? '' : `${((r.left - h.left) / h.width).toFixed(2)},${((r.top - h.top) / h.height).toFixed(2)}`;
-          if (box !== '' && p.markerBoxes[p.markerBoxes.length - 1] !== box) {
-            p.markerBoxes.push(box);
-          }
-        }
-        const hud = Array.from(document.querySelectorAll('.con-status__param')).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).find((t) => /\/9\b/.test(t)) ?? '';
-        if (hud !== '' && p.hud[p.hud.length - 1] !== hud) {
-          p.hud.push(hud);
-        }
-      }
-      const root = document.querySelector('.con-tileplace');
-      if (root !== null) {
-        const phase = root.getAttribute('data-tile-phase');
-        if (phase !== null && p.phases[p.phases.length - 1] !== phase) {
-          p.phases.push(phase);
-        }
-        // LANDED is the scene's own word for the CONTACT (the real tile paints under the settled proxy): a claim about
-        // the paint, never about the DOM — a tile that exists on B under a flying proxy has not landed.
-        if (kind === 'own' && (phase === 'landed' || phase === 'rewarding')) {
-          p.landedAt ??= now;
-        }
-        if (root.getAttribute('data-tile-move-degraded') !== null) {
-          p.degraded = true;
-        }
-      }
-      if (document.querySelector('.con-bmove--eaten') !== null) {
-        p.eaten = true;
-      }
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      document.querySelectorAll<HTMLElement>('.con-notif').forEach((el) => {
-        const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
-        if (shown(el) && text.includes(cardRu) && !p.notifs.includes(text) && p.notifs.length < 8) {
-          p.notifs.push(text);
-        }
-      });
+    });
+    let proxy: {x: number, y: number, art: Array<string>, cube: string | null} | null = null;
+    if (proxies[0] !== undefined) {
+      const r = proxies[0].getBoundingClientRect();
+      const cube = proxies[0].querySelector('.player-cube, .board-owner-cube, [class*="cube"]');
+      proxy = {
+        x: r.left + r.width / 2, y: r.top + r.height / 2,
+        art: (proxies[0].querySelector('.con-tileplace__art')?.className ?? '').split(/\s+/).filter((c) => c.startsWith('board-space-tile--')),
+        cube: cube !== null && shown(cube) ? cube.className : null,
+      };
+    }
+    const oceanB = oceanOn(to);
+    // The marker's place is read RELATIVE to its OWN track (the arc scale), which the camera (Planet Focus) moves
+    // together with the marker after the landing — a marker that rides with it has not moved on its scale.
+    const marker = document.querySelector('.scale-marker--oceans');
+    const stage = document.querySelector('.arc-scale--oceans') ?? document.querySelector('.board-cont');
+    let markerBox = '';
+    if (marker !== null && stage !== null) {
+      const r = marker.getBoundingClientRect();
+      const h = stage.getBoundingClientRect();
+      markerBox = h.width < 40 ? '' : `${((r.left - h.left) / h.width).toFixed(2)},${((r.top - h.top) / h.height).toFixed(2)}`;
+    }
+    const root = document.querySelector('.con-tileplace');
+    const phase = root?.getAttribute('data-tile-phase') ?? null;
+    return {
+      a: rectOf(from),
+      b: rectOf(to),
+      proxies: proxies.length,
+      proxy,
+      foreign,
+      oceanA: oceanOn(from),
+      oceanB,
+      vacated: document.querySelector(`.board-space[data_space_id="${from}"] > .board-space-tile--vacated`) !== null,
+      // The REMOTE stage holds the committed tile hidden until its proxy's touchdown (`remoteRevealHold` — the cell
+      // reads «cleared» till then): the real ocean appearing on B IS that touchdown. The hero's LANDED is its scene's own
+      // word for the CONTACT (the real tile paints under the settled proxy) — a tile that exists on B under a flying
+      // proxy has not landed.
+      landed: kind === 'remote' ? oceanB : phase === 'landed' || phase === 'rewarding',
+      phase,
+      degraded: root !== null && root.getAttribute('data-tile-move-degraded') !== null,
+      eaten: document.querySelector('.con-bmove--eaten') !== null,
+      stranded: document.querySelector('.con-stranded') !== null,
+      digit: counter('.arc-scale--oceans .arc-scale__digit--current'),
+      marker: markerBox,
+      hud: Array.from(document.querySelectorAll('.con-status__param')).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).find((t) => /\/9\b/.test(t)) ?? '',
+      notifs: Array.from(document.querySelectorAll<HTMLElement>('.con-notif'))
+        .filter((el) => shown(el) && (el.textContent ?? '').includes(cardRu))
+        .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()),
       // A rail counter's text is its VALUE followed by its live delta chips («18−4+2») — the value is the leading number.
-      note(p.plants, counter('.con-res__row--plants .con-res__digits').match(/^-?\d+/)?.[0] ?? '', now);
-      note(p.mc, counter('.con-res__row--megacredits .con-res__digits').match(/^-?\d+/)?.[0] ?? '', now);
-      note(p.tr, counter('.con-score__value--tr'), now);
+      plants: counter('.con-res__row--plants .con-res__digits').match(/^-?\d+/)?.[0] ?? '',
+      mc: counter('.con-res__row--megacredits .con-res__digits').match(/^-?\d+/)?.[0] ?? '',
+      tr: counter('.con-score__value--tr'),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample(true), 16);
-  }, {kind, from: X, to: B, cardRu: CARD_RU});
+  }, {args: {kind, from: X, to: B, cardRu: CARD_RU}, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<MoveProbe> => page.evaluate(() => (window as unknown as {__tr39: MoveProbe}).__tr39);
+/** The record folded into the probe — times are the PAGE's, from the arm (the record's first sample is the baseline). */
+async function readProbe(page: Page): Promise<MoveProbe> {
+  const samples = await witnessOf<MoveSeen>(page, MOVE_WITNESS).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const none: Box = {x: 0, y: 0, w: 0, h: 0};
+  // The cells as the record was ARMED with them (the screen before the press) — the boxes the move is judged against.
+  const p: MoveProbe = {
+    samples: samples.length, a: samples[0]?.v.a ?? none, b: samples[0]?.v.b ?? none, track: [], proxyMax: 0, proxyArt: [],
+    cubeOnProxy: [], foreign: [], twoOceans: [], noOcean: [], phases: [], plants: [], tr: [], mc: [], scaleDigits: [],
+    markerBoxes: [], hud: [], notifs: [], degraded: false, stranded: false, eaten: false,
+  };
+  const note = (list: Array<[number, string]>, value: string, now: number) => {
+    if (value !== '' && list[list.length - 1]?.[1] !== value) {
+      list.push([now, value]);
+    }
+  };
+  const step = (list: Array<string>, value: string) => {
+    if (value !== '' && list[list.length - 1] !== value) {
+      list.push(value);
+    }
+  };
+  const far = (c: {x: number, y: number}, box: Box) => Math.hypot(c.x - box.x, c.y - box.y) > box.w * 0.5;
+  for (const {t, v} of samples) {
+    const now = t - t0;
+    p.proxyMax = Math.max(p.proxyMax, v.proxies);
+    for (const name of v.foreign) {
+      if (!p.foreign.includes(name)) {
+        p.foreign.push(name);
+      }
+    }
+    const centre = v.proxy === null ? undefined : {x: v.proxy.x, y: v.proxy.y};
+    if (v.proxy !== null) {
+      p.track.push({t: now, x: v.proxy.x, y: v.proxy.y});
+      p.firstProxyAt ??= now;
+      p.lastProxyAt = now;
+      if (p.proxyArt.length === 0) {
+        p.proxyArt = v.proxy.art;
+      }
+      if (v.proxy.cube !== null && p.cubeOnProxy.length < 6) {
+        p.cubeOnProxy.push(`${now}ms ${v.proxy.cube}`);
+      }
+    }
+    if (!v.oceanA) {
+      p.sourceBareAt ??= now;
+    }
+    if (v.oceanB) {
+      p.appliedAt ??= now;
+    }
+    if (v.landed) {
+      p.landedAt ??= now;
+    }
+    if (v.vacated) {
+      p.vacatedAt ??= now;
+    }
+    const two = (v.oceanA && v.oceanB) || (centre !== undefined && ((v.oceanA && far(centre, p.a)) || (v.oceanB && far(centre, p.b))));
+    if (two && p.twoOceans.length < 6) {
+      p.twoOceans.push(`${now}ms a=${v.oceanA} b=${v.oceanB} proxy=${centre === undefined ? '-' : `${Math.round(centre.x)},${Math.round(centre.y)}`}`);
+    }
+    if (!v.oceanA && !v.oceanB && centre === undefined && p.noOcean.length < 6) {
+      p.noOcean.push(`${now}ms`);
+    }
+    // THE OCEAN PARAMETER stands still: its scale digit, its marker's box and the HUD's «N/9» in every recorded state.
+    step(p.scaleDigits, v.digit);
+    step(p.markerBoxes, v.marker);
+    step(p.hud, v.hud);
+    if (v.phase !== null && p.phases[p.phases.length - 1] !== v.phase) {
+      p.phases.push(v.phase);
+    }
+    p.degraded ||= v.degraded;
+    p.eaten ||= v.eaten;
+    p.stranded ||= v.stranded;
+    for (const text of v.notifs) {
+      if (!p.notifs.includes(text) && p.notifs.length < 8) {
+        p.notifs.push(text);
+      }
+    }
+    note(p.plants, v.plants, now);
+    note(p.mc, v.mc, now);
+    note(p.tr, v.tr, now);
+  }
+  return p;
+}
 
 const composer = '.con-composer--play';
 const panel = '.con-context';
@@ -488,9 +536,9 @@ for (const preset of PRESETS) {
       await expect(page.locator(panel), 'the rival\'s loss is NAMED').toContainText('Столица теряет соседний океан');
       // Another player's loss is told under «other players receive» as a signed VP at game end — never the mover's own vector.
       await expect(page.locator(panel), 'the rival\'s Capital loses one VP at game end').toContainText(/−1\s*ПО/);
-      const bar = await barText(page);
-      expect(bar, 'the bar speaks the ocean\'s verb').toMatch(/Взять океан/);
-      expect(bar, 'never the city\'s').not.toMatch(/город/i);
+      // A live string is asserted by a POLL (the bar republishes a frame after the state that changes it).
+      await expect.poll(() => barText(page), {message: 'the bar speaks the ocean\'s verb'}).toMatch(/Взять океан/);
+      await expect.poll(() => barText(page), {message: 'never the city\'s'}).not.toMatch(/город/i);
       // THE SEE-THROUGH («ПРОСВЕТ», TR47 — the move's SOURCE level lifts a piece too): the focused ocean goes
       // translucent on its reserve, the reserve's printed bonus (two plants on 33) is painted under it, and the
       // dossier names what the move uncovers under «ОТКРОЕТСЯ» — the same words as a removal's.
@@ -504,12 +552,13 @@ for (const preset of PRESETS) {
       expect(posts, 'lifting an ocean sends nothing').toEqual([]);
       await expect(page.locator(`.board-space--move-source[data_space_id="${X}"]`), 'the ocean wears «leaving from here»').toHaveCount(1);
       await expect(page.locator('.con-bmove-origin'), 'the origin\'s dashed contour stands').toHaveCount(1);
+      await expect.poll(() => legalCells(page), {message: 'the cell level offers the ocean\'s own neighbours of both families — the reserve and the land'})
+        .toEqual(expect.arrayContaining([B, '34']));
       const destinations = await legalCells(page);
-      expect(destinations, 'the cell level offers the ocean\'s own neighbours of both families — the reserve and the land').toEqual(expect.arrayContaining([B, '34']));
       expect(destinations, 'the Capital\'s cell is occupied — not a destination').not.toContain(CAPITAL);
       expect(destinations, 'the lifted ocean\'s own cell is not a destination').not.toContain(X);
       expect(destinations, 'the other ocean\'s cell is occupied').not.toContain(OCEAN2);
-      expect(await focusedSpaceId(page), 'the cursor moved onto a destination — a focus, never a choice').not.toBe(X);
+      await expect.poll(() => focusedSpaceId(page), {message: 'the cursor moved onto a destination — a focus, never a choice'}).not.toBe(X);
       await expect.poll(() => barText(page), {message: 'B on the cell level is «Другой океан»', timeout: 10_000}).toMatch(/Другой океан/);
 
       // The panel does not move while the player points: walk the destinations, one box. Cell 25 sits a row ABOVE the
@@ -519,7 +568,9 @@ for (const preset of PRESETS) {
       for (const id of destinations.filter((cell) => cell !== '25')) {
         await walkToSpace(page, id);
         await expect(page.locator('.con-bmove'), `the vector points at ${id}`).toHaveCount(1);
-        const fit = await panelBox(page);
+        // The dossier of THIS cell, loaded (class F), then the box at REST (C — `readSettled`).
+        await dossierLoaded(page, id);
+        const fit = await readSettled(page, () => panelBox(page), {message: `the panel over ${id}`});
         boxes.push(fit.box);
         expect(fit.overflow, `the dossier of ${id} overflows by ${fit.overflow}px`).toBeLessThanOrEqual(2);
         expect(fit.scrollHint, `the dossier of ${id} shows a scroll affordance`).toBe(0);
@@ -528,6 +579,7 @@ for (const preset of PRESETS) {
 
       await walkToSpace(page, B);
       await expect(page.locator(panel), 'what stays behind has its own section').toContainText('Прежняя клетка', {timeout: 10_000});
+      await dossierLoaded(page, B); // the destination's OWN facts, loaded (class F) — never the previous cell's
       const dossier = await textOf(page, panel);
       expect(dossier, 'the move\'s own TR').toMatch(/Перемещение тайла/);
       expect(dossier, 'the Greens answer the TR step').toMatch(/Зелёные/);
@@ -536,8 +588,9 @@ for (const preset of PRESETS) {
       expect(dossier, 'NEVER the ocean parameter — the count does not change').not.toMatch(/Повышает уровень океанов|уходит с поля|никто не теряет/);
       // The field lights exactly the cells the dossier is talking about, by the SERVER's own reading: the other ocean
       // that pays (43) and the Capital that loses (24). The cell being left never carries a mark.
+      await expect.poll(() => relationCells(page), {message: 'the relation layer names the dossier\'s cells'})
+        .toEqual(expect.arrayContaining([OCEAN2, CAPITAL]));
       const lit = await relationCells(page);
-      expect(lit, 'the relation layer names the dossier\'s cells').toEqual(expect.arrayContaining([OCEAN2, CAPITAL]));
       expect(lit, 'the cell being left is no participant').not.toContain(X);
       await shoot(page, preset.id, '04-cell-level');
 
@@ -549,15 +602,15 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '05-locked');
       await press(page, 'Escape', 500);
       await expect(page.locator('.con-bcur--locked'), 'B unlocks — one level').toHaveCount(0);
-      expect(await moveLevel(page), 'B from the lock stays at the cell level').toBe('cell');
+      await expect.poll(() => moveLevel(page), {message: 'B from the lock stays at the cell level'}).toBe('cell');
       await press(page, 'Escape', 500);
-      expect(await moveLevel(page), 'B puts the ocean down — back to «which ocean»').toBe('source');
+      await expect.poll(() => moveLevel(page), {message: 'B puts the ocean down — back to «which ocean»'}).toBe('source');
       await expect(page.locator('.board-space--move-source'), 'the pose lets go with the ocean').toHaveCount(0);
       await expect.poll(() => focusedSpaceId(page), {timeout: 5_000, message: 'the cursor returns to the ocean just held'}).toBe(X);
       await press(page, 'Escape', 1400);
       await page.locator(composer).waitFor({timeout: 15_000});
       await expect(page.locator(composer), 'the composer carries the SAME card').toContainText(CARD_RU);
-      expect(await textOf(page, `${composer} .con-pay`), 'the same payment').toBe(paymentBefore);
+      await expect.poll(() => textOf(page, `${composer} .con-pay`), {message: 'the same payment'}).toBe(paymentBefore);
       expect(posts, 'the whole ladder sent nothing').toEqual([]);
       expect((await wireOf(request, playerId)).game.gameAge).toBe(before.game.gameAge);
 
@@ -592,7 +645,8 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '06c-board');
       const dist = (p: {x: number, y: number}, box: Box) => Math.hypot(p.x - box.x, p.y - box.y);
       const assertOneMove = (probe: MoveProbe, who: string) => {
-        expect(probe.ticks, `${who}: the probe never sampled`).toBeGreaterThan(20);
+        // The record's own liveness floor: only a DEAD recorder fails it (recorded states, never frames).
+        expect(probe.samples, `${who}: the probe never sampled`).toBeGreaterThan(0);
         expect(probe.degraded, `${who}: the move degraded (data-tile-move-degraded)`).toBe(false);
         expect(probe.track.length, `${who}: the proxy was never seen (phases: ${probe.phases.join('→')})`).toBeGreaterThan(2);
         expect(probe.proxyMax, `${who}: ONE proxy`).toBe(1);
@@ -605,7 +659,7 @@ for (const preset of PRESETS) {
           .toBeLessThan(probe.a.w * 0.3);
         // ② the destination was visible: the proxy ends ON the destination cell.
         const last = probe.track[probe.track.length - 1];
-        expect(dist(last, probe.b), `${who}: the proxy ends on the destination (tail ${JSON.stringify(probe.track.slice(-5))}, cell ${JSON.stringify(probe.b)}, landed ${probe.landedAt}, gone ${probe.lastProxyAt}, ticks ${probe.ticks}/${probe.samples})`).toBeLessThan(probe.b.w * 0.2);
+        expect(dist(last, probe.b), `${who}: the proxy ends on the destination (tail ${JSON.stringify(probe.track.slice(-5))}, cell ${JSON.stringify(probe.b)}, landed ${probe.landedAt}, gone ${probe.lastProxyAt}, ${probe.samples} states)`).toBeLessThan(probe.b.w * 0.2);
         // ③ movement happened, one way: the centre never turns back along the edge it crosses.
         const sign = Math.sign(probe.b.x - probe.a.x);
         let reach = -Infinity;

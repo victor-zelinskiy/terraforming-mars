@@ -2,6 +2,7 @@ import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE BOT ATTACK, END TO END — the bot plays Invasive Species, the player is
@@ -206,12 +207,19 @@ async function playUntilArrival(request: APIRequestContext, id: string, plan: Ar
  * applied) and then never advances, so the panel reads opacity 0 forever. A
  * tiny screenshot is a BeginFrame; the surface then finishes its own arrival.
  */
-async function pumpFrames(page: Page, ms = 900): Promise<void> {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-    await page.waitForTimeout(120);
-  }
+async function pumpFrame(page: Page): Promise<void> {
+  await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
+}
+
+/**
+ * Wait for a STATE while pumping frames — each poll forces one real frame, so a GSAP entrance advances on a headless
+ * screen whose own frames starve (never a fixed pump of N ms standing in for «the arrival is over»).
+ */
+async function pumpUntil(page: Page, done: () => Promise<boolean>, timeout: number, message: string): Promise<void> {
+  await expect.poll(async () => {
+    await pumpFrame(page);
+    return done();
+  }, {timeout, intervals: [120], message}).toBe(true);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -219,7 +227,10 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(SHOTS, `${name}.png`)});
 }
 
-/** The modal's own box, and the viewport it stands in. */
+/**
+ * The modal's own box, and the viewport it stands in — read AT REST (`readSettled`, every read behind a forced frame).
+ * Lengths rounded: a subpixel that jitters is not motion.
+ */
 async function panelBox(page: Page) {
   return page.evaluate(() => {
     const panel = document.querySelector<HTMLElement>('.con-botattack__panel');
@@ -227,6 +238,7 @@ async function panelBox(page: Page) {
       return undefined;
     }
     const r = panel.getBoundingClientRect();
+    const q = (n: number) => Math.round(n * 10) / 10;
     const overflowing = Array.from(panel.querySelectorAll<HTMLElement>('*')).filter((el) => {
       const b = el.getBoundingClientRect();
       return b.width > 0 && b.height > 0 &&
@@ -250,7 +262,7 @@ async function panelBox(page: Page) {
       .map((el) => el.className);
     const cs = getComputedStyle(panel);
     return {
-      w: r.width, h: r.height,
+      w: q(r.width), h: q(r.height),
       vw: window.innerWidth, vh: window.innerHeight,
       rootScrollW: document.documentElement.scrollWidth,
       // A surface that exists but does not PAINT is the failure mode a
@@ -294,32 +306,39 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
 
     await page.keyboard.press('Enter');
     await page.waitForSelector('.con-botattack', {timeout: 20_000});
-    await pumpFrames(page);
+    // The arrival is over when the panel PAINTS (the state (4) asserts) — frames pumped until then, never for a fixed time.
+    await pumpUntil(page, async () => {
+      const b = await panelBox(page);
+      return b !== undefined && b.opacity > 0.9 && b.visibility === 'visible';
+    }, 15_000, 'the modal arrives (its panel paints)');
 
     // ── (2) WHO, WITH WHAT, AND WHAT NOW ───────────────────────────────
-    const head = await page.evaluate(() => {
-      const px = (sel: string): number => {
-        const el = document.querySelector(sel);
-        return el === null ? 0 : Number(getComputedStyle(el).fontSize.replace('px', ''));
-      };
-      const text = (sel: string): string => (document.querySelector(sel)?.textContent ?? '').trim();
-      return {
-        kicker: text('.con-botattack .con-prompt-head__category'),
-        actor: text('.con-botattack__actor'),
-        title: text('.con-botattack .con-prompt-head__title'),
-        ask: text('.con-botattack__ask'),
-        limit: text('.con-botattack__limit'),
-        askPx: px('.con-botattack__ask'),
-        limitPx: px('.con-botattack__limit'),
-        // The bot's OWN card face — not a fake project card, and not a text
-        // block hidden behind an inspect verb.
-        botFace: document.querySelectorAll('.con-botattack__source .mb-face').length,
-        botFaceName: text('.con-botattack__source .mb-face__name'),
-        botFaceW: document.querySelector('.con-botattack__source .mb-face')?.getBoundingClientRect().width ?? 0,
-        // …and the BRIDGE that makes source → target read as one sentence.
-        bridge: document.querySelectorAll('.con-botattack__bridge-chip').length,
-      };
-    });
+    const head = await readSettled(page, async () => {
+      await pumpFrame(page);
+      return page.evaluate(() => {
+        const px = (sel: string): number => {
+          const el = document.querySelector(sel);
+          return el === null ? 0 : Number(getComputedStyle(el).fontSize.replace('px', ''));
+        };
+        const text = (sel: string): string => (document.querySelector(sel)?.textContent ?? '').trim();
+        return {
+          kicker: text('.con-botattack .con-prompt-head__category'),
+          actor: text('.con-botattack__actor'),
+          title: text('.con-botattack .con-prompt-head__title'),
+          ask: text('.con-botattack__ask'),
+          limit: text('.con-botattack__limit'),
+          askPx: px('.con-botattack__ask'),
+          limitPx: px('.con-botattack__limit'),
+          // The bot's OWN card face — not a fake project card, and not a text
+          // block hidden behind an inspect verb.
+          botFace: document.querySelectorAll('.con-botattack__source .mb-face').length,
+          botFaceName: text('.con-botattack__source .mb-face__name'),
+          botFaceW: Math.round((document.querySelector('.con-botattack__source .mb-face')?.getBoundingClientRect().width ?? 0) * 10) / 10,
+          // …and the BRIDGE that makes source → target read as one sentence.
+          bridge: document.querySelectorAll('.con-botattack__bridge-chip').length,
+        };
+      });
+    }, {message: 'the opened modal at rest'});
     await shoot(page, '01-opened');
     // THE ACTOR'S NAME comes from the ONE display-name helper: «Бот» in Russian,
     // never a hardcoded «MarsBot» and never a second hardcoded «Бот».
@@ -341,7 +360,11 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     expect(head.limitPx, 'and so does the constraint').toBeGreaterThanOrEqual(34);
 
     // ── (3) NO RAW ENGLISH in a Russian session ────────────────────────
-    const text = await page.locator('.con-botattack').innerText();
+    // A live string, read AT REST (two equal reads a frame apart) — never wherever the entrance had got to.
+    const text = await readSettled(page, async () => {
+      await pumpFrame(page);
+      return page.locator('.con-botattack').innerText();
+    }, {message: 'the modal\'s text'});
     expect(text, 'the legacy English sentence is gone').not.toContain('highest-scoring');
     expect(text).not.toContain('Invasive Species');
     // A Latin RUN of three or more letters would be an untranslated key. Card
@@ -355,13 +378,20 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     // ── (3b) ONE canonical hint per press ──────────────────────────────
     // The verb the bar publishes on A must not be the commit row's own words,
     // and the retired `L3 Источник` must be gone (the card is on screen).
-    const bar = await page.locator('.con-cmdbar').innerText();
+    // The bar republishes a frame after the surface stands — read at rest, never once.
+    const bar = await readSettled(page, async () => {
+      await pumpFrame(page);
+      return page.locator('.con-cmdbar').innerText();
+    }, {message: 'the command bar'});
     expect(bar).not.toContain('ИСТОЧНИК');
     const barVerbs = bar.split('\n').map((l) => l.trim()).filter((l) => l !== '');
     expect(new Set(barVerbs).size, `the bar repeats a verb: ${barVerbs.join(' | ')}`).toBe(barVerbs.length);
 
     // ── (4) COMPACT, and no overflow at 4K ─────────────────────────────
-    const box = await panelBox(page);
+    const box = await readSettled(page, async () => {
+      await pumpFrame(page);
+      return panelBox(page);
+    }, {message: 'the panel at rest'});
     expect(box, 'the panel is on screen').toBeDefined();
     expect(box!.opacity, 'the panel actually PAINTS').toBeGreaterThan(0.9);
     expect(box!.visibility, '…and is not left hidden by a killed tween').toBe('visible');
@@ -377,19 +407,22 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     expect(box!.rootScrollW, 'the page itself never scrolls').toBeLessThanOrEqual(box!.vw);
 
     // ── (5) NOTHING IS CHOSEN ON OPEN ──────────────────────────────────
-    const opened = await page.evaluate(() => {
-      const cta = document.querySelector<HTMLElement>('.con-botattack__cta');
-      const panel = document.querySelector<HTMLElement>('.con-botattack__panel');
-      return {
-        locked: document.querySelectorAll('.con-botattack .con-ptsel__slot--locked').length,
-        ready: document.querySelectorAll('.con-botattack__cta--ready').length,
-        held: document.querySelectorAll('.con-botattack__cta--held').length,
-        label: (cta?.textContent ?? '').trim(),
-        // The CTA is CONTENT-SIZED — a full-bleed row is the web-form look this
-        // iteration removes.
-        ctaShare: (cta?.getBoundingClientRect().width ?? 0) / (panel?.getBoundingClientRect().width ?? 1),
-      };
-    });
+    const opened = await readSettled(page, async () => {
+      await pumpFrame(page);
+      return page.evaluate(() => {
+        const cta = document.querySelector<HTMLElement>('.con-botattack__cta');
+        const panel = document.querySelector<HTMLElement>('.con-botattack__panel');
+        return {
+          locked: document.querySelectorAll('.con-botattack .con-ptsel__slot--locked').length,
+          ready: document.querySelectorAll('.con-botattack__cta--ready').length,
+          held: document.querySelectorAll('.con-botattack__cta--held').length,
+          label: (cta?.textContent ?? '').trim(),
+          // The CTA is CONTENT-SIZED — a full-bleed row is the web-form look this
+          // iteration removes.
+          ctaShare: Math.round((cta?.getBoundingClientRect().width ?? 0) / (panel?.getBoundingClientRect().width ?? 1) * 1000) / 1000,
+        };
+      });
+    }, {message: 'the commit row on open'});
     expect(opened.locked, 'the cursor is not a choice').toBe(0);
     expect(opened.ready, 'the commit refuses to arm itself').toBe(0);
     expect(opened.held, 'and says so in the project\'s held state').toBe(1);
@@ -397,22 +430,26 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     expect(opened.ctaShare, 'the commit is a compact rail, not a form button').toBeLessThan(0.55);
 
     // ── (6) A SELECTS — and the preview reads было → станет ────────────
-    const targets = await page.locator('.con-botattack [data-ptsel-cell]').count();
-    expect(targets, 'the real scenario produced a choice of candidates').toBeGreaterThan(1);
+    await expect.poll(() => page.locator('.con-botattack [data-ptsel-cell]').count(),
+      {message: 'the real scenario produced a choice of candidates'}).toBeGreaterThan(1);
     await page.keyboard.press('Enter');
-    await pumpFrames(page, 600);
-    await page.waitForSelector('.con-botattack .con-ptsel__slot--locked', {timeout: 10_000});
+    // The pick is over when the slot LOCKS — frames pumped until that state, never for a fixed time.
+    await pumpUntil(page, async () => await page.locator('.con-botattack .con-ptsel__slot--locked').count() > 0, 10_000,
+      'A locks a candidate');
 
-    const chosen = await page.evaluate(() => ({
-      ready: document.querySelectorAll('.con-botattack__cta--ready').length,
-      focused: document.querySelectorAll('.con-botattack__cta--focused').length,
-      label: (document.querySelector('.con-botattack__cta-label')?.textContent ?? '').trim(),
-      rail: (document.querySelector('.con-botattack .con-ptsel__railimpacts')?.textContent ?? '')
-        .replace(/\s+/g, ' ').trim(),
-      // …and with SEVERAL candidates the rail leads with the card's own name —
-      // it is what says WHICH one is being read.
-      railCards: document.querySelectorAll('.con-botattack .con-ptsel__railcard').length,
-    }));
+    const chosen = await readSettled(page, async () => {
+      await pumpFrame(page);
+      return page.evaluate(() => ({
+        ready: document.querySelectorAll('.con-botattack__cta--ready').length,
+        focused: document.querySelectorAll('.con-botattack__cta--focused').length,
+        label: (document.querySelector('.con-botattack__cta-label')?.textContent ?? '').trim(),
+        rail: (document.querySelector('.con-botattack .con-ptsel__railimpacts')?.textContent ?? '')
+          .replace(/\s+/g, ' ').trim(),
+        // …and with SEVERAL candidates the rail leads with the card's own name —
+        // it is what says WHICH one is being read.
+        railCards: document.querySelectorAll('.con-botattack .con-ptsel__railcard').length,
+      }));
+    }, {message: 'the chosen candidate\'s reading'});
     expect(chosen.ready, 'the commit is now live').toBe(1);
     expect(chosen.focused, 'and the cursor moved onto it').toBe(1);
     expect(chosen.label, 'the confirm names the ACT, never «выбрать»').toContain('Удалить');
@@ -422,15 +459,19 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     await shoot(page, '02-target-chosen');
     // The box did not move when the choice was made (a commit row that grows
     // under the cursor re-lays out the cards above it).
-    const afterPick = await panelBox(page);
+    const afterPick = await readSettled(page, async () => {
+      await pumpFrame(page);
+      return panelBox(page);
+    }, {message: 'the panel after the pick'});
     expect(afterPick!.overflowing).toEqual([]);
 
     // ── (7) THE SECOND PRESS COMMITS, and the modal closes ─────────────
     await page.keyboard.press('Enter');
-    await pumpFrames(page, 1500);
-    await page.waitForSelector('.con-botattack', {state: 'detached', timeout: 30_000});
-    const after = await fetchPlayerModel(request, id) as unknown as Model;
-    expect(after.waitingFor?.botAttackPrompt, 'the demand is answered and gone').toBeUndefined();
+    // The modal's leave is a GSAP phrase too: frames pumped until it is gone, never for a fixed time.
+    await pumpUntil(page, async () => await page.locator('.con-botattack').count() === 0, 30_000, 'the modal closes on the commit');
+    // «Done» is the SERVER moving on — polled, never read once off the gap the modal left.
+    await expect.poll(async () => (await fetchPlayerModel(request, id) as unknown as Model).waitingFor?.botAttackPrompt,
+      {timeout: 30_000, message: 'the demand is answered and gone'}).toBeUndefined();
   });
 });
 

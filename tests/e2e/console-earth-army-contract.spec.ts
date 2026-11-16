@@ -2,9 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixtureSeats, fetchPlayerModel, openActionFocus, openCardActions, openConsole, press, settle, waitForBoardHome, walkFocusUntil,
+  bootFixtureSeats, fetchPlayerModel, openActionFocus, openCardActions, openConsole, press, pressUntil, settle, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR28 «КОНТРАКТ С АРМИЕЙ ЗЕМЛИ» — A CARD ACTION'S TR IS A REWARD, AND THE
@@ -15,7 +17,8 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *      («1 → 0 · +1 −2» — two movements, never a bare net), the rating
  *      N → N + 1, the ruling Greens' «+2» named before the press; nothing sent.
  *   2. A → EXACTLY ONE POST.
- *   3. The phrase, by ORDER (MutationObserver + setInterval — never rAF): the
+ *   3. The phrase, by ORDER (a witness recorded off the product's own writes,
+ *      every state a task leaves — never a sampler): the
  *      first token is BORN inside the printed fighter icon; the capsule reads 1
  *      on every sample until it lands, then 2; the «−2» token leaves the
  *      capsule and the capsule reads 0 from its departure; the TR token is born
@@ -87,7 +90,10 @@ const text = (page: Page, selector: string) => page.evaluate((sel) =>
 
 type Rect = {l: number, t: number, r: number, b: number};
 
-/** The hero's printed icons by sprite (`fighter.`, `tr.`), in print order — the anchors the phrase is measured against. */
+/**
+ * The hero's printed icons by sprite (`fighter.`, `tr.`), in print order — the anchors the phrase is measured against,
+ * read AT REST (`anchorsAtRest`).
+ */
 const heroIcons = (page: Page, needle: string): Promise<Array<Rect>> => page.evaluate(([sel, bg]) =>
   Array.from(document.querySelectorAll<HTMLElement>(`${sel} .pcard-ic`))
     .filter((el) => el.style.backgroundImage.includes(bg))
@@ -103,70 +109,73 @@ async function rectOf(page: Page, selector: string): Promise<Rect | undefined> {
   }, selector);
 }
 
+type Anchors = {fighters: Array<Rect>, trIcon: Rect | undefined, capsule: Rect | undefined, ratingCell: Rect | undefined};
+
+/** Every anchor a flight is judged against, in ONE read AT REST (two equal reads a frame apart, after the console's quiet). */
+async function anchorsAtRest(page: Page, what: string): Promise<Anchors> {
+  return readSettled(page, async () => ({
+    fighters: await heroIcons(page, 'fighter.'),
+    trIcon: (await heroIcons(page, 'tr.'))[0],
+    capsule: await rectOf(page, `${hero} .pcard__res`),
+    ratingCell: await rectOf(page, '.con-res .con-score__cell--tr .con-score__valwrap'),
+  }), {message: what});
+}
+
 type Chip = {x: number, y: number, w: number, h: number, v: string};
 type Sample = {
-  t: number, tick: boolean, ws: number, cap: string, tr: string, vp: string, mc: string, link: string, chips: Array<Chip>, bar: string,
+  t: number, ws: number, cap: string, tr: string, vp: string, mc: string, link: string, chips: Array<Chip>, bar: string,
   stranded: boolean, heroOp: number,
 };
-type Probe = {samples: Array<Sample>, ticks: number};
+type Probe = {samples: Array<Sample>};
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+const PHRASE_WITNESS = 'tr28';
+
+/**
+ * THE PHRASE WITNESS — every distinct state recorded off the product's own writes (`armWitness`), never a sampler that
+ * sleeps through a beat. `settled`: the claims are of ORDER («the capsule reads 1 until the fighter lands», «the rating
+ * reads N until the touchdown», «the Greens after») — a sample is the state a task LEAVES, the one a frame can paint.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate((heroSel) => {
-    const w = window as unknown as {__tr28: Probe};
-    const p: Probe = {samples: [], ticks: 0};
-    w.__tr28 = p;
-    const t0 = performance.now();
+  await armWitness<Omit<Sample, 't'>, string>(page, PHRASE_WITNESS, (heroSel) => {
     const read = (sel: string) => (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const shown = (el: HTMLElement) => {
       const r = el.getBoundingClientRect();
       const cs = getComputedStyle(el);
       return r.width > 2 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05;
     };
-    const sample = (tick: boolean) => {
-      if (tick) {
-        p.ticks++;
-      }
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10, w: Math.round(r.width), h: Math.round(r.height), v: (el.textContent ?? '').replace(/\s+/g, '')};
-      });
-      const s: Sample = {
-        t: Math.round(performance.now() - t0),
-        tick,
-        ws: document.querySelectorAll('.con-ws').length,
-        cap: read(`${heroSel} .pcard__res-count`),
-        tr: read('.con-res .con-score__value--tr'),
-        vp: read('.con-res .con-score__cell--vp .con-score__value'),
-        // The digits only — the row's delta chips ride the same node.
-        mc: (read('.con-res .con-res__row--megacredits .con-res__digits').match(/^-?\d+/) ?? [''])[0],
-        link: document.querySelector(heroSel)?.getAttribute('data-commit-link') ?? '',
-        chips,
-        bar: read('.con-cmdbar').slice(0, 60),
-        stranded: document.querySelector('.con-stranded') !== null,
-        heroOp: (() => {
-          // The hero card's PAINTED opacity — every ancestor's opacity multiplies in.
-          let op = document.querySelector(`${heroSel} .pcard`) === null ? 0 : 1;
-          for (let n = document.querySelector<HTMLElement>(`${heroSel} .pcard`); n !== null; n = n.parentElement) {
-            op *= Number(getComputedStyle(n).opacity);
-          }
-          return Math.round(op * 100) / 100;
-        })(),
-      };
-      const last = p.samples[p.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
-        p.samples.push(s);
-      }
-    };
-    sample(true);
-    new MutationObserver(() => sample(false)).observe(document.body, {
-      subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'data-commit-link'],
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10, w: Math.round(r.width), h: Math.round(r.height), v: (el.textContent ?? '').replace(/\s+/g, '')};
     });
-    window.setInterval(() => sample(true), 30);
-  }, hero);
+    return {
+      ws: document.querySelectorAll('.con-ws').length,
+      cap: read(`${heroSel} .pcard__res-count`),
+      tr: read('.con-res .con-score__value--tr'),
+      vp: read('.con-res .con-score__cell--vp .con-score__value'),
+      // The digits only — the row's delta chips ride the same node.
+      mc: (read('.con-res .con-res__row--megacredits .con-res__digits').match(/^-?\d+/) ?? [''])[0],
+      link: document.querySelector(heroSel)?.getAttribute('data-commit-link') ?? '',
+      chips,
+      bar: read('.con-cmdbar').slice(0, 60),
+      stranded: document.querySelector('.con-stranded') !== null,
+      heroOp: (() => {
+        // The hero card's PAINTED opacity — every ancestor's opacity multiplies in.
+        let op = document.querySelector(`${heroSel} .pcard`) === null ? 0 : 1;
+        for (let n = document.querySelector<HTMLElement>(`${heroSel} .pcard`); n !== null; n = n.parentElement) {
+          op *= Number(getComputedStyle(n).opacity);
+        }
+        return Math.round(op * 100) / 100;
+      })(),
+    };
+  }, {args: hero, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr28: Probe}).__tr28);
+/** The record, stopped: every distinct state with its time on the PAGE's clock (ms from the arm). */
+async function readProbe(page: Page): Promise<Probe> {
+  const recorded = await witnessOf<Omit<Sample, 't'>>(page, PHRASE_WITNESS).stop();
+  const t0 = recorded[0]?.t ?? 0;
+  return {samples: recorded.map((s) => ({t: s.t - t0, ...s.v}))};
+}
 
 const inside = (chip: Chip, rect: Rect, slack: number) =>
   chip.x >= rect.l - slack && chip.x <= rect.r + slack && chip.y >= rect.t - slack && chip.y <= rect.b + slack;
@@ -196,7 +205,7 @@ function births(samples: ReadonlyArray<Sample>): Array<{at: number, chip: Chip}>
 
 function trail(samples: ReadonlyArray<Sample>): string {
   return samples.slice(0, 120).map((s) =>
-    `${s.t}${s.tick ? 't' : 'm'} ws=${s.ws} cap=${s.cap} link=${s.link} tr=${s.tr} vp=${s.vp} mc=${s.mc} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}`).join('\n');
+    `${s.t} ws=${s.ws} cap=${s.cap} link=${s.link} tr=${s.tr} vp=${s.vp} mc=${s.mc} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}`).join('\n');
 }
 
 /** «Действия карт» → the card → its composer, the cursor on the commit row. */
@@ -212,12 +221,9 @@ async function openComposer(page: Page, card: string): Promise<void> {
   await expect(page.locator(`${composer} .con-composer__cta--focused`), 'the cursor stands on the commit row').toHaveCount(1);
 }
 
-/** A → one POST (a retry only while nothing was sent). */
+/** A → one POST (a retry only after a whole window in which nothing was sent). */
 async function commit(page: Page, posts: Array<string>): Promise<void> {
-  for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-    await press(page, 'Enter', 300);
-    await expect.poll(() => posts.length, {timeout: 6000}).toBeGreaterThan(0).catch(() => undefined);
-  }
+  await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 6000});
 }
 
 function watchPage(page: Page): {posts: Array<string>, errors: Array<string>, overflow: Array<string>} {
@@ -262,17 +268,16 @@ for (const preset of PRESETS) {
       await openComposer(page, CARD);
       const timeline = page.locator(`${composer} [data-capsule-timeline]`);
       await expect(timeline, 'ONE chip for the card\'s capsule').toHaveCount(1);
-      expect((await timeline.locator('.action-effect-chip__value').textContent() ?? '').replace(/\s+/g, ''), 'start → end').toBe('1→0');
+      // Live strings — polled / read at rest, never read once.
+      await expect.poll(async () => ((await timeline.locator('.action-effect-chip__value').textContent()) ?? '').replace(/\s+/g, ''),
+        {message: 'start → end'}).toBe('1→0');
       await expect.poll(() => timeline.locator('.action-effect-chip__move').allTextContents(), {message: 'its two movements, in order'}).toEqual(['+1', '−2']);
-      const formula = await text(page, `${composer} .con-composer__hero`);
+      const formula = await readSettled(page, () => text(page, `${composer} .con-composer__hero`), {message: 'the composer\'s formula'});
       expect(formula, `the rating N → N + 1 — got «${formula}»`).toMatch(new RegExp(`${N}\\s*→\\s*${N + 1}`));
       expect(formula, 'nothing reads as a PRICE: the spend is the action\'s consequence').not.toMatch(/Будет списано/i);
-      expect(await text(page, `${composer} .con-composer__hero-side--forecast`), 'the Greens\' «+2» named before the press').toMatch(/\+\s*2/);
+      await expect.poll(() => text(page, `${composer} .con-composer__hero-side--forecast`), {message: 'the Greens\' «+2» named before the press'}).toMatch(/\+\s*2/);
       expect(seen.posts, 'nothing sent before A').toEqual([]);
-      const fighters = await heroIcons(page, 'fighter.');
-      const trIcon = (await heroIcons(page, 'tr.'))[0];
-      const capsule = await rectOf(page, `${hero} .pcard__res`);
-      const ratingCell = await rectOf(page, '.con-res .con-score__cell--tr .con-score__valwrap');
+      const {fighters, trIcon, capsule, ratingCell} = await anchorsAtRest(page, 'the phrase\'s anchors');
       expect(fighters.length, 'two printed fighter icons').toBe(2);
       expect(trIcon, 'the printed TR icon').toBeDefined();
       expect(capsule, 'the capsule').toBeDefined();
@@ -290,7 +295,8 @@ for (const preset of PRESETS) {
       const probe = await readProbe(page);
       const samples = probe.samples;
       console.log(`[${preset.id}] N=${N} fighters=${JSON.stringify(fighters)} tr=${JSON.stringify(trIcon)} capsule=${JSON.stringify(capsule)}\n${trail(samples)}`);
-      expect(probe.ticks, 'the probe was alive').toBeGreaterThan(10);
+      // The recorder's own liveness (it keeps DISTINCT states, never frames): only a dead recorder fails this floor.
+      expect(samples.length, 'the probe was alive').toBeGreaterThan(0);
       expect(seen.posts.length, 'A sent EXACTLY ONE request').toBe(1);
       expect(seen.posts[0], 'the card\'s action').toContain(`"cards":["${CARD}"]`);
 
@@ -357,10 +363,8 @@ for (const preset of PRESETS) {
       await press(red, 'KeyY', 1200);
       await expect(red.locator('.con-info'), 'red opened the Information workspace').toBeVisible();
       const onBlue = async () => ((await red.locator('.con-info .con-wshead').textContent()) ?? '').includes('player1');
-      for (let i = 0; i < 4 && !await onBlue(); i++) {
-        await press(red, 'KeyE', 900);
-      }
-      expect(await onBlue(), 'blue\'s seat is on stage').toBe(true);
+      // act → verify → retry (D): RB walks the seats, each press given its whole window before the next.
+      expect(await pressUntil(red, 'KeyE', onBlue, {tries: 4, settleMs: 900}), 'blue\'s seat is on stage').toBe(true);
       await expect.poll(() => text(red, '.con-res .con-score__value--tr'), {timeout: 20_000, message: 'red reads blue\'s rating N + 1'}).toBe(String(N + 1));
       await shoot(red, preset.id, '03-watcher-blue-seat');
       expect(redErrors, `no page error on the watcher — ${redErrors.join(' | ')}`).toEqual([]);
@@ -384,12 +388,11 @@ for (const preset of PRESETS) {
       const N = before.thisPlayer.terraformRating;
       await openComposer(page, CARD);
       await expect(page.locator(`${composer} [data-capsule-timeline]`), 'no timeline: the +1 alone').toHaveCount(0);
-      const formula = await text(page, `${composer} .con-composer__hero`);
+      const formula = await readSettled(page, () => text(page, `${composer} .con-composer__hero`), {message: 'the composer\'s formula'});
       expect(formula, `the capsule 0 → 1 — got «${formula}»`).toMatch(/0\s*→\s*1/);
       expect(formula, 'no TR promised').not.toMatch(new RegExp(`${N}\\s*→\\s*${N + 1}`));
       await expect(page.locator(`${composer} .con-composer__hero-side--forecast`), 'nothing «сработает»').toHaveCount(0);
-      const fighters = await heroIcons(page, 'fighter.');
-      const capsule = await rectOf(page, `${hero} .pcard__res`);
+      const {fighters, capsule} = await anchorsAtRest(page, 'the fighter and the capsule');
       expect(fighters.length, 'the printed fighter').toBeGreaterThan(0);
       expect(capsule, 'the hero\'s capsule').toBeDefined();
       await armProbe(page);
@@ -436,8 +439,7 @@ for (const preset of PRESETS) {
       const N = before.thisPlayer.terraformRating;
       expect(before.thisPlayer.megacredits, 'the fixture: 20 M€').toBe(20);
       await openComposer(page, UNMI);
-      const trIcon = (await heroIcons(page, 'tr.'))[0];
-      const ratingCell = await rectOf(page, '.con-res .con-score__cell--tr .con-score__valwrap');
+      const {trIcon, ratingCell} = await anchorsAtRest(page, 'the corporation\'s TR and the rating cell');
       expect(trIcon, 'the corporation\'s printed TR').toBeDefined();
       await armProbe(page);
       const stop = await storyboard(page, preset.id, 'unmi');

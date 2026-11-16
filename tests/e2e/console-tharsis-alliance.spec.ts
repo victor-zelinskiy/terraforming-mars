@@ -2,12 +2,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixtureSeats, cinematicBeat, closeZoomViewer, fetchPlayerModel, focusCard, openCardActions, openConsole, openZoomViewer, press, pressUntil, reloadConsole,
-  settle, waitForBoardHome,
+  bootFixtureSeats, cinematicBeat, closeZoomViewer, fetchPlayerModel, focusCard, openCardActions, openConsole, openQuickWheel, openZoomViewer, press,
+  pressUntil, reloadConsole, settle, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
 import {
   armLeakWitness, enterSittingByPass, focusParliamentZone, focusParty, openParliament, parliament, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR62 «АЛЬЯНС ТАРСИСА» — THE LAW OF ACCESS'S FOURTH ROAD (docs/TURMOIL_REDUX_THARSIS_ALLIANCE.md).
@@ -107,17 +109,22 @@ async function rowBoxes(page: Page): Promise<Array<string>> {
   }));
 }
 
+/** …read AT REST (FLAKE ZERO — `readSettled`): both sides of «the rows keep their boxes» are settled reads. */
+async function settledRowBoxes(page: Page, what: string): Promise<Array<string>> {
+  return readSettled(page, () => rowBoxes(page), {message: what});
+}
+
 async function leaveParliament(page: Page): Promise<void> {
-  for (let i = 0; i < 5 && await parliament(page).count() > 0; i++) {
-    await press(page, 'Escape', 900);
-  }
+  await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 5, settleMs: 900});
   await waitForBoardHome(page);
 }
 
 /** RT → «КАРТЫ»: the hand album, settled. */
 async function openHand(page: Page, first: string): Promise<void> {
-  await press(page, 'Period', 600);
-  await press(page, 'Enter', 1600);
+  // Each press waits for ITS effect: the wheel up, then the hand (or the wheel gone — the press took).
+  await openQuickWheel(page);
+  await pressUntil(page, 'Enter', async () => await page.locator('.con-hand').count() > 0 || await page.locator('.con-quick').count() === 0,
+    {tries: 1, settleMs: 1600});
   await page.locator(`.con-hand [data-zoom-slot="${first}"]`).waitFor({timeout: 20_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
@@ -133,9 +140,14 @@ async function openComposer(page: Page, card: string): Promise<void> {
 }
 
 async function closeHand(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && (await page.locator(COMPOSER).count() > 0 || await page.locator('.con-hand').count() > 0); i++) {
-    await press(page, 'Escape', 900);
-  }
+  await pressUntil(page, 'Escape', async () => await page.locator(COMPOSER).count() === 0 && await page.locator('.con-hand').count() === 0,
+    {tries: 4, settleMs: 900});
+  await waitForBoardHome(page);
+}
+
+/** Leave «Действия карт» (B, one level a press). */
+async function closeCardActions(page: Page): Promise<void> {
+  await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 4, settleMs: 900});
   await waitForBoardHome(page);
 }
 
@@ -182,17 +194,14 @@ for (const preset of PRESETS) {
 
       // ── A. BEFORE: no badge, no borrowed ring; no Reds tile in «Действия карт»; the Outlet refused ──
       await openParliament(page);
-      expect(await sealOf(page, REDS), 'the Reds\' seal: nothing of an alliance yet').toMatchObject({ally: null, badge: false, link: false});
-      expect((await sealOf(page, MARS)).ring, 'Mars First\'s ring: blue\'s own two cubes').toBe('own');
-      const boxesBefore = await rowBoxes(page);
+      await expect.poll(() => sealOf(page, REDS), {message: 'the Reds\' seal: nothing of an alliance yet'}).toMatchObject({ally: null, badge: false, link: false});
+      await expect.poll(async () => (await sealOf(page, MARS)).ring, {message: 'Mars First\'s ring: blue\'s own two cubes'}).toBe('own');
+      const boxesBefore = await settledRowBoxes(page, 'the palata\'s rows before the play');
       await shoot(page, preset.id, '01-parliament-before');
       await leaveParliament(page);
       await openCardActions(page);
       await expect(page.locator(`.con-cardactions__tile[data-action-party="${REDS}"]`), 'no access — no Reds tile').toHaveCount(0);
-      for (let i = 0; i < 4 && await page.locator('.con-cardactions').count() > 0; i++) {
-        await press(page, 'Escape', 900);
-      }
-      await waitForBoardHome(page);
+      await closeCardActions(page);
 
       // ── B. the composer: what opens NOW; then ONE POST ──
       await openHand(page, CARD);
@@ -204,9 +213,7 @@ for (const preset of PRESETS) {
       expect(posts.length, 'nothing sent before A').toBe(0);
       await shoot(page, preset.id, '02-composer');
       for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-        for (let i = 0; i < 8 && await page.locator('.con-composer__cta--focused').count() === 0; i++) {
-          await press(page, 'ArrowDown', 300);
-        }
+        await pressUntil(page, 'ArrowDown', async () => await page.locator('.con-composer__cta--focused').count() > 0, {tries: 8, settleMs: 300});
         await press(page, 'Enter', 300);
         await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
       }
@@ -229,13 +236,13 @@ for (const preset of PRESETS) {
       await capturePlay();
       await expect.poll(() => sealOf(page, REDS), {timeout: 15_000, message: 'the Reds\' seal: the borrowed ring, the active badge, the link'})
         .toMatchObject({ring: 'allied', ally: 'active', partner: MARS, link: true, allyArcs: 2, badge: true});
-      expect(await sealOf(page, MARS), 'Mars First\'s seal: its own ring, the active badge').toMatchObject({ring: 'own', ally: 'active', partner: REDS, badge: true});
+      await expect.poll(() => sealOf(page, MARS), {message: 'Mars First\'s seal: its own ring, the active badge'}).toMatchObject({ring: 'own', ally: 'active', partner: REDS, badge: true});
       const redsRow = page.locator(`.con-parl__effects-row[data-party="${REDS}"]`);
       await expect(redsRow, '«ВАШИ ЭФФЕКТЫ» holds the Reds').toHaveCount(1);
       await expect(redsRow.locator('[data-parl-effects-why]')).toHaveAttribute('data-parl-effects-why', 'alliance');
       await expect(redsRow.locator('[data-parl-effects-via]')).toHaveAttribute('data-parl-effects-via', MARS);
       // ── D. stability: the badge moved nothing ──
-      expect(await rowBoxes(page), 'the palata\'s rows keep their boxes across the play').toEqual(boxesBefore);
+      expect(await settledRowBoxes(page, 'the palata\'s rows after the play'), 'the palata\'s rows keep their boxes across the play').toEqual(boxesBefore);
       await shoot(page, preset.id, '03-parliament-after');
       if (process.env.TM_E2E_MOCKUPS === '1') {
         await allianceMockups(page, preset.id);
@@ -253,10 +260,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(`.con-cardactions__group:has(.con-cardactions__tile[data-action-party="${REDS}"]) [data-action-ally-via]`),
         'its plate names the road: the partner\'s emblem and the link').toHaveAttribute('data-action-ally-via', MARS);
       await shoot(page, preset.id, '06-actions-after');
-      for (let i = 0; i < 4 && await page.locator('.con-cardactions').count() > 0; i++) {
-        await press(page, 'Escape', 900);
-      }
-      await waitForBoardHome(page);
+      await closeCardActions(page);
 
       // ── C'. the requirement under the alliance: the plate, the cassette, the composer's row ──
       await openHand(page, OUTLET);
@@ -272,7 +276,7 @@ for (const preset of PRESETS) {
       await expect(req, 'the card that made the pair').toContainText('Альянс Тарсиса');
       // The row reads WHOLE — the partner's road on the source line, nothing cut by the row's own clip (the 4K row once
       // ended «· «Ма…»).
-      const clipped = await req.evaluate((el) => el.scrollWidth - el.clientWidth);
+      const clipped = await readSettled(page, () => req.evaluate((el) => el.scrollWidth - el.clientWidth), {message: 'the requirement row\'s clip'});
       expect(clipped, 'the requirement row is not cut').toBeLessThanOrEqual(1);
       // …and the «Сработает» chip names the party it opens — the partner's mark, then that party's emblem (no number).
       await expect(page.locator(`${COMPOSER} .con-forecast__chip--modifier .con-armed__opens`), 'the chip shows the party the alliance opens').toHaveCount(1);
@@ -287,8 +291,8 @@ for (const preset of PRESETS) {
       await openConsole(redPage, seats[1], preset.query);
       await settle(redPage, {timeoutMs: 30_000});
       await openParliament(redPage);
-      expect((await sealOf(redPage, REDS)).badge, 'red\'s chamber: the alliance is blue\'s, never red\'s').toBe(false);
-      expect((await sealOf(redPage, MARS)).badge).toBe(false);
+      await expect.poll(async () => (await sealOf(redPage, REDS)).badge, {message: 'red\'s chamber: the alliance is blue\'s, never red\'s'}).toBe(false);
+      await expect.poll(async () => (await sealOf(redPage, MARS)).badge).toBe(false);
       await shoot(redPage, preset.id, '09-red-parliament');
       expect(redErrors).toEqual([]);
       await redPage.close();
@@ -311,13 +315,12 @@ for (const preset of PRESETS) {
       expect(accessOf(before, before.thisPlayer.color, MARS), 'Mars First by ONE cube (Council Seat)').toMatchObject({delegates: 1, hasEffect: true, satisfiesRequirement: false});
       expect(accessOf(before, before.thisPlayer.color, REDS), 'the Reds NOT (FAQ p.19)').toMatchObject({hasEffect: false});
       await openParliament(page);
-      expect(await sealOf(page, REDS), 'a dormant pair: the outlined badge on the Reds').toMatchObject({ally: 'dormant', ring: 'none'});
+      await expect.poll(() => sealOf(page, REDS), {message: 'a dormant pair: the outlined badge on the Reds'}).toMatchObject({ally: 'dormant', ring: 'none'});
       await focusParliamentZone(page, 'voting');
       await press(page, 'Enter', 1200);
       await expect(page.locator('.con-parl__vote.con-parl__vote--up'), 'the vote mode opens').toHaveCount(1);
-      for (let i = 0; i < 6 && await page.locator('.con-parl__slot--selected').first().getAttribute('data-party') !== MARS; i++) {
-        await press(page, i < 3 ? 'ArrowRight' : 'ArrowLeft', 500);
-      }
+      const selectedParty = () => page.evaluate(() => document.querySelector('.con-parl__slot--selected')?.getAttribute('data-party') ?? '');
+      await walkFocusUntil(page, async () => await selectedParty() === MARS, selectedParty, 6, 500);
       await settle(page, {timeoutMs: 8_000});
       const ally = page.locator('[data-parl-fact="ally"]');
       await expect(ally, 'Mars First\'s second cube names the ally it opens').toHaveCount(1);
@@ -352,43 +355,21 @@ for (const preset of PRESETS) {
       const {playerId} = await bootFixtureSeats(page, request, 'tharsis-alliance-enact', {query: preset.query});
       const before = await wireOf(request, playerId);
       const hand = before.cardsInHand?.length ?? 0;
-      // A probe of the reveal surfaces and the dock across the enactment (MutationObserver + setInterval — never rAF).
-      await page.evaluate(() => {
-        type Probe = {embedded: boolean, standalone: boolean, deckDeal: boolean, samples: number, bandWithCard: boolean, bandWithDraw: boolean,
-          intake: number, tuckedWhileIntake: number};
-        const w = window as unknown as {__tr62: Probe};
-        w.__tr62 = {embedded: false, standalone: false, deckDeal: false, samples: 0, bandWithCard: false, bandWithDraw: false, intake: 0, tuckedWhileIntake: 0};
-        const sample = () => {
-          w.__tr62.samples++;
-          // «ПРИЁМКА»: the ONE reveal stands inside the Parliament's draw stage — never the standalone band over the sitting.
-          const embedded = document.querySelector('.con-parl [data-parl-draw] [data-embed-slot="parliament-draw"] .con-reveal--embedded') !== null;
-          w.__tr62.embedded = w.__tr62.embedded || embedded;
-          if (document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null) {
-            w.__tr62.standalone = true;
-          }
-          if (document.querySelector('.con-deckdraw') !== null) {
-            w.__tr62.deckDeal = true;
-          }
-          // THE BAND names the enactment's tail while the stage stands (the card, the party come to power).
-          const band = document.querySelector('[data-parl-band-zone]')?.getAttribute('data-parl-band') ?? '';
-          if (band.startsWith('enact:ruling-draw:')) {
-            w.__tr62.bandWithCard = true;
-            if (embedded) {
-              w.__tr62.bandWithDraw = true;
-            }
-          }
-          // THE DOCK COMES UP WHOLE: while cards land, the footer (plate · counter · bar) is never tucked under the section
-          // — the rising fan must not paint over the dock it lands in.
-          if (document.querySelector('.con-root--dock-intake') !== null) {
-            w.__tr62.intake++;
-            if (document.querySelector('.con-footer--behind-workspace') !== null) {
-              w.__tr62.tuckedWhileIntake++;
-            }
-          }
-        };
-        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-        window.setInterval(sample, 40);
-      });
+      // A RECORDING of the reveal surfaces and the dock across the enactment (FLAKE ZERO — `armWitness`, `settled`: the
+      // claims below are about what a frame can paint TOGETHER — the band beside the stage, the footer under the intake).
+      type EnactSeen = {embedded: boolean, standalone: boolean, deckDeal: boolean, bandWithCard: boolean, intake: boolean, tucked: boolean};
+      const enact = await armWitness<EnactSeen>(page, 'tr62-enact', () => ({
+        // «ПРИЁМКА»: the ONE reveal stands inside the Parliament's draw stage — never the standalone band over the sitting.
+        embedded: document.querySelector('.con-parl [data-parl-draw] [data-embed-slot="parliament-draw"] .con-reveal--embedded') !== null,
+        standalone: document.querySelector('.con-reveal:not(.con-reveal--embedded)') !== null,
+        deckDeal: document.querySelector('.con-deckdraw') !== null,
+        // THE BAND names the enactment's tail while the stage stands (the card, the party come to power).
+        bandWithCard: (document.querySelector('[data-parl-band-zone]')?.getAttribute('data-parl-band') ?? '').startsWith('enact:ruling-draw:'),
+        // THE DOCK COMES UP WHOLE: while cards land, the footer (plate · counter · bar) is never tucked under the section
+        // — the rising fan must not paint over the dock it lands in.
+        intake: document.querySelector('.con-root--dock-intake') !== null,
+        tucked: document.querySelector('.con-footer--behind-workspace') !== null,
+      }), {settled: true});
       await enterSittingByPass(page, request, playerId);
       // THE STORYBOARD of the enactment (TM_E2E_STORYBOARD=1, acceptance on the GPU): the tact from the pass to the
       // card standing in the draw stage — the seals changing places, then the card off the deck into the reveal's slot.
@@ -418,16 +399,25 @@ for (const preset of PRESETS) {
       await cinematicBeat(page, 1500, 'the walk would have moved on by now if it did not wait for the take');
       await expect.poll(() => parliament(page).getAttribute('data-sitting-stage'), {message: 'the sitting stands on its enactment page until the take'}).toBe('enact');
       await expect.poll(() => reveal.getAttribute('data-take'), {message: 'the card still waits for the player'}).toBe('ready');
-      expect(Number(await page.locator('[data-hand-total]').getAttribute('data-hand-total')), 'nothing landed before the take').toBe(hand);
+      await expect.poll(async () => Number(await page.locator('[data-hand-total]').getAttribute('data-hand-total')), {message: 'nothing landed before the take'}).toBe(hand);
       // A — «Взять»: the card leaves the stage for the dock, and the stage folds.
       expect(await pressUntil(page, 'Enter', async () => await stage.count() === 0, {settleMs: 1500}), 'the take ends the draw stage').toBe(true);
       await expect.poll(() => page.evaluate(() => Number(document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? NaN)), {timeout: 20_000})
         .toBe(hand + 1);
       await waitSittingAtRest(page, 30_000);
       await shoot(page, preset.id, '11-enact-after');
-      const probe = await page.evaluate(() => (window as unknown as {__tr62: {embedded: boolean, standalone: boolean, deckDeal: boolean, samples: number,
-        bandWithCard: boolean, bandWithDraw: boolean, intake: number, tuckedWhileIntake: number}}).__tr62);
-      expect(probe.samples, 'the probe ran').toBeGreaterThan(20);
+      const seen = (await enact.stop()).map((s) => s.v);
+      const probe = {
+        samples: seen.length,
+        embedded: seen.some((v) => v.embedded),
+        standalone: seen.some((v) => v.standalone),
+        deckDeal: seen.some((v) => v.deckDeal),
+        bandWithCard: seen.some((v) => v.bandWithCard),
+        bandWithDraw: seen.some((v) => v.bandWithCard && v.embedded),
+        intake: seen.filter((v) => v.intake).length,
+        tuckedWhileIntake: seen.filter((v) => v.intake && v.tucked).length,
+      };
+      expect(probe.samples, 'the recording ran').toBeGreaterThan(0); // a liveness floor catches only a DEAD recorder (tests.md)
       expect(probe.embedded, 'the card was received IN the sitting').toBe(true);
       expect(probe.standalone, 'never the standalone reveal over the sitting').toBe(false);
       expect(probe.deckDeal, 'the card came off the deck pile').toBe(true);
@@ -448,12 +438,11 @@ for (const preset of PRESETS) {
  */
 async function allianceMockups(page: Page, preset: string): Promise<void> {
   await shoot(page, preset, 'mock-5a-badge-ring');
+  // The seals are measured AT REST (FLAKE ZERO — `readSettled`), then the overlay is drawn over those rects.
+  const seals = await readSettled(page, () => sealRects(page), {message: 'the two seals'});
   for (const variant of ['b', 'c'] as const) {
-    await page.evaluate(({v, mars, reds}) => {
-      const seal = (party: string) => document.querySelector(`.con-parl__party[data-party="${party}"] .con-pseal__seal`)?.getBoundingClientRect();
-      const a = seal(mars);
-      const b = seal(reds);
-      if (a === undefined || b === undefined) {
+    await page.evaluate(({v, a, b}) => {
+      if (a === null || b === null) {
         return;
       }
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -474,93 +463,101 @@ async function allianceMockups(page: Page, preset: string): Promise<void> {
         svg.innerHTML = `<path d="M ${a.left + a.width / 2} ${ay} C ${x} ${ay}, ${x} ${by}, ${b.left + b.width / 2} ${by}" fill="none" stroke="${gold}" stroke-width="${0.09 * rem}" stroke-dasharray="${0.35 * rem} ${0.22 * rem}" opacity="0.85"/>`;
       }
       document.body.appendChild(svg);
-    }, {v: variant, mars: MARS, reds: REDS});
+    }, {v: variant, a: seals.mars, b: seals.reds});
     await shoot(page, preset, `mock-5${variant}-${variant === 'b' ? 'bracket' : 'line'}`);
     await page.evaluate(() => document.querySelectorAll('[data-tr62-mock]').forEach((el) => el.remove()));
   }
 }
 
+/** Mars First's and the Reds' seal rects (null where a seal is not on screen). */
+type SealRect = {left: number, top: number, width: number, height: number};
+async function sealRects(page: Page): Promise<{mars: SealRect | null, reds: SealRect | null}> {
+  return page.evaluate(({mars, reds}) => {
+    const seal = (party: string) => {
+      const r = document.querySelector(`.con-parl__party[data-party="${party}"] .con-pseal__seal`)?.getBoundingClientRect();
+      return r === undefined ? null : {left: r.left, top: r.top, width: r.width, height: r.height};
+    };
+    return {mars: seal(mars), reds: seal(reds)};
+  }, {mars: MARS, reds: REDS});
+}
+
 type Box = {l: number, t: number, r: number, b: number};
 type ImpulseProbe = {sparks: number, maxSparks: number, samples: number, pulseBeforeSpark: boolean, pulseAfterSpark: boolean,
   path: Array<[number, number]>, from?: Box, to?: Box};
+/** One recorded state: the sparks in the air, the first PAINTED spark's centre, the two seals while one flies, the pulse. */
+type ImpulseSeen = {n: number, at?: [number, number], from?: Box, to?: Box, pulse: boolean};
+const IMPULSE_WITNESS = 'tr62-impulse';
 
 /**
- * THE IMPULSE PROBE (decision 5a): counts the alliance impulses in the air and whether the Reds' plaque answered BEFORE
- * or AFTER one left — a MutationObserver + setInterval sampler (never rAF: it stops sampling exactly when the screen
- * goes quiet).
+ * THE IMPULSE PROBE (decision 5a): the alliance impulses in the air and whether the Reds' plaque answered BEFORE or
+ * AFTER one left — a RECORDING (FLAKE ZERO — `armWitness`, `settled`: «before / after» is an order claim, judged on
+ * the state a task leaves), folded on the Node side: an impulse is a rising edge of «a spark in the air».
  */
 async function armImpulseProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type B = {l: number, t: number, r: number, b: number};
-    type ImpulseProbeShape = {sparks: number, maxSparks: number, samples: number, pulseBeforeSpark: boolean, pulseAfterSpark: boolean,
-      path: Array<[number, number]>, from?: B, to?: B};
-    const w = window as unknown as {__tr62i?: ImpulseProbeShape, __tr62iTimer?: number};
-    w.__tr62i = {sparks: 0, maxSparks: 0, samples: 0, pulseBeforeSpark: false, pulseAfterSpark: false, path: []};
-    const boxOf = (party: string): B | undefined => {
+  await armWitness<ImpulseSeen>(page, IMPULSE_WITNESS, () => {
+    const boxOf = (party: string) => {
       const r = document.querySelector(`.con-parl__party[data-party="${party}"] .con-pseal__seal`)?.getBoundingClientRect();
-      return r === undefined ? undefined : {l: r.left, t: r.top, r: r.right, b: r.bottom};
+      return r === undefined ? undefined : {l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom)};
     };
-    let inAir = false;
-    const sample = () => {
-      const probe = w.__tr62i;
-      if (probe === undefined) {
-        return;
+    const sparks = document.querySelectorAll('.con-parl__flight--spark');
+    const seen: ImpulseSeen = {n: sparks.length, pulse: document.querySelector('.con-parl__party--pulse[data-party="Reds"]') !== null};
+    if (sparks.length > 0) {
+      seen.from = boxOf('Mars First');
+      seen.to = boxOf('Reds');
+      const r = sparks[0].getBoundingClientRect();
+      const cs = getComputedStyle(sparks[0]);
+      // a proxy is born INVISIBLE and positioned on the next tick (parliament law 14): only a PAINTED spark is a sample
+      if (r.width > 0 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05) {
+        seen.at = [r.left + r.width / 2, r.top + r.height / 2];
       }
-      probe.samples++;
-      const sparks = document.querySelectorAll('.con-parl__flight--spark');
-      const n = sparks.length;
-      if (n > 0 && !inAir) {
-        probe.sparks++;
-        const from = boxOf('Mars First');
-        const to = boxOf('Reds');
-        if (from !== undefined) {
-          probe.from = from;
-        }
-        if (to !== undefined) {
-          probe.to = to;
-        }
-      }
-      if (n > 0) {
-        const r = sparks[0].getBoundingClientRect();
-        const cs = getComputedStyle(sparks[0]);
-        // a proxy is born INVISIBLE and positioned on the next tick (parliament law 14): only a PAINTED spark is a sample
-        if (r.width > 0 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05) {
-          probe.path.push([r.left + r.width / 2, r.top + r.height / 2]);
-        }
-      }
-      inAir = n > 0;
-      probe.maxSparks = Math.max(probe.maxSparks, n);
-      if (document.querySelector('.con-parl__party--pulse[data-party="Reds"]') !== null) {
-        if (probe.sparks > 0) {
-          probe.pulseAfterSpark = true;
-        } else {
-          probe.pulseBeforeSpark = true;
-        }
-      }
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    if (w.__tr62iTimer !== undefined) {
-      window.clearInterval(w.__tr62iTimer);
     }
-    w.__tr62iTimer = window.setInterval(sample, 30);
-  });
+    return seen;
+  }, {settled: true});
 }
 
 async function impulseProbe(page: Page): Promise<ImpulseProbe> {
-  return page.evaluate(() => (window as unknown as {__tr62i: ImpulseProbe}).__tr62i);
+  const seen = await witnessOf<ImpulseSeen>(page, IMPULSE_WITNESS).values();
+  const probe: ImpulseProbe = {sparks: 0, maxSparks: 0, samples: seen.length, pulseBeforeSpark: false, pulseAfterSpark: false, path: []};
+  let inAir = false;
+  for (const v of seen) {
+    if (v.n > 0 && !inAir) {
+      probe.sparks++;
+      if (v.from !== undefined) {
+        probe.from = v.from;
+      }
+      if (v.to !== undefined) {
+        probe.to = v.to;
+      }
+    }
+    if (v.at !== undefined) {
+      probe.path.push(v.at);
+    }
+    inAir = v.n > 0;
+    probe.maxSparks = Math.max(probe.maxSparks, v.n);
+    if (v.pulse) {
+      if (probe.sparks > 0) {
+        probe.pulseAfterSpark = true;
+      } else {
+        probe.pulseBeforeSpark = true;
+      }
+    }
+  }
+  return probe;
 }
 
 async function expectImpulsePlayed(page: Page, message: string): Promise<void> {
   await expect.poll(async () => (await impulseProbe(page)).pulseAfterSpark, {timeout: 20_000, message}).toBe(true);
   const probe = await impulseProbe(page);
-  expect(probe.samples, 'the probe ran').toBeGreaterThan(20);
+  expect(probe.samples, 'the recording ran').toBeGreaterThan(0); // a liveness floor catches only a DEAD recorder (tests.md)
   expect(probe.sparks, 'ONE impulse').toBe(1);
   expect(probe.maxSparks, 'never two objects in the air').toBe(1);
   expect(probe.pulseBeforeSpark, 'nothing answers before the impulse leaves (only what was touched reacts)').toBe(false);
   // BOTH ENDS: the impulse is born on the partner's seal and lands on the ally's (a visible source, a visible destination).
   const near = (pt: [number, number] | undefined, box: Box | undefined): boolean => pt !== undefined && box !== undefined &&
     pt[0] >= box.l - 24 && pt[0] <= box.r + 24 && pt[1] >= box.t - 24 && pt[1] <= box.b + 24;
-  expect(probe.path.length, `the impulse was sampled in the air (${probe.path.length} samples)`).toBeGreaterThan(1);
+  // «Sampled in the air» is «ever painted in the air» — the recording holds distinct poses, never frames; the two ends
+  // below are what tell a flight from a still spark.
+  expect(probe.path.length, `the impulse was recorded in the air (${probe.path.length} poses)`).toBeGreaterThan(0);
   expect(near(probe.path[0], probe.from), `born on Mars First's seal: ${JSON.stringify(probe.path[0])} vs ${JSON.stringify(probe.from)}`).toBe(true);
   expect(near(probe.path[probe.path.length - 1], probe.to), `lands on the Reds' seal: ${JSON.stringify(probe.path[probe.path.length - 1])} vs ${JSON.stringify(probe.to)}`).toBe(true);
 }
@@ -591,7 +588,5 @@ function captureImpulse(page: Page, preset: string, name: string): () => Promise
 
 /** Leave whatever mode stands without answering it. */
 async function answerNothing(page: Page): Promise<void> {
-  for (let i = 0; i < 5 && await parliament(page).count() > 0; i++) {
-    await press(page, 'Escape', 900);
-  }
+  await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 5, settleMs: 900});
 }

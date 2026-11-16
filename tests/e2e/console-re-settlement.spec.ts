@@ -3,6 +3,8 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, confirmLockedPlacement, fetchPlayerModel, focusCard, focusedSpaceId, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
 import {expectSeeThrough, expectUncovers} from './peekWitness';
+import {armWitness, Witness} from './witness';
+import {readSettled} from './settledRead';
 import {TileType} from '../../src/common/TileType';
 
 /**
@@ -99,9 +101,8 @@ const cellOf = (wire: Wire, id: string) => wire.game.spaces.find((s) => s.id ===
 
 type Box = {x: number, y: number, w: number, h: number};
 type MoveProbe = {
+  /** The recorded observations — the probe's own liveness floor (a dead recorder records nothing). */
   samples: number;
-  /** Interval (task) samples only — the probe's own liveness floor, and the only samples a claim about FRAMES is made on. */
-  ticks: number;
   a: Box;
   b: Box;
   /** The move proxy's centre on every sample it was visible. */
@@ -124,105 +125,126 @@ type MoveProbe = {
   eaten: boolean;
 };
 
-/**
- * THE SCENE PROBE — MutationObserver + setInterval, never rAF (headless drives
- * rAF off the compositor: it stops when the screen is quiet). A claim about
- * FRAMES («two cities», «no city») is made on the interval samples only: an
- * observer sample runs as a microtask and legitimately sees a state the
- * browser never paints.
- */
-async function armProbe(page: Page, kind: 'own' | 'remote'): Promise<void> {
-  await page.evaluate(({kind, from, to}) => {
-    const w = window as unknown as {__tr14: MoveProbe};
-    const rectOf = (id: string): Box => {
-      const r = document.querySelector(`.board-space[data_space_id="${id}"]`)!.getBoundingClientRect();
-      return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
-    };
-    const p: MoveProbe = {
-      samples: 0, ticks: 0, a: rectOf(from), b: rectOf(to), track: [], proxyMax: 0, foreign: [], twoCities: [], noCity: [],
-      phases: [], plants: [], degraded: false, stranded: false, eaten: false,
-    };
-    w.__tr14 = p;
-    const t0 = Date.now();
-    const shown = (el: Element): boolean => {
-      const cs = getComputedStyle(el);
-      const r = el.getBoundingClientRect();
-      return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05 && r.width > 2 && r.height > 2;
-    };
-    const cityOn = (id: string): boolean =>
-      document.querySelector(`.board-space[data_space_id="${id}"] > [class*="board-space-tile--city"]:not(.board-space-tile--placement-cleared)`) !== null;
-    const sample = (tick: boolean) => {
-      p.samples++;
-      const now = Date.now() - t0;
-      const proxies = Array.from(document.querySelectorAll<HTMLElement>(`.con-tileplace__tile[data-tile-move="${kind}"]`)).filter(shown);
-      p.proxyMax = Math.max(p.proxyMax, proxies.length);
-      document.querySelectorAll<HTMLElement>('.con-tileplace__tile').forEach((el) => {
-        if (el.getAttribute('data-tile-move') !== kind && shown(el)) {
-          const name = el.className.replace(/\s+/g, '.');
-          if (!p.foreign.includes(name)) {
-            p.foreign.push(name);
-          }
-        }
-      });
-      const proxy = proxies[0];
-      let centre: {x: number, y: number} | undefined;
-      if (proxy !== undefined) {
-        const r = proxy.getBoundingClientRect();
-        centre = {x: r.left + r.width / 2, y: r.top + r.height / 2};
-        p.track.push({t: now, ...centre});
-        p.firstProxyAt ??= now;
-        p.lastProxyAt = now;
-      }
-      const cityA = cityOn(from);
-      const cityB = cityOn(to);
-      if (!cityA) {
-        p.sourceBareAt ??= now;
-      }
-      if (cityB) {
-        p.landedAt ??= now;
-      }
-      if (document.querySelector(`.board-space[data_space_id="${from}"] > .board-space-tile--vacated`) !== null) {
-        p.vacatedAt ??= now;
-      }
-      if (tick) {
-        p.ticks++;
-        const far = (c: {x: number, y: number}, box: Box) => Math.hypot(c.x - box.x, c.y - box.y) > box.w * 0.5;
-        const two = (cityA && cityB) || (centre !== undefined && ((cityA && far(centre, p.a)) || (cityB && far(centre, p.b))));
-        if (two && p.twoCities.length < 6) {
-          p.twoCities.push(`${now}ms a=${cityA} b=${cityB} proxy=${centre === undefined ? '-' : `${Math.round(centre.x)},${Math.round(centre.y)}`}`);
-        }
-        if (!cityA && !cityB && centre === undefined && p.noCity.length < 6) {
-          p.noCity.push(`${now}ms`);
-        }
-      }
-      const root = document.querySelector('.con-tileplace');
-      if (root !== null) {
-        const phase = root.getAttribute('data-tile-phase');
-        if (phase !== null && p.phases[p.phases.length - 1] !== phase) {
-          p.phases.push(phase);
-        }
-        if (root.getAttribute('data-tile-move-degraded') !== null) {
-          p.degraded = true;
-        }
-      }
-      if (document.querySelector('.con-bmove--eaten') !== null) {
-        p.eaten = true;
-      }
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      const digits = document.querySelector('.con-res__row .resource_icon--plants')?.closest('.con-res__row')?.querySelector('.con-res__digits');
-      const value = (digits?.childNodes[0]?.textContent ?? '').trim();
-      if (value !== '' && p.plants[p.plants.length - 1]?.[1] !== value) {
-        p.plants.push([now, value]);
-      }
-    };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 16);
-  }, {kind, from: X, to: B});
+/** ONE frame of the move scene as the page paints it — the observation the scene probe records. */
+type MoveFrame = {
+  /** The city's cell and the destination (centre + size) — the frame the probe was armed in is the reference. */
+  a: Box;
+  b: Box;
+  /** The visible move proxies of this client's kind, and the first one's centre. */
+  proxies: number;
+  centre: {x: number, y: number} | null;
+  /** Any OTHER visible tile proxy (an arrival «from the table», a plain lift), by its class list. */
+  foreign: Array<string>;
+  cityA: boolean;
+  cityB: boolean;
+  vacated: boolean;
+  phase: string | null;
+  degraded: boolean;
+  eaten: boolean;
+  stranded: boolean;
+  /** The plants row's digits ('' when not drawn). */
+  plants: string;
+};
+
+/** The page reader of the scene probe (self-contained — it is serialized into the page). */
+function readMoveFrame({kind, from, to}: {kind: string, from: string, to: string}): MoveFrame {
+  const boxOf = (id: string): Box => {
+    const r = document.querySelector(`.board-space[data_space_id="${id}"]`)!.getBoundingClientRect();
+    return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
+  };
+  const shown = (el: Element): boolean => {
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05 && r.width > 2 && r.height > 2;
+  };
+  const cityOn = (id: string): boolean =>
+    document.querySelector(`.board-space[data_space_id="${id}"] > [class*="board-space-tile--city"]:not(.board-space-tile--placement-cleared)`) !== null;
+  const proxies = Array.from(document.querySelectorAll<HTMLElement>(`.con-tileplace__tile[data-tile-move="${kind}"]`)).filter(shown);
+  const foreign = Array.from(document.querySelectorAll<HTMLElement>('.con-tileplace__tile'))
+    .filter((el) => el.getAttribute('data-tile-move') !== kind && shown(el))
+    .map((el) => el.className.replace(/\s+/g, '.'));
+  const proxyBox = proxies[0]?.getBoundingClientRect();
+  const root = document.querySelector('.con-tileplace');
+  const digits = document.querySelector('.con-res__row .resource_icon--plants')?.closest('.con-res__row')?.querySelector('.con-res__digits');
+  return {
+    a: boxOf(from),
+    b: boxOf(to),
+    proxies: proxies.length,
+    centre: proxyBox === undefined ? null : {x: proxyBox.left + proxyBox.width / 2, y: proxyBox.top + proxyBox.height / 2},
+    foreign,
+    cityA: cityOn(from),
+    cityB: cityOn(to),
+    vacated: document.querySelector(`.board-space[data_space_id="${from}"] > .board-space-tile--vacated`) !== null,
+    phase: root?.getAttribute('data-tile-phase') ?? null,
+    degraded: root !== null && root.getAttribute('data-tile-move-degraded') !== null,
+    eaten: document.querySelector('.con-bmove--eaten') !== null,
+    stranded: document.querySelector('.con-stranded') !== null,
+    plants: (digits?.childNodes[0]?.textContent ?? '').trim(),
+  };
 }
 
-const readProbe = (page: Page): Promise<MoveProbe> => page.evaluate(() => (window as unknown as {__tr14: MoveProbe}).__tr14);
+/**
+ * THE SCENE PROBE — a RECORDING of the product's own writes (`armWitness`: the observer + the frame tick, replace-proof),
+ * armed above the lock; the claims are folded on the Node side. A claim about FRAMES («two cities», «no city») is a
+ * coexistence claim, so the record is `settled`: every sample is the state a task LEAVES — what a frame can paint —
+ * never one caught between two writes of one task (the old probe judged those on its interval samples only).
+ */
+async function armProbe(page: Page, kind: 'own' | 'remote'): Promise<Witness<MoveFrame>> {
+  return armWitness(page, `tr14-scene-${kind}`, readMoveFrame, {args: {kind, from: X, to: B}, settled: true, max: 20_000});
+}
+
+/** The fold of the recording — the scene's facts, on the page's clock (`t` relative to the arm). */
+async function readProbe(witness: Witness<MoveFrame>): Promise<MoveProbe> {
+  const samples = await witness.samples();
+  const t0 = samples[0]?.t ?? 0;
+  const first = samples[0]?.v;
+  const p: MoveProbe = {
+    samples: samples.length, a: first?.a ?? {x: 0, y: 0, w: 0, h: 0}, b: first?.b ?? {x: 0, y: 0, w: 0, h: 0},
+    track: [], proxyMax: 0, foreign: [], twoCities: [], noCity: [], phases: [], plants: [], degraded: false, stranded: false, eaten: false,
+  };
+  const far = (c: {x: number, y: number}, box: Box) => Math.hypot(c.x - box.x, c.y - box.y) > box.w * 0.5;
+  for (const {t, v} of samples) {
+    const now = t - t0;
+    p.proxyMax = Math.max(p.proxyMax, v.proxies);
+    for (const name of v.foreign) {
+      if (!p.foreign.includes(name)) {
+        p.foreign.push(name);
+      }
+    }
+    const centre = v.centre ?? undefined;
+    if (centre !== undefined) {
+      p.track.push({t: now, ...centre});
+      p.firstProxyAt ??= now;
+      p.lastProxyAt = now;
+    }
+    if (!v.cityA) {
+      p.sourceBareAt ??= now;
+    }
+    if (v.cityB) {
+      p.landedAt ??= now;
+    }
+    if (v.vacated) {
+      p.vacatedAt ??= now;
+    }
+    const two = (v.cityA && v.cityB) || (centre !== undefined && ((v.cityA && far(centre, p.a)) || (v.cityB && far(centre, p.b))));
+    if (two && p.twoCities.length < 6) {
+      p.twoCities.push(`${now}ms a=${v.cityA} b=${v.cityB} proxy=${centre === undefined ? '-' : `${Math.round(centre.x)},${Math.round(centre.y)}`}`);
+    }
+    if (!v.cityA && !v.cityB && centre === undefined && p.noCity.length < 6) {
+      p.noCity.push(`${now}ms`);
+    }
+    if (v.phase !== null && p.phases[p.phases.length - 1] !== v.phase) {
+      p.phases.push(v.phase);
+    }
+    p.degraded ||= v.degraded;
+    p.eaten ||= v.eaten;
+    p.stranded ||= v.stranded;
+    if (v.plants !== '' && p.plants[p.plants.length - 1]?.[1] !== v.plants) {
+      p.plants.push([now, v.plants]);
+    }
+  }
+  return p;
+}
 
 const composer = '.con-composer--play';
 const panel = '.con-context';
@@ -501,7 +523,7 @@ for (const preset of PRESETS) {
       for (const id of destinations) {
         await walkToSpace(page, id);
         await expect(page.locator('.con-bmove'), `the vector points at ${id}`).toHaveCount(1);
-        const fit = await panelBox(page);
+        const fit = await readSettled(page, () => panelBox(page), {message: `the panel on ${id}`});
         boxes.push(fit.box);
         expect(fit.overflow, `the dossier of ${id} overflows by ${fit.overflow}px`).toBeLessThanOrEqual(2);
         expect(fit.scrollHint, `the dossier of ${id} shows a scroll affordance`).toBe(0);
@@ -529,9 +551,9 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '05-locked');
       await press(page, 'Escape', 500);
       await expect(page.locator('.con-bcur--locked'), 'B unlocks — one level').toHaveCount(0);
-      expect(await moveLevel(page), 'B from the lock stays at the cell level').toBe('cell');
+      await expect.poll(() => moveLevel(page), {message: 'B from the lock stays at the cell level'}).toBe('cell');
       await press(page, 'Escape', 500);
-      expect(await moveLevel(page), 'B puts the city down — back to «which city»').toBe('city');
+      await expect.poll(() => moveLevel(page), {message: 'B puts the city down — back to «which city»'}).toBe('city');
       await expect(page.locator('.board-space--move-source'), 'the pose lets go with the city').toHaveCount(0);
       await expect.poll(() => focusedSpaceId(page), {timeout: 5_000, message: 'the cursor returns to the city just held'}).toBe(X);
       await press(page, 'Escape', 1400);
@@ -549,8 +571,8 @@ for (const preset of PRESETS) {
       expect(posts, 'forward again — still nothing sent').toEqual([]);
 
       // ── 5. THE COMMIT: lock, then the play's ONE POST ──
-      await armProbe(page, 'own');
-      await armProbe(redPage, 'remote');
+      const ownScene = await armProbe(page, 'own');
+      const redScene = await armProbe(redPage, 'remote');
       const stopOwnStory = await storyboard(page, preset.id, 'own');
       const stopRedStory = await storyboard(redPage, preset.id, 'opponent');
       await press(page, 'Enter', 420); // lock
@@ -564,7 +586,7 @@ for (const preset of PRESETS) {
         .toContain(JSON.stringify({type: 'space', spaceId: B, movedFrom: X, stagedFor: CARD}));
 
       // ── 6. THE SCENE (own) ──
-      await expect.poll(async () => (await readProbe(page)).landedAt, {timeout: 20_000, message: 'the city never landed on screen'}).toBeDefined();
+      await expect.poll(async () => (await readProbe(ownScene)).landedAt, {timeout: 20_000, message: 'the city never landed on screen'}).toBeDefined();
       await shoot(page, preset.id, '06-landed');
       // Mars First answers the city with a CARD (the party's own effect): it is taken before the flow can end.
       const drawn = page.locator('.con-zoom, .con-reveal');
@@ -574,11 +596,11 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '06b-party-card');
       expect(await pressUntil(page, 'Enter', async () => await drawn.count() === 0, {tries: 4, settleMs: 1500}), 'A takes the drawn card').toBe(true);
       await settle(page, {timeoutMs: 30_000});
-      const own = await readProbe(page);
+      const own = await readProbe(ownScene);
       await shoot(page, preset.id, '06c-board');
       const dist = (p: {x: number, y: number}, box: Box) => Math.hypot(p.x - box.x, p.y - box.y);
       const assertOneMove = (probe: MoveProbe, who: string) => {
-        expect(probe.ticks, `${who}: the probe never sampled`).toBeGreaterThan(20);
+        expect(probe.samples, `${who}: the probe never sampled`).toBeGreaterThan(0);
         expect(probe.degraded, `${who}: the move degraded (data-tile-move-degraded)`).toBe(false);
         expect(probe.track.length, `${who}: the proxy was never seen (phases: ${probe.phases.join('→')})`).toBeGreaterThan(2);
         expect(probe.proxyMax, `${who}: ONE proxy`).toBe(1);
@@ -588,7 +610,7 @@ for (const preset of PRESETS) {
           .toBeLessThan(probe.a.w * 0.3);
         // ② the destination was visible: the proxy ends ON the destination cell.
         const last = probe.track[probe.track.length - 1];
-        expect(dist(last, probe.b), `${who}: the proxy ends on the destination (tail ${JSON.stringify(probe.track.slice(-5))}, cell ${JSON.stringify(probe.b)}, landed ${probe.landedAt}, gone ${probe.lastProxyAt}, ticks ${probe.ticks}/${probe.samples})`).toBeLessThan(probe.b.w * 0.2);
+        expect(dist(last, probe.b), `${who}: the proxy ends on the destination (tail ${JSON.stringify(probe.track.slice(-5))}, cell ${JSON.stringify(probe.b)}, landed ${probe.landedAt}, gone ${probe.lastProxyAt}, ${probe.samples} samples)`).toBeLessThan(probe.b.w * 0.2);
         // ③ movement happened, one way: the centre never turns back along the edge it crosses.
         const sign = Math.sign(probe.b.x - probe.a.x);
         let reach = -Infinity;
@@ -625,10 +647,10 @@ for (const preset of PRESETS) {
       });
 
       // ── 7. THE OPPONENT sees ONE move ──
-      await expect.poll(async () => (await readProbe(redPage)).landedAt, {timeout: 30_000, message: 'red never saw the city land'}).toBeDefined();
+      await expect.poll(async () => (await readProbe(redScene)).landedAt, {timeout: 30_000, message: 'red never saw the city land'}).toBeDefined();
       await settle(redPage, {timeoutMs: 30_000});
       await stopRedStory();
-      const remote = await readProbe(redPage);
+      const remote = await readProbe(redScene);
       assertOneMove(remote, 'remote');
       test.info().annotations.push({
         type: 'tr14-scene',
@@ -651,7 +673,7 @@ for (const preset of PRESETS) {
 
       await expect(page.locator('.con-ws'), 'the flow ends on the board').toHaveCount(0, {timeout: 20_000});
       await expect(page.locator(composer)).toHaveCount(0);
-      expect(own.stranded || (await readProbe(page)).stranded, 'nothing stranded').toBe(false);
+      expect(own.stranded || (await readProbe(ownScene)).stranded, 'nothing stranded').toBe(false);
       expect(remote.stranded, 'nothing stranded for the opponent').toBe(false);
       expect(overflow, 'no [console-overflow]').toEqual([]);
       expect(pageErrors, 'no page error').toEqual([]);
@@ -693,7 +715,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 20_000});
 
       // ── AT REST: the pile as the pieces lie ──
-      const capital = await pileOf(page, X);
+      const capital = await readSettled(page, () => pileOf(page, X), {message: 'the Capital\'s pile at rest'});
       expect(capital.top, 'the tile on top is the plain city a stack is built with').toEqual(['board-space-tile--city']);
       expect(capital.tiers, 'the Capital is the pile\'s base').toEqual(['board-space-tile--capital']);
       expect(capital.under, 'the buried tile is marked by its own miniature').toBe('board-space-tile--capital');
@@ -712,7 +734,7 @@ for (const preset of PRESETS) {
       expect(Math.max(...([[cube.l, cube.t], [cube.r, cube.t], [cube.r, cube.b], [cube.l, cube.b]] as Array<Point>).map((p) => insideBy(p, mark))),
         'the owner cube stands clear of the mark').toBeLessThan(0);
 
-      const plain = await pileOf(page, Y);
+      const plain = await readSettled(page, () => pileOf(page, Y), {message: 'the plain pile at rest'});
       expect(plain.top).toEqual(['board-space-tile--city']);
       expect(plain.tiers, 'a pile of plain cities is plain cities all the way down').toEqual(['board-space-tile--city', 'board-space-tile--city']);
       expect(plain.under, 'nothing special lies under it — no mark').toBeNull();
@@ -730,25 +752,25 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-bcur__art.board-space-tile--city'), 'the projection is the piece that will arrive: a plain city').toHaveCount(1);
 
       // ── THE MOVE: the piece keeps its kind, first frame to last ──
-      await page.evaluate(({to}) => {
-        const w = window as unknown as {__piece: {ticks: number, art: Array<string>, landed: boolean}};
-        const probe = {ticks: 0, art: [] as Array<string>, landed: false};
-        w.__piece = probe;
-        const sample = (tick: boolean) => {
-          if (tick) {
-            probe.ticks++;
-          }
-          const proxy = document.querySelector('.con-tileplace__tile[data-tile-move="own"] .con-tileplace__art');
-          const art = (proxy?.className ?? '').split(/\s+/).filter((c) => c.startsWith('board-space-tile--')).join('+');
-          if (art !== '' && !probe.art.includes(art)) {
-            probe.art.push(art);
-          }
-          probe.landed ||= document.querySelector(`.board-space[data_space_id="${to}"] > [class*="board-space-tile--city"]:not(.board-space-tile--placement-cleared)`) !== null;
+      // RECORDED from before the lock (`armWitness` — the product's own writes): the art the travelling proxy wears in
+      // every frame, and whether the destination paints the city.
+      const travel = await armWitness(page, 'tr14-piece', ({to}: {to: string}) => {
+        const proxy = document.querySelector('.con-tileplace__tile[data-tile-move="own"] .con-tileplace__art');
+        return {
+          art: (proxy?.className ?? '').split(/\s+/).filter((c) => c.startsWith('board-space-tile--')).join('+'),
+          landed: document.querySelector(`.board-space[data_space_id="${to}"] > [class*="board-space-tile--city"]:not(.board-space-tile--placement-cleared)`) !== null,
         };
-        new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-        window.setInterval(() => sample(true), 16);
-      }, {to: B});
-      const pieceOf = () => page.evaluate(() => (window as unknown as {__piece: {ticks: number, art: Array<string>, landed: boolean}}).__piece);
+      }, {args: {to: B}, max: 20_000});
+      const pieceOf = async () => {
+        const values = await travel.values();
+        const art: Array<string> = [];
+        for (const v of values) {
+          if (v.art !== '' && !art.includes(v.art)) {
+            art.push(v.art);
+          }
+        }
+        return {samples: values.length, art, landed: values.some((v) => v.landed)};
+      };
       await press(page, 'Enter', 420); // lock
       await expect(page.locator('.con-bcur--locked')).toHaveCount(1);
       await confirmLockedPlacement(page); // confirm — past the lock's dwell (the driver waits it out)
@@ -760,16 +782,16 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 30_000});
 
       const piece = await pieceOf();
-      expect(piece.ticks, 'the probe never sampled').toBeGreaterThan(20);
+      expect(piece.samples, 'the probe never sampled').toBeGreaterThan(0);
       expect(piece.art, 'the piece that travels is a PLAIN city from its first frame to its last — never the Capital it stood on').toEqual(['board-space-tile--city']);
 
       // ── AFTER: the Capital is a single tile again; a plain city stands on the destination ──
-      const left = await pileOf(page, X);
+      const left = await readSettled(page, () => pileOf(page, X), {message: 'the Capital after the move'});
       expect(left.top, 'the Capital stays where it stood').toEqual(['board-space-tile--capital']);
       expect(left.tiers).toEqual([]);
       expect(left.under, 'a single Capital is what the player sees — no mark').toBeNull();
       expect(left.count, 'a single city carries no counter').toBeNull();
-      const arrived = await pileOf(page, B);
+      const arrived = await readSettled(page, () => pileOf(page, B), {message: 'the destination after the move'});
       expect(arrived.top, 'a plain city stands on the destination').toEqual(['board-space-tile--city']);
       expect(arrived.tiers).toEqual([]);
       expect(arrived.under).toBeNull();

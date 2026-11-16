@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, settle} from './consoleStart';
 import {armLeakWitness, openParliament, strandedReports} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR31 «НАЦИОНАЛИСТИЧЕСКОЕ ДВИЖЕНИЕ» — A RALLY OF NEUTRAL DELEGATES as the
@@ -124,8 +125,8 @@ async function storyboard(page: Page, preset: string, name: string): Promise<() 
 
 type Series = Array<[number, string]>;
 type Probe = {
+  /** Recorded (settled) states — never a count of frames. */
   samples: number;
-  ticks: number;
   steps: Array<string>;
   crumbMisses: Array<string>;
   parlOutsideHand: boolean;
@@ -151,22 +152,51 @@ type Probe = {
   air: Array<[number, number, number]>;
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/** One recorded state of the rally — what stands NOW (an observation; the probe's series are folded on the Node side). */
+type RallySeen = {
+  head: {root: string, subjects: Array<string>, steps: Array<string>} | null;
+  /** Every Parliament on screen (a WARMED one excluded): inside the hand? a band of its own? a head of its own? */
+  parls: Array<{outside: boolean, head: boolean, degraded: Array<string>}>;
+  ws: number;
+  stranded: boolean;
+  count: string | null;
+  beat: string | null;
+  pool: string | null;
+  hc: string;
+  aa: string;
+  winner: string | null;
+  /** The Reds' plaque's filled places (null while the plaque is not there). */
+  redsPlaces: string | null;
+  marsRead: string;
+  mc: string;
+  /** Every PAINTED neutral cube proxy: its id, whether it stands inside the pool's rect, its top. */
+  cubes: Array<{id: string, inPool: boolean, top: number}>;
+  /** Every PAINTED M€ coin: whether it stands inside the count chip's rect, its top. */
+  coins: Array<{inCount: boolean, top: number}>;
+};
+const RALLY_WITNESS = 'tr31-rally';
+
+/**
+ * THE RALLY PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns what
+ * stands now, every change is kept with the page's time, off the product's own writes (an observer + a frame tick). Its
+ * claims are about ORDER (the pool drops before the tally ticks, the coin after the recount) and FRAMES («never two marks
+ * in one render»), so the record is `settled` — the state a task LEAVES, the state a frame can paint (a mark is a task of
+ * its own, so every value of the count is kept). Element identity across samples: a `WeakMap` on `window`.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({card, root, hc, aa, reds, mars}) => {
-    const w = window as unknown as {__tr31: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false, degraded: [], stranded: false,
-      beat: [], pool: [], hc: [], aa: [], winner: [], redsPlaces: [], marsRead: [], count: [], mc: [], cubes: [], coin: undefined, air: [],
-    };
-    w.__tr31 = p;
-    const t0 = Date.now();
-    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Series, value: string | undefined) => {
-      if (value !== undefined && value !== '' && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
+  await armWitness<RallySeen, {hc: string, aa: string, reds: string, mars: string}>(page, RALLY_WITNESS, ({hc, aa, reds, mars}) => {
+    const w = window as unknown as {__tr31Ids?: WeakMap<Element, number>, __tr31Seq?: number};
+    const ids = (w.__tr31Ids ??= new WeakMap<Element, number>());
+    const idOf = (el: Element): number => {
+      let n = ids.get(el);
+      if (n === undefined) {
+        w.__tr31Seq = (w.__tr31Seq ?? 0) + 1;
+        n = w.__tr31Seq;
+        ids.set(el, n);
       }
+      return n;
     };
+    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const inside = (r: DOMRect, box: DOMRect | undefined, pad = 48) =>
       box !== undefined && r.left + r.width / 2 >= box.left - pad && r.left + r.width / 2 <= box.right + pad && r.top + r.height / 2 >= box.top - pad && r.top + r.height / 2 <= box.bottom + pad;
     // A proxy is BORN invisible at the origin and positioned on the next tick (law 14): only a PAINTED proxy is a witness.
@@ -181,141 +211,166 @@ async function armProbe(page: Page): Promise<void> {
       }
       return opacity > 0.05;
     };
-    const seenCubes = new Set<string>();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
+    const headEl = document.querySelector('.con-hand')?.querySelector('.con-wshead') ?? null;
+    // A WARMED Parliament (PL-127: mounted invisible ahead of its frame, from the press) is not on screen yet.
+    const parls = Array.from(document.querySelectorAll('.con-parl:not(.con-parl--warm)')).map((el) => ({
+      outside: el.closest('.con-hand') === null || el.classList.contains('con-ws'),
+      head: el.querySelector('.con-wshead') !== null,
+      degraded: ['data-parl-grant-degraded', 'data-renewal-degraded', 'data-parl-rally-degraded', 'data-parl-support-degraded']
+        .map((attr) => el.getAttribute(attr)).filter((v): v is string => v !== null),
+    }));
+    const poolEl = document.querySelector<HTMLElement>('[data-parl-neutral-cube]');
+    const slot = (prefix: string) => document.querySelector<HTMLElement>(`.con-parl__slot[data-instance^="${prefix}"]`);
+    const poolRect = poolEl?.getBoundingClientRect();
+    const countRect = document.querySelector('[data-parl-count-id="rally"]')?.getBoundingClientRect();
+    const cubes: Array<{id: string, inPool: boolean, top: number}> = [];
+    document.querySelectorAll<HTMLElement>('.con-parl__flight:not(.con-parl__flight--card):not(.con-parl__flight--token):not(.con-parl__flight--agenda)').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 1 && visible(el)) {
+        cubes.push({id: el.getAttribute('data-parl-flight') ?? `anon${idOf(el)}`, inPool: inside(r, poolRect), top: r.top});
       }
-      const hand = document.querySelector('.con-hand');
-      const head = hand?.querySelector('.con-wshead') ?? null;
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
+    });
+    const coins: Array<{inCount: boolean, top: number}> = [];
+    // The M€ chip is the coin itself (`--mc`: the amount in the coin's own face, no icon element).
+    document.querySelectorAll<HTMLElement>('.con-transfer__chip--mc').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 1 && visible(el)) {
+        coins.push({inCount: inside(r, countRect, 64), top: r.top});
       }
-      // A WARMED Parliament (PL-127: mounted invisible ahead of its frame, from the press) is not on screen yet.
-      const parls = document.querySelectorAll('.con-parl:not(.con-parl--warm)');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      parls.forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        }
-        if (el.querySelector('.con-wshead') !== null) {
-          p.ownHead = true;
-        }
-        for (const attr of ['data-parl-grant-degraded', 'data-renewal-degraded', 'data-parl-rally-degraded', 'data-parl-support-degraded']) {
-          const degraded = el.getAttribute(attr);
-          if (degraded !== null && !p.degraded.includes(degraded)) {
-            p.degraded.push(degraded);
-          }
-        }
-      });
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      // The recount's number is read on EVERY sample (a mark is a task of its own, so every value paints).
-      note(p.count, document.querySelector('[data-parl-count-id="rally"] [data-parl-count]')?.getAttribute('data-parl-count') ?? undefined);
-      if (!tick) {
-        return; // the frame claims below are made on the task samples only
-      }
-      note(p.beat, document.querySelector('.con-parl')?.getAttribute('data-rally-beat') ?? undefined);
-      const poolEl = document.querySelector<HTMLElement>('[data-parl-neutral-cube]');
-      note(p.pool, poolEl?.getAttribute('data-count') ?? undefined);
-      const slot = (prefix: string) => document.querySelector<HTMLElement>(`.con-parl__slot[data-instance^="${prefix}"]`);
-      note(p.hc, text(slot(hc)?.querySelector('.con-parl__tally-num') ?? null));
-      note(p.aa, text(slot(aa)?.querySelector('.con-parl__tally-num') ?? null));
-      note(p.winner, document.querySelector<HTMLElement>('.con-parl__slot--winning')?.getAttribute('data-party') ?? undefined);
-      if (document.querySelector(`[data-parl-support="${reds}"]`) !== null) {
-        note(p.redsPlaces, String(document.querySelectorAll(`[data-parl-support="${reds}"] .con-pseal__support-place--on`).length));
-      }
-      note(p.marsRead, text(document.querySelector(`[data-party="${mars}"] [data-pseal-pick]`)));
-      const mcRow = document.querySelector('.con-res__row--megacredits .con-res__digits');
-      note(p.mc, text(mcRow));
-      const poolRect = poolEl?.getBoundingClientRect();
-      const countRect = document.querySelector('[data-parl-count-id="rally"]')?.getBoundingClientRect();
-      let cubesInAir = 0;
-      document.querySelectorAll<HTMLElement>('.con-parl__flight:not(.con-parl__flight--card):not(.con-parl__flight--token):not(.con-parl__flight--agenda)').forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.width < 1 || !visible(el)) {
-          return;
-        }
-        cubesInAir++;
-        const id = el.getAttribute('data-parl-flight') ?? `anon${p.cubes.length}`;
-        if (!seenCubes.has(id)) {
-          seenCubes.add(id);
-          p.cubes.push({id, at: Date.now() - t0, bornInPool: inside(r, poolRect), minY: r.top});
-        } else {
-          const cube = p.cubes.find((c) => c.id === id)!;
-          cube.minY = Math.min(cube.minY, r.top);
-        }
-      });
-      let coinInAir = 0;
-      // The M€ chip is the coin itself (`--mc`: the amount in the coin's own face, no icon element).
-      document.querySelectorAll<HTMLElement>('.con-transfer__chip--mc').forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.width < 1 || !visible(el)) {
-          return;
-        }
-        coinInAir++;
-        if (p.coin === undefined) {
-          p.coin = {at: Date.now() - t0, bornInCount: inside(r, countRect, 64), minY: r.top};
-        } else {
-          p.coin.minY = Math.min(p.coin.minY, r.top);
-        }
-      });
-      p.air.push([Date.now() - t0, cubesInAir, coinInAir]);
+    });
+    return {
+      head: headEl === null ? null : {
+        root: text(headEl.querySelector('.con-wshead__root')),
+        subjects: Array.from(headEl.querySelectorAll('.con-wshead__subject')).map(text),
+        steps: Array.from(headEl.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
+      },
+      parls,
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
+      count: document.querySelector('[data-parl-count-id="rally"] [data-parl-count]')?.getAttribute('data-parl-count') ?? null,
+      beat: document.querySelector('.con-parl')?.getAttribute('data-rally-beat') ?? null,
+      pool: poolEl?.getAttribute('data-count') ?? null,
+      hc: text(slot(hc)?.querySelector('.con-parl__tally-num') ?? null),
+      aa: text(slot(aa)?.querySelector('.con-parl__tally-num') ?? null),
+      winner: document.querySelector<HTMLElement>('.con-parl__slot--winning')?.getAttribute('data-party') ?? null,
+      redsPlaces: document.querySelector(`[data-parl-support="${reds}"]`) === null ? null :
+        String(document.querySelectorAll(`[data-parl-support="${reds}"] .con-pseal__support-place--on`).length),
+      marsRead: text(document.querySelector(`[data-party="${mars}"] [data-pseal-pick]`)),
+      mc: text(document.querySelector('.con-res__row--megacredits .con-res__digits')),
+      cubes,
+      coins,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  }, {card: CARD_RU, root: ROOT_RU, hc: HC, aa: AA, reds: REDS, mars: MARS});
+  }, {args: {hc: HC, aa: AA, reds: REDS, mars: MARS}, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr31: Probe}).__tr31);
+/** The record folded into the probe — times are the PAGE's, from the arm (the record's first sample is the baseline). */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<RallySeen>(page, RALLY_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  const p: Probe = {
+    samples: samples.length, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false, degraded: [], stranded: false,
+    beat: [], pool: [], hc: [], aa: [], winner: [], redsPlaces: [], marsRead: [], count: [], mc: [], cubes: [], coin: undefined, air: [],
+  };
+  const note = (series: Series, value: string | null, now: number) => {
+    if (value !== null && value !== '' && series[series.length - 1]?.[1] !== value) {
+      series.push([now, value]);
+    }
+  };
+  for (const {t, v} of samples) {
+    const now = t - t0;
+    if (v.head !== null) {
+      if (v.head.root.toLowerCase() !== ROOT_RU.toLowerCase() || !v.head.subjects.some((s) => s.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${now}ms root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+        }
+      }
+      for (const step of v.head.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    p.parlMax = Math.max(p.parlMax, v.parls.length);
+    for (const parl of v.parls) {
+      p.parlOutsideHand ||= parl.outside;
+      p.ownHead ||= parl.head;
+      for (const degraded of parl.degraded) {
+        if (!p.degraded.includes(degraded)) {
+          p.degraded.push(degraded);
+        }
+      }
+    }
+    p.wsMax = Math.max(p.wsMax, v.ws);
+    p.stranded ||= v.stranded;
+    note(p.count, v.count, now);
+    note(p.beat, v.beat, now);
+    note(p.pool, v.pool, now);
+    note(p.hc, v.hc, now);
+    note(p.aa, v.aa, now);
+    note(p.winner, v.winner, now);
+    note(p.redsPlaces, v.redsPlaces, now);
+    note(p.marsRead, v.marsRead, now);
+    note(p.mc, v.mc, now);
+    for (const c of v.cubes) {
+      const cube = p.cubes.find((x) => x.id === c.id);
+      if (cube === undefined) {
+        p.cubes.push({id: c.id, at: now, bornInPool: c.inPool, minY: c.top});
+      } else {
+        cube.minY = Math.min(cube.minY, c.top);
+      }
+    }
+    for (const c of v.coins) {
+      if (p.coin === undefined) {
+        p.coin = {at: now, bornInCount: c.inCount, minY: c.top};
+      } else {
+        p.coin.minY = Math.min(p.coin.minY, c.top);
+      }
+    }
+    p.air.push([now, v.cubes.length, v.coins.length]);
+  }
+  return p;
+}
 
 type RedNote = {at: number, text: string, detail: string, cubesInAir: number};
+
+/** One recorded state of red's screen: the notification cards standing, and the cubes in the air beside them. */
+type RedSeen = {notifs: Array<{id: string, text: string, detail: string}>, cubes: number};
+const RED_WITNESS = 'tr31-red';
 
 /**
  * RED'S WITNESS: every notification card as it APPEARS (a card lives ~7 s — by the time blue's recount and coin are
  * over it is gone), with what was in the air on red's table at that moment (the PL-079 class: a card that stands
- * while the cubes it tells of are still flying).
+ * while the cubes it tells of are still flying). RECORDED (`armWitness`) — every change, off the product's own writes.
  */
 async function armRedWitness(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__red: Array<RedNote>};
-    w.__red = [];
-    const t0 = Date.now();
-    const seen = new Set<string>();
+  await armWitness<RedSeen>(page, RED_WITNESS, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = () => {
-      document.querySelectorAll<HTMLElement>('.con-notif').forEach((el) => {
-        const id = el.getAttribute('data-notif-id') ?? text(el);
-        if (seen.has(id)) {
-          return;
-        }
-        seen.add(id);
-        const cubes = Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight:not(.con-parl__flight--card):not(.con-parl__flight--token)'))
-          .filter((f) => f.getBoundingClientRect().width > 1).length;
-        w.__red.push({at: Date.now() - t0, text: text(el), detail: text(el.querySelector('.con-notif__action--detail')), cubesInAir: cubes});
-      });
+    return {
+      notifs: Array.from(document.querySelectorAll<HTMLElement>('.con-notif')).map((el) => ({
+        id: el.getAttribute('data-notif-id') ?? text(el), text: text(el), detail: text(el.querySelector('.con-notif__action--detail')),
+      })),
+      cubes: Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight:not(.con-parl__flight--card):not(.con-parl__flight--token)'))
+        .filter((f) => f.getBoundingClientRect().width > 1).length,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 50);
   });
 }
 
-const readRedWitness = (page: Page): Promise<Array<RedNote>> => page.evaluate(() => (window as unknown as {__red: Array<RedNote>}).__red);
+/** Red's record folded: each card ONCE, at the state it first appeared in. */
+async function readRedWitness(page: Page): Promise<Array<RedNote>> {
+  const samples = await witnessOf<RedSeen>(page, RED_WITNESS).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const seen = new Set<string>();
+  const notes: Array<RedNote> = [];
+  for (const {t, v} of samples) {
+    for (const n of v.notifs) {
+      if (!seen.has(n.id)) {
+        seen.add(n.id);
+        notes.push({at: t - t0, text: n.text, detail: n.detail, cubesInAir: v.cubes});
+      }
+    }
+  }
+  return notes;
+}
 
 const composer = '.con-composer--play';
 
@@ -376,8 +431,7 @@ for (const preset of PRESETS) {
       await openConsole(red, seats[1], preset.query);
       await settle(red, {timeoutMs: 30_000});
       await openParliament(red);
-      const redPoolBefore = await red.locator('[data-parl-neutral-cube]').getAttribute('data-count');
-      expect(redPoolBefore, 'red\'s table: the pool at 3').toBe('3');
+      await expect(red.locator('[data-parl-neutral-cube]'), 'red\'s table: the pool at 3').toHaveAttribute('data-count', '3');
       await page.bringToFront();
 
       // ── 1. the composer: everything said BEFORE the press, with the server's numbers ──
@@ -445,7 +499,8 @@ for (const preset of PRESETS) {
         marsRead: probe.marsRead, count: probe.count, mc: probe.mc, cubes: probe.cubes, coin: probe.coin});
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/nationalist-movement-${preset.id}.json`, JSON.stringify(probe, null, 1));
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+      // The record's own liveness floor: only a DEAD recorder fails it (recorded states, never frames).
+      expect(probe.samples, `the probe's recorder ran (${probe.samples} states)`).toBeGreaterThan(0);
 
       // ── 2. one flow ──
       expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);

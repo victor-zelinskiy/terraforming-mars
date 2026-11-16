@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixture, fetchPlayerModel, openActionFocus, openCardActions, press, settle, walkFocusUntil} from './consoleStart';
+import {bootFixture, fetchPlayerModel, openActionFocus, openCardActions, pressUntil, settle, walkFocusUntil} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR15 «МАРСИАНСКАЯ ПЕРЕПИСЬ» — THE STAGED ACTION VOTE, the vote's FOURTH door
@@ -14,7 +16,7 @@ import {bootFixture, fetchPlayerModel, openActionFocus, openCardActions, press, 
  *   1. «Действия карт» → the card → the composer: the card offers TWO variants;
  *      branch B's CTA is «Выбрать резолюцию»; its A sends NOTHING (no POST, the
  *      server's change counter stands).
- *   2. It is ONE flow: on every sample the crumb keeps its root and the card's
+ *   2. It is ONE flow: on every recorded state the crumb keeps its root and the card's
  *      name; the tail reads НАСТРОЙКА → ГОЛОСОВАНИЕ; the Parliament is the ONE
  *      instance, teleported INTO «Действия карт» — never a second band — and
  *      the stage is never empty while the hero + setup hand over to it (nor
@@ -73,9 +75,8 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
 type Box = {x: number, y: number, w: number, h: number};
 type Flight = {first: Box, last: Box, n: number, firstAt: number, lastAt: number};
 type Probe = {
+  /** Distinct states recorded — the recorder's own liveness. */
   samples: number;
-  /** Interval (task) samples only — the probe's own liveness floor. */
-  ticks: number;
   /** The crumb's stage words, deduped in order of first appearance. */
   steps: Array<string>;
   crumbMisses: Array<string>;
@@ -84,9 +85,9 @@ type Probe = {
   parlMax: number;
   wsMax: number;
   ownHead: boolean;
-  /** Task samples where the step's zone was live and NEITHER the hero + setup NOR the Parliament could be seen. */
+  /** States where the step's zone was live and NEITHER the hero + setup NOR the Parliament could be seen. */
   gaps: Array<string>;
-  /** Task samples where the Parliament stood whole and the hero or the setup could be seen under it. */
+  /** States where the Parliament stood whole and the hero or the setup could be seen under it. */
   ghosts: Array<string>;
   degraded: Array<string>;
   stranded: boolean;
@@ -98,26 +99,36 @@ type Probe = {
   ringAt: number;
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/** What ONE recorded state shows — the probe's facts are folded over the record on the Node side (`readProbe`). */
+type CensusSeen = {
+  /** The workspace head: its root, subjects, stage words — null while «Действия карт» has no head. */
+  crumb: {root: string, subjects: Array<string>, steps: Array<string>} | null,
+  parls: number,
+  parlOutside: boolean,
+  ownHead: boolean,
+  degraded: Array<string>,
+  ws: number,
+  stranded: boolean,
+  /** The handover reading — only while the step's zone is live inside «Действия карт». */
+  stage: {wsSeen: number, parlSeen: number, setupSeen: number, parlOpacity: number} | null,
+  flights: Array<{id: string, box: Box}>,
+  reserve: string | null,
+  votes: string | null,
+  ring: boolean,
+  lobbyEmpty: boolean,
+};
+
+const CENSUS_WITNESS = 'tr15';
+
+/**
+ * THE PROBE — recorded off the product's own writes from before the door's press (`armWitness`), never a sampler that
+ * sleeps through a beat. `settled`: every claim here is of ORDER or COEXISTENCE (one Parliament, the stage never empty
+ * across the handover, the price before the cube), so a sample is the state a task LEAVES — the one a frame can paint
+ * (the old probe judged the handover on its interval «task» samples for the same reason).
+ */
 async function armProbe(page: Page, viewer: string): Promise<void> {
-  await page.evaluate(({viewer, card, root}) => {
-    const w = window as unknown as {__tr15: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutside: false, parlMax: 0, wsMax: 0, ownHead: false,
-      gaps: [], ghosts: [], degraded: [], stranded: false, flights: {}, reserve: [], votes: [], lobbyEmptied: false, ringAt: -1,
-    };
-    w.__tr15 = p;
-    const t0 = Date.now();
+  await armWitness<CensusSeen, {viewer: string}>(page, CENSUS_WITNESS, ({viewer}) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Array<[number, number]>, raw: string | null | undefined) => {
-      if (raw === null || raw === undefined || raw === '') {
-        return;
-      }
-      const value = Number(raw);
-      if (Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
-      }
-    };
     /** What the player can SEE of an element: its own opacity times every ancestor's, 0 when hidden. */
     const seenOpacity = (el: Element | null): number => {
       let opacity = 1;
@@ -130,104 +141,143 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
       }
       return el === null ? 0 : opacity;
     };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
+    const q = (n: number) => Math.round(n * 100) / 100;
+    const ws = document.querySelector('.con-cardactions');
+    const head = ws?.querySelector('.con-wshead') ?? null;
+    const parls = Array.from(document.querySelectorAll('.con-parl'));
+    const degraded: Array<string> = [];
+    for (const el of parls) {
+      const d = el.getAttribute('data-parl-grant-degraded') ?? el.getAttribute('data-renewal-degraded');
+      if (d !== null && !degraded.includes(d)) {
+        degraded.push(d);
       }
-      const ws = document.querySelector('.con-cardactions');
-      const head = ws?.querySelector('.con-wshead') ?? null;
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
+    }
+    // THE HANDOVER: while the step's zone is live, the stage always shows the hero + setup or the Parliament — and once
+    // the Parliament stands whole, nothing of either shows under it (the step takes the WHOLE stage).
+    let stage: CensusSeen['stage'] = null;
+    if (ws !== null && document.querySelector('.con-composer__parlzone--on') !== null) {
+      const parl = document.querySelector('.con-composer__parlzone .con-parl');
+      // THE STAGE IS JUDGED INSIDE A FRAME THAT STANDS: the surface director fades a workspace's PANELS, never its band
+      // root (`surfaceLeaveHook` — `[data-motion-panel]`, every one of them as one), so the root reads 1 for the whole of
+      // the finished action's leave. Measured on the root, the leave's last frames (frozen on a starved one: CI 42591455049
+      // — frame and composer panel both at 0.23, no animation of their own) read as an empty stage between the hero and the
+      // vote. A leaving surface (`data-motion-leaving`) or a frame below 0.9 is not a handover.
+      stage = {
+        wsSeen: ws.closest('[data-motion-leaving]') !== null ? 0 : seenOpacity(ws.querySelector('.con-cardactions__frame') ?? ws),
+        parlSeen: seenOpacity(parl),
+        setupSeen: Math.max(0, ...Array.from(document.querySelectorAll('.con-composer__actmain')).map((el) => seenOpacity(el))),
+        parlOpacity: parl === null ? -1 : Number(getComputedStyle(parl).opacity),
+      };
+    }
+    const flights: Array<{id: string, box: Box}> = [];
+    document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || getComputedStyle(el).visibility === 'hidden') {
+        return;
       }
-      const parls = document.querySelectorAll('.con-parl');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      parls.forEach((el) => {
-        if (el.closest('.con-cardactions') === null || el.classList.contains('con-ws')) {
-          p.parlOutside = true;
-        }
-        if (el.querySelector('.con-wshead') !== null) {
-          p.ownHead = true;
-        }
-        const degraded = el.getAttribute('data-parl-grant-degraded') ?? el.getAttribute('data-renewal-degraded');
-        if (degraded !== null && !p.degraded.includes(degraded)) {
-          p.degraded.push(degraded);
-        }
-      });
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      // THE HANDOVER, judged on task samples only (a microtask sample can see a state the browser never paints):
-      // while the step's zone is live, the stage always shows the hero + setup or the Parliament — and once the
-      // Parliament stands whole, nothing of either shows under it (the step takes the WHOLE stage).
-      if (tick && ws !== null && document.querySelector('.con-composer__parlzone--on') !== null) {
-        const parl = document.querySelector('.con-composer__parlzone .con-parl');
-        const parlSeen = seenOpacity(parl);
-        const setupSeen = Math.max(0, ...Array.from(document.querySelectorAll('.con-composer__actmain'))
-          .map((el) => seenOpacity(el)));
-        // THE STAGE IS JUDGED INSIDE A FRAME THAT STANDS: the surface director fades a workspace's PANELS, never its band
-        // root (`surfaceLeaveHook` — `[data-motion-panel]`, every one of them as one), so the root reads 1 for the whole of
-        // the finished action's leave. Measured on the root, the leave's last frames (frozen on a starved one: CI 42591455049
-        // — frame and composer panel both at 0.23, no animation of their own) read as an empty stage between the hero and the
-        // vote. A leaving surface (`data-motion-leaving`) or a frame below 0.9 is not a handover.
-        const wsSeen = ws.closest('[data-motion-leaving]') !== null ? 0 :
-          seenOpacity(ws.querySelector('.con-cardactions__frame') ?? ws);
-        if (wsSeen > 0.9 && parlSeen < 0.05 && setupSeen < 0.05 && p.gaps.length < 8) {
-          p.gaps.push(`${Date.now() - t0}ms parl=${parlSeen.toFixed(2)} setup=${setupSeen.toFixed(2)}`);
-        }
-        if (parl !== null && Number(getComputedStyle(parl).opacity) > 0.99 && setupSeen > 0.05 && p.ghosts.length < 8) {
-          p.ghosts.push(`${Date.now() - t0}ms setup=${setupSeen.toFixed(2)}`);
-        }
-      }
-      document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.width < 2 || getComputedStyle(el).visibility === 'hidden') {
-          return;
-        }
-        const id = el.getAttribute('data-parl-flight') ?? '?';
-        const now = {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
-        const rec = p.flights[id] ?? (p.flights[id] = {first: now, last: now, n: 0, firstAt: Date.now() - t0, lastAt: 0});
-        rec.last = now;
-        rec.lastAt = Date.now() - t0;
-        rec.n++;
-      });
-      note(p.reserve, document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count'));
-      note(p.votes, document.querySelector('[data-parl-vote-ribbon]')?.getAttribute('data-votes'));
-      if (p.ringAt < 0 && Array.from(document.querySelectorAll('.con-commit-ring')).some((el) => Number(getComputedStyle(el).opacity) > 0.05)) {
-        p.ringAt = Date.now() - t0;
-      }
-      const lobby = document.querySelector(`[data-parl-seat-lobby="${viewer}"]`);
-      if (lobby !== null && lobby.classList.contains('con-parl__socket--empty')) {
-        p.lobbyEmptied = true;
-      }
+      flights.push({id: el.getAttribute('data-parl-flight') ?? '?',
+        box: {x: q(r.left + r.width / 2), y: q(r.top + r.height / 2), w: q(r.width), h: q(r.height)}});
+    });
+    const lobby = document.querySelector(`[data-parl-seat-lobby="${viewer}"]`);
+    return {
+      crumb: head === null ? null : {
+        root: text(head.querySelector('.con-wshead__root')),
+        subjects: Array.from(head.querySelectorAll('.con-wshead__subject')).map(text),
+        steps: Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
+      },
+      parls: parls.length,
+      parlOutside: parls.some((el) => el.closest('.con-cardactions') === null || el.classList.contains('con-ws')),
+      ownHead: parls.some((el) => el.querySelector('.con-wshead') !== null),
+      degraded,
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
+      stage,
+      flights,
+      reserve: document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count') ?? null,
+      votes: document.querySelector('[data-parl-vote-ribbon]')?.getAttribute('data-votes') ?? null,
+      ring: Array.from(document.querySelectorAll('.con-commit-ring')).some((el) => Number(getComputedStyle(el).opacity) > 0.05),
+      lobbyEmpty: lobby !== null && lobby.classList.contains('con-parl__socket--empty'),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  }, {viewer, card: CARD_RU, root: ROOT_RU});
+  }, {args: {viewer}, settled: true, max: 40_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr15: Probe}).__tr15);
+/** The record folded into the probe's facts (times on the PAGE's clock, from the arm). */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<CensusSeen>(page, CENSUS_WITNESS).samples();
+  const p: Probe = {
+    samples: samples.length, steps: [], crumbMisses: [], parlOutside: false, parlMax: 0, wsMax: 0, ownHead: false,
+    gaps: [], ghosts: [], degraded: [], stranded: false, flights: {}, reserve: [], votes: [], lobbyEmptied: false, ringAt: -1,
+  };
+  const t0 = samples[0]?.t ?? 0;
+  const note = (series: Array<[number, number]>, raw: string | null, at: number) => {
+    if (raw === null || raw === '') {
+      return;
+    }
+    const value = Number(raw);
+    if (Number.isFinite(value) && series[series.length - 1]?.[1] !== value) {
+      series.push([at, value]);
+    }
+  };
+  for (const {t, v: s} of samples) {
+    const at = t - t0;
+    if (s.crumb !== null) {
+      if (s.crumb.root.toLowerCase() !== ROOT_RU.toLowerCase() || !s.crumb.subjects.some((x) => x.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${at}ms root=«${s.crumb.root}» subject=«${s.crumb.subjects.join('|')}»`);
+        }
+      }
+      for (const step of s.crumb.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    p.parlMax = Math.max(p.parlMax, s.parls);
+    p.parlOutside ||= s.parlOutside;
+    p.ownHead ||= s.ownHead;
+    for (const d of s.degraded) {
+      if (!p.degraded.includes(d)) {
+        p.degraded.push(d);
+      }
+    }
+    p.wsMax = Math.max(p.wsMax, s.ws);
+    p.stranded ||= s.stranded;
+    if (s.stage !== null) {
+      const {wsSeen, parlSeen, setupSeen, parlOpacity} = s.stage;
+      if (wsSeen > 0.9 && parlSeen < 0.05 && setupSeen < 0.05 && p.gaps.length < 8) {
+        p.gaps.push(`${at}ms parl=${parlSeen.toFixed(2)} setup=${setupSeen.toFixed(2)}`);
+      }
+      if (parlOpacity > 0.99 && setupSeen > 0.05 && p.ghosts.length < 8) {
+        p.ghosts.push(`${at}ms setup=${setupSeen.toFixed(2)}`);
+      }
+    }
+    for (const f of s.flights) {
+      const rec = p.flights[f.id] ?? (p.flights[f.id] = {first: f.box, last: f.box, n: 0, firstAt: at, lastAt: 0});
+      rec.last = f.box;
+      rec.lastAt = at;
+      rec.n++;
+    }
+    note(p.reserve, s.reserve, at);
+    note(p.votes, s.votes, at);
+    if (p.ringAt < 0 && s.ring) {
+      p.ringAt = at;
+    }
+    p.lobbyEmptied ||= s.lobbyEmpty;
+  }
+  return p;
+}
 
-/** An element's centre box and whether the player can actually SEE it (a rect, an effective opacity, not hidden, in view). */
+/**
+ * An element's centre box and whether the player can actually SEE it (a rect, an effective opacity, not hidden, in view)
+ * — compared or asserted only AT REST (`seenAtRest`); lengths rounded: a subpixel that jitters is not motion.
+ */
 async function seen(page: Page, selector: string): Promise<(Box & {visible: boolean}) | undefined> {
   return page.evaluate((sel) => {
     const el = document.querySelector<HTMLElement>(sel);
     if (el === null) {
       return undefined;
     }
+    const q = (n: number) => Math.round(n * 10) / 10;
     const r = el.getBoundingClientRect();
     let opacity = 1;
     let hidden = false;
@@ -237,8 +287,13 @@ async function seen(page: Page, selector: string): Promise<(Box & {visible: bool
       hidden = hidden || cs.visibility === 'hidden' || cs.display === 'none';
     }
     const inView = r.right > 0 && r.bottom > 0 && r.left < window.innerWidth && r.top < window.innerHeight;
-    return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, visible: r.width > 1 && r.height > 1 && opacity > 0.6 && !hidden && inView};
+    return {x: q(r.left + r.width / 2), y: q(r.top + r.height / 2), w: q(r.width), h: q(r.height),
+      visible: r.width > 1 && r.height > 1 && opacity > 0.6 && !hidden && inView};
   }, selector);
+}
+
+async function seenAtRest(page: Page, selector: string, what: string): Promise<(Box & {visible: boolean}) | undefined> {
+  return readSettled(page, () => seen(page, selector), {message: what});
 }
 
 const dist = (a: {x: number, y: number}, b: {x: number, y: number}) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -247,11 +302,11 @@ const voteMode = '.con-cardactions .con-parl--embedded [data-parl-vote-door="car
 const composer = '.con-cardactions .con-composer';
 const HERO = `${composer} .con-composer__actcardwrap`;
 
-/** The Parliament's width over the stage's — the step takes the WHOLE stage, never the column beside the card. */
+/** The Parliament's width over the stage's — the step takes the WHOLE stage, never the column beside the card (at rest). */
 const parliamentShareOfStage = (page: Page) => page.evaluate(() => {
   const parl = document.querySelector('.con-cardactions .con-composer__parlzone .con-parl')?.getBoundingClientRect();
   const stage = document.querySelector('.con-cardactions__stagewrap')?.getBoundingClientRect();
-  return parl === undefined || stage === undefined || stage.width < 2 ? 0 : parl.width / stage.width;
+  return parl === undefined || stage === undefined || stage.width < 2 ? 0 : Math.round(parl.width / stage.width * 1000) / 1000;
 });
 
 /** The focused action tile, as «card|variant» — the walk's position. */
@@ -295,14 +350,11 @@ const clipProblems = (page: Page) => page.evaluate(() => {
 
 /**
  * «ВЫБРАТЬ РЕЗОЛЮЦИЮ» — one press, verified by what it opens. Never a blind retry: a second A landing after the
- * vote mode is up is the COMMIT.
+ * vote mode is up is the COMMIT — so a retry comes only after a whole window with no vote mode (`pressUntil`).
  */
 async function chooseResolution(page: Page): Promise<void> {
   const taken = () => page.evaluate((sel) => document.querySelector(sel) !== null, voteMode);
-  for (let attempt = 0; attempt < 3 && !await taken(); attempt++) {
-    await press(page, 'Enter', 300);
-    await expect.poll(taken, {timeout: 3_000}).toBe(true).catch(() => undefined);
-  }
+  await pressUntil(page, 'Enter', taken, {tries: 3, settleMs: 3_000});
   await page.locator(voteMode).waitFor({timeout: 30_000});
   // The handover is over when the composer's setup is PARKED under the step.
   await expect(page.locator('.con-cardactions .con-composer--parlstep'), 'the setup parked under the step').toHaveCount(1, {timeout: 15_000});
@@ -357,8 +409,9 @@ for (const preset of PRESETS) {
       expect((await wireOf(request, playerId)).game.gameAge, 'the server\'s change counter stands still').toBe(before.game.gameAge);
 
       // ── 3. the mode takes the WHOLE stage: the card parked under it (L3 reads it), the Parliament the stage's width ──
-      expect((await seen(page, HERO))?.visible, 'the source card is parked under the step — never a column beside the Parliament').toBe(false);
-      expect(await parliamentShareOfStage(page), 'the Parliament spans the whole stage').toBeGreaterThan(0.95);
+      expect((await seenAtRest(page, HERO, 'the parked hero'))?.visible, 'the source card is parked under the step — never a column beside the Parliament').toBe(false);
+      expect(await readSettled(page, () => parliamentShareOfStage(page), {message: 'the Parliament\'s share of the stage'}),
+        'the Parliament spans the whole stage').toBeGreaterThan(0.95);
       // …the receipt in data, the card's source, the action's own verb; the host fits ──
       const receipt = page.locator('[data-parl-vote-receipt]');
       await expect(receipt, 'the locked receipt is the card\'s own price').toHaveAttribute('data-receipt-cost', '3');
@@ -368,15 +421,15 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-footer'), 'A is the action\'s commit verb').toContainText('Подтвердить');
       await expect(page.locator('.con-footer'), 'L3 lifts the source').toContainText('Источник');
       await expect(page.locator('.con-footer'), 'B is reversible').toContainText('Назад');
-      await expect.poll(() => clipProblems(page), {timeout: 8_000, message: `nothing under the hosted vote layer is clipped (${preset.id})`}).toEqual([]);
+      // The hosted layer measured AT REST — a box mid-entrance is not «clipped».
+      expect(await readSettled(page, () => clipProblems(page), {message: 'the hosted vote layer'}),
+        `nothing under the hosted vote layer is clipped (${preset.id})`).toEqual([]);
 
       // B walks back to the composer — branch B, nothing sent. The press took when the step is gone and the setup
-      // is back; never «press until the composer shows»: a second B on the restored composer leaves the workspace.
+      // is back; never «press until the composer shows»: a second B on the restored composer leaves the workspace
+      // (a retry comes only after a whole window with the step still up).
       const backTaken = () => page.evaluate(() => document.querySelector('.con-cardactions .con-parl') === null);
-      for (let attempt = 0; attempt < 3 && !await backTaken(); attempt++) {
-        await press(page, 'Escape', 300);
-        await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
-      }
+      await pressUntil(page, 'Escape', backTaken, {tries: 3, settleMs: 3_000});
       await expect(page.locator('.con-cardactions .con-composer--parlstep'), 'the setup un-parked').toHaveCount(0, {timeout: 10_000});
       await settle(page);
       await expect(page.locator(`${composer} .con-composer__cta`), 'back on branch B').toContainText('Выбрать резолюцию');
@@ -386,15 +439,17 @@ for (const preset of PRESETS) {
 
       // ── 4. in again; A is ONE POST, addressed to the card ──
       await chooseResolution(page);
-      const sources = {reserve: await seen(page, `[data-parl-seat-reserve="${viewer}"]`), receipt: await seen(page, '[data-parl-vote-receipt-icon]')};
-      const targets = {ribbon: await seen(page, '[data-parl-vote-ribbon]')};
+      // The flights' anchors, AT REST — the ends a flight is judged against never move under the read.
+      const sources = {
+        reserve: await seenAtRest(page, `[data-parl-seat-reserve="${viewer}"]`, 'the reserve stack'),
+        receipt: await seenAtRest(page, '[data-parl-vote-receipt-icon]', 'the receipt\'s price'),
+      };
+      const targets = {ribbon: await seenAtRest(page, '[data-parl-vote-ribbon]', 'the card\'s ribbon')};
       expect(sources.reserve?.visible, 'the reserve stack is on screen').toBe(true);
       expect(targets.ribbon?.visible, 'the card\'s ribbon is on screen').toBe(true);
 
-      for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-        await press(page, 'Enter', 300);
-        await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
-      }
+      // A — ONE POST; a retry only after a whole window in which nothing was sent.
+      await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 3_000});
       expect(posts.map((p) => new URL(p.url).pathname), 'the action is ONE batch POST').toEqual(['/player/input-batch']);
       const sent = JSON.parse(posts[0].body) as {responses?: Array<Record<string, unknown>>} | Array<Record<string, unknown>>;
       const responses = Array.isArray(sent) ? sent : sent.responses ?? [];
@@ -424,7 +479,8 @@ for (const preset of PRESETS) {
         flights: Object.values(probe.flights).map((f) => [Math.round(f.first.x), Math.round(f.first.y), Math.round(f.last.x), Math.round(f.last.y), f.n, f.firstAt, f.lastAt])});
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/martian-census-${preset.id}.json`, JSON.stringify(probe, null, 1));
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+      // The recorder's own liveness (it keeps DISTINCT states, never frames): only a dead recorder fails this floor.
+      expect(probe.samples, `the probe recorded (${probe.samples} states)`).toBeGreaterThan(0);
 
       // ── 2. one flow ──
       expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);

@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, bootFixtureSeats, fetchPlayerModel, press, sendPlayerInput, settle} from './consoleStart';
 import {JournalMock, applyJournalMock, journalArtIndex} from './journalChronicleMockups';
+import {readSettled} from './settledRead';
 
 /**
  * CH · «ЖУРНАЛ — ХРОНИКА, НЕ ЛОГ» — the first e2e stand of the console journal (fixture `journal-chronicle`: a two-seat
@@ -66,7 +67,7 @@ type JournalProbe = {
   titles: number;
 };
 
-/** The panel's honest reading, measured on the live DOM. */
+/** The panel's honest reading, measured on the live DOM — AT REST (`journalAtRest`), never mid-entrance or mid-page. */
 async function probeJournal(page: Page): Promise<JournalProbe> {
   return page.evaluate(() => {
     const panel = document.querySelector<HTMLElement>('.con-journal')!;
@@ -129,6 +130,19 @@ async function probeJournal(page: Page): Promise<JournalProbe> {
   });
 }
 
+async function journalAtRest(page: Page, what: string): Promise<JournalProbe> {
+  return readSettled(page, () => probeJournal(page), {message: what});
+}
+
+/**
+ * The feed's scroll offset, AT REST — the two sides of «the scroll never jumps» are both read here. `quiet: false` past
+ * the pass: the table moves on (the generation may end) and its holds are the table's, not the feed's — the scroll itself
+ * standing still is the rest asked for.
+ */
+async function scrollAtRest(page: Page, what: string, quiet = true): Promise<number> {
+  return readSettled(page, () => page.locator('.con-journal__scroll').evaluate((el) => el.scrollTop), {message: what, settle: quiet});
+}
+
 function keep(preset: string, name: string, data: unknown): void {
   fs.mkdirSync('test-results', {recursive: true});
   fs.writeFileSync(path.join('test-results', `journal-chronicle-${TAG}-${preset}-${name}.json`), JSON.stringify(data, null, 1));
@@ -169,7 +183,7 @@ for (const preset of PRESETS) {
 
       // ── (а) the panel on the rich generation ──
       await openJournal(page);
-      const detail = await probeJournal(page);
+      const detail = await journalAtRest(page, 'the detail mode');
       keep(preset.id, 'probe-detail', detail);
       await shot(page, preset.id, '01-detail');
       expect(detail.groups, 'the generation reads as event groups').toBeGreaterThan(0);
@@ -177,7 +191,7 @@ for (const preset of PRESETS) {
       // ── (б) the modes and the pager ──
       await press(page, 'KeyE', 700);
       await expect(page.locator('.journal-group--summary').first(), 'RB → СВОДКА').toBeVisible({timeout: 8_000});
-      keep(preset.id, 'probe-summary', await probeJournal(page));
+      keep(preset.id, 'probe-summary', await journalAtRest(page, 'the summary mode'));
       await shot(page, preset.id, '02-summary');
       await press(page, 'KeyQ', 700);
       await expect(page.locator('.journal-group--summary'), 'LB → ПОДРОБНО').toHaveCount(0, {timeout: 8_000});
@@ -186,7 +200,7 @@ for (const preset of PRESETS) {
       await press(page, 'Comma', 900);
       await expect.poll(genLabel, {timeout: 8_000, message: 'LT pages to the previous generation'}).not.toBe(genNow);
       await settle(page, {timeoutMs: 10_000});
-      keep(preset.id, 'probe-gen1', await probeJournal(page));
+      keep(preset.id, 'probe-gen1', await journalAtRest(page, 'generation 1'));
       await shot(page, preset.id, '03-generation-1');
       await press(page, 'Period', 900);
       await expect.poll(genLabel, {timeout: 8_000, message: 'RT pages back'}).toBe(genNow);
@@ -197,7 +211,7 @@ for (const preset of PRESETS) {
         await press(page, 'ArrowUp', 300);
         await press(page, 'KeyX', 900);
       }
-      expect(await zoomOpen(), 'X on an event with a card opens its viewer').toBe(true);
+      await expect.poll(zoomOpen, {message: 'X on an event with a card opens its viewer'}).toBe(true);
       await shot(page, preset.id, '04-inspect');
       await press(page, 'Escape', 900);
       await expect.poll(zoomOpen, {timeout: 8_000, message: 'B closes the viewer'}).toBe(false);
@@ -205,7 +219,7 @@ for (const preset of PRESETS) {
 
       // ── (г) the live feed: a pass of the seat on the move (blue — red passed already), posted while the panel stands ──
       const before = await page.locator('.con-journal__node').count();
-      const scrollBefore = await page.locator('.con-journal__scroll').evaluate((el) => el.scrollTop);
+      const scrollBefore = await scrollAtRest(page, 'the scroll before the live entry');
       type Menu = {waitingFor?: {options?: Array<{title?: unknown}>}};
       const models = await Promise.all(seats.map(async (id) => ({id, model: await fetchPlayerModel(request, id) as unknown as Menu})));
       const mover = models.find((m) => (m.model.waitingFor?.options ?? []).some((o) => JSON.stringify(o.title ?? '').includes('Pass for this generation')));
@@ -213,7 +227,7 @@ for (const preset of PRESETS) {
       const passIndex = (mover!.model.waitingFor?.options ?? []).findIndex((o) => JSON.stringify(o.title ?? '').includes('Pass for this generation'));
       await sendPlayerInput(request, mover!.id, {type: 'or', index: passIndex, response: {type: 'option'}});
       await expect.poll(() => page.locator('.con-journal__node').count(), {timeout: 30_000, message: 'the new entry arrives live'}).toBeGreaterThan(before);
-      const scrollAfter = await page.locator('.con-journal__scroll').evaluate((el) => el.scrollTop);
+      const scrollAfter = await scrollAtRest(page, 'the scroll after the live entry', false);
       expect(scrollAfter, 'the scroll never jumps back over the feed').toBeGreaterThanOrEqual(scrollBefore - 2);
       await shot(page, preset.id, '05-live');
 
@@ -232,7 +246,7 @@ for (const preset of PRESETS) {
           await openJournal(page);
           await applyJournalMock(page, mock, journalArtIndex());
           await settle(page, {timeoutMs: 10_000});
-          keep(preset.id, `probe-mock-${mock}`, await probeJournal(page));
+          keep(preset.id, `probe-mock-${mock}`, await journalAtRest(page, `the mockup ${mock}`));
           await shot(page, preset.id, `mock-${mock}`);
           await press(page, 'Comma', 900);
           await settle(page, {timeoutMs: 10_000});
@@ -247,7 +261,7 @@ for (const preset of PRESETS) {
       await page.emulateMedia({reducedMotion: 'reduce'});
       await bootFixture(page, request, 'journal-chronicle', {query: preset.query});
       await openJournal(page);
-      const probe = await probeJournal(page);
+      const probe = await journalAtRest(page, 'the panel under reduced motion');
       expect(probe.groups, 'the groups read under reduced motion').toBeGreaterThan(0);
     });
   });

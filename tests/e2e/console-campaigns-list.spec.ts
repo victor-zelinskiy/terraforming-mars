@@ -1,6 +1,7 @@
 import {expect, test, Page} from './consoleTest';
-import {press} from './consoleStart';
+import {press, settle} from './consoleStart';
 import {createCampaign, devCommit, launchMission, seedIdentity, campaignBase} from './campaignFixtures';
+import {readSettled} from './settledRead';
 
 /**
  * «МОИ КАМПАНИИ» — the main-menu campaign list (one row per campaign).
@@ -28,7 +29,9 @@ async function openCampaignsList(page: Page, name: string): Promise<void> {
   // campaign (cold cache) — wait the load out, not a fixed beat. Every test
   // creates its campaign up front, so a row always arrives.
   await page.waitForSelector('.cm-camp', {timeout: 60_000});
-  await page.waitForTimeout(400);
+  // …and the list at REST: no refresh in flight (the status names one), the screen quiet — a state, never a beat.
+  await expect(page.locator('.cm-screen__status--busy'), 'the list\'s refresh never ended').toHaveCount(0, {timeout: 20_000});
+  await settle(page);
 }
 
 test.describe('my campaigns list', () => {
@@ -49,7 +52,7 @@ test.describe('my campaigns list', () => {
     // The scene-transition curtain reveals AFTER the model renders — a press
     // under it is a press into the curtain, so wait it out first.
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 20_000}).catch(() => undefined);
-    await page.waitForTimeout(400);
+    await settle(page);
 
     // B → back into «Мои кампании»: same tab, the SAME campaign focused.
     await press(page, 'Escape', 900);
@@ -203,7 +206,9 @@ test.describe('my campaigns list', () => {
     await page.goto(`${campaignBase()}/campaign?id=${id}`);
     // The map loaded its model THROUGH the pin (a broken pin would 404 here).
     await page.waitForSelector('.cmap__card', {timeout: 20_000});
-    await page.waitForTimeout(600);
+    // The scene-transition curtain reveals AFTER the model renders — the press waits for the map at rest under it.
+    await page.waitForSelector('.con-load', {state: 'detached', timeout: 20_000}).catch(() => undefined);
+    await settle(page);
     // Launch through the map — ONE press (create + enter, no confirm modal).
     await Promise.all([
       page.waitForURL(/player\?id=p/, {timeout: 30_000}),
@@ -238,9 +243,14 @@ test.describe('my campaigns list', () => {
       const overflowX = await page.evaluate(() =>
         document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflowX, `horizontal overflow at ${vp.label}`).toBeLessThanOrEqual(1);
-      const rowBox = (await row.boundingBox())!;
       await expect.poll(() => page.locator('.cm-overlay').count(), {message: 'the list is a screen, not a dialog'}).toBe(0);
-      const cardBox = (await page.locator('.cm-screen__stage').first().boundingBox())!;
+      // Both boxes at REST, in one read (C — a comparison is only as settled as its least settled side).
+      const boxes = await readSettled(page, async () => ({
+        row: await row.boundingBox(),
+        card: await page.locator('.cm-screen__stage').first().boundingBox(),
+      }), {message: `the row and the stage at ${vp.label}`});
+      const rowBox = boxes.row!;
+      const cardBox = boxes.card!;
       expect(rowBox.x).toBeGreaterThanOrEqual(cardBox.x - 1);
       expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
     });

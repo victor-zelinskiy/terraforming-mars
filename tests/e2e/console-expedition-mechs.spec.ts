@@ -7,6 +7,8 @@ import {
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {acrossTargetPages} from './targetPages';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * TR50 «ЭКСПЕДИЦИОННЫЕ МЕХИ» — the set's SEVENTH mech holder: TR40 Forestry
@@ -230,48 +232,51 @@ async function cellTexts(page: Page): Promise<Record<string, string>> {
 }
 
 /**
- * THE BEAT PROBE — a task clock (never rAF): what moves on screen, as a signature of every flight body's box, the
- * workspace's presence and the dock's count. A run of equal signatures is a stretch where NOTHING moved (`deadGaps`).
+ * THE BEAT PROBE — RECORDED (FLAKE ZERO — `armWitness`, replace-proof): what moves on screen, as a signature of every
+ * flight body's box, the workspace's presence and the dock's count, kept on every CHANGE with the page's time, off the
+ * product's own writes (an observer + a frame tick). Nothing is recorded while nothing changes, so the time from one
+ * signature to the next is a stretch where NOTHING moved (`deadGaps`).
  */
+type Beat = {t: number, sig: string, ws: number, carried: number, reveal: number, deal: number, cap: string, hand: string};
+const BEAT_WITNESS = 'tr50-beat';
+
 async function armBeatProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type S = {t: number, sig: string, ws: number, carried: number, reveal: number, deal: number, cap: string, hand: string};
-    const samples: Array<S> = [];
-    (window as unknown as {__beat: Array<S>}).__beat = samples;
-    const t0 = performance.now();
+  await armWitness<Omit<Beat, 't'>, {cap: string}>(page, BEAT_WITNESS, ({cap}) => {
     const box = (el: Element) => {
       const r = el.getBoundingClientRect();
       const o = getComputedStyle(el).opacity;
       return `${Math.round(r.left / 4)},${Math.round(r.top / 4)},${Math.round(r.width / 4)},${o.slice(0, 4)}`;
     };
     const FLIGHT = '.con-transfer > *, .con-handdelivery-layer > *, .con-deal-proxy, .con-card3d-outer, .con-deckdraw *, .con-ws, .con-reveal, .con-recv';
-    window.setInterval(() => {
-      const flying = Array.from(document.querySelectorAll(FLIGHT)).slice(0, 60).map(box).join('|');
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        sig: flying,
-        ws: document.querySelectorAll('.con-ws').length,
-        carried: document.querySelectorAll('.con-handdelivery-layer > *').length,
-        reveal: document.querySelectorAll('.con-reveal').length,
-        deal: document.querySelectorAll('.con-deal-proxy, .con-deckdraw').length,
-        cap: (document.querySelector(`${'.con-cardactions__stagewrap .con-composer--stage'} .pcard__res-count`)?.textContent ?? '').trim(),
-        hand: document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? '',
-      });
-    }, 25);
-  });
+    return {
+      sig: Array.from(document.querySelectorAll(FLIGHT)).slice(0, 60).map(box).join('|'),
+      ws: document.querySelectorAll('.con-ws').length,
+      carried: document.querySelectorAll('.con-handdelivery-layer > *').length,
+      reveal: document.querySelectorAll('.con-reveal').length,
+      deal: document.querySelectorAll('.con-deal-proxy, .con-deckdraw').length,
+      cap: (document.querySelector(cap)?.textContent ?? '').trim(),
+      hand: document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? '',
+    };
+  }, {args: {cap: '.con-cardactions__stagewrap .con-composer--stage .pcard__res-count'}, max: 20_000});
 }
-type Beat = {t: number, sig: string, ws: number, carried: number, reveal: number, deal: number, cap: string, hand: string};
-const readBeat = (page: Page) => page.evaluate(() => (window as unknown as {__beat?: Array<Beat>}).__beat ?? []);
+/** The beat as recorded: every distinct state with the PAGE's time. */
+const readBeat = async (page: Page): Promise<Array<Beat>> =>
+  (await witnessOf<Omit<Beat, 't'>>(page, BEAT_WITNESS).samples()).map((s) => ({t: s.t, ...s.v}));
 
-/** The stretches (≥ `min` ms) where no flight body moved, the workspace stood and nothing changed — the dead time. */
-function deadGaps(samples: ReadonlyArray<Beat>, min: number): Array<{from: number, to: number, ms: number}> {
+/**
+ * The stretches (≥ `min` ms) where no flight body moved, the workspace stood and nothing changed — the dead time. A
+ * signature stands from its first record until the next signature (the record keeps changes only), or until `end` — the
+ * window's own end — for the last one.
+ */
+function deadGaps(samples: ReadonlyArray<Beat>, min: number, end: number): Array<{from: number, to: number, ms: number}> {
   const out: Array<{from: number, to: number, ms: number}> = [];
   let start = 0;
   for (let i = 1; i <= samples.length; i++) {
     if (i === samples.length || samples[i].sig !== samples[start].sig) {
-      const ms = samples[i - 1].t - samples[start].t;
+      const to = i === samples.length ? end : samples[i].t;
+      const ms = to - samples[start].t;
       if (ms >= min && samples[start].ws > 0) {
-        out.push({from: samples[start].t, to: samples[i - 1].t, ms});
+        out.push({from: samples[start].t, to, ms});
       }
       start = i;
     }
@@ -368,7 +373,7 @@ for (const preset of PRESETS) {
       await armBeatProbe(page);
       const stop = await storyboard(page, preset.id, 'b');
       await commit(page, ACTION_COMPOSER, seen);
-      const pressedAt = (await readBeat(page)).slice(-1)[0]?.t ?? 0;
+      const pressedAt = await pageNow(page); // the page's clock — the clock the record stamps its samples with
       await expect.poll(async () => resourcesOf(await wireOf(request, playerId), CARD), {timeout: 30_000, message: 'the mech left'}).toBe(0);
       // The server keeps the card at once (a plain draw); the workspace shows it on its stage — «Получена карта» — and A
       // takes it into the dock.
@@ -377,7 +382,7 @@ for (const preset of PRESETS) {
       const stageHead = await text(page, '.con-reveal');
       console.log(`[${preset.id} b stage] ${stageHead.slice(0, 160)}`);
       await shoot(page, preset.id, 'b-03-drawn');
-      const takenAt = (await readBeat(page)).slice(-1)[0]?.t ?? 0;
+      const takenAt = await pageNow(page);
       for (let i = 0; i < 4 && await page.locator('.con-reveal').count() > 0; i++) {
         await press(page, 'Enter', 700);
       }
@@ -385,15 +390,21 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 40_000});
       await waitForBoardHome(page, 30);
       await stop();
+      const beatEnd = await pageNow(page);
       const beat = await readBeat(page);
-      const post = beat.filter((s) => s.t >= pressedAt);
+      // A window of the record OPENS with the state standing at its start (re-stamped there), then every change in it.
+      const windowOf = (from: number, to: number): Array<Beat> => {
+        const standing = beat.filter((s) => s.t < from).at(-1);
+        return [...(standing === undefined ? [] : [{...standing, t: from}]), ...beat.filter((s) => s.t >= from && s.t < to)];
+      };
       // The stage at REST before the take is the player's own read («Получена карта», A waits) — not dead time:
       // a stretch that runs into the take press is dropped.
-      const gaps = deadGaps(post.filter((s) => s.t < takenAt), 300).filter((g) => g.to < takenAt - 150);
-      const afterTake = deadGaps(beat.filter((s) => s.t >= takenAt), 300);
+      const gaps = deadGaps(windowOf(pressedAt, takenAt), 300, takenAt).filter((g) => g.to < takenAt - 150);
+      const afterTake = deadGaps(windowOf(takenAt, beatEnd), 300, beatEnd);
       writeTrail(preset.id, 'b-beat', beat.map((s) => `${s.t} ws=${s.ws} carried=${s.carried} reveal=${s.reveal} deal=${s.deal} cap=${s.cap} hand=${s.hand}`).join('\n'));
       console.log(`[${preset.id} b] dead gaps ≥ 300 ms — press → stage: ${JSON.stringify(gaps)} · take → board: ${JSON.stringify(afterTake)}`);
-      expect(beat.length, 'the beat probe sampled').toBeGreaterThan(10);
+      // The record's own liveness floor: only a DEAD recorder fails it (recorded states, never frames).
+      expect(beat.length, 'the beat probe sampled').toBeGreaterThan(0);
       // «Nothing on screen moves» for 0.3 s while the workspace stands = a hole in the phrase. A TIMING claim, so it is
       // taken on the GPU (PL-211, both profiles); a SwiftShader run under parallel load starves its own compositor (fhd
       // measured one 315 ms stretch in 4 under two workers) and is only logged.
@@ -477,7 +488,8 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 600);
       await expect(page.locator('.con-ptsel'), 'the target step opened').toBeVisible();
       // A set the readable floor cannot hold whole is PAGED (ledger ET): every page is read, RB between them.
-      const pageRead = await acrossTargetPages(page, async () => [await page.evaluate(() => {
+      // Each page read at REST (C — `readSettled`: the same reading twice, a frame apart — never a page mid-turn).
+      const pageRead = await acrossTargetPages(page, async () => [await readSettled(page, () => page.evaluate(() => {
         const nameOf = (cell: Element) => cell.querySelector('[data-ptsel-self]') !== null ? 'self' : (cell.querySelector('[data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '?');
         const cells = Array.from(document.querySelectorAll('.con-ptsel__cell'));
         // PL-224: every candidate stands WHOLE inside every box that clips it (4K solved seven cards into one row 39 px
@@ -514,7 +526,7 @@ for (const preset of PRESETS) {
             [`${(tag.textContent ?? '').replace(/\s+/g, ' ').trim()} [${Math.round(r.width)}×${Math.round(r.height)} in ${Math.round(box.width)}×${Math.round(box.height)}]`] : [];
         });
         return {clipped, tags, cut};
-      })]);
+      }), {message: 'the target step\'s page'})]);
       const tags = pageRead.flatMap((p) => p.tags);
       expect(tags.length, 'seven mech holders, across the pages').toBe(7);
       expect(pageRead.flatMap((p) => p.clipped), 'every candidate stands whole inside the boxes that clip it').toEqual([]);

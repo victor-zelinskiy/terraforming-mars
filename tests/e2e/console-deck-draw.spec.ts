@@ -5,6 +5,7 @@ import {
   fillPicks, offeredCards, pickCards, playQueueCard, playQueueUntil, press, queueCards,
   submitSummary, takeRevealCards, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * The DECK-DRAW hero scene: cards physically come off the top-bar project
@@ -120,11 +121,15 @@ async function setUpSearchPrelude(page: Page): Promise<void> {
 }
 
 /**
- * What the ORDER PROBE below records. `staleReveal` is the state at ARM time —
+ * What the ORDER PROBE below records, folded. `staleReveal` is the state at ARM time —
  * anything already painted then belongs to an earlier card, and inheriting it
  * would make every later reading a lie.
  */
 type RevealOrder = {samples: number, proxyAt: number, revealWithFirstProxy: boolean, staleReveal: boolean, phases: Array<string>};
+
+/** One recorded state of the scene: a card in the air, the modal's card, the scene's own phase. */
+type OrderSeen = {proxy: boolean, revealCard: boolean, phase: string | null};
+const ORDER_WITNESS = 'deck-draw-order';
 
 /**
  * «The modal does NOT exist while the cards come off the deck» is a claim
@@ -134,46 +139,73 @@ type RevealOrder = {samples: number, proxyAt: number, revealWithFirstProxy: bool
  * answer is the runner's speed: the reveal is legitimately staged (veiled)
  * from the `assemble` phase on, so the held cards can fly into its real slots.
  *
- * MutationObserver + setInterval, never requestAnimationFrame: headless
- * Chromium drives rAF off the compositor, so a rAF sampler stops sampling
- * exactly when the screen goes quiet (.claude/rules/console-ui.md).
+ * RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): every change of what stands is kept
+ * with the page's time, off the product's own writes. An ORDER claim, so the record is `settled` — the state a task
+ * LEAVES, the state a frame can paint.
  */
 async function armRevealOrderProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const state = {
-      samples: 0,
-      proxyAt: -1,
-      revealWithFirstProxy: false,
-      staleReveal: document.querySelector('.con-reveal__card') !== null,
-      phases: [] as Array<string>,
-    };
-    (window as unknown as Record<string, unknown>).__deckDrawOrder = state;
-    const t0 = performance.now();
-    const sample = () => {
-      state.samples++;
-      if (state.proxyAt < 0 && document.querySelector('.con-deckdraw-proxy') !== null) {
-        state.proxyAt = performance.now() - t0;
-        // ATOMIC, and the whole point: the modal's state read in the SAME
-        // sample as the deal's FIRST card, not in a later round-trip. (The
-        // observer fires on the insertion itself, so this is that frame.)
-        state.revealWithFirstProxy = document.querySelector('.con-reveal__card') !== null;
-      }
-      // The scene's own phase ladder, deduped in visit order — the settle
-      // regression guard reads it (the bounce wave lived in a dedicated
-      // 'settle' phase; its removal must stay removed).
-      const phase = document.querySelector('.con-deckdraw')?.getAttribute('data-dd-phase');
-      if (phase !== null && phase !== undefined && state.phases[state.phases.length - 1] !== phase) {
-        state.phases.push(phase);
-      }
-    };
-    new MutationObserver(sample).observe(document.body, {childList: true, subtree: true});
-    window.setInterval(sample, 30);
-    sample();
-  });
+  await armWitness<OrderSeen>(page, ORDER_WITNESS, () => ({
+    proxy: document.querySelector('.con-deckdraw-proxy') !== null,
+    revealCard: document.querySelector('.con-reveal__card') !== null,
+    phase: document.querySelector('.con-deckdraw')?.getAttribute('data-dd-phase') ?? null,
+  }), {settled: true});
 }
 
 async function readRevealOrder(page: Page): Promise<RevealOrder> {
-  return page.evaluate(() => (window as unknown as {__deckDrawOrder: RevealOrder}).__deckDrawOrder);
+  const samples = await witnessOf<OrderSeen>(page, ORDER_WITNESS).samples();
+  const t0 = samples[0]?.t ?? 0;
+  // ATOMIC, and the whole point: the modal's state read in the SAME sample as the deal's FIRST card, not in a later
+  // round-trip.
+  const first = samples.find((s) => s.v.proxy);
+  // The scene's own phase ladder, deduped in visit order — the settle regression guard reads it (the bounce wave lived
+  // in a dedicated 'settle' phase; its removal must stay removed).
+  const phases: Array<string> = [];
+  for (const s of samples) {
+    if (s.v.phase !== null && phases[phases.length - 1] !== s.v.phase) {
+      phases.push(s.v.phase);
+    }
+  }
+  return {
+    samples: samples.length,
+    proxyAt: first === undefined ? -1 : first.t - t0,
+    revealWithFirstProxy: first?.v.revealCard === true,
+    // The record keeps the state it was ARMED in — that state IS the question here.
+    staleReveal: samples[0]?.v.revealCard === true,
+    phases,
+  };
+}
+
+/** One recorded state of the discard pile beside the HUD deck (the seat claim). */
+type PileSeen = {
+  piles: number,
+  pile: {x: number, y: number, top: number} | null,
+  deckCx: number | null,
+  stripBottom: number | null,
+  rem: number,
+  /** The plate's own enter/leave pose is a slide from under the strip: only a RESTING pile is measured. */
+  resting: boolean,
+  reveal: boolean,
+  stage: boolean,
+};
+const PILE_WITNESS = 'deck-draw-pile';
+
+async function armPileSeatProbe(page: Page): Promise<void> {
+  await armWitness<PileSeen>(page, PILE_WITNESS, () => {
+    const piles = document.querySelectorAll('[data-discard-pile] .con-dpile__stack');
+    const rect = piles[0]?.getBoundingClientRect();
+    const deck = document.querySelector('.con-deckstack__pile')?.getBoundingClientRect();
+    const strip = document.querySelector('.con-status')?.getBoundingClientRect();
+    return {
+      piles: piles.length,
+      pile: rect === undefined ? null : {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, top: rect.top},
+      deckCx: deck === undefined ? null : deck.left + deck.width / 2,
+      stripBottom: strip === undefined ? null : strip.bottom,
+      rem: parseFloat(getComputedStyle(document.documentElement).fontSize) || 20,
+      resting: document.querySelector('.con-dpile-enter-active, .con-dpile-leave-active') === null,
+      reveal: document.querySelector('.con-reveal__card') !== null,
+      stage: document.querySelector('.con-deckdraw') !== null,
+    };
+  }, {settled: true});
 }
 
 /**
@@ -224,8 +256,8 @@ test.describe('console · deck-draw hero scene', () => {
     // 1 · The scene stage exists and the modal is WITHHELD while it plays.
     const stage = page.locator('.con-deckdraw');
     await expect(stage).toHaveCount(1, {timeout: 30_000});
-    // At least one card is airborne off the deck.
-    await expect(page.locator('.con-deckdraw-proxy')).not.toHaveCount(0);
+    // At least one card is airborne off the deck — asked of the record armed before the press (a proxy is a transient).
+    await witnessOf<OrderSeen>(page, ORDER_WITNESS).waitFor((v) => v.proxy, {message: 'no card was ever seen airborne off the deck'});
     // …and the modal never PRECEDED them — judged by the probe armed before
     // the press, never by a single late sample (see `armRevealOrderProbe`).
     const order = await readRevealOrder(page);
@@ -249,61 +281,43 @@ test.describe('console · deck-draw hero scene', () => {
 
     // ── THE PILE IS ONE OBJECT OF THE TABLE (TR52, PL-260) — the scene and the
     //    reveal both land on it, so from the first discard to the reveal it
-    //    must neither MOVE nor DOUBLE. Sampled continuously, because a pile that
-    //    teleports and a pile that stands have the SAME end state.
-    const seat = {
-      moved: 0, // px the pile travelled after it first appeared
-      doubleFrames: 0, // samples with more than one pile in the DOM
-      besideDeck: true, // the pile stood UNDER the HUD deck (its stack under the deck's), below the strip
-    };
-    let firstPile: {x: number, y: number} | undefined;
-    for (let i = 0; i < 140; i++) {
-      const s = await page.evaluate(() => {
-        const piles = document.querySelectorAll('[data-discard-pile] .con-dpile__stack');
-        const stack = piles[0];
-        const rect = stack?.getBoundingClientRect();
-        const deck = document.querySelector('.con-deckstack__pile')?.getBoundingClientRect();
-        const strip = document.querySelector('.con-status')?.getBoundingClientRect();
-        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 20;
-        return {
-          piles: piles.length,
-          pile: rect === undefined ? undefined : {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2,
-            left: rect.left, top: rect.top},
-          deckCx: deck === undefined ? undefined : deck.left + deck.width / 2,
-          stripBottom: strip === undefined ? undefined : strip.bottom,
-          rem,
-          // The plate's own enter/leave pose is a slide from under the strip: only a RESTING pile is measured.
-          resting: document.querySelector('.con-dpile-enter-active, .con-dpile-leave-active') === null,
-          reveal: document.querySelector('.con-reveal__card') !== null,
-          stage: document.querySelector('.con-deckdraw') !== null,
-        };
-      });
-      if (s.piles > 1) {
-        seat.doubleFrames++;
-      }
-      if (s.pile !== undefined && s.resting) {
-        if (firstPile === undefined) {
-          firstPile = {x: s.pile.x, y: s.pile.y};
-        }
-        seat.moved = Math.max(seat.moved, Math.hypot(s.pile.x - firstPile.x, s.pile.y - firstPile.y));
-        if (s.deckCx !== undefined && Math.abs(s.pile.x - s.deckCx) > 3 * s.rem) {
-          seat.besideDeck = false;
-        }
-        if (s.stripBottom !== undefined && s.pile.top < s.stripBottom - 1) {
-          seat.besideDeck = false;
-        }
-      }
-      if (!s.stage && s.reveal) {
-        break;
-      }
-      await page.waitForTimeout(60);
-    }
+    //    must neither MOVE nor DOUBLE. RECORDED continuously (`armWitness` — every change, off the product's own
+    //    writes), because a pile that teleports and a pile that stands have the SAME end state. The window opens here
+    //    (where the old sampler started) and closes on the scene's END STATE — the stage gone, the reveal's card up.
+    await armPileSeatProbe(page);
 
     // 2 · The scene resolves into the reveal modal, holding the found cards.
     const revealCard = page.locator('.con-reveal__card');
     await expect(revealCard).toHaveCount(1, {timeout: 45_000});
     await expect(stage).toHaveCount(0, {timeout: 20_000}); // the stage tore down
     await shoot(page, '03-reveal');
+
+    const seat = {
+      moved: 0, // px the pile travelled after it first appeared
+      doubleFrames: 0, // recorded states with more than one pile in the DOM
+      besideDeck: true, // the pile stood UNDER the HUD deck (its stack under the deck's), below the strip
+    };
+    let firstPile: {x: number, y: number} | undefined;
+    for (const {v: s} of await witnessOf<PileSeen>(page, PILE_WITNESS).stop()) {
+      if (s.piles > 1) {
+        seat.doubleFrames++;
+      }
+      if (s.pile !== null && s.resting) {
+        if (firstPile === undefined) {
+          firstPile = {x: s.pile.x, y: s.pile.y};
+        }
+        seat.moved = Math.max(seat.moved, Math.hypot(s.pile.x - firstPile.x, s.pile.y - firstPile.y));
+        if (s.deckCx !== null && Math.abs(s.pile.x - s.deckCx) > 3 * s.rem) {
+          seat.besideDeck = false;
+        }
+        if (s.stripBottom !== null && s.pile.top < s.stripBottom - 1) {
+          seat.besideDeck = false;
+        }
+      }
+      if (!s.stage && s.reveal) {
+        break; // the window's end: the scene has resolved into the reveal
+      }
+    }
 
     // REGRESSION GUARD — the settle «bounce wave» stays removed. The old
     // finish beat parked the scene in a dedicated 'settle' phase and hopped

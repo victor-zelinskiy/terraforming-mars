@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {cinematicBeat, press} from './consoleStart';
+import {test, expect, Page, APIRequestContext, Locator} from './consoleTest';
+import {cinematicBeat, press, pressUntil, pressUntilVisible, walkFocusUntil} from './consoleStart';
+import {readSettled} from './settledRead';
 import {campaignBase, createCampaign, seedIdentity} from './campaignFixtures';
 
 /**
@@ -32,6 +33,39 @@ async function modifiedSlots(request: APIRequestContext, id: string, modifier: '
   return model.missions.filter((m) => (m.modifiers ?? []).some((x) => x.id === modifier)).map((m) => m.slot);
 }
 
+/** A rule's box and its dial's box (null: not laid out). */
+async function boxesOf(parent: Locator, under: Locator) {
+  return [await parent.boundingBox(), await under.boundingBox()] as const;
+}
+
+/** The next arrow that brings the creator's cursor onto the «Шанс на миссию» dial ('here' on it, 'none' unreadable). */
+async function dialStep(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const want = document.querySelector('[data-rule-sub="maChance"]')?.getBoundingClientRect();
+    const at = document.querySelector('.cm-rules .cm-row--cursor')?.getBoundingClientRect();
+    if (want === undefined || at === undefined) {
+      return 'none';
+    }
+    if (Math.abs(want.top - at.top) < 4 && Math.abs(want.right - at.right) < 4) {
+      return 'here';
+    }
+    if (Math.abs(want.right - at.right) >= 4) {
+      return want.right > at.right ? 'ArrowRight' : 'ArrowLeft';
+    }
+    return want.top > at.top ? 'ArrowDown' : 'ArrowUp';
+  });
+}
+
+/** Every route card's height (rounded). */
+async function cardHeights(page: Page): Promise<Array<number>> {
+  return page.locator('.cmap__card').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
+}
+
+/** The index of the route card under the map's cursor (as a string — `walkFocusUntil`'s position). */
+async function routeCursor(page: Page): Promise<string> {
+  return page.locator('.cmap__card').evaluateAll((els) => String(els.findIndex((el) => el.classList.contains('cmap__card--cursor'))));
+}
+
 test('A — the creator: «Шанс на миссию» under each rolled rule, stepped by ◄ ► and cycled by A', async ({page}) => {
   test.setTimeout(180_000);
   await seedIdentity(page, 'Alice');
@@ -47,17 +81,14 @@ test('A — the creator: «Шанс на миссию» under each rolled rule, 
   await page.goto(`${campaignBase()}/?x=1${TV.query}`);
   await page.waitForSelector('.cm-menu__items', {timeout: 60_000});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => undefined);
-  for (let i = 0; i < 12 && await page.locator('.cm-item--cursor').getAttribute('data-menu-item') !== 'create'; i++) {
-    await press(page, 'ArrowDown', 120);
-  }
+  await pressUntil(page, 'ArrowDown', async () => await page.locator('.cm-item--cursor').getAttribute('data-menu-item') === 'create',
+    {tries: 12, settleMs: 120});
   await press(page, 'Enter', 300);
   await page.waitForSelector('.cm-mode__tile', {timeout: 30_000});
   await expect(page.locator('.cm-mode__tile--cursor')).toHaveClass(/cm-mode__tile--campaign/);
   await press(page, 'Enter', 600);
   await page.waitForSelector('.cm-crew', {timeout: 30_000});
-  for (let i = 0; i < 6 && await page.locator('.cm-rules').count() === 0; i++) {
-    await press(page, 'KeyE', 400);
-  }
+  await pressUntilVisible(page, 'KeyE', '.cm-rules', {tries: 6, settleMs: 400});
   const dial = page.locator('[data-rule-sub="maChance"]');
   await expect(dial, 'the dial stands in a campaign with the rule on').toHaveCount(1, {timeout: 15_000});
   await expect(dial.locator('.cm-rule__dial-value')).toHaveText('30%');
@@ -67,7 +98,7 @@ test('A — the creator: «Шанс на миссию» under each rolled rule, 
   // Each dial right under its parent rule — in its column, the next row down (the wide grid and the list alike).
   for (const [rule, under] of [['Случайные цели и награды', dial], ['Случайные места для тайлов', shuffleDial]] as const) {
     const parent = page.locator('.cm-rule').filter({hasText: rule}).first();
-    const [p, d] = [await parent.boundingBox(), await under.boundingBox()];
+    const [p, d] = await readSettled(page, () => boxesOf(parent, under), {message: `«${rule}» and its dial`});
     expect(p !== null && d !== null).toBe(true);
     expect(d!.y, `the dial stands below «${rule}»`).toBeGreaterThan(p!.y + p!.height - 2);
     expect(d!.y, `the dial is the NEXT row under «${rule}»`).toBeLessThan(p!.y + p!.height * 2.2);
@@ -75,22 +106,10 @@ test('A — the creator: «Шанс на миссию» under each rolled rule, 
     expect(d!.x + d!.width).toBeLessThan(p!.x + p!.width + 4);
   }
 
-  // Walk the cursor onto the dial by GEOMETRY (the deck is a grid on the wide creator, a list elsewhere).
+  // Walk the cursor onto the dial by GEOMETRY (the deck is a grid on the wide creator, a list elsewhere) — each step read
+  // AT REST, so a cursor still gliding never decides the next arrow.
   for (let i = 0; i < 12; i++) {
-    const step = await page.evaluate(() => {
-      const want = document.querySelector('[data-rule-sub="maChance"]')?.getBoundingClientRect();
-      const at = document.querySelector('.cm-rules .cm-row--cursor')?.getBoundingClientRect();
-      if (want === undefined || at === undefined) {
-        return 'none';
-      }
-      if (Math.abs(want.top - at.top) < 4 && Math.abs(want.right - at.right) < 4) {
-        return 'here';
-      }
-      if (Math.abs(want.right - at.right) >= 4) {
-        return want.right > at.right ? 'ArrowRight' : 'ArrowLeft';
-      }
-      return want.top > at.top ? 'ArrowDown' : 'ArrowUp';
-    });
+    const step = await readSettled(page, () => dialStep(page), {message: 'the cursor against the dial'});
     if (step === 'here' || step === 'none') {
       break;
     }
@@ -138,14 +157,14 @@ test('B — the map: the badge on exactly the modified missions, named in the in
   }, {message: 'the badges stand on the slots the server rolled'}).toEqual(slots);
   await expect(page.locator('[data-mission-modifier="randomMA"]').first()).toContainText(/Случайные цели/i);
   // Zero layout: every card of the route keeps one height whatever it rolled.
-  const heights = await cards.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
+  const heights = await readSettled(page, () => cardHeights(page), {message: 'the route cards'});
   expect(new Set(heights).size, `card heights ${heights.join(', ')}`).toBe(1);
   await cinematicBeat(page, 1600, 'the route reveal + the one-shot seal finish before the frame');
   await shot(page, 'b-map-badges');
 
-  for (let i = 0; i < slots[0]; i++) {
-    await press(page, 'ArrowRight', 300);
-  }
+  // The cursor onto the first modified mission — each hop verified by the cursor's own move (`walkFocusUntil`).
+  expect(await walkFocusUntil(page, async () => await routeCursor(page) === String(slots[0]), () => routeCursor(page), 8, 300),
+    `the cursor reaches mission slot ${slots[0]}`).toBe(true);
   await press(page, 'KeyX', 600);
   await expect(page.locator('.cminsp')).toBeVisible();
   await expect(page.locator('.cminsp__mod')).toHaveCount(1);
@@ -183,9 +202,9 @@ test('C — the map: the shuffled layout wears its own badge, and the inspect ne
   await cinematicBeat(page, 1600, 'the route reveal + the one-shot seal finish before the frame');
   await shot(page, 'c-map-shuffle');
 
-  for (let i = 0; i < slots[0]; i++) {
-    await press(page, 'ArrowRight', 300);
-  }
+  // The cursor onto the first modified mission — each hop verified by the cursor's own move (`walkFocusUntil`).
+  expect(await walkFocusUntil(page, async () => await routeCursor(page) === String(slots[0]), () => routeCursor(page), 8, 300),
+    `the cursor reaches mission slot ${slots[0]}`).toBe(true);
   await press(page, 'KeyX', 600);
   await expect(page.locator('.cminsp')).toBeVisible();
   await expect(page.locator('.cminsp__mod-name').filter({hasText: 'Случайные места для тайлов'})).toHaveCount(1);

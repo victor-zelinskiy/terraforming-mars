@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, press} from './consoleStart';
+import {bootIntoGame, press, pressUntilVisible} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * The IN-GAME SYSTEM overlay (`.con-sys--menu`) and the settings console it
@@ -89,13 +90,26 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
  * can land while something else still owns input and simply do nothing.
  */
 async function openSystemMenu(page: Page): Promise<void> {
-  for (let i = 0; i < 6; i++) {
-    await key(page, 'KeyM', 500);
-    if (await page.locator('.con-sys--menu').count() > 0) {
-      return;
-    }
-  }
+  await pressUntilVisible(page, 'KeyM', '.con-sys--menu', {tries: 6, settleMs: 500});
   await expect.poll(() => page.locator('.con-sys--menu').count(), {message: 'the system overlay never opened'}).toBeGreaterThan(0);
+}
+
+/** The system card's left edge — the frame that must not move between the menu and its exit stage. */
+async function cardLeft(page: Page): Promise<number | undefined> {
+  return (await page.locator('.con-sys__card').boundingBox())?.x;
+}
+
+/** The settings categories that run under (or past) one of the two bumper chips of the strip. */
+async function crowdedTabs(page: Page): Promise<Array<string>> {
+  return page.evaluate(() => {
+    const chips = [...document.querySelectorAll('.con-sys--settings .con-sys__tabs-chip')].map((el) => el.getBoundingClientRect());
+    const left = Math.min(...chips.map((r) => r.right));
+    const right = Math.max(...chips.map((r) => r.left));
+    return [...document.querySelectorAll('.con-sys--settings .con-set__tab')]
+      .map((el) => ({name: (el.textContent ?? '').trim(), box: el.getBoundingClientRect()}))
+      .filter((tab) => tab.box.left < left - 0.5 || tab.box.right > right + 0.5)
+      .map((tab) => tab.name);
+  });
 }
 
 test.describe('the in-game system overlay + its settings console', () => {
@@ -118,16 +132,15 @@ test.describe('the in-game system overlay + its settings console', () => {
     await expect(page.locator('.con-sysact__sub').first()).not.toBeEmpty();
     await shoot(page, '01-system-menu');
 
-    const card = page.locator('.con-sys__card');
-    const menuBox = await card.boundingBox();
+    // Both sides of the «the frame did not move» comparison are read AT REST.
+    const menuX = await readSettled(page, () => cardLeft(page), {message: 'the menu card'});
 
     // ── The exit confirmation is a STAGE, not a second dialog ────────
     await page.locator('.con-sysact__plate', {hasText: 'В главное меню'}).click();
-    await page.waitForTimeout(450);
     await expect(page.locator('.con-sys__crumb-root')).toHaveText('Система');
     await expect(page.locator('.con-sys__crumb-stage')).toHaveText('Выйти');
     // The frame did not move — the same card gained a tail and swapped verbs.
-    expect((await card.boundingBox())?.x).toBe(menuBox?.x);
+    expect(await readSettled(page, () => cardLeft(page), {message: 'the exit stage\'s card'})).toBe(menuX);
     await expect(page.locator('.con-sys__hint--danger')).toHaveCount(1);
     await shoot(page, '02-exit-stage');
     // B is one logical level: back to the plate list.
@@ -153,26 +166,17 @@ test.describe('the in-game system overlay + its settings console', () => {
 
     // ── «Настройки»: the in-game shape of the settings console ───────
     await page.locator('.con-sysact__plate', {hasText: 'Настройки'}).click();
-    await page.waitForTimeout(500);
+    await expect(page.locator('.con-sys--settings')).toHaveCount(1);
     await expect(page.locator('.con-set__tab', {hasText: 'Интерфейс'})).toHaveClass(/con-set__tab--current/);
     // THE STRIP HOLDS ALL SIX in-game categories between its two bumper chips (the sixth, «ДИАГНОСТИКА», used to run
     // under the right chip and out of the card).
     await expect(page.locator('.con-set__tab')).toHaveCount(6);
-    const crowded = await page.evaluate(() => {
-      const chips = [...document.querySelectorAll('.con-sys--settings .con-sys__tabs-chip')].map((el) => el.getBoundingClientRect());
-      const left = Math.min(...chips.map((r) => r.right));
-      const right = Math.max(...chips.map((r) => r.left));
-      return [...document.querySelectorAll('.con-sys--settings .con-set__tab')]
-        .map((el) => ({name: (el.textContent ?? '').trim(), box: el.getBoundingClientRect()}))
-        .filter((tab) => tab.box.left < left - 0.5 || tab.box.right > right + 0.5)
-        .map((tab) => tab.name);
-    });
+    const crowded = await readSettled(page, () => crowdedTabs(page), {message: 'the settings strip'});
     expect(crowded, 'every category stands clear of the two bumper chips').toEqual([]);
     // In-game drops the shell switch (swapping shells mid-game is jarring)…
     await expect(page.locator('.con-set__row', {hasText: 'Оболочка'})).toHaveCount(0);
     // …and gains the per-game category with the private-score mask.
     await page.locator('.con-set__tab', {hasText: 'Партия'}).click();
-    await page.waitForTimeout(400);
     await expect(page.locator('.con-set__row', {hasText: 'Приватный счёт'})).toHaveCount(1);
     // The HIGHLIGHT must follow the pane — exactly one tab is current, and it
     // is this one. (A strip that marks a category the pane is not showing is

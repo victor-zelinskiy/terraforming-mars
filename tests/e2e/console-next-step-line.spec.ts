@@ -1,6 +1,7 @@
-import {test, expect} from './consoleTest';
+import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {readSettled} from './settledRead';
 
 /**
  * CONSOLE «ДАЛЕЕ» LINE — the geometry contract.
@@ -81,6 +82,29 @@ const PROFILES: ReadonlyArray<{id: string, width: number, height: number}> = [
 ];
 const remFor = (width: number) => (width / LOGICAL_WIDTH) * LOGICAL_REM;
 
+/** The harness has laid out its text: the document's fonts are loaded (the state a fixed pause stood in for). */
+async function harnessReady(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+}
+
+/** Every row's box, line and overflow — one reading, taken AT REST through `readSettled`. */
+async function measureRows(page: Page): Promise<Array<{height: number, lineHeight: number, scrollWidth: number, clientWidth: number}>> {
+  return page.$$eval('.con-composer__next', (els) => els.map((el) => {
+    const e = el as HTMLElement;
+    const text = e.querySelector('.con-composer__next-text') as HTMLElement;
+    return {
+      height: e.getBoundingClientRect().height,
+      // A wrapped row is taller than its own line box — the direct signal
+      // that the "one line" contract broke.
+      lineHeight: text.getBoundingClientRect().height,
+      scrollWidth: e.scrollWidth,
+      clientWidth: e.clientWidth,
+    };
+  }));
+}
+
 test.describe('console «ДАЛЕЕ» line — fixed height, no overflow', () => {
   test.beforeAll(() => {
     expect(fs.existsSync(CSS), 'build/styles.css missing — run `npm run make:css` first').toBeTruthy();
@@ -90,20 +114,9 @@ test.describe('console «ДАЛЕЕ» line — fixed height, no overflow', () =>
     test(`every variant is ONE line of the SAME height · ${profile.id}`, async ({page}) => {
       await page.setViewportSize({width: profile.width, height: profile.height});
       await page.setContent(harness(remFor(profile.width)));
-      await page.waitForTimeout(150);
+      await harnessReady(page);
 
-      const measured = await page.$$eval('.con-composer__next', (els) => els.map((el) => {
-        const e = el as HTMLElement;
-        const text = e.querySelector('.con-composer__next-text') as HTMLElement;
-        return {
-          height: e.getBoundingClientRect().height,
-          // A wrapped row is taller than its own line box — the direct signal
-          // that the "one line" contract broke.
-          lineHeight: text.getBoundingClientRect().height,
-          scrollWidth: e.scrollWidth,
-          clientWidth: e.clientWidth,
-        };
-      }));
+      const measured = await readSettled(page, () => measureRows(page), {message: `${profile.id}: the rows`});
       expect(measured.length).toBe(ROWS.length);
 
       // 1. ONE height for every variant. Not "close" — identical.
@@ -126,11 +139,11 @@ test.describe('console «ДАЛЕЕ» line — fixed height, no overflow', () =>
     test(`the column never scrolls sideways · ${profile.id}`, async ({page}) => {
       await page.setViewportSize({width: profile.width, height: profile.height});
       await page.setContent(harness(remFor(profile.width)));
-      await page.waitForTimeout(150);
-      const doc = await page.evaluate(() => ({
+      await harnessReady(page);
+      const doc = await readSettled(page, () => page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,
-      }));
+      })), {message: `${profile.id}: the column`});
       expect(doc.scrollWidth, 'the page gained a horizontal scrollbar').toBeLessThanOrEqual(doc.clientWidth + 1);
     });
   }
@@ -139,9 +152,9 @@ test.describe('console «ДАЛЕЕ» line — fixed height, no overflow', () =>
     // The TIGHTEST supported profile — if a real name fits here it fits everywhere.
     await page.setViewportSize({width: 1280, height: 800});
     await page.setContent(harness(remFor(1280)));
-    await page.waitForTimeout(150);
-    const truncated = await page.$$eval('.con-composer__next-text', (els) => els
-      .map((el, i) => ({i, clipped: (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth + 1})));
+    await harnessReady(page);
+    const truncated = await readSettled(page, () => page.$$eval('.con-composer__next-text', (els) => els
+      .map((el, i) => ({i, clipped: (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth + 1}))), {message: 'the real names'});
     // Index 10 is the deliberately pathological row; every REAL name fits.
     const realClipped = truncated.filter((t) => t.clipped && t.i !== ROWS.length - 1).map((t) => ROWS[t.i].id);
     expect(realClipped, `real tile names were truncated: ${realClipped.join(', ')}`).toHaveLength(0);

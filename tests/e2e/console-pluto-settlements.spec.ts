@@ -3,13 +3,15 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, cinematicBeat, FixtureName, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * SEVERAL SETTLEMENTS ON PLUTO — «draw 1, then discard 1» PER SETTLEMENT, each in full before the next card is drawn
  * (docs/claude/prompts/colony-polish-iteration-1-pluto-settlements.md). Driven against a REAL server from the
  * `pluto-settlements-*` fixtures: the viewer trades with Pluto holding 2 (or 3) of its own cubes there.
  *
- * The probe records, off the DOM the player looks at (MutationObserver + setInterval, never rAF):
+ * The probe RECORDS, off the DOM the player looks at (`armWitness` — every change, off the product's own writes):
  *   · every reveal ROOT that ever mounted (an instance nonce) — «the table is one instance» is a nonce count;
  *   · every flying card PROXY (trade covers, deck-draw proxies) with its birth / last rect and the bonus zone it
  *     landed in — «no second flight to place N» is a count per place;
@@ -29,14 +31,15 @@ const PRESETS = [
 ] as const;
 
 type Box = {x: number, y: number, w: number, h: number};
-/** `zone` = the zone under the proxy's centre at its LAST sample (mid-flight on a starved renderer); `restZone` = the zone it
- *  was seen STANDING over (two consecutive samples in one spot) — its landing, the only place a flight is judged by. */
+/** `zone` = the zone under the proxy's centre at its LAST recorded pose; `restZone` = that zone once the flight has ENDED
+ *  (its proxy gone — the recorder saw the tween's final write, so the last pose is the landing) — the only place a flight
+ *  is judged by. */
 type Flight = {kind: string, nonce: number, bornAt: number, lastAt: number, first: Box, last: Box, zone: number, restZone?: number, face: string,
   /** The SEALED place this cover is addressed to (`data-sealed-place` — the product's own statement, never geometry). */
   sealed?: number};
 type Probe = {
+  /** Recorded states (a change kept once — never a count of frames). */
   samples: number,
-  ticks: number,
   /** Every reveal root that ever mounted, by nonce, with the time it first and last stood. */
   reveals: Array<[number, number, number]>,
   /** The bonus zones' reading, every change: `<index><state><paint>` per zone (paint: c card · b back · s socket · - none). */
@@ -54,26 +57,59 @@ type Probe = {
   t0: number,
 };
 
+/** One recorded state of the table — what stands NOW (an observation; the series are folded on the Node side). */
+type PluSeen = {
+  /** The nonces of the reveal roots standing now. */
+  reveals: Array<number>,
+  /** `<table nonce>@<root instance>` of every settlement table standing now. */
+  tables: Array<string>,
+  zones: string,
+  /** The crumb's tail (null while the colonies' head is not there). */
+  tail: string | null,
+  scene: string,
+  deck: string,
+  /** Every card flying over the table now, with the zone under its centre. */
+  flights: Array<{key: string, kind: string, nonce: number, box: Box, zone: number, face: string, sealed: number | null}>,
+};
+const PLU_WITNESS = 'pluto-settlements';
+
+/**
+ * THE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns what stands
+ * now, every change is kept with the page's time, off the product's own writes (an observer over the whole document — a
+ * flight's every `style` write included — and a frame tick), so a starved renderer can slow a flight but never hide its
+ * last pose. Element identity across samples: a `WeakMap` on `window`.
+ */
 async function armProbe(page: Page): Promise<void> {
+  // Main-thread long tasks (diagnostics only): the page's own record, read with the probe.
   await page.evaluate(() => {
-    const w = window as unknown as {__plu: Probe, __pluNonce: number};
-    const p: Probe = {samples: 0, ticks: 0, reveals: [], zones: [], tails: [], flights: {}, scene: [], deck: [], longtasks: [], t0: 0, tables: []};
-    w.__plu = p;
-    w.__pluNonce = 0;
-    const t0 = Date.now();
-    p.t0 = t0 % 100000;
+    const w = window as unknown as {__pluLong?: Array<[number, number]>};
+    const long: Array<[number, number]> = [];
+    w.__pluLong = long;
     const perf0 = performance.now();
     try {
       new PerformanceObserver((list) => {
         for (const e of list.getEntries()) {
           if (e.duration >= 120) {
-            p.longtasks.push([Math.round(e.startTime - perf0), Math.round(e.duration)]);
+            long.push([Math.round(e.startTime - perf0), Math.round(e.duration)]);
           }
         }
       }).observe({type: 'longtask', buffered: false});
     } catch {
       // no long-task timing in this browser — the series stays empty
     }
+  });
+  await armWitness<PluSeen>(page, PLU_WITNESS, () => {
+    const w = window as unknown as {__pluIds?: WeakMap<Element, number>, __pluSeq?: number};
+    const ids = (w.__pluIds ??= new WeakMap<Element, number>());
+    const nonceOf = (el: Element): number => {
+      let n = ids.get(el);
+      if (n === undefined) {
+        w.__pluSeq = (w.__pluSeq ?? 0) + 1;
+        n = w.__pluSeq;
+        ids.set(el, n);
+      }
+      return n;
+    };
     const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const seen = (el: Element | null): number => {
       if (el === null) {
@@ -93,130 +129,147 @@ async function armProbe(page: Page): Promise<void> {
       }
       return o;
     };
-    const nonceOf = (el: Element): number => {
-      const e = el as unknown as {__pluNonce?: number};
-      if (e.__pluNonce === undefined) {
-        e.__pluNonce = ++w.__pluNonce;
+    // The zones and what each paints.
+    const zones = Array.from(document.querySelectorAll('.con-reveal__bonus-zone')).map((z, i) => {
+      const state = ['active', 'future', 'done', 'sealed'].find((st) => z.classList.contains(`con-reveal__bonus-zone--${st}`)) ?? '?';
+      // A settlement table states what each place paints; an old zone is read off its content.
+      const paint = (z as HTMLElement).dataset.settlementPaint ?? (z.querySelector('.pcard, .card-container') !== null ? 'c' :
+        z.querySelector('.con-card-back') !== null ? 'b' :
+          z.querySelector('.con-reveal__bonus-socket') !== null ? 's' : '-');
+      const seal = z.querySelector('.con-reveal__seal') !== null ? (z.querySelector('.con-reveal__seal--breaking') !== null ? '!' : '#') : '';
+      return `${i + 1}${state[0]}:${paint}${seal}${seen(z) > 0.5 ? '' : '~'}`;
+    }).join(' ');
+    const head = document.querySelector('.con-colonies .con-wshead');
+    const scene = [
+      seen(document.querySelector('.con-colfocus')) > 0.5 ? 'STAGE' : 'stage-',
+      document.querySelector('.con-colonies .con-hand') !== null ? 'HAND' : 'hand-',
+      seen(document.querySelector('.con-reveal')) > 0.5 ? 'REVEAL' : document.querySelector('.con-reveal') !== null ? 'reveal~' : 'reveal-',
+      document.querySelector('.con-reveal--bonus-held') !== null ? 'held' : '',
+      document.querySelector('.con-reveal--bonus-veiled') !== null ? 'veiled' : '',
+      `px${document.querySelectorAll('.con-coltrade-proxy, .con-deckdraw-proxy').length}`,
+      document.querySelector('.con-colfocus--receded') !== null ? 'receded' : '',
+      document.querySelector('.con-colfocus--unreceding') !== null ? 'unreceding' : '',
+      document.querySelector('.con-hand') !== null && document.querySelector('.con-colonies .con-hand') === null ? 'hand@elsewhere' : '',
+      `dp${document.querySelectorAll('.con-discard-proxy').length}`,
+      // The table's ONE discard pile beside the HUD deck (TR52): armed = it waits for the hand's card.
+      document.querySelector('[data-discard-pile] .con-dpile__plate--armed') !== null ? 'pile!' : document.querySelector('[data-discard-pile]') !== null ? 'pile' : '',
+      `hb${document.querySelectorAll('.con-handbody').length}`,
+      (() => {
+        // Where the hand's bodies stand: the topmost-left visible one's box (album pose = big and high up).
+        const all = Array.from(document.querySelectorAll<HTMLElement>('.con-handbody'));
+        // The first body that is actually SEEN (a shelved body sits at its slot with no alpha — not evidence).
+        const seenBody = all.find((b) => getComputedStyle(b).visibility !== 'hidden' && Number(getComputedStyle(b).opacity) > 0.1 &&
+          b.dataset.handBodyMode !== 'docked');
+        if (seenBody === undefined) {
+          return `hb@dock[${all.map((b) => (b.dataset.handBodyMode ?? '?')[0]).join('')}]`;
+        }
+        const r = seenBody.getBoundingClientRect();
+        const modes = all.map((b) => (b.dataset.handBodyMode ?? '?')[0]).join('');
+        const pack = document.querySelector('.con-handdock__pack')?.getBoundingClientRect();
+        const rev = document.querySelector<HTMLElement>('.con-handreveal-layer')?.dataset.handRevealRev ?? '?';
+        return `hb@${Math.round(r.left)},${Math.round(r.top)}w${Math.round(r.width)}[${modes}] pack${Math.round(pack?.height ?? -1)} rev${rev}`;
+      })(),
+      (() => {
+        const bar = document.querySelector('.con-cmdbar');
+        return bar === null ? '' : `bar[${text(bar).slice(0, 40)}]`;
+      })(),
+    ].filter((x) => x !== '').join(' ');
+    // Every card flying over the table, with the zone under its centre.
+    const zoneRects = Array.from(document.querySelectorAll('.con-reveal__bonus-zone')).map((z) => z.getBoundingClientRect());
+    const flights: Array<{key: string, kind: string, nonce: number, box: {x: number, y: number, w: number, h: number}, zone: number,
+      face: string, sealed: number | null}> = [];
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-coltrade-proxy, .con-deckdraw-proxy, .con-bonusfly-proxy'))) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2) {
+        continue;
       }
-      return e.__pluNonce;
-    };
-    const push = <T>(series: Array<[number, T]>, now: number, v: T) => {
-      if (series[series.length - 1]?.[1] !== v) {
-        series.push([now, v]);
-      }
-    };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const now = Date.now() - t0;
+      const kind = el.classList.contains('con-coltrade-proxy') ? 'trade' : el.classList.contains('con-deckdraw-proxy') ? 'deck' : 'lift';
+      const nonce = nonceOf(el);
+      const box = {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), h: Math.round(r.height)};
+      const sealedAttr = el.getAttribute('data-sealed-place');
+      flights.push({
+        key: `${kind}#${nonce}`, kind, nonce, box,
+        zone: zoneRects.findIndex((z) => box.x >= z.left && box.x <= z.right && box.y >= z.top && box.y <= z.bottom) + 1,
+        face: text(el.querySelector('.con-deal-proxy__face')).slice(0, 30),
+        sealed: sealedAttr !== null && sealedAttr !== '' ? Number(sealedAttr) : null,
+      });
+    }
+    return {
       // The reveal roots (one instance = one nonce for the whole resolution).
-      for (const el of Array.from(document.querySelectorAll('.con-reveal'))) {
-        const n = nonceOf(el);
-        const rec = p.reveals.find((r) => r[0] === n);
-        if (rec === undefined) {
-          p.reveals.push([n, now, now]);
-        } else {
-          rec[2] = now;
-        }
-      }
+      reveals: Array.from(document.querySelectorAll('.con-reveal')).map(nonceOf),
       // The settlement table's instance: its nonce on the root, and WHICH root carries it.
-      for (const el of Array.from(document.querySelectorAll('[data-settlement-table]'))) {
-        const key = `${el.getAttribute('data-settlement-table')}@${nonceOf(el)}`;
-        if (!p.tables.includes(key)) {
-          p.tables.push(key);
-        }
-      }
-      // The zones and what each paints.
-      const zones = Array.from(document.querySelectorAll('.con-reveal__bonus-zone')).map((z, i) => {
-        const state = ['active', 'future', 'done', 'sealed'].find((s) => z.classList.contains(`con-reveal__bonus-zone--${s}`)) ?? '?';
-        // A settlement table states what each place paints; an old zone is read off its content.
-        const paint = (z as HTMLElement).dataset.settlementPaint ?? (z.querySelector('.pcard, .card-container') !== null ? 'c' :
-          z.querySelector('.con-card-back') !== null ? 'b' :
-            z.querySelector('.con-reveal__bonus-socket') !== null ? 's' : '-');
-        const seal = z.querySelector('.con-reveal__seal') !== null ? (z.querySelector('.con-reveal__seal--breaking') !== null ? '!' : '#') : '';
-        return `${i + 1}${state[0]}:${paint}${seal}${seen(z) > 0.5 ? '' : '~'}`;
-      }).join(' ');
-      push(p.zones, now, zones);
-      const head = document.querySelector('.con-colonies .con-wshead');
-      if (head !== null) {
-        const steps = Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== '');
-        push(p.tails, now, steps.join(' › '));
-      }
-      const scene = [
-        seen(document.querySelector('.con-colfocus')) > 0.5 ? 'STAGE' : 'stage-',
-        document.querySelector('.con-colonies .con-hand') !== null ? 'HAND' : 'hand-',
-        seen(document.querySelector('.con-reveal')) > 0.5 ? 'REVEAL' : document.querySelector('.con-reveal') !== null ? 'reveal~' : 'reveal-',
-        document.querySelector('.con-reveal--bonus-held') !== null ? 'held' : '',
-        document.querySelector('.con-reveal--bonus-veiled') !== null ? 'veiled' : '',
-        `px${document.querySelectorAll('.con-coltrade-proxy, .con-deckdraw-proxy').length}`,
-        document.querySelector('.con-colfocus--receded') !== null ? 'receded' : '',
-        document.querySelector('.con-colfocus--unreceding') !== null ? 'unreceding' : '',
-        document.querySelector('.con-hand') !== null && document.querySelector('.con-colonies .con-hand') === null ? 'hand@elsewhere' : '',
-        `dp${document.querySelectorAll('.con-discard-proxy').length}`,
-        // The table's ONE discard pile beside the HUD deck (TR52): armed = it waits for the hand's card.
-        document.querySelector('[data-discard-pile] .con-dpile__plate--armed') !== null ? 'pile!' : document.querySelector('[data-discard-pile]') !== null ? 'pile' : '',
-        `hb${document.querySelectorAll('.con-handbody').length}`,
-        (() => {
-          // Where the hand's bodies stand: the topmost-left visible one's box (album pose = big and high up).
-          const all = Array.from(document.querySelectorAll<HTMLElement>('.con-handbody'));
-          // The first body that is actually SEEN (a shelved body sits at its slot with no alpha — not evidence).
-          const seenBody = all.find((b) => getComputedStyle(b).visibility !== 'hidden' && Number(getComputedStyle(b).opacity) > 0.1 &&
-            b.dataset.handBodyMode !== 'docked');
-          if (seenBody === undefined) {
-            return `hb@dock[${all.map((b) => (b.dataset.handBodyMode ?? '?')[0]).join('')}]`;
-          }
-          const r = seenBody.getBoundingClientRect();
-          const modes = Array.from(document.querySelectorAll<HTMLElement>('.con-handbody'))
-            .map((b) => (b.dataset.handBodyMode ?? '?')[0]).join('');
-          const pack = document.querySelector('.con-handdock__pack')?.getBoundingClientRect();
-          const rev = document.querySelector<HTMLElement>('.con-handreveal-layer')?.dataset.handRevealRev ?? '?';
-          return `hb@${Math.round(r.left)},${Math.round(r.top)}w${Math.round(r.width)}[${modes}] pack${Math.round(pack?.height ?? -1)} rev${rev}`;
-        })(),
-        (() => {
-          const bar = document.querySelector('.con-cmdbar');
-          return bar === null ? '' : `bar[${text(bar).replace(/\s+/g, ' ').slice(0, 40)}]`;
-        })(),
-      ].filter((s) => s !== '').join(' ');
-      push(p.scene, now, scene);
-      push(p.deck, now, text(document.querySelector('.con-deckstack__count')));
-      // Every card flying over the table, with where it came down.
-      const zoneRects = Array.from(document.querySelectorAll('.con-reveal__bonus-zone')).map((z) => z.getBoundingClientRect());
-      for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-coltrade-proxy, .con-deckdraw-proxy, .con-bonusfly-proxy'))) {
-        const r = el.getBoundingClientRect();
-        if (r.width < 2) {
-          continue;
-        }
-        const kind = el.classList.contains('con-coltrade-proxy') ? 'trade' : el.classList.contains('con-deckdraw-proxy') ? 'deck' : 'lift';
-        const n = nonceOf(el);
-        const box = {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), h: Math.round(r.height)};
-        const key = `${kind}#${n}`;
-        const zone = zoneRects.findIndex((z) => box.x >= z.left && box.x <= z.right && box.y >= z.top && box.y <= z.bottom) + 1;
-        const face = text(el.querySelector('.con-deal-proxy__face')).slice(0, 30);
-        const rec = p.flights[key] ?? (p.flights[key] = {kind, nonce: n, bornAt: now, lastAt: now, first: box, last: box, zone, face});
-        const sealedAttr = el.getAttribute('data-sealed-place');
-        if (sealedAttr !== null && sealedAttr !== '') {
-          rec.sealed = Number(sealedAttr);
-        }
-        if (rec.lastAt !== now && Math.abs(rec.last.x - box.x) <= 1 && Math.abs(rec.last.y - box.y) <= 1) {
-          rec.restZone = zone;
-        }
-        rec.last = box;
-        rec.lastAt = now;
-        rec.zone = zone;
-        if (face !== '') {
-          rec.face = face;
-        }
-      }
+      tables: Array.from(document.querySelectorAll('[data-settlement-table]')).map((el) => `${el.getAttribute('data-settlement-table')}@${nonceOf(el)}`),
+      zones,
+      tail: head === null ? null : Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((x) => x !== '').join(' › '),
+      scene,
+      deck: text(document.querySelector('.con-deckstack__count')),
+      flights,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-    window.setInterval(() => sample(true), 40);
-    sample(true);
-  });
+  }, {max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__plu: Probe}).__plu);
+/**
+ * The record folded into the probe's series — times are the PAGE's, from the arm (the record's first sample is the
+ * baseline). A flight LANDS where its last recorded pose stood: the recorder sees every write of the tween (its final
+ * one included), so the last pose of a flight that ENDED (its proxy gone) is its landing — never a sleeping sampler's
+ * mid-air read. A flight still in the air when the record stops is not judged.
+ */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<PluSeen>(page, PLU_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  const p: Probe = {samples: samples.length, reveals: [], zones: [], tails: [], flights: {}, scene: [], deck: [], longtasks: [], t0: t0 % 100000, tables: []};
+  const push = <T>(series: Array<[number, T]>, now: number, v: T) => {
+    if (series[series.length - 1]?.[1] !== v) {
+      series.push([now, v]);
+    }
+  };
+  for (const {t, v, doc} of samples) {
+    const now = t - t0;
+    for (const n of v.reveals) {
+      const rec = p.reveals.find((r) => r[0] === n);
+      if (rec === undefined) {
+        p.reveals.push([n, now, now]);
+      } else {
+        rec[2] = now;
+      }
+    }
+    // A table of a REPLACED document is another instance (the doc is named beside its key).
+    for (const key of v.tables) {
+      const instance = doc === samples[0].doc ? key : `${key} (${doc})`;
+      if (!p.tables.includes(instance)) {
+        p.tables.push(instance);
+      }
+    }
+    push(p.zones, now, v.zones);
+    if (v.tail !== null) {
+      push(p.tails, now, v.tail);
+    }
+    push(p.scene, now, v.scene);
+    push(p.deck, now, v.deck);
+    const here = new Set<string>();
+    for (const f of v.flights) {
+      here.add(f.key);
+      const rec = p.flights[f.key] ?? (p.flights[f.key] = {kind: f.kind, nonce: f.nonce, bornAt: now, lastAt: now, first: f.box, last: f.box, zone: f.zone, face: f.face});
+      if (f.sealed !== null) {
+        rec.sealed = f.sealed;
+      }
+      rec.last = f.box;
+      rec.lastAt = now;
+      rec.zone = f.zone;
+      if (f.face !== '') {
+        rec.face = f.face;
+      }
+    }
+    // A flight gone from the DOM has ENDED: its last recorded pose is its landing.
+    for (const [key, rec] of Object.entries(p.flights)) {
+      if (!here.has(key) && rec.restZone === undefined) {
+        rec.restZone = rec.zone;
+      }
+    }
+  }
+  p.longtasks = await page.evaluate(() => (window as unknown as {__pluLong?: Array<[number, number]>}).__pluLong ?? []).catch(() => []);
+  return p;
+}
 
 async function shoot(page: Page, dir: string, name: string): Promise<void> {
   fs.mkdirSync(dir, {recursive: true});
@@ -369,8 +422,9 @@ for (const preset of PRESETS) {
               await expect(page.locator('.con-cmdbar'), 'the verb sends it to the discard').toContainText(/В сброс/i);
               await expect(page.locator('.con-cmdbar'), 'nothing offers to TAKE a card the hand does not hold').not.toContainText(/Взять/i);
               // FL · PL-186 — the reveal TELLS this draw: the feed never repeats «ВЫ ПОЛУЧИЛИ КАРТЫ +N» beside a card the
-              // rules threw away, and no notification card stands over the reveal's head (the corner yields).
-              const feed = await page.evaluate(() => {
+              // rules threw away, and no notification card stands over the reveal's head (the corner yields). Read at REST
+              // (C — `readSettled`; no `settle` first: inside the draw→discard chain a blocking hold legitimately stands).
+              const feed = await readSettled(page, () => page.evaluate(() => {
                 const head = document.querySelector('.con-reveal__head:not(.con-reveal__head--embedded)')?.getBoundingClientRect();
                 const cards = [...document.querySelectorAll('.con-notif')].filter((el) => Number.parseFloat(getComputedStyle(el).opacity) > 0.5);
                 const over = head === undefined ? [] : cards.filter((el) => {
@@ -380,7 +434,7 @@ for (const preset of PRESETS) {
                 const cardsGain = cards.filter((el) => /(ВЫ ПОЛУЧИЛИ|YOU GAINED)[\s\S]*КАРТ/i.test(el.querySelector('.con-notif__you')?.textContent ?? ''))
                   .map((el) => el.getAttribute('data-notif-id'));
                 return {over, cardsGain};
-              });
+              }), {settle: false, message: `settlement ${cycle}: the feed beside the reveal's head`});
               expect(feed.over, `settlement ${cycle}: no notification card over the reveal's head`).toEqual([]);
               expect(feed.cardsGain, `settlement ${cycle}: the band never repeats the cards the reveal tells`).toEqual([]);
               await shoot(page, dir, `c${cycle}-auto-discard`);
@@ -416,9 +470,9 @@ for (const preset of PRESETS) {
           await shoot(page, dir, `c${cycle}-1-table`);
           // A takes each card; once the table is empty the same A opens the discard step. (A hand the server can
           // answer for itself — one card, one choice — never opens: the card is simply gone, К-5.)
-          for (let i = 0; i < 14 && await embeddedHand.count() === 0 && await active.count() > 0; i++) {
-            await press(page, 'Enter', 2000);
-          }
+          // Act → verify → retry: A again only while the table still holds an active place and no discard step stands.
+          await pressUntil(page, 'Enter', async () => await embeddedHand.count() > 0 || await active.count() === 0,
+            {tries: 14, settleMs: 2000});
           if (await embeddedHand.count() > 0) {
             await cinematicBeat(page, 1600, 'the hand opens');
             await shoot(page, dir, `c${cycle}-2-discard`);
@@ -447,17 +501,19 @@ for (const preset of PRESETS) {
         console.log('console:', JSON.stringify(log.slice(-20)));
 
         // ── THE PROBE SAW THE RESOLUTION ───────────────────────────────────────────────────────────────────────────
-        expect(probe.ticks, 'the probe was alive').toBeGreaterThan(30);
+        // The record's own liveness floor: only a DEAD recorder fails it (recorded states, never frames).
+        expect(probe.samples, 'the probe was alive').toBeGreaterThan(0);
         expect(cycles, 'every settlement presented its place').toBe(scenario.cubes);
 
         // ① ONE TABLE: one table nonce on one reveal root, from the first deal to the marker's return.
         expect(probe.tables.length, `the settlement table is ONE instance (${JSON.stringify(probe.tables)})`).toBe(1);
 
         // ② ONE OBJECT PER PLACE: no place is flown to twice, and a later place's flight is a back with no name.
-        // The probe numbers zones from 1 in strip order — the places. A flight is judged by where it came to REST: on a
-        // starved renderer (CI) the last sample catches a card mid-flight over a zone it is only passing (an income card
-        // read as «place 2» with its face). A flight never seen at rest is not judged — the zones' own reading (③ below:
-        // every later place stood SEALED until its turn) still holds every place.
+        // The probe numbers zones from 1 in strip order — the places. A flight is judged by where it came to REST: its last
+        // recorded pose once it has ended (a sleeping sampler once caught a card mid-flight over a zone it was only passing —
+        // an income card read as «place 2» with its face; the recording sees the tween's final write). A flight that never
+        // ended inside the record is not judged — the zones' own reading (③ below: every later place stood SEALED until
+        // its turn) still holds every place.
         // THE FIRST DEAL IS READ BY ITS ADDRESS, never by geometry: the trade deals every cover at once — the income, place 1's
         // card and every later place's SEALED back — while the bonus zones are still ENTERING (their reading carries «~»).
         // On CI's software renderer the zones' entrance runs late against the covers, so a zone rect measured at a cover's

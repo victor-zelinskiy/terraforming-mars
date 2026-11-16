@@ -52,7 +52,9 @@ import {
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {probeTick} from '@/client/console/probeTick';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
-import {effectiveOpacity, firstVisibleEnd, TRANSFER_END_MIN_OPACITY, TransferEndOptions, TransferEndVerdict, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
+import {
+  effectiveOpacity, firstVisibleEnd, fullscreenOverlayOf, TRANSFER_END_MIN_OPACITY, TransferEndOptions, TransferEndVerdict, transferEndVerdict,
+} from '@/client/console/resourceTransfer/transferEndVisible';
 
 export type TransferFlight = {
   id: number,
@@ -1382,6 +1384,13 @@ export function tokenPaintedUnder(chip: HTMLElement): string | undefined {
     chip.style.pointerEvents = before;
   }
   if (top === undefined || top === chip || chip.contains(top)) {
+    return undefined;
+  }
+  // A FULL-SCREEN OVERLAY the player called up mid-flight (the card viewer, the system menu, the MarsBot turn review)
+  // stands above the flight layer BY CONTRACT (the z map, `flightLayerZOrder.spec`): the token is under a scene that
+  // took the screen, not painted under a hull surface it should fly over — no defect to name. (A token BORN under one
+  // never flies: the end verdict refuses its source — `FULLSCREEN_OVERLAYS`.)
+  if (fullscreenOverlayOf(top) !== undefined) {
     return undefined;
   }
   const surface = top.closest('.con-ws, .con-res, .con-res-host, .con-status, .con-handdock, .con-footer');

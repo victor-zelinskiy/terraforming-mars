@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootIntoGame, cinematicBeat, press, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * DIAGNOSTICS — the premium journal, «Сообщить о проблеме», the connection check and the developer's notice
@@ -137,6 +138,56 @@ async function boxOf(page: Page, selector: string): Promise<Box> {
   return box as Box;
 }
 
+/** What of the game's chrome and board lies under `box` (the developer's notice must stand over nothing of the game). */
+async function coveredUnder(page: Page, box: Box): Promise<Array<string>> {
+  return page.evaluate((box) => {
+    const hits = (sel: string): Array<string> => Array.from(document.querySelectorAll(sel)).filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.left < box.x + box.width && r.right > box.x && r.top < box.y + box.height && r.bottom > box.y;
+    }).map((el) => `${sel} (${el.className.toString().slice(0, 60)})`);
+    return [
+      ...hits('.con-res'), ...hits('.con-strat'), ...hits('.con-cmdbar'), ...hits('.con-status'), ...hits('.con-handdock'),
+      // (A scale's SVG box is far larger than its ink — what is painted there is asked of its numerals.)
+      ...hits('.global-numbers-shell text'), ...hits('.board-space'), ...hits('.con-notif'),
+    ];
+  }, box);
+}
+
+/** The heights (rounded) of the «Reports» group's readout rows. */
+async function reportRowHeights(page: Page): Promise<Array<number>> {
+  return page.locator('[data-diag-group="Reports"] .con-set__ro').evaluateAll((rows) => rows.map((row) => Math.round(row.getBoundingClientRect().height)));
+}
+
+/** The main menu's column: its plates, its free height, the gap, the plates' floor and their two-line text. */
+async function menuColumn(page: Page) {
+  return page.evaluate(() => {
+    const items = document.querySelector('.cm-menu__items') as HTMLElement;
+    const plates = [...items.querySelectorAll<HTMLElement>('.cm-item')];
+    const style = getComputedStyle(items);
+    return {
+      count: plates.length,
+      columnH: items.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom),
+      gap: parseFloat(style.rowGap),
+      minH: Math.max(...plates.map((el) => parseFloat(getComputedStyle(el).minHeight))),
+      textH: Math.max(...plates.map((el) => (el.querySelector('.cm-item__text') as HTMLElement).getBoundingClientRect().height)),
+      overflow: items.scrollHeight - items.clientHeight,
+    };
+  });
+}
+
+/** The settings categories that run under (or past) one of the two bumper chips of the strip. */
+async function crowdedTabs(page: Page): Promise<Array<string>> {
+  return page.evaluate(() => {
+    const chips = [...document.querySelectorAll('.con-sys--settings .con-sys__tabs-chip')].map((el) => el.getBoundingClientRect());
+    const left = Math.min(...chips.map((r) => r.right));
+    const right = Math.max(...chips.map((r) => r.left));
+    return [...document.querySelectorAll('.con-sys--settings .con-set__tab')]
+      .map((el) => ({name: (el.textContent ?? '').trim(), box: el.getBoundingClientRect()}))
+      .filter((tab) => tab.box.left < left - 0.5 || tab.box.right > right + 0.5)
+      .map((tab) => tab.name);
+  });
+}
+
 const step = (page: Page) => page.locator('.con-sys--diag').getAttribute('data-diag-step');
 const crumb = (page: Page) => page.locator('[data-diag-crumb]').evaluateAll((els) => els.map((el) => el.getAttribute('data-diag-crumb')));
 
@@ -164,18 +215,9 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     await expect(notice.locator('.con-devnote__raw')).toContainText('[page-error] uncaught: TypeError');
     // IT COVERS NOTHING: inside the central opening's one free corner — clear of both bars and both rails, of the
     // hand's dock, of every scale of the board and of every cell of the planet.
-    const noticeBox = await boxOf(page, '.con-devnote__plate');
-    const covered = await page.evaluate((box) => {
-      const hits = (sel: string): Array<string> => Array.from(document.querySelectorAll(sel)).filter((el) => {
-        const r = el.getBoundingClientRect();
-        return r.width > 0 && r.height > 0 && r.left < box.x + box.width && r.right > box.x && r.top < box.y + box.height && r.bottom > box.y;
-      }).map((el) => `${sel} (${el.className.toString().slice(0, 60)})`);
-      return [
-        ...hits('.con-res'), ...hits('.con-strat'), ...hits('.con-cmdbar'), ...hits('.con-status'), ...hits('.con-handdock'),
-        // (A scale's SVG box is far larger than its ink — what is painted there is asked of its numerals.)
-        ...hits('.global-numbers-shell text'), ...hits('.board-space'), ...hits('.con-notif'),
-      ];
-    }, noticeBox);
+    // Read AT REST: the plate's one-shot entry moves it, and a box read mid-entry is not where it stands.
+    const covered = await readSettled(page, async () => coveredUnder(page, await boxOf(page, '.con-devnote__plate')),
+      {message: 'the notice plate and what lies under it'});
     expect(covered, 'the plate stands over nothing of the game').toEqual([]);
     await cinematicBeat(page, 500, 'the plate\'s one-shot entry settles before its photograph');
     await shoot(page, '01-notice-plate');
@@ -199,15 +241,16 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     await page.keyboard.up('KeyX');
     await expect(page.locator('.con-sys--diag')).toHaveCount(1);
     await expect.poll(() => step(page)).toBe('entry');
-    expect(await crumb(page)).toEqual(['entry']);
+    await expect.poll(() => crumb(page)).toEqual(['entry']);
     await expect(page.locator('[data-diag-episode]')).toContainText('a claim released with force');
     await expect(page.locator('[data-diag-text]')).toContainText('[liveness] recovered after 13s, 2 rung(s) run');
     await expect(notice, 'the notice is seen: it steps away while the journal is open').toHaveCount(0);
     await cinematicBeat(page, 600, 'the step\'s reveal ends');
     await shoot(page, '04-entry-stall');
 
-    const card = await boxOf(page, '.con-sys__card');
-    const cell = await boxOf(page, '.con-diag');
+    // The reference boxes — AT REST (two equal reads a frame apart, after the console's quiet).
+    const card = await readSettled(page, () => boxOf(page, '.con-sys__card'), {message: 'the card'});
+    const cell = await readSettled(page, () => boxOf(page, '.con-diag'), {message: 'the body cell'});
     // (Read through a poll: a member of the system surface that has just RISEN is still on its entry's scale for a
     // few frames — the claim is about where the card STANDS, on every step.)
     const sameFrame = async (where: string): Promise<void> => {
@@ -218,7 +261,7 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     // ── BROWSE: B is one level; the journal under its filters ────────────────────────────────────────────────────
     await press(page, 'Escape');
     await expect.poll(() => step(page)).toBe('browse');
-    expect(await crumb(page)).toEqual([]);
+    await expect.poll(() => crumb(page)).toEqual([]);
     // (The journal also holds whatever the game itself said on this run — a slow frame at boot is a record too — so
     // the rows are asked for by family, never counted.)
     await expect(page.locator('[data-diag-row="liveness"]')).toHaveCount(1);
@@ -247,7 +290,7 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     // ── THE CONNECTION CHECK ─────────────────────────────────────────────────────────────────────────────────────
     await press(page, 'Enter');
     await expect.poll(() => step(page)).toBe('selftest');
-    expect(await crumb(page)).toEqual(['selftest']);
+    await expect.poll(() => crumb(page)).toEqual(['selftest']);
     await expect(page.locator('[data-diag-check-row]')).toHaveCount(3);
     await sameFrame('the connection check, running');
     await shoot(page, '08-check-running');
@@ -292,14 +335,14 @@ test.describe('diagnostics — the journal, the report, the connection check, th
 
     await press(page, 'Enter');
     await expect.poll(() => step(page)).toBe('category');
-    expect(await crumb(page)).toEqual(['report']);
+    await expect.poll(() => crumb(page)).toEqual(['report']);
     await expect(page.locator('[data-diag-category]')).toHaveCount(5);
     await sameFrame('the report: what happened');
     await cinematicBeat(page, 600, 'the step\'s reveal ends');
     await shoot(page, '11-report-category');
     await press(page, 'Enter');
     await expect.poll(() => step(page)).toBe('review');
-    expect((await crumb(page)).length, 'the crumb gained the category').toBe(2);
+    await expect.poll(async () => (await crumb(page)).length, {message: 'the crumb gained the category'}).toBe(2);
     await expect(page.locator('.con-diagrep__attach')).toHaveCount(5);
     await expect(page.locator('[data-diag-commit]')).toHaveClass(/con-diagrep__commit--cursor/);
     await sameFrame('the report: review');
@@ -309,7 +352,7 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     // THE COMMIT: the beat stands, the pad is absorbed, the code is revealed in the cells that waited for it.
     await press(page, 'Enter', 300, {absorbed: 'allow'});
     await expect.poll(() => step(page)).toBe('sending');
-    expect((await crumb(page)).pop()).toBe('sending');
+    await expect.poll(async () => (await crumb(page)).pop()).toBe('sending');
     await sameFrame('the report: sending');
     await press(page, 'Enter', 300, {absorbed: 'allow'});
     await press(page, 'Escape', 300, {absorbed: 'allow'});
@@ -377,7 +420,7 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     await expect(sendingRow).toContainText('Служба приёма переполнена');
     await expect(page.locator('[data-diag-group="Reports"] .con-set__ro-note')).toContainText('usage_exceeded');
     // The words changed in a row that already stood: it is as tall as the row under it (one line), not a line taller.
-    const rowHeights = await page.locator('[data-diag-group="Reports"] .con-set__ro').evaluateAll((rows) => rows.map((row) => Math.round(row.getBoundingClientRect().height)));
+    const rowHeights = await readSettled(page, () => reportRowHeights(page), {message: 'the Reports rows'});
     expect(new Set(rowHeights).size, `every row of the group is one line tall — ${rowHeights.join(', ')}`).toBe(1);
     await sameFrame('the system readout: the service is full');
     await shoot(page, '23-system-limited');
@@ -430,19 +473,7 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     // «Продолжить» and «Выйти» — nine plates on the box every day — and, at most, the Steam plate and an admin's
     // «Полигон»: eleven. The plates give way together (flex) down to their minimum height, so the claim is measured,
     // never budgeted: eleven fit at that floor, and the everyday nine keep both lines of text inside the plate.
-    const column = await page.evaluate(() => {
-      const items = document.querySelector('.cm-menu__items') as HTMLElement;
-      const plates = [...items.querySelectorAll<HTMLElement>('.cm-item')];
-      const style = getComputedStyle(items);
-      return {
-        count: plates.length,
-        columnH: items.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom),
-        gap: parseFloat(style.rowGap),
-        minH: Math.max(...plates.map((el) => parseFloat(getComputedStyle(el).minHeight))),
-        textH: Math.max(...plates.map((el) => (el.querySelector('.cm-item__text') as HTMLElement).getBoundingClientRect().height)),
-        overflow: items.scrollHeight - items.clientHeight,
-      };
-    });
+    const column = await readSettled(page, () => menuColumn(page), {message: 'the main menu\'s column'});
     test.info().annotations.push({type: 'menu-column', description: JSON.stringify(column)});
     expect(column.overflow, 'the column as it stands holds its plates').toBeLessThanOrEqual(1);
     expect(Math.floor((column.columnH + column.gap) / (column.minH + column.gap)), `eleven plates fit the column at their floor — ${JSON.stringify(column)}`).toBeGreaterThanOrEqual(11);
@@ -494,15 +525,7 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     await expect(page.locator('.con-set__tab', {hasText: 'Диагностика'})).toHaveClass(/con-set__tab--current/);
     // THE STRIP HOLDS ALL SIX in-game categories between its two bumper chips — the sixth is this one.
     await expect(page.locator('.con-set__tab')).toHaveCount(6);
-    const crowded = await page.evaluate(() => {
-      const chips = [...document.querySelectorAll('.con-sys--settings .con-sys__tabs-chip')].map((el) => el.getBoundingClientRect());
-      const left = Math.min(...chips.map((r) => r.right));
-      const right = Math.max(...chips.map((r) => r.left));
-      return [...document.querySelectorAll('.con-sys--settings .con-set__tab')]
-        .map((el) => ({name: (el.textContent ?? '').trim(), box: el.getBoundingClientRect()}))
-        .filter((tab) => tab.box.left < left - 0.5 || tab.box.right > right + 0.5)
-        .map((tab) => tab.name);
-    });
+    const crowded = await readSettled(page, () => crowdedTabs(page), {message: 'the settings strip'});
     expect(crowded, 'every category stands clear of the two bumper chips').toEqual([]);
     const auto = page.locator('.con-set__row', {hasText: 'Автоотчёты об ошибках'});
     const notices = page.locator('.con-set__row', {hasText: 'Уведомления разработчика'});

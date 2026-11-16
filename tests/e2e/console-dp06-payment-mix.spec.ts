@@ -1,9 +1,10 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi,
-  sendPlayerInput, soloGameConfig, waitForBoardHome,
+import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, openQuickWheel, press, pressUntil, seedGameOverApi,
+  sendPlayerInput, settle, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * DELTA WORKS (DP06) — Configure → Payment → Resolve on its two screens.
@@ -173,6 +174,14 @@ async function hydroAnchor(page: Page): Promise<HydroAnchor> {
   });
 }
 
+/**
+ * The anchor AT REST (FLAKE ZERO — `readSettled`): every comparison against the Configure reference is between two
+ * settled reads. `settle: false` where a commit's own beats may legitimately hold the console.
+ */
+async function settledAnchor(page: Page, what: string, opts: {settle?: boolean} = {}): Promise<HydroAnchor> {
+  return readSettled(page, () => hydroAnchor(page), {settle: opts.settle, message: what});
+}
+
 function expectSameAnchor(a: HydroAnchor, b: HydroAnchor, label: string): void {
   expect(Math.abs(b.panel.y - a.panel.y), `${label}: the surface top may not move`).toBeLessThanOrEqual(1);
   expect(Math.abs(b.panel.x - a.panel.x), `${label}: the surface left may not move`).toBeLessThanOrEqual(1);
@@ -217,34 +226,33 @@ for (const profile of PROFILES) {
       await openConsole(page, id, profile.query);
       await waitForBoardHome(page, 25, {keepColony: 'Luna'});
 
-      // RT wheel → left = Hydronetwork.
-      await press(page, 'Period', 1100);
-      await press(page, 'ArrowLeft', 1600);
+      // RT wheel → left = Hydronetwork — each press waits for ITS effect (on a quick wheel the press IS the activation).
+      await openQuickWheel(page);
+      await pressUntil(page, 'ArrowLeft', async () => await page.locator('.con-hydro').count() > 0 || await page.locator('.con-quick').count() === 0,
+        {tries: 1, settleMs: 1600});
       await page.waitForSelector('.con-hydro', {timeout: 10_000});
       await page.waitForSelector('.con-hydro__payline', {timeout: 10_000});
-      await page.waitForTimeout(600);
+      // The surface has come to rest (its entrance over, the console quiet) — the state the old 600 ms stood in for.
+      await settle(page);
 
       // ── CONFIGURE: no panel, no scroll pressure, the honest price line. ──
       await expect.poll(() => page.locator('.con-hydro .con-pay').count(), {message: 'no payment panel on Configure'}).toBe(0);
-      const reqText = await page.locator('.con-hydro__reqline').innerText();
-      expect(reqText, 'affordability must not live inside ТРЕБОВАНИЯ').not.toContain('У вас');
-      const payline = await page.locator('.con-hydro__payline').innerText();
-      expect(payline.toUpperCase()).toContain('ЭНЕРГИЯ И/ИЛИ СТАЛЬ');
-      expect(payline.toUpperCase()).toContain('ДАЛЕЕ: СОСТАВ ОПЛАТЫ');
-      expect(payline).toContain('Дельтовые сооружения');
+      await expect.poll(() => page.locator('.con-hydro__reqline').innerText(), {message: 'affordability must not live inside ТРЕБОВАНИЯ'}).not.toContain('У вас');
+      const payline = () => page.locator('.con-hydro__payline').innerText();
+      await expect.poll(async () => (await payline()).toUpperCase()).toContain('ЭНЕРГИЯ И/ИЛИ СТАЛЬ');
+      await expect.poll(async () => (await payline()).toUpperCase()).toContain('ДАЛЕЕ: СОСТАВ ОПЛАТЫ');
+      await expect.poll(payline).toContain('Дельтовые сооружения');
       await expect.poll(() => page.locator('.con-hydro__payline-price .resource_icon').count(), {message: 'the ⚡/🔩 pair'}).toBe(2);
-      const draft0 = await readDraft(page, '.con-hydro__payline-mix');
-      expect(draft0).toEqual(['1', '0']); // energy-first default at cost 1
-      const bar0 = await barText(page);
-      expect(bar0).not.toContain('СОСТАВ ОПЛАТЫ'); // no dial hint on Configure
+      await expect.poll(() => readDraft(page, '.con-hydro__payline-mix')).toEqual(['1', '0']); // energy-first default at cost 1
+      await expect.poll(() => barText(page)).not.toContain('СОСТАВ ОПЛАТЫ'); // no dial hint on Configure
       // A hidden dial is the forbidden shape: RB on Configure changes nothing.
       await press(page, 'KeyE', 700);
-      expect(await readDraft(page, '.con-hydro__payline-mix')).toEqual(['1', '0']);
+      await expect.poll(() => readDraft(page, '.con-hydro__payline-mix')).toEqual(['1', '0']);
       // THE SHELL ANCHOR at Configure — the reference every later substate is
       // measured against, plus the connector contract: the focused stop's stem
       // (0.85rem) physically reaches the surface's top edge.
       const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
-      const a0 = await hydroAnchor(page);
+      const a0 = await settledAnchor(page, 'the anchor at Configure');
       expect(a0.stemGap, 'the stem gap is a touch, not a void').toBeGreaterThanOrEqual(0);
       expect(a0.stemGap).toBeLessThanOrEqual(0.9 * rem);
       await shoot(page, `${profile.tag}-hydro-01-configure`);
@@ -254,29 +262,27 @@ for (const profile of PROFILES) {
       //    final reinforce, because several mixes exist. ──
       await press(page, 'Enter', 1200);
       await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
-      expectSameAnchor(a0, await hydroAnchor(page), 'preview → reward choice');
+      expectSameAnchor(a0, await settledAnchor(page, 'the anchor at the reward choice'), 'preview → reward choice');
       await press(page, 'Enter', 900); // pick the focused reward option
-      const barChoice = await barText(page);
-      expect(barChoice).toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
-      expect(barChoice).not.toContain('УКРЕПИТЬ ГИДРОСЕТЬ');
+      await expect.poll(() => barText(page)).toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
+      await expect.poll(() => barText(page)).not.toContain('УКРЕПИТЬ ГИДРОСЕТЬ');
       await shoot(page, `${profile.tag}-hydro-01b-choice`);
 
       // ── CONFIGURE → PAYMENT (the gateway press) ──
       await press(page, 'Enter', 1200);
       await page.waitForSelector('.con-hydro__layer--payment .con-pay', {timeout: 8_000});
-      expectSameAnchor(a0, await hydroAnchor(page), 'choice → payment');
-      const step0 = await readPanel(page, '.con-hydro__layer--payment .con-pay');
+      expectSameAnchor(a0, await settledAnchor(page, 'the anchor at the payment'), 'choice → payment');
+      const step0 = await readSettled(page, () => readPanel(page, '.con-hydro__layer--payment .con-pay'), {message: 'the payment panel'});
       expect(step0.units).toEqual(['steel', 'energy']);
       expect(step0.steelPills).toBe(true);
       expect(step0.sourceCard).toBe('Дельтовые сооружения');
       expect(step0.statusExact).toBe(true);
-      const barPay = await barText(page);
-      expect(barPay).toContain('СОСТАВ ОПЛАТЫ');
-      expect(barPay).toContain('УКРЕПИТЬ ГИДРОСЕТЬ');
+      await expect.poll(() => barText(page)).toContain('СОСТАВ ОПЛАТЫ');
+      await expect.poll(() => barText(page)).toContain('УКРЕПИТЬ ГИДРОСЕТЬ');
       // The dial moves the ONE draft.
       await press(page, 'KeyE', 800);
+      await expect.poll(async () => (await readPanel(page, '.con-hydro__layer--payment .con-pay')).used.steel).toBe('1');
       const step1 = await readPanel(page, '.con-hydro__layer--payment .con-pay');
-      expect(step1.used.steel).toBe('1');
       expect(step1.used.energy).toBe('0');
       expect(step1.statusExact).toBe(true);
       await shoot(page, `${profile.tag}-hydro-02-payment`);
@@ -286,9 +292,9 @@ for (const profile of PROFILES) {
       await press(page, 'Escape', 900);
       await expect.poll(() => page.locator('.con-hydro__layer--payment').count(), {message: 'B folded the substep'}).toBe(0);
       await page.waitForSelector('.con-hydro__payline', {timeout: 6_000});
-      expectSameAnchor(a0, await hydroAnchor(page), 'payment → back to preview');
+      expectSameAnchor(a0, await settledAnchor(page, 'the anchor back on Configure'), 'payment → back to preview');
       await expect.poll(() => page.locator('.con-hydro__gains-choice').count(), {message: 'the reward pick survives B'}).toBe(0);
-      expect(await readDraft(page, '.con-hydro__payline-mix'), 'the dialed draft survives B').toEqual(['0', '1']);
+      await expect.poll(() => readDraft(page, '.con-hydro__payline-mix'), {message: 'the dialed draft survives B'}).toEqual(['0', '1']);
       await shoot(page, `${profile.tag}-hydro-03-back`);
 
       // ── RE-ENTER and RESOLVE: the reward step re-asks BY ITS OWN CONTRACT
@@ -299,7 +305,7 @@ for (const profile of PROFILES) {
       await press(page, 'Enter', 900); // pick
       await press(page, 'Enter', 1200); // the gateway again
       await page.waitForSelector('.con-hydro__layer--payment .con-pay', {timeout: 8_000});
-      expect((await readPanel(page, '.con-hydro__layer--payment .con-pay')).used.steel).toBe('1');
+      await expect.poll(async () => (await readPanel(page, '.con-hydro__layer--payment .con-pay')).used.steel).toBe('1');
       await press(page, 'Enter', 2000);
       // The commit runs the ordinary movement pipeline; judge the SERVER.
       await expect.poll(async () => (await serverState(request, id)).deltaPosition,
@@ -313,7 +319,9 @@ for (const profile of PROFILES) {
       // surface the decision was made on (the old centred result layer sat
       // ~250px lower and tore the connector off).
       await page.waitForSelector('.con-hydro__layer--result', {timeout: 20_000});
-      expectSameAnchor(a0, await hydroAnchor(page), 'commit → result');
+      // Past the commit its own beats (the marker's glide, the reward's tokens) may hold the console — the anchor is
+      // read at rest without asking for quiet.
+      expectSameAnchor(a0, await settledAnchor(page, 'the anchor on the result', {settle: false}), 'commit → result');
       await shoot(page, `${profile.tag}-hydro-04-resolved`);
     });
 
@@ -327,16 +335,17 @@ for (const profile of PROFILES) {
 
       // RT wheel → right = the colonies section; A on the focused colony.
       const colonies = page.locator('.con-colonies');
+      const wheel = page.locator('.con-quick');
       for (let i = 0; i < 4 && await colonies.count() === 0; i++) {
-        await press(page, 'Period', 1100);
-        await press(page, 'ArrowRight', 1400);
+        // Each press waits for ITS effect — the wheel up, then the colonies (on a quick wheel the press IS the activation).
+        if (await pressUntil(page, 'Period', async () => await wheel.count() > 0, {tries: 1, settleMs: 1100})) {
+          await pressUntil(page, 'ArrowRight', async () => await colonies.count() > 0 || await wheel.count() === 0, {tries: 1, settleMs: 1400});
+        }
       }
       await expect.poll(() => colonies.count(), {message: 'the colonies section opened'}).toBeGreaterThan(0);
       // Focus LUNA specifically — the resolve assertions read its visitor.
       const luna = page.locator('.con-coltile--focused[data-test="con-colony-Luna"]');
-      for (let i = 0; i < 10 && await luna.count() === 0; i++) {
-        await press(page, 'ArrowRight', 450);
-      }
+      await pressUntil(page, 'ArrowRight', async () => await luna.count() > 0, {tries: 10, settleMs: 450});
       for (let i = 0; i < 4 && await luna.count() === 0; i++) {
         await press(page, 'ArrowDown', 450);
         for (let j = 0; j < 5 && await luna.count() === 0; j++) {
@@ -347,7 +356,8 @@ for (const profile of PROFILES) {
       await press(page, 'Enter', 1600);
       await page.waitForSelector('.con-colfocus', {timeout: 10_000});
       await page.waitForSelector('.con-colfocus__payrow', {timeout: 10_000});
-      await page.waitForTimeout(600);
+      // The focus stage has come to rest (its entrance over, the console quiet) — the state the old 600 ms stood in for.
+      await settle(page);
 
       // ── CONFIGURE: compact list, both icons, draft, next-step tag, NO panel,
       //    NO scroll — every family row (M€ included) inside the scroll box. ──
@@ -357,7 +367,7 @@ for (const profile of PROFILES) {
         `the flexible family names both sources — got ${JSON.stringify(rowTitles)}`).toBeTruthy();
       const energyRow = page.locator('.con-colfocus__payrow').filter({hasText: 'энергия и/или сталь'});
       await expect.poll(() => energyRow.locator('.con-colfocus__payrow-icon').count(), {message: 'the ⚡/🔩 icon pair on the row'}).toBe(2);
-      expect((await energyRow.locator('.con-colfocus__payrow-next').innerText()).toUpperCase())
+      await expect.poll(async () => (await energyRow.locator('.con-colfocus__payrow-next').innerText()).toUpperCase())
         .toContain('ДАЛЕЕ: СОСТАВ ОПЛАТЫ');
       const scroll = await page.evaluate(() => {
         const box = document.querySelector('.con-colfocus__configscroll');
@@ -367,44 +377,40 @@ for (const profile of PROFILES) {
       });
       expect(scroll, 'the config scroll box exists').toBeDefined();
       expect(scroll!.scrollH, 'Configure must not scroll because of DP06').toBeLessThanOrEqual(scroll!.clientH + 2);
-      const bar0 = await barText(page);
-      expect(bar0).toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
-      expect(bar0).not.toContain('СОСТАВ ОПЛАТЫ');
+      await expect.poll(() => barText(page)).toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
+      await expect.poll(() => barText(page)).not.toContain('СОСТАВ ОПЛАТЫ');
       // A hidden dial is the forbidden shape: RB on Configure changes nothing.
       await press(page, 'KeyE', 700);
-      expect(await readDraft(page, '.con-colfocus__payrow-mix')).toEqual(['3', '0']);
+      await expect.poll(() => readDraft(page, '.con-colfocus__payrow-mix')).toEqual(['3', '0']);
       await shoot(page, `${profile.tag}-colony-01-configure`);
 
       // ── Switching to TITANIUM drops the flexible affordances at once. ──
       await press(page, 'ArrowDown', 600);
       await press(page, 'Enter', 900);
-      const payTi = await readOutcomePay(page);
-      expect(payTi.map((r) => r.icon)).toEqual(['titanium']);
-      const barTi = await barText(page);
-      expect(barTi).toContain('ПОДТВЕРДИТЬ ТОРГОВЛЮ'); // the direct final verb
-      expect(barTi).not.toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
+      await expect.poll(async () => (await readOutcomePay(page)).map((r) => r.icon)).toEqual(['titanium']);
+      await expect.poll(() => barText(page)).toContain('ПОДТВЕРДИТЬ ТОРГОВЛЮ'); // the direct final verb
+      await expect.poll(() => barText(page)).not.toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
       await shoot(page, `${profile.tag}-colony-02-titanium`);
 
       // ── Back to the flexible family: the gateway returns. ──
       await press(page, 'ArrowUp', 600);
       await press(page, 'Enter', 900);
       await expect.poll(() => barText(page), {timeout: 10_000}).toContain('ПРОДОЛЖИТЬ К ОПЛАТЕ');
-      expect((await readOutcomePay(page)).map((r) => r.icon)).toEqual(['energy']);
+      await expect.poll(async () => (await readOutcomePay(page)).map((r) => r.icon)).toEqual(['energy']);
 
       // ── CONFIGURE → PAYMENT (X) ──
       await press(page, 'KeyX', 1200);
       await page.waitForSelector('.con-colfocus__mixstep .con-pay', {timeout: 8_000});
       await expect.poll(() => page.locator('.con-colfocus__payrow').count(), {message: 'the family list yielded the area'}).toBe(0);
-      const barMix = await barText(page);
-      expect(barMix).toContain('СОСТАВ ОПЛАТЫ');
-      expect(barMix).toContain('ПОДТВЕРДИТЬ ТОРГОВЛЮ');
+      await expect.poll(() => barText(page)).toContain('СОСТАВ ОПЛАТЫ');
+      await expect.poll(() => barText(page)).toContain('ПОДТВЕРДИТЬ ТОРГОВЛЮ');
       // ONE dial press moves the panel AND the right summary together.
       await press(page, 'KeyE', 800);
+      await expect.poll(async () => (await readPanel(page, '.con-colfocus__mixstep .con-pay')).used.steel).toBe('1');
       const panel1 = await readPanel(page, '.con-colfocus__mixstep .con-pay');
-      expect(panel1.used.steel).toBe('1');
       expect(panel1.used.energy).toBe('2');
+      await expect.poll(async () => (await readOutcomePay(page)).map((r) => r.icon)).toEqual(['energy', 'steel']);
       const pay1 = await readOutcomePay(page);
-      expect(pay1.map((r) => r.icon)).toEqual(['energy', 'steel']);
       expect(pay1.find((r) => r.icon === 'steel')?.pair).toBe('500 → 499');
       expect(pay1.find((r) => r.icon === 'energy')?.pair).toBe('500 → 498');
       await shoot(page, `${profile.tag}-colony-03-mix-step`);
@@ -413,8 +419,8 @@ for (const profile of PROFILES) {
       await press(page, 'Escape', 900);
       await expect.poll(() => page.locator('.con-colfocus__mixstep').count(), {message: 'B folded the substep'}).toBe(0);
       await page.waitForSelector('.con-colfocus__payrow', {timeout: 6_000});
-      expect(await readDraft(page, '.con-colfocus__payrow-mix'), 'the dialed draft survives B').toEqual(['2', '1']);
-      expect((await readOutcomePay(page)).map((r) => r.icon)).toEqual(['energy', 'steel']);
+      await expect.poll(() => readDraft(page, '.con-colfocus__payrow-mix'), {message: 'the dialed draft survives B'}).toEqual(['2', '1']);
+      await expect.poll(async () => (await readOutcomePay(page)).map((r) => r.icon)).toEqual(['energy', 'steel']);
       await shoot(page, `${profile.tag}-colony-04-back`);
 
       // ── RE-ENTER and RESOLVE: the ordinary trade pipeline commits. ──
@@ -426,7 +432,7 @@ for (const profile of PROFILES) {
       const after = await serverState(request, id);
       expect(after.energy, 'the dialed energy share was spent').toBe(498);
       expect(after.steel, 'the dialed steel share was spent').toBe(499);
-      await page.waitForTimeout(3000); // the payout scene settles
+      await settle(page, {timeoutMs: 30_000}); // the payout scene settles
       await shoot(page, `${profile.tag}-colony-05-resolved`);
     });
   });

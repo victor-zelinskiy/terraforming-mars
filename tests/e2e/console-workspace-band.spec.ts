@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootSeededGame, createGameWithCards, press} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -171,8 +172,13 @@ async function probe(page: Page, selector: string): Promise<BandProbe> {
   }, selector);
 }
 
+/** Two probes agree to the whole pixel (a sub-pixel jitter is not motion). */
+const roundPx = (_key: string, v: unknown) => typeof v === 'number' ? Math.round(v) : v;
+const sameToThePixel = (a: BandProbe, b: BandProbe) => JSON.stringify(a, roundPx) === JSON.stringify(b, roundPx);
+
 async function assertBand(page: Page, selector: string, label: string): Promise<void> {
-  const p = await probe(page, selector);
+  // Measured at REST (C — `readSettled`: the same geometry twice, a frame apart — never a band mid-entrance / mid-resize).
+  const p = await readSettled(page, () => probe(page, selector), {same: sameToThePixel, message: label});
   expect(p.hasMarker, `${label}: the root must carry the con-ws family marker`).toBeTruthy();
   // The band starts at (or right of) the rail's right edge — a 2px tolerance
   // for sub-pixel rounding under the TV profile's zoom/scale model.
@@ -376,13 +382,12 @@ for (const profile of PROFILES) {
       // test — it re-mounts surfaces and would hide a stale-geometry bug).
       const shrunk = {width: Math.round(profile.width * 0.875), height: Math.round(profile.height * 0.9)};
       await page.setViewportSize(shrunk);
-      await page.waitForTimeout(700);
+      // No pause: `assertBand` reads at rest — the console quiet, then the same geometry twice a frame apart.
       await assertBand(page, '.con-quick', `wheel @ ${shrunk.width}x${shrunk.height}`);
       await shoot(page, profile.tag, '06-resized');
 
       // …and back: the opening is a state, not a one-way narrowing.
       await page.setViewportSize({width: profile.width, height: profile.height});
-      await page.waitForTimeout(700);
       await assertBand(page, '.con-quick', 'wheel @ restored size');
     });
   });

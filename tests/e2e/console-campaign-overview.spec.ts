@@ -1,5 +1,6 @@
-import {expect, test} from './consoleTest';
-import {focusInfoZone, openConsole, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {focusInfoZone, openConsole, press, pressUntil, pressUntilVisible, settle, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
 import {drive} from './consoleEndgameHarness';
 import {campaignModelAs, createCampaign, devCommit, launchMission, openMapAs} from './campaignFixtures';
 
@@ -26,6 +27,28 @@ import {campaignModelAs, createCampaign, devCommit, launchMission, openMapAs} fr
  */
 
 const SHOT_DIR = 'screenshots/console-campaign-overview';
+
+/** The Information workspace's chassis: the frame's own inset, the header's inset in it, the content lane past it. */
+async function chassisOf(page: Page) {
+  return page.evaluate(() => {
+    const frame = document.querySelector<HTMLElement>('.con-info__frame')!;
+    const head = document.querySelector<HTMLElement>('.con-info__head')!;
+    const layout = document.querySelector<HTMLElement>('.con-info__layout')!;
+    return {
+      framePad: parseFloat(getComputedStyle(frame).paddingLeft),
+      headInset: head.getBoundingClientRect().left - frame.getBoundingClientRect().left,
+      lane: layout.getBoundingClientRect().left - head.getBoundingClientRect().left,
+    };
+  });
+}
+
+/** The left edges (rounded) of every participant row's TP value and corporation column. */
+async function seatColumns(page: Page) {
+  return {
+    tp: await page.$$eval('.con-cmpov__seat-tp', (els) => els.map((el) => Math.round(el.getBoundingClientRect().left))),
+    corps: await page.$$eval('.con-cmpov__seat-corps', (els) => els.map((el) => Math.round(el.getBoundingClientRect().left))),
+  };
+}
 
 type Preset = {id: string, viewport: {width: number, height: number}, profileQuery: string};
 /** The three supported display profiles — the same trio the Information
@@ -155,17 +178,9 @@ for (const preset of PRESETS) {
       // crumb never moves with the seat's resource composition. Measured
       // AFTER the open motion settles (the frame materializes from the
       // rail seam — a mid-flight box lies about the resting pose).
+      // Two equal reads a frame apart, after the file's tolerant settle (`readSettled` does not settle again).
       await settle(page, {timeoutMs: 15_000}).catch(() => {});
-      const chassis = await page.evaluate(() => {
-        const frame = document.querySelector<HTMLElement>('.con-info__frame')!;
-        const head = document.querySelector<HTMLElement>('.con-info__head')!;
-        const layout = document.querySelector<HTMLElement>('.con-info__layout')!;
-        return {
-          framePad: parseFloat(getComputedStyle(frame).paddingLeft),
-          headInset: head.getBoundingClientRect().left - frame.getBoundingClientRect().left,
-          lane: layout.getBoundingClientRect().left - head.getBoundingClientRect().left,
-        };
-      });
+      const chassis = await readSettled(page, () => chassisOf(page), {settle: false, message: 'the Information chassis'});
       expect(chassis.lane, 'the content zones step past the satellite lane').toBeGreaterThan(40);
       // The header sits at the frame's OWN inset — never inset + lane (the
       // profile-ladder «restated shorthand» regression doubled the lane).
@@ -202,11 +217,9 @@ for (const preset of PRESETS) {
       // THE ROW GRID: the TP values of every participant row start on ONE
       // vertical — a bot and a human name alike (the seat row is a grid,
       // never a flex pile of min-widths).
-      const tpLefts = await page.$$eval('.con-cmpov__seat-tp',
-        (els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
+      // Read AT REST (the overview materializes — a row mid-entrance lies about its column).
+      const {tp: tpLefts, corps: corpLefts} = await readSettled(page, () => seatColumns(page), {settle: false, message: 'the participant rows'});
       expect(new Set(tpLefts).size, `TP columns must align: ${tpLefts.join(', ')}`).toBe(1);
-      const corpLefts = await page.$$eval('.con-cmpov__seat-corps',
-        (els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
       expect(new Set(corpLefts).size, `corporation columns must align: ${corpLefts.join(', ')}`).toBe(1);
       // The ONE participant-name helper everywhere: the bot reads «Бот»,
       // never the raw save name.
@@ -226,10 +239,10 @@ for (const preset of PRESETS) {
 
       // ── A on the committed mission → the MISSION INSPECT: the enlarged
       // board + the full results inside the overview. ──────────────────────
-      for (let i = 0; i < 4 && await page.locator('.con-cmpov__layer').count() === 0; i++) {
-        await press(page, 'ArrowLeft', 250);
-        await press(page, 'Enter', 600);
-      }
+      // act → verify → retry: the route cursor onto the committed card, then A until the layer stands.
+      await pressUntil(page, 'ArrowLeft', async () => await page.locator('.con-cmpov .ccard--cursor.ccard--done').count() > 0,
+        {tries: 4, settleMs: 250});
+      await pressUntilVisible(page, 'Enter', '.con-cmpov__layer', {tries: 4, settleMs: 600});
       await expect(page.locator('.con-cmpov__layer')).toBeVisible();
       await expect(page.locator('.cminsp__map')).toBeVisible();
       await expect(page.locator('.cmres__rows')).toBeVisible();
@@ -245,9 +258,8 @@ for (const preset of PRESETS) {
       // ── EVERY mission is inspectable: A on the LAST (future, finale)
       // card opens the honest inspect — board + known features, no
       // invented results; B folds one level back. ─────────────────────────
-      for (let i = 0; i < 4; i++) {
-        await press(page, 'ArrowRight', 250);
-      }
+      await pressUntil(page, 'ArrowRight', async () => await page.locator('.con-cmpov .ccard--cursor.ccard--final').count() > 0,
+        {tries: 6, settleMs: 250});
       await press(page, 'Enter', 600);
       await expect(page.locator('.con-cmpov__layer')).toBeVisible();
       await expect(page.locator('.cminsp__map')).toBeVisible();
@@ -259,9 +271,7 @@ for (const preset of PRESETS) {
       await expect(overview).toBeVisible();
 
       // ── Down to the seats → A → «Наследие участника»; X → fullscreen. ─────
-      for (let i = 0; i < 4 && await page.locator('.con-cmpov__seat--cursor').count() === 0; i++) {
-        await press(page, 'ArrowDown', 250);
-      }
+      await pressUntil(page, 'ArrowDown', async () => await page.locator('.con-cmpov__seat--cursor').count() > 0, {tries: 4, settleMs: 250});
       await press(page, 'Enter', 600);
       await expect(page.locator('.con-cmpov__layer')).toBeVisible();
       // The LIVE composition: the mission-1 lineage corp + the mission-2 pick
@@ -338,9 +348,7 @@ for (const preset of PRESETS) {
 
       // ── Seats → A → the legacy layer: a «ТЕНДЕРЫ» zone of certificates on the cards' chassis; the ring walks
       //    corps → carried → tenders; X on a certificate opens the ONE viewer with the face at the reader size. ──
-      for (let i = 0; i < 4 && await page.locator('.con-cmpov__seat--cursor').count() === 0; i++) {
-        await press(page, 'ArrowDown', 250);
-      }
+      await pressUntil(page, 'ArrowDown', async () => await page.locator('.con-cmpov__seat--cursor').count() > 0, {tries: 4, settleMs: 250});
       await press(page, 'Enter', 600);
       await expect(page.locator('.con-cmpov__layer')).toBeVisible();
       await expect(page.locator('[data-cleg-tender]')).toHaveCount(3);

@@ -1,5 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootSeededGame, reloadConsole} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -158,13 +160,28 @@ async function plateStands(page: Page): Promise<void> {
 
 type HandoffSample = {t: number, from: number, to: number, ask: number};
 
+/** The handoff recording's key, and its TIMER tick (the old sampler's period — a TIMING witness keeps the page's pace). */
+const HANDOFF_WITNESS = 'prompt-family-handoff';
+const HANDOFF_TICK_MS = 12;
+
 /**
- * THE HANDOFF WITNESS (PL-384): from the press on, every sample (a `setInterval` tick and every DOM mutation — never
- * rAF, which stops on a quiet screen) reads the EFFECTIVE opacity (the ancestor chain, `visibility` included) of the
- * answered plate, of the arriving one, and of the arriving one's ask line (the compose cascade).
+ * THE HANDOFF WITNESS (PL-384): a RECORDING from the press on (FLAKE ZERO — `armWitness`: every DOM mutation, every
+ * frame, and a 12 ms timer tick; `settled` — «never two legible plates at once» is a coexistence claim, judged on the
+ * state a task leaves). Each call reads the EFFECTIVE opacity (the ancestor chain, `visibility` included) of the
+ * answered plate, of the arriving one, and of the arriving one's ask line (the compose cascade) — and is STAMPED with
+ * the page's `performance.now()` (at most one per 4 ms), so the series keeps the page's own pace as the old sampler's
+ * did: a stretch of empty stage is measured between two of its own samples, never inferred from a gap.
  */
 async function armHandoffWitness(page: Page, from: string, to: string): Promise<void> {
-  await page.evaluate(([fromSel, toSel]) => {
+  await armWitness<HandoffSample, [string, string]>(page, HANDOFF_WITNESS, ([fromSel, toSel]) => {
+    const w = window as unknown as {__tmHandoff?: {at: number, prev?: HandoffSample}};
+    const state = w.__tmHandoff ?? {at: -1};
+    w.__tmHandoff = state;
+    const now = performance.now();
+    if (state.prev !== undefined && now - state.at < 4) {
+      return state.prev;
+    }
+    state.at = now;
     const seen = (el: Element | null): number => {
       let o = 1;
       for (let n = el as HTMLElement | null; n !== null; n = n.parentElement) {
@@ -176,36 +193,24 @@ async function armHandoffWitness(page: Page, from: string, to: string): Promise<
       }
       return el === null ? -1 : o;
     };
-    const samples: Array<{t: number, from: number, to: number, ask: number}> = [];
-    const t0 = performance.now();
-    const sample = () => {
-      const target = document.querySelector(toSel);
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        from: seen(document.querySelector(fromSel)),
-        to: seen(target),
-        ask: seen(target === null ? null : target.querySelector('.con-prompt-head__ask')),
-      });
+    const target = document.querySelector(toSel);
+    state.prev = {
+      t: Math.round(now),
+      from: seen(document.querySelector(fromSel)),
+      to: seen(target),
+      ask: seen(target === null ? null : target.querySelector('.con-prompt-head__ask')),
     };
-    const timer = window.setInterval(sample, 12);
-    const observer = new MutationObserver(sample);
-    observer.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class']});
-    (window as unknown as {__handoff: {samples: typeof samples, stop: () => void}}).__handoff = {
-      samples,
-      stop: () => {
-        window.clearInterval(timer);
-        observer.disconnect();
-      },
-    };
-  }, [from, to]);
+    return state.prev;
+  }, {args: [from, to], settled: true, tickMs: HANDOFF_TICK_MS, max: 20_000});
 }
 
+/** The recording, stopped — one document's stamps (a reload restarts `performance.now()`), timed from its first. */
 async function readHandoffWitness(page: Page): Promise<Array<HandoffSample>> {
-  return page.evaluate(() => {
-    const w = (window as unknown as {__handoff: {samples: Array<HandoffSample>, stop: () => void}}).__handoff;
-    w.stop();
-    return w.samples;
-  });
+  const samples = await witnessOf<HandoffSample>(page, HANDOFF_WITNESS).stop();
+  const doc = samples.at(-1)?.doc;
+  const own = samples.filter((s) => s.doc === doc).map((s) => s.v);
+  const t0 = own[0]?.t ?? 0;
+  return own.map((x) => ({...x, t: x.t - t0}));
 }
 
 /** The plate's identity and geometry, read off the live DOM — what the family promises to keep equal. */
@@ -227,7 +232,45 @@ async function plateReading(page: Page) {
       crestImage: crest === null ? '' : getComputedStyle(crest).backgroundImage,
       titleFont: title === null ? '' : `${getComputedStyle(title).fontFamily}|${getComputedStyle(title).fontSize}`,
       kickerFont: kicker === null ? '' : getComputedStyle(kicker).fontSize,
-      width: panel.getBoundingClientRect().width,
+      width: Math.round(panel.getBoundingClientRect().width * 10) / 10,
+    };
+  });
+}
+
+/** The plate's reading AT REST (FLAKE ZERO — `readSettled`); `settle: false` inside a decision chain. */
+async function settledPlate(page: Page, opts: {settle?: boolean} = {}): Promise<Awaited<ReturnType<typeof plateReading>>> {
+  return readSettled(page, () => plateReading(page), {settle: opts.settle, message: 'the prompt plate'});
+}
+
+/** How far each stacked group's «ИЛИ» medal stands off its seam's centre (px). */
+async function medalOffsets(page: Page): Promise<Array<number>> {
+  return page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(
+    '[data-prompt-panel] .con-vchoice--column .con-vchoice__or-medal')).map((medal) => {
+    const group = medal.closest<HTMLElement>('.con-vchoice')!.getBoundingClientRect();
+    const m = medal.getBoundingClientRect();
+    return Math.round(Math.abs((m.left + m.width / 2) - (group.left + group.width / 2)));
+  }));
+}
+
+/** The live «which standard resource» palette, read off the plate. */
+async function paletteReading(page: Page) {
+  return page.evaluate(() => {
+    const group = document.querySelector('[data-prompt-panel] .con-vchoice--palette');
+    const tiles = Array.from(group?.querySelectorAll<HTMLElement>('.con-vchoice__opt') ?? []);
+    return {
+      tiles: tiles.length,
+      perRow: [...tiles.reduce((m, t) => m.set(t.offsetTop, (m.get(t.offsetTop) ?? 0) + 1), new Map<number, number>()).values()],
+      figures: tiles.map((t) => t.querySelector('[data-vchoice-figure]')?.textContent?.trim() ?? ''),
+      readings: group?.querySelectorAll('.action-effect-chip').length ?? 0,
+      emblem: group?.querySelector('[data-vchoice-emblem="wild"]') !== null,
+      // Every reading inside its own tile — the narrow 4K plate once ran «500 → 502» over the neighbours.
+      inside: tiles.every((tile) => {
+        const t = tile.getBoundingClientRect();
+        return Array.from(tile.querySelectorAll('.action-effect-chip')).every((c) => {
+          const r = c.getBoundingClientRect();
+          return r.left >= t.left - 1 && r.right <= t.right + 1;
+        });
+      }),
     };
   });
 }
@@ -254,7 +297,7 @@ for (const profile of PROFILES) {
       // ── A · THE REWARD ──────────────────────────────────────────────────────
       await page.waitForSelector('.con-task[data-prompt-panel]', {state: 'visible', timeout: 40_000});
       await plateStands(page);
-      const reward = await plateReading(page);
+      const reward = await settledPlate(page);
       expect(reward.tone, 'Philares\' distribution is a GAIN').toBe('gain');
       await expect(page.locator('.con-task [data-prompt-emblem="gain"]').first()).toBeVisible();
       await expect(page.locator('.con-task [data-prompt-tag]')).toContainText(/ВЫГОДА/i);
@@ -281,8 +324,7 @@ for (const profile of PROFILES) {
       // THE HANDOFF (PL-384) — one decision gives way to the next as ONE phrase: the two plates are never both legible,
       // the stage is never empty for longer than a beat, the arriving plate composes from inside (its ask still rising
       // while the plate already reads), and the phrase is not drawn out.
-      await expect.poll(async () => (await page.evaluate(() =>
-        (window as unknown as {__handoff: {samples: Array<HandoffSample>}}).__handoff.samples.some((x) => x.to >= 0.99))), {timeout: 10_000}).toBe(true);
+      await expect.poll(() => witnessOf<HandoffSample>(page, HANDOFF_WITNESS).ever((x) => x.to >= 0.99), {timeout: 10_000}).toBe(true);
       const handoff = await readHandoffWitness(page);
       // The release begins at the first sample in which the answered plate is no longer whole (fading, or already
       // gone — a long 4K frame can swallow the whole 130 ms between two samples; the samples are the page's own
@@ -323,7 +365,8 @@ for (const profile of PROFILES) {
       // …and the absorbed press is answered on the tag, never silently lost.
       await expect(page.locator('.con-prodloss .con-prompt-head[class*="con-prompt-head--nudge"]')).toHaveCount(1);
 
-      const lossReading = await plateReading(page);
+      // Read inside the decision chain (the loss is the live question — no `settle`), the same reading on two frames.
+      const lossReading = await settledPlate(page, {settle: false});
       expect(lossReading.tone, 'the hazard\'s production loss is a LOSS').toBe('loss');
       expect(lossReading.ordinal, 'the second decision of the press').toBe('2');
       expect(lossReading.shift, 'the character flipped — gain → loss').toBe('1');
@@ -436,7 +479,7 @@ for (const profile of PROFILES) {
         await page.waitForSelector(item.root === '' ? '[data-prompt-panel]' : `${item.root} [data-prompt-panel], ${item.root}[data-prompt-panel]`,
           {state: 'visible', timeout: 40_000});
         await plateStands(page);
-        const reading = await plateReading(page);
+        const reading = await settledPlate(page);
         expect(reading.tone, `${item.name} reads ${item.tone}`).toBe(item.tone);
         await expect.poll(() => page.locator('[data-prompt-panel] .con-prompt-head__crest').count(), {message: `${item.name} wears the crest`}).toBe(1);
         if (item.tone === 'neutral') {
@@ -447,35 +490,12 @@ for (const profile of PROFILES) {
         readings.push({...reading, name: item.name});
         // THE ANSWERS ARE THE VARIANT GRAMMAR (PL-383): options on a family plate are its tiles, and a stacked group's
         // «ИЛИ» stands on the seam's CENTRE (PL-399 — a profile width rule once pinned it to the column's left edge).
-        const medals = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(
-          '[data-prompt-panel] .con-vchoice--column .con-vchoice__or-medal')).map((medal) => {
-          const group = medal.closest<HTMLElement>('.con-vchoice')!.getBoundingClientRect();
-          const m = medal.getBoundingClientRect();
-          return Math.round(Math.abs((m.left + m.width / 2) - (group.left + group.width / 2)));
-        }));
+        const medals = await readSettled(page, () => medalOffsets(page), {message: `${item.name}: the «ИЛИ» medals`});
         for (const off of medals) {
           expect(off, `${item.name}: «ИЛИ» is centred on its seam (off by ${off} px)`).toBeLessThan(4);
         }
         if (item.name === 'resource-palette') {
-          const palette = await page.evaluate(() => {
-            const group = document.querySelector('[data-prompt-panel] .con-vchoice--palette');
-            const tiles = Array.from(group?.querySelectorAll<HTMLElement>('.con-vchoice__opt') ?? []);
-            return {
-              tiles: tiles.length,
-              perRow: [...tiles.reduce((m, t) => m.set(t.offsetTop, (m.get(t.offsetTop) ?? 0) + 1), new Map<number, number>()).values()],
-              figures: tiles.map((t) => t.querySelector('[data-vchoice-figure]')?.textContent?.trim() ?? ''),
-              readings: group?.querySelectorAll('.action-effect-chip').length ?? 0,
-              emblem: group?.querySelector('[data-vchoice-emblem="wild"]') !== null,
-              // Every reading inside its own tile — the narrow 4K plate once ran «500 → 502» over the neighbours.
-              inside: tiles.every((tile) => {
-                const t = tile.getBoundingClientRect();
-                return Array.from(tile.querySelectorAll('.action-effect-chip')).every((c) => {
-                  const r = c.getBoundingClientRect();
-                  return r.left >= t.left - 1 && r.right <= t.right + 1;
-                });
-              }),
-            };
-          });
+          const palette = await readSettled(page, () => paletteReading(page), {message: 'the resource palette'});
           expect(palette.tiles, 'the live prompt is the palette of six').toBe(6);
           // One row where the plate is wide (4K); the narrow fhd plate folds it 3 + 3 — the cluster's own width, never 5 + 1.
           expect([[6], [3, 3]], `one row or 3 + 3: ${JSON.stringify(palette.perRow)}`).toContainEqual(palette.perRow);

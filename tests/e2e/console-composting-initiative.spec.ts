@@ -1,10 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, press, settle, waitForBoardHome} from './consoleStart';
+import {
+  bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, openQuickWheel, press, pressUntil, settle,
+  waitForBoardHome,
+} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {startTrace} from './traceProbe';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR45 «КОМПОСТНАЯ ИНИЦИАТИВА» — a play COUNTED off the board: «1 microbe for
@@ -90,8 +95,10 @@ function watchPage(page: Page): {posts: Array<string>, errors: Array<string>} {
 }
 
 async function openHand(page: Page, card: string): Promise<void> {
-  await press(page, 'Period', 600);
-  await press(page, 'Enter', 1600);
+  // Each press waits for ITS effect: the wheel up, then the hand (or the wheel gone — the press took).
+  await openQuickWheel(page);
+  await pressUntil(page, 'Enter', async () => await page.locator('.con-hand').count() > 0 || await page.locator('.con-quick').count() === 0,
+    {tries: 1, settleMs: 1600});
   await page.locator(`.con-hand [data-zoom-slot="${card}"]`).waitFor({timeout: 12_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
@@ -100,17 +107,13 @@ async function openHand(page: Page, card: string): Promise<void> {
 async function openPlayComposerOf(page: Page, card: string): Promise<void> {
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
   expect(await focusCard(page, card, slots * 2 + 6), `never focused «${card}» in the hand`).toBe(true);
-  for (let i = 0; i < 3 && await page.locator(PLAY_COMPOSER).count() === 0; i++) {
-    await press(page, 'Enter', 900);
-  }
+  await pressUntil(page, 'Enter', async () => await page.locator(PLAY_COMPOSER).count() > 0, {tries: 3, settleMs: 900});
   await expect(page.locator(PLAY_COMPOSER), 'the play composer stands').toHaveCount(1);
   await settle(page);
 }
 
 async function commit(page: Page, posts: Array<string>): Promise<void> {
-  for (let i = 0; i < 8 && await page.locator(`${PLAY_COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
-    await press(page, 'ArrowDown', 250);
-  }
+  await pressUntil(page, 'ArrowDown', async () => await page.locator(`${PLAY_COMPOSER} .con-composer__cta--focused`).count() > 0, {tries: 8, settleMs: 250});
   for (let attempt = 0; attempt < 4 && posts.length === 0; attempt++) {
     await press(page, 'Enter', 400);
     await expect.poll(() => posts.length, {timeout: 5000}).toBeGreaterThan(0).catch(() => undefined);
@@ -144,106 +147,94 @@ const BOARD = '.con-main > .con-board';
 const HAND = '.con-main > .con-hand';
 const RAIL = '.con-main > .con-strat';
 /** A shown element's box (undefined while `display: none`). */
-async function boxOf(page: Page, sel: string): Promise<Box | undefined> {
+async function boxOf(page: Page, sel: string): Promise<Box | null> {
   return page.evaluate((s) => {
     const el = document.querySelector(s);
     const r = el?.getBoundingClientRect();
-    return r === undefined || r.width <= 0 ? undefined : {l: r.left, t: r.top, w: r.width, h: r.height};
+    return r === undefined || r.width <= 0 ? null : {l: r.left, t: r.top, w: r.width, h: r.height};
   }, sel);
+}
+/** …read AT REST (FLAKE ZERO — `readSettled`: a box taken once is wherever the machine had got to). */
+async function settledBoxOf(page: Page, sel: string): Promise<Box | undefined> {
+  return (await readSettled(page, () => boxOf(page, sel), {message: `the box of ${sel}`})) ?? undefined;
 }
 const sameBox = (a: Box | undefined, b: Box | undefined) => a !== undefined && b !== undefined &&
   Math.abs(a.l - b.l) <= 0.5 && Math.abs(a.t - b.t) <= 0.5 && Math.abs(a.w - b.w) <= 0.5 && Math.abs(a.h - b.h) <= 0.5;
 
-/** PL-199's witness: the composer's box and the board's, sampled through the peek's whole round trip. */
+/**
+ * PL-199's witness: the composer's box and the board's, RECORDED through the peek's whole round trip (FLAKE ZERO —
+ * `armWitness`: every box the product lays out, observed in the task that changes it and on every frame a transition
+ * paints; a still layout writes nothing new — a recording holds every DISTINCT box, never a count of samples).
+ */
+const PEEK_LAYOUT = 'ci-peek-layout';
+type PeekLayoutSeen = {hand?: Box, board?: Box};
 async function armPeekLayoutProbe(page: Page): Promise<void> {
-  await page.evaluate(({hand, board}) => {
-    const w = window as unknown as {__peekLayout: {hand: Array<Box>, board: Array<Box>}, __peekLayoutStop: () => void};
-    w.__peekLayout = {hand: [], board: []};
+  await armWitness<PeekLayoutSeen, {hand: string, board: string}>(page, PEEK_LAYOUT, ({hand, board}) => {
     const boxOfEl = (s: string) => {
       const r = document.querySelector(s)?.getBoundingClientRect();
       return r === undefined || r.width <= 0 ? undefined : {l: r.left, t: r.top, w: r.width, h: r.height};
     };
-    // A task sampler (never a frame callback — a quiet compositor stops those exactly when nothing moves).
-    const sample = () => {
-      const h = boxOfEl(hand);
-      const b = boxOfEl(board);
-      if (h !== undefined) {
-        w.__peekLayout.hand.push(h);
-      }
-      if (b !== undefined) {
-        w.__peekLayout.board.push(b);
-      }
-    };
-    const timer = window.setInterval(sample, 16);
-    w.__peekLayoutStop = () => window.clearInterval(timer);
-  }, {hand: HAND, board: BOARD});
+    return {hand: boxOfEl(hand), board: boxOfEl(board)};
+  }, {args: {hand: HAND, board: BOARD}});
 }
-const readPeekLayout = (page: Page): Promise<{hand: Array<Box>, board: Array<Box>}> => page.evaluate(() => {
-  const w = window as unknown as {__peekLayout: {hand: Array<Box>, board: Array<Box>}, __peekLayoutStop: () => void};
-  w.__peekLayoutStop();
-  return w.__peekLayout;
-});
+async function readPeekLayout(page: Page): Promise<{hand: Array<Box>, board: Array<Box>}> {
+  const seen = await witnessOf<PeekLayoutSeen>(page, PEEK_LAYOUT).stop();
+  return {
+    hand: seen.flatMap((s) => s.v.hand === undefined ? [] : [s.v.hand]),
+    board: seen.flatMap((s) => s.v.board === undefined ? [] : [s.v.board]),
+  };
+}
 
 type RedNote = {at: number, text: string};
-/** RED'S WITNESS: every notification card as it APPEARS (a card lives a TTL — read late, it is gone). */
+/**
+ * RED'S WITNESS: every notification card as it APPEARS (a card lives a TTL — read late, it is gone). A RECORDING
+ * (FLAKE ZERO — `armWitness`): the cards on screen, each change; a card's first appearance is folded on the Node side.
+ */
+const RED_NOTES = 'ci-red-notes';
 async function armRedProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__red: Array<{at: number, text: string}>};
-    const notes: Array<{at: number, text: string}> = [];
-    w.__red = notes;
-    const t0 = Date.now();
-    const seen = new Set<string>();
+  await armWitness<Array<{id: string, text: string}>>(page, RED_NOTES, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = () => {
-      document.querySelectorAll<HTMLElement>('.con-notif').forEach((el) => {
-        const id = el.getAttribute('data-notif-id') ?? text(el);
-        if (seen.has(id)) {
-          return;
-        }
-        seen.add(id);
-        notes.push({at: Date.now() - t0, text: text(el)});
-      });
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 50);
+    return Array.from(document.querySelectorAll<HTMLElement>('.con-notif')).map((el) => ({id: el.getAttribute('data-notif-id') ?? text(el), text: text(el)}));
   });
 }
-const readRedProbe = (page: Page): Promise<Array<RedNote>> => page.evaluate(() => (window as unknown as {__red: Array<RedNote>}).__red);
-
-type Birth = {text: string, chip: {x: number, y: number}, icon?: {l: number, t: number, r: number, b: number}};
-/** PL-190's witness: each chip's FIRST sample, with the landed card's printed on-play icon measured in the same sample. */
-async function armBirthProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__births: Array<Birth>, __caps: Array<string>};
-    w.__births = [];
-    w.__caps = [];
-    const seen = new WeakSet<Element>();
-    const sample = () => {
-      document.querySelectorAll('.con-transfer__chip').forEach((chip) => {
-        if (seen.has(chip)) {
-          return;
-        }
-        seen.add(chip);
-        const r = chip.getBoundingClientRect();
-        const icon = Array.from(document.querySelectorAll<HTMLElement>('.con-recv [data-recv-front] .pcard-ic'))
-          .find((el) => el.closest('.pcard-effect') === null && (el.style.backgroundImage ?? '').includes('microbe'));
-        const ir = icon?.getBoundingClientRect();
-        w.__births.push({text: (chip.textContent ?? '').trim(), chip: {x: r.left + r.width / 2, y: r.top + r.height / 2},
-          ...(ir !== undefined ? {icon: {l: ir.left, t: ir.top, r: ir.right, b: ir.bottom}} : {})});
-      });
-      // PL-191: the capsule the eye reads on the played card — the flying proxy's face and the landed front card —
-      // as a SEQUENCE of distinct values (it may only climb: 0, then 14 at the touchdown).
-      const caps = Array.from(document.querySelectorAll('.con-played-hero__proxy .pcard__res-count, .con-recv [data-recv-front] .pcard__res-count'))
-        .map((el) => (el.textContent ?? '').trim()).filter((t) => t !== '');
-      for (const v of caps) {
-        if (w.__caps[w.__caps.length - 1] !== v) {
-          w.__caps.push(v);
-        }
+async function readRedProbe(page: Page): Promise<Array<RedNote>> {
+  const samples = await witnessOf<Array<{id: string, text: string}>>(page, RED_NOTES).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const seen = new Set<string>();
+  const notes: Array<RedNote> = [];
+  for (const s of samples) {
+    for (const n of s.v) {
+      if (!seen.has(n.id)) {
+        seen.add(n.id);
+        notes.push({at: s.t - t0, text: n.text});
       }
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true});
-    window.setInterval(sample, 20);
-  });
+    }
+  }
+  return notes;
+}
+
+/**
+ * PL-191's witness, RECORDED (FLAKE ZERO — `armWitness`): the capsule the eye reads on the played card — the flying
+ * proxy's face and the landed front card — every change; folded into a SEQUENCE of distinct values on the Node side
+ * (it may only climb: 0, then 14 at the touchdown). (The page sampler it replaces also kept each chip's birth pose for
+ * PL-190; nothing ever asserted on it, so the recording keeps only what the spec reads.)
+ */
+const CAPSULE = 'ci-capsule';
+async function armBirthProbe(page: Page): Promise<void> {
+  await armWitness<Array<string>>(page, CAPSULE, () =>
+    Array.from(document.querySelectorAll('.con-played-hero__proxy .pcard__res-count, .con-recv [data-recv-front] .pcard__res-count'))
+      .map((el) => (el.textContent ?? '').trim()).filter((t) => t !== ''));
+}
+async function readCapsules(page: Page): Promise<Array<string>> {
+  const caps: Array<string> = [];
+  for (const sample of await witnessOf<Array<string>>(page, CAPSULE).stop()) {
+    for (const v of sample.v) {
+      if (caps[caps.length - 1] !== v) {
+        caps.push(v);
+      }
+    }
+  }
+  return caps;
 }
 
 for (const preset of PRESETS) {
@@ -258,8 +249,8 @@ for (const preset of PRESETS) {
       await armLeakWitness(page);
       const before = await wireOf(request, playerId);
       // The board home's layout — the peek must show the board EXACTLY here (PL-199).
-      const homeBoard = await boxOf(page, BOARD);
-      const homeRail = await boxOf(page, RAIL);
+      const homeBoard = await settledBoxOf(page, BOARD);
+      const homeRail = await settledBoxOf(page, RAIL);
       expect(homeBoard !== undefined && homeRail !== undefined, 'the board home stands with its strategy rail').toBe(true);
 
       // Red in its OWN browser context: a second page of the same context is a background tab, and the feed
@@ -291,13 +282,13 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'a-02-composer');
 
       // ── 3. «ПОЧЕМУ НА ПОЛЕ»: L3 → the board under the receding workspace, the cells marked, the strip on the HUD.
-      const handBox = await boxOf(page, HAND);
+      const handBox = await settledBoxOf(page, HAND);
       await armPeekLayoutProbe(page);
       const stopPeek = await storyboard(page, preset.id, 'peek');
       await press(page, 'KeyC', 900);
       await expect(page.locator('.con-root.con-root--board-peek'), 'the peek is open').toHaveCount(1, {timeout: 6000});
       // PL-199: the peeked board is the board HOME — its box, its strategy rail beside it, surfaced.
-      expect(sameBox(await boxOf(page, RAIL), homeRail), 'the strategy rail stands where it stands at home').toBe(true);
+      expect(sameBox(await settledBoxOf(page, RAIL), homeRail), 'the strategy rail stands where it stands at home').toBe(true);
       await expect.poll(() => page.locator(RAIL).evaluate((el) => {
         const cs = getComputedStyle(el);
         return cs.visibility + ' ' + cs.opacity;
@@ -341,7 +332,7 @@ for (const preset of PRESETS) {
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/composting-initiative-a-${preset.id}.txt`, transferTrail(witness));
       expect(endsOverGlass(witness), `every flight's ends were visible\n${transferTrail(witness)}`).toEqual([]);
-      const caps = await page.evaluate(() => (window as unknown as {__caps: Array<string>}).__caps);
+      const caps = await readCapsules(page);
       expect(caps, 'the capsule on the played card only climbs — never the result before its token (PL-191)').toEqual(['0', '14']);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
       expect(seen.errors, 'no page errors').toEqual([]);
@@ -410,9 +401,7 @@ for (const preset of PRESETS) {
       expect(await focused(), 'the action tile of the card is focused').toBe(CARD);
       await openActionFocus(page);
       await settle(page);
-      for (let i = 0; i < 8 && await page.locator(`${ACTION_COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
-        await press(page, 'ArrowDown', 200);
-      }
+      await pressUntil(page, 'ArrowDown', async () => await page.locator(`${ACTION_COMPOSER} .con-composer__cta--focused`).count() > 0, {tries: 8, settleMs: 200});
       await shoot(page, preset.id, 'c-01-composer');
       await armTransferWitness(page);
       const stop = await storyboard(page, preset.id, 'action');

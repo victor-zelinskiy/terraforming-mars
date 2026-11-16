@@ -3,8 +3,9 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
   bootFixture, closeZoomViewer, createGameWithCards, openZoomViewer, crumbText, fetchPlayerModel, openActionFocus, openCardActions, openConsole, pickCards, playQueueCard,
-  press, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
+  press, pressUntil, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
@@ -78,10 +79,8 @@ function watchPosts(page: Page): Array<string> {
 }
 
 async function commitOnce(page: Page, posts: Array<string>, before: number): Promise<void> {
-  for (let attempt = 0; attempt < 3 && posts.length === before; attempt++) {
-    await press(page, 'Enter', 300);
-    await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(before).catch(() => undefined);
-  }
+  // act → verify → retry (D): A again only after a whole window in which nothing was sent.
+  await pressUntil(page, 'Enter', async () => posts.length > before, {tries: 3, settleMs: 3_000});
   expect(posts.length, 'ONE POST').toBe(before + 1);
 }
 
@@ -138,7 +137,35 @@ const candidatesOf = (page: Page) => page.evaluate(() => [...document.querySelec
 const focusedCandidate = (page: Page) => page.evaluate(() =>
   document.querySelector('[data-wild-inner] .con-ptsel__cell[data-focused="1"] [data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '');
 
-const slotBox = (page: Page) => page.locator(`${INNER} .con-wildstep__slot`).boundingBox();
+/** The slot's height (rounded: a subpixel that jitters is not motion) — compared only AT REST (`readSettled`). */
+const slotHeight = async (page: Page): Promise<number | null> => {
+  const box = await page.locator(`${INNER} .con-wildstep__slot`).boundingBox();
+  return box === null ? null : Math.round(box.height * 10) / 10;
+};
+
+/** The cards on screen in rows (distinct tops), their widths, and whether each tag stays inside its card on one line. */
+async function cellGeometry(page: Page) {
+  return page.evaluate(() => {
+    const cells = [...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')].map((cell) => {
+      const r = cell.getBoundingClientRect();
+      const tag = cell.querySelector('.con-ptsel__tag')?.getBoundingClientRect();
+      const line = cell.querySelector<HTMLElement>('.con-ptsel__tag-line');
+      return {w: r.width, top: Math.round(r.top), left: r.left, right: r.right, tagLeft: tag?.left ?? r.left, tagRight: tag?.right ?? r.right,
+        lineFits: line === null || line.scrollWidth <= (line.parentElement?.clientWidth ?? line.scrollWidth) + 1};
+    });
+    const stamp = document.querySelector('[data-wild-inner] .con-ptsel')?.getAttribute('data-ptsel-geom') ?? '';
+    const lines = document.querySelector('[data-wild-inner] .con-ptsel')?.getAttribute('data-tag-lines') ?? '';
+    // The selector's own viewport never scrolls — a cut second row's tags read as a scroll of its own.
+    const vp = document.querySelector<HTMLElement>('[data-wild-inner] .con-ptsel__viewport .con-scroll-area__viewport');
+    const cut = vp === null ? 0 : vp.scrollHeight - vp.clientHeight;
+    return {cells, rows: new Set(cells.map((c) => Math.round(c.top / 8))).size, zoom: Number(/z([0-9.]+)/.exec(stamp)?.[1] ?? 0), lines, cut};
+  });
+}
+
+/** The slot's cells measured AT REST — a page mid-entrance is not a layout. */
+async function cellsAtRest(page: Page, what: string) {
+  return readSettled(page, () => cellGeometry(page), {message: what});
+}
 
 test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
@@ -150,8 +177,8 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     const posts = watchPosts(page);
     const before = await wireOf(request, id);
     await openSetup(page);
-    const crumb = (await crumbText(page)).toUpperCase();
-    expect(crumb, 'the crumb names the card').toContain(CARD_RU);
+    // The crumb is a live string — polled, never read once.
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the crumb names the card'}).toContain(CARD_RU);
     await expect(page.locator(`${ROW} [data-wild-row-glyph]`), 'the printed «?» on the row').toHaveCount(1);
     await shoot(page, 'a-setup');
 
@@ -159,27 +186,28 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     await expect(page.locator(`${INNER} [data-wild-option]`), 'two plates').toHaveCount(2);
     await expect(page.locator(`${INNER} [data-wild-face="lanes"]`), 'the grid is not shown before the plate').toHaveClass(/con-wildstep__face--off/);
     await shoot(page, 'b-or');
-    const box0 = await slotBox(page);
+    // The slot's height on each of its faces — every side of the comparison read AT REST.
+    const box0 = await readSettled(page, () => slotHeight(page), {message: 'the slot on the OR'});
 
     await choosePlate(page, 'onCard');
-    expect(await zone(page), 'the cursor in the candidates').toBe('card');
+    await expect.poll(() => zone(page), {message: 'the cursor in the candidates'}).toBe('card');
     // «На карту» is the console's ONE target selector (`.con-ptsel`) in the slot: the near miss SHOWN, never chosen.
-    const offered = await candidatesOf(page);
+    const offered = await readSettled(page, () => candidatesOf(page), {message: 'the slot\'s candidates'});
     expect(offered.filter((c) => !c.blocked).map((c) => c.name), 'Birds and Dirigibles — never the card itself').toEqual(['Birds', 'Dirigibles']);
     expect(offered.filter((c) => c.blocked).map((c) => c.name), 'Tardigrades — a near miss, shown').toEqual(['Tardigrades']);
     await expect(page.locator(`${INNER} [data-wild-face="lanes"]`), 'no grid beside the candidates').toHaveClass(/con-wildstep__face--off/);
-    const box1 = await slotBox(page);
+    const box1 = await readSettled(page, () => slotHeight(page), {message: 'the slot on the candidates'});
     await shoot(page, 'c-on-card');
 
     await press(page, 'ArrowUp', 300);
-    expect(await zone(page), 'up: back on the OR').toBe('wild');
+    await expect.poll(() => zone(page), {message: 'up: back on the OR'}).toBe('wild');
     await choosePlate(page, 'asStandard');
-    expect(await zone(page), 'the cursor on the grid').toBe('lane');
+    await expect.poll(() => zone(page), {message: 'the cursor on the grid'}).toBe('lane');
     await expect(page.locator(`${INNER} [data-wild-face="cards"]`), 'no candidates beside the grid').toHaveClass(/con-wildstep__face--off/);
     await expect(page.locator(`${INNER} [data-wild-dial-hint]`), 'a radio carries no dial').toHaveCount(0);
-    const box2 = await slotBox(page);
+    const box2 = await readSettled(page, () => slotHeight(page), {message: 'the slot on the grid'});
     for (const b of [box1, box2]) {
-      expect(Math.abs((b?.height ?? 0) - (box0?.height ?? 0)), 'the slot never changes height').toBeLessThanOrEqual(1);
+      expect(Math.abs((b ?? 0) - (box0 ?? 0)), 'the slot never changes height').toBeLessThanOrEqual(1);
     }
     await shoot(page, 'd-standard');
     // steel is lane 1: the cursor lands on lane 0 (M€) — one step right.
@@ -220,7 +248,7 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     for (let i = 0; i < 4 && await focusedCandidate(page) !== 'Birds'; i++) {
       await press(page, 'ArrowLeft', 220);
     }
-    expect(await focusedCandidate(page), 'the cursor on Birds').toBe('Birds');
+    await expect.poll(() => focusedCandidate(page), {message: 'the cursor on Birds'}).toBe('Birds');
     await press(page, 'Enter', 500);
     await expect(inner(page), 'A on Birds answered and left').toHaveCount(0);
     await expect(page.locator(`${ROW}[data-wild-answered] [data-wild-row-card="Birds"]`), 'the row reads «+1 · Птицы»').toHaveCount(1);
@@ -291,32 +319,13 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     await openWild(page);
     await choosePlate(page, 'onCard');
     await expect(page.locator(`${INNER} .con-ptsel__slot--locked[data-zoom-slot="Birds"]`), 'Birds seeded — shown chosen').toHaveCount(1);
-    expect(await focusedCandidate(page), 'the cursor stands on it').toBe('Birds');
+    await expect.poll(() => focusedCandidate(page), {message: 'the cursor stands on it'}).toBe('Birds');
     await expect(inner(page), 'the step still stands — the player confirms').toHaveCount(1);
     await shoot(page, 'h-sole');
     await press(page, 'Enter', 500);
     await expect(inner(page)).toHaveCount(0);
     expect(posts.length, 'nothing sent').toBe(0);
   });
-
-  /** The cards on screen in rows (distinct tops), their widths, and whether each tag stays inside its card on one line. */
-  async function cellGeometry(page: Page) {
-    return page.evaluate(() => {
-      const cells = [...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')].map((cell) => {
-        const r = cell.getBoundingClientRect();
-        const tag = cell.querySelector('.con-ptsel__tag')?.getBoundingClientRect();
-        const line = cell.querySelector<HTMLElement>('.con-ptsel__tag-line');
-        return {w: r.width, top: Math.round(r.top), left: r.left, right: r.right, tagLeft: tag?.left ?? r.left, tagRight: tag?.right ?? r.right,
-          lineFits: line === null || line.scrollWidth <= (line.parentElement?.clientWidth ?? line.scrollWidth) + 1};
-      });
-      const stamp = document.querySelector('[data-wild-inner] .con-ptsel')?.getAttribute('data-ptsel-geom') ?? '';
-      const lines = document.querySelector('[data-wild-inner] .con-ptsel')?.getAttribute('data-tag-lines') ?? '';
-      // The selector's own viewport never scrolls — a cut second row's tags read as a scroll of its own.
-      const vp = document.querySelector<HTMLElement>('[data-wild-inner] .con-ptsel__viewport .con-scroll-area__viewport');
-      const cut = vp === null ? 0 : vp.scrollHeight - vp.clientHeight;
-      return {cells, rows: new Set(cells.map((c) => Math.round(c.top / 8))).size, zoom: Number(/z([0-9.]+)/.exec(stamp)?.[1] ?? 0), lines, cut};
-    });
-  }
 
   test('D: eight candidates — ONE page of two rows, no page to turn', async ({page, request}) => {
     test.setTimeout(240_000);
@@ -328,7 +337,7 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     // TWO ROWS ON A 4K PAGE (the owner, 2026-11-02): eight holders stand whole — 2 × 4 — at the readable floor or above.
     await expect(page.locator(`${INNER} .con-ptsel__cell`), 'all eight on screen').toHaveCount(8);
     await expect(page.locator(`${INNER} [data-ptsel-pages]`), 'no page position — one page').toHaveCount(0);
-    const g = await cellGeometry(page);
+    const g = await cellsAtRest(page, 'eight candidates');
     await shoot(page, 'i-many');
     expect(g.rows, 'two rows').toBe(2);
     expect(g.cut, 'nothing cut at the bottom — the selector does not scroll').toBeLessThanOrEqual(1);
@@ -355,25 +364,27 @@ test.describe(`P43 Applied Science · the shared wild-resource choice · ${PRESE
     await expect(pages).toHaveAttribute('data-ptsel-page', '1');
     await expect(page.locator(`${INNER} .con-ptsel__cell`), 'seven on a page (balanced 7 + 6)').toHaveCount(7);
     await shoot(page, 'l-crowd');
-    const g = await cellGeometry(page);
+    const g = await cellsAtRest(page, 'a page of seven');
     expect(g.rows, 'the page stands two rows').toBe(2);
     expect(g.cut, 'nothing cut at the bottom — the selector does not scroll').toBeLessThanOrEqual(1);
     expect(g.zoom, 'no smaller than the readable floor (× ui)').toBeGreaterThanOrEqual(0.36);
     expect(Math.min(...g.cells.map((c) => c.w)), 'readable cards (0.36 × the TV’s 640 px face)').toBeGreaterThanOrEqual(228);
-    const overlap = await page.evaluate(() => {
+    // The chevrons against the cards, AT REST.
+    const overlap = await readSettled(page, () => page.evaluate(() => {
       const turns = [...document.querySelectorAll('[data-wild-inner] [data-ptsel-turn]')]
         .filter((t) => getComputedStyle(t).opacity !== '0').map((t) => t.getBoundingClientRect());
       const cells = [...document.querySelectorAll('[data-wild-inner] .con-ptsel__cell')].map((c) => c.getBoundingClientRect());
       return turns.some((t) => cells.some((c) => t.left < c.right && t.right > c.left && t.top < c.bottom && t.bottom > c.top));
-    });
+    }), {message: 'the page-turn chevrons'});
     expect(overlap, 'the page-turn chevron stands in its gutter, never over a card or its tag').toBe(false);
     for (const c of g.cells) {
       expect(c.lineFits && c.tagLeft >= c.left - 1 && c.tagRight <= c.right + 1, 'every tag whole, under ITS card').toBe(true);
     }
-    const first = (await candidatesOf(page)).map((c) => c.name);
+    // Two pages compared — both sides read AT REST.
+    const first = (await readSettled(page, () => candidatesOf(page), {message: 'the first page'})).map((c) => c.name);
     await press(page, 'KeyE', 500); // RB — the next page
     await expect(pages, 'RB turned the page').toHaveAttribute('data-ptsel-page', '2');
-    const second = (await candidatesOf(page)).map((c) => c.name);
+    const second = (await readSettled(page, () => candidatesOf(page), {message: 'the second page'})).map((c) => c.name);
     expect(second.some((n) => first.includes(n)), 'a page is a different set').toBe(false);
     await expect(pages, 'the range names the tail').toContainText('из 13');
     await shoot(page, 'm-crowd-last');

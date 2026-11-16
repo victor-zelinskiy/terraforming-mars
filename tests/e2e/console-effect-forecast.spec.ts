@@ -5,6 +5,7 @@ import {
   bootFixture, crumbText, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, pressUntil, settle,
   waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE EFFECT FORECAST — what the TABLE answers to a card play / a card action
@@ -98,10 +99,23 @@ async function lineCount(page: Page, selector: string): Promise<number> {
 }
 
 /** The «Сработает» unit reads on ONE line: its caption, every chip and the
- *  R3 key share a top edge. */
+ *  R3 key share a top edge (read AT REST — a chip mid-entrance stands on no line). */
 async function expectRowOneLine(page: Page, label: string): Promise<void> {
-  const lines = await lineCount(page, '.con-composer--play [data-forecast-row] > .con-forecast__label, .con-composer--play [data-forecast-row] [data-forecast-chip], .con-composer--play [data-forecast-row] .con-forecast__key');
+  const lines = await readSettled(page, () => lineCount(page, '.con-composer--play [data-forecast-row] > .con-forecast__label, .con-composer--play [data-forecast-row] [data-forecast-chip], .con-composer--play [data-forecast-row] .con-forecast__key'),
+    {message: `${label}: the «Сработает» unit`});
   expect(lines, `${label}: the «Сработает» unit must read on ONE line (saw ${lines})`).toBe(1);
+}
+
+/** The payment head's height (it must keep it through the layer). */
+async function payHeadHeight(page: Page): Promise<number | undefined> {
+  return (await page.locator('.con-composer--play .con-pay__head').boundingBox())?.height;
+}
+
+/** How many distinct lines option `i`'s chips and its «сработает» note stand on. */
+async function variantChipLines(page: Page, i: number): Promise<number> {
+  const variant = page.locator('.con-composer--play .con-composer__variants .con-vchoice__opt').nth(i);
+  return variant.locator('.con-composer__variant-chips > .action-effect-chip, .con-composer__variant-chips > [data-forecast-vfx]').evaluateAll((els) =>
+    new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size);
 }
 
 /** A container proves «no scroll»: its content fits its own box. */
@@ -237,7 +251,7 @@ for (const preset of PRESETS) {
       await expect(head.locator('[data-pay-base]')).toHaveText('8');
       await expect(head.locator('.con-pay__price-value')).toHaveText('6');
       await expect(head.locator('[data-pay-saved]')).toHaveText('−2');
-      const headBox = await head.boundingBox();
+      const headHeight = await readSettled(page, () => payHeadHeight(page), {message: 'the payment head'});
       // The row is NOT a focus stop — and since TR51 («strictly pre-select») Olympus' QUESTION is a row of the composer,
       // answered before the press: the cursor opens on it («⚡ Сработает · Конференция на Олимпе · ваш выбор»), never on
       // the commit rail while a question stands unanswered.
@@ -277,7 +291,8 @@ for (const preset of PRESETS) {
             if (preset.id === 'tv-4k') {
               await expectRowOneLine(page, `${preset.id} · ${card}`);
             } else {
-              const clusterLines = await lineCount(page, '.con-composer--play .con-composer__rescats > .con-composer__rescat');
+              const clusterLines = await readSettled(page, () => lineCount(page, '.con-composer--play .con-composer__rescats > .con-composer__rescat'),
+                {message: `${preset.id}: the level-2 cluster`});
               expect(clusterLines, `${preset.id}: the level-2 cluster takes at most two lines (saw ${clusterLines})`).toBeLessThanOrEqual(2);
             }
           }
@@ -286,23 +301,19 @@ for (const preset of PRESETS) {
             if (preset.id === 'tv-4k') {
               // The note stands on the option's OWN chip line — the card grew no taller for it.
               for (const i of [0, 1]) {
-                const variant = page.locator('.con-composer--play .con-composer__variants .con-vchoice__opt').nth(i);
-                const lines = await variant.locator('.con-composer__variant-chips > .action-effect-chip, .con-composer__variant-chips > [data-forecast-vfx]').evaluateAll((els) => {
-                  const tops = els.map((e) => Math.round(e.getBoundingClientRect().top));
-                  return new Set(tops).size;
-                });
+                const lines = await readSettled(page, () => variantChipLines(page, i), {message: `option ${i + 1}'s chip line`});
                 expect(lines, `option ${i + 1}: its chips and its «сработает» note share one line`).toBe(1);
               }
             } else {
               // The Deck stacks the options — the d-pad walks them ↑↓ and ←→ are inert.
               await expect(page.locator('.con-composer--play .con-composer__variants')).toHaveAttribute('data-variant-axis', 'column');
-              expect(await focusedVariant(page)).toBe(0);
+              await expect.poll(() => focusedVariant(page)).toBe(0);
               await press(page, 'ArrowDown', 500);
-              expect(await focusedVariant(page), '↓ walks to the second option').toBe(1);
+              await expect.poll(() => focusedVariant(page), {message: '↓ walks to the second option'}).toBe(1);
               await press(page, 'ArrowRight', 500);
-              expect(await focusedVariant(page), '→ changes nothing in a column').toBe(1);
+              await expect.poll(() => focusedVariant(page), {message: '→ changes nothing in a column'}).toBe(1);
               await press(page, 'ArrowUp', 500);
-              expect(await focusedVariant(page)).toBe(0);
+              await expect.poll(() => focusedVariant(page)).toBe(0);
             }
           }
           if (card === FREE_DISCOUNTED_CARD || card === FREE_PRINTED_CARD) {
@@ -322,9 +333,8 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Enter', async () => await detailStage(page).count() > 0, {tries: 3, settleMs: 1000}),
         'A must descend into the item\'s dossier').toBeTruthy();
       await expect(detailStage(page).locator('[data-forecast-questions]')).toHaveCount(1);
-      const stageCrumb = await crumbText(page);
-      expect(stageCrumb.toLowerCase(), 'the crumb names the source at the detail stage').toMatch(/эффекты/);
-      expect(stageCrumb.split('·').length, 'the tail gained a third segment').toBeGreaterThanOrEqual(3);
+      await expect.poll(async () => (await crumbText(page)).toLowerCase(), {message: 'the crumb names the source at the detail stage'}).toMatch(/эффекты/);
+      await expect.poll(async () => (await crumbText(page)).split('·').length, {message: 'the tail gained a third segment'}).toBeGreaterThanOrEqual(3);
       await shoot(page, preset, '3-detail-stage');
       await press(page, 'Escape', 900);
       await expect(detailStage(page)).toHaveCount(0, {timeout: 10_000});
@@ -335,8 +345,8 @@ for (const preset of PRESETS) {
       // Untouched underneath: the discount tail and the cursor (on Olympus' unanswered question — TR51).
       await expect(head.locator('[data-pay-base]')).toHaveText('8');
       await expect(page.locator('.con-composer__row--reaction.con-composer__row--focused')).toHaveCount(1);
-      const headBoxAfter = await head.boundingBox();
-      expect(headBoxAfter?.height, 'the payment head kept its height through the layer').toBe(headBox?.height);
+      const headHeightAfter = await readSettled(page, () => payHeadHeight(page), {message: 'the payment head after the layer'});
+      expect(headHeightAfter, 'the payment head kept its height through the layer').toBe(headHeight);
 
       // ── 4. A → THE PLAY, then the SERVER's own truth: the graphene landed. ──
       expect(await grapheneOnCarbonNanosystems(request, playerId)).toBe(0);
@@ -345,9 +355,7 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 900);
       await expect(page.locator('.con-composer__sublist .con-vchoice__opt'), 'Olympus\' two options').toHaveCount(2);
       await press(page, 'Enter', 900);
-      for (let i = 0; i < 6 && await page.locator('.con-composer__cta--focused').count() === 0; i++) {
-        await press(page, 'ArrowDown', 400);
-      }
+      await pressUntil(page, 'ArrowDown', async () => await page.locator('.con-composer__cta--focused').count() > 0, {tries: 6, settleMs: 400});
       await expect(page.locator('.con-composer__cta--focused')).toHaveCount(1);
       await press(page, 'Enter', 1500);
       await finishPlay(page);
@@ -396,9 +404,7 @@ for (const preset of PRESETS) {
       await expect(notes).toHaveCount(2);
       await expect(notes.first().locator('.con-forecast__vfx-label')).toHaveText(/сработает/i);
       for (const i of [0, 1]) {
-        const variant = page.locator('.con-composer--play .con-composer__variants .con-vchoice__opt').nth(i);
-        const lines = await variant.locator('.con-composer__variant-chips > .action-effect-chip, .con-composer__variant-chips > [data-forecast-vfx]').evaluateAll((els) =>
-          new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size);
+        const lines = await readSettled(page, () => variantChipLines(page, i), {message: `option ${i + 1}'s chip line`});
         expect(lines, `option ${i + 1}: its chips and its «сработает» note share one line`).toBe(1);
       }
       // The card's science tag still fires Carbon Nanosystems + Olympus
@@ -413,19 +419,19 @@ for (const preset of PRESETS) {
       // cursor on the commit rail (T14 · CC: nothing else to ask), ↑ returns to
       // the SAME option; the bar says «◄► Вариант» while the cursor is in. ──
       await expect(page.locator('.con-composer--play .con-composer__variants')).toHaveAttribute('data-variant-axis', 'row');
-      expect(await focusedVariant(page), 'the cursor opens on the first option').toBe(0);
+      await expect.poll(() => focusedVariant(page), {message: 'the cursor opens on the first option'}).toBe(0);
       await expect(page.locator('.con-cmdbar')).toContainText(/вариант/i);
       await press(page, 'ArrowRight', 500);
-      expect(await focusedVariant(page), '→ switches to the second option').toBe(1);
+      await expect.poll(() => focusedVariant(page), {message: '→ switches to the second option'}).toBe(1);
       await expect(page.locator('.con-vchoice__opt--selected'), 'moving the cursor selects nothing').toHaveCount(0);
       await press(page, 'Enter', 700);
       await expect(page.locator('.con-composer--play .con-composer__variants .con-vchoice__opt').nth(1)).toHaveClass(/con-vchoice__opt--selected/);
       // A selects — and the cursor steps onto the commit rail by the ONE rule (nothing else to ask): no ↓ needed.
       await expect(page.locator('.con-composer__cta--focused'), 'the variant answered: the cursor arrives on the commit rail').toHaveCount(1);
-      expect(await focusedVariant(page)).toBe(-1);
+      await expect.poll(() => focusedVariant(page)).toBe(-1);
       await expect(page.locator('.con-cmdbar')).not.toContainText(/вариант/i);
       await press(page, 'ArrowUp', 500);
-      expect(await focusedVariant(page), '↑ returns to the option the cursor left').toBe(1);
+      await expect.poll(() => focusedVariant(page), {message: '↑ returns to the option the cursor left'}).toBe(1);
       await shoot(page, preset, '7b-variant-axis');
       expect(await pressUntil(page, 'KeyV', async () => await layer(page).count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
       await expect(layer(page).locator('[data-forecast-group="depends"]')).toHaveCount(1);

@@ -1,7 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, placeTile, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, placeTile, press, settle, soloGameConfig} from './consoleStart';
+import {armWitness} from './witness';
+import {readSettled} from './settledRead';
 
 /**
  * Console-native · the corporation's MANDATORY FIRST ACTION — the Game Start
@@ -65,6 +67,30 @@ async function startPainted(page: Page): Promise<boolean> {
   }).catch(() => false);
 }
 
+/** The journey rail's fit: every item inside the rail's box, and the items' labels. */
+async function railFitOf(page: Page) {
+  return page.evaluate(() => {
+    const root = document.querySelector('.con-jrail');
+    if (root === null) {
+      return {ok: false, reason: 'no rail', overflowing: [] as Array<string>};
+    }
+    const box = root.getBoundingClientRect();
+    const items = Array.from(document.querySelectorAll('.con-jrail__item'));
+    const overflowing = items
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5);
+      })
+      .map((el) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim());
+    return {
+      ok: items.length > 0,
+      reason: '',
+      overflowing,
+      labels: items.map((el) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim()),
+    };
+  });
+}
+
 test.describe('console corp first action — the start workspace stage', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, screen: {width: 1920, height: 1080}});
 
@@ -89,7 +115,9 @@ test.describe('console corp first action — the start workspace stage', () => {
     // ── THE STAGE — the workspace serves the prompt itself, seamlessly.
     const stage = page.locator('.con-start__firstact');
     await stage.waitFor({state: 'visible', timeout: 60_000});
-    await page.waitForTimeout(1500); // the rise + panel entrance settle
+    // The rise + panel entrance settle. The start is a phase-long scene, so its quiet is waited for softly — the reads
+    // below that measure wait for rest themselves.
+    await settle(page, {timeoutMs: 20_000}).catch(() => { /* the measured reads below still wait for rest */ });
     await shoot(page, '01-first-action-stage');
 
     // The RETIRED surfaces must never appear in the start flow: the standalone
@@ -114,8 +142,7 @@ test.describe('console corp first action — the start workspace stage', () => {
     await expect.poll(() => stage.locator('.con-start__firstact-next-tile').count()).toBeGreaterThan(0);
 
     // The continuous breadcrumb: the stage advanced ONLY the tail.
-    const crumb = (await page.locator('.con-wshead').innerText()).toUpperCase();
-    expect(crumb).toContain('ПЕРВОЕ ДЕЙСТВИЕ');
+    await expect.poll(async () => (await page.locator('.con-wshead').innerText()).toUpperCase()).toContain('ПЕРВОЕ ДЕЙСТВИЕ');
 
     // ── THE JOURNEY RAIL MUST NOT EAT ITS LAST STAGE. The rail's width is a
     //    fixed geometry reserve AND an `overflow: hidden` clip, so adding a
@@ -123,26 +150,7 @@ test.describe('console corp first action — the start workspace stage', () => {
     //    box (it did — the reported «финальный этап обрезан»). Assert the
     //    INVARIANT, never the reserve's number: every item is fully inside
     //    the rail, and the terminal one is present.
-    const railFit = await page.evaluate(() => {
-      const root = document.querySelector('.con-jrail');
-      if (root === null) {
-        return {ok: false, reason: 'no rail', overflowing: [] as Array<string>};
-      }
-      const box = root.getBoundingClientRect();
-      const items = Array.from(document.querySelectorAll('.con-jrail__item'));
-      const overflowing = items
-        .filter((el) => {
-          const r = el.getBoundingClientRect();
-          return r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5);
-        })
-        .map((el) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim());
-      return {
-        ok: items.length > 0,
-        reason: '',
-        overflowing,
-        labels: items.map((el) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim()),
-      };
-    });
+    const railFit = await readSettled(page, () => railFitOf(page), {settle: false, message: 'the journey rail'});
     expect(railFit.ok, railFit.reason).toBeTruthy();
     expect(railFit.overflowing, 'a journey stage is clipped out of the rail').toEqual([]);
     expect((railFit.labels ?? []).join(' ').toUpperCase(),
@@ -161,16 +169,13 @@ test.describe('console corp first action — the start workspace stage', () => {
     // the first Enter of the placement loop below landed on the seeded legal
     // cell, `.con-context` left with the placement, and the next read hung
     // forever. An absent panel must read as «not placing», never as a wait.
-    let placing = false;
-    for (let i = 0; i < 20 && !placing; i++) {
-      placing = (await page.locator('.con-context').innerText({timeout: 2000}).catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА');
-      if (!placing) {
-        await page.waitForTimeout(600);
-      }
-    }
+    // (A poll of the panel's words — within the old loop's own budget, 20 × (2 s read + 0.6 s).)
+    const placing = await expect.poll(async () =>
+      (await page.locator('.con-context').innerText({timeout: 2000}).catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА'),
+    {timeout: 52_000, intervals: [600]}).toBe(true).then(() => true, () => false);
     await shoot(page, '02-city-placement');
     expect(placing, 'the city placement follow-up never opened').toBeTruthy();
-    expect(await startPainted(page), 'the workspace yields to the board placement').toBeFalsy();
+    await expect.poll(() => startPainted(page), {message: 'the workspace yields to the board placement'}).toBe(false);
 
     // ── THE COMPLETION BARRIER — pick a legal cell, then SAMPLE the paint:
     //    the workspace must not reappear while the placement's chain (the
@@ -182,24 +187,22 @@ test.describe('console corp first action — the start workspace stage', () => {
     // «Enter, check, ArrowRight» rotation that used to stand here could never
     // commit anything: it re-locked and un-locked the same cell 24 times and
     // then reported that the workspace «never came back».
+    //    RECORDED from the aim (the workspace yielded, asserted above) through the commit press to the return — a
+    //    COEXISTENCE claim («painted while the chain stands»), so `settled`: what a frame can paint.
+    const barrier = await armWitness(page, 'corp-first-action-barrier', () => {
+      const el = document.querySelector('.con-start');
+      return {
+        painted: el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true}),
+        chainBusy: document.querySelectorAll('.con-tileplace, .con-context__task-kicker').length > 0,
+        gone: el === null,
+      };
+    }, {settled: true});
     expect(await placeTile(page), 'the city placement never resolved').toBeTruthy();
-    let midChainFlash = false;
-    let returned = false;
-    for (let i = 0; i < 80 && !returned; i++) {
-      const painted = await startPainted(page);
-      const chainBusy = await page.evaluate(() =>
-        document.querySelectorAll('.con-tileplace, .con-context__task-kicker').length > 0);
-      if (painted && chainBusy) {
-        midChainFlash = true;
-      }
-      // The workspace has genuinely returned once the chain is quiet — or it
-      // released straight to the board (both are a settled end state).
-      if ((painted && !chainBusy) ||
-          await page.evaluate(() => document.querySelector('.con-start') === null)) {
-        returned = true;
-      }
-      await page.waitForTimeout(250);
-    }
+    // The workspace has genuinely returned once the chain is quiet — or it released straight to the board (both are a
+    // settled end state). Within the old sampler's own budget (80 rounds of 250 ms plus its reads).
+    const back = await barrier.waitFor((v) => (v.painted && !v.chainBusy) || v.gone, {timeoutMs: 25_000}).then((sample) => sample, () => undefined);
+    const returned = back !== undefined;
+    const midChainFlash = (await barrier.stop()).some((sample) => (back === undefined || sample.t <= back.t) && sample.v.painted && sample.v.chainBusy);
     await shoot(page, '03-back-after-the-chain');
     expect(midChainFlash, 'the workspace flashed back MID-CHAIN (the completion barrier failed)').toBeFalsy();
     expect(returned, 'the workspace never came back after the placement chain').toBeTruthy();

@@ -1,8 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, press, soloGameConfig, turnChip, waitForBoardHome, waitForTurn} from './consoleStart';
+import {bootWithCards, cinematicBeat, press, settle, soloGameConfig, turnChip, waitForBoardHome, waitForTurn} from './consoleStart';
 import {notificationHonesty} from './notificationWitness';
+import {armWitness, pageNow, Witness} from './witness';
 
 /**
  * THE P0 REGRESSION — the bot's bonus-card attack as ONE atomic notification.
@@ -47,12 +48,11 @@ type CardSample = {
   leaving: boolean,
 };
 type Sample = {
-  t: number,
   cards: Array<CardSample>,
   tailVisible: boolean,
   evqVisible: boolean,
   /** Rounded boxes of the permanent top-bar slot + the «ПКЛ.» block — the
-   *  «bar never shifts a pixel» polish claim, sampled every frame. */
+   *  «bar never shifts a pixel» polish claim, recorded on every change. */
   evqRect: string,
   genRect: string,
 };
@@ -62,90 +62,68 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(SHOTS, `${name}.png`)});
 }
 
-/** Keep BeginFrames flowing (headless rAF starves on quiet frames). */
-async function pumpFrames(page: Page, ms: number): Promise<void> {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-    await page.waitForTimeout(100);
-  }
+/**
+ * The lifecycle auditor's page reader: every visible notification card's semantic identity + the two queue
+ * indicators + the top bar's two boxes — ONE observation (self-contained: it is serialized into the page).
+ */
+function readFeed(): Sample {
+  const visible = (el: Element | null): boolean => {
+    if (el === null) {
+      return false;
+    }
+    // A DEPARTING element (Vue leave transition) belongs to the PREVIOUS
+    // state — the tail legitimately fades out WITH its card, so a mid-fade
+    // sample must not read as «indicator without a card».
+    if (el.classList.contains('notification-pop-leave-active')) {
+      return false;
+    }
+    const r = (el as HTMLElement).getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) {
+      return false;
+    }
+    const cs = getComputedStyle(el as HTMLElement);
+    return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05;
+  };
+  const cards = Array.from(document.querySelectorAll('.con-notif')).map((el) => {
+    const cls = Array.from(el.classList);
+    const progress = el.querySelector('.con-notif__progress') as HTMLElement | null;
+    return {
+      id: el.getAttribute('data-notif-id') ?? '',
+      sign: cls.find((c) => c.startsWith('con-notif--sign-')) ?? '',
+      importance: cls.find((c) => c.startsWith('con-notif--imp-')) ?? '',
+      hasBand: el.querySelector('.con-notif__you') !== null,
+      ttlDur: progress?.style.animationDuration ?? '',
+      text: (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim(),
+      // A departing card belongs to the previous state — the indicator
+      // invariants judge only settled presence.
+      leaving: el.classList.contains('notification-pop-leave-active'),
+    };
+  });
+  const rectOf = (sel: string): string => {
+    const el = document.querySelector(sel);
+    if (el === null) {
+      return 'absent';
+    }
+    const r = el.getBoundingClientRect();
+    return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`;
+  };
+  return {
+    cards,
+    tailVisible: visible(document.querySelector('.con-notifq')),
+    evqVisible: visible(document.querySelector('.con-status__evq--on')),
+    evqRect: rectOf('.con-status__evq'),
+    genRect: rectOf('.con-status__gen'),
+  };
 }
 
 /**
- * Arm the lifecycle auditor: MutationObserver + a setInterval floor (NEVER
- * rAF — headless Chromium parks it on quiet frames, which is exactly when
- * these bugs fire). Every sample captures every visible notification card's
- * semantic identity + the two queue indicators.
+ * Arm the lifecycle auditor: a RECORDING of the product's own writes (`armWitness` — the observer + the frame tick;
+ * replace-proof), never a sampler that sleeps through a frame. `settled`: every sample is the state a task LEAVES —
+ * what a frame can paint — because its claims are about painted frames («born final», «both indicators in one frame»).
+ * Its frame tick also keeps BeginFrames flowing for the whole run (headless parks rAF on a quiet screen otherwise).
  */
-async function armAuditor(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    // The OUTER Sample (module scope) applies — a narrower local
-    // redeclaration silently dropped `evqRect`/`genRect` from the type while
-    // the sampler kept collecting them.
-    const w = window as unknown as {__notifSamples?: Array<Sample>};
-    w.__notifSamples = [];
-    const visible = (el: Element | null): boolean => {
-      if (el === null) {
-        return false;
-      }
-      // A DEPARTING element (Vue leave transition) belongs to the PREVIOUS
-      // state — the tail legitimately fades out WITH its card, so a mid-fade
-      // sample must not read as «indicator without a card».
-      if (el.classList.contains('notification-pop-leave-active')) {
-        return false;
-      }
-      const r = (el as HTMLElement).getBoundingClientRect();
-      if (r.width === 0 || r.height === 0) {
-        return false;
-      }
-      const cs = getComputedStyle(el as HTMLElement);
-      return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05;
-    };
-    const sample = (): void => {
-      const cards = Array.from(document.querySelectorAll('.con-notif')).map((el) => {
-        const cls = Array.from(el.classList);
-        const progress = el.querySelector('.con-notif__progress') as HTMLElement | null;
-        return {
-          id: el.getAttribute('data-notif-id') ?? '',
-          sign: cls.find((c) => c.startsWith('con-notif--sign-')) ?? '',
-          importance: cls.find((c) => c.startsWith('con-notif--imp-')) ?? '',
-          hasBand: el.querySelector('.con-notif__you') !== null,
-          ttlDur: progress?.style.animationDuration ?? '',
-          text: (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim(),
-          // A departing card belongs to the previous state — the indicator
-          // invariants judge only settled presence.
-          leaving: el.classList.contains('notification-pop-leave-active'),
-        };
-      });
-      const rectOf = (sel: string): string => {
-        const el = document.querySelector(sel);
-        if (el === null) {
-          return 'absent';
-        }
-        const r = el.getBoundingClientRect();
-        return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`;
-      };
-      w.__notifSamples!.push({
-        t: Date.now(),
-        cards,
-        tailVisible: visible(document.querySelector('.con-notifq')),
-        evqVisible: visible(document.querySelector('.con-status__evq--on')),
-        evqRect: rectOf('.con-status__evq'),
-        genRect: rectOf('.con-status__gen'),
-      });
-      if (w.__notifSamples!.length > 20_000) {
-        w.__notifSamples!.splice(0, 5_000);
-      }
-    };
-    const observer = new MutationObserver(sample);
-    observer.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'data-notif-id']});
-    setInterval(sample, 120);
-    sample();
-  });
-}
-
-async function takeSamples(page: Page): Promise<Array<Sample>> {
-  return await page.evaluate(() => (window as unknown as {__notifSamples: Array<Sample>}).__notifSamples);
+async function armAuditor(page: Page): Promise<Witness<Sample>> {
+  return armWitness(page, 'notif-bonus-feed', readFeed, {settled: true, max: 50_000});
 }
 
 /** Is the hostile bot card ON SCREEN right now (band present)? */
@@ -154,12 +132,11 @@ async function hostileCardLive(page: Page): Promise<boolean> {
     document.querySelector('.con-notif.notification-card--variant-bot-turn .con-notif__you') !== null);
 }
 
-/** Has the AUDITOR ever sampled a hostile bot card? (The drive's own research
- *  submit can auto-acknowledge a flow-holding card — the sample stream is the
+/** Has the AUDITOR ever recorded a hostile bot card? (The drive's own research
+ *  submit can auto-acknowledge a flow-holding card — the record is the
  *  witness that outlives the live window.) */
-async function hostileCardSampled(page: Page): Promise<boolean> {
-  const samples = await takeSamples(page);
-  return samples.some((frame) => frame.cards.some((c) => c.id.startsWith('bot:') && c.hasBand));
+async function hostileCardSampled(auditor: Witness<Sample>): Promise<boolean> {
+  return auditor.ever((frame) => frame.cards.some((c) => c.id.startsWith('bot:') && c.hasBand));
 }
 
 /**
@@ -172,26 +149,21 @@ async function hostileCardSampled(page: Page): Promise<boolean> {
  * «Пас») and `waitForBoardHome` (answers research and stray prompts) are the
  * real player's own road.
  */
-async function passUntilHostileCard(page: Page): Promise<boolean> {
+async function passUntilHostileCard(page: Page, auditor: Witness<Sample>): Promise<boolean> {
   let waitingShotTaken = false;
   for (let round = 0; round < 10; round++) {
-    // Watch the feed for a while — the bot's run presents card by card.
-    const watchUntil = Date.now() + 22_000;
-    while (Date.now() < watchUntil) {
-      if (await hostileCardLive(page)) {
-        return true;
-      }
+    // Watch the feed for a while — the bot's run presents card by card (the RECORD answers: a card that came and
+    // went between two polls is still seen).
+    const seen = await expect.poll(async () => {
       // Best-effort visual record of the WAITING slot (needs a ≥500 ms
       // blocked backlog with no card — a bot run's tile animation window).
-      if (!waitingShotTaken &&
-          await page.locator('.con-status__evq--on').count() > 0) {
+      if (!waitingShotTaken && await page.locator('.con-status__evq--on').count() > 0) {
         waitingShotTaken = true;
         await shoot(page, '00-evq-waiting');
       }
-      await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-      await page.waitForTimeout(300);
-    }
-    if (await hostileCardSampled(page)) {
+      return hostileCardSampled(auditor);
+    }, {timeout: 22_000, intervals: [300]}).toBe(true).then(() => true, () => false);
+    if (seen) {
       return true;
     }
     // Advance the game one step through the UI: pass when the action menu is
@@ -204,7 +176,7 @@ async function passUntilHostileCard(page: Page): Promise<boolean> {
       await waitForBoardHome(page, 10).catch(() => {});
     }
   }
-  return await hostileCardSampled(page);
+  return await hostileCardSampled(auditor);
 }
 
 test.describe('bonus-card attack — atomic notification lifecycle', () => {
@@ -232,10 +204,13 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
     await bootWithCards(page, request, {cards: [CHEAP_CARD], config: CONFIG, corporation: 'Ecoline'});
     await waitForTurn(page);
 
-    await armAuditor(page);
-    const found = await passUntilHostileCard(page);
+    const auditor = await armAuditor(page);
+    const found = await passUntilHostileCard(page, auditor);
     expect(found, 'the bot played its bonus attack and the hostile card presented').toBe(true);
-    await pumpFrames(page, 700);
+    // The card at FULL presence (its entrance over — the honesty reader counts only such cards) before it is read and
+    // photographed; a card the drive already acknowledged has nothing to wait for.
+    await expect.poll(async () => !await hostileCardLive(page) || (await notificationHonesty(page)).cards > 0,
+      {message: 'the hostile card stands at full presence'}).toBe(true);
     // FK — at 720p the hostile card read «ВЫ ПОТЕРЯЛИ [растения] РАСТЕНИЯ —» (the number cut by the card's edge) and
     // stood over the strategy rail with its queue tail over a medal: the number whole, the card in its lane.
     if (await hostileCardLive(page)) {
@@ -246,8 +221,8 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
     }
     await shoot(page, '01-hostile-card');
 
-    const samples = await takeSamples(page);
-    expect(samples.length, 'the auditor actually sampled').toBeGreaterThan(10);
+    const samples = await auditor.values();
+    expect(samples.length, 'the auditor actually sampled').toBeGreaterThan(0);
 
     // ── Per-card lifecycle invariants over EVERY sampled frame ────────────
     const byId = new Map<string, Array<{idx: number, s: CardSample}>>();
@@ -279,7 +254,7 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
       expect([...durations], `card ${cardId} re-armed its lifetime`).toHaveLength(1);
       // 4) ONE presentation episode per id — an id that disappears and comes
       //    back was re-queued/re-mounted (the «two versions» defect). Allow a
-      //    2-frame gap for the leave transition's unmount timing.
+      //    gap of 2 recorded states for the leave transition's unmount timing.
       let episodes = 1;
       for (let i = 1; i < frames.length; i++) {
         if (frames[i].idx - frames[i - 1].idx > 3) {
@@ -355,16 +330,15 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
     if (await hostileCardLive(page) &&
         await page.locator('.con-notifq').count() > 0) {
       await page.keyboard.down('KeyX');
-      await page.waitForTimeout(1_000);
+      await cinematicBeat(page, 1_000, 'the X-hold fills and the turn review rises');
       await page.keyboard.up('KeyX');
       if (await page.locator('.mbr').count() > 0) {
         const lit = await page.waitForSelector('.con-status__evq--on', {timeout: 2_500}).catch(() => null);
-        await pumpFrames(page, 400);
         if (lit !== null) {
           await shoot(page, '03-evq-waiting');
         }
         await page.keyboard.press('Escape'); // close the review
-        await pumpFrames(page, 900);
+        await page.locator('.mbr').waitFor({state: 'detached', timeout: 10_000}).catch(() => undefined);
       }
     }
 
@@ -374,13 +348,17 @@ test.describe('bonus-card attack — atomic notification lifecycle', () => {
     // single-episode assertion above already proved it never re-presented —
     // here we additionally verify the END state has no copy of it.
     const hostileId = hostile!.id;
+    const dismissedAt = await pageNow(page);
     if (await hostileCardLive(page)) {
       await page.keyboard.press('Escape'); // B — the toast override closes the card
     }
-    await pumpFrames(page, 1_800);
-    const after = await takeSamples(page);
-    const lastFrames = after.slice(-8);
-    for (const frame of lastFrames) {
+    // The END state — the card gone from the feed, then the console at rest — and the RECORD of the whole window
+    // from the dismissal on: once it has left, no recorded state carries it again.
+    await expect(page.locator(`.con-notif[data-notif-id="${hostileId}"]`), 'the dismissed card came back').toHaveCount(0, {timeout: 15_000});
+    await settle(page);
+    const after = (await auditor.samples()).filter((sample) => sample.t >= dismissedAt).map((sample) => sample.v);
+    const goneAt = after.findIndex((frame) => !frame.cards.some((c) => c.id === hostileId));
+    for (const frame of goneAt < 0 ? [] : after.slice(goneAt)) {
       expect(frame.cards.some((c) => c.id === hostileId), 'the dismissed card came back').toBe(false);
     }
     await shoot(page, '02-after-dismiss');

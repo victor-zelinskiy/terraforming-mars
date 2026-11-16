@@ -2,9 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, pressUntil, settle, walkFocusUntil,
+  bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openQuickWheel, press, pressUntil, settle,
+  walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR52 «НАУЧНЫЙ ПРОРЫВ» and THE DISCARD PILE — ONE OBJECT OF THE TABLE (docs/claude/prompts/project-tr52-scientific-
@@ -74,10 +77,13 @@ async function storyboard(page: Page, preset: string, name: string): Promise<() 
 }
 
 type Series = Array<[number, string]>;
-/** THE PILE PROBE — MutationObserver + setInterval (never rAF): the pile as the player sees it, every change. */
+/**
+ * THE PILE PROBE — a RECORDING (FLAKE ZERO — `armWitness`: every change the product writes, observed in the task that
+ * makes it): the pile as the player sees it, every change; the series below are folded on the Node side.
+ */
 type PileProbe = {
+  /** The distinct states recorded (a liveness floor — catches only a dead recorder). */
   samples: number;
-  ticks: number;
   /** The most piles ever in the DOM at once (the law: one). */
   maxPiles: number;
   /** Its count, every change. */
@@ -95,64 +101,75 @@ type PileProbe = {
   deck: Series;
 };
 
+/** One recorded state of the pile — what a frame shows (`place` / `miss` only while the pile rests). */
+type PileSeen = {piles: number, count: string, holders: string, deck?: string, place?: string, miss?: string};
+const PILE_WITNESS = 'sb-pile';
+
 async function armPileProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__pile: PileProbe};
-    const p: PileProbe = {samples: 0, ticks: 0, maxPiles: 0, counts: [], holders: [], places: [], besideDeck: true, besideMiss: '', deck: []};
-    w.__pile = p;
-    const t0 = Date.now();
-    const note = (series: Series, value: string | undefined) => {
-      if (value === undefined) {
-        return;
-      }
-      if (series.length === 0 || series[series.length - 1][1] !== value) {
-        series.push([Date.now() - t0, value]);
-      }
+  await armWitness<PileSeen>(page, PILE_WITNESS, () => {
+    const piles = document.querySelectorAll('[data-discard-pile]');
+    const pile = piles[0];
+    const seen: PileSeen = {
+      piles: piles.length,
+      count: pile === undefined ? '-' : pile.getAttribute('data-discard-pile-count') ?? '?',
+      holders: pile === undefined ? '-' : pile.getAttribute('data-discard-pile-holders') ?? '?',
+      deck: document.querySelector('.con-deckstack')?.getAttribute('aria-label')?.match(/(\d+)\s*$/)?.[1],
     };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
+    const resting = document.querySelector('.con-dpile-enter-active, .con-dpile-leave-active') === null;
+    const stack = pile?.querySelector('.con-dpile__stack')?.getBoundingClientRect();
+    if (stack !== undefined && resting) {
+      seen.place = `${Math.round(stack.left + stack.width / 2)},${Math.round(stack.top + stack.height / 2)}`;
+      // Its home: UNDER the deck — below the strip and its chip lane (never over the deck's count nor over the
+      // deck's own «−N» chip, which must stay readable while the cards come off), the stack under the deck's stack
+      // (within a card's width of it), inside the screen.
+      const plate = pile?.querySelector('.con-dpile__plate')?.getBoundingClientRect();
+      const count = document.querySelector('.con-deckstack__count')?.getBoundingClientRect();
+      const deck = document.querySelector('.con-deckstack__pile')?.getBoundingClientRect();
+      const chip = document.querySelector('.con-deckstack__count .metric-feedback-host > *')?.getBoundingClientRect();
+      const strip = document.querySelector('.con-status')?.getBoundingClientRect();
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 20;
+      const hits = (a: DOMRect, b: DOMRect | undefined) => b !== undefined && b.width > 0 &&
+        a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+      const farFromDeck = deck !== undefined &&
+        Math.abs((stack.left + stack.width / 2) - (deck.left + deck.width / 2)) > 3 * rem;
+      if (plate !== undefined && strip !== undefined &&
+          (plate.top < strip.bottom - 1 || plate.right > window.innerWidth + 1 || hits(plate, count) || hits(plate, chip) || farFromDeck)) {
+        seen.miss = `plate ${Math.round(plate.left)},${Math.round(plate.top)}–${Math.round(plate.right)} · strip bottom ${Math.round(strip.bottom)}` +
+          ` · deck ${deck === undefined ? '-' : `${Math.round(deck.left)}–${Math.round(deck.right)}`}` +
+          ` · count ${count === undefined ? '-' : `${Math.round(count.left)}–${Math.round(count.right)}`}` +
+          ` · chip ${chip === undefined ? '-' : `${Math.round(chip.left)}–${Math.round(chip.right)},${Math.round(chip.top)}–${Math.round(chip.bottom)}`}`;
       }
-      const piles = document.querySelectorAll('[data-discard-pile]');
-      p.maxPiles = Math.max(p.maxPiles, piles.length);
-      const pile = piles[0];
-      note(p.counts, pile === undefined ? '-' : pile.getAttribute('data-discard-pile-count') ?? '?');
-      note(p.holders, pile === undefined ? '-' : pile.getAttribute('data-discard-pile-holders') ?? '?');
-      note(p.deck, document.querySelector('.con-deckstack')?.getAttribute('aria-label')?.match(/(\d+)\s*$/)?.[1]);
-      const resting = document.querySelector('.con-dpile-enter-active, .con-dpile-leave-active') === null;
-      const stack = pile?.querySelector('.con-dpile__stack')?.getBoundingClientRect();
-      if (stack !== undefined && resting) {
-        note(p.places, `${Math.round(stack.left + stack.width / 2)},${Math.round(stack.top + stack.height / 2)}`);
-        // Its home: UNDER the deck — below the strip and its chip lane (never over the deck's count nor over the
-        // deck's own «−N» chip, which must stay readable while the cards come off), the stack under the deck's stack
-        // (within a card's width of it), inside the screen.
-        const plate = pile?.querySelector('.con-dpile__plate')?.getBoundingClientRect();
-        const count = document.querySelector('.con-deckstack__count')?.getBoundingClientRect();
-        const deck = document.querySelector('.con-deckstack__pile')?.getBoundingClientRect();
-        const chip = document.querySelector('.con-deckstack__count .metric-feedback-host > *')?.getBoundingClientRect();
-        const strip = document.querySelector('.con-status')?.getBoundingClientRect();
-        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 20;
-        const hits = (a: DOMRect, b: DOMRect | undefined) => b !== undefined && b.width > 0 &&
-          a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
-        const farFromDeck = deck !== undefined && stack !== undefined &&
-          Math.abs((stack.left + stack.width / 2) - (deck.left + deck.width / 2)) > 3 * rem;
-        if (plate !== undefined && strip !== undefined &&
-            (plate.top < strip.bottom - 1 || plate.right > window.innerWidth + 1 || hits(plate, count) || hits(plate, chip) || farFromDeck)) {
-          p.besideDeck = false;
-          p.besideMiss = `plate ${Math.round(plate.left)},${Math.round(plate.top)}–${Math.round(plate.right)} · strip bottom ${Math.round(strip.bottom)}` +
-            ` · deck ${deck === undefined ? '-' : `${Math.round(deck.left)}–${Math.round(deck.right)}`}` +
-            ` · count ${count === undefined ? '-' : `${Math.round(count.left)}–${Math.round(count.right)}`}` +
-            ` · chip ${chip === undefined ? '-' : `${Math.round(chip.left)}–${Math.round(chip.right)},${Math.round(chip.top)}–${Math.round(chip.bottom)}`}`;
-        }
-      }
-    };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample(true), 30);
+    }
+    return seen;
   });
 }
 
-const readPile = (page: Page): Promise<PileProbe> => page.evaluate(() => (window as unknown as {__pile: PileProbe}).__pile);
+/** The recording folded: each series keeps a value only when it changes (an absent value is skipped, as before). */
+async function readPile(page: Page): Promise<PileProbe> {
+  const samples = await witnessOf<PileSeen>(page, PILE_WITNESS).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const series = (pick: (v: PileSeen) => string | undefined): Series => {
+    const out: Series = [];
+    for (const s of samples) {
+      const v = pick(s.v);
+      if (v !== undefined && (out.length === 0 || out[out.length - 1][1] !== v)) {
+        out.push([s.t - t0, v]);
+      }
+    }
+    return out;
+  };
+  const miss = samples.find((s) => s.v.miss !== undefined)?.v.miss;
+  return {
+    samples: samples.length,
+    maxPiles: Math.max(0, ...samples.map((s) => s.v.piles)),
+    counts: series((v) => v.count),
+    holders: series((v) => v.holders),
+    places: series((v) => v.place),
+    besideDeck: miss === undefined,
+    besideMiss: miss ?? '',
+    deck: series((v) => v.deck),
+  };
+}
 
 /** The resting pile moved at most `px` from where it first rested. */
 function pileTravel(probe: PileProbe): number {
@@ -165,15 +182,15 @@ function pileTravel(probe: PileProbe): number {
 
 /** The wheel → the hand → TR52 → its composer. */
 async function openComposer(page: Page): Promise<void> {
-  await press(page, 'Period', 600);
-  await press(page, 'Enter', 1600);
+  // Each press waits for ITS effect: the wheel up, then the hand (or the wheel gone — the press took).
+  await openQuickWheel(page);
+  await pressUntil(page, 'Enter', async () => await page.locator('.con-hand').count() > 0 || await page.locator('.con-quick').count() === 0,
+    {tries: 1, settleMs: 1600});
   await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 20_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
   expect(await focusCard(page, CARD, 12), `never focused «${CARD}»`).toBe(true);
-  for (let i = 0; i < 3 && await page.locator(COMPOSER).count() === 0; i++) {
-    await press(page, 'Enter', 1000);
-  }
+  await pressUntil(page, 'Enter', async () => await page.locator(COMPOSER).count() > 0, {tries: 3, settleMs: 1000});
   await expect(page.locator(COMPOSER)).toHaveCount(1);
   await settle(page);
 }
@@ -193,18 +210,12 @@ async function pickTarget(page: Page, target: string, check?: (page: Page) => Pr
     await check(page);
   }
   const focused = () => page.evaluate(() => document.querySelector('.con-ptsel__slot--focused')?.getAttribute('data-zoom-slot') ?? '');
-  for (let i = 0; i < 10 && !(await focused()).includes(target); i++) {
-    await press(page, 'ArrowRight', 350);
-  }
+  await walkFocusUntil(page, async () => (await focused()).includes(target), focused, 10, 350);
   expect(await focused(), `focused «${target}»`).toContain(target);
-  for (let i = 0; i < 4 && await step.count() > 0; i++) {
-    await press(page, 'Enter', 1100);
-  }
+  await pressUntil(page, 'Enter', async () => await step.count() === 0, {tries: 4, settleMs: 1100});
   await expect(step, 'the step closed on the answer').toHaveCount(0, {timeout: 8000});
   await settle(page);
-  for (let i = 0; i < 10 && await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
-    await press(page, 'ArrowDown', 250);
-  }
+  await pressUntil(page, 'ArrowDown', async () => await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() > 0, {tries: 10, settleMs: 250});
 }
 
 for (const preset of PRESETS) {
@@ -245,25 +256,24 @@ for (const preset of PRESETS) {
         await expect(p.locator('.con-ptsel__slot--locked'), 'nothing is pre-picked').toHaveCount(0);
         // The cursor on it: the rail reads WHY, and A chooses nothing.
         const focusedSlot = () => p.evaluate(() => document.querySelector('.con-ptsel__slot--focused')?.getAttribute('data-zoom-slot') ?? '');
-        for (let i = 0; i < 10 && !(await focusedSlot()).includes('Supercomputer'); i++) {
-          await press(p, 'ArrowRight', 350);
-        }
+        await walkFocusUntil(p, async () => (await focusedSlot()).includes('Supercomputer'), focusedSlot, 10, 350);
         expect(await focusedSlot(), 'the cursor reaches the near miss').toContain('Supercomputer');
         await expect(p.locator('[data-ptsel-rail-blocked]'), 'the rail reads the server\'s reason').toContainText('Недостаточно ресурсов на этой карте');
         await shoot(p, preset.id, '00-target-near-miss');
         await press(p, 'Enter', 700);
         await expect(p.locator('.con-ptsel'), 'A on a near miss chooses nothing — the step stands').toHaveCount(1);
         await expect(p.locator('.con-ptsel__slot--locked')).toHaveCount(0);
-        for (let i = 0; i < 4 && !(await focusedSlot()).includes('Martian Census'); i++) {
-          await press(p, 'ArrowLeft', 350);
-        }
+        await pressUntil(p, 'ArrowLeft', async () => (await focusedSlot()).includes('Martian Census'), {tries: 4, settleMs: 350});
       });
       const row = page.locator(`${COMPOSER} .con-composer__target`);
       await expect(row, 'the answered row stands').toHaveCount(1);
       await expect(row, 'the loss reads what it costs the census').toContainText('Делегат больше не готов');
       await expect(row.locator('.con-ptsel__imp--lost'), 'LOST is its own state').toHaveCount(1);
       await expect(row.locator('.con-ptsel__imp--down'), 'the falling counter reads in the spend tone').not.toHaveCount(0);
-      const thumb = await row.locator('.con-composer__target-thumb').boundingBox();
+      const thumb = await readSettled(page, async () => {
+        const b = await row.locator('.con-composer__target-thumb').boundingBox();
+        return b === null ? null : {width: Math.round(b.width), height: Math.round(b.height)};
+      }, {message: 'the target\'s miniature'});
       expect(thumb !== null && thumb.width > 8 && thumb.height > 8, `the target's miniature is painted (PL-269): ${JSON.stringify(thumb)}`).toBe(true);
       expect(posts.length, 'nothing sent before A').toBe(0);
       await shoot(page, preset.id, '01-composer');
@@ -291,7 +301,7 @@ for (const preset of PRESETS) {
 
       const probe = await readPile(page);
       test.info().annotations.push({type: 'pile', description: JSON.stringify({counts: probe.counts, holders: probe.holders, deck: probe.deck})});
-      expect(probe.ticks, 'the probe sampled (a dead sampler proves nothing)').toBeGreaterThan(10);
+      expect(probe.samples, 'the probe recorded (a dead recorder proves nothing)').toBeGreaterThan(0);
       expect(probe.maxPiles, 'never two piles').toBe(1);
       expect(probe.counts.map(([, v]) => v).filter((v) => v !== '-').map(Number).every((n, i, a) => i === 0 || n >= a[i - 1]),
         `the count only climbs: ${JSON.stringify(probe.counts)}`).toBe(true);
@@ -306,9 +316,7 @@ for (const preset of PRESETS) {
 
       // ── 3. R3: the viewer rises out of the pile — the thrown cards, each with why ──
       const verdict = page.locator('.con-zoom [data-zoom-discard-verdict]');
-      for (let i = 0; i < 3 && await verdict.count() === 0; i++) {
-        await press(page, 'KeyV', 1200);
-      }
+      await pressUntil(page, 'KeyV', async () => await verdict.count() > 0, {tries: 3, settleMs: 1200});
       await expect(verdict, 'R3 opened the pile').toHaveCount(1, {timeout: 10_000});
       await shoot(page, preset.id, '03-pile-viewer');
       await press(page, 'Escape', 1200);
@@ -342,7 +350,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 40_000});
       await expect(summary).toHaveAttribute('data-search-discarded', '0');
       const probe = await readPile(page);
-      expect(probe.ticks, 'the probe sampled').toBeGreaterThan(10);
+      expect(probe.samples, 'the probe recorded').toBeGreaterThan(0); // a liveness floor catches only a DEAD recorder (tests.md)
       expect(probe.maxPiles, 'nothing was thrown away — the pile never came out').toBe(0);
       await expect(page.locator('.con-cmdbar'), 'no R3 verb').not.toContainText(/сброшенные/i);
       await shoot(page, preset.id, '04-clean');
@@ -390,9 +398,7 @@ for (const preset of PRESETS) {
         }
       }
       expect(await onStartups(), 'the cursor reached Research Startups').toBe(true);
-      for (let i = 0; i < 4 && await step.count() > 0; i++) {
-        await press(page, 'Enter', 1100);
-      }
+      await pressUntil(page, 'Enter', async () => await step.count() === 0, {tries: 4, settleMs: 1100});
       await expect(step, 'the step closed on the answer').toHaveCount(0, {timeout: 8000});
       // The answered `or` reads as the target row — the same row a bare pick fills.
       const row = page.locator(`${COMPOSER} .con-composer__target`);
@@ -400,9 +406,7 @@ for (const preset of PRESETS) {
       await expect(row.locator('.con-composer__target-thumb'), 'with the chosen card\'s miniature').toHaveCount(1);
       expect(posts.length, 'nothing sent before A').toBe(0);
       await shoot(page, preset.id, '06-bot-answered');
-      for (let i = 0; i < 10 && await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
-        await press(page, 'ArrowDown', 250);
-      }
+      await pressUntil(page, 'ArrowDown', async () => await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() > 0, {tries: 10, settleMs: 250});
       for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
         await press(page, 'Enter', 300);
         await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
@@ -442,7 +446,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '05-actions');
       const probe = await readPile(page);
       test.info().annotations.push({type: 'pile', description: JSON.stringify({counts: probe.counts, holders: probe.holders, deck: probe.deck})});
-      expect(probe.ticks, 'the probe sampled').toBeGreaterThan(10);
+      expect(probe.samples, 'the probe recorded').toBeGreaterThan(0); // a liveness floor catches only a DEAD recorder (tests.md)
       expect(probe.maxPiles, 'never two piles').toBe(1);
       expect(probe.holders.some(([, v]) => v.includes('stream:')), 'the action\'s stream held the pile').toBe(true);
       expect(probe.counts.some(([, v]) => v === '2'), `both thrown cards landed on it: ${JSON.stringify(probe.counts)}`).toBe(true);
@@ -457,15 +461,16 @@ for (const preset of PRESETS) {
       await bootFixtureSeats(page, request, 'pluto-settlements-2', {query: preset.query, keepColony: 'Pluto'});
       await settle(page);
       const colonies = page.locator('.con-colonies');
+      const wheel = page.locator('.con-quick');
       for (let i = 0; i < 4 && await colonies.count() === 0; i++) {
-        await press(page, 'Period', 1100);
-        await press(page, 'ArrowRight', 1300);
+        // Each press waits for ITS effect — the wheel up, then the colonies (on a quick wheel the press IS the activation).
+        if (await pressUntil(page, 'Period', async () => await wheel.count() > 0, {tries: 1, settleMs: 1100})) {
+          await pressUntil(page, 'ArrowRight', async () => await colonies.count() > 0 || await wheel.count() === 0, {tries: 1, settleMs: 1300});
+        }
       }
       await expect(colonies, 'the colonies opened').not.toHaveCount(0);
       const tile = page.locator('.con-coltile--focused[data-test="con-colony-Pluto"]');
-      for (let i = 0; i < 10 && await tile.count() === 0; i++) {
-        await press(page, 'ArrowRight', 380);
-      }
+      await pressUntil(page, 'ArrowRight', async () => await tile.count() > 0, {tries: 10, settleMs: 380});
       for (let i = 0; i < 4 && await tile.count() === 0; i++) {
         await press(page, 'ArrowDown', 380);
         for (let j = 0; j < 5 && await tile.count() === 0; j++) {
@@ -484,9 +489,7 @@ for (const preset of PRESETS) {
       for (let cycle = 1; cycle <= 2; cycle++) {
         await active.first().waitFor({state: 'visible', timeout: 45_000});
         await cinematicBeat(page, 2600, 'the payout lands before it is taken');
-        for (let i = 0; i < 14 && await embeddedHand.count() === 0 && await active.count() > 0; i++) {
-          await press(page, 'Enter', 2000);
-        }
+        await pressUntil(page, 'Enter', async () => await embeddedHand.count() > 0 || await active.count() === 0, {tries: 14, settleMs: 2000});
         if (await embeddedHand.count() > 0) {
           // The album is READY once its open flight has landed (`--live` arms after the mount settles and is held off
           // through a reveal episode); at 4K on SwiftShader that flight outlasts any fixed beat, and a press inside it

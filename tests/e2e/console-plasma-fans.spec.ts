@@ -6,6 +6,7 @@ import {
   settle, waitForBoardHome,
 } from './consoleStart';
 import {armLeakWitness, expectRailHonest, strandedReports} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR41 «ПЛАЗМЕННЫЕ ВЕНТИЛЯТОРЫ» — the Greens' fourth plate, the set's second
@@ -124,7 +125,8 @@ type Rect = {l: number, t: number, r: number, b: number};
 /** One flying token: its centre, its width and its KIND (`prod:<res>` · `mc` · `tr` · `<res>`) with its amount. */
 type Chip = {x: number, y: number, w: number, v: string};
 type Sample = {
-  t: number, tick: boolean, ws: number, chips: Array<Chip>, beats: Array<{x: number, y: number}>, stranded: boolean,
+  /** The page's time since the arm (the record's first sample). */
+  t: number, ws: number, chips: Array<Chip>, beats: Array<{x: number, y: number}>, stranded: boolean,
   /** The ACTION COMMIT's one-shot rings (`.con-commit-ring` — the impulse's landing on a printed icon). */
   rings: Array<Rect>,
   /** A fullscreen surface over the screen (the reveal band / the zoom viewer) and the HUD's Venus readout. */
@@ -142,14 +144,19 @@ type Sample = {
 };
 type Probe = {samples: Array<Sample>};
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+const TR41_WITNESS = 'tr41-story';
+
+/**
+ * THE STORY PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns what
+ * stands now (an observation — never a count of its own calls), every change is kept with the page's time, off the
+ * product's own writes (an observer + a frame tick). Its claims are about ORDER (the row ticks on the price's departure,
+ * the rating on its token's touchdown, the Greens a beat after), so the record is `settled` — the state a task LEAVES,
+ * the state a frame can paint. A token's identity across samples: a `WeakSet` on `window`.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({hero, heatSel, heatRowSel, trSel, mcSel, auxSel, heatProdSel, mcProdSel, stripSel, markerSel}) => {
-    const w = window as unknown as {__tr41: Probe, __tr41stop?: () => void};
-    w.__tr41stop?.();
-    const p: Probe = {samples: []};
-    w.__tr41 = p;
-    const t0 = performance.now();
+  await armWitness<Omit<Sample, 't'>, Record<string, string>>(page, TR41_WITNESS, ({hero, heatSel, heatRowSel, trSel, mcSel, auxSel, heatProdSel, mcProdSel, stripSel, markerSel}) => {
+    const w = window as unknown as {__tr41Tokens?: WeakSet<Element>, __tr41TokenCount?: number};
+    const seenTokens = (w.__tr41Tokens ??= new WeakSet<Element>());
     const read = (sel: string) => (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const shown = (el: HTMLElement) => {
       let node: Element | null = el;
@@ -165,7 +172,7 @@ async function armProbe(page: Page): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 2 && opacity > 0.05;
     };
-    const rect = (el: Element | null | undefined): Rect | undefined => {
+    const rect = (el: Element | null | undefined): {l: number, t: number, r: number, b: number} | undefined => {
       const r = el?.getBoundingClientRect();
       return r === undefined || r.width < 2 ? undefined : {l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom)};
     };
@@ -181,71 +188,63 @@ async function armProbe(page: Page): Promise<void> {
       return el.classList.contains('con-transfer__chip--production') ? `prod:${res}` : res;
     };
     const heroIcon = (needle: string) => Array.from(document.querySelectorAll<HTMLElement>(`${hero} .pcard-ic`)).find((el) => (el.style.backgroundImage ?? '').includes(needle));
-    const seenTokens = new Set<Element>();
-    const sample = (tick: boolean) => {
-      if (p.samples.length > 12000) {
-        return;
-      }
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10, w: Math.round(r.width),
-          v: `${kindOf(el)}${(el.querySelector('.con-transfer__amt')?.textContent ?? el.textContent ?? '').replace(/\s+/g, '')}`,
-        };
-      });
-      const beats = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).filter(shown).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
-      });
-      const rings = Array.from(document.querySelectorAll<HTMLElement>('.con-commit-ring')).map(rect).filter((r): r is Rect => r !== undefined);
-      for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-scalepay__token'))) {
-        if (!seenTokens.has(el) && shown((el.querySelector('.con-tileplace__coin-body') as HTMLElement | null) ?? el)) {
-          seenTokens.add(el);
-        }
-      }
-      const marker = document.querySelector<HTMLElement>(markerSel);
-      const s: Sample = {
-        t: Math.round(performance.now() - t0), tick,
-        ws: document.querySelectorAll('.con-ws').length,
-        chips, beats, rings,
-        stranded: document.querySelector('.con-stranded') !== null,
-        fullscreen: document.querySelector('.con-reveal') !== null || document.querySelector('.card-zoom-dialog') !== null,
-        strip: read(stripSel),
-        marker: marker?.getAttribute('data-scale-marker-at') ?? '',
-        markerBox: rect(marker),
-        tokens: seenTokens.size,
-        heat: (read(heatSel).match(/^-?\d+/) ?? [''])[0],
-        heatBox: rect(document.querySelector(heatRowSel)),
-        tr: read(trSel),
-        mc: (read(mcSel).match(/^-?\d+/) ?? [''])[0],
-        aux: (read(auxSel).match(/^\d+/) ?? [''])[0],
-        heatProd: (read(heatProdSel).match(/^[-+]?\d+/) ?? [''])[0],
-        mcProd: (read(mcProdSel).match(/^[-+]?\d+/) ?? [''])[0],
-        heatProdBox: rect(document.querySelector(heatProdSel)),
-        mcProdBox: rect(document.querySelector(mcProdSel)),
-        heatIcon: rect(heroIcon('heat')),
-        venusIcon: rect(heroIcon('venus')),
-        prodBox: rect(document.querySelector('.con-recv [data-recv-front] .pcard-prod') ?? document.querySelector(`${hero} .pcard-prod`)),
-        plate: document.querySelector('.con-mandatory') !== null,
-        parl: document.querySelector('.con-parl') !== null,
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10, w: Math.round(r.width),
+        v: `${kindOf(el)}${(el.querySelector('.con-transfer__amt')?.textContent ?? el.textContent ?? '').replace(/\s+/g, '')}`,
       };
-      const last = p.samples[p.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
-        p.samples.push(s);
+    });
+    const beats = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).filter(shown).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
+    });
+    const rings = Array.from(document.querySelectorAll<HTMLElement>('.con-commit-ring')).map(rect)
+      .filter((r): r is {l: number, t: number, r: number, b: number} => r !== undefined);
+    // The scale-reward scene's tokens: each counted ONCE, the first time it is painted (identity — not a count of calls).
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-scalepay__token'))) {
+      if (!seenTokens.has(el) && shown((el.querySelector('.con-tileplace__coin-body') as HTMLElement | null) ?? el)) {
+        seenTokens.add(el);
+        w.__tr41TokenCount = (w.__tr41TokenCount ?? 0) + 1;
       }
+    }
+    const marker = document.querySelector<HTMLElement>(markerSel);
+    return {
+      ws: document.querySelectorAll('.con-ws').length,
+      chips, beats, rings,
+      stranded: document.querySelector('.con-stranded') !== null,
+      fullscreen: document.querySelector('.con-reveal') !== null || document.querySelector('.card-zoom-dialog') !== null,
+      strip: read(stripSel),
+      marker: marker?.getAttribute('data-scale-marker-at') ?? '',
+      markerBox: rect(marker),
+      tokens: w.__tr41TokenCount ?? 0,
+      heat: (read(heatSel).match(/^-?\d+/) ?? [''])[0],
+      heatBox: rect(document.querySelector(heatRowSel)),
+      tr: read(trSel),
+      mc: (read(mcSel).match(/^-?\d+/) ?? [''])[0],
+      aux: (read(auxSel).match(/^\d+/) ?? [''])[0],
+      heatProd: (read(heatProdSel).match(/^[-+]?\d+/) ?? [''])[0],
+      mcProd: (read(mcProdSel).match(/^[-+]?\d+/) ?? [''])[0],
+      heatProdBox: rect(document.querySelector(heatProdSel)),
+      mcProdBox: rect(document.querySelector(mcProdSel)),
+      heatIcon: rect(heroIcon('heat')),
+      venusIcon: rect(heroIcon('venus')),
+      prodBox: rect(document.querySelector('.con-recv [data-recv-front] .pcard-prod') ?? document.querySelector(`${hero} .pcard-prod`)),
+      plate: document.querySelector('.con-mandatory') !== null,
+      parl: document.querySelector('.con-parl') !== null,
     };
-    sample(true);
-    const mo = new MutationObserver(() => sample(false));
-    mo.observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'data-scale-marker-at']});
-    const timer = window.setInterval(() => sample(true), 30);
-    w.__tr41stop = () => {
-      mo.disconnect();
-      window.clearInterval(timer);
-    };
-  }, {hero: HERO, heatSel: HEAT_DIGITS, heatRowSel: HEAT_ROW, trSel: TR_CELL, mcSel: MC_DIGITS, auxSel: AUX_DATA, heatProdSel: HEAT_PROD, mcProdSel: MC_PROD, stripSel: VENUS_STRIP, markerSel: VENUS_MARKER});
+  }, {
+    args: {hero: HERO, heatSel: HEAT_DIGITS, heatRowSel: HEAT_ROW, trSel: TR_CELL, mcSel: MC_DIGITS, auxSel: AUX_DATA, heatProdSel: HEAT_PROD, mcProdSel: MC_PROD, stripSel: VENUS_STRIP, markerSel: VENUS_MARKER},
+    settled: true, max: 20_000,
+  });
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr41: Probe}).__tr41);
+/** The record as the probe's samples — times are the PAGE's, from the arm (the record's first sample is the baseline). */
+async function readProbe(page: Page): Promise<Probe> {
+  const recorded = await witnessOf<Omit<Sample, 't'>>(page, TR41_WITNESS).samples();
+  const t0 = recorded[0]?.t ?? 0;
+  return {samples: recorded.map((s) => ({t: s.t - t0, ...s.v}))};
+}
 
 const inside = (p: {x: number, y: number}, r: Rect, slack: number) =>
   p.x >= r.l - slack && p.x <= r.r + slack && p.y >= r.t - slack && p.y <= r.b + slack;
@@ -287,7 +286,7 @@ function firstReading(samples: ReadonlyArray<Sample>, field: 'heat' | 'tr' | 'mc
 
 function trail(samples: ReadonlyArray<Sample>): string {
   return samples.slice(0, 400).map((s) =>
-    `${s.t}${s.tick ? 't' : 'm'} ws=${s.ws} fs=${s.fullscreen ? 1 : 0} strip=${s.strip} mk=${s.marker || '…'} tok=${s.tokens} heat=${s.heat} tr=${s.tr} mc=${s.mc} aux=${s.aux} hp=${s.heatProd} mp=${s.mcProd} plate=${s.plate ? 1 : 0} parl=${s.parl ? 1 : 0} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}${s.beats.length > 0 ? ` beats=${s.beats.map((b) => `${b.x},${b.y}`).join(' ')}` : ''}${s.rings.length > 0 ? ` rings=${s.rings.map((r) => `${r.l},${r.t},${r.r},${r.b}`).join(' ')}` : ''}`,
+    `${s.t} ws=${s.ws} fs=${s.fullscreen ? 1 : 0} strip=${s.strip} mk=${s.marker || '…'} tok=${s.tokens} heat=${s.heat} tr=${s.tr} mc=${s.mc} aux=${s.aux} hp=${s.heatProd} mp=${s.mcProd} plate=${s.plate ? 1 : 0} parl=${s.parl ? 1 : 0} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}${s.beats.length > 0 ? ` beats=${s.beats.map((b) => `${b.x},${b.y}`).join(' ')}` : ''}${s.rings.length > 0 ? ` rings=${s.rings.map((r) => `${r.l},${r.t},${r.r},${r.b}`).join(' ')}` : ''}`,
   ).join('\n');
 }
 
@@ -390,37 +389,50 @@ const onBoard = (p: Page) => () => p.evaluate(() => {
 });
 
 type RedNote = {at: number, text: string};
-/** RED'S WITNESS: every notification card as it APPEARS, and red's own M€ reading. */
+/** One recorded state of red's screen: the notification cards standing, and red's own M€ reading. */
+type RedSeen = {notifs: Array<{id: string, text: string}>, mc: string};
+const RED_WITNESS = 'tr41-red';
+
+/** RED'S WITNESS — RECORDED (`armWitness`, replace-proof): every notification card as it APPEARS, and red's own M€ reading. */
 async function armRedProbe(page: Page): Promise<void> {
-  await page.evaluate((mcSel) => {
-    const w = window as unknown as {__red: Array<RedNote>, __redMc: Array<[number, string]>};
-    const notes: Array<RedNote> = [];
-    const mc: Array<[number, string]> = [];
-    w.__red = notes;
-    w.__redMc = mc;
-    const t0 = Date.now();
-    const seen = new Set<string>();
+  await armWitness<RedSeen, {mcSel: string}>(page, RED_WITNESS, ({mcSel}) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = () => {
-      document.querySelectorAll<HTMLElement>('.con-notif').forEach((el) => {
-        const id = el.getAttribute('data-notif-id') ?? text(el);
-        if (seen.has(id)) {
-          return;
-        }
-        seen.add(id);
-        notes.push({at: Date.now() - t0, text: text(el)});
-      });
-      const value = (text(document.querySelector(mcSel)).match(/^-?\d+/) ?? [''])[0];
-      if (value !== '' && mc[mc.length - 1]?.[1] !== value) {
-        mc.push([Date.now() - t0, value]);
-      }
+    return {
+      notifs: Array.from(document.querySelectorAll<HTMLElement>('.con-notif')).map((el) => ({id: el.getAttribute('data-notif-id') ?? text(el), text: text(el)})),
+      mc: (text(document.querySelector(mcSel)).match(/^-?\d+/) ?? [''])[0],
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(sample, 50);
-  }, MC_DIGITS);
+  }, {args: {mcSel: MC_DIGITS}});
 }
-const readRedProbe = (page: Page): Promise<Array<RedNote>> => page.evaluate(() => (window as unknown as {__red: Array<RedNote>}).__red);
-const readRedMc = (page: Page): Promise<Array<[number, string]>> => page.evaluate(() => (window as unknown as {__redMc: Array<[number, string]>}).__redMc);
+
+/** Red's record folded: each card ONCE, at the time it first appeared (the page's clock, from the arm). */
+async function readRedProbe(page: Page): Promise<Array<RedNote>> {
+  const samples = await witnessOf<RedSeen>(page, RED_WITNESS).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const seen = new Set<string>();
+  const notes: Array<RedNote> = [];
+  for (const {t, v} of samples) {
+    for (const n of v.notifs) {
+      if (!seen.has(n.id)) {
+        seen.add(n.id);
+        notes.push({at: t - t0, text: n.text});
+      }
+    }
+  }
+  return notes;
+}
+
+/** Red's own M€ reading, every change: [the page's time from the arm, the value]. */
+async function readRedMc(page: Page): Promise<Array<[number, string]>> {
+  const samples = await witnessOf<RedSeen>(page, RED_WITNESS).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const mc: Array<[number, string]> = [];
+  for (const {t, v} of samples) {
+    if (v.mc !== '' && mc[mc.length - 1]?.[1] !== v.mc) {
+      mc.push([t - t0, v.mc]);
+    }
+  }
+  return mc;
+}
 
 for (const preset of PRESETS) {
   test.describe(`TR41 Plasma Fans · ${preset.id}`, () => {

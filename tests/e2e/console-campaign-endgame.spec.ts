@@ -1,11 +1,13 @@
 import {expect, test, Page, APIRequestContext} from './consoleTest';
-import {reloadConsole} from './consoleStart';
+import {reloadConsole, settle, walkFocusUntil} from './consoleStart';
 import {
   createCampaign, devCommit, launchMission, campaignModelAs, campaignBase,
 } from './campaignFixtures';
 import {
   journeyToEndgame, waitWithFrames, forceFrame, shoot,
 } from './consoleEndgameHarness';
+import {armWitness} from './witness';
+import {readSettled} from './settledRead';
 
 /*
  * CAMPAIGN FINALE — the mandatory CHAMPION ceremony inside the endgame
@@ -31,6 +33,19 @@ import {
 
 const SHOT_DIR = 'screenshots/console-campaign-endgame';
 
+/**
+ * The results rows' boxes, rounded — ONE observation of the table's layout (a page reader: self-contained). «The layout
+ * never re-flows under the ceremony» is a claim about every frame of the ceremony, so it is RECORDED from the champion
+ * phase's arrival to the settle (`armWitness`), never two one-shot reads that a frame mid-motion could land between —
+ * `settled`: the layout a task LEAVES (what a frame can paint), never one caught between two writes of one patch.
+ */
+function rowBoxes(): Array<string> {
+  return Array.from(document.querySelectorAll('.con-eg__row')).map((el) => {
+    const r = el.getBoundingClientRect();
+    return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`;
+  });
+}
+
 test.describe('campaign finale — the champion ceremony', () => {
   test('final mission: mandatory champion ceremony, settled state, reload, replay', async ({page, request}) => {
     test.setTimeout(600_000);
@@ -55,13 +70,10 @@ test.describe('campaign finale — the champion ceremony', () => {
     150_000, 'the champion phase (after the full scoring sequence)');
     await shoot(page, SHOT_DIR, '2p-champion-enter');
 
-    // The results layout is FROZEN under the ceremony — decorative layer only.
-    const rectsNow = () => page.evaluate(() =>
-      Array.from(document.querySelectorAll('.con-eg__row')).map((el) => {
-        const r = el.getBoundingClientRect();
-        return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`;
-      }));
-    const rowsBefore = await rectsNow();
+    // The results layout is FROZEN under the ceremony — decorative layer only. Recorded from HERE (the champion phase
+    // stands) to the settle: the recorder keeps a value only when it changes, so a frozen layout is ONE value.
+    const rows = await armWitness(page, 'eg-rows-2p', rowBoxes, {settled: true});
+    const rowsBefore = (await rows.values())[0] ?? [];
     expect(rowsBefore.length).toBe(2);
 
     // MANDATORY: skip (X), collapse (B), confirm (A) and navigation all land
@@ -85,7 +97,7 @@ test.describe('campaign finale — the champion ceremony', () => {
     await waitWithFrames(page, async () =>
       (await page.locator('.con-eg__actions').count()) > 0,
     60_000, 'the settled actions after the ceremony');
-    expect(await rectsNow(), 'the results layout re-flowed under the ceremony').toEqual(rowsBefore);
+    expect((await rows.stop()).map((s) => s.v), 'the results layout re-flowed under the ceremony').toEqual([rowsBefore]);
 
     // The settled CAMPAIGN state: header, plate, keel — and the logical next
     // focus is the campaign map door («Хроника кампании», the list's head).
@@ -108,33 +120,26 @@ test.describe('campaign finale — the champion ceremony', () => {
     15_000, 'back to the settled results');
 
     // ── reload lands SETTLED — the ceremony never replays uninvited ────────
+    // «Never» is a RECORD of the reloaded document (the recorder is replace-proof: re-installed in every new
+    // document, each sample tagged with its own) — from its first frame through the settled state at rest, the
+    // console quiet (a replayed ceremony holds `endgame-ceremony` for its whole length), never a sampler's 3 s tail.
+    const replay = await armWitness(page, 'eg-replay', () => document.querySelector('.con-endgame--champion') !== null);
+    const docBefore = (await replay.samples()).at(-1)?.doc;
     await reloadConsole(page);
     await waitWithFrames(page, async () =>
       (await page.locator('.con-eg__actions').count()) > 0,
     90_000, 'the settled state after reload');
-    let sawChampionPhase = false;
-    for (let i = 0; i < 20; i++) {
-      if ((await page.locator('.con-endgame--champion').count()) > 0) {
-        sawChampionPhase = true;
-        break;
-      }
-      await forceFrame(page);
-      await page.waitForTimeout(140);
-    }
+    await settle(page);
+    const sawChampionPhase = (await replay.stop()).some((s) => s.doc !== docBefore && s.v);
     expect(sawChampionPhase, 'a reload must land settled, never replay the ceremony').toBe(false);
     await expect(page.locator('.con-eg__kicker').first()).toContainText(/Кампания завершена/i);
     await expect.poll(() => page.locator('.con-eg__champline').count()).toBeGreaterThan(0);
     await shoot(page, SHOT_DIR, '2p-reload-settled');
 
     // ── «Повторить подсчёт» replays the FULL act, champion beat included ───
-    for (let i = 0; i < 8; i++) {
-      const txt = await page.locator('.con-eg__action--focused').innerText().catch(() => '');
-      if (/Повторить подсчёт/i.test(txt)) {
-        break;
-      }
-      await page.keyboard.press('ArrowRight');
-      await forceFrame(page);
-    }
+    // A focus walk: act → its effect (the focused action moved) → retry, turning at a wall (`walkFocusUntil`).
+    const focusedAction = () => page.locator('.con-eg__action--focused').innerText().catch(() => '');
+    await walkFocusUntil(page, async () => /Повторить подсчёт/i.test(await focusedAction()), focusedAction, 8);
     await expect(page.locator('.con-eg__action--focused')).toContainText(/Повторить подсчёт/i);
     await page.keyboard.press('Enter');
     await waitWithFrames(page, async () =>
@@ -199,12 +204,9 @@ test.describe('campaign finale — five players at 4K TV scale', () => {
     await waitWithFrames(page, async () =>
       (await page.locator('.con-endgame--champion').count()) > 0,
     150_000, 'the champion phase (5p)');
-    const rectsNow = () => page.evaluate(() =>
-      Array.from(document.querySelectorAll('.con-eg__row')).map((el) => {
-        const r = el.getBoundingClientRect();
-        return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`;
-      }));
-    const rowsBefore = await rectsNow();
+    // Recorded from the champion phase's arrival to the settle (`rowBoxes`): a frozen table is ONE recorded value.
+    const rows = await armWitness(page, 'eg-rows-5p', rowBoxes, {settled: true});
+    const rowsBefore = (await rows.values())[0] ?? [];
     await shoot(page, SHOT_DIR, '5p-4k-champion-enter');
 
     await waitWithFrames(page, async () =>
@@ -215,7 +217,7 @@ test.describe('campaign finale — five players at 4K TV scale', () => {
     await waitWithFrames(page, async () =>
       (await page.locator('.con-eg__actions').count()) > 0,
     60_000, 'the settle (5p)');
-    expect(await rectsNow(), 'the dense table re-flowed under the ceremony').toEqual(rowsBefore);
+    expect((await rows.stop()).map((s) => s.v), 'the dense table re-flowed under the ceremony').toEqual([rowsBefore]);
     await expect(page.locator('.con-eg__kicker').first()).toContainText(/Кампания завершена/i);
     await expect.poll(() => page.locator('.con-eg__champline-pip').count()).toBe(4);
     await shoot(page, SHOT_DIR, '5p-4k-settled');
@@ -286,6 +288,24 @@ async function seatCoverage(page: Page) {
         inside: charters.every((c) => c.card === undefined || c.card.t >= seat.t - 0.5) && (face === undefined || face.b <= seat.b + 0.5),
       };
     });
+  });
+}
+
+/** The count's reading — every seat's coverage and the faces' tops (rounded) — taken AT REST by `readSettled`. */
+async function countReading(page: Page) {
+  return {
+    rows: await seatCoverage(page),
+    faceTops: await page.locator('.con-eg__face .pcard').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top))),
+  };
+}
+
+/** The champion plate's clearance over the winner's deepest nameplate (-1: no plate; 0: no nameplate to clear). */
+async function championPlateGap(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const plate = document.querySelector('.con-eg__champline')?.getBoundingClientRect();
+    const tops = [...document.querySelectorAll('.con-eg__row--winner .con-eg__charter .pcard-nameplate')].map((el) => el.getBoundingClientRect().top);
+    // A champion with one corporation has no nameplate to clear — the plate only has to exist.
+    return plate === undefined ? -1 : tops.length === 0 ? 0 : Math.min(...tops) - plate.bottom;
   });
 }
 
@@ -360,10 +380,10 @@ test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
       [...document.querySelectorAll('.con-eg__charter')].every((el) => el.getAnimations().every((a) => a.playState !== 'running'))),
     20_000, 'the lineage standing');
 
-    // The count: four EQUAL seats — the deepest lineage's rise reserved on every one, the faces standing level.
-    const count = await seatCoverage(page);
+    // The count: four EQUAL seats — the deepest lineage's rise reserved on every one, the faces standing level. Read at
+    // rest WITHOUT a settle: the count holds `endgame-ceremony` for its whole length, so «quiet» would be its end.
+    const {rows: count, faceTops} = await readSettled(page, () => countReading(page), {settle: false, message: 'the seats while the count runs'});
     expectHonoursClear(count);
-    const faceTops = await page.locator('.con-eg__face .pcard').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
     expect(Math.max(...faceTops) - Math.min(...faceTops), `the faces stand level while the count runs (${faceTops.join(', ')})`).toBeLessThanOrEqual(1);
     // Deepest first in paint order: the corporation acquired right after the base is the nearest charter.
     expect(Object.fromEntries(count.map((r) => [r.color, r.plates.map((p) => p.name)]))).toEqual({
@@ -377,13 +397,8 @@ test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
 
     // Settled: the champion crowned — its plate above the deepest nameplate, still nothing over a face.
     await waitWithFrames(page, async () => (await page.locator('.con-eg__actions').count()) > 0, 240_000, 'the settled results');
-    expectHonoursClear(await seatCoverage(page));
-    const plateGap = await page.evaluate(() => {
-      const plate = document.querySelector('.con-eg__champline')?.getBoundingClientRect();
-      const tops = [...document.querySelectorAll('.con-eg__row--winner .con-eg__charter .pcard-nameplate')].map((el) => el.getBoundingClientRect().top);
-      // A champion with one corporation has no nameplate to clear — the plate only has to exist.
-      return plate === undefined ? -1 : tops.length === 0 ? 0 : Math.min(...tops) - plate.bottom;
-    });
+    expectHonoursClear(await readSettled(page, () => seatCoverage(page), {message: 'the settled seats'}));
+    const plateGap = await readSettled(page, () => championPlateGap(page), {message: 'the champion plate over the nameplates'});
     expect(plateGap, 'the champion plate stands above the deepest nameplate').toBeGreaterThanOrEqual(0);
     await shoot(page, SHOT_DIR, '4p-4k-final-lineage-settled');
   });
@@ -423,7 +438,7 @@ test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
       return crests.length === n && crests.every((el) => Number(getComputedStyle(el).opacity) > 0.99 && el.getAnimations().every((anim) => anim.playState === 'finished'));
     }, expected.byColor.length), 15_000, 'every crest unfolded');
     await shoot(page, SHOT_DIR, '4p-4k-mission1-titles');
-    const rows = await seatCoverage(page);
+    const rows = await readSettled(page, () => seatCoverage(page), {message: 'the seats under their crests'});
     expect(rows.filter((r) => r.title !== undefined).map((r) => `${r.color}:${r.title}`).sort(),
       `the crests name the server's titles, each on its seat (standings ${expected.standings})`).toEqual(expected.byColor);
     expectHonoursClear(rows);

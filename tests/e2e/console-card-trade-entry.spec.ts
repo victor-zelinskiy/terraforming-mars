@@ -6,6 +6,7 @@ import {
   LAUNCHPAD, TRADE_CORP, PROFILES, cardTradeConfig, floaters, playLaunchpad,
   focusTradeVariantTile, openColoniesSection, fleetGeometry, expectFleetParity, FleetGeo,
 } from './cardTradeDoor';
+import {readSettled} from './settledRead';
 
 /**
  * THE TRADE'S SECOND DOOR — «Летающая платформа» → «Выбрать колонию».
@@ -115,6 +116,14 @@ async function readout(page: Page): Promise<Readout> {
   });
 }
 
+/**
+ * The readout AT REST (FLAKE ZERO — `readSettled`): the console settled, then the same readout on two frames in a row —
+ * a box (the zone, the frame, the header) read once is wherever the machine had got to in the step's entrance.
+ */
+async function settledReadout(page: Page, what: string): Promise<Readout> {
+  return readSettled(page, () => readout(page), {message: what});
+}
+
 for (const profile of PROFILES) {
   test.describe(`console — the card-action trade door · ${profile.tag}`, () => {
     // The console is a 1920-logical design on a 4K TV; Playwright's default
@@ -142,7 +151,8 @@ for (const profile of PROFILES) {
       // ⓪ THE PARITY BASELINE — the fleet dock as «Колонии» renders it: same
       //    run, same players, same profile, so the later comparison is exact.
       await openColoniesSection(page);
-      const standaloneFleets: FleetGeo | null = await fleetGeometry(page);
+      // Both sides of the parity are read AT REST (a comparison is only as settled as its least settled side).
+      const standaloneFleets: FleetGeo | null = await readSettled(page, () => fleetGeometry(page), {message: 'the standalone fleet dock'});
       expect(standaloneFleets, 'the standalone dock must be measurable').not.toBeNull();
       await press(page, 'Escape', 1400);
 
@@ -153,13 +163,13 @@ for (const profile of PROFILES) {
       // ① THE BUTTON IS A NAVIGATION. «Подтвердить выполнение» would promise a
       //    commit that does not happen here — and used to, which is why the
       //    floater was gone before the colony was even asked for.
-      const setup = await readout(page);
+      const setup = await settledReadout(page, 'the setup');
       expect(setup.cta.toLowerCase(), 'the CTA names where it goes').toContain('колони');
       expect(setup.crumbCommitted, 'nothing is committed yet, so the stage stays pre-commit').toBe(false);
 
       // ② A → the colony grid, INSIDE the card-actions workspace.
       await press(page, 'Enter', 2000);
-      const picking = await readout(page);
+      const picking = await settledReadout(page, 'the colony selection');
       expect(picking.colonyGridUp, 'the colony selection stands').toBe(true);
       expect(picking.crumbSubject.toUpperCase(), 'the card is still the crumb SUBJECT')
         .toContain('ЛЕТАЮЩАЯ');
@@ -184,7 +194,7 @@ for (const profile of PROFILES) {
       // the crumb-tail's zero-width absolute box (which stacked the chips
       // vertically: the one visual divergence on the one screen whose whole
       // point is «я попал туда же»).
-      expectFleetParity(await fleetGeometry(page), standaloneFleets);
+      expectFleetParity(await readSettled(page, () => fleetGeometry(page), {message: 'the hosted fleet dock'}), standaloneFleets);
       // The dock joining the line must never squeeze the identity under the
       // crumb (the nowrap anchor has no clip — a shrunk box paints the subject
       // straight over its letters).
@@ -192,7 +202,7 @@ for (const profile of PROFILES) {
 
       // ③ A → the colony's focus stage, with the fee already decided.
       await press(page, 'Enter', 2600);
-      const onColony = await readout(page);
+      const onColony = await settledReadout(page, 'the colony focus');
       expect(onColony.focusUp, 'the focus stage opened').toBe(true);
       expect(onColony.crumbStage, 'the colony folds into the tail beside its stage').toContain('·');
       // The header re-tiers only at the STEP boundary — never between the
@@ -219,19 +229,19 @@ for (const profile of PROFILES) {
       // ⑤ Pressing around changes nothing — the lock is a rule, not a look.
       await press(page, 'ArrowDown', 700);
       await press(page, 'Enter', 900);
-      const afterPoke = await readout(page);
+      const afterPoke = await settledReadout(page, 'the focus after the pokes');
       expect(afterPoke.payRows.filter((r) => r.chosen).map((r) => r.title),
         'the pinned fee is still the chosen one').toEqual(onColony.payRows.map((r) => r.title));
 
       // ⑥ B from the focus → back to the colony selection.
       await press(page, 'Escape', 2000);
-      const backToGrid = await readout(page);
+      const backToGrid = await settledReadout(page, 'back on the selection');
       expect(backToGrid.focusUp, 'the focus folded').toBe(false);
       expect(backToGrid.colonyGridUp, 'and the selection is back').toBe(true);
 
       // ⑦ B from the selection → back to the card's variant, still chosen.
       await press(page, 'Escape', 2000);
-      const backToCard = await readout(page);
+      const backToCard = await settledReadout(page, 'back on the card');
       expect(backToCard.colonyGridUp, 'the colony step is gone').toBe(false);
       expect(backToCard.crumbSubject.toUpperCase(), 'the card is still the subject')
         .toContain('ЛЕТАЮЩАЯ');

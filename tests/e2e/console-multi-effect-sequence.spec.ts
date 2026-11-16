@@ -2,8 +2,9 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootWithCards, soloGameConfig, playCardFromHand, press,
+  bootWithCards, soloGameConfig, playCardFromHand, settle, takeRevealCards,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * ONE PRESS, SEVERAL EFFECTS — the SEQUENCING guard for a card play's follow-up
@@ -35,16 +36,18 @@ import {
  *  ④ ONE FLOW — it arrives EMBEDDED in the hand workspace the play was made in
  *    (`hand ⊃ colonies`), under a crumb that stands still.
  *
- * The probe is `MutationObserver` + `setInterval`, never `requestAnimationFrame`:
- * headless Chromium drives rAF off the compositor, so a rAF sampler stops
- * sampling exactly when the screen goes quiet — which is when these bugs fire.
- * The spec asserts its own `samples` count, so a dead probe cannot pass.
+ * The probe is a RECORDING (FLAKE ZERO — `armWitness`, armed before the press,
+ * replace-proof): every change of what stands is kept with the page's time, off
+ * the product's own writes (an observer + a frame tick), so a starved renderer
+ * can slow a surface swap but never hide it. The overlap claim is a COEXISTENCE
+ * claim, so the record is `settled` — the state a task LEAVES, the state a frame
+ * can paint. The spec asserts the record is not empty, so a dead probe cannot pass.
  */
 
 const OUT = path.resolve('screenshots', 'multi-effect-sequence');
 
+/** One recorded state (its time is the sample's `t` — the PAGE's clock). */
 type Sample = {
-  t: number,
   /** A reveal overlay is PAINTED (the drawn batch owns the screen). */
   revealUp: boolean,
   /** Cards the reveal still offers (untaken slots) — diagnostics. */
@@ -69,18 +72,14 @@ type Sample = {
   crumb: string,
 };
 
-type Watch = {armed: boolean, samples: Array<Sample>};
+const SEQ_WITNESS = 'multi-effect-seq';
 
-declare global {
-  interface Window {
-    __seqWatch?: Watch,
-  }
-}
-
-async function installWatch(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const watch: Watch = {armed: false, samples: []};
-    window.__seqWatch = watch;
+/**
+ * Arm the recording — BEFORE the press. The reader returns what stands NOW (an observation, never a count of its own
+ * calls); the folding is `digest`'s, on the Node side.
+ */
+async function armSeqWitness(page: Page): Promise<void> {
+  await armWitness<Sample>(page, SEQ_WITNESS, () => {
     const painted = (el: Element | null): boolean =>
       el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
     const diag = (): {stack: string, wfType: string, owedStep: boolean} => {
@@ -106,75 +105,32 @@ async function installWatch(page: Page): Promise<void> {
         return {stack: 'diag-error', wfType: '', owedStep: false};
       }
     };
-    const sample = (): void => {
-      const root = document.querySelector<HTMLElement>('.con-colonies');
-      const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-colonies__slot'));
-      const visSlots = slots.filter((s) => painted(s) && s.getBoundingClientRect().width > 4).length;
-      const rect = root !== null ? root.getBoundingClientRect() : undefined;
-      // An untaken card is a reveal slot still ON the table: the taken ones
-      // carry the surface's own `--taken` modifier.
-      const untaken = document.querySelectorAll(
-        '.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length;
-      watch.samples.push({
-        t: Math.round(performance.now()),
-        revealUp: painted(document.querySelector('.con-reveal')),
-        revealCards: untaken,
-        colonyGrid: painted(root) && visSlots > 0,
-        colW: rect !== undefined ? Math.round(rect.width) : -1,
-        colH: rect !== undefined ? Math.round(rect.height) : -1,
-        colX: rect !== undefined ? Math.round(rect.x) : -1,
-        scale: root !== null ? getComputedStyle(root).getPropertyValue('--coltile-scale').trim() : '',
-        embedded: root !== null && root.classList.contains('con-colonies--embedded'),
-        composerUp: painted(document.querySelector('.con-composer--embed')),
-        crumb: (document.querySelector('.con-wshead__step')?.textContent ?? '').trim(),
-        ...diag(),
-      });
-      if (watch.samples.length > 4000) {
-        watch.samples.shift();
-      }
+    const root = document.querySelector<HTMLElement>('.con-colonies');
+    const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-colonies__slot'));
+    const visSlots = slots.filter((el) => painted(el) && el.getBoundingClientRect().width > 4).length;
+    const rect = root !== null ? root.getBoundingClientRect() : undefined;
+    // An untaken card is a reveal slot still ON the table: the taken ones
+    // carry the surface's own `--taken` modifier.
+    const untaken = document.querySelectorAll(
+      '.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length;
+    return {
+      revealUp: painted(document.querySelector('.con-reveal')),
+      revealCards: untaken,
+      colonyGrid: painted(root) && visSlots > 0,
+      colW: rect !== undefined ? Math.round(rect.width) : -1,
+      colH: rect !== undefined ? Math.round(rect.height) : -1,
+      colX: rect !== undefined ? Math.round(rect.x) : -1,
+      scale: root !== null ? getComputedStyle(root).getPropertyValue('--coltile-scale').trim() : '',
+      embedded: root !== null && root.classList.contains('con-colonies--embedded'),
+      composerUp: painted(document.querySelector('.con-composer--embed')),
+      crumb: (document.querySelector('.con-wshead__step')?.textContent ?? '').trim(),
+      ...diag(),
     };
-    // A coarse clock keeps sampling through a QUIET screen (a rAF sampler would
-    // not); the observer catches the frames where a surface actually swaps.
-    setInterval(() => {
-      if (watch.armed) {
-        sample();
-      }
-    }, 50);
-    const mo = new MutationObserver(() => {
-      if (watch.armed) {
-        sample();
-      }
-    });
-    const observe = () => mo.observe(document.documentElement,
-      {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style']});
-    if (document.readyState === 'loading') {
-      addEventListener('DOMContentLoaded', observe);
-    } else {
-      observe();
-    }
-  });
+  }, {settled: true});
 }
 
-async function arm(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window.__seqWatch;
-    if (w !== undefined) {
-      w.armed = true;
-      w.samples = [];
-    }
-  });
-}
-
-async function collect(page: Page): Promise<Watch> {
-  return page.evaluate(() => {
-    const w = window.__seqWatch as Watch;
-    w.armed = false;
-    return w;
-  });
-}
-
-function digest(watch: Watch) {
-  const s = watch.samples;
+/** The record folded into the episode's facts — counts are of RECORDED STATES (a change kept once), never of frames. */
+function digest(s: ReadonlyArray<Sample>) {
   const overlap = s.filter((x) => x.revealUp && x.colonyGrid);
   const firstGrid = s.findIndex((x) => x.colonyGrid);
   const gridSamples = firstGrid === -1 ? [] : s.slice(firstGrid).filter((x) => x.colonyGrid);
@@ -182,8 +138,8 @@ function digest(watch: Watch) {
     samples: s.length,
     overlapFrames: overlap.length,
     firstOverlap: overlap[0],
-    /** The prompt is live and its own surface is deliberately held. */
-    owedFrames: s.filter((x) => x.owedStep).length,
+    /** The prompt is live and its own surface is deliberately held (recorded states — «did it ever», never «how many frames»). */
+    owedStates: s.filter((x) => x.owedStep).length,
     firstGridAt: firstGrid,
     firstGrid: gridSamples[0],
     lastGrid: gridSamples[gridSamples.length - 1],
@@ -219,31 +175,31 @@ function colonyGame() {
  * the take, and the colony step arriving.
  */
 async function playAndTrace(page: Page, card: string) {
-  await arm(page);
+  await armSeqWitness(page);
   const played = await playCardFromHand(page, card);
   expect(played, `${card} must be played from hand`).toBeTruthy();
-  await page.waitForTimeout(2500);
+  // The play's first effect stands — the drawn batch, or (no draw) the colony step itself — never a fixed beat.
+  await page.locator('.con-reveal, .con-colonies').first().waitFor({timeout: 30_000}).catch(() => {});
   await shoot(page, `${card}-1-after-play`);
 
   // Take whatever the play produced, one press at a time, and let the colonies
   // arrive on their own.
-  const reveal = page.locator('.con-reveal');
-  for (let i = 0; i < 8 && await reveal.count() > 0; i++) {
-    await press(page, 'Enter', 1200);
-  }
+  await takeRevealCards(page, 8);
   await shoot(page, `${card}-2-after-take`);
   await page.locator('.con-colonies').waitFor({timeout: 30_000}).catch(() => {});
-  await page.waitForTimeout(2500);
+  // The window ends with the screen at REST under the standing grid (a late re-lay-out would still be recorded).
+  await settle(page, {timeoutMs: 30_000});
   await shoot(page, `${card}-3-colonies`);
 
-  const d = digest(await collect(page));
+  const d = digest((await witnessOf<Sample>(page, SEQ_WITNESS).stop()).map((x) => x.v));
   console.log(`── ${card} ──`, JSON.stringify({...d, firstOverlap: d.firstOverlap ?? null}, null, 1));
   return d;
 }
 
 /** ③ + ④ — the claims both cases share. */
 function expectOneArrivalInsideTheHand(d: ReturnType<typeof digest>) {
-  expect(d.samples, 'the probe sampled the episode').toBeGreaterThan(50);
+  // The record's own liveness floor: only a DEAD recorder fails it (a count of states, never of frames).
+  expect(d.samples, 'the probe sampled the episode').toBeGreaterThan(0);
   expect(d.firstGridAt, 'the colony grid was reached').toBeGreaterThan(-1);
   // ③ ONE ARRIVAL, ONE GEOMETRY — the «half the screen, crooked, then the whole
   // workspace» report, as two numbers.
@@ -269,7 +225,6 @@ test.describe('one press, several effects', () => {
    */
   test('a draw AND a colony: the batch is taken BEFORE the grid opens', async ({page, request}) => {
     test.setTimeout(420_000);
-    await installWatch(page);
     await bootWithCards(page, request, {
       cards: ['Research Colony'],
       corporation: 'Teractor',
@@ -283,7 +238,7 @@ test.describe('one press, several effects', () => {
       `the colony grid stood under a live drawn-cards reveal: ${JSON.stringify(d.firstOverlap)}`).toBe(0);
     // ② …and the two effects really did arrive TOGETHER: the colony prompt stood
     // live, with no surface of its own, for the length of the batch.
-    expect(d.owedFrames, 'the colony step was held while the batch was worked through').toBeGreaterThan(3);
+    expect(d.owedStates, 'the colony step was held while the batch was worked through').toBeGreaterThan(0);
     expectOneArrivalInsideTheHand(d);
     await expect.poll(() => page.locator('.con-hand .con-colonies').count(), {message: `the colonies must stand INSIDE the hand workspace — stacks seen: ${d.stacks.join(' | ')}`}).toBeGreaterThan(0);
   });
@@ -297,7 +252,6 @@ test.describe('one press, several effects', () => {
    */
   test('a colony after a plain effect: the grid opens into a FREE zone', async ({page, request}) => {
     test.setTimeout(420_000);
-    await installWatch(page);
     await bootWithCards(page, request, {
       cards: ['Mining Colony'],
       corporation: 'Teractor',
@@ -308,7 +262,7 @@ test.describe('one press, several effects', () => {
 
     // The hero scene held the door — the step waited for the play to finish
     // being shown, exactly as it waits for a batch to be taken.
-    expect(d.owedFrames, 'the colony step was held while the play was shown').toBeGreaterThan(3);
+    expect(d.owedStates, 'the colony step was held while the play was shown').toBeGreaterThan(0);
     expectOneArrivalInsideTheHand(d);
     await expect.poll(() => page.locator('.con-hand .con-colonies').count(), {message: `the colonies must stand INSIDE the hand workspace — stacks seen: ${d.stacks.join(' | ')}`}).toBeGreaterThan(0);
   });

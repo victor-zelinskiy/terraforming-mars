@@ -5,6 +5,7 @@ import {
   bootFixture, bootFixtureSeats, bootSeededGame, commitFocusedSpace, createGameWithCards, fetchPlayerModel, placeTile, press, pressUntil,
   sendPlayerInput, settle, soloGameConfig, takeRevealCard, walkToSpace,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * AMAZONIS PLANITIA on the console — phase 1 of the board's premium adaptation (`docs/claude/amazonis-planitia-phase-1.md`).
@@ -51,16 +52,14 @@ const STANDARD_RESOURCE = 19;
 
 /** Red (the second seat) passes the generation over the API once its action menu stands — blue keeps the turns. */
 async function passSeat(request: APIRequestContext, pid: string): Promise<void> {
-  for (let i = 0; i < 120; i++) {
+  let idx = -1;
+  // The SERVER's state, polled (never a tick of a hand-rolled loop): red's action menu offers the pass.
+  await expect.poll(async () => {
     const wf = (await fetchPlayerModel(request, pid) as unknown as {waitingFor?: {options?: Array<unknown>}}).waitingFor;
-    const idx = (wf?.options ?? []).findIndex((o) => JSON.stringify(o).includes('Pass for this generation'));
-    if (idx >= 0) {
-      await sendPlayerInput(request, pid, {type: 'or', index: idx, response: {type: 'option'}});
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error('red never got its action menu');
+    idx = (wf?.options ?? []).findIndex((o) => JSON.stringify(o).includes('Pass for this generation'));
+    return idx;
+  }, {timeout: 60_000, intervals: [500], message: 'red never got its action menu'}).toBeGreaterThanOrEqual(0);
+  await sendPlayerInput(request, pid, {type: 'or', index: idx, response: {type: 'option'}});
 }
 
 /** LT → the standard projects, the snake to the project named `name`, A runs it until `done` holds. */
@@ -96,9 +95,14 @@ type FieldReading = {hex: number, hexes: number, overlaps: Array<string>, scroll
  */
 type RingReading = {dx: number, dy: number, top: number, statusBottom: number, bottom: number, stageBottom: number, clipped: Array<string>};
 
-/** The painted field: one hex's width, the hexes, and every scale piece / off-Mars cell that touches a Mars hex. */
+/**
+ * The painted field: one hex's width, the hexes, and every scale piece / off-Mars cell that touches a Mars hex — read AT
+ * REST (`fieldAtRest`), never wherever the board's fit had got to. Lengths rounded to 0.01 px: a subpixel that jitters is
+ * not motion.
+ */
 async function readField(page: Page): Promise<FieldReading> {
   return await page.evaluate(() => {
+    const q = (n: number) => Math.round(n * 100) / 100;
     const hexes = Array.from(document.querySelectorAll<HTMLElement>('#main_board > .board-space[data_space_id]'));
     const rects = hexes.map((h) => ({id: h.getAttribute('data_space_id') ?? '?', r: h.getBoundingClientRect()}));
     // A hex is a hexagon inside its box: shrink the box to its inscribed core (the clip-path's middle band) for the test.
@@ -132,23 +136,28 @@ async function readField(page: Page): Promise<FieldReading> {
       return c === undefined || r.left < c.left || r.right > c.right || r.top < c.top || r.bottom > c.bottom;
     }).map((rail) => rail.closest('.arc-scale')?.className ?? '?');
     const ring: RingReading = {
-      dx: stage === undefined ? NaN : (union.left + union.right) / 2 - (stage.left + stage.right) / 2,
-      dy: stage === undefined ? NaN : (union.top + union.bottom) / 2 - (stage.top + stage.bottom) / 2,
-      top: union.top,
-      statusBottom: document.querySelector('.con-status')?.getBoundingClientRect().bottom ?? 0,
-      bottom: union.bottom,
-      stageBottom: stage?.bottom ?? 0,
+      dx: stage === undefined ? NaN : q((union.left + union.right) / 2 - (stage.left + stage.right) / 2),
+      dy: stage === undefined ? NaN : q((union.top + union.bottom) / 2 - (stage.top + stage.bottom) / 2),
+      top: q(union.top),
+      statusBottom: q(document.querySelector('.con-status')?.getBoundingClientRect().bottom ?? 0),
+      bottom: q(union.bottom),
+      stageBottom: q(stage?.bottom ?? 0),
       clipped,
     };
     return {
       ring,
-      hex: rects.length > 0 ? rects[0].r.width : 0,
+      hex: rects.length > 0 ? q(rects[0].r.width) : 0,
       hexes: rects.length,
       overlaps,
       scroll: root.scrollHeight > root.clientHeight + 1 || root.scrollWidth > root.clientWidth + 1,
       offMars: document.querySelectorAll('.board-outer-spaces > .board-space').length,
     };
   });
+}
+
+/** The field AT REST — the two boards compared (Tharsis, Amazonis) are both read through here. */
+async function fieldAtRest(page: Page, what: string): Promise<FieldReading> {
+  return readSettled(page, () => readField(page), {message: what});
 }
 
 async function boot(page: Page, request: APIRequestContext, board: string, query: string): Promise<string> {
@@ -165,7 +174,7 @@ for (const profile of PROFILES) {
     test('the field: 91 hexes at ≥ 91.5 % of the Tharsis hex, one centred ring, nothing on a hex, no scroll', async ({page, request}) => {
       test.setTimeout(300_000);
       await boot(page, request, 'tharsis', profile.query);
-      const tharsis = await readField(page);
+      const tharsis = await fieldAtRest(page, 'the Tharsis field');
       await shoot(page, '00-tharsis-reference');
 
       const errors: Array<string> = [];
@@ -183,7 +192,7 @@ for (const profile of PROFILES) {
       const playerId = await boot(page, request, 'amazonis planitia', profile.query);
       const model = await fetchPlayerModel(request, playerId) as unknown as {game: {gameOptions: {boardName: string}}};
       expect(model.game.gameOptions.boardName).toBe('amazonis planitia');
-      const field = await readField(page);
+      const field = await fieldAtRest(page, 'the Amazonis field');
       await shoot(page, '01-field');
       console.log('── the field ──', JSON.stringify({tharsisHex: tharsis.hex, hex: field.hex, ratio: field.hex / tharsis.hex, hexes: field.hexes, offMars: field.offMars, overlaps: field.overlaps}));
       expect(field.hexes, 'the eleven-row grid').toBe(91);
@@ -196,13 +205,13 @@ for (const profile of PROFILES) {
       expect(field.ring.bottom, 'the oceans above the dock\'s clearance').toBeLessThanOrEqual(field.ring.stageBottom + 1);
       expect(field.overlaps, 'nothing of the scales or the off-Mars flank sits on a hex').toEqual([]);
       expect(field.scroll, 'the page never scrolls').toBe(false);
-      // The printed set on the strategy rail: five + Venus's Hoverlord, five + Venuphile.
-      const rail = await page.evaluate(() => ({
+      // The printed set on the strategy rail: five + Venus's Hoverlord, five + Venuphile (a live state — polled).
+      const rail = () => page.evaluate(() => ({
         milestones: document.querySelectorAll('.con-strat__zone--milestones .con-strat__item').length,
         awards: document.querySelectorAll('.con-strat__zone--awards .con-strat__item').length,
       }));
-      console.log('── the rail ──', JSON.stringify(rail), '\n── console ──\n' + errors.slice(0, 20).join('\n'));
-      expect(rail).toEqual({milestones: 6, awards: 6});
+      console.log('── the rail ──', JSON.stringify(await rail()), '\n── console ──\n' + errors.slice(0, 20).join('\n'));
+      await expect.poll(rail, {message: 'the printed set on the strategy rail'}).toEqual({milestones: 6, awards: 6});
     });
 
     test('the bonuses: the 7 % card, the cell asks for its standard resource, Mining Guild answers; −12 °C; 16 % Venus', async ({page, request}) => {
@@ -225,13 +234,19 @@ for (const profile of PROFILES) {
       const ask = await wireOf(request, id);
       expect(ask.waitingFor?.choiceContext?.source, 'the question names the cell').toMatchObject({kind: 'space', space: cell!.id});
       const palette = page.locator('.con-task__palette');
-      await expect.poll(async () => {
-        if (await page.locator('.con-reveal').count() > 0) {
-          await shoot(page, '10b-oxygen-7-card');
-          await takeRevealCard(page, 20_000);
+      const reveal = page.locator('.con-reveal');
+      // act → verify → retry (D): a standing reveal is TAKEN by its own driver (which verifies the take), never a press
+      // inside a poll — then the palette is waited for as a state.
+      for (let i = 0; i < 4; i++) {
+        await expect.poll(async () => await reveal.count() + await palette.count(),
+          {timeout: 60_000, message: 'the 7 % card taken, the cell\'s palette stands'}).toBeGreaterThan(0);
+        if (await reveal.count() === 0) {
+          break;
         }
-        return await palette.count();
-      }, {timeout: 60_000, message: 'the 7 % card taken, the cell\'s palette stands'}).toBeGreaterThan(0);
+        await shoot(page, '10b-oxygen-7-card');
+        await takeRevealCard(page, 20_000);
+      }
+      await expect.poll(() => palette.count(), {timeout: 60_000, message: 'the 7 % card taken, the cell\'s palette stands'}).toBeGreaterThan(0);
       await expect(palette, 'the palette').toBeVisible({timeout: 20_000});
       await expect(page.locator('.con-task .con-src'), 'the source plate — the cell').toBeVisible();
       await shoot(page, '11-standard-resource-question');
@@ -290,10 +305,9 @@ for (const profile of PROFILES) {
           await press(page, 'ArrowDown', 300); // steel
           await press(page, 'Enter', 500);
         }
-        await expect.poll(async () => {
-          await press(page, 'KeyX', 600);
-          return (await wireOf(request, id)).waitingFor?.venusBonusPrompt;
-        }, {timeout: 30_000, message: `X collects the ${level} % bonus`}).toBeUndefined();
+        // act → verify → retry (D): X is pressed again only while the SERVER still asks the bonus a whole window later.
+        expect(await pressUntil(page, 'KeyX', async () => (await wireOf(request, id)).waitingFor?.venusBonusPrompt === undefined,
+          {tries: 6, settleMs: 4000}), `X collects the ${level} % bonus`).toBe(true);
         await settle(page);
         const now = await wireOf(request, id);
         // The project's price (15 M€) is spent; the bonus returns one standard resource per step — two on the finish.
@@ -307,8 +321,9 @@ for (const profile of PROFILES) {
       expect(await placeTile(page), 'the last greenery lands').toBe(true);
       await expect.poll(async () => (await wireOf(request, id)).game.oxygenLevel, {timeout: 30_000}).toBe(18);
       await settle(page);
-      const strip = (await page.locator('.con-status').innerText()).replace(/\s+/g, ' ');
-      expect(strip, 'the strip reads the longer maximums').toMatch(/11\/11/);
+      // A live string — polled, never read once.
+      await expect.poll(async () => (await page.locator('.con-status').innerText()).replace(/\s+/g, ' '),
+        {message: 'the strip reads the longer maximums'}).toMatch(/11\/11/);
       await shoot(page, '21-terraformed');
     });
   });

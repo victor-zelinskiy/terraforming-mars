@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {bootIntoGame, press} from './consoleStart';
+import {bootIntoGame, press, pressUntil, pressUntilGone, settle, walkFocusUntil} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -96,7 +97,7 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
     buy: buyProjects,
     query: profileQuery,
   });
-  await page.waitForTimeout(1000);
+  await settle(page);
 }
 
 /** RT wheel → A («КАРТЫ»), then let the reveal episode settle. */
@@ -119,7 +120,7 @@ async function openHand(page: Page): Promise<void> {
     await shoot(page, 'hand-would-not-open');
   }
   await expect(page.locator('.con-hand')).toHaveCount(1);
-  await page.waitForTimeout(600);
+  await settle(page);
 }
 
 /**
@@ -136,34 +137,33 @@ async function focusPlayableCard(page: Page): Promise<string> {
   // so every card reads «нельзя разыграть». Recover by going back to the board,
   // restoring whatever was deferred, answering it, and re-opening.
   for (let round = 0; round < 3 && await page.locator('.con-hand__slot--playable').count() === 0; round++) {
-    await key(page, 'Escape', 1800); // leave the hand
+    await pressUntilGone(page, 'Escape', '.con-hand', {tries: 2, settleMs: 1800}); // leave the hand
     await key(page, 'Escape', 1500); // restore a deferred prompt, if there is one
     // ANSWER whatever came back. The list has to cover every surface a restore
     // can raise — a corporation's first action arrives as `.con-composer`, and
     // a narrower list simply walks past it, leaves the window shut and lands
-    // back on a hand where nothing is playable.
-    for (let i = 0; i < 8; i++) {
-      const pending = await page.locator(
-        '.con-mandatory, .con-task-host, .con-context__task-kicker, .con-composer, .con-sheet').count();
-      if (pending === 0) {
-        break;
-      }
-      await key(page, 'Enter', 1400);
-    }
+    // back on a hand where nothing is playable. Act → verify → retry: A again only while something still asks.
+    await pressUntil(page, 'Enter', async () => await page.locator(
+      '.con-mandatory, .con-task-host, .con-context__task-kicker, .con-composer, .con-sheet').count() === 0,
+    {tries: 8, settleMs: 1400});
     await openHand(page);
   }
   if (await page.locator('.con-hand__slot--playable').count() === 0) {
     await shoot(page, 'no-playable-card');
     return '';
   }
-  for (let i = 0; i < 30; i++) {
-    const focused = page.locator('.con-hand__slot--selected.con-hand__slot--playable');
-    if (await focused.count() > 0) {
-      return await focused.first().getAttribute('data-zoom-slot') ?? '';
-    }
-    await key(page, 'ArrowRight', 220);
+  // THE ONE WALK (`walkFocusUntil`): the album clamps at a page edge, so a one-way walk can park against it.
+  const focused = page.locator('.con-hand__slot--selected.con-hand__slot--playable');
+  const at = () => page.evaluate(() => document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
+  if (!await walkFocusUntil(page, async () => await focused.count() > 0, at, 30, 220)) {
+    return '';
   }
-  return '';
+  return await focused.first().getAttribute('data-zoom-slot') ?? '';
+}
+
+/** The hand's frame box at REST (C — `readSettled`: never a box mid-entrance). */
+async function frameAtRest(page: Page, what: string) {
+  return readSettled(page, () => page.locator('.con-hand__frame').boundingBox(), {message: what});
 }
 
 const PROFILES = [
@@ -212,8 +212,8 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-hand__frame')).toHaveCount(1);
       // The SHARED header, with its identity emblem and the workspace name.
       await expect(page.locator('.con-hand .con-wshead__emblem')).toHaveCount(1);
-      expect((await page.locator('.con-hand .con-wshead__root').innerText()).trim().toUpperCase())
-        .toContain('КАРТЫ В РУКЕ');
+      await expect.poll(async () => (await page.locator('.con-hand .con-wshead__root').innerText()).trim().toUpperCase(),
+        {message: 'the crumb\'sroot names the hand'}).toContain('КАРТЫ В РУКЕ');
       // Browse layer = no tail. The crumb only ever GAINS one.
       await expect(page.locator('.con-hand .con-wshead__subject')).toHaveCount(0);
       // The rail is lit and ringed by the `con-ws` marker (the wallet every
@@ -221,7 +221,7 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-root:has(.con-ws) .con-res-host')).toHaveCount(1);
       await shoot(page, `${profile.tag}-1-browse`);
 
-      const frameBefore = await page.locator('.con-hand__frame').boundingBox();
+      const frameBefore = await frameAtRest(page, 'the hand\'s frame inbrowse');
       const cardName = await focusPlayableCard(page);
       expect(cardName, 'a playable card in hand').not.toBe('');
 
@@ -240,11 +240,11 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-hand__slot').first()).toHaveCount(1);
 
       // ── 3 · THE BREADCRUMB IS CONTINUOUS ───────────────────────────────
-      expect((await page.locator('.con-hand .con-wshead__root').innerText()).trim().toUpperCase())
-        .toContain('КАРТЫ В РУКЕ');
+      await expect.poll(async () => (await page.locator('.con-hand .con-wshead__root').innerText()).trim().toUpperCase(),
+        {message: 'the crumb\'sroot still names the hand'}).toContain('КАРТЫ В РУКЕ');
       await expect(page.locator('.con-hand .con-wshead__subject')).toHaveCount(1);
-      expect((await page.locator('.con-hand .con-wshead__step').innerText()).trim().toUpperCase())
-        .toBe('РОЗЫГРЫШ');
+      await expect.poll(async () => (await page.locator('.con-hand .con-wshead__step').innerText()).trim().toUpperCase(),
+        {message: 'the crumb\'stail names the stage'}).toBe('РОЗЫГРЫШ');
       // The embedded surface does NOT title itself.
       await expect(page.locator('.con-hand__stage .con-composer__kicker')).toHaveCount(0);
       await expect(page.locator('.con-hand__stage .con-composer__name')).toHaveCount(0);
@@ -254,9 +254,8 @@ for (const profile of PROFILES) {
       // move», not «no intermediate frame of any animation ever differs» — the
       // dock park and the band's ResizeObserver both settle a beat after the
       // descent, and sampling inside that window makes this guard flaky about
-      // something it is not testing.
-      await page.waitForTimeout(700);
-      const frameAfter = await page.locator('.con-hand__frame').boundingBox();
+      // something it is not testing. Both sides go through `readSettled` (the same box twice, a frame apart).
+      const frameAfter = await frameAtRest(page, 'the hand\'s frame inthe play stage');
       const box = `browse ${JSON.stringify(frameBefore)} → stage ${JSON.stringify(frameAfter)}`;
       expect(Math.abs((frameAfter?.x ?? 0) - (frameBefore?.x ?? 0)), box).toBeLessThan(1.5);
       expect(Math.abs((frameAfter?.y ?? 0) - (frameBefore?.y ?? 0)), box).toBeLessThan(1.5);

@@ -1,7 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, waitForBoardHome} from './consoleStart';
+import {bootIntoGame, pressUntil, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, type Witness} from './witness';
 
 /**
  * THE BLOCKER CHIP RIDES THE CARD — «плашка недоступности раздувается на
@@ -25,10 +27,11 @@ import {bootIntoGame, waitForBoardHome} from './consoleStart';
  *   3. exactly ONE chip exists per card at any sampled frame (no double
  *      render between the slot and the body).
  *
- * Sampler rules (tests.md): armed BEFORE the press, MutationObserver +
- * setInterval — NEVER rAF (headless Chromium stops driving rAF exactly when
- * the screen goes quiet); the liveness floor is set where only a DEAD
- * sampler fails it, and the real numbers ride the failure message.
+ * Recording rules (tests.md): armed BEFORE the press, a RECORDING (FLAKE
+ * ZERO — `armWitness`: every state the product writes, observed in the task
+ * that writes it, and every frame a transform paints) — never a page sampler;
+ * the liveness floor is set where only a DEAD recorder fails it, and the real
+ * numbers ride the failure message.
  *
  * «Breathing Filters» (7% oxygen at a 0% table) is forced into the deal and
  * bought, so the hand ALWAYS holds a rules-blocked card wearing the chip.
@@ -43,80 +46,73 @@ const PRESETS = [
 ] as const;
 
 type Sample = {bodyW: number, chipW: number, chipH: number, chips: number};
+/** One recorded state of the flight: WHY it holds no flat sample, or the flat sample itself. */
+type FlightSeen = {state: 'noBody' | 'noChip' | 'turning' | 'tiny' | 'flat', cos?: number, sample?: Sample};
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
-/** Arm the page-side flight sampler (interval + observer, never rAF). */
-async function armSampler(page: Page): Promise<void> {
-  await page.evaluate((card) => {
-    const w = window as unknown as {__chipSamples?: Array<Sample>, __chipTimer?: number, __chipMiss?: unknown};
-    w.__chipSamples = [];
-    // WHY a tick recorded nothing — so «0 samples» names its cause instead of reading as a dead sampler.
-    const miss: {ticks: number, noBody: number, noChip: number, turning: number, tiny: number, cosMax?: number} =
-      {ticks: 0, noBody: 0, noChip: 0, turning: 0, tiny: 0};
-    w.__chipMiss = miss;
-    const take = () => {
-      miss.ticks++;
-      const body = document.querySelector<HTMLElement>(`[data-hand-dock-card="${card}"][data-reveal-card]`);
-      if (body === null) {
-        miss.noBody++;
-        return;
-      }
-      const chip = body.querySelector<HTMLElement>('.con-deal-proxy__chip');
-      if (chip === null) {
-        miss.noChip++;
-        return;
-      }
-      // THE FLIP GATE: the episode turns the card in 3D (`rotationY` on
-      // `.con-deal-proxy__flip`), and a rotated face's bounding-rect width
-      // honestly shrinks by cos(θ) — that is the turn, not a chip resize.
-      // The ratio claim holds for FRONT-FLAT frames only; the flight keeps
-      // moving and scaling well after the turn settles, so flat frames are
-      // still genuinely intermediate (mid-travel, mid-scale).
-      const flip = body.querySelector<HTMLElement>('.con-deal-proxy__flip');
-      if (flip !== null) {
-        const t = getComputedStyle(flip).transform;
-        if (t.startsWith('matrix3d(')) {
-          // The ANGLE, never the raw m11: a rotateY under a scale puts scale·cosθ in m11 and −scale·sinθ in m13
-          // (the first column), so cosθ = m11 / |(m11, m13)|. Read raw, a flip layer that also carries a scale
-          // (the TV profile's proxy does) never looked flat — every 4K sample was rejected as «turning».
-          const m = t.slice('matrix3d('.length, -1).split(',').map((v) => Number.parseFloat(v));
-          const cos = m[0] / Math.hypot(m[0], m[2]);
-          miss.cosMax = Math.max(miss.cosMax ?? -1, Math.round(cos * 1000) / 1000);
-          if (!(cos > 0.98)) {
-            miss.turning++;
-            return; // turning or back-facing — width is foreshortened
-          }
+/** Arm the flight's recording (`key` — one per episode). */
+async function armSampler(page: Page, key: string): Promise<Witness<FlightSeen>> {
+  return armWitness<FlightSeen, string>(page, key, (card) => {
+    // WHY a state holds no flat sample — so «0 samples» names its cause instead of reading as a dead recorder.
+    const body = document.querySelector<HTMLElement>(`[data-hand-dock-card="${card}"][data-reveal-card]`);
+    if (body === null) {
+      return {state: 'noBody'};
+    }
+    const chip = body.querySelector<HTMLElement>('.con-deal-proxy__chip');
+    if (chip === null) {
+      return {state: 'noChip'};
+    }
+    // THE FLIP GATE: the episode turns the card in 3D (`rotationY` on
+    // `.con-deal-proxy__flip`), and a rotated face's bounding-rect width
+    // honestly shrinks by cos(θ) — that is the turn, not a chip resize.
+    // The ratio claim holds for FRONT-FLAT frames only; the flight keeps
+    // moving and scaling well after the turn settles, so flat frames are
+    // still genuinely intermediate (mid-travel, mid-scale).
+    const flip = body.querySelector<HTMLElement>('.con-deal-proxy__flip');
+    let cos: number | undefined;
+    if (flip !== null) {
+      const t = getComputedStyle(flip).transform;
+      if (t.startsWith('matrix3d(')) {
+        // The ANGLE, never the raw m11: a rotateY under a scale puts scale·cosθ in m11 and −scale·sinθ in m13
+        // (the first column), so cosθ = m11 / |(m11, m13)|. Read raw, a flip layer that also carries a scale
+        // (the TV profile's proxy does) never looked flat — every 4K sample was rejected as «turning».
+        const m = t.slice('matrix3d('.length, -1).split(',').map((v) => Number.parseFloat(v));
+        cos = Math.round(m[0] / Math.hypot(m[0], m[2]) * 1000) / 1000;
+        if (!(cos > 0.98)) {
+          return {state: 'turning', cos}; // turning or back-facing — width is foreshortened
         }
       }
-      const b = body.getBoundingClientRect();
-      const c = chip.getBoundingClientRect();
-      if (b.width < 4 || c.width < 2) {
-        miss.tiny++;
-        return;
-      }
-      // Double-render witness: VISIBLE chips naming this card. The slot's own
-      // chip stays MOUNTED under the hold (`.con-hand--transit` hides it with
-      // opacity), so the honest count is painted representations, not DOM
-      // nodes — `checkVisibility({checkOpacity})` walks the ancestors.
-      const chips = Array.from(document.querySelectorAll<HTMLElement>(
-        `[data-zoom-slot="${card}"] .con-hand__chip, [data-hand-dock-card="${card}"] .con-deal-proxy__chip`))
-        .filter((el) => el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true})).length;
-      w.__chipSamples!.push({bodyW: b.width, chipW: c.width, chipH: c.height, chips});
-    };
-    const mo = new MutationObserver(take);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-    w.__chipTimer = window.setInterval(take, 16);
-  }, CARD);
+    }
+    const b = body.getBoundingClientRect();
+    const c = chip.getBoundingClientRect();
+    if (b.width < 4 || c.width < 2) {
+      return {state: 'tiny', cos};
+    }
+    // Double-render witness: VISIBLE chips naming this card. The slot's own
+    // chip stays MOUNTED under the hold (`.con-hand--transit` hides it with
+    // opacity), so the honest count is painted representations, not DOM
+    // nodes — `checkVisibility({checkOpacity})` walks the ancestors.
+    const chips = Array.from(document.querySelectorAll<HTMLElement>(
+      `[data-zoom-slot="${card}"] .con-hand__chip, [data-hand-dock-card="${card}"] .con-deal-proxy__chip`))
+      .filter((el) => el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true})).length;
+    return {state: 'flat', cos, sample: {bodyW: b.width, chipW: c.width, chipH: c.height, chips}};
+  }, {args: CARD});
 }
 
+/** The recorded STATES by kind (distinct states, never frames — `ticks` is how many the recording holds). */
 type Miss = {ticks: number, noBody: number, noChip: number, turning: number, tiny: number, cosMax?: number};
 
-const readMiss = (page: Page): Promise<Miss> =>
-  page.evaluate(() => ((window as unknown as {__chipMiss?: Miss}).__chipMiss ?? {ticks: 0, noBody: 0, noChip: 0, turning: 0, tiny: 0}));
+async function readMiss(flight: Witness<FlightSeen>): Promise<Miss> {
+  const seen = await flight.values();
+  const count = (state: FlightSeen['state']) => seen.filter((v) => v.state === state).length;
+  const cos = seen.flatMap((v) => v.cos === undefined ? [] : [v.cos]);
+  return {ticks: seen.length, noBody: count('noBody'), noChip: count('noChip'), turning: count('turning'), tiny: count('tiny'),
+    ...(cos.length === 0 ? {} : {cosMax: Math.max(...cos)})};
+}
 
 /**
  * A PROBE'S FLOOR MAY ONLY CATCH A DEAD SAMPLER (tests.md). The ratio is judged on FRONT-FLAT frames only, and how
@@ -127,7 +123,8 @@ const readMiss = (page: Page): Promise<Miss> =>
  */
 function expectFlightSampled(label: string, samples: ReadonlyArray<Sample>, miss: Miss): void {
   const why = `${samples.length} flat samples, misses ${JSON.stringify(miss)}`;
-  expect(miss.ticks, `${label}: the sampler ran (${why})`).toBeGreaterThanOrEqual(3);
+  // A liveness floor catches only a DEAD recorder (tests.md): it recorded at least one state.
+  expect(miss.ticks, `${label}: the recorder ran (${why})`).toBeGreaterThan(0);
   expect(miss.ticks - miss.noBody, `${label}: the flight's body was on screen (${why})`).toBeGreaterThan(0);
   expect(miss.noChip, `${label}: the flying body carries its chip (${why})`).toBe(0);
   if (samples.length === 0) {
@@ -140,22 +137,16 @@ function expectFlightSampled(label: string, samples: ReadonlyArray<Sample>, miss
  * for that, and on a loaded 4K runner the samples were read mid-flight, before the flat tail they are judged on
  * (measured: 0 flat samples at the read, `cosMax: 1` arriving after it).
  */
-async function awaitFlightEnd(page: Page, label: string): Promise<void> {
-  await expect.poll(() => page.evaluate((card) => {
-    const miss = (window as unknown as {__chipMiss?: {ticks: number, noBody: number}}).__chipMiss;
-    const seen = miss !== undefined && miss.ticks - miss.noBody > 0;
-    return seen && document.querySelector(`[data-hand-dock-card="${card}"][data-reveal-card]`) === null;
-  }, CARD), {timeout: 30_000, message: `${label}: the flight's body came and went`}).toBe(true);
+async function awaitFlightEnd(flight: Witness<FlightSeen>, label: string): Promise<void> {
+  await expect.poll(async () => {
+    const seen = await flight.values();
+    return seen.some((v) => v.state !== 'noBody') && seen.at(-1)?.state === 'noBody';
+  }, {timeout: 30_000, message: `${label}: the flight's body came and went`}).toBe(true);
 }
 
-async function readSamples(page: Page): Promise<Array<Sample>> {
-  return await page.evaluate(() => {
-    const w = window as unknown as {__chipSamples?: Array<Sample>, __chipTimer?: number};
-    if (w.__chipTimer !== undefined) {
-      window.clearInterval(w.__chipTimer);
-    }
-    return w.__chipSamples ?? [];
-  });
+/** The flat states of the flight (each distinct state once — a still frame is not counted twice). */
+async function readSamples(flight: Witness<FlightSeen>): Promise<Array<Sample>> {
+  return (await flight.values()).flatMap((v) => v.sample === undefined ? [] : [v.sample]);
 }
 
 /** The settled album slot's own chip-to-card ratio — the reference. The
@@ -176,6 +167,15 @@ async function restingRatio(page: Page): Promise<{ratio: number, slotW: number, 
   }, CARD);
 }
 
+/** …read AT REST (FLAKE ZERO — `readSettled`: the slot's focus transform and the album's entrance over). */
+async function settledRestingRatio(page: Page): Promise<{ratio: number, slotW: number, chipW: number} | undefined> {
+  const read = await readSettled(page, async () => {
+    const r = await restingRatio(page);
+    return r === undefined ? null : {ratio: Math.round(r.ratio * 10_000) / 10_000, slotW: Math.round(r.slotW * 10) / 10, chipW: Math.round(r.chipW * 10) / 10};
+  }, {message: 'the resting slot\'s chip-to-card ratio'});
+  return read ?? undefined;
+}
+
 function ratioStats(samples: ReadonlyArray<Sample>) {
   const ratios = samples.map((s) => s.chipW / s.bodyW);
   const min = Math.min(...ratios);
@@ -192,13 +192,11 @@ async function openHandFast(page: Page): Promise<boolean> {
     // opening the wheel there, Enter landed on the board, and the spec reported a «dead sampler» with 0 samples.
     await page.locator('.con-quick').first().waitFor({state: 'visible', timeout: 3_000}).catch(() => undefined);
     await page.keyboard.press('Enter');
-    for (let i = 0; i < 12; i++) {
-      const started = await page.evaluate(() =>
-        document.querySelectorAll('.con-hand, .con-handreveal-layer [data-reveal-card]').length > 0);
-      if (started) {
-        return true;
-      }
-      await page.waitForTimeout(100);
+    // The press's EFFECT is the witness — the hand (or its reveal layer) attached — waited for as a state.
+    const started = await page.locator('.con-hand, .con-handreveal-layer [data-reveal-card]').first()
+      .waitFor({state: 'attached', timeout: 2_000}).then(() => true, () => false);
+    if (started) {
+      return true;
     }
   }
   return false;
@@ -218,26 +216,23 @@ for (const preset of PRESETS) {
       await waitForBoardHome(page);
 
       // ── OPEN: sample the flight, then the settled slot. ──────────────
-      await armSampler(page);
+      const openFlight = await armSampler(page, 'chip-open');
       expect(await openHandFast(page), 'the hand opened (the fast open: wheel → A)').toBe(true);
-      await awaitFlightEnd(page, 'open');
-      const openSamples = await readSamples(page);
+      await awaitFlightEnd(openFlight, 'open');
+      const openSamples = await readSamples(openFlight);
       // The REFERENCE must be the card at REST: a focused slot carries the
       // album's focus scale (`--selected`, ~1.08 on TV) and would skew the
       // denominator by exactly that factor. Walk the cursor off the card.
-      for (let i = 0; i < 4; i++) {
-        const focusedHere = await page.evaluate((card) =>
-          document.querySelector(`[data-zoom-slot="${card}"]`)?.classList.contains('con-hand__slot--selected') === true, CARD);
-        if (!focusedHere) {
-          break;
-        }
-        await page.keyboard.press(i % 2 === 0 ? 'ArrowRight' : 'ArrowLeft');
-        await page.waitForTimeout(400); // the 150ms focus transform settles
+      const focusedHere = () => page.evaluate((card) =>
+        document.querySelector(`[data-zoom-slot="${card}"]`)?.classList.contains('con-hand__slot--selected') === true, CARD);
+      for (let i = 0; i < 4 && await focusedHere(); i++) {
+        // Each hop waits for ITS effect (the cursor off the card); the focus transform's settle is the read's own.
+        await pressUntil(page, i % 2 === 0 ? 'ArrowRight' : 'ArrowLeft', async () => !(await focusedHere()), {tries: 1, settleMs: 400});
       }
-      const rest = await restingRatio(page);
+      const rest = await settledRestingRatio(page);
       await shoot(page, `${preset.tag}-open`);
       expect(rest, 'the settled album shows the blocked card with its chip').toBeDefined();
-      expectFlightSampled('open', openSamples, await readMiss(page));
+      expectFlightSampled('open', openSamples, await readMiss(openFlight));
       if (openSamples.length > 0) {
         const open = ratioStats(openSamples);
         // 1. Constant ratio through the flight (one composition, no jumps).
@@ -251,12 +246,12 @@ for (const preset of PRESETS) {
       }
 
       // ── CLOSE: the same three claims in the gather direction. ────────
-      await armSampler(page);
+      const closeFlight = await armSampler(page, 'chip-close');
       await page.keyboard.press('Escape');
-      await awaitFlightEnd(page, 'close');
-      const closeSamples = await readSamples(page);
+      await awaitFlightEnd(closeFlight, 'close');
+      const closeSamples = await readSamples(closeFlight);
       await shoot(page, `${preset.tag}-closed`);
-      expectFlightSampled('close', closeSamples, await readMiss(page));
+      expectFlightSampled('close', closeSamples, await readMiss(closeFlight));
       if (closeSamples.length > 0) {
         const close = ratioStats(closeSamples);
         expect(close.max / close.min,

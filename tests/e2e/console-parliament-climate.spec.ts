@@ -6,6 +6,8 @@ import {
   openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
 import {expectDossierIsRules, expectInspectorFooterWhole} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, type Witness} from './witness';
 
 /**
  * CLIMATE RESEARCH (Turmoil Redux, RX05) — the first SEQUENTIAL resolution:
@@ -57,7 +59,9 @@ const parliament = (page: Page) => page.locator('.con-parl');
 async function openParliament(page: Page): Promise<void> {
   for (let i = 0; i < 6 && await parliament(page).count() === 0; i++) {
     await openQuickWheel(page);
-    await press(page, 'ArrowDown', 1400);
+    // On a quick wheel the press IS the activation: its effect is the Parliament up, or the wheel gone.
+    await pressUntil(page, 'ArrowDown', async () => await parliament(page).count() > 0 || await page.locator('.con-quick').count() === 0,
+      {tries: 1, settleMs: 1400});
   }
   await expect(parliament(page)).toHaveCount(1, {timeout: 15_000});
   await settle(page, {timeoutMs: 15_000});
@@ -92,9 +96,15 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
   return await fetchPlayerModel(request, playerId) as unknown as Wire;
 }
 
-/** Nothing of the workspace sticks out of the viewport and no block spills. */
+/** Nothing of the workspace sticks out of the viewport and no block spills — read AT REST (`readSettled`). */
 async function expectFits(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => fitProblems(page), {message: `${label}: the fit`});
+  expect(problems, `${label}: layout problems`).toEqual([]);
+}
+
+/** The blocks of the workspace off screen or spilling, as one reading. */
+async function fitProblems(page: Page): Promise<Array<string>> {
+  return page.evaluate(() => {
     const root = document.querySelector('.con-parl');
     if (root === null) {
       return ['no root'];
@@ -120,7 +130,6 @@ async function expectFits(page: Page, label: string): Promise<void> {
     }
     return out;
   });
-  expect(problems, `${label}: layout problems`).toEqual([]);
 }
 
 /** The shared surface-motion dim is up (`.con-shade--on`). */
@@ -128,77 +137,116 @@ const shadeOn = (page: Page) => page.evaluate(() => document.querySelector('.con
 
 type Pose = {x: number, y: number, s: number};
 type TakeProbe = {samples: Array<{t: number, p: Pose, b: Pose | null}>, totals: Array<string>, shade: number, longTasks: Array<string>};
+/** One recorded state of the take: the VISIBLE proxy's pose (null while none is shown), its dock body's, the dock's
+ *  «КАРТЫ» total, the shared dim. */
+type TakeSeen = {p: Pose | null, b: Pose | null, total: string, shade: boolean};
 
 /**
- * THE TAKE PROBE — armed BEFORE the press, `setInterval` only (never rAF, which
- * stops when the compositor goes quiet), and it READS NO LAYOUT: the proxy and
- * the dock body are both posed by inline transforms in viewport pixels, so the
- * witness cannot become the long task it is watching (a sampler that forced a
- * layout per tick measurably slowed the very flight it recorded).
+ * THE TAKE PROBE — a RECORDING armed BEFORE the press (FLAKE ZERO — `armWitness`, `settled`: «the proxy lands ON its
+ * body» compares two poses of ONE frame), and it READS NO LAYOUT: the proxy and the dock body are both posed by inline
+ * transforms in viewport pixels, so the witness cannot become the long task it is watching (a sampler that forced a
+ * layout per tick measurably slowed the very flight it recorded). EVERY POSE THE DIRECTOR WRITES is a sample — the
+ * settle-back tween's LAST write (the exact body pose) and the hide that follows on the next frame fell between two
+ * ticks of a starved sampler (CI 2026-11-03: the last TICKED pose was mid-settle, 4 px and 2.8 % off the body — the
+ * press's own offset); the recording takes the state each write leaves, so the landing is judged on the pose the
+ * product actually wrote last. Folded on the Node side (`readTakeProbe`):
  *  - `samples`: the VISIBLE proxy's pose + the taken card's dock body pose;
  *  - `totals`: every distinct value of the dock's «КАРТЫ» total;
- *  - `shade`: ticks the shared dim was on.
+ *  - `shade`: recorded states with the shared dim on.
  */
-async function armTakeProbe(page: Page, name: string): Promise<void> {
-  await page.evaluate((cardName) => {
-    const w = window as unknown as {__take: TakeProbe};
-    w.__take = {samples: [], totals: [], shade: 0, longTasks: []};
+async function armTakeProbe(page: Page, name: string): Promise<Witness<TakeSeen>> {
+  // Diagnostics only: a starved main thread is the one honest reason a flight can look cut — the failure message names it.
+  await page.evaluate(() => {
+    const w = window as unknown as {__takeLongTasks: Array<string>};
+    w.__takeLongTasks = [];
     const t0 = performance.now();
-    // Diagnostics only: a starved main thread is the one honest reason a
-    // flight can look cut — the failure message names it.
     try {
       new PerformanceObserver((list) => {
         for (const e of list.getEntries()) {
-          w.__take.longTasks.push(`${Math.round(e.startTime - t0)}+${Math.round(e.duration)}`);
+          w.__takeLongTasks.push(`${Math.round(e.startTime - t0)}+${Math.round(e.duration)}`);
         }
       }).observe({entryTypes: ['longtask']});
     } catch {
       // no Long Tasks API — the samples still carry their own times
     }
+  });
+  return armWitness<TakeSeen, string>(page, 'climate-take', (cardName) => {
     const pose = (el: HTMLElement): Pose | null => {
       const t = el.style.transform;
       const m = /translate(?:3d)?\(\s*([-\d.]+)px,\s*([-\d.]+)px/.exec(t);
       const s = /scale\(\s*([-\d.]+)/.exec(t);
       return m === null ? null : {x: Number(m[1]), y: Number(m[2]), s: s === null ? 1 : Number(s[1])};
     };
-    const esc = CSS.escape(cardName);
-    let proxy: HTMLElement | null = null;
-    const samplePose = (): void => {
-      if (proxy === null || !proxy.isConnected) {
-        proxy = document.querySelector<HTMLElement>('.con-handdelivery-layer .con-deal-proxy');
-      }
-      const shown = proxy !== null && proxy.style.visibility !== 'hidden' && proxy.style.opacity !== '0';
-      const p = shown && proxy !== null ? pose(proxy) : null;
-      if (p !== null) {
-        const bodies = document.querySelectorAll<HTMLElement>(`.con-handreveal-layer [data-hand-dock-card="${esc}"]`);
-        const body = bodies.length > 0 ? bodies[bodies.length - 1] : undefined;
-        w.__take.samples.push({t: Math.round(performance.now() - t0), p, b: body === undefined ? null : pose(body)});
-      }
+    // The proxy is FOLLOWED once found (a later proxy never takes its place while it stands).
+    const w = window as unknown as {__tmTakeProxy?: HTMLElement | null};
+    let proxy = w.__tmTakeProxy ?? null;
+    if (proxy === null || !proxy.isConnected) {
+      proxy = document.querySelector<HTMLElement>('.con-handdelivery-layer .con-deal-proxy');
+      w.__tmTakeProxy = proxy;
+    }
+    const shown = proxy !== null && proxy.style.visibility !== 'hidden' && proxy.style.opacity !== '0';
+    const p = shown && proxy !== null ? pose(proxy) : null;
+    let b: Pose | null = null;
+    if (p !== null) {
+      const bodies = document.querySelectorAll<HTMLElement>(`.con-handreveal-layer [data-hand-dock-card="${CSS.escape(cardName)}"]`);
+      const body = bodies.length > 0 ? bodies[bodies.length - 1] : undefined;
+      b = body === undefined ? null : pose(body);
+    }
+    return {
+      p,
+      b,
+      total: document.querySelector('.con-handdock__ratio .con-handdock__num--total')?.textContent?.trim() ?? '',
+      shade: document.querySelector('.con-shade.con-shade--on') !== null,
     };
-    // EVERY POSE THE DIRECTOR WRITES is a sample — the proxy's style mutation, not only the 16 ms tick. The settle-back
-    // tween's LAST write (the exact body pose) and the hide that follows on the next frame can fall between two ticks of
-    // a starved sampler (CI 2026-11-03: the last TICKED pose was mid-settle, 4 px and 2.8 % off the body — the press's
-    // own offset — and the proxy was gone by the next tick). A MutationObserver callback runs after each write, before
-    // the next paint, so the landing is judged on the pose the product actually wrote last.
-    new MutationObserver((records) => {
-      if (records.some((r) => (r.target as Element).classList?.contains('con-deal-proxy'))) {
-        samplePose();
-      }
-    }).observe(document.querySelector('.con-handdelivery-layer') ?? document.body, {subtree: true, attributes: true, attributeFilter: ['style']});
-    window.setInterval(() => {
-      samplePose();
-      const total = document.querySelector('.con-handdock__ratio .con-handdock__num--total')?.textContent?.trim();
-      if (total !== undefined && total !== '' && total !== w.__take.totals[w.__take.totals.length - 1]) {
-        w.__take.totals.push(total);
-      }
-      if (document.querySelector('.con-shade.con-shade--on') !== null) {
-        w.__take.shade++;
-      }
-    }, 16);
-  }, name);
+  }, {args: name, settled: true});
 }
 
-const readTakeProbe = (page: Page) => page.evaluate(() => (window as unknown as {__take: TakeProbe}).__take);
+async function readTakeProbe(page: Page, take: Witness<TakeSeen>): Promise<TakeProbe> {
+  const seen = await take.stop();
+  const t0 = seen[0]?.t ?? 0;
+  const totals = seen.map((s) => s.v.total).filter((v) => v !== '').filter((v, i, all) => i === 0 || v !== all[i - 1]);
+  const longTasks = await page.evaluate(() => (window as unknown as {__takeLongTasks?: Array<string>}).__takeLongTasks ?? []);
+  return {
+    samples: seen.flatMap((s) => s.v.p === null ? [] : [{t: s.t - t0, p: s.v.p, b: s.v.b}]),
+    totals,
+    shade: seen.filter((s) => s.v.shade).length,
+    longTasks,
+  };
+}
+
+/** PL-766's layout of the vote panel: the answer beside the number, the reading under its kicker (rounded). */
+async function voteLayout(page: Page): Promise<{rem: number, beside: boolean, gap: number}> {
+  return page.evaluate(() => {
+    const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
+    const y = box('[data-parl-vote-yield]');
+    const r = box('[data-parl-vote-reaction]');
+    const head = box('.con-parl__info-own-head');
+    const readings = box('.con-parl__info-readings');
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const mid = r === undefined ? Number.NaN : (r.top + r.bottom) / 2;
+    return {rem, beside: y !== undefined && mid >= y.top && mid <= y.bottom,
+      gap: head === undefined || readings === undefined ? Number.NaN : Math.round((readings.top - head.bottom) * 10) / 10};
+  });
+}
+
+/** The big draw's slots against the sitting's ONE stage zone (Э3) — the take stands inside it. */
+async function bigDrawVerdict(page: Page): Promise<{zoneH: number, faces: number, minH: number, overflow: number}> {
+  return page.evaluate(() => {
+    const zone = document.querySelector<HTMLElement>('.con-parl [data-embed-slot="parliament-stage"]');
+    const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-extdraw .con-cards__slot'));
+    const zoneBox = zone?.getBoundingClientRect();
+    return {
+      zoneH: Math.round(zoneBox?.height ?? 0),
+      faces: slots.filter((s) => s.querySelector('.pcard') !== null).length,
+      minH: Math.min(...slots.map((s) => Math.round(s.getBoundingClientRect().height))),
+      overflow: slots.filter((s) => {
+        const r = s.getBoundingClientRect();
+        return zoneBox === undefined || r.bottom > zoneBox.bottom + 1 || r.top < zoneBox.top - 1 ||
+          r.right > zoneBox.right + 1 || r.left < zoneBox.left - 1;
+      }).length,
+    };
+  });
+}
 
 const PRESETS = [
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -240,7 +288,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-vote-yield]'), 'the chained reading block').toHaveCount(1);
       // Blue: Agenda 3 = influence 2 (winning → step 4 keeps influence 2, so no
       // second forecast), heat production 4 → 6 → 2 cards.
-      expect(await readingsIn(page, '[data-parl-vote-yield]')).toEqual([
+      await expect.poll(() => readingsIn(page, '[data-parl-vote-yield]')).toEqual([
         {context: 'estimate', influence: '2', amount: '2', before: null, after: null, skipped: null},
         {context: 'estimate', influence: '2', amount: '2', before: '4', after: '6', skipped: null},
       ]);
@@ -257,16 +305,7 @@ for (const preset of PRESETS) {
       await expect(reaction.locator('.con-preact__unit--prod').first(), 'M€ PRODUCTION, never cash').toBeVisible();
       // PL-766 · FG: the answer stands BESIDE the number (its row's middle inside the number's box), and the reading
       // stands right under its kicker — never centred down the fixed box with an empty band above it.
-      const pl766 = await page.evaluate(() => {
-        const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
-        const y = box('[data-parl-vote-yield]');
-        const r = box('[data-parl-vote-reaction]');
-        const head = box('.con-parl__info-own-head');
-        const readings = box('.con-parl__info-readings');
-        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-        const mid = r === undefined ? Number.NaN : (r.top + r.bottom) / 2;
-        return {rem, beside: y !== undefined && mid >= y.top && mid <= y.bottom, gap: head === undefined || readings === undefined ? Number.NaN : readings.top - head.bottom};
-      });
+      const pl766 = await readSettled(page, () => voteLayout(page), {message: 'PL-766: the vote panel\'s layout'});
       expect(pl766.beside, `PL-766: the Greens' answer stands beside the number (${JSON.stringify(pl766)})`).toBe(true);
       expect(pl766.gap, `PL-766: the reading stands under its kicker (${JSON.stringify(pl766)})`).toBeLessThanOrEqual(1.2 * pl766.rem);
       await expectFits(page, `${preset.id} vote mode`);
@@ -317,9 +356,8 @@ for (const preset of PRESETS) {
       await expect(take, '…host-agnostic: no plate of its own').toHaveClass(/con-extdraw--embedded/);
       await expect(page.locator('.con-extdraw .con-wshead'), 'the crumb belongs to the host').toHaveCount(0);
       await expect.poll(() => page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw').count(), {message: 'the surface stands in the enactment stage\'s own zone'}).toBe(1);
-      const crumb = (await crumbText(page)).toUpperCase();
-      expect(crumb, `one continuous crumb, got «${crumb}»`).toMatch(/ПАРЛАМЕНТ|PARLIAMENT/);
-      expect(crumb).toMatch(/ПОЛУЧЕНИЕ|INTAKE/);
+      await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'one continuous crumb'}).toMatch(/ПАРЛАМЕНТ|PARLIAMENT/);
+      await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'its tail is the take'}).toMatch(/ПОЛУЧЕНИЕ|INTAKE/);
       // The SOURCE is the resolution — its own face, not a project card.
       await expect(page.locator('.con-extdraw__source .pcard').first(), 'the source dock draws the resolution').toHaveClass(CLIMATE_CLASS);
       await expect(page.locator('.con-extdraw .con-cards__slot'), 'two cards were drawn (production 6 / 3)').toHaveCount(2);
@@ -350,7 +388,7 @@ for (const preset of PRESETS) {
         'the HUD display face was warmed at boot — never loaded mid-flight').toBe(true);
       const taken = await page.locator('.con-extdraw .con-cards__slot--focused').getAttribute('data-extdraw-slot');
       expect(taken, 'a focused card to take').not.toBeNull();
-      await armTakeProbe(page, taken as string);
+      const takeProbe = await armTakeProbe(page, taken as string);
       // ACT → VERIFY on the surface's OWN gate (`data-flow`): the take answers A only while `ready` — the zoom's close is
       // a flight that re-poses the row, and an A in that window is swallowed by design (CI 2026-11-01: «the take press
       // never landed», the server's hand flat for 20 s). Stand on `ready`, then a press counts only once the flow LEFT
@@ -374,14 +412,15 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-extdraw .con-cards__slot'), 'the taken card left the row — no ghost seat (Э5)').toHaveCount(1, {timeout: 10_000});
       await expect.poll(() => page.locator('.con-handdelivery-layer .con-deal-proxy:visible').count(), {timeout: 15_000})
         .toBe(0);
-      const flight = await readTakeProbe(page);
+      const flight = await readTakeProbe(page, takeProbe);
       const why = `samples=${flight.samples.length} totals=${flight.totals.join('→')} shade=${flight.shade}` +
         ` first=${JSON.stringify(flight.samples[0])} last=${JSON.stringify(flight.samples[flight.samples.length - 1])}` +
         ` longTasks=[${flight.longTasks.join(' ')}]`;
       console.log(`[climate take · ${preset.id}] ${why}`);
       // It FLEW: the proxy was seen in the air and travelled to the dock (a
-      // card that materialized in the hand would leave no samples at all).
-      expect(flight.samples.length, `the take is a flight, never a teleport (${why})`).toBeGreaterThanOrEqual(3);
+      // card that materialized in the hand would leave no samples at all). The recording holds DISTINCT poses, never
+      // frames — «seen in the air» is «ever», and the travel below is what tells a flight from a teleport.
+      expect(flight.samples.length, `the take is a flight, never a teleport (${why})`).toBeGreaterThan(0);
       const first = flight.samples[0];
       const last = flight.samples[flight.samples.length - 1];
       expect(Math.hypot(last.p.x - first.p.x, last.p.y - first.p.y), `…from its seat down to the dock (${why})`)
@@ -424,22 +463,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 20_000});
       // Every card is a READABLE object: a real face, and no slot smaller than a
       // fifth of the stage zone's height (the fit engine wraps, it never drops).
-      const verdict = await page.evaluate(() => {
-        // The sitting's ONE stage zone (Э3) — the take stands inside it.
-        const zone = document.querySelector<HTMLElement>('.con-parl [data-embed-slot="parliament-stage"]');
-        const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-extdraw .con-cards__slot'));
-        const zoneBox = zone?.getBoundingClientRect();
-        return {
-          zoneH: Math.round(zoneBox?.height ?? 0),
-          faces: slots.filter((s) => s.querySelector('.pcard') !== null).length,
-          minH: Math.min(...slots.map((s) => Math.round(s.getBoundingClientRect().height))),
-          overflow: slots.filter((s) => {
-            const r = s.getBoundingClientRect();
-            return zoneBox === undefined || r.bottom > zoneBox.bottom + 1 || r.top < zoneBox.top - 1 ||
-              r.right > zoneBox.right + 1 || r.left < zoneBox.left - 1;
-          }).length,
-        };
-      });
+      const verdict = await readSettled(page, () => bigDrawVerdict(page), {message: 'the big draw\'s slots'});
       expect(verdict.faces, `every slot draws a real card face (${JSON.stringify(verdict)})`).toBe(6);
       expect(verdict.overflow, `no card is cut by the stage zone (${JSON.stringify(verdict)})`).toBe(0);
       expect(verdict.minH, `no card is shrunk below a readable size (${JSON.stringify(verdict)})`)
@@ -466,7 +490,7 @@ for (const preset of PRESETS) {
       await openParliament(page);
       await expect(page.locator('.con-parl__stage[data-parl-stage="recap"]'), 'no results scene').toHaveCount(0);
       await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the enacted card stands in the government').toHaveCount(1);
-      expect((await crumbText(page)).toUpperCase(), 'the overview names itself').toContain('ОБЗОР');
+      await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the overview names itself'}).toContain('ОБЗОР');
       await expectFits(page, `${preset.id} after the phase`);
       await shoot(page, preset.id, '20-after-phase');
     });

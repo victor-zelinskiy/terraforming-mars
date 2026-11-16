@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, bootFixtureSeats, cinematicBeat, fetchPlayerModel, press, pressUntil, pressUntilVisible, sendPlayerInput, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * T10 · CE — THE PACKET SHOWCASE (the draft + the research buy on the 4K TV). The stand of the iteration «ДРАФТ И
@@ -214,16 +215,16 @@ async function openDraft(page: Page, request: Parameters<typeof bootFixture>[1],
 /** The record of one cell: the table first, the frame beside it, the assertions only after (an AFTER run). */
 async function cell(page: Page, profile: Profile, name: string, stage: string): Promise<Showcase> {
   await settle(page, {timeoutMs: 30_000});
-  // A SETTLED read — two consecutive equal samples of what is asserted (the fit, the cards' size): the console's quiet
-  // says nothing about a ResizeObserver refit still catching up on a software-rastered 4K (measured on CI: the first
-  // read 0.775 of the body with 1070 px cards, the fitted one 0.99 with 1119 px).
-  let s = await measure(page, stage);
-  await expect.poll(async () => {
-    const next = await measure(page, stage);
-    const same = Math.abs(next.foot - s.foot) < 0.005 && Math.abs(next.cardH - s.cardH) < 1;
-    s = next;
-    return same;
-  }, {timeout: 6_000, intervals: [250], message: `${name}: the showcase's fit settles`}).toBe(true);
+  // A SETTLED read — two consecutive equal reads, a frame apart, of what is asserted (the fit, the cards' size): the
+  // console's quiet says nothing about a ResizeObserver refit still catching up on a software-rastered 4K (measured on
+  // CI: the first read 0.775 of the body with 1070 px cards, the fitted one 0.99 with 1119 px). Settled just above
+  // (its own 30 s budget), so `readSettled` does not settle again.
+  const s = await readSettled(page, () => measure(page, stage), {
+    settle: false,
+    timeoutMs: 6_000,
+    same: (a, b) => Math.abs(a.foot - b.foot) < 0.005 && Math.abs(a.cardH - b.cardH) < 1,
+    message: `${name}: the showcase's fit settles`,
+  });
   write(profile, name, s);
   await shoot(page, profile, name);
   console.log(`[showcase ${TAG} ${profile.id} ${name}]`, JSON.stringify({...s, below: s.below.length, clipped: s.clipped}));
@@ -310,7 +311,10 @@ for (const profile of PROFILES) {
       const zero = await cell(page, profile, 'd-buy-0', 'buy');
       const picked = async () => page.locator('.con-draftws__stage--buy .con-cards__slot--picked').count();
       await pressUntil(page, 'Enter', async () => await picked() >= 1, {settleMs: 900});
-      await press(page, 'ArrowRight', 700);
+      // The step off the picked card is verified by its effect (the cursor on a card not yet picked) — a swallowed arrow
+      // would leave A toggling the first card back off.
+      await pressUntil(page, 'ArrowRight', async () =>
+        await page.locator('.con-draftws__stage--buy .con-cards__slot--focused:not(.con-cards__slot--picked)').count() > 0, {settleMs: 700});
       await pressUntil(page, 'Enter', async () => await picked() >= 2, {settleMs: 900});
       const two = await cell(page, profile, 'd-buy-2', 'buy');
 

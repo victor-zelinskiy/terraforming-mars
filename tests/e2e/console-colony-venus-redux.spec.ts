@@ -3,6 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootSeededGame, cinematicBeat, press, settle, soloGameConfig} from './consoleStart';
 import {armLeakWitness, parliamentWire, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 import {ColonyBenefit} from '../../src/common/colonies/ColonyBenefit';
 
 /**
@@ -113,7 +115,8 @@ test('Venus Redux — the reading: the tile and the dossier state the COMPOSITE 
   await cinematicBeat(page, 600, 'the grid settles on the focused tile');
   await shoot(page, '00-grid');
 
-  const tile = await page.evaluate((venusName) => {
+  // The tile's reading — its cell geometry included — taken AT REST (two equal reads a frame apart).
+  const tile = await readSettled(page, () => page.evaluate((venusName) => {
     const el = document.querySelector(`.con-coltile--focused[data-test="con-colony-${venusName}"]`);
     const fixed = el?.querySelector('[data-colony-trade-fixed] .benefit-glyph');
     const marker = el?.querySelector('.con-coltile__cell-reward .benefit-glyph');
@@ -128,7 +131,9 @@ test('Venus Redux — the reading: the tile and the dossier state the COMPOSITE 
         if (fixed === undefined || fixed === null || plus === null || plus === undefined || reward === null || reward === undefined) {
           return false;
         }
-        const a = fixed.getBoundingClientRect(); const b = plus.getBoundingClientRect(); const c = reward.getBoundingClientRect();
+        const a = fixed.getBoundingClientRect();
+        const b = plus.getBoundingClientRect();
+        const c = reward.getBoundingClientRect();
         const mid = (r: DOMRect) => r.top + r.height / 2;
         return a.width > 0 && c.width > 0 && Math.abs(mid(a) - mid(b)) < 6 && Math.abs(mid(a) - mid(c)) < 6;
       })(),
@@ -146,7 +151,7 @@ test('Venus Redux — the reading: the tile and the dossier state the COMPOSITE 
         };
       })(),
     };
-  }, VENUS);
+  }, VENUS), {message: 'the focused Venus tile'});
   console.log('── tile ──', JSON.stringify(tile));
   expect(tile.statusClass, 'no refusal on the tile').not.toContain('con-coltile__status--blocked');
   expect(tile.fixedType, 'the tile draws the FIXED Venus step beside the marker\'s bonus').toBe(String(ColonyBenefit.INCREASE_VENUS_SCALE));
@@ -232,57 +237,79 @@ type StepProbe = {
   crumbs: Array<string>;
   /** A mandatory plate rose for the grant (it is a STEP of the flow, never an announce). */
   plate: boolean;
+  /** Distinct states recorded — the recorder's own liveness. */
   samples: number;
-  /** Every visible `.con-parl__flight` proxy seen: its first and last rect (left, top, width) and how many samples saw it. */
+  /** Every visible `.con-parl__flight` proxy seen: its first and last rect (left, top, width) and how many states showed it. */
   flights: Record<string, {first: Array<number>, last: Array<number>, n: number}>;
 };
 
+/** What ONE recorded state of the step shows (the claims are folded over the record on the Node side — `readStepProbe`). */
+type StepSeen = {
+  parls: number,
+  standalone: boolean,
+  /** The embedded root's host zone — null while no embedded Parliament stands. */
+  zone: string | null,
+  ownHead: boolean,
+  /** The workspace crumbs while the embedded step stands ('' otherwise). */
+  crumb: string,
+  plate: boolean,
+  flights: Array<{id: string, rect: Array<number>}>,
+};
+
+const STEP_WITNESS = 'venus-step';
+
+/**
+ * THE STEP WITNESS — recorded off the product's own writes from before the confirm (`armWitness`), never a sampler that
+ * sleeps through a beat; `settled` (a sample is the state a task LEAVES): «at most one Parliament root at any moment» is
+ * a coexistence claim, and a state between two writes of one task is never painted.
+ */
 async function armStepProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__venusStep: StepProbe};
-    const p: StepProbe = {standalone: false, parlMax: 0, firstZone: '', ownHead: false, crumbs: [], plate: false, samples: 0, flights: {}};
-    w.__venusStep = p;
-    const sample = () => {
-      p.samples++;
-      const parls = document.querySelectorAll('.con-parl');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      if (document.querySelector('.con-parl.con-ws') !== null) {
-        p.standalone = true;
+  await armWitness<StepSeen>(page, STEP_WITNESS, () => {
+    const embedded = document.querySelector('.con-parl--embedded');
+    const flights: Array<{id: string, rect: Array<number>}> = [];
+    document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || getComputedStyle(el).visibility === 'hidden') {
+        return;
       }
-      const embedded = document.querySelector('.con-parl--embedded');
-      if (embedded !== null) {
-        if (p.firstZone === '') {
-          p.firstZone = embedded.closest('[data-embed-slot]')?.getAttribute('data-embed-slot') ?? '(none)';
-        }
-        if (embedded.querySelector('.con-wshead') !== null) {
-          p.ownHead = true;
-        }
-        const crumb = Array.from(document.querySelectorAll('.con-wshead')).map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' || ');
-        if (crumb !== '' && p.crumbs[p.crumbs.length - 1] !== crumb && p.crumbs.length < 40) {
-          p.crumbs.push(crumb);
-        }
-      }
-      if (document.querySelector('.con-mandatory') !== null && embedded !== null) {
-        p.plate = true;
-      }
-      document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.width < 2 || getComputedStyle(el).visibility === 'hidden') {
-          return;
-        }
-        const id = el.getAttribute('data-parl-flight') ?? '?';
-        const now = [Math.round(r.left), Math.round(r.top), Math.round(r.width)];
-        const rec = p.flights[id] ?? (p.flights[id] = {first: now, last: now, n: 0});
-        rec.last = now;
-        rec.n++;
-      });
+      flights.push({id: el.getAttribute('data-parl-flight') ?? '?', rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width)]});
+    });
+    return {
+      parls: document.querySelectorAll('.con-parl').length,
+      standalone: document.querySelector('.con-parl.con-ws') !== null,
+      zone: embedded === null ? null : embedded.closest('[data-embed-slot]')?.getAttribute('data-embed-slot') ?? '(none)',
+      ownHead: embedded !== null && embedded.querySelector('.con-wshead') !== null,
+      crumb: embedded === null ? '' :
+        Array.from(document.querySelectorAll('.con-wshead')).map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' || '),
+      plate: document.querySelector('.con-mandatory') !== null && embedded !== null,
+      flights,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'data-stage']});
-    window.setInterval(sample, 50);
-  });
+  }, {settled: true});
 }
 
-const readStepProbe = (page: Page): Promise<StepProbe> => page.evaluate(() => (window as unknown as {__venusStep: StepProbe}).__venusStep);
+/** The record folded into the probe's facts — «ever», «at most», «the first», the crumbs in order, each flight's ends. */
+async function readStepProbe(page: Page): Promise<StepProbe> {
+  const seen = await witnessOf<StepSeen>(page, STEP_WITNESS).values();
+  const p: StepProbe = {standalone: false, parlMax: 0, firstZone: '', ownHead: false, crumbs: [], plate: false, samples: seen.length, flights: {}};
+  for (const s of seen) {
+    p.parlMax = Math.max(p.parlMax, s.parls);
+    p.standalone ||= s.standalone;
+    p.ownHead ||= s.ownHead;
+    p.plate ||= s.plate;
+    if (p.firstZone === '' && s.zone !== null) {
+      p.firstZone = s.zone;
+    }
+    if (s.crumb !== '' && p.crumbs[p.crumbs.length - 1] !== s.crumb && p.crumbs.length < 40) {
+      p.crumbs.push(s.crumb);
+    }
+    for (const f of s.flights) {
+      const rec = p.flights[f.id] ?? (p.flights[f.id] = {first: f.rect, last: f.rect, n: 0});
+      rec.last = f.rect;
+      rec.n++;
+    }
+  }
+  return p;
+}
 
 test('Venus Redux — the step: the build\'s «2 delegates to a resolution» opens the vote INSIDE the flow, one crumb, and the cubes land', async ({page, request}) => {
   test.setTimeout(420_000);
@@ -378,7 +405,8 @@ test('Venus Redux — the step: the build\'s «2 delegates to a resolution» ope
 
   const probe = await readStepProbe(page);
   console.log('── step probe ──', JSON.stringify(probe, null, 2));
-  expect(probe.samples, 'the probe was alive').toBeGreaterThan(20);
+  // The recorder's own liveness (it keeps DISTINCT states, never frames): only a dead recorder fails this floor.
+  expect(probe.samples, 'the probe was alive').toBeGreaterThan(0);
   expect(probe.standalone, 'a standalone Parliament band stood at some point').toBe(false);
   expect(probe.parlMax, 'at most one Parliament root at any moment').toBeLessThanOrEqual(1);
   expect(probe.ownHead, 'the embedded surface titled itself at some point').toBe(false);
