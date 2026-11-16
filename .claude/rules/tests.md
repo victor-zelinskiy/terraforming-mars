@@ -89,7 +89,9 @@ traps below are `docs/claude/e2e-flake-history.md`.
    `expect.poll`, `pressUntil*`. No `waitForTimeout` in a spec; the one honest mid-cinematic pause is
    `cinematicBeat(page, ms, why)`.
 2. **Act → verify ITS effect → retry only without one** — `pressUntil` / `walkFocusUntil` / a surface's signature
-   before and after (`playCardFromHand`); never «press A five times», never a press inside `expect.poll`.
+   before and after (`playCardFromHand`); never «press A five times», never a press inside `expect.poll`. The witness
+   is FALSE before the press: `pressUntilVisible` presses nothing when it already holds (the bot hub's door carries a
+   MINIATURE `.mb-tracks` — a press verified by `.mb-tracks` never left the hub; the detail is `.con-botboard .mb-tracks`).
 3. **A transient is RECORDED from before the action** — `armWitness(page, key, reader)` (`tests/e2e/witness.ts`, on the
    replace-proof recorder) armed above the press, asked after (`ever` · `firstWhere` · `sequence` ·
    `happenedInOrder`); a coexistence / order claim arms `{settled: true}`. No `setInterval` / `requestAnimationFrame`

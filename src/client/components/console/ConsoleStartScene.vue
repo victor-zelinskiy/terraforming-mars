@@ -1533,8 +1533,10 @@ import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResource
 import {centreEndOf, iconMatches} from '@/client/console/consoleActionCommitMotion';
 import {clearPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainRewardState, bonusGainSourceSelectors, consumeBonusGainReward, noteBonusGainStageEntering,
+  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainDestinationSelectors, bonusGainRewardState, bonusGainSourceSelectors,
+  consumeBonusGainReward, noteBonusGainStageEntering,
 } from '@/client/console/startBonusGain';
+import {noteStartBarsStood, startBarsStoodBeforeMount} from '@/client/console/startBarsStood';
 import {ActionEffect, ActionPreview} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -1849,6 +1851,9 @@ const drawExpected = new Map<CardName, number>();
 /** The played shelf has receded for an embedded step (its own half of
  *  the deployment's release — see `runPlayedDockRelease`). */
 const playedDockReleased = ref(false);
+/** The bars (player rail · top strip) already STOOD before this mount — a return from the board, a restore: their
+ *  entrance is not replayed for this mount's whole life (`startBarsStood.ts`). Decided once, here. */
+const barsStoodBeforeMount = startBarsStoodBeforeMount(props.playerView.id);
 /** The source card is LEAVING its seat for «РАЗЫГРАНО» — the caption
  *  dissolves with the departure, never after it. */
 const embedSourceDeparting = ref(false);
@@ -8061,6 +8066,11 @@ function syncCeremonyLayout(): void {
   const shellUp = shellBounded.value;
   document.body.classList.toggle('con-start-ceremony', shellUp);
   document.body.classList.toggle('con-start-prep', !shellUp);
+  // …and they materialize ONCE per game screen: a mount over bars that already stood keeps them standing.
+  document.body.classList.toggle('con-start-bars-stood', shellUp && barsStoodBeforeMount);
+  if (shellUp) {
+    noteStartBarsStood(props.playerView.id);
+  }
 }
 /** rAF-coalesced fit for resize bursts (never fires per focus move). */
 function scheduleFit(): void {
@@ -9774,7 +9784,9 @@ function runBonusGainWave(): void {
   // to a bare tick on every return. Wait (bounded) for the card to be SEEN; fly either way, so a card that never
   // shows degrades exactly as before. The panel keeps holding the gains meanwhile.
   const scene = root.value as Node | null;
-  void awaitVisibleBonusGainSource(bonusGainSourceSelectors(reward.source), undefined, () => scene?.isConnected === true).then(fly);
+  // …and for the rail rows the chips land on: the same law holds the landing (both ends, one budget).
+  void awaitVisibleBonusGainSource(bonusGainSourceSelectors(reward.source), undefined, () => scene?.isConnected === true,
+    bonusGainDestinationSelectors(reward.specs)).then(fly);
 }
 /**
  * A on the standing briefing — THE HAND-OFF.
@@ -11405,6 +11417,7 @@ onBeforeUnmount(() => {
   clearRiskStage();
   document.body.classList.remove('con-start-ceremony');
   document.body.classList.remove('con-start-prep');
+  document.body.classList.remove('con-start-bars-stood');
   disposeMaterializationFreeze(true);
   if (outcome.host === 'start') {
     releaseWorkspaceOutcome(); // an orphaned claim suppresses presenters

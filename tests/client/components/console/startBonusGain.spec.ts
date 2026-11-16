@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {flushPromises} from '@vue/test-utils';
 import {
-  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainRewardState, bonusGainSourceSelectors, bonusGainSpec,
+  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainDestinationSelectors, bonusGainRewardState, bonusGainSourceSelectors, bonusGainSpec,
   consumeBonusGainReward, detectBonusGainAutoResolve, noteBonusGainRows, noteBonusGainStageEntering, pendingBonusGainRows,
   resetBonusGainReward, seedBonusGainRewardHold,
 } from '@/client/console/startBonusGain';
@@ -260,6 +260,56 @@ describe('startBonusGain · the waits count from their event', () => {
     entrance = [];
     let seen: boolean | undefined;
     void awaitVisibleBonusGainSource(bonusGainSourceSelectors(CardName.HEAD_START)).then((v) => {
+      seen = v;
+    });
+    await step(1_300);
+    expect(seen).to.eq(false);
+  });
+
+  /** The player rail RE-ENTERING (CI 43884064237): `.con-res` at opacity 0 under its entrance, the M€ row inside it. */
+  let rail: HTMLElement | undefined;
+  afterEach(() => {
+    rail?.remove();
+    rail = undefined;
+  });
+  function enteringRail(): HTMLElement {
+    rail = document.createElement('aside');
+    rail.className = 'con-res';
+    rail.style.opacity = '0';
+    const row = document.createElement('div');
+    row.className = 'con-res__row con-res__row--megacredits';
+    row.getBoundingClientRect = () => ({left: 20, top: 400, width: 200, height: 40, right: 220, bottom: 440, x: 20, y: 400, toJSON: () => ({})}) as DOMRect;
+    rail.appendChild(row);
+    document.body.appendChild(rail);
+    return rail;
+  }
+
+  it('the wave waits for its LANDING too — a rail still coming in is no end, and the wave flies once both are painted', async () => {
+    const fading = fadingShelf();
+    fading.style.opacity = '1';
+    const entering = enteringRail();
+    entrance = [{playState: 'running', pending: false, effect: {getComputedTiming: () => ({endTime: 480}), target: entering}}];
+    let seen: boolean | undefined;
+    void awaitVisibleBonusGainSource(bonusGainSourceSelectors(CardName.HEAD_START), undefined, () => true,
+      bonusGainDestinationSelectors([bonusGainSpec('megacredits', 6)])).then((v) => {
+      seen = v;
+    });
+    // The card stands, the rail is still entering on a starved frame — past the budget the wave would have had.
+    await step(2_000);
+    expect(seen, 'the landing is still coming in — the wave waits for it').to.eq(undefined);
+    entering.style.opacity = '1';
+    entrance = [];
+    await step(100);
+    expect(seen, 'both ends are SEEN — the wave flies').to.eq(true);
+  });
+
+  it('…a landing that is unpainted and NOT coming in degrades at the budget, as before', async () => {
+    fadingShelf().style.opacity = '1';
+    enteringRail();
+    entrance = [];
+    let seen: boolean | undefined;
+    void awaitVisibleBonusGainSource(bonusGainSourceSelectors(CardName.HEAD_START), undefined, () => true,
+      bonusGainDestinationSelectors([bonusGainSpec('megacredits', 6)])).then((v) => {
       seen = v;
     });
     await step(1_300);

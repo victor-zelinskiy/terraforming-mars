@@ -46,7 +46,7 @@ import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {BonusGainRow, bonusActionGains, bonusActionSource, bonusActionsOwed} from '@/client/console/bonusAction';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {beginPanelRewardHold, clearPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {beginPanelRewardHold, clearPanelRewardHold, noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
 import {flowClock} from '@/client/console/kernel/flowClock';
@@ -124,6 +124,8 @@ function armSafety(): void {
   clearSafety();
   // A RELEASE: the panel's hold lets go at the backstop — or when the game screen leaves first.
   disarmSafety = consoleSessionScope().guarantee(BONUS_GAIN_HOLD_SAFETY_MS, 'the bonus gain\'s hold backstop (no surface flew it)', () => {
+    // Named in the flights' trail: «the counter ticked with no token» comes with WHY (`__conReady().transfer`).
+    noteTransferTrail('bonus-gain:backstop', {kind: bonusGainRewardState.owed?.kind ?? null});
     bonusGainRewardState.owed = undefined;
     clearPanelRewardHold();
   });
@@ -248,6 +250,7 @@ export function seedBonusGainRewardHold(
     return;
   }
   bonusGainRewardState.owed = reward;
+  noteTransferTrail('bonus-gain:seed', {kind: reward.kind, specs: reward.specs.map((s) => `${s.resource}:${s.amount}`)});
   beginPanelRewardHold(reward.specs);
   clearSafety();
   if (typeof setTimeout === 'function') {
@@ -260,6 +263,9 @@ export function consumeBonusGainReward(): BonusGainReward | undefined {
   const taken = bonusGainRewardState.owed;
   bonusGainRewardState.owed = undefined;
   clearSafety();
+  if (taken !== undefined) {
+    noteTransferTrail('bonus-gain:wave', {kind: taken.kind, point: taken.point !== undefined});
+  }
   return taken;
 }
 
@@ -298,15 +304,26 @@ export const BONUS_GAIN_SOURCE_WAIT_MS = 1_200;
  * the run degraded to «no flight» and the M€ arrived as a bare tick: «Фора» did nothing the player could see. Resolves
  * `true` the first probe a selector's card is visible, `false` at the deadline or once the scene is gone — the caller
  * flies either way, so a card that never shows degrades exactly as before (the counter ticks with its chip).
+ *
+ * …AND FOR THE ROWS THEY LAND ON (`destinations` — `bonusGainDestinationSelectors`): the same law holds the landing,
+ * and at the same mount the rail can be the end still coming in (CI 43884064237 — the rail re-played its entrance on the
+ * return, `startBarsStood.ts`). Both ends are waited for on the same budget; an end still ARRIVING extends it.
  */
 export function awaitVisibleBonusGainSource(
   selectors: ReadonlyArray<string>,
   budgetMs: number = BONUS_GAIN_SOURCE_WAIT_MS,
   alive: () => boolean = () => true,
+  destinations: ReadonlyArray<string> = [],
 ): Promise<boolean> {
   if (typeof document === 'undefined' || selectors.length === 0) {
     return Promise.resolve(false);
   }
+  // BOTH ENDS (the law of visible ends — `transferEndVisible.ts`): the card the chips come out of AND every row they
+  // land on. The wave is asked at the scene's mount, where an end that is still coming in is measurable and unpainted;
+  // asked then, a refused landing degraded the wave to a bare tick exactly like a refused source.
+  const ready = (): boolean => selectors.some((sel) => firstVisibleEnd(sel) !== undefined) &&
+    destinations.every((sel) => firstVisibleEnd(sel) !== undefined);
+  const ends = [...selectors, ...destinations];
   // The budget counts from the last moment the card was still COMING IN (its entrance running or pending, a deal's
   // hold on it) — never from the ask (FLAKE ZERO Ф4, class N): on a slow frame the shelf's fade had not produced a
   // frame when 1.2 s from the ask were over, and «Фора» ticked with no token. The ceiling bounds an entrance that never
@@ -322,22 +339,27 @@ export function awaitVisibleBonusGainSource(
         resolve(false);
         return;
       }
-      if (selectors.some((sel) => firstVisibleEnd(sel) !== undefined)) {
+      if (ready()) {
         wait?.met();
+        noteTransferTrail('bonus-gain:ends', {seen: true, waitedMs: Math.round(flowClock().now() - start)});
         resolve(true);
         return;
       }
       const now = flowClock().now();
-      if (sourceArriving(selectors)) {
+      if (sourceArriving(ends)) {
         deadline = Math.min(hard, Math.max(deadline, now + budgetMs));
       }
       if (now >= deadline) {
         wait?.ceiling();
+        noteTransferTrail('bonus-gain:ends', {
+          seen: false, waitedMs: Math.round(now - start),
+          unseen: ends.filter((sel) => firstVisibleEnd(sel) === undefined),
+        });
         resolve(false);
         return;
       }
       // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-      wait ??= beginCeilingWait({id: 'start-bonus:visible-source', owner: 'startBonusGain', what: 'a visible source card of the bonus gain', maxMs: hard - start});
+      wait ??= beginCeilingWait({id: 'start-bonus:visible-source', owner: 'startBonusGain', what: 'the visible ends (source card · rail rows) of the bonus gain', maxMs: hard - start});
       probeTick(poll);
     };
     poll();
@@ -371,6 +393,11 @@ function sourceArriving(selectors: ReadonlyArray<string>): boolean {
     const target = (animation.effect as KeyframeEffect | null)?.target ?? null;
     return timing !== undefined && Number.isFinite(Number(timing.endTime)) && target !== null && els.some((el) => target.contains(el));
   });
+}
+
+/** Where the chips LAND — each gain's own rail row (its digits, the row itself): both gains are STOCK. */
+export function bonusGainDestinationSelectors(specs: ReadonlyArray<ResourceTransferSpec>): Array<string> {
+  return [...new Set(specs.map((spec) => `.con-res__row--${spec.resource} .con-res__digits, .con-res__row--${spec.resource}`))];
 }
 
 export function bonusGainSourceSelectors(source: CardName | undefined): Array<string> {

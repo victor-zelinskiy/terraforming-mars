@@ -2884,8 +2884,11 @@ export async function openBotBoardDetail(page: Page): Promise<void> {
   // focus → «Планшет бота», verified by the detail it opens; then the detail's own entrance at rest — never a guessed
   // 700 ms on either side.
   await settle(page).catch(() => undefined);
-  await pressUntilVisible(page, 'Enter', '.mb-tracks', {tries: 3, settleMs: 900});
-  await page.locator('.mb-tracks').waitFor({state: 'visible', timeout: 15_000});
+  // The DETAIL's mat — `.con-botboard` (the hub's door carries a MINIATURE of the same `.mb-tracks`, so a bare
+  // `.mb-tracks` is already visible on the hub: a press verified by it was never pressed — CI 43884064237,
+  // `console-amazonis-planitia-marsbot` measured the miniature's 16.8 px cells).
+  await pressUntilVisible(page, 'Enter', '.con-botboard .mb-tracks', {tries: 3, settleMs: 900});
+  await page.locator('.con-botboard .mb-tracks').waitFor({state: 'visible', timeout: 15_000});
   await settle(page).catch(() => undefined);
 }
 

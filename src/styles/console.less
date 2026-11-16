@@ -28899,6 +28899,13 @@ body.con-start-ceremony .con-status {
     body.con-start-ceremony .con-res,
     body.con-start-ceremony .con-status { animation: none; }
 }
+/* …and ONCE per seat (`startBarsStood.ts`): a scene that MOUNTS over bars that already stood — the return from the
+   board after the «Фора» window, a minimize → restore — keeps them standing. Replayed, the rail the player had just
+   been reading blinked to opacity 0 on every return, and «Фора»'s M€ token measured an unpainted landing. */
+body.con-start-ceremony.con-start-bars-stood .con-res,
+body.con-start-ceremony.con-start-bars-stood .con-status {
+    animation: none;
+}
 /* THE BARS RIDE THE FLIGHT. Through the freeze scene transition the class
    swap happens UNDER the opaque snapshot — bars that ran their entrance
    there were already fully standing when the dissolve began, so they

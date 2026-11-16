@@ -74,7 +74,7 @@ async function spendOneBonus(page: Page): Promise<void> {
 }
 
 /** One frame of the resource-transfer language: chips in the air, and what the panel reads WHILE they fly. */
-type TransferSeen = {chips: number, panel: string};
+type TransferSeen = {chips: number, panel: string, rail: number};
 
 /**
  * WATCH THE RESOURCE-TRANSFER LANGUAGE — RECORDED (FLAKE ZERO — `armWitness`,
@@ -87,11 +87,14 @@ async function startTransferProbe(page: Page, key: string): Promise<void> {
     const read = (row: string): string =>
       document.querySelector(`.con-res__row--${row} .con-res__value`)?.textContent?.trim() ?? '';
     const chips = document.querySelectorAll('.con-transfer__chip').length;
-    return {chips, panel: chips > 0 ? `${read('steel')}|${read('megacredits')}` : ''};
+    // The player rail's own paint (its opacity, rounded): the landing zone of every chip — and a STANDING rail.
+    const railEl = document.querySelector('.con-res');
+    const rail = railEl === null ? -1 : Math.round(Number(getComputedStyle(railEl).opacity) * 100) / 100;
+    return {chips, panel: chips > 0 ? `${read('steel')}|${read('megacredits')}` : '', rail};
   }, {settled: true});
 }
 
-type TransferProbe = {samples: number, maxChips: number, heldPanel: Array<string>};
+type TransferProbe = {samples: number, maxChips: number, heldPanel: Array<string>, railMin: number};
 
 /** The record, stopped and folded on the Node side (`samples` = distinct states, never frames). */
 async function readTransferProbe(page: Page, key: string): Promise<TransferProbe> {
@@ -100,6 +103,7 @@ async function readTransferProbe(page: Page, key: string): Promise<TransferProbe
     samples: seen.length,
     maxChips: Math.max(0, ...seen.map((v) => v.chips)),
     heldPanel: seen.filter((v) => v.chips > 0).map((v) => v.panel),
+    railMin: Math.min(1, ...seen.map((v) => v.rail)),
   };
 }
 
@@ -254,7 +258,14 @@ test.describe('console — Head Start bonus actions', () => {
       .toBe('506');
     const autoFlight = await readTransferProbe(page, AUTO_FLIGHT);
     expect(autoFlight.samples, 'the probe was alive').toBeGreaterThan(0);
-    expect(autoFlight.maxChips, 'the auto-resolved M€ flew out of «Фора» on the return')
+    // The rail the player was reading on the board STANDS through the return — the bars materialize once per seat
+    // (`startBarsStood.ts`); re-played, the whole rail blinked to opacity 0 and the M€ landing was unpainted when the
+    // wave measured it (CI 43884064237).
+    expect(autoFlight.railMin, 'the player rail stood through the return — no second materialization').toBe(1);
+    // The flights' own trail rides the message: a wave that never flew names WHY (`bonus-gain:*` · `run:*` · `flight:*`).
+    const trail = autoFlight.maxChips > 0 ? [] : await page.evaluate(() =>
+      (window as unknown as {__conReady?: () => {transfer?: {trail: ReadonlyArray<unknown>}}}).__conReady?.()?.transfer?.trail ?? []);
+    expect(autoFlight.maxChips, `the auto-resolved M€ flew out of «Фора» on the return — trail: ${JSON.stringify(trail)}`)
       .toBeGreaterThan(0);
     expect(autoFlight.heldPanel[0],
       `the M€ row jumped before its chip took off: ${autoFlight.heldPanel.join(' ')}`)
