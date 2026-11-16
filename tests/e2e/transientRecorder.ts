@@ -48,6 +48,13 @@ import type {Page} from '@playwright/test';
  * twice», «the old one gone before the new one stands» — records with `settled: true`: the sample is taken when the
  * task's microtasks have run (the flush included), which is the state a frame can paint. «Did it ever happen» keeps
  * the default: a transient is caught in the task that wrote it.
+ *
+ * ⚠ THE LIMIT of `settled` — it is the end of a CALLBACK, not of a frame: the frame callbacks of ONE rendering step
+ * (GSAP's ticker, a probe tick, …) each end with their own microtask checkpoint, so a state standing between two of
+ * them is recorded though no frame paints it (paint follows the last callback). `console-parliament-bot` (2)+(3): the
+ * next figure lifts in GSAP's tick and the landed proxy is dropped in the probe tick of the same frame — «two in the
+ * air» for 1–4 ms, deterministic, never painted. A claim that can meet such a pair judges the product's DECLARED
+ * state (the proxy's `data-parl-flight-landed`), never a bare count.
  */
 
 export type TransientSample<T> = {t: number, v: T, /** the document the sample was taken in (a reload changes it) */ doc: string};

@@ -2,6 +2,7 @@ import {test, expect} from './consoleTest';
 import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi, sendPlayerInput,
   soloGameConfig,
 } from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * SUPERCAPACITORS — the optional production-phase energy→heat conversion as a
@@ -65,11 +66,14 @@ test('Supercapacitors: premium conversion prompt → rail handoff → next promp
   // both with A until the conversion prompt owns the stage.
   await openConsole(page, playerId);
   const convert = page.locator('.con-convert');
+  const asks = page.locator('.con-reveal, .con-mandatory');
   for (let i = 0; i < 40 && await convert.count() === 0; i++) {
-    if (await page.locator('.con-reveal, .con-mandatory').count() > 0) {
+    // The next surface the walk answers with A (the intake reveal, the plate) — or the prompt itself — is WAITED for,
+    // never slept on.
+    await expect.poll(async () => await convert.count() > 0 || await asks.count() > 0,
+      {timeout: 30_000, message: 'a reveal, the plate or the conversion prompt stands'}).toBe(true);
+    if (await convert.count() === 0) {
       await press(page, 'Enter', 1100);
-    } else {
-      await page.waitForTimeout(500);
     }
   }
   await expect(convert).toHaveCount(1);
@@ -133,23 +137,22 @@ test('Supercapacitors: premium conversion prompt → rail handoff → next promp
 
   // ── COMMIT + HANDOFF. A commits; the immediate second press must be
   //    absorbed (commit lock) — the final counters prove no double run. ───
+  // The sequencing is RECORDED from before the press (`armWitness`, settled — «never under the prompt» is a coexistence
+  // claim). `overlayUp` is the transition's own visible-motion layer (`.resource-conversion-layer` mounts only past the
+  // lead-in — the handoff window in which the prompt surface plays its leave).
+  type Sample = {convertUp: boolean, overlayUp: boolean, nextPrompt: boolean};
+  const handoff = await armWitness<Sample>(page, 'energy-conversion-handoff', () => ({
+    convertUp: document.querySelector('.con-convert') !== null,
+    overlayUp: document.querySelector('.resource-conversion-layer') !== null,
+    // The research buy rises INSIDE the draft workspace now (TR61 — one purchase surface); a deck pick stays a host plate.
+    nextPrompt: document.querySelector('.con-draftws, .con-deckpick') !== null,
+  }), {settled: true});
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter');
 
-  // Sample the sequencing (~9 s @ 150 ms). `overlayUp` is the transition's own
-  // visible-motion layer (`.resource-conversion-layer` mounts only past the
-  // lead-in — the handoff window in which the prompt surface plays its leave).
-  type Sample = {convertUp: boolean, overlayUp: boolean, nextPrompt: boolean};
-  const samples: Array<Sample> = [];
-  for (let i = 0; i < 60; i++) {
-    samples.push(await page.evaluate(() => ({
-      convertUp: document.querySelector('.con-convert') !== null,
-      overlayUp: document.querySelector('.resource-conversion-layer') !== null,
-      // The research buy rises INSIDE the draft workspace now (TR61 — one purchase surface); a deck pick stays a host plate.
-      nextPrompt: document.querySelector('.con-draftws, .con-deckpick') !== null,
-    })));
-    await page.waitForTimeout(150);
-  }
+  // The window ends on the END STATE: the next prompt (the research buy, the draft workspace's buy stage) stands.
+  await page.locator('.con-draftws').first().waitFor({timeout: 30_000});
+  const samples = await handoff.values();
   // The transition PLAYED; it never ran under the still-standing prompt; and
   // at least one of its frames had the stage entirely to itself (prompt gone,
   // next prompt not yet admitted) — the handoff, in one claim each.

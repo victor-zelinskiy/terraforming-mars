@@ -72,6 +72,7 @@ import {
 } from '@/client/console/colonyTrade/colonyTradeModel';
 import {colonyResolutionUi, clearColonyPayoutLiftOff, markColonyPayoutLiftOff} from '@/client/console/colonyTrade/colonyResolution';
 import {noteSettlementDealt, settlementClaimsBatch, settlementPlacesToDeal} from '@/client/console/colonyTrade/settlementTable';
+import {sweepTrackCell, unsweepTrackCell} from '@/client/console/colonyTrade/trackCellSweep';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
 import {
   RectLike, runColonyTrackGlide, runTradeCoverFlight, runTradeCoversHandoff,
@@ -791,12 +792,12 @@ async function runTrackGlide(): Promise<void> {
     perCellMs: plan.perCellMs,
     reduced: colonyTradeState.reducedMotion,
     onCellPassed: (i) => {
-      // A light impulse on each passed cell — direct classList (the
-      // colony-build precedent), one-shot, self-cleaning.
+      // A light impulse on each passed cell — one-shot, self-cleaning, an ATTRIBUTE (`trackCellSweep.ts`: the cell's
+      // classes are bound, and a re-render of them would wipe a class written here).
       const cell = cellEls[i];
       if (cell !== null && cell !== undefined) {
-        cell.classList.add('con-coltile__track-cell--sweep');
-        ctx.glideTimers.push(flow.guarantee(motionMs(360), 'a passed track cell\'s sweep', () => cell.classList.remove('con-coltile__track-cell--sweep')));
+        sweepTrackCell(cell);
+        ctx.glideTimers.push(flow.guarantee(motionMs(360), 'a passed track cell\'s sweep', () => unsweepTrackCell(cell)));
       }
     },
     onLanded: () => {
@@ -892,11 +893,13 @@ async function runTrackWave(): Promise<void> {
       onCellPassed: (k) => {
         // THE TOUCH: the crossed cell lights up as passed and its income answers once (the surfaces read it).
         noteColonyTrackWaveTouched(leg.colony, leg.path[k]);
-        // The passed cell's one impulse — the cell itself, and only it (the neighbours stand still).
+        // The passed cell's one impulse — the cell itself, and only it (the neighbours stand still). An ATTRIBUTE: the
+        // touch above turns the cell `--passed` through its bound classes in this very task, and that flush rewrites
+        // `className` whole — a class written here never reached a frame (`trackCellSweep.ts`).
         const cell = cellEls[k];
         if (cell !== null && cell !== undefined && !colonyTrackWaveState.reduced) {
-          cell.classList.add('con-coltile__track-cell--sweep');
-          ctx.waveTimers.push(flow.guarantee(motionMs(360), 'a passed track cell\'s sweep (the wave)', () => cell.classList.remove('con-coltile__track-cell--sweep')));
+          sweepTrackCell(cell);
+          ctx.waveTimers.push(flow.guarantee(motionMs(360), 'a passed track cell\'s sweep (the wave)', () => unsweepTrackCell(cell)));
         }
       },
       onLanded: () => {

@@ -1,5 +1,6 @@
 import {expect, test} from './consoleTest';
 import {press, reloadMenu} from './consoleStart';
+import {readSettled} from './settledRead';
 import {campaignModelAs, createCampaign, devCommit, launchMission, openMapAs, campaignBase} from './campaignFixtures';
 
 /**
@@ -213,9 +214,14 @@ test.describe('campaign map', () => {
       await devCommit(request, id, placements);
     }
     await openMapAs(page, id, 'Alice');
-    // The party stands on the FINAL node now — both markers render there.
-    const party = (await page.locator('.cmap__party').boundingBox())!;
-    const banner = (await page.locator('.ccard__final-banner').boundingBox())!;
+    // The party stands on the FINAL node now — both markers render there. Both boxes read at REST (`readSettled` — two
+    // equal reads a frame apart, never the map's entrance).
+    const boxes = await readSettled(page, async () => ({
+      party: await page.locator('.cmap__party').boundingBox(),
+      banner: await page.locator('.ccard__final-banner').boundingBox(),
+    }), {message: 'the party marker and the «ФИНАЛ» banner'});
+    const party = boxes.party!;
+    const banner = boxes.banner!;
     const overlap = party.x < banner.x + banner.width && banner.x < party.x + party.width &&
       party.y < banner.y + banner.height && banner.y < party.y + party.height;
     expect(overlap, `party ${JSON.stringify(party)} vs banner ${JSON.stringify(banner)}`).toBeFalsy();

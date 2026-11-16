@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {cinematicBeat, press, pressUntil, reloadConsole, summaryVisible, walkToSummary, fillPicks, pickCards} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * «КОРПОРАТИВНЫЕ АРХИВЫ» — «свернуть» → «вернуться» и перезагрузка посреди
@@ -43,9 +44,20 @@ function cfg(corps: ReadonlyArray<string> = ['CrediCor', 'Teractor']) {
   };
 }
 
-/** Structural readout — never a title match. */
-async function pickState(page: Page) {
-  return page.evaluate(() => {
+type PickState = {
+  startUp: boolean, pickUp: boolean, pickVisible: boolean, pickEmbedded: boolean, pickInDocument: boolean,
+  cards: number, painted: number, onTop: boolean, flow: string, picked: number, mandatoryCard: boolean,
+  stranded: number, crumb: string, handCards: number, waiting: string,
+};
+const PICK_WITNESS = 'deck-pick-state';
+
+/**
+ * Structural readout — never a title match. RECORDED (FLAKE ZERO: `armWitness`, armed before the pick opens — it is
+ * re-installed in every document, so it outlives the reloads this spec makes): the page writes the pick's state in the
+ * task it changes, and `pickState` is the record's CURRENT value (the recorder reads the page once more at the read).
+ */
+async function armPickState(page: Page): Promise<void> {
+  await armWitness<PickState>(page, PICK_WITNESS, () => {
     const vis = (el: Element | null): boolean => {
       if (el === null) {
         return false;
@@ -92,9 +104,13 @@ async function pickState(page: Page) {
   });
 }
 
+async function pickState(page: Page): Promise<PickState> {
+  return await witnessOf<PickState>(page, PICK_WITNESS).last() as PickState;
+}
+
 async function waitUntil(
   page: Page,
-  pred: (s: Awaited<ReturnType<typeof pickState>>) => boolean,
+  pred: (s: PickState) => boolean,
   budgetMs = 12_000,
 ): Promise<boolean> {
   try {
@@ -137,24 +153,30 @@ async function openDeckPick(page: Page, maxPresses = 14): Promise<boolean> {
 
 /** The pick is ON SCREEN, inside the start zone, all seven cards painted, and
  *  its pad open. */
-function pickStands(s: Awaited<ReturnType<typeof pickState>>): boolean {
+function pickStands(s: PickState): boolean {
   return s.pickVisible && s.onTop && s.pickEmbedded && s.cards === 7 && s.painted === 7 && s.flow === 'choosing';
 }
 
 /** After a RELOAD the claim that embedded the pick is gone with the page. If the
  *  start workspace stands, the pick must be INSIDE it (adopted); if it does not,
  *  the pick's own band is the honest home — either way it is on top. */
-function pickStandsAfterReload(s: Awaited<ReturnType<typeof pickState>>): boolean {
+function pickStandsAfterReload(s: PickState): boolean {
   return s.pickVisible && s.onTop && (s.pickEmbedded || !s.startUp) &&
     s.cards === 7 && s.painted === 7 && s.flow === 'choosing';
 }
 
 async function answerPick(page: Page): Promise<void> {
   const before = (await pickState(page)).handCards;
-  await press(page, 'Enter', 400);
-  await press(page, 'ArrowRight', 300);
-  await press(page, 'Enter', 400);
-  expect((await pickState(page)).picked, 'two cards are selected').toBe(2);
+  // Act → verify, never a blind series: each A until ITS seal stands (A is a toggle — the window is the seal's own),
+  // the → until the cursor has moved.
+  const picked = async () => (await pickState(page)).picked;
+  const focusedSlot = () => page.evaluate(() =>
+    Array.from(document.querySelectorAll('.con-deckpick__slot')).findIndex((el) => el.classList.contains('con-cards__slot--focused')));
+  await pressUntil(page, 'Enter', async () => await picked() >= 1, {tries: 3, settleMs: 1200});
+  const from = await focusedSlot();
+  await pressUntil(page, 'ArrowRight', async () => await focusedSlot() !== from, {tries: 3, settleMs: 600});
+  await pressUntil(page, 'Enter', async () => await picked() >= 2, {tries: 3, settleMs: 1200});
+  await expect.poll(picked, {message: 'two cards are selected'}).toBe(2);
   await press(page, 'Period', 400); // RT = «Подтвердить»
   const landed = await waitUntil(page, (s) => !s.pickUp && s.handCards >= before + 2, 15_000);
   expect(landed, `the pick was answered and the two cards reached the hand — ${JSON.stringify(await pickState(page))}`)
@@ -171,6 +193,7 @@ test.describe('console — «посмотри 7, оставь 2» survives «с�
     const game = await created.json();
     await page.goto(`/player?id=${game.players[0].id}&console=1`);
     await reachDeployment(page);
+    await armPickState(page);
 
     expect(await openDeckPick(page), `the pick opened — ${JSON.stringify(await pickState(page))}`).toBeTruthy();
     expect(await waitUntil(page, pickStands, 15_000),
@@ -223,6 +246,7 @@ test.describe('console — «посмотри 7, оставь 2» survives «с�
       const game = await created.json();
       await page.goto(`/player?id=${game.players[0].id}&console=1`);
       await reachDeployment(page);
+      await armPickState(page);
 
       expect(await openDeckPick(page), `the pick opened — ${JSON.stringify(await pickState(page))}`).toBeTruthy();
       expect(await waitUntil(page, pickStands, 15_000),

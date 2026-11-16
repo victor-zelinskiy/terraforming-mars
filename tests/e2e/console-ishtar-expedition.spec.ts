@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, reloadConsole, settle} from './consoleStart';
+import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, pressUntil, reloadConsole, settle} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P76 «ЭКСПЕДИЦИЯ ИШТАР» — THE FIRST PRELUDE 2 CARD, and the witness of a class that had none: a play FROM THE HAND whose
@@ -79,8 +80,10 @@ function watchPosts(page: Page): Array<string> {
 }
 
 type Series = Array<[number, string]>;
+/** The record folded (`readProbe`). */
 type Probe = {
-  ticks: number,
+  /** The DISTINCT states recorded (never frames). */
+  samples: number,
   steps: Array<string>,
   crumbMisses: Array<string>,
   pile: Series,
@@ -90,58 +93,82 @@ type Probe = {
   wsMax: number,
   stranded: boolean,
 };
+/** ONE observation of the screen — what stands now (the reader's answer; the folding is `readProbe`'s). */
+type P76Seen = {
+  head: {root: string, subjects: Array<string>, steps: Array<string>} | null,
+  pile: string,
+  titanium: string,
+  revealInHand: boolean,
+  revealOutsideHand: boolean,
+  ws: number,
+  stranded: boolean,
+};
+const P76_WITNESS = 'p76-play';
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/**
+ * THE PLAY'S RECORD (FLAKE ZERO — `armWitness`, replace-proof, armed before the press): the hand's crumb, the pile's
+ * count, the titanium row, where the reveals stand, the workspaces — every change kept with the PAGE's time. Its claims
+ * are «never» claims on what a frame paints (the crumb on every state, never a band of its own, one workspace), so the
+ * record is `settled` — the state a task leaves.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({card, root}) => {
-    const p: Probe = {ticks: 0, steps: [], crumbMisses: [], pile: [], titanium: [], revealInHand: false, revealOutsideHand: false, wsMax: 0, stranded: false};
-    (window as unknown as {__p76: Probe}).__p76 = p;
-    const t0 = Date.now();
+  await armWitness<P76Seen>(page, P76_WITNESS, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Series, value: string | undefined) => {
-      if (value !== undefined && value !== '' && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
-      }
+    const head = document.querySelector('.con-hand .con-wshead');
+    const reveals = Array.from(document.querySelectorAll('.con-reveal'));
+    return {
+      head: head === null ? null : {
+        root: text(head.querySelector('.con-wshead__root')),
+        subjects: Array.from(head.querySelectorAll('.con-wshead__subject')).map(text),
+        steps: Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
+      },
+      pile: document.querySelector('[data-discard-pile]')?.getAttribute('data-discard-pile-count') ?? '',
+      titanium: text(document.querySelector('.con-res__row--titanium .con-res__digits')),
+      revealInHand: reveals.some((el) => el.closest('.con-hand__outcome') !== null),
+      revealOutsideHand: reveals.some((el) => el.closest('.con-hand__outcome') === null && el.getBoundingClientRect().width > 1),
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
     };
-    const sample = (tick: boolean) => {
-      if (tick) {
-        p.ticks++;
-      }
-      const head = document.querySelector('.con-hand .con-wshead');
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-      }
-      note(p.pile, document.querySelector('[data-discard-pile]')?.getAttribute('data-discard-pile-count') ?? '');
-      note(p.titanium, text(document.querySelector('.con-res__row--titanium .con-res__digits')));
-      document.querySelectorAll('.con-reveal').forEach((el) => {
-        if (el.closest('.con-hand__outcome') !== null) {
-          p.revealInHand = true;
-        } else if (el.getBoundingClientRect().width > 1) {
-          p.revealOutsideHand = true;
-        }
-      });
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-    };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample(true), 30);
-  }, {card: CARD_RU, root: ROOT_RU});
+  }, {settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p76: Probe}).__p76);
+/** The record folded — the recording stops here. */
+async function readProbe(page: Page): Promise<Probe> {
+  const record = await witnessOf<P76Seen>(page, P76_WITNESS).stop();
+  const t0 = record[0]?.t ?? 0;
+  const p: Probe = {samples: record.length, steps: [], crumbMisses: [], pile: [], titanium: [], revealInHand: false, revealOutsideHand: false, wsMax: 0, stranded: false};
+  for (const {t, v} of record) {
+    const note = (series: Series, value: string) => {
+      if (value !== '' && series[series.length - 1]?.[1] !== value) {
+        series.push([t - t0, value]);
+      }
+    };
+    if (v.head !== null) {
+      if (v.head.root.toLowerCase() !== ROOT_RU.toLowerCase() || !v.head.subjects.some((s) => s.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${t - t0}ms root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+        }
+      }
+      for (const step of v.head.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    note(p.pile, v.pile);
+    note(p.titanium, v.titanium);
+    if (v.revealInHand) {
+      p.revealInHand = true;
+    }
+    if (v.revealOutsideHand) {
+      p.revealOutsideHand = true;
+    }
+    p.wsMax = Math.max(p.wsMax, v.ws);
+    if (v.stranded) {
+      p.stranded = true;
+    }
+  }
+  return p;
+}
 
 /** RT → the wheel's centre (the hand) → the card focused. */
 async function focusInHand(page: Page): Promise<void> {
@@ -161,10 +188,8 @@ async function playToReveal(page: Page, posts: Array<string>): Promise<void> {
   await press(page, 'Enter', 1200);
   await page.locator(COMPOSER).waitFor({timeout: 15_000});
   await settle(page);
-  for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-    await press(page, 'Enter', 300);
-    await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
-  }
+  // A → its effect (the POST) → a retry only without one (`pressUntil`).
+  await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 3_000});
   expect(posts.length, 'the play is ONE POST').toBe(1);
   expect(posts[0], 'the POST is the card\'s play').toContain(CARD);
   await page.locator(`${ZONE} .con-reveal [data-reveal-search]`).waitFor({timeout: 60_000});
@@ -222,10 +247,7 @@ test.describe(`P76 Ishtar Expedition · a play from the hand with a reward and a
     await armProbe(page);
     await armTransferWitness(page);
     const stopStory = await storyboard(page, 'play');
-    for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-      await press(page, 'Enter', 300);
-      await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
-    }
+    await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 3_000});
     expect(posts.length, 'the play is ONE POST').toBe(1);
     expect(posts[0], 'the POST is the card\'s play').toContain(CARD);
 
@@ -249,7 +271,8 @@ test.describe(`P76 Ishtar Expedition · a play from the hand with a reward and a
 
     const probe = await readProbe(page);
     test.info().annotations.push({type: 'probe', description: JSON.stringify({steps: probe.steps, pile: probe.pile, titanium: probe.titanium, wsMax: probe.wsMax})});
-    expect(probe.ticks, 'the probe sampled').toBeGreaterThan(10);
+    // The record keeps DISTINCT states, never frames: its floor catches only a dead recorder (`tests.md`).
+    expect(probe.samples, 'the probe recorded').toBeGreaterThan(0);
     expect(probe.crumbMisses, 'the crumb keeps its root and the card on every sample').toEqual([]);
     expect(probe.steps[probe.steps.length - 1], 'the last stage: the draw').toMatch(/добор карт/i);
     expect(probe.revealInHand, 'the reveal stands inside the hand').toBe(true);
@@ -274,9 +297,7 @@ test.describe(`P76 Ishtar Expedition · a play from the hand with a reward and a
 
     // ── M: X inspects a find OVER the stage; B returns to the same stage ──
     const zoom = page.locator('.con-zoom');
-    for (let i = 0; i < 3 && await zoom.count() === 0; i++) {
-      await press(page, 'KeyX', 1200);
-    }
+    await pressUntil(page, 'KeyX', async () => await zoom.count() > 0, {tries: 3, settleMs: 1_200});
     await expect(zoom, 'X opens the viewer').toHaveCount(1, {timeout: 10_000});
     await expect(page.locator(`${ZONE} .con-reveal`), 'the stage stays mounted under the viewer').toHaveCount(1);
     await shoot(page, 'g-inspect');

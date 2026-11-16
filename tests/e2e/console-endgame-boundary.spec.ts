@@ -27,7 +27,8 @@ import {test, expect, Page} from './consoleTest';
 import {
   createTable, drive, forceFrame, waitWithFrames, shoot, terraformed, finishFinaleThroughPage,
 } from './consoleEndgameHarness';
-import {openConsole} from './consoleStart';
+import {finiteMotion, openConsole} from './consoleStart';
+import {readSettled} from './settledRead';
 
 const SHOT_DIR = 'screenshots/console-endgame-boundary';
 
@@ -48,13 +49,32 @@ async function boardScale(page: Page): Promise<number> {
     Number(getComputedStyle(document.documentElement).getPropertyValue('--board-scale')));
 }
 
-/** Press `code`, then settle a beat with real frames (nothing here is instant). */
-async function pressFramed(page: Page, code: string, settleMs = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await forceFrame(page);
-  await page.waitForTimeout(settleMs);
-  await forceFrame(page);
+/** The board scale AT REST (`readSettled`: the same number twice — each read pumps a real frame first, or a starved
+ *  headless screen would read a tween that never advanced as «still»). Both sides of the comparison read it so. */
+async function boardScaleAtRest(page: Page, what: string): Promise<number> {
+  return readSettled(page, async () => {
+    await forceFrame(page);
+    return boardScale(page);
+  }, {settle: false, message: what});
 }
+
+/** Press `code`, then pump real frames until its EFFECT stands and the motion it started has ended (nothing here is
+ *  instant, and a quiet headless screen paints no frame on its own) — the states the press is for, never a fixed beat.
+ *  Bounded and never an assertion: the claim after the press is the judge. */
+async function pressFramed(page: Page, code: string, effect: () => Promise<boolean>): Promise<void> {
+  await page.keyboard.press(code);
+  await expect.poll(async () => {
+    await forceFrame(page);
+    return effect();
+  }, {timeout: 15_000}).toBe(true).catch(() => undefined);
+  await expect.poll(async () => {
+    await forceFrame(page);
+    return finiteMotion(page);
+  }, {timeout: 5_000}).toBe(0).catch(() => undefined);
+}
+const shown = (page: Page, sel: string) => () => page.locator(sel).first().isVisible();
+const hidden = (page: Page, sel: string) => async () => !await page.locator(sel).first().isVisible();
+const gone = (page: Page, sel: string) => async () => await page.locator(sel).count() === 0;
 
 test.describe('console endgame — the boundary seal and the read-only free roam', () => {
   test.setTimeout(600_000);
@@ -78,7 +98,7 @@ test.describe('console endgame — the boundary seal and the read-only free roam
     // stage box is identical across the boundary (every HUD member the
     // post-game hides uses `visibility`, so no box is removed), so the fit
     // has nothing to re-derive and the number must be the same one.
-    const scaleBefore = await boardScale(page);
+    const scaleBefore = await boardScaleAtRest(page, 'the board scale before the end');
     expect(scaleBefore, 'a live board scale to compare against').toBeGreaterThan(0);
     await shoot(page, SHOT_DIR, '01-wheel-open-before-end');
 
@@ -107,13 +127,13 @@ test.describe('console endgame — the boundary seal and the read-only free roam
 
     // The scene is USABLE — which is the whole point of the report: X hurries
     // the count (T08 — the crowning still plays) and lands on the settled action list.
-    await pressFramed(page, 'KeyX', 1500);
-    await waitWithFrames(page, async () =>
-      (await page.locator('.con-eg__action').count()) > 0, 30_000, 'the settled action list');
+    const actionList = async () => (await page.locator('.con-eg__action').count()) > 0;
+    await pressFramed(page, 'KeyX', actionList);
+    await waitWithFrames(page, actionList, 30_000, 'the settled action list');
     await shoot(page, SHOT_DIR, '03-settled');
 
     // ── ② THE FREE ROAM ───────────────────────────────────────────────────
-    await pressFramed(page, 'Escape', 1200); // B = «Свернуть»
+    await pressFramed(page, 'Escape', hidden(page, '.con-endgame')); // B = «Свернуть»
     await expect(page.locator('.con-endgame'), 'the scene is hidden, its frame alive').toBeHidden();
     await expect(page.locator('.con-board'), 'the final board is on show').toBeVisible();
     await shoot(page, SHOT_DIR, '04-collapsed');
@@ -125,41 +145,43 @@ test.describe('console endgame — the boundary seal and the read-only free roam
     // framing and the collapse reveals a planet zoomed in, clipped by both
     // bars, arcs cut off. `ConsoleBoardSection` heals that at `idle` when the
     // framing is still a focus one; this is the number that proves it.
-    const scaleAfter = await boardScale(page);
+    const scaleAfter = await boardScaleAtRest(page, 'the board scale after the collapse');
     expect(Math.abs(scaleAfter - scaleBefore) / scaleBefore,
       `board scale drifted across the endgame: ${scaleBefore} → ${scaleAfter}`).toBeLessThan(0.02);
 
     // The JOURNAL — the fullest read of what happened.
-    await pressFramed(page, 'KeyR');
+    await pressFramed(page, 'KeyR', shown(page, '.con-journal'));
     await expect(page.locator('.con-journal'), 'the journal opens in the post-game').toBeVisible({timeout: 10_000});
     await shoot(page, SHOT_DIR, '05-journal');
-    await pressFramed(page, 'Escape');
+    await pressFramed(page, 'Escape', gone(page, '.con-journal'));
     await expect(page.locator('.con-journal'), 'and closes one level back').toHaveCount(0, {timeout: 10_000});
 
     // «РАЗЫГРАНО» — every player's final tableau.
-    await pressFramed(page, 'KeyX');
+    await pressFramed(page, 'KeyX', shown(page, '.con-played'));
     await expect(page.locator('.con-played'), '«Разыграно» opens in the post-game').toBeVisible({timeout: 10_000});
-    await pressFramed(page, 'Escape');
+    await pressFramed(page, 'Escape', gone(page, '.con-played'));
     await expect(page.locator('.con-played'), 'and closes one level back').toHaveCount(0, {timeout: 10_000});
 
     // INFORMATION — the per-seat dossier. During the COUNT it is deliberately
     // unreachable (it would pre-reveal the totals); past the result it is the
     // main instrument of the inspection.
-    await pressFramed(page, 'KeyY');
+    await pressFramed(page, 'KeyY', shown(page, '.con-info'));
     await expect(page.locator('.con-info'), 'Information opens in the post-game').toBeVisible({timeout: 10_000});
     await shoot(page, SHOT_DIR, '06-information');
-    await pressFramed(page, 'KeyY');
+    await pressFramed(page, 'KeyY', gone(page, '.con-info'));
     await expect(page.locator('.con-info'), 'and Y closes it again').toHaveCount(0, {timeout: 10_000});
 
     // The board's own inspection mode is a LEVEL of its own — B leaves it
-    // before it means «back to the results».
-    await pressFramed(page, 'KeyC'); // L3
-    await pressFramed(page, 'Escape');
+    // before it means «back to the results». (Each press waits for ITS level:
+    // the inspection standing, then gone — a B that came before L3 took effect
+    // would be the root's B.)
+    await pressFramed(page, 'KeyC', shown(page, '.con-board--inspecting')); // L3
+    await pressFramed(page, 'Escape', gone(page, '.con-board--inspecting'));
     await expect(page.locator('.con-endgame'), 'leaving inspection is not leaving the post-game').toBeHidden();
 
     // …and at the ROOT, with nothing shallower left to close, B is the road
     // back to the results.
-    await pressFramed(page, 'Escape', 1500);
+    await pressFramed(page, 'Escape', shown(page, '.con-endgame'));
     await expect(page.locator('.con-endgame'), 'B at the board-home root restores the results').toBeVisible({timeout: 10_000});
     // It comes back SETTLED — the collapse parked the state, it never replayed
     // the ceremony (the action list is the settled terminal phase).

@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, cinematicBeat, press, settle} from './consoleStart';
 import {PARLIAMENT_PRESETS} from './parliamentDrive';
+import {readSettled} from './settledRead';
 import {ColonyBenefit} from '../../src/common/colonies/ColonyBenefit';
 
 /**
@@ -127,7 +128,8 @@ for (const preset of PARLIAMENT_PRESETS.filter((p) => p.id !== 'deck-handheld'))
       await page.keyboard.press('KeyX');
       await cinematicBeat(page, 2300, 'the dossier entrance + the late reveal wave');
       await shoot(page, `${preset.id}-dossier`);
-      const cells = await instrumentCells(page);
+      // The cells measured AT REST (two equal reads a frame apart) — never wherever the entrance had got to.
+      const cells = await readSettled(page, () => instrumentCells(page), {message: `the dossier's track cells (${preset.id})`});
       console.log(`── cells (${preset.id}) ──`, JSON.stringify(cells));
       expect(cells.length, 'seven track cells').toBe(7);
       for (const cell of cells) {

@@ -6,6 +6,7 @@ import {
   soloGameConfig, walkToSpace,
 } from './consoleStart';
 import {armLeakWitness, parliamentWire, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * VASTITAS BOREALIS NOVA on the console — the official map in the premium scope.
@@ -61,7 +62,8 @@ for (const profile of PROFILES) {
       await settle(page);
       await shoot(page, '00-board');
 
-      const board = await page.evaluate(([viking1, pole, viking2]) => {
+      // Read AT REST (C — `readSettled`: the same board twice, a frame apart — the slots' boxes are compared).
+      const board = await readSettled(page, () => page.evaluate(([viking1, pole, viking2]) => {
         const cell = (id: string) => document.querySelector(`[data_space_id="${id}"]`);
         const bonus = (id: string, kind: string) => {
           const el = cell(id)?.querySelector<HTMLElement>(`.board-space-bonus--${kind}`);
@@ -80,7 +82,7 @@ for (const profile of PROFILES) {
           viking2: bonus(viking2, 'delegate'),
           pole: bonus(pole, 'bonustemperature4mc'),
         };
-      }, [VIKING_1, NORTH_POLE, VIKING_2]);
+      }, [VIKING_1, NORTH_POLE, VIKING_2]), {message: 'the board\'s named cells'});
       console.log('── the board ──', JSON.stringify(board, null, 2));
 
       expect(board.captions, 'no legacy SVG caption is left on this map').not.toMatch(/Hectates|Tholius|Viking|Uranius|Alba|Elysium/);

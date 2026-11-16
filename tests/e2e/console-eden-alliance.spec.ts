@@ -93,9 +93,11 @@ for (const preset of PRESETS) {
       expect(before.cardsInHand?.map((c) => c.name), 'the fixture: TR63 in hand').toContain(CARD);
       expect(accessOf(before, blue, UNITY), 'before: Unity is not blue\'s').toMatchObject({hasEffect: false});
 
-      // RT → «КАРТЫ» → TR63 → A: its play composer, nothing sent.
-      await press(page, 'Period', 600);
-      await press(page, 'Enter', 1600);
+      // RT → «КАРТЫ» → TR63 → A: its play composer, nothing sent. The wheel, then the hand — each press verified by
+      // what it opens, never a blind pair.
+      const handUp = async () => await page.locator('.con-hand').count() > 0;
+      await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 4, settleMs: 600});
+      await pressUntil(page, 'Enter', handUp, {tries: 3, settleMs: 1600});
       await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 20_000});
       await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
       await settle(page);
@@ -110,9 +112,8 @@ for (const preset of PRESETS) {
       expect(posts.length, 'nothing sent before A').toBe(0);
       await shoot(page, preset.id, '01-composer');
       for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-        for (let i = 0; i < 8 && await page.locator('.con-composer__cta--focused').count() === 0; i++) {
-          await press(page, 'ArrowDown', 300);
-        }
+        // ↓ to the commit row — each press given its whole window before the next.
+        await pressUntil(page, 'ArrowDown', async () => await page.locator('.con-composer__cta--focused').count() > 0, {tries: 8, settleMs: 300});
         await press(page, 'Enter', 300);
         await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
       }
@@ -126,7 +127,7 @@ for (const preset of PRESETS) {
       await openParliament(page);
       await expect.poll(() => sealOf(page, UNITY), {timeout: 15_000, message: 'Unity\'s seal: the borrowed ring and the active badge'})
         .toMatchObject({ring: 'allied', ally: 'active', partner: GREENS, badge: true});
-      expect(await sealOf(page, GREENS), 'the Greens\' seal: the active badge of the pair').toMatchObject({ally: 'active', partner: UNITY, badge: true});
+      await expect.poll(() => sealOf(page, GREENS), {message: 'the Greens\' seal: the active badge of the pair'}).toMatchObject({ally: 'active', partner: UNITY, badge: true});
       await shoot(page, preset.id, '02-parliament-after');
       expect(await strandedReports(page), 'the leak witness saw nothing').toEqual([]);
       expect(pageErrors, 'no page error').toEqual([]);
@@ -141,36 +142,15 @@ for (const preset of PRESETS) {
       // The same pass pays the production phase before the sitting: M€ production + TR.
       const mc = before.thisPlayer.megacredits + before.thisPlayer.megacreditProduction + tr;
       await armTransferWitness(page);
-      // The scene's own facts across the enactment (MutationObserver + setInterval — never rAF): the reveal surfaces, the
-      // band's line, and the rating the cell SHOWS while the token is in the air.
-      await page.evaluate(() => {
-        const w = window as unknown as {__tr63: {samples: number, reveal: boolean, band: boolean, bandWhileFlying: boolean, trAtBirth: string | null, trs: Array<string>}};
-        w.__tr63 = {samples: 0, reveal: false, band: false, bandWhileFlying: false, trAtBirth: null, trs: []};
-        const sample = () => {
-          const p = w.__tr63;
-          p.samples++;
-          if (document.querySelector('.con-reveal, .con-deckdraw') !== null) {
-            p.reveal = true;
-          }
-          const flying = document.querySelectorAll('.con-transfer__chip').length;
-          const shown = (document.querySelector('.con-res .con-score__cell--tr .con-score__value')?.textContent ?? '').trim();
-          if (p.trs[p.trs.length - 1] !== shown) {
-            p.trs.push(shown);
-          }
-          if (flying > 0 && p.trAtBirth === null) {
-            p.trAtBirth = shown;
-          }
-          const band = document.querySelector('[data-parl-band-zone]')?.getAttribute('data-parl-band') ?? '';
-          if (band.startsWith('enact:ruling-draw:')) {
-            p.band = true;
-            if (flying > 0) {
-              p.bandWhileFlying = true;
-            }
-          }
-        };
-        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-        window.setInterval(sample, 30);
-      });
+      // The scene's own facts across the enactment — RECORDED off the product's own writes (FLAKE ZERO, `armWitness`):
+      // the reveal surfaces, the band's line, and the rating the cell SHOWS while the token is in the air. The reader
+      // returns what stands NOW; «ever», «while flying» and «at the birth» are folded on the Node side.
+      const scene = await armWitness(page, 'tr63-enactment', () => ({
+        reveal: document.querySelector('.con-reveal, .con-deckdraw') !== null,
+        flying: document.querySelector('.con-transfer__chip') !== null,
+        shown: (document.querySelector('.con-res .con-score__cell--tr .con-score__value')?.textContent ?? '').trim(),
+        band: document.querySelector('[data-parl-band-zone]')?.getAttribute('data-parl-band') ?? '',
+      }));
       await enterSittingByPass(page, request, playerId);
       if (process.env.TM_E2E_STORYBOARD === '1') {
         fs.mkdirSync(path.join(OUT, preset.id), {recursive: true});
@@ -195,8 +175,18 @@ for (const preset of PRESETS) {
       const landed = witness.landings.find((l) => l.id === born?.id);
       expect(landed?.under, `…and lands on the rating cell:\n${trail}`).toBe('rail:tr');
       expect(endsOverGlass(witness), `no end over glass:\n${trail}`).toEqual([]);
-      const probe = await page.evaluate(() => (window as unknown as {__tr63: {samples: number, reveal: boolean, band: boolean, bandWhileFlying: boolean, trAtBirth: string | null, trs: Array<string>}}).__tr63);
-      expect(probe.samples, 'the probe ran').toBeGreaterThan(20);
+      const seen = await scene.values();
+      const enacting = (v: typeof seen[number]) => v.band.startsWith('enact:ruling-draw:');
+      const probe = {
+        samples: seen.length,
+        reveal: seen.some((v) => v.reveal),
+        band: seen.some(enacting),
+        bandWhileFlying: seen.some((v) => enacting(v) && v.flying),
+        trAtBirth: seen.find((v) => v.flying)?.shown ?? null,
+        trs: await scene.sequence((v) => v.shown),
+      };
+      // The record's own liveness only (a dead recorder records nothing); the claims below judge the scene themselves.
+      expect(probe.samples, 'the probe ran').toBeGreaterThan(0);
       expect(probe.reveal, 'no reveal and no deck-draw scene over the sitting').toBe(false);
       expect(probe.band, 'the band names the tail of the enactment — the card that answered the change of power').toBe(true);
       expect(probe.bandWhileFlying, '…while the token is in the air').toBe(true);

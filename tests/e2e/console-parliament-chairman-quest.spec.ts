@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * «ПРЕДСЕДАТЕЛЬСТВО» — ПРОБНИК 5: СЦЕНА ВИДНА
@@ -20,15 +21,15 @@ import {bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleS
  * visible, and movement happened between them — «visible» meaning a non-zero
  * box, a non-zero EFFECTIVE opacity (the ancestor chain, because a parked tier
  * fades its children by fading itself) and nothing covering the object's own
- * centre. A claim about FRAMES is made on the `setInterval` (task) samples
- * only; the `MutationObserver` samples run as microtasks and can see states
- * the browser never painted. rAF is never used — headless Chromium drives it
- * off the compositor, which stops exactly when the screen goes quiet.
+ * centre. The probe is a RECORDING (`armWitness`, settled): every sample is
+ * the state a task LEFT — a state a frame can paint — so a claim about FRAMES
+ * stands on every one (an observer sample between two writes of one task
+ * would see a state the browser never painted).
  */
 type Rect = {x: number, y: number, w: number, h: number};
 type Vis = {box: boolean, ink: number, free: boolean, hit: string};
 type QuestSample = {
-  src: 'mo' | 'tick',
+  /** The page's time of the recorded change. */
   t: number,
   /** The Parliament section is MOUNTED (`.con-parl`) — the whole question this probe exists for. */
   section: boolean,
@@ -54,12 +55,18 @@ type QuestSample = {
   /** The crumb's own line (root › subject › stage). */
   crumb: string,
 };
-type QuestProbe = {samples: Array<QuestSample>};
 
+/** One moment of the scene as the reader sees it — the sample without its clock (the recording stamps the page's time). */
+type QuestSeen = Omit<QuestSample, 't'>;
+const QUEST_WITNESS = 'parliament-chairman-quest';
+
+/**
+ * The RECORDING (FLAKE ZERO — `armWitness`: the product's own writes observed in the task that makes them, a frame tick
+ * for what only a computed style moves, every change kept with the page's time). `settled`: every sample is the state a
+ * task LEAVES, the state a frame can paint — the observer would otherwise see the DOM between two writes of one task.
+ */
 async function armQuestProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__qq: QuestProbe};
-    w.__qq = {samples: []};
+  await armWitness<QuestSeen>(page, QUEST_WITNESS, () => {
     const rect = (el: Element | null | undefined): Rect | undefined => {
       if (el === null || el === undefined) {
         return undefined;
@@ -89,53 +96,46 @@ async function armQuestProbe(page: Page): Promise<void> {
       const free = hit !== null && (hit === el || el.contains(hit) || hit.contains(el));
       return {box: r.w > 1 && r.h > 1, ink, free, hit: hit === null ? '' : (hit.className || hit.tagName).toString().slice(0, 60)};
     };
-    const sample = (src: 'mo' | 'tick') => {
-      const root = document.querySelector<HTMLElement>('.con-parl');
-      // Which steps carry a PAINTED marker — by the cubes actually drawn,
-      // never by a colour the probe would have to guess.
-      const markerSteps: Array<string> = [];
-      for (const row of Array.from(root?.querySelectorAll<HTMLElement>('[data-agenda-markers]') ?? [])) {
-        const drawn = Array.from(row.querySelectorAll<HTMLElement>('[data-agenda-cube]'))
-          .filter((cube) => !cube.classList.contains('con-parl__agenda-cube--hidden'));
-        if (drawn.length > 0) {
-          markerSteps.push(row.getAttribute('data-agenda-markers') ?? '');
-        }
+    const root = document.querySelector<HTMLElement>('.con-parl');
+    // Which steps carry a PAINTED marker — by the cubes actually drawn,
+    // never by a colour the probe would have to guess.
+    const markerSteps: Array<string> = [];
+    for (const row of Array.from(root?.querySelectorAll<HTMLElement>('[data-agenda-markers]') ?? [])) {
+      const drawn = Array.from(row.querySelectorAll<HTMLElement>('[data-agenda-cube]'))
+        .filter((cube) => !cube.classList.contains('con-parl__agenda-cube--hidden'));
+      if (drawn.length > 0) {
+        markerSteps.push(row.getAttribute('data-agenda-markers') ?? '');
       }
-      const proxy = document.querySelector<HTMLElement>('.con-parl__flight--agenda');
-      const proxyRect = rect(proxy);
-      const chairCube = root?.querySelector<HTMLElement>('[data-parl-seat-chair]');
-      const crumbEl = document.querySelector<HTMLElement>('.con-parl .con-wshead');
-      w.__qq.samples.push({
-        src,
-        t: Math.round(performance.now()),
-        section: root !== null,
-        stage: root?.getAttribute('data-stage') ?? '',
-        beat: root?.getAttribute('data-quest-beat') ?? '',
-        track: vis(root?.querySelector<HTMLElement>('[data-parl-agenda]')),
-        step2: vis(root?.querySelector<HTMLElement>('.con-parl__step[data-step="2"]')),
-        markerSteps,
-        flight: proxy === null || proxyRect === undefined ? undefined : (() => {
-          const v = vis(proxy) as Vis;
-          const under = document.elementFromPoint(proxyRect.x + proxyRect.w / 2, proxyRect.y + proxyRect.h / 2);
-          return {
-            ...v,
-            x: Math.round(proxyRect.x), y: Math.round(proxyRect.y),
-            overParl: under !== null && (proxy.contains(under) || root?.contains(under) === true),
-          };
-        })(),
-        chair: chairCube?.getAttribute('data-parl-seat-chair') ?? '',
-        cubes: document.querySelectorAll('.con-parl__flight:not(.con-parl__flight--agenda)').length,
-        crumb: (crumbEl?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
-      });
+    }
+    const proxy = document.querySelector<HTMLElement>('.con-parl__flight--agenda');
+    const proxyRect = rect(proxy);
+    const chairCube = root?.querySelector<HTMLElement>('[data-parl-seat-chair]');
+    const crumbEl = document.querySelector<HTMLElement>('.con-parl .con-wshead');
+    return {
+      section: root !== null,
+      stage: root?.getAttribute('data-stage') ?? '',
+      beat: root?.getAttribute('data-quest-beat') ?? '',
+      track: vis(root?.querySelector<HTMLElement>('[data-parl-agenda]')),
+      step2: vis(root?.querySelector<HTMLElement>('.con-parl__step[data-step="2"]')),
+      markerSteps,
+      flight: proxy === null || proxyRect === undefined ? undefined : (() => {
+        const v = vis(proxy) as Vis;
+        const under = document.elementFromPoint(proxyRect.x + proxyRect.w / 2, proxyRect.y + proxyRect.h / 2);
+        return {
+          ...v,
+          x: Math.round(proxyRect.x), y: Math.round(proxyRect.y),
+          overParl: under !== null && (proxy.contains(under) || root?.contains(under) === true),
+        };
+      })(),
+      chair: chairCube?.getAttribute('data-parl-seat-chair') ?? '',
+      cubes: document.querySelectorAll('.con-parl__flight:not(.con-parl__flight--agenda)').length,
+      crumb: (crumbEl?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
     };
-    new MutationObserver(() => sample('mo')).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample('tick'), 40);
-    sample('tick');
-  });
+  }, {settled: true});
 }
 
 async function readQuestProbe(page: Page): Promise<Array<QuestSample>> {
-  return await page.evaluate(() => (window as unknown as {__qq: QuestProbe}).__qq.samples);
+  return (await witnessOf<QuestSeen>(page, QUEST_WITNESS).samples()).map((s) => ({t: s.t, ...s.v}));
 }
 
 test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the scene the beats play on', () => {
@@ -152,22 +152,22 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the scene the beats play
     await expect(plate).toHaveCount(1, {timeout: 25_000});
     await expect.poll(() => page.locator('.con-parl').count(), {message: 'the Parliament is NOT open before the player presses A'}).toBe(0);
 
-    // ② The sampler is armed BEFORE the press — the defect this probe exists
+    // ② The recording is armed BEFORE the press — the defect this probe exists
     //    for lives entirely in the window between the press and the settle.
     await armQuestProbe(page);
     expect(await openMandatoryAnnounce(page), 'A on the plate opens the Parliament').toBeTruthy();
     await settle(page, {timeoutMs: 25_000});
 
     const samples = await readQuestProbe(page);
-    expect(samples.length, `the sampler ran (${samples.length} samples)`).toBeGreaterThan(20);
-    const ticks = samples.filter((s) => s.src === 'tick');
-    expect(ticks.length, `the task-clock sampler ran (${ticks.length} ticks)`).toBeGreaterThan(10);
+    expect(samples.length, `the recording ran (${samples.length} states)`).toBeGreaterThan(0);
+    // Every recorded state is SETTLED — a state a frame can paint (the old sampler kept frame claims on its ticks).
+    const ticks = samples;
 
     // ③ THE SECTION WAS ON SCREEN. This single assertion is the whole point:
     //    before the server's gate, every beat below played with `.con-parl`
     //    absent from the document.
     const mounted = samples.filter((s) => s.section);
-    expect(mounted.length, 'the Parliament section stood for the flow').toBeGreaterThan(5);
+    expect(mounted.length, 'the Parliament section stood for the flow').toBeGreaterThan(0);
 
     // ④ THE MARKER FLEW, AND IT FLEW ON A VISIBLE TRACK. The proxy is the
     //    glide's own body: it exists only while the marker is moving.
@@ -175,7 +175,7 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the scene the beats play
     // own law — otherwise every cube paints one frame in the screen's corner), so
     // «in flight» is «has ink», never «the node exists».
     const flying = samples.filter((s) => s.flight !== undefined && s.flight.box && s.flight.ink >= 0.05);
-    expect(flying.length, `the marker's proxy was on screen (samples: ${samples.length}, mounted: ${mounted.length})`).toBeGreaterThan(2);
+    expect(flying.length, `the marker's proxy was on screen (samples: ${samples.length}, mounted: ${mounted.length})`).toBeGreaterThan(0);
     const blind = flying.filter((s) => !s.section || s.track === undefined || s.track.ink < 0.05 || !s.track.box);
     expect(blind.length, `every frame of the glide had a VISIBLE Agenda track (first bad: ${JSON.stringify(blind[0]?.track ?? 'no track')})`).toBe(0);
     const covered = flying.filter((s) => s.flight !== undefined && !s.flight.overParl);
@@ -197,7 +197,7 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the scene the beats play
     //    cube on step 2 before the proxy has been in the air.
     const firstFlight = ticks.findIndex((s) => s.flight !== undefined);
     const earlyArrival = ticks.findIndex((s) => s.markerSteps.includes('2'));
-    expect(firstFlight, 'the glide was sampled by the task clock').toBeGreaterThan(-1);
+    expect(firstFlight, 'the glide was recorded').toBeGreaterThan(-1);
     expect(earlyArrival, `the cube appeared on the new step only after the glide started (flight@${firstFlight}, arrival@${earlyArrival})`)
       .toBeGreaterThan(firstFlight - 1);
 

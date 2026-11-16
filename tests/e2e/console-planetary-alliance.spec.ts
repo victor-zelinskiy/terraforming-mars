@@ -1,8 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixture, fetchPlayerModel, playCardFromHand, playQueueCard, press, settle, walkFocusUntil} from './consoleStart';
+import {bootFixture, fetchPlayerModel, playCardFromHand, playQueueCard, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P56 PLANETARY ALLIANCE — the thirty-eighth Prelude 2 card (ledger FP): «Raise your TR 2 steps. Draw 1 Jovian card and
@@ -61,42 +62,45 @@ async function storyboard(page: Page, name: string): Promise<() => Promise<void>
   };
 }
 
-type Probe = {samples: number, rules: number, firstOnly: number, revealInHand: number, revealOutsideHand: number, outside: Array<string>};
+type Probe = {samples: number, rules: boolean, firstOnly: boolean, revealInHand: boolean, revealOutsideHand: boolean, outside: Array<string>};
 /**
- * From the press on (MutationObserver + setInterval, never rAF): the badge naming BOTH rules, a badge ever naming the
- * first rule ALONE (the lie — must stay 0), where the reveal stood.
+ * From the press on: the badge naming BOTH rules, a badge ever naming the first rule ALONE (the lie — must never stand),
+ * where the reveal stood. RECORDED off the product's own writes (FLAKE ZERO, `armWitness` — the replace-proof
+ * recorder: a page the product REPLACES neither loses the record nor stops it); the reader returns what stands NOW,
+ * «ever» is folded on the Node side. `settled`: «never the first rule alone», «never outside its home» are read on what
+ * a task leaves.
  */
+const PROBE = 'p56-probe';
+type ProbeRead = {full: boolean, firstOnly: boolean, inHome: boolean, outside: Array<string>};
 async function armProbe(page: Page, scope: 'start' | 'hand'): Promise<void> {
-  await page.evaluate(({rules, scope}) => {
-    const p: Probe = {samples: 0, rules: 0, firstOnly: 0, revealInHand: 0, revealOutsideHand: 0, outside: []};
-    (window as unknown as {__p56: Probe}).__p56 = p;
-    const sample = () => {
-      p.samples++;
-      for (const rule of document.querySelectorAll('[data-reveal-search] [data-draw-search]')) {
-        const signature = rule.getAttribute('data-draw-search');
-        if (signature === rules) {
-          p.rules++;
-        } else if (signature === 'with:jovian') {
-          p.firstOnly++;
-        }
-      }
-      for (const el of document.querySelectorAll('.con-reveal:not(.con-reveal--bonus-mode)')) {
-        const home = scope === 'hand' ? '.con-hand__outcome' : '[data-embed-slot="start"], .con-start';
-        if (el.closest(home) !== null) {
-          p.revealInHand++;
-        } else if ((el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true})) {
-          p.revealOutsideHand++;
-          if (p.outside.length < 6) {
-            p.outside.push(`${(el as HTMLElement).className} start=${document.querySelector('.con-start') !== null}`);
-          }
-        }
-      }
+  await armWitness<ProbeRead, {rules: string, scope: 'start' | 'hand'}>(page, PROBE, ({rules, scope}) => {
+    const signatures = Array.from(document.querySelectorAll('[data-reveal-search] [data-draw-search]')).map((rule) => rule.getAttribute('data-draw-search'));
+    const home = scope === 'hand' ? '.con-hand__outcome' : '[data-embed-slot="start"], .con-start';
+    const reveals = Array.from(document.querySelectorAll('.con-reveal:not(.con-reveal--bonus-mode)'));
+    return {
+      full: signatures.includes(rules),
+      firstOnly: signatures.includes('with:jovian'),
+      inHome: reveals.some((el) => el.closest(home) !== null),
+      outside: reveals.filter((el) => el.closest(home) === null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true}))
+        .map((el) => `${(el as HTMLElement).className} start=${document.querySelector('.con-start') !== null}`),
     };
-    new MutationObserver(() => sample()).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 30);
-  }, {rules: RULES, scope});
+  }, {args: {rules: RULES, scope}, settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p56: Probe}).__p56);
+async function readProbe(page: Page): Promise<Probe> {
+  const seen = await witnessOf<ProbeRead>(page, PROBE).values();
+  const outside: Array<string> = [];
+  for (const v of seen) {
+    outside.push(...v.outside.filter((o) => !outside.includes(o)));
+  }
+  return {
+    samples: seen.length,
+    rules: seen.some((v) => v.full),
+    firstOnly: seen.some((v) => v.firstOnly),
+    revealInHand: seen.some((v) => v.inHome),
+    revealOutsideHand: seen.some((v) => v.outside.length > 0),
+    outside: outside.slice(0, 6),
+  };
+}
 
 /** The badge of the searches, once the batch has landed: the server's numbers, BOTH rules by their signature, in order. */
 async function expectBadge(page: Page, scope: string, want: {revealed: number, taken: number, discarded: number, exhausted: boolean}): Promise<void> {
@@ -120,9 +124,8 @@ async function expectBadge(page: Page, scope: string, want: {revealed: number, t
 /** R3 on the pile, then each discard's verdict in the tray's order: the rule of the search that threw it away. */
 async function expectVerdicts(page: Page, rules: ReadonlyArray<'with:jovian' | 'with:venus'>, shotPrefix: string): Promise<void> {
   const verdict = page.locator('.con-zoom [data-zoom-discard-verdict]');
-  for (let i = 0; i < 3 && await verdict.count() === 0; i++) {
-    await press(page, 'KeyV', 1200);
-  }
+  // R3, verified by the verdict itself — a retry only after the whole window passed without one.
+  await pressUntil(page, 'KeyV', async () => await verdict.count() > 0, {tries: 3, settleMs: 1200});
   for (let i = 0; i < rules.length; i++) {
     await expect(verdict, `discard ${i + 1}: a positive filter's discard names the RULE it missed`).toHaveAttribute('data-verdict-kind', 'rule', {timeout: 10_000});
     await expect(verdict.locator('[data-draw-search]'), `discard ${i + 1} is judged by ITS OWN search`).toHaveAttribute('data-draw-search', rules[i], {timeout: 10_000});
@@ -222,10 +225,11 @@ test.describe(`P56 Planetary Alliance · two named searches of one play, a rule 
 
     const probe = await readProbe(page);
     test.info().annotations.push({type: 'p56-probe', description: JSON.stringify(probe)});
-    expect(probe.samples, 'the probe sampled').toBeGreaterThan(10);
-    expect(probe.rules, 'the badge named both rules').toBeGreaterThan(0);
-    expect(probe.firstOnly, 'the badge NEVER named the first rule alone').toBe(0);
-    expect(probe.revealOutsideHand, `the reveal stood in the start's zone (${probe.outside.join(' | ')})`).toBe(0);
+    // The record's own liveness only (a dead recorder records nothing); the claims below judge the play themselves.
+    expect(probe.samples, 'the probe sampled').toBeGreaterThan(0);
+    expect(probe.rules, 'the badge named both rules').toBe(true);
+    expect(probe.firstOnly, 'the badge NEVER named the first rule alone').toBe(false);
+    expect(probe.revealOutsideHand, `the reveal stood in the start's zone (${probe.outside.join(' | ')})`).toBe(false);
     expect(errors, 'no page error').toEqual([]);
   });
 
@@ -280,9 +284,9 @@ test.describe(`P56 Planetary Alliance · two named searches of one play, a rule 
     expect(after.thisPlayer.terraformRating - before.thisPlayer.terraformRating, '+2 TR').toBe(2);
     const probe = await readProbe(page);
     test.info().annotations.push({type: 'p56-probe', description: JSON.stringify(probe)});
-    expect(probe.revealOutsideHand, `the search never left the hand (${probe.outside.join(' | ')})`).toBe(0);
-    expect(probe.rules, 'both rules were named').toBeGreaterThan(0);
-    expect(probe.firstOnly, 'never the first rule alone').toBe(0);
+    expect(probe.revealOutsideHand, `the search never left the hand (${probe.outside.join(' | ')})`).toBe(false);
+    expect(probe.rules, 'both rules were named').toBe(true);
+    expect(probe.firstOnly, 'never the first rule alone').toBe(false);
     const witness = await transferWitness(page);
     expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);
   });

@@ -24,6 +24,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, playCardFromHand, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'mu-colony-question');
 const CARD = 'Research Colony';
@@ -62,36 +63,29 @@ function animalsOf(wire: Wire): number {
 
 type Sample = {crumb: string, picking: boolean, section: string, stack: string};
 
+const TRAIL_WITNESS = 'mu-colony-question:trail';
+
 /**
- * THE FLOW'S TRAIL — `setInterval` + `MutationObserver`, never rAF (a quiet screen stops the compositor's clock, and a
- * quiet screen is exactly where this lock lived). Each sample: the crumb's live tail (the LAST step of the incoming
- * layer — the outgoing one cross-fades beside it), whether the album stands, the stack's projection and its frames.
+ * THE FLOW'S TRAIL — RECORDED (FLAKE ZERO — `armWitness`: sampled in the task the product writes, on every frame, and
+ * fresh at every read — so a quiet screen, exactly where this lock lived, still answers with what stands). `settled`:
+ * «the tail never stepped back», «while the album stands the tail is the pick» are ORDER / coexistence claims — each
+ * state is the one a task leaves (the crumb's cross-fade swaps its layers inside one task). Each sample: the crumb's
+ * live tail (the LAST step of the incoming layer — the outgoing one cross-fades beside it), whether the album stands,
+ * the stack's projection and its frames.
  */
 async function armTrail(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__muq?: {samples: Array<Sample>}, __conColonyDiag?: () => {section?: string, stack?: Array<{kind: string, phase: string}>}};
-    const trail = {samples: [] as Array<Sample>};
-    w.__muq = trail;
-    let last = '';
-    const sample = (): void => {
-      const steps = Array.from(document.querySelectorAll('.con-wshead__layer--deep:not(.con-wshead__layer--out) .con-wshead__step'))
-        .map((el) => (el.textContent ?? '').trim()).filter((t) => t !== '');
-      const d = w.__conColonyDiag?.();
-      const s: Sample = {
-        crumb: steps[steps.length - 1] ?? '',
-        picking: document.querySelector('.con-hand[data-flow="picking"] [data-decline-plate]') !== null,
-        section: d?.section ?? '',
-        stack: (d?.stack ?? []).map((f) => `${f.kind}:${f.phase}`).join('>'),
-      };
-      const key = JSON.stringify(s);
-      if (key !== last) {
-        trail.samples.push(s);
-        last = key;
-      }
+  await armWitness<Sample>(page, TRAIL_WITNESS, () => {
+    const w = window as unknown as {__conColonyDiag?: () => {section?: string, stack?: Array<{kind: string, phase: string}>}};
+    const steps = Array.from(document.querySelectorAll('.con-wshead__layer--deep:not(.con-wshead__layer--out) .con-wshead__step'))
+      .map((el) => (el.textContent ?? '').trim()).filter((t) => t !== '');
+    const d = w.__conColonyDiag?.();
+    return {
+      crumb: steps[steps.length - 1] ?? '',
+      picking: document.querySelector('.con-hand[data-flow="picking"] [data-decline-plate]') !== null,
+      section: d?.section ?? '',
+      stack: (d?.stack ?? []).map((f) => `${f.kind}:${f.phase}`).join('>'),
     };
-    setInterval(sample, 50);
-    new MutationObserver(sample).observe(document.documentElement, {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-flow']});
-  });
+  }, {settled: true});
 }
 
 function lastSample(samples: ReadonlyArray<Sample>): Sample {
@@ -100,7 +94,7 @@ function lastSample(samples: ReadonlyArray<Sample>): Sample {
 }
 
 async function trailOf(page: Page): Promise<Array<Sample>> {
-  return await page.evaluate(() => (window as unknown as {__muq?: {samples: Array<Sample>}}).__muq?.samples ?? []);
+  return await witnessOf<Sample>(page, TRAIL_WITNESS).values();
 }
 
 /**

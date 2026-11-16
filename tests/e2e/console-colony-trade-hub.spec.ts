@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {NO_PAYMENT, bootFixtureSeats, cinematicBeat, fetchPlayerModel, settle} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P46 «ТОРГОВЫЙ УЗЕЛ КОЛОНИЙ» — the TWENTY-NINTH Prelude 2 card: «when ANY colony is placed, gain 2 M€». The effect is
@@ -61,29 +62,29 @@ async function storyboard(page: Page, name: string): Promise<() => Promise<void>
   };
 }
 
-/** The reaction scene, sampled on a task clock (never rAF): the faces that rose, and every cause plate painted under one. */
+/**
+ * The reaction scene — the faces that rose, and every cause plate painted under one — RECORDED off the product's own
+ * writes from before the build (FLAKE ZERO, `armWitness`): the reader returns what stands NOW, the distinct names and
+ * plates are gathered on the Node side across the whole record.
+ */
+const REACTION_PROBE = 'p46-reaction';
+type ReactionRead = {faces: Array<string>, plates: Array<string>};
 async function armReactionProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__p46: {risen: Array<string>, plates: Array<string>}};
-    w.__p46 = {risen: [], plates: []};
-    window.setInterval(() => {
-      for (const face of Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card], .con-recv__emerge[data-played-key]'))) {
-        const name = face.getAttribute('data-reaction-card') ?? face.getAttribute('data-played-key') ?? '';
-        if (!w.__p46.risen.includes(name)) {
-          w.__p46.risen.push(name);
-        }
-      }
-      for (const plate of Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card] [data-reaction-cause]'))) {
-        const key = `${plate.getAttribute('data-reaction-cause')}:${plate.getAttribute('data-cause-colony')}:${plate.getAttribute('data-cause-builder')}`;
-        if (!w.__p46.plates.includes(key)) {
-          w.__p46.plates.push(key);
-        }
-      }
-    }, 16);
-  });
+  await armWitness<ReactionRead>(page, REACTION_PROBE, () => ({
+    faces: Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card], .con-recv__emerge[data-played-key]'))
+      .map((face) => face.getAttribute('data-reaction-card') ?? face.getAttribute('data-played-key') ?? ''),
+    plates: Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card] [data-reaction-cause]'))
+      .map((plate) => `${plate.getAttribute('data-reaction-cause')}:${plate.getAttribute('data-cause-colony')}:${plate.getAttribute('data-cause-builder')}`),
+  }));
 }
 async function probe(page: Page): Promise<{risen: Array<string>, plates: Array<string>}> {
-  return page.evaluate(() => (window as unknown as {__p46?: {risen: Array<string>, plates: Array<string>}}).__p46 ?? {risen: [], plates: []});
+  const risen: Array<string> = [];
+  const plates: Array<string> = [];
+  for (const v of await witnessOf<ReactionRead>(page, REACTION_PROBE).values()) {
+    risen.push(...v.faces.filter((name, i) => !risen.includes(name) && v.faces.indexOf(name) === i));
+    plates.push(...v.plates.filter((key, i) => !plates.includes(key) && v.plates.indexOf(key) === i));
+  }
+  return {risen, plates};
 }
 
 /** A seat builds a colony through the standard project, over the API: the project (paid in M€), then the tile. */

@@ -7,6 +7,7 @@ import {
 import {
   armLeakWitness, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * JOINT RESEARCH (Turmoil Redux, RX16) — the ONE e2e of the card's new
@@ -63,43 +64,41 @@ const readingsIn = (page: Page, scope: string) => page.evaluate((sel) => {
 }, scope) as Promise<Array<Reading>>;
 
 /**
- * THE BAND ON THE REWARD BEAT, sampled on a task clock (`setInterval`, never rAF): the walk turns a quiet reward page
- * by itself (the soft gates), so a one-shot read after a poll for the stage can land on the results already.
+ * THE BAND ON THE REWARD BEAT, RECORDED off the product's own writes (FLAKE ZERO, `armWitness`): the walk turns a
+ * quiet reward page by itself (the soft gates), so a one-shot read after a poll for the stage can land on the results
+ * already. The reader returns the band as it stands NOW on the reward beat (null off it); every distinct state is
+ * kept. `settled`: «never a struck amount / never the amber / never a take» is read on what a task leaves.
  */
 type BandSample = {readings: Array<Reading>, none: string, lost: number, amber: number, take: number};
+const BAND_WITNESS = 'research-band';
 async function armBandSampler(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__bandSamples?: Array<unknown>};
-    const samples: Array<unknown> = [];
-    w.__bandSamples = samples;
-    window.setInterval(() => {
-      if (document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') !== 'reward') {
-        return;
-      }
-      const band = document.querySelector<HTMLElement>('[data-parl-sit-yield]');
-      if (band === null) {
-        return;
-      }
-      samples.push({
-        readings: Array.from(band.querySelectorAll<HTMLElement>('[data-yield-context]')).map((el) => ({
-          effect: el.closest<HTMLElement>('[data-yield-effect]')?.getAttribute('data-yield-effect') ?? null,
-          context: el.getAttribute('data-yield-context'),
-          target: el.getAttribute('data-yield-target'),
-          level: el.querySelector<HTMLElement>('[data-yield-in="level"]')?.getAttribute('data-yield-level') ?? null,
-          amount: el.getAttribute('data-yield-amount'),
-          skipped: el.getAttribute('data-yield-skipped'),
-          none: el.querySelector('[data-yield-none]') !== null,
-        })),
-        none: (band.querySelector('[data-yield-none]')?.textContent ?? '').trim(),
-        lost: band.querySelectorAll('.con-iyield__out--lost').length,
-        amber: band.querySelectorAll('.con-iyield__reading--skipped').length,
-        take: document.querySelectorAll('.con-extdraw').length,
-      });
-    }, 40);
-  });
+  await armWitness<BandSample | null>(page, BAND_WITNESS, () => {
+    if (document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') !== 'reward') {
+      return null;
+    }
+    const band = document.querySelector<HTMLElement>('[data-parl-sit-yield]');
+    if (band === null) {
+      return null;
+    }
+    return {
+      readings: Array.from(band.querySelectorAll<HTMLElement>('[data-yield-context]')).map((el) => ({
+        effect: el.closest<HTMLElement>('[data-yield-effect]')?.getAttribute('data-yield-effect') ?? null,
+        context: el.getAttribute('data-yield-context'),
+        target: el.getAttribute('data-yield-target'),
+        level: el.querySelector<HTMLElement>('[data-yield-in="level"]')?.getAttribute('data-yield-level') ?? null,
+        amount: el.getAttribute('data-yield-amount'),
+        skipped: el.getAttribute('data-yield-skipped'),
+        none: el.querySelector('[data-yield-none]') !== null,
+      })),
+      none: (band.querySelector('[data-yield-none]')?.textContent ?? '').trim(),
+      lost: band.querySelectorAll('.con-iyield__out--lost').length,
+      amber: band.querySelectorAll('.con-iyield__reading--skipped').length,
+      take: document.querySelectorAll('.con-extdraw').length,
+    };
+  }, {settled: true});
 }
-const bandSamples = (page: Page): Promise<Array<BandSample>> =>
-  page.evaluate(() => (window as unknown as {__bandSamples?: Array<BandSample>}).__bandSamples ?? []);
+const bandSamples = async (page: Page): Promise<Array<BandSample>> =>
+  (await witnessOf<BandSample | null>(page, BAND_WITNESS).values()).filter((s): s is BandSample => s !== null);
 
 type Outcome = {player: string, step: string, kind: string, amount?: number, drawn?: number, influence?: number, target?: number, total?: {before: number, after: number}, reason?: string};
 type Wire = {
@@ -150,7 +149,7 @@ test.describe('Joint Research · standard-1080', () => {
       await settle(page, {timeoutMs: 15_000});
       const block = page.locator('[data-parl-vote-yield]');
       await expect(block, 'the level reading block').toHaveCount(1);
-      expect(await readingsIn(page, '[data-parl-vote-yield]')).toEqual([
+      await expect.poll(() => readingsIn(page, '[data-parl-vote-yield]')).toEqual([
         {effect: 'draw', context: 'estimate', target: '8', level: '5', amount: '3', skipped: null, none: false},
       ]);
       await expect(block.locator('[data-yield-in="target"]').first(), 'the TARGET is printed, never alone').toHaveText('8');
@@ -197,7 +196,7 @@ test.describe('Joint Research · standard-1080', () => {
       await expect(page.locator('.con-extdraw__source .pcard').first(), 'the source is the resolution').toHaveClass(RESEARCH_CLASS);
       const bandYield = page.locator('[data-parl-sit-yield]');
       await expect(bandYield, 'the band reads the reward').toHaveCount(1, {timeout: 15_000});
-      expect(await readingsIn(page, '[data-parl-sit-yield]'), 'the band names the cause of the number, not one «+3»').toEqual([
+      await expect.poll(() => readingsIn(page, '[data-parl-sit-yield]'), {message: 'the band names the cause of the number, not one «+3»'}).toEqual([
         {effect: 'draw', context: 'resolving', target: '8', level: '5', amount: '3', skipped: null, none: false},
       ]);
       expect((await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, 'not in the hand until taken').toBe(5);

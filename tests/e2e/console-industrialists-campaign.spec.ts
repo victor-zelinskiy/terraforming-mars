@@ -5,6 +5,7 @@ import {
   createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, playQueueCard, queueCards, sendPlayerInput, settle,
   soloGameConfig, submitSummary, waitForBoardHome, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 /**
  * TRP7 INDUSTRIALISTS CAMPAIGN — the last of the six Prelude CAMPAIGNS of Turmoil Redux: «Increase your energy production
@@ -21,7 +22,7 @@ import {
  * The rules (the area, never the resolution — rulebook p.9 / p.11 step 5; the table answers the production, never the
  * energy as such) are pinned by `tests/cards/turmoilRedux/IndustrialistsCampaign.spec.ts`; this spec is the JOURNEY on
  * the TV profile — TRP5's stand (`console-greens-campaign`) with an opposition plaque and no table's answer. Order
- * claims are sampled from BEFORE the press (MutationObserver + setInterval, never rAF) — a TIMING-class spec
+ * claims are RECORDED from BEFORE the press (`armWitness`, settled — never a sampler of our own) — a TIMING-class spec
  * (`timingSpecs.ts`).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -37,18 +38,27 @@ type Wire = {
   waitingFor?: {type: string, coloniesModel?: Array<{name: string}>},
   game: {parliament: {slots: Array<WireSlot>, popularSupport: Record<string, number>, lastRally?: {card?: string, recount: boolean, megacredits: number, votes: Array<unknown>}}},
 };
+/** The recording folded on the Node side — every count is a count of recorded STATES (never of frames). */
 type Probe = {
-  samples: number, ticks: number, parlMax: number, crumbs: Array<string>, beats: Array<string>,
+  samples: number, parlMax: number, crumbs: Array<string>, beats: Array<string>,
   supportShown: Array<number>, countChip: number, degraded: Array<string>, parlWhileDrawing: number,
-  /** Samples of the SUPPORT beat with the Industrialists' plaque painted on top (its centre hit-tests inside its own tile) / covered. */
+  /** States of the SUPPORT beat with the Industrialists' plaque painted on top (its centre hit-tests inside its own tile) / covered. */
   plaqueSeen: number, plaqueCovered: number,
-  /** Samples of the SUPPORT beat with the Industrialists' plaque inside the government's ruler slot — must stay 0 (opposition). */
+  /** States of the SUPPORT beat with the Industrialists' plaque inside the government's ruler slot — must stay 0 (opposition). */
   plaqueInRulerSlot: number,
-  /** Samples of the SUPPORT beat with a card reaction's face painted on screen. */
+  /** States of the SUPPORT beat with a card reaction's face painted on screen. */
   reactionOverRally: number,
-  /** Samples with ANY card reaction's face mounted — the play wakes nobody (the Greens answer only plant / heat production). */
+  /** States with ANY card reaction's face mounted — the play wakes nobody (the Greens answer only plant / heat production). */
   reactionSeen: number,
 };
+/** One moment as the reader sees it. */
+type Seen = {
+  parls: number, beat: string, degraded: string | null, shown: number | null,
+  /** The SUPPORT beat only: the plaque painted on top / covered ('' when it has no box), in the ruler's slot, a reaction face over it. */
+  plaque: 'seen' | 'covered' | '', inRulerSlot: boolean, reactionOver: boolean,
+  reaction: boolean, countChip: boolean, parlWhileDrawing: boolean, crumbs: Array<string>,
+};
+const PROBE = 'trp7-rally';
 
 async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
   return await fetchPlayerModel(request, id) as unknown as Wire;
@@ -60,93 +70,104 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
-/** From the press on: the Parliament roots, the crumbs, the rally's beats, the Industrialists' plaque as DRAWN, the recount chip. */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__trp7: Probe};
-    const p: Probe = {samples: 0, ticks: 0, parlMax: 0, crumbs: [], beats: [], supportShown: [], countChip: 0, degraded: [], parlWhileDrawing: 0, plaqueSeen: 0, plaqueCovered: 0, plaqueInRulerSlot: 0, reactionOverRally: 0, reactionSeen: 0};
-    w.__trp7 = p;
+/**
+ * From the press on: the Parliament roots, the crumbs, the rally's beats, the Industrialists' plaque as DRAWN, the recount
+ * chip — RECORDED (`armWitness`: the product's own writes observed in the task that makes them, a frame tick for what only
+ * a computed style moves). The claims are about coexistence and order («one Parliament», «not while a reveal stands», the
+ * plaque only ever growing) — `settled`: a sample is the state a task leaves, the state a frame can paint.
+ */
+async function armProbe(page: Page): Promise<Witness<Seen>> {
+  return armWitness<Seen, string>(page, PROBE, (party) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const parls = document.querySelectorAll('.con-parl:not([data-parl-leaving])');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      const root = document.querySelector('.con-parl:not([data-parl-leaving])');
-      const beat = root?.getAttribute('data-rally-beat') ?? '';
-      if (beat !== '' && p.beats[p.beats.length - 1] !== beat) {
-        p.beats.push(beat);
-      }
-      const degraded = root?.getAttribute('data-parl-rally-degraded');
-      if (degraded !== null && degraded !== undefined && !p.degraded.includes(degraded)) {
-        p.degraded.push(degraded);
-      }
-      if (beat !== '') {
-        const shown = Number(root?.querySelector('[data-parl-support="Industrialists"]')?.getAttribute('data-support') ?? NaN);
-        if (!Number.isNaN(shown) && p.supportShown[p.supportShown.length - 1] !== shown) {
-          p.supportShown.push(shown);
-        }
-      }
-      // THE LANDING ZONE IS SEEN: while the cubes land, the Industrialists' plaque is on top — no dossier, no panel over it.
-      if (beat === 'support') {
-        const plaque = root?.querySelector('[data-parl-support="Industrialists"]');
-        const rect = plaque?.getBoundingClientRect();
-        if (plaque !== undefined && plaque !== null && rect !== undefined && rect.width > 0 && rect.height > 0) {
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          const tile = plaque.closest('.con-parl__party');
-          if (plaque.closest('[data-parl-ruler-slot]') !== null) {
-            p.plaqueInRulerSlot++;
-          }
-          if (hit !== null && tile !== null && (tile.contains(hit) || hit.closest('.con-transfer, [class*="flight"], [class*="proxy"]') !== null)) {
-            p.plaqueSeen++;
-          } else {
-            p.plaqueCovered++;
-          }
-          // …and no CARD REACTION's face stands over the Parliament while they land (a table's answer to the play — the
-          // server's EARLIER effect — plays first, the rally after; a face is pointer-events: none, so the hit test
-          // above cannot see it).
-          for (const face of document.querySelectorAll<HTMLElement>('.con-reaction .pcard')) {
-            const b = face.getBoundingClientRect();
-            let op = 1;
-            for (let n: HTMLElement | null = face; n !== null; n = n.parentElement) {
-              const st = getComputedStyle(n);
-              if (st.visibility === 'hidden' || st.display === 'none') {
-                op = 0;
-                break;
-              }
-              op *= Number(st.opacity);
-            }
-            if (b.width > 0 && b.height > 0 && op > 0.05) {
-              p.reactionOverRally++;
+    const parls = document.querySelectorAll('.con-parl:not([data-parl-leaving])');
+    const root = document.querySelector('.con-parl:not([data-parl-leaving])');
+    const beat = root?.getAttribute('data-rally-beat') ?? '';
+    const shownRaw = Number(root?.querySelector(`[data-parl-support="${party}"]`)?.getAttribute('data-support') ?? NaN);
+    let plaqueState: 'seen' | 'covered' | '' = '';
+    let inRulerSlot = false;
+    let reactionOver = false;
+    // THE LANDING ZONE IS SEEN: while the cubes land, the plaque is on top — no dossier, no panel over it.
+    if (beat === 'support') {
+      const plaque = root?.querySelector(`[data-parl-support="${party}"]`);
+      const rect = plaque?.getBoundingClientRect();
+      if (plaque !== undefined && plaque !== null && rect !== undefined && rect.width > 0 && rect.height > 0) {
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        const tile = plaque.closest('.con-parl__party');
+        inRulerSlot = plaque.closest('[data-parl-ruler-slot]') !== null;
+        plaqueState = hit !== null && tile !== null && (tile.contains(hit) || hit.closest('.con-transfer, [class*="flight"], [class*="proxy"]') !== null) ?
+          'seen' : 'covered';
+        // …and no CARD REACTION's face stands over the Parliament while they land (a table's answer to the play — the
+        // server's EARLIER effect — plays first, the rally after; a face is pointer-events: none, so the hit test
+        // above cannot see it).
+        for (const face of document.querySelectorAll<HTMLElement>('.con-reaction .pcard')) {
+          const b = face.getBoundingClientRect();
+          let op = 1;
+          for (let n: HTMLElement | null = face; n !== null; n = n.parentElement) {
+            const st = getComputedStyle(n);
+            if (st.visibility === 'hidden' || st.display === 'none') {
+              op = 0;
               break;
             }
+            op *= Number(st.opacity);
+          }
+          if (b.width > 0 && b.height > 0 && op > 0.05) {
+            reactionOver = true;
+            break;
           }
         }
       }
-      if (document.querySelector('.con-reaction .pcard') !== null) {
-        p.reactionSeen++;
+    }
+    const crumbs: Array<string> = [];
+    document.querySelectorAll('.con-wshead').forEach((el) => {
+      const crumb = text(el);
+      if (crumb !== '' && !crumbs.includes(crumb)) {
+        crumbs.push(crumb);
       }
-      if (document.querySelector('[data-parl-count-id="rally"]') !== null) {
-        p.countChip++;
-      }
+    });
+    return {
+      parls: parls.length,
+      beat,
+      degraded: root?.getAttribute('data-parl-rally-degraded') ?? null,
+      shown: beat !== '' && !Number.isNaN(shownRaw) ? shownRaw : null,
+      plaque: plaqueState,
+      inRulerSlot,
+      reactionOver,
+      reaction: document.querySelector('.con-reaction .pcard') !== null,
+      countChip: document.querySelector('[data-parl-count-id="rally"]') !== null,
       // The Parliament may not stand while a deck scene or a reveal stands (the rally waits its turn).
-      if (parls.length > 0 && document.querySelector('.con-deckdraw, .con-reveal') !== null) {
-        p.parlWhileDrawing++;
-      }
-      document.querySelectorAll('.con-wshead').forEach((el) => {
-        const crumb = text(el);
-        if (crumb !== '' && !p.crumbs.includes(crumb)) {
-          p.crumbs.push(crumb);
-        }
-      });
+      parlWhileDrawing: parls.length > 0 && document.querySelector('.con-deckdraw, .con-reveal') !== null,
+      crumbs,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  });
+  }, {args: PARTY, settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__trp7: Probe}).__trp7);
+
+/** The recording folded: sequences with repeats collapsed, «ever» as a count of recorded states, the crumbs in order. */
+async function readProbe(probe: Witness<Seen>): Promise<Probe> {
+  const seen = await probe.values();
+  const collapsed = <T>(xs: Array<T>): Array<T> => xs.filter((x, i) => i === 0 || x !== xs[i - 1]);
+  const states = (pred: (s: Seen) => boolean) => seen.filter(pred).length;
+  const crumbs: Array<string> = [];
+  for (const crumb of seen.flatMap((s) => s.crumbs)) {
+    if (!crumbs.includes(crumb)) {
+      crumbs.push(crumb);
+    }
+  }
+  return {
+    samples: seen.length,
+    parlMax: Math.max(0, ...seen.map((s) => s.parls)),
+    crumbs,
+    beats: collapsed(seen.map((s) => s.beat).filter((b) => b !== '')),
+    supportShown: collapsed(seen.map((s) => s.shown).filter((n): n is number => n !== null)),
+    countChip: states((s) => s.countChip),
+    degraded: [...new Set(seen.map((s) => s.degraded).filter((d): d is string => d !== null))],
+    parlWhileDrawing: states((s) => s.parlWhileDrawing),
+    plaqueSeen: states((s) => s.plaque === 'seen'),
+    plaqueCovered: states((s) => s.plaque === 'covered'),
+    plaqueInRulerSlot: states((s) => s.inRulerSlot),
+    reactionOverRally: states((s) => s.reactionOver),
+    reactionSeen: states((s) => s.reaction),
+  };
+}
 
 test.describe('TRP7 — Industrialists Campaign: a Prelude\'s production and its support, inside the start', () => {
   test.use({viewport: PRESET.viewport, deviceScaleFactor: 1, screen: PRESET.viewport});
@@ -198,7 +219,7 @@ test.describe('TRP7 — Industrialists Campaign: a Prelude\'s production and its
     await shoot(page, '01-queue');
 
     // A on the Prelude → ONE answer: the energy production and the support (the ruling Greens do not answer energy).
-    await armProbe(page);
+    const rally = await armProbe(page);
     expect(await playQueueCard(page, CARD), 'the Prelude was played from the queue').toBe(true);
     await expect.poll(async () => (await wireOf(request, playerId)).game.parliament.popularSupport[PARTY] ?? 0,
       {timeout: 40_000, message: 'the play\'s own answer carries the support'}).toBe(3);
@@ -232,10 +253,10 @@ test.describe('TRP7 — Industrialists Campaign: a Prelude\'s production and its
     await waitQueueIdle(page);
     await expect.poll(() => queueCards(page), {timeout: 30_000, message: 'the next Prelude is in the queue'}).toContain(SECOND_PRELUDE);
     await shoot(page, '04-queue-goes-on');
-    const probe = await readProbe(page);
+    const probe = await readProbe(rally);
     const dump = JSON.stringify({crumbs: probe.crumbs, beats: probe.beats, parlMax: probe.parlMax, supportShown: probe.supportShown,
       countChip: probe.countChip, degraded: probe.degraded, parlWhileDrawing: probe.parlWhileDrawing, plaqueSeen: probe.plaqueSeen, plaqueCovered: probe.plaqueCovered, plaqueInRulerSlot: probe.plaqueInRulerSlot, reactionOverRally: probe.reactionOverRally, reactionSeen: probe.reactionSeen});
-    expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(5);
+    expect(probe.samples, `the recording ran (${probe.samples} states)`).toBeGreaterThan(0);
     expect(probe.parlMax, `ONE Parliament instance (${dump})`).toBe(1);
     expect(probe.parlWhileDrawing, `no Parliament while a reveal stood (${dump})`).toBe(0);
     expect(probe.plaqueInRulerSlot, `the Industrialists stand in the OPPOSITION — never the ruler's slot (${dump})`).toBe(0);

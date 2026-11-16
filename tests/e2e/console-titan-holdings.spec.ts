@@ -25,6 +25,7 @@ import {
   press, pressUntil, sendPlayerInput, settle, soloGameConfig, submitSummary, waitForBoardHome, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'titan');
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -66,23 +67,21 @@ function writeTrail(scene: string, trail: string): void {
   fs.writeFileSync(`test-results/titan-${scene}-${PRESET.id}.txt`, trail);
 }
 
-/** Any face of Titan lifted in its place, risen out of the receiving stage, or at the stage of the reaction layer. */
+const RISE_WITNESS = 'titan:rise';
+
+/**
+ * Any face of Titan lifted in its place, risen out of the receiving stage, or at the stage of the reaction layer —
+ * RECORDED from before the press (FLAKE ZERO — `armWitness`: caught in the task that lifts it).
+ */
 async function armRiseProbe(page: Page): Promise<void> {
-  await page.evaluate((card) => {
-    const w = window as unknown as {__rose: boolean};
-    w.__rose = false;
-    window.setInterval(() => {
-      if (document.querySelector(`[data-played-key="${card}"][data-reaction-lifted], [data-played-key="${card}"] [data-reaction-lifted], ` +
-        `[data-reaction-home="${card}"][data-reaction-lifted], .con-recv__emerge[data-played-key="${card}"], ` +
-        `.con-reaction__face[data-reaction-card="${card}"]`) !== null) {
-        w.__rose = true;
-      }
-    }, 16);
-  }, TITAN);
+  await armWitness<boolean, string>(page, RISE_WITNESS, (card) =>
+    document.querySelector(`[data-played-key="${card}"][data-reaction-lifted], [data-played-key="${card}"] [data-reaction-lifted], ` +
+      `[data-reaction-home="${card}"][data-reaction-lifted], .con-recv__emerge[data-played-key="${card}"], ` +
+      `.con-reaction__face[data-reaction-card="${card}"]`) !== null, {args: TITAN});
 }
 
 async function roseSeen(page: Page): Promise<boolean> {
-  return page.evaluate(() => (window as unknown as {__rose?: boolean}).__rose === true);
+  return witnessOf<boolean>(page, RISE_WITNESS).ever((up) => up);
 }
 
 const titanTiles = (page: Page) => page.locator(`.con-cardactions__tile[data-action-card="${TITAN}"]`);

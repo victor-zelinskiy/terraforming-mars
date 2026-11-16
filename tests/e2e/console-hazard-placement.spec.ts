@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {bootSeededGame, createGameWithCards, press} from './consoleStart';
+import {bootSeededGame, createGameWithCards, dossierLoaded, focusedSpaceId, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -90,8 +91,9 @@ async function focusStdProject(page: Page, title: RegExp): Promise<boolean> {
   const focusedName = () =>
     page.locator('.con-stdp__card--focused .con-stdp__name').innerText().catch(() => '');
   // Let the sheet finish its enter transition before the first press —
-  // early arrows were swallowed and the walk desynced from the grid.
-  await page.waitForTimeout(900);
+  // early arrows were swallowed and the walk desynced from the grid. The
+  // transition is a STATE the console reports (finite motion, holds).
+  await settle(page);
   const walk = ['ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowDown',
     'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft',
     'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowDown'];
@@ -138,16 +140,23 @@ test.describe('console placement panel · Ares hazard adjacency', () => {
       await key(page, 'KeyX', 2600);
     }
     await shoot(page, '05-placement-open');
-    const placing = (await panel.innerText()).includes('РАЗМЕЩЕНИЕ ТАЙЛА');
-    expect(placing, 'never reached a board placement').toBeTruthy();
+    // `useInnerText`: the kicker is uppercased by CSS — the panel reads what the player SEES (the HEAD read was `innerText`).
+    await expect(panel, 'never reached a board placement').toContainText('РАЗМЕЩЕНИЕ ТАЙЛА', {useInnerText: true});
 
     // Walk the board cursor over the legal cells until one is adjacent to a
-    // hazard — that cell's preview must name the production penalty.
+    // hazard — that cell's preview must name the production penalty. Each
+    // cell's dossier is read LOADED for THAT cell (class F — the panel names
+    // the cell its facts belong to) and at rest (two equal reads).
+    const dossierText = async () => {
+      const id = await focusedSpaceId(page);
+      await dossierLoaded(page, id === '' ? undefined : id);
+      return readSettled(page, () => panel.innerText(), {message: `the dossier of cell ${id}`});
+    };
     let found = '';
     const walk = ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown',
       'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowDown'];
     for (let i = 0; i < 48 && found === ''; i++) {
-      const text = await panel.innerText();
+      const text = await dossierText();
       // Match the PENALTY itself, not any «производство» line: a greenery
       // preview legitimately mentions other players' production gains, and
       // the loose stem stopped the walk on the first such cell.

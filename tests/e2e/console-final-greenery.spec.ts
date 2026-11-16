@@ -23,6 +23,7 @@ import {
   FINALE_BLOCK, armFinaleWitness, armPriceProbe, disarmFinaleWitness, finaleStage, fixtureTable, forceFrame, getModel, holdFinishFinale,
   openFinaleOnBoard, placeFinaleGreenery, postInput, readFinaleWitness, readPriceProbe, shoot, storyboard, terraformAnswer, titleOf, waitWithFrames, WireModel,
 } from './consoleEndgameHarness';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 const PROFILES = [
@@ -175,10 +176,13 @@ for (const profile of PROFILES) {
       expect(chip?.[1], `the row's delta chip names the price (${trail})`).toMatch(new RegExp(`^[−-]${before.cost}$`));
       expect(chip![0] - tick![0], `…painted with the departure's tick, not with the commit (${trail})`).toBeLessThan(250);
       expect(priceProbe.price.map(([, a]) => a), `the hero's own account: the price was flown (${trail})`).toContain('flown');
-      const cell = await page.evaluate((id) => {
+      // The cell's box AT REST (two equal reads a frame apart). The finale's pick STANDS for the player, so no `settle`
+      // first — what may legitimately hold behind a standing decision stands until the next press.
+      const cell = await readSettled(page, () => page.evaluate((id) => {
         const r = document.querySelector(`.board-space[data_space_id="${id}"]`)?.getBoundingClientRect();
-        return r === undefined ? undefined : {cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width};
-      }, placed);
+        const tenth = (x: number) => Math.round(x * 10) / 10; // a subpixel that jitters is not motion
+        return r === undefined ? undefined : {cx: tenth(r.left + r.width / 2), cy: tenth(r.top + r.height / 2), w: tenth(r.width)};
+      }, placed), {settle: false, message: 'the greenery\'s cell'});
       expect(priceProbe.tileFirst, `the tile proxy was painted (${trail})`).toBeDefined();
       expect(Math.hypot(priceProbe.tileFirst!.cx - cell!.cx, priceProbe.tileFirst!.cy - cell!.cy),
         `the greenery is BORN on its cell — never carried in from the table (${trail})`).toBeLessThan(cell!.w * 0.5);

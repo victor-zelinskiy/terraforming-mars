@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
@@ -97,10 +98,11 @@ test.describe(`P81 Soil Studies · «including this one» named, the play's shee
     await expect(terms.nth(0).locator('[data-count-self]'), '«в т.ч. эта карта 1»').toHaveAttribute('data-count-self', '1');
     await expect(terms.nth(1)).toHaveAttribute('data-count-term-n', '1');
     await expect(why.locator('[data-count-result]'), 'the result').toContainText('+5');
-    const strip = await why.evaluate((el) => {
+    // The strip's line and width are read AT REST (two equal reads a frame apart) — never half-way into its entrance.
+    const strip = await readSettled(page, () => why.evaluate((el) => {
       const tops = Array.from(el.children).map((c) => Math.round(c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2));
       return {spread: Math.max(...tops) - Math.min(...tops), sw: el.scrollWidth, cw: el.clientWidth};
-    });
+    }), {message: 'the «РАСЧЁТ» strip\'s line'});
     test.info().annotations.push({type: 'count-why', description: JSON.stringify(strip)});
     expect(strip.spread, 'ONE line — the three terms do not wrap').toBeLessThanOrEqual(12);
     expect(strip.sw, 'nothing cut').toBeLessThanOrEqual(strip.cw + 2);

@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, openCardActions, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
 import {readTransient, recordTransient} from './transientRecorder';
 
 /**
@@ -27,11 +28,12 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
-/** The law's tile on the browse grid — steered by geometry (the grid's order differs between tables). */
+/** The law's tile on the browse grid — steered by geometry, read at REST (`readSettled`; the grid's order differs
+ *  between tables). */
 async function focusLawTile(page: Page): Promise<void> {
   const focused = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-resolution') ?? '');
   for (let i = 0; i < 30 && await focused() !== LAW; i++) {
-    const dir = await page.evaluate((target) => {
+    const dir = await readSettled(page, () => page.evaluate((target) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(`.con-cardactions__tile[data-action-resolution="${target}"]`)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -43,10 +45,10 @@ async function focusLawTile(page: Page): Promise<void> {
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, LAW);
+    }, LAW), {settle: false, message: 'the step from the focused tile to the law\'s'});
     await press(page, dir, 260);
   }
-  expect(await focused(), 'the law\'s tile is focused').toBe(LAW);
+  await expect.poll(focused, {message: 'the law\'s tile is focused'}).toBe(LAW);
 }
 
 type Shape = {

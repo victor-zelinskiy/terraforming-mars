@@ -5,6 +5,8 @@ import {
   bootFixtureSeats, crumbText, fetchPlayerModel, openCardActions, press, pressUntil, settle, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
 import {openColoniesSection} from './cardTradeDoor';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * TRADE INDUSTRIES (Turmoil Redux, RX28) — the ONE e2e of the new mechanic: the
@@ -56,7 +58,9 @@ async function focusLawTile(page: Page): Promise<void> {
   const focused = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-resolution') ?? '');
   await expect(page.locator(`.con-cardactions__tile[data-action-resolution="${LAW}"]`), 'the law\'s tile is in the menu').toHaveCount(1);
   for (let i = 0; i < 16 && await focused() !== LAW; i++) {
-    const dir = await page.evaluate((target) => {
+    // The direction is read off the tiles at REST (class C — `readSettled`; the menu is browsed, no `settle` first):
+    // a cursor still gliding would steer the next press by a box mid-flight.
+    const dir = await readSettled(page, () => page.evaluate((target) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(`.con-cardactions__tile[data-action-resolution="${target}"]`)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -68,7 +72,7 @@ async function focusLawTile(page: Page): Promise<void> {
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, LAW);
+    }, LAW), {settle: false, message: 'the way from the focused tile to the law\'s'});
     await press(page, dir, 260);
   }
   if (await focused() !== LAW) {
@@ -116,33 +120,22 @@ test.describe(`Trade Industries · ${PRESET.id}`, () => {
 
     // ── ① THE SOURCE in the action menu: the law beside the cards, its tile priced for this seat.
     await waitForBoardHome(page, 40);
-    await page.evaluate(() => {
-      type Probe = {seenAt: number, to: string, wsUp: boolean, crumb: string, samples: number, timeline: Array<string>};
-      const w = window as unknown as {__fleetProbe: Probe};
-      w.__fleetProbe = {seenAt: 0, to: '', wsUp: false, crumb: '', samples: 0, timeline: []};
-      let last = '';
-      const sample = () => {
-        w.__fleetProbe.samples++;
-        const composer = document.querySelector('.con-cardactions .con-composer');
-        const state = [
+    // THE FLOW'S RECORD, armed here and read after the commit (FLAKE ZERO — `armWitness`, replace-proof): the
+    // workspace, its composer, the task hosts and the crumbs as they stand, and whether a STANDALONE task host stands —
+    // a standalone payment band would be the bill asked AFTER the press, never in the one framework. A «never» claim on
+    // what a frame can paint, so the record is `settled`.
+    const fleet = await armWitness<{state: string, band: boolean}>(page, 'tradeind-fleet', () => {
+      const composer = document.querySelector('.con-cardactions .con-composer');
+      return {
+        state: [
           document.querySelector('.con-cardactions') !== null ? 'ws' : '-',
           composer === null ? 'nocomposer' : `composer:${composer.getAttribute('data-composer-source')}`,
           document.querySelectorAll('.con-task-host').length + 'host',
           Array.from(document.querySelectorAll('.con-wshead')).map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim()).join('|'),
-        ].join(' ');
-        if (state !== last) {
-          last = state;
-          w.__fleetProbe.timeline.push(`${Math.round(performance.now())} ${state}`);
-        }
-        // A standalone payment band would be the bill asked AFTER the press — never in the one framework.
-        if (w.__fleetProbe.seenAt === 0 && document.querySelector('.con-task-host:not(.con-task-host--embedded)') !== null) {
-          w.__fleetProbe.seenAt = Math.round(performance.now());
-          w.__fleetProbe.crumb = Array.from(document.querySelectorAll('.con-wshead')).map((h) => h.textContent ?? '').join(' | ');
-        }
+        ].join(' '),
+        band: document.querySelector('.con-task-host:not(.con-task-host--embedded)') !== null,
       };
-      new MutationObserver(sample).observe(document.body, {childList: true, subtree: true, characterData: true, attributes: true});
-      setInterval(sample, 40);
-    });
+    }, {settled: true});
     await openCardActions(page);
     const tile = page.locator(`.con-cardactions__tile[data-action-resolution="${LAW}"]`);
     await expect(tile, 'the law is a source of «Действия карт»').toHaveCount(1);
@@ -191,15 +184,16 @@ test.describe(`Trade Industries · ${PRESET.id}`, () => {
 
     // ── ④ THE CLOSING BEAT reads the fleet (1 → 2) INSIDE the stage, then the flow LEAVES on its own.
     //    The beat is short (one reading), and the fleet was the seat's LAST action — the turn passes with the
-    //    answer — so the witness is armed BEFORE the press (MutationObserver + setInterval, never rAF) and
-    //    read from its samples: the stage must be seen reading «1 → 2» while the workspace still stands.
-    const readProbe = () => page.evaluate(() => (window as unknown as {__fleetProbe: {seenAt: number, to: string, wsUp: boolean, crumb: string, samples: number, timeline: Array<string>}}).__fleetProbe);
+    //    answer — so the witness is armed BEFORE the press (`armWitness`, above) and
+    //    read from its record: the stage must be seen reading «1 → 2» while the workspace still stands.
     expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).thisPlayer.fleetSize === 2, {tries: 3, settleMs: 2500}),
       'A commits ONE POST — the option and the bill — and the fleet arrives').toBeTruthy();
     await shoot(page, '04-fleet-committed');
-    const probe = await readProbe();
-    expect(probe.seenAt, `the bill was never asked after the press (timeline:\n${probe.timeline.join('\n')}\nconsole:\n${pageLogs.slice(-60).join('\n')})`).toBe(0);
-    expect(probe.samples, 'the probe was alive').toBeGreaterThan(5);
+    const fleetRecord = await fleet.stop();
+    const timeline = fleetRecord.map((s) => `${s.t} ${s.v.state}`);
+    expect(fleetRecord.some((s) => s.v.band), `the bill was never asked after the press (timeline:\n${timeline.join('\n')}\nconsole:\n${pageLogs.slice(-60).join('\n')})`).toBe(false);
+    // The record keeps DISTINCT states, never ticks: its floor catches only a dead recorder (`tests.md`).
+    expect(fleetRecord.length, 'the probe was alive').toBeGreaterThan(0);
     crumb = (await crumbText(page)).toUpperCase();
     await waitForBoardHome(page, 40);
     await expect(page.locator('.con-cardactions'), 'a finished flow leaves the workspace').toHaveCount(0);

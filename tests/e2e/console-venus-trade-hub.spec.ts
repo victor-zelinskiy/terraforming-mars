@@ -5,6 +5,7 @@ import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, press, pressUntil, se
 import {openColoniesSection} from './cardTradeDoor';
 import {focusDockCard} from './fleetDockDriver';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P90 «ВЕНЕРИАНСКИЙ ТОРГОВЫЙ УЗЕЛ» — the TWENTY-FOURTH Prelude 2 card: «when you trade, gain 3 M€». The effect is the
@@ -67,24 +68,28 @@ function watchPosts(page: Page): Array<string> {
   return posts;
 }
 
-/** The reaction scene, sampled on a task clock (never rAF): which faces rose (seated at the stage / emerged in place). */
+const REACTION_WITNESS = 'p90:reaction';
+
+/**
+ * The reaction scene, RECORDED from before the press (FLAKE ZERO — `armWitness`: caught in the task that seats it): which
+ * faces rose (seated at the stage / emerged in place).
+ */
 async function armReactionProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__p90: Array<string>};
-    w.__p90 = [];
-    window.setInterval(() => {
-      const seated = Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card], .con-recv__emerge[data-played-key]'))
-        .map((e) => e.getAttribute('data-reaction-card') ?? e.getAttribute('data-played-key') ?? '');
-      for (const name of seated) {
-        if (!w.__p90.includes(name)) {
-          w.__p90.push(name);
-        }
-      }
-    }, 16);
-  });
+  await armWitness<Array<string>>(page, REACTION_WITNESS, () =>
+    Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card], .con-recv__emerge[data-played-key]'))
+      .map((e) => e.getAttribute('data-reaction-card') ?? e.getAttribute('data-played-key') ?? ''));
 }
+/** Every face that rose, in the order of its first appearance. */
 async function risen(page: Page): Promise<Array<string>> {
-  return page.evaluate(() => (window as unknown as {__p90?: Array<string>}).__p90 ?? []);
+  const out: Array<string> = [];
+  for (const seated of await witnessOf<Array<string>>(page, REACTION_WITNESS).values()) {
+    for (const name of seated) {
+      if (!out.includes(name)) {
+        out.push(name);
+      }
+    }
+  }
+  return out;
 }
 
 function writeTrail(name: string, trail: string): void {

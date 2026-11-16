@@ -1,5 +1,12 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import {createGameWithCards, openConsole, pickCards, playQueueCard, playQueueUntil, press, submitSummary, walkToSummary} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow} from './witness';
+
+/** What the open reveal must have to itself — the wrong surfaces are counted in the DOM (the old checks' `toHaveCount(0)`). */
+type PrioritySeen = {open: boolean, mandatory: number, corpFirst: number, firstAct: number};
+/** The old absence check stood 600 ms after the full open; the record's window is never shorter. */
+const MIN_WINDOW_MS = 600;
 
 /**
  * Regression: a reveal overlay is a TOP-PRIORITY modal — it cannot be
@@ -105,6 +112,15 @@ test.describe('console · reveal is a top-priority modal', () => {
 
     const playerId = await prepareDrawingPrelude(page, request);
 
+    // THE PRIORITY CLAIM IS A RECORD (FLAKE ZERO — `armWitness`, armed BEFORE the press that opens the reveal; `settled`:
+    // «nothing stands over the open reveal» is a coexistence claim about what a frame can paint).
+    const priority = await armWitness<PrioritySeen>(page, 'reveal-priority', () => ({
+      open: document.querySelector('.con-reveal:not(.con-reveal--bonus-veiled):not(.con-reveal--bonus-held) .con-reveal__card') !== null,
+      mandatory: document.querySelectorAll('.con-mandatory').length,
+      corpFirst: document.querySelectorAll('.con-composer--corpfirst').length,
+      firstAct: document.querySelectorAll('.con-start__firstact').length,
+    }), {settled: true});
+
     // Prelude phase: play precisely the drawing prelude — it opens the reveal.
     expect(await playQueueCard(page, 'Acquired Space Agency'),
       'Acquired Space Agency never left the deployment queue').toBeTruthy();
@@ -116,20 +132,35 @@ test.describe('console · reveal is a top-priority modal', () => {
     const reveal = page.locator('.con-reveal__card');
     await expect(reveal).toHaveCount(1, {timeout: 45_000});
     await page.waitForSelector('.con-reveal:not(.con-reveal--bonus-veiled):not(.con-reveal--bonus-held) .con-reveal__card', {timeout: 20_000});
-    await page.waitForTimeout(600); // let the handoff + any start-scene leave settle
+    // Let the handoff + any start-scene leave settle — waited as a STATE, never a pause: the reveal's cursor stands,
+    // then the screen holds still (`readSettled`: the same picture twice, a frame apart, no finite motion running). The
+    // reveal stands for the player's take, so no console-wide quiet is asked first (`settle: false`).
+    await expect(page.locator('.con-reveal__strip .con-cards__slot--focused'), 'the reveal\'s cursor stands').toHaveCount(1, {timeout: 20_000});
+    await readSettled(page, () => page.evaluate(() => ({
+      focus: document.querySelector('.con-reveal__strip .con-cards__slot--focused')?.getAttribute('data-zoom-slot') ?? '',
+      surfaces: ['.con-mandatory', '.con-composer--corpfirst', '.con-start__firstact', '.con-start__qcard--focused']
+        .map((sel) => document.querySelectorAll(sel).length),
+    })), {settle: false, message: 'the screen after the reveal\'s handoff'});
+    // The window is never SHORTER than the old check's (a 600 ms pause after the full open): it runs from the first
+    // recorded frame of the OPEN reveal to the end state above, and at least that long on the page's clock.
+    const opened = await priority.waitFor((s) => s.open, {message: 'the record saw the reveal fully open'});
+    await expect.poll(async () => await pageNow(page) - opened.t, {message: 'the open-reveal window spans the old check\'s'})
+      .toBeGreaterThanOrEqual(MIN_WINDOW_MS);
+    const record = await priority.stop();
+    const openWindow = record.slice(record.findIndex((s) => s.v.open));
 
     // THE ASSERTION: the start workspace deliberately remains mounted for the
     // whole deployment, but it must not become a competing foreground. Neither
     // the mandatory announcement, nor the retired corporation modal, nor the
     // workspace's own first-action stage may paint over the reveal, whose
-    // card cursor owns the pad.
+    // card cursor owns the pad — in ANY recorded frame of the open reveal.
     const mandatory = page.locator('.con-mandatory');
     const corpFirst = page.locator('.con-composer--corpfirst');
     const firstActionStage = page.locator('.con-start__firstact');
     const revealFocus = page.locator('.con-reveal__strip .con-cards__slot--focused');
-    await expect(mandatory).toHaveCount(0);
-    await expect(corpFirst).toHaveCount(0);
-    await expect(firstActionStage).toHaveCount(0);
+    const intruders = openWindow.filter((s) => s.v.mandatory + s.v.corpFirst + s.v.firstAct > 0)
+      .map((s) => `${Math.round(s.t - opened.t)} ms ${JSON.stringify(s.v)}`);
+    expect(intruders, `no competing foreground stood while the reveal was open (${openWindow.length} states recorded)`).toEqual([]);
     await expect(revealFocus).toHaveCount(1);
 
     // Navigating (d-pad) walks the RECEIVED cards, never a surface beneath.

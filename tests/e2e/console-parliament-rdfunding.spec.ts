@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, crumbText, fetchPlayerModel, openCardActions, press, pressUntil, settle, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * R&D FUNDING (Turmoil Redux, RX26) — the ONE e2e of the new mechanics: a law
@@ -61,7 +62,9 @@ async function focusLawTile(page: Page): Promise<void> {
   const focused = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-resolution') ?? '');
   await expect(page.locator(`.con-cardactions__tile[data-action-resolution="${LAW}"]`), 'the law\'s tile is in the menu').toHaveCount(1);
   for (let i = 0; i < 16 && await focused() !== LAW; i++) {
-    const dir = await page.evaluate((target) => {
+    // The direction is read off the tiles at REST (class C — `readSettled`; the menu is browsed, no `settle` first):
+    // a cursor still gliding would steer the next press by a box mid-flight.
+    const dir = await readSettled(page, () => page.evaluate((target) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(`.con-cardactions__tile[data-action-resolution="${target}"]`)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -73,7 +76,7 @@ async function focusLawTile(page: Page): Promise<void> {
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, LAW);
+    }, LAW), {settle: false, message: 'the way from the focused tile to the law\'s'});
     await press(page, dir, 260);
   }
   if (await focused() !== LAW) {

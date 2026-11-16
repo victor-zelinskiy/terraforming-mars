@@ -6,6 +6,7 @@ import {
   soloGameConfig, walkToSpace,
 } from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * AMAZONIS PLANITIA, THE FAN MAP, on the console — the second fan map in the premium scope and the second with a
@@ -105,7 +106,8 @@ for (const profile of PROFILES) {
         {timeout: 15_000, message: 'the centre\'s popover names the restricted-area rule'}).toMatch(/Запретная зона/);
       await settle(page);
       await shoot(page, '01-centre-hover');
-      const centreBox = await page.locator(`[data_space_id="${RESTRICTED}"]`).boundingBox();
+      const centreBox = await readSettled(page, () => page.locator(`[data_space_id="${RESTRICTED}"]`).boundingBox(),
+        {message: 'the restricted centre\'s box'});
       if (centreBox !== null) {
         fs.mkdirSync(OUT, {recursive: true});
         const pad = centreBox.width * 1.6;

@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {createGameWithCards, fetchPlayerModel, press, reloadConsole, settle, soloGameConfig} from './consoleStart';
+import {createGameWithCards, fetchPlayerModel, press, pressUntil, reloadConsole, settle, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 import {campaignBase, seedIdentity} from './campaignFixtures';
 import {CardName} from '../../src/common/cards/CardName';
 
@@ -79,19 +80,20 @@ async function toCreator(page: Page, query: string): Promise<void> {
   await page.waitForSelector('.cm-crew', {timeout: 30_000});
 }
 
-/** RB until the deck whose body matches `body` stands. */
+/** RB until the deck whose body matches `body` stands (act → verify → retry only without it). */
 async function toDeck(page: Page, body: string): Promise<void> {
-  for (let i = 0; i < 6 && await page.locator(body).count() === 0; i++) {
-    await press(page, 'KeyE', 400);
-  }
+  await pressUntil(page, 'KeyE', async () => await page.locator(body).count() > 0, {tries: 6, settleMs: 400});
   await page.waitForSelector(body, {timeout: 15_000});
 }
 
-/** The expansions deck's cursor onto the plate `id` — walked by GEOMETRY (the grid's columns differ by profile). */
+/**
+ * The expansions deck's cursor onto the plate `id` — walked by GEOMETRY (the grid's columns differ by profile). Each
+ * step's direction is read off the two plates AT REST (`readSettled`; no `settle` first — a menu page).
+ */
 async function cursorToExpansion(page: Page, id: string): Promise<void> {
   const plate = page.locator(`.cm-exp[data-exp="${id}"]`);
   for (let i = 0; i < 16; i++) {
-    const step = await page.evaluate((target) => {
+    const step = await readSettled(page, () => page.evaluate((target) => {
       const want = document.querySelector(`.cm-exp[data-exp="${target}"]`)?.getBoundingClientRect();
       const at = document.querySelector('.cm-exp--cursor')?.getBoundingClientRect();
       if (want === undefined || at === undefined) {
@@ -107,7 +109,7 @@ async function cursorToExpansion(page: Page, id: string): Promise<void> {
         return 'ArrowUp';
       }
       return want.left > at.left ? 'ArrowRight' : 'ArrowLeft';
-    }, id);
+    }, id), {settle: false, message: `the step towards «${id}»`});
     if (step === 'here' || step === 'none') {
       break;
     }
@@ -175,7 +177,7 @@ for (const profile of [TV, DECK]) {
       await settle(page, {timeoutMs: 15_000}).catch(() => undefined);
       const ids = await page.locator('.cm-exp[data-exp]').evaluateAll((els) => els.map((e) => e.getAttribute('data-exp')));
       expect(ids.indexOf('prelude2'), 'the plate stands right after Prelude').toBe(ids.indexOf('prelude') + 1);
-      expect(await plateOn(page, 'prelude2'), 'ON by default (the owner, 2026-11-06)').toBe(true);
+      await expect.poll(() => plateOn(page, 'prelude2'), {message: 'ON by default (the owner, 2026-11-06)'}).toBe(true);
       await expect(page.locator('.cm-exp[data-exp="prelude2"] [data-exp-needs="prelude"]'), 'its chip names Prelude').toHaveCount(1);
       await expect(page.locator('.cm-exp[data-exp="prelude2"] .cm-exp__name')).toHaveText('Пролог 2');
       const fit = await deckFits(page);
@@ -202,7 +204,7 @@ for (const profile of [TV, DECK]) {
           {message: 'the setup is saved with Prelude 2', timeout: 30_000}).toBe(true);
         await toCreator(page, profile.query);
         await toDeck(page, '.cm-expansions');
-        expect(await plateOn(page, 'prelude2'), 'remembered').toBe(true);
+        await expect.poll(() => plateOn(page, 'prelude2'), {message: 'remembered'}).toBe(true);
       }
     });
   });
@@ -271,16 +273,14 @@ test.describe('Prelude 2 · the full inclusion · the table · tv4k', () => {
     await expect(ceres, 'the gated card names its module').toHaveAttribute('data-dev-gate', 'colonies');
     await expect(ceres).not.toHaveClass(/cm-drow--chosen/);
     await shoot(page, TV.id, 'c-01-gated');
-    for (let i = 0; i < 80; i++) {
-      await press(page, 'ArrowUp', 60);
-    }
+    // Back to the list's top (it clamps there): act → verify (the first row holds the cursor) → retry only without it.
+    await pressUntil(page, 'ArrowUp', async () => await page.locator('.cm-devcards__list .cm-drow').first()
+      .evaluate((el) => el.classList.contains('cm-drow--cursor')), {tries: 80, settleMs: 60});
     await expect(await pick('Spire')).toHaveClass(/cm-drow--chosen/);
     await expect(await pick('Нобелевская премия')).toHaveClass(/cm-drow--chosen/);
     await expect(await pick('Экспедиция Иштар')).toHaveClass(/cm-drow--chosen/);
     await shoot(page, TV.id, 'c-02-picked');
-    for (let i = 0; i < 3 && await page.locator('.cm-devcards').count() > 0; i++) {
-      await press(page, 'Escape', 500);
-    }
+    await pressUntil(page, 'Escape', async () => await page.locator('.cm-devcards').count() === 0, {tries: 3, settleMs: 500});
     const body = await launch(page);
     expect(body.customCorporationsList, 'the corporation rides the creation').toEqual(expect.arrayContaining(['Spire']));
     expect(body.customPreludes).toEqual(expect.arrayContaining(['Nobel Prize']));

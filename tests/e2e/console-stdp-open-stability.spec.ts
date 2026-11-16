@@ -2,11 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, press, settle} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * «СТАНДАРТНЫЕ ПРОЕКТЫ» STAND STILL (the owner, 2026-11-01, after P86): «при входе в "Продажу патентов" все карты мигают,
  * плитки стандартных проектов тоже мигают при открытии workspace, компоновка индикаторов глобальных параметров в верхнем
- * баре скачет при навигации по стандартным проектам». Three witnesses, each sampled from BEFORE its press (16 ms):
+ * баре скачет при навигации по стандартным проектам». Three witnesses, each RECORDED from BEFORE its press to the screen's rest:
  *
  *   A · the workspace opens: every project tile, once painted (opacity ≥ .95), never dips below .9 again;
  *   B · the d-pad walks every row: the four parameter cells of the top strip keep their box (±0.5 px) — the pre-select
@@ -20,13 +21,17 @@ import {bootFixture, press, settle} from './consoleStart';
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT = path.resolve('screenshots', 'stdp-open-stability');
 
-type Frame = {t: number, root: number, panel: number, cards: Array<{k: string, o: number, own: number, inline: string, cls: string}>, params: Array<{k: string, x: number, w: number}>, hand: number, slots: number};
+type FrameSeen = {root: number, panel: number, cards: Array<{k: string, o: number, own: number, inline: string, cls: string}>, params: Array<{k: string, x: number, w: number}>, hand: number, slots: number};
+type Frame = FrameSeen & {t: number};
 
-async function armProbe(page: Page, ms: number): Promise<void> {
-  await page.evaluate((span) => {
-    const frames: Array<unknown> = [];
-    (window as unknown as {__stdpProbe: Array<unknown>}).__stdpProbe = frames;
-    const t0 = performance.now();
+/**
+ * THE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press): every state the product writes and every
+ * painted frame, `settled` (the state a task LEAVES — a blink is a claim about what a frame can paint, never about a
+ * class swapped and restored inside one task). The window ends on the screen's own rest (the caller's `settle`), never
+ * on a duration.
+ */
+async function armProbe(page: Page, name: string): Promise<void> {
+  await armWitness<FrameSeen>(page, `stdp-open-stability:${name}`, () => {
     const opacityChain = (el: Element | null): number => {
       let o = 1;
       for (let e = el; e !== null; e = e.parentElement) {
@@ -34,43 +39,36 @@ async function armProbe(page: Page, ms: number): Promise<void> {
       }
       return Math.round(o * 1000) / 1000;
     };
-    const timer = window.setInterval(() => {
-      const cards = [...document.querySelectorAll<HTMLElement>('.con-stdp__card')].map((el, i) => ({
-        k: (el.querySelector('.con-stdp__name')?.textContent ?? String(i)).trim(),
-        o: opacityChain(el),
-        own: Number(getComputedStyle(el).opacity),
-        inline: el.style.opacity,
-        cls: el.className,
-      }));
-      const root = document.querySelector<HTMLElement>('.con-stdp');
-      const panel = root?.querySelector<HTMLElement>('[data-motion-panel]') ?? root;
-      const params = [...document.querySelectorAll('.con-status__param')].map((el) => {
-        const r = el.getBoundingClientRect();
-        return {k: [...el.classList].find((c) => c.startsWith('con-status__param--') && !c.endsWith('--ghost')) ?? '?', x: Math.round(r.left * 10) / 10, w: Math.round(r.width * 10) / 10};
-      });
-      const hand = document.querySelector('.con-stdp .con-hand');
-      const slots = [...document.querySelectorAll('.con-stdp .con-hand__slot')];
-      frames.push({
-        t: Math.round(performance.now() - t0),
-        root: root === null ? -1 : Number(getComputedStyle(root).opacity),
-        panel: panel === null || panel === undefined ? -1 : Number(getComputedStyle(panel).opacity),
-        cards, params,
-        hand: hand === null ? -1 : opacityChain(hand),
-        slots: slots.length === 0 ? -1 : Math.min(...slots.map((s) => opacityChain(s))),
-      });
-      if (performance.now() - t0 >= span) {
-        window.clearInterval(timer);
-      }
-    }, 16);
-  }, ms);
+    const cards = [...document.querySelectorAll<HTMLElement>('.con-stdp__card')].map((el, i) => ({
+      k: (el.querySelector('.con-stdp__name')?.textContent ?? String(i)).trim(),
+      o: opacityChain(el),
+      own: Number(getComputedStyle(el).opacity),
+      inline: el.style.opacity,
+      cls: el.className,
+    }));
+    const root = document.querySelector<HTMLElement>('.con-stdp');
+    const panel = root?.querySelector<HTMLElement>('[data-motion-panel]') ?? root;
+    const params = [...document.querySelectorAll('.con-status__param')].map((el) => {
+      const r = el.getBoundingClientRect();
+      return {k: [...el.classList].find((c) => c.startsWith('con-status__param--') && !c.endsWith('--ghost')) ?? '?', x: Math.round(r.left * 10) / 10, w: Math.round(r.width * 10) / 10};
+    });
+    const hand = document.querySelector('.con-stdp .con-hand');
+    const slots = [...document.querySelectorAll('.con-stdp .con-hand__slot')];
+    return {
+      root: root === null ? -1 : Number(getComputedStyle(root).opacity),
+      panel: panel === null || panel === undefined ? -1 : Number(getComputedStyle(panel).opacity),
+      cards, params,
+      hand: hand === null ? -1 : opacityChain(hand),
+      slots: slots.length === 0 ? -1 : Math.min(...slots.map((s) => opacityChain(s))),
+    };
+  }, {settled: true});
 }
 
-async function readProbe(page: Page, name: string, span: number): Promise<Array<Frame>> {
-  await page.waitForFunction((s) => {
-    const f = (window as unknown as {__stdpProbe?: Array<{t: number}>}).__stdpProbe ?? [];
-    return f.length > 0 && f[f.length - 1].t >= s - 20;
-  }, span, {timeout: span + 20_000});
-  const frames = await page.evaluate(() => (window as unknown as {__stdpProbe: Array<unknown>}).__stdpProbe) as Array<Frame>;
+/** Stop the recording — the caller has waited for the screen's rest — and write the series out (the evidence of a red). */
+async function readProbe(page: Page, name: string): Promise<Array<Frame>> {
+  const samples = await witnessOf<FrameSeen>(page, `stdp-open-stability:${name}`).stop();
+  const t0 = samples[0]?.t ?? 0;
+  const frames: Array<Frame> = samples.map((s) => ({t: s.t - t0, ...s.v}));
   fs.mkdirSync(OUT, {recursive: true});
   fs.writeFileSync(path.join(OUT, `${name}.json`), JSON.stringify(frames));
   return frames;
@@ -128,12 +126,12 @@ test.describe(`the Standard Projects workspace stands still · ${PRESET.id}`, ()
     await settle(page);
 
     // ── A · the workspace opens.
-    await armProbe(page, 2500);
+    await armProbe(page, 'a-open');
     await press(page, 'Comma', 900);
     await press(page, 'Enter', 200);
-    const open = await readProbe(page, 'a-open', 2500);
     await page.waitForSelector('.con-stdp', {timeout: 15_000});
     await settle(page);
+    const open = await readProbe(page, 'a-open');
     const names = [...new Set(open.flatMap((f) => f.cards.map((c) => c.k)))];
     expect(names.length, 'the tiles were sampled').toBeGreaterThan(3);
     const blinks: Record<string, Array<string>> = {};
@@ -146,12 +144,13 @@ test.describe(`the Standard Projects workspace stands still · ${PRESET.id}`, ()
     expect(blinks, 'a project tile composes to its rest monotonically while the workspace opens (no dip, no overshoot)').toEqual({});
 
     // ── B · the walk: the parameter cells keep their box.
-    await armProbe(page, 6000);
+    await armProbe(page, 'b-walk');
     const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowDown', 'ArrowRight'];
     for (const k of keys) {
       await press(page, k, 240);
     }
-    const walk = await readProbe(page, 'b-walk', 6000);
+    await settle(page);
+    const walk = await readProbe(page, 'b-walk');
     const moved: Array<string> = [];
     const base = walk[0]?.params ?? [];
     for (const f of walk) {
@@ -171,14 +170,14 @@ test.describe(`the Standard Projects workspace stands still · ${PRESET.id}`, ()
     for (let i = 0; i < 12 && !/продажа патентов/i.test(await focusedRow(page)); i++) {
       await press(page, 'ArrowDown', 240);
     }
-    expect(await focusedRow(page)).toMatch(/продажа патентов/i);
-    await armProbe(page, 3000);
+    await expect.poll(() => focusedRow(page)).toMatch(/продажа патентов/i);
+    await armProbe(page, 'c-sale');
     await press(page, 'Enter', 200);
-    const sale = await readProbe(page, 'c-sale', 3000);
+    await settle(page);
+    const sale = await readProbe(page, 'c-sale');
     const handDips = dipsAfterUp(sale.map((f) => ({t: f.t, v: f.hand})));
     const slotDips = dipsAfterUp(sale.map((f) => ({t: f.t, v: f.slots})));
     expect({hand: handDips.slice(0, 6), slots: slotDips.slice(0, 6)}, 'the sale\'s album, once painted, never dips').toEqual({hand: [], slots: []});
-    await settle(page);
     await page.screenshot({path: path.join(OUT, 'c-sale-settled.png')});
   });
 });

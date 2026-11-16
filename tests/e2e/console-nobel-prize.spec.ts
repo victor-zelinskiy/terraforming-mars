@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, fetchPlayerModel, playCardFromHand, playQueueCard, press, settle, walkFocusUntil} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P54 NOBEL PRIZE — the thirty-sixth Prelude 2 card (ledger FM): «Gain 5 M€. Draw 2 cards with requirements.», a WILD
@@ -58,33 +59,45 @@ async function storyboard(page: Page, name: string): Promise<() => Promise<void>
   };
 }
 
+/**
+ * `samples`: the distinct states the recording kept; `rule` / `revealInHand` / `revealOutsideHand`: how many of them
+ * showed it — «was it ever», never a count of frames.
+ */
 type Probe = {samples: number, rule: number, revealInHand: number, revealOutsideHand: number, outside: Array<string>};
-/** From the press on (MutationObserver + setInterval, never rAF): the rule seen, where the reveal stood. */
+/** One moment as the reader sees it: the rule named, the reveals in the hand, the PAINTED ones outside it. */
+type P54Seen = {rule: boolean, inHand: number, outside: Array<string>};
+const P54_WITNESS = 'p54-search';
+
+/**
+ * From the press on, RECORDED (FLAKE ZERO — `armWitness`): the rule seen, where the reveal stood. «Never left the hand»
+ * is a claim about what a FRAME shows, so the record is `settled` — the state a task leaves.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate((rule) => {
-    const p: Probe = {samples: 0, rule: 0, revealInHand: 0, revealOutsideHand: 0, outside: []};
-    (window as unknown as {__p54: Probe}).__p54 = p;
-    const sample = () => {
-      p.samples++;
-      if (document.querySelector(`[data-reveal-search] [data-draw-search="${rule}"]`) !== null) {
-        p.rule++;
+  await armWitness<P54Seen, string>(page, P54_WITNESS, (rule) => {
+    let inHand = 0;
+    const outside: Array<string> = [];
+    for (const el of document.querySelectorAll('.con-reveal:not(.con-reveal--bonus-mode)')) {
+      if (el.closest('.con-hand__outcome') !== null) {
+        inHand++;
+      } else if ((el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true})) {
+        outside.push(`${(el as HTMLElement).className} start=${document.querySelector('.con-start') !== null}`);
       }
-      for (const el of document.querySelectorAll('.con-reveal:not(.con-reveal--bonus-mode)')) {
-        if (el.closest('.con-hand__outcome') !== null) {
-          p.revealInHand++;
-        } else if ((el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true})) {
-          p.revealOutsideHand++;
-          if (p.outside.length < 6) {
-            p.outside.push(`${(el as HTMLElement).className} start=${document.querySelector('.con-start') !== null}`);
-          }
-        }
-      }
-    };
-    new MutationObserver(() => sample()).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 30);
-  }, RULE);
+    }
+    return {rule: document.querySelector(`[data-reveal-search] [data-draw-search="${rule}"]`) !== null, inHand, outside};
+  }, {args: RULE, settled: true, max: 20_000});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p54: Probe}).__p54);
+
+/** The recording folded on the Node side into the probe's old shape. */
+async function readProbe(page: Page): Promise<Probe> {
+  const seen = await witnessOf<P54Seen>(page, P54_WITNESS).values();
+  return {
+    samples: seen.length,
+    rule: seen.filter((v) => v.rule).length,
+    revealInHand: seen.filter((v) => v.inHand > 0).length,
+    revealOutsideHand: seen.filter((v) => v.outside.length > 0).length,
+    outside: seen.flatMap((v) => v.outside).slice(0, 6),
+  };
+}
 
 /** The badge of the search, once the batch has landed: the server's numbers, the rule by its signature. */
 async function expectBadge(page: Page, scope: string, want: {revealed: number, taken: number, discarded: number, exhausted: boolean}): Promise<void> {
@@ -181,7 +194,7 @@ test.describe(`P54 Nobel Prize · the named search «с требованием»
 
     const probe = await readProbe(page);
     test.info().annotations.push({type: 'p54-probe', description: JSON.stringify(probe)});
-    expect(probe.samples, 'the probe sampled').toBeGreaterThan(10);
+    expect(probe.samples, 'the probe recorded').toBeGreaterThan(0);
     expect(probe.rule, 'the reveal named its rule «с требованием»').toBeGreaterThan(0);
     expect(errors, 'no page error').toEqual([]);
   });

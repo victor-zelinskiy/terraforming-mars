@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import {enterSittingByPass, focusParliamentZone, openParliament, parliament, PARLIAMENT_PRESETS, parliamentWire, parliamentZone, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 /*
@@ -85,8 +86,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await bootFixtureSeats(page, request, 'parliament-dense', {query: preset.query, landing: 'board'});
       await openParliament(page);
       await settle(page, {timeoutMs: 20_000});
-      const parties = await parliament(page).locator('.con-parl__party').count();
-      expect(parties, 'six party tiles — one DOM instance per party').toBe(6);
+      await expect(parliament(page).locator('.con-parl__party'), 'six party tiles — one DOM instance per party').toHaveCount(6);
       // v2: the FIVE opposition tiles stand in the row, the RULING party's tile in the government's ruler slot.
       await expect(parliament(page).locator('.con-parl__parties .con-parl__party'), `${preset.id}: five opposition tiles in the row`).toHaveCount(5);
       await expect(parliament(page).locator('[data-parl-ruler] .con-parl__party'), `${preset.id}: the ruler's tile in the government`).toHaveCount(1);
@@ -166,7 +166,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'the vote mode opens').toBe(true);
       await settle(page, {timeoutMs: 15_000});
       const blocks = ['.con-parl__vote', '.con-parl__vrow', '.con-parl__info', '.con-parl__info-res', '.con-parl__info-vote', '.con-parl__info-main', '.con-parl__info-own', '.con-parl__cta'];
-      const snap = () => page.evaluate((sel) => {
+      // Every read at REST (`readSettled` — two equal reads a frame apart): the base and each step's read alike.
+      const snap = () => readSettled(page, () => page.evaluate((sel) => {
         const out: Record<string, {x: number, y: number, w: number, h: number}> = {};
         for (const s of sel) {
           const el = document.querySelector<HTMLElement>(s);
@@ -180,7 +181,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           out[`slot:${el.getAttribute('data-instance')}`] = {x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height)};
         });
         return out;
-      }, blocks);
+      }, blocks), {message: 'the vote mode\'s blocks'});
       const base = await snap();
       // «Зал» v7 (Ф4): the mode is ONE block — the reading stands, the party box does not (its formula is the
       // government's / the dossier's; the box exists only under TR03's door, which pays the party).
@@ -247,8 +248,10 @@ for (const preset of PARLIAMENT_PRESETS) {
       const base = await settledTiers();
       // EVIDENCE, not a claim: the government row's children (the empty seat or the enacted card, then the ruler
       // block) — the ruler's slot sits right of the first, so a moved slot names which neighbour changed width.
-      const rulingRow = () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__ruling > *'))
-        .map((el) => `${el.className.toString().split(' ')[0]}:${el.getBoundingClientRect().width.toFixed(2)}`).join(' '));
+      // Read at REST (`readSettled`; the sitting stands, so no settle).
+      const rulingRow = () => readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__ruling > *'))
+        .map((el) => `${el.className.toString().split(' ')[0]}:${el.getBoundingClientRect().width.toFixed(2)}`).join(' ')),
+      {settle: false, message: 'the government row'});
       const rulingBefore = await rulingRow();
       // The viewer's own pass runs the sitting — the walk plays the whole chain.
       await enterSittingByPass(page, request, playerId);

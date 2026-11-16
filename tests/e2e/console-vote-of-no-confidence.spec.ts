@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, fetchPlayerModel, FixtureName, focusCard, press, settle} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR76 «ВОТУМ НЕДОВЕРИЯ» — «КРЕСЛО → КАРЬЕРА» as the OUTCOME of a play
@@ -72,17 +73,21 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
   }
 }
 
-type Series = Array<[number, string]>;
+/**
+ * [position, value, ms] — every change of one reading: its POSITION in the recording (the order claims compare those —
+ * an order holds at any frame rate), the value, and the page's ms since the recording began (for the dump only).
+ */
+type Series = Array<[number, string, number]>;
 type Probe = {
+  /** How many distinct states the recording kept (its liveness — never a count of frames). */
   samples: number;
-  ticks: number;
   steps: Array<string>;
   crumbMisses: Array<string>;
   parlOutsideHand: boolean;
   parlMax: number;
   degraded: Array<string>;
   stranded: boolean;
-  /** Who the chair DRAWS (`data-parl-seat-chair`, '' = empty) — on task samples, while the Parliament stands. */
+  /** Who the chair DRAWS (`data-parl-seat-chair`, '' = empty) — while the Parliament stands. */
   chair: Series;
   /** The reserve stacks' painted counts. */
   redReserve: Series;
@@ -90,90 +95,124 @@ type Probe = {
   /** The step whose row draws the viewer's real cube. */
   cube: Series;
   beat: Series;
-  /** Delegate figures in flight (the seat's proxies), per task sample. */
+  /** Recorded states with a delegate figure in flight (the seat's proxies) — «was one ever seen», never a frame count. */
   flights: number;
 };
+/** One moment of the screen as the reader sees it (the recording stamps it with the page's time). */
+type VoncSeen = {
+  head: {root: string, subjects: Array<string>, miss: boolean, steps: Array<string>} | null,
+  parls: number,
+  parlOutsideHand: boolean,
+  degraded: Array<string>,
+  stranded: boolean,
+  /** The embedded Parliament on screen (never a WARM mount) — null while none stands. */
+  stage: {chair: string, red?: string, blue?: string, cubes: Array<number>, beat?: string, flight: boolean} | null,
+};
+const VONC_WITNESS = 'vonc-play';
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/**
+ * THE PLAY'S RECORDING (FLAKE ZERO — `armWitness`, armed before the press): the reader returns what stands now, every
+ * change is kept with the page's time. The claims are about what a FRAME shows and in what ORDER (the chair empty
+ * between the two figures, red's reserve before blue sits, ② after the chair), so the record is `settled` — the state a
+ * task leaves — and the order is read off the recording's positions.
+ */
 async function armProbe(page: Page, viewer: string, rival: string): Promise<void> {
-  await page.evaluate(({viewer, rival, card, root}) => {
-    const w = window as unknown as {__vonc: Probe};
-    const p: Probe = {samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, degraded: [], stranded: false,
-      chair: [], redReserve: [], blueReserve: [], cube: [], beat: [], flights: 0};
-    w.__vonc = p;
-    const t0 = Date.now();
+  await armWitness<VoncSeen, {viewer: string, rival: string, card: string, root: string}>(page, VONC_WITNESS, ({viewer, rival, card, root}) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Series, value: string | undefined) => {
-      if (value !== undefined && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
-      }
-    };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      const hand = document.querySelector('.con-hand');
-      const head = hand?.querySelector('.con-wshead') ?? null;
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-      }
-      const parls = document.querySelectorAll('.con-parl');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      parls.forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        }
-        const degraded = el.getAttribute('data-parl-grant-degraded');
-        if (degraded !== null && !p.degraded.includes(degraded)) {
-          p.degraded.push(degraded);
-        }
-      });
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      if (!tick) {
-        return;
-      }
-      p.ticks++;
-      // A WARM mount (`--warm`: invisible, laid out ahead of the push) is not on screen — nothing in it is a flight the player sees.
-      const parl = document.querySelector('.con-hand .con-parl--embedded:not(.con-parl--warm)');
-      if (parl === null) {
-        return;
-      }
-      note(p.chair, parl.querySelector('[data-parl-seat-chair]')?.getAttribute('data-parl-seat-chair') ?? '');
-      note(p.redReserve, parl.querySelector(`[data-parl-seat-reserve="${rival}"]`)?.getAttribute('data-count') ?? undefined);
-      note(p.blueReserve, parl.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count') ?? undefined);
+    const headEl = document.querySelector('.con-hand')?.querySelector('.con-wshead') ?? null;
+    let head: VoncSeen['head'] = null;
+    if (headEl !== null) {
+      const rootText = text(headEl.querySelector('.con-wshead__root'));
+      const subjects = Array.from(headEl.querySelectorAll('.con-wshead__subject')).map(text);
+      head = {
+        root: rootText,
+        subjects,
+        miss: rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase()),
+        steps: Array.from(headEl.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
+      };
+    }
+    const parls = Array.from(document.querySelectorAll('.con-parl'));
+    // A WARM mount (`--warm`: invisible, laid out ahead of the push) is not on screen — nothing in it is a flight the player sees.
+    const parl = document.querySelector('.con-hand .con-parl--embedded:not(.con-parl--warm)');
+    const cubes: Array<number> = [];
+    if (parl !== null) {
       for (let step = 0; step <= 12; step++) {
         const cube = document.querySelector<HTMLElement>(`[data-agenda-markers="${step}"] [data-agenda-cube="${viewer}"]`);
         if (cube !== null && !cube.classList.contains('con-parl__agenda-cube--hidden') && cube.getBoundingClientRect().width > 1) {
-          note(p.cube, String(step));
+          cubes.push(step);
         }
       }
-      note(p.beat, parl.getAttribute('data-walk-beat') ?? undefined);
-      if (document.querySelector('.con-parl__flight') !== null) {
-        p.flights++;
-      }
+    }
+    return {
+      head,
+      parls: parls.length,
+      parlOutsideHand: parls.some((el) => el.closest('.con-hand') === null || el.classList.contains('con-ws')),
+      degraded: parls.map((el) => el.getAttribute('data-parl-grant-degraded')).filter((d): d is string => d !== null),
+      stranded: document.querySelector('.con-stranded') !== null,
+      stage: parl === null ? null : {
+        chair: parl.querySelector('[data-parl-seat-chair]')?.getAttribute('data-parl-seat-chair') ?? '',
+        red: parl.querySelector(`[data-parl-seat-reserve="${rival}"]`)?.getAttribute('data-count') ?? undefined,
+        blue: parl.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count') ?? undefined,
+        cubes,
+        beat: parl.getAttribute('data-walk-beat') ?? undefined,
+        flight: document.querySelector('.con-parl__flight') !== null,
+      },
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  }, {viewer, rival, card: CARD_RU, root: ROOT_RU});
+  }, {args: {viewer, rival, card: CARD_RU, root: ROOT_RU}, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__vonc: Probe}).__vonc);
+/** The recording folded on the Node side into the probe's old shape: each series keeps a value's every CHANGE. */
+async function readProbe(page: Page): Promise<Probe> {
+  const seen = await witnessOf<VoncSeen>(page, VONC_WITNESS).samples();
+  const t0 = seen[0]?.t ?? 0;
+  const p: Probe = {samples: seen.length, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, degraded: [], stranded: false,
+    chair: [], redReserve: [], blueReserve: [], cube: [], beat: [], flights: 0};
+  seen.forEach((s, i) => {
+    const ms = s.t - t0;
+    const note = (series: Series, value: string | undefined) => {
+      if (value !== undefined && series[series.length - 1]?.[1] !== value) {
+        series.push([i, value, ms]);
+      }
+    };
+    const v = s.v;
+    if (v.head !== null) {
+      if (v.head.miss && p.crumbMisses.length < 8) {
+        p.crumbMisses.push(`${ms}ms root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+      }
+      for (const step of v.head.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    p.parlMax = Math.max(p.parlMax, v.parls);
+    p.parlOutsideHand = p.parlOutsideHand || v.parlOutsideHand;
+    for (const degraded of v.degraded) {
+      if (!p.degraded.includes(degraded)) {
+        p.degraded.push(degraded);
+      }
+    }
+    p.stranded = p.stranded || v.stranded;
+    if (v.stage === null) {
+      return;
+    }
+    note(p.chair, v.stage.chair);
+    note(p.redReserve, v.stage.red);
+    note(p.blueReserve, v.stage.blue);
+    for (const step of v.stage.cubes) {
+      note(p.cube, String(step));
+    }
+    note(p.beat, v.stage.beat);
+    if (v.stage.flight) {
+      p.flights++;
+    }
+  });
+  return p;
+}
 
 const composer = '.con-composer--play';
 
-/** The first ms `series` read `value`; undefined when it never did. */
+/** The recording's POSITION at which `series` first read `value`; undefined when it never did. */
 const at = (series: Series, value: string): number | undefined => series.find(([, v]) => v === value)?.[0];
 
 async function focusTheCard(page: Page): Promise<void> {
@@ -273,7 +312,7 @@ for (const preset of PRESETS) {
       const dump = JSON.stringify({steps: probe.steps, chair: probe.chair, red: probe.redReserve, blue: probe.blueReserve, cube: probe.cube, beat: probe.beat, flights: probe.flights});
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/vonc-${preset.id}.json`, JSON.stringify(probe, null, 1));
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+      expect(probe.samples, 'the probe recorded').toBeGreaterThan(0);
 
       // ── б. one flow ──
       expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);
@@ -285,6 +324,7 @@ for (const preset of PRESETS) {
       expect(probe.beat.map(([, b]) => b), `the beats went forward (${dump})`).toEqual(['seat', 'walk', 'read', 'done']);
 
       // ── в. the order: red's chair → empty (the cube lifts) → blue; red's reserve home on the touchdown; ② after the seat ──
+      //    (positions in the recording — «before» / «after» is an order, never a number of milliseconds)
       const chairs = probe.chair.map(([, c]) => c);
       expect(chairs[0], `the chair read red when the Parliament rose (${dump})`).toBe(rival);
       expect(chairs[chairs.length - 1], `…and blue at the end (${dump})`).toBe(viewer);

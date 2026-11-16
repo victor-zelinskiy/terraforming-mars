@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, cinematicBeat, press, settle} from './consoleStart';
 import {armLeakWitness, parliamentWire, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * THE REDUX VENUS TRADE ON THE DELEGATE CELLS (the 2026-10-25 report, fixture
@@ -122,7 +123,9 @@ test('Venus trade on the delegate cells: the vote opens EMBEDDED in the colony w
   console.log('── the step over its arrival ──\n' + reads.map((r) => JSON.stringify({...r, voteText: r.voteText.slice(0, 80)})).join('\n'));
   await shoot(page, '01-vote-step');
 
-  const step = reads[reads.length - 1];
+  // The step is JUDGED AT REST (C — `readSettled`: the same read twice, a frame apart — its hit test reads a box); the
+  // vote stands for the player, so the read does not first wait for the whole console to go quiet (`settle: false`).
+  const step = await readSettled(page, () => readStep(page), {settle: false, message: 'the vote step'});
   expect(step.parls, 'ONE Parliament instance').toBe(1);
   expect(step.embedded, 'the Parliament is EMBEDDED').toBe(true);
   expect(step.standalone, 'never a standalone band').toBe(false);
@@ -137,8 +140,8 @@ test('Venus trade on the delegate cells: the vote opens EMBEDDED in the colony w
 
   // The pad drives the vote: → moves the cursor to another resolution, ← back, A sends the delegates.
   await press(page, 'ArrowRight', 600);
-  const moved = await readStep(page);
-  expect(moved.voteText, '→ moved the vote\'s cursor (the reading panel names another resolution)').not.toBe(step.voteText);
+  await expect.poll(async () => (await readStep(page)).voteText,
+    {message: '→ moved the vote\'s cursor (the reading panel names another resolution)'}).not.toBe(step.voteText);
   await press(page, 'ArrowLeft', 600);
   await page.keyboard.press('Enter');
   await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.type ?? 'none',

@@ -3,6 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, crumbText, fetchPlayerModel, openCardActions, press, pressUntil, settle, waitForBoardHome, walkFocusUntil} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * MANUFACTURING RUN (Turmoil Redux, RX37) — «Серийный выпуск», the ONE e2e of a
@@ -86,12 +88,13 @@ async function untilServer(request: APIRequestContext, playerId: string, ok: (m:
   throw new Error(`the server never reached: ${what} (last: uses ${JSON.stringify(last?.game.parliament?.viewer?.resolutionAction)})`);
 }
 
-/** In «ДЕЙСТВИЯ КАРТ»: steer the cursor onto the LAW's tile (geometry-steered, the focused tile as the witness). */
+/** In «ДЕЙСТВИЯ КАРТ»: steer the cursor onto the LAW's tile (geometry-steered — read at REST, `readSettled` — the focused
+ *  tile as the witness). */
 async function focusLawTile(page: Page): Promise<void> {
   const focused = () => page.evaluate(() => document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-resolution') ?? '');
   await expect(page.locator(`.con-cardactions__tile[data-action-resolution="${LAW}"]`), 'the law\'s tile is in the menu').toHaveCount(1);
   for (let i = 0; i < 16 && await focused() !== LAW; i++) {
-    const dir = await page.evaluate((target) => {
+    const dir = await readSettled(page, () => page.evaluate((target) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(`.con-cardactions__tile[data-action-resolution="${target}"]`)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -103,13 +106,22 @@ async function focusLawTile(page: Page): Promise<void> {
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, LAW);
+    }, LAW), {settle: false, message: 'the step from the focused tile to the law\'s'});
     await press(page, dir, 260);
   }
   if (await focused() !== LAW) {
     await walkFocusUntil(page, async () => await focused() === LAW, focused, 30);
   }
-  expect(await focused(), 'never focused the law\'s tile').toBe(LAW);
+  await expect.poll(focused, {message: 'never focused the law\'s tile'}).toBe(LAW);
+}
+
+/** The cursor's place in the stage's variant row (−1: not on the row). */
+const variantAt = (page: Page): Promise<string> => page.evaluate((sel) =>
+  String(Array.from(document.querySelectorAll(sel)).findIndex((el) => el.classList.contains('con-vchoice__opt--focused'))), VARIANT);
+
+/** Walk the variant row onto the variant at `index` — act → verify on the focused tile, turning at a wall (never blind). */
+async function focusVariant(page: Page, index: number): Promise<void> {
+  await walkFocusUntil(page, async () => await variantAt(page) === String(index), () => variantAt(page), 12, 200);
 }
 
 /** The law's «N из M» on its plate in «Действия карт». */
@@ -125,9 +137,7 @@ async function composeUse(page: Page, variant: number, card: string): Promise<vo
   expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}), 'A opens the law\'s stage').toBeTruthy();
   await expect(page.locator(VARIANT).first(), 'the stage stands').toBeVisible({timeout: 20_000});
   await settle(page, {timeoutMs: 15_000});
-  for (let i = 0; i < variant; i++) {
-    await press(page, 'ArrowRight', 200);
-  }
+  await focusVariant(page, variant);
   // The witness is the ANSWERED variant (its seal), never «the card is listed».
   expect(await pressUntil(page, 'Enter', async () => await page.locator(`${VARIANT}.con-vchoice__opt--selected`).count() > 0,
     {tries: 4, settleMs: 700}), 'A picks the variant').toBeTruthy();
@@ -154,7 +164,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 20_000});
       await openCardActions(page);
       await focusLawTile(page);
-      expect(await lawUsesText(page), 'the tile reads the live count').toMatch(/2\D+2/);
+      await expect.poll(() => lawUsesText(page), {message: 'the tile reads the live count'}).toMatch(/2\D+2/);
       await settle(page, {timeoutMs: 10_000});
       await shoot(page, preset.id, '01-card-actions-law-tile');
 
@@ -162,13 +172,12 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}), 'A opens the law\'s stage').toBeTruthy();
       await expect(page.locator(VARIANT), 'three kinds held — three variants').toHaveCount(3, {timeout: 20_000});
       await settle(page, {timeoutMs: 15_000});
-      const crumb = (await crumbText(page)).toUpperCase();
-      expect(crumb, `one crumb: the menu, the law (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
-      expect(crumb).toContain('СЕРИЙНЫЙ ВЫПУСК');
+      const crumb = async () => (await crumbText(page)).toUpperCase();
+      await expect.poll(crumb, {message: 'one crumb: the menu, the law'}).toContain('ДЕЙСТВИЯ КАРТ');
+      await expect.poll(crumb).toContain('СЕРИЙНЫЙ ВЫПУСК');
       await expect.poll(() => page.locator(READY).count(), {message: 'nothing chosen — the commit dims'}).toBe(0);
       await shoot(page, preset.id, '02-law-stage-three-variants');
-      await press(page, 'ArrowRight', 200);
-      await press(page, 'ArrowRight', 200);
+      await focusVariant(page, 2);
       expect(await pressUntil(page, 'Enter', async () => await page.locator(`${VARIANT}.con-vchoice__opt--selected`).count() > 0,
         {tries: 4, settleMs: 700}), 'A picks the mech').toBeTruthy();
       await expect(page.locator(`${STAGE} [data-composer-card="${MECHS}"]`).first(), 'the mech\'s holder').toBeAttached();
@@ -183,25 +192,17 @@ for (const preset of PRESETS) {
 
       // ── ③ THE COMMIT: the token is born on the law's face and lands ON the card (never the satellite under the glass).
       await armTransferWitness(page);
-      // PL-738 · FG: from the press on, the crumb's tail is sampled — past the commit it reads «ВЫПОЛНЕНИЕ» and never
-      // falls back to «НАСТРОЙКА» while the law's stage still stands (the funnel's lock falls at the answer; the phrase does not).
-      await page.evaluate(() => {
-        const w = window as unknown as {__pl738: Array<string>};
-        w.__pl738 = [];
+      // PL-738 · FG: from the press on, the crumb's tail is RECORDED (FLAKE ZERO: `armWitness`, `settled` — an ORDER claim
+      // about painted states) — past the commit it reads «ВЫПОЛНЕНИЕ» and never falls back to «НАСТРОЙКА» while the law's
+      // stage still stands (the funnel's lock falls at the answer; the phrase does not).
+      const tail = await armWitness<string>(page, 'pl738-tail', () => {
         // The tail's CURRENT word: the stage segment that is not leaving (the swap crossfades two words in one cell).
-        const sample = () => {
-          const steps = Array.from(document.querySelectorAll<HTMLElement>('.con-cardactions .con-wshead__step'))
-            .filter((el) => !Array.from(el.classList).some((c) => c.startsWith('con-wshead-swap-leave')));
-          const step = steps[steps.length - 1];
-          const text = step === undefined ? '' :
-            `${(step.textContent ?? '').replace(/\s+/g, ' ').trim().toUpperCase()}${step.classList.contains('con-wshead__step--committed') ? '·AMBER' : ''}`;
-          if (text !== '' && w.__pl738[w.__pl738.length - 1] !== text) {
-            w.__pl738.push(text);
-          }
-        };
-        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-        window.setInterval(sample, 40);
-      });
+        const steps = Array.from(document.querySelectorAll<HTMLElement>('.con-cardactions .con-wshead__step'))
+          .filter((el) => !Array.from(el.classList).some((c) => c.startsWith('con-wshead-swap-leave')));
+        const step = steps[steps.length - 1];
+        return step === undefined ? '' :
+          `${(step.textContent ?? '').replace(/\s+/g, ' ').trim().toUpperCase()}${step.classList.contains('con-wshead__step--committed') ? '·AMBER' : ''}`;
+      }, {settled: true});
       const stopStory = await storyboard(page, preset.id, 'commit');
       expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).game.parliament?.viewer?.resolutionAction?.usesLeft === 1,
         {tries: 3, settleMs: 2500}), 'A on the CTA commits one use').toBeTruthy();
@@ -209,7 +210,13 @@ for (const preset of PRESETS) {
       expect(one.game.parliament?.viewer?.resolutionAction).toMatchObject({usesLeft: 1, usesPerGeneration: 2, available: true});
       await settle(page, {timeoutMs: 30_000});
       await stopStory();
-      const crumbs = await page.evaluate(() => (window as unknown as {__pl738: Array<string>}).__pl738);
+      // Every word the tail wore, in order (an empty tail is no word — the record's words, consecutive repeats folded).
+      const crumbs: Array<string> = [];
+      for (const word of (await tail.stop()).map((s) => s.v)) {
+        if (word !== '' && crumbs[crumbs.length - 1] !== word) {
+          crumbs.push(word);
+        }
+      }
       console.log(`[PL-738 ${preset.id}] ${crumbs.join(' | ')}`);
       const performing = crumbs.findIndex((c) => c.includes('ВЫПОЛНЕНИЕ'));
       expect(performing, `PL-738: past the press the tail reads «ВЫПОЛНЕНИЕ» (${crumbs.join(' | ')})`).toBeGreaterThanOrEqual(0);
@@ -225,7 +232,7 @@ for (const preset of PRESETS) {
       // ── ④ «1 из 2» — and the SECOND use: 2 floaters onto Titan Shuttles.
       await openCardActions(page);
       await focusLawTile(page);
-      expect(await lawUsesText(page), 'one use left').toMatch(/1\D+2/);
+      await expect.poll(() => lawUsesText(page), {message: 'one use left'}).toMatch(/1\D+2/);
       await settle(page, {timeoutMs: 10_000});
       await shoot(page, preset.id, '05-tile-one-left');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 3, settleMs: 900}), 'B closes the menu').toBeTruthy();

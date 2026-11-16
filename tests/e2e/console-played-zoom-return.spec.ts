@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, press, pressUntil, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * «РАЗЫГРАНО» → fullscreen → BACK: the table must stay on stage.
@@ -60,7 +61,8 @@ test.describe('played table ⇄ fullscreen', () => {
     await key(page, 'KeyX', 1000);
     const table = page.locator('.con-played');
     await expect(table).toHaveCount(1);
-    const slotBefore = await page.locator('.con-played__slot').first().boundingBox();
+    // The slot's rect at REST (class C — `readSettled`: the same box twice, a frame apart).
+    const slotBefore = await readSettled(page, () => page.locator('.con-played__slot').first().boundingBox(), {message: 'the table\'s slot'});
     expect(slotBefore, 'the table must have a real slot rect').toBeTruthy();
 
     await key(page, 'Enter', 1400);
@@ -73,7 +75,8 @@ test.describe('played table ⇄ fullscreen', () => {
     await expect(table).toBeVisible();
     expect(await table.evaluate((el) => getComputedStyle(el).visibility)).toBe('visible');
     // 2 · …and its slot geometry is live throughout.
-    const slotDuring = await page.locator('.con-played__slot').first().boundingBox();
+    // Read at rest too — the viewer STANDS for the player, so no `settle` first.
+    const slotDuring = await readSettled(page, () => page.locator('.con-played__slot').first().boundingBox(), {settle: false, message: 'the table\'s slot under the viewer'});
     expect(slotDuring?.width ?? 0).toBeGreaterThan(4);
     // 3 · The source slot itself is HELD empty (no double image).
     await expect(page.locator('.con-played .con-zoom-hold')).toHaveCount(1);
@@ -84,16 +87,12 @@ test.describe('played table ⇄ fullscreen', () => {
     // plays — press until the viewer is actually gone (adaptive, never a
     // fixed sleep).
     const plate = page.locator('.con-zoom__prov');
-    for (let i = 0; i < 5 && await plate.count() > 0; i++) {
-      await key(page, 'Escape', 900);
-    }
+    await pressUntil(page, 'Escape', async () => await plate.count() === 0, {tries: 5, settleMs: 900});
     await expect(plate).toHaveCount(0);
     await expect(table).toBeVisible();
     await expect(page.locator('.con-played .con-zoom-hold')).toHaveCount(0);
     // …and B takes the card home from the category scene.
-    for (let i = 0; i < 3 && await page.locator('.con-played-cat').count() > 0; i++) {
-      await key(page, 'Escape', 1200);
-    }
+    await pressUntil(page, 'Escape', async () => await page.locator('.con-played-cat').count() === 0, {tries: 3, settleMs: 1_200});
     await expect(page.locator('.con-played-cat')).toHaveCount(0);
     await shoot(page, '02-returned');
   });

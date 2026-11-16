@@ -1,7 +1,10 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, createGameWithCards, offeredCards, openConsole, pickCalmCorporation, pickCards, pickedCards, playQueueCard, playQueueUntil, press, queueCards, soloGameConfig, submitSummary, walkToSummary} from './consoleStart';
+import {
+  bootIntoGame, createGameWithCards, offeredCards, openConsole, pickCalmCorporation, pickCards, pickedCards, playQueueCard, playQueueUntil, press,
+  pressUntil, queueCards, settle, soloGameConfig, submitSummary, walkToSummary,
+} from './consoleStart';
 
 /**
  * Console-native PROMPT ADMISSION · one response, one demand on the player.
@@ -152,12 +155,11 @@ test.describe('console prompt admission · a draw and a placement in ONE respons
     await expect.poll(() => boardLive.count(), {message: 'the board went LIVE for the greenery while the reveal was up'}).toBe(0);
     await expect.poll(() => page.locator('.board-space--available').count(), {message: 'the hex highlight was painted under the reveal modal'}).toBe(0);
 
-    // Answer the reveal (A takes each card; it closes when the batch is done)
-    // and let the intake flights land in the dock.
-    for (let i = 0; i < 8 && await reveal.count() > 0; i++) {
-      await key(page, 'Enter', 900);
-    }
-    await page.waitForTimeout(4000);
+    // Answer the reveal (A takes each card; it closes when the batch is done) —
+    // each A given its whole window before the next — and let the intake
+    // flights land in the dock: their holds released (a state, never a pause).
+    await pressUntil(page, 'Enter', async () => await reveal.count() === 0, {tries: 8, settleMs: 900});
+    await settle(page, {timeoutMs: 30_000});
     await shoot(page, '02-after-reveal');
 
     // ── AND THEN the placement gets its turn, on its own. ──────────────────
@@ -187,11 +189,22 @@ test.describe('console prompt admission · a draw and a placement in ONE respons
       }),
     });
 
-    // LT wheel → Standard Projects → «Озеленение» (2 rows down) → placement.
-    await key(page, 'Comma', 1200);
-    await key(page, 'Enter', 1500);
-    await key(page, 'ArrowDown', 500);
-    await key(page, 'ArrowDown', 500);
+    // LT wheel → Standard Projects → «Озеленение» (2 rows down) → placement —
+    // each press verified by what it opens / where the cursor stands, never a
+    // blind series.
+    await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {tries: 3, settleMs: 1200});
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-stdp').count() > 0, {tries: 3, settleMs: 1500});
+    const onGreenery = async () => await page.locator('.con-stdp__card--focused[data-stdp-card="Greenery"]').count() > 0;
+    // The grid has TWO columns and the cursor opens wherever the screen remembers (the right column on the box —
+    // «Электростанция»: two ↓ there reach «Город», the blind series' accidental target). Walk to the card itself: down
+    // to its row (it shares the bottom row with «Город»), then across — every hop verified by the focus.
+    const onBottomRow = async () => await onGreenery() ||
+      await page.locator('.con-stdp__card--focused[data-stdp-card="City"]').count() > 0;
+    expect(await pressUntil(page, 'ArrowDown', onBottomRow, {tries: 4, settleMs: 500}), 'the cursor reached the bottom row').toBe(true);
+    if (!await onGreenery()) {
+      await pressUntil(page, 'ArrowLeft', onGreenery, {tries: 2, settleMs: 500});
+    }
+    await expect.poll(onGreenery, {message: 'the cursor reached «Озеленение»'}).toBe(true);
     await key(page, 'Enter', 2500);
     await shoot(page, '10-plain-placement');
 

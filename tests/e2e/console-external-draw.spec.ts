@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext, Route} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, openMandatoryAnnounce, press, pressUntil, reloadConsole} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, press, pressUntil, reloadConsole, settle} from './consoleStart';
 import type {ExternalDrawTakeMeta} from '../../src/common/models/ExternalDrawPromptModel';
 import type {CardName} from '../../src/common/cards/CardName';
 
@@ -88,6 +88,15 @@ function newGameConfig() {
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
+}
+
+/**
+ * The entrance + the deal settled — the workspace's OWN state (`data-flow` leaves `dealing` for `ready`: the batch is
+ * dealt and the take is open), then the screen at rest; never a fixed pause.
+ */
+async function waitDealt(page: Page): Promise<void> {
+  await expect(page.locator('.con-extdraw[data-flow="ready"]'), 'the deal settled — the take is open').toHaveCount(1, {timeout: 30_000});
+  await settle(page);
 }
 
 async function createGame(request: APIRequestContext): Promise<string> {
@@ -218,7 +227,7 @@ test('an external draw: announced → A opens the workspace → take one, take a
   // ── 1 · ANNOUNCED, never torn open — and the cards are NOWHERE yet.
   expect(await openMandatoryAnnounce(page), 'the external draw was not announced').toBeTruthy();
   await page.waitForSelector('.con-extdraw', {timeout: 30_000});
-  await page.waitForTimeout(2600); // the entrance + the deal settle
+  await waitDealt(page);
   await shoot(page, '01-workspace');
 
   const opened = await snapshot(page);
@@ -261,7 +270,8 @@ test('an external draw: announced → A opens the workspace → take one, take a
   //        stranded, nothing deferred, no plate left behind.
   const gone = page.locator('.con-extdraw');
   await expect(gone, 'the workspace never folded after the last take').toHaveCount(0, {timeout: 25_000});
-  await page.waitForTimeout(1500);
+  // The board at rest (the landing's holds released) — the state the old pause stood for.
+  await settle(page);
   await shoot(page, '03-after');
   const end = await snapshot(page);
   console.log('── external draw, after ──', JSON.stringify(end));
@@ -279,7 +289,7 @@ test('the workspace is LOCKED: B with one card left neither takes nor closes', a
   await reloadConsole(page);
   expect(await openMandatoryAnnounce(page), 'the external draw was not announced').toBeTruthy();
   await page.waitForSelector('.con-extdraw', {timeout: 30_000});
-  await page.waitForTimeout(2600);
+  await waitDealt(page);
 
   // Take two, one at a time — one card left. Every press is act → verify → retry: a take's flight
   // + the row's re-seat (Э5, no ghost) can outlast a blind settle on a loaded runner.

@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, press} from './consoleStart';
+import {bootSeededGame, finiteMotion, press, waitStepDealSettled} from './consoleStart';
 
 /**
  * TV display-profile screenshot matrix (TV-3).
@@ -126,7 +126,12 @@ for (const preset of PRESETS) {
 
       // ── 1 · The console-native pre-game shell ──────────────────────
       await page.goto(`/?console=1${preset.profileQuery}`);
-      await page.waitForTimeout(1600); // fonts + entry animations settle
+      // Fonts + entry animations settle — waited as STATES, never a pause: the menu's items stand, the boot veil is
+      // gone, the fonts are loaded and no finite animation is left (softly — this is a gallery, not a motion check).
+      await page.waitForSelector('.cm-menu__items', {timeout: 60_000});
+      await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => {});
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
+      await expect.poll(() => finiteMotion(page), {timeout: 8_000}).toBe(0).catch(() => undefined);
       await shoot(page, preset, '01-main-menu');
 
       // ── 2 · A real solo game via the public API ────────────────────
@@ -142,7 +147,9 @@ for (const preset of PRESETS) {
       // cinematic settle before shooting.
       await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
       await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-      await page.waitForTimeout(3500); // deal cinematic settles
+      // The deal cinematic settles — its own facts (the live pane's focused slot, no card still arriving, no pending
+      // cursor), never a pause; bounded and never an assertion, and it presses nothing (a press would SKIP the deal).
+      await waitStepDealSettled(page);
       await shoot(page, preset, '02-start-scene');
 
       // ── 2b · Fullscreen card viewer (X on the focused corp) — the TV-fit

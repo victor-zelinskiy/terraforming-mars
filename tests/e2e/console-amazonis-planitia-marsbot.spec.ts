@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, fetchPlayerModel, openBotBoardDetail, openBotScreenHub, press, pressUntil, pressUntilVisible, settle} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * AMAZONIS PLANITIA + MarsBot on the console — phase 2 of the board's premium adaptation
@@ -93,8 +94,12 @@ test.describe(`Amazonis Planitia + MarsBot · ${PROFILE.id}`, () => {
     await expect(rows.nth(0).locator('.mb-cell').nth(24).locator('.mb-glyph--tr'), 'the building row ends on +6 TR').toHaveText(/\+6/);
     await expect.poll(async () => (await rows.nth(0).locator('.mb-track__pos').innerText()).replace(/\s+/g, ''),
       {message: 'the building row reads 20 of 24'}).toMatch(/^20\/24$/);
-    const widths = await rows.nth(0).locator('.mb-cell').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
-    const icons = await mat.locator('.mb-ico').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
+    // The cells and the icons, measured together at REST (class C — `readSettled`: both sides of the comparison in one
+    // read, the same answer twice a frame apart).
+    const {widths, icons} = await readSettled(page, async () => ({
+      widths: await rows.nth(0).locator('.mb-cell').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width)),
+      icons: await mat.locator('.mb-ico').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width)),
+    }), {message: 'the mat\'s cells and icons'});
     console.log('── mat geometry ──', JSON.stringify({cellMin: Math.min(...widths), cellMax: Math.max(...widths), icon: Math.max(...icons), cells: widths.length}));
     expect(Math.min(...widths), 'a 25-column cell still holds its icon with air').toBeGreaterThanOrEqual(Math.max(...icons) + 6);
     await shoot(page, '31-bot-mat');

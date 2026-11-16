@@ -13,7 +13,7 @@
  *      the receiving stage, six heat tokens are born on ITS printed heat and land on the heat row (ticking on the
  *      touchdowns), the production token on its plate — every end visible, nothing over glass; the server: +6 heat,
  *      +1 M€ production.
- * TIMING class (`timingSpecs.ts`): the births are sampled motion — run `--exclusive --workers=1` on the box.
+ * TIMING class (`timingSpecs.ts`): the births are recorded motion — run `--exclusive --workers=1` on the box.
  * The rule itself (the printed class, the forecast twin, the record) is pinned server-side.
  */
 import * as fs from 'fs';
@@ -24,6 +24,7 @@ import {
   waitForBoardHome,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'hartlan');
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -73,27 +74,21 @@ async function closeToBoard(page: Page): Promise<void> {
   await settle(page);
 }
 
-/** The reaction scene's phases, sampled on a task clock (never rAF) — the witness that the reactor ROSE before anything was born. */
+type ReactionSeen = {phase: string, emerged: string, seated: string};
+const REACTION_WITNESS = 'hartlan-reaction';
+
+/** The reaction scene's phases, RECORDED off the product's own writes (FLAKE ZERO — `armWitness`, armed before the
+ *  press; a distinct state is kept with the page's time) — the witness that the reactor ROSE before anything was born. */
 async function armReactionProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__reaction: Array<{t: number, phase: string, emerged: string, seated: string}>};
-    w.__reaction = [];
-    let last = '';
-    window.setInterval(() => {
-      const phase = document.querySelector('.con-reaction')?.getAttribute('data-reaction-phase') ?? 'none';
-      const emerged = Array.from(document.querySelectorAll('.con-recv__emerge[data-played-key]')).map((e) => e.getAttribute('data-played-key')).join('|');
-      const seated = Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card]')).map((e) => e.getAttribute('data-reaction-card')).join('|');
-      const now = `${phase}/${emerged}/${seated}`;
-      if (now !== last) {
-        last = now;
-        w.__reaction.push({t: performance.now(), phase, emerged, seated});
-      }
-    }, 16);
-  });
+  await armWitness<ReactionSeen>(page, REACTION_WITNESS, () => ({
+    phase: document.querySelector('.con-reaction')?.getAttribute('data-reaction-phase') ?? 'none',
+    emerged: Array.from(document.querySelectorAll('.con-recv__emerge[data-played-key]')).map((e) => e.getAttribute('data-played-key')).join('|'),
+    seated: Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card]')).map((e) => e.getAttribute('data-reaction-card')).join('|'),
+  }));
 }
 
-async function reactionProbe(page: Page): Promise<Array<{t: number, phase: string, emerged: string, seated: string}>> {
-  return page.evaluate(() => (window as unknown as {__reaction?: Array<{t: number, phase: string, emerged: string, seated: string}>}).__reaction ?? []);
+async function reactionProbe(page: Page): Promise<Array<{t: number} & ReactionSeen>> {
+  return (await witnessOf<ReactionSeen>(page, REACTION_WITNESS).samples()).map((s) => ({t: s.t, ...s.v}));
 }
 
 test.describe(`console · TR80 Hartlan Heating · ${PRESET.id}`, () => {

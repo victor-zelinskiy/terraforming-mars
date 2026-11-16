@@ -162,7 +162,9 @@ test.describe('start · two humans hand over together', () => {
 
     // ── FIRST submits while SECOND is still picking.
     await setUpAndSubmit(page, first.id, 2);
-    await page.waitForTimeout(2500);
+    // The submit lands as the committed selection's WAITING bridge — wait for that state, never a fixed beat.
+    await expect.poll(async () => (await surface(page)).selectionFlow, {timeout: 30_000, message: 'the committed selection shows its waiting bridge'})
+      .toContain('con-jrail__phase--waiting');
     await shoot(page, '01-first-after-submit');
 
     // 1 · The workspace STAYS on the summary in its waiting state — never an
@@ -188,32 +190,32 @@ test.describe('start · two humans hand over together', () => {
     expect(minimized.announce, 'the minimized start is announced on the board').toBeTruthy();
     // A returns to it.
     await press(page, 'Enter', 1500);
-    expect((await surface(page)).summary || (await surface(page)).awaiting,
-      'A returns to the waiting summary').toBeTruthy();
+    await expect.poll(async () => {
+      const now = await surface(page);
+      return now.summary || now.awaiting;
+    }, {timeout: 15_000, message: 'A returns to the waiting summary'}).toBeTruthy();
 
     // ── SECOND finishes their setup in another context.
     const secondPage = await (await browser.newContext({viewport: {width: 1920, height: 1080}})).newPage();
     await setUpAndSubmit(secondPage, second.id, 2);
-    await secondPage.waitForTimeout(3000);
 
     // 3 · …and NOW the deployment opens — for the first player too, with a
     //     functional hand dock (the take flights have a real target).
     await expect.poll(async () => (await surface(page)).deployment, {timeout: 60_000}).toBeTruthy();
-    await page.waitForTimeout(2500);
+    // The deployment's entrance: its queue dealt and IDLE (the state the old fixed beat waited for).
+    await waitQueueIdle(page);
     await shoot(page, '03-first-deployment');
-    const live = await surface(page);
-    console.log('[first deployment]', JSON.stringify(live));
-    expect(live.queue, 'the deployment really has the start queue').toBeGreaterThan(0);
-    expect(live.dock, 'the hand dock exists in the deployment').toBeTruthy();
-    expect(live.selectionFlow, 'selection consolidates once deployment opens').toContain('con-jrail__phase--completed');
-    expect(live.deploymentFlow, 'deployment unfolds in the same flow').toContain('con-jrail__phase--current');
+    console.log('[first deployment]', JSON.stringify(await surface(page)));
+    await expect.poll(async () => (await surface(page)).queue, {message: 'the deployment really has the start queue'}).toBeGreaterThan(0);
+    await expect.poll(async () => (await surface(page)).dock, {message: 'the hand dock exists in the deployment'}).toBeTruthy();
+    await expect.poll(async () => (await surface(page)).selectionFlow, {message: 'selection consolidates once deployment opens'}).toContain('con-jrail__phase--completed');
+    await expect.poll(async () => (await surface(page)).deploymentFlow, {message: 'deployment unfolds in the same flow'}).toContain('con-jrail__phase--current');
 
     await expect.poll(async () => (await surface(secondPage)).deployment, {timeout: 60_000}).toBeTruthy();
     await shoot(secondPage, '04-second-deployment');
-    const live2 = await surface(secondPage);
-    console.log('[second deployment]', JSON.stringify(live2));
-    expect(live2.queue, 'the second player gets the same functional deployment').toBeGreaterThan(0);
-    expect(live2.dock, '…with its hand dock').toBeTruthy();
+    console.log('[second deployment]', JSON.stringify(await surface(secondPage)));
+    await expect.poll(async () => (await surface(secondPage)).queue, {message: 'the second player gets the same functional deployment'}).toBeGreaterThan(0);
+    await expect.poll(async () => (await surface(secondPage)).dock, {message: '…with its hand dock'}).toBeTruthy();
     await secondPage.context().close();
   });
 

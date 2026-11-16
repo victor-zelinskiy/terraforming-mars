@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {armWitness, pageNow} from './witness';
+import type {ObservedSample} from './observeCore';
 import {
   bootIntoGame, cinematicBeat, confirmLockedPlacement, visibleSurfaces, fetchPlayerModel, press, pressUntil, readiness, settle, soloGameConfig, walkToSpace,
 } from './consoleStart';
@@ -50,6 +51,28 @@ async function ringOf(request: APIRequestContext, playerId: string, space: strin
   const preview = await res.json() as Preview;
   const facts = [...preview.immediateFacts, ...preview.ruleFacts, ...preview.recipientFacts, ...preview.costFacts];
   return facts.find((f) => f.reservesSpaces === true)?.spaces ?? [];
+}
+
+/** One recorded state of the ring's landing — an OBSERVATION. */
+type RingSeen = {city: boolean, cubes: Array<string>, flash: boolean};
+
+/** The FIRST moment (ms since the arm, the page's clock) the city and each ring cube stood; whether the start ever painted
+ *  over the chain. */
+function foldRing(samples: ReadonlyArray<ObservedSample<RingSeen>>, armedAt: number): {seen: Record<string, number>, flash: boolean} {
+  const seen: Record<string, number> = {};
+  let flash = false;
+  for (const {t, v} of samples) {
+    if (seen.city === undefined && v.city) {
+      seen.city = t - armedAt;
+    }
+    for (const id of v.cubes) {
+      if (seen[id] === undefined) {
+        seen[id] = t - armedAt;
+      }
+    }
+    flash = flash || v.flash;
+  }
+  return {seen, flash};
 }
 
 /** The start workspace is PAINTED (mounted-and-hidden is the yield pose). */
@@ -127,35 +150,20 @@ test.describe(`console · TR79 Ferrus Academy · ${PRESET.id}`, () => {
     await expect(ghosts, 'the silhouettes stand through the lock').toHaveCount(ring.length);
     await shoot(page, '03-silhouettes-locked');
 
-    // THE SAMPLER — armed before the confirm: when the city tile and each ring cube FIRST paint.
-    await page.evaluate(({cells, city}) => {
-      const t0 = performance.now();
-      const seen: Record<string, number> = {};
-      let painted = false;
-      let flash = false;
-      (window as unknown as {__ferrusRing: unknown}).__ferrusRing = {seen, t0, get flash() {
-        return flash;
-      }};
-      const tick = () => {
-        const cityCell = document.querySelector(`.board-space[data_space_id="${city}"]`);
+    // THE RECORDING — armed before the confirm (FLAKE ZERO — `armWitness`, `settled`: a PAINT is what a task leaves):
+    // the city tile and the ring cubes standing, and the start workspace painted over the chain.
+    const ringWitness = await armWitness<RingSeen, {cells: Array<string>, city: string}>(page, 'ferrus-ring', ({cells, city}) => {
+      const cityCell = document.querySelector(`.board-space[data_space_id="${city}"]`);
+      const start = document.querySelector('.con-start') as HTMLElement | null;
+      return {
         // The REAL tile paints in the cell at the contact, under the settling proxy (the hero layer itself stays for the rewards).
-        if (seen.city === undefined && cityCell !== null && cityCell.querySelector('[class*="board-space-tile--"]') !== null) {
-          seen.city = performance.now() - t0;
-        }
-        for (const id of cells) {
-          if (seen[id] === undefined && document.querySelector(`.board-space[data_space_id="${id}"] > .player-cube.board-owner-cube`) !== null) {
-            seen[id] = performance.now() - t0;
-          }
-        }
-        const start = document.querySelector('.con-start') as HTMLElement | null;
-        const chain = document.querySelectorAll('.con-tileplace').length > 0;
-        painted = start !== null && start.checkVisibility({opacityProperty: true, visibilityProperty: true});
-        if (painted && chain) {
-          flash = true;
-        }
+        city: cityCell !== null && cityCell.querySelector('[class*="board-space-tile--"]') !== null,
+        cubes: cells.filter((id) => document.querySelector(`.board-space[data_space_id="${id}"] > .player-cube.board-owner-cube`) !== null),
+        flash: start !== null && start.checkVisibility({opacityProperty: true, visibilityProperty: true}) &&
+          document.querySelectorAll('.con-tileplace').length > 0,
       };
-      window.setInterval(tick, 16);
-    }, {cells: ring, city: target});
+    }, {args: {cells: ring, city: target}, settled: true});
+    const armedAt = await pageNow(page);
     await confirmLockedPlacement(page, 'Enter');
 
     // The server: the city stands, the ring is the player's.
@@ -164,16 +172,10 @@ test.describe(`console · TR79 Ferrus Academy · ${PRESET.id}`, () => {
       return ring.every((id) => spaces.find((s) => s.id === id)?.color === color);
     }, {timeout: 30_000, message: 'every cell of the ring holds the player\'s cube on the server'}).toBeTruthy();
 
-    // The cubes land — read the sampler once every ring cube has painted.
-    await expect.poll(async () => page.evaluate((cells) => {
-      const s = (window as unknown as {__ferrusRing: {seen: Record<string, number>}}).__ferrusRing.seen;
-      return cells.every((id) => s[id] !== undefined);
-    }, ring), {timeout: 30_000, message: 'every ring cube painted on the board'}).toBeTruthy();
+    // The cubes land — read the recording once every ring cube has painted (they stay: one state holds them all).
+    await ringWitness.waitFor((v) => v.cubes.length === ring.length, {timeoutMs: 30_000, message: 'every ring cube painted on the board'});
     await shoot(page, '04-ring-landed');
-    const sample = await page.evaluate(() => {
-      const r = (window as unknown as {__ferrusRing: {seen: Record<string, number>, flash: boolean}}).__ferrusRing;
-      return {seen: {...r.seen}, flash: r.flash};
-    });
+    const sample = foldRing(await ringWitness.stop(), armedAt);
     const cubeTimes = ring.map((id) => sample.seen[id]).sort((a, b) => a - b);
     const distinct = new Set(cubeTimes.map((t) => Math.round(t / 16))).size;
     console.log(`── ring ${target}: city ${sample.seen.city?.toFixed(0)} ms · cubes ${cubeTimes.map((t) => t.toFixed(0)).join(' / ')}`);

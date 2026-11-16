@@ -5,6 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
   waitForBoardHome,
 } from './consoleStart';
+import {armWitness, Witness} from './witness';
 import {answerAsksAs, closeSittingAs, closeSitting, expectDossierIsRules, expectParliamentFits, openParliament, PARLIAMENT_PRESETS, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
@@ -106,67 +107,93 @@ const rulerPlaque = (page: Page) => page.evaluate(() => {
 });
 
 type ZoneProbe = {
+  /** Recorded STATES (distinct observations — never a count of frames). */
   samples: number, bandHeights: Array<number>, emptyBodyFrames: number, chips: number, chipTexts: Array<string>,
   /** The highest stored-resource count each layout slot's capsule ever showed WHILE the slot stood in the stage. */
   capsules: Record<string, string>,
 };
+/** One moment of the zone as the reader sees it. */
+type ZoneSeen = {
+  capsules: Record<string, string>, bandH: number | null, bodyEmpty: boolean,
+  /** Every payout chip on screen — its identity (a WeakMap on the page: the same element keeps its id) and text. */
+  chips: Array<{id: number, text: string}>,
+};
+const ZONE_WITNESS = 'parliament-cloud-zone';
 
 /**
- * The zone contract's witnesses, sampled on a task clock (MutationObserver + setInterval — never rAF, which
- * headless Chromium starves on a quiet screen): the band's height on every frame the Parliament stands, whether
- * the body zone ever has NO laid-out child (a blink), and every payout chip that ever appeared.
+ * The zone contract's witnesses, RECORDED (`armWitness` — the product's own writes observed in the task that makes
+ * them, never a sampler of our own): the band's height on every state the Parliament stands in, whether the body zone
+ * ever has NO laid-out child (a blink), and every payout chip that ever appeared. `settled`: «the body never stood
+ * empty» is a claim about what a frame can paint — a sample between two writes of one task (the old child out, the new
+ * one in a microtask later) is no such state.
  */
-async function armZoneProbe(page: Page): Promise<void> {
-  await page.evaluate((stage) => {
-    const w = window as unknown as {__cloudProbe: ZoneProbe & {seen: WeakSet<Element>}};
-    w.__cloudProbe = {samples: 0, bandHeights: [], emptyBodyFrames: 0, chips: 0, chipTexts: [], capsules: {}, seen: new WeakSet<Element>()};
-    const sample = () => {
-      const probe = w.__cloudProbe;
-      probe.samples++;
-      // The capsules' ticks are read IN the sample (a poll from outside can arrive after a short flight has
-      // already handed the surface on — the Deck's small stage flies its chips in a few hundred ms).
-      for (const slot of Array.from(document.querySelectorAll<HTMLElement>(`${stage} .con-cards__slot`))) {
-        const card = slot.getAttribute('data-zoom-slot') ?? '';
-        const text = slot.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
-        if (card !== '' && text !== '' && Number(text) > Number(probe.capsules[card] ?? '-1')) {
-          probe.capsules[card] = text;
-        }
+async function armZoneProbe(page: Page): Promise<Witness<ZoneSeen>> {
+  return armWitness<ZoneSeen, string>(page, ZONE_WITNESS, (stage) => {
+    const w = window as unknown as {__cloudChipIds?: WeakMap<Element, number>, __cloudChipNext?: number};
+    w.__cloudChipIds ??= new WeakMap<Element, number>();
+    w.__cloudChipNext ??= 0;
+    const ids = w.__cloudChipIds;
+    // The capsules' ticks are read IN the sample (a poll from outside can arrive after a short flight has
+    // already handed the surface on — the Deck's small stage flies its chips in a few hundred ms).
+    const capsules: Record<string, string> = {};
+    for (const slot of Array.from(document.querySelectorAll<HTMLElement>(`${stage} .con-cards__slot`))) {
+      const card = slot.getAttribute('data-zoom-slot') ?? '';
+      const text = slot.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
+      if (card !== '' && text !== '') {
+        capsules[card] = text;
       }
-      const band = document.querySelector<HTMLElement>('.con-band');
-      if (band !== null) {
-        const h = Math.round(band.getBoundingClientRect().height);
-        if (!probe.bandHeights.includes(h)) {
-          probe.bandHeights.push(h);
-        }
+    }
+    const band = document.querySelector<HTMLElement>('.con-band');
+    const body = document.querySelector<HTMLElement>('.con-parl__bodyzone');
+    const bodyEmpty = body !== null && !Array.from(body.children).some((child) => {
+      const r = child.getBoundingClientRect();
+      const cs = getComputedStyle(child);
+      return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
+    });
+    const chips = Array.from(document.querySelectorAll('.con-transfer__chip')).map((chip) => {
+      let id = ids.get(chip);
+      if (id === undefined) {
+        id = (w.__cloudChipNext ?? 0) + 1;
+        w.__cloudChipNext = id;
+        ids.set(chip, id);
       }
-      const body = document.querySelector<HTMLElement>('.con-parl__bodyzone');
-      if (body !== null) {
-        const laidOut = Array.from(body.children).some((child) => {
-          const r = child.getBoundingClientRect();
-          const cs = getComputedStyle(child);
-          return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
-        });
-        if (!laidOut) {
-          probe.emptyBodyFrames++;
-        }
-      }
-      for (const chip of Array.from(document.querySelectorAll('.con-transfer__chip'))) {
-        if (!probe.seen.has(chip)) {
-          probe.seen.add(chip);
-          probe.chips++;
-          probe.chipTexts.push((chip.textContent ?? '').trim());
-        }
-      }
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-    window.setInterval(sample, 16);
-  }, STAGE);
+      return {id, text: (chip.textContent ?? '').trim()};
+    });
+    return {capsules, bandH: band === null ? null : Math.round(band.getBoundingClientRect().height), bodyEmpty, chips};
+  }, {args: STAGE, settled: true});
 }
 
-const readZoneProbe = (page: Page) => page.evaluate(() => {
-  const p = (window as unknown as {__cloudProbe: ZoneProbe}).__cloudProbe;
-  return {samples: p.samples, bandHeights: p.bandHeights, emptyBodyFrames: p.emptyBodyFrames, chips: p.chips, chipTexts: p.chipTexts, capsules: p.capsules};
-});
+/** The recording folded: the highest capsule per card, the band's distinct heights, the empty-body states, the chips. */
+async function readZoneProbe(probe: Witness<ZoneSeen>): Promise<ZoneProbe> {
+  const seen = await probe.values();
+  const capsules: Record<string, string> = {};
+  const bandHeights: Array<number> = [];
+  const chipText = new Map<number, string>();
+  for (const s of seen) {
+    for (const [card, text] of Object.entries(s.capsules)) {
+      if (Number(text) > Number(capsules[card] ?? '-1')) {
+        capsules[card] = text;
+      }
+    }
+    if (s.bandH !== null && !bandHeights.includes(s.bandH)) {
+      bandHeights.push(s.bandH);
+    }
+    for (const chip of s.chips) {
+      // A chip's text as first written (the first non-empty one — the element may be inserted a beat before its text).
+      if (!chipText.has(chip.id) || chipText.get(chip.id) === '') {
+        chipText.set(chip.id, chip.text);
+      }
+    }
+  }
+  return {
+    samples: seen.length,
+    bandHeights,
+    emptyBodyFrames: seen.filter((s) => s.bodyEmpty).length,
+    chips: chipText.size,
+    chipTexts: [...chipText.values()],
+    capsules,
+  };
+}
 
 for (const preset of PARLIAMENT_PRESETS) {
   test.describe(`Cloud Development · ${preset.id}`, () => {
@@ -242,7 +269,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await shoot(page, preset.id, '04a-enact-announce');
       expect(await openMandatoryAnnounce(page), 'A on the plate opens the sitting').toBe(true);
       await expect(page.locator('.con-sit'), 'the sitting surface').toHaveCount(1, {timeout: 30_000});
-      await armZoneProbe(page);
+      const zoneProbe = await armZoneProbe(page);
       await settle(page, {timeoutMs: 20_000});
 
       // ── THE LAYOUT STANDS INSIDE THE SITTING: the hero on the left, the two holders as real faces, every counter at ZERO.
@@ -325,27 +352,28 @@ for (const preset of PARLIAMENT_PRESETS) {
       await press(page, 'Enter', 1200);
       try {
         // Read off the PROBE's samples (taken while each slot stood in the stage), never a late poll of the DOM.
-        await expect.poll(async () => Object.values((await readZoneProbe(page)).capsules).sort(), {
+        await expect.poll(async () => Object.values((await readZoneProbe(zoneProbe)).capsules).sort(), {
           timeout: 20_000, message: 'both capsules tick to their floaters while the layout is still on screen',
         }).toEqual(['2', '2']);
       } catch (error) {
         // Name the state the tick was missed IN: the layout as it stands, every chip the probe ever saw, the console's own readiness facts.
-        const diag = await page.evaluate(() => {
-          const w = window as unknown as {__cloudProbe: ZoneProbe, __conReady?: unknown};
+        const seen = await readZoneProbe(zoneProbe);
+        const diag = await page.evaluate((recorded) => {
+          const w = window as unknown as {__conReady?: unknown};
           const readiness = typeof w.__conReady === 'function' ? (w.__conReady as () => unknown)() : w.__conReady;
           return {
-            chips: w.__cloudProbe.chips, chipTexts: w.__cloudProbe.chipTexts, samples: w.__cloudProbe.samples,
+            ...recorded,
             ready: String(JSON.stringify(readiness ?? null) ?? '').slice(0, 1500),
             stageSlots: document.querySelectorAll('.con-parl [data-embed-slot="parliament-stage"] .con-cards__slot').length,
             sitting: document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '',
             hero: document.querySelector('[data-parl-sit-hero] .con-parl__gov-card') !== null,
             govCarry: document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card') !== null,
           };
-        });
+        }, {chips: seen.chips, chipTexts: seen.chipTexts, samples: seen.samples});
         throw new Error(`${(error as Error).message}\n[cloud diag] ${JSON.stringify(diag)}`);
       }
-      const probe = await readZoneProbe(page);
-      expect(probe.samples, 'the probe ran').toBeGreaterThan(20);
+      const probe = await readZoneProbe(zoneProbe);
+      expect(probe.samples, 'the probe ran').toBeGreaterThan(0);
       expect(probe.chips, `one chip per recipient (${JSON.stringify(probe.chipTexts)})`).toBe(2);
       expect(probe.chipTexts.every((t) => t.includes('+2')), `each chip carries its card's amount (${JSON.stringify(probe.chipTexts)})`).toBe(true);
       expect(inputRequests, 'the commit was ONE request').toBe(1);
@@ -361,7 +389,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await waitSittingAtRest(page, 30_000);
       expect(await turnTo(page, 'results'), 'the results page').toBe(true);
       await shoot(page, preset.id, '07-results');
-      const zone = await readZoneProbe(page);
+      const zone = await readZoneProbe(zoneProbe);
       expect(zone.bandHeights.length <= 1 || Math.max(...zone.bandHeights) - Math.min(...zone.bandHeights) <= 1,
         `the band kept its height through the layout, the commit and the results (${zone.bandHeights.join(', ')})`).toBe(true);
       expect(zone.emptyBodyFrames, 'the body zone never stood empty').toBe(0);

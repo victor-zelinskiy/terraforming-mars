@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, pressUntil, settle} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P83 «НАЦИЯ-СПОНСОР» — THE FIRST DECLARATIVE PLAY WHOSE DELEGATE GRANT IS A LIVE FOLLOW-UP WITH NO BOARD DOOR, and the
@@ -19,7 +20,7 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *       it, A brings the same step back; A on a resolution → ONE more POST, two cubes from the reserve (6 → 4), the flow
  *       LEAVES to the board.
  *
- * The ORDER is judged on the probe's MutationObserver record (FUNCTIONAL class — state, never a frame count).
+ * The ORDER is judged on the probe's record (`armWitness` — FUNCTIONAL class: state, never a frame count).
  * Fixtures: tests/e2e/fixtures/generate.ts § P83 (the dry run there proves the numbers). Storyboard: `TM_E2E_STORYBOARD=1`.
  */
 
@@ -78,10 +79,11 @@ function watchPosts(page: Page): Array<string> {
 
 /** RT → the wheel's centre (the hand) → the card focused. */
 async function focusInHand(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).count() === 0; i++) {
-    await press(page, 'Period', 600);
-    await press(page, 'Enter', 1600);
-  }
+  // The wheel, then the hand — each press verified by what it opens (a retry only after its whole window passed).
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 4, settleMs: 600});
+  await pressUntil(page, 'Enter', handUp, {tries: 4, settleMs: 1600});
+  await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 15_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
@@ -102,75 +104,83 @@ type Story = {
   doorAt: number;
   /** The first moment a vote door stood with no hand around it (−1: never). */
   doorOutsideAt: number;
-  /** Moments the hand was ABSENT while a vote door stood — the step outside its flow. */
-  handGoneUnderVote: number;
+  /** The hand was ever ABSENT while a vote door stood — the step outside its flow. */
+  handGoneUnderVote: boolean;
   /** The first moment the hand was gone after the door had stood (the flow left). */
   handLeftAt: number;
   stranded: boolean;
 };
 
-/** MutationObserver + setInterval (never rAF): the story of the screen from the press on. */
+/**
+ * The story of the screen from the press on — RECORDED off the product's own writes (FLAKE ZERO, `armWitness`): the
+ * reader returns what stands NOW, the story (first appearances, first moments, every change of the rating, the M€ row
+ * and the reserve, on the page's clock from the arm) is folded on the Node side by `readStory`. `settled`: the ORDER and
+ * the «never» claims are read on what a task leaves, never a state between two of its writes.
+ */
+const STORY = 'p83-story';
+type StoryRead = {
+  steps: Array<string>, parlOutside: boolean, door: {inHand: boolean, card: boolean} | null, hand: boolean,
+  tr: string, mc: string, reserve: number | null, stranded: boolean,
+};
 async function armStory(page: Page, viewer: string): Promise<void> {
-  await page.evaluate((viewer) => {
-    const w = window as unknown as {__p83: Story};
-    const p: Story = {
-      samples: 0, steps: [], parlOutsideHand: false, tr: [], mc: [], reserve: [],
-      doorAt: -1, doorOutsideAt: -1, handGoneUnderVote: 0, handLeftAt: -1, stranded: false,
-    };
-    w.__p83 = p;
-    const t0 = Date.now();
+  await armWitness<StoryRead, string>(page, STORY, (viewer) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const push = <T>(list: Array<[number, T]>, value: T) => {
-      if (list[list.length - 1]?.[1] !== value) {
-        list.push([Date.now() - t0, value]);
-      }
+    const hand = document.querySelector('.con-hand');
+    const door = document.querySelector('[data-parl-vote-door]');
+    const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
+    const value = raw === null || raw === undefined ? NaN : Number(raw);
+    return {
+      steps: Array.from(hand?.querySelectorAll('.con-wshead__step') ?? []).map(text).filter((step) => step !== ''),
+      parlOutside: Array.from(document.querySelectorAll('.con-parl')).some((el) => el.closest('.con-hand') === null || el.classList.contains('con-ws')),
+      door: door === null ? null : {inHand: door.closest('.con-hand') !== null, card: door.getAttribute('data-parl-vote-door') === 'card'},
+      hand: hand !== null,
+      tr: text(document.querySelector('.con-res .con-score__value--tr')),
+      mc: (text(document.querySelector('.con-res .con-res__row--megacredits .con-res__digits')).match(/^-?\d+/) ?? [''])[0],
+      reserve: Number.isFinite(value) ? value : null,
+      stranded: document.querySelector('.con-stranded') !== null,
     };
-    const sample = () => {
-      p.samples++;
-      const at = Date.now() - t0;
-      const hand = document.querySelector('.con-hand');
-      hand?.querySelectorAll('.con-wshead__step').forEach((el) => {
-        const step = text(el);
-        if (step !== '' && !p.steps.includes(step)) {
-          p.steps.push(step);
-        }
-      });
-      document.querySelectorAll('.con-parl').forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        }
-      });
-      const door = document.querySelector('[data-parl-vote-door]');
-      if (door !== null) {
-        if (p.doorAt < 0 && door.closest('.con-hand') !== null && door.getAttribute('data-parl-vote-door') === 'card') {
-          p.doorAt = at;
-        }
-        if (hand === null) {
-          p.handGoneUnderVote++;
-          if (p.doorOutsideAt < 0) {
-            p.doorOutsideAt = at;
-          }
-        }
-      }
-      if (p.doorAt >= 0 && hand === null && p.handLeftAt < 0) {
-        p.handLeftAt = at;
-      }
-      push(p.tr, text(document.querySelector('.con-res .con-score__value--tr')));
-      push(p.mc, (text(document.querySelector('.con-res .con-res__row--megacredits .con-res__digits')).match(/^-?\d+/) ?? [''])[0]);
-      const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
-      const value = raw === null || raw === undefined ? NaN : Number(raw);
-      if (Number.isFinite(value)) {
-        push(p.reserve, value);
-      }
-      p.stranded = p.stranded || document.querySelector('.con-stranded') !== null;
-    };
-    sample();
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-    window.setInterval(sample, 30);
-  }, viewer);
+  }, {args: viewer, settled: true});
 }
 
-const readStory = (page: Page): Promise<Story> => page.evaluate(() => (window as unknown as {__p83: Story}).__p83);
+async function readStory(page: Page): Promise<Story> {
+  const samples = await witnessOf<StoryRead>(page, STORY).samples();
+  const armedAt = samples[0]?.t ?? 0; // the PAGE's clock (the record's own stamps) — every moment below is since the arm
+  const p: Story = {
+    samples: samples.length, steps: [], parlOutsideHand: false, tr: [], mc: [], reserve: [],
+    doorAt: -1, doorOutsideAt: -1, handGoneUnderVote: false, handLeftAt: -1, stranded: false,
+  };
+  const push = <T>(list: Array<[number, T]>, moment: number, value: T) => {
+    if (list[list.length - 1]?.[1] !== value) {
+      list.push([moment, value]);
+    }
+  };
+  for (const {t, v} of samples) {
+    const sinceArm = t - armedAt;
+    p.steps.push(...v.steps.filter((step, i) => !p.steps.includes(step) && v.steps.indexOf(step) === i));
+    p.parlOutsideHand ||= v.parlOutside;
+    if (v.door !== null) {
+      if (p.doorAt < 0 && v.door.inHand && v.door.card) {
+        p.doorAt = sinceArm;
+      }
+      if (!v.hand) {
+        p.handGoneUnderVote = true;
+        if (p.doorOutsideAt < 0) {
+          p.doorOutsideAt = sinceArm;
+        }
+      }
+    }
+    if (p.doorAt >= 0 && !v.hand && p.handLeftAt < 0) {
+      p.handLeftAt = sinceArm;
+    }
+    push(p.tr, sinceArm, v.tr);
+    push(p.mc, sinceArm, v.mc);
+    if (v.reserve !== null) {
+      push(p.reserve, sinceArm, v.reserve);
+    }
+    p.stranded ||= v.stranded;
+  }
+  return p;
+}
 
 /** The first moment a recorded value reads `value` (−1: never). */
 const firstAt = <T>(list: Array<[number, T]>, value: T): number => list.find(([, v]) => v === value)?.[0] ?? -1;

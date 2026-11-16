@@ -8,6 +8,7 @@ import {
 import {recordTransient, stopTransient} from './transientRecorder';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness} from './witness';
 
 /**
  * ARABIA TERRA on the console — the fourth fan map with a HOME-MADE MarsBot board (docs/AUTOMA_DATA_AUDIT.md §2i / §21)
@@ -83,6 +84,18 @@ async function focusedCellAvailable(page: Page, id: string): Promise<boolean> {
 
 const dossier = async (page: Page): Promise<string> =>
   (await page.locator('.con-context').innerText().catch(() => '')).replace(/\s+/g, ' ');
+
+/**
+ * THE AIR, as a page-side reader (self-contained — the recording of `revealStandsClean` runs it in the page): every token
+ * of the transfer layer by its id, its face, its place, its layer and its opacity.
+ */
+function airChips(): Array<string> {
+  return Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).map((chip) => {
+    const r = chip.getBoundingClientRect();
+    return `#${chip.getAttribute('data-transfer-id')} «${(chip.textContent ?? '').replace(/\s+/g, '')}» @${Math.round(r.left + r.width / 2)},${Math.round(r.top + r.height / 2)} ` +
+      `layer=${chip.getAttribute('data-transfer-layer')} op=${getComputedStyle(chip).opacity}`;
+  });
+}
 
 /** LT wheel → Standard Projects → the project named `name` → its cell prompt. */
 async function startStandardProject(page: Page, request: APIRequestContext, playerId: string, name: RegExp, label: string): Promise<void> {
@@ -239,32 +252,33 @@ for (const profile of PROFILES) {
       return dossier(page);
     }
 
-    /** What stands in the air right now: every token of the transfer layer, by its face and its place, and the open holds. */
-    const inTheAir = (page: Page) => page.evaluate(() => {
+    /** The open holds and the transfer trail right now. */
+    const holdsAndTrail = (page: Page) => page.evaluate(() => {
       const ready = (window as unknown as {__conReady?: () => {holds?: ReadonlyArray<string>, transfer?: {trail: ReadonlyArray<unknown>}}}).__conReady?.();
       return {
-        chips: Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).map((chip) => {
-          const r = chip.getBoundingClientRect();
-          return `#${chip.getAttribute('data-transfer-id')} «${(chip.textContent ?? '').replace(/\s+/g, '')}» @${Math.round(r.left + r.width / 2)},${Math.round(r.top + r.height / 2)} ` +
-            `layer=${chip.getAttribute('data-transfer-layer')} op=${getComputedStyle(chip).opacity}`;
-        }),
         holds: ready?.holds ?? [],
         trail: (ready?.transfer?.trail ?? []).slice(-14).map((t) => JSON.stringify(t)),
       };
     });
 
+    /** What stands in the air right now: every token of the transfer layer, by its face and its place, and the open holds. */
+    const inTheAir = async (page: Page) => ({chips: await page.evaluate(airChips), ...await holdsAndTrail(page)});
+
     /**
      * THE RECEIVED CARD STANDS, AND NOTHING HANGS OVER IT. Both cells also print a card: the drawn card's scene takes
-     * the opening and waits for the player's A — for as long as they like. Read twice, a beat apart: a token that
-     * stands in the same place over the standing scene is a flight that never ended.
+     * the opening and waits for the player's A — for as long as they like. The air is RECORDED across a beat (FLAKE ZERO
+     * — `armWitness`): a token that stands in the same place at the beat's first and last recorded state over the
+     * standing scene is a flight that never ended.
      */
     async function revealStandsClean(page: Page, label: string): Promise<void> {
       await expect(page.locator('.con-reveal'), `${label}: the drawn card's scene stands`).toBeVisible({timeout: 40_000});
       await expect.poll(async () => await page.locator('.con-reveal').getAttribute('data-take'),
         {timeout: 30_000, message: `${label}: the scene is ready for the take`}).toBe('ready');
-      const first = await inTheAir(page);
-      await cinematicBeat(page, 2500, 'two reads of the air a beat apart — a token standing in one place across it never ended its flight');
-      const second = await inTheAir(page);
+      const air = await armWitness(page, `arabia-air-${label}`, airChips, {max: 20_000});
+      await cinematicBeat(page, 2500, 'the air recorded across a beat — a token standing in one place across it never ended its flight');
+      const recorded = await air.stop();
+      const first = {chips: recorded[0]?.v ?? []};
+      const second = {chips: recorded.at(-1)?.v ?? [], ...await holdsAndTrail(page)};
       console.log(`── ${label}: in the air over the standing reveal ──`, JSON.stringify({first: first.chips, second: second.chips, holds: second.holds}));
       console.log(`── ${label}: transfer trail ──\n` + second.trail.join('\n'));
       const standing = second.chips.filter((chip) => first.chips.includes(chip));

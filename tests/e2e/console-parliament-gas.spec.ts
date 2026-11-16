@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, settle} from './consoleStart';
 import {armLeakWitness, enterSittingByPass, inspectWinningBill, parliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * GAS EXPORT (Turmoil Redux, RX12) — the ONE e2e of the new mechanic: an
@@ -41,43 +42,38 @@ type Wire = {
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
 /**
- * THE PROBE. A `setInterval` sampler (never rAF — a quiet screen stops the
- * compositor exactly when this beat plays) that reads, every tick: whether the
- * sitting's frame is on screen, what the two scale readouts SAY, whether the
- * terraforming readout is celebrating, and whether any TR delta chip exists.
+ * THE PROBE — a RECORDING (FLAKE ZERO — `armWitness`): every change of whether the sitting's frame is on screen, what
+ * the two scale readouts SAY, whether the terraforming readout is celebrating, and whether any TR delta chip exists,
+ * kept with the page's time. The claims are about what a FRAME shows, so the record is `settled` — the state a task
+ * leaves (what the old timer, a task of its own, saw).
  */
 type Sample = {t: number, parl: boolean, oxygen: string, venus: string, celebrating: boolean, trChips: number};
 type Probe = {samples: Array<Sample>};
+/** One moment as the reader sees it — the sample without its clock (the recording stamps the page's time). */
+type Seen = Omit<Sample, 't'>;
+const GAS_WITNESS = 'parliament-gas';
 
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__gasProbe?: Probe};
-    const probe: Probe = {samples: []};
-    w.__gasProbe = probe;
+  await armWitness<Seen>(page, GAS_WITNESS, () => {
     const text = (icon: string): string => {
       const host = Array.from(document.querySelectorAll('.con-status__param'))
         .find((el) => el.querySelector(`.wgt-icon--${icon}`) !== null);
       return (host?.querySelector('.con-status__value')?.textContent ?? '').trim();
     };
-    const take = (): void => {
-      probe.samples.push({
-        t: Math.round(performance.now()),
-        parl: document.querySelector('.con-parl') !== null,
-        oxygen: text('oxygen'),
-        venus: text('venus'),
-        celebrating: document.querySelector('.con-status__terra--celebrating') !== null,
-        trChips: document.querySelectorAll('[data-metric-key="score.tr"] .delta-chip').length,
-      });
-      if (probe.samples.length > 4000) {
-        probe.samples.splice(0, 2000);
-      }
+    return {
+      parl: document.querySelector('.con-parl') !== null,
+      oxygen: text('oxygen'),
+      venus: text('venus'),
+      celebrating: document.querySelector('.con-status__terra--celebrating') !== null,
+      trChips: document.querySelectorAll('[data-metric-key="score.tr"] .delta-chip').length,
     };
-    take();
-    setInterval(take, 40);
-  });
+  }, {settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__gasProbe: Probe}).__gasProbe);
+/** The recording in the probe's old shape: `t` is the page's clock. */
+async function readProbe(page: Page): Promise<Probe> {
+  return {samples: (await witnessOf<Seen>(page, GAS_WITNESS).samples()).map((s) => ({...s.v, t: s.t}))};
+}
 
 test.describe(`Gas Export · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
@@ -142,9 +138,12 @@ test.describe(`Gas Export · ${PRESET.id}`, () => {
     await expect(parliament(page), 'the sitting is back').toHaveCount(1, {timeout: 60_000});
     // …and the trip is BOUNDED: the beat's own cap is 9 s, and what it actually waits for is the park's
     // settle + glide. The window is annotated so a regression in the wait shows up as a number.
+    // A recording keeps CHANGES only, so the trip ends at the state the frame stood again in (the first after the last
+    // state without it) — the moment it came back, never the last change recorded while it was away.
     const walk = (await readProbe(page)).samples;
     const left = walk.find((s) => !s.parl)?.t ?? 0;
-    const back = [...walk].reverse().find((s) => !s.parl)?.t ?? 0;
+    const lastAway = walk.map((s) => s.parl).lastIndexOf(false);
+    const back = lastAway < 0 ? 0 : (walk.slice(lastAway + 1).find((s) => s.parl) ?? walk[lastAway]).t;
     test.info().annotations.push({type: 'world-beat', description: `away ${back - left} ms (cap 9000)`});
     expect(back - left, 'the sitting is away for the story, not for a timeout').toBeLessThan(9_000);
     await waitSittingAtRest(page, 60_000);

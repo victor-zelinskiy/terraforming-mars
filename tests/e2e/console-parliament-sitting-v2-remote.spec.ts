@@ -1,12 +1,13 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, press, settle} from './consoleStart';
+import {bootFixtureSeats, pressUntil, settle} from './consoleStart';
 import {
   armLeakWitness, awaitSittingUp, closeSitting, closeSittingAs, expectParliamentFits, hotVerb, openParliament, parliament, parliamentWire, passAs,
   sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 import {armSittingProbe, beatOrder, beatStart, readSittingProbe} from './parliamentDriveV2';
+import {readSettled} from './settledRead';
 
 
 /**
@@ -18,6 +19,17 @@ import {armSittingProbe, beatOrder, beatStart, readSittingProbe} from './parliam
  * opposition row never moves, the wave flies for the spectator.
  */
 const OUT = path.resolve('screenshots', 'parliament-sitting-v2', 'remote');
+
+/** The row's chassis: the distinct (rounded) heights of the bench tiles and their distinct left edges. */
+async function benchChassis(page: Page): Promise<{heights: Array<number>, rowXs: Array<number>}> {
+  return page.evaluate(() => {
+    // v8: the ROW is one chassis; the dais seats the ruler's own (larger) medallion — the swap FLIPs between the two sizes.
+    const heights = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party[data-party]')).map((el) => Math.round(el.getBoundingClientRect().height));
+    // v8: the benches are a COLUMN beside the dais — one left edge (v5's row was one line).
+    const rowXs = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party')).map((el) => Math.round(el.getBoundingClientRect().left));
+    return {heights: [...new Set(heights)], rowXs: [...new Set(rowXs)]};
+  });
+}
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
@@ -44,9 +56,7 @@ test.describe('the sitting v2 · the spectator (standard-1080)', () => {
     const tilesBefore = await page.locator('.con-parl__parties .con-parl__party').evaluateAll((els) => els.map((el) => el.getAttribute('data-party')));
     expect(tilesBefore, 'five opposition tiles, the Greens not among them').toHaveLength(5);
     expect(tilesBefore).not.toContain('Greens');
-    for (let i = 0; i < 4 && await parliament(page).count() > 0; i++) {
-      await press(page, 'Escape', 900);
-    }
+    await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900});
     await expect(parliament(page), 'back on the board').toHaveCount(0, {timeout: 15_000});
 
     // ── THE PASS OVER THE API — not this client's submit: the chain runs on the server, the client learns it by the
@@ -76,14 +86,9 @@ test.describe('the sitting v2 · the spectator (standard-1080)', () => {
     expect(tilesAfter).not.toContain('Mars First');
     // The tiles are ONE chassis: every tile the same height, the row's tiles at one y — read as a STATE, never off
     // the probe's last sample: past the wave the walk goes on BY ITSELF (a quiet card's adjourn rode the record),
-    // and the body swap's downward stagger is a legitimate mid-motion pose (measured: ys 807 → 767 in one frame).
-    const chassis = () => page.evaluate(() => {
-      // v8: the ROW is one chassis; the dais seats the ruler's own (larger) medallion — the swap FLIPs between the two sizes.
-      const heights = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party[data-party]')).map((el) => Math.round(el.getBoundingClientRect().height));
-      // v8: the benches are a COLUMN beside the dais — one left edge (v5's row was one line).
-      const rowXs = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party')).map((el) => Math.round(el.getBoundingClientRect().left));
-      return {heights: [...new Set(heights)], rowXs: [...new Set(rowXs)]};
-    });
+    // and the body swap's downward stagger is a legitimate mid-motion pose (measured: ys 807 → 767 in one frame) — so
+    // every read the poll takes is itself AT REST (two equal reads a frame apart; the sitting stands — no `settle`).
+    const chassis = () => readSettled(page, () => benchChassis(page), {settle: false, timeoutMs: 5_000, message: 'the row\'s chassis'});
     await expect.poll(async () => (await chassis()).heights.length, {timeout: 15_000, message: 'every tile of the row keeps one height'}).toBe(1);
     await expect.poll(async () => (await chassis()).rowXs.length, {timeout: 15_000, message: 'the benches stand in one column'}).toBe(1);
     // The old law's seat: the government kept the EMPTY seat until the enactment beat, the winner's card stands there at rest.

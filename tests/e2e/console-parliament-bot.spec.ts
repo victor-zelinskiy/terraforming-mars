@@ -6,6 +6,8 @@ import {
   armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, hotVerb, openParliament, parliament, PARLIAMENT_PRESETS, sittingStage, strandedReports,
   waitSittingAtRest,
 } from './parliamentDrive';
+import {sequenceOf} from './observeCore';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * MARSBOT AT THE TABLE (Turmoil Redux — docs/TURMOIL_REDUX_MARSBOT.md §8, D2–D5).
@@ -38,8 +40,8 @@ import {
  * generator. The three multiplayer tables stand at RED's turn with blue passed —
  * the viewer holds no prompt, so an out-of-band change reaches its client — and
  * red's one API press («End Turn») hands the turn to the bot. Every wait is a
- * state wait; the probes are MutationObserver + setInterval (never rAF), and
- * every claim about a FRAME is made on the task-clock samples only.
+ * state wait; the probes are RECORDINGS (`armWitness`, settled — every state a
+ * task leaves, the state a frame can paint), never a sampler of our own.
  */
 const OUT_ROOT = path.resolve('screenshots', 'parliament-bot');
 
@@ -94,16 +96,23 @@ async function endTurnAs(request: APIRequestContext, seat: string): Promise<void
 
 // ── THE CUBE PROBE: the ribbon's cubes (hidden / arrived), the painted flight proxies, every seat's lobby socket and reserve stack. ──
 type CubeSample = {
-  t: number, clock: 'task' | 'mo', flights: number,
+  flights: number,
+  /** The painted flights by id, body and opacity (the evidence when two stand at once). */
+  flying: Array<string>,
   cubes: Array<{seq: number, owner: string, hidden: boolean, arrived: boolean}>,
   lobby: Record<string, boolean>, reserve: Record<string, number>, holds: Array<string>,
 };
 type CubeProbe = {samples: Array<CubeSample>};
+const CUBE_WITNESS = 'bot-cubes';
 
+/**
+ * THE CUBE PROBE — RECORDED (FLAKE ZERO — `armWitness`, settled: «never two in the air», «hidden under its proxy», «never
+ * shown before its touchdown» are claims about the states a frame can paint). A sample is ONE recorded state (in order);
+ * no claim counts frames.
+ */
 async function armCubeProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__botCubes: CubeProbe, __conReady?: () => {holds: Array<string>}};
-    w.__botCubes = {samples: []};
+  await armWitness<CubeSample>(page, CUBE_WITNESS, () => {
+    const w = window as unknown as {__conReady?: () => {holds: Array<string>}};
     const painted = (el: HTMLElement): boolean => {
       if (el.getBoundingClientRect().width < 1) {
         return false;
@@ -116,7 +125,7 @@ async function armCubeProbe(page: Page): Promise<void> {
       }
       return true;
     };
-    const sample = (clock: 'task' | 'mo') => {
+    const sample = (): CubeSample => {
       const cubes = Array.from(document.querySelectorAll<HTMLElement>('.con-parl__vote-cube[data-seq]')).map((el) => ({
         seq: Number(el.dataset.seq), owner: el.querySelector('[data-player-token]')?.getAttribute('data-player-token') ?? '',
         hidden: el.classList.contains('con-parl__vote-cube--hidden'), arrived: el.hasAttribute('data-arrived'),
@@ -129,21 +138,24 @@ async function armCubeProbe(page: Page): Promise<void> {
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-parl-seat-reserve]'))) {
         reserve[el.dataset.parlSeatReserve ?? ''] = Number(el.dataset.count ?? '0');
       }
-      const flights = Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight')).filter(painted).length;
-      w.__botCubes.samples.push({
-        t: performance.now(), clock, flights, cubes, lobby, reserve,
+      const paintedFlights = Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight')).filter(painted);
+      // IN THE AIR: a proxy that has set its figure down and waits for its hand-off tick declares itself
+      // (`data-parl-flight-landed`) — the next figure may lift in that tick, and the two are two frame callbacks of one
+      // frame (a state the settled record can sample, no frame paints).
+      const flights = paintedFlights.filter((el) => !el.hasAttribute('data-parl-flight-landed')).length;
+      const flying = paintedFlights.map((el) => `${el.dataset.parlFlight ?? '?'}:${
+        el.querySelector('[data-parl-flight-body]')?.getAttribute('data-parl-flight-body') ?? el.dataset.parlFlightBody ?? 'figure'
+      }@${Number(getComputedStyle(el).opacity).toFixed(2)}${el.hasAttribute('data-parl-flight-landed') ? ':landed' : ''}`);
+      return {
+        flights, flying, cubes, lobby, reserve,
         holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament')),
-      });
-      if (w.__botCubes.samples.length > 12000) {
-        w.__botCubes.samples.splice(0, 2000);
-      }
+      };
     };
-    new MutationObserver(() => sample('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'data-arrived', 'data-count']});
-    window.setInterval(() => sample('task'), 16);
-  });
+    return sample();
+  }, {settled: true, max: 20_000});
 }
 
-const readCubeProbe = (page: Page): Promise<CubeProbe> => page.evaluate(() => (window as unknown as {__botCubes: CubeProbe}).__botCubes);
+const readCubeProbe = async (page: Page): Promise<CubeProbe> => ({samples: await witnessOf<CubeSample>(page, CUBE_WITNESS).values()});
 
 /** The bot acted: its cubes are on the table (the server's own record). */
 async function waitForBotVotes(request: APIRequestContext, viewer: string, bot: string, count: number): Promise<Array<{instance: string, seq: number}>> {
@@ -156,12 +168,12 @@ const ribbonCube = (page: Page, vote: {instance: string, seq: number}) =>
   page.locator(`.con-parl__slot[data-instance="${vote.instance}"] .con-parl__vote-cube[data-seq="${vote.seq}"]`);
 
 /**
- * ONE CUBE'S ARRIVAL, read off the task-clock samples: a proxy flew while the
- * ribbon cube stayed hidden, the mark came with the touchdown, at rest the
- * cube stands with its mark and nothing is in the air.
+ * ONE CUBE'S ARRIVAL, read off the recorded states (indices are their order): a
+ * proxy flew while the ribbon cube stayed hidden, the mark came with the
+ * touchdown, at rest the cube stands with its mark and nothing is in the air.
  */
 function expectFlewIn(samples: ReadonlyArray<CubeSample>, seq: number, label: string, from = 0): {firstFlying: number, arrivedAt: number} {
-  const s = samples.filter((st) => st.clock === 'task');
+  const s = samples;
   const cube = (st: CubeSample) => st.cubes.find((c) => c.seq === seq);
   const arrivedAt = s.findIndex((st, i) => i >= from && cube(st)?.arrived === true);
   expect(arrivedAt, `${label}: the arrival mark played`).toBeGreaterThanOrEqual(0);
@@ -213,14 +225,24 @@ for (const preset of PARLIAMENT_PRESETS) {
       const probe = await readCubeProbe(page);
       const flight = expectFlewIn(probe.samples, vote.seq, 'the free delegate');
       // THE SOURCE: the lobby socket was painted until the proxy stood over it (the lift and the proxy's first
-      // paint can fall inside ONE 16 ms sample on a slow profile — so the claim is CONTINUITY: before the
-      // touchdown the delegate is always somewhere on screen, the socket or the proxy, one sample of slack for
-      // the frame straddle), and the socket is empty at rest.
-      const task = probe.samples.filter((st) => st.clock === 'task');
+      // paint can fall into one frame straddle — so the claim is CONTINUITY: before the touchdown the delegate is
+      // always somewhere on screen, the socket or the proxy, with at most ONE straddle moment between the two:
+      // «neither» may stand as one contiguous moment of the socket/proxy sequence, never come back), and the socket
+      // is empty at rest.
+      const task = probe.samples;
       expect(task[0].lobby[bot.color], 'the lobby socket painted before the flight').toBe(true);
       expect(task.slice(0, flight.firstFlying + 1).some((st) => st.lobby[bot.color]), 'the lobby socket painted up to the flight').toBe(true);
-      const nowhere = task.slice(0, flight.arrivedAt).filter((st) => !st.lobby[bot.color] && st.flights === 0).length;
-      expect(nowhere, 'the delegate never vanished between its socket and its proxy').toBeLessThanOrEqual(1);
+      const where = sequenceOf(task.slice(0, flight.arrivedAt), (st) => `${st.lobby[bot.color] ? 'L' : '-'}${st.flights > 0 ? 'F' : '-'}`);
+      const nowhere = where.filter((k) => k === '--').length;
+      expect(nowhere, `the delegate never vanished between its socket and its proxy (${where.join(' ')})`).toBeLessThanOrEqual(1);
+      // …and that one moment is the STRADDLE itself — the socket just emptied, the proxy not yet painted: right after
+      // the socket and right before the proxy, never a vanish mid-flight or out of a proxy (a frame-free reading of
+      // «one straddle frame»: a 300 ms software frame makes the straddle as long as the frame, so no duration bounds it).
+      const gap = where.indexOf('--');
+      if (gap >= 0) {
+        expect(where[gap - 1]?.startsWith('L'), `the moment «nowhere» follows the socket (${where.join(' ')})`).toBe(true);
+        expect(where[gap + 1]?.endsWith('F'), `…and the proxy follows it (${where.join(' ')})`).toBe(true);
+      }
       expect(task[task.length - 1].lobby[bot.color], 'the lobby socket empty at rest — the delegate went').toBe(false);
       expect(task[task.length - 1].reserve[bot.color], 'the reserve untouched by a free delegate').toBe(task[0].reserve[bot.color]);
 
@@ -263,17 +285,23 @@ for (const preset of PARLIAMENT_PRESETS) {
       const probe = await readCubeProbe(page);
       const first = expectFlewIn(probe.samples, votes[0].seq, 'the first delegate');
       const second = expectFlewIn(probe.samples, votes[1].seq, 'the second delegate', first.arrivedAt);
-      const task = probe.samples.filter((st) => st.clock === 'task');
+      const task = probe.samples;
       // ONE AFTER ANOTHER: never two proxies in the air; the second lands after the first, and stays hidden on the
       // ribbon for the whole of the first's flight (its own proxy leaves only once the first has its mark).
-      expect(task.filter((st) => st.flights > 1).length, 'never two cubes in the air').toBe(0);
+      // (The message names WHEN two stood and for how long — page clock, ms from the record's start, to the next state.)
+      const timed = await witnessOf<CubeSample>(page, CUBE_WITNESS).samples();
+      const twice = timed.flatMap((s, i) => s.v.flights > 1 ? [
+        `${s.t - timed[0].t}ms for ${(timed[i + 1]?.t ?? s.t) - s.t}ms [${s.v.flying.join(', ')}] after [${timed[i - 1]?.v.flying.join(', ') ?? ''}]` +
+          ` then [${timed[i + 1]?.v.flying.join(', ') ?? ''}]`,
+      ] : []);
+      expect(task.filter((st) => st.flights > 1).length, `never two cubes in the air (${twice.join('; ')})`).toBe(0);
       expect(second.arrivedAt, 'the second lands after the first').toBeGreaterThan(first.arrivedAt);
       const secondCube = (st: CubeSample) => st.cubes.find((c) => c.seq === votes[1].seq);
       expect(task.slice(0, first.arrivedAt).filter((st) => secondCube(st) !== undefined && secondCube(st)?.hidden === false).length,
         'the second cube never shows before the first has landed').toBe(0);
       // THE SOURCES — the human's rule of the vote (D12): the FIRST cube is the lobby's free one, the SECOND leaves
       // the reserve stack once the lobby is spent. The lobby socket was painted until the first proxy stood over it
-      // (one 16 ms sample of slack for the frame straddle, as in (1)) and is empty at rest; the reserve drops by one.
+      // (as in (1)) and is empty at rest; the reserve drops by one.
       expect(task[0].lobby[bot.color], 'the lobby socket painted before the flight').toBe(true);
       expect(task.slice(0, first.firstFlying + 1).some((st) => st.lobby[bot.color]), 'the lobby socket painted up to the first flight').toBe(true);
       expect(task[0].reserve[bot.color], 'the reserve stack painted before the flight').toBe(reserveBefore);
@@ -316,29 +344,23 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect.poll(() => ocean.count(), {message: 'no ocean on the board before the sitting'}).toBe(0);
 
       // A probe over the band and the panel: the words the spectator is shown, and the remote tile stage.
-      // …and the VERDICT page's own reading (the walk turns it by itself — the soft gates — so it is sampled, never read late).
-      await page.evaluate((botColor) => {
-        const w = window as unknown as {__botSit: {texts: Set<string>, remote: boolean, verdictBot: boolean}};
-        w.__botSit = {texts: new Set(), remote: false, verdictBot: false};
-        const sample = () => {
-          for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-band, .con-sit__panel--on'))) {
-            w.__botSit.texts.add((el.textContent ?? '').replace(/\s+/g, ' ').trim());
-          }
-          if (document.querySelector('.con-tileplace__tile--remote') !== null) {
-            w.__botSit.remote = true;
-          }
-          if (document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') === 'verdict' &&
-              document.querySelector(`.con-band [data-parl-band-chip="player"] [data-player-token="${botColor}"]`) !== null) {
-            w.__botSit.verdictBot = true;
-          }
+      // …and the VERDICT page's own reading (the walk turns it by itself — the soft gates — so it is RECORDED from
+      // before the pass, never read late: `armWitness`, settled — «never shown» is a claim about painted states).
+      const sitWitness = await armWitness(page, 'bot-sitting', (botColor: string) => ({
+        texts: Array.from(document.querySelectorAll<HTMLElement>('.con-band, .con-sit__panel--on')).map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()),
+        remote: document.querySelector('.con-tileplace__tile--remote') !== null,
+        verdictBot: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') === 'verdict' &&
+          document.querySelector(`.con-band [data-parl-band-chip="player"] [data-player-token="${botColor}"]`) !== null,
+      }), {args: bot.color, settled: true, max: 20_000});
+      // The recording folded: every text ever shown, whether the remote stage / the bot's verdict ever stood.
+      const readSit = async () => {
+        const seen = await sitWitness.values();
+        return {
+          texts: [...new Set(seen.flatMap((s) => s.texts))],
+          remote: seen.some((s) => s.remote),
+          verdictBot: seen.some((s) => s.verdictBot),
         };
-        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-        window.setInterval(sample, 50);
-      }, bot.color);
-      const readSit = () => page.evaluate(() => {
-        const w = window as unknown as {__botSit: {texts: Set<string>, remote: boolean, verdictBot: boolean}};
-        return {texts: Array.from(w.__botSit.texts), remote: w.__botSit.remote, verdictBot: w.__botSit.verdictBot};
-      });
+      };
 
       // ── ONE PASS: the whole sitting rides it; the walk plays to the results by itself (the bot never holds a confirmation).
       await enterSittingByPass(page, request, playerId);

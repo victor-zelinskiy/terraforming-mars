@@ -158,14 +158,19 @@ async function serverState(request: APIRequestContext, id: string): Promise<{ene
 /** Every reveal the API seeding queued (Research's draw) — taken before the
  *  drive starts (the stage-bound spec's proven pattern, incl. the headless
  *  single-card viewer). */
-async function drainReveals(page: Page): Promise<void> {
+async function drainReveals(page: Page, request: APIRequestContext, id: string): Promise<void> {
   const revealUp = async () => await page.locator('.con-reveal').count() > 0 ||
     await page.locator('dialog.con-zoom').count() > 0;
+  // The SERVER's own queue of reveals still awaiting this player's take.
+  const owed = async () => ((await fetchPlayerModel(request, id) as Wire).cardDrawReveals ?? []).length;
   for (let round = 0; round < 8; round++) {
     for (let i = 0; i < 12 && await revealUp(); i++) {
       await press(page, 'Enter', 800);
     }
-    await page.waitForTimeout(2000);
+    // The next queued reveal surfaces — or the server holds none: the state the old fixed pause waited out. A queue the
+    // screen never presents in time falls through to the old verdict below, exactly as the pause did.
+    await expect.poll(async () => await revealUp() || await owed() === 0,
+      {timeout: 20_000, message: 'the next seeded reveal surfaces, or none is owed'}).toBe(true).catch(() => undefined);
     if (!await revealUp()) {
       return;
     }
@@ -250,7 +255,7 @@ test.describe('The triple nest (DM → stage-7 repeat → MF → nested blockade
     // ── The CONSOLE drive — the whole composition, one screen at a time. ──
     await openConsole(page, p1, '');
     await page.waitForSelector('.con-reveal, dialog.con-zoom', {timeout: 30_000}).catch(() => { /* maybe drained */ });
-    await drainReveals(page);
+    await drainReveals(page, request, p1);
     await waitForBoardHome(page, 40);
 
     await openCardActions(page);

@@ -5,6 +5,8 @@ import {
   createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, playQueueCard, sendPlayerInput, settle, soloGameConfig,
   submitSummary, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P51 HIGH CIRCLES — the thirty-third Prelude 2 card, adapted to Turmoil Redux (ledger FF): «Raise your TR 1 step and
@@ -17,7 +19,7 @@ import {
  * the reserve for ONE resolution → the queue goes on with ONE Parliament instance all along.
  *
  * The rules are pinned by `tests/cards/prelude2/HighCircles.spec.ts` (the Redux table); this stand is the JOURNEY on
- * the TV profile. Order claims are sampled from BEFORE the press (MutationObserver + setInterval).
+ * the TV profile. Order claims are RECORDED from BEFORE the press (`armWitness`, settled — never a sampler of our own).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT = path.resolve('screenshots', 'p51', PRESET.id);
@@ -33,6 +35,9 @@ type Wire = {
   game: {parliament: {slots: Array<WireSlot>, players: Array<WireSeat>, enacted?: unknown}},
 };
 type Probe = {samples: number, parlMax: number, search: number, crumbs: Array<string>};
+/** One recorded state: the live Parliament roots, whether the search rule stands on a surface, the crumbs. */
+type Seen = {parls: number, search: boolean, crumbs: Array<string>};
+const P51_WITNESS = 'p51-start';
 
 async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
   return await fetchPlayerModel(request, id) as unknown as Wire;
@@ -44,30 +49,34 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
-/** From the press on: the Parliament roots, the search rule seen on any surface, the crumbs. */
+/**
+ * From the press on: the Parliament roots, the search rule seen on any surface, the crumbs — RECORDED (FLAKE ZERO —
+ * `armWitness`, settled: «never two Parliament instances» is a claim about the states a frame can paint).
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__p51: Probe};
-    const p: Probe = {samples: 0, parlMax: 0, search: 0, crumbs: []};
-    w.__p51 = p;
-    const sample = () => {
-      p.samples++;
-      p.parlMax = Math.max(p.parlMax, document.querySelectorAll('.con-parl:not([data-parl-leaving])').length);
-      if (document.querySelector('[data-draw-search="partyRequirement"]') !== null) {
-        p.search++;
-      }
-      document.querySelectorAll('.con-wshead').forEach((el) => {
-        const crumb = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
-        if (crumb !== '' && !p.crumbs.includes(crumb)) {
-          p.crumbs.push(crumb);
-        }
-      });
-    };
-    new MutationObserver(() => sample()).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(), 30);
-  });
+  await armWitness<Seen>(page, P51_WITNESS, () => ({
+    parls: document.querySelectorAll('.con-parl:not([data-parl-leaving])').length,
+    search: document.querySelector('[data-draw-search="partyRequirement"]') !== null,
+    crumbs: Array.from(document.querySelectorAll('.con-wshead'))
+      .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).filter((c) => c !== ''),
+  }), {settled: true, max: 20_000});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p51: Probe}).__p51);
+
+/** The recording folded into the probe: `search` counts the recorded STATES that showed the rule (> 0 — it was ever on). */
+async function readProbe(page: Page): Promise<Probe> {
+  const seen = await witnessOf<Seen>(page, P51_WITNESS).values();
+  const p: Probe = {samples: seen.length, parlMax: 0, search: 0, crumbs: []};
+  for (const s of seen) {
+    p.parlMax = Math.max(p.parlMax, s.parls);
+    p.search += s.search ? 1 : 0;
+    for (const crumb of s.crumbs) {
+      if (!p.crumbs.includes(crumb)) {
+        p.crumbs.push(crumb);
+      }
+    }
+  }
+  return p;
+}
 
 test.describe('P51 — High Circles: the named search, the influence, the vote inside the start', () => {
   test.use({viewport: PRESET.viewport, deviceScaleFactor: 1, screen: PRESET.viewport});
@@ -153,8 +162,9 @@ test.describe('P51 — High Circles: the named search, the influence, the vote i
     await expect(page.locator('.con-parl:not([data-parl-leaving])'), 'ONE Parliament instance').toHaveCount(1);
     await shoot(page, '03-vote-in-start');
     // PL-766 · FG: «ДЛЯ ВАС ПРИ ПРИНЯТИИ» — the reading stands right under its kicker (no empty band above it), and the
-    // party's answer, when the law has one, stands BESIDE the number (never pushed under it).
-    const reading = await page.evaluate(() => {
+    // party's answer, when the law has one, stands BESIDE the number (never pushed under it). Measured AT REST
+    // (`readSettled`; no `settle` first — the vote STANDS for the player's answer).
+    const reading = await readSettled(page, () => page.evaluate(() => {
       const box = (sel: string) => document.querySelector(`.con-parl__vote ${sel}`)?.getBoundingClientRect();
       const head = box('.con-parl__info-own-head');
       const readings = box('.con-parl__info-readings');
@@ -167,7 +177,7 @@ test.describe('P51 — High Circles: the named search, the influence, the vote i
         beside: yieldBox === undefined ? true : answers.every((r) => (r.top + r.bottom) / 2 >= yieldBox.top && (r.top + r.bottom) / 2 <= yieldBox.bottom),
         answers: answers.length,
       };
-    });
+    }), {settle: false, message: 'PL-766: the vote\'s reading under its kicker'});
     expect(reading.gap, `PL-766: the reading stands under its kicker (${JSON.stringify(reading)})`).toBeLessThanOrEqual(1.2 * reading.rem);
     expect(reading.beside, `PL-766: the party's answer stands beside the number (${JSON.stringify(reading)})`).toBe(true);
 

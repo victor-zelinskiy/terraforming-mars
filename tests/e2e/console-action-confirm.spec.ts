@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE QUICK WHEEL'S CONFIRM — a plate of the prompt-modal family (PL-385) whose «Сработает» row is a DOOR (PL-394).
@@ -132,12 +133,13 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${CONFIRM} [data-forecast-layer] [data-forecast-group="receive"]`), 'the Greens stand in «Вы получите»').toHaveCount(1);
       await expect.poll(() => opacityOf(page, PLATE), {timeout: 5000, message: 'the plate PARKS under the layer (never unmounted)'}).toBeLessThan(0.1);
       await expect(page.locator('.con-cmdbar__context'), 'the context gains «ЭФФЕКТЫ»').toContainText(/Эффекты/i);
-      const fit = await page.evaluate((sel) => {
+      // The layer's box against the band's, measured AT REST (`readSettled` — its entrance over, two equal reads).
+      const fit = await readSettled(page, () => page.evaluate((sel) => {
         const band = document.querySelector<HTMLElement>(sel)!.getBoundingClientRect();
         const layer = document.querySelector<HTMLElement>(`${sel} [data-forecast-surface]`)!.getBoundingClientRect();
         return {inside: layer.left >= band.left - 1 && layer.right <= band.right + 1 && layer.top >= band.top - 1 && layer.bottom <= band.bottom + 1,
           w: Math.round(layer.width), h: Math.round(layer.height), bw: Math.round(band.width)};
-      }, CONFIRM);
+      }, CONFIRM), {message: 'the «Эффекты» layer in the confirm\'s band'});
       expect(fit.inside, `the layer stands inside the confirm's band (${fit.w}×${fit.h} of ${fit.bw})`).toBe(true);
       expect(fit.w, 'the layer is a room, not the plate\'s width').toBeGreaterThan(fit.bw * 0.45);
       await settle(page, {timeoutMs: 15_000});
@@ -152,10 +154,8 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-cmdbar__context')).not.toContainText(/Эффекты/i);
       expect(posts, 'nothing sent').toEqual([]);
 
-      // ── 4. A → ONE POST; the server took the 8 heat.
-      for (let i = 0; i < 3 && posts.length === 0; i++) {
-        await press(page, 'Enter', 600);
-      }
+      // ── 4. A → ONE POST; the server took the 8 heat. Act → verify (a POST went out) → retry only without one.
+      await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 600});
       expect(posts.length, 'A sent exactly one input').toBe(1);
       await expect(page.locator(CONFIRM)).toHaveCount(0, {timeout: 15_000});
       await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.heat, {timeout: 20_000, message: 'the server took the 8 heat'}).toBe(0);

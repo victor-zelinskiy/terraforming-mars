@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, openConsole, pressUntil} from './consoleStart';
 import {answerAsksAs, closeSitting, closeSittingAs, enterSittingByPass, parliament, parliamentWire, turnTo} from './parliamentDrive';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * THE SOFT GATES ON SCREEN (docs/claude/console/parliament-soft-gates.md — П5 · П6), two seats, the TV profile.
@@ -24,31 +25,23 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${TV.id}-${name}.png`)});
 }
 
-/** A sampler (setInterval — never rAF) of what the seat SEES: the counter, the sitting, a draft surface, a wait chip. */
-type Sample = {t: number, gen: string, parl: boolean, stage: string, draft: boolean, awaitChip: boolean};
+/** A RECORDING (FLAKE ZERO — `armWitness`, `settled`: «the counter holds while the sitting stands», «no frame of the
+ *  board home between» are claims about what a frame can paint) of what the seat SEES: the counter, the sitting, a
+ *  draft surface, a wait chip — each distinct state with the page's time (`t`, the clock of `pageNow`). */
+type Seen = {gen: string, parl: boolean, stage: string, draft: boolean, awaitChip: boolean};
+type Sample = Seen & {t: number};
+const SOFTGATES_WITNESS = 'softgates';
 async function armSampler(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__softgates?: Array<Sample>};
-    const samples: Array<Sample> = [];
-    w.__softgates = samples;
-    const take = () => {
-      samples.push({
-        t: Math.round(performance.now()),
-        gen: (document.querySelector('.con-status__gen .con-status__value')?.textContent ?? '').trim(),
-        parl: document.querySelector('.con-parl') !== null,
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        draft: document.querySelector('.con-draftws') !== null,
-        awaitChip: document.querySelector('.con-parl [data-sit-asking]') !== null,
-      });
-      if (samples.length > 6000) {
-        samples.splice(0, 3000);
-      }
-    };
-    take();
-    setInterval(take, 50);
-  });
+  await armWitness<Seen>(page, SOFTGATES_WITNESS, () => ({
+    gen: (document.querySelector('.con-status__gen .con-status__value')?.textContent ?? '').trim(),
+    parl: document.querySelector('.con-parl') !== null,
+    stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+    draft: document.querySelector('.con-draftws') !== null,
+    awaitChip: document.querySelector('.con-parl [data-sit-asking]') !== null,
+  }), {settled: true});
 }
-const samplesOf = (page: Page): Promise<Array<Sample>> => page.evaluate(() => (window as unknown as {__softgates: Array<Sample>}).__softgates);
+const samplesOf = async (page: Page): Promise<Array<Sample>> =>
+  (await witnessOf<Seen>(page, SOFTGATES_WITNESS).samples()).map((s) => ({...s.v, t: s.t}));
 
 test.describe(`the soft gates · ${TV.id}`, () => {
   test.use({viewport: TV.viewport});
@@ -125,7 +118,8 @@ test.describe(`the soft gates · ${TV.id}`, () => {
     await shoot(page, '03-results-red-still-in-sitting');
 
     const walk = (await samplesOf(page)).filter((s) => s.parl);
-    expect(walk.length, 'the sampler saw the sitting').toBeGreaterThan(10);
+    // A recording keeps DISTINCT states (never a tally of frames): the floor catches only a dead recorder.
+    expect(walk.length, 'the sampler saw the sitting').toBeGreaterThan(0);
     const stages = [...new Set(walk.map((s) => s.stage).filter((s) => s !== ''))];
     expect(stages, 'the walk played its pages in order').toEqual(expect.arrayContaining(['verdict', 'enact', 'reward', 'renewal', 'results']));
     expect(stages.indexOf('verdict'), 'it starts on the verdict').toBe(0);
@@ -137,7 +131,8 @@ test.describe(`the soft gates · ${TV.id}`, () => {
     // door — the bar names where it leads, ONE press hands the screen from the Parliament straight to the research
     // workspace: no board home between the two surfaces, no plate, no second A.
     await expect(page.locator('.con-cmdbar'), 'A names the next workspace').toContainText(/К исследованию|To the research/i);
-    const pressedAt = await page.evaluate(() => Math.round(performance.now()));
+    // The window starts AT THE PRESS (the page's clock): the record before it is the sitting standing.
+    const pressedAt = await pageNow(page);
     await closeSitting(page, request, blue);
     await expect(page.locator('.con-draftws'), 'the research workspace takes the screen by itself').toHaveCount(1, {timeout: 30_000});
     await expect(parliament(page), 'the sitting leaves with its close').toHaveCount(0, {timeout: 30_000});

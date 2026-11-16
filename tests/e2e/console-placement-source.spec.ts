@@ -1,5 +1,6 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
-import {bootSeededGame, press} from './consoleStart';
+import {bootSeededGame, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -57,7 +58,9 @@ async function key(page: Page, code: string, settle = 450): Promise<void> {
 async function focusStdProject(page: Page, title: RegExp): Promise<boolean> {
   const focusedName = () =>
     page.locator('.con-stdp__card--focused .con-stdp__name').innerText().catch(() => '');
-  await page.waitForTimeout(900);
+  // The sheet stands with its cursor, at rest — the state the old fixed warm-up waited for.
+  await expect(page.locator('.con-stdp__card--focused'), 'the standard projects stand with their cursor').toHaveCount(1, {timeout: 15_000});
+  await settle(page, {timeoutMs: 10_000, notifications: false});
   const walk = ['ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowDown',
     'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft',
     'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowDown'];
@@ -125,7 +128,7 @@ async function driveToPlacement(page: Page, request: APIRequestContext, asCard: 
   if (/ОПЛАТА/.test(await rootText())) {
     await key(page, 'KeyX', 2600);
   }
-  expect((await panel.innerText()).includes('РАЗМЕЩЕНИЕ ТАЙЛА'), 'never reached a board placement').toBeTruthy();
+  await expect(panel, 'never reached a board placement').toContainText('РАЗМЕЩЕНИЕ ТАЙЛА', {useInnerText: true});
 }
 
 test.describe('console placement panel · the source', () => {
@@ -157,7 +160,8 @@ test.describe('console placement panel · the source', () => {
 
     // 2 · …and it costs ONE LINE. The consequences preview is this panel's job;
     //     the source may not push it off screen.
-    const chipBox = await chip.boundingBox();
+    // Measured at REST (`readSettled`; the placement stands for the player, so no settle).
+    const chipBox = await readSettled(page, () => chip.boundingBox(), {settle: false, message: 'the source chip'});
     expect(chipBox).not.toBeNull();
     expect(chipBox!.height, 'the source is a line, not a dock').toBeLessThan(48);
     // The facts the panel exists for are still there, below it.
@@ -184,6 +188,6 @@ test.describe('console placement panel · the source', () => {
     await expect(page.locator('.con-zoom')).toHaveCount(1);
     await key(page, 'Escape', 1600);
     await expect(page.locator('.con-zoom')).toHaveCount(0);
-    expect((await panel.innerText()).includes('РАЗМЕЩЕНИЕ ТАЙЛА'), 'the placement survives the viewer').toBeTruthy();
+    await expect(panel, 'the placement survives the viewer').toContainText('РАЗМЕЩЕНИЕ ТАЙЛА', {useInnerText: true});
   });
 });

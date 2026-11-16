@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, focusInfoZone, press, pressUntil, settle} from './consoleStart';
 import {armLeakWitness, expectLawLeadsEffects, openParliament, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * UNMI VETO (Turmoil Redux, RX42) — the ONE e2e of the SECOND REPLACING passive, the one on the RATING: «the player(s)
@@ -147,7 +148,8 @@ for (const preset of PRESETS) {
 
       // ① THE RAIL — the rating cell wears the Reds' stamp; the hint names the law and the number; the cell's digits stand.
       await expect(page.locator('.con-score__cell--tr[data-tr-vetoed="30"]'), 'the stamp binds the viewer\'s own rating').toHaveCount(1, {timeout: 15_000});
-      const stamp = await railStamp(page);
+      // Read at REST (C — `readSettled`: the stamp's paint is judged once its entrance is over).
+      const stamp = await readSettled(page, () => railStamp(page), {message: 'the rail\'s rating cell'});
       expect(stamp.stampVisible, 'the stamp is PAINTED over the rating icon').toBe(true);
       expect(stamp.hint, `the hint names the law: ${stamp.hint}`).toMatch(/Вето UNMI/);
       expect(stamp.hint, `…and the number: ${stamp.hint}`).toContain('30');
@@ -237,7 +239,7 @@ for (const preset of PRESETS) {
       await cinematicBeat(page, 300, 'the toast finishes its entrance before the frame is taken');
       await shoot(page, preset.id, '06-law-toast');
       expect(await temperatureText(page), 'the readout MOVED — the scale is the planet\'s, not the rating\'s').not.toBe(readoutBefore);
-      const after = await railStamp(page);
+      const after = await readSettled(page, () => railStamp(page), {message: 'the rail\'s rating cell after the heat'});
       expect(after.vetoed, 'the stamp still binds 30').toBe('30');
       expect(after.value, 'the digits still read 30').toBe('30');
       await settle(page, {timeoutMs: 30_000, notifications: false});

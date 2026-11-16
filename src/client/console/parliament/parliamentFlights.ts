@@ -724,6 +724,12 @@ export function flyDelegate(color: Color | 'neutral', from: Rect | undefined, to
         durationMs: CUBE_FLIGHT_MS,
         onLifted: lifted,
         onLanded: () => {
+          // THE HAND-OFF TICK is declared: the proxy has set the figure down and stands over the real one until the
+          // next tick (show, then remove) — it is no longer IN THE AIR. The continuation `landed()` runs may launch the
+          // next figure in that very tick, so a reader of «one after another» asks this mark, never the bare count
+          // (FLAKE ZERO — `console-parliament-bot` (2)+(3): the next lift and this drop are two frame callbacks of ONE
+          // frame, a state no frame paints). An ATTRIBUTE — the row's classes are bound.
+          flightEls[id]?.setAttribute('data-parl-flight-landed', '');
           landed();
           probeTick(() => dropFlight(id));
         },

@@ -3,6 +3,8 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, crumbText, pressUntil, settle} from './consoleStart';
 import {armLeakWitness, enterSittingByPass, expectParliamentFits, PARLIAMENT_PRESETS, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /*
  * «ПОДРОБНОСТИ ВЫПЛАТ» (the owner, 2026-10-24 — `docs/claude/console/parliament-payout-details.md`). On the sitting's
@@ -33,26 +35,20 @@ async function hotBox(page: Page): Promise<{x: number, w: number} | undefined> {
     return {x: Math.round(r.right), w: Math.round(r.width)};
   });
 }
+/** `hotBox` at REST (class C — `readSettled`; the results card STANDS for the player, so no `settle` first). Both sides of
+ *  the comparison are read through it. */
+const hotBoxAtRest = (page: Page, what: string) => readSettled(page, () => hotBox(page), {settle: false, message: what});
 
-/** The enacted law's card on the results card — sampled on TASKS (`setInterval`, never rAF) through the step's entry. */
+const LAW_WITNESS = 'payout-details-law-top';
+/** The enacted law's card on the results card — RECORDED through the step's entry (`armWitness`: every top it is drawn
+ *  at; null while the card is not mounted). `settled` — the state a task LEAVES, the one a frame paints (the old sampler
+ *  read on tasks for the same reason). */
 async function armLawProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__lawTops: Array<number>, __lawTimer: number};
-    w.__lawTops = [];
-    w.__lawTimer = window.setInterval(() => {
-      const card = document.querySelector('[data-sit-enacted] .con-sit__enacted-card');
-      if (card !== null) {
-        w.__lawTops.push(card.getBoundingClientRect().top);
-      }
-    }, 16);
-  });
+  await armWitness<number | null>(page, LAW_WITNESS, () =>
+    document.querySelector('[data-sit-enacted] .con-sit__enacted-card')?.getBoundingClientRect().top ?? null, {settled: true});
 }
 async function readLawProbe(page: Page): Promise<Array<number>> {
-  return await page.evaluate(() => {
-    const w = window as unknown as {__lawTops: Array<number>, __lawTimer: number};
-    window.clearInterval(w.__lawTimer);
-    return w.__lawTops;
-  });
+  return (await witnessOf<number | null>(page, LAW_WITNESS).stop()).map((s) => s.v).filter((top): top is number => top !== null);
 }
 
 for (const preset of PARLIAMENT_PRESETS) {
@@ -71,19 +67,20 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect(page.locator('[data-sit-results]:not([data-sit-results-hidden])')).toHaveCount(1, {timeout: 30_000});
       await expect(details(page), 'the step is closed until X').toHaveCount(0);
       await shoot(page, preset.id, '01-results');
-      const barBefore = await hotBox(page);
+      const barBefore = await hotBoxAtRest(page, 'A on the results card');
       expect(barBefore, 'A «Закрыть заседание» stands on the bar').toBeDefined();
       await armLawProbe(page);
 
       // ── X — the payouts' inspection, ONE level deeper on the same card.
       expect(await pressUntil(page, 'KeyX', async () => await details(page).count() === 1, {tries: 3, settleMs: 900}), 'X opens «ПОДРОБНОСТИ ВЫПЛАТ»').toBe(true);
       await settle(page, {timeoutMs: 20_000});
-      // The enacted law never moves on the way in (the owner, 2026-10-24: it jumped up and down) — task samples only.
+      // The enacted law never moves on the way in (the owner, 2026-10-24: it jumped up and down) — every top it was
+      // drawn at, recorded. The record keeps DISTINCT values: its floor catches only a dead recorder (`tests.md`).
       const tops = await readLawProbe(page);
-      expect(tops.length, 'the law probe sampled the entry').toBeGreaterThan(5);
+      expect(tops.length, 'the law probe recorded the entry').toBeGreaterThan(0);
       expect(Math.max(...tops) - Math.min(...tops), `the enacted law stands still (tops ${tops.slice(0, 40).map((t) => t.toFixed(1)).join(' ')})`).toBeLessThanOrEqual(1);
       // …and A keeps its place on the bar; the step offers no X «Закрыть» hint of its own.
-      expect(await hotBox(page), 'A stands in the SAME place on the step').toEqual(barBefore);
+      expect(await hotBoxAtRest(page, 'A on the payout step'), 'A stands in the SAME place on the step').toEqual(barBefore);
       await expect.poll(() => page.locator('.con-cmdbar__cmd:not(.con-cmdbar__cmd--hot)').filter({hasText: /Закрыть/}).count(), {message: 'no X «Закрыть» hint in the step'}).toBe(0);
       await expect.poll(() => crumbText(page), {message: 'the crumb grows forward one level', timeout: 10_000}).toMatch(/ИТОГИ\s*·\s*ВЫПЛАТЫ/i);
       const read = await page.evaluate((viewer) => {

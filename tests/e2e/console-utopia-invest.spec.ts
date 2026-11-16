@@ -2,7 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, cinematicBeat, FixtureName, fetchPlayerModel, openActionFocus, openCardActions, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * R33 · UTOPIA INVEST — the third classic Turmoil corporation adapted in place, its ACTIVATION the stand's subject:
@@ -86,8 +88,10 @@ async function tiles(page: Page): Promise<Array<Tile>> {
   })), TILES);
 }
 
+/** The palette's fit — read at REST (`readSettled`: two equal reads a frame apart; the composer stands for the player,
+ *  and `openUtopia` has settled, so no second settle). */
 async function fit(page: Page) {
-  return await page.evaluate(([group, composer]) => {
+  return await readSettled(page, () => page.evaluate(([group, composer]) => {
     const g = document.querySelector<HTMLElement>(group);
     const scroll = document.querySelector<HTMLElement>(`${composer} .con-composer__scroll`);
     const cta = document.querySelector<HTMLElement>(`${composer} .con-composer__cta`);
@@ -102,40 +106,27 @@ async function fit(page: Page) {
       ctaFocused: document.querySelector(`${composer} .con-composer__cta--focused`) !== null,
       bar: (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
     };
-  }, [GROUP, COMPOSER] as const);
+  }, [GROUP, COMPOSER] as const), {settle: false, message: 'the palette\'s fit'});
 }
 
 const focusedResource = async (page: Page) => (await tiles(page)).find((t) => t.focused)?.resource ?? '';
 
-/** The steel row's two numbers as painted: the production badge and the stock digits. */
+/**
+ * The steel row's two numbers as painted: the production badge and the stock digits — RECORDED (FLAKE ZERO:
+ * `armWitness`, armed before the press; `settled` — «never the result before its cause» is a claim about the two
+ * numbers a frame paints together, never about a state between two writes of one task).
+ */
+const STEEL_WITNESS = 'utopia-steel';
 async function armSteelSampler(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const seen: Array<string> = [];
-    const read = () => {
-      const row = document.querySelector('.con-res__row--steel');
-      const prod = (row?.querySelector('.con-res__prod')?.textContent ?? '').replace(/[^\d−-]/g, '').replace('−', '-');
-      const stock = (row?.querySelector('.con-res__digits')?.textContent ?? '').trim().match(/^-?\d+/)?.[0] ?? '';
-      const now = `pr${prod}|st${stock}`;
-      if (seen[seen.length - 1] !== now) {
-        seen.push(now);
-      }
-    };
-    read();
-    const timer = window.setInterval(read, 16);
-    const mo = new MutationObserver(read);
-    mo.observe(document.body, {childList: true, subtree: true, characterData: true});
-    (window as unknown as {__utopiaSteel: unknown}).__utopiaSteel = {seen, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-    }};
-  });
+  await armWitness<string>(page, STEEL_WITNESS, () => {
+    const row = document.querySelector('.con-res__row--steel');
+    const prod = (row?.querySelector('.con-res__prod')?.textContent ?? '').replace(/[^\d−-]/g, '').replace('−', '-');
+    const stock = (row?.querySelector('.con-res__digits')?.textContent ?? '').trim().match(/^-?\d+/)?.[0] ?? '';
+    return `pr${prod}|st${stock}`;
+  }, {settled: true});
 }
 async function steelSamples(page: Page): Promise<Array<string>> {
-  return await page.evaluate(() => {
-    const s = (window as unknown as {__utopiaSteel: {seen: Array<string>, stop: () => void}}).__utopiaSteel;
-    s.stop();
-    return s.seen;
-  });
+  return (await witnessOf<string>(page, STEEL_WITNESS).stop()).map((s) => s.v);
 }
 
 async function boot(page: Page, request: APIRequestContext, fixture: FixtureName, profile: typeof PROFILES[number]): Promise<string> {
@@ -197,21 +188,20 @@ for (const profile of PROFILES) {
       }
 
       // THE GRAMMAR — the cursor opens on the first live tile; ◄► walk a row; the bar names it; ▼ in a grid walks rows.
-      expect(await focusedResource(page), 'the cursor opens on the first live variant').toBe('megacredits');
+      await expect.poll(() => focusedResource(page), {message: 'the cursor opens on the first live variant'}).toBe('megacredits');
       expect(f.bar, 'the bar names the switch').toMatch(/Вариант/);
       await press(page, 'ArrowRight', 300);
-      expect(await focusedResource(page)).toBe('steel');
+      await expect.poll(() => focusedResource(page)).toBe('steel');
       if (f.axis === 'grid') {
         await press(page, 'ArrowDown', 300);
-        expect(await focusedResource(page), '▼ walks to the row below (the same column)').toBe('energy');
+        await expect.poll(() => focusedResource(page), {message: '▼ walks to the row below (the same column)'}).toBe('energy');
         await shoot(page, profile.id, 'A-02-cursor-dead');
         await press(page, 'ArrowUp', 300);
-        expect(await focusedResource(page), '▲ back up').toBe('steel');
+        await expect.poll(() => focusedResource(page), {message: '▲ back up'}).toBe('steel');
       }
       expect((await tiles(page)).filter((t) => t.selected), 'moving the cursor selects nothing').toHaveLength(0);
       await press(page, 'Enter', 500);
-      const after = await tiles(page);
-      expect(after.filter((t) => t.selected).map((t) => t.resource), 'ONE seal, on steel').toEqual(['steel']);
+      await expect.poll(async () => (await tiles(page)).filter((t) => t.selected).map((t) => t.resource), {message: 'ONE seal, on steel'}).toEqual(['steel']);
       expect((await fit(page)).ctaFocused, 'A on a tile lands the cursor on the commit').toBe(true);
       await shoot(page, profile.id, 'A-03-chosen-steel');
       expect(overflow, 'no [console-overflow]').toEqual([]);
@@ -230,7 +220,7 @@ test.describe('Utopia Invest · the activation · tv', () => {
     await openUtopia(page);
     await press(page, 'ArrowRight', 300);
     await press(page, 'Enter', 500);
-    expect((await tiles(page)).filter((t) => t.selected).map((t) => t.resource)).toEqual(['steel']);
+    await expect.poll(async () => (await tiles(page)).filter((t) => t.selected).map((t) => t.resource)).toEqual(['steel']);
     await expect(page.locator(`${COMPOSER} .con-composer__cta--focused`)).toHaveCount(1);
 
     await armTransferWitness(page);

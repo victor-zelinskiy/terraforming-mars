@@ -1,6 +1,8 @@
 import {expect, Page, test} from './consoleTest';
 import {createGameWithCards, soloGameConfig} from './consoleStart';
 import {createCampaign, launchMission, seedIdentity} from './campaignFixtures';
+import type {ObservedSample} from './observeCore';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * SCENE TRANSITION LIFECYCLE — the readiness-gated curtain of every screen
@@ -101,6 +103,24 @@ function readProbe(page: Page): Promise<SceneProbe> {
   return page.evaluate(() => (window as unknown as {__sceneProbe: SceneProbe}).__sceneProbe);
 }
 
+const EMBLEM_WITNESS = 'scene-transition:emblem';
+type EmblemSeen = {native: boolean, widths: Array<number>};
+
+/** The emblem's story in the LAST document (the boot's own — an earlier one is the blank page the recording was armed
+ *  on): console-native at its first sample, the min / max width over every sample that saw the emblem. */
+function foldEmblem(samples: ReadonlyArray<ObservedSample<EmblemSeen>>): {min: number, max: number, samples: number, nativeAtStart: boolean} {
+  const doc = samples.at(-1)?.doc;
+  const own = samples.filter((s) => s.doc === doc);
+  const seen = own.filter((s) => s.v.widths.length > 0);
+  const widths = seen.flatMap((s) => s.v.widths);
+  return {
+    min: widths.length > 0 ? Math.min(...widths) : Number.POSITIVE_INFINITY,
+    max: widths.length > 0 ? Math.max(...widths) : 0,
+    samples: seen.length,
+    nativeAtStart: own[0]?.v.native === true,
+  };
+}
+
 /** The dwell the director guarantees once status text was shown (base ms,
  *  minus slack for timer/paint jitter). */
 const MIN_TEXT_DWELL_OBSERVED_MS = 950;
@@ -182,41 +202,24 @@ test.describe('scene transition lifecycle', () => {
     await page.addInitScript(() => {
       localStorage.setItem('tm_console_profile', 'tv');
       localStorage.setItem('tm_console_profile_seed', JSON.stringify({profile: 'tv', uiScale: 0.6667}));
-      const probe = {min: Number.POSITIVE_INFINITY, max: 0, samples: 0, nativeAtStart: false};
-      (window as unknown as {__emblemProbe: unknown}).__emblemProbe = probe;
-      const sample = () => {
-        for (const el of Array.from(document.querySelectorAll('.con-load__scene'))) {
-          const w = el.getBoundingClientRect().width;
-          if (w > 0) {
-            probe.samples++;
-            probe.min = Math.min(probe.min, w);
-            probe.max = Math.max(probe.max, w);
-          }
-        }
-      };
-      const start = () => {
-        probe.nativeAtStart = document.documentElement.classList.contains('console-native');
-        new MutationObserver(sample).observe(document.documentElement, {
-          childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'],
-        });
-        setInterval(sample, 50);
-        sample();
-      };
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', start);
-      } else {
-        start();
-      }
     });
+    // RECORDED from the document's first element on (`armWitness` — its init script re-installs in every document,
+    // samples in the task the product writes and on every frame): the emblem's painted widths and whether the
+    // console-native class stands on <html>.
+    await armWitness<EmblemSeen>(page, EMBLEM_WITNESS, () => ({
+      native: document.documentElement.classList.contains('console-native'),
+      widths: Array.from(document.querySelectorAll('.con-load__scene'))
+        .map((el) => el.getBoundingClientRect().width)
+        .filter((w) => w > 0),
+    }));
     await page.goto(`/player?id=${playerId}&console=1`);
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 60_000});
 
-    const probe = await page.evaluate(() =>
-      (window as unknown as {__emblemProbe: {min: number, max: number, samples: number, nativeAtStart: boolean}}).__emblemProbe);
+    const probe = foldEmblem(await witnessOf<EmblemSeen>(page, EMBLEM_WITNESS).stop());
     expect(probe.nativeAtStart,
       'console-native must be on <html> from the document\'s first frame — it is what pins the rem base').toBeTruthy();
-    // Only a dead sampler reads fewer (the curtain stands for the whole boot).
-    expect(probe.samples).toBeGreaterThan(3);
+    // Only a dead recorder reads none (the curtain stands for the whole boot).
+    expect(probe.samples).toBeGreaterThan(0);
     expect(probe.max - probe.min,
       `the emblem re-scaled mid-boot (${probe.min}px → ${probe.max}px over ${probe.samples} samples)`)
       .toBeLessThanOrEqual(1);

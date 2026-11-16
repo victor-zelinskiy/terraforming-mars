@@ -19,6 +19,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, cinematicBeat, crumbText, openActionFocus, openCardActions, press, settle, walkFocusUntil} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'draw-one-batch');
 const CARD = 'Habitat Science';
@@ -41,36 +42,36 @@ const focusedTile = (page: Page) => page.evaluate(() =>
   document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-card') ?? '');
 
 type Sample = {t: number, table: string, turn: string, holds: string, paints: Array<[string, string]>, deckDeals: number, handStep: boolean, reveal: number};
-declare global {
-  interface Window {
-    __sealedWatch?: {samples: Array<Sample>, stop: () => void},
-  }
-}
+/** One moment as the reader sees it — the sample without its clock (the recording stamps the page's time). */
+type Seen = Omit<Sample, 't'>;
+const SEALED_WITNESS = 'sealed-ledger';
+
+/**
+ * THE PAYOUT'S RECORDING (FLAKE ZERO — `armWitness`, armed before the press): the reader returns what stands now, every
+ * change is kept with the page's time. «Never two reveals», «nothing flew while place 2 turned» are claims about what a
+ * FRAME shows, so the record is `settled` — the state a task leaves.
+ */
 async function installWatch(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const samples: Array<Sample> = [];
-    const t0 = performance.now();
-    const sample = () => {
-      const root = document.querySelector('.con-reveal[data-settlement-table]');
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        table: root?.getAttribute('data-settlement-table') ?? '',
-        turn: root?.getAttribute('data-settlement-turn') ?? '',
-        holds: ((window as unknown as {__conReady?: () => {holds?: Array<string>}}).__conReady?.().holds ?? []).join('|'),
-        paints: Array.from(document.querySelectorAll<HTMLElement>('[data-settlement-place]')).map((el) => [el.getAttribute('data-settlement-place') ?? '', el.getAttribute('data-settlement-paint') ?? '']),
-        deckDeals: document.querySelectorAll('.con-deckdraw-proxy').length,
-        handStep: document.querySelector('.con-hand.con-hand--embedded') !== null,
-        reveal: document.querySelectorAll('.con-reveal').length,
-      });
+  await armWitness<Seen>(page, SEALED_WITNESS, () => {
+    const root = document.querySelector('.con-reveal[data-settlement-table]');
+    return {
+      table: root?.getAttribute('data-settlement-table') ?? '',
+      turn: root?.getAttribute('data-settlement-turn') ?? '',
+      holds: ((window as unknown as {__conReady?: () => {holds?: Array<string>}}).__conReady?.().holds ?? []).join('|'),
+      paints: Array.from(document.querySelectorAll<HTMLElement>('[data-settlement-place]'))
+        .map((el): [string, string] => [el.getAttribute('data-settlement-place') ?? '', el.getAttribute('data-settlement-paint') ?? '']),
+      deckDeals: document.querySelectorAll('.con-deckdraw-proxy').length,
+      handStep: document.querySelector('.con-hand.con-hand--embedded') !== null,
+      reveal: document.querySelectorAll('.con-reveal').length,
     };
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-settlement-paint', 'data-settlement-table', 'class']});
-    const iv = setInterval(sample, 100);
-    window.__sealedWatch = {samples, stop: () => {
-      mo.disconnect();
-      clearInterval(iv);
-    }};
-  });
+  }, {settled: true, max: 20_000});
+}
+
+/** The recording in the watch's old shape: `t` in ms since the recording began (the page's clock). */
+async function watchSamples(page: Page): Promise<Array<Sample>> {
+  const seen = await witnessOf<Seen>(page, SEALED_WITNESS).samples();
+  const t0 = seen[0]?.t ?? 0;
+  return seen.map((s) => ({...s.v, t: s.t - t0}));
 }
 /** ONE press, then the witness polled — never a retry: a second A would land on whatever the first one opened (the hand). */
 async function pressOnce(page: Page, key: string, witness: () => Promise<boolean>, what: string, timeout = 30_000): Promise<void> {
@@ -137,7 +138,7 @@ test.describe('the sealed place in the ledger — Pluto\'s two pairs are one tab
       await expect(page.locator(place(2)), 'place 2 opened in place').toHaveAttribute('data-settlement-paint', 'open', {timeout: 60_000});
     } catch (e) {
       // A red here NAMES the stage it stalled in: the turn's place:phase, the holds, the paints — the last samples.
-      const trail = await page.evaluate(() => (window.__sealedWatch?.samples ?? []).filter((s, i, a) => i === 0 || JSON.stringify([s.turn, s.holds, s.paints, s.handStep]) !== JSON.stringify([a[i - 1].turn, a[i - 1].holds, a[i - 1].paints, a[i - 1].handStep])).slice(-40));
+      const trail = (await watchSamples(page)).filter((s, i, a) => i === 0 || JSON.stringify([s.turn, s.holds, s.paints, s.handStep]) !== JSON.stringify([a[i - 1].turn, a[i - 1].holds, a[i - 1].paints, a[i - 1].handStep])).slice(-40);
       test.info().annotations.push({type: 'stall-trail', description: JSON.stringify(trail)});
       console.log('── sealed-ledger stall trail ──', JSON.stringify(trail));
       throw e;
@@ -157,11 +158,8 @@ test.describe('the sealed place in the ledger — Pluto\'s two pairs are one tab
     await expect.poll(async () => (await wireOf(request, id)).cardsInHand?.length, {timeout: 30_000}).toBe(handBefore + 2 - 2);
     await expect.poll(async () => ((await wireOf(request, id)).cardDrawReveals ?? []).length, {timeout: 30_000}).toBe(0);
 
-    const watch = await page.evaluate(() => {
-      window.__sealedWatch?.stop();
-      return window.__sealedWatch?.samples ?? [];
-    });
-    expect(watch.length).toBeGreaterThan(20);
+    const watch = (await witnessOf<Seen>(page, SEALED_WITNESS).stop()).map((s) => s.v);
+    expect(watch.length, 'the watch recorded').toBeGreaterThan(0);
     const nonces = [...new Set(watch.map((s) => s.table).filter((n) => n !== ''))];
     expect(nonces, 'one table instance for the whole payout').toHaveLength(1);
     expect(Math.max(...watch.map((s) => s.reveal)), 'never two reveals').toBeLessThanOrEqual(1);

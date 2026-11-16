@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixture, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
+import {bootFixture, fetchPlayerModel, focusCard, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR10 «ОКРАИННАЯ КОЛОНИЯ» — THE COLONY ROSTER's first card: a colony tile is
@@ -65,9 +67,10 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
 
 const tableOf = (wire: Wire) => wire.game.colonies.map((c) => c.name);
 
+/** The record folded (`readProbe`). */
 type Probe = {
+  /** The DISTINCT states recorded (never frames). */
   samples: number;
-  ticks: number;
   steps: Array<string>;
   crumbMisses: Array<string>;
   coloniesOutsideHand: boolean;
@@ -84,115 +87,178 @@ type Probe = {
   beats: Array<string>;
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({card, root}) => {
-    const w = window as unknown as {__tr10: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, steps: [], crumbMisses: [], coloniesOutsideHand: false, coloniesMax: 0, degraded: [], stranded: false,
-      seatSeen: -1, seatGone: -1, projected: -1, docked: -1, cube: -1, receipt: -1, beats: [],
-    };
-    w.__tr10 = p;
-    const t0 = Date.now();
-    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const stamp = (key: 'seatSeen' | 'seatGone' | 'projected' | 'docked' | 'cube' | 'receipt') => {
-      if (p[key] === -1) {
-        p[key] = Date.now() - t0;
-      }
-    };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const hand = document.querySelector('.con-hand');
-      const head = hand?.querySelector('.con-wshead') ?? null;
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-      }
-      const colonies = document.querySelectorAll('.con-colonies');
-      p.coloniesMax = Math.max(p.coloniesMax, colonies.length);
-      colonies.forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.coloniesOutsideHand = true;
-        }
-        const degraded = el.getAttribute('data-colony-roster-degraded');
-        if (degraded !== null && !p.degraded.includes(degraded)) {
-          p.degraded.push(degraded);
-        }
-        const beat = el.getAttribute('data-colony-roster-beat');
-        if (beat !== null && beat !== '' && p.beats[p.beats.length - 1] !== beat) {
-          p.beats.push(beat);
-        }
-        if (el.querySelector('[data-colony-roster-receipt]') !== null) {
-          stamp('receipt');
-        }
-      });
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      const stage = document.querySelector('.con-colfocus[data-colony-roster="replace"]');
-      if (stage !== null) {
-        const seat = stage.querySelector('[data-roster-outgoing-seat]');
-        if (seat !== null) {
-          stamp('seatSeen');
-        } else if (p.seatSeen !== -1) {
-          stamp('seatGone');
-        }
-        if (stage.classList.contains('con-colfocus--roster-projected')) {
-          stamp('projected');
-        } else if (p.projected !== -1) {
-          stamp('docked');
-        }
-        // The colony the same answer built: the committed cube stands in the stage's own first berth.
-        if (stage.querySelector('[data-colony-build-slot="Luna#0"] .player-cube') !== null) {
-          stamp('cube');
-        }
-      }
-    };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  }, {card: CARD_RU, root: ROOT_RU});
-}
-
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr10: Probe}).__tr10);
+/** ONE observation of the screen — what stands now (the reader's answer; the folding is `readProbe`'s). */
+type FringeSeen = {
+  head: {root: string, subjects: Array<string>, steps: Array<string>} | null;
+  colonies: number;
+  /** A colonies surface outside the hand, or standing as a band of its own. */
+  outside: boolean;
+  degraded: Array<string>;
+  beats: Array<string>;
+  receipt: boolean;
+  stranded: boolean;
+  /** The replacement's stage: the leaving tile's seat, the projection pose, the committed cube in Luna's first berth. */
+  stage: {seat: boolean, projected: boolean, cube: boolean} | null;
+};
+const FRINGE_WITNESS = 'tr10-flow';
 
 /**
- * Every tile's SLOT on the grid, by colony — SETTLED (two equal reads 100 ms apart; timers, never rAF). The slot,
- * not the tile: the tile under the cursor wears the cursor's own lift, which is not the grid moving.
+ * THE FLOW'S RECORD (FLAKE ZERO — `armWitness`, replace-proof, armed before the first press): the hand's crumb, the
+ * colonies surfaces, the roster's beats and the stage's facts as they stand; every change kept with the PAGE's time.
+ * The claims are about ORDER (the ceremony's beats) and COEXISTENCE (one colonies instance, never outside the hand), so
+ * the record is `settled` — the state a task leaves, the one a frame paints.
  */
-const tileBoxes = (page: Page, scope: string) => page.evaluate(async (sel) => {
-  const pause = () => new Promise((resolve) => setTimeout(resolve, 100));
-  const read = () => {
-    const out: Record<string, string> = {};
-    document.querySelectorAll<HTMLElement>(`${sel} [data-test^="con-colony-"]`).forEach((el) => {
-      const r = (el.closest('.con-colonies__slot') ?? el).getBoundingClientRect();
-      out[(el.getAttribute('data-test') ?? '').replace('con-colony-', '')] = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
-    });
-    return out;
+async function armProbe(page: Page): Promise<void> {
+  await armWitness<FringeSeen>(page, FRINGE_WITNESS, () => {
+    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const head = document.querySelector('.con-hand')?.querySelector('.con-wshead') ?? null;
+    const colonies = Array.from(document.querySelectorAll('.con-colonies'));
+    const stage = document.querySelector('.con-colfocus[data-colony-roster="replace"]');
+    return {
+      head: head === null ? null : {
+        root: text(head.querySelector('.con-wshead__root')),
+        subjects: Array.from(head.querySelectorAll('.con-wshead__subject')).map(text),
+        steps: Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
+      },
+      colonies: colonies.length,
+      outside: colonies.some((el) => el.closest('.con-hand') === null || el.classList.contains('con-ws')),
+      degraded: colonies.map((el) => el.getAttribute('data-colony-roster-degraded')).filter((d): d is string => d !== null),
+      beats: colonies.map((el) => el.getAttribute('data-colony-roster-beat') ?? '').filter((b) => b !== ''),
+      receipt: colonies.some((el) => el.querySelector('[data-colony-roster-receipt]') !== null),
+      stranded: document.querySelector('.con-stranded') !== null,
+      stage: stage === null ? null : {
+        seat: stage.querySelector('[data-roster-outgoing-seat]') !== null,
+        projected: stage.classList.contains('con-colfocus--roster-projected'),
+        // The colony the same answer built: the committed cube stands in the stage's own first berth.
+        cube: stage.querySelector('[data-colony-build-slot="Luna#0"] .player-cube') !== null,
+      },
+    };
+  }, {settled: true});
+}
+
+/** The record folded — the ceremony's facts stamped the FIRST time each was seen (ms from the first state; −1 = never). */
+async function readProbe(page: Page): Promise<Probe> {
+  const record = await witnessOf<FringeSeen>(page, FRINGE_WITNESS).stop();
+  const t0 = record[0]?.t ?? 0;
+  const p: Probe = {
+    samples: record.length, steps: [], crumbMisses: [], coloniesOutsideHand: false, coloniesMax: 0, degraded: [], stranded: false,
+    seatSeen: -1, seatGone: -1, projected: -1, docked: -1, cube: -1, receipt: -1, beats: [],
   };
-  let last = JSON.stringify(read());
-  let equal = 0;
-  for (let i = 0; i < 60 && equal < 2; i++) {
-    await pause();
-    const now = JSON.stringify(read());
-    equal = now === last ? equal + 1 : 0;
-    last = now;
+  for (const {t, v} of record) {
+    const stamp = (key: 'seatSeen' | 'seatGone' | 'projected' | 'docked' | 'cube' | 'receipt') => {
+      if (p[key] === -1) {
+        p[key] = t - t0;
+      }
+    };
+    if (v.head !== null) {
+      if (v.head.root.toLowerCase() !== ROOT_RU.toLowerCase() || !v.head.subjects.some((s) => s.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${t - t0}ms root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+        }
+      }
+      for (const step of v.head.steps) {
+        if (!p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+    }
+    p.coloniesMax = Math.max(p.coloniesMax, v.colonies);
+    if (v.outside) {
+      p.coloniesOutsideHand = true;
+    }
+    for (const degraded of v.degraded) {
+      if (!p.degraded.includes(degraded)) {
+        p.degraded.push(degraded);
+      }
+    }
+    for (const beat of v.beats) {
+      if (p.beats[p.beats.length - 1] !== beat) {
+        p.beats.push(beat);
+      }
+    }
+    if (v.receipt) {
+      stamp('receipt');
+    }
+    if (v.stranded) {
+      p.stranded = true;
+    }
+    if (v.stage !== null) {
+      if (v.stage.seat) {
+        stamp('seatSeen');
+      } else if (p.seatSeen !== -1) {
+        stamp('seatGone');
+      }
+      if (v.stage.projected) {
+        stamp('projected');
+      } else if (p.projected !== -1) {
+        stamp('docked');
+      }
+      if (v.stage.cube) {
+        stamp('cube');
+      }
+    }
   }
-  return JSON.parse(last) as Record<string, string>;
+  return p;
+}
+
+/**
+ * Every tile's SLOT on the grid, by colony. The slot, not the tile: the tile under the cursor wears the cursor's own
+ * lift, which is not the grid moving.
+ */
+const tileBoxes = (page: Page, scope: string) => page.evaluate((sel) => {
+  const out: Record<string, string> = {};
+  document.querySelectorAll<HTMLElement>(`${sel} [data-test^="con-colony-"]`).forEach((el) => {
+    const r = (el.closest('.con-colonies__slot') ?? el).getBoundingClientRect();
+    out[(el.getAttribute('data-test') ?? '').replace('con-colony-', '')] = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
+  });
+  return out;
 }, scope);
+/** `tileBoxes` at REST (class C — `readSettled`: the same answer twice, a frame apart). The pick STANDS for the player
+ *  — no `settle` first. */
+const tileBoxesAtRest = (page: Page, scope: string, what: string) => readSettled(page, () => tileBoxes(page, scope), {settle: false, message: what});
+
+/**
+ * The receipt grid's slot boxes — RECORDED from before the commit (`armWitness`): the receipt stands for ONE read
+ * (`ROSTER_READ_MS`, 680 ms — 340 at the functional class's ×0.5), so its pose is caught in the task that paints it,
+ * never by a read that may come after it left. Null while no receipt stands — and once its surface is LEAVING (the
+ * product's own `data-motion-leaving`): the dissolve is the leave's, not the landing's.
+ */
+const RECEIPT_WITNESS = 'tr10-receipt';
+/** One recorded pose of the receipt: the slot boxes and the receipt's own words (both read IN its window). */
+type ReceiptPose = {boxes: Record<string, string>, words: string};
+async function armReceiptBoxes(page: Page): Promise<void> {
+  await armWitness<ReceiptPose | null>(page, RECEIPT_WITNESS, () => {
+    const grid = document.querySelector('.con-hand .con-colonies--receipt');
+    if (grid === null || grid.closest('[data-motion-leaving]') !== null) {
+      return null;
+    }
+    const boxes: Record<string, string> = {};
+    grid.querySelectorAll<HTMLElement>('[data-test^="con-colony-"]').forEach((el) => {
+      const r = (el.closest('.con-colonies__slot') ?? el).getBoundingClientRect();
+      boxes[(el.getAttribute('data-test') ?? '').replace('con-colony-', '')] = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
+    });
+    const words = (document.querySelector('.con-hand [data-colony-roster-receipt]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    return {boxes, words};
+  }, {settled: true});
+}
+/**
+ * The pose the receipt RESTED in — its LAST pose before it ended (waited for on the RECORD: a pose, then none — the
+ * receipt stands for one read, 340 ms at the functional pace, and a wait for it to be visible that starts after the
+ * server's answer was polled can begin after it has already left), with its words.
+ */
+async function receiptRest(page: Page): Promise<ReceiptPose> {
+  const w = witnessOf<ReceiptPose | null>(page, RECEIPT_WITNESS);
+  const ended = (poses: ReadonlyArray<ReceiptPose | null>) => {
+    const first = poses.findIndex((p) => p !== null);
+    return first === -1 ? -1 : poses.indexOf(null, first);
+  };
+  await expect.poll(async () => ended(await w.values()), {timeout: 30_000, message: 'the receipt stood and was read'}).toBeGreaterThan(0);
+  const poses = (await w.stop()).map((s) => s.v);
+  const rest = poses[ended(poses) - 1] ?? null;
+  // The words: the last non-empty reading of the receipt's own line while it stood.
+  const words = poses.slice(0, ended(poses)).filter((p): p is ReceiptPose => p !== null).map((p) => p.words).filter((s) => s !== '').at(-1) ?? '';
+  return {boxes: rest?.boxes ?? {}, words};
+}
 
 const composer = '.con-composer--play';
 const grid = '.con-hand .con-colonies[data-colony-mode="pick"]';
@@ -207,10 +273,7 @@ const railNames = (page: Page) => page.evaluate((sel) =>
 async function chooseTile(page: Page): Promise<void> {
   const taken = () => page.evaluate((sel) =>
     document.querySelector('.con-composer--submitting, .con-composer--landing') !== null || document.querySelector(sel) !== null, grid);
-  for (let attempt = 0; attempt < 3 && !await taken(); attempt++) {
-    await press(page, 'Enter', 300);
-    await expect.poll(taken, {timeout: 2_500}).toBe(true).catch(() => undefined);
-  }
+  await pressUntil(page, 'Enter', taken, {tries: 3, settleMs: 2_500});
   await page.locator(grid).waitFor({timeout: 30_000});
   await expect(page.locator(composer), 'the composer left with the landing scene').toHaveCount(0, {timeout: 15_000});
   await settle(page, {timeoutMs: 20_000});
@@ -278,18 +341,15 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${tile('Io')} .con-coltile__status`), 'a tile with a colony states why it stays').toContainText('На плитке есть колонии');
       await expect(page.locator(`${tile('Callisto')} .con-coltile__status`), 'a tile with a fleet states why it stays').toContainText('На плитке стоит торговый флот');
       expect(await focusedTile(page), 'the cursor stands on the first tile that may leave (A only chooses)').toBe('Ceres');
-      const tableBoxes = await tileBoxes(page, grid);
+      const tableBoxes = await tileBoxesAtRest(page, grid, 'the table\'s slots');
       await walkTo(page, 'Europa');
-      expect(await tileBoxes(page, grid), 'the grid\'s boxes did not move under the walk').toEqual(tableBoxes);
+      expect(await tileBoxesAtRest(page, grid, 'the table\'s slots after the walk'), 'the grid\'s boxes did not move under the walk').toEqual(tableBoxes);
       await walkTo(page, 'Ceres');
       await expect(page.locator(`${grid} [data-colonies-rail-roster="leaves"]`), 'the rail says what choosing it does').toContainText('будет снята');
 
       // ── 4. LEVEL 2: the reserve, each candidate as it would enter; B walks back ──
       const toReserve = async () => {
-        for (let attempt = 0; attempt < 3 && !(await railNames(page)).includes('Luna'); attempt++) {
-          await press(page, 'Enter', 400);
-          await expect.poll(async () => (await railNames(page)).includes('Luna'), {timeout: 4_000}).toBe(true).catch(() => undefined);
-        }
+        await pressUntil(page, 'Enter', async () => (await railNames(page)).includes('Luna'), {tries: 3, settleMs: 4_000});
         expect(await railNames(page), 'level 2 rails the RESERVE').toContain('Luna');
         await settle(page, {timeoutMs: 20_000});
       };
@@ -302,10 +362,7 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${tile('Titan')} [data-colony-projected-cube]`), 'Titan: no ghost cube').toHaveCount(0);
       await expect(page.locator(`${grid} [data-colonies-rail-roster="leaving"]`), 'the leaving tile leads the rail').toContainText('Церера');
 
-      for (let attempt = 0; attempt < 3 && !(await railNames(page)).includes('Ceres'); attempt++) {
-        await press(page, 'Escape', 400);
-        await expect.poll(async () => (await railNames(page)).includes('Ceres'), {timeout: 4_000}).toBe(true).catch(() => undefined);
-      }
+      await pressUntil(page, 'Escape', async () => (await railNames(page)).includes('Ceres'), {tries: 3, settleMs: 4_000});
       expect(await railNames(page), 'B walks back to level 1 — the table').toEqual(['Ceres', 'Io', 'Callisto', 'Europa']);
       expect(await focusedTile(page), 'the cursor is back on the tile that was un-chosen').toBe('Ceres');
       await expect(page.locator(composer), 'B from level 2 is ONE level — never the composer').toHaveCount(0);
@@ -314,10 +371,7 @@ for (const preset of PRESETS) {
       // ── 5. forward again; A on Luna descends to its stage ──
       await toReserve();
       await walkTo(page, 'Luna');
-      for (let attempt = 0; attempt < 3 && await page.locator(stage).count() === 0; attempt++) {
-        await press(page, 'Enter', 400);
-        await page.locator(stage).waitFor({timeout: 4_000}).catch(() => undefined);
-      }
+      await pressUntil(page, 'Enter', async () => await page.locator(stage).count() > 0, {tries: 3, settleMs: 4_000});
       await page.locator(stage).waitFor({timeout: 15_000});
       await settle(page, {timeoutMs: 20_000});
       await expect(page.locator(stage), 'the entering planet stands in its projection pose').toHaveClass(/con-colfocus--roster-projected/);
@@ -328,10 +382,8 @@ for (const preset of PRESETS) {
       expect(posts, 'the descent sends nothing').toEqual([]);
 
       // ── 6. A «Разыграть карту» — ONE POST, the replacement addressed to the card ──
-      for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-        await press(page, 'Enter', 300);
-        await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
-      }
+      await armReceiptBoxes(page);
+      await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 3_000});
       expect(posts.map((p) => new URL(p.url).pathname), 'the play is ONE batch POST').toEqual(['/player/input-batch']);
       const sent = JSON.parse(posts[0].body) as {responses?: Array<Record<string, unknown>>} | Array<Record<string, unknown>>;
       const responses = Array.isArray(sent) ? sent : sent.responses ?? [];
@@ -348,16 +400,16 @@ for (const preset of PRESETS) {
       expect(after.thisPlayer.megacreditProduction, 'Luna\'s build bonus: +2 M€ production').toBe(before.thisPlayer.megacreditProduction + 2);
 
       // ── 8b. THE LANDING: the receipt grid — Luna in Ceres's slot, nobody else moved ──
-      await page.locator('.con-hand .con-colonies--receipt').waitFor({timeout: 30_000});
-      // The receipt stands for ONE read (`ROSTER_READ_MS`, 680 ms — 340 at the functional class's ×0.5) and the box
-      // measure below waits for two equal samples: its words are read IN that window, never after it.
-      const receiptWords = page.locator('.con-hand [data-colony-roster-receipt]').textContent({timeout: 5_000});
-      const landed = await tileBoxes(page, '.con-hand .con-colonies');
+      // The receipt stands for ONE read (`ROSTER_READ_MS`, 680 ms — 340 at the functional class's ×0.5): its boxes AND
+      // its words come from the RECORD armed before the commit, read IN that window — never a wait for it to be
+      // visible, which starts after the server's answer was polled and can begin after the receipt has left.
+      const receipt = await receiptRest(page);
+      const landed = receipt.boxes;
       expect(landed.Luna, 'Luna stands in the very box Ceres stood in').toBe(tableBoxes.Ceres);
       for (const name of ['Io', 'Callisto', 'Europa']) {
         expect(landed[name], `${name} did not move`).toBe(tableBoxes[name]);
       }
-      expect(await receiptWords ?? '', 'the receipt names the change').toContain('Церера');
+      expect(receipt.words, 'the receipt names the change').toContain('Церера');
 
       // ── 9. the flow ends on the board ──
       await expect.poll(() => page.evaluate(() => ({
@@ -373,7 +425,8 @@ for (const preset of PRESETS) {
       const dump = JSON.stringify(probe);
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/fringe-colony-${preset.id}.json`, JSON.stringify(probe, null, 1));
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+      // The record keeps DISTINCT states, never frames: its floor catches only a dead recorder (`tests.md`).
+      expect(probe.samples, `the probe's recorder ran (${probe.samples} states)`).toBeGreaterThan(0);
 
       // ── 2. one flow ──
       expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);

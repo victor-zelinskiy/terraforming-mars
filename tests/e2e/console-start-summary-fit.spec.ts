@@ -1,7 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {fillPicks, press, submitSummary, summaryVisible, walkToSummary} from './consoleStart';
+import {fillPicks, press, settle, submitSummary, summaryVisible, walkToSummary} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * THE SUMMARY FITS — AT EVERY COUNT, and the convoy that fills it never
@@ -83,23 +85,11 @@ for (const c of CASES) {
       await page.waitForSelector('.con-start__frame', {timeout: 45_000});
       await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
 
-      // A per-frame witness of the projects → summary convoy: how many cards
-      // were ever AIRBORNE (a proxy), against how many were bought.
-      await page.evaluate(() => {
-        const w = window as unknown as {__conv: {maxProxies: number, frames: number, everFlew: number}};
-        const state = {maxProxies: 0, frames: 0, everFlew: 0};
-        w.__conv = state;
-        const seen = new Set<string>();
-        const tick = () => {
-          state.frames++;
-          const proxies = document.querySelectorAll('.con-startdock-layer .con-startdock-proxy');
-          state.maxProxies = Math.max(state.maxProxies, proxies.length);
-          proxies.forEach((p, i) => seen.add(`${(p as HTMLElement).style.transform ?? ''}#${i}`));
-          state.everFlew = seen.size;
-          requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      });
+      // A RECORDED witness of the projects → summary convoy (FLAKE ZERO — `armWitness`): how many cards were AIRBORNE
+      // (a proxy) at once, against how many were bought. «Together» is a coexistence claim, so the record is `settled`
+      // — the state a task leaves, the one a frame paints.
+      const convoy = await armWitness(page, 'summary-fit-convoy', () =>
+        document.querySelectorAll('.con-startdock-layer .con-startdock-proxy').length, {settled: true});
 
       await walkToSummary(page, {
         onStep: async (p, kind) => {
@@ -114,11 +104,19 @@ for (const c of CASES) {
         },
       });
       expect(await summaryVisible(page)).toBeTruthy();
-      await page.waitForTimeout(2500); // the convoy lands + the fit settles
+      // The convoy lands + the fit settles — the END state (every bought card on the summary, none held under a proxy,
+      // nothing airborne; bounded as the old pause and the closing assertions bounded it together), then the screen at
+      // REST — never a fixed pause.
+      await expect.poll(() => page.evaluate(() => ({
+        minis: document.querySelectorAll('.con-start__summary .con-start__minirow--wrap .con-start__mini').length,
+        held: document.querySelectorAll('.con-start__summary .con-deal-hold').length,
+        airborne: document.querySelectorAll('.con-startdock-layer .con-startdock-proxy').length,
+      })), {message: 'the convoy came to rest on the summary', timeout: 7_500}).toEqual({minis: c.buy, held: 0, airborne: 0});
+      await settle(page);
       await shoot(page, c.tag);
 
-      // 1 · THE FIT: the pane does not scroll, in either axis.
-      const of = await summaryOverflow(page);
+      // 1 · THE FIT: the pane does not scroll, in either axis — read at rest (two equal reads a frame apart).
+      const of = await readSettled(page, () => summaryOverflow(page), {message: 'the summary pane\'s overflow'});
       expect(of.v, `summary scrolls vertically (zoom ${of.zoom})`).toBeLessThanOrEqual(1);
       expect(of.h, `summary scrolls horizontally (zoom ${of.zoom})`).toBeLessThanOrEqual(1);
       // …and every bought card is really rendered in it.
@@ -128,10 +126,11 @@ for (const c of CASES) {
       // 2 · THE CONVOY: the batch flew as ONE physical group — the peak
       //     proxy count matches the whole batch (corp + preludes + projects),
       //     never a first handful with the rest appearing on their own.
-      const conv = await page.evaluate(() => (window as unknown as {
-        __conv: {maxProxies: number, frames: number}}).__conv);
+      const airborne = await convoy.values();
+      const conv = {maxProxies: Math.max(0, ...airborne), states: airborne.length};
       console.log(`[convoy ${c.tag}] ${JSON.stringify(conv)}`);
-      expect(conv.frames, 'the witness ran').toBeGreaterThan(30);
+      // The record keeps DISTINCT states, never frames: its floor catches only a dead recorder (`tests.md`).
+      expect(conv.states, 'the witness ran').toBeGreaterThan(0);
       expect(conv.maxProxies, 'the whole batch was airborne together')
         .toBeGreaterThanOrEqual(c.buy);
 

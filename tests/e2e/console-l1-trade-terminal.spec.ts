@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, settle, waitForBoardHome} from './consoleStart';
+import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {openColoniesSection} from './cardTradeDoor';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P78 «ТОРГОВЫЙ ТЕРМИНАЛ L1» — the FIFTH Prelude 2 card: the first with a PASSIVE TRADE EFFECT and the first MULTI-PICK
@@ -76,33 +77,34 @@ function watchPosts(page: Page): Array<string> {
 }
 
 type WaveProbe = {names: Array<string>, together: number};
-/** THE WAVE (PL-1146): which cards emerged out of the stack, and the most standing out AT ONCE — sampled by a timer
- *  (never rAF: headless drives rAF off the compositor). */
+/**
+ * THE WAVE (PL-1146): which cards emerged out of the stack, and the most standing out AT ONCE — RECORDED off the
+ * product's own writes from before the press (FLAKE ZERO, `armWitness`): the reader returns the faces standing out NOW,
+ * the union and the most at once are folded on the Node side. `settled`: «at once» is a coexistence claim — what a task
+ * leaves, never a state between two of its writes.
+ */
+const WAVE_PROBE = 'p78-wave';
 async function armWaveProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const p: WaveProbe = {names: [], together: 0};
-    (window as unknown as {__p78wave: WaveProbe}).__p78wave = p;
-    window.setInterval(() => {
-      const out = Array.from(document.querySelectorAll<HTMLElement>('.con-recv__emerge[data-emerge-name]'))
-        .filter((el) => getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.5);
-      for (const el of out) {
-        const name = el.getAttribute('data-emerge-name') ?? '';
-        if (!p.names.includes(name)) {
-          p.names.push(name);
-        }
-      }
-      p.together = Math.max(p.together, out.length);
-    }, 30);
-  });
+  await armWitness<Array<string>>(page, WAVE_PROBE, () => Array.from(document.querySelectorAll<HTMLElement>('.con-recv__emerge[data-emerge-name]'))
+    .filter((el) => getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.5)
+    .map((el) => el.getAttribute('data-emerge-name') ?? ''), {settled: true});
 }
-const readWaveProbe = (page: Page): Promise<WaveProbe> => page.evaluate(() => (window as unknown as {__p78wave: WaveProbe}).__p78wave);
+async function readWaveProbe(page: Page): Promise<WaveProbe> {
+  const p: WaveProbe = {names: [], together: 0};
+  for (const out of await witnessOf<Array<string>>(page, WAVE_PROBE).values()) {
+    p.names.push(...out.filter((name, i) => !p.names.includes(name) && out.indexOf(name) === i));
+    p.together = Math.max(p.together, out.length);
+  }
+  return p;
+}
 
 /** RT → the wheel's centre (the hand) → the card focused. */
 async function focusInHand(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).count() === 0; i++) {
-    await press(page, 'Period', 600);
-    await press(page, 'Enter', 1600);
-  }
+  // The wheel, then the hand — each press verified by what it opens (a retry only after its whole window passed).
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 4, settleMs: 600});
+  await pressUntil(page, 'Enter', handUp, {tries: 4, settleMs: 1600});
+  await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 15_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
@@ -146,9 +148,7 @@ test.describe(`P78 L1 Trade Terminal · all targets seeded, the standing +2 on t
     await shoot(page, 'a-composer-seeded');
 
     // A on the row opens the zone with the three ticked; B keeps the seed.
-    for (let i = 0; i < 6 && await page.locator(`${ROW}.con-composer__row--focused`).count() === 0; i++) {
-      await press(page, 'ArrowUp', 300);
-    }
+    await pressUntil(page, 'ArrowUp', async () => await page.locator(`${ROW}.con-composer__row--focused`).count() > 0, {tries: 6, settleMs: 300});
     await expect(page.locator(`${ROW}.con-composer__row--focused`), 'the cursor on the seeded row').toHaveCount(1);
     await press(page, 'Enter', 1200);
     await expect(page.locator(ZONE), 'the table zone opens').toHaveCount(1, {timeout: 10_000});
@@ -161,9 +161,7 @@ test.describe(`P78 L1 Trade Terminal · all targets seeded, the standing +2 on t
     await expect(page.locator(ROW), 'B keeps the seed').toHaveCount(1);
     expect(posts.length, 'still nothing sent').toBe(0);
 
-    for (let i = 0; i < 6 && await page.locator(`${PLAY} .con-composer__cta--focused`).count() === 0; i++) {
-      await press(page, 'ArrowDown', 300);
-    }
+    await pressUntil(page, 'ArrowDown', async () => await page.locator(`${PLAY} .con-composer__cta--focused`).count() > 0, {tries: 6, settleMs: 300});
     await armTransferWitness(page);
     await armWaveProbe(page);
     const stopPlay = await storyboard(page, 'play');
@@ -237,9 +235,8 @@ test.describe(`P78 L1 Trade Terminal · all targets seeded, the standing +2 on t
     await expect(page.locator(`${PLAY} .con-composer__row--missing`), 'the target row is an open question').toHaveCount(1);
     await expect(page.locator(`${PLAY} .con-composer__cta--focused`), 'the open question holds the cursor').toHaveCount(0);
     await shoot(page, 'f-vermin-open');
-    for (let i = 0; i < 3 && await page.locator(ZONE).count() === 0; i++) {
-      await press(page, 'Enter', 1200);
-    }
+    // A, verified by the zone itself — a retry only after the whole window passed without one.
+    await pressUntil(page, 'Enter', async () => await page.locator(ZONE).count() > 0, {tries: 3, settleMs: 1200});
     await expect(page.locator(ZONE), 'A opens the table zone').toHaveCount(1, {timeout: 10_000});
     await settle(page);
     await expect(page.locator(`${ZONE} .con-ptsel__slot[data-zoom-slot]`), 'four candidates').toHaveCount(4);

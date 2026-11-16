@@ -2,9 +2,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixture, cinematicBeat, fetchPlayerModel, focusCard, openCardActions, playCardFromHand, playQueueCard, press, pressUntil, reloadConsole, settle, walkFocusUntil,
+  bootFixture, cinematicBeat, fetchPlayerModel, focusCard, openCardActions, playCardFromHand, playQueueCard, press, pressUntil, pressUntilGone, reloadConsole, settle,
+  walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P57 PRESERVATION PROGRAM — the thirty-ninth Prelude 2 card (ledgers FQ / FR): «Raise your TR 5 steps. EFFECT: skip
@@ -79,8 +82,9 @@ async function untilServer(request: APIRequestContext, id: string, ok: (m: Wire)
   throw new Error(`the server never reached: ${what} (last: TR ${last?.thisPlayer.terraformRating}, heat ${last?.thisPlayer.heat}, t ${last?.game.temperature}, gen ${last?.game.generation}, phase ${last?.game.phase}, mark ${last?.thisPlayer.ratingSkip})`);
 }
 
-/** The rail's rating cell as painted: the card's mark (state + visibility), the hint, the digits. */
-const cellRead = (page: Page) => page.evaluate((sel) => {
+/** The rail's rating cell as painted: the card's mark (state + visibility), the hint, the digits — read at REST
+ *  (`readSettled`: two equal reads a frame apart; the callers have settled, so no second settle). */
+const cellRead = (page: Page) => readSettled(page, () => page.evaluate((sel) => {
   const cell = document.querySelector<HTMLElement>(sel);
   const mark = cell?.querySelector<HTMLElement>('.con-score__skip');
   const r = mark?.getBoundingClientRect();
@@ -93,41 +97,46 @@ const cellRead = (page: Page) => page.evaluate((sel) => {
     // The mark stands in the icon's UPPER-LEFT corner — never over the digits.
     upperLeft: r !== undefined && iconR !== undefined && r.left <= iconR.left + iconR.width / 2 && r.top <= iconR.top + iconR.height / 2,
   };
-}, CELL);
+}, CELL), {settle: false, message: 'the rating cell'});
 
 type Probe = {states: Array<string>, keyframes: Array<string>, causeOnCell: boolean, owedHold: boolean, holds: Array<string>};
-/** From the press on: the mark's states, any @keyframes on the mark, the cause mark on the cell, the OWED hold. */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate((sel) => {
-    const p: Probe = {states: [], keyframes: [], causeOnCell: false, owedHold: false, holds: []};
-    (window as unknown as {__p57: Probe}).__p57 = p;
-    const read = () => {
-      const cell = document.querySelector<HTMLElement>(sel);
-      const state = cell?.getAttribute('data-tr-skip') ?? '';
-      if (p.states[p.states.length - 1] !== state) {
-        p.states.push(state);
+/** What ONE state of the rating cell shows: the mark's state, the cause mark, the @keyframes on the mark, the holds. */
+type CellSeen = {state: string, cause: boolean, keyframes: Array<string>, holds: Array<string>};
+/**
+ * From the press on: the mark's states, any @keyframes on the mark, the cause mark on the cell, the OWED hold — RECORDED
+ * (FLAKE ZERO: `armWitness`, armed before the press; `settled` — the states' ORDER is a claim about painted states).
+ */
+async function armProbe(page: Page, key: string): Promise<void> {
+  await armWitness<CellSeen, string>(page, key, (sel) => {
+    const cell = document.querySelector<HTMLElement>(sel);
+    const mark = cell?.querySelector<HTMLElement>('.con-score__skip');
+    const keyframes: Array<string> = [];
+    for (const a of (mark?.getAnimations?.({subtree: true}) ?? [])) {
+      if (a instanceof CSSAnimation && !keyframes.includes(a.animationName)) {
+        keyframes.push(a.animationName);
       }
-      p.causeOnCell = p.causeOnCell || cell?.hasAttribute('data-reaction-cause') === true;
-      const mark = cell?.querySelector<HTMLElement>('.con-score__skip');
-      for (const a of (mark?.getAnimations?.({subtree: true}) ?? [])) {
-        if (a instanceof CSSAnimation && !p.keyframes.includes(a.animationName)) {
-          p.keyframes.push(a.animationName);
-        }
-      }
-      const holds = (window as unknown as {__conReady?: () => {holds: Array<string>}}).__conReady?.().holds ?? [];
-      for (const h of holds) {
-        if (!p.holds.includes(h)) {
-          p.holds.push(h);
-        }
-      }
-      p.owedHold = p.owedHold || holds.some((h) => h.includes('action-commit-rail-owed'));
+    }
+    return {
+      state: cell?.getAttribute('data-tr-skip') ?? '',
+      cause: cell?.hasAttribute('data-reaction-cause') === true,
+      keyframes,
+      holds: (window as unknown as {__conReady?: () => {holds: Array<string>}}).__conReady?.().holds ?? [],
     };
-    read();
-    new MutationObserver(read).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(read, 40);
-  }, CELL);
+  }, {args: CELL, settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p57: Probe}).__p57);
+/** The probe, folded from its record (and the recording stopped). */
+async function readProbe(page: Page, key: string): Promise<Probe> {
+  const seen = (await witnessOf<CellSeen>(page, key).stop()).map((s) => s.v);
+  const union = (lists: Array<Array<string>>): Array<string> => lists.flat().filter((x, i, all) => all.indexOf(x) === i);
+  const holds = union(seen.map((v) => v.holds));
+  return {
+    states: seen.map((v) => v.state).filter((st, i, all) => i === 0 || st !== all[i - 1]),
+    keyframes: union(seen.map((v) => v.keyframes)),
+    causeOnCell: seen.some((v) => v.cause),
+    owedHold: holds.some((h) => h.includes('action-commit-rail-owed')),
+    holds,
+  };
+}
 
 const onBoard = (p: Page) => () => p.evaluate(() => {
   const board = document.querySelector<HTMLElement>('.con-board');
@@ -163,7 +172,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
     await shoot(page, 'A-01-queue');
 
     await armTransferWitness(page);
-    await armProbe(page);
+    await armProbe(page, 'p57-A');
     const stop = await storyboard(page, 'start');
     expect(await playQueueCard(page, CARD), 'the prelude was played from the queue').toBe(true);
     const after = await untilServer(request, id, (m) => m.thisPlayer.tableau.some((c) => c.name === CARD), 'the prelude on the table');
@@ -198,7 +207,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
       expect(birth?.under ?? '', `a TR token born on the card, never on the rail (trail:\n${trail})`).not.toMatch(/^rail:/);
     }
     expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);
-    const probe = await readProbe(page);
+    const probe = await readProbe(page, 'p57-A');
     test.info().annotations.push({type: 'p57-probe-A', description: JSON.stringify(probe)});
     expect(probe.states.indexOf('armed'), 'the mark armed only AFTER the +5 (it was absent first)').toBeGreaterThan(0);
   });
@@ -240,7 +249,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
     await shoot(page, 'B-03-heat-confirm');
 
     await armTransferWitness(page);
-    await armProbe(page);
+    await armProbe(page, 'p57-B');
     const stop = await storyboard(page, 'heat-skip');
     await press(page, 'Enter', 900);
     const afterHeat = await untilServer(request, id, (m) => m.thisPlayer.heat === 0 && m.game.temperature === start.game.temperature + 2, '8 heat spent, the temperature +2');
@@ -262,7 +271,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
     fs.writeFileSync(path.join(OUT, 'B-trail.txt'), `${trail}\n`);
     expect(witness.landings.filter((l) => l.under === 'rail:tr'), `NO rating token — the step was never gained (trail:\n${trail})`).toEqual([]);
     expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);
-    const probe = await readProbe(page);
+    const probe = await readProbe(page, 'p57-B');
     test.info().annotations.push({type: 'p57-probe-B', description: JSON.stringify(probe)});
     expect(probe.owedHold, `the rail half never waited as OWED (holds: ${probe.holds.join(', ')})`).toBe(false);
     expect(probe.causeOnCell, 'the rating cell was named as the cause').toBe(true);
@@ -287,9 +296,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
     await expect(page.locator('.con-stdp__card--focused[data-stdp-veto]'), 'the Asteroid row is whole').toHaveCount(0);
     await expect(page.locator('.con-stdp__foot .action-effect-chip--vetoed'), 'no struck chip').toHaveCount(0);
     await shoot(page, 'B-05-asteroid-whole');
-    for (let i = 0; i < 4 && await page.locator('.con-stdp').count() > 0; i++) {
-      await press(page, 'Escape', 800);
-    }
+    await pressUntilGone(page, 'Escape', '.con-stdp', {tries: 4, settleMs: 800});
 
     // (G) A RELOAD — the mark and its hint stand (the server's field).
     await reloadConsole(page);
@@ -299,7 +306,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
 
     // (D) THE PASS → a new generation: the mark «armed» again by ONE crossfade — no @keyframes on it.
     expect(await pressUntil(page, 'Escape', onBoard(page), {tries: 4, settleMs: 1200}), 'back on the board').toBe(true);
-    await armProbe(page);
+    await armProbe(page, 'p57-D');
     await wheelSlot(page, 'ArrowDown');
     await expect(page.locator(CONFIRM), 'the pass asks on its plate').toBeVisible({timeout: 10_000});
     await press(page, 'Enter', 300);
@@ -308,7 +315,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
     await expect(page.locator(`${CELL}[data-tr-skip="armed"]`), 'the mark «armed» again').toHaveCount(1, {timeout: 60_000});
     await settle(page, {timeoutMs: 30_000}).catch(() => undefined);
     await shoot(page, 'D-01-rearmed');
-    const rearm = await readProbe(page);
+    const rearm = await readProbe(page, 'p57-D');
     test.info().annotations.push({type: 'p57-probe-D', description: JSON.stringify(rearm)});
     expect(rearm.states.filter((s) => s !== ''), 'spent → armed, one change').toEqual(['spent', 'armed']);
     expect(rearm.keyframes, 'no pulse on the re-arm — a crossfade only').toEqual([]);
@@ -334,7 +341,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
     expect(await pressUntil(page, 'Escape', onBoard(page), {tries: 6, settleMs: 1000}), 'back on the board').toBe(true);
 
     await armTransferWitness(page);
-    await armProbe(page);
+    await armProbe(page, 'p57-C');
     const stop = await storyboard(page, 'bribed');
     expect(await playCardFromHand(page, PLUS_TR_CARD), 'Bribed Committee was played').toBeTruthy();
     const after = await untilServer(request, id, (m) => m.thisPlayer.ratingSkip === 'spent' && !(m.cardsInHand ?? []).some((c) => c.name === PLUS_TR_CARD), 'the card played, the skip spent');
@@ -347,7 +354,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
     fs.writeFileSync(path.join(OUT, 'C-trail.txt'), `${trail}\n`);
     expect(witness.landings.filter((l) => l.under === 'rail:tr').length, `exactly ONE rating token (trail:\n${trail})`).toBe(1);
     expect(endsOverGlass(witness), 'no end over glass or nothing').toEqual([]);
-    const probe = await readProbe(page);
+    const probe = await readProbe(page, 'p57-C');
     expect(probe.owedHold, `the rail half never waited as OWED (holds: ${probe.holds.join(', ')})`).toBe(false);
   });
 
@@ -365,9 +372,7 @@ test.describe(`P57 Preservation Program · the first TR of the action phase, ski
     await press(page, 'Enter', 400);
     await settle(page, {timeoutMs: 20_000}).catch(() => undefined);
     await shoot(page, 'E-02-preview');
-    for (let i = 0; i < 3 && !(await wireOf(request, id)).thisPlayer.tableau.some((c) => c.name === CARD); i++) {
-      await press(page, 'Period', 1500);
-    }
+    await pressUntil(page, 'Period', async () => (await wireOf(request, id)).thisPlayer.tableau.some((c) => c.name === CARD), {tries: 3, settleMs: 1500});
     const after = await untilServer(request, id, (m) => m.thisPlayer.tableau.some((c) => c.name === CARD), 'P57 on the table');
     expect(after.thisPlayer.terraformRating - before.thisPlayer.terraformRating, '+4 — its own flag ate one (upstream\'s intent)').toBe(4);
     expect(after.thisPlayer.ratingSkip, 'the server: spent at once').toBe('spent');

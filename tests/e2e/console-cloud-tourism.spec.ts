@@ -5,6 +5,7 @@ import {
   bootFixture, cinematicBeat, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, settle, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P69 «ОБЛАЧНЫЙ ТУРИЗМ» — THE FIRST PAIR COUNT and the first VP threshold on the card's own resource
@@ -152,41 +153,43 @@ async function commitOnce(page: Page, posts: Array<string>, before: number): Pro
 }
 
 type ScoreProbe = {samples: number, vp: Array<[number, string]>, vpBeatAt?: number, reasons: Array<string>};
+type ScoreSeen = {vp: string, beat: boolean, reason: string};
 
-/** The score cell, sampled (MutationObserver + setInterval — never rAF), and the VP token's contact beat. */
+const SCORE_WITNESS = 'p69-score';
+
+/** The score cell, RECORDED (FLAKE ZERO — `armWitness`, off the product's own writes), and the VP token's contact beat. */
 async function armScoreProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const t0 = performance.now();
+  await armWitness<ScoreSeen>(page, SCORE_WITNESS, () => {
     const text = (sel: string) => document.querySelector(sel)?.textContent?.trim() ?? '';
-    const painted = (el: Element | null) => el !== null && Number(getComputedStyle(el).opacity) > 0.05 && getComputedStyle(el).visibility !== 'hidden';
-    const probe: ScoreProbe = {samples: 0, vp: [], reasons: []};
-    let last = '';
-    const sample = () => {
-      const t = Math.round(performance.now() - t0);
-      probe.samples++;
-      const vp = text('.con-res .con-score__cell--vp .con-score__value');
-      if (vp !== last) {
-        probe.vp.push([t, vp]);
-        last = vp;
-      }
-      if (probe.vpBeatAt === undefined && painted(document.querySelector('.con-transfer__beat--vp'))) {
-        probe.vpBeatAt = t;
-      }
-      const reason = text('[data-vp-reason]');
-      if (reason !== '' && !probe.reasons.includes(reason)) {
-        probe.reasons.push(reason);
-      }
+    const beat = document.querySelector('.con-transfer__beat--vp');
+    return {
+      vp: text('.con-res .con-score__cell--vp .con-score__value'),
+      beat: beat !== null && Number(getComputedStyle(beat).opacity) > 0.05 && getComputedStyle(beat).visibility !== 'hidden',
+      reason: text('[data-vp-reason]'),
     };
-    window.setInterval(sample, 16);
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true});
-    sample();
-    (window as unknown as {__p69: ScoreProbe}).__p69 = probe;
   });
 }
-const readScoreProbe = (page: Page): Promise<ScoreProbe> => page.evaluate(() => {
-  const p = (window as unknown as {__p69: ScoreProbe}).__p69;
-  return {samples: p.samples, vp: p.vp, vpBeatAt: p.vpBeatAt, reasons: p.reasons};
-});
+/** The recording folded on the Node side — times in ms since the probe's arm (its first sample), on the page's clock. */
+const readScoreProbe = async (page: Page): Promise<ScoreProbe> => {
+  const samples = await witnessOf<ScoreSeen>(page, SCORE_WITNESS).samples();
+  const armedAt = samples[0]?.t ?? 0;
+  const probe: ScoreProbe = {samples: samples.length, vp: [], reasons: []};
+  let last = '';
+  for (const s of samples) {
+    const at = Math.round(s.t - armedAt);
+    if (s.v.vp !== last) {
+      probe.vp.push([at, s.v.vp]);
+      last = s.v.vp;
+    }
+    if (probe.vpBeatAt === undefined && s.v.beat) {
+      probe.vpBeatAt = at;
+    }
+    if (s.v.reason !== '' && !probe.reasons.includes(s.v.reason)) {
+      probe.reasons.push(s.v.reason);
+    }
+  }
+  return probe;
+};
 
 test.describe(`P69 Cloud Tourism · the pair count, the floater action, the third floater's point · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
@@ -306,7 +309,8 @@ test.describe(`P69 Cloud Tourism · the pair count, the floater action, the thir
     const witness = await transferWitness(page);
     console.log('[p69] vp probe', JSON.stringify(probe));
     console.log(`[p69] vp trail\n${transferTrail(witness)}`);
-    expect(probe.samples, 'the sampler ran').toBeGreaterThan(10);
+    // A recording keeps DISTINCT states (never a tally of frames): the floor catches only a dead recorder.
+    expect(probe.samples, 'the sampler ran').toBeGreaterThan(0);
     // TR55 law 4 — an action's chain scores «on landing»: the FLOATER is the point's body (Security Fleet's fighter is
     // the same case), so the cell ticks on the floater's own touchdown in the hero's capsule — no second token, no named
     // cause. The witness and the probe arm within a few ms of each other, hence the small tolerance.

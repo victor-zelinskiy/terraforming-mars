@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, press, reloadConsole} from './consoleStart';
+import {bootSeededGame, press, reloadConsole, settle} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -159,7 +159,8 @@ test('one resource is a RADIO — A places and takes back, X commits, no stock c
   const captured = await injectPhilaresPrompt(page, 1);
   await reloadConsole(page);
   await page.waitForSelector('.con-task', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1200);
+  // The surface at rest (its entrance over, nothing in flight) — the state the old fixed pause waited out.
+  await settle(page);
   await shoot(page, '1-radio-open');
 
   // The RADIO shape: no meter, no stepper verbs, an A verb on the bar; every
@@ -211,7 +212,7 @@ test('a real budget keeps the dials — and an EMPTY pool still takes both units
   await injectPhilaresPrompt(page, 2);
   await reloadConsole(page);
   await page.waitForSelector('.con-task', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1200);
+  await settle(page);
   await shoot(page, '4-dials-open');
 
   // The BUDGET shape: the meter and the stepper verbs stay.

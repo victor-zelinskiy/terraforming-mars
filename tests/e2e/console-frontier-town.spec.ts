@@ -2,9 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  FixtureName, bootFixture, cinematicBeat, commitFocusedSpace, fetchPlayerModel, focusCard, placementState, press, pressUntil, settle, waitForBoardHome,
-  walkToSpace,
+  FixtureName, bootFixture, cinematicBeat, commitFocusedSpace, dossierLoaded, fetchPlayerModel, focusCard, placementState, press, pressUntil, settle,
+  waitForBoardHome, walkToSpace,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
@@ -54,11 +55,11 @@ function watchPosts(page: Page): Array<string> {
   return posts;
 }
 
-/** RT → the wheel's centre (the hand) → the card focused. */
+/** RT → the wheel's centre (the hand) → the card focused. Each press waits for ITS effect (the wheel, then the hand). */
 async function focusInHand(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).count() === 0; i++) {
-    await press(page, 'Period', 600);
-    await press(page, 'Enter', 1600);
+  if (await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).count() === 0) {
+    await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0, {tries: 4, settleMs: 900});
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-hand').count() > 0, {tries: 3, settleMs: 1600});
   }
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
@@ -121,6 +122,25 @@ async function cellRect(page: Page, id: string): Promise<{x: number, y: number, 
   }, id);
 }
 
+/** D — the d-pad step from the focused standard project toward `card` ('hit' on it, 'none' while either is missing). */
+async function stdpStepToward(page: Page, card: string): Promise<string> {
+  return page.evaluate((name) => {
+    const at = document.querySelector('.con-stdp__card--focused');
+    const target = document.querySelector(`.con-stdp__card[data-stdp-card="${name}"]`);
+    if (at === null || target === null) {
+      return 'none';
+    }
+    if (at === target) {
+      return 'hit';
+    }
+    const a = at.getBoundingClientRect();
+    const b = target.getBoundingClientRect();
+    const dx = (b.left + b.width / 2) - (a.left + a.width / 2);
+    const dy = (b.top + b.height / 2) - (a.top + a.height / 2);
+    return Math.abs(dy) > a.height / 2 ? (dy > 0 ? 'ArrowDown' : 'ArrowUp') : (dx > 0 ? 'ArrowRight' : 'ArrowLeft');
+  }, card);
+}
+
 /** B/C — the multiplied play end to end. */
 async function playMultiplied(page: Page, request: APIRequestContext, fixture: FixtureName, times: number, plants: number, label: string): Promise<void> {
   const pageErrors: Array<string> = [];
@@ -131,8 +151,9 @@ async function playMultiplied(page: Page, request: APIRequestContext, fixture: F
   const before = await wireOf(request, id);
   const twoPlant = before.game.spaces.filter((s) => s.tileType === undefined && s.bonus.length === 2 && s.bonus.every((b) => b === PLANT)).map((s) => s.id);
   expect(twoPlant.length, 'the board prints two-plant cells').toBeGreaterThan(0);
-  // The cluster's place BEFORE the marks (the board home) — the marks are absolute, the cluster never moves.
-  const clusterBefore = await cellRect(page, twoPlant[0]);
+  // The cluster's place BEFORE the marks (the board home) — the marks are absolute, the cluster never moves. Both sides
+  // of the comparison are read AT REST (`readSettled`).
+  const clusterBefore = await readSettled(page, () => cellRect(page, twoPlant[0]), {message: 'the two-plant cluster (board home)'});
 
   await openStagedBoard(page);
   const marks = await readMarks(page, before.game.spaces);
@@ -150,7 +171,7 @@ async function playMultiplied(page: Page, request: APIRequestContext, fixture: F
   expect(target, 'a two-plant candidate').toBeDefined();
   await walkToSpace(page, target!);
   await settle(page);
-  const clusterAfter = await cellRect(page, twoPlant[0]);
+  const clusterAfter = await readSettled(page, () => cellRect(page, twoPlant[0]), {message: 'the two-plant cluster (staged board)'});
   if (clusterBefore !== undefined && clusterAfter !== undefined && twoPlant[0] !== target) {
     expect(Math.abs(clusterAfter.x - clusterBefore.x) + Math.abs(clusterAfter.y - clusterBefore.y), 'the cluster did not move for its mark').toBeLessThanOrEqual(2);
   }
@@ -158,7 +179,10 @@ async function playMultiplied(page: Page, request: APIRequestContext, fixture: F
   const animating = await page.evaluate(() => [...document.querySelectorAll('[data-bonus-times-mark]')]
     .flatMap((el) => el.getAnimations()).length);
   expect(animating, 'the marks stand still while the cursor walks').toBe(0);
-  const dossier = (await page.locator('.con-context').innerText()).replace(/\s+/g, ' ');
+  // The dossier is read for ITS cell, loaded (class F), and at rest.
+  await dossierLoaded(page, target!);
+  const dossier = await readSettled(page, async () => (await page.locator('.con-context').innerText()).replace(/\s+/g, ' '),
+    {message: 'the dossier of the two-plant candidate'});
   test.info().annotations.push({type: 'dossier', description: dossier.slice(0, 1200)});
   expect(dossier, 'the dossier: 6 plants on a two-plant cell').toMatch(/\b6\b/);
   expect(dossier, 'the dossier names the multiple').toMatch(/×\s*3/);
@@ -225,21 +249,8 @@ test.describe(`P74 Frontier Town · the cell's reward on the cell, with its mult
     await expect(page.locator('.con-stdp'), 'the standard projects stand').toBeVisible({timeout: 15_000});
     let hit = false;
     for (let i = 0; i < 16 && !hit; i++) {
-      const step = await page.evaluate(() => {
-        const at = document.querySelector('.con-stdp__card--focused');
-        const target = document.querySelector('.con-stdp__card[data-stdp-card="City"]');
-        if (at === null || target === null) {
-          return 'none';
-        }
-        if (at === target) {
-          return 'hit';
-        }
-        const a = at.getBoundingClientRect();
-        const b = target.getBoundingClientRect();
-        const dx = (b.left + b.width / 2) - (a.left + a.width / 2);
-        const dy = (b.top + b.height / 2) - (a.top + a.height / 2);
-        return Math.abs(dy) > a.height / 2 ? (dy > 0 ? 'ArrowDown' : 'ArrowUp') : (dx > 0 ? 'ArrowRight' : 'ArrowLeft');
-      });
+      // The grid's geometry read at rest (two equal reads a frame apart) — never a card mid-entrance.
+      const step = await readSettled(page, () => stdpStepToward(page, 'City'), {settle: false, message: 'the step toward City'});
       expect(step, 'the City card stands on the screen').not.toBe('none');
       hit = step === 'hit';
       if (!hit) {

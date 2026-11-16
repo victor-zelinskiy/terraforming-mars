@@ -1,6 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, openMandatoryAnnounce, playCardFromHand, press, pressUntil, settle} from './consoleStart';
 import {focusParliamentZone, openParliament} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * «ПРЕДСЕДАТЕЛЬСТВО» ON THE LAST ACTION OF THE TURN — the field freeze of 2026-10-29.
@@ -24,27 +25,29 @@ const FIXTURES = [
   'parliament-chairman-quest-bot',
 ] as const;
 
+const FLOW_WITNESS = 'chairman-quest:flow';
+
+/**
+ * THE FLOW — RECORDED from before the press (FLAKE ZERO — `armWitness`, a state kept only when it changes). `settled`:
+ * «the bar never offers «На поле» over the flow», «the Parliament never left» are coexistence claims — each state is
+ * the one a task leaves, the one a frame can paint.
+ */
 async function armFlowProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__qf: Array<FlowSample>};
-    w.__qf = [];
-    window.setInterval(() => {
-      const root = document.querySelector<HTMLElement>('.con-parl');
-      const bar = Array.from(document.querySelectorAll<HTMLElement>('.con-cmdbar .con-cmdbar__cmd'))
-        .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' | ');
-      w.__qf.push({
-        t: Math.round(performance.now()),
-        section: root !== null,
-        stage: root?.getAttribute('data-stage') ?? '',
-        beat: root?.getAttribute('data-quest-beat') ?? '',
-        bar,
-      });
-    }, 60);
-  });
+  await armWitness<Omit<FlowSample, 't'>>(page, FLOW_WITNESS, () => {
+    const root = document.querySelector<HTMLElement>('.con-parl');
+    const bar = Array.from(document.querySelectorAll<HTMLElement>('.con-cmdbar .con-cmdbar__cmd'))
+      .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' | ');
+    return {
+      section: root !== null,
+      stage: root?.getAttribute('data-stage') ?? '',
+      beat: root?.getAttribute('data-quest-beat') ?? '',
+      bar,
+    };
+  }, {settled: true});
 }
 
 async function readFlowProbe(page: Page): Promise<Array<FlowSample>> {
-  return await page.evaluate(() => (window as unknown as {__qf: Array<FlowSample>}).__qf);
+  return (await witnessOf<Omit<FlowSample, 't'>>(page, FLOW_WITNESS).samples()).map((s) => ({t: s.t, ...s.v}));
 }
 
 /** The timeline in one line per change — what a red names. */
@@ -82,7 +85,8 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the gate that ends the t
 
       const samples = await readFlowProbe(page);
       const flowing = samples.filter((s) => s.section && s.stage !== 'browse' && s.stage !== '');
-      expect(flowing.length, `the sampler saw the flow (${samples.length} samples)`).toBeGreaterThan(3);
+      // Only a dead recorder reads none (a state, never a frame count).
+      expect(flowing.length, `the recorder saw the flow (${samples.length} samples)`).toBeGreaterThan(0);
       // The bar never offers the shell's bare fallback over a flow that absorbs B.
       const lying = flowing.filter((s) => /На поле/i.test(s.bar));
       expect(lying.length, `no «На поле» over the flow\n${timeline(samples)}`).toBe(0);

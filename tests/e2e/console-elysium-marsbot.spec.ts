@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {press} from './consoleStart';
+import {press, settle, waitPressable} from './consoleStart';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -124,7 +124,10 @@ test.describe('ELYSIUM + MarsBot — the real product', () => {
     await page.goto(`/player?id=${playerId}&console=1`);
     await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-    await page.waitForTimeout(3500);
+    // The warm-up the walk needs, as STATES: the boot veil gone (keys reach the console — `openConsole`'s boundary),
+    // then the deal cinematic let go of the rail (presses act).
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+    await waitPressable(page);
     await shoot(page, '01-start');
 
     // Walk the start wizard out. Its LENGTH is not reproducible — the corp is
@@ -137,7 +140,7 @@ test.describe('ELYSIUM + MarsBot — the real product', () => {
       await key(page, i % 4 === 3 ? 'Period' : 'Enter', 800);
     }
     await expect.poll(() => startScene.count(), {message: 'the start wizard finished'}).toBe(0);
-    await page.waitForTimeout(2500);
+    await settle(page);
     await shoot(page, '02-board');
 
     // ── The MAP reached the game, and the MAT is Elysium's ──────────────────
@@ -168,14 +171,12 @@ test.describe('ELYSIUM + MarsBot — the real product', () => {
     await key(page, 'Enter', 1500);
 
     let after = before;
-    const deadline = Date.now() + 90_000;
-    while (Date.now() < deadline) {
+    // The server's mat, polled until a marker moved (the last positions read are the poll's received value).
+    await expect.poll(async () => {
       after = (await playerView(request, playerId)).game.automa!.tracks.map((t) => t.position);
-      if (after.some((p, i) => p > before[i])) {
-        break;
-      }
-      await page.waitForTimeout(1000);
-    }
+      return after.some((p, i) => p > before[i]) ? 'advanced' : JSON.stringify(after);
+    }, {timeout: 90_000, intervals: [1000], message: `MarsBot never advanced a track on Elysium from ${JSON.stringify(before)}`})
+      .toBe('advanced');
     expect(after.some((p, i) => p > before[i]),
       `MarsBot never advanced a track on Elysium: ${JSON.stringify(before)} → ${JSON.stringify(after)}`)
       .toBeTruthy();

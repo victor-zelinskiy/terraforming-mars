@@ -1,8 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, press, pressUntil, reloadConsole} from './consoleStart';
+import {bootFixtureSeats, pressUntil, reloadConsole} from './consoleStart';
 import {closeSitting, enterSittingByPass, parliament, parliamentWire, turnTo} from './parliamentDrive';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * THE PARLIAMENT → DRAFT HANDOVER (P89 · ledger EA — the owner, 2026-11-01: «драфт открывается сразу с уже
@@ -25,10 +26,11 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 /**
- * The sampler (setInterval 50 ms — never rAF): what the seat SEES each beat — the counter (its value and whether it is
- * flipping), the sitting, the draft frame, its slots held by the deal, the deal layer and its first proxy's centre, the
- * HUD pile's centre. A MutationObserver also records the FIRST deal proxy the instant it is inserted (a 50 ms sample
- * can miss the start of its flight).
+ * The RECORDING (FLAKE ZERO — `armWitness`, settled: «the board never shows between the two surfaces», «the first frame
+ * with slots holds them all» are claims about the states a frame can paint): what the seat SEES — the counter (its value
+ * and whether it is flipping), the sitting, the draft frame, its slots held by the deal, the deal layer, the surface at
+ * the screen's centre. A second recording (the default — in the very task that writes) catches the FIRST posed deal
+ * proxy and the HUD pile's centre beside it.
  */
 type Sample = {
   t: number, gen: string, flipping: boolean, parl: boolean, draft: boolean,
@@ -37,11 +39,16 @@ type Sample = {
   top: string,
 };
 type Origin = {proxy: {x: number, y: number}, pile: {x: number, y: number, w: number} | undefined};
+/** One recorded state — the sample without its clock (the recording stamps the page's time). */
+type Seen = Omit<Sample, 't'>;
+const HANDOVER_WITNESS = 'into-draft';
+const ORIGIN_WITNESS = 'into-draft-origin';
 async function armSampler(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__intoDraft?: Array<Sample>, __intoDraftOrigin?: Origin};
-    const samples: Array<Sample> = [];
-    w.__intoDraft = samples;
+  // The proxy's FIRST POSED frame — the director writes its transform and lifts its opacity before the flight; the bare
+  // insertion (no transform yet) sits at the layer's origin and says nothing about where the card leaves from. The
+  // director PLACES the proxy at its origin (transform written) before it lifts its opacity and flies — the first written
+  // transform is the origin, recorded in the task that writes it (never `settled`: that would read the pose after it).
+  await armWitness<Origin | null>(page, ORIGIN_WITNESS, () => {
     const centre = (el: Element | null) => {
       if (el === null) {
         return undefined;
@@ -49,10 +56,20 @@ async function armSampler(page: Page): Promise<void> {
       const r = el.getBoundingClientRect();
       return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width};
     };
-    const take = () => {
+    const proxy = document.querySelector<HTMLElement>('.con-draftws .con-deal-proxy');
+    if (proxy === null || getComputedStyle(proxy).transform === 'none') {
+      return null;
+    }
+    const c = centre(proxy);
+    if (c === undefined || c.w < 2) {
+      return null;
+    }
+    return {proxy: {x: c.x, y: c.y}, pile: centre(document.querySelector('.con-deckstack__pile'))};
+  }, {max: 20_000});
+  await armWitness<Seen>(page, HANDOVER_WITNESS, () => {
+    const take = (): Seen => {
       const slots = document.querySelectorAll('.con-draftws .con-draftws__slot');
-      samples.push({
-        t: Math.round(performance.now()),
+      return {
         gen: (document.querySelector('.con-status__gen .con-status__value')?.textContent ?? '').trim(),
         flipping: document.querySelector('.con-status__gen .con-flipval--flip') !== null,
         parl: document.querySelector('.con-parl') !== null,
@@ -73,39 +90,17 @@ async function armSampler(page: Page): Promise<void> {
           }
           return '';
         })(),
-      });
-      if (samples.length > 6000) {
-        samples.splice(0, 3000);
-      }
+      };
     };
-    new MutationObserver(() => {
-      if (w.__intoDraftOrigin !== undefined) {
-        return;
-      }
-      // The proxy's FIRST POSED frame — the director writes its transform and lifts its opacity before the flight; the
-      // bare insertion (no transform yet) sits at the layer's origin and says nothing about where the card leaves from.
-      const proxy = document.querySelector<HTMLElement>('.con-draftws .con-deal-proxy');
-      if (proxy === null) {
-        return;
-      }
-      const cs = getComputedStyle(proxy);
-      // The director PLACES the proxy at its origin (transform written) before it lifts its opacity and flies — the
-      // first written transform is the origin; waiting for a visible frame read a mid-flight pose under load.
-      if (cs.transform === 'none') {
-        return;
-      }
-      const c = centre(proxy);
-      if (c === undefined || c.w < 2) {
-        return;
-      }
-      w.__intoDraftOrigin = {proxy: {x: c.x, y: c.y}, pile: centre(document.querySelector('.con-deckstack__pile'))};
-    }).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class']});
-    take();
-    setInterval(take, 50);
-  });
+    return take();
+  }, {settled: true, max: 20_000});
 }
-const samplesOf = (page: Page): Promise<Array<Sample>> => page.evaluate(() => (window as unknown as {__intoDraft: Array<Sample>}).__intoDraft);
-const originOf = (page: Page): Promise<Origin | undefined> => page.evaluate(() => (window as unknown as {__intoDraftOrigin?: Origin}).__intoDraftOrigin);
+/** The handover's record: `t` on the page's clock (compare with `pageNow`). */
+const samplesOf = async (page: Page): Promise<Array<Sample>> =>
+  (await witnessOf<Seen>(page, HANDOVER_WITNESS).samples()).map((s) => ({...s.v, t: s.t}));
+/** The first posed deal proxy, with the pile beside it (undefined while none was recorded). */
+const originOf = async (page: Page): Promise<Origin | undefined> =>
+  (await witnessOf<Origin | null>(page, ORIGIN_WITNESS).firstWhere((v) => v !== null))?.v ?? undefined;
 
 /** A STORYBOARD of the handover (`TM_E2E_STORYBOARD=1` only — the suite's convention): every frame the compositor produced. */
 async function storyboard(page: Page, name: string): Promise<() => Promise<void>> {
@@ -135,7 +130,7 @@ async function walkAndClose(page: Page, request: Parameters<typeof closeSitting>
   await shoot(page, '01-results');
   const stop = await storyboard(page, door.source.includes('драфт') ? 'into-draft' : 'into-research');
   await beforePress?.();
-  const pressedAt = await page.evaluate(() => Math.round(performance.now()));
+  const pressedAt = await pageNow(page); // the recording's own clock
   await closeSitting(page, request, seat);
   setTimeout(() => void stop().catch(() => undefined), 8000);
   return pressedAt;
@@ -192,12 +187,11 @@ test.describe(`the Parliament → draft handover · ${TV.id}`, () => {
     await expect(page.locator('.con-mandatory'), 'no plate: the press already opened it').toHaveCount(0);
     await expect.poll(async () => (await samplesOf(page)).slice(-1)[0]?.gen, {timeout: 20_000}).toBe('2');
 
-    // (4) the pick works — one press, one POST.
-    const before = ((await parliamentWire(request, blue)) as unknown as {draftedCards?: Array<unknown>}).draftedCards?.length ?? 0;
-    await expect.poll(async () => {
-      await press(page, 'Enter', 1500);
-      return ((await parliamentWire(request, blue)) as unknown as {draftedCards?: Array<unknown>}).draftedCards?.length ?? 0;
-    }, {timeout: 60_000, message: 'the first pick lands'}).toBeGreaterThan(before);
+    // (4) the pick works — one press, one POST. Act → verify (the server holds one more drafted card) → retry only when
+    // the whole window passed without it (never a press inside a poll).
+    const drafted = async () => ((await parliamentWire(request, blue)) as unknown as {draftedCards?: Array<unknown>}).draftedCards?.length ?? 0;
+    const before = await drafted();
+    expect(await pressUntil(page, 'Enter', async () => await drafted() > before, {tries: 12, settleMs: 5000}), 'the first pick lands').toBe(true);
     await shoot(page, '04-first-pick');
   });
 

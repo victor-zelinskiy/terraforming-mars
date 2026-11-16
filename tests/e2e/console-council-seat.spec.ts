@@ -6,6 +6,7 @@ import {
   waitForBoardHome,
 } from './consoleStart';
 import {armLeakWitness, expectDossierIsRules, focusParliamentZone, focusParty, openParliament, parliament, strandedReports} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR36 «МЕСТО В СОВЕТЕ» — THE LAW OF ACCESS, lowered by a card
@@ -202,41 +203,52 @@ async function selectVoteSlot(page: Page, party: string): Promise<void> {
   await settle(page, {timeoutMs: 8_000});
 }
 
-type Probe = {samples: number, ticks: number, steps: Array<string>, parlMax: number, wsMax: number, stranded: boolean, handGone: number};
+/** `samples`: how many distinct states the recording kept (its liveness — never a count of frames). */
+type Probe = {samples: number, steps: Array<string>, parlMax: number, wsMax: number, stranded: boolean, handGone: number};
+/** One moment of the screen as the reader sees it (the recording stamps it with the page's time). */
+type Tr36Seen = {steps: Array<string>, parls: number, ws: number, stranded: boolean, hand: boolean};
+const TR36_WITNESS = 'tr36-play';
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/**
+ * THE PLAY'S RECORDING (FLAKE ZERO — `armWitness`, armed before the press): the reader returns what stands now, every
+ * change is kept with the page's time. «No Parliament rose», «never a second band» are claims about what a FRAME
+ * shows, so the record is `settled` — the state a task leaves.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__tr36: Probe};
-    const p: Probe = {samples: 0, ticks: 0, steps: [], parlMax: 0, wsMax: 0, stranded: false, handGone: -1};
-    w.__tr36 = p;
-    const t0 = Date.now();
+  await armWitness<Tr36Seen>(page, TR36_WITNESS, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      document.querySelectorAll('.con-hand .con-wshead__step').forEach((el) => {
-        const step = text(el);
-        if (step !== '' && !p.steps.includes(step)) {
-          p.steps.push(step);
-        }
-      });
-      p.parlMax = Math.max(p.parlMax, document.querySelectorAll('.con-parl').length);
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      if (p.handGone < 0 && document.querySelector('.con-hand') === null) {
-        p.handGone = Date.now() - t0;
-      }
+    return {
+      steps: Array.from(document.querySelectorAll('.con-hand .con-wshead__step')).map(text).filter((s) => s !== ''),
+      parls: document.querySelectorAll('.con-parl').length,
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
+      hand: document.querySelector('.con-hand') !== null,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  });
+  }, {settled: true, max: 20_000});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr36: Probe}).__tr36);
+
+/** The recording folded on the Node side into the probe's old shape (the steps in the order they first stood). */
+async function readProbe(page: Page): Promise<Probe> {
+  const seen = await witnessOf<Tr36Seen>(page, TR36_WITNESS).samples();
+  const t0 = seen[0]?.t ?? 0;
+  const steps: Array<string> = [];
+  for (const s of seen) {
+    for (const step of s.v.steps) {
+      if (!steps.includes(step)) {
+        steps.push(step);
+      }
+    }
+  }
+  const handGone = seen.find((s) => !s.v.hand);
+  return {
+    samples: seen.length,
+    steps,
+    parlMax: Math.max(0, ...seen.map((s) => s.v.parls)),
+    wsMax: Math.max(0, ...seen.map((s) => s.v.ws)),
+    stranded: seen.some((s) => s.v.stranded),
+    handGone: handGone === undefined ? -1 : handGone.t - t0,
+  };
+}
 
 for (const preset of PRESETS) {
   test.describe(`TR36 Council Seat · the law of access, lowered · ${preset.id}`, () => {
@@ -317,7 +329,7 @@ for (const preset of PRESETS) {
       await stopStory();
       expect(posts.length, 'and nothing else was sent').toBe(1);
       const probe = await readProbe(page);
-      expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(20);
+      expect(probe.samples, 'the probe recorded').toBeGreaterThan(0);
       expect(probe.parlMax, 'no Parliament rose during the play — the law changes, the table does not').toBe(0);
       expect(probe.wsMax, 'never a second workspace band').toBeLessThanOrEqual(1);
       expect(probe.stranded, 'nothing was stranded').toBe(false);

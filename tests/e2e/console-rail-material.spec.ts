@@ -18,6 +18,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, settle} from './consoleStart';
 import {RAIL_MOCKS, RailMock} from './railMaterialMocks';
+import {readSettled} from './settledRead';
 
 const PROFILES = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -33,9 +34,10 @@ const BASELINE = path.resolve('tests', 'e2e', 'railAnchorsBaseline.json');
 type Rect = {x: number, y: number, w: number, h: number};
 type Anchors = Record<string, Rect>;
 
-/** Every anchor a flight, a probe or a seam reads off the rail — the selectors are the contract, never renamed. */
+/** Every anchor a flight, a probe or a seam reads off the rail — the selectors are the contract, never renamed. Read
+ *  at REST (`readSettled` — every compared read, the base and the posed one alike). */
 async function readAnchors(page: Page): Promise<Anchors> {
-  return page.evaluate(() => {
+  return readSettled(page, () => page.evaluate(() => {
     const out: Record<string, {x: number, y: number, w: number, h: number}> = {};
     const put = (key: string, el: Element | null) => {
       if (el === null) {
@@ -61,7 +63,7 @@ async function readAnchors(page: Page): Promise<Anchors> {
     const seam = getComputedStyle(document.querySelector('.con-root') ?? document.documentElement).getPropertyValue('--con-rail-w').trim();
     out['seam'] = {x: 0, y: 0, w: Number.parseFloat(seam) || 0, h: 0};
     return out;
-  });
+  }), {message: 'the rail\'s anchors'});
 }
 
 function drift(a: Anchors, b: Anchors): Array<string> {
@@ -84,7 +86,7 @@ function drift(a: Anchors, b: Anchors): Array<string> {
 async function railShot(page: Page, profile: string, name: string): Promise<void> {
   fs.mkdirSync(path.join(OUT, profile), {recursive: true});
   await page.screenshot({path: path.join(OUT, profile, `${name}.png`)});
-  const box = await page.locator('.con-res-host').boundingBox();
+  const box = await readSettled(page, () => page.locator('.con-res-host').boundingBox(), {settle: false, message: 'the rail host (the frame\'s clip)'});
   if (box !== null) {
     const vp = page.viewportSize()!;
     await page.screenshot({path: path.join(OUT, profile, `${name}-rail.png`),

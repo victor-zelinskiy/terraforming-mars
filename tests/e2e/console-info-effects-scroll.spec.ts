@@ -1,5 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, focusInfoZone, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * «ИНФОРМАЦИЯ › ЭФФЕКТЫ» SCROLLS (the owner's 4K frame of 2026-11-02: «при просмотре эффектов не работает скролл — ни
@@ -17,8 +19,8 @@ const TV = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleP
 
 const viewport = (page: Page) => page.locator('.con-efx__list .con-scroll-area__viewport');
 
-/** The grid's scroll + the cursored tile's box against the viewport's. */
-const gridState = (page: Page) => page.evaluate(() => {
+/** The grid's scroll + the cursored tile's box against the viewport's — a PAGE reader (self-contained). */
+function gridNow() {
   const vp = document.querySelector<HTMLElement>('.con-efx__list .con-scroll-area__viewport');
   const tile = document.querySelector<HTMLElement>('.con-efx__tile--focused');
   if (vp === null || tile === null) {
@@ -32,7 +34,11 @@ const gridState = (page: Page) => page.evaluate(() => {
     key: tile.getAttribute('data-effect-key') ?? '',
     inView: t.top >= v.top - 1 && t.bottom <= v.bottom + 1,
   };
-});
+}
+
+/** The grid read at REST (`readSettled` — two equal reads a frame apart, never a box mid-scroll; the explorer stands
+ *  for the player, so no settle). A scroll the STICK drives is the subject's own motion — recorded (`armWitness`). */
+const gridState = (page: Page) => readSettled(page, () => page.evaluate(gridNow), {settle: false, message: 'the effects grid'});
 
 /** A stubbed pad with a settable right stick (axes 2/3). */
 async function installPad(page: Page): Promise<void> {
@@ -117,15 +123,17 @@ test.describe(`Information › Effects scrolls · ${TV.id}`, () => {
 
     // ── (B) THE RIGHT STICK: a held deflection pages the grid down, the opposite one back up. ──
     await installPad(page);
+    const down = await armWitness(page, 'efx-stick-down', gridNow);
     await rightStick(page, 1);
-    await expect.poll(async () => (await gridState(page))?.scrollTop ?? 0, 'the right stick (down) scrolls the grid')
-      .toBeGreaterThan(40);
+    await down.waitFor((g) => (g?.scrollTop ?? 0) > 40, {timeoutMs: 5_000, message: 'the right stick (down) scrolls the grid'});
     await rightStick(page, 0);
+    await down.stop();
     const paged = (await gridState(page))!.scrollTop;
+    const up = await armWitness(page, 'efx-stick-up', gridNow);
     await rightStick(page, -1);
-    await expect.poll(async () => (await gridState(page))?.scrollTop ?? paged, 'the right stick (up) scrolls it back')
-      .toBeLessThan(paged);
+    await up.waitFor((g) => (g?.scrollTop ?? paged) < paged, {timeoutMs: 5_000, message: 'the right stick (up) scrolls it back'});
     await rightStick(page, 0);
+    await up.stop();
 
     expect(pageErrors, `no page errors; saw: ${pageErrors.join(' | ')}`).toEqual([]);
   });

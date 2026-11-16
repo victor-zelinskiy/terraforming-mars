@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, press, reloadConsole, settle} from './consoleStart';
+import {bootSeededGame, cinematicBeat, pressUntil, reloadConsole, settle} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -125,11 +125,6 @@ async function createGame(request: APIRequestContext): Promise<string> {
   const model = await created.json() as {players: Array<{id: string, name: string}>};
   return (model.players.find((p) => p.name === 'Discarder') ?? model.players[0]).id;
 }
-
-async function key(page: Page, k: string, wait = 600): Promise<void> {
-  await press(page, k, wait);
-}
-
 
 /**
  * Inject Mars University's exact prompt shape: an OrOptions with a contextual
@@ -297,14 +292,21 @@ async function runDiscardFlow(
   if (count > 1) {
     // A multi-card discard toggles with A and confirms with RT, so the packet
     // beat (gather) is genuinely exercised — it is skipped for a single card.
-    await key(page, 'Enter', 300);
+    // Every press waits for ITS effect (`pressUntil` — the slot picked, the
+    // cursor moved): a swallowed → would toggle the SAME card back out.
+    const selectedSlot = () => page.locator('.con-hand__slot--selected').getAttribute('data-zoom-slot');
+    const picked = (name: string) => async () =>
+      await page.locator(`.con-hand__slot--select-picked[data-zoom-slot="${name}"]`).count() > 0;
+    expect(await pressUntil(page, 'Enter', picked(chosen[0]), {tries: 3, settleMs: 600}), `A picks «${chosen[0]}»`).toBe(true);
     for (let i = 1; i < count; i++) {
-      await key(page, 'ArrowRight', 250);
-      const next = await page.locator('.con-hand__slot--selected').getAttribute('data-zoom-slot');
+      const at = await selectedSlot();
+      expect(await pressUntil(page, 'ArrowRight', async () => await selectedSlot() !== at, {tries: 3, settleMs: 600}),
+        'the cursor moves to the next card').toBe(true);
+      const next = await selectedSlot();
       if (next !== null) {
         chosen.push(next);
+        expect(await pressUntil(page, 'Enter', picked(next), {tries: 3, settleMs: 600}), `A picks «${next}»`).toBe(true);
       }
-      await key(page, 'Enter', 300);
     }
     await page.keyboard.press('Period'); // RT — confirm the set
   } else {
@@ -325,8 +327,9 @@ async function runDiscardFlow(
   expect(heldUnderProxy, 'the real card must not be visible under its own proxy').not.toBe('visible');
   // One frame's grace: a screenshot fired the instant the proxy mounts captures
   // the browser's very first raster of a brand-new <img>, which is not what a
-  // player ever sees at 60fps.
-  await page.waitForTimeout(140);
+  // player ever sees at 60fps. MID-cinematic (the seize is the subject of the
+  // frame), so it is the one honest pause — named.
+  await cinematicBeat(page, 140, 'the seized proxy\'s first raster is not what a player sees');
   await shoot(page, opts.tag + '-3-seized');
 
   // HAND-OFF + PILE + LANDING. Asserted back-to-back with NO screenshot in
@@ -342,12 +345,14 @@ async function runDiscardFlow(
 
   // 4 · the scene ends clean and the card really left the hand.
   await page.waitForSelector('.con-discard', {state: 'detached', timeout: 20_000});
-  await page.waitForTimeout(600);
-  await shoot(page, opts.tag + '-6-settled');
+  // The scene's END state — no proxy survives it, the discard mode is over —
+  // is the frame's readiness (never a fixed pause): asserted, then shot.
   await expect.poll(() => page.locator('.con-discard-proxy').count(), {message: 'no proxy may survive the scene'}).toBe(0);
   await expect.poll(() => page.locator('.con-hand--discard').count(), {message: 'the discard mode is over'}).toBe(0);
+  await shoot(page, opts.tag + '-6-settled');
   if (!opts.withDraw) {
-    expect(await handCount(), `the hand must be ${count} card(s) shorter (was ${before})`).toBe(before - count);
+    // The dock's total is a live value — asserted by a poll (class A).
+    await expect.poll(handCount, {message: `the hand must be ${count} card(s) shorter (was ${before})`}).toBe(before - count);
   }
 }
 

@@ -5,6 +5,7 @@ import {
   createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, playQueueCard, queueCards, sendPlayerInput, settle, soloGameConfig,
   submitSummary, waitForBoardHome, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TRP1 LOBBYING CAMPAIGN — the first PRELUDE of Turmoil Redux: «Increase your M€ production 2 steps. Add 2 delegates to
@@ -19,7 +20,7 @@ import {
  *
  * The rule (the printed order on the server, the grant's count, the named skip) is pinned by
  * `tests/cards/turmoilRedux/LobbyingCampaign.spec.ts`; this spec is the JOURNEY on the TV profile. Order claims are
- * sampled from BEFORE the press (MutationObserver + setInterval, never rAF) — a TIMING-class spec (`timingSpecs.ts`).
+ * RECORDED from BEFORE the press (`armWitness`) — a TIMING-class spec (`timingSpecs.ts`).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT = path.resolve('screenshots', 'lobbying-campaign', PRESET.id);
@@ -46,44 +47,48 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
-/** From the press on: the Parliament roots (and whether one was ever LEAVING), the crumbs, the walk's beats. */
+type Seen = {parls: number, beat: string, leaving: boolean, crumbs: Array<string>, voteUp: boolean};
+const TRP1_WITNESS = 'trp1';
+
+/** From the press on: the Parliament roots (and whether one was ever LEAVING), the crumbs, the walk's beats —
+ *  RECORDED (FLAKE ZERO — `armWitness`, `settled`: «one instance», «never left between» are claims about what a frame
+ *  can paint); the reader returns what stands, the counts are folded on the Node side. */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__trp1: Probe};
-    const p: Probe = {samples: 0, ticks: 0, parlMax: 0, leaving: 0, crumbs: [], beats: [], voteUpWhileWalk: 0};
-    w.__trp1 = p;
+  await armWitness<Seen>(page, TRP1_WITNESS, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const parls = document.querySelectorAll('.con-parl:not([data-parl-leaving])');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      const beat = document.querySelector('.con-parl')?.getAttribute('data-walk-beat') ?? '';
-      if (beat !== '' && p.beats[p.beats.length - 1] !== beat) {
-        p.beats.push(beat);
-      }
-      // A Parliament LEAVING before the walk has even begun = the vote step left and a second one rose (the blink
-      // the in-place continuation exists to remove); the step's own leave AFTER the walk is the expected ending.
-      if (p.beats.length === 0 && document.querySelectorAll('.con-parl[data-parl-leaving]').length > 0) {
-        p.leaving++;
-      }
-      document.querySelectorAll('.con-wshead').forEach((el) => {
-        const crumb = text(el);
-        if (crumb !== '' && !p.crumbs.includes(crumb)) {
-          p.crumbs.push(crumb);
-        }
-      });
-      if (beat !== '' && document.querySelector('.con-parl__vote--up') !== null) {
-        p.voteUpWhileWalk++;
-      }
+    return {
+      parls: document.querySelectorAll('.con-parl:not([data-parl-leaving])').length,
+      beat: document.querySelector('.con-parl')?.getAttribute('data-walk-beat') ?? '',
+      leaving: document.querySelectorAll('.con-parl[data-parl-leaving]').length > 0,
+      crumbs: Array.from(document.querySelectorAll('.con-wshead')).map(text).filter((c) => c !== ''),
+      voteUp: document.querySelector('.con-parl__vote--up') !== null,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  });
+  }, {settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__trp1: Probe}).__trp1);
+const readProbe = async (page: Page): Promise<Probe> => {
+  const seen = (await witnessOf<Seen>(page, TRP1_WITNESS).stop()).map((s) => s.v);
+  const p: Probe = {samples: seen.length, ticks: seen.length, parlMax: 0, leaving: 0, crumbs: [], beats: [], voteUpWhileWalk: 0};
+  for (const s of seen) {
+    p.parlMax = Math.max(p.parlMax, s.parls);
+    if (s.beat !== '' && p.beats[p.beats.length - 1] !== s.beat) {
+      p.beats.push(s.beat);
+    }
+    // A Parliament LEAVING before the walk has even begun = the vote step left and a second one rose (the blink
+    // the in-place continuation exists to remove); the step's own leave AFTER the walk is the expected ending.
+    if (p.beats.length === 0 && s.leaving) {
+      p.leaving++;
+    }
+    for (const crumb of s.crumbs) {
+      if (!p.crumbs.includes(crumb)) {
+        p.crumbs.push(crumb);
+      }
+    }
+    if (s.beat !== '' && s.voteUp) {
+      p.voteUpWhileWalk++;
+    }
+  }
+  return p;
+};
 
 test.describe('TRP1 — Lobbying Campaign: a Prelude\'s vote and walk, inside the start', () => {
   test.use({viewport: PRESET.viewport, deviceScaleFactor: 1, screen: PRESET.viewport});
@@ -117,16 +122,13 @@ test.describe('TRP1 — Lobbying Campaign: a Prelude\'s vote and walk, inside th
 
     // The corporation first. The solo setup's colony removal is deferred ahead — answered over the API when it stands.
     expect(await playQueueCard(page, CORP), 'the corporation was played from the queue').toBe(true);
-    for (let i = 0; i < 20; i++) {
-      const wire = await wireOf(request, playerId);
-      if (wire.waitingFor?.type === 'colony') {
-        await sendPlayerInput(request, playerId, {type: 'colony', colonyName: (wire.waitingFor.coloniesModel ?? [])[0]?.name ?? ''});
-        break;
-      }
-      if (wire.thisPlayer.tableau.some((c) => c.name === CORP) && wire.waitingFor?.type !== 'colony') {
-        break;
-      }
-      await new Promise((r) => setTimeout(r, 500));
+    // Wait for the server's STATE (the removal asked, or the corporation on the table) — a poll, never a sleep — then
+    // answer the removal if it is the one asked. Bounded and never an assertion, as before.
+    const settledCorp = (wire: Wire) => wire.waitingFor?.type === 'colony' || wire.thisPlayer.tableau.some((c) => c.name === CORP);
+    await expect.poll(async () => settledCorp(await wireOf(request, playerId)), {timeout: 10_000}).toBe(true).catch(() => undefined);
+    const corpWire = await wireOf(request, playerId);
+    if (corpWire.waitingFor?.type === 'colony') {
+      await sendPlayerInput(request, playerId, {type: 'colony', colonyName: (corpWire.waitingFor.coloniesModel ?? [])[0]?.name ?? ''});
     }
     await waitQueueIdle(page);
     await settle(page, {timeoutMs: 30_000});
@@ -185,7 +187,8 @@ test.describe('TRP1 — Lobbying Campaign: a Prelude\'s vote and walk, inside th
     await shoot(page, '04-queue-goes-on');
     const probe = await readProbe(page);
     const dump = JSON.stringify({crumbs: probe.crumbs, beats: probe.beats, parlMax: probe.parlMax, leaving: probe.leaving, voteUpWhileWalk: probe.voteUpWhileWalk});
-    expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(5);
+    // A recording keeps DISTINCT states (never a tally of frames): the floor catches only a dead recorder.
+    expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(0);
     expect(probe.parlMax, `ONE Parliament instance (${dump})`).toBe(1);
     expect(probe.leaving, `the Parliament never LEFT between the vote and the walk (${dump})`).toBe(0);
     expect(probe.beats, `the walk's beats went forward (${dump})`).toEqual(['walk', 'read', 'done']);

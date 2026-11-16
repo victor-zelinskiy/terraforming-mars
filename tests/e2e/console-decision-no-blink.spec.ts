@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, placeTile, playCardFromHand, settle} from './consoleStart';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * THE DECISION THAT BLINKED (the owner, 2026-11-01): «когда игрок получает модалку на поле — промт "Энергоконсультанты
@@ -10,40 +11,52 @@ import {bootFixture, placeTile, playCardFromHand, settle} from './consoleStart';
  * reaction at the rail's edge) AND the optional decision Neptunian Power Consultants asks. The contract, from the
  * player's eye: the decision comes to the screen ONCE — after the table's answer has played (the attention is never
  * split between a question and a story still telling the cause) — and, once there, it is never taken away until it is
- * answered. The probe samples the prompt surface's paint every 50 ms from before the play, with the named holds
- * beside it, so a red says what took the surface down.
+ * answered. The probe RECORDS the prompt surface's paint from before the play (FLAKE ZERO — `armWitness`, `settled`: «never
+ * taken away» is a claim about what a frame can paint, never about a state between two writes of one task), with the
+ * named holds beside it, so a red says what took the surface down.
  */
 const TV = {width: 3840, height: 2160};
 const QUERY = '&consoleProfile=tv';
 const GREENS = 'Greens';
+/** How long the decision must have stood in one piece (the page's clock) before the record is judged. */
+const STOOD_MS = 3000;
 
-type Sample = {t: number, surface: boolean, reaction: boolean, holds: Array<string>};
+type Seen = {surface: boolean, reaction: boolean, holds: Array<string>};
+type Sample = Seen & {t: number};
+
+const BLINK_WITNESS = 'decision-no-blink';
 
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__blinkProbe?: Array<unknown>, __blinkTimer?: number,
-      __conReady?: () => {holds?: Array<string>}};
+  await armWitness<Seen>(page, BLINK_WITNESS, () => {
     const painted = (sel: string) => [...document.querySelectorAll<HTMLElement>(sel)].some((el) =>
       el.getClientRects().length > 0 && el.checkVisibility({opacityProperty: true, visibilityProperty: true}));
-    const t0 = performance.now();
-    w.__blinkProbe = [];
-    w.__blinkTimer = window.setInterval(() => {
-      w.__blinkProbe!.push({
-        t: Math.round(performance.now() - t0),
-        surface: painted('.con-decision, .con-task-host'),
-        reaction: painted('.con-reaction__face'),
-        holds: w.__conReady?.().holds ?? [],
-      });
-    }, 50);
-  });
+    return {
+      surface: painted('.con-decision, .con-task-host'),
+      reaction: painted('.con-reaction__face'),
+      holds: (window as unknown as {__conReady?: () => {holds?: Array<string>}}).__conReady?.().holds ?? [],
+    };
+  }, {settled: true});
 }
 
 async function readProbe(page: Page): Promise<Array<Sample>> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__blinkProbe?: Array<Sample>, __blinkTimer?: number};
-    window.clearInterval(w.__blinkTimer);
-    return w.__blinkProbe ?? [];
-  });
+  const samples = await witnessOf<Seen>(page, BLINK_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  return samples.map((s) => ({...s.v, t: s.t - t0}));
+}
+
+/** Has the decision stood — painted, the table's answer off the stage — in ONE piece for `STOOD_MS` of the page's clock?
+ *  (A recording keeps a state only when it changes: the trailing run starts at its first sample and lasts until now.) */
+async function decisionHasStood(page: Page): Promise<boolean> {
+  const samples = await witnessOf<Seen>(page, BLINK_WITNESS).samples();
+  const standing = (s: Seen) => s.surface && !s.reaction;
+  if (samples.length === 0 || !standing(samples[samples.length - 1].v)) {
+    return false;
+  }
+  let from = samples.length - 1;
+  while (from > 0 && standing(samples[from - 1].v)) {
+    from--;
+  }
+  return await pageNow(page) - samples[from].t >= STOOD_MS;
 }
 
 /** The surface's appearances and disappearances, with what was held at each edge. */
@@ -71,11 +84,7 @@ test('a decision asked beside the table\'s answer comes ONCE, after the answer, 
 
   // The Greens' charter rises (the table's answer), and the decision stands — read until it has stood 3 s in one piece.
   await page.locator(`.con-reaction__face[data-reaction-card="${GREENS}"]`).waitFor({state: 'visible', timeout: 60_000}).catch(() => undefined);
-  await expect.poll(async () => {
-    const samples = await page.evaluate(() => (window as unknown as {__blinkProbe?: Array<Sample>}).__blinkProbe ?? []);
-    const tail = samples.slice(-60);
-    return tail.length === 60 && tail.every((s) => s.surface && !s.reaction);
-  }, {timeout: 60_000, message: 'the decision stands, the table\'s answer done'}).toBe(true);
+  await expect.poll(() => decisionHasStood(page), {timeout: 60_000, message: 'the decision stands, the table\'s answer done'}).toBe(true);
 
   const samples = await readProbe(page);
   const timeline = edges(samples);

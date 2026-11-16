@@ -1,5 +1,8 @@
 import {expect, test, Page} from './consoleTest';
-import {bootSeededGame, corporationsExcluding, openBotBoardDetail, openBotScreenHub, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {
+  bootSeededGame, corporationsExcluding, openBotBoardDetail, openBotScreenHub, press, pressUntilVisible, soloGameConfig, visibleSurfaces,
+} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * POLYPHEMOS (C32) — SIX printed starting tags, the most of any implemented
@@ -38,9 +41,8 @@ test.describe('console: a MarsBot corporation with six starting tags', () => {
     await key(page, 'KeyY', 1200);
     await expect(page.locator('.con-info'), `info mode must open; visible: ${(await visibleSurfaces(page)).join(', ')}`).toBeVisible();
     const corpLine = page.locator('.con-info__corp--bot');
-    for (let i = 0; i < 4 && await corpLine.count() === 0; i++) {
-      await key(page, 'KeyE', 900);
-    }
+    // RB walks the seats until the BOT's corporation line stands (act → verify → retry only without it).
+    await pressUntilVisible(page, 'KeyE', '.con-info__corp--bot', {tries: 4, settleMs: 900});
     await expect(corpLine).toContainText(/polyphemos/i);
 
     // The printed BOARD detail (the `botdoor` ring stop — the bot seat's own reader).
@@ -66,10 +68,11 @@ test.describe('console: a MarsBot corporation with six starting tags', () => {
     await expect(face, 'the bot screen carries the corporation face').toBeVisible();
     const rail = face.locator('.pcard__tags');
     await expect(rail).toHaveClass(/pcard__tags--row/);
-    const boxes = await rail.locator('.pcard-tag').evaluateAll((nodes) => nodes.map((n) => {
+    // Measured at REST (C — `readSettled`: the same boxes twice, a frame apart).
+    const boxes = await readSettled(page, () => rail.locator('.pcard-tag').evaluateAll((nodes) => nodes.map((n) => {
       const r = n.getBoundingClientRect();
       return {left: r.left, right: r.right};
-    }));
+    })), {message: 'the face\'s tag medallions'});
     expect(boxes, 'six medallions').toHaveLength(6);
     for (let i = 1; i < boxes.length; i++) {
       expect(boxes[i].left, `medallion ${i + 1} clears medallion ${i}: ${JSON.stringify(boxes)}`).toBeGreaterThanOrEqual(boxes[i - 1].right - 0.5);

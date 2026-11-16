@@ -88,18 +88,21 @@ test.describe('start deployment · a tile-placing prelude', () => {
     expect(await queueCards(page), 'the OTHER prelude must still be queued — the hold rides on it')
       .toContain('Donation');
     expect(await playQueueCard(page, 'Great Aquifer'), 'the prelude must play').toBeTruthy();
-    await page.waitForTimeout(2500); // it owes two oceans — the server asks
+    // It owes two oceans — wait for the server to ASK (a state, never a pause).
+    const waitingType = async () => {
+      const v = await (await request.get(`/api/player?id=${id}`)).json() as {waitingFor?: {type?: string}};
+      return v.waitingFor?.type;
+    };
+    await expect.poll(waitingType, {timeout: 30_000, message: 'the server really is waiting for a space'}).toBe('space');
 
     // 1 · The BOARD serves: the workspace is off screen, the cells are live.
     const startUp = () => page.locator('.con-start').isVisible().catch(() => false);
     await expect.poll(startUp, {timeout: 15_000}).toBeFalsy();
     const kicker = page.locator('.con-context__task-kicker');
     await expect(kicker).toHaveCount(1);
-    const highlighted = await page.evaluate(() =>
-      document.querySelectorAll('.board-space--available').length);
-    expect(highlighted, 'the board offers its legal cells').toBeGreaterThan(0);
-    const view = await (await request.get(`/api/player?id=${id}`)).json() as {waitingFor?: {type?: string}};
-    expect(view.waitingFor?.type, 'the server really is waiting for a space').toBe('space');
+    await expect.poll(() => page.evaluate(() => document.querySelectorAll('.board-space--available').length),
+      {message: 'the board offers its legal cells'}).toBeGreaterThan(0);
+    expect(await waitingType(), 'the server really is waiting for a space').toBe('space');
 
     // 2 · THE BAR FOLLOWS THE SURFACE THE PLAYER SEES. The workspace keeps
     // its LIFETIME HOLD through the whole deployment, so a gate keyed on
@@ -117,8 +120,8 @@ test.describe('start deployment · a tile-placing prelude', () => {
     // cursor never moved over the hexes. Assert the movement itself.
     const cursor = () => page.evaluate(() =>
       document.querySelector('.con-cell-sel')?.getAttribute('data_space_id') ?? '');
+    await expect.poll(cursor, {message: 'the placement seeds a cursor on a legal cell'}).not.toBe('');
     const seeded = await cursor();
-    expect(seeded, 'the placement seeds a cursor on a legal cell').not.toBe('');
     await press(page, 'ArrowRight', 800);
     await expect.poll(cursor, {timeout: 8_000, message: 'the d-pad must walk the board cells'})
       .not.toBe(seeded);
@@ -128,16 +131,21 @@ test.describe('start deployment · a tile-placing prelude', () => {
     // the driver plays every other prelude first, so the queue is empty by
     // construction once this one is played, and a completely dead pad still
     // read as success. Server truth is the only honest witness.
+    const oceans = async () => {
+      const v = await (await request.get(`/api/player?id=${id}`)).json() as {game: {oceans: number}};
+      return v.game.oceans;
+    };
     for (let ocean = 0; ocean < 2; ocean++) {
+      // The placement STANDS before the driver aims (the second ocean's question arrives after the first one's
+      // landing scene — `placeTile` finds nothing to place in that gap).
+      await expect(kicker, `ocean ${ocean + 1}: the placement stands`).toHaveCount(1, {timeout: 30_000});
       // placeTile drives the DEFAULT two-phase confirm (lock → confirm) and
       // walks off an illegal seed on its own.
       await placeTile(page);
-      await page.waitForTimeout(1500);
+      // «Placed» is the SERVER taking it, never a pause.
+      await expect.poll(oceans, {timeout: 30_000, message: 'both oceans must actually reach the board'}).toBeGreaterThanOrEqual(ocean + 1);
     }
-    await expect.poll(async () => {
-      const v = await (await request.get(`/api/player?id=${id}`)).json() as {game: {oceans: number}};
-      return v.game.oceans;
-    }, {timeout: 30_000, message: 'both oceans must actually reach the board'}).toBe(2);
+    await expect.poll(oceans, {timeout: 30_000, message: 'both oceans must actually reach the board'}).toBe(2);
 
     // 5 · …and the workspace comes BACK on its own (never a dead end).
     await expect.poll(async () => (await startUp()) || (await queueCards(page)).length === 0,

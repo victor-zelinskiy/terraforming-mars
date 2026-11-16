@@ -6,6 +6,7 @@ import {
   reloadConsole, sendPlayerInput, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
 import {expectHeadHonest} from './headHonesty';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * P60 RISE TO POWER — the forty-second Prelude 2 card, adapted STRAIGHT TO TURMOIL REDUX (ledger FW): «Increase your M€
@@ -25,7 +26,7 @@ import {expectHeadHonest} from './headHonesty';
  *       в резерве: 2 из 3» (the card's own `unplayableReason`, the P59 · FV class).
  *
  * The rules are pinned by `tests/cards/prelude2/RiseToPower.spec.ts`; this stand is the JOURNEY on the TV profile. Order
- * claims are read from the MutationObserver record armed BEFORE the press. Storyboard: `TM_E2E_STORYBOARD=1`.
+ * claims are read from the RECORDING (`armWitness`) armed BEFORE the press. Storyboard: `TM_E2E_STORYBOARD=1`.
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT = path.resolve('screenshots', 'p60', PRESET.id);
@@ -86,6 +87,7 @@ function watchPosts(page: Page): Array<string> {
 }
 
 type Story = {
+  /** How many distinct states the recording kept (its liveness — never a count of frames). */
   samples: number;
   /** Every distinct crumb line, in order of first appearance. */
   crumbs: Array<string>;
@@ -95,11 +97,10 @@ type Story = {
   parlNodes: number;
   /** The first moment the vote door stood (−1: never). */
   doorAt: number;
-  /** Samples AFTER the first door and BEFORE the last decision's press in which the vote mode did not stand. */
+  /** Recorded states AFTER the first door and BEFORE the last decision's press in which the vote mode did not stand. */
   doorGapSamples: number;
-  closed: boolean;
   gap: Array<[number, string]>;
-  /** [ms, the press's ordinal] — the moments a decision's A was sent (stamped by the spec). */
+  /** [ms, the press's ordinal] — the moments a decision's A was sent (stamped by the spec on the page's clock). */
   presses: Array<[number, number]>;
   /** [ms, value] — the viewer's reserve as the Parliament draws it: every change. */
   reserve: Array<[number, number]>;
@@ -109,89 +110,130 @@ type Story = {
   doorBack: Array<number>;
   /** The first moment no Parliament stood after the door had stood (the step left). */
   parlLeftAt: number;
-  /** The start's ceremony body: a sample with NO ceremony while the step stood or right after it left (a blink). */
+  /** The start's ceremony body: a recorded state with NO ceremony while the step stood or right after it left (a blink). */
   startGone: number;
   stranded: boolean;
 };
+/** One moment of the screen as the reader sees it (the recording stamps it with the page's time). */
+type StorySeen = {
+  crumbs: Array<string>,
+  /** The identities of the `.con-parl` roots standing (a node keeps its number for its whole life). */
+  parls: Array<number>,
+  door: boolean,
+  /** The first Parliament's class line ('no-parl' — none). */
+  parl: string,
+  start: boolean,
+  reserve: number | null,
+  landed: Array<number>,
+  stranded: boolean,
+};
+/** What the SPEC marks on the page's clock beside the recording: the presses, and the moment the series is closed. */
+type StoryMarks = {presses: Array<[number, number]>, closedAt?: number};
+const STORY_WITNESS = 'p60-story';
 
-/** MutationObserver + setInterval (never rAF): the story of the screen from the press on. */
-async function armStory(page: Page, viewer: string): Promise<void> {
-  await page.evaluate((viewer) => {
-    const w = window as unknown as {__p60: Story, __p60t0: number};
-    const p: Story = {samples: 0, crumbs: [], parlMax: 0, parlNodes: 0, doorAt: -1, doorGapSamples: 0, closed: false, gap: [],
-      presses: [], reserve: [], touches: [], doorBack: [], parlLeftAt: -1, startGone: 0, stranded: false};
-    w.__p60 = p;
-    const t0 = Date.now();
-    w.__p60t0 = t0;
-    const nodes = new WeakSet<Element>();
-    let doorWas = false;
-    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = () => {
-      p.samples++;
-      const at = Date.now() - t0;
-      document.querySelectorAll<HTMLElement>('.con-wshead').forEach((el) => {
-        if (!el.checkVisibility({opacityProperty: true, visibilityProperty: true})) {
-          return;
-        }
-        const crumb = text(el);
-        if (crumb !== '' && !p.crumbs.includes(crumb) && p.crumbs.length < 80) {
-          p.crumbs.push(crumb);
-        }
-      });
-      const parls = Array.from(document.querySelectorAll('.con-parl:not([data-parl-leaving])'));
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      parls.forEach((el) => {
-        if (!nodes.has(el)) {
-          nodes.add(el);
-          p.parlNodes++;
-        }
-      });
-      const door = document.querySelector('[data-parl-vote-door]') !== null;
-      if (door && p.doorAt < 0) {
-        p.doorAt = at;
+/**
+ * THE STORY OF THE SCREEN FROM THE PRESS ON — a RECORDING (FLAKE ZERO — `armWitness`): the reader returns what stands
+ * now, every change is kept with the page's time; the counts, the firsts and the gaps are folded on the Node side.
+ * «Never two», «the vote mode stood in every state between the decisions» are claims about what a FRAME shows, so the
+ * record is `settled` — the state a task leaves.
+ */
+async function armStory(page: Page, viewer: string): Promise<StoryMarks> {
+  await armWitness<StorySeen, string>(page, STORY_WITNESS, (viewer) => {
+    // Element identity across samples: a WeakMap on the window (the reader itself keeps nothing between calls).
+    const w = window as unknown as {__p60Ids?: WeakMap<Element, number>, __p60Next?: number};
+    const ids = w.__p60Ids ??= new WeakMap<Element, number>();
+    const idOf = (el: Element): number => {
+      const known = ids.get(el);
+      if (known !== undefined) {
+        return known;
       }
-      if (door && !doorWas && p.doorAt >= 0 && p.doorAt !== at) {
-        p.doorBack.push(at);
-      }
-      doorWas = door;
-      if (p.doorAt >= 0 && !p.closed && !door) {
-        p.doorGapSamples++;
-        const parl = document.querySelector('.con-parl');
-        const state = parl === null ? 'no-parl' : `parl:${parl.className.toString().replace(/\s+/g, '.')}`;
-        if (p.gap[p.gap.length - 1]?.[1] !== state && p.gap.length < 60) {
-          p.gap.push([at, state]);
-        }
-      }
-      if (p.doorAt >= 0 && parls.length === 0 && p.parlLeftAt < 0) {
-        p.parlLeftAt = at;
-      }
-      if (p.doorAt >= 0 && document.querySelector('.con-start') === null) {
-        p.startGone++;
-      }
-      const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
-      const value = raw === null || raw === undefined ? NaN : Number(raw);
-      if (Number.isFinite(value) && p.reserve[p.reserve.length - 1]?.[1] !== value) {
-        p.reserve.push([at, value]);
-      }
-      document.querySelectorAll('.con-parl__slot [data-seq][data-landed]').forEach((el) => {
-        const seq = Number(el.getAttribute('data-seq'));
-        if (!p.touches.some(([, seen]) => seen === seq)) {
-          p.touches.push([at, seq]);
-        }
-      });
-      p.stranded = p.stranded || document.querySelector('.con-stranded') !== null;
+      const id = (w.__p60Next ?? 0) + 1;
+      w.__p60Next = id;
+      ids.set(el, id);
+      return id;
     };
-    sample();
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-    window.setInterval(sample, 30);
-  }, viewer);
+    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const parl = document.querySelector('.con-parl');
+    const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
+    const value = raw === null || raw === undefined ? NaN : Number(raw);
+    return {
+      crumbs: Array.from(document.querySelectorAll<HTMLElement>('.con-wshead'))
+        .filter((el) => el.checkVisibility({opacityProperty: true, visibilityProperty: true}))
+        .map(text).filter((c) => c !== ''),
+      parls: Array.from(document.querySelectorAll('.con-parl:not([data-parl-leaving])')).map(idOf),
+      door: document.querySelector('[data-parl-vote-door]') !== null,
+      parl: parl === null ? 'no-parl' : `parl:${parl.className.toString().replace(/\s+/g, '.')}`,
+      start: document.querySelector('.con-start') !== null,
+      reserve: Number.isFinite(value) ? value : null,
+      landed: Array.from(document.querySelectorAll('.con-parl__slot [data-seq][data-landed]')).map((el) => Number(el.getAttribute('data-seq'))),
+      stranded: document.querySelector('.con-stranded') !== null,
+    };
+  }, {args: viewer, settled: true, max: 40_000});
+  return {presses: []};
 }
-const readStory = (page: Page): Promise<Story> => page.evaluate(() => (window as unknown as {__p60: Story}).__p60);
-async function stampPress(page: Page, n: number): Promise<void> {
-  await page.evaluate((n) => {
-    const w = window as unknown as {__p60: Story, __p60t0: number};
-    w.__p60.presses.push([Date.now() - w.__p60t0, n]);
-  }, n);
+
+/** The recording folded on the Node side into the story's old shape (every ms on the page's clock, from the arm). */
+async function readStory(page: Page, marks: StoryMarks): Promise<Story> {
+  const seen = await witnessOf<StorySeen>(page, STORY_WITNESS).samples();
+  const t0 = seen[0]?.t ?? 0;
+  const p: Story = {samples: seen.length, crumbs: [], parlMax: 0, parlNodes: 0, doorAt: -1, doorGapSamples: 0, gap: [],
+    presses: marks.presses.map(([t, n]) => [t - t0, n]), reserve: [], touches: [], doorBack: [], parlLeftAt: -1, startGone: 0, stranded: false};
+  const nodes = new Set<string>(); // a node's number is its document's own — keyed by the document too
+  let doorIndex = -1;
+  let doorWas = false;
+  seen.forEach((s, i) => {
+    const at = s.t - t0;
+    const v = s.v;
+    for (const crumb of v.crumbs) {
+      if (!p.crumbs.includes(crumb) && p.crumbs.length < 80) {
+        p.crumbs.push(crumb);
+      }
+    }
+    p.parlMax = Math.max(p.parlMax, v.parls.length);
+    v.parls.forEach((id) => nodes.add(`${s.doc}:${id}`));
+    if (v.door && doorIndex < 0) {
+      doorIndex = i;
+      p.doorAt = at;
+    }
+    if (v.door && !doorWas && doorIndex >= 0 && doorIndex !== i) {
+      p.doorBack.push(at);
+    }
+    doorWas = v.door;
+    const closed = marks.closedAt !== undefined && s.t >= marks.closedAt;
+    if (doorIndex >= 0 && !closed && !v.door) {
+      p.doorGapSamples++;
+      if (p.gap[p.gap.length - 1]?.[1] !== v.parl && p.gap.length < 60) {
+        p.gap.push([at, v.parl]);
+      }
+    }
+    if (doorIndex >= 0 && v.parls.length === 0 && p.parlLeftAt < 0) {
+      p.parlLeftAt = at;
+    }
+    if (doorIndex >= 0 && !v.start) {
+      p.startGone++;
+    }
+    if (v.reserve !== null && p.reserve[p.reserve.length - 1]?.[1] !== v.reserve) {
+      p.reserve.push([at, v.reserve]);
+    }
+    for (const seq of v.landed) {
+      if (!p.touches.some(([, known]) => known === seq)) {
+        p.touches.push([at, seq]);
+      }
+    }
+    p.stranded = p.stranded || v.stranded;
+  });
+  p.parlNodes = nodes.size;
+  return p;
+}
+
+/** The moment a decision's A is sent, on the page's clock (the clock the recording stamps its states with). */
+async function stampPress(page: Page, marks: StoryMarks, n: number): Promise<void> {
+  marks.presses.push([await pageNow(page), n]);
+}
+
+/** The series is CLOSED from this moment (the last decision's press): a fold after it is the step's own leave. */
+async function closeStory(page: Page, marks: StoryMarks): Promise<void> {
+  marks.closedAt = await pageNow(page);
 }
 
 /** The index of the voting-area card the vote mode's cursor stands on (−1: none). */
@@ -282,7 +324,7 @@ test.describe('P60 — Rise to Power: a series of three grants is ONE visit, fro
     expect(before.game.parliament.slots.length, 'three resolutions up for the vote').toBe(3);
     await shoot(page, '01-queue');
 
-    await armStory(page, before.thisPlayer.color);
+    const marks = await armStory(page, before.thisPlayer.color);
     const stopStory = await storyboard(page, 'series');
     await playToFirstDecision(page, request, playerId);
     const asked = await wireOf(request, playerId);
@@ -299,7 +341,7 @@ test.describe('P60 — Rise to Power: a series of three grants is ONE visit, fro
     const posts0 = posts.length;
 
     // ── decision 1: A on X → the cube lands → the SAME Parliament returns to its selection, «2 / 3», the cursor on X ──
-    await stampPress(page, 1);
+    await stampPress(page, marks, 1);
     await pressUntil(page, 'Enter', async () => posts.length >= posts0 + 1, {tries: 3, settleMs: 1500});
     await selectionAt(page, 2);
     expect(await cursorIndex(page), 'the cursor stays on the resolution the cube just landed on').toBe(x);
@@ -310,7 +352,7 @@ test.describe('P60 — Rise to Power: a series of three grants is ONE visit, fro
     await press(page, 'ArrowRight', 400);
     const y = await cursorIndex(page);
     expect(y, 'the cursor moved to another resolution').not.toBe(x);
-    await stampPress(page, 2);
+    await stampPress(page, marks, 2);
     await pressUntil(page, 'Enter', async () => posts.length >= posts0 + 2, {tries: 3, settleMs: 1500});
     await selectionAt(page, 3);
     heads.push(await expectHeadHonest(page, 'decision 3 / 3'));
@@ -322,10 +364,8 @@ test.describe('P60 — Rise to Power: a series of three grants is ONE visit, fro
       await press(page, 'ArrowLeft', 400);
     }
     expect(await cursorIndex(page), 'back on X').toBe(x);
-    await page.evaluate(() => {
-      (window as unknown as {__p60: Story}).__p60.closed = true;
-    });
-    await stampPress(page, 3);
+    await closeStory(page, marks);
+    await stampPress(page, marks, 3);
     await pressUntil(page, 'Enter', async () => posts.length >= posts0 + 3, {tries: 3, settleMs: 1500});
     expect(posts.length - posts0, 'three decisions, three POSTs').toBe(3);
     await expect(page.locator('.con-parl'), 'the Parliament left the start').toHaveCount(0, {timeout: 30_000});
@@ -333,7 +373,7 @@ test.describe('P60 — Rise to Power: a series of three grants is ONE visit, fro
     await stopStory();
     await shoot(page, '05-queue-after');
 
-    const story = await readStory(page);
+    const story = await readStory(page, marks);
     fs.mkdirSync(OUT, {recursive: true});
     fs.writeFileSync(path.join(OUT, 'a-series.json'), JSON.stringify(story, null, 1));
     const told = JSON.stringify({crumbs: story.crumbs, parlMax: story.parlMax, parlNodes: story.parlNodes, doorGapSamples: story.doorGapSamples,
@@ -429,7 +469,7 @@ test.describe('P60 — Rise to Power mid-game (WG Project)', () => {
     const posts = watchPosts(page);
     await focusInWgPick(page);
     await press(page, 'Enter', 400);
-    await armStory(page, before.thisPlayer.color);
+    const marks = await armStory(page, before.thisPlayer.color);
     const sent = posts.length;
     for (let attempt = 0; attempt < 3 && posts.length === sent; attempt++) {
       await press(page, 'Period', 300); // RT — the pick's commit
@@ -456,15 +496,13 @@ test.describe('P60 — Rise to Power mid-game (WG Project)', () => {
         }
       }
     }
-    await page.evaluate(() => {
-      (window as unknown as {__p60: Story}).__p60.closed = true;
-    });
+    await closeStory(page, marks);
     const n = posts.length;
     await pressUntil(page, 'Enter', async () => posts.length >= n + 1, {tries: 3, settleMs: 1500});
     await expect(page.locator('.con-parl'), 'the Parliament left with the flow').toHaveCount(0, {timeout: 30_000});
     await settle(page, {timeoutMs: 30_000});
     await shoot(page, 'd-board');
-    const story = await readStory(page);
+    const story = await readStory(page, marks);
     const told = JSON.stringify({crumbs: story.crumbs, parlNodes: story.parlNodes, doorGapSamples: story.doorGapSamples, gap: story.gap, touches: story.touches});
     test.info().annotations.push({type: 'series-wg', description: told});
     expect(story.parlNodes, `ONE Parliament node for the whole series (${told})`).toBe(1);

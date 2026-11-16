@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, cinematicBeat, FixtureName, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE PAYOUT STAGE'S GEOMETRY — colony polish 2 (the owner's 4K report of 2026-10-21: «на экране торговли на Плутоне
@@ -187,13 +188,16 @@ for (const preset of PRESETS) {
         await press(page, 'Enter', 2000);
         await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the trade stage did not open'}).toBeGreaterThan(0);
         await shoot(page, dir, '00-stage');
-        const stage = await geometry(page);
+        // Every geometry is read AT REST — two equal reads a frame apart, nothing finite still moving. The stage and the
+        // table are scenes that STAND for the player (a decision, a take), so no `settle` first: what may legitimately
+        // hold behind them stands until the press.
+        const stage = await readSettled(page, () => geometry(page), {settle: false, message: 'the trade stage'});
         await press(page, 'KeyX', 300); // confirm the trade
         const active = page.locator('.con-colonies .con-reveal__bonus-zone--active');
         await active.first().waitFor({state: 'visible', timeout: 60_000});
         await cinematicBeat(page, 3200, 'the payout lands and the fit settles');
         await shoot(page, dir, '10-table');
-        const geo = await geometry(page);
+        const geo = await readSettled(page, () => geometry(page), {settle: false, message: 'the payout table'});
         fs.writeFileSync(path.join(dir, 'geometry.json'), JSON.stringify({stage, table: geo, console: log}, null, 1));
         console.log(`── ${scenario.fixture} · ${preset.id} ──`);
         console.log(`band=${JSON.stringify(geo.band)} panel=${JSON.stringify(geo.panel)} zone=${JSON.stringify(geo.zone)} hero=${JSON.stringify(geo.hero)}`);
@@ -209,7 +213,7 @@ for (const preset of PRESETS) {
         await press(page, 'ArrowLeft', 300);
         await press(page, 'Enter', 2200);
         await shoot(page, dir, '12-taken');
-        const taken = await geometry(page);
+        const taken = await readSettled(page, () => geometry(page), {settle: false, message: 'the table after the first take'});
         fs.writeFileSync(path.join(dir, 'geometry-taken.json'), JSON.stringify(taken, null, 1));
 
         expect(geo.items.length, 'every object of the table stands in the row').toBe(scenario.objects);

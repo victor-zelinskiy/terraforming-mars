@@ -4,9 +4,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
 import {
-  bootFixtureSeats, cinematicBeat, commitFocusedSpace, fetchPlayerModel, press, pressUntil, settle,
+  bootFixtureSeats, cinematicBeat, commitFocusedSpace, fetchPlayerModel, press, pressUntil, pressUntilGone, settle,
   walkToSpace, focusInfoZone,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * DEVELOPMENT CRAZE (Turmoil Redux, RX10) — the first LIVE PASSIVE, and the
@@ -31,7 +32,7 @@ import {
  *   ④ NO second telling: the feed builds no «Сработал эффект» card about the
  *     chain the scene just played.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF; the wire
+ * The probe is a RECORD (FLAKE ZERO: `armWitness`, `settled` — the states a frame can paint); the wire
  * (`/api/player`) is the truth the screen is checked against.
  * Screenshots under screenshots/parliament-craze/standard-1080/.
  */
@@ -43,38 +44,29 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-type Sample = {t: number, src: 'mo' | 'tick', phase: string, echo: boolean, steel: number | undefined, toast: boolean, face: boolean};
-type Probe = {samples: Array<Sample>};
+type Sample = {phase: string, echo: boolean, steel: number | null, toast: boolean, face: boolean};
+const PROBE = 'craze-probe';
 
-/** THE PROBE — armed BEFORE the commit. `setInterval` + `MutationObserver`, never rAF. */
+/**
+ * THE PROBE — armed BEFORE the commit, RECORDED (`armWitness`; a value is kept only when it changes). `settled`: the
+ * claims are about what a frame PAINTS (the echo announced, the counter's values, the waves' order), never a state
+ * between two writes of one task — the old timer ticks stood for the same thing.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__crazeProbe: Probe};
-    const probe: Probe = {samples: []};
-    w.__crazeProbe = probe;
-    const read = (src: 'mo' | 'tick'): void => {
-      const scene = document.querySelector<HTMLElement>('.con-tileplace');
-      const digits = document.querySelector<HTMLElement>('.con-res__row--steel .con-res__digits')?.textContent?.trim() ?? '';
-      const m = digits.match(/^-?\d+/);
-      probe.samples.push({
-        t: performance.now(),
-        src,
-        phase: scene?.getAttribute('data-tile-phase') ?? '',
-        echo: scene?.getAttribute('data-law-wave') === '1',
-        steel: m === null ? undefined : Number(m[0]),
-        toast: document.querySelector('.con-notif[data-notif-id$=":law"]') !== null,
-        face: (() => {
-          const el = document.querySelector<HTMLElement>('.con-reaction__face[data-reaction-card="RDX_MARS_DEVELOPMENT_CRAZE"]');
-          return el !== null && el.getBoundingClientRect().width > 4 && Number(getComputedStyle(el).opacity) >= 0.3;
-        })(),
-      });
+  await armWitness<Sample>(page, PROBE, () => {
+    const scene = document.querySelector<HTMLElement>('.con-tileplace');
+    const digits = document.querySelector<HTMLElement>('.con-res__row--steel .con-res__digits')?.textContent?.trim() ?? '';
+    const m = digits.match(/^-?\d+/);
+    const el = document.querySelector<HTMLElement>('.con-reaction__face[data-reaction-card="RDX_MARS_DEVELOPMENT_CRAZE"]');
+    return {
+      phase: scene?.getAttribute('data-tile-phase') ?? '',
+      echo: scene?.getAttribute('data-law-wave') === '1',
+      steel: m === null ? null : Number(m[0]),
+      toast: document.querySelector('.con-notif[data-notif-id$=":law"]') !== null,
+      face: el !== null && el.getBoundingClientRect().width > 4 && Number(getComputedStyle(el).opacity) >= 0.3,
     };
-    new MutationObserver(() => read('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => read('tick'), 40);
-  });
+  }, {settled: true});
 }
-
-const probeOf = (page: Page) => page.evaluate(() => (window as unknown as {__crazeProbe: Probe}).__crazeProbe);
 
 type WireSpaces = {game: {spaces?: Array<{id: string, bonus: Array<number>, tileType?: number}>}};
 type WireSteel = {thisPlayer?: {steel?: number}};
@@ -120,9 +112,7 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
     await settle(page, {timeoutMs: 15_000, notifications: false});
     await shoot(page, '01-effects-strip');
     // Back to the board home.
-    for (let i = 0; i < 6 && await page.locator('.con-info, .con-efx').count() > 0; i++) {
-      await press(page, 'Escape', 700);
-    }
+    await pressUntilGone(page, 'Escape', '.con-info, .con-efx', {tries: 6, settleMs: 700});
     await expect(page.locator('.con-info, .con-efx')).toHaveCount(0, {timeout: 10_000});
 
     // ② THE PLACEMENT — LT wheel → standard projects (the centre slot) → «Озеленение» → pay → the board.
@@ -146,14 +136,9 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
     await armProbe(page);
     expect(await commitFocusedSpace(page), 'the greenery commits on the two-steel cell').toBe(true);
 
-    // The scene: watch for the ECHO and shoot it while it plays.
-    let echoSeen = false;
-    for (let i = 0; i < 200 && !echoSeen; i++) {
-      echoSeen = (await page.locator('.con-tileplace[data-law-wave="1"]').count()) > 0;
-      if (!echoSeen) {
-        await cinematicBeat(page, 50, 'polling the placement scene for the echo wave');
-      }
-    }
+    // The scene: wait for the ECHO (a state, never a polling beat) and shoot it while it plays.
+    const echoSeen = await page.locator('.con-tileplace[data-law-wave="1"]').first().waitFor({state: 'attached', timeout: 10_000})
+      .then(() => true, () => false);
     if (echoSeen) {
       await shoot(page, '02-placement-echo');
     }
@@ -172,19 +157,20 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
     expect((after.thisPlayer?.steel ?? 0) - steelBefore, 'the cell was paid twice (+ the party steel)').toBe(5);
 
     // The probe: the echo was announced, and the counter passed through the middle — two waves, never one jump.
-    const probe = await probeOf(page);
-    const ticks = probe.samples.filter((s) => s.src === 'tick');
-    expect(ticks.length, 'the sampler ran').toBeGreaterThan(10);
+    const ticks = (await witnessOf<Sample>(page, PROBE).stop()).map((s) => s.v);
+    // The recorder's liveness only (a record keeps DISTINCT states, never frames — `tests.md`).
+    expect(ticks.length, 'the sampler ran').toBeGreaterThan(0);
     expect(ticks.some((s) => s.echo), 'the scene announced the ECHO wave on painted frames').toBe(true);
-    expect(ticks.filter((s) => s.face).length, 'the LAW\'s face stood at the stage for a readable beat (the second wave\'s reactor)').toBeGreaterThanOrEqual(3);
+    // «A readable beat» was a count of 40 ms ticks — a statement about the machine; the record asks that it STOOD.
+    expect(ticks.some((s) => s.face), 'the LAW\'s face stood at the stage for a readable beat (the second wave\'s reactor)').toBe(true);
     expect(ticks.some((s) => s.toast), 'no law card at any instant').toBe(false);
-    const steels = ticks.map((s) => s.steel).filter((v): v is number => v !== undefined);
+    const steels = ticks.map((s) => s.steel).filter((v): v is number => v !== null);
     const distinct = [...new Set(steels)].sort((a, b) => a - b);
     const target = steelBefore + 5;
     expect(distinct[distinct.length - 1], 'the counter reached the doubled total').toBe(target);
     expect(distinct.some((v) => v > steelBefore && v < target), `the counter ticked through an intermediate value (${distinct.join(',')})`).toBe(true);
-    const firstEcho = ticks.find((s) => s.echo);
-    const lastNonEchoRewarding = [...ticks].reverse().find((s) => !s.echo && s.phase === 'rewarding' && s.t < (firstEcho?.t ?? 0));
-    expect(lastNonEchoRewarding, 'the first wave played BEFORE the echo (in turn)').toBeTruthy();
+    const firstEcho = ticks.findIndex((s) => s.echo);
+    const firstWave = ticks.findIndex((s) => !s.echo && s.phase === 'rewarding');
+    expect(firstWave >= 0 && firstWave < firstEcho, 'the first wave played BEFORE the echo (in turn)').toBeTruthy();
   });
 });

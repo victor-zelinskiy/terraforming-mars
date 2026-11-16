@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, playCardFromHand, press, pressUntil, settle, focusInfoZone} from './consoleStart';
 import {expectLawLeadsEffects, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * URBAN DEVELOPMENT (Turmoil Redux, RX30) — the ONE e2e of the new mechanic: a
@@ -83,12 +84,13 @@ test.describe(`Urban Development · ${PRESET.id}`, () => {
     // The rule is DRAWN, not left as a blank — the tile carries the card's own printed effect.
     const formula = lawRow.locator('.con-efx__tile .con-efx__graphic').first();
     await expect(formula, 'the law states its rule in graphics').toHaveCount(1);
-    // The icons are CSS sprites, so «drawn» is read as «it has painted descendants with a box».
-    const painted = await formula.evaluate((el) => Array.from(el.querySelectorAll('*'))
+    // The icons are CSS sprites, so «drawn» is read as «it has painted descendants with a box» — AT REST (two equal
+    // reads a frame apart), never half-way into the explorer's entrance.
+    const painted = await readSettled(page, () => formula.evaluate((el) => Array.from(el.querySelectorAll('*'))
       .filter((n) => {
         const r = (n as HTMLElement).getBoundingClientRect();
         return r.width > 2 && r.height > 2;
-      }).length);
+      }).length), {message: 'the law\'s formula, painted'});
     expect(painted, 'the formula is drawn, not an empty space').toBeGreaterThan(2);
     await settle(page, {timeoutMs: 15_000, notifications: false});
     await shoot(page, '00-effects-strip');

@@ -1,9 +1,10 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi,
+import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, pressUntil, seedGameOverApi,
   sendPlayerInput, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE REPEAT-ACTION BRIDGE — stage 7 («Микробная фиксация») round trip, live:
@@ -148,6 +149,21 @@ async function lightProbe(page: Page): Promise<Record<string, unknown>> {
   });
 }
 
+/** The pick row's and the side CTA's boxes (rounded — a subpixel that jitters is not motion). */
+async function pickBoxes(page: Page) {
+  return page.evaluate(() => {
+    const b = (sel: string) => {
+      const el = document.querySelector(sel);
+      if (el === null) {
+        return undefined;
+      }
+      const r = el.getBoundingClientRect();
+      return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
+    };
+    return {row: b('.con-hydro__pickrow'), cta: b('.con-hydro__ctazone .con-hydro__cta')};
+  });
+}
+
 function expectLit(light: Record<string, any>, where: string): void {
   for (const key of ['root', 'rail', 'scene', 'panel', 'ctx', 'act']) {
     const l = light[key];
@@ -189,31 +205,20 @@ for (const profile of PROFILES) {
       await page.waitForSelector('.con-hydro', {timeout: 10_000});
       await page.waitForSelector('.con-hydro__payline', {timeout: 10_000});
       await press(page, 'Period', 900); // RT — «К дальнему»
-      const focused = await page.evaluate(() =>
-        document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-      expect(focused, 'the farthest legal stage is 7').toBe('7');
+      await expect.poll(() => page.evaluate(() =>
+        document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? ''), {message: 'the farthest legal stage is 7'}).toBe('7');
 
       // ── INITIAL FOCUS: the unresolved pre-select owns the cursor. ──
       const seat = await lightProbe(page);
       expect(seat.focusedRow, 'the cursor starts on «Выберите действие»').toBe(true);
       expect(String(seat.barText), 'the bar names the row\'s verb').toMatch(/выберите действие/i);
 
-      // ── GEOMETRY: moving focus to the CTA must not re-lay either control. ──
-      const boxes = async () => page.evaluate(() => {
-        const b = (sel: string) => {
-          const el = document.querySelector(sel);
-          if (el === null) {
-            return undefined;
-          }
-          const r = el.getBoundingClientRect();
-          return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
-        };
-        return {row: b('.con-hydro__pickrow'), cta: b('.con-hydro__ctazone .con-hydro__cta')};
-      });
-      const focusedBoxes = await boxes();
+      // ── GEOMETRY: moving focus to the CTA must not re-lay either control. Both sides of the comparison are read AT
+      //    REST (two equal reads a frame apart — the workspace stands, so no `settle` first). ──
+      const focusedBoxes = await readSettled(page, () => pickBoxes(page), {settle: false, message: 'the controls, the row focused'});
       await shoot(page, `${profile.tag}-01-focus-row`);
       await press(page, 'ArrowUp', 500); // → track (off the row)
-      const blurredBoxes = await boxes();
+      const blurredBoxes = await readSettled(page, () => pickBoxes(page), {settle: false, message: 'the controls, the focus off the row'});
       await shoot(page, `${profile.tag}-02-focus-off`);
       for (const key of ['row', 'cta'] as const) {
         const a = focusedBoxes[key];
@@ -233,15 +238,12 @@ for (const profile of PROFILES) {
       await page.waitForSelector('.con-cardactions', {timeout: 15_000});
       await shoot(page, `${profile.tag}-03-selector`);
       // A picks the (only) activated action; the composer confirms it with a
-      // second A («Выбрать это действие»). Bounded walk, keyed on the surface.
-      for (let i = 0; i < 4 && await page.locator('.con-cardactions').count() > 0; i++) {
-        await press(page, 'Enter', 1600);
-      }
+      // second A («Выбрать это действие»). Bounded walk, keyed on the surface — each A gets its whole window.
+      await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions').count() === 0, {tries: 4, settleMs: 1600});
       await page.waitForSelector('.con-hydro', {timeout: 15_000});
       await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 15_000});
-      await page.waitForTimeout(1200); // let any return motion settle
-
-      const back = await lightProbe(page);
+      // Any return motion SETTLES before the light is judged: the probe is read at rest (two equal reads a frame apart).
+      const back = await readSettled(page, () => lightProbe(page), {settle: false, message: 'the workspace after the selector round trip'});
       await shoot(page, `${profile.tag}-04-returned`);
       expectLit(back, 'after the selector round trip');
       expect(String(back.pickedSummary), 'the chosen action stands in the summary')
@@ -298,7 +300,7 @@ for (const profile of PROFILES) {
         .catch((error: unknown) => {
           throw new Error(`${(error as Error).message}\n[pick state] ${lastPick.why}`);
         });
-      const cancelled = await lightProbe(page);
+      const cancelled = await readSettled(page, () => lightProbe(page), {settle: false, message: 'the workspace after the cancel'});
       expectLit(cancelled, 'after cancelling the selector');
       await shoot(page, `${profile.tag}-05-cancel-return`);
     });

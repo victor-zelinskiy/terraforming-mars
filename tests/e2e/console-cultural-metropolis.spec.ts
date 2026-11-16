@@ -23,6 +23,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, focusedSpaceId, placementState, pressUntil, settle} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 const PROFILES = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -77,57 +78,61 @@ type Story = {
   doors: Array<string>;
   /** [ms, value]: the viewer's reserve as the Parliament draws it. */
   reserve: Array<[number, number]>;
-  /** Moments (ms) the hand was ABSENT while a vote door stood — the step outside its flow. */
-  handGoneUnderVote: number;
+  /** The hand was ever ABSENT while a vote door stood — the step outside its flow. */
+  handGoneUnderVote: boolean;
   wsMax: number;
   stranded: boolean;
 };
 
-/** MutationObserver + setInterval (never rAF): the story of the screen from the cell's commit on. */
+/**
+ * The story of the screen from the cell's commit on — RECORDED off the product's own writes (FLAKE ZERO, `armWitness`):
+ * the reader returns what stands NOW, the story (first appearances, «ever», the reserve's changes on the page's clock)
+ * is folded on the Node side by `readStory`, over the whole record so far. `settled`: «one Parliament, never a second
+ * surface» is a coexistence claim — what a task leaves, never a state between two of its writes.
+ */
+const STORY = 't03-story';
+type StoryRead = {
+  steps: Array<string>, parlOutside: boolean, door: string | null, hand: boolean, reserve: number | null, ws: number, stranded: boolean,
+};
 async function armStory(page: Page, viewer: string): Promise<void> {
-  await page.evaluate((viewer) => {
-    const w = window as unknown as {__t03: Story};
-    const p: Story = {samples: 0, steps: [], parlOutsideHand: false, doors: [], reserve: [], handGoneUnderVote: 0, wsMax: 0, stranded: false};
-    w.__t03 = p;
-    const t0 = Date.now();
+  await armWitness<StoryRead, string>(page, STORY, (viewer) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = () => {
-      p.samples++;
-      const hand = document.querySelector('.con-hand');
-      hand?.querySelectorAll('.con-wshead__step').forEach((el) => {
-        const step = text(el);
-        if (step !== '' && !p.steps.includes(step)) {
-          p.steps.push(step);
-        }
-      });
-      document.querySelectorAll('.con-parl').forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        }
-      });
-      const door = document.querySelector('[data-parl-vote-door]')?.getAttribute('data-parl-vote-door');
-      if (door !== null && door !== undefined) {
-        if (!p.doors.includes(door)) {
-          p.doors.push(door);
-        }
-        if (hand === null) {
-          p.handGoneUnderVote++;
-        }
-      }
-      const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
-      const value = raw === null || raw === undefined ? NaN : Number(raw);
-      if (Number.isFinite(value) && p.reserve[p.reserve.length - 1]?.[1] !== value) {
-        p.reserve.push([Date.now() - t0, value]);
-      }
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      p.stranded = p.stranded || document.querySelector('.con-stranded') !== null;
+    const hand = document.querySelector('.con-hand');
+    const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
+    const value = raw === null || raw === undefined ? NaN : Number(raw);
+    return {
+      steps: Array.from(hand?.querySelectorAll('.con-wshead__step') ?? []).map(text).filter((step) => step !== ''),
+      parlOutside: Array.from(document.querySelectorAll('.con-parl')).some((el) => el.closest('.con-hand') === null || el.classList.contains('con-ws')),
+      door: document.querySelector('[data-parl-vote-door]')?.getAttribute('data-parl-vote-door') ?? null,
+      hand: hand !== null,
+      reserve: Number.isFinite(value) ? value : null,
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 30);
-  }, viewer);
+  }, {args: viewer, settled: true});
 }
 
-const readStory = (page: Page): Promise<Story> => page.evaluate(() => (window as unknown as {__t03: Story}).__t03);
+async function readStory(page: Page): Promise<Story> {
+  const samples = await witnessOf<StoryRead>(page, STORY).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const story: Story = {samples: samples.length, steps: [], parlOutsideHand: false, doors: [], reserve: [], handGoneUnderVote: false, wsMax: 0, stranded: false};
+  for (const {t, v} of samples) {
+    story.steps.push(...v.steps.filter((step, i) => !story.steps.includes(step) && v.steps.indexOf(step) === i));
+    story.parlOutsideHand ||= v.parlOutside;
+    if (v.door !== null) {
+      if (!story.doors.includes(v.door)) {
+        story.doors.push(v.door);
+      }
+      story.handGoneUnderVote ||= !v.hand;
+    }
+    if (v.reserve !== null && story.reserve[story.reserve.length - 1]?.[1] !== v.reserve) {
+      story.reserve.push([t - t0, v.reserve]);
+    }
+    story.wsMax = Math.max(story.wsMax, v.ws);
+    story.stranded ||= v.stranded;
+  }
+  return story;
+}
 
 for (const preset of PROFILES) {
   test.describe(`T03 Cultural Metropolis · two doors · ${preset.id}`, () => {

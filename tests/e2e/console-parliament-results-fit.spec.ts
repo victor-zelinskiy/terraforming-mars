@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, FixtureName, openMandatoryAnnounce, pressUntil, settle} from './consoleStart';
 import {expectParliamentFits, expectResultsContained, mandatoryPlate, PARLIAMENT_PRESETS, parliament, sittingStage, waitSittingAtRest} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * THE RESULTS CARD HOLDS ITS CONTENT — ON EVERY PROFILE (P71 · ledger CY; the owner's two frames of 2026-10-28: the seats'
@@ -46,8 +47,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         await expect(page.locator('[data-sit-results]:not([data-sit-results-hidden])')).toHaveCount(1, {timeout: 30_000});
         await settle(page, {timeoutMs: 20_000});
         test.info().annotations.push({type: 'tier', description: await page.locator('[data-sit-results]').getAttribute('data-sit-tier') ?? '(none)'});
-        // THE SOLVER'S VIEW, for a red's reader: the card's box, the rem, the scale and the numbers it decided.
-        const solverView = await page.evaluate(() => {
+        // THE SOLVER'S VIEW, for a red's reader: the card's box, the rem, the scale and the numbers it decided — read AT
+        // REST (`readSettled`, the console settled just above); a view that never holds still is named, never a red.
+        const solverView = await readSettled(page, () => page.evaluate(() => {
           const card = document.querySelector<HTMLElement>('[data-sit-results]');
           const root = getComputedStyle(document.documentElement);
           const cs = card === null ? undefined : getComputedStyle(card);
@@ -58,7 +60,7 @@ for (const preset of PARLIAMENT_PRESETS) {
             return `${Math.round(rect.width)}×${Math.round(rect.height)} who ${Math.round(who?.width ?? 0)}`;
           });
           return `card ${card?.clientWidth}×${card?.clientHeight} rem ${root.fontSize} scale ${root.getPropertyValue('--con-ui-scale')} · ${vars.join(' ')} · rows ${rows.join(' | ')}`;
-        });
+        }), {settle: false, message: 'the solver view'}).catch((e: Error) => `(the solver view never held still: ${e.message})`);
         test.info().annotations.push({type: 'solver', description: solverView});
         console.log(`[solver] ${preset.id} ${fixture}: ${solverView}`);
         await shoot(page, preset.id, `fit-${fixture}`);

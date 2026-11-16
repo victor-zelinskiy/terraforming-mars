@@ -4,7 +4,8 @@
  * особенно при ускоренном подсчёте». Three readings of one claim, every number printed beside its verdict and written
  * to a bench file for the A/B (`TM_E2E_SHOTS_TAG=before|after`):
  *
- *  J · THE BUDGET ON BOTH PACES (4K, DOM — an init-script sampler, setInterval, never rAF): the ignitions per second,
+ *  J · THE BUDGET ON BOTH PACES (4K, DOM — a RECORDING armed before the boot, `armWitness` with a 16 ms timer tick
+ *      beside the frame tick and the DOM's own writes; every distinct state on the page's clock): the ignitions per second,
  *      the shortest luminous event and its attack, how many lights stand at once, the luminous events per second —
  *      on the natural count and on the HURRIED one (X on the second category); the hurry is ONE pass (the remainder
  *      under two seconds, an odometer that never steps backwards), then the ranking and the crowning at ×1;
@@ -25,6 +26,8 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {fixtureTable, getModel, journeyToEndgame, pumpFrames, waitWithFrames} from './consoleEndgameHarness';
 import {cinematicBeat} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 const TAG = process.env.TM_E2E_SHOTS_TAG ?? 'after';
 const OUT = path.resolve('screenshots', 'lakefront', 'finale', TAG);
@@ -54,20 +57,32 @@ type Sample = {
   totals: Record<string, string>,
 };
 
+/** One recorded state of the scene — the sample without its clock (the recording stamps the page's time); null before
+ *  the finale stands. */
+type Seen = Omit<Sample, 't'> | null;
+const BUDGET_WITNESS = 'finale-budget';
+
+/**
+ * THE BUDGET PROBE — armed BEFORE the boot (the recorder re-installs in every document): a RECORDING of the scene
+ * (FLAKE ZERO — `armWitness`, settled: «≤ 1 light at a time» is a coexistence claim; a 16 ms timer tick beside the
+ * frame tick, because a light's opacity is a CSS motion no DOM write announces — the TIMING witness of recipe item 9).
+ * The long animation frames are the page's own record (a PerformanceObserver), stamped on the same clock.
+ */
 async function armBudgetProbe(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const samples: Array<unknown> = [];
     const loaf: Array<{t: number, dur: number}> = [];
-    let t0 = -1;
     try {
       new PerformanceObserver((list) => {
         for (const e of list.getEntries()) {
-          if (t0 >= 0 && e.duration > 50) {
-            loaf.push({t: Math.round(e.startTime - t0), dur: Math.round(e.duration)});
+          if (e.duration > 50) {
+            loaf.push({t: Math.round(performance.timeOrigin + e.startTime), dur: Math.round(e.duration)});
           }
         }
       }).observe({type: 'long-animation-frame', buffered: false});
     } catch { /* no LoAF */ }
+    (window as unknown as {__budgetLoaf: unknown}).__budgetLoaf = loaf;
+  });
+  await armWitness<Seen>(page, BUDGET_WITNESS, () => {
     const opacityOf = (el: Element): number => {
       let o = 1;
       for (let n: Element | null = el; n !== null && !n.classList.contains('con-endgame'); n = n.parentElement) {
@@ -75,13 +90,10 @@ async function armBudgetProbe(page: Page): Promise<void> {
       }
       return Math.round(o * 1000) / 1000;
     };
-    const timer = window.setInterval(() => {
+    const take = (): Seen => {
       const root = document.querySelector<HTMLElement>('.con-endgame');
       if (root === null) {
-        return;
-      }
-      if (t0 < 0) {
-        t0 = performance.now();
+        return null;
       }
       const phase = Array.from(root.classList)
         .find((c) => /^con-endgame--(idle|entering|scoring|settling|ranking|tiebreak|winner|champion|actions)$/.test(c))?.slice(13) ?? '';
@@ -99,21 +111,33 @@ async function armBudgetProbe(page: Page): Promise<void> {
       root.querySelectorAll<HTMLElement>('[data-eg-total]').forEach((el) => {
         totals[el.dataset.egTotal ?? ''] = el.textContent ?? '';
       });
-      samples.push({
-        t: Math.round(performance.now() - t0), phase, cat: Number(root.dataset.egCat ?? -1),
+      return {
+        phase, cat: Number(root.dataset.egCat ?? -1),
         hurried: root.dataset.egHurried ?? '', lum, on, totals,
-      });
-    }, 16);
-    (window as unknown as {__budget: unknown}).__budget = {samples, loaf, stop: () => window.clearInterval(timer)};
-  });
+      };
+    };
+    return take();
+  }, {settled: true, tickMs: 16, max: 200_000});
 }
 
-async function readBudgetProbe(page: Page): Promise<{samples: Array<Sample>, loaf: Array<{t: number, dur: number}>}> {
-  return await page.evaluate(() => {
-    const p = (window as unknown as {__budget: {samples: Array<Sample>, loaf: Array<{t: number, dur: number}>, stop: () => void}}).__budget;
-    p.stop();
-    return {samples: p.samples, loaf: p.loaf};
-  });
+/**
+ * The recording in the probe's shape: `t` in ms from the finale's first recorded state (`t0`, the page's clock), the
+ * long frames on the same axis. A state is kept on CHANGE, so the record is closed with the last state standing at the
+ * moment it is read — «the end of the samples» an open light runs to, as the old sampler's last tick was.
+ */
+async function readBudgetProbe(page: Page, opts: {stop?: boolean} = {}): Promise<{samples: Array<Sample>, loaf: Array<{t: number, dur: number}>, t0: number}> {
+  const witness = witnessOf<Seen>(page, BUDGET_WITNESS);
+  const recorded = opts.stop === false ? await witness.samples() : await witness.stop();
+  const readAt = await pageNow(page);
+  const scene = recorded.filter((s): s is typeof s & {v: NonNullable<Seen>} => s.v !== null);
+  const t0 = scene[0]?.t ?? readAt;
+  const samples: Array<Sample> = scene.map((s) => ({...s.v, t: s.t - t0}));
+  const last = samples[samples.length - 1];
+  if (last !== undefined) {
+    samples.push({...last, t: Math.max(last.t, readAt - t0)});
+  }
+  const loafAbs = await page.evaluate(() => (window as unknown as {__budgetLoaf?: Array<{t: number, dur: number}>}).__budgetLoaf ?? []);
+  return {samples, loaf: loafAbs.map((f) => ({t: f.t - t0, dur: f.dur})), t0};
 }
 
 type LightEvent = {key: string, start: number, peakAt: number, end: number, peak: number, trace: Array<[number, number]>};
@@ -180,9 +204,25 @@ type Budget = {
   longFrames: Array<string>,
 };
 
+/**
+ * The record from the moment `at` on: the state STANDING at `at` (the last one recorded at or before it, stamped `at`)
+ * and every later one — a state is recorded on CHANGE, so what stood at a moment is the last state before it.
+ */
+function fromMoment(samples: ReadonlyArray<Sample>, at: number): Array<Sample> {
+  let standing: Sample | undefined;
+  for (const s of samples) {
+    if (s.t > at) {
+      break;
+    }
+    standing = s;
+  }
+  const later = samples.filter((s) => s.t > at);
+  return standing === undefined ? later : [{...standing, t: at}, ...later];
+}
+
 /** The budget over [from, to): what the eye got in that window. */
 function budgetOf(samples: ReadonlyArray<Sample>, loaf: ReadonlyArray<{t: number, dur: number}>, from: number, to: number): Budget {
-  const win = samples.filter((s) => s.t >= from && s.t < to);
+  const win = fromMoment(samples, from).filter((s) => s.t < to);
   const ignitionTimes: Array<number> = [];
   for (let i = 1; i < win.length; i++) {
     const prev = new Set(win[i - 1].on);
@@ -244,13 +284,13 @@ async function shownTotals(page: Page): Promise<Array<number>> {
   return (await page.locator('.con-eg__total-num').allTextContents()).map((t) => Number(t.trim())).sort((a, b) => b - a);
 }
 
-/** X on the SECOND category (the reference of the hurry: one natural category played, the rest hurried). */
+/**
+ * X on the SECOND category (the reference of the hurry: one natural category played, the rest hurried). Returns the
+ * press's moment on the PAGE's clock (the recording's own) — subtract the record's `t0` for the probe's axis.
+ */
 async function hurryOnSecondCategory(page: Page): Promise<number> {
   await waitWithFrames(page, async () => Number(await page.locator('.con-endgame').getAttribute('data-eg-cat')) >= 1, 60_000, 'the second category');
-  const xAt = await page.evaluate(() => {
-    const p = (window as unknown as {__budget?: {samples: Array<{t: number}>}}).__budget;
-    return p?.samples[p.samples.length - 1]?.t ?? 0;
-  });
+  const xAt = await pageNow(page);
   await page.keyboard.press('KeyX');
   return xAt;
 }
@@ -294,11 +334,12 @@ test.describe('console finale — the light budget (4K, DOM)', () => {
     const ids = await fixtureTable(request, 'finale-rich-5p');
     const unpump = await pumpFrames(page);
     await journeyToEndgame(page, request, ids);
-    const xAt = await hurryOnSecondCategory(page);
+    const xAtPage = await hurryOnSecondCategory(page);
     await settled(page);
     await unpump();
-    const {samples, loaf} = await readBudgetProbe(page);
-    const after = samples.filter((s) => s.t > xAt);
+    const {samples, loaf, t0} = await readBudgetProbe(page);
+    const xAt = xAtPage - t0;
+    const after = fromMoment(samples, xAt);
     const countEnd = after.find((s) => s.phase === 'settling' || s.phase === 'ranking')?.t ?? -1;
     const budget = budgetOf(samples, loaf, xAt, countEnd > xAt ? countEnd : Infinity);
     // THE ODOMETER: after X every seat's shown total only ever rises (a step back is a count told twice).
@@ -364,14 +405,16 @@ async function recordLuma(page: Page, keepAs?: string): Promise<{stop: () => Pro
   return {
     stop: async () => {
       await client.send('Page.stopScreencast').catch(() => undefined);
-      const box = await page.evaluate(() => {
+      // The podium's box — the crop of every frame — measured AT REST (`readSettled`; no `settle` first: the finale's
+      // ceremony STANDS on, and its holds are no reason to wait).
+      const box = await readSettled(page, () => page.evaluate(() => {
         const rows = document.querySelector('.con-eg__rows')?.getBoundingClientRect();
         const rail = document.querySelector('.con-eg__rail')?.getBoundingClientRect();
         if (rows === undefined || rail === undefined) {
           return undefined;
         }
         return {left: rows.left, top: rail.top, right: rows.right, bottom: rows.bottom};
-      });
+      }), {settle: false, message: 'the podium\'s box'});
       expect(box, 'the podium was measured').toBeDefined();
       const t0 = frames[0]?.t ?? 0;
       if (keepAs !== undefined) {

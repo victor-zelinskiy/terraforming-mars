@@ -5,6 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, press, pressUntil, settle, focusInfoZone,
 } from './consoleStart';
 import {armLeakWitness, enterSittingByPass, expectLawLeadsEffects, inspectWinningBill, parliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * HEAT CAPTURE (Turmoil Redux, RX14) — the ONE e2e of the new mechanic: a law
@@ -50,52 +51,43 @@ type Wire = {
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
 /**
- * THE PROBE. A `setInterval` sampler (never rAF — a quiet screen stops the
- * compositor exactly when this beat plays) that reads, every tick: whether the
- * sitting's frame is on screen, what the temperature readout SAYS, whether the
- * terraforming readout is celebrating, and whether any TR delta chip exists.
+ * THE PROBE — RECORDED off the product's own writes (FLAKE ZERO, `armWitness`; a still screen records nothing, a
+ * starved renderer can slow the beat but never hide it between two ticks): whether the sitting's frame is on screen,
+ * what the temperature readout SAYS, whether the terraforming readout is celebrating, and whether any TR delta chip
+ * exists — every distinct state with the page's time. `settled`: «no chip while away» is read on what a task leaves.
  */
 type Sample = {t: number, parl: boolean, temperature: string, celebrating: boolean, trChips: number};
 type Probe = {samples: Array<Sample>};
+const HEAT_PROBE = 'heat-probe';
 
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__heatProbe?: Probe};
-    const probe: Probe = {samples: []};
-    w.__heatProbe = probe;
+  await armWitness<Omit<Sample, 't'>>(page, HEAT_PROBE, () => {
     const text = (icon: string): string => {
       const host = Array.from(document.querySelectorAll('.con-status__param'))
         .find((el) => el.querySelector(`.wgt-icon--${icon}`) !== null);
       return (host?.querySelector('.con-status__value')?.textContent ?? '').trim();
     };
-    const take = (): void => {
-      probe.samples.push({
-        t: Math.round(performance.now()),
-        parl: document.querySelector('.con-parl') !== null,
-        temperature: text('temperature'),
-        celebrating: document.querySelector('.con-status__terra--celebrating') !== null,
-        trChips: document.querySelectorAll('[data-metric-key="score.tr"] .delta-chip').length,
-      });
-      if (probe.samples.length > 4000) {
-        probe.samples.splice(0, 2000);
-      }
+    return {
+      parl: document.querySelector('.con-parl') !== null,
+      temperature: text('temperature'),
+      celebrating: document.querySelector('.con-status__terra--celebrating') !== null,
+      trChips: document.querySelectorAll('[data-metric-key="score.tr"] .delta-chip').length,
     };
-    take();
-    setInterval(take, 40);
-  });
+  }, {settled: true});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__heatProbe: Probe}).__heatProbe);
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Omit<Sample, 't'>>(page, HEAT_PROBE).samples()).map((s) => ({t: s.t, ...s.v}))});
 
 const composer = (page: Page) => page.locator('.con-composer--play');
 const layer = (page: Page) => page.locator('.con-composer__fxlayer');
 
 /** Open the hand workspace and descend into `card`'s play composer (the forecast e2e's own route). */
 async function openPlayComposer(page: Page, card: string): Promise<void> {
-  for (let i = 0; i < 5 && await page.locator('.con-hand').count() === 0; i++) {
-    await press(page, 'Period', 600); // RT → the quick wheel
-    await press(page, 'Enter', 1400); // centre slot → the hand screen
-  }
+  // RT → the quick wheel, then its centre slot → the hand screen — each press verified by what it opens.
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 5, settleMs: 600});
+  await pressUntil(page, 'Enter', handUp, {tries: 5, settleMs: 1400});
   await page.locator(`.con-hand [data-zoom-slot="${card}"]`).waitFor({timeout: 20_000});
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
   expect(await focusCard(page, card, Math.max(24, slots * 3)), `never focused «${card}»`).toBeTruthy();
@@ -163,9 +155,13 @@ test.describe(`Heat Capture · ${PRESET.id}`, () => {
     await expect(parliament(page), 'the sitting is back').toHaveCount(1, {timeout: 60_000});
     const walk = (await readProbe(page)).samples;
     const left = walk.find((s) => !s.parl)?.t ?? 0;
-    const back = [...walk].reverse().find((s) => !s.parl)?.t ?? 0;
+    // The record keeps a state only when it CHANGES: the away run ends at the moment the frame stood again (the first
+    // state with it after the last one without it) — never at the last change seen while it was away.
+    const lastAway = walk.map((s) => s.parl).lastIndexOf(false);
+    const back = lastAway < 0 ? 0 : (walk.slice(lastAway + 1).find((s) => s.parl)?.t ?? walk[lastAway].t);
     test.info().annotations.push({type: 'world-beat', description: `away ${back - left} ms (cap 9000)`});
     expect(back - left, 'the sitting is away for the story, not for a timeout').toBeLessThan(9_000);
+    await witnessOf(page, HEAT_PROBE).stop(); // the record's subject is this tact — PART 2 boots another table
     await waitSittingAtRest(page, 60_000);
     await shoot(page, '03-back-from-the-board');
 
@@ -197,7 +193,8 @@ test.describe(`Heat Capture · ${PRESET.id}`, () => {
         await press(page, 'Enter', 700);
         await press(page, 'Escape', 500);
       }
-      await press(page, 'KeyY', 1100);
+      // Y, verified by the Information mode itself — given its whole window before the next round.
+      await pressUntil(page, 'KeyY', async () => await infoRoot.count() > 0, {tries: 1, settleMs: 1100});
     }
     await expect(infoRoot, 'the Information mode opens').toHaveCount(1);
     // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
@@ -207,9 +204,8 @@ test.describe(`Heat Capture · ${PRESET.id}`, () => {
     await expectLawLeadsEffects(page, {id: HEAT_ID, name: /Улавливание тепла|Heat Capture/i});
     await settle(page, {timeoutMs: 15_000, notifications: false});
     await shoot(page, '05-effects-strip');
-    for (let i = 0; i < 6 && await page.locator('.con-info, .con-efx').count() > 0; i++) {
-      await press(page, 'Escape', 700);
-    }
+    // B one level per press, each given its whole window before the next.
+    await pressUntil(page, 'Escape', async () => await page.locator('.con-info, .con-efx').count() === 0, {tries: 6, settleMs: 700});
     await expect(page.locator('.con-info, .con-efx')).toHaveCount(0, {timeout: 10_000});
 
     // ── ⑦ THE PAYMENT HEAD: «ЦЕНА 10 → 7» with «−3» — the composer reads the same breakdown the server charges.
@@ -233,9 +229,8 @@ test.describe(`Heat Capture · ${PRESET.id}`, () => {
     await shoot(page, '07-forecast-law');
 
     // Back out without playing: the journey is the price and its explanation, not the play.
-    for (let i = 0; i < 6 && await page.locator('.con-composer__fxlayer, .con-composer--play, .con-hand').count() > 0; i++) {
-      await press(page, 'Escape', 700);
-    }
+    await pressUntil(page, 'Escape', async () => await page.locator('.con-composer__fxlayer, .con-composer--play, .con-hand').count() === 0,
+      {tries: 6, settleMs: 700});
     await settle(page, {timeoutMs: 30_000});
     expect(await strandedReports(page), 'nothing stranded').toEqual([]);
   });

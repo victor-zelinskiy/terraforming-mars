@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, pressUntil, settle} from './consoleStart';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * P70 «ДЕЛЕГАТЫ КОЛОНИЙ» — THE FIRST CARD WHOSE DELEGATES ARE A SERIES OF SEPARATE DECISIONS, and the witness of the class
@@ -16,7 +17,7 @@ import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, pressUnt
  *       cursor still on X; ▶ Y, A → «3 / 3»; ◀ X, A → the flow leaves to the board. The server: reserve 6 → 3, X 2, Y 1;
  *       1 + 3 POSTs.
  *
- * The ORDER is judged on the probe's MutationObserver record (FUNCTIONAL class — state, never a frame count).
+ * The ORDER is judged on the probe's record (`armWitness` — FUNCTIONAL class: state, never a frame count).
  * Fixtures: tests/e2e/fixtures/generate.ts § P70 (the dry run there proves the numbers). Storyboard: `TM_E2E_STORYBOARD=1`.
  */
 
@@ -86,6 +87,7 @@ async function focusInHand(page: Page): Promise<void> {
 }
 
 type Story = {
+  /** The recorded states (distinct — a state, never a frame count). */
   samples: number;
   /** The hand head's stage words, deduped in order of first appearance. */
   steps: Array<string>;
@@ -96,11 +98,13 @@ type Story = {
   /** The first moment the vote door stood (−1: never). */
   doorAt: number;
   /**
-   * Samples AFTER the first door and BEFORE the last decision's press (`closed`) in which the vote mode did not stand
-   * (a fold / unfold between two decisions). What follows the last press is the flow's ending (the access scene, the leave).
+   * Recorded states AFTER the first door and BEFORE the last decision's press (`closedAt`) in which the vote mode did not
+   * stand (a fold / unfold between two decisions). What follows the last press is the flow's ending (the access scene,
+   * the leave).
    */
   doorGapSamples: number;
-  closed: boolean;
+  /** The moment of the last decision's press, on the page's clock (ms since the arm). */
+  closedAt: number;
   /** [ms, what stood] on every change of a gap (the diagnosis). */
   gap: Array<[number, string]>;
   /** Every landed cube's first sighting (a touchdown) — [ms, seq]. */
@@ -112,68 +116,109 @@ type Story = {
   stranded: boolean;
 };
 
-/** MutationObserver + setInterval (never rAF): the story of the screen from the press on. */
+/** One recorded state of the screen — an OBSERVATION; the story is folded from them on the Node side. */
+type StorySeen = {
+  steps: Array<string>,
+  /** The identities of the `.con-parl` nodes standing inside the hand (a re-mount is a new identity). */
+  parl: Array<number>,
+  outside: boolean,
+  door: boolean,
+  hand: boolean,
+  /** What stood in the hand when the vote door did not (the gap's diagnosis). */
+  parlState: string,
+  reserve: number | null,
+  landed: Array<number>,
+  stranded: boolean,
+};
+
+const STORY_WITNESS = 'p70:story';
+
+/**
+ * THE STORY OF THE SCREEN FROM THE PRESS ON — RECORDED (FLAKE ZERO — `armWitness`, replace-proof), `settled`: «never a
+ * fold between two decisions», «one node», «never outside the hand» are claims about what a frame can paint, so each
+ * state is the one a task LEAVES. Node identity is a `WeakMap` on `window` inside the reader.
+ */
 async function armStory(page: Page, viewer: string): Promise<void> {
-  await page.evaluate((viewer) => {
-    const w = window as unknown as {__p70: Story};
-    const p: Story = {samples: 0, steps: [], parlNodes: 0, parlOutsideHand: false, doorAt: -1, doorGapSamples: 0, closed: false, gap: [], touches: [], reserve: [], handLeftAt: -1, stranded: false};
-    w.__p70 = p;
-    const t0 = Date.now();
-    const nodes = new WeakSet<Element>();
+  await armWitness<StorySeen, string>(page, STORY_WITNESS, (viewer) => {
+    const w = window as unknown as {__p70Ids?: WeakMap<Element, number>, __p70Next?: number};
+    const ids = w.__p70Ids ?? new WeakMap<Element, number>();
+    w.__p70Ids = ids;
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = () => {
-      p.samples++;
-      const at = Date.now() - t0;
-      const hand = document.querySelector('.con-hand');
-      hand?.querySelectorAll('.con-wshead__step').forEach((el) => {
-        const step = text(el);
-        if (step !== '' && !p.steps.includes(step)) {
-          p.steps.push(step);
+    const hand = document.querySelector('.con-hand');
+    const steps = hand === null ? [] : Array.from(hand.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== '');
+    let outside = false;
+    const parl: Array<number> = [];
+    document.querySelectorAll('.con-parl').forEach((el) => {
+      if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
+        outside = true;
+      } else {
+        let id = ids.get(el);
+        if (id === undefined) {
+          id = (w.__p70Next ?? 0) + 1;
+          w.__p70Next = id;
+          ids.set(el, id);
         }
-      });
-      document.querySelectorAll('.con-parl').forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        } else if (!nodes.has(el)) {
-          nodes.add(el);
-          p.parlNodes++;
-        }
-      });
-      const door = document.querySelector('.con-hand [data-parl-vote-door]');
-      if (door !== null && p.doorAt < 0) {
-        p.doorAt = at;
+        parl.push(id);
       }
-      if (p.doorAt >= 0 && !p.closed && hand !== null && door === null) {
-        p.doorGapSamples++;
-        const parl = document.querySelector('.con-hand .con-parl');
-        const state = parl === null ? 'no-parl' : `parl:${parl.className.toString().replace(/\s+/g, '.')}`;
-        if (p.gap[p.gap.length - 1]?.[1] !== state && p.gap.length < 60) {
-          p.gap.push([at, state]);
-        }
-      }
-      if (p.doorAt >= 0 && hand === null && p.handLeftAt < 0) {
-        p.handLeftAt = at;
-      }
-      const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
-      const value = raw === null || raw === undefined ? NaN : Number(raw);
-      if (Number.isFinite(value) && p.reserve[p.reserve.length - 1]?.[1] !== value) {
-        p.reserve.push([at, value]);
-      }
-      document.querySelectorAll('.con-hand .con-parl__slot [data-seq][data-landed]').forEach((el) => {
-        const seq = Number(el.getAttribute('data-seq'));
-        if (!p.touches.some(([, seen]) => seen === seq)) {
-          p.touches.push([at, seq]);
-        }
-      });
-      p.stranded = p.stranded || document.querySelector('.con-stranded') !== null;
+    });
+    const handParl = document.querySelector('.con-hand .con-parl');
+    const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
+    const value = raw === null || raw === undefined ? NaN : Number(raw);
+    return {
+      steps,
+      parl,
+      outside,
+      door: document.querySelector('.con-hand [data-parl-vote-door]') !== null,
+      hand: hand !== null,
+      parlState: handParl === null ? 'no-parl' : `parl:${handParl.className.toString().replace(/\s+/g, '.')}`,
+      reserve: Number.isFinite(value) ? value : null,
+      landed: Array.from(document.querySelectorAll('.con-hand .con-parl__slot [data-seq][data-landed]')).map((el) => Number(el.getAttribute('data-seq'))),
+      stranded: document.querySelector('.con-stranded') !== null,
     };
-    sample();
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-    window.setInterval(sample, 30);
-  }, viewer);
+  }, {args: viewer, settled: true});
 }
 
-const readStory = (page: Page): Promise<Story> => page.evaluate(() => (window as unknown as {__p70: Story}).__p70);
+/** Stop the recording and fold it into the story — `closedAt` the page-clock moment of the last decision's press. */
+async function readStory(page: Page, closedAt: number): Promise<Story> {
+  const samples = await witnessOf<StorySeen>(page, STORY_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  const p: Story = {samples: samples.length, steps: [], parlNodes: 0, parlOutsideHand: false, doorAt: -1, doorGapSamples: 0,
+    closedAt: closedAt - t0, gap: [], touches: [], reserve: [], handLeftAt: -1, stranded: false};
+  const nodes = new Set<number>();
+  for (const {t, v} of samples) {
+    const at = t - t0;
+    for (const step of v.steps) {
+      if (!p.steps.includes(step)) {
+        p.steps.push(step);
+      }
+    }
+    v.parl.forEach((id) => nodes.add(id));
+    p.parlOutsideHand = p.parlOutsideHand || v.outside;
+    if (v.door && p.doorAt < 0) {
+      p.doorAt = at;
+    }
+    if (p.doorAt >= 0 && t < closedAt && v.hand && !v.door) {
+      p.doorGapSamples++;
+      if (p.gap[p.gap.length - 1]?.[1] !== v.parlState && p.gap.length < 60) {
+        p.gap.push([at, v.parlState]);
+      }
+    }
+    if (p.doorAt >= 0 && !v.hand && p.handLeftAt < 0) {
+      p.handLeftAt = at;
+    }
+    if (v.reserve !== null && p.reserve[p.reserve.length - 1]?.[1] !== v.reserve) {
+      p.reserve.push([at, v.reserve]);
+    }
+    for (const seq of v.landed) {
+      if (!p.touches.some(([, seen]) => seen === seq)) {
+        p.touches.push([at, seq]);
+      }
+    }
+    p.stranded = p.stranded || v.stranded;
+  }
+  p.parlNodes = nodes.size;
+  return p;
+}
 
 /** The index of the voting-area card the vote mode's cursor stands on (−1: none). */
 async function cursorIndex(page: Page): Promise<number> {
@@ -279,10 +324,8 @@ test.describe(`P70 Colonial Envoys · a series of grants is ONE visit · ${PRESE
       await press(page, 'ArrowLeft', 400);
     }
     expect(await cursorIndex(page), 'back on X').toBe(x);
-    // The series' gaps are counted up to here: what follows the last decision is the flow's own ending.
-    await page.evaluate(() => {
-      (window as unknown as {__p70: Story}).__p70.closed = true;
-    });
+    // The series' gaps are counted up to here (the page's clock): what follows the last decision is the flow's own ending.
+    const closedAt = await pageNow(page);
     await pressUntil(page, 'Enter', async () => posts.length >= 4, {tries: 3, settleMs: 1500});
     expect(posts.length, 'decision 3 is ONE POST').toBe(4);
     await expect(page.locator('.con-hand'), 'the flow ends on the board').toHaveCount(0, {timeout: 30_000});
@@ -290,7 +333,7 @@ test.describe(`P70 Colonial Envoys · a series of grants is ONE visit · ${PRESE
     await settle(page, {timeoutMs: 30_000});
     await stopStory();
 
-    const story = await readStory(page);
+    const story = await readStory(page, closedAt);
     fs.mkdirSync(path.join(OUT, PRESET.id), {recursive: true});
     fs.writeFileSync(path.join(OUT, PRESET.id, 'b-series.json'), JSON.stringify(story, null, 1));
     const told = JSON.stringify({steps: story.steps, parlNodes: story.parlNodes, doorGapSamples: story.doorGapSamples, gap: story.gap,

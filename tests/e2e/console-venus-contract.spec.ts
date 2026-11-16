@@ -7,6 +7,7 @@ import {
 } from './consoleStart';
 import {closeSitting, closeSittingAs, enterSittingByPass} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness, TransferWitness} from './transferWitness';
+import {readSettled} from './settledRead';
 import {readTransient, recordTransient} from './transientRecorder';
 
 /**
@@ -248,11 +249,13 @@ test.describe(`P65 Venus Contract · a prelude-reactor on the Venus scale · ${P
     await toRow(page, 2);
     // Every row of the step stands IN the frame — the Venus row (the cursor's, the one carrying «+6») included: a column
     // seam once grew as tall as the lane and pushed the third row below the 4K frame (GH).
-    const rowsInFrame = await page.evaluate(() => Array.from(document.querySelectorAll('[data-start-variant] [data-prelude-variant-row]')).map((row) => {
+    // Read AT REST (C — `readSettled`: the same answer twice, a frame apart); the step is a decision standing for the
+    // player, so the read does not first wait for the whole console to go quiet (`settle: false`).
+    const rowsInFrame = await readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll('[data-start-variant] [data-prelude-variant-row]')).map((row) => {
       const r = row.getBoundingClientRect();
       const footer = document.querySelector('.con-start__statusrail')?.getBoundingClientRect().top ?? window.innerHeight;
       return r.height > 0 && r.top >= 0 && r.bottom <= Math.min(window.innerHeight, footer) + 1;
-    }));
+    })), {settle: false, message: 'the step\'s rows in the frame'});
     expect(rowsInFrame, 'all three rows of the step stand inside the frame').toEqual([true, true, true]);
     await shoot(page, 'A-03-variant-venus');
 

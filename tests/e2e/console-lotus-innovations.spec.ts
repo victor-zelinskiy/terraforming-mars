@@ -25,6 +25,7 @@ import {
   bootFixture, bootIntoGame, crumbText, fetchPlayerModel, focusCard, press, pressUntil, settle, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'lotus');
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -48,53 +49,39 @@ function writeTrail(scene: string, trail: string): void {
   fs.writeFileSync(`test-results/lotus-${scene}-${PRESET.id}.txt`, trail);
 }
 
-/** The seat's lift and its capsule's count, sampled on a task clock (never rAF) — the witness of «out of its place». */
+const SEAT_WITNESS = 'lotus-seat';
+const REACTION_WITNESS = 'lotus-reaction';
+
+/**
+ * The seat's lift and its capsule's count — RECORDED (FLAKE ZERO — `armWitness`, settled: «it rose before its first data
+ * touched down» is an ORDER claim about painted states; the lift is a transform, so the recorder's frame tick sees it).
+ * The witness of «out of its place».
+ */
 async function armSeatProbe(page: Page): Promise<void> {
-  await page.evaluate((card) => {
-    const w = window as unknown as {__seat: Array<{t: number, lift: number, count: string}>};
-    w.__seat = [];
-    const t0 = performance.now();
-    let last = '';
-    const sample = () => {
-      const seat = document.querySelector<HTMLElement>(`.con-start__embedsource [data-start-seat-card="${card}"]`);
-      const m = seat === null ? null : /matrix\(([^)]+)\)/.exec(getComputedStyle(seat).transform);
-      const lift = m === null ? 0 : Number(m[1].split(',')[5]);
-      const count = seat?.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
-      const now = `${lift.toFixed(1)}/${count}`;
-      if (now !== last) {
-        last = now;
-        w.__seat.push({t: performance.now() - t0, lift, count});
-      }
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(sample, 16);
-  }, LOTUS);
+  await armWitness(page, SEAT_WITNESS, (card: string) => {
+    const seat = document.querySelector<HTMLElement>(`.con-start__embedsource [data-start-seat-card="${card}"]`);
+    const m = seat === null ? null : /matrix\(([^)]+)\)/.exec(getComputedStyle(seat).transform);
+    const lift = m === null ? 0 : Number(m[1].split(',')[5]);
+    const count = seat?.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
+    return {lift: Math.round(lift * 10) / 10, count};
+  }, {args: LOTUS, settled: true});
 }
 
-/** The reaction scene's faces, sampled on a task clock (never rAF): the corporation out of its place or at a seat. */
+/** The reaction scene's faces — RECORDED (`armWitness`): the corporation out of its place or at a seat. Re-arming resets. */
 async function armReactionProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__reaction: Array<{t: number, emerged: string, seated: string}>};
-    w.__reaction = [];
-    let last = '';
-    window.setInterval(() => {
-      const emerged = Array.from(document.querySelectorAll('.con-recv__emerge[data-played-key]')).map((e) => e.getAttribute('data-played-key')).join('|');
-      const seated = Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card]')).map((e) => e.getAttribute('data-reaction-card')).join('|');
-      const now = `${emerged}/${seated}`;
-      if (now !== last) {
-        last = now;
-        w.__reaction.push({t: performance.now(), emerged, seated});
-      }
-    }, 16);
-  });
+  await armWitness(page, REACTION_WITNESS, () => ({
+    emerged: Array.from(document.querySelectorAll('.con-recv__emerge[data-played-key]')).map((e) => e.getAttribute('data-played-key')).join('|'),
+    seated: Array.from(document.querySelectorAll('.con-reaction__face[data-reaction-card]')).map((e) => e.getAttribute('data-reaction-card')).join('|'),
+  }));
 }
 
 async function reactionProbe(page: Page): Promise<Array<{t: number, emerged: string, seated: string}>> {
-  return page.evaluate(() => (window as unknown as {__reaction?: Array<{t: number, emerged: string, seated: string}>}).__reaction ?? []);
+  return (await witnessOf<{emerged: string, seated: string}>(page, REACTION_WITNESS).samples()).map((s) => ({t: s.t, ...s.v}));
 }
 
+/** The seat's record: `t` on the page's clock, a state per change. */
 async function seatProbe(page: Page): Promise<Array<{t: number, lift: number, count: string}>> {
-  return page.evaluate(() => (window as unknown as {__seat?: Array<{t: number, lift: number, count: string}>}).__seat ?? []);
+  return (await witnessOf<{lift: number, count: string}>(page, SEAT_WITNESS).samples()).map((s) => ({t: s.t, ...s.v}));
 }
 
 test.describe(`console · TR81 Lotus Innovations · ${PRESET.id}`, () => {
@@ -133,7 +120,7 @@ test.describe(`console · TR81 Lotus Innovations · ${PRESET.id}`, () => {
     // R3 → the «Эффекты» layer, a level INSIDE the stage; B folds it back.
     expect(await pressUntil(page, 'KeyV', async () => await page.locator('.con-start [data-forecast-layer]').count() > 0, {tries: 3, settleMs: 1100}),
       'R3 opens the «Эффекты» layer').toBeTruthy();
-    expect((await crumbText(page)).toUpperCase(), 'the crumb gains its tail').toMatch(/ПЕРВОЕ ДЕЙСТВИЕ.*ЭФФЕКТЫ/);
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the crumb gains its tail'}).toMatch(/ПЕРВОЕ ДЕЙСТВИЕ.*ЭФФЕКТЫ/);
     // The layer lists the table's answer in the live funnel's order — the Greens first, then the corporation.
     await expect(page.locator('.con-start [data-forecast-layer]'), 'the layer names Lotus\' own answer').toContainText(LOTUS);
     await shoot(page, 'A-02-layer');
@@ -169,8 +156,10 @@ test.describe(`console · TR81 Lotus Innovations · ${PRESET.id}`, () => {
     const counts = seat.map((s) => s.count).filter((c) => c !== '');
     expect(counts.indexOf('1'), `the capsule ticked 0 → 1 → 2 on the touchdowns (${counts.join(' ')})`).toBeGreaterThan(-1);
     expect(counts.indexOf('2'), `…in order (${counts.join(' ')})`).toBeGreaterThan(counts.indexOf('1'));
-    const firstLift = seat.find((s) => s.lift < -2)?.t ?? Infinity;
-    expect(firstLift, 'the corporation rose before its first data touched down').toBeLessThan(seat.find((s) => s.count === '1')?.t ?? -1);
+    // ORDER by the record's own sequence (the page clock's millisecond can stamp two states alike).
+    const indexOf = (i: number) => (i < 0 ? undefined : i);
+    const firstLift = indexOf(seat.findIndex((s) => s.lift < -2)) ?? Infinity;
+    expect(firstLift, 'the corporation rose before its first data touched down').toBeLessThan(indexOf(seat.findIndex((s) => s.count === '1')) ?? -1);
     expect(errors, 'no page errors').toEqual([]);
   });
 
@@ -228,7 +217,7 @@ test.describe(`console · TR81 Lotus Innovations · ${PRESET.id}`, () => {
     for (let i = 0; i < 16 && !((await asteroid.getAttribute('class')) ?? '').includes('con-stdp__card--focused'); i++) {
       await press(page, moves[i % moves.length], 300);
     }
-    expect((await asteroid.getAttribute('class')) ?? '', 'the asteroid row is focused').toContain('con-stdp__card--focused');
+    await expect(asteroid, 'the asteroid row is focused').toHaveClass(/con-stdp__card--focused/);
     await armTransferWitness(page);
     await armReactionProbe(page);
     await page.keyboard.press('Enter');

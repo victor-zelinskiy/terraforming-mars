@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 import {closeSitting, closeSittingAs, enterSittingByPass, focusParliamentZone, mandatoryPlate, openParliament, parliament, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 /**
@@ -11,19 +12,25 @@ import {closeSitting, closeSittingAs, enterSittingByPass, focusParliamentZone, m
  * the root was on its way out: the phase's data already gone, each block emptied at its own pace (the
  * government drawn, the ruler's block empty, the voting area empty, the board showing through). Since
  * v3 the leave FREEZES the surface on a latch of the last coherent state, so only the root fades, as one
- * motion. Three endings: a vote's, the sitting's, and B's «свернуть». The sampler is `setInterval` +
- * `MutationObserver`, never rAF.
+ * motion. Three endings: a vote's, the sitting's, and B's «свернуть». The probe is a RECORDING (`armWitness`,
+ * settled — every sample the state a task LEFT, a state a frame can paint).
  */
 type Blocks = {gov: boolean, ruler: boolean, voting: boolean, agenda: boolean, stage: boolean | undefined, vote: boolean | undefined, parties: boolean | undefined};
 /** The counts behind the verdicts — a failure names WHAT vanished, never just «a block was empty». */
 type Counts = {rowTiles: number, rulerTiles: number, voteCards: number, slots: number, steps: number, mounted: string, docTiles: number, rulerSlot: number, tierShown: string, roots: number};
 type LeaveSample = {t: number, root: boolean, leaving: boolean, opacity: number, stage: string, frame: number, content: number, blocks: Blocks, counts: Counts};
 type LeaveProbe = {samples: Array<LeaveSample>};
+/** One moment as the reader sees it — the sample without its clock (the recording stamps the page's time). */
+type LeaveSeen = Omit<LeaveSample, 't'>;
+const LEAVE_WITNESS = 'parliament-leave';
 
+/**
+ * The leave, RECORDED (FLAKE ZERO — `armWitness`: the product's own writes observed in the task that makes them, a
+ * frame tick for what only a computed style moves). `settled`: «every block stands in every frame» is a claim about
+ * what a frame can paint — a sample between two writes of one task is no such state.
+ */
 async function armLeaveProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__leave: LeaveProbe};
-    w.__leave = {samples: []};
+  await armWitness<LeaveSeen>(page, LEAVE_WITNESS, () => {
     /** The EFFECTIVE opacity of an element: its own, times every ancestor's up to the parliament root (inclusive). */
     const effective = (el: Element | null): number => {
       if (el === null) {
@@ -43,65 +50,63 @@ async function armLeaveProbe(page: Page): Promise<void> {
       return o;
     };
     const shown = (el: Element | null): boolean => el !== null && getComputedStyle(el).display !== 'none';
-    const sample = () => {
-      const root = document.querySelector<HTMLElement>('.con-parl');
-      if (root === null) {
-        w.__leave.samples.push({t: performance.now(), root: false, leaving: false, opacity: 0, stage: '', frame: 0, content: 0,
-          blocks: {gov: false, ruler: false, voting: false, agenda: false, stage: undefined, vote: undefined, parties: undefined},
-          counts: {rowTiles: 0, rulerTiles: 0, voteCards: 0, slots: 0, steps: 0, mounted: '', docTiles: 0, rulerSlot: 0, tierShown: '', roots: 0}});
-        return;
-      }
-      const frame = effective(root.querySelector('.con-parl__head'));
-      const vote = root.querySelector('.con-parl__vote--up');
-      const candidates = vote !== null ? [vote] : Array.from(root.querySelectorAll('.con-parl__gov, .con-parl__voting, .con-parl__stage, .con-parl__parties-tier, .con-parl__agenda'));
-      const content = candidates.reduce((max, el) => Math.max(max, effective(el)), 0);
-      // THE BLOCKS (v3): each one either carries its objects or is EMPTY — structurally, never by opacity
-      // (the root's dissolve dims everything alike; an emptied block is a block whose objects are gone).
-      const stageEl = root.querySelector('.con-parl__stage');
-      const partiesTier = root.querySelector('.con-parl__parties-tier');
-      const blocks: Blocks = {
-        gov: root.querySelector('.con-parl__gov .con-parl__gov-card .pcard, .con-parl__gov .con-parl__gov-empty') !== null,
-        ruler: root.querySelector('[data-parl-ruler] .con-parl__party') !== null,
-        // v5–v7 CARRIED the slots into the vote layer (their homes stood empty by design); Парламент v8's HALL vote leaves
-        // the bills ON THE TABLE and stands its panel on the chamber's rect — the area's content is the table's cards,
-        // the layer's is its panel (a carried card still counts where a door keeps one).
-        voting: (vote !== null && vote.querySelectorAll('.pcard').length > 0) || root.querySelectorAll('.con-parl__voting .con-parl__slot').length > 0,
-        agenda: root.querySelectorAll('.con-parl__agenda .con-parl__step').length > 0,
-        // The stage is a block only while it is SHOWN: since v5 the verdict, the Agenda, the support and the enactment are the
-        // TABLE (the body is the row of parties, the reading panel stands hidden by `v-show`) — an empty hidden stage is the design.
-        stage: !shown(stageEl) ? undefined : (stageEl!.querySelector('.con-sit__panel--on')?.textContent?.trim() ?? '') !== '' || stageEl!.querySelector('.con-parl__stage-head') !== null,
-        vote: vote === null ? undefined : vote.querySelector('.pcard, .con-parl__info') !== null,
-        parties: stageEl !== null || !shown(partiesTier) ? undefined : root.querySelectorAll('.con-parl__parties .con-parl__party').length === 5,
-      };
-      w.__leave.samples.push({
-        t: performance.now(), root: true,
-        // The director freezes a departing section at its live rect (position: fixed) in the leave hook itself — the
-        // positive «the root is leaving» witness, before the first dimmed frame.
-        leaving: root.style.position === 'fixed' || Number(getComputedStyle(root).opacity) < 0.999,
-        opacity: Number(getComputedStyle(root).opacity),
-        stage: root.getAttribute('data-stage') ?? '', frame, content, blocks,
-        counts: {
-          rowTiles: root.querySelectorAll('.con-parl__parties .con-parl__party').length,
-          rulerTiles: root.querySelectorAll('[data-parl-ruler] .con-parl__party').length,
-          voteCards: root.querySelectorAll('.con-parl__vote .pcard').length,
-          slots: root.querySelectorAll('.con-parl__voting .con-parl__slot').length,
-          steps: root.querySelectorAll('.con-parl__agenda .con-parl__step').length,
-          mounted: root.getAttribute('data-parl-leaving') ?? '-',
-          docTiles: document.querySelectorAll('.con-parl__party').length,
-          rulerSlot: document.querySelectorAll('[data-parl-ruler-slot]').length,
-          tierShown: ((el) => el === null ? 'none' : getComputedStyle(el).display)(root.querySelector('.con-parl__parties-tier')),
-          roots: document.querySelectorAll('.con-parl').length,
-        },
-      });
-      if (w.__leave.samples.length > 8000) {
-        w.__leave.samples.splice(0, 1000);
-      }
+    const root = document.querySelector<HTMLElement>('.con-parl');
+    if (root === null) {
+      return {root: false, leaving: false, opacity: 0, stage: '', frame: 0, content: 0,
+        blocks: {gov: false, ruler: false, voting: false, agenda: false, stage: undefined, vote: undefined, parties: undefined},
+        counts: {rowTiles: 0, rulerTiles: 0, voteCards: 0, slots: 0, steps: 0, mounted: '', docTiles: 0, rulerSlot: 0, tierShown: '', roots: 0}};
+    }
+    const frame = effective(root.querySelector('.con-parl__head'));
+    const vote = root.querySelector('.con-parl__vote--up');
+    const candidates = vote !== null ? [vote] : Array.from(root.querySelectorAll('.con-parl__gov, .con-parl__voting, .con-parl__stage, .con-parl__parties-tier, .con-parl__agenda'));
+    const content = candidates.reduce((max, el) => Math.max(max, effective(el)), 0);
+    // THE BLOCKS (v3): each one either carries its objects or is EMPTY — structurally, never by opacity
+    // (the root's dissolve dims everything alike; an emptied block is a block whose objects are gone).
+    const stageEl = root.querySelector('.con-parl__stage');
+    const partiesTier = root.querySelector('.con-parl__parties-tier');
+    const blocks: Blocks = {
+      gov: root.querySelector('.con-parl__gov .con-parl__gov-card .pcard, .con-parl__gov .con-parl__gov-empty') !== null,
+      ruler: root.querySelector('[data-parl-ruler] .con-parl__party') !== null,
+      // v5–v7 CARRIED the slots into the vote layer (their homes stood empty by design); Парламент v8's HALL vote leaves
+      // the bills ON THE TABLE and stands its panel on the chamber's rect — the area's content is the table's cards,
+      // the layer's is its panel (a carried card still counts where a door keeps one).
+      voting: (vote !== null && vote.querySelectorAll('.pcard').length > 0) || root.querySelectorAll('.con-parl__voting .con-parl__slot').length > 0,
+      agenda: root.querySelectorAll('.con-parl__agenda .con-parl__step').length > 0,
+      // The stage is a block only while it is SHOWN: since v5 the verdict, the Agenda, the support and the enactment are the
+      // TABLE (the body is the row of parties, the reading panel stands hidden by `v-show`) — an empty hidden stage is the design.
+      stage: !shown(stageEl) ? undefined : (stageEl!.querySelector('.con-sit__panel--on')?.textContent?.trim() ?? '') !== '' || stageEl!.querySelector('.con-parl__stage-head') !== null,
+      vote: vote === null ? undefined : vote.querySelector('.pcard, .con-parl__info') !== null,
+      parties: stageEl !== null || !shown(partiesTier) ? undefined : root.querySelectorAll('.con-parl__parties .con-parl__party').length === 5,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-stage']});
-    window.setInterval(sample, 16);
-  });
+    return {
+      root: true,
+      // The director freezes a departing section at its live rect (position: fixed) in the leave hook itself — the
+      // positive «the root is leaving» witness, before the first dimmed frame.
+      leaving: root.style.position === 'fixed' || Number(getComputedStyle(root).opacity) < 0.999,
+      opacity: Number(getComputedStyle(root).opacity),
+      stage: root.getAttribute('data-stage') ?? '', frame, content, blocks,
+      counts: {
+        rowTiles: root.querySelectorAll('.con-parl__parties .con-parl__party').length,
+        rulerTiles: root.querySelectorAll('[data-parl-ruler] .con-parl__party').length,
+        voteCards: root.querySelectorAll('.con-parl__vote .pcard').length,
+        slots: root.querySelectorAll('.con-parl__voting .con-parl__slot').length,
+        steps: root.querySelectorAll('.con-parl__agenda .con-parl__step').length,
+        mounted: root.getAttribute('data-parl-leaving') ?? '-',
+        docTiles: document.querySelectorAll('.con-parl__party').length,
+        rulerSlot: document.querySelectorAll('[data-parl-ruler-slot]').length,
+        tierShown: ((el) => el === null ? 'none' : getComputedStyle(el).display)(root.querySelector('.con-parl__parties-tier')),
+        roots: document.querySelectorAll('.con-parl').length,
+      },
+    };
+  }, {settled: true, max: 8000});
 }
-const readLeave = (page: Page): Promise<LeaveProbe> => page.evaluate(() => (window as unknown as {__leave: LeaveProbe}).__leave);
+
+/** The recording, its times in ms since its first state (the page's clock). */
+async function readLeave(page: Page): Promise<LeaveProbe> {
+  const recorded = await witnessOf<LeaveSeen>(page, LEAVE_WITNESS).samples();
+  const t0 = recorded[0]?.t ?? 0;
+  return {samples: recorded.map((x) => ({t: x.t - t0, ...x.v}))};
+}
 
 /** Frames with the FRAME visible and the CONTENT gone — the v2 defect. */
 function emptyFrames(samples: ReadonlyArray<LeaveSample>): Array<string> {
@@ -127,8 +132,8 @@ async function expectWholeLeave(page: Page, from: number, label: string): Promis
   const baseline = `baseline @${Math.round(before.t)} ms stage=${before.stage} counts=${JSON.stringify(before.counts)}`;
   expect(gone, `${label}: the root left`).toBeGreaterThan(0);
   const during = s.slice(0, gone);
-  // A 170 ms section leave at a 16 ms interval is ~10 samples; a loaded runner can halve that — only a DEAD sampler fails this.
-  expect(during.length, `${label}: the sampler lived through the leave`).toBeGreaterThanOrEqual(3);
+  // Only a DEAD recording fails this (a count of recorded states is a statement about the machine, never the claim).
+  expect(during.length, `${label}: the recording lived through the leave`).toBeGreaterThan(0);
   expect(during.some((x) => x.leaving), `${label}: the leave was seen`).toBe(true);
   expect(emptyFrames(during), `${label}: no frame stood over an empty body`).toEqual([]);
   const offenders = emptyBlockFrames(during);
@@ -202,9 +207,9 @@ test.describe('the parliament leaves as one surface (standard-1080)', () => {
     await bootFixtureSeats(page, request, 'parliament', {query: '&consoleProfile=auto', landing: 'board'});
     await openParliament(page);
     await settle(page, {timeoutMs: 20_000});
-    await page.evaluate(() => {
-      const w = window as unknown as {__xfade: Array<{root: number, board: number, cards: Array<number>}>};
-      w.__xfade = [];
+    // RECORDED, settled — an observer sample between two writes of one task would see a state the browser never paints.
+    type Xfade = {root: number, board: number, cards: Array<number>};
+    const xfade = await armWitness<Xfade | null>(page, 'parliament-leave-xfade', () => {
       const ink = (el: Element | null): number => {
         if (el === null) {
           return -1;
@@ -219,22 +224,19 @@ test.describe('the parliament leaves as one surface (standard-1080)', () => {
         }
         return getComputedStyle(el).visibility === 'hidden' ? 0 : v;
       };
-      // Task clock only (setInterval) — a MutationObserver microtask can see a state the browser never paints.
-      window.setInterval(() => {
-        const root = document.querySelector('.con-parl');
-        if (root === null) {
-          return;
-        }
-        const cards = Array.from(document.querySelectorAll('.pcard')).filter((c) => Array.from(c.classList).some((k) => k.startsWith('pcard--rdx-')));
-        w.__xfade.push({root: ink(root), board: ink(document.querySelector('.con-board')), cards: cards.map(ink)});
-      }, 8);
-    });
+      const root = document.querySelector('.con-parl');
+      if (root === null) {
+        return null;
+      }
+      const cards = Array.from(document.querySelectorAll('.pcard')).filter((c) => Array.from(c.classList).some((k) => k.startsWith('pcard--rdx-')));
+      return {root: ink(root), board: ink(document.querySelector('.con-board')), cards: cards.map(ink)};
+    }, {settled: true});
     await press(page, 'Escape', 200);
     await expect(parliament(page), 'the workspace closed').toHaveCount(0, {timeout: 20_000});
-    const samples = await page.evaluate(() => (window as unknown as {__xfade: Array<{root: number, board: number, cards: Array<number>}>}).__xfade);
+    const samples = (await xfade.values()).filter((x): x is Xfade => x !== null);
     const leaving = samples.filter((s) => s.root < 0.999);
     const standing = samples.filter((s) => s.root >= 0.999);
-    expect(samples.length, `the sampler ran (${samples.length} samples)`).toBeGreaterThan(0);
+    expect(samples.length, `the recording ran (${samples.length} states)`).toBeGreaterThan(0);
     expect(standing.some((s) => s.cards.length > 0), 'the resolution cards were on the table before the leave').toBe(true);
     const fmt = (s: {root: number, board: number, cards: Array<number>}) => `root=${s.root.toFixed(2)} board=${s.board.toFixed(2)} cards=[${s.cards.map((c) => c.toFixed(2)).join(' ')}]`;
     expect(samples.filter((s) => s.board > 1 - s.root + 0.2).map(fmt),

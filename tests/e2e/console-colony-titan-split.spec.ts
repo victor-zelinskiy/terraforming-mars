@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, press, settle} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE SPLIT TRADE — the trade and its colony bonus pay DIFFERENT cards, and the trade lands SMOOTHLY
@@ -17,8 +18,8 @@ import {bootFixture, press, settle} from './consoleStart';
  *   C · THE WAVES GO IN TURN — the income's card stands forward while the bonus's waits, then they swap; the
  *       income's card has all its tokens before the bonus's card receives its first; level once both are done.
  *
- * Probe: `MutationObserver` + `setInterval` in the page (never rAF — headless drives rAF off the compositor).
- * Evidence → screenshots/titan-split/<profile>/.
+ * Probe: a RECORDING (`armWitness`, settled — every state a task leaves, the page's clock on each), never a sampler of
+ * our own. Evidence → screenshots/titan-split/<profile>/.
  */
 
 /** The product's main profile only (tests.md § A CARD / FEATURE SPEC RUNS ITS TABLE ON THE TV PROFILE ONLY). */
@@ -41,12 +42,19 @@ type Sample = {
   cells: Array<Cell>,
   landings: string,
 };
-type Probe = {samples: Array<Sample>, ticks: number};
+type Probe = {samples: Array<Sample>};
+/** One state as the reader sees it — the sample without its clock (the recording stamps the page's time). */
+type Seen = Omit<Sample, 't'>;
+const SPLIT_WITNESS = 'titan-split';
 
+/**
+ * THE PROBE — armed right before the press, RECORDED (FLAKE ZERO — `armWitness`: the product's own writes observed in the
+ * task that makes them, a frame tick for what only a transform moves). The claims are about ORDER and COEXISTENCE (the
+ * income's card before the bonus's, the two cards never overlapping, the stage still under the flight) — `settled`: a
+ * sample is the state a task leaves, the state a frame can paint. The first sample is the review at the press.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__split?: Probe};
-    w.__split = {samples: [], ticks: 0};
+  await armWitness<Seen>(page, SPLIT_WITNESS, () => {
     const box = (el: Element | null): Box | null => {
       if (el === null) {
         return null;
@@ -54,10 +62,8 @@ async function armProbe(page: Page): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width < 1 && r.height < 1 ? null : {x: r.x, y: r.y, w: r.width, h: r.height};
     };
-    const t0 = performance.now();
-    const sample = () => {
-      const s: Sample = {
-        t: Math.round(performance.now() - t0),
+    const sample = (): Seen => {
+      return {
         planet: box(document.querySelector('.con-colfocus .con-colfocus__planet')),
         berth: box(document.querySelector('.con-colfocus [data-fleet-berth="Titan"]')),
         surface: box(document.querySelector('.con-colfocus .con-colfocus__surface')),
@@ -77,19 +83,17 @@ async function armProbe(page: Page): Promise<void> {
         })),
         landings: JSON.stringify((window as unknown as {__conColonyDiag?: () => {trade: {landings: unknown}}}).__conColonyDiag?.()?.trade.landings ?? {}),
       };
-      w.__split!.ticks++;
-      w.__split!.samples.push(s);
-      if (w.__split!.samples.length > 8000) {
-        w.__split!.samples.splice(0, 1000);
-      }
     };
-    sample();
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style', 'data-landcell-state']});
-    window.setInterval(sample, 30);
-  });
+    return sample();
+  }, {settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__split: Probe}).__split);
+/** The recording in the probe's old shape: `t` in ms from its first sample, on the page's clock. */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<Seen>(page, SPLIT_WITNESS).samples();
+  const t0 = samples[0]?.t ?? 0;
+  return {samples: samples.map((s) => ({...s.v, t: Math.round(s.t - t0)}))};
+}
 
 async function openColonies(page: Page): Promise<void> {
   const colonies = page.locator('.con-colonies');
@@ -182,8 +186,9 @@ for (const profile of PROFILES) {
       await shoot('03-landed');
       await expect.poll(() => page.locator('.con-colonies').count(), {timeout: 60_000, message: 'the finished trade leaves'}).toBe(0);
 
-      const {samples, ticks} = await readProbe(page);
-      expect(ticks, 'the probe sampled (anti-vacuous)').toBeGreaterThan(40);
+      const {samples} = await readProbe(page);
+      // Anti-vacuous: only a DEAD recorder fails it (the record keeps distinct states, never frames).
+      expect(samples.length, 'the probe sampled (anti-vacuous)').toBeGreaterThan(0);
       const base = samples[0];
       expect(base.planet !== null && base.berth !== null && base.surface !== null, 'the stage stood measurable at the press').toBe(true);
 

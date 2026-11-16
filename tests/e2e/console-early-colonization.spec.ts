@@ -5,6 +5,7 @@ import {
   bootFixture, createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, playCardFromHand, playQueueCard, press,
   reloadConsole, sendPlayerInput, settle, soloGameConfig, syncClient, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P48 EARLY COLONIZATION — «Raise all colony tracks 2 steps. Place a colony. Gain 3 energy» (Prelude 2,
@@ -19,8 +20,8 @@ import {
  *
  * The rule (raise → place, the top, the inactive tiles, the record, the log) is pinned by
  * `tests/cards/prelude2/EarlyColonization.spec.ts`; the raise module by `tests/client/console/colonyTrackRaise.spec.ts`.
- * This spec is the JOURNEY on the TV profile, its order claims sampled from BEFORE the press (MutationObserver +
- * setInterval, never rAF) — a TIMING-class spec (`timingSpecs.ts`).
+ * This spec is the JOURNEY on the TV profile, its order claims RECORDED from BEFORE the press (`armWitness`) — a
+ * TIMING-class spec (`timingSpecs.ts`).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT = path.resolve('screenshots', 'p48', PRESET.id);
@@ -38,20 +39,34 @@ type Wire = {
   game: {colonies: Array<WireColony>, gameLog?: unknown},
 };
 type Probe = {
-  samples: number, ticks: number,
+  /** The recorded states (distinct — a state, never a frame count). */
+  samples: number,
   /** The marker cell each tile showed the FIRST time the step's grid painted it (0-based, `<Name>#<pos>`). */
   firstMarker: Record<string, number>,
   /** Every marker position each tile showed, in order. */
   markers: Record<string, Array<number>>,
   /** The colonies section's mode, in order. */
   modes: Array<string>,
-  /** The wave was on stage while the mode already read «pick» with the input open (it must not). */
-  pickDuringWave: number,
+  /** The recorded states in which the wave was on stage (with the step's grid standing). */
   waveSeen: number,
-  /** How many times a colonies step zone was ADDED to the DOM. */
+  /** How many times a colonies step zone was ADDED to the DOM (a node appearing that the previous state did not hold). */
   stepMounts: number,
   crumbs: Array<string>,
 };
+
+/** One recorded state — an OBSERVATION; the probe is folded from them on the Node side. */
+type ProbeSeen = {
+  /** The step grid's mode (null: no grid in the step zone). */
+  mode: string | null,
+  /** The marker cells of the step grid's tiles: [name, position]. */
+  markers: Array<[string, number]>,
+  wave: boolean,
+  /** The identities of the `.con-start__colonystep` nodes standing (a re-mount is a new identity). */
+  steps: Array<number>,
+  crumbs: Array<string>,
+};
+
+const PROBE_WITNESS = 'p48:probe';
 
 async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
   return await fetchPlayerModel(request, id) as unknown as Wire;
@@ -85,69 +100,92 @@ async function storyboard(page: Page, name: string): Promise<() => Promise<void>
   };
 }
 
-/** From the press on: the markers of the step's tiles as PAINTED, the section's mode, the wave, the step's mounts. */
+/**
+ * From the press on — RECORDED (FLAKE ZERO — `armWitness`, replace-proof): the markers of the step's tiles as PAINTED, the
+ * section's mode, the wave, the step's mounts. `settled`: «first painted where it STOOD», «the raise before the pick» are
+ * ORDER claims — each state is the one a task leaves, the one a frame can paint.
+ */
 async function armProbe(page: Page): Promise<void> {
+  // The deployment node the step must NOT remount — tagged before the press, asked after the return.
   await page.evaluate(() => {
-    const w = window as unknown as {__p48: Probe, __conReady?: () => {colonyTrackWave?: {active: boolean}}};
-    const p: Probe = {samples: 0, ticks: 0, firstMarker: {}, markers: {}, modes: [], pickDuringWave: 0, waveSeen: 0, stepMounts: 0, crumbs: []};
-    w.__p48 = p;
-    // The deployment node the step must NOT remount — tagged before the press, asked after the return.
     const deploy = document.querySelector('.con-start__deploy');
     if (deploy !== null) {
       (deploy as unknown as {__p48Node?: boolean}).__p48Node = true;
     }
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const zone = document.querySelector('.con-start__colonystep');
-      const grid = zone?.querySelector('.con-colonies');
-      if (grid !== null && grid !== undefined) {
-        const mode = grid.getAttribute('data-colony-mode') ?? '';
-        if (p.modes[p.modes.length - 1] !== mode) {
-          p.modes.push(mode);
-        }
-        grid.querySelectorAll('.con-coltile__track-cell--marker[data-colony-track-cell]').forEach((cell) => {
-          const [name, pos] = (cell.getAttribute('data-colony-track-cell') ?? '').split('#');
-          const at = Number(pos);
-          if (name === '' || Number.isNaN(at)) {
-            return;
-          }
-          if (p.firstMarker[name] === undefined) {
-            p.firstMarker[name] = at;
-          }
-          const seen = p.markers[name] ?? (p.markers[name] = []);
-          if (seen[seen.length - 1] !== at) {
-            seen.push(at);
-          }
-        });
-        const wave = w.__conReady?.()?.colonyTrackWave?.active === true;
-        if (wave) {
-          p.waveSeen++;
-        }
-      }
-      document.querySelectorAll('.con-wshead').forEach((el) => {
-        const crumb = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
-        if (crumb !== '' && !p.crumbs.includes(crumb)) {
-          p.crumbs.push(crumb);
-        }
-      });
-    };
-    new MutationObserver((records) => {
-      for (const r of records) {
-        r.addedNodes.forEach((n) => {
-          if (n instanceof HTMLElement && n.classList.contains('con-start__colonystep')) {
-            p.stepMounts++;
-          }
-        });
-      }
-      sample(false);
-    }).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
   });
+  await armWitness<ProbeSeen>(page, PROBE_WITNESS, () => {
+    const w = window as unknown as {
+      __p48Ids?: WeakMap<Element, number>, __p48Next?: number,
+      __conReady?: () => {colonyTrackWave?: {active: boolean}},
+    };
+    const ids = w.__p48Ids ?? new WeakMap<Element, number>();
+    w.__p48Ids = ids;
+    const zone = document.querySelector('.con-start__colonystep');
+    const grid = zone?.querySelector('.con-colonies') ?? null;
+    const markers: Array<[string, number]> = [];
+    grid?.querySelectorAll('.con-coltile__track-cell--marker[data-colony-track-cell]').forEach((cell) => {
+      const [name, pos] = (cell.getAttribute('data-colony-track-cell') ?? '').split('#');
+      const at = Number(pos);
+      if (name !== '' && !Number.isNaN(at)) {
+        markers.push([name, at]);
+      }
+    });
+    const steps = Array.from(document.querySelectorAll('.con-start__colonystep')).map((el) => {
+      let id = ids.get(el);
+      if (id === undefined) {
+        id = (w.__p48Next ?? 0) + 1;
+        w.__p48Next = id;
+        ids.set(el, id);
+      }
+      return id;
+    });
+    return {
+      mode: grid === null ? null : grid.getAttribute('data-colony-mode') ?? '',
+      markers,
+      wave: grid !== null && w.__conReady?.()?.colonyTrackWave?.active === true,
+      steps,
+      crumbs: Array.from(document.querySelectorAll('.con-wshead'))
+        .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim())
+        .filter((crumb) => crumb !== ''),
+    };
+  }, {settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p48: Probe}).__p48);
+
+/** The probe folded from the recording so far (`stop`: the recording ends here). */
+async function readProbe(page: Page, opts: {stop?: boolean} = {}): Promise<Probe> {
+  const witness = witnessOf<ProbeSeen>(page, PROBE_WITNESS);
+  const samples = opts.stop === true ? await witness.stop() : await witness.samples();
+  const p: Probe = {samples: samples.length, firstMarker: {}, markers: {}, modes: [], waveSeen: 0, stepMounts: 0, crumbs: []};
+  // What already stood at the arm was not ADDED after it.
+  let standing = new Set<number>(samples[0]?.v.steps ?? []);
+  for (const {v} of samples) {
+    if (v.mode !== null) {
+      if (p.modes[p.modes.length - 1] !== v.mode) {
+        p.modes.push(v.mode);
+      }
+      for (const [name, at] of v.markers) {
+        if (p.firstMarker[name] === undefined) {
+          p.firstMarker[name] = at;
+        }
+        const seen = p.markers[name] ?? (p.markers[name] = []);
+        if (seen[seen.length - 1] !== at) {
+          seen.push(at);
+        }
+      }
+      if (v.wave) {
+        p.waveSeen++;
+      }
+    }
+    p.stepMounts += v.steps.filter((id) => !standing.has(id)).length;
+    standing = new Set(v.steps);
+    for (const crumb of v.crumbs) {
+      if (!p.crumbs.includes(crumb)) {
+        p.crumbs.push(crumb);
+      }
+    }
+  }
+  return p;
+}
 const deploySurvived = (page: Page): Promise<boolean> => page.evaluate(() =>
   (document.querySelector('.con-start__deploy') as unknown as {__p48Node?: boolean} | null)?.__p48Node === true);
 
@@ -265,10 +303,11 @@ test.describe('P48 — Early Colonization: the raise is told, then the pick, ins
     expect(await deploySurvived(page), 'the deployment is the SAME node (released in place, never remounted)').toBe(true);
     await waitQueueIdle(page);
     await stop();
-    const probe = await readProbe(page);
+    const probe = await readProbe(page, {stop: true});
     test.info().annotations.push({type: 'probe', description: JSON.stringify({modes: probe.modes, markers: probe.markers, firstMarker: probe.firstMarker,
       waveSeen: probe.waveSeen, stepMounts: probe.stepMounts, crumbs: probe.crumbs, samples: probe.samples})});
-    expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(5);
+    // Only a dead recorder reads none (a state, never a frame count).
+    expect(probe.samples, `the probe's recorder ran (${probe.samples} samples)`).toBeGreaterThan(0);
     expect(probe.stepMounts, 'the step zone mounted once').toBe(1);
     const after = await wireOf(request, playerId);
     expect(after.thisPlayer.coloniesCount, 'one colony').toBe(before.thisPlayer.coloniesCount + 1);
@@ -290,12 +329,12 @@ test.describe('P48 — Early Colonization: the raise is told, then the pick, ins
     expect(wire.waitingFor?.type, 'still the pick').toBe('colony');
     const ACTIVE = activeOf(wire);
     const COLONIES = namesOf(wire);
-    const probe = await readProbe(page);
+    const probe = await readProbe(page, {stop: true});
     expect(probe.waveSeen, 'no wave after the reload').toBe(0);
     const truth = tracksOf(wire);
     for (const name of ACTIVE) {
-      const shown = await page.locator(`.con-coltile__track-cell--marker[data-colony-track-cell^="${name}#"]`).first().getAttribute('data-colony-track-cell');
-      expect(shown, `${name} stands on the truth`).toBe(`${name}#${truth[COLONIES.indexOf(name)]}`);
+      await expect(page.locator(`.con-coltile__track-cell--marker[data-colony-track-cell^="${name}#"]`).first(), `${name} stands on the truth`)
+        .toHaveAttribute('data-colony-track-cell', `${name}#${truth[COLONIES.indexOf(name)]}`);
     }
     await shoot(page, '06-reload-pick-open');
   });

@@ -6,6 +6,8 @@ import {
   placementState, press, pressUntil, sendPlayerInput, settle, waitForBoardHome,
 } from './consoleStart';
 import {closeSittingAs, closeSitting, expectDossierIsRules, hotVerb, sittingStep, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * AQUIFER CONTEST (Turmoil Redux, RX01) — the first REAL resolution, end to
@@ -78,9 +80,10 @@ const yieldReadings = (page: Page, scope: string) => page.evaluate((sel) => {
   }));
 }, scope);
 
-/** Nothing of the workspace sticks out of the viewport and no block spills. */
+/** Nothing of the workspace sticks out of the viewport and no block spills — read at REST (`readSettled`; the callers
+ *  have settled the screen, which stands for the player — a decision on it — so no second settle). */
 async function expectFits(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => page.evaluate(() => {
     const root = document.querySelector('.con-parl');
     if (root === null) {
       return ['no root'];
@@ -103,17 +106,18 @@ async function expectFits(page: Page, label: string): Promise<void> {
       }
     }
     return out;
-  });
+  }), {settle: false, message: `${label}: the workspace's blocks`});
   expect(problems, `${label}: layout problems`).toEqual([]);
 }
 
 /**
  * The mandatory plate reads WHOLE: no ellipsized line, and the plate stays
  * inside the viewport. (An absolute `left: 50%` box shrink-to-fits into half
- * the root, which cut the Deck's ocean ask to «Выберите место для размещения …».)
+ * the root, which cut the Deck's ocean ask to «Выберите место для размещения …».) Read at REST (`readSettled` — the
+ * plate stands for the player, so no settle: two equal reads a frame apart, never its entrance).
  */
 async function expectPlateReadsWhole(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => page.evaluate(() => {
     const plate = document.querySelector<HTMLElement>('.con-mandatory');
     if (plate === null) {
       return ['no plate'];
@@ -129,7 +133,7 @@ async function expectPlateReadsWhole(page: Page, label: string): Promise<void> {
       }
     }
     return out;
-  });
+  }), {settle: false, message: `${label}: the plate`});
   expect(problems, `${label}: the plate does not read whole`).toEqual([]);
 }
 
@@ -249,32 +253,26 @@ for (const preset of PRESETS) {
       //    payout reading and lands on the chosen candidate, whose capsule ticks WHILE the pick is still
       //    on screen; then the flow leaves and the WINNER'S OCEAN is the board's own placement.
       const focusedName = await page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-cards__slot--focused').getAttribute('data-zoom-slot');
-      // A MutationObserver + setInterval probe (never rAF — headless starves it on a quiet screen), armed BEFORE the press.
-      await page.evaluate((card) => {
-        const w = window as unknown as {__payoutProbe: {samples: number, chips: number, chipText: string, tick: string}};
-        w.__payoutProbe = {samples: 0, chips: 0, chipText: '', tick: ''};
-        const sample = () => {
-          const probe = w.__payoutProbe;
-          probe.samples++;
-          const chips = document.querySelectorAll('.con-transfer__chip');
-          if (chips.length > probe.chips) {
-            probe.chips = chips.length;
-            probe.chipText = (chips[0]?.textContent ?? '').trim();
-          }
-          const capsule = document.querySelector(`.con-parl [data-embed-slot="parliament-stage"] .con-cards__slot[data-zoom-slot="${card}"] .pcard__res-count`);
-          if (capsule !== null && (capsule.textContent ?? '').trim() !== '0') {
-            probe.tick = (capsule.textContent ?? '').trim();
-          }
+      // RECORDED (FLAKE ZERO: `armWitness`, armed BEFORE the press): the chips in the air and the chosen card's capsule
+      // in the pick's zone. `settled` — «one chip» is a claim about what a frame paints at once.
+      const payout = await armWitness<{chips: number, chipText: string, tick: string}, string>(page, 'aquifer-payout', (card) => {
+        const chips = document.querySelectorAll('.con-transfer__chip');
+        const capsule = document.querySelector(`.con-parl [data-embed-slot="parliament-stage"] .con-cards__slot[data-zoom-slot="${card}"] .pcard__res-count`);
+        return {
+          chips: chips.length,
+          chipText: (chips[0]?.textContent ?? '').trim(),
+          tick: capsule !== null && (capsule.textContent ?? '').trim() !== '0' ? (capsule.textContent ?? '').trim() : '',
         };
-        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true});
-        window.setInterval(sample, 16);
-      }, focusedName);
+      }, {args: focusedName ?? '', settled: true});
       await press(page, 'Enter', 1200);
-      await expect.poll(async () => page.evaluate(() => (window as unknown as {__payoutProbe: {tick: string}}).__payoutProbe.tick), {
-        timeout: 20_000, message: 'the chosen card\'s capsule ticks to the payout while the pick is on screen',
-      }).toBe('2');
-      const probe = await page.evaluate(() => (window as unknown as {__payoutProbe: {samples: number, chips: number, chipText: string}}).__payoutProbe);
-      expect(probe.samples, 'the probe ran').toBeGreaterThan(10);
+      await payout.waitFor((v) => v.tick === '2', {
+        timeoutMs: 20_000, message: 'the chosen card\'s capsule ticks to the payout while the pick is on screen',
+      });
+      const seen = await payout.stop();
+      const most = Math.max(0, ...seen.map((s) => s.v.chips));
+      // The most chips standing at once, and the first chip's text in the state that first showed that many.
+      const probe = {states: seen.length, chips: most, chipText: seen.find((s) => s.v.chips === most && most > 0)?.v.chipText ?? ''};
+      expect(probe.states, 'the probe ran').toBeGreaterThan(0);
       expect(probe.chips, `one payout chip flew (${JSON.stringify(probe)})`).toBe(1);
       expect(probe.chipText).toContain('+2');
       // ── THE WINNER'S OCEAN is a STEP of the same sitting — and it waits for the player's OWN press (sitting law 4):

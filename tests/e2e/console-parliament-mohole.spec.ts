@@ -5,6 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, placementState, placeTile, settle,
 } from './consoleStart';
 import {armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectDossierIsRules, inspectWinningBill, mandatoryPlate, parliament, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * MOHOLE CONTEST (Turmoil Redux, RX23) — the ONE e2e of the new mechanic: a
@@ -48,46 +49,38 @@ type Wire = {
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
 /**
- * THE PROBE. A `setInterval` sampler (never rAF — a quiet screen stops the compositor exactly when this
- * beat plays) reading, every tick: whether the sitting's frame is on screen, what the temperature readout
- * SAYS, whether a TR delta chip exists, whether a payout chip is in flight, and whether the board is in
- * placement mode.
+ * THE PROBE — a RECORDING (FLAKE ZERO — `armWitness`): every change of whether the sitting's frame is on screen, what
+ * the temperature readout SAYS, whether a TR delta chip exists, whether a payout chip is in flight, and whether the board
+ * is in placement mode, kept with the page's time. The claims are about what a FRAME shows and in what ORDER, so the
+ * record is `settled` — the state a task leaves (what the old timer, a task of its own, saw).
  */
 type Sample = {t: number, parl: boolean, temperature: string, trChips: number, transferChips: number, placing: boolean, sit: string, yielded: boolean, holds: string};
 type Probe = {samples: Array<Sample>};
+/** One moment as the reader sees it — the sample without its clock (the recording stamps the page's time). */
+type Seen = Omit<Sample, 't'>;
 type Ready = {holds: Array<string>, wsYielded: boolean, parliamentReward: {owed: Array<string>, flying: Array<string>, landed: Array<string>, trail: Array<unknown>}};
+const MOHOLE_WITNESS = 'parliament-mohole';
 
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__moholeProbe?: Probe};
-    const probe: Probe = {samples: []};
-    w.__moholeProbe = probe;
+  await armWitness<Seen>(page, MOHOLE_WITNESS, () => {
     const text = (icon: string): string => {
       const host = Array.from(document.querySelectorAll('.con-status__param'))
         .find((el) => el.querySelector(`.wgt-icon--${icon}`) !== null);
       return (host?.querySelector('.con-status__value')?.textContent ?? '').trim();
     };
-    const take = (): void => {
-      const ready = (window as unknown as {__conReady?: () => Ready}).__conReady?.();
-      const sit = document.querySelector('.con-sit');
-      probe.samples.push({
-        t: Math.round(performance.now()),
-        parl: document.querySelector('.con-parl') !== null,
-        temperature: text('temperature'),
-        trChips: document.querySelectorAll('[data-metric-key="score.tr"] .delta-chip').length,
-        transferChips: document.querySelectorAll('.con-transfer__chip').length,
-        placing: document.querySelector('.con-board--placing, .con-board--locked') !== null,
-        sit: sit === null ? '' : `${sit.getAttribute('data-sit-stage')}/${sit.getAttribute('data-sit-step')}`,
-        yielded: ready?.wsYielded === true,
-        holds: (ready?.holds ?? []).join(','),
-      });
-      if (probe.samples.length > 6000) {
-        probe.samples.splice(0, 3000);
-      }
+    const ready = (window as unknown as {__conReady?: () => {holds: Array<string>, wsYielded: boolean}}).__conReady?.();
+    const sit = document.querySelector('.con-sit');
+    return {
+      parl: document.querySelector('.con-parl') !== null,
+      temperature: text('temperature'),
+      trChips: document.querySelectorAll('[data-metric-key="score.tr"] .delta-chip').length,
+      transferChips: document.querySelectorAll('.con-transfer__chip').length,
+      placing: document.querySelector('.con-board--placing, .con-board--locked') !== null,
+      sit: sit === null ? '' : `${sit.getAttribute('data-sit-stage')}/${sit.getAttribute('data-sit-step')}`,
+      yielded: ready?.wsYielded === true,
+      holds: (ready?.holds ?? []).join(','),
     };
-    take();
-    setInterval(take, 40);
-  });
+  }, {settled: true, max: 40_000});
 }
 
 /**
@@ -99,7 +92,7 @@ async function armProbe(page: Page): Promise<void> {
  * waits for the motion it started: 3 / 3 red, on the same product).
  */
 const readProbe = async (page: Page): Promise<Probe & {all: Array<Sample>}> => {
-  const all = (await page.evaluate(() => (window as unknown as {__moholeProbe: Probe}).__moholeProbe)).samples;
+  const all: Array<Sample> = (await witnessOf<Seen>(page, MOHOLE_WITNESS).samples()).map((s) => ({...s.v, t: s.t}));
   const up = all.findIndex((sample) => sample.parl && sample.sit !== ''); // the SITTING, never the overview a fixture opens on
   return {samples: up === -1 ? [] : all.slice(up), all};
 };

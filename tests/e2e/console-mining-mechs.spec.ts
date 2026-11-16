@@ -5,6 +5,7 @@ import {
   bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, pressUntil, settle, walkFocusUntil,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {readSettled} from './settledRead';
 
 /**
  * TR57 «ГОРНЫЕ МЕХИ» — the Industrialists' fifth plate and the mechs' EIGHTH holder: one declaration, one PRICE
@@ -59,10 +60,8 @@ async function commit(page: Page, root: string, posts: Array<string>): Promise<v
   for (let i = 0; i < 8 && await page.locator(`${root} .con-composer__cta--focused`).count() === 0; i++) {
     await press(page, 'ArrowDown', 250);
   }
-  for (let attempt = 0; attempt < 4 && posts.length === 0; attempt++) {
-    await press(page, 'Enter', 400);
-    await expect.poll(() => posts.length, {timeout: 5000}).toBeGreaterThan(0).catch(() => undefined);
-  }
+  // Act → verify (a request left) → retry only without one, the witness given its whole window.
+  await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 4, settleMs: 5000});
   expect(posts.length, 'A sent exactly one request').toBe(1);
 }
 
@@ -188,7 +187,8 @@ for (const preset of PRESETS) {
       await expect(badge, 'the reading names the choice').toHaveAttribute('aria-label', /на выбор/);
       await expect(forestry.locator('[data-role-badge="action"] .con-res-aux__roleicon'), 'TR40 keeps its one good').toHaveCount(1);
       // Both goods are PAINTED inside the plate, side by side, at the single badge's height — never clipped by it.
-      const geometry = await badge.evaluate((el) => {
+      // Measured AT REST (`readSettled` — two equal reads a frame apart).
+      const geometry = await readSettled(page, () => badge.evaluate((el) => {
         const plate = el.getBoundingClientRect();
         const single = document.querySelector('[data-exr-type="mech:action:production-plants"] [data-role-badge="action"]')?.getBoundingClientRect();
         const icons = Array.from(el.querySelectorAll('.con-res-aux__roleicon')).map((i) => i.getBoundingClientRect());
@@ -197,7 +197,7 @@ for (const preset of PRESETS) {
           inside: icons.every((r) => r.width > 0 && r.left >= plate.left - 0.5 && r.right <= plate.right + 0.5 && r.top >= plate.top - 0.5 && r.bottom <= plate.bottom + 0.5),
           apart: icons.length === 2 && icons[0].right <= icons[1].left + 0.5,
         };
-      });
+      }), {message: 'the choice plate and its two goods'});
       expect(Math.abs(geometry.plateH - geometry.singleH), `the choice plate keeps the single badge's height (${JSON.stringify(geometry)})`).toBeLessThanOrEqual(1);
       expect(geometry.inside, `both goods inside the plate (${JSON.stringify(geometry)})`).toBe(true);
       expect(geometry.apart, `the goods stand side by side (${JSON.stringify(geometry)})`).toBe(true);

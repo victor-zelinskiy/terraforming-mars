@@ -5,6 +5,8 @@ import {
   bootFixtureSeats, bootIntoGame, closeZoomViewer, crumbText, fetchPlayerModel, focusCard, openZoomViewer, press, pressUntil, settle, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
 import {focusParty, openParliament, parliament} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR83 THE DEIMOS GROUP — 50 M€, a Mars tag; «as your first action, add a delegate to any resolution»; «you have +2
@@ -18,7 +20,7 @@ import {focusParty, openParliament, parliament} from './parliamentDrive';
  *   B — THE STANDING WAIVER (fixture `deimos`): Council Seat (the Reds' plate, the Reds out of power, 0 delegates) is
  *       playable — the hand's plate lifts the party cassette with no one-play bolt, the composer's requirement row names
  *       the corporation, the play goes through and the journal says «thanks to»; the Reds' dossier reads «снято».
- * Order claims are sampled from BEFORE the press (MutationObserver + setInterval, never rAF).
+ * Order claims are RECORDED from BEFORE the press (`armWitness`, settled — never a sampler of our own).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT = path.resolve('screenshots', 'deimos', 'tv');
@@ -37,7 +39,10 @@ type Wire = {
 };
 type Box = {x: number, y: number, w: number, h: number};
 type Flight = {first: {x: number, y: number}, last: {x: number, y: number}, n: number};
-type Probe = {samples: number, ticks: number, flights: Record<string, Flight>, parlMax: number, ownHead: boolean, standalone: boolean, crumbs: Array<string>};
+type Probe = {samples: number, flights: Record<string, Flight>, parlMax: number, crumbs: Array<string>};
+/** One recorded state: the live Parliament roots, the crumbs, every painted Parliament flight proxy's centre. */
+type Seen = {parls: number, crumbs: Array<string>, flights: Array<{id: string, x: number, y: number}>};
+const TR83_WITNESS = 'tr83-delegate';
 
 async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
   return await fetchPlayerModel(request, id) as unknown as Wire;
@@ -61,44 +66,47 @@ async function boxOf(page: Page, selector: string): Promise<Box | undefined> {
   }, selector);
 }
 
-/** From now on: every Parliament flight proxy's first / last painted centre, the Parliament roots, the crumbs. */
+/**
+ * From now on: every Parliament flight proxy's first / last painted centre, the Parliament roots, the crumbs — RECORDED
+ * (FLAKE ZERO — `armWitness`, settled: «born at the reserve, landed on the ribbon» and «one Parliament» are claims about
+ * the states a frame can paint); the reader returns the moment, the fold below makes the probe.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__tr83: Probe};
-    const p: Probe = {samples: 0, ticks: 0, flights: {}, parlMax: 0, ownHead: false, standalone: false, crumbs: []};
-    w.__tr83 = p;
+  await armWitness<Seen>(page, TR83_WITNESS, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
+    const crumbs = Array.from(document.querySelectorAll('.con-wshead')).map((el) => text(el)).filter((c) => c !== '');
+    const flights: Array<{id: string, x: number, y: number}> = [];
+    document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || getComputedStyle(el).visibility === 'hidden' || Number(getComputedStyle(el).opacity) < 0.05) {
+        return;
       }
-      const parls = document.querySelectorAll('.con-parl:not([data-parl-leaving])');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      document.querySelectorAll('.con-wshead').forEach((el) => {
-        const crumb = text(el);
-        if (crumb !== '' && !p.crumbs.includes(crumb)) {
-          p.crumbs.push(crumb);
-        }
-      });
-      document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.width < 2 || getComputedStyle(el).visibility === 'hidden' || Number(getComputedStyle(el).opacity) < 0.05) {
-          return;
-        }
-        const id = el.getAttribute('data-parl-flight') ?? '?';
-        const now = {x: r.left + r.width / 2, y: r.top + r.height / 2};
-        const rec = p.flights[id] ?? (p.flights[id] = {first: now, last: now, n: 0});
-        rec.last = now;
-        rec.n++;
-      });
-    };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  });
+      flights.push({id: el.getAttribute('data-parl-flight') ?? '?', x: r.left + r.width / 2, y: r.top + r.height / 2});
+    });
+    return {parls: document.querySelectorAll('.con-parl:not([data-parl-leaving])').length, crumbs, flights};
+  }, {settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr83: Probe}).__tr83);
+/** The recording folded into the probe: per flight its first / last recorded centre and how many states showed it. */
+async function readProbe(page: Page): Promise<Probe> {
+  const seen = await witnessOf<Seen>(page, TR83_WITNESS).values();
+  const p: Probe = {samples: seen.length, flights: {}, parlMax: 0, crumbs: []};
+  for (const s of seen) {
+    p.parlMax = Math.max(p.parlMax, s.parls);
+    for (const crumb of s.crumbs) {
+      if (!p.crumbs.includes(crumb)) {
+        p.crumbs.push(crumb);
+      }
+    }
+    for (const f of s.flights) {
+      const now = {x: f.x, y: f.y};
+      const rec = p.flights[f.id] ?? (p.flights[f.id] = {first: now, last: now, n: 0});
+      rec.last = now;
+      rec.n++;
+    }
+  }
+  return p;
+}
 const dist = (a: {x: number, y: number}, b: {x: number, y: number}) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /** RT → «КАРТЫ»: the hand album, settled. */
@@ -152,7 +160,8 @@ test.describe('TR83 — The Deimos Group: a delegate as the first action, +2 inf
       throw e;
     }
     await settle(page, {timeoutMs: 20_000});
-    expect((await crumbText(page)).toUpperCase(), 'the crumb: the start\'s flow, one level deeper').toMatch(/СТАРТ ПАРТИИ.*THE DEIMOS GROUP.*ГОЛОСОВАНИЕ/);
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the crumb: the start\'s flow, one level deeper'})
+      .toMatch(/СТАРТ ПАРТИИ.*THE DEIMOS GROUP.*ГОЛОСОВАНИЕ/);
     // The start row hands the Parliament the whole SCENE (`frameSteps: {parliament: 'scene'}` — Septem's road): ONE instance,
     // standing as the start's step (the crumb above), never a second Parliament beside it.
     await expect(page.locator('.con-parl:not([data-parl-leaving])'), 'ONE Parliament instance').toHaveCount(1);
@@ -161,8 +170,11 @@ test.describe('TR83 — The Deimos Group: a delegate as the first action, +2 inf
 
     // THE PRESS: one delegate from the RESERVE onto the selected card's ribbon.
     const reserveSel = `[data-parl-seat-reserve="${before.thisPlayer.color}"]`;
-    const reserveBox = await boxOf(page, reserveSel);
-    const ribbonBox = await boxOf(page, '[data-parl-vote-ribbon]');
+    // Both ends measured AT REST (`readSettled`, one read; no `settle` first — the vote STANDS for the player's answer).
+    const {reserveBox, ribbonBox} = await readSettled(page, async () => ({
+      reserveBox: await boxOf(page, reserveSel),
+      ribbonBox: await boxOf(page, '[data-parl-vote-ribbon]'),
+    }), {settle: false, message: 'the reserve and the chosen card\'s ribbon'});
     expect(reserveBox, 'the reserve stack is on screen').toBeDefined();
     expect(ribbonBox, 'the selected card\'s ribbon is on screen').toBeDefined();
     const chosen = await page.locator('.con-parl__slot--selected').first().getAttribute('data-party');
@@ -183,7 +195,8 @@ test.describe('TR83 — The Deimos Group: a delegate as the first action, +2 inf
     // THE START LEAVES once; then the Parliament's head names the +2 and its giver.
     await waitForBoardHome(page);
     const probe = await readProbe(page);
-    expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(5);
+    // Anti-vacuous: only a DEAD recorder fails it (the record keeps distinct states, never frames).
+    expect(probe.samples, `the probe's recorder ran (${probe.samples} states)`).toBeGreaterThan(0);
     expect(probe.parlMax, 'ONE Parliament instance').toBeLessThanOrEqual(1);
     const travels = Object.values(probe.flights).filter((f) => f.n >= 2 && dist(f.first, f.last) > 24);
     const slack = PRESET.viewport.width / 24;
@@ -245,8 +258,6 @@ test.describe('TR83 — The Deimos Group: a delegate as the first action, +2 inf
     await expect(panel, 'the effect is not granted').not.toContainText(/Требование этой партии на картах: не выполнено/);
     await shoot(page, '07-reds-dossier');
     await closeZoomViewer(page);
-    for (let i = 0; i < 4 && await parliament(page).count() > 0; i++) {
-      await press(page, 'Escape', 900);
-    }
+    await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900});
   });
 });

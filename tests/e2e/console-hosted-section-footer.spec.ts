@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {createGameWithCards, openConsole, soloGameConfig} from './consoleStart';
+import {createGameWithCards, openConsole, pressUntil, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * Console-native · THE ONE COMMAND BAR IS NEVER TUCKED UNDER ITS HOST.
@@ -47,22 +48,24 @@ test.describe('console · a hosted section never buries the command bar', () => 
     await openConsole(page, playerId);
 
     const colonies = page.locator('.con-colonies');
+    // The start's walk, A and RT in turn — each press given its whole window to bring the hosted step up (act →
+    // verify → retry: `pressUntil`, the step's own arrival the witness), never a fixed pause between blind keys.
     for (let i = 0; i < 40 && await colonies.count() === 0; i++) {
-      await page.keyboard.press(i % 2 === 0 ? 'Enter' : 'Period');
-      await page.waitForTimeout(700);
+      await pressUntil(page, i % 2 === 0 ? 'Enter' : 'Period', async () => await colonies.count() > 0, {tries: 1, settleMs: 700});
     }
     await colonies.waitFor({state: 'visible', timeout: 60_000});
-    await page.waitForTimeout(900);
-    await shoot(page, 'colonies-step');
 
-    const state = await page.evaluate(() => {
+    // The step's entrance over, the footer's state read AT REST (`readSettled` — two equal reads a frame apart; no
+    // `settle` first: the hosted step STANDS for the player's answer).
+    const state = await readSettled(page, () => page.evaluate(() => {
       const footer = document.querySelector('.con-footer');
       return {
         hostedByStart: document.querySelector('.con-start') !== null,
         behind: footer?.classList.contains('con-footer--behind-workspace') ?? null,
         z: footer === null ? null : getComputedStyle(footer as HTMLElement).zIndex,
       };
-    });
+    }), {settle: false, message: 'the footer under the hosted colonies step'});
+    await shoot(page, 'colonies-step');
     expect(state.hostedByStart, 'the colonies must be hosted by the start workspace here').toBeTruthy();
     expect(state.behind, 'the ONE command bar may never be tucked under its host').toBeFalsy();
     expect(state.z, 'a tucked footer shows up as a negative z').not.toBe('-1');

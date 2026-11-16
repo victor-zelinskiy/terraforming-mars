@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {bootWithCards, focusCard, playCardFromHand, press, soloGameConfig, turnChip, waitForTurn} from './consoleStart';
+import {bootWithCards, focusCard, playCardFromHand, press, readiness, settle, soloGameConfig, turnChip, waitForTurn} from './consoleStart';
 import {armWitness, pageNow} from './witness';
 
 /**
@@ -87,12 +87,34 @@ async function diag(page: Page): Promise<Array<TurnDiag>> {
  * BeginFrame, so toast lifetimes and transitions keep running as they do on a
  * real screen.
  */
-async function pumpFrames(page: Page, ms: number): Promise<void> {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-    await page.waitForTimeout(100);
-  }
+async function pumpFrame(page: Page): Promise<void> {
+  await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
+}
+
+/**
+ * Wait for a STATE while keeping the page painting — every poll forces one real frame (never a fixed pump of N ms
+ * standing in for «the scene is over»). Says whether the state came within `timeoutMs`; the caller asserts or reads on.
+ */
+async function pumpUntil(page: Page, done: () => Promise<boolean>, timeoutMs: number, intervalMs = 100): Promise<boolean> {
+  return expect.poll(async () => {
+    await pumpFrame(page);
+    return done();
+  }, {timeout: timeoutMs, intervals: [intervalMs]}).toBe(true).then(() => true, () => false);
+}
+
+/**
+ * The screen AT REST before the next gesture — what the old fixed pumps of 1–2 s stood in for (the play's cinematic
+ * over, the opening's notices gone), so the wheel's slots and the measured hand-over start from a still screen. The
+ * page keeps PAINTING while its holds stand (a forced frame per poll), then the console is judged quiet for good: no
+ * hold, nothing in flight, no finite motion (`settle`).
+ */
+async function atRest(page: Page): Promise<void> {
+  await pumpUntil(page, async () => {
+    const ready = await readiness(page);
+    return ready === undefined ||
+      (ready.holds.length === 0 && ready.transport?.requestInProgress !== true && ready.transport?.holding !== true);
+  }, 30_000);
+  await settle(page, {timeoutMs: 30_000});
 }
 
 /**
@@ -107,13 +129,8 @@ async function wheelPick(page: Page, slot: 'up' | 'down'): Promise<void> {
 
 /** Wait until at least `n` bot turns have been observed by the client. */
 async function awaitTurns(page: Page, n: number, maxMs = 60_000): Promise<Array<TurnDiag>> {
-  const deadline = Date.now() + maxMs;
-  let turns = await diag(page);
-  while (turns.length < n && Date.now() < deadline) {
-    await pumpFrames(page, 500);
-    turns = await diag(page);
-  }
-  return turns;
+  await pumpUntil(page, async () => (await diag(page)).length >= n, maxMs);
+  return diag(page);
 }
 
 test.describe('MarsBot turn latency', () => {
@@ -122,13 +139,13 @@ test.describe('MarsBot turn latency', () => {
 
     await bootWithCards(page, request, {cards: [CHEAP_CARD], config: CONFIG});
     await waitForTurn(page);
-    await pumpFrames(page, 2_000);
+    await atRest(page);
 
     // ── SCENARIO 1 · ONE action, then hand the turn over deliberately. The
     //    bot answers with a SINGLE turn and control comes straight back — the
     //    exact shape of the report.
     expect(await playCardFromHand(page, CHEAP_CARD), `${CHEAP_CARD} must have been played`).toBe(true);
-    await pumpFrames(page, 1_500);
+    await atRest(page);
     await wheelPick(page, 'up'); // «Пропустить ход» (offered after the first action)
 
     const afterSkip = await awaitTurns(page, 1);
@@ -146,7 +163,7 @@ test.describe('MarsBot turn latency', () => {
     // ── SCENARIO 2 · PASS. The bot now plays out the round, so the turns are a
     //    RUN and the queue is exactly what should carry them.
     await waitForTurn(page);
-    await pumpFrames(page, 1_000);
+    await atRest(page);
     await wheelPick(page, 'down'); // «Пас»
 
     const afterPass = await awaitTurns(page, afterSkip.length + 2, 90_000);
@@ -167,7 +184,9 @@ test.describe('MarsBot turn latency', () => {
     await expect.poll(() => card.count(), {message: 'the bot-turn card never presented during the run'}).toBeGreaterThan(0);
     const before = (await diag(page)).map((t) => t.key);
     await press(page, 'Escape', 900);
-    await pumpFrames(page, 1_200);
+    // The pressed turns' commits, waited for within the old window (1.2 s past the press) — it ends as soon as they stand.
+    const committed = (turns: ReadonlyArray<TurnDiag>) => before.every((key) => turns.find((t) => t.key === key)?.marks.commit !== undefined);
+    await pumpUntil(page, async () => committed(await diag(page)), 1_200);
     const after = await diag(page);
     console.log('[bot-turn-latency] after B:', JSON.stringify(after));
     for (const key of before) {
@@ -247,11 +266,11 @@ test.describe('MarsBot turn latency · inside a workspace', () => {
 
     await bootWithCards(page, request, {cards: [CARD_A, CARD_B], config: CONFIG});
     await waitForTurn(page);
-    await pumpFrames(page, 2_000);
+    await atRest(page);
 
     // ── BASELINE: the player stays on the board home. ────────────────────
     expect(await playCardFromHand(page, CARD_A), `${CARD_A} must have been played`).toBe(true);
-    await pumpFrames(page, 1_200);
+    await atRest(page);
     const onBoard = await handOverAndTime(page, async (p) => {
       // The same two presses the subject spends, on a surface that changes
       // nothing: open the wheel and close it again.
@@ -263,9 +282,9 @@ test.describe('MarsBot turn latency · inside a workspace', () => {
 
     // ── THE REPORTED CASE: the player walks into a workspace and stays
     //    there for the whole of the bot's turn.
-    await pumpFrames(page, 1_500);
+    await atRest(page);
     expect(await playCardFromHand(page, CARD_B), `${CARD_B} must have been played`).toBe(true);
-    await pumpFrames(page, 1_200);
+    await atRest(page);
     const inWorkspace = await handOverAndTime(page, async (p) => {
       await press(p, 'Period', 400); // RT → the quick wheel
       await press(p, 'Enter', 600); // centre slot → «КАРТЫ», the hand workspace
@@ -313,7 +332,7 @@ test.describe('MarsBot turn latency · a RUN watched from a workspace', () => {
 
     await bootWithCards(page, request, {cards: [CARD_A], config: CONFIG});
     await waitForTurn(page);
-    await pumpFrames(page, 2_000);
+    await atRest(page);
 
     // Pass, then walk into the hand workspace and stay there.
     await press(page, 'Comma', 900);
@@ -336,10 +355,9 @@ test.describe('MarsBot turn latency · a RUN watched from a workspace', () => {
      */
     const awaited = page.locator('.con-status__player--me.con-status__player--active');
     const seen: Array<string> = [];
-    const deadline = Date.now() + 90_000;
-    while (Date.now() < deadline) {
+    await pumpUntil(page, async () => {
       if (await awaited.count() > 0) {
-        break;
+        return true;
       }
       const fg = await foreground(page);
       if (fg !== undefined) {
@@ -349,8 +367,8 @@ test.describe('MarsBot turn latency · a RUN watched from a workspace', () => {
           seen.push(line);
         }
       }
-      await pumpFrames(page, 250);
-    }
+      return false;
+    }, 90_000, 250);
     const elapsed = backAfter(await active.samples(), t0, age0);
     console.log('[bot-turn-latency] pass → control back, inside a workspace:', elapsed, 'ms');
     console.log('[bot-turn-latency] foreground timeline:\n  ' + seen.join('\n  '));
@@ -395,11 +413,11 @@ test.describe('MarsBot turn latency · a play that ends the turn', () => {
 
     await bootWithCards(page, request, {cards: [CARD_A, CARD_B], config: CONFIG});
     await waitForTurn(page);
-    await pumpFrames(page, 2_000);
+    await atRest(page);
 
     // ── Action 1: card A, untimed (control returns to the player). ───────
     expect(await playCardFromHand(page, CARD_A), `${CARD_A} must have been played`).toBe(true);
-    await pumpFrames(page, 1_500);
+    await atRest(page);
     await waitForTurn(page);
 
     // ── Action 2: card B — the confirm ends the turn. Timed by hand: the
@@ -421,14 +439,14 @@ test.describe('MarsBot turn latency · a play that ends the turn', () => {
     const age0 = await appliedAge(page);
     for (let i = 0; i < 5 && await composer.count() > 0; i++) {
       await page.keyboard.press('Enter'); // the confirm — no settle pause, the clock is running
-      await pumpFrames(page, 700);
+      // Its effect — the composer gone — within the old 700 ms beat; a press it swallowed is pressed again.
+      await pumpUntil(page, async () => await composer.count() === 0, 700);
     }
     // Sample who holds the foreground while we wait for control to return.
     const seen: Array<string> = [];
-    const deadline = Date.now() + 60_000;
-    while (Date.now() < deadline) {
+    await pumpUntil(page, async () => {
       if (await turnChip(page).count() > 0) {
-        break;
+        return true;
       }
       const fg = await foreground(page);
       if (fg !== undefined) {
@@ -438,8 +456,8 @@ test.describe('MarsBot turn latency · a play that ends the turn', () => {
           seen.push(line);
         }
       }
-      await pumpFrames(page, 250);
-    }
+      return false;
+    }, 60_000, 250);
     const elapsed = backAfter(await chip.samples(), t0, age0);
     console.log('[bot-turn-latency] play-ends-turn → control back:', elapsed, 'ms');
     console.log('[bot-turn-latency] foreground timeline:\n  ' + seen.join('\n  '));

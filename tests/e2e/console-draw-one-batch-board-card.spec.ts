@@ -19,7 +19,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
-import {answerTableQuestions, bootFixture, cinematicBeat, commitFocusedSpace, focusCard, press, pressUntil, settle, walkToSpace} from './consoleStart';
+import {answerTableQuestions, bootFixture, commitFocusedSpace, focusCard, press, pressUntil, settle, takeRevealCard, walkToSpace} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'draw-one-batch');
 const NP = 'Natural Preserve';
@@ -37,20 +38,16 @@ async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
   return await (await request.get(`/api/player?id=${id}`)).json() as Wire;
 }
 
-/** `present` — per row slot (dealing order): is the card PAINTED there right now, as the real card or as a flyer
- *  standing over it (the blink witness — the owner's «вторая карта мигнула при приземлении», 2026-11-01). */
-type Sample = {reveals: number, slots: number, cover: number, triggers: Array<string>, viewer: boolean, present: Array<boolean>};
+/** The scene's facts, as the product wrote them (RECORDED — FLAKE ZERO: `armWitness`, armed before the press). */
+type Scene = {reveals: number, slots: number, cover: number, triggers: Array<string>, viewer: boolean};
+const SCENE_WITNESS = 'obb-scene';
+/** Per row slot (dealing order): is the card PAINTED there right now, as the real card or as a flyer standing over it
+ *  (the blink witness — the owner's «вторая карта мигнула при приземлении», 2026-11-01). Recorded `settled`: «never
+ *  vanished» is a claim about painted frames, never about the state between two writes of one task. */
+const PRESENCE_WITNESS = 'obb-presence';
 
-declare global {
-  interface Window {
-    __obWatchB?: {samples: Array<Sample>, stop: () => void, freeze: () => void},
-  }
-}
-
-async function installWatch(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const samples: Array<Sample> = [];
-    let frozen = false;
+async function armWatch(page: Page): Promise<void> {
+  await armWitness<Array<boolean>>(page, PRESENCE_WITNESS, () => {
     const painted = (el: Element): boolean => {
       let opacity = 1;
       for (let n: Element | null = el; n !== null; n = n.parentElement) {
@@ -62,45 +59,31 @@ async function installWatch(page: Page): Promise<void> {
       }
       return opacity > 0.3;
     };
-    const presence = (): Array<boolean> => {
-      const flyers = Array.from(document.querySelectorAll<HTMLElement>('.con-deckdraw-proxy, .con-bonusfly-proxy')).filter(painted);
-      return Array.from(document.querySelectorAll<HTMLElement>('.con-reveal .con-cards__slot[data-zoom-slot]')).map((slot) => {
-        const r = slot.getBoundingClientRect();
-        const face = slot.querySelector(':scope .pcard, :scope .card-container');
-        if (face !== null && painted(face)) {
-          return true;
-        }
-        return flyers.some((f) => {
-          const q = f.getBoundingClientRect();
-          const cx = q.left + q.width / 2;
-          const cy = q.top + q.height / 2;
-          return cx > r.left && cx < r.right && cy > r.top && cy < r.bottom;
-        });
+    const flyers = Array.from(document.querySelectorAll<HTMLElement>('.con-deckdraw-proxy, .con-bonusfly-proxy')).filter(painted);
+    return Array.from(document.querySelectorAll<HTMLElement>('.con-reveal .con-cards__slot[data-zoom-slot]')).map((slot) => {
+      const r = slot.getBoundingClientRect();
+      const face = slot.querySelector(':scope .pcard, :scope .card-container');
+      if (face !== null && painted(face)) {
+        return true;
+      }
+      return flyers.some((f) => {
+        const q = f.getBoundingClientRect();
+        const cx = q.left + q.width / 2;
+        const cy = q.top + q.height / 2;
+        return cx > r.left && cx < r.right && cy > r.top && cy < r.bottom;
       });
-    };
-    const sample = () => {
-      samples.push({
-        present: frozen ? [] : presence(),
-        reveals: document.querySelectorAll('.con-reveal').length,
-        slots: document.querySelectorAll('.con-reveal .con-cards__slot').length,
-        cover: Array.from(document.querySelectorAll<HTMLElement>('.con-bonusfly-proxy, .con-bonusfly-cover'))
-          .filter((el) => getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.5).length,
-        triggers: Array.from(document.querySelectorAll<HTMLElement>('.con-deckdraw [data-dd-trigger]'))
-          .filter((el) => getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.5)
-          .map((el) => el.getAttribute('data-dd-trigger') ?? ''),
-        viewer: document.querySelector('.con-zoom') !== null,
-      });
-    };
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-dd-run', 'class', 'style']});
-    const iv = setInterval(sample, 80);
-    window.__obWatchB = {samples, freeze: () => {
-      frozen = true;
-    }, stop: () => {
-      mo.disconnect();
-      clearInterval(iv);
-    }};
-  });
+    });
+  }, {settled: true});
+  await armWitness<Scene>(page, SCENE_WITNESS, () => ({
+    reveals: document.querySelectorAll('.con-reveal').length,
+    slots: document.querySelectorAll('.con-reveal .con-cards__slot').length,
+    cover: Array.from(document.querySelectorAll<HTMLElement>('.con-bonusfly-proxy, .con-bonusfly-cover'))
+      .filter((el) => getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.5).length,
+    triggers: Array.from(document.querySelectorAll<HTMLElement>('.con-deckdraw [data-dd-trigger]'))
+      .filter((el) => getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.5)
+      .map((el) => el.getAttribute('data-dd-trigger') ?? ''),
+    viewer: document.querySelector('.con-zoom') !== null,
+  }));
 }
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -132,7 +115,7 @@ test.describe('one press, a cell bonus and a table draw — ONE batch, the cell 
     await expect(page.locator('.con-composer__cta--focused'), 'the cursor stands on the commit').toHaveCount(1);
     await shoot(page, 'B0-composer-ready');
 
-    await installWatch(page);
+    await armWatch(page);
     await press(page, 'Enter', 900); // «Разыграть на поле» — the staged pick
     await expect(page.locator('.con-context'), 'the board took the pick').toContainText(/размещение тайла/i, {timeout: 30_000});
     await walkToSpace(page, cell!.id);
@@ -156,11 +139,12 @@ test.describe('one press, a cell bonus and a table draw — ONE batch, the cell 
     // university's run deals off its real rise, so on a starved renderer the whole assembly runs longer than any guess.
     await expect.poll(() => page.evaluate(() => document.querySelectorAll('.con-deckdraw, .con-bonusfly-proxy').length),
       {timeout: 30_000, message: 'the assembly handed over — no deck-layer guest, no cover proxy left'}).toBe(0);
-    await page.evaluate(() => window.__obWatchB?.freeze());
+    // The assembly's record ends here — the take that follows flies the cards out of their slots on purpose.
+    const assembly = (await witnessOf<Array<boolean>>(page, PRESENCE_WITNESS).stop()).map((s) => s.v).filter((p) => p.length > 0);
     await shoot(page, 'B1-batch-assembled');
     // NO BLINK: once a card is painted in its slot (as its flyer or as itself) it stays painted through the whole
-    // assembly — the guest's flyer hovers until the cover scene's handoff releases the real cards under it.
-    const assembly = await page.evaluate(() => window.__obWatchB?.samples.filter((s) => s.present.length > 0).map((s) => s.present) ?? []);
+    // assembly — the guest's flyer hovers until the cover scene's handoff releases the real cards under it. (The record
+    // keeps a value only when it changes: a gap is a painted state with the slot empty, however many frames it stood.)
     for (let slot = 0; slot < 2; slot++) {
       const trail = assembly.map((p) => p[slot] === true);
       const first = trail.indexOf(true);
@@ -173,18 +157,16 @@ test.describe('one press, a cell bonus and a table draw — ONE batch, the cell 
       expect(gaps, `slot ${slot} never vanished after it landed (trail ${trail.map((on) => on ? '█' : '·').join('')})`).toBe(0);
     }
 
+    // Each take is act → verify on the reveal's own `data-take` (a swallowed A is pressed again, never a second take).
     for (let i = 0; i < 6 && await page.locator('.con-reveal').count() > 0; i++) {
-      await press(page, 'Enter', 900);
-      await cinematicBeat(page, 700, 'the taken card flies to the dock');
+      await takeRevealCard(page);
     }
     await expect(page.locator('.con-reveal'), 'the batch is taken').toHaveCount(0, {timeout: 30_000});
 
-    const watch = await page.evaluate(() => {
-      window.__obWatchB?.stop();
-      return window.__obWatchB?.samples ?? [];
-    });
+    const watch = (await witnessOf<Scene>(page, SCENE_WITNESS).stop()).map((s) => s.v);
     const withReveal = watch.filter((s) => s.reveals > 0);
-    expect(withReveal.length, 'the reveal stood in the samples').toBeGreaterThan(5);
+    // The recorder's liveness only (a record keeps DISTINCT states, never frames — `tests.md`).
+    expect(withReveal.length, 'the reveal stood in the samples').toBeGreaterThan(0);
     expect(Math.max(...watch.map((s) => s.reveals)), 'never two reveals').toBe(1);
     expect(Math.max(...withReveal.map((s) => s.slots)), 'one row of the whole batch').toBe(2);
     expect(withReveal.some((s) => s.viewer), 'never the viewer').toBe(false);

@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, createGameWithCards, press, soloGameConfig} from './consoleStart';
+import {bootSeededGame, createGameWithCards, press, settle, soloGameConfig} from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 /**
  * FAST NAVIGATION — the panel must not be the moving object on screen.
@@ -13,32 +14,39 @@ import {bootSeededGame, createGameWithCards, press, soloGameConfig} from './cons
  * make the panel calm:
  *   ① the geometry of the standing sections does not move between cells;
  *   ② nothing is mid-flight when the walk stops (no motion queue to drain).
+ * The walk is RECORDED (`armWitness`, settled — every painted state, never a
+ * sample after each press, which the press's own quiet wait had already let
+ * the motion finish before).
  * It also records a video of the walk (`--video=on`), which is the artefact a
  * human actually judges «does the board stay the subject?» by.
  */
 
 const OUT = path.resolve('screenshots', 'placement-navigation');
 
-async function key(page: Page, code: string, settle = 130): Promise<void> {
-  await press(page, code, settle);
+async function key(page: Page, code: string, settleMs = 130): Promise<void> {
+  await press(page, code, settleMs);
   // Headless Chromium drives rAF off the compositor: a screenshot is what
   // forces a frame, so the walk really renders rather than idling.
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
 }
 
+type NavSample = {
+  rect: string, cell: string, rows: number,
+  transitions: number, foreign: Array<string>,
+};
+
 /**
- * One sample of the walk: the panel's OUTER box (the geometry that must not
+ * The walk's RECORDING (FLAKE ZERO — `armWitness`, settled: «the box never
+ * moves» and «nothing animates mid-walk» are claims about every PAINTED state
+ * of the walk). Each state: the panel's OUTER box (the geometry that must not
  * move), which cell is focused, and what is IN MOTION right now. The value
  * flick (`con-dossier-val-in`, a 100 ms opacity keyframe on a changed value)
  * is the ONE sanctioned animation of a cell change — anything else running
  * mid-walk (a transition, a height animation, a section reflow tween) is the
  * regression this probe exists to catch.
  */
-async function sample(page: Page): Promise<{
-  rect: string, cell: string, rows: number,
-  transitions: number, foreign: Array<string>,
-}> {
-  return page.evaluate(() => {
+async function armWalkProbe(page: Page): Promise<Witness<NavSample>> {
+  return armWitness(page, 'placement-navigation', (): NavSample => {
     const panel = document.querySelector('.con-inspector') as HTMLElement | null;
     const r = panel?.getBoundingClientRect();
     const running = panel === null || typeof panel.getAnimations !== 'function' ? [] :
@@ -59,7 +67,7 @@ async function sample(page: Page): Promise<{
       foreign: running.filter((a) => !(a instanceof CSSTransition) && !isValFlick(a))
         .map((a) => (a instanceof CSSAnimation ? a.animationName : a.constructor.name)),
     };
-  });
+  }, {settled: true});
 }
 
 // `video` forces a new worker, so Playwright only accepts it at FILE level
@@ -75,27 +83,32 @@ test.describe('placement dossier · fast navigation', () => {
     test.setTimeout(300_000);
     const playerId = await createGameWithCards(request, [], {config: soloGameConfig({seed: 0.42})});
     await bootSeededGame(page, request, playerId, {query: '&consoleProfile=tv'});
-    await page.waitForTimeout(1200);
+    await settle(page);
 
     // LT wheel → «КОНВЕРТАЦИЯ РАСТЕНИЙ» (the left slot) opens the placement.
     await key(page, 'Comma', 1400);
     await key(page, 'ArrowLeft', 2600);
-    expect((await page.locator('.con-context').innerText()).toUpperCase())
-      .toContain('РАЗМЕЩЕНИЕ');
+    await expect.poll(async () => (await page.locator('.con-context').innerText()).toUpperCase(),
+      {message: 'the placement dossier stands'}).toContain('РАЗМЕЩЕНИЕ');
+    // The walk starts from a panel AT REST (its entrance over) — the recording keeps the state it is armed in.
+    await settle(page).catch(() => undefined);
 
     // ── THE WALK. Fast steps, no settle time — the player holding a direction
-    //    is exactly the case a motion queue would show up in.
-    const seen: Array<Awaited<ReturnType<typeof sample>>> = [];
+    //    is exactly the case a motion queue would show up in. Recorded from
+    //    before the first step to the walk's rest (`settle` after the last).
+    const probe = await armWalkProbe(page);
     const walk = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp',
       'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowDown'];
     for (const step of walk) {
       await key(page, step, 120);
-      seen.push(await sample(page));
     }
     fs.mkdirSync(OUT, {recursive: true});
     await page.screenshot({path: path.join(OUT, 'after-fast-walk.png')});
-    console.log('[nav] ' + seen.map((s) =>
+    await settle(page).catch(() => undefined);
+    const seen = (await probe.stop()).map((s) => s.v);
+    console.log(`[nav] ${seen.length} recorded states\n      ` + seen.map((s) =>
       `${s.cell || '--'} rows=${s.rows} rect=${s.rect} tr=${s.transitions} foreign=[${s.foreign.join(',')}]`).join('\n      '));
+    expect(seen.length, 'the walk recorder never ran').toBeGreaterThan(0);
 
     // ① THE PANEL'S OUTER GEOMETRY NEVER MOVES — the shell is the frame; only
     //    the content inside it re-reads per cell.
@@ -105,15 +118,15 @@ test.describe('placement dossier · fast navigation', () => {
     // ② NOTHING ANIMATES ON A CELL CHANGE except the sanctioned 100 ms value
     //    flick: no CSS transitions (that is what an animated grow/collapse
     //    would run on), and no foreign keyframe animation inside the panel.
-    //    Sampled DURING the fast walk — a queue of tweens would be running
-    //    exactly here.
+    //    Recorded DURING the fast walk and its tail to rest — a queue of tweens
+    //    would be running exactly here.
     const withTransitions = seen.filter((s) => s.transitions > 0);
     expect(withTransitions, `transitions ran mid-walk: ${JSON.stringify(withTransitions)}`).toHaveLength(0);
     const withForeign = seen.flatMap((s) => s.foreign);
     expect(withForeign, `foreign animations ran mid-walk: ${withForeign.join(', ')}`).toHaveLength(0);
 
-    // ③ NOTHING IS STILL MOVING once the walk stops — no queue to drain.
-    await page.waitForTimeout(400);
+    // ③ NOTHING IS STILL MOVING once the walk stops — no queue to drain: the
+    //    walk's tail is in the recording above (②), and at rest nothing runs.
     const running = await page.evaluate(() => {
       const panel = document.querySelector('.con-inspector');
       if (panel === null || typeof panel.getAnimations !== 'function') {

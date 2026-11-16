@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, fetchPlayerModel, focusCard, press, pressUntil, settle} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE GRANT'S PACE (P72 «Делегаты Венеры», ledger CZ — TIMING class, motion ×1, `--exclusive --workers=1`): a live grant
@@ -35,49 +36,65 @@ function watchPosts(page: Page): Array<string> {
   return posts;
 }
 
-/** MutationObserver + setInterval from the press: each cube's lift and touchdown, the landed read, the flow's leave. */
+/** One recorded state — an OBSERVATION; the pace is folded from them on the Node side. */
+type PaceSeen = {flights: Array<string>, landed: Array<string>, reserve: number | null, slotLanded: boolean, hand: boolean};
+
+const PACE_WITNESS = 'p72:pace';
+
+/**
+ * RECORDED from the press (FLAKE ZERO — `armWitness`: sampled in the task the product writes and on every frame, the
+ * page's clock): each cube's lift and touchdown, the landed read, the flow's leave.
+ */
 async function armPace(page: Page, viewer: string): Promise<void> {
-  await page.evaluate((viewer) => {
-    const p: Pace = {lifts: [], departures: [], touches: [], landedRead: -1, handLeft: -1};
-    let reserve = NaN;
-    (window as unknown as {__pace: Pace}).__pace = p;
-    const t0 = performance.now();
-    const seenLifts = new Set<string>();
-    const seenTouches = new Set<string>();
-    const sample = () => {
-      const at = Math.round(performance.now() - t0);
-      document.querySelectorAll('[data-parl-flight^="vote"]').forEach((el) => {
-        const id = el.getAttribute('data-parl-flight') ?? '';
-        if (!seenLifts.has(id)) {
-          seenLifts.add(id);
-          p.lifts.push(at);
-        }
-      });
-      document.querySelectorAll('.con-hand .con-parl__slot [data-seq][data-landed]').forEach((el) => {
-        const seq = el.getAttribute('data-seq') ?? '';
-        if (!seenTouches.has(seq)) {
-          seenTouches.add(seq);
-          p.touches.push(at);
-        }
-      });
-      const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
-      const count = raw === null || raw === undefined ? NaN : Number(raw);
-      if (Number.isFinite(count)) {
-        if (Number.isFinite(reserve) && count < reserve) {
-          p.departures.push(at);
-        }
-        reserve = count;
-      }
-      if (p.landedRead < 0 && document.querySelector('.con-parl__slot--landed') !== null && p.touches.length >= 2) {
-        p.landedRead = at;
-      }
-      if (p.handLeft < 0 && p.touches.length > 0 && document.querySelector('.con-hand') === null) {
-        p.handLeft = at;
-      }
+  await armWitness<PaceSeen, string>(page, PACE_WITNESS, (viewer) => {
+    const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
+    const count = raw === null || raw === undefined ? NaN : Number(raw);
+    return {
+      flights: Array.from(document.querySelectorAll('[data-parl-flight^="vote"]')).map((el) => el.getAttribute('data-parl-flight') ?? ''),
+      landed: Array.from(document.querySelectorAll('.con-hand .con-parl__slot [data-seq][data-landed]')).map((el) => el.getAttribute('data-seq') ?? ''),
+      reserve: Number.isFinite(count) ? count : null,
+      slotLanded: document.querySelector('.con-parl__slot--landed') !== null,
+      hand: document.querySelector('.con-hand') !== null,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 16);
-  }, viewer);
+  }, {args: viewer});
+}
+
+/** Stop the recording and fold it: every time in ms since the arm, on the page's clock. */
+async function readPace(page: Page): Promise<Pace> {
+  const samples = await witnessOf<PaceSeen>(page, PACE_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  const p: Pace = {lifts: [], departures: [], touches: [], landedRead: -1, handLeft: -1};
+  const seenLifts = new Set<string>();
+  const seenTouches = new Set<string>();
+  let reserve = NaN;
+  for (const {t, v} of samples) {
+    const at = t - t0;
+    for (const id of v.flights) {
+      if (!seenLifts.has(id)) {
+        seenLifts.add(id);
+        p.lifts.push(at);
+      }
+    }
+    for (const seq of v.landed) {
+      if (!seenTouches.has(seq)) {
+        seenTouches.add(seq);
+        p.touches.push(at);
+      }
+    }
+    if (v.reserve !== null) {
+      if (Number.isFinite(reserve) && v.reserve < reserve) {
+        p.departures.push(at);
+      }
+      reserve = v.reserve;
+    }
+    if (p.landedRead < 0 && v.slotLanded && p.touches.length >= 2) {
+      p.landedRead = at;
+    }
+    if (p.handLeft < 0 && p.touches.length > 0 && !v.hand) {
+      p.handLeft = at;
+    }
+  }
+  return p;
 }
 
 test.describe(`P72 · a grant of 2 — the pace of ONE phrase (A/B) · ${PRESET.id}`, () => {
@@ -107,7 +124,7 @@ test.describe(`P72 · a grant of 2 — the pace of ONE phrase (A/B) · ${PRESET.
     await pressUntil(page, 'Enter', async () => posts.length >= 2, {tries: 3, settleMs: 1500});
     await expect(page.locator('.con-hand'), 'the flow leaves').toHaveCount(0, {timeout: 30_000});
     await settle(page, {timeoutMs: 30_000});
-    const pace = await page.evaluate(() => (window as unknown as {__pace: Pace}).__pace);
+    const pace = await readPace(page);
     const told = JSON.stringify(pace);
     fs.mkdirSync(path.join(OUT, PRESET.id), {recursive: true});
     fs.appendFileSync(path.join(OUT, PRESET.id, `pace${BASELINE ? '-head' : ''}.jsonl`), told + '\n');

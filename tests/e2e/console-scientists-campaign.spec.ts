@@ -5,6 +5,7 @@ import {
   createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, playQueueCard, queueCards, sendPlayerInput, settle,
   soloGameConfig, submitSummary, takeRevealCards, waitForBoardHome, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 /**
  * TRP6 SCIENTISTS CAMPAIGN — the fifth of the six Prelude CAMPAIGNS of Turmoil Redux: «Draw 3 cards. Add 3 neutral
@@ -21,8 +22,8 @@ import {
  *
  * The rules (the area, never the resolution — rulebook p.9 / p.11 step 5; the two Science tags answered before the
  * support) are pinned by `tests/cards/turmoilRedux/ScientistsCampaign.spec.ts`; this spec is the JOURNEY on the TV
- * profile — TRP4's stand (`console-reds-campaign`) with a draw of THREE. Order claims are sampled from BEFORE the press
- * (MutationObserver + setInterval, never rAF) — a TIMING-class spec (`timingSpecs.ts`).
+ * profile — TRP4's stand (`console-reds-campaign`) with a draw of THREE. Order claims are RECORDED from BEFORE the press
+ * (`armWitness`, settled — never a sampler of our own) — a TIMING-class spec (`timingSpecs.ts`).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT = path.resolve('screenshots', 'scientists-campaign', PRESET.id);
@@ -37,14 +38,23 @@ type Wire = {
   waitingFor?: {type: string, coloniesModel?: Array<{name: string}>},
   game: {parliament: {slots: Array<WireSlot>, popularSupport: Record<string, number>, lastRally?: {card?: string, recount: boolean, megacredits: number, votes: Array<unknown>}}},
 };
+/** The recording folded on the Node side — every count is a count of recorded STATES (never of frames). */
 type Probe = {
-  samples: number, ticks: number, parlMax: number, crumbs: Array<string>, beats: Array<string>,
+  samples: number, parlMax: number, crumbs: Array<string>, beats: Array<string>,
   supportShown: Array<number>, countChip: number, degraded: Array<string>, parlWhileDrawing: number,
-  /** Samples of the SUPPORT beat with the Scientists' plaque painted on top (its centre hit-tests inside its own tile) / covered. */
+  /** States of the SUPPORT beat with the Scientists' plaque painted on top (its centre hit-tests inside its own tile) / covered. */
   plaqueSeen: number, plaqueCovered: number,
-  /** Samples of the SUPPORT beat with a card reaction's face painted on screen. */
+  /** States of the SUPPORT beat with a card reaction's face painted on screen. */
   reactionOverRally: number,
 };
+/** One moment as the reader sees it. */
+type Seen = {
+  parls: number, beat: string, degraded: string | null, shown: number | null,
+  /** The SUPPORT beat only: the plaque painted on top / covered ('' when it has no box), a reaction face over it. */
+  plaque: 'seen' | 'covered' | '', reactionOver: boolean,
+  countChip: boolean, parlWhileDrawing: boolean, crumbs: Array<string>,
+};
+const PROBE = 'trp6-rally';
 
 async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
   return await fetchPlayerModel(request, id) as unknown as Wire;
@@ -56,87 +66,98 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
-/** From the press on: the Parliament roots, the crumbs, the rally's beats, the Scientists' plaque as DRAWN, the recount chip. */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__trp6: Probe};
-    const p: Probe = {samples: 0, ticks: 0, parlMax: 0, crumbs: [], beats: [], supportShown: [], countChip: 0, degraded: [], parlWhileDrawing: 0, plaqueSeen: 0, plaqueCovered: 0, reactionOverRally: 0};
-    w.__trp6 = p;
+/**
+ * From the press on: the Parliament roots, the crumbs, the rally's beats, the Scientists' plaque as DRAWN, the recount
+ * chip — RECORDED (`armWitness`: the product's own writes observed in the task that makes them, a frame tick for what only
+ * a computed style moves). The claims are about coexistence and order («one Parliament», «not while the draw is dealt or
+ * taken», the plaque only ever growing) — `settled`: a sample is the state a task leaves, the state a frame can paint.
+ */
+async function armProbe(page: Page): Promise<Witness<Seen>> {
+  return armWitness<Seen, string>(page, PROBE, (party) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const parls = document.querySelectorAll('.con-parl:not([data-parl-leaving])');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      const root = document.querySelector('.con-parl:not([data-parl-leaving])');
-      const beat = root?.getAttribute('data-rally-beat') ?? '';
-      if (beat !== '' && p.beats[p.beats.length - 1] !== beat) {
-        p.beats.push(beat);
-      }
-      const degraded = root?.getAttribute('data-parl-rally-degraded');
-      if (degraded !== null && degraded !== undefined && !p.degraded.includes(degraded)) {
-        p.degraded.push(degraded);
-      }
-      if (beat !== '') {
-        const shown = Number(root?.querySelector('[data-parl-support="Scientists"]')?.getAttribute('data-support') ?? NaN);
-        if (!Number.isNaN(shown) && p.supportShown[p.supportShown.length - 1] !== shown) {
-          p.supportShown.push(shown);
-        }
-      }
-      // THE LANDING ZONE IS SEEN: while the cubes land, the Scientists' plaque is on top — no dossier, no panel over it.
-      if (beat === 'support') {
-        const plaque = root?.querySelector('[data-parl-support="Scientists"]');
-        const rect = plaque?.getBoundingClientRect();
-        if (plaque !== undefined && plaque !== null && rect !== undefined && rect.width > 0 && rect.height > 0) {
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          const tile = plaque.closest('.con-parl__party');
-          if (hit !== null && tile !== null && (tile.contains(hit) || hit.closest('.con-transfer, [class*="flight"], [class*="proxy"]') !== null)) {
-            p.plaqueSeen++;
-          } else {
-            p.plaqueCovered++;
-          }
-          // …and no CARD REACTION's face stands over the Parliament while they land (a table's answer to the play — the
-          // server's EARLIER effect — plays first, the rally after; a face is pointer-events: none, so the hit test
-          // above cannot see it).
-          for (const face of document.querySelectorAll<HTMLElement>('.con-reaction .pcard')) {
-            const b = face.getBoundingClientRect();
-            let op = 1;
-            for (let n: HTMLElement | null = face; n !== null; n = n.parentElement) {
-              const st = getComputedStyle(n);
-              if (st.visibility === 'hidden' || st.display === 'none') {
-                op = 0;
-                break;
-              }
-              op *= Number(st.opacity);
-            }
-            if (b.width > 0 && b.height > 0 && op > 0.05) {
-              p.reactionOverRally++;
+    const parls = document.querySelectorAll('.con-parl:not([data-parl-leaving])');
+    const root = document.querySelector('.con-parl:not([data-parl-leaving])');
+    const beat = root?.getAttribute('data-rally-beat') ?? '';
+    const shownRaw = Number(root?.querySelector(`[data-parl-support="${party}"]`)?.getAttribute('data-support') ?? NaN);
+    let plaqueState: 'seen' | 'covered' | '' = '';
+    let reactionOver = false;
+    // THE LANDING ZONE IS SEEN: while the cubes land, the plaque is on top — no dossier, no panel over it.
+    if (beat === 'support') {
+      const plaque = root?.querySelector(`[data-parl-support="${party}"]`);
+      const rect = plaque?.getBoundingClientRect();
+      if (plaque !== undefined && plaque !== null && rect !== undefined && rect.width > 0 && rect.height > 0) {
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        const tile = plaque.closest('.con-parl__party');
+        plaqueState = hit !== null && tile !== null && (tile.contains(hit) || hit.closest('.con-transfer, [class*="flight"], [class*="proxy"]') !== null) ?
+          'seen' : 'covered';
+        // …and no CARD REACTION's face stands over the Parliament while they land (a table's answer to the play — the
+        // server's EARLIER effect — plays first, the rally after; a face is pointer-events: none, so the hit test
+        // above cannot see it).
+        for (const face of document.querySelectorAll<HTMLElement>('.con-reaction .pcard')) {
+          const b = face.getBoundingClientRect();
+          let op = 1;
+          for (let n: HTMLElement | null = face; n !== null; n = n.parentElement) {
+            const st = getComputedStyle(n);
+            if (st.visibility === 'hidden' || st.display === 'none') {
+              op = 0;
               break;
             }
+            op *= Number(st.opacity);
+          }
+          if (b.width > 0 && b.height > 0 && op > 0.05) {
+            reactionOver = true;
+            break;
           }
         }
       }
-      if (document.querySelector('[data-parl-count-id="rally"]') !== null) {
-        p.countChip++;
+    }
+    const crumbs: Array<string> = [];
+    document.querySelectorAll('.con-wshead').forEach((el) => {
+      const crumb = text(el);
+      if (crumb !== '' && !crumbs.includes(crumb)) {
+        crumbs.push(crumb);
       }
+    });
+    return {
+      parls: parls.length,
+      beat,
+      degraded: root?.getAttribute('data-parl-rally-degraded') ?? null,
+      shown: beat !== '' && !Number.isNaN(shownRaw) ? shownRaw : null,
+      plaque: plaqueState,
+      reactionOver,
+      countChip: document.querySelector('[data-parl-count-id="rally"]') !== null,
       // The Parliament may not stand while the draw is still being dealt or taken (the rally waits its turn).
-      if (parls.length > 0 && document.querySelector('.con-deckdraw, .con-reveal') !== null) {
-        p.parlWhileDrawing++;
-      }
-      document.querySelectorAll('.con-wshead').forEach((el) => {
-        const crumb = text(el);
-        if (crumb !== '' && !p.crumbs.includes(crumb)) {
-          p.crumbs.push(crumb);
-        }
-      });
+      parlWhileDrawing: parls.length > 0 && document.querySelector('.con-deckdraw, .con-reveal') !== null,
+      crumbs,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  });
+  }, {args: PARTY, settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__trp6: Probe}).__trp6);
+
+/** The recording folded: sequences with repeats collapsed, «ever» as a count of recorded states, the crumbs in order. */
+async function readProbe(probe: Witness<Seen>): Promise<Probe> {
+  const seen = await probe.values();
+  const collapsed = <T>(xs: Array<T>): Array<T> => xs.filter((x, i) => i === 0 || x !== xs[i - 1]);
+  const states = (pred: (s: Seen) => boolean) => seen.filter(pred).length;
+  const crumbs: Array<string> = [];
+  for (const crumb of seen.flatMap((s) => s.crumbs)) {
+    if (!crumbs.includes(crumb)) {
+      crumbs.push(crumb);
+    }
+  }
+  return {
+    samples: seen.length,
+    parlMax: Math.max(0, ...seen.map((s) => s.parls)),
+    crumbs,
+    beats: collapsed(seen.map((s) => s.beat).filter((b) => b !== '')),
+    supportShown: collapsed(seen.map((s) => s.shown).filter((n): n is number => n !== null)),
+    countChip: states((s) => s.countChip),
+    degraded: [...new Set(seen.map((s) => s.degraded).filter((d): d is string => d !== null))],
+    parlWhileDrawing: states((s) => s.parlWhileDrawing),
+    plaqueSeen: states((s) => s.plaque === 'seen'),
+    plaqueCovered: states((s) => s.plaque === 'covered'),
+    reactionOverRally: states((s) => s.reactionOver),
+  };
+}
 
 test.describe('TRP6 — Scientists Campaign: a Prelude\'s draw of three and its support, inside the start', () => {
   test.use({viewport: PRESET.viewport, deviceScaleFactor: 1, screen: PRESET.viewport});
@@ -188,7 +209,7 @@ test.describe('TRP6 — Scientists Campaign: a Prelude\'s draw of three and its 
     await shoot(page, '01-queue');
 
     // A on the Prelude → ONE answer: the three drawn cards and the support (nothing is asked).
-    await armProbe(page);
+    const rally = await armProbe(page);
     expect(await playQueueCard(page, CARD), 'the Prelude was played from the queue').toBe(true);
     await expect.poll(async () => (await wireOf(request, playerId)).game.parliament.popularSupport[PARTY] ?? 0,
       {timeout: 40_000, message: 'the play\'s own answer carries the support'}).toBe(3);
@@ -231,10 +252,10 @@ test.describe('TRP6 — Scientists Campaign: a Prelude\'s draw of three and its 
     await waitQueueIdle(page);
     await expect.poll(() => queueCards(page), {timeout: 30_000, message: 'the next Prelude is in the queue'}).toContain(SECOND_PRELUDE);
     await shoot(page, '04-queue-goes-on');
-    const probe = await readProbe(page);
+    const probe = await readProbe(rally);
     const dump = JSON.stringify({crumbs: probe.crumbs, beats: probe.beats, parlMax: probe.parlMax, supportShown: probe.supportShown,
       countChip: probe.countChip, degraded: probe.degraded, parlWhileDrawing: probe.parlWhileDrawing, plaqueSeen: probe.plaqueSeen, plaqueCovered: probe.plaqueCovered, reactionOverRally: probe.reactionOverRally});
-    expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(5);
+    expect(probe.samples, `the recording ran (${probe.samples} states)`).toBeGreaterThan(0);
     expect(probe.parlMax, `ONE Parliament instance (${dump})`).toBe(1);
     expect(probe.parlWhileDrawing, `no Parliament while the draw was dealt or taken (${dump})`).toBe(0);
     expect(probe.beats, `the rally's beats: the cubes, the read — no count, no coin (${dump})`).toEqual(expect.arrayContaining(['support', 'read']));

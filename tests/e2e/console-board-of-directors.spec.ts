@@ -6,6 +6,7 @@ import {
   playQueueCard, press, reloadConsole, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P45 «СОВЕТ ДИРЕКТОРОВ» — the VERDICT AFTER THE REVEAL inside «ДЕЙСТВИЯ КАРТ» (docs/claude/prompts/
@@ -46,26 +47,24 @@ async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
 const onTable = (w: Wire, name: string) => w.thisPlayer.tableau.some((c) => c.name === name);
 const heat = (w: Wire) => (w.thisPlayer as unknown as {heat: number}).heat;
 
-/** PL-1561 · THE CAPSULE AS PAINTED: every distinct value the hero's director capsule shows, in order (a sampler armed
- *  before the press — a one-shot read cannot tell «4 → 3 on the departure» from «3 at the apply»). */
+/** PL-1561 · THE CAPSULE AS PAINTED: every distinct value the hero's director capsule shows, in order (a RECORDING armed
+ *  before the press — `armWitness`, off the product's own writes; a one-shot read cannot tell «4 → 3 on the departure»
+ *  from «3 at the apply»). */
+const CAPSULE_WITNESS = 'p45-capsule';
 async function armCapsuleProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__p45Capsule?: {seen: Array<string>, stop: () => void}};
-    w.__p45Capsule?.stop();
-    const seen: Array<string> = [];
-    const read = () => {
-      const el = document.querySelector('.con-cardactions .con-composer__actcardwrap .pcard__res');
-      const v = el?.textContent?.replace(/\s+/g, '') ?? '';
-      if (v !== '' && seen[seen.length - 1] !== v) {
-        seen.push(v);
-      }
-    };
-    const id = window.setInterval(read, 16);
-    read();
-    w.__p45Capsule = {seen, stop: () => window.clearInterval(id)};
-  });
+  await armWitness<string>(page, CAPSULE_WITNESS, () =>
+    document.querySelector('.con-cardactions .con-composer__actcardwrap .pcard__res')?.textContent?.replace(/\s+/g, '') ?? '');
 }
-const capsuleSeen = (page: Page) => page.evaluate(() => (window as unknown as {__p45Capsule?: {seen: Array<string>}}).__p45Capsule?.seen ?? []);
+/** The capsule's numbers in order — an absent capsule skipped, a repeat collapsed (what the old sampler kept). */
+const capsuleSeen = async (page: Page): Promise<Array<string>> => {
+  const seen: Array<string> = [];
+  for (const v of await witnessOf<string>(page, CAPSULE_WITNESS).values()) {
+    if (v !== '' && seen[seen.length - 1] !== v) {
+      seen.push(v);
+    }
+  }
+  return seen;
+};
 const directors = (w: Wire) => w.thisPlayer.tableau.find((c) => c.name === CARD)?.resources ?? 0;
 
 async function shoot(page: Page, name: string): Promise<void> {

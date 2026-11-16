@@ -1,6 +1,7 @@
 import {test, expect} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {readSettled} from './settledRead';
 
 /**
  * THE PLAYER PIECES — the cube and the delegate figure stand in ONE palette
@@ -52,10 +53,11 @@ for (const preset of [{id: 'tv4k', viewport: {width: 3840, height: 2160}, query:
       }
 
       // B — the box: height = the row's logical size × the profile's scale (≥ the floor), width = 0.8 × height.
-      const boxes = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('[data-token-row] .player-delegate')).map((el) => {
+      // Measured AT REST (C — `readSettled`: the same boxes twice, a frame apart).
+      const boxes = await readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('[data-token-row] .player-delegate')).map((el) => {
         const r = el.getBoundingClientRect();
         return {row: Number(el.closest<HTMLElement>('[data-token-row]')?.getAttribute('data-token-row')), w: r.width, h: r.height};
-      }));
+      })), {message: 'the figures\' boxes'});
       expect(boxes.length).toBe(27);
       const scale = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize) / 20);
       for (const b of boxes) {

@@ -2,7 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openCardActions, openConsole, press, seedGameOverApi,
-  sendPlayerInput, soloGameConfig, waitForBoardHome,
+  sendPlayerInput, settle, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
 
 /**
@@ -206,7 +206,8 @@ test.describe('Dutch Mountains (DP08) · fhd', () => {
     expect(after.usedThisGeneration, 'the ordinary advance flag is untouched').toBe(before.usedThisGeneration);
     // The Hydronetwork never opens a second time for the execution.
     await expect.poll(() => page.locator('.con-hydro').count(), {message: 'no second Hydronetwork trip'}).toBe(0);
-    await page.waitForTimeout(2500);
+    // The activation's story ends before the frame — the console at rest (the chain's boundary), never a pause.
+    await settle(page, {timeoutMs: 30_000});
     await shoot(page, '04-after');
   });
 

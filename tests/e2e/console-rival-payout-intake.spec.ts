@@ -7,7 +7,8 @@
  *   · ONE token per resource carrying its sum (two steel = one «+2», never a swarm);
  *   · the token lands ON the plaque's number (`intake:red`), the plaque reads RECEIVED «+2», stands a read, folds;
  *   · the chip ribbon's width never changes (the plaque is absolute) and nothing is painted over nothing (the sentinel).
- * The probe is `setInterval` + `MutationObserver` — never rAF. `TM_E2E_STORYBOARD=1` also records every frame the compositor
+ * The probe is a RECORDING (FLAKE ZERO — `armWitness`, armed before the answer, `settled`: the order «the plaque before the
+ * token» is a claim about what a frame can paint). `TM_E2E_STORYBOARD=1` also records every frame the compositor
  * produced (`screenshots/t06/<profile>/story-rival-intake/`) — the acceptance at 4K is that storyboard on the GPU.
  */
 import * as fs from 'fs';
@@ -15,6 +16,7 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {NO_PAYMENT, bootFixtureSeats, fetchPlayerModel, sendPlayerInput, settle} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 't06');
 const PRESETS = [
@@ -26,32 +28,23 @@ type WireOption = {type: string, title?: unknown, cards?: Array<{name: string, c
 type Wire = {thisPlayer: {color: string}, game: {spaces?: Array<WireSpace>}, waitingFor?: {type: string, spaces?: Array<string>, options?: Array<WireOption>}};
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
-type Sample = {t: number, intake: string | null, nums: string, chips: number, ribbonW: number};
+type Seen = {intake: string | null, nums: string, chips: number, ribbonW: number};
+type Sample = Seen & {t: number};
 
+const INTAKE_WITNESS = 'rival-intake';
+
+/** What blue's screen shows of red's intake in this frame — recorded off the product's own writes (an observation, never
+ *  a tally of calls). The page's clock (`t`) stamps each distinct state. */
 async function armProbe(page: Page, seat: string): Promise<void> {
-  await page.evaluate((color) => {
-    const w = window as unknown as {__intakeProbe?: {samples: Array<Sample>, stop: () => void}};
-    w.__intakeProbe?.stop();
-    const samples: Array<Sample> = [];
-    const t0 = performance.now();
-    const sample = () => {
-      const plaque = document.querySelector(`[data-intake-seat="${color}"]`);
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        intake: plaque?.getAttribute('data-intake-phase') ?? null,
-        nums: Array.from(document.querySelectorAll(`[data-intake-seat="${color}"] .con-status__intake-num`)).map((n) => n.textContent ?? '').join(','),
-        chips: Array.from(document.querySelectorAll('.con-transfer__chip')).filter((c) => Number(getComputedStyle(c).opacity) > 0.05).length,
-        ribbonW: Math.round((document.querySelector('.con-status__ribbon')?.getBoundingClientRect().width ?? 0) * 10) / 10,
-      });
+  await armWitness<Seen, string>(page, INTAKE_WITNESS, (color) => {
+    const plaque = document.querySelector(`[data-intake-seat="${color}"]`);
+    return {
+      intake: plaque?.getAttribute('data-intake-phase') ?? null,
+      nums: Array.from(document.querySelectorAll(`[data-intake-seat="${color}"] .con-status__intake-num`)).map((n) => n.textContent ?? '').join(','),
+      chips: Array.from(document.querySelectorAll('.con-transfer__chip')).filter((c) => Number(getComputedStyle(c).opacity) > 0.05).length,
+      ribbonW: Math.round((document.querySelector('.con-status__ribbon')?.getBoundingClientRect().width ?? 0) * 10) / 10,
     };
-    const timer = window.setInterval(sample, 12);
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['data-intake-phase', 'style']});
-    w.__intakeProbe = {samples, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-    }};
-  }, seat);
+  }, {args: seat, settled: true});
 }
 
 /** A STORYBOARD of the scene (`TM_E2E_STORYBOARD=1` only): every frame the compositor produced, named by its time. */
@@ -74,11 +67,11 @@ async function storyboard(page: Page, preset: string, name: string): Promise<() 
   };
 }
 
-const readProbe = (page: Page) => page.evaluate(() => {
-  const w = window as unknown as {__intakeProbe?: {samples: Array<Sample>, stop: () => void}};
-  w.__intakeProbe?.stop();
-  return w.__intakeProbe?.samples ?? [];
-});
+const readProbe = async (page: Page): Promise<Array<Sample>> => {
+  const samples = await witnessOf<Seen>(page, INTAKE_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  return samples.map((s) => ({...s.v, t: s.t - t0}));
+};
 
 for (const preset of PRESETS) {
   test.describe(`a rival's payout lands on the seat chip's intake · ${preset.id}`, () => {
@@ -141,7 +134,10 @@ for (const preset of PRESETS) {
       const received = s.filter((x) => x.intake === 'received');
       expect(received.length, 'the plaque read RECEIVED').toBeGreaterThan(0);
       expect(received[0].nums, 'the sum on the number').toMatch(/^\+\d/);
-      const readMs = received[received.length - 1].t - received[0].t;
+      // A recording keeps a state only when it CHANGES, so a plaque standing still writes one sample: its stand ends
+      // where the NEXT state was recorded (the page's clock) — the last received sample alone would read a still read as 0.
+      const lastReceived = s.map((x) => x.intake).lastIndexOf('received');
+      const readMs = (s[lastReceived + 1] ?? s[lastReceived]).t - received[0].t;
       expect(readMs, `the plaque stands a read (${readMs} ms)`).toBeGreaterThanOrEqual(700);
       // The ribbon never moved: the plaque is absolute.
       // (measured while the plaque stands — a status relabel before it, «СПАСОВАЛ» / «ДЕЙСТВИЕ», is the chips' own business)

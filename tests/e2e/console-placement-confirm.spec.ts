@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, createGameWithCards, press, soloGameConfig} from './consoleStart';
+import {bootSeededGame, createGameWithCards, press, settle, soloGameConfig} from './consoleStart';
 
 /**
  * THE TWO-PHASE PLACEMENT CONFIRM (placementFlow.ts) — the console default.
@@ -45,12 +45,12 @@ test.describe('placement · two-phase confirm', () => {
     test.setTimeout(OUT_TIMEOUT);
     const playerId = await createGameWithCards(request, [], {config: soloGameConfig({seed: 0.42})});
     await bootSeededGame(page, request, playerId, {query: '&consoleProfile=tv'});
-    await page.waitForTimeout(1200);
+    await settle(page);
 
     // LT wheel → «КОНВЕРТАЦИЯ РАСТЕНИЙ» (the left slot) opens the placement.
     await key(page, 'Comma', 1400);
     await key(page, 'ArrowLeft', 2600);
-    expect((await page.locator('.con-context').innerText()).toUpperCase())
+    await expect.poll(async () => (await page.locator('.con-context').innerText()).toUpperCase())
       .toContain('РАЗМЕЩЕНИЕ');
     // Convert plants is a CLIENT-side picker: the server keeps whatever
     // prompt it had (the action menu) until the one commit submits. That is
@@ -83,14 +83,13 @@ test.describe('placement · two-phase confirm', () => {
 
     // The navigate-phase bar advertises the LOCK, not the commit.
     const bar = () => page.locator('.con-cmdbar').first().innerText().catch(() => '');
-    expect((await bar()).toUpperCase()).toContain('ВЫБРАТЬ КЛЕТКУ');
+    await expect.poll(async () => (await bar()).toUpperCase()).toContain('ВЫБРАТЬ КЛЕТКУ');
 
     // ② THE FIRST A LOCKS — presentation only, the server still waits.
     await key(page, 'Enter', 600);
     await expect(page.locator('.con-bcur--locked')).toHaveCount(1);
-    const lockedText = (await bar()).toUpperCase();
-    expect(lockedText).toContain('ПОДТВЕРДИТЬ РАЗМЕЩЕНИЕ');
-    expect(lockedText).toContain('ИЗМЕНИТЬ КЛЕТКУ');
+    await expect.poll(async () => (await bar()).toUpperCase()).toContain('ПОДТВЕРДИТЬ РАЗМЕЩЕНИЕ');
+    await expect.poll(async () => (await bar()).toUpperCase()).toContain('ИЗМЕНИТЬ КЛЕТКУ');
     const whileLocked = await serverTruth(request, playerId);
     expect(whileLocked, 'the LOCK must not touch the server').toEqual(before);
 
@@ -111,11 +110,12 @@ test.describe('placement · two-phase confirm', () => {
     await expect.poll(async () => (await serverTruth(request, playerId)).greeneries,
       {timeout: 30_000, message: 'the confirmed placement must reach the server'})
       .toBe(before.greeneries + 1);
-    // Settle past the hero scene, then re-read: STILL exactly one new
-    // greenery (a double submit would land a second), and the plant price
-    // was paid exactly once — the cell's own printed bonus may hand up to
-    // 2 plants back, so the honest claim is a bounded net decrease.
-    await page.waitForTimeout(4000);
+    // Settle past the hero scene (the console quiet: no hold, no request in
+    // flight), then re-read: STILL exactly one new greenery (a double submit
+    // would land a second), and the plant price was paid exactly once — the
+    // cell's own printed bonus may hand up to 2 plants back, so the honest
+    // claim is a bounded net decrease.
+    await settle(page, {timeoutMs: 30_000});
     const done = await serverTruth(request, playerId);
     expect(done.greeneries, 'a second commit must not exist').toBe(before.greeneries + 1);
     const spent = before.plants - done.plants;

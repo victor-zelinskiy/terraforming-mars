@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -91,8 +92,14 @@ const READOUTS = '.con-res__digits, .con-res__prod, .con-tagmx__num, .con-score_
   '.con-status__value, .con-status__terra-pct, .con-deckstack__count, .con-handdock__num, .con-res-aux__value';
 const FRAMES = '.con-res__row, .con-tagmx__cell, .con-score__cell, .con-res-aux__cell, .con-status__param, .con-deckstack';
 
-async function measure(page: Page, consumer: Consumer): Promise<Measure> {
-  return await page.evaluate(({c, readouts, frames}) => {
+/**
+ * Mount the probe into the consumer's host and measure it. `keep: false` (the settled read) takes the probe down again in
+ * the same task, so nothing it mounts — the cell's own `:has()` pop on the number — is left running between two reads;
+ * `keep: true` leaves it standing for the photograph.
+ */
+async function measure(page: Page, consumer: Consumer, keep: boolean): Promise<Measure> {
+  return await page.evaluate(({c, readouts, frames, keep}) => {
+    document.querySelectorAll('[data-chip-probe]').forEach((n) => n.remove());
     const box = (el: Element): Box => {
       const r = el.getBoundingClientRect();
       return {top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height};
@@ -169,12 +176,15 @@ async function measure(page: Page, consumer: Consumer): Promise<Measure> {
       const over = overlap(chipBox, numberBox);
       gapPx = over > 0 ? -Math.sqrt(over) : Math.hypot(dx, dy);
     }
+    if (!keep) {
+      host.remove();
+    }
     return {
       id: c.id, present: true, chip: chipBox, number: numberBox, frame: frameBox, instrument: instrumentBox,
       overNumber: Math.round(numberBox === undefined ? 0 : overlap(chipBox, numberBox)),
       overNeighbours, outsideInstrument, gapPx, remPx,
     };
-  }, {c: consumer, readouts: READOUTS, frames: FRAMES});
+  }, {c: consumer, readouts: READOUTS, frames: FRAMES, keep});
 }
 
 async function shootHost(page: Page, preset: string, consumer: Consumer, m: Measure): Promise<void> {
@@ -205,8 +215,11 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 30_000});
       const results: Array<Measure> = [];
       for (const consumer of CONSUMERS) {
-        const m = await measure(page, consumer);
+        // The anchor at REST (class C — `readSettled`: the same measure twice, a frame apart, after `settle`).
+        const m = await readSettled(page, () => measure(page, consumer, false), {message: `${preset.id} · ${consumer.id}: the chip's anchor`});
         if (m.present) {
+          // Mounted once more for the photograph — the numbers are the settled read's.
+          await measure(page, consumer, true);
           await shootHost(page, preset.id, consumer, m);
         }
         await unmountProbe(page);

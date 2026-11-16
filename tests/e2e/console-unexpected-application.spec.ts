@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixture, fetchPlayerModel, focusCard, press, settle, waitForBoardHome} from './consoleStart';
+import {bootFixture, fetchPlayerModel, focusCard, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P86 «НЕОЖИДАННОЕ ПРИМЕНЕНИЕ» — the TWENTIETH Prelude 2 card (docs/claude/prompts/prelude2-p86-unexpected-application.md):
@@ -56,19 +57,23 @@ function watchPosts(page: Page): Array<string> {
 /** The hand in PICK mode — the shelf's own flow state (`data-flow="picking"`), or any picked slot. */
 const handPicking = (page: Page) => page.locator('.con-hand[data-flow="picking"], .con-hand .con-hand__slot--select-picked');
 
+/** RT → the wheel's centre: the hand — each press verified by what it opens (a retry only after its whole window). */
+async function openHandForCard(page: Page): Promise<void> {
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 4, settleMs: 600});
+  await pressUntil(page, 'Enter', handUp, {tries: 4, settleMs: 1600});
+  await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 15_000});
+}
+
 /** RT → the hand → the card focused → A: the play composer, nothing sent. */
 async function openComposer(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).count() === 0; i++) {
-    await press(page, 'Period', 600);
-    await press(page, 'Enter', 1600);
-  }
+  await openHandForCard(page);
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
   expect(await focusCard(page, CARD, slots * 2 + 6), `never focused «${CARD}»`).toBe(true);
-  for (let i = 0; i < 3 && await page.locator(COMPOSER).count() === 0; i++) {
-    await press(page, 'Enter', 1200);
-  }
+  // A, verified by the composer itself — a retry only after the whole window passed without one.
+  await pressUntil(page, 'Enter', async () => await page.locator(COMPOSER).count() > 0, {tries: 3, settleMs: 1200});
   await page.locator(COMPOSER).waitFor({timeout: 15_000});
   await settle(page);
 }
@@ -79,50 +84,53 @@ async function openPick(page: Page): Promise<void> {
     if (await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() > 0) {
       await press(page, 'ArrowUp', 600);
     }
-    await press(page, 'Enter', 1400);
+    // A, given its whole window to open the pick before the next round.
+    await pressUntil(page, 'Enter', async () => await handPicking(page).count() > 0, {tries: 1, settleMs: 1400});
   }
   await expect(handPicking(page).first(), 'the discard row opens the hand in pick mode').toBeVisible({timeout: 15_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
 }
 
-/** The play's ORDER, sampled from BEFORE the press: when the first discard proxy painted, when the hero lifted. */
+/**
+ * The play's ORDER, RECORDED from BEFORE the press (FLAKE ZERO, `armWitness` — off the product's own writes): the
+ * reader returns what stands NOW (a discard proxy, the hero's phase and its discard mark, the pile), the order is
+ * folded on the Node side — «before» is the record's own order (a later sample is a later state), the times on the
+ * page's clock are named. `settled`: an ORDER claim is read on what a task leaves.
+ */
+const ORDER_PROBE = 'p86-order';
+type OrderRead = {proxy: boolean, phase: string, discard: string | null, pile: number};
+type Order = {proxyAt: number, liftAt: number, proxySeq: number, liftSeq: number, discardLeft: string, pileMax: number};
 async function armOrderProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const t0 = performance.now();
-    const rec = {proxyAt: -1, liftAt: -1, discardLeft: '', pileMax: 0};
-    (window as unknown as {__p86Order: typeof rec}).__p86Order = rec;
-    const sample = () => {
-      const now = performance.now() - t0;
-      if (rec.proxyAt < 0 && document.querySelector('.con-discard-proxy') !== null) {
-        rec.proxyAt = now;
-      }
-      const hero = document.querySelector<HTMLElement>('.con-played-hero');
-      const phase = hero?.dataset.heroPhase ?? '';
-      if (rec.liftAt < 0 && ['lifting', 'flying', 'landing', 'committing', 'showing-result'].includes(phase)) {
-        rec.liftAt = now;
-      }
-      const left = hero?.dataset.heroDiscard;
-      if (left !== undefined) {
-        rec.discardLeft = left;
-      }
-      const pile = document.querySelector<HTMLElement>('[data-discard-pile]');
-      rec.pileMax = Math.max(rec.pileMax, Number(pile?.dataset.discardPileCount ?? 0));
+  await armWitness<OrderRead>(page, ORDER_PROBE, () => {
+    const hero = document.querySelector<HTMLElement>('.con-played-hero');
+    const pile = document.querySelector<HTMLElement>('[data-discard-pile]');
+    return {
+      proxy: document.querySelector('.con-discard-proxy') !== null,
+      phase: hero?.dataset.heroPhase ?? '',
+      discard: hero?.dataset.heroDiscard ?? null,
+      pile: Number(pile?.dataset.discardPileCount ?? 0),
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true,
-      attributeFilter: ['data-hero-phase', 'data-hero-discard', 'data-discard-pile-count', 'class']});
-    window.setInterval(sample, 16);
-  });
+  }, {settled: true});
 }
-async function readOrderProbe(page: Page): Promise<{proxyAt: number, liftAt: number, discardLeft: string, pileMax: number}> {
-  return page.evaluate(() => (window as unknown as {__p86Order: {proxyAt: number, liftAt: number, discardLeft: string, pileMax: number}}).__p86Order);
+async function readOrderProbe(page: Page): Promise<Order> {
+  const samples = await witnessOf<OrderRead>(page, ORDER_PROBE).samples();
+  const t0 = samples[0]?.t ?? 0;
+  const proxySeq = samples.findIndex((s) => s.v.proxy);
+  const liftSeq = samples.findIndex((s) => ['lifting', 'flying', 'landing', 'committing', 'showing-result'].includes(s.v.phase));
+  return {
+    proxyAt: proxySeq < 0 ? -1 : samples[proxySeq].t - t0,
+    liftAt: liftSeq < 0 ? -1 : samples[liftSeq].t - t0,
+    proxySeq, liftSeq,
+    discardLeft: [...samples].reverse().find((s) => s.v.discard !== null)?.v.discard ?? '',
+    pileMax: Math.max(0, ...samples.map((s) => s.v.pile)),
+  };
 }
 
 /** A on the commit → ONE POST (a retry only while nothing was sent). */
 async function commit(page: Page, posts: Array<string>): Promise<void> {
-  for (let i = 0; i < 8 && await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
-    await press(page, 'ArrowDown', 250);
-  }
+  // ↓ to the commit row — each press given its whole window before the next.
+  await pressUntil(page, 'ArrowDown', async () => await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() > 0, {tries: 8, settleMs: 250});
   for (let attempt = 0; attempt < 4 && posts.length === 0; attempt++) {
     await press(page, 'Enter', 400);
     await expect.poll(() => posts.length, {timeout: 5000}).toBeGreaterThan(0).catch(() => undefined);
@@ -168,9 +176,7 @@ test.describe(`Unexpected Application — the discard is the play's price · ${P
     await openPick(page);
     const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
     expect(await focusCard(page, DISCARD, slots * 2 + 6), `never focused «${DISCARD}» in the pick`).toBe(true);
-    for (let i = 0; i < 3 && await page.locator(`${COMPOSER}:visible`).count() === 0; i++) {
-      await press(page, 'Enter', 1400);
-    }
+    await pressUntil(page, 'Enter', async () => await page.locator(`${COMPOSER}:visible`).count() > 0, {tries: 3, settleMs: 1400});
     await expect(page.locator(`${COMPOSER}:visible`), 'A answers the pick and returns to the sheet').toHaveCount(1, {timeout: 15_000});
     await settle(page);
     await expect(page.locator(`${COMPOSER} .con-composer__row--missing`), 'no open question left').toHaveCount(0);
@@ -188,7 +194,7 @@ test.describe(`Unexpected Application — the discard is the play's price · ${P
     const order = await readOrderProbe(page);
     expect(order.proxyAt, `a discard proxy was painted (${JSON.stringify(order)})`).toBeGreaterThanOrEqual(0);
     expect(order.liftAt, `the hero lifted (${JSON.stringify(order)})`).toBeGreaterThanOrEqual(0);
-    expect(order.proxyAt, `the price leaves BEFORE the lift (${JSON.stringify(order)})`).toBeLessThan(order.liftAt);
+    expect(order.proxySeq, `the price leaves BEFORE the lift (${JSON.stringify(order)})`).toBeLessThan(order.liftSeq);
     expect(order.discardLeft, `the hero waited for the packet's departure (${JSON.stringify(order)})`).toBe('left');
     expect(order.pileMax, `the pile read the discard (${JSON.stringify(order)})`).toBeGreaterThanOrEqual(1);
 
@@ -224,10 +230,7 @@ test.describe(`Unexpected Application — the discard is the play's price · ${P
     const posts = watchPosts(page);
     await bootFixture(page, request, 'unexpected-application-none', {query: PRESET.query});
     await settle(page);
-    for (let i = 0; i < 4 && await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).count() === 0; i++) {
-      await press(page, 'Period', 600);
-      await press(page, 'Enter', 1600);
-    }
+    await openHandForCard(page);
     await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
     await settle(page);
     expect(await focusCard(page, CARD, 8), `never focused «${CARD}»`).toBe(true);

@@ -5,6 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openQuickWheel, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
 import {expectDossierIsRules} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * ARCHITECTURE AWARD (Turmoil Redux, RX02) — the first resolution whose amount
@@ -95,9 +96,10 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
   return await fetchPlayerModel(request, playerId) as unknown as Wire;
 }
 
-/** Nothing of the workspace sticks out of the viewport and no block spills. */
+/** Nothing of the workspace sticks out of the viewport and no block spills — measured at REST (class C — `readSettled`:
+ *  the same answer twice, a frame apart, after `settle`). */
 async function expectFits(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => page.evaluate(() => {
     const root = document.querySelector('.con-parl');
     if (root === null) {
       return ['no root'];
@@ -130,7 +132,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
       }
     }
     return out;
-  });
+  }), {message: `${label}: the layout`});
   expect(problems, `${label}: layout problems`).toEqual([]);
 }
 
@@ -212,7 +214,7 @@ for (const preset of PRESETS) {
       await openParliament(page);
       await expect(page.locator('.con-parl__stage[data-parl-stage="recap"]'), 'no results scene').toHaveCount(0);
       await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the enacted card stands in the government').toHaveCount(1);
-      expect((await crumbText(page)).toUpperCase(), 'the overview names itself').toContain('ОБЗОР');
+      await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the overview names itself'}).toContain('ОБЗОР');
       await expectFits(page, `${preset.id} after the phase`);
       await shoot(page, preset.id, '20-after-phase');
     });

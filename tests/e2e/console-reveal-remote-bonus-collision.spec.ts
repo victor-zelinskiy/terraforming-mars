@@ -2,6 +2,7 @@ import {test, expect, Page, APIRequestContext, Route} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootSeededGame, press, reloadConsole} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * MY REVEAL IS MINE UNTIL I FINISH IT — even when somebody else's colony bonus
@@ -231,10 +232,11 @@ test('a remote colony bonus WAITS for the reveal the player is standing in', asy
   const reveal = page.locator('.con-reveal');
   await expect(reveal, 'the viewer\'s own reveal never presented (the park took it down)')
     .toBeVisible({timeout: 45_000});
-  await page.waitForTimeout(2000); // the deal + arrival settle
+  // The deal + arrival settle: read AT REST (no finite motion, two equal reads a frame apart). The reveal STANDS for
+  // the player's take — a scene the console is legitimately not quiet behind — so no `settle` first.
+  const during = await readSettled(page, () => snapshot(page), {settle: false, message: 'the collision, own reveal up'});
   await shoot(page, '01-own-reveal-stands');
 
-  const during = await snapshot(page);
   console.log('── collision, own reveal up ──', JSON.stringify(during));
   expect(during.revealPending, 'the reveal signal every admission gate reads went false').toBeTruthy();
   expect(during.reveals, 'the own batch is not the one on the table')

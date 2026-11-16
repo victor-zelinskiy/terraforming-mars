@@ -8,6 +8,7 @@ import ConsoleColonyTile from '@/client/components/console/ConsoleColonyTile.vue
 import {
   finishColonyTrackWave, noteColonyTrackWaveTouched, releaseColonyTracks, requestColonyTrackWave,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
+import {sweepTrackCell, TRACK_CELL_SWEEP_ATTR, unsweepTrackCell} from '@/client/console/colonyTrade/trackCellSweep';
 
 const RED: Color = 'red';
 
@@ -68,5 +69,23 @@ describe('ConsoleColonyTile — the projected cell', () => {
     expect(cells[3]).to.include('con-coltile__track-cell--passed');
     expect(cells[4]).to.include('con-coltile__track-cell--passed');
     expect(cells[5]).not.to.include('con-coltile__track-cell--passed');
+  });
+
+  it('the passed cell\'s IMPULSE survives the touch\'s own re-render — an attribute, never a class (FLAKE ZERO)', async () => {
+    // The glide's `onCellPassed`: the touch (a reactive write → the cell turns `--passed` through its bound classes),
+    // then the impulse, in the SAME task. A class written there was wiped by the flush — the middle cell of a
+    // two-step leg never lit (`console-parliament-unity`).
+    void requestColonyTrackWave([{colony: ColonyName.LUNA, before: 2, after: 6}], {anchors: 'stage', rhythm: 'rail', reduced: false});
+    const w = mountTile({projectedPosition: 6});
+    const cell = w.findAll('.con-coltile__track-cell')[3].element;
+    noteColonyTrackWaveTouched(ColonyName.LUNA, 3);
+    sweepTrackCell(cell);
+    cell.classList.add('probe-imperative-class');
+    await w.vm.$nextTick();
+    expect(cellClasses(w)[3], 'the touch re-rendered the cell').to.include('con-coltile__track-cell--passed');
+    expect(cell.hasAttribute(TRACK_CELL_SWEEP_ATTR), 'the impulse stands through the re-render').to.eq(true);
+    expect(cell.classList.contains('probe-imperative-class'), 'a CLASS written there is wiped — why the impulse is not one').to.eq(false);
+    unsweepTrackCell(cell);
+    expect(cell.hasAttribute(TRACK_CELL_SWEEP_ATTR)).to.eq(false);
   });
 });

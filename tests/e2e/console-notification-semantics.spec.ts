@@ -1,7 +1,8 @@
-import {test, expect, APIRequestContext, Page} from './consoleTest';
+import {test, expect, APIRequestContext, Locator, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, waitForBoardHome} from './consoleStart';
+import {NO_PAYMENT, fetchPlayerModel, openConsole, readiness, seedGameOverApi, sendPlayerInput, waitForBoardHome} from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 /**
  * VIEWER-FIRST NOTIFICATIONS — the top-right toast leads with what changed FOR
@@ -70,98 +71,110 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-/** Keep the page PAINTING while waiting (headless rAF starves on a quiet frame —
- *  toast lifetimes and transitions stop without a BeginFrame). */
-async function pumpFrames(page: Page, ms: number): Promise<void> {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-    await page.waitForTimeout(100);
-  }
+/** ONE forced frame — a tiny screenshot is a BeginFrame (headless rAF starves on a quiet frame: toast lifetimes and
+ *  transitions stop without one). */
+async function pumpFrame(page: Page): Promise<void> {
+  await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
+}
+
+/**
+ * Wait for a STATE while keeping the page PAINTING — every poll forces one real frame, so a toast's entrance, its TTL
+ * and its leave advance on a headless screen whose own frames starve (never a fixed pump of N ms standing in for «the
+ * entrance is over»). Says whether the state came within `timeoutMs`; the caller asserts or reads on.
+ */
+async function pumpUntil(page: Page, done: () => Promise<boolean>, timeoutMs: number): Promise<boolean> {
+  return expect.poll(async () => {
+    await pumpFrame(page);
+    return done();
+  }, {timeout: timeoutMs, intervals: [100]}).toBe(true).then(() => true, () => false);
+}
+
+/** The toast's ENTRANCE is over: its transition group let go of it (no `notification-pop-enter*` class left). */
+async function toastEntered(card: Locator): Promise<boolean> {
+  return card.first().evaluate((el) => !/notification-pop-enter/.test(el.className)).catch(() => false);
+}
+
+/** The feed is at rest: nothing visible, nothing queued, nothing leaving (`notificationsSettled`). */
+async function feedSettled(page: Page): Promise<boolean> {
+  return (await readiness(page))?.notificationsSettled === true;
 }
 
 type ToastRecord = {id: string, cls: string, you: string, cause: string, head: string, body: string, pills: string};
+const TOAST_WITNESS = 'notification-semantics-toasts';
 
-/** Arm the in-page probe BEFORE the acts: MutationObserver + interval sampler
- *  (never rAF — headless compositors stop exactly when the screen goes quiet),
- *  recording every DISTINCT card by its `data-notif-id`. A card that UPGRADES
- *  in place (the late-loss race repair: the band grows on the visible card)
- *  keeps ONE record whose fields follow the latest state — so the audit reads
- *  the FINAL semantics and one action can never be counted twice. */
-async function armToastProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type Rec = {id: string, cls: string, you: string, cause: string, head: string, body: string, pills: string};
-    const w = window as unknown as {__toastLog?: Array<Rec>, __toastSamples?: number, __toastTimer?: number};
-    const log: Array<Rec> = [];
-    const byId = new Map<string, Rec>();
-    w.__toastLog = log;
-    w.__toastSamples = 0;
+/** Arm the RECORDING before the acts (`armWitness` — the product's own writes observed in the task that makes them, so a
+ *  starved frame can slow a card but never hide it): every card on screen, by its `data-notif-id`. */
+async function armToastProbe(page: Page): Promise<Witness<Array<ToastRecord>>> {
+  return armWitness<Array<ToastRecord>>(page, TOAST_WITNESS, () => {
     const text = (root: Element, sel: string): string =>
       (root.querySelector(sel) as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ').trim() ?? '';
-    const sample = () => {
-      w.__toastSamples = (w.__toastSamples ?? 0) + 1;
-      for (const el of Array.from(document.querySelectorAll('.con-notif'))) {
-        const id = (el as HTMLElement).dataset.notifId ?? '';
-        if (id === '') {
-          continue;
-        }
-        const rec: Rec = {
-          id,
-          cls: (el as HTMLElement).className,
-          you: text(el, '.con-notif__you'),
-          cause: text(el, '.con-notif__cause'),
-          head: text(el, '.con-notif__head'),
-          body: text(el, '.con-notif__body'),
-          pills: text(el, '.con-notif__clusters'),
-        };
-        const existing = byId.get(id);
-        if (existing === undefined) {
-          byId.set(id, rec);
-          log.push(rec);
-        } else {
-          Object.assign(existing, rec);
-        }
-      }
-    };
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-notif-id', 'class']});
-    w.__toastTimer = window.setInterval(sample, 120);
-    sample();
-    // PRESENCE TIMELINE — per-id appear/vanish transitions with timestamps,
-    // so «the dismiss never ran» and «the card came BACK» stop looking alike.
-    const w2 = window as unknown as {__toastTimeline?: Array<{t: number, id: string, present: boolean}>};
-    const timeline: Array<{t: number, id: string, present: boolean}> = [];
-    w2.__toastTimeline = timeline;
-    const present = new Map<string, boolean>();
-    const t0 = Date.now();
-    window.setInterval(() => {
-      const now = new Set(Array.from(document.querySelectorAll('.con-notif'))
-        .map((el) => (el as HTMLElement).dataset.notifId ?? '')
-        .filter((id) => id !== ''));
-      for (const id of now) {
-        if (present.get(id) !== true) {
-          present.set(id, true);
-          timeline.push({t: Date.now() - t0, id, present: true});
-        }
-      }
-      for (const [id, was] of present) {
-        if (was && !now.has(id)) {
-          present.set(id, false);
-          timeline.push({t: Date.now() - t0, id, present: false});
-        }
-      }
-    }, 80);
+    return Array.from(document.querySelectorAll<HTMLElement>('.con-notif'))
+      .filter((el) => (el.dataset.notifId ?? '') !== '')
+      .map((el) => ({
+        id: el.dataset.notifId ?? '',
+        cls: el.className,
+        you: text(el, '.con-notif__you'),
+        cause: text(el, '.con-notif__cause'),
+        head: text(el, '.con-notif__head'),
+        body: text(el, '.con-notif__body'),
+        pills: text(el, '.con-notif__clusters'),
+      }));
   });
 }
 
-async function toastLog(page: Page): Promise<Array<ToastRecord>> {
-  return await page.evaluate(() =>
-    ((window as unknown as {__toastLog?: Array<ToastRecord>}).__toastLog ?? []));
+/**
+ * The recording folded: every DISTINCT card by its id, in order of arrival. A card that UPGRADES in place (the
+ * late-loss race repair: the band grows on the visible card) keeps ONE record whose fields follow the latest state —
+ * so the audit reads the FINAL semantics and one action can never be counted twice.
+ */
+async function toastLog(probe: Witness<Array<ToastRecord>>): Promise<Array<ToastRecord>> {
+  const log: Array<ToastRecord> = [];
+  const byId = new Map<string, ToastRecord>();
+  for (const cards of await probe.values()) {
+    for (const rec of cards) {
+      const existing = byId.get(rec.id);
+      if (existing === undefined) {
+        const own = {...rec};
+        byId.set(rec.id, own);
+        log.push(own);
+      } else {
+        Object.assign(existing, rec);
+      }
+    }
+  }
+  return log;
 }
 
-async function probeSamples(page: Page): Promise<number> {
-  return await page.evaluate(() =>
-    (window as unknown as {__toastSamples?: number}).__toastSamples ?? 0);
+/** PRESENCE TIMELINE — per-id appear / vanish transitions on the page's clock (ms since the recording's first state),
+ *  so «the dismiss never ran» and «the card came BACK» stop looking alike. */
+async function toastTimeline(probe: Witness<Array<ToastRecord>>): Promise<Array<{t: number, id: string, present: boolean}>> {
+  const samples = await probe.samples();
+  const t0 = samples[0]?.t ?? 0;
+  const timeline: Array<{t: number, id: string, present: boolean}> = [];
+  const present = new Set<string>();
+  for (const s of samples) {
+    const now = new Set(s.v.map((c) => c.id));
+    for (const id of now) {
+      if (!present.has(id)) {
+        present.add(id);
+        timeline.push({t: s.t - t0, id, present: true});
+      }
+    }
+    for (const id of [...present]) {
+      if (!now.has(id)) {
+        present.delete(id);
+        timeline.push({t: s.t - t0, id, present: false});
+      }
+    }
+  }
+  return timeline;
+}
+
+/** The hostile cards still standing (id · classes). */
+async function lingeringHostile(page: Page): Promise<Array<string>> {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('.con-notif--sign-negative'))
+      .map((el) => `${(el as HTMLElement).dataset.notifId}·${(el as HTMLElement).className}`));
 }
 
 /** Play a project card from the RIVAL seat over the API (the real endpoint,
@@ -220,14 +233,16 @@ for (const profile of PROFILES) {
       // ── the viewer's console ───────────────────────────────────────────
       await openConsole(page, viewer, '');
       await waitForBoardHome(page, 25);
-      await pumpFrames(page, 2_500); // the seeded stream is diffed SILENTLY (no spam on load)
-      await armToastProbe(page);
+      // The seeded stream is diffed SILENTLY (no spam on load) — the feed at rest before the probe arms.
+      await pumpUntil(page, () => feedSettled(page), 15_000);
+      const toasts = await armToastProbe(page);
 
       // ── ACT 1 · the AMBIENT event: the rival plays Power Plant ─────────
       await rivalPlaysCard(request, rival, NEUTRAL_CARD);
       const ambientCard = page.locator('.con-notif--sign-neutral.notification-card--variant-play-card');
       await ambientCard.waitFor({timeout: 20_000});
-      await pumpFrames(page, 900); // let the entrance finish — evidence, not a mid-fade frame
+      // Let the entrance finish — evidence, not a mid-fade frame (the transition group's own «entered»).
+      await pumpUntil(page, () => toastEntered(ambientCard), 10_000);
       await shoot(page, `${profile.tag}-01-ambient-opponent-play`);
       // The two axes render as classes; the actor chip names the initiator.
       await expect(ambientCard).toHaveClass(/con-notif--imp-ambient/);
@@ -241,11 +256,8 @@ for (const profile of PROFILES) {
       // No viewer band — nothing personal happened.
       await expect.poll(() => page.locator('.con-notif__you').count(), {message: 'no «для вас» band on a bystander event'}).toBe(0);
 
-      // …and it self-clears (the TTL lifecycle, kept painting by the settle).
-      const cleared = Date.now() + 12_000;
-      while (Date.now() < cleared && await page.locator('.con-notif').count() > 0) {
-        await pumpFrames(page, 400);
-      }
+      // …and it self-clears (the TTL lifecycle, kept painting by the pump).
+      await pumpUntil(page, async () => await page.locator('.con-notif').count() === 0, 12_000);
       await expect.poll(() => page.locator('.con-notif').count(), {message: 'the ambient card auto-dismissed'}).toBe(0);
 
       // ── ACT 2 · the HOSTILE event: Energy Tapping takes the viewer's
@@ -263,7 +275,7 @@ for (const profile of PROFILES) {
 
       const hostile = page.locator('.con-notif--sign-negative');
       await hostile.waitFor({timeout: 25_000});
-      await pumpFrames(page, 900);
+      await pumpUntil(page, () => toastEntered(hostile), 10_000);
       await shoot(page, `${profile.tag}-02-hostile-viewer-first`);
 
       // THE HIERARCHY: the viewer band leads («Вы потеряли» + the production
@@ -284,28 +296,29 @@ for (const profile of PROFILES) {
       // ── the DETAIL contract: press-and-HOLD X opens the journal AT the
       //    event (the full causal chain behind the toast), and the toast's
       //    job is done — it dismisses. A quick TAP keeps the screen's verb. ──
+      // The hold FIRES on its own clock while X is still down (`consoleNotifHold` — past NOTIF_HOLD_MS the journal
+      // opens before the release): frames keep coming until it did, then X is released.
       await page.keyboard.down('KeyX');
-      await pumpFrames(page, 850); // past NOTIF_HOLD_MS while frames keep coming
+      await pumpUntil(page, async () => await page.locator('.con-journal').count() > 0, 10_000);
       await page.keyboard.up('KeyX');
       await page.locator('.con-journal').waitFor({timeout: 10_000});
-      await pumpFrames(page, 600);
+      // The toast's job is done — frames pumped until it LEFT (its leave included), the evidence shot after; the
+      // claim is read once the hand-over had its time, on the state that stands.
+      await pumpUntil(page, async () => (await lingeringHostile(page)).length === 0, 5_000);
       await shoot(page, `${profile.tag}-03-hold-x-journal`);
-      const lingering = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('.con-notif--sign-negative'))
-          .map((el) => `${(el as HTMLElement).dataset.notifId}·${(el as HTMLElement).className}`));
-      const timeline = await page.evaluate(() =>
-        (window as unknown as {__toastTimeline?: Array<unknown>}).__toastTimeline ?? []);
+      const lingering = await lingeringHostile(page);
+      const timeline = await toastTimeline(toasts);
       expect(lingering.length,
         `the toast hands over to the journal (lingering: ${JSON.stringify(lingering)}; timeline: ${JSON.stringify(timeline)})`).toBe(0);
       await page.keyboard.press('Escape');
-      await pumpFrames(page, 800);
+      await pumpUntil(page, async () => await page.locator('.con-journal').count() === 0, 5_000);
 
-      // ONE CARD PER ACTION: wait the queue out, then audit the whole episode —
-      // exactly one distinct hostile card, no standalone `neg…` twin.
-      await pumpFrames(page, 16_000);
-      const log = await toastLog(page);
+      // ONE CARD PER ACTION: wait the queue out (the feed at rest: nothing visible, queued or leaving — bounded by the
+      // old 16 s window), then audit the whole episode — exactly one distinct hostile card, no standalone `neg…` twin.
+      await pumpUntil(page, () => feedSettled(page), 16_000);
+      const log = await toastLog(toasts);
       console.log(`[notification-semantics·${profile.tag}] toast log:`, JSON.stringify(log, null, 2));
-      expect(await probeSamples(page), 'the probe itself was alive').toBeGreaterThan(20);
+      expect((await toasts.samples()).length, 'the probe itself was alive').toBeGreaterThan(0);
       const hostileCards = log.filter((t) => t.cls.includes('con-notif--sign-negative'));
       expect(hostileCards.length, `ONE hostile card for one attack: ${JSON.stringify(hostileCards)}`).toBe(1);
       expect(hostileCards[0].id.startsWith('g'), 'the hostile card IS the root card (never a neg… twin)').toBe(true);

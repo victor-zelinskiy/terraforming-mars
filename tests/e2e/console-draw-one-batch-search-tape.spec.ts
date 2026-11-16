@@ -15,6 +15,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, cinematicBeat, focusCard, press, pressUntil, settle} from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 const OUT = path.resolve('screenshots', 'draw-one-batch');
 const OLYMPUS = 'Olympus Conference';
@@ -32,16 +33,16 @@ async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
 }
 const handOf = (wire: Wire): Array<string> => (wire.cardsInHand ?? []).map((c) => c.name);
 
-type Sample = {t: number, trigger: string, rejects: number, finds: number, pile: string, reveal: number, slots: number};
-declare global {
-  interface Window {
-    __tapeWatch?: {samples: Array<Sample>, stop: () => void},
-  }
-}
-async function installWatch(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const samples: Array<Sample> = [];
-    const t0 = performance.now();
+/**
+ * The tape's story — RECORDED off the product's own writes from before the commit (FLAKE ZERO, `armWitness`): the
+ * reader returns what is painted NOW (the visible trigger faces, the visible reject / find flyers, the pile, the
+ * reveals). `settled`: the claims are ORDER and COEXISTENCE claims («Olympus first», «never more than two rejects at
+ * once», «never two reveals») — what a task leaves, never a state between two of its writes.
+ */
+const TAPE_WATCH = 'search-tape';
+type Sample = {trigger: string, rejects: number, finds: number, pile: string, reveal: number, slots: number};
+async function installWatch(page: Page): Promise<Witness<Sample>> {
+  return armWitness<Sample>(page, TAPE_WATCH, () => {
     const visible = (el: Element | null): boolean => {
       if (el === null) {
         return false;
@@ -49,27 +50,16 @@ async function installWatch(page: Page): Promise<void> {
       const cs = getComputedStyle(el);
       return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05;
     };
-    const sample = () => {
-      const trigger = Array.from(document.querySelectorAll<HTMLElement>('.con-deckdraw__trigger[data-dd-trigger]'))
-        .filter(visible).map((el) => el.getAttribute('data-dd-trigger') ?? '').join('|');
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        trigger,
-        rejects: Array.from(document.querySelectorAll('.con-deckdraw-proxy[data-dd-matched="no"]')).filter(visible).length,
-        finds: Array.from(document.querySelectorAll('.con-deckdraw-proxy[data-dd-matched="yes"]')).filter(visible).length,
-        pile: document.querySelector('[data-discard-pile]')?.getAttribute('data-discard-pile-count') ?? '-',
-        reveal: document.querySelectorAll('.con-reveal').length,
-        slots: document.querySelectorAll('.con-hand__outcome .con-reveal [data-zoom-slot]').length,
-      });
+    return {
+      trigger: Array.from(document.querySelectorAll<HTMLElement>('.con-deckdraw__trigger[data-dd-trigger]'))
+        .filter(visible).map((el) => el.getAttribute('data-dd-trigger') ?? '').join('|'),
+      rejects: Array.from(document.querySelectorAll('.con-deckdraw-proxy[data-dd-matched="no"]')).filter(visible).length,
+      finds: Array.from(document.querySelectorAll('.con-deckdraw-proxy[data-dd-matched="yes"]')).filter(visible).length,
+      pile: document.querySelector('[data-discard-pile]')?.getAttribute('data-discard-pile-count') ?? '-',
+      reveal: document.querySelectorAll('.con-reveal').length,
+      slots: document.querySelectorAll('.con-hand__outcome .con-reveal [data-zoom-slot]').length,
     };
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'data-discard-pile-count']});
-    const iv = setInterval(sample, 80);
-    window.__tapeWatch = {samples, stop: () => {
-      mo.disconnect();
-      clearInterval(iv);
-    }};
-  });
+  }, {settled: true});
 }
 /** ONE press, then the witness polled — never a retry: a second A would land on whatever the first one opened (the hand). */
 async function pressOnce(page: Page, key: string, witness: () => Promise<boolean>, what: string, timeout = 30_000): Promise<void> {
@@ -85,8 +75,10 @@ const focusedRowOf = (page: Page, card: string) =>
 
 /** RT → «КАРТЫ» → the card → A: its play composer (the table-question spec's door). */
 async function openComposer(page: Page): Promise<void> {
-  await press(page, 'Period', 600);
-  await press(page, 'Enter', 1600);
+  // The wheel, then the hand — each press verified by what it opens, never a blind pair.
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 4, settleMs: 600});
+  await pressUntil(page, 'Enter', handUp, {tries: 3, settleMs: 1600});
   await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 15_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
@@ -116,11 +108,10 @@ test.describe('the search run of a merged batch plays on its own tape', () => {
     // asked as a question of one; the cursor goes on to the commit row.
     await expect(page.locator(`${COMPOSER} .con-composer__row[data-seeded="sole"]`), 'the removal\'s one target is seeded').toHaveCount(1);
     await expect(page.locator(`${COMPOSER} .con-composer__row--missing`), 'nothing left to ask').toHaveCount(0);
-    for (let i = 0; i < 6 && await page.locator('.con-composer__cta--focused').count() === 0; i++) {
-      await press(page, 'ArrowDown', 300);
-    }
+    // ↓ to the commit row — each press given its whole window before the next.
+    await pressUntil(page, 'ArrowDown', async () => await page.locator('.con-composer__cta--focused').count() > 0, {tries: 6, settleMs: 300});
     await expect(page.locator('.con-composer__cta--focused'), 'the cursor stands on «Разыграть карту»').toHaveCount(1);
-    await installWatch(page);
+    const tape = await installWatch(page);
     await page.keyboard.press('Enter');
 
     // ③ ONE reveal of three cards in the hand's zone, both causes named; the pile holds the search's TWO rejects.
@@ -137,17 +128,21 @@ test.describe('the search run of a merged batch plays on its own tape', () => {
     await cinematicBeat(page, 900, 'the row settles');
     await shoot(page, 'E1-search-tape-assembled');
 
-    const watch = await page.evaluate(() => {
-      window.__tapeWatch?.stop();
-      return window.__tapeWatch?.samples ?? [];
-    });
-    expect(watch.length, 'the sampler ran').toBeGreaterThan(20);
-    // ① Olympus' face surfaced and dealt BEFORE the search's first reject left the deck (the server's order).
-    const firstTrigger = watch.find((s) => s.trigger.includes(OLYMPUS));
-    const firstReject = watch.find((s) => s.rejects > 0);
+    const recorded = await tape.stop();
+    const t0 = recorded[0]?.t ?? 0;
+    const watch = recorded.map((s) => ({t: s.t - t0, ...s.v}));
+    // The recorder's own liveness only (a dead recorder records nothing); the claims below judge the tape themselves.
+    expect(watch.length, 'the sampler ran').toBeGreaterThan(0);
+    // ① Olympus' face surfaced and dealt BEFORE the search's first reject left the deck (the server's order) — an ORDER
+    // claim, judged on the record's own order (a sample later in the record is a later painted state), the page's
+    // times named in the message.
+    const firstTriggerAt = watch.findIndex((s) => s.trigger.includes(OLYMPUS));
+    const firstRejectAt = watch.findIndex((s) => s.rejects > 0);
+    const firstTrigger = watch[firstTriggerAt];
+    const firstReject = watch[firstRejectAt];
     expect(firstTrigger, 'Olympus\' face surfaced beside the row').toBeDefined();
     expect(firstReject, 'the search\'s rejects were judged on screen').toBeDefined();
-    expect((firstTrigger?.t ?? 0) < (firstReject?.t ?? 0), `Olympus dealt first (face at ${firstTrigger?.t} ms, first reject at ${firstReject?.t} ms)`).toBe(true);
+    expect(firstTriggerAt < firstRejectAt, `Olympus dealt first (face at ${firstTrigger?.t} ms, first reject at ${firstReject?.t} ms)`).toBe(true);
     // ② exactly the search's rejects went to the pile — never more than two flyers face-down at once beyond the tape's.
     expect(Math.max(...watch.map((s) => s.rejects)), 'two rejects, no more').toBeLessThanOrEqual(2);
     const piles = [...new Set(watch.map((s) => s.pile).filter((p) => p !== '-'))];

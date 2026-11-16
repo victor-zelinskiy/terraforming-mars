@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {openConsole, press} from './consoleStart';
+import {openConsole, press, pressUntil} from './consoleStart';
 import {campaignBase, campaignModelAs, createCampaign, devCommit, launchMission, seedIdentity} from './campaignFixtures';
-import {waitWithFrames} from './consoleEndgameHarness';
+import {forceFrame, waitWithFrames} from './consoleEndgameHarness';
+import {readSettled} from './settledRead';
 
 /**
  * THE CAMPAIGN'S LENGTH (2026-11-07) — 3…6 missions, four by default, the LAST always the finale.
@@ -25,6 +26,24 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(dir, `${name}.png`)});
 }
 
+/** B — every map card's box, read behind a forced frame (headless paints only when asked). */
+async function cardBoxes(page: Page): Promise<Array<{h: number, left: number, right: number}>> {
+  await forceFrame(page);
+  return page.locator('.cmap__card').evaluateAll((els) => els.map((el) => {
+    const r = el.getBoundingClientRect();
+    return {h: Math.round(r.height), left: r.left, right: r.right};
+  }));
+}
+
+/** C — the start's «Наследие» strip: every docked corporation and whether it stands whole on screen (behind a forced frame). */
+async function legacyDocks(page: Page): Promise<Array<{name: string, inside: boolean}>> {
+  await forceFrame(page);
+  return page.evaluate(() => [...document.querySelectorAll<HTMLElement>('[data-legacy-dock]')].map((el) => {
+    const r = el.getBoundingClientRect();
+    return {name: el.dataset.legacyDock ?? '', inside: r.width > 0 && r.left >= 0 && r.right <= window.innerWidth && r.top >= 0 && r.bottom <= window.innerHeight};
+  }));
+}
+
 const EXPANSIONS = {
   corpera: true, promo: true, venus: true, colonies: true, prelude: true,
   prelude2: false, turmoil: false, community: false, ares: false, moon: false,
@@ -42,18 +61,15 @@ test('A — the creator: the route briefing IS the length dial (3…6, four by d
   await page.goto(`${campaignBase()}/?x=1${TV.query}`);
   await page.waitForSelector('.cm-menu__items', {timeout: 60_000});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => undefined);
-  for (let i = 0; i < 12 && await page.locator('.cm-item--cursor').getAttribute('data-menu-item') !== 'create'; i++) {
-    await press(page, 'ArrowDown', 120);
-  }
+  await pressUntil(page, 'ArrowDown', async () => await page.locator('.cm-item--cursor').getAttribute('data-menu-item') === 'create',
+    {tries: 12, settleMs: 120});
   await press(page, 'Enter', 300);
   await page.waitForSelector('.cm-mode__tile', {timeout: 30_000});
   // The mode tile's little route is as long as the chosen campaign.
   await expect(page.locator('.cm-mode__tile--campaign .cm-mode__stop')).toHaveCount(4);
   await press(page, 'Enter', 600);
   await page.waitForSelector('.cm-crew', {timeout: 30_000});
-  for (let i = 0; i < 6 && await page.locator('[data-route-length]').count() === 0; i++) {
-    await press(page, 'KeyE', 400);
-  }
+  await pressUntil(page, 'KeyE', async () => await page.locator('[data-route-length]').count() > 0, {tries: 6, settleMs: 400});
   const brief = page.locator('[data-route-length]');
   await expect(brief).toHaveCount(1, {timeout: 15_000});
   const value = brief.locator('[data-route-length-value]');
@@ -95,10 +111,8 @@ test('B — a six-mission map: six cards, the last the finale, one height', asyn
   await expect(page.locator('.ccard__final-banner')).toHaveCount(1);
   await expect(cards.nth(5).locator('.ccard__final-banner')).toHaveCount(1);
   await expect(page.locator('.cmap__head')).toContainText(/Миссия 1 из 6/i);
-  const boxes = await cards.evaluateAll((els) => els.map((el) => {
-    const r = el.getBoundingClientRect();
-    return {h: Math.round(r.height), left: r.left, right: r.right};
-  }));
+  // The boxes AT REST (two equal reads a frame apart) — never wherever the map's entrance had got to.
+  const boxes = await readSettled(page, () => cardBoxes(page), {message: 'the six map cards'});
   expect(new Set(boxes.map((b) => b.h)).size, `card heights ${boxes.map((b) => b.h).join(', ')}`).toBe(1);
   for (let i = 1; i < boxes.length; i++) {
     expect(boxes[i].left, `card ${i} never overlaps card ${i - 1}`).toBeGreaterThanOrEqual(boxes[i - 1].right - 1);
@@ -140,10 +154,8 @@ test('C — the finale of a six-mission campaign: five corporations per seat, al
   await openConsole(page, ids[0], TV.query);
   await page.waitForSelector('.con-start__frame', {timeout: 90_000});
   await waitWithFrames(page, async () => (await page.locator('[data-legacy-dock]').count()) >= 5, 60_000, 'the lineage strip');
-  const legacy = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('[data-legacy-dock]')].map((el) => {
-    const r = el.getBoundingClientRect();
-    return {name: el.dataset.legacyDock ?? '', inside: r.width > 0 && r.left >= 0 && r.right <= window.innerWidth && r.top >= 0 && r.bottom <= window.innerHeight};
-  }));
+  // The strip AT REST — inside the standing start scene (a decision on screen), so no `settle` first.
+  const legacy = await readSettled(page, () => legacyDocks(page), {settle: false, message: 'the lineage strip'});
   expect(legacy.map((l) => l.name), 'the whole lineage in acquisition order').toEqual(lineages[0]);
   for (const l of legacy) {
     expect(l.inside, `${l.name} is on screen`).toBe(true);
@@ -191,7 +203,7 @@ test('D — the finale of a THREE-mission campaign DRAFTS its third corporation:
   await openConsole(page, pid!, TV.query);
   await page.waitForSelector('.con-start__frame', {timeout: 90_000});
   await waitWithFrames(page, async () => (await page.locator('[data-legacy-dock]').count()) >= 2, 60_000, 'the lineage strip');
-  expect(await page.locator('[data-legacy-dock]').evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.legacyDock)))
+  await expect.poll(() => page.locator('[data-legacy-dock]').evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.legacyDock)))
     .toEqual(lineages[0]);
   await shot(page, 'd-start-three-mission-finale-corp-pick');
 });

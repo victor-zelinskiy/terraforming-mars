@@ -4,6 +4,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, enterSittingByPass, openParliament, strandedReports, waitSittingAtRest} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness} from './witness';
 
 /**
  * TR64 «АЛЬЯНС ПРОМЕТЕЯ» — the law of access's fourth road for the Scientists = the Industrialists, and a PRODUCTION
@@ -57,6 +58,31 @@ const accessOf = (wire: Wire, color: string, party: string): Access | undefined 
 async function shoot(page: Page, preset: string, name: string): Promise<void> {
   fs.mkdirSync(path.join(OUT, preset), {recursive: true});
   await page.screenshot({path: path.join(OUT, preset, `${name}.png`)});
+}
+
+/** One moment of the enactment as the reader sees it (the recording stamps it with the page's time). */
+type Tr64Seen = {reveal: boolean, flying: number, shown: string, band: string};
+
+/**
+ * The recording folded on the Node side into the probe's old shape: `samples` is how many distinct states it kept (its
+ * liveness, never a count of frames), `prodAtBirth` the plate in the first state a token flew in.
+ */
+function tr64Probe(seen: ReadonlyArray<Tr64Seen>): {samples: number, reveal: boolean, band: boolean, bandWhileFlying: boolean, prodAtBirth: string | null, prods: Array<string>} {
+  const drawn = (v: Tr64Seen) => v.band.startsWith('enact:ruling-draw:');
+  const prods: Array<string> = [];
+  for (const v of seen) {
+    if (prods[prods.length - 1] !== v.shown) {
+      prods.push(v.shown);
+    }
+  }
+  return {
+    samples: seen.length,
+    reveal: seen.some((v) => v.reveal),
+    band: seen.some(drawn),
+    bandWhileFlying: seen.some((v) => drawn(v) && v.flying > 0),
+    prodAtBirth: seen.find((v) => v.flying > 0)?.shown ?? null,
+    prods,
+  };
 }
 
 type Seal = {ring: string | null, ally: string | null, partner: string | null, badge: boolean};
@@ -141,36 +167,15 @@ for (const preset of PRESETS) {
       const before = await wireOf(request, playerId);
       const prod = before.thisPlayer.megacreditProduction;
       await armTransferWitness(page);
-      // The scene's own facts across the enactment (MutationObserver + setInterval — never rAF): the reveal surfaces, the
-      // band's line, and the production the plate SHOWS while the token is in the air.
-      await page.evaluate((sel) => {
-        const w = window as unknown as {__tr64: {samples: number, reveal: boolean, band: boolean, bandWhileFlying: boolean, prodAtBirth: string | null, prods: Array<string>}};
-        w.__tr64 = {samples: 0, reveal: false, band: false, bandWhileFlying: false, prodAtBirth: null, prods: []};
-        const sample = () => {
-          const p = w.__tr64;
-          p.samples++;
-          if (document.querySelector('.con-reveal, .con-deckdraw') !== null) {
-            p.reveal = true;
-          }
-          const flying = document.querySelectorAll('.con-transfer__chip').length;
-          const shown = (document.querySelector(sel)?.firstChild?.textContent ?? '').trim();
-          if (p.prods[p.prods.length - 1] !== shown) {
-            p.prods.push(shown);
-          }
-          if (flying > 0 && p.prodAtBirth === null) {
-            p.prodAtBirth = shown;
-          }
-          const band = document.querySelector('[data-parl-band-zone]')?.getAttribute('data-parl-band') ?? '';
-          if (band.startsWith('enact:ruling-draw:')) {
-            p.band = true;
-            if (flying > 0) {
-              p.bandWhileFlying = true;
-            }
-          }
-        };
-        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-        window.setInterval(sample, 30);
-      }, PROD);
+      // The scene's own facts across the enactment, RECORDED (FLAKE ZERO — `armWitness`, armed before the pass): the
+      // reveal surfaces, the band's line, and the production the plate SHOWS while the token is in the air. «While it
+      // flies» is a claim about what a FRAME shows, so the record is `settled` — the state a task leaves.
+      const scene = await armWitness<Tr64Seen, string>(page, 'tr64-enact', (sel) => ({
+        reveal: document.querySelector('.con-reveal, .con-deckdraw') !== null,
+        flying: document.querySelectorAll('.con-transfer__chip').length,
+        shown: (document.querySelector(sel)?.firstChild?.textContent ?? '').trim(),
+        band: document.querySelector('[data-parl-band-zone]')?.getAttribute('data-parl-band') ?? '',
+      }), {args: PROD, settled: true, max: 20_000});
       await enterSittingByPass(page, request, playerId);
       if (process.env.TM_E2E_STORYBOARD === '1') {
         fs.mkdirSync(path.join(OUT, preset.id), {recursive: true});
@@ -197,8 +202,8 @@ for (const preset of PRESETS) {
       const landed = witness.landings.find((l) => l.id === born?.id);
       expect(landed?.under, `…and lands on the M€ row:\n${trail}`).toBe('rail:megacredits');
       expect(endsOverGlass(witness), `no end over glass:\n${trail}`).toEqual([]);
-      const probe = await page.evaluate(() => (window as unknown as {__tr64: {samples: number, reveal: boolean, band: boolean, bandWhileFlying: boolean, prodAtBirth: string | null, prods: Array<string>}}).__tr64);
-      expect(probe.samples, 'the probe ran').toBeGreaterThan(20);
+      const probe = tr64Probe(await scene.values());
+      expect(probe.samples, 'the probe recorded').toBeGreaterThan(0);
       expect(probe.reveal, 'no reveal and no deck-draw scene over the sitting').toBe(false);
       expect(probe.band, 'the band names the tail of the enactment — the card that answered the change of power').toBe(true);
       expect(probe.bandWhileFlying, '…while the token is in the air').toBe(true);

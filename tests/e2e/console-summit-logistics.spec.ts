@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P85 «ЛОГИСТИКА САММИТА» — THE FIRST POLITICAL PRELUDE 2 CARD, and the witness of three classes that had none
@@ -79,7 +80,8 @@ function watchPosts(page: Page): Array<string> {
 }
 
 type Probe = {
-  ticks: number,
+  /** How many distinct states the recording kept (its liveness — never a count of frames). */
+  samples: number,
   steps: Array<string>,
   crumbMisses: Array<string>,
   revealInHand: boolean,
@@ -87,51 +89,79 @@ type Probe = {
   wsMax: number,
   stranded: boolean,
 };
+/** One moment of the screen as the reader sees it (the recording stamps it with the page's time). */
+type P85Seen = {
+  /** The hand's head — null while it does not stand. */
+  head: {root: string, subjects: Array<string>, miss: boolean, steps: Array<string>} | null,
+  revealInHand: boolean,
+  revealOutsideHand: boolean,
+  ws: number,
+  stranded: boolean,
+};
+const P85_WITNESS = 'p85-play';
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/**
+ * THE SCENE'S RECORDING (FLAKE ZERO — `armWitness`, armed before the press): the reader returns what stands now, every
+ * change is kept with the page's time. «On every sample» / «one workspace» are claims about what a frame shows, so the
+ * record is `settled` — the state a task leaves.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({card, root}) => {
-    const p: Probe = {ticks: 0, steps: [], crumbMisses: [], revealInHand: false, revealOutsideHand: false, wsMax: 0, stranded: false};
-    (window as unknown as {__p85: Probe}).__p85 = p;
-    const t0 = Date.now();
+  await armWitness<P85Seen, {card: string, root: string}>(page, P85_WITNESS, ({card, root}) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      if (tick) {
-        p.ticks++;
+    const headEl = document.querySelector('.con-hand .con-wshead');
+    let head: P85Seen['head'] = null;
+    if (headEl !== null) {
+      const rootText = text(headEl.querySelector('.con-wshead__root'));
+      const subjects = Array.from(headEl.querySelectorAll('.con-wshead__subject')).map(text);
+      head = {
+        root: rootText,
+        subjects,
+        miss: rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase()),
+        steps: Array.from(headEl.querySelectorAll('.con-wshead__step')).map(text).filter((s) => s !== ''),
+      };
+    }
+    let revealInHand = false;
+    let revealOutsideHand = false;
+    document.querySelectorAll('.con-reveal').forEach((el) => {
+      if (el.closest('.con-hand__outcome') !== null) {
+        revealInHand = true;
+      } else if (el.getBoundingClientRect().width > 1) {
+        revealOutsideHand = true;
       }
-      const head = document.querySelector('.con-hand .con-wshead');
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        head.querySelectorAll('.con-wshead__step').forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-      }
-      document.querySelectorAll('.con-reveal').forEach((el) => {
-        if (el.closest('.con-hand__outcome') !== null) {
-          p.revealInHand = true;
-        } else if (el.getBoundingClientRect().width > 1) {
-          p.revealOutsideHand = true;
-        }
-      });
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
+    });
+    return {
+      head,
+      revealInHand,
+      revealOutsideHand,
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample(true), 30);
-  }, {card: CARD_RU, root: ROOT_RU});
+  }, {args: {card: CARD_RU, root: ROOT_RU}, settled: true, max: 20_000});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p85: Probe}).__p85);
+
+/** The recording folded on the Node side into the probe's old shape (the steps in the order they first stood). */
+async function readProbe(page: Page): Promise<Probe> {
+  const seen = await witnessOf<P85Seen>(page, P85_WITNESS).samples();
+  const t0 = seen[0]?.t ?? 0;
+  const steps: Array<string> = [];
+  for (const s of seen) {
+    for (const step of s.v.head?.steps ?? []) {
+      if (!steps.includes(step)) {
+        steps.push(step);
+      }
+    }
+  }
+  return {
+    samples: seen.length,
+    steps,
+    crumbMisses: seen.filter((s) => s.v.head?.miss === true).slice(0, 8)
+      .map((s) => `${s.t - t0}ms root=«${s.v.head?.root}» subject=«${s.v.head?.subjects.join('|')}»`),
+    revealInHand: seen.some((s) => s.v.revealInHand),
+    revealOutsideHand: seen.some((s) => s.v.revealOutsideHand),
+    wsMax: Math.max(0, ...seen.map((s) => s.v.ws)),
+    stranded: seen.some((s) => s.v.stranded),
+  };
+}
 
 /** RT → the wheel's centre (the hand) → the card focused. */
 async function focusInHand(page: Page): Promise<void> {
@@ -207,8 +237,8 @@ test.describe(`P85 Summit Logistics · a political requirement, a two-term count
     for (let i = 0; i < 2 && (await usedOf(page, 'steel') < 2 || await usedOf(page, 'titanium') < 1); i++) {
       await press(page, 'Period', 500); // RT — fill the alternative sources
     }
-    expect(await usedOf(page, 'steel'), 'steel: both').toBe(2);
-    expect(await usedOf(page, 'titanium'), 'titanium: the one').toBe(1);
+    await expect.poll(() => usedOf(page, 'steel'), {message: 'steel: both'}).toBe(2);
+    await expect.poll(() => usedOf(page, 'titanium'), {message: 'titanium: the one'}).toBe(1);
     expect(posts.length, 'nothing sent before A').toBe(0);
     await shoot(page, 'b-composer');
 
@@ -234,7 +264,7 @@ test.describe(`P85 Summit Logistics · a political requirement, a two-term count
 
     const probe = await readProbe(page);
     test.info().annotations.push({type: 'probe', description: JSON.stringify({steps: probe.steps, wsMax: probe.wsMax})});
-    expect(probe.ticks, 'the probe sampled').toBeGreaterThan(10);
+    expect(probe.samples, 'the probe recorded').toBeGreaterThan(0);
     expect(probe.crumbMisses, 'the crumb keeps its root and the card on every sample').toEqual([]);
     expect(probe.steps[probe.steps.length - 1], 'the last stage: the draw').toMatch(/добор карт/i);
     expect(probe.revealInHand, 'the draw stands inside the hand').toBe(true);

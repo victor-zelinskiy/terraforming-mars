@@ -5,6 +5,7 @@ import {
   bootFixture, createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, playCardFromHand, playQueueCard, press, settle,
   soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P44 ATMOSPHERIC ENHANCERS — the prelude's «ВАРИАНТ» step on its TWO hosts (docs/claude/prompts/prelude2-p44-…, ledger EQ).
@@ -66,24 +67,23 @@ function watchPosts(page: Page): Array<string> {
   return posts;
 }
 
-/** The live effect decision must never stand (the choice was made before the press); the reveal's rule is sampled. */
+/**
+ * The live effect decision must never stand (the choice was made before the press); the reveal's rule is witnessed.
+ * RECORDED off the product's own writes from before the press (FLAKE ZERO — `armWitness`): the reader returns what
+ * stands NOW, «did it ever stand» is folded on the Node side — never a tally of sampler ticks.
+ */
+const PROBE = 'p44-probe';
+type ProbeRead = {decision: boolean, floaterRule: boolean};
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const p = {decision: 0, floaterRule: 0};
-    (window as unknown as {__p44: typeof p}).__p44 = p;
-    const sample = () => {
-      if (document.querySelector('.con-decision') !== null) {
-        p.decision++;
-      }
-      if (document.querySelector('[data-draw-search="floaterIcon"]') !== null) {
-        p.floaterRule++;
-      }
-    };
-    new MutationObserver(() => sample()).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-    window.setInterval(sample, 50);
-  });
+  await armWitness<ProbeRead>(page, PROBE, () => ({
+    decision: document.querySelector('.con-decision') !== null,
+    floaterRule: document.querySelector('[data-draw-search="floaterIcon"]') !== null,
+  }));
 }
-const probe = (page: Page) => page.evaluate(() => (window as unknown as {__p44: {decision: number, floaterRule: number}}).__p44);
+const probe = async (page: Page) => {
+  const w = witnessOf<ProbeRead>(page, PROBE);
+  return {decision: await w.ever((v) => v.decision), floaterRule: await w.ever((v) => v.floaterRule)};
+};
 
 /** Walk the step's column to `row` (0-based) — the cursor starts on the first takeable row. */
 async function toRow(page: Page, host: string, row: number): Promise<void> {
@@ -161,8 +161,8 @@ test.describe(`P44 Atmospheric Enhancers · the «ВАРИАНТ» step · ${PRE
     await shoot(page, 'A-after');
     expect(onTable(await wireOf(request, id), CARD), 'P44 on the table').toBe(true);
     const p = await probe(page);
-    expect(p.decision, 'no live effect decision ever stood').toBe(0);
-    expect(p.floaterRule, 'the floater search named its rule').toBeGreaterThan(0);
+    expect(p.decision, 'no live effect decision ever stood').toBe(false);
+    expect(p.floaterRule, 'the floater search named its rule').toBe(true);
   });
 
   test('E: WG Project\'s «ВЫБОР ПРОЛОГА» — RT opens the same step beside P44, B back, the Venus row plays in ONE POST', async ({page, request}) => {
@@ -199,7 +199,7 @@ test.describe(`P44 Atmospheric Enhancers · the «ВАРИАНТ» step · ${PRE
     await settle(page, {timeoutMs: 60_000});
     await stop();
     await shoot(page, 'E-after');
-    expect((await probe(page)).decision, 'no live effect decision ever stood').toBe(0);
+    expect((await probe(page)).decision, 'no live effect decision ever stood').toBe(false);
   });
 
   test('E′: the temperature at its maximum — the row is offered and says so', async ({page, request}) => {

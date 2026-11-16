@@ -6,6 +6,7 @@ import {
   playCardFromHand, playQueueCard, press, reloadConsole, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferWitness} from './transferWitness';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * P58 PROJECT EDEN — «Place 1 ocean tile, 1 city tile, and 1 greenery tile. Discard 3 cards.» (Prelude 2,
@@ -26,7 +27,7 @@ import {armTransferWitness, endsOverGlass, transferWitness} from './transferWitn
  *   (E) two cards in hand at the start: the queue reads the shortfall BEFORE the press («Сначала карты» / the risk).
  *
  * The rules: `tests/cards/prelude2/ProjectEden.spec.ts`; the readings: `tests/console/placementOrderStep.spec.ts`.
- * TIMING class (`timingSpecs.ts`): the order claims are sampled from BEFORE the press (MutationObserver + setInterval).
+ * TIMING class (`timingSpecs.ts`): the order claims are RECORDED from BEFORE the press (`armWitness`).
  * Storyboard: `TM_E2E_STORYBOARD=1` → `screenshots/p58/tv4k/story-*`.
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -74,81 +75,112 @@ async function storyboard(page: Page, name: string): Promise<() => Promise<void>
 }
 
 type Probe = {
-  samples: number, ticks: number,
-  /** Frames a mandatory plate stood (the step is never announced). */
+  /** The recorded states (distinct — a state, never a frame count). */
+  samples: number,
+  /** Recorded states in which a mandatory plate stood painted (the step is never announced). */
   plates: number,
-  /** Frames the task host's band PAINTED while the server asked the order (never: the start hosts it). */
+  /** Recorded states in which the task host's band PAINTED the order (never: the start hosts it). */
   hostBands: number,
-  /** Frames the order step stood OUTSIDE the start's body. */
+  /** Recorded states in which the order step stood OUTSIDE the start's body. */
   stepOutside: number,
   /** Times the ceremony body was removed from the DOM (a v-if swap of the host body is a blink). */
   bodyRemoved: number,
   /** Mounts of the order step's zone. */
   stepMounts: number,
   crumbs: Array<string>,
-  /** performance.now() when the step zone with index k first painted. */
+  /** The page's clock (`pageNow`) when the step zone with index k first painted. */
   stepPainted: Record<string, number>,
 };
 
-/** From the press on: plates, host bands, the step zone, the body's life, the crumbs. */
+/** One recorded state — an OBSERVATION; the probe is folded from them on the Node side. */
+type ProbeSeen = {
+  plate: boolean,
+  hostBand: boolean,
+  stepOutside: boolean,
+  /** The index of the order step painted in the start's body (null: none). */
+  step: string | null,
+  /** The identities of the order step zones standing (a re-mount is a new identity). */
+  stepIds: Array<number>,
+  /** The ceremony bodies removed from the DOM so far — the body ITSELF taken out (a `v-if` swap), never a body that
+   *  left with an ancestor. A fact of the product's DOM, read off the body the reader last saw. */
+  bodyRemoved: number,
+  crumbs: Array<string>,
+};
+
+const PROBE_WITNESS = 'p58:probe';
+
+/**
+ * From the press on — RECORDED (FLAKE ZERO — `armWitness`, replace-proof): plates, host bands, the step zone, the body's
+ * life, the crumbs. `settled`: «never a plate», «never outside the start» are claims about what a frame can paint —
+ * each state is the one a task leaves.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__p58: Probe};
-    const p: Probe = {samples: 0, ticks: 0, plates: 0, hostBands: 0, stepOutside: 0, bodyRemoved: 0, stepMounts: 0, crumbs: [], stepPainted: {}};
-    w.__p58 = p;
+  await armWitness<ProbeSeen>(page, PROBE_WITNESS, () => {
+    const w = window as unknown as {__p58Ids?: WeakMap<Element, number>, __p58Next?: number, __p58Body?: Element | null, __p58Removed?: number};
+    const ids = w.__p58Ids ?? new WeakMap<Element, number>();
+    w.__p58Ids = ids;
     const painted = (el: Element | null) => el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
+    // The body: a node taken out ITSELF has no parent left; one that left inside its ancestor keeps it.
+    const body = document.querySelector('.con-start__ceremony');
+    const last = w.__p58Body ?? null;
+    if (last !== null && !last.isConnected) {
+      if (last.parentNode === null) {
+        w.__p58Removed = (w.__p58Removed ?? 0) + 1;
       }
-      if (painted(document.querySelector('.con-mandatory'))) {
-        p.plates++;
-      }
-      for (const host of document.querySelectorAll('.con-task-host')) {
-        if (painted(host) && host.querySelector('[data-prelude-variant-kind="placement-order"]') !== null) {
-          p.hostBands++;
+      w.__p58Body = null;
+    }
+    if (body !== null) {
+      w.__p58Body = body;
+    }
+    const zone = document.querySelector('.con-start__ceremony [data-start-order-step]');
+    return {
+      plate: painted(document.querySelector('.con-mandatory')),
+      hostBand: Array.from(document.querySelectorAll('.con-task-host'))
+        .some((host) => painted(host) && host.querySelector('[data-prelude-variant-kind="placement-order"]') !== null),
+      stepOutside: Array.from(document.querySelectorAll('[data-prelude-variant-kind="placement-order"]'))
+        .some((step) => step.closest('.con-start__ceremony') === null && painted(step)),
+      step: zone !== null && painted(zone) ? zone.getAttribute('data-start-order-index') ?? '?' : null,
+      stepIds: Array.from(document.querySelectorAll('[data-start-order-step]')).map((el) => {
+        let id = ids.get(el);
+        if (id === undefined) {
+          id = (w.__p58Next ?? 0) + 1;
+          w.__p58Next = id;
+          ids.set(el, id);
         }
-      }
-      for (const step of document.querySelectorAll('[data-prelude-variant-kind="placement-order"]')) {
-        if (step.closest('.con-start__ceremony') === null && painted(step)) {
-          p.stepOutside++;
-        }
-      }
-      const zone = document.querySelector('.con-start__ceremony [data-start-order-step]');
-      if (zone !== null && painted(zone)) {
-        const k = zone.getAttribute('data-start-order-index') ?? '?';
-        if (p.stepPainted[k] === undefined) {
-          p.stepPainted[k] = performance.now();
-        }
-      }
-      document.querySelectorAll('.con-wshead').forEach((el) => {
-        const crumb = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
-        if (crumb !== '' && !p.crumbs.includes(crumb)) {
-          p.crumbs.push(crumb);
-        }
-      });
+        return id;
+      }),
+      bodyRemoved: w.__p58Removed ?? 0,
+      crumbs: Array.from(document.querySelectorAll('.con-wshead'))
+        .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim())
+        .filter((crumb) => crumb !== ''),
     };
-    new MutationObserver((records) => {
-      for (const r of records) {
-        r.removedNodes.forEach((n) => {
-          if (n instanceof HTMLElement && n.classList.contains('con-start__ceremony')) {
-            p.bodyRemoved++;
-          }
-        });
-        r.addedNodes.forEach((n) => {
-          if (n instanceof HTMLElement && n.hasAttribute('data-start-order-step')) {
-            p.stepMounts++;
-          }
-        });
-      }
-      sample(false);
-    }).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  });
+  }, {settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p58: Probe}).__p58);
-const now = (page: Page): Promise<number> => page.evaluate(() => performance.now());
+
+/** The probe folded from the recording so far. */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<ProbeSeen>(page, PROBE_WITNESS).samples();
+  const p: Probe = {samples: samples.length, plates: 0, hostBands: 0, stepOutside: 0, bodyRemoved: 0, stepMounts: 0, crumbs: [], stepPainted: {}};
+  // What already stood at the arm was not ADDED after it.
+  let standing = new Set<number>(samples[0]?.v.stepIds ?? []);
+  for (const {t, v} of samples) {
+    p.plates += v.plate ? 1 : 0;
+    p.hostBands += v.hostBand ? 1 : 0;
+    p.stepOutside += v.stepOutside ? 1 : 0;
+    p.bodyRemoved = Math.max(p.bodyRemoved, v.bodyRemoved);
+    if (v.step !== null && p.stepPainted[v.step] === undefined) {
+      p.stepPainted[v.step] = t;
+    }
+    p.stepMounts += v.stepIds.filter((id) => !standing.has(id)).length;
+    standing = new Set(v.stepIds);
+    for (const crumb of v.crumbs) {
+      if (!p.crumbs.includes(crumb)) {
+        p.crumbs.push(crumb);
+      }
+    }
+  }
+  return p;
+}
 
 /**
  * A failure's DIAGNOSIS: the shell's own predicates for the pad, the bar and the hosts (read off the live instance —
@@ -337,7 +369,7 @@ test.describe('P58 — Project Eden: three placements in the player\'s order, th
     const oxygen = (await wireOf(request, id)).game.oxygenLevel;
     await expect.poll(() => page.locator('.con-start').isVisible(), {timeout: 20_000, message: 'the start steps aside'}).toBe(false);
     await shoot(page, 'A-03-board-greenery');
-    const placed1 = await now(page);
+    const placed1 = await pageNow(page);
     await placeOnBoard(page, request, id, 'the greenery');
     expect((await wireOf(request, id)).game.oxygenLevel, 'the greenery raised the oxygen').toBe(oxygen + 1);
 
@@ -358,13 +390,13 @@ test.describe('P58 — Project Eden: three placements in the player\'s order, th
     expect((await wireOf(request, id)).waitingFor?.placementOrderPrompt, 'no order step for the last tile').toBeUndefined();
     await expect(page.locator('.con-context'), 'the dossier names the source card').toContainText(/Проект Эдем/i, {timeout: 20_000});
     await shoot(page, 'A-05-board-ocean');
-    const placed3 = await now(page);
+    const placed3 = await pageNow(page);
     await placeOnBoard(page, request, id, 'the ocean');
 
     // 5 · the DISCARD — the start's step (P55's host).
     await expect.poll(async () => (await wireOf(request, id)).waitingFor?.discardPrompt !== undefined, {timeout: 30_000}).toBe(true);
     await page.locator('.con-start__handslot .con-hand').first().waitFor({timeout: 60_000});
-    const ret3 = (await now(page)) - placed3;
+    const ret3 = (await pageNow(page)) - placed3;
     await expect.poll(async () => (await crumbText(page)).toUpperCase(), {timeout: 20_000}).toMatch(/ПРОЕКТ ЭДЕМ.*СБРОС КАРТ/);
     await shoot(page, 'A-06-discard');
     await discardThree(page, request, id, '.con-start__handslot');
@@ -381,7 +413,8 @@ test.describe('P58 — Project Eden: three placements in the player\'s order, th
     console.log(`[p58-returns] order-2 ${Math.round(ret1)} ms after the greenery's press · discard ${Math.round(ret3)} ms after the ocean's press · probe ${JSON.stringify(probe)}`);
     test.info().annotations.push({type: 'p58-returns', description: `order-2 ${Math.round(ret1)} ms after the greenery's press · discard ${Math.round(ret3)} ms after the ocean's press`});
     test.info().annotations.push({type: 'probe', description: JSON.stringify(probe)});
-    expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(5);
+    // Only a dead recorder reads none (a state, never a frame count).
+    expect(probe.samples, `the probe's recorder ran (${probe.samples} samples)`).toBeGreaterThan(0);
     expect(probe.plates, 'no plate announced a step').toBe(0);
     expect(probe.hostBands, 'the task host never stood for the order').toBe(0);
     expect(probe.stepOutside, 'the order step never stood outside the start').toBe(0);

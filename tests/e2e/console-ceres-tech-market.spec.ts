@@ -2,9 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixture, cinematicBeat, crumbText, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, settle, waitForBoardHome, walkFocusUntil,
+  bootFixture, cinematicBeat, crumbText, fetchPlayerModel, focusCard, openActionFocus, openCardActions, press, pressUntil, settle, waitForBoardHome,
+  walkFocusUntil,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * P68 «ТЕХНОРЫНОК ЦЕРЕРЫ» — THE FIRST PRELUDE 2 CARD WITH AN ACTION, and the witness of three classes that had none for
@@ -81,10 +83,11 @@ function watchPosts(page: Page): Array<string> {
 }
 
 type Probe = {
-  ticks: number,
+  /** The distinct states the record kept (its own liveness only). */
+  samples: number,
   /** The rail's M€ digits, each change with its time since the arm. */
   mc: Array<{t: number, v: string}>,
-  /** The discard scene: first seen / last seen, and the most proxies standing at once. */
+  /** The discard scene: first seen / its leave, and the most proxies standing at once. */
   discardFrom: number,
   discardTo: number,
   proxiesMax: number,
@@ -93,51 +96,65 @@ type Probe = {
   stranded: boolean,
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/**
+ * The action's story from before its press — RECORDED off the product's own writes (FLAKE ZERO, `armWitness`): the
+ * reader returns what stands NOW (the M€ digits, the discard scene and its proxies, the crumb, the stranded guard);
+ * the story is folded on the Node side (`readProbe`), the times on the page's clock. `settled`: «the most proxies
+ * standing at once» is a coexistence claim — what a task leaves, never a state between two of its writes.
+ */
+const PROBE = 'p68-probe';
+type ProbeRead = {mc: string, discard: boolean, proxies: number, crumb: string, stranded: boolean};
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const p: Probe = {ticks: 0, mc: [], discardFrom: -1, discardTo: -1, proxiesMax: 0, crumbs: [], stranded: false};
-    (window as unknown as {__p68: Probe}).__p68 = p;
-    const t0 = Date.now();
+  await armWitness<ProbeRead>(page, PROBE, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      if (tick) {
-        p.ticks++;
-      }
-      const t = Date.now() - t0;
+    const discard = document.querySelector('.con-discard') !== null;
+    return {
       // The counter's own digits (the delta chip «+2» rides inside the value box — read only the leading number).
-      const mc = /^\d+/.exec(text(document.querySelector('.con-res__row--megacredits .con-res__value')))?.[0] ?? '';
-      if (p.mc.length === 0 || p.mc[p.mc.length - 1].v !== mc) {
-        p.mc.push({t, v: mc});
-      }
-      if (document.querySelector('.con-discard') !== null) {
-        p.discardFrom = p.discardFrom < 0 ? t : p.discardFrom;
-        p.discardTo = t;
-        p.proxiesMax = Math.max(p.proxiesMax, document.querySelectorAll('.con-discard-proxy').length);
-      }
-      const head = document.querySelector('.con-cardactions .con-wshead');
-      if (head !== null) {
-        const crumb = text(head);
-        if (crumb !== '' && !p.crumbs.includes(crumb) && p.crumbs.length < 12) {
-          p.crumbs.push(crumb);
-        }
-      }
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
+      mc: /^\d+/.exec(text(document.querySelector('.con-res__row--megacredits .con-res__value')))?.[0] ?? '',
+      discard,
+      proxies: discard ? document.querySelectorAll('.con-discard-proxy').length : 0,
+      crumb: text(document.querySelector('.con-cardactions .con-wshead')),
+      stranded: document.querySelector('.con-stranded') !== null,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample(true), 30);
-  });
+  }, {settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p68: Probe}).__p68);
+
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<ProbeRead>(page, PROBE).stop();
+  const t0 = samples[0]?.t ?? 0;
+  const mc: Array<{t: number, v: string}> = [];
+  const crumbs: Array<string> = [];
+  for (const s of samples) {
+    if (mc.length === 0 || mc[mc.length - 1].v !== s.v.mc) {
+      mc.push({t: s.t - t0, v: s.v.mc});
+    }
+    if (s.v.crumb !== '' && !crumbs.includes(s.v.crumb) && crumbs.length < 12) {
+      crumbs.push(s.v.crumb);
+    }
+  }
+  const first = samples.findIndex((s) => s.v.discard);
+  const last = samples.map((s) => s.v.discard).lastIndexOf(true);
+  // The scene's END is the moment it LEFT (the first state without it after the last one with it) — still standing
+  // at the read, the read's own moment.
+  const leftAt = last < 0 ? -1 : (samples.slice(last + 1).find((s) => !s.v.discard)?.t ?? await pageNow(page));
+  return {
+    samples: samples.length,
+    mc,
+    discardFrom: first < 0 ? -1 : samples[first].t - t0,
+    discardTo: last < 0 ? -1 : leftAt - t0,
+    proxiesMax: Math.max(0, ...samples.map((s) => s.v.proxies)),
+    crumbs,
+    stranded: samples.some((s) => s.v.stranded),
+  };
+}
 
 /** RT → the wheel's centre (the hand) → the card focused. */
 async function focusInHand(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).count() === 0; i++) {
-    await press(page, 'Period', 600);
-    await press(page, 'Enter', 1600);
-  }
+  // The wheel, then the hand — each press verified by what it opens (a retry only after its whole window passed).
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 4, settleMs: 600});
+  await pressUntil(page, 'Enter', handUp, {tries: 4, settleMs: 1600});
+  await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 15_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
@@ -180,10 +197,9 @@ test.describe(`P68 Ceres Tech Market · the counted play, the discard action, th
     await expect(why, 'the colonies: 2').toHaveAttribute('data-count-why-total', '2');
     await expect(why.locator('[data-count-glyph]'), 'the colony glyph').toHaveCount(1);
     await expect(why.locator('[data-count-result]'), 'the result').toContainText('+4');
-    for (let i = 0; i < 3 && await usedOf(page, 'titanium') < 2; i++) {
-      await press(page, 'Period', 500); // RT — fill the titanium
-    }
-    expect(await usedOf(page, 'titanium'), 'titanium: both').toBe(2);
+    // RT — fill the titanium; each press verified by the row it fills (a retry only after its whole window).
+    await pressUntil(page, 'Period', async () => await usedOf(page, 'titanium') >= 2, {tries: 3, settleMs: 500});
+    await expect.poll(() => usedOf(page, 'titanium'), {message: 'titanium: both'}).toBe(2);
     const forecast = await page.evaluate((s) => (document.querySelector(`${s} [data-forecast-row]`)?.textContent ?? '').replace(/\s+/g, ' ').trim(), PLAY);
     test.info().annotations.push({type: 'forecast', description: forecast});
     // Olympus Conference answers the Science tag: an OWN chip «+1» (its science onto the card — no question asked).
@@ -217,14 +233,11 @@ test.describe(`P68 Ceres Tech Market · the counted play, the discard action, th
     await openActionFocus(page);
     await settle(page);
     // The discard row: the cursor on it, A opens the album in the discard skin.
-    for (let i = 0; i < 6 && !/карт/i.test(await rowText(page, STAGE)); i++) {
-      await press(page, 'ArrowUp', 300);
-    }
-    expect(await rowText(page, STAGE), 'the cursor stands on the discard row').toMatch(/карт/i);
+    await pressUntil(page, 'ArrowUp', async () => /карт/i.test(await rowText(page, STAGE)), {tries: 6, settleMs: 300});
+    await expect.poll(() => rowText(page, STAGE), {message: 'the cursor stands on the discard row'}).toMatch(/карт/i);
     await shoot(page, 'c-stage');
-    for (let i = 0; i < 3 && await page.locator(ALBUM).count() === 0; i++) {
-      await press(page, 'Enter', 1200);
-    }
+    // A, verified by the album itself — a retry only after the whole window passed without one.
+    await pressUntil(page, 'Enter', async () => await page.locator(ALBUM).count() > 0, {tries: 3, settleMs: 1200});
     await expect(page.locator(ALBUM), 'the hand album opens in the discard skin').toBeVisible({timeout: 15_000});
     await settle(page);
     test.info().annotations.push({type: 'album-crumb', description: await crumbText(page)});
@@ -245,9 +258,7 @@ test.describe(`P68 Ceres Tech Market · the counted play, the discard action, th
     await shoot(page, 'e-answered');
 
     // A → ONE POST; the scene; the wave.
-    for (let i = 0; i < 6 && await page.locator(`${STAGE} .con-composer__cta--focused`).count() === 0; i++) {
-      await press(page, 'ArrowDown', 300);
-    }
+    await pressUntil(page, 'ArrowDown', async () => await page.locator(`${STAGE} .con-composer__cta--focused`).count() > 0, {tries: 6, settleMs: 300});
     await armProbe(page);
     await armTransferWitness(page);
     const stopAction = await storyboard(page, 'action');
@@ -277,7 +288,8 @@ test.describe(`P68 Ceres Tech Market · the counted play, the discard action, th
     // The run's own record, printed before any verdict — a red names what it saw.
     console.log('[p68] probe', JSON.stringify(probe));
     console.log(`[p68] trail\n${transferTrail(witness)}`);
-    expect(probe.ticks, 'the probe sampled').toBeGreaterThan(10);
+    // The record's own liveness only (a dead recorder records nothing); the claims below judge the story themselves.
+    expect(probe.samples, 'the probe sampled').toBeGreaterThan(0);
     expect(probe.stranded, 'nothing stranded').toBe(false);
     expect(probe.discardFrom, 'the discard scene played').toBeGreaterThanOrEqual(0);
     expect(probe.proxiesMax, 'the two cards left the hand as a packet').toBe(2);

@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, cinematicBeat, fetchPlayerModel, openCardActions, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
 import type {FixtureName} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE UNITY FREE TRADE WITH AN OWNED REDUX VENUS — the owner's field freeze of 2026-10-31 (game gce2206994265: «при
@@ -43,10 +44,13 @@ async function focusTile(page: Page, target: string): Promise<void> {
   await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
 }
 
-/** Geometry-steered walk of the action centre to ONE tile (the field's table has fifteen cards). */
+/**
+ * Geometry-steered walk of the action centre to ONE tile (the field's table has fifteen cards). Each step's direction
+ * is read off the two tiles AT REST (`readSettled` — no `settle` first: the menu stands for the player's choice).
+ */
 async function focusActionTile(page: Page, selector: string, focused: () => Promise<string>, want: string): Promise<void> {
   for (let i = 0; i < 40 && await focused() !== want; i++) {
-    const dir = await page.evaluate((sel) => {
+    const dir = await readSettled(page, () => page.evaluate((sel) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(sel)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -58,7 +62,7 @@ async function focusActionTile(page: Page, selector: string, focused: () => Prom
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, selector);
+    }, selector), {settle: false, message: `the step towards ${want}`});
     await press(page, dir, 260);
   }
   if (await focused() !== want) {
@@ -121,7 +125,8 @@ for (const fixture of TABLES) {
     await shoot(page, `${fixture}-02-taken`);
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-hand').count() > 0, {tries: 6, settleMs: 1200}),
       'A opens the discard INSIDE the colonies (the hand hosted in the workspace)').toBeTruthy();
-    expect((await sceneOf(page)).frames.join(';'), 'the hand stands as a step of the hosted colonies').toContain('colonies-hand');
+    await expect.poll(async () => (await sceneOf(page)).frames.join(';'), {message: 'the hand stands as a step of the hosted colonies'})
+      .toContain('colonies-hand');
     await shoot(page, `${fixture}-03-discard`);
     expect(await pressUntil(page, 'Enter', async () => ((await fetchPlayerModel(request, playerId)) as unknown as {waitingFor?: {type?: string}}).waitingFor?.type !== 'card',
       {tries: 6, settleMs: 1500}), 'A discards the focused card — the server moves past the discard').toBeTruthy();

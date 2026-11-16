@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, crumbText, fetchPlayerModel, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {openParliament} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE ACCESS SCENE (the owner, 2026-10-25: «момент, когда игрок располагает второго делегата в партию и получает её
@@ -16,35 +17,32 @@ import {openParliament} from './parliamentDrive';
  *   ③ the party's SEAL flies (a `seal` proxy) from the delegate into that place;
  *   ④ the tile is won (`won`), the zone's head says «Эффект партии получен», the crumb's tail names the stage;
  *   ⑤ the flow leaves by itself — and the feed tells the gain NOWHERE (the hall told it: no party-effect card).
- * The order is a claim about time, so a MutationObserver + setInterval probe samples it from BEFORE the press.
+ * The order is a claim about time, so the probe is RECORDED from BEFORE the press (FLAKE ZERO — `armWitness`,
+ * `settled`: an order is a claim about what a frame can paint).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT_ROOT = path.resolve('screenshots', 'parliament-access-scene', PRESET.id);
 
-type Sample = {t: number, arriving: boolean, won: boolean, seal: boolean, kicker: boolean, crumb: string, notif: boolean};
+type Seen = {arriving: boolean, won: boolean, seal: boolean, kicker: boolean, crumb: string, notif: boolean};
+type Sample = Seen & {t: number};
+const ACCESS_WITNESS = 'parliament-access';
 
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__accessProbe: {samples: Array<unknown>, t0: number}};
-    w.__accessProbe = {samples: [], t0: performance.now()};
-    const sample = () => {
-      w.__accessProbe.samples.push({
-        t: performance.now() - w.__accessProbe.t0,
-        arriving: document.querySelector('[data-parl-effects-arrival="arriving"][data-party="Mars First"]') !== null,
-        won: document.querySelector('[data-parl-effects-arrival="won"][data-party="Mars First"]') !== null,
-        seal: document.querySelector('[data-parl-flight-body="seal"]') !== null,
-        kicker: document.querySelector('[data-parl-effects-won]') !== null,
-        crumb: (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        notif: document.querySelector('.con-notif.notification-card--variant-party-effect') !== null,
-      });
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 40);
-  });
+  await armWitness<Seen>(page, ACCESS_WITNESS, () => ({
+    arriving: document.querySelector('[data-parl-effects-arrival="arriving"][data-party="Mars First"]') !== null,
+    won: document.querySelector('[data-parl-effects-arrival="won"][data-party="Mars First"]') !== null,
+    seal: document.querySelector('[data-parl-flight-body="seal"]') !== null,
+    kicker: document.querySelector('[data-parl-effects-won]') !== null,
+    crumb: (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    notif: document.querySelector('.con-notif.notification-card--variant-party-effect') !== null,
+  }), {settled: true});
 }
 
+/** The recording, timed in ms since the arm (its first sample — the page's clock). */
 async function readProbe(page: Page): Promise<Array<Sample>> {
-  return page.evaluate(() => (window as unknown as {__accessProbe: {samples: Array<Sample>}}).__accessProbe.samples);
+  const samples = await witnessOf<Seen>(page, ACCESS_WITNESS).stop();
+  const t0 = samples[0]?.t ?? 0;
+  return samples.map((s) => ({...s.v, t: s.t - t0}));
 }
 
 test.describe('parliament · the access scene', () => {

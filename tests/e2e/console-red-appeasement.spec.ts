@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
+import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, press, pressUntil, settle} from './consoleStart';
 import {passAs} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow, Witness} from './witness';
 
 /**
  * P80 «УМИРОТВОРЕНИЕ КРАСНЫХ» — THE FIRST CARD WHOSE PLAY IS A PASS, and the witness of the class «a play that passes
@@ -90,24 +92,27 @@ async function focusInHand(page: Page): Promise<void> {
 }
 
 type HandoffProbe = {prodAt: number | undefined, sceneAt: number | undefined, t0: number};
+type HandoffSeen = {prod: boolean, scene: boolean};
 
-/** When the rail's M€ production first reads `expected`, and when a screen-taking scene first stands (the sitting / the draft). */
-async function armHandoffProbe(page: Page, expected: string): Promise<void> {
-  await page.evaluate(({sel, want}) => {
-    const p: HandoffProbe = {prodAt: undefined, sceneAt: undefined, t0: Date.now()};
-    (window as unknown as {__p80: HandoffProbe}).__p80 = p;
-    const sample = () => {
-      const prod = (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, '');
-      if (p.prodAt === undefined && prod.includes(want)) {
-        p.prodAt = Date.now() - p.t0;
-      }
-      if (p.sceneAt === undefined && document.querySelector('.con-parl, .con-draftws') !== null) {
-        p.sceneAt = Date.now() - p.t0;
-      }
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(sample, 30);
-  }, {sel: MC_PROD, want: expected});
+/**
+ * Does the rail's M€ production read `expected`, and does a screen-taking scene stand (the sitting / the draft) —
+ * RECORDED from before the other seat's pass (FLAKE ZERO — `armWitness`, replace-proof). An ORDER claim («the rail read
+ * it before a scene took the screen»), so the record is `settled`: the state a task leaves, the one a frame paints.
+ */
+async function armHandoffProbe(page: Page, expected: string): Promise<Witness<HandoffSeen>> {
+  return await armWitness<HandoffSeen, {sel: string, want: string}>(page, 'p80-handoff', ({sel, want}) => ({
+    prod: (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, '').includes(want),
+    scene: document.querySelector('.con-parl, .con-draftws') !== null,
+  }), {args: {sel: MC_PROD, want: expected}, settled: true});
+}
+/** The record folded: when each first held (ms on the PAGE's clock, from `t0` — a reading taken at the arm). */
+async function readHandoffProbe(w: Witness<HandoffSeen>, t0: number): Promise<HandoffProbe> {
+  const samples = await w.stop();
+  const at = (pick: (v: HandoffSeen) => boolean) => {
+    const hit = samples.find((s) => pick(s.v));
+    return hit === undefined ? undefined : hit.t - t0;
+  };
+  return {prodAt: at((v) => v.prod), sceneAt: at((v) => v.scene), t0};
 }
 
 test.describe(`P80 Red Appeasement · a play that IS a pass · ${PRESET.id}`, () => {
@@ -168,12 +173,13 @@ test.describe(`P80 Red Appeasement · a play that IS a pass · ${PRESET.id}`, ()
     expect(posts.length, 'nothing sent before A').toBe(0);
     test.info().annotations.push({type: 'pass-row', description: (await pass.innerText()).replace(/\s+/g, ' ')});
     // THE PLATE'S FOOTNOTE on the hero: docked to the party's emblem — beside it, never across the plate.
-    const footnote = await page.evaluate((root) => {
+    // Measured at REST (class C — `readSettled`: the same answer twice, a frame apart).
+    const footnote = await readSettled(page, () => page.evaluate((root) => {
       const spark = document.querySelector(`${root} [data-req-footnote]`)?.getBoundingClientRect();
       const socket = document.querySelector(`${root} .pcard-req__socket`)?.getBoundingClientRect();
       return spark === undefined || socket === undefined ? undefined :
         {gap: Math.round(spark.left - socket.right), w: Math.round(spark.width), top: Math.round(spark.top - socket.top)};
-    }, COMPOSER);
+    }, COMPOSER), {message: 'the plate\'s footnote on the hero'});
     test.info().annotations.push({type: 'footnote', description: JSON.stringify(footnote)});
     fs.mkdirSync(path.join(OUT, PRESET.id), {recursive: true});
     await page.locator(`${COMPOSER} .pcard__reqs`).first().screenshot({path: path.join(OUT, PRESET.id, 'b-plate.png')});
@@ -184,10 +190,8 @@ test.describe(`P80 Red Appeasement · a play that IS a pass · ${PRESET.id}`, ()
 
     // ── A: ONE POST, the truth at once ──
     const stopStory = await storyboard(page, 'play');
-    for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-      await press(page, 'Enter', 300);
-      await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
-    }
+    // A → its effect (the POST) → a retry only without one (`pressUntil`).
+    await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 3_000});
     expect(posts.length, 'the play is ONE POST').toBe(1);
     expect(posts[0], 'the POST is the card\'s play').toContain(CARD);
     await expect(page.locator('.con-status__player--me.con-status__player--passed'), 'the viewer\'s seat chip reads PASSED').toHaveCount(1, {timeout: 15_000});
@@ -201,9 +205,7 @@ test.describe(`P80 Red Appeasement · a play that IS a pass · ${PRESET.id}`, ()
 
     // ── the off-turn reason: «you have passed», never «not your turn» ──
     // LT — the BASIC actions wheel: every slot a seat that passed cannot take names why.
-    for (let i = 0; i < 4 && await page.locator('.con-quick').count() === 0; i++) {
-      await press(page, 'Comma', 700);
-    }
+    await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {tries: 4, settleMs: 700});
     await expect(page.locator('.con-quick'), 'the LT wheel opened').toHaveCount(1, {timeout: 10_000});
     const reasons = page.locator('.con-quick__slot-reason');
     await expect(reasons.filter({hasText: 'Вы спасовали в этом поколении'}).first(), 'the wheel says the viewer passed').toBeVisible({timeout: 10_000});
@@ -216,7 +218,8 @@ test.describe(`P80 Red Appeasement · a play that IS a pass · ${PRESET.id}`, ()
     const after = await wireOf(request, playerId);
     const mcBefore = after.thisPlayer.megacredits;
     const expectedProd = String(prodBefore + 2);
-    await armHandoffProbe(page, expectedProd);
+    const handoffT0 = await pageNow(page);
+    const handoff = await armHandoffProbe(page, expectedProd);
     const stopEnd = await storyboard(page, 'generation-end');
     await passAs(request, seats[1]);
     await expect.poll(async () => (await wireOf(request, playerId)).productionIncome?.income.megacredits, {timeout: 60_000}).toBeDefined();
@@ -224,7 +227,7 @@ test.describe(`P80 Red Appeasement · a play that IS a pass · ${PRESET.id}`, ()
     await cinematicBeat(page, 4000, 'the production scene and whatever takes the screen next');
     await stopEnd();
     await shoot(page, 'e-generation-end');
-    const probe = await page.evaluate(() => (window as unknown as {__p80: HandoffProbe}).__p80);
+    const probe = await readHandoffProbe(handoff, handoffT0);
     test.info().annotations.push({type: 'handoff', description: JSON.stringify({probe, mc: [mcBefore, paid.thisPlayer.megacredits], income: paid.productionIncome})});
     expect(paid.productionIncome?.income.megacredits, 'the server\'s production record: the M€ production paid, the +2 included').toBe(prodBefore + 2);
     if (probe.sceneAt !== undefined) {

@@ -2,6 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, settle} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 import {
   armLeakWitness, enterSittingByPass, expectParliamentFits, inspectWinningBill, parliament, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
@@ -62,10 +63,12 @@ type Wire = {
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
 /**
- * THE PROBE — a task clock (`setInterval` + `MutationObserver`, never rAF), armed BEFORE the gate is answered. Every
- * sample reads: the sitting's presence, the hosted grid's VISIBILITY (laid out, no hidden ancestor), each tile's
- * PRESENTED marker cell, how many marker proxies are in the air and whether the grid is visible under them, the rail's
- * M€ digits, the crumb, the walk's page and the band's colony-table chip.
+ * THE PROBE — RECORDED (FLAKE ZERO: `armWitness`, armed BEFORE the gate is answered; a value is kept only when it
+ * changes, stamped with the PAGE's clock). `settled`: the claims are about what a frame PAINTS together — a marker held
+ * while the grid stands, the bar empty while a proxy flies, the legs' order — never a state between two writes of one
+ * task. Every sample reads: the sitting's presence, the hosted grid's VISIBILITY (laid out, no hidden ancestor), each
+ * tile's PRESENTED marker cell, how many marker proxies are in the air and whether the grid is visible under them, the
+ * rail's M€ digits, the crumb, the walk's page and the band's colony-table chip.
  */
 type Sample = {
   t: number;
@@ -92,11 +95,11 @@ type Sample = {
   hero: string;
 };
 type Probe = {samples: Array<Sample>};
+type Seen = Omit<Sample, 't'>;
+const PROBE = 'unity-probe';
 
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({grid, tiles}) => {
-    const w = window as unknown as {__unityProbe: Probe};
-    w.__unityProbe = {samples: []};
+  await armWitness<Seen, {grid: string, tiles: ReadonlyArray<string>}>(page, PROBE, ({grid, tiles}) => {
     const visible = (el: Element | null): boolean => {
       if (el === null) {
         return false;
@@ -113,45 +116,39 @@ async function armProbe(page: Page): Promise<void> {
       }
       return true;
     };
-    const sample = () => {
-      const gridEl = document.querySelector<HTMLElement>(grid);
-      const marker: Record<string, number> = {};
-      for (const name of tiles) {
-        const cells = Array.from(document.querySelectorAll<HTMLElement>(`${grid} [data-test="con-colony-${name}"] .con-coltile__track-cell`));
-        marker[name] = cells.findIndex((cell) => cell.classList.contains('con-coltile__track-cell--marker'));
-      }
-      const heads = Array.from(document.querySelectorAll<HTMLElement>('.con-wshead')).filter((el) => el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
-      const head = heads[heads.length - 1];
-      w.__unityProbe.samples.push({
-        t: performance.now(),
-        parl: document.querySelector('.con-parl') !== null,
-        grid: visible(gridEl),
-        gridHead: gridEl !== null && gridEl.querySelector('.con-wshead') !== null,
-        gridMotionId: gridEl === null ? null : gridEl.getAttribute('data-motion-surface'),
-        tiles: gridEl === null ? 0 : gridEl.querySelectorAll('.con-coltile').length,
-        marker,
-        gliding: Array.from(document.querySelectorAll<HTMLElement>(`${grid} .con-coltile--marker-gliding`))
-          .map((el) => (el.getAttribute('data-test') ?? '').replace('con-colony-', '')),
-        swept: Array.from(document.querySelectorAll<HTMLElement>('.con-coltile__track-cell--sweep')).map((el) => el.getAttribute('data-colony-track-cell') ?? ''),
-        proxies: Array.from(document.querySelectorAll<HTMLElement>('.con-coltrade-marker')).filter((el) => visible(el)).length,
-        sweeps: document.querySelectorAll('.con-coltile__track-cell--sweep').length,
-        bar: document.querySelectorAll('.con-cmdbar__cmd').length,
-        mc: ((document.querySelector('.con-res__row--megacredits .con-res__digits')?.textContent?.trim() ?? '').match(/^-?\d+/) ?? [''])[0],
-        crumb: head === undefined ? '' : (head.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        page: document.querySelector('.con-parl')?.getAttribute('data-sitting-page') ?? '',
-        tracksChip: document.querySelector('[data-parl-band-chip="tracks"]') !== null,
-        hero: document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard')?.className ?? '',
-      });
-      if (w.__unityProbe.samples.length > 6000) {
-        w.__unityProbe.samples.splice(0, 3000);
-      }
+    const gridEl = document.querySelector<HTMLElement>(grid);
+    const marker: Record<string, number> = {};
+    for (const name of tiles) {
+      const cells = Array.from(document.querySelectorAll<HTMLElement>(`${grid} [data-test="con-colony-${name}"] .con-coltile__track-cell`));
+      marker[name] = cells.findIndex((cell) => cell.classList.contains('con-coltile__track-cell--marker'));
+    }
+    const heads = Array.from(document.querySelectorAll<HTMLElement>('.con-wshead')).filter((el) => el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
+    const head = heads[heads.length - 1];
+    return {
+      parl: document.querySelector('.con-parl') !== null,
+      grid: visible(gridEl),
+      gridHead: gridEl !== null && gridEl.querySelector('.con-wshead') !== null,
+      gridMotionId: gridEl === null ? null : gridEl.getAttribute('data-motion-surface'),
+      tiles: gridEl === null ? 0 : gridEl.querySelectorAll('.con-coltile').length,
+      marker,
+      gliding: Array.from(document.querySelectorAll<HTMLElement>(`${grid} .con-coltile--marker-gliding`))
+        .map((el) => (el.getAttribute('data-test') ?? '').replace('con-colony-', '')),
+      swept: Array.from(document.querySelectorAll<HTMLElement>('.con-coltile__track-cell[data-sweep]')).map((el) => el.getAttribute('data-colony-track-cell') ?? ''),
+      proxies: Array.from(document.querySelectorAll<HTMLElement>('.con-coltrade-marker')).filter((el) => visible(el)).length,
+      sweeps: document.querySelectorAll('.con-coltile__track-cell[data-sweep]').length,
+      bar: document.querySelectorAll('.con-cmdbar__cmd').length,
+      mc: ((document.querySelector('.con-res__row--megacredits .con-res__digits')?.textContent?.trim() ?? '').match(/^-?\d+/) ?? [''])[0],
+      crumb: head === undefined ? '' : (head.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      page: document.querySelector('.con-parl')?.getAttribute('data-sitting-page') ?? '',
+      tracksChip: document.querySelector('[data-parl-band-chip="tracks"]') !== null,
+      hero: document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard')?.className ?? '',
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-    window.setInterval(sample, 16);
-  }, {grid: GRID, tiles: TILES});
+  }, {args: {grid: GRID, tiles: TILES}, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__unityProbe: Probe}).__unityProbe);
+/** The record, each state stamped with the page's time it was painted (`t`). */
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Seen>(page, PROBE).samples()).map((s) => ({...s.v, t: s.t}))});
 
 /** The console's own facts about the wave (`e2eReadiness.ts`) — how the last one ended, for a failure that names itself. */
 const waveDiag = (page: Page): Promise<string> => page.evaluate(() => {
@@ -159,7 +156,7 @@ const waveDiag = (page: Page): Promise<string> => page.evaluate(() => {
   return JSON.stringify(fn?.()?.colonyTrackWave ?? null);
 });
 
-/** The first task-clock sample at or after which `pick` holds (undefined when none). */
+/** The first recorded state at or after which `pick` holds (undefined when none). */
 function firstWhere(samples: ReadonlyArray<Sample>, pick: (s: Sample) => boolean): Sample | undefined {
   return samples.find(pick);
 }
@@ -284,7 +281,8 @@ test.describe(`Unity Budget · ${PRESET.id}`, () => {
     // Ties are what a starved frame makes; an inversion would be a wave out of turn.
     expect(callistoStart!.t, `Callisto starts no earlier than Luna (${(callistoStart!.t - lunaStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThanOrEqual(lunaStart!.t);
     expect(ceresStart!.t, `Ceres starts no earlier than Callisto (${(ceresStart!.t - callistoStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThanOrEqual(callistoStart!.t);
-    expect(ceresStart!.t, `the wave is not one volley — Ceres's leg starts after Luna's (${(ceresStart!.t - lunaStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThan(lunaStart!.t);
+    // (judged on the RECORD's order — two painted states, never one — so a whole-millisecond page clock cannot tie them)
+    expect(inGrid.indexOf(ceresStart!), `the wave is not one volley — Ceres's leg starts after Luna's (${(ceresStart!.t - lunaStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThan(inGrid.indexOf(lunaStart!));
     // …and every marker lands AFTER its own leg started — the value moves only through the glide.
     expect(luna!.t).toBeGreaterThan(lunaStart!.t);
     expect(callisto!.t).toBeGreaterThan(callistoStart!.t);

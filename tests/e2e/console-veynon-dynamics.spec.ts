@@ -7,6 +7,7 @@ import {
 import {openColoniesSection} from './cardTradeDoor';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {acrossTargetPages} from './targetPages';
+import {readSettled} from './settledRead';
 
 /**
  * TR85 «VEYNON DYNAMICS» — the eighth and last new corporation of Turmoil Redux: Trade Envoys' «raise the track
@@ -217,7 +218,8 @@ test.describe(`console · TR85 Veynon Dynamics · ${PRESET.id}`, () => {
     await expect(page.locator('.con-ptsel'), 'the target step opened').toBeVisible();
     // A set the readable floor cannot hold whole is PAGED (ledger ET): every page is read, RB between them.
     await shoot(page, 'd-target-eight');
-    const readPage = () => page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell')).map((cell) => {
+    // Each page read at REST (C — `readSettled`: the same reading twice, a frame apart — never a page mid-turn).
+    const readPage = () => readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell')).map((cell) => {
       const c = cell.getBoundingClientRect();
       const out: Array<string> = [];
       for (let el = cell.parentElement; el !== null && !el.classList.contains('con-ws'); el = el.parentElement) {
@@ -230,7 +232,7 @@ test.describe(`console · TR85 Veynon Dynamics · ${PRESET.id}`, () => {
         }
       }
       return {self: cell.querySelector('[data-ptsel-self]') !== null, out};
-    }));
+    })), {message: 'the target cells of this page'});
     const cells = await acrossTargetPages(page, readPage);
     expect(cells.length, 'EIGHT mech holders across the pages').toBe(8);
     expect(cells.some((c) => c.self), 'Veynon among them').toBe(true);

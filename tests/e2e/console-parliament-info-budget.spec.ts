@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture} from './consoleStart';
 import {openParliament, PARLIAMENT_PRESETS, parliament} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /*
  * THE PARLIAMENT'S INFORMATION BUDGET — «Зал» v7, Ф0 (docs/TURMOIL_REDUX_PARLIAMENT_V7_PLAN.md § 0 / § 9.1).
@@ -165,7 +166,9 @@ for (const preset of PRESETS) {
       await bootFixture(page, request, fixture, {query: preset.query});
       await openParliament(page);
       await expect(parliament(page)).toHaveAttribute('data-zone', /voting|ruler|parties|government/);
-      const budget = await measure(page, fixture, preset.id);
+      // Counted AT REST (C — `readSettled`: the same budget twice, a frame apart, no finite motion running — an element
+      // mid-entrance reads invisible); the overview stands for the player, so no console-wide quiet first.
+      const budget = await readSettled(page, () => measure(page, fixture, preset.id), {settle: false, message: 'the overview\'s budget'});
       fs.mkdirSync(OUT_DIR, {recursive: true});
       fs.writeFileSync(path.join(OUT_DIR, `${fixture}-${preset.id}.json`), JSON.stringify(budget, null, 2));
       const line = Object.entries(budget.zones)

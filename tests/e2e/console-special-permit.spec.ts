@@ -4,6 +4,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, cinematicBeat, commitFocusedSpace, fetchPlayerModel, focusCard, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {armReactionWitness, describeReactionStory, reactionStory} from './reactionWitness';
+import {readSettled} from './settledRead';
 
 /**
  * P82 «СПЕЦИАЛЬНОЕ РАЗРЕШЕНИЕ» — the series' FIRST ATTACK and the stand of «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА»
@@ -81,10 +82,11 @@ function watchPosts(page: Page): Array<string> {
 
 /** RT → the wheel's centre (the hand) → the card focused. */
 async function focusInHand(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).count() === 0; i++) {
-    await press(page, 'Period', 600);
-    await press(page, 'Enter', 1600);
-  }
+  // The wheel, then the hand — each press verified by what it opens (a retry only after its whole window passed).
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 4, settleMs: 600});
+  await pressUntil(page, 'Enter', handUp, {tries: 4, settleMs: 1600});
+  await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 15_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
@@ -279,7 +281,8 @@ async function openStandardCity(page: Page): Promise<void> {
   await expect(page.locator('.con-stdp'), 'the standard projects stand').toBeVisible({timeout: 15_000});
   let hit = false;
   for (let i = 0; i < 16 && !hit; i++) {
-    const step = await page.evaluate(() => {
+    // The direction is read off the cards AT REST (`readSettled`): a box read mid-step points the cursor at a pose.
+    const step = await readSettled(page, () => page.evaluate(() => {
       const at = document.querySelector('.con-stdp__card--focused');
       const target = document.querySelector('.con-stdp__card[data-stdp-card="City"]');
       if (at === null || target === null) {
@@ -293,7 +296,7 @@ async function openStandardCity(page: Page): Promise<void> {
       const dx = (b.left + b.width / 2) - (a.left + a.width / 2);
       const dy = (b.top + b.height / 2) - (a.top + a.height / 2);
       return Math.abs(dy) > a.height / 2 ? (dy > 0 ? 'ArrowDown' : 'ArrowUp') : (dx > 0 ? 'ArrowRight' : 'ArrowLeft');
-    });
+    }), {message: 'the cursor\'s way to City'});
     expect(step, 'the City card stands on the screen').not.toBe('none');
     hit = step === 'hit';
     if (!hit) {

@@ -1,8 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {FixtureName, bootFixture, fetchPlayerModel, openActionFocus, openCardActions, playCardFromHand, press, settle, waitForBoardHome} from './consoleStart';
+import {FixtureName, bootFixture, fetchPlayerModel, openActionFocus, openCardActions, playCardFromHand, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {armTransferWitness, transferWitness, TransferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * «ПОВЕРХНОСТЬ НЕ СКЛАДЫВАЕТСЯ ПОД СВОИМ ЖЕТОНОМ» — the flights' second iteration (T09, 2026-10-22; ledger BY).
@@ -31,7 +32,7 @@ import {armTransferWitness, transferWitness, TransferWitness} from './transferWi
  *   (A cell «the last action of a generation — its income in the same answer» is not reachable: an ACTION never ends
  *   the generation, only a pass does.)
  *
- * WHAT EVERY CELL RECORDS, armed before the press (`MutationObserver` + a 50 ms `setInterval`, never rAF): every chip
+ * WHAT EVERY CELL RECORDS, armed before the press (`armWitness` — the product's own writes, settled): every chip
  * in the air and under which anchor it is born / rests (`transferWitness`), the workspace's presence and effective
  * opacity, the commit's rail state and the seed's verdict (`__conReady()` — `actionCommitRail`, `railReward.degraded`,
  * and since BY the transfer trail with `rail:seed` / `rail:end`), the console's `[transfer]` warnings. The table of the
@@ -69,12 +70,35 @@ const READOUTS: Record<string, string> = {
   tr: '.con-score__value',
 };
 
-/** `surface` — the selector of the cell's folding surface: the action workspace, or the play scene's receiving stage. */
+/** One moment of the cell as the bench's reader sees it (the recording stamps the page's time). */
+type BenchSeen = Omit<Sample, 't'>;
+const BENCH_WITNESS = 'price-fold-bench';
+
+/**
+ * `surface` — the selector of the cell's folding surface: the action workspace, or the play scene's receiving stage.
+ * The cell is RECORDED (FLAKE ZERO — `armWitness`: every change observed in the task that makes it, a frame tick for
+ * what only a computed style moves, kept with the page's time; the state at a moment is the last change before it).
+ * `settled`: the claims are coexistence and order (the surface standing at the price's landing, the fold no earlier than
+ * the result's birth) — a sample is the state a task leaves, the state a frame can paint. The console's `[transfer]`
+ * warnings are caught by a hook of their own.
+ */
 async function armBench(page: Page, surface = '.con-cardactions'): Promise<void> {
-  await page.evaluate(([readouts, surfaceSel]) => {
+  await page.evaluate(() => {
     const t0 = performance.now();
-    const samples: Array<unknown> = [];
     const warnings: Array<string> = [];
+    const warn = console.warn.bind(console);
+    console.warn = (...args: Array<unknown>) => {
+      const text = args.map((a) => String(a)).join(' ');
+      if (text.startsWith('[transfer]') || text.startsWith('[rail-reward]') || text.startsWith('[action-commit-rail]')) {
+        warnings.push(`${Math.round(performance.now() - t0)} ${text.slice(0, 300)}`);
+      }
+      warn(...args);
+    };
+    (window as unknown as {__priceFold: unknown}).__priceFold = {warnings, t0, stop: () => {
+      console.warn = warn;
+    }};
+  });
+  await armWitness<BenchSeen, {readouts: Record<string, string>, surfaceSel: string}>(page, BENCH_WITNESS, ({readouts, surfaceSel}) => {
     const opacityOf = (el: Element | null): number => {
       if (el === null) {
         return 0;
@@ -90,66 +114,44 @@ async function armBench(page: Page, surface = '.con-cardactions'): Promise<void>
       return op;
     };
     type Ready = {actionCommitRail?: {phase: string, link: number, lastEnd: string}, railReward?: {degraded?: {key: string, why: string, detail?: string}}};
-    let last = '';
-    const sample = (tick: boolean) => {
-      if (samples.length > 6000) {
-        return;
-      }
-      const ready = (window as unknown as {__conReady?: () => Ready}).__conReady?.();
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => opacityOf(el) > 0.05).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {v: (el.textContent ?? '').trim(), x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
-      });
-      const values: Record<string, string> = {};
-      for (const [key, sel] of Object.entries(readouts as unknown as Record<string, string>)) {
-        values[key] = (document.querySelector(sel)?.textContent ?? '').trim().match(/^[-+]?\d+/)?.[0] ?? '';
-      }
-      const rail = ready?.actionCommitRail;
-      const degraded = ready?.railReward?.degraded;
-      const s = {
-        t: +(performance.now() - t0).toFixed(1),
-        ws: +opacityOf(document.querySelector(surfaceSel as string)).toFixed(2),
-        chips,
-        rail: rail === undefined ? null : {phase: rail.phase, link: rail.link, lastEnd: rail.lastEnd},
-        degraded: degraded === undefined ? '' : `${degraded.key}: ${degraded.why}${degraded.detail !== undefined ? ` (${degraded.detail})` : ''}`,
-        readouts: values,
-      };
-      const key = JSON.stringify({...s, t: 0});
-      if (tick || key !== last) {
-        last = key;
-        samples.push(s);
-      }
+    const ready = (window as unknown as {__conReady?: () => Ready}).__conReady?.();
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => opacityOf(el) > 0.05).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {v: (el.textContent ?? '').trim(), x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
+    });
+    const values: Record<string, string> = {};
+    for (const [key, sel] of Object.entries(readouts)) {
+      values[key] = (document.querySelector(sel)?.textContent ?? '').trim().match(/^[-+]?\d+/)?.[0] ?? '';
+    }
+    const rail = ready?.actionCommitRail;
+    const degraded = ready?.railReward?.degraded;
+    return {
+      ws: +opacityOf(document.querySelector(surfaceSel)).toFixed(2),
+      chips,
+      rail: rail === undefined ? null : {phase: rail.phase, link: rail.link, lastEnd: rail.lastEnd},
+      degraded: degraded === undefined ? '' : `${degraded.key}: ${degraded.why}${degraded.detail !== undefined ? ` (${degraded.detail})` : ''}`,
+      readouts: values,
     };
-    const warn = console.warn.bind(console);
-    console.warn = (...args: Array<unknown>) => {
-      const text = args.map((a) => String(a)).join(' ');
-      if (text.startsWith('[transfer]') || text.startsWith('[rail-reward]') || text.startsWith('[action-commit-rail]')) {
-        warnings.push(`${Math.round(performance.now() - t0)} ${text.slice(0, 300)}`);
-      }
-      warn(...args);
-    };
-    sample(true);
-    const timer = window.setInterval(() => sample(true), 50);
-    const mo = new MutationObserver(() => sample(false));
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style']});
-    (window as unknown as {__priceFold: unknown}).__priceFold = {samples, warnings, t0, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-      console.warn = warn;
-    }};
-  }, [READOUTS, surface] as const);
+  }, {args: {readouts: READOUTS, surfaceSel: surface}, settled: true, max: 12_000});
 }
 
 type Bench = {samples: Array<Sample>, warnings: Array<string>, trail: Array<unknown>, witness: TransferWitness};
 
+/**
+ * The bench's recording, on the transfer witness's clock (ms since ITS arm — the page's epoch clock both stamp with), so
+ * a sample lines up with a token's birth / landing.
+ */
 async function readBench(page: Page): Promise<Bench> {
+  const recorded = await witnessOf<BenchSeen>(page, BENCH_WITNESS).stop();
   const page0 = await page.evaluate(() => {
-    const p = (window as unknown as {__priceFold: {samples: Array<unknown>, warnings: Array<string>, stop: () => void}}).__priceFold;
+    const p = (window as unknown as {__priceFold: {warnings: Array<string>, stop: () => void}}).__priceFold;
     p.stop();
     const ready = (window as unknown as {__conReady?: () => {transfer?: {trail?: Array<unknown>}}}).__conReady?.();
-    return {samples: p.samples, warnings: p.warnings, trail: ready?.transfer?.trail ?? []};
-  }) as {samples: Array<Sample>, warnings: Array<string>, trail: Array<unknown>};
-  return {...page0, witness: await transferWitness(page)};
+    const origin = performance.timeOrigin + ((window as unknown as {__transferWitness?: {t0: number}}).__transferWitness?.t0 ?? 0);
+    return {warnings: p.warnings, trail: ready?.transfer?.trail ?? [], origin};
+  }) as {warnings: Array<string>, trail: Array<unknown>, origin: number};
+  const samples: Array<Sample> = recorded.map((s) => ({t: +(s.t - page0.origin).toFixed(1), ...s.v}));
+  return {samples, warnings: page0.warnings, trail: page0.trail, witness: await transferWitness(page)};
 }
 
 /** «Действия карт» → the tile → its composer (the action centre is a grid: a 2D walk). */
@@ -174,12 +176,11 @@ const COMPOSER = '.con-cardactions__stagewrap .con-composer--stage';
 
 /** Select the variant whose printed cost is `icon` when a choice is open, then walk the cursor to the commit row. */
 async function readyToCommit(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator(`${COMPOSER} .con-composer__branches .con-vchoice__opt--selected[data-branch-pos], ${COMPOSER} .con-composer__cta--ready`).count() === 0; i++) {
-    await press(page, 'Enter', 300);
-  }
-  for (let i = 0; i < 8 && await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
-    await press(page, 'ArrowDown', 200);
-  }
+  // Each press waits for ITS effect (a selected variant / a ready commit, then the cursor on the commit row).
+  const chosen = page.locator(`${COMPOSER} .con-composer__branches .con-vchoice__opt--selected[data-branch-pos], ${COMPOSER} .con-composer__cta--ready`);
+  await pressUntil(page, 'Enter', async () => await chosen.count() > 0, {tries: 4, settleMs: 300});
+  const onCommit = page.locator(`${COMPOSER} .con-composer__cta--focused`);
+  await pressUntil(page, 'ArrowDown', async () => await onCommit.count() > 0, {tries: 8, settleMs: 200});
   await expect(page.locator(`${COMPOSER} .con-composer__cta--focused`), 'the cursor stands on the commit row').toHaveCount(1);
 }
 

@@ -4,6 +4,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness} from './witness';
 
 /**
  * TR48 «СУПЕРКОМПЬЮТЕР» — the set's THIRD card-bound payment unit
@@ -330,20 +331,12 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'c-03-composer-answered');
 
       await armTransferWitness(page);
-      // The commit's rail half, sampled on a task clock (never rAF): its phase and how it ended — a flight that never
-      // left names why («not flown», «superseded», a release reason) instead of an empty trail.
-      await page.evaluate(() => {
-        const w = window as unknown as {__rail: Array<string>, __conReady?: () => Record<string, unknown>};
-        w.__rail = [];
-        let last = '';
-        window.setInterval(() => {
-          const ready = w.__conReady?.() ?? {};
-          const now = JSON.stringify({rail: ready.actionCommitRail, reward: (ready.railReward as {pending?: unknown} | undefined)?.pending});
-          if (now !== last) {
-            w.__rail.push(`${Math.round(performance.now())} ${now}`);
-            last = now;
-          }
-        }, 25);
+      // The commit's rail half, RECORDED (FLAKE ZERO — `armWitness`; a frame tick reads the module state no DOM write
+      // announces): its phase and how it ended — a flight that never left names why («not flown», «superseded», a
+      // release reason) instead of an empty trail.
+      const railWitness = await armWitness<{rail: unknown, reward: unknown}>(page, 'supercomputer-rail', () => {
+        const ready = (window as unknown as {__conReady?: () => Record<string, unknown>}).__conReady?.() ?? {};
+        return {rail: ready.actionCommitRail ?? null, reward: (ready.railReward as {pending?: unknown} | undefined)?.pending ?? null};
       });
       const stop = await storyboard(page, preset.id, 'action');
       await commit(page, ACTION_COMPOSER, seen);
@@ -358,7 +351,9 @@ for (const preset of PRESETS) {
       const witness = await transferWitness(page);
       writeTrail(preset.id, 'c', transferTrail(witness));
       expect(endsOverGlass(witness), `every flight's ends were visible\n${transferTrail(witness)}`).toEqual([]);
-      const railTrail = (await page.evaluate(() => (window as unknown as {__rail?: Array<string>}).__rail ?? [])).join('\n');
+      const railSamples = await railWitness.stop();
+      const railT0 = railSamples[0]?.t ?? 0;
+      const railTrail = railSamples.map((s) => `${Math.round(s.t - railT0)} ${JSON.stringify(s.v)}`).join('\n');
       writeTrail(preset.id, 'c-rail', railTrail);
       expect(witness.landings.some((l) => l.under === `composer-card:${CENSUS}`), `the data landed on TR15's miniature in the composer\n${transferTrail(witness)}\n${railTrail}`).toBe(true);
       // PL-220 → «СРАБАТЫВАНИЕ КАРТЫ» (CN, 2026-10-26; iteration 3): THE TABLE'S ANSWER FLIES — the Fiber's +2 M€ is the

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, openActionFocus, openCardActions, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE OUTCOME TILES — a card action's variant choice on the console composer (the owner's 4K photo of 2026-10-13,
@@ -117,6 +118,15 @@ async function fit(page: Page) {
   }, [GROUP, COMPOSER] as const);
 }
 
+/**
+ * The fit AT REST (FLAKE ZERO, class C): a box read once is wherever the composer's entrance or the seal's recede had
+ * got to on a 300 ms software frame. `readSettled` settles the console, then reads until two reads a frame apart agree
+ * (the boxes are already rounded); every comparison of the group, the viewport and the commit row is one settled read.
+ */
+async function settledFit(page: Page, what: string): Promise<Awaited<ReturnType<typeof fit>>> {
+  return readSettled(page, () => fit(page), {message: what});
+}
+
 for (const preset of PRESETS) {
   test.describe(`variant tiles · ${preset.id}`, () => {
     test.use({viewport: preset.viewport});
@@ -145,7 +155,7 @@ for (const preset of PRESETS) {
       }
       expect(new Set(ts.map((t) => t.prints[0])).size, 'three different outcomes').toBe(3);
       expect(ts.map((t) => t.prints[0]).sort(), 'titanium · energy · heat').toEqual(['heat', 'power', 'titanium']);
-      let f = await fit(page);
+      let f = await settledFit(page, 'the Atmo Collectors composer opened');
       expect(f.hero, 'the common price is stated once, above').toMatch(/Будет списано/);
 
       // ② THE FIT — one row, inside the column's viewport, the commit row clear under it.
@@ -156,33 +166,35 @@ for (const preset of PRESETS) {
       expect(f.cta!.top, 'the commit row stands under the group').toBeGreaterThanOrEqual(f.group!.bottom);
 
       // ③ THE GRAMMAR — ←→ switch (wrapping), ↓ cannot leave an unanswered group, the bar says so.
-      expect(await focusedPos(page), 'the cursor opens on the first tile').toBe(0);
+      // The cursor is a live state — asserted by a POLL (it republishes a frame after the press), never read once.
+      await expect.poll(() => focusedPos(page), {message: 'the cursor opens on the first tile'}).toBe(0);
       expect(f.bar, 'the bar names the switch').toMatch(/Вариант/);
       await press(page, 'ArrowDown', 300);
-      expect(await focusedPos(page), '↓ cannot leave an unanswered choice').toBe(0);
+      await expect.poll(() => focusedPos(page), {message: '↓ cannot leave an unanswered choice'}).toBe(0);
       await press(page, 'ArrowRight', 300);
-      expect(await focusedPos(page)).toBe(1);
+      await expect.poll(() => focusedPos(page)).toBe(1);
       await press(page, 'ArrowRight', 300);
-      expect(await focusedPos(page)).toBe(2);
+      await expect.poll(() => focusedPos(page)).toBe(2);
       await press(page, 'ArrowRight', 300);
-      expect(await focusedPos(page), '→ wraps').toBe(0);
+      await expect.poll(() => focusedPos(page), {message: '→ wraps'}).toBe(0);
       await press(page, 'ArrowLeft', 300);
-      expect(await focusedPos(page), '← wraps back').toBe(2);
+      await expect.poll(() => focusedPos(page), {message: '← wraps back'}).toBe(2);
       await shoot(page, preset.id, 'atmo-02-cursor-heat');
       await expect.poll(() => page.locator(`${TILES}.con-vchoice__opt--selected`).count(), {message: 'moving the cursor selects nothing'}).toBe(0);
 
       // A seals the heat tile; the cursor advances to the commit row; the other tiles recede.
       await press(page, 'Enter', 500);
+      // The fit at rest first — the tiles are then read on the same settled screen.
+      f = await settledFit(page, 'the heat tile sealed');
       ts = await tiles(page);
       expect(ts.filter((t) => t.selected).map((t) => t.pos), 'ONE seal, on the heat tile').toEqual([2]);
       expect(ts.filter((t) => t.recede).map((t) => t.pos), 'the others recede').toEqual([0, 1]);
-      f = await fit(page);
       expect(f.hero, 'the formula reads the chosen outcome').toMatch(/Вы получите[\s\S]*6\s*→\s*10/);
       expect(f.cta!.top, 'the commit row still stands clear').toBeGreaterThanOrEqual(f.group!.bottom);
       await expect(page.locator(`${COMPOSER} .con-composer__cta--focused`), 'A on a tile advances to the commit row').toHaveCount(1);
       await shoot(page, preset.id, 'atmo-03-chosen-heat');
       await press(page, 'ArrowUp', 300);
-      expect(await focusedPos(page), '↑ re-enters the group on the tile the cursor left').toBe(2);
+      await expect.poll(() => focusedPos(page), {message: '↑ re-enters the group on the tile the cursor left'}).toBe(2);
       await press(page, 'ArrowDown', 300);
       await expect(page.locator(`${COMPOSER} .con-composer__cta--focused`), '↓ leaves an answered group to the commit row').toHaveCount(1);
 
@@ -213,7 +225,7 @@ for (const preset of PRESETS) {
       for (const t of ts) {
         expect(t.costChips, `tile ${t.pos} repeats no price (PL-074)`).toBe(0);
       }
-      const f = await fit(page);
+      const f = await settledFit(page, 'the Asteroid Rights composer opened');
       expect(f.axis).toBe('row');
       expect(f.overflow, 'no scroll').toBe(0);
     });

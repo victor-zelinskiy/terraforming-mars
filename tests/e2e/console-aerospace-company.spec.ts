@@ -3,8 +3,10 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
   bootFixtureSeats, createGameWithCards, fetchPlayerModel, openActionFocus, openCardActions, openConsole, pickCards, playQueueCard, press,
-  sendPlayerInput, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil, walkToSummary,
+  pressUntil, pressUntilGone, pressUntilVisible, sendPlayerInput, settle, soloGameConfig, submitSummary, waitQueueIdle, walkFocusUntil,
+  walkToSummary,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {acrossTargetPages} from './targetPages';
 
@@ -89,9 +91,7 @@ async function openTargetStep(page: Page): Promise<void> {
   }
   expect(await row(), 'the cursor reached «КУДА»').toMatch(/Куда/);
   const step = page.locator('.con-ptsel');
-  for (let i = 0; i < 3 && await step.count() === 0; i++) {
-    await press(page, 'Enter', 900);
-  }
+  await pressUntilVisible(page, 'Enter', '.con-ptsel', {tries: 3, settleMs: 900});
   await expect(step, 'the target step opened').toBeVisible();
   await settle(page);
 }
@@ -103,8 +103,9 @@ const candidateTags = (page: Page) => page.evaluate(() => Array.from(document.qu
   text: (cell.querySelector('.con-ptsel__tag')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
 })));
 
-/** Every candidate stands whole inside every box that clips it (the Veynon D probe). */
-const clippedCells = (page: Page) => page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell')).flatMap((cell) => {
+/** Every candidate stands whole inside every box that clips it (the Veynon D probe) — read at REST (`readSettled`; the
+ *  step stands for the player and its caller has settled, so no second settle — a page turn's slide is waited out). */
+const clippedCells = (page: Page) => readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll('.con-ptsel__cell')).flatMap((cell) => {
   const c = cell.getBoundingClientRect();
   const out: Array<string> = [];
   for (let el = cell.parentElement; el !== null && !el.classList.contains('con-ws'); el = el.parentElement) {
@@ -117,7 +118,7 @@ const clippedCells = (page: Page) => page.evaluate(() => Array.from(document.que
     }
   }
   return out;
-}));
+})), {settle: false, message: 'the candidates and the boxes that clip them'});
 
 test.describe(`console · TRP8 Aerospace Company · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport, deviceScaleFactor: 1, screen: PRESET.viewport});
@@ -203,30 +204,17 @@ test.describe(`console · TRP8 Aerospace Company · ${PRESET.id}`, () => {
     expect(posts, 'nothing sent before the commit').toEqual([]);
 
     const at = () => page.evaluate(() => document.querySelector('.con-ptsel__cell[data-focused="1"] [data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '');
-    for (let i = 0; i < 6 && await at() !== 'Mars Army Ships'; i++) {
-      await press(page, 'ArrowRight', 350);
-    }
-    for (let i = 0; i < 6 && await at() !== 'Mars Army Ships'; i++) {
-      await press(page, 'ArrowLeft', 350);
-    }
-    expect(await at(), 'the cursor reached Mars Army Ships').toBe('Mars Army Ships');
+    expect(await walkFocusUntil(page, async () => await at() === 'Mars Army Ships', at, 12, 350), 'the cursor reached Mars Army Ships').toBe(true);
     const step = page.locator('.con-ptsel');
-    for (let i = 0; i < 4 && await step.count() > 0; i++) {
-      await press(page, 'Enter', 1200);
-    }
+    await pressUntilGone(page, 'Enter', '.con-ptsel', {tries: 4, settleMs: 1200});
     await expect(step, 'A on the candidate answers the target').toHaveCount(0, {timeout: 8000});
     await settle(page);
     expect(posts, 'the target is a pre-select — nothing sent').toEqual([]);
     await shoot(page, 'b4-answered');
 
     await armTransferWitness(page);
-    for (let i = 0; i < 10 && await page.locator(`${ACTION_COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
-      await press(page, 'ArrowDown', 250);
-    }
-    for (let attempt = 0; attempt < 4 && posts.length === 0; attempt++) {
-      await press(page, 'Enter', 400);
-      await expect.poll(() => posts.length, {timeout: 5000}).toBeGreaterThan(0).catch(() => undefined);
-    }
+    await pressUntilVisible(page, 'ArrowDown', `${ACTION_COMPOSER} .con-composer__cta--focused`, {tries: 10, settleMs: 250});
+    await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 4, settleMs: 5000});
     expect(posts.length, 'the action is ONE request').toBe(1);
     await expect.poll(async () => countOn(await wireOf(request, playerId), 'Mars Army Ships'), {timeout: 30_000, message: 'the fighter landed'}).toBe(2);
     await expect.poll(() => page.locator('.con-ws').count(), {timeout: 60_000, message: 'the workspace left'}).toBe(0);
@@ -249,12 +237,9 @@ test.describe(`console · TRP8 Aerospace Company · ${PRESET.id}`, () => {
     await openCardActions(page);
     // The default filter shows the actions the player can still take — a blocked one is read in «all».
     const tile = page.locator(`.con-cardactions__tile[data-action-card="${CARD}"]`);
-    for (let i = 0; i < 4 && await tile.count() === 0; i++) {
-      await press(page, 'BracketLeft', 600);
-    }
+    await pressUntilVisible(page, 'BracketLeft', `.con-cardactions__tile[data-action-card="${CARD}"]`, {tries: 4, settleMs: 600});
     await expect(tile, 'the Prelude\'s tile stands').toHaveCount(1);
-    const verdict = await tile.getAttribute('data-action-verdict');
-    expect(verdict, 'not available').not.toBe('available');
+    await expect(tile, 'not available').not.toHaveAttribute('data-action-verdict', 'available');
     await shoot(page, 'c-tile-disabled');
   });
 

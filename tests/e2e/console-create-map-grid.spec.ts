@@ -12,8 +12,9 @@
  * Two profiles on purpose: the Deck's pagination is a profile-specific number (tests.md § TV only).
  */
 import {test, expect, Page} from './consoleTest';
-import {press} from './consoleStart';
+import {press, pressUntil} from './consoleStart';
 import {campaignBase, seedIdentity} from './campaignFixtures';
+import {readSettled} from './settledRead';
 
 /**
  * The creator's catalog: «random (all)» + the twelve boards (`PREMIUM_MAPS`). The TV's stage holds 4 × 3 at the tile's
@@ -33,20 +34,15 @@ async function openMapDeck(page: Page, query: string): Promise<void> {
   await page.goto(`${campaignBase()}/?x=1${query}`);
   await page.waitForSelector('.cm-menu__items', {timeout: 60_000});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => undefined);
-  for (let i = 0; i < 12; i++) {
-    if (await page.locator('.cm-item--cursor').getAttribute('data-menu-item') === 'create') {
-      break;
-    }
-    await press(page, 'ArrowDown', 120);
-  }
+  await pressUntil(page, 'ArrowDown', async () => await page.locator('.cm-item--cursor').getAttribute('data-menu-item') === 'create',
+    {tries: 12, settleMs: 120});
   await expect(page.locator('.cm-item--cursor')).toHaveAttribute('data-menu-item', 'create');
   await press(page, 'Enter', 400);
   await page.waitForSelector('.cm-mode__tile', {timeout: 30_000});
   await press(page, 'Enter', 600); // «Отдельная партия»
   await page.waitForSelector('.cm-crew', {timeout: 30_000});
-  for (let i = 0; i < 6 && await page.locator('[data-map-showcase]').count() === 0; i++) {
-    await press(page, 'KeyE', 500); // RB → the next deck
-  }
+  // RB → the next deck, until the map showcase stands.
+  await pressUntil(page, 'KeyE', async () => await page.locator('[data-map-showcase]').count() > 0, {tries: 6, settleMs: 500});
   await page.waitForSelector('[data-map-showcase]', {timeout: 15_000});
 }
 
@@ -89,23 +85,25 @@ for (const preset of PRESETS) {
       }
       await page.screenshot({path: `screenshots/create-map-grid/${preset.id}/grid.png`});
 
-      // THE WALK — the cursored map is inside the stage on EVERY step.
+      // THE WALK — the cursored map is inside the stage on EVERY step, read AT REST (two equal reads a frame apart —
+      // never the cursor's lift half-way).
+      const cursorAtRest = () => readSettled(page, () => cursorInside(page), {settle: false, message: 'the cursored map'});
       const trail: Array<string> = [];
       const walk = async (key: string, n: number) => {
         for (let i = 0; i < n; i++) {
           await press(page, key, 150);
-          const at = await cursorInside(page);
+          const at = await cursorAtRest();
           trail.push(`${key}→${at.index}`);
           expect(at.inside, `after ${trail.join(' ')}: ${at.rect}`).toBe(true);
         }
       };
       await walk('ArrowRight', MAPS + 1);
-      expect((await cursorInside(page)).index, 'a whole ring and one step more wraps once').toBe(1);
+      expect((await cursorAtRest()).index, 'a whole ring and one step more wraps once').toBe(1);
       await walk('ArrowLeft', MAPS + 1);
-      expect((await cursorInside(page)).index).toBe(0);
+      expect((await cursorAtRest()).index).toBe(0);
       await walk('ArrowDown', 3);
       await walk('ArrowUp', 3);
-      expect((await cursorInside(page)).index, '▲ from the top row is a wall').toBe(0);
+      expect((await cursorAtRest()).index, '▲ from the top row is a wall').toBe(0);
 
       // A selects — «ТЕКУЩАЯ» moves to the cursored map.
       await walk('ArrowRight', 2);

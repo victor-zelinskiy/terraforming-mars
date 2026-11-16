@@ -18,6 +18,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, cinematicBeat, crumbText, focusCard, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'draw-one-batch');
 const OLYMPUS = 'Olympus Conference';
@@ -38,34 +40,24 @@ async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
 }
 const handOf = (wire: Wire): Array<string> => (wire.cardsInHand ?? []).map((c) => c.name);
 
-type Sample = {t: number, table: string, paints: Array<[string, string]>, deckDeals: number, reveal: number};
-declare global {
-  interface Window {
-    __questionWatch?: {samples: Array<Sample>, stop: () => void},
-  }
-}
+type Seen = {table: string, paints: Array<[string, string]>, deckDeals: number, reveal: number};
+const QUESTION_WITNESS = 'draw-one-batch-question';
+/**
+ * The press's table, RECORDED from before the press (FLAKE ZERO — `armWitness`, replace-proof): the table's nonce, each
+ * place's paint, the deck's deal proxies, the reveals. Its claims are COEXISTENCE and ORDER («never two reveals», «sealed,
+ * then turned — never re-dealt», «nothing flew while it turned»), so the record is `settled` — the state a task leaves.
+ */
 async function installWatch(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const samples: Array<Sample> = [];
-    const t0 = performance.now();
-    const sample = () => {
-      const root = document.querySelector('.con-reveal[data-settlement-table]');
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        table: root?.getAttribute('data-settlement-table') ?? '',
-        paints: Array.from(document.querySelectorAll<HTMLElement>('[data-settlement-place]')).map((el) => [el.getAttribute('data-settlement-place') ?? '', el.getAttribute('data-settlement-paint') ?? '']),
-        deckDeals: document.querySelectorAll('.con-deckdraw-proxy').length,
-        reveal: document.querySelectorAll('.con-reveal').length,
-      });
+  await armWitness<Seen>(page, QUESTION_WITNESS, () => {
+    const root = document.querySelector('.con-reveal[data-settlement-table]');
+    return {
+      table: root?.getAttribute('data-settlement-table') ?? '',
+      paints: Array.from(document.querySelectorAll<HTMLElement>('[data-settlement-place]'))
+        .map((el): [string, string] => [el.getAttribute('data-settlement-place') ?? '', el.getAttribute('data-settlement-paint') ?? '']),
+      deckDeals: document.querySelectorAll('.con-deckdraw-proxy').length,
+      reveal: document.querySelectorAll('.con-reveal').length,
     };
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-settlement-paint', 'data-settlement-table', 'class']});
-    const iv = setInterval(sample, 100);
-    window.__questionWatch = {samples, stop: () => {
-      mo.disconnect();
-      clearInterval(iv);
-    }};
-  });
+  }, {settled: true});
 }
 /** ONE press, then the witness polled — never a retry: a second A would land on whatever the first one opened (the hand). */
 async function pressOnce(page: Page, key: string, witness: () => Promise<boolean>, what: string, timeout = 30_000): Promise<void> {
@@ -112,9 +104,8 @@ test.describe('the sealed place of a question — the university\'s answer turns
     expect(await pressUntil(page, 'Enter', async () => await options.count() === 0, {tries: 3, settleMs: 900}), 'the answer closes the list').toBe(true);
     await settle(page);
     await expect(rowOf(page, MU)).toHaveAttribute('data-tq-state', 'deferred');
-    for (let i = 0; i < 6 && await page.locator('.con-composer__cta--focused').count() === 0; i++) {
-      await press(page, 'ArrowDown', 300);
-    }
+    // ↓ until the cursor stands on the commit — each press verified by the focus itself (`pressUntil`), never a blind series.
+    await pressUntil(page, 'ArrowDown', async () => await page.locator('.con-composer__cta--focused').count() > 0, {tries: 6, settleMs: 300});
     await expect(page.locator('.con-composer__cta--focused'), 'the cursor stands on «Разыграть карту»').toHaveCount(1);
     const before = handOf(await wireOf(request, id)).filter((n) => n !== MU);
     await installWatch(page);
@@ -129,13 +120,15 @@ test.describe('the sealed place of a question — the university\'s answer turns
     await expect(page.locator(`${zone} .con-reveal .con-reveal__sealcond-text`), 'the seal names its condition').toContainText('после ответа');
     await cinematicBeat(page, 1200, 'the drawn card settles');
     await shoot(page, 'D1-question-table');
-    test.info().annotations.push({type: 'geometry', description: JSON.stringify(await page.evaluate(() => {
+    // The table's geometry, read at REST (class C — `readSettled`). The table STANDS for the player's take, so no
+    // `settle` first: two equal reads a frame apart are the rest that matters.
+    test.info().annotations.push({type: 'geometry', description: JSON.stringify(await readSettled(page, () => page.evaluate(() => {
       const box = (sel: string) => {
         const r = document.querySelector(sel)?.getBoundingClientRect();
         return r === undefined ? null : [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)];
       };
       return {reveal: box('.con-hand__outcome .con-reveal'), place: box('[data-settlement-place="1"]'), card: box('.con-hand__outcome .con-reveal [data-zoom-slot]'), fit: document.querySelector('.con-hand__outcome .con-reveal [data-fit]')?.getAttribute('data-fit') ?? null};
-    }))});
+    }), {settle: false, message: 'the question table\'s geometry'}))});
     const wire1 = await wireOf(request, id);
     const sealed = (wire1.cardDrawReveals ?? []).find((b) => b.pendingAnswer?.kind === 'question');
     // The seal itself is set when the LIVE answer is applied (the input routes); while the question stands the batch
@@ -160,14 +153,15 @@ test.describe('the sealed place of a question — the university\'s answer turns
       const zoneEl = document.querySelector('.con-hand__outcome');
       return zoneEl === null ? 'absent' : getComputedStyle(zoneEl).visibility;
     }), {timeout: 10_000, message: 'the outcome zone is hidden under the album'}).not.toBe('visible');
-    const coveredSlots = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-hand__slot[data-zoom-slot]')).filter((slot) => {
+    // Read at REST (class C — `readSettled`); the album is a live question, so no `settle` first.
+    const coveredSlots = await readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-hand__slot[data-zoom-slot]')).filter((slot) => {
       const r = slot.getBoundingClientRect();
       if (r.width < 4 || r.right < 0 || r.left > window.innerWidth) {
         return false;
       }
       const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return top !== null && top.closest('.con-reveal') !== null;
-    }).map((slot) => slot.getAttribute('data-zoom-slot')));
+    }).map((slot) => slot.getAttribute('data-zoom-slot'))), {settle: false, message: 'the album cards covered by the table'});
     expect(coveredSlots, 'no album card is covered by the table').toEqual([]);
     await shoot(page, 'D2-question-album');
 
@@ -191,11 +185,9 @@ test.describe('the sealed place of a question — the university\'s answer turns
     expect(after.includes(drawn[0]), 'the new card discarded').toBe(false);
     expect(after.length, 'one card drawn back for the discard').toBe(before.length + 1);
 
-    const watch = await page.evaluate(() => {
-      window.__questionWatch?.stop();
-      return window.__questionWatch?.samples ?? [];
-    });
-    expect(watch.length).toBeGreaterThan(20);
+    const watch = (await witnessOf<Seen>(page, QUESTION_WITNESS).stop()).map((s) => s.v);
+    // The record keeps DISTINCT states, never frames: its floor catches only a dead recorder (`tests.md`).
+    expect(watch.length, 'the recorder ran').toBeGreaterThan(0);
     const nonces = [...new Set(watch.map((s) => s.table).filter((n) => n !== ''))];
     expect(nonces, 'one table instance for the whole press').toHaveLength(1);
     expect(Math.max(...watch.map((s) => s.reveal)), 'never two reveals').toBeLessThanOrEqual(1);

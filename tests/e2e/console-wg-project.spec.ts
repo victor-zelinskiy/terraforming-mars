@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, crumbText, fetchPlayerModel, placeTile, playCardFromHand, press, settle, walkFocusUntil} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P91 «ПРОЕКТ МИРОВОГО ПРАВИТЕЛЬСТВА» — THE FIRST PRELUDE PLAYED IN THE MIDDLE OF THE GAME
@@ -78,38 +79,52 @@ function watchPosts(page: Page): Array<string> {
   return posts;
 }
 
+/** The counts are RECORDED STATES that showed it — «was it ever», never a count of frames. */
 type Probe = {startSeen: number, standaloneDeckPick: number, revealOutsideHand: number, revealInHand: number, pickZones: number, outside: Array<string>};
-/** MutationObserver + setInterval (never rAF): the DANGEROUS frames — the start workspace, a standalone band. */
+/** One moment as the reader sees it (the recording stamps it with the page's time). */
+type P91Seen = {start: boolean, standalone: boolean, inHand: number, outside: Array<string>, pickZones: number};
+const P91_WITNESS = 'p91-play';
+
+/**
+ * The DANGEROUS frames — the start workspace, a standalone band — RECORDED from before the play (FLAKE ZERO —
+ * `armWitness`). «Never», «one at a time» are claims about what a FRAME shows, so the record is `settled` — the state a
+ * task leaves.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const p: Probe = {startSeen: 0, standaloneDeckPick: 0, revealOutsideHand: 0, revealInHand: 0, pickZones: 0, outside: []};
-    (window as unknown as {__p91: Probe}).__p91 = p;
-    const sample = () => {
-      if (document.querySelector('.con-start') !== null) {
-        p.startSeen++;
+  await armWitness<P91Seen>(page, P91_WITNESS, () => {
+    let inHand = 0;
+    const outside: Array<string> = [];
+    // A cell's printed card bonus (`--bonus-mode`) is the BOARD's own story — never a batch of the play.
+    for (const el of document.querySelectorAll('.con-reveal:not(.con-reveal--bonus-mode)')) {
+      if (el.closest('.con-hand__outcome') !== null) {
+        inHand++;
+      } else if ((el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true})) {
+        // Only a PAINTED one counts — a leaving node at opacity 0 is no surface the player sees.
+        outside.push(`${(el as HTMLElement).className} hand=${document.querySelector('.con-hand') !== null} op=${getComputedStyle(el).opacity}`);
       }
-      if (document.querySelector('.con-deckpick:not(.con-deckpick--embedded)') !== null) {
-        p.standaloneDeckPick++;
-      }
-      // A cell's printed card bonus (`--bonus-mode`) is the BOARD's own story — never a batch of the play.
-      for (const el of document.querySelectorAll('.con-reveal:not(.con-reveal--bonus-mode)')) {
-        if (el.closest('.con-hand__outcome') !== null) {
-          p.revealInHand++;
-        } else if ((el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true})) {
-          // Only a PAINTED one counts — a leaving node at opacity 0 is no surface the player sees.
-          p.revealOutsideHand++;
-          if (p.outside.length < 6) {
-            p.outside.push(`${(el as HTMLElement).className} hand=${document.querySelector('.con-hand') !== null} op=${getComputedStyle(el).opacity}`);
-          }
-        }
-      }
-      p.pickZones = Math.max(p.pickZones, document.querySelectorAll('.con-hand__outcome .con-deckpick--play').length);
+    }
+    return {
+      start: document.querySelector('.con-start') !== null,
+      standalone: document.querySelector('.con-deckpick:not(.con-deckpick--embedded)') !== null,
+      inHand,
+      outside,
+      pickZones: document.querySelectorAll('.con-hand__outcome .con-deckpick--play').length,
     };
-    new MutationObserver(() => sample()).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-    window.setInterval(sample, 50);
-  });
+  }, {settled: true, max: 20_000});
 }
-const probe = (page: Page) => page.evaluate(() => (window as unknown as {__p91: Probe}).__p91);
+
+/** The recording folded on the Node side into the probe's old shape. */
+async function probe(page: Page): Promise<Probe> {
+  const seen = await witnessOf<P91Seen>(page, P91_WITNESS).values();
+  return {
+    startSeen: seen.filter((v) => v.start).length,
+    standaloneDeckPick: seen.filter((v) => v.standalone).length,
+    revealOutsideHand: seen.filter((v) => v.outside.length > 0).length,
+    revealInHand: seen.filter((v) => v.inHand > 0).length,
+    pickZones: Math.max(0, ...seen.map((v) => v.pickZones)),
+    outside: seen.flatMap((v) => v.outside).slice(0, 6),
+  };
+}
 
 const focusedPick = (page: Page) => page.evaluate(() =>
   document.querySelector('.con-deckpick .con-cards__slot--focused')?.getAttribute('data-deckpick-slot') ?? '');

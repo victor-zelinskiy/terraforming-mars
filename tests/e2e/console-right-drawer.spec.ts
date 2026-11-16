@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootSeededGame, createGameWithCards, press, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE ONE SANCTIONED EXCEPTION to «a modal never covers a bar»: the RIGHT-EDGE
@@ -67,8 +68,17 @@ async function probe(page: Page, drawerSel: string): Promise<Probe> {
   }, drawerSel);
 }
 
+/**
+ * The drawer and the rail AT REST (FLAKE ZERO, class C): a box read once is wherever the drawer's entrance had got
+ * to — on a 300 ms software frame a drawer still sliding in starts right of the rail. `readSettled` settles the
+ * console, then reads until two reads a frame apart agree; every comparison below is made on that one settled read.
+ */
+async function settledProbe(page: Page, drawerSel: string, what: string): Promise<Probe> {
+  return readSettled(page, () => probe(page, drawerSel), {message: what});
+}
+
 async function assertReplacesRail(page: Page, sel: string, label: string): Promise<void> {
-  const p = await probe(page, sel);
+  const p = await settledProbe(page, sel, `${label}: the drawer and the rail`);
   expect(p.drawer, `${label}: the drawer is not on screen`).not.toBeNull();
   expect(p.rail, `${label}: the strategy rail is not in the DOM`).not.toBeNull();
 
@@ -107,7 +117,7 @@ for (const profile of PROFILES) {
       await bootSeededGame(page, request, playerId, {query: profile.query});
 
       // The rail is the board home's right edge to begin with.
-      const idle = await probe(page, '.con-strat');
+      const idle = await settledProbe(page, '.con-strat', 'the rail on the calm board home');
       expect(idle.rail!.visibility, 'the rail is drawn on the calm board home').toBe('visible');
 
       // ── «ЖУРНАЛ» (View / R) ────────────────────────────────────────────
@@ -118,17 +128,15 @@ for (const profile of PROFILES) {
       await key(page, 'KeyR', 1000);
       await expect(page.locator('.con-journal')).toHaveCount(0);
       // …and it comes BACK: the exception is a state, never a one-way door.
-      const back = await probe(page, '.con-strat');
+      const back = await settledProbe(page, '.con-strat', 'the rail after the journal closed');
       expect(back.rail!.visibility, 'the rail returns when the drawer closes').toBe('visible');
 
       // ── THE BOARD DOSSIER (board inspection — L3 / KeyC) ───────────────
       await key(page, 'KeyC', 1400);
-      const dossier = page.locator('.con-context');
-      if (await dossier.count() === 0) {
-        // Inspection refuses on a board that is mid-task; say so rather than
-        // passing quietly on half the subject.
-        expect(false, 'board inspection never opened the dossier').toBeTruthy();
-      }
+      // Inspection refuses on a board that is mid-task; say so rather than
+      // passing quietly on half the subject (a locator assertion — the
+      // dossier mounts a beat after the press, never read once).
+      await expect(page.locator('.con-context'), 'board inspection never opened the dossier').not.toHaveCount(0);
       await assertReplacesRail(page, '.con-context', 'board dossier');
       await shoot(page, `${profile.tag}-2-dossier`);
     });

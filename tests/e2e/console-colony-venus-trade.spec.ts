@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, cinematicBeat, fetchPlayerModel, press, pressUntil, settle} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE REDUX VENUS TRADE — one trade, three things at once, in ORDER
@@ -106,49 +107,44 @@ type Sample = {
   handStep: boolean,
   landings: string,
 };
-type Probe = {samples: Array<Sample>, ticks: number};
+type Probe = {samples: Array<Sample>};
 
+const PROBE_WITNESS = 'venus-trade:probe';
+
+/**
+ * THE TRADE'S STORY — RECORDED (FLAKE ZERO — `armWitness`, armed before the confirm, replace-proof; a value is kept
+ * only when it changes). `settled`: «landed on a STANDING card», «the covers only after the card left», «never a
+ * reveal over the workspace» are ORDER / coexistence claims — each state is the one a task leaves, the one a frame paints.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__venusTrade: Probe};
-    w.__venusTrade = {samples: [], ticks: 0};
-    const t0 = performance.now();
-    const sample = () => {
-      const crumb = Array.from(document.querySelectorAll('.con-wshead')).map((h) => (h.textContent ?? '').toUpperCase()).join(' ');
-      const s: Sample = {
-        t: Math.round(performance.now() - t0),
-        colonies: document.querySelector('.con-colonies') !== null,
-        cardland: document.querySelector('.con-colfocus__cardland') !== null,
-        leaving: document.querySelector('.con-colfocus__cardland--leaving') !== null,
-        landed: document.querySelector('.con-colfocus__landcell--landed') !== null,
-        chip: document.querySelector('.con-transfer__chip') !== null,
-        covers: document.querySelectorAll('.con-coltrade-proxy, .con-bonusfly-proxy').length,
-        revealInside: document.querySelector('.con-colonies .con-reveal') !== null,
-        revealForeign: document.querySelector('.con-reveal') !== null && document.querySelector('.con-colonies .con-reveal') === null,
-        zoom: document.querySelector('.card-zoom-dialog') !== null,
-        strip: (document.querySelector('.con-status__param--venus .con-status__value')?.textContent ?? '').trim(),
-        stranded: document.querySelector('.con-stranded') !== null,
-        picker: crumb.includes('ЦЕЛЬ НА КАРТЕ') ||
-          Array.from(document.querySelectorAll('.con-ptsel')).some((el) => el.closest('.con-colfocus__targetstage') === null),
-        handStep: document.querySelector('.con-colonies .con-hand--embedded') !== null,
-        landings: JSON.stringify((window as unknown as {__conColonyDiag?: () => {trade: {landings: unknown}}}).__conColonyDiag?.()?.trade.landings ?? {}),
-      };
-      w.__venusTrade.ticks++;
-      const last = w.__venusTrade.samples[w.__venusTrade.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0}) !== JSON.stringify({...s, t: 0})) {
-        w.__venusTrade.samples.push(s);
-      }
-      if (w.__venusTrade.samples.length > 6000) {
-        w.__venusTrade.samples.splice(0, 1000);
-      }
+  await armWitness<Omit<Sample, 't'>>(page, PROBE_WITNESS, () => {
+    const crumb = Array.from(document.querySelectorAll('.con-wshead')).map((h) => (h.textContent ?? '').toUpperCase()).join(' ');
+    return {
+      colonies: document.querySelector('.con-colonies') !== null,
+      cardland: document.querySelector('.con-colfocus__cardland') !== null,
+      leaving: document.querySelector('.con-colfocus__cardland--leaving') !== null,
+      landed: document.querySelector('.con-colfocus__landcell--landed') !== null,
+      chip: document.querySelector('.con-transfer__chip') !== null,
+      covers: document.querySelectorAll('.con-coltrade-proxy, .con-bonusfly-proxy').length,
+      revealInside: document.querySelector('.con-colonies .con-reveal') !== null,
+      revealForeign: document.querySelector('.con-reveal') !== null && document.querySelector('.con-colonies .con-reveal') === null,
+      zoom: document.querySelector('.card-zoom-dialog') !== null,
+      strip: (document.querySelector('.con-status__param--venus .con-status__value')?.textContent ?? '').trim(),
+      stranded: document.querySelector('.con-stranded') !== null,
+      picker: crumb.includes('ЦЕЛЬ НА КАРТЕ') ||
+        Array.from(document.querySelectorAll('.con-ptsel')).some((el) => el.closest('.con-colfocus__targetstage') === null),
+      handStep: document.querySelector('.con-colonies .con-hand--embedded') !== null,
+      landings: JSON.stringify((window as unknown as {__conColonyDiag?: () => {trade: {landings: unknown}}}).__conColonyDiag?.()?.trade.landings ?? {}),
     };
-    sample();
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-    window.setInterval(sample, 40);
-  });
+  }, {settled: true});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__venusTrade: Probe}).__venusTrade);
+/** Stop the recording: every distinct state, `t` in ms since the arm (the page's clock). */
+async function readProbe(page: Page): Promise<Probe> {
+  const recorded = await witnessOf<Omit<Sample, 't'>>(page, PROBE_WITNESS).stop();
+  const t0 = recorded[0]?.t ?? 0;
+  return {samples: recorded.map((s) => ({t: s.t - t0, ...s.v}))};
+}
 
 test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
 
@@ -231,7 +227,7 @@ test('Venus trade: the pre-selected target lands on a standing card, the owner b
   const firstRevealInside = samples.findIndex((s) => s.revealInside);
   const whileColonies = samples.filter((s) => s.colonies);
   const summary = {
-    samples: samples.length, ticks: probe.ticks, lastStanding, firstLanded, firstCovers, firstRevealInside,
+    samples: samples.length, lastStanding, firstLanded, firstCovers, firstRevealInside,
     landedOnStanding: firstLanded >= 0 && samples[firstLanded].cardland && !samples[firstLanded].leaving,
     pickerWhileColonies: whileColonies.filter((s) => s.picker).length,
     foreignRevealWhileColonies: whileColonies.filter((s) => s.revealForeign || s.zoom).length,
@@ -255,7 +251,8 @@ test('Venus trade: the pre-selected target lands on a standing card, the owner b
   console.log('── trace (changes only) ──\n' + samples.map((s) =>
     `${s.t} col:${+s.colonies} land:${+s.cardland}${s.leaving ? 'L' : ''} landed:${+s.landed} chip:${+s.chip} cov:${s.covers} rin:${+s.revealInside} rfo:${+s.revealForeign} z:${+s.zoom} v:${s.strip} pk:${+s.picker} hs:${+s.handStep} str:${+s.stranded} L:${s.landings}`).join('\n'));
 
-  expect(summary.ticks, 'the probe was alive').toBeGreaterThan(30);
+  // Only a dead recorder reads none (a state, never a frame count — the real claims judge themselves below).
+  expect(summary.samples, 'the probe was alive').toBeGreaterThan(0);
   // ① the pre-selected target is never asked again
   expect(summary.pickerWhileColonies, 'a card-target picker rose after the confirm').toBe(0);
   // ② the reward lands on a STANDING card, and the owner bonus's cards rise only after that card has left

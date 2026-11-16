@@ -7,6 +7,7 @@ import {
 } from './consoleStart';
 import {armLeakWitness, enterSittingByPass, inspectWinningBill, mandatoryPlate, parliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 import {expectSeeThrough, expectUncovers} from './peekWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * WATER EXPORT (Turmoil Redux, RX33) — the ONE e2e of the new mechanic: a WORLD
@@ -60,32 +61,31 @@ type Wire = {
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
 /**
- * THE PROBE — armed on BOTH clients. A `setInterval` sampler (never rAF — a
- * quiet screen stops the compositor exactly when this beat plays) that reads,
- * every tick: whether the sitting's frame is on screen, whether a DEPARTURE
- * proxy stands on the tile stage, whether the chosen cell still paints the
- * ocean art, and what the HUD's ocean readout SAYS.
+ * THE PROBE — armed on BOTH clients, RECORDED (FLAKE ZERO — `armWitness`, settled: «the cell never blanked before the
+ * lift» and «the bare hex after it» are ORDER claims about the states a frame can paint). Each state: whether the
+ * sitting's frame is on screen, whether a DEPARTURE proxy stands on the tile stage, whether the chosen cell still paints
+ * the ocean art, and what the HUD's ocean readout SAYS. THE LIFT IS A TRANSIENT (380 ms — on CI's starved renderer a
+ * 40 ms sampler once stalled through all of it, CI 2026-11-01): the recorder takes the proxy's birth and the cell's
+ * repaint in the very task the product writes them, and a frame tick for the rest. `t` / `wall` are the page's clock.
  */
 type Sample = {t: number, wall: number, parl: boolean, depart: boolean, cellOcean: boolean, oceans: string, board: boolean, holds: string, sit: string};
 type Probe = {samples: Array<Sample>};
+/** One recorded state — the sample without its clocks (the recording stamps the page's time). */
+type Seen = Omit<Sample, 't' | 'wall'>;
+const WATER_WITNESS = 'water-departure';
 
 async function armProbe(page: Page, spaceId: string): Promise<void> {
-  await page.evaluate((id) => {
-    const w = window as unknown as {__waterProbe?: Probe};
-    const probe: Probe = {samples: []};
-    w.__waterProbe = probe;
+  await armWitness<Seen, string>(page, WATER_WITNESS, (id) => {
     const oceanText = (): string => {
       const host = Array.from(document.querySelectorAll('.con-status__param'))
         .find((el) => el.querySelector('.wgt-icon--ocean') !== null);
       return (host?.querySelector('.con-status__value')?.textContent ?? '').trim();
     };
-    const take = (): void => {
+    const take = (): Seen => {
       const cell = document.querySelector<HTMLElement>(`.board-space[data_space_id="${id}"] [data-test="tile"]`);
       const board = document.querySelector<HTMLElement>('.board-cont');
       const ready = (window as unknown as {__conReady?: () => {holds?: Array<string>, wsDepth?: number, wsYielded?: boolean}}).__conReady?.();
-      probe.samples.push({
-        t: Math.round(performance.now()),
-        wall: Date.now(),
+      return {
         parl: document.querySelector('.con-parl') !== null,
         depart: document.querySelector('.con-tileplace__tile--depart') !== null,
         cellOcean: cell !== null && /board-space-tile--ocean(\s|$)/.test(cell.className),
@@ -98,37 +98,17 @@ async function armProbe(page: Page, spaceId: string): Promise<void> {
           const tail = document.querySelector<HTMLElement>('.con-wshead__step, .con-wshead [data-stage]')?.textContent?.trim() ?? '';
           return root === null ? '' : `pg=${root.dataset.sittingPage ?? '-'} mo=${root.dataset.sittingMotion ?? '-'} bt=${root.dataset.sittingBeat ?? '-'} d=${ready?.wsDepth ?? '?'} y=${ready?.wsYielded ?? '?'} ${tail}`;
         })(),
-      });
-      if (probe.samples.length > 6000) {
-        probe.samples.splice(0, 3000);
-      }
+      };
     };
-    take();
-    setInterval(take, 40);
-    // THE LIFT IS A TRANSIENT, and a sampler can sleep through it: on CI's starved renderer the observer's interval
-    // stalled ~360 ms (cell «O» at one sample, bare at the next) — exactly the proxy's 380 ms — and the test called a
-    // departure that may well have played «never seen» (CI 2026-11-01). The proxy's BIRTH and the cell's repaint are
-    // DOM mutations, so they take a sample in the very task the product writes them (tests.md: a transient pose is asked
-    // of a MutationObserver record, never a polling sample).
-    const departs = (el: Element): boolean =>
-      el.classList.contains('con-tileplace__tile--depart') || el.querySelector('.con-tileplace__tile--depart') !== null;
-    new MutationObserver((records) => {
-      for (const r of records) {
-        const hit = r.type === 'attributes' ?
-          r.target instanceof Element && (r.target.classList.contains('con-tileplace__tile--depart') ||
-            r.target.matches(`.board-space[data_space_id="${id}"] [data-test="tile"]`)) :
-          Array.from(r.addedNodes).some((n) => n instanceof Element && departs(n)) ||
-            Array.from(r.removedNodes).some((n) => n instanceof Element && departs(n));
-        if (hit) {
-          take();
-          return;
-        }
-      }
-    }).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-  }, spaceId);
+    return take();
+  }, {args: spaceId, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__waterProbe: Probe}).__waterProbe);
+/** The recording in the probe's old shape: `t` and `wall` are both the page's clock (the screencast's stamps too). */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<Seen>(page, WATER_WITNESS).samples();
+  return {samples: samples.map((s) => ({...s.v, t: s.t, wall: s.t}))};
+}
 
 /** A red run names the frames: consecutive equal states collapsed to their transitions (the last 60). */
 function transitions(samples: ReadonlyArray<Sample>): string {
@@ -399,9 +379,7 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
     await shoot(page, '07-play-discount');
 
     // Back out without playing: the journey is the price and its explanation, not the play.
-    for (let i = 0; i < 6 && await page.locator('.con-composer--play, .con-hand').count() > 0; i++) {
-      await press(page, 'Escape', 700);
-    }
+    await pressUntil(page, 'Escape', async () => await page.locator('.con-composer--play, .con-hand').count() === 0, {tries: 6, settleMs: 700});
     await settle(page, {timeoutMs: 30_000});
     expect(await strandedReports(page), 'nothing stranded').toEqual([]);
   });

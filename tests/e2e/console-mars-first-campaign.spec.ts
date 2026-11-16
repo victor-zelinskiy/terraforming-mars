@@ -5,6 +5,7 @@ import {
   createGameWithCards, crumbText, fetchPlayerModel, openConsole, pickCards, placeTile, playQueueCard, queueCards, sendPlayerInput, settle,
   soloGameConfig, submitSummary, waitForBoardHome, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TRP3 MARS FIRST CAMPAIGN — the second of the six Prelude CAMPAIGNS of Turmoil Redux: «Place a city tile. Increase your
@@ -20,8 +21,8 @@ import {
  *
  * The rule (the area, never the resolution — rulebook p.9 / p.11 step 5) is pinned by
  * `tests/cards/turmoilRedux/MarsFirstCampaign.spec.ts`; this spec is the JOURNEY on the TV profile — TRP2's stand
- * (`console-unity-campaign`) with the board's placement instead of the colonies step. Order claims are sampled from
- * BEFORE the press (MutationObserver + setInterval, never rAF) — a TIMING-class spec (`timingSpecs.ts`).
+ * (`console-unity-campaign`) with the board's placement instead of the colonies step. Order claims are RECORDED from
+ * BEFORE the press (`armWitness`, every state a task leaves) — a TIMING-class spec (`timingSpecs.ts`).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT = path.resolve('screenshots', 'mars-first-campaign', PRESET.id);
@@ -36,14 +37,24 @@ type Wire = {
   waitingFor?: {type: string, coloniesModel?: Array<{name: string}>},
   game: {parliament: {slots: Array<WireSlot>, popularSupport: Record<string, number>, lastRally?: {card?: string, recount: boolean, megacredits: number, votes: Array<unknown>}}},
 };
+/**
+ * The record folded. The counts are of recorded STATES (never frames) and are only ever compared with zero — «did it
+ * ever happen» / «never».
+ */
 type Probe = {
-  samples: number, ticks: number, parlMax: number, crumbs: Array<string>, beats: Array<string>,
+  samples: number, parlMax: number, crumbs: Array<string>, beats: Array<string>,
   supportShown: Array<number>, countChip: number, degraded: Array<string>, parlWhilePlacing: number,
-  /** Samples of the SUPPORT beat with Mars First's plaque painted on top (its centre hit-tests inside its own tile) / covered. */
+  /** States of the SUPPORT beat with Mars First's plaque painted on top (its centre hit-tests inside its own tile) / covered. */
   plaqueSeen: number, plaqueCovered: number,
-  /** Samples of the SUPPORT beat with a card reaction's face painted on screen. */
+  /** States of the SUPPORT beat with a card reaction's face painted on screen. */
   reactionOverRally: number,
 };
+/** ONE observation of the screen — what stands now (the reader's answer; the folding is `readProbe`'s). */
+type RallySeen = {
+  parls: number, beat: string, degraded: string | null, shown: number | null,
+  plaque: '' | 'seen' | 'covered', reaction: boolean, countChip: boolean, placing: boolean, crumbs: Array<string>,
+};
+const RALLY_WITNESS = 'trp3-rally';
 
 async function wireOf(request: APIRequestContext, id: string): Promise<Wire> {
   return await fetchPlayerModel(request, id) as unknown as Wire;
@@ -55,87 +66,99 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
-/** From the press on: the Parliament roots, the crumbs, the rally's beats, Mars First's plaque as DRAWN, the recount chip. */
+/**
+ * From the press on: the Parliament roots, the crumbs, the rally's beats, Mars First's plaque as DRAWN, the recount chip
+ * — RECORDED (FLAKE ZERO — `armWitness`, replace-proof). The reader returns what stands NOW; the folding (beats in turn,
+ * the plaque's counts, «ever» / «never») is `readProbe`'s. The claims are ORDER and COEXISTENCE («one Parliament», «never
+ * while the city is placed», «never covered while the cubes land»), so the record is `settled` — the state a task leaves.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__trp3: Probe};
-    const p: Probe = {samples: 0, ticks: 0, parlMax: 0, crumbs: [], beats: [], supportShown: [], countChip: 0, degraded: [], parlWhilePlacing: 0, plaqueSeen: 0, plaqueCovered: 0, reactionOverRally: 0};
-    w.__trp3 = p;
+  await armWitness<RallySeen>(page, RALLY_WITNESS, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const parls = document.querySelectorAll('.con-parl:not([data-parl-leaving])');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      const root = document.querySelector('.con-parl:not([data-parl-leaving])');
-      const beat = root?.getAttribute('data-rally-beat') ?? '';
-      if (beat !== '' && p.beats[p.beats.length - 1] !== beat) {
-        p.beats.push(beat);
-      }
-      const degraded = root?.getAttribute('data-parl-rally-degraded');
-      if (degraded !== null && degraded !== undefined && !p.degraded.includes(degraded)) {
-        p.degraded.push(degraded);
-      }
-      if (beat !== '') {
-        const shown = Number(root?.querySelector('[data-parl-support="Mars First"]')?.getAttribute('data-support') ?? NaN);
-        if (!Number.isNaN(shown) && p.supportShown[p.supportShown.length - 1] !== shown) {
-          p.supportShown.push(shown);
-        }
-      }
-      // THE LANDING ZONE IS SEEN: while the cubes land, Mars First's plaque is on top — no dossier, no panel over it.
-      if (beat === 'support') {
-        const plaque = root?.querySelector('[data-parl-support="Mars First"]');
-        const rect = plaque?.getBoundingClientRect();
-        if (plaque !== undefined && plaque !== null && rect !== undefined && rect.width > 0 && rect.height > 0) {
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          const tile = plaque.closest('.con-parl__party');
-          if (hit !== null && tile !== null && (tile.contains(hit) || hit.closest('.con-transfer, [class*="flight"], [class*="proxy"]') !== null)) {
-            p.plaqueSeen++;
-          } else {
-            p.plaqueCovered++;
-          }
-          // …and no CARD REACTION's face stands over the Parliament while they land (a table's answer to the city — the
-          // server's EARLIER effect — plays first, the rally after; a face is pointer-events: none, so the hit test
-          // above cannot see it).
-          for (const face of document.querySelectorAll<HTMLElement>('.con-reaction .pcard')) {
-            const b = face.getBoundingClientRect();
-            let op = 1;
-            for (let n: HTMLElement | null = face; n !== null; n = n.parentElement) {
-              const st = getComputedStyle(n);
-              if (st.visibility === 'hidden' || st.display === 'none') {
-                op = 0;
-                break;
-              }
-              op *= Number(st.opacity);
-            }
-            if (b.width > 0 && b.height > 0 && op > 0.05) {
-              p.reactionOverRally++;
+    const parls = document.querySelectorAll('.con-parl:not([data-parl-leaving])');
+    const root = document.querySelector('.con-parl:not([data-parl-leaving])');
+    const beat = root?.getAttribute('data-rally-beat') ?? '';
+    const degraded = root?.getAttribute('data-parl-rally-degraded') ?? null;
+    const plaque = root?.querySelector('[data-parl-support="Mars First"]') ?? null;
+    const shownRaw = Number(plaque?.getAttribute('data-support') ?? NaN);
+    const shown = beat !== '' && !Number.isNaN(shownRaw) ? shownRaw : null;
+    let seen: RallySeen['plaque'] = '';
+    let reaction = false;
+    // THE LANDING ZONE IS SEEN: while the cubes land, Mars First's plaque is on top — no dossier, no panel over it.
+    if (beat === 'support' && plaque !== null) {
+      const rect = plaque.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        const tile = plaque.closest('.con-parl__party');
+        seen = hit !== null && tile !== null && (tile.contains(hit) || hit.closest('.con-transfer, [class*="flight"], [class*="proxy"]') !== null) ?
+          'seen' : 'covered';
+        // …and no CARD REACTION's face stands over the Parliament while they land (a table's answer to the city — the
+        // server's EARLIER effect — plays first, the rally after; a face is pointer-events: none, so the hit test
+        // above cannot see it).
+        for (const face of document.querySelectorAll<HTMLElement>('.con-reaction .pcard')) {
+          const b = face.getBoundingClientRect();
+          let op = 1;
+          for (let n: HTMLElement | null = face; n !== null; n = n.parentElement) {
+            const st = getComputedStyle(n);
+            if (st.visibility === 'hidden' || st.display === 'none') {
+              op = 0;
               break;
             }
+            op *= Number(st.opacity);
+          }
+          if (b.width > 0 && b.height > 0 && op > 0.05) {
+            reaction = true;
+            break;
           }
         }
       }
-      if (document.querySelector('[data-parl-count-id="rally"]') !== null) {
-        p.countChip++;
-      }
+    }
+    return {
+      parls: parls.length, beat, degraded, shown, plaque: seen, reaction,
+      countChip: document.querySelector('[data-parl-count-id="rally"]') !== null,
       // The Parliament may not stand while the city is still being placed (the rally waits its turn).
-      if (parls.length > 0 && document.querySelector('.con-context__task-kicker') !== null) {
-        p.parlWhilePlacing++;
-      }
-      document.querySelectorAll('.con-wshead').forEach((el) => {
-        const crumb = text(el);
-        if (crumb !== '' && !p.crumbs.includes(crumb)) {
-          p.crumbs.push(crumb);
-        }
-      });
+      placing: parls.length > 0 && document.querySelector('.con-context__task-kicker') !== null,
+      crumbs: Array.from(document.querySelectorAll('.con-wshead')).map(text).filter((c) => c !== ''),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  });
+  }, {settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__trp3: Probe}).__trp3);
+/** The record, folded — the recording stops here. */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<RallySeen>(page, RALLY_WITNESS).stop();
+  const p: Probe = {samples: samples.length, parlMax: 0, crumbs: [], beats: [], supportShown: [], countChip: 0, degraded: [], parlWhilePlacing: 0, plaqueSeen: 0, plaqueCovered: 0, reactionOverRally: 0};
+  for (const {v} of samples) {
+    p.parlMax = Math.max(p.parlMax, v.parls);
+    if (v.beat !== '' && p.beats[p.beats.length - 1] !== v.beat) {
+      p.beats.push(v.beat);
+    }
+    if (v.degraded !== null && !p.degraded.includes(v.degraded)) {
+      p.degraded.push(v.degraded);
+    }
+    if (v.shown !== null && p.supportShown[p.supportShown.length - 1] !== v.shown) {
+      p.supportShown.push(v.shown);
+    }
+    if (v.plaque === 'seen') {
+      p.plaqueSeen++;
+    } else if (v.plaque === 'covered') {
+      p.plaqueCovered++;
+    }
+    if (v.reaction) {
+      p.reactionOverRally++;
+    }
+    if (v.countChip) {
+      p.countChip++;
+    }
+    if (v.placing) {
+      p.parlWhilePlacing++;
+    }
+    for (const crumb of v.crumbs) {
+      if (!p.crumbs.includes(crumb)) {
+        p.crumbs.push(crumb);
+      }
+    }
+  }
+  return p;
+}
 
 test.describe('TRP3 — Mars First Campaign: a Prelude\'s city and its support, inside the start', () => {
   test.use({viewport: PRESET.viewport, deviceScaleFactor: 1, screen: PRESET.viewport});
@@ -232,7 +255,8 @@ test.describe('TRP3 — Mars First Campaign: a Prelude\'s city and its support, 
     const probe = await readProbe(page);
     const dump = JSON.stringify({crumbs: probe.crumbs, beats: probe.beats, parlMax: probe.parlMax, supportShown: probe.supportShown,
       countChip: probe.countChip, degraded: probe.degraded, parlWhilePlacing: probe.parlWhilePlacing, plaqueSeen: probe.plaqueSeen, plaqueCovered: probe.plaqueCovered, reactionOverRally: probe.reactionOverRally});
-    expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(5);
+    // The record keeps DISTINCT states, never frames: its floor catches only a dead recorder (`tests.md`).
+    expect(probe.samples, `the probe's recorder ran (${probe.samples} states)`).toBeGreaterThan(0);
     expect(probe.parlMax, `ONE Parliament instance (${dump})`).toBe(1);
     expect(probe.parlWhilePlacing, `no Parliament while the city was being placed (${dump})`).toBe(0);
     expect(probe.beats, `the rally's beats: the cubes, the read — no count, no coin (${dump})`).toEqual(expect.arrayContaining(['support', 'read']));

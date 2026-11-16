@@ -5,6 +5,7 @@ import {bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCard
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {armWitness, type Witness} from './witness';
+import {readSettled} from './settledRead';
 
 /**
  * TR46 «ИССЛЕДОВАТЕЛЬСКИЕ СТАРТАПЫ» — the set's first answer to THE PATENT
@@ -186,11 +187,12 @@ for (const preset of PRESETS) {
       await expect(answer).toHaveText(/\+3/);
       await expect(page.locator(`${PLAY_COMPOSER} [data-pay-unit="steel"], ${PLAY_COMPOSER} .con-payrow[data-pay-unit="steel"]`).first(), 'steel is offered for the Building tag').toBeVisible();
       // PL-198: on the couch the hero is a quarter of the play composer's zone (PL-139's class, carried over).
-      const share = await page.evaluate((root) => {
+      // Both boxes in ONE read at REST (class C — `readSettled`: the same answer twice, a frame apart, after `settle`).
+      const share = await readSettled(page, () => page.evaluate((root) => {
         const zone = document.querySelector(root)?.getBoundingClientRect();
         const hero = document.querySelector(`${root} .con-composer__playcard .pcard`)?.getBoundingClientRect();
         return zone === undefined || hero === undefined ? 0 : (hero.width * hero.height) / (zone.width * zone.height);
-      }, PLAY_COMPOSER);
+      }, PLAY_COMPOSER), {message: 'the hero\'s share of the play composer'});
       console.log(`[${preset.id} a hero share] ${(share * 100).toFixed(1)} %`);
       if (preset.id === 'tv4k') {
         expect(share, 'the hero is at least a quarter of the zone on the TV').toBeGreaterThanOrEqual(0.25);

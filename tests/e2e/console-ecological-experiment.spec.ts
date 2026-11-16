@@ -2,6 +2,7 @@ import {test, expect} from './consoleTest';
 import type {Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, commitFocusedSpace, fetchPlayerModel, focusCard, openConsole, placeTile, placementState, press, pressUntil, settle, waitForBoardHome, walkToSpace} from './consoleStart';
 import {expectSeeThrough, expectUncovers} from './peekWitness';
+import {armWitness, witnessOf} from './witness';
 import {TileType} from '../../src/common/TileType';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -26,7 +27,7 @@ import * as path from 'path';
  *   · CASCADE (fhd) — 0 °C and 8 % crossed by the raise: the bonus ocean is asked before the card's
  *     own lands; the fall then lowers what the cascade raised (2 → 0 °C, 8 → 7 %).
  *
- * Probes are `setInterval` + MutationObserver samplers (never rAF). Frames under
+ * Probes are RECORDINGS (`armWitness` — the product's own writes, armed before the press). Frames under
  * screenshots/ecological-experiment/<profile>/; a storyboard with TM_E2E_STORYBOARD=1.
  */
 const OUT = path.resolve('screenshots', 'ecological-experiment');
@@ -146,8 +147,9 @@ async function waitForRemoval(page: Page, request: APIRequestContext, playerId: 
   return asked;
 }
 
-// ── THE SWING PROBE: the scene's attributes, its tags, the HUD's rolls — on every sample (never rAF). ──
+// ── THE SWING PROBE: the scene's attributes, its tags, the HUD's rolls — RECORDED (FLAKE ZERO — `armWitness`). ──
 type SwingProbe = {
+  /** How many distinct states the recording kept (its liveness — never a count of frames). */
   samples: number;
   phases: Array<string>;
   legs: Array<string>;
@@ -155,63 +157,72 @@ type SwingProbe = {
   tags: Array<string>;
   /** The HUD readouts that rolled DOWN (`con-flipval--down`), in the order they first did. */
   rolledDown: Array<string>;
-  /** The wall time of the first sample of each leg. */
+  /** The recording's POSITION of the first state of each leg (an order, never a number of milliseconds). */
   legAt: Record<string, number>;
-  /** The last sample on which a removed ocean's departure proxy stood. */
+  /** The recording's POSITION of the last state in which a removed ocean's departure proxy stood. */
   departAt?: number;
   hud: Array<string>;
 };
+/** One moment of the swing as the reader sees it (the recording stamps it with the page's time). */
+type SwingSeen = {phase: string, leg: string, played: string, tags: Array<string>, down: Array<string>, depart: boolean, hud: string};
+const SWING_WITNESS = 'tr47-swing';
 
+/**
+ * Armed before the press: the reader returns what stands now, every change is kept. The claims are ORDERS (the tags,
+ * the rolls, the ocean's count only after its tile left) and the HUD's last word — what a frame shows, so the record is
+ * `settled` (the state a task leaves).
+ */
 async function armSwingProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__tr47: SwingProbe};
-    const p: SwingProbe = {samples: 0, phases: [], legs: [], played: '', tags: [], rolledDown: [], legAt: {}, hud: []};
-    w.__tr47 = p;
-    const t0 = Date.now();
+  await armWitness<SwingSeen>(page, SWING_WITNESS, () => {
     const hudOf = (icon: string) => document.querySelector(`.con-status__param .wgt-icon--${icon}`)?.closest('.con-status__param') ?? null;
-    const sample = () => {
-      p.samples++;
-      const now = Date.now() - t0;
-      const root = document.querySelector<HTMLElement>('[data-scale-swing]');
-      const phase = root?.dataset.scaleSwing ?? 'idle';
-      if (p.phases[p.phases.length - 1] !== phase) {
-        p.phases.push(phase);
-      }
-      const leg = root?.dataset.scaleSwingLeg ?? '';
-      if (leg !== '' && p.legs[p.legs.length - 1] !== leg) {
-        p.legs.push(leg);
-        p.legAt[leg] ??= now;
-      }
-      const played = root?.dataset.scaleSwingPlayed ?? '';
-      if (played.length > p.played.length) {
-        p.played = played;
-      }
-      for (const tag of Array.from(document.querySelectorAll<HTMLElement>('[data-scale-swing-tag]'))) {
-        const key = `${tag.dataset.scaleSwingTag}:${tag.dataset.scaleSwingKind}`;
-        if (!p.tags.includes(key)) {
-          p.tags.push(key);
-        }
-      }
-      for (const icon of ['ocean', 'temperature', 'oxygen']) {
-        if (hudOf(icon)?.querySelector('.con-flipval--down') !== null && hudOf(icon) !== null && !p.rolledDown.includes(icon)) {
-          p.rolledDown.push(icon);
-        }
-      }
-      if (document.querySelector('.con-tileplace__tile--depart') !== null) {
-        p.departAt = now;
-      }
-      const hud = ['temperature', 'oxygen', 'ocean'].map((icon) => (hudOf(icon)?.querySelector('.con-status__value')?.textContent ?? '').trim()).join(' ');
-      if (p.hud[p.hud.length - 1] !== hud) {
-        p.hud.push(hud);
-      }
+    const root = document.querySelector<HTMLElement>('[data-scale-swing]');
+    return {
+      phase: root?.dataset.scaleSwing ?? 'idle',
+      leg: root?.dataset.scaleSwingLeg ?? '',
+      played: root?.dataset.scaleSwingPlayed ?? '',
+      tags: Array.from(document.querySelectorAll<HTMLElement>('[data-scale-swing-tag]'))
+        .map((tag) => `${tag.dataset.scaleSwingTag}:${tag.dataset.scaleSwingKind}`),
+      down: ['ocean', 'temperature', 'oxygen'].filter((icon) => hudOf(icon) !== null && hudOf(icon)?.querySelector('.con-flipval--down') !== null),
+      depart: document.querySelector('.con-tileplace__tile--depart') !== null,
+      hud: ['temperature', 'oxygen', 'ocean'].map((icon) => (hudOf(icon)?.querySelector('.con-status__value')?.textContent ?? '').trim()).join(' '),
     };
-    sample();
-    setInterval(sample, 40);
-    new MutationObserver(sample).observe(document.body, {subtree: true, attributes: true, attributeFilter: ['data-scale-swing', 'data-scale-swing-leg', 'data-scale-swing-played', 'class']});
-  });
+  }, {settled: true, max: 20_000});
 }
 
-const readSwing = (page: Page) => page.evaluate(() => (window as unknown as {__tr47: SwingProbe}).__tr47);
+/** The recording folded on the Node side into the probe's old shape. */
+async function readSwing(page: Page): Promise<SwingProbe> {
+  const seen = await witnessOf<SwingSeen>(page, SWING_WITNESS).values();
+  const p: SwingProbe = {samples: seen.length, phases: [], legs: [], played: '', tags: [], rolledDown: [], legAt: {}, hud: []};
+  seen.forEach((v, i) => {
+    if (p.phases[p.phases.length - 1] !== v.phase) {
+      p.phases.push(v.phase);
+    }
+    if (v.leg !== '' && p.legs[p.legs.length - 1] !== v.leg) {
+      p.legs.push(v.leg);
+      p.legAt[v.leg] ??= i;
+    }
+    if (v.played.length > p.played.length) {
+      p.played = v.played;
+    }
+    for (const tag of v.tags) {
+      if (!p.tags.includes(tag)) {
+        p.tags.push(tag);
+      }
+    }
+    for (const icon of v.down) {
+      if (!p.rolledDown.includes(icon)) {
+        p.rolledDown.push(icon);
+      }
+    }
+    if (v.depart) {
+      p.departAt = i;
+    }
+    if (p.hud[p.hud.length - 1] !== v.hud) {
+      p.hud.push(v.hud);
+    }
+  });
+  return p;
+}
 
 /** The status strip's three Mars readouts, as painted (`-10°C 5% 4/9`). */
 const hudReadout = (page: Page) => page.evaluate(() => ['temperature', 'oxygen', 'ocean']
@@ -312,10 +323,11 @@ for (const preset of PRESETS) {
       const own = await waitSwingPlayed(page, 'down:oceans,down:temperature,down:oxygen', 'the mover');
       await stop();
       console.log(`[${preset.id} swing] samples ${own.samples} · phases ${own.phases.join('→')} · legs ${own.legs.join(' · ')} · tags ${own.tags.join(', ')} · rolled ${own.rolledDown.join(',')} · depart ${own.departAt} · legAt ${JSON.stringify(own.legAt)} · hud ${own.hud.join(' | ')}`);
-      expect(own.samples, 'the probe sampled').toBeGreaterThan(20);
+      expect(own.samples, 'the probe recorded').toBeGreaterThan(0);
       expect(own.tags, 'each fall wears its tag').toEqual(['oceans:down', 'temperature:down', 'oxygen:down']);
       expect(own.rolledDown, 'the HUD rolled each readout DOWN, in the scene\'s order').toEqual(['ocean', 'temperature', 'oxygen']);
       if (own.departAt !== undefined) {
+        // An ORDER of the recording: the leg's first state stands no earlier than the last state the proxy stood in.
         expect(own.legAt['down:oceans'], 'the ocean\'s count falls only once its tile has left').toBeGreaterThanOrEqual(own.departAt);
       }
       expect(own.hud[own.hud.length - 1], 'the HUD ends on the fall').toBe('-12°C 4% 3/9');

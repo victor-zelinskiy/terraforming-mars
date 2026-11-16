@@ -5,6 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
 import {answerAsksAs, closeSittingAs, closeSitting, expectParliamentFits, openParliament, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * MEDICAL DATABASE (Turmoil Redux, RX18) — the ONE e2e of the card's new
@@ -100,37 +101,62 @@ const layoutState = (page: Page) => page.evaluate((stage) => {
 
 type Probe = {samples: number, capsules: Record<string, string>, chips: Array<string>};
 
-/** The capsules' ticks, read IN the sample (a poll from outside can arrive after a short flight has handed the surface on). */
+/** One recorded state: every slot's capsule text, every transfer chip standing (identity · «text|kind»). */
+type ProbeSeen = {capsules: Record<string, string>, chips: Array<{id: number, label: string}>};
+
+const PROBE_WITNESS = 'medical:probe';
+
+/**
+ * The capsules' ticks, RECORDED in the task the product writes them (FLAKE ZERO — `armWitness`: a poll from outside can
+ * arrive after a short flight has handed the surface on). A chip's identity is a `WeakMap` on `window` inside the reader.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate((stage) => {
-    const w = window as unknown as {__medicalProbe: Probe & {seen: WeakSet<Element>}};
-    w.__medicalProbe = {samples: 0, capsules: {}, chips: [], seen: new WeakSet<Element>()};
-    const sample = () => {
-      const probe = w.__medicalProbe;
-      probe.samples++;
-      for (const slot of Array.from(document.querySelectorAll<HTMLElement>(`${stage} .con-cards__slot`))) {
-        const card = slot.getAttribute('data-zoom-slot') ?? '';
-        const text = slot.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
-        if (card !== '' && text !== '' && Number(text) > Number(probe.capsules[card] ?? '-1')) {
-          probe.capsules[card] = text;
-        }
+  await armWitness<ProbeSeen, string>(page, PROBE_WITNESS, (stage) => {
+    const w = window as unknown as {__medicalIds?: WeakMap<Element, number>, __medicalNext?: number};
+    const ids = w.__medicalIds ?? new WeakMap<Element, number>();
+    w.__medicalIds = ids;
+    const capsules: Record<string, string> = {};
+    for (const slot of Array.from(document.querySelectorAll<HTMLElement>(`${stage} .con-cards__slot`))) {
+      const card = slot.getAttribute('data-zoom-slot') ?? '';
+      const text = slot.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
+      if (card !== '' && text !== '') {
+        capsules[card] = text;
       }
-      for (const chip of Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip'))) {
-        if (!probe.seen.has(chip)) {
-          probe.seen.add(chip);
-          const kind = Array.from(chip.querySelectorAll<HTMLElement>('*')).flatMap((el) => Array.from(el.classList)).find((c) => c.startsWith('card-resource-')) ?? '';
-          probe.chips.push(`${(chip.textContent ?? '').trim()}|${kind}`);
-        }
+    }
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).map((chip) => {
+      let id = ids.get(chip);
+      if (id === undefined) {
+        id = (w.__medicalNext ?? 0) + 1;
+        w.__medicalNext = id;
+        ids.set(chip, id);
       }
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-    window.setInterval(sample, 16);
-  }, STAGE);
+      const kind = Array.from(chip.querySelectorAll<HTMLElement>('*')).flatMap((el) => Array.from(el.classList)).find((c) => c.startsWith('card-resource-')) ?? '';
+      return {id, label: `${(chip.textContent ?? '').trim()}|${kind}`};
+    });
+    return {capsules, chips};
+  }, {args: STAGE});
 }
-const readProbe = (page: Page) => page.evaluate(() => {
-  const p = (window as unknown as {__medicalProbe: Probe}).__medicalProbe;
-  return {samples: p.samples, capsules: p.capsules, chips: p.chips};
-});
+
+/** The recording folded: each capsule's HIGHEST reading, each chip as it was FIRST seen. */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<ProbeSeen>(page, PROBE_WITNESS).samples();
+  const p: Probe = {samples: samples.length, capsules: {}, chips: []};
+  const seen = new Set<number>();
+  for (const {v} of samples) {
+    for (const [card, text] of Object.entries(v.capsules)) {
+      if (Number(text) > Number(p.capsules[card] ?? '-1')) {
+        p.capsules[card] = text;
+      }
+    }
+    for (const chip of v.chips) {
+      if (!seen.has(chip.id)) {
+        seen.add(chip.id);
+        p.chips.push(chip.label);
+      }
+    }
+  }
+  return p;
+}
 
 test.describe('Medical Database · standard-1080', () => {
   test.use({viewport: {width: 1920, height: 1080}});
@@ -284,7 +310,8 @@ test.describe('Medical Database · standard-1080', () => {
       timeout: 20_000, message: 'both capsules tick to their microbes while the layout is still on screen',
     }).toEqual(['2', '2']);
     const probe = await readProbe(page);
-    expect(probe.samples, 'the probe ran').toBeGreaterThan(20);
+    // Only a dead recorder reads none (a state, never a frame count).
+    expect(probe.samples, 'the probe ran').toBeGreaterThan(0);
     expect(probe.chips.length, `one chip per recipient (${JSON.stringify(probe.chips)})`).toBe(2);
     expect(probe.chips.every((c) => c.startsWith('+2|') && c.endsWith('card-resource-microbe')), `each chip carries its card's amount and kind (${JSON.stringify(probe.chips)})`).toBe(true);
     expect(inputRequests, 'the commit was ONE request').toBe(1);

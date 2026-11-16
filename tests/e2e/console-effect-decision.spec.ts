@@ -1,5 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootSeededGame, press, pressUntilVisible, reloadConsole, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -286,7 +287,7 @@ test('a paid effect: the price and the result are shown BEFORE it is spent', asy
   }));
   await reloadConsole(page);
   await page.waitForSelector('.con-decision', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(1200);
+  await settle(page);
   await shoot(page, '4-decision-buy');
 
   await expect(page.locator('.con-decision .con-prompt-head__title')).toHaveText(/Купить карту\?/i);
@@ -300,8 +301,15 @@ test('a paid effect: the price and the result are shown BEFORE it is spent', asy
   await expect(page.locator('.con-decision [data-decision-action]').nth(1).locator('.con-vchoice__title'))
     .toHaveText(/Не покупать карту/i);
 
+  // The panel and its band, measured AT REST (`readSettled` — both boxes in one read, two equal reads a frame apart;
+  // the console was just settled above).
+  const boxes = await readSettled(page, async () => ({
+    panel: await page.locator('.con-decision__panel').boundingBox(),
+    band: await page.locator('.con-decision').boundingBox(),
+  }), {settle: false, message: 'the decision panel and its band'});
+
   // The panel sizes to its content — no half-empty screen under two choices.
-  const panel = await page.locator('.con-decision__panel').boundingBox();
+  const panel = boxes.panel;
   const viewport = page.viewportSize();
   expect(panel !== null && viewport !== null && panel.height < viewport.height * 0.75,
     `the panel must hug its content (was ${panel?.height} of ${viewport?.height})`).toBeTruthy();
@@ -315,7 +323,7 @@ test('a paid effect: the price and the result are shown BEFORE it is spent', asy
   // constant.
   expect(panel).not.toBeNull();
   expect(viewport).not.toBeNull();
-  const band = await page.locator('.con-decision').boundingBox();
+  const band = boxes.band;
   expect(band).not.toBeNull();
   const panelCentreX = panel!.x + panel!.width / 2;
   const bandCentreX = band!.x + band!.width / 2;

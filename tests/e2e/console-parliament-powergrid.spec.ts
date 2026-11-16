@@ -5,6 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openQuickWheel, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
 import {expectDossierIsRules} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /**
  * CENTRAL POWER GRID (Turmoil Redux, RX04) — the second card of the «counter +
@@ -97,9 +98,12 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
   return await fetchPlayerModel(request, playerId) as unknown as Wire;
 }
 
-/** Nothing of the workspace sticks out of the viewport and no block spills. */
+/**
+ * Nothing of the workspace sticks out of the viewport and no block spills — read AT REST (`readSettled`; no `settle`
+ * first: the callers settled, and the Parliament STANDS for the player).
+ */
 async function expectFits(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => page.evaluate(() => {
     const root = document.querySelector('.con-parl');
     if (root === null) {
       return ['no root'];
@@ -132,7 +136,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
       }
     }
     return out;
-  });
+  }), {settle: false, message: `${label}: the layout`});
   expect(problems, `${label}: layout problems`).toEqual([]);
 }
 
@@ -159,7 +163,7 @@ for (const preset of PRESETS) {
       // The mechanics print the power TAG medallion, and never the card glyph of a per-CARD rule.
       const tagIcons = face.locator('.pcard__mech .pcard-ic--tag');
       await expect(tagIcons, 'the printed power tag on the face').toHaveCount(1);
-      expect(await tagIcons.first().evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('power.png');
+      await expect.poll(() => tagIcons.first().evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('power.png');
       await expect(face.locator('.pcard__mech .pvpcard'), 'no card glyph: this card counts tags, not cards').toHaveCount(0);
       await expect(face.locator('.pcard__mech'), 'the cap on the face').toContainText(/макс\. 5|max 5/i);
       await expect(face.locator('.pcard__quest-graphic'), 'the two-power-tags quest as a graphic').toHaveCount(1);
@@ -171,7 +175,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-vote-yield]'), 'the tag count + influence → production block').toHaveCount(1);
       // Blue: 3 power tags (one card worth TWO) + influence 1 → +4 now; winning takes the marker to step 3 (influence 2) → 3 + 2 = +5,
       // the maximum — ONE NUMBER on the panel, the win's +1 as its suffix (the captioned forecast plate is the inspector's).
-      expect(await readingsIn(page, '[data-parl-vote-yield]')).toEqual([
+      await expect.poll(() => readingsIn(page, '[data-parl-vote-yield]')).toEqual([
         reading('estimate', 3, 1, 4, 4),
       ]);
       await expect(page.locator('[data-parl-vote-yield] .con-iyield__caption'), 'the panel\'s kicker is the caption — the plate prints none').toHaveCount(0);
@@ -216,7 +220,7 @@ for (const preset of PRESETS) {
       await openParliament(page);
       await expect(page.locator('.con-parl__stage[data-parl-stage="recap"]'), 'no results scene').toHaveCount(0);
       await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the enacted card stands in the government').toHaveCount(1);
-      expect((await crumbText(page)).toUpperCase(), 'the overview names itself').toContain('ОБЗОР');
+      await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the overview names itself'}).toContain('ОБЗОР');
       await expectFits(page, `${preset.id} after the phase`);
       await shoot(page, preset.id, '20-after-phase');
     });

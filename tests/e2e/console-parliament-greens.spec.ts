@@ -7,6 +7,7 @@ import {
 import {
   armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * GREENS BUDGET (Turmoil Redux, RX34) — the ONE e2e of the card's one new thing:
@@ -34,8 +35,8 @@ import {
  *   cards each portion landed on, and the NET; the other seat, with no holder
  *   of either kind, reads its two portions NAMED and forfeited.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF. Screens under
- * screenshots/parliament-greens/standard-1080/.
+ * The probe is a RECORDING (`armWitness` — every state a task leaves, kept with the
+ * page's time). Screens under screenshots/parliament-greens/standard-1080/.
  */
 const OUT_DIR = path.resolve('screenshots', 'parliament-greens', 'standard-1080');
 const BUDGET_ID = 'RDX_GREENS_GREENS_BUDGET';
@@ -87,57 +88,52 @@ type Sample = {
   mc: string;
 };
 type Probe = {samples: Array<Sample>};
+const GREENS_WITNESS = 'greens-sitting';
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
+/**
+ * THE PROBE — armed BEFORE the gate is answered, and RECORDED (FLAKE ZERO — `armWitness`, replace-proof): the reader
+ * returns what stands now (a sample without its time — the record stamps it with the PAGE's clock), every change is kept.
+ * Its claims are ORDER and COEXISTENCE («in turn», «never side by side»), so the record is `settled` — the state a task
+ * leaves, the one a frame paints. The samples are DISTINCT states (a chip's flight is one per frame it moves).
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate((slots) => {
-    const w = window as unknown as {__greensProbe: Probe};
-    w.__greensProbe = {samples: []};
-    const sample = () => {
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        return {id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? ''};
-      });
-      const slotEls = Array.from(document.querySelectorAll<HTMLElement>(slots));
-      const capsules: Record<string, string> = {};
-      for (const el of slotEls) {
-        const name = el.getAttribute('data-zoom-slot') ?? '';
-        capsules[name] = el.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
-      }
-      w.__greensProbe.samples.push({
-        t: performance.now(),
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
-        chips,
-        slots: slotEls.map((el) => el.getAttribute('data-zoom-slot') ?? ''),
-        focused: slotEls.find((el) => el.classList.contains('con-cards__slot--focused'))?.getAttribute('data-zoom-slot') ?? '',
-        capsules,
-        mc: ((document.querySelector('.con-res__row--megacredits .con-res__digits')?.textContent?.trim() ?? '').match(/^-?\d+/) ?? [''])[0],
-      });
-      if (w.__greensProbe.samples.length > 9000) {
-        w.__greensProbe.samples.splice(0, 1500);
-      }
+  await armWitness<Omit<Sample, 't'>, string>(page, GREENS_WITNESS, (slots) => {
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      return {id: `${el.dataset.transferId ?? '?'}`, x: r.left + r.width / 2, y: r.top + r.height / 2, dir: el.dataset.transferDirection ?? 'gain', amt: el.textContent?.trim() ?? ''};
+    });
+    const slotEls = Array.from(document.querySelectorAll<HTMLElement>(slots));
+    const capsules: Record<string, string> = {};
+    for (const el of slotEls) {
+      const name = el.getAttribute('data-zoom-slot') ?? '';
+      capsules[name] = el.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
+    }
+    return {
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
+      chips,
+      slots: slotEls.map((el) => el.getAttribute('data-zoom-slot') ?? ''),
+      focused: slotEls.find((el) => el.classList.contains('con-cards__slot--focused'))?.getAttribute('data-zoom-slot') ?? '',
+      capsules,
+      mc: ((document.querySelector('.con-res__row--megacredits .con-res__digits')?.textContent?.trim() ?? '').match(/^-?\d+/) ?? [''])[0],
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-sit-step']});
-    window.setInterval(sample, 16);
-  }, SLOTS);
+  }, {args: SLOTS, settled: true, max: 20_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__greensProbe: Probe}).__greensProbe);
+/** Every recorded state, stamped with its page time — the shape the folding below reads. */
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Omit<Sample, 't'>>(page, GREENS_WITNESS).samples()).map((s) => ({t: s.t, ...s.v}))});
 
 /** A red run carries its own evidence: the probe's tail rides the report. */
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__greensProbe?: Probe, __conReady?: () => unknown};
-    return {samples: w.__greensProbe?.samples.slice(-3000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
-  if (evidence !== undefined) {
-    const file = testInfo.outputPath('greens-probe.json');
-    fs.writeFileSync(file, JSON.stringify(evidence));
-    await testInfo.attach('greens-probe', {path: file, contentType: 'application/json'});
-  }
+  // The record lives on the Node side — it outlives the page.
+  const samples = (await readProbe(page).catch((): Probe => ({samples: []}))).samples.slice(-3000);
+  const ready = await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()).catch(() => undefined);
+  const file = testInfo.outputPath('greens-probe.json');
+  fs.writeFileSync(file, JSON.stringify({samples, ready}));
+  await testInfo.attach('greens-probe', {path: file, contentType: 'application/json'});
 });
 
 /** The chips of the probe, grouped into TRACKS by id, in the order they first appeared. */

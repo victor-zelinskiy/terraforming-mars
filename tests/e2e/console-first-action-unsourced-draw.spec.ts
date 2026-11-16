@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * Console-native · A FIRST ACTION THAT DRAWS WITHOUT SAYING SO.
@@ -46,14 +47,40 @@ test.describe('console first action · an unattributed draw (Celestic)', () => {
 
     const stage = page.locator('.con-start__firstact');
     await stage.waitFor({state: 'visible', timeout: 60_000});
-    await page.waitForTimeout(1200);
+    // The stage's OWN readiness marker (the first action actionable now) — the state the old fixed beat waited for.
+    await expect(page.locator('.con-start__firstact--ready'), 'the first action is actionable').toBeVisible({timeout: 30_000});
     await shoot(page, '01-stage');
+
+    // RECORD the presentation for the whole beat, armed before the press (FLAKE ZERO: `armWitness`; `settled` —
+    // «never a modal over it» is a claim about what a frame paints): the reveal must appear INSIDE the workspace's own
+    // zone, and the workspace must still be there.
+    type Seen = {reveal: boolean, embedded: boolean, scene: boolean, zone: boolean, startPainted: boolean, take: string};
+    const story = await armWitness<Seen>(page, 'unsourced-draw', () => {
+      const reveal = document.querySelector('.con-reveal');
+      const start = document.querySelector('.con-start');
+      return {
+        reveal: reveal !== null,
+        embedded: document.querySelector('.con-start__embed .con-reveal') !== null,
+        // The deck-draw cinematic is what withholds the overlay until the
+        // zone exists and then lands the cards in it.
+        scene: document.querySelector('.con-deckdraw') !== null,
+        zone: document.querySelector('.con-start__embed') !== null,
+        startPainted: start !== null &&
+          (start as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true}),
+        // The batch's own take state — `ready` once it stands whole for the player's take.
+        take: reveal?.getAttribute('data-take') ?? '',
+      };
+    }, {settled: true});
 
     // A performs the mandatory first action — it draws two floater cards.
     await page.keyboard.press('Enter');
 
-    // Sample the presentation for the whole beat: the reveal must appear
-    // INSIDE the workspace's own zone, and the workspace must still be there.
+    // The window ends on the END STATE, never a duration: the batch standing READY for its take (or already taken).
+    await expect.poll(async () => {
+      const seen = await story.values();
+      const first = seen.findIndex((v) => v.reveal);
+      return first >= 0 && seen.slice(first).some((v) => !v.reveal || v.take === 'ready');
+    }, {timeout: 60_000, message: 'the drawn batch was presented'}).toBe(true).catch(() => undefined);
     let sawReveal = false;
     let sawStandalone = false;
     let sawScene = false;
@@ -63,21 +90,7 @@ test.describe('console first action · an unattributed draw (Celestic)', () => {
     // mounted before the workspace published its zone), or the zone was there
     // and the teleport still missed — and the failure has to say which.
     let firstStandalone: unknown;
-    for (let i = 0; i < 140; i++) {
-      const s = await page.evaluate(() => {
-        const reveal = document.querySelector('.con-reveal');
-        const start = document.querySelector('.con-start');
-        return {
-          reveal: reveal !== null,
-          embedded: document.querySelector('.con-start__embed .con-reveal') !== null,
-          // The deck-draw cinematic is what withholds the overlay until the
-          // zone exists and then lands the cards in it.
-          scene: document.querySelector('.con-deckdraw') !== null,
-          zone: document.querySelector('.con-start__embed') !== null,
-          startPainted: start !== null &&
-            (start as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true}),
-        };
-      });
+    for (const [i, {t, v: s}] of (await story.stop()).entries()) {
       if (s.scene) {
         sawScene = true;
       }
@@ -85,7 +98,7 @@ test.describe('console first action · an unattributed draw (Celestic)', () => {
         sawReveal = true;
         if (!s.embedded) {
           sawStandalone = true;
-          firstStandalone = firstStandalone ?? {frame: i, ...s, sawScene};
+          firstStandalone = firstStandalone ?? {state: i, t, ...s, sawScene};
         }
         if (!s.startPainted) {
           startGoneWhileRevealing = true;
@@ -94,7 +107,6 @@ test.describe('console first action · an unattributed draw (Celestic)', () => {
       if (sawReveal && !s.reveal) {
         break; // the batch has been taken
       }
-      await page.waitForTimeout(100);
     }
     await shoot(page, '02-draw-presentation');
     console.log(`[UNSOURCED] scene=${sawScene} standalone=${sawStandalone} first=${JSON.stringify(firstStandalone)}`);

@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, pressUntil, settle} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * P77 «ДЕЛЕГАТЫ ЮПИТЕРА» — P72's TWIN (docs/claude/prompts/prelude2-p77-jovian-envoys.md, ledger DH): an event whose whole
@@ -28,6 +29,8 @@ const OUT = path.resolve('screenshots', 'p77');
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const COMPOSER = '.con-composer--play';
 const VOTE = '.con-hand .con-parl--embedded [data-parl-vote-door="card"]';
+const SEAM_STORY = 'p77-seam';
+const PAIR_STORY = 'p77-pair';
 
 type Wire = {
   game: {parliament?: {players: Array<{color: string, reserve: number}>}},
@@ -88,18 +91,17 @@ async function focusInHand(page: Page): Promise<void> {
 }
 
 type Story = {
-  samples: number;
   /** The hand head's stage words, deduped in order of first appearance. */
   steps: Array<string>;
   /** [ms, bar context, crumb tail] — every change of the pair. */
   seam: Array<[number, string, string]>;
-  /** Samples in which the crumb's tail named the vote while the bar said something else (PL-1167). */
+  /** Painted states in which the crumb's tail named the vote while the bar said something else (PL-1167). */
   seamMismatch: number;
   /** A `.con-parl` stood OUTSIDE the hand (a second surface) or as a band of its own. */
   parlOutsideHand: boolean;
   /** The first moment the card's vote door stood (−1: never). */
   doorAt: number;
-  /** The first sample in which the voting area's faces stood in the door (−1: never) — and the cold art in it (PL-1168). */
+  /** The first state in which the voting area's faces stood in the door (−1: never) — and the cold art in it (PL-1168). */
   facesAt: number;
   coldArtAtDoor: number;
   artAtDoor: number;
@@ -125,20 +127,21 @@ type Story = {
   stranded: boolean;
 };
 
-/** MutationObserver + setInterval (never rAF): the story of the screen from the press on. */
-async function armStory(page: Page, viewer: string): Promise<void> {
-  await page.evaluate((viewer) => {
-    const w = window as unknown as {__p77: Story};
-    const p: Story = {
-      samples: 0, steps: [], seam: [], seamMismatch: 0, parlOutsideHand: false, doorAt: -1, facesAt: -1, coldArtAtDoor: -1, artAtDoor: -1,
-      sceneLastAt: -1, emptyMs: 0, emptyLongest: 0, doorOutsideAt: -1, handLeftAt: -1, reserve: [], lifts: [], touches: [],
-      target: [], govFocused: false, gap: [], stranded: false,
-    };
-    w.__p77 = p;
-    const t0 = Date.now();
-    let last = 0;
-    let emptyRun = 0;
-    let sceneSeen = false;
+/** What ONE painted state of the screen shows — the witness's observation (the story is folded from these). */
+type Seen = {
+  steps: Array<string>, bar: string, parlOutside: boolean, scene: boolean, parl: boolean, gap: string,
+  door: boolean, cardDoor: boolean, faces: [number, number] | null, hand: boolean, gov: boolean,
+  reserve: number | null, flights: Array<string>, landed: Array<number>, target: string | null, stranded: boolean,
+};
+
+/**
+ * THE STORY OF THE SCREEN from the press on — RECORDED (FLAKE ZERO: `armWitness`, armed before the press, replace-proof):
+ * the reader returns what one state shows; the story (first sightings, the seam, the empty stage's runs on the PAGE's
+ * clock) is folded on the Node side (`readStory`). `settled`: the seam (the bar and the crumb in ONE frame), the empty
+ * stage and the pair's order are claims about what a frame paints, never about a state between two writes of one task.
+ */
+async function armStory(page: Page, key: string, viewer: string): Promise<void> {
+  await armWitness<Seen, string>(page, key, (viewer) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const shown = (el: Element | null): boolean => {
       if (el === null) {
@@ -170,129 +173,143 @@ async function armStory(page: Page, viewer: string): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width < 2 ? 'zero-box' : 'seen';
     };
-    const sample = () => {
-      p.samples++;
-      const at = Date.now() - t0;
-      const dt = at - last;
-      last = at;
-      const hand = document.querySelector('.con-hand');
-      let tail = '';
-      hand?.querySelectorAll('.con-wshead__step').forEach((el) => {
-        const step = text(el);
-        if (step !== '') {
-          tail = step;
-          if (!p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        }
-      });
-      const bar = text(document.querySelector('.con-cmdbar__context'));
-      const lastSeam = p.seam[p.seam.length - 1];
-      if (lastSeam === undefined || lastSeam[1] !== bar || lastSeam[2] !== tail) {
-        p.seam.push([at, bar, tail]);
+    const hand = document.querySelector('.con-hand');
+    const steps: Array<string> = [];
+    hand?.querySelectorAll('.con-wshead__step').forEach((el) => {
+      const step = text(el);
+      if (step !== '') {
+        steps.push(step);
       }
-      if (tail.toUpperCase() === 'ГОЛОСОВАНИЕ' && bar.toUpperCase() !== tail.toUpperCase()) {
-        p.seamMismatch++;
-      }
-      document.querySelectorAll('.con-parl').forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        }
-      });
-      // THE STAGE between the play and the vote: the play's own scene (the composer, the hero) or the vote standing.
-      const scene = shown(document.querySelector('.con-played-hero')) || shown(document.querySelector('.con-composer--play'));
-      const parl = shown(document.querySelector('.con-hand .con-parl'));
-      if (scene) {
-        sceneSeen = true;
-        p.sceneLastAt = at;
-      }
-      if (p.doorAt < 0 || at < p.doorAt + 1500) {
-        const parlEl = document.querySelector<HTMLElement>('.con-parl');
-        const ready = (window as unknown as {__conReady?: () => {holds: Array<string>, wsFrames: Array<string>, outcome: {stage: string}}}).__conReady?.();
-        const state = [
-          parlEl === null ? 'no-parl' : `parl:${parlEl.closest('.con-hand') === null ? 'out' : 'in'}:op${Number(getComputedStyle(parlEl).opacity).toFixed(2)}:${parlEl.className.toString().replace(/s+/g, '.')}`,
-          `hider=${hiderOf(document.querySelector('.con-hand .con-parl__slot[data-instance]'))}`,
-          `info=${hiderOf(document.querySelector('.con-hand .con-parl__info'))}`,
-          `scene=${scene ? 'hero/composer' : '-'}`,
-          `holds=${(ready?.holds ?? []).join(',')}`,
-          `frames=${(ready?.wsFrames ?? []).join('>')}`,
-          `outcome=${ready?.outcome.stage ?? '?'}`,
-        ].join(' ');
-        if (p.gap[p.gap.length - 1]?.[1] !== state && p.gap.length < 80) {
-          p.gap.push([at, state]);
-        }
-      }
-      if (sceneSeen && p.doorAt < 0 && !scene && !parl) {
-        emptyRun += dt;
-        p.emptyMs += dt;
-        p.emptyLongest = Math.max(p.emptyLongest, emptyRun);
-      } else {
-        emptyRun = 0;
-      }
-      const door = document.querySelector('[data-parl-vote-door]');
-      if (door !== null) {
-        if (p.doorAt < 0 && door.closest('.con-hand') !== null && door.getAttribute('data-parl-vote-door') === 'card') {
-          p.doorAt = at;
-        }
-        const arts = Array.from(document.querySelectorAll('.con-hand .con-parl__slot[data-instance] .pcard__art'));
-        if (p.facesAt < 0 && arts.length >= 3 && shown(arts[0])) {
-          p.facesAt = at;
-          p.artAtDoor = arts.length;
-          p.coldArtAtDoor = arts.filter((a) => {
-            const img = a.querySelector('img');
-            return !a.classList.contains('pcard__art--void') && (img === null || !img.complete || img.naturalWidth === 0);
-          }).length;
-        }
-        if (hand === null && p.doorOutsideAt < 0) {
-          p.doorOutsideAt = at;
-        }
-        document.querySelectorAll('.con-parl__gov, .con-parl__gov *').forEach((el) => {
-          if (/(--focus|--selected|--target)\b/.test(el.className.toString())) {
-            p.govFocused = true;
-          }
-        });
-      }
-      if (p.doorAt >= 0 && hand === null && p.handLeftAt < 0) {
-        p.handLeftAt = at;
-      }
-      const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
-      const value = raw === null || raw === undefined ? NaN : Number(raw);
-      if (Number.isFinite(value) && p.reserve[p.reserve.length - 1]?.[1] !== value) {
-        p.reserve.push([at, value]);
-      }
-      document.querySelectorAll('[data-parl-flight^="vote"]').forEach((el) => {
-        const id = el.getAttribute('data-parl-flight') ?? '';
-        if (!p.lifts.some(([, seen]) => seen === id)) {
-          p.lifts.push([at, id]);
-        }
-      });
-      document.querySelectorAll('.con-hand .con-parl__slot [data-seq][data-landed]').forEach((el) => {
-        const seq = Number(el.getAttribute('data-seq'));
-        if (!p.touches.some(([, seen]) => seen === seq)) {
-          p.touches.push([at, seq]);
-        }
-      });
-      const first = document.querySelector('.con-hand .con-parl__slot[data-instance]');
-      if (first !== null) {
-        const reading = [
-          text(first.querySelector('.con-parl__tally-num')),
-          first.querySelector('[data-parl-mine]')?.getAttribute('data-parl-mine-count') ?? '',
-          first.classList.contains('con-parl__slot--mine') ? 'lead' : '-',
-          first.querySelector('.con-parl__slot-win') !== null ? 'win' : '-',
-        ].join('·');
-        if (p.target[p.target.length - 1]?.[1] !== reading) {
-          p.target.push([at, reading]);
-        }
-      }
-      p.stranded = p.stranded || document.querySelector('.con-stranded') !== null;
+    });
+    // THE STAGE between the play and the vote: the play's own scene (the composer, the hero) or the vote standing.
+    const scene = shown(document.querySelector('.con-played-hero')) || shown(document.querySelector('.con-composer--play'));
+    const parlEl = document.querySelector<HTMLElement>('.con-parl');
+    const ready = (window as unknown as {__conReady?: () => {holds: Array<string>, wsFrames: Array<string>, outcome: {stage: string}}}).__conReady?.();
+    const gap = [
+      parlEl === null ? 'no-parl' : `parl:${parlEl.closest('.con-hand') === null ? 'out' : 'in'}:op${Number(getComputedStyle(parlEl).opacity).toFixed(2)}:${parlEl.className.toString().replace(/s+/g, '.')}`,
+      `hider=${hiderOf(document.querySelector('.con-hand .con-parl__slot[data-instance]'))}`,
+      `info=${hiderOf(document.querySelector('.con-hand .con-parl__info'))}`,
+      `scene=${scene ? 'hero/composer' : '-'}`,
+      `holds=${(ready?.holds ?? []).join(',')}`,
+      `frames=${(ready?.wsFrames ?? []).join('>')}`,
+      `outcome=${ready?.outcome.stage ?? '?'}`,
+    ].join(' ');
+    const door = document.querySelector('[data-parl-vote-door]');
+    const arts = door === null ? [] : Array.from(document.querySelectorAll('.con-hand .con-parl__slot[data-instance] .pcard__art'));
+    const cold = arts.filter((a) => {
+      const img = a.querySelector('img');
+      return !a.classList.contains('pcard__art--void') && (img === null || !img.complete || img.naturalWidth === 0);
+    }).length;
+    const raw = document.querySelector(`[data-parl-seat-reserve="${viewer}"]`)?.getAttribute('data-count');
+    const value = raw === null || raw === undefined ? NaN : Number(raw);
+    const first = document.querySelector('.con-hand .con-parl__slot[data-instance]');
+    return {
+      steps,
+      bar: text(document.querySelector('.con-cmdbar__context')),
+      parlOutside: Array.from(document.querySelectorAll('.con-parl')).some((el) => el.closest('.con-hand') === null || el.classList.contains('con-ws')),
+      scene,
+      parl: shown(document.querySelector('.con-hand .con-parl')),
+      gap,
+      door: door !== null,
+      cardDoor: door !== null && door.closest('.con-hand') !== null && door.getAttribute('data-parl-vote-door') === 'card',
+      faces: arts.length >= 3 && shown(arts[0]) ? [arts.length, cold] : null,
+      hand: hand !== null,
+      gov: door !== null && Array.from(document.querySelectorAll('.con-parl__gov, .con-parl__gov *'))
+        .some((el) => /(--focus|--selected|--target)\b/.test(el.className.toString())),
+      reserve: Number.isFinite(value) ? value : null,
+      flights: Array.from(document.querySelectorAll('[data-parl-flight^="vote"]')).map((el) => el.getAttribute('data-parl-flight') ?? ''),
+      landed: Array.from(document.querySelectorAll('.con-hand .con-parl__slot [data-seq][data-landed]')).map((el) => Number(el.getAttribute('data-seq'))),
+      target: first === null ? null : [
+        text(first.querySelector('.con-parl__tally-num')),
+        first.querySelector('[data-parl-mine]')?.getAttribute('data-parl-mine-count') ?? '',
+        first.classList.contains('con-parl__slot--mine') ? 'lead' : '-',
+        first.querySelector('.con-parl__slot-win') !== null ? 'win' : '-',
+      ].join('·'),
+      stranded: document.querySelector('.con-stranded') !== null,
     };
-    sample();
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-    window.setInterval(sample, 30);
-  }, viewer);
+  }, {args: viewer, settled: true});
 }
 
-const readStory = (page: Page): Promise<Story> => page.evaluate(() => (window as unknown as {__p77: Story}).__p77);
+/** The story, folded from the record: times are the PAGE's clock from the arm; a state stands until the next one. */
+async function readStory(page: Page, key: string): Promise<Story> {
+  const samples = await witnessOf<Seen>(page, key).samples();
+  const until = await pageNow(page);
+  const p: Story = {
+    steps: [], seam: [], seamMismatch: 0, parlOutsideHand: false, doorAt: -1, facesAt: -1, coldArtAtDoor: -1, artAtDoor: -1,
+    sceneLastAt: -1, emptyMs: 0, emptyLongest: 0, doorOutsideAt: -1, handLeftAt: -1, reserve: [], lifts: [], touches: [],
+    target: [], govFocused: false, gap: [], stranded: false,
+  };
+  const t0 = samples[0]?.t ?? until;
+  let emptyRun = 0;
+  let sceneSeen = false;
+  samples.forEach((s, i) => {
+    const v = s.v;
+    const at = s.t - t0;
+    const end = (samples[i + 1]?.t ?? until) - t0;
+    const tail = v.steps[v.steps.length - 1] ?? '';
+    for (const step of v.steps) {
+      if (!p.steps.includes(step)) {
+        p.steps.push(step);
+      }
+    }
+    const lastSeam = p.seam[p.seam.length - 1];
+    if (lastSeam === undefined || lastSeam[1] !== v.bar || lastSeam[2] !== tail) {
+      p.seam.push([at, v.bar, tail]);
+    }
+    if (tail.toUpperCase() === 'ГОЛОСОВАНИЕ' && v.bar.toUpperCase() !== tail.toUpperCase()) {
+      p.seamMismatch++;
+    }
+    p.parlOutsideHand = p.parlOutsideHand || v.parlOutside;
+    if (v.scene) {
+      sceneSeen = true;
+      p.sceneLastAt = end;
+    }
+    if ((p.doorAt < 0 || at < p.doorAt + 1500) && p.gap[p.gap.length - 1]?.[1] !== v.gap && p.gap.length < 80) {
+      p.gap.push([at, v.gap]);
+    }
+    if (sceneSeen && p.doorAt < 0 && !v.scene && !v.parl) {
+      emptyRun += end - at;
+      p.emptyMs += end - at;
+      p.emptyLongest = Math.max(p.emptyLongest, emptyRun);
+    } else {
+      emptyRun = 0;
+    }
+    if (v.door) {
+      if (p.doorAt < 0 && v.cardDoor) {
+        p.doorAt = at;
+      }
+      if (p.facesAt < 0 && v.faces !== null) {
+        p.facesAt = at;
+        [p.artAtDoor, p.coldArtAtDoor] = v.faces;
+      }
+      if (!v.hand && p.doorOutsideAt < 0) {
+        p.doorOutsideAt = at;
+      }
+      p.govFocused = p.govFocused || v.gov;
+    }
+    if (p.doorAt >= 0 && !v.hand && p.handLeftAt < 0) {
+      p.handLeftAt = at;
+    }
+    if (v.reserve !== null && p.reserve[p.reserve.length - 1]?.[1] !== v.reserve) {
+      p.reserve.push([at, v.reserve]);
+    }
+    for (const id of v.flights) {
+      if (!p.lifts.some(([, seen]) => seen === id)) {
+        p.lifts.push([at, id]);
+      }
+    }
+    for (const seq of v.landed) {
+      if (!p.touches.some(([, seen]) => seen === seq)) {
+        p.touches.push([at, seq]);
+      }
+    }
+    if (v.target !== null && p.target[p.target.length - 1]?.[1] !== v.target) {
+      p.target.push([at, v.target]);
+    }
+    p.stranded = p.stranded || v.stranded;
+  });
+  return p;
+}
 
 /** The vote mode's cursor stands on the FIRST resolution (the overtake target). */
 async function onFirstResolution(page: Page): Promise<boolean> {
@@ -353,18 +370,15 @@ test.describe(`P77 Jovian Envoys · P72's twin — the grant is ONE phrase from 
     await shoot(page, 'b-composer');
 
     // ── A: ONE POST; the event face down; THEN the vote ──
-    await armStory(page, before.thisPlayer.color);
+    await armStory(page, SEAM_STORY, before.thisPlayer.color);
     const stopStory = await storyboard(page, 'play');
-    for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
-      await press(page, 'Enter', 300);
-      await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
-    }
+    await pressUntil(page, 'Enter', async () => posts.length > 0, {tries: 3, settleMs: 3_000});
     expect(posts.length, 'the play is ONE POST').toBe(1);
     expect(posts[0], 'the POST is the card\'s play').toContain(CARD);
     await page.locator(VOTE).waitFor({timeout: 60_000}).catch(() => undefined);
     await settle(page, {timeoutMs: 30_000}).catch(() => undefined);
     await shoot(page, 'c-vote');
-    const seam = await readStory(page);
+    const seam = await readStory(page, SEAM_STORY);
     fs.mkdirSync(path.join(OUT, PRESET.id), {recursive: true});
     fs.writeFileSync(path.join(OUT, PRESET.id, 'b-seam.json'), JSON.stringify(seam, null, 1));
     const toldSeam = JSON.stringify({gap: seam.gap, steps: seam.steps, seam: seam.seam, doorAt: seam.doorAt, facesAt: seam.facesAt, sceneLastAt: seam.sceneLastAt,
@@ -389,23 +403,22 @@ test.describe(`P77 Jovian Envoys · P72's twin — the grant is ONE phrase from 
       await press(page, key, 260);
     }
     await expect(page.locator(VOTE), 'the walk never left the vote').toHaveCount(1);
-    for (let i = 0; i < 4 && !await onFirstResolution(page); i++) {
-      await press(page, 'ArrowLeft', 300);
-    }
-    expect(await onFirstResolution(page), 'the cursor reached the first resolution').toBe(true);
-    expect((await readStory(page)).govFocused, 'the enacted law never wore the cursor').toBe(false);
+    expect(await pressUntil(page, 'ArrowLeft', () => onFirstResolution(page), {tries: 4, settleMs: 300}),
+      'the cursor reached the first resolution').toBe(true);
+    expect((await readStory(page, SEAM_STORY)).govFocused, 'the enacted law never wore the cursor').toBe(false);
+    await witnessOf(page, SEAM_STORY).stop();
     await shoot(page, 'c-vote-first');
 
     // ── A on the first resolution → ONE more POST → the pair as one phrase → the lead turns once → the flow leaves ──
     await armTransferWitness(page);
-    await armStory(page, before.thisPlayer.color);
+    await armStory(page, PAIR_STORY, before.thisPlayer.color);
     await pressUntil(page, 'Enter', async () => posts.length >= 2, {tries: 3, settleMs: 1500});
     expect(posts.length, 'the vote is ONE more POST').toBe(2);
     await expect(page.locator('.con-hand'), 'the flow ends on the board').toHaveCount(0, {timeout: 30_000});
     await expect(page.locator('.con-parl'), 'the Parliament left with the flow').toHaveCount(0, {timeout: 20_000});
     await settle(page, {timeoutMs: 30_000});
     await stopStory();
-    const pair = await readStory(page);
+    const pair = await readStory(page, PAIR_STORY);
     fs.writeFileSync(path.join(OUT, PRESET.id, 'b-pair.json'), JSON.stringify(pair, null, 1));
     const toldPair = JSON.stringify({lifts: pair.lifts, touches: pair.touches, reserve: pair.reserve, target: pair.target});
     test.info().annotations.push({type: 'pair', description: toldPair});

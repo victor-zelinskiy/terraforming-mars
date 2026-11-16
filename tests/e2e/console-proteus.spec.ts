@@ -15,7 +15,7 @@
  *  C · NOTHING TO GAIN (`proteus-futile`: every colony tile full, the oceans at their maximum): the colony tile is
  *      refused with its reason, the ocean tile carries the futility verdict — and stays available.
  *
- * TIMING class (`timingSpecs.ts`): the rise and the birth are sampled motion — `--exclusive --workers=1` on the box. The
+ * TIMING class (`timingSpecs.ts`): the rise and the birth are RECORDED motion (`armWitness`) — `--exclusive --workers=1` on the box. The
  * rule (the match predicate, the forecast twin, the action's branches) is pinned server-side (`Proteus.spec.ts`).
  */
 import * as fs from 'fs';
@@ -26,6 +26,7 @@ import {
   press, pressUntil, sendPlayerInput, settle, soloGameConfig, submitSummary, waitForBoardHome, waitQueueIdle, walkToSummary,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'proteus');
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -52,51 +53,44 @@ function writeTrail(scene: string, trail: string): void {
   fs.writeFileSync(`test-results/proteus-${scene}-${PRESET.id}.txt`, trail);
 }
 
-/** The shelf's Proteus slot — lifted or not, and its capsule's count — sampled on a task clock (never rAF). */
+type ShelfSample = {t: number, lifted: boolean, count: string, where: string};
+const SHELF_WITNESS = 'proteus-shelf';
+const RISE_WITNESS = 'proteus-rise';
+
+/**
+ * The shelf's Proteus slot — lifted or not, its capsule's count, where it stands — RECORDED (`armWitness`: the
+ * product's own writes observed in the task that makes them, a frame tick for what only a computed style moves, every
+ * change kept with the page's time). `settled`: «rose BEFORE its data touched down» is an ORDER claim — a sample is the
+ * state a task leaves, the state a frame can paint.
+ */
 async function armShelfProbe(page: Page): Promise<void> {
-  await page.evaluate((card) => {
-    const w = window as unknown as {__shelf: Array<{t: number, lifted: boolean, count: string}>};
-    w.__shelf = [];
-    const t0 = performance.now();
-    let last = '';
-    const sample = () => {
-      const slot = document.querySelector<HTMLElement>(`.con-start__played .con-splayed__top[data-played-key="${card}"]`);
-      const lifted = slot !== null && (slot.hasAttribute('data-reaction-lifted') || slot.querySelector('[data-reaction-lifted]') !== null);
-      const count = slot?.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
-      const dock = document.querySelector<HTMLElement>('.con-start__played');
-      const where = `${document.querySelector('.con-start') !== null ? 'S' : '-'}${dock !== null ? 'D' : '-'}${slot !== null ? 'T' : '-'}` +
-        `${dock === null ? '' : ':' + getComputedStyle(dock).opacity}`;
-      const now = `${lifted}/${count}/${where}`;
-      if (now !== last) {
-        last = now;
-        (w.__shelf as Array<unknown>).push({t: performance.now() - t0, lifted, count, where});
-      }
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(sample, 16);
-  }, PROTEUS);
+  await armWitness<Omit<ShelfSample, 't'>, string>(page, SHELF_WITNESS, (card) => {
+    const slot = document.querySelector<HTMLElement>(`.con-start__played .con-splayed__top[data-played-key="${card}"]`);
+    const lifted = slot !== null && (slot.hasAttribute('data-reaction-lifted') || slot.querySelector('[data-reaction-lifted]') !== null);
+    const count = slot?.querySelector('.pcard__res-count')?.textContent?.trim() ?? '';
+    const dock = document.querySelector<HTMLElement>('.con-start__played');
+    const where = `${document.querySelector('.con-start') !== null ? 'S' : '-'}${dock !== null ? 'D' : '-'}${slot !== null ? 'T' : '-'}` +
+      `${dock === null ? '' : ':' + getComputedStyle(dock).opacity}`;
+    return {lifted, count, where};
+  }, {args: PROTEUS, settled: true});
 }
 
-async function shelfProbe(page: Page): Promise<Array<{t: number, lifted: boolean, count: string}>> {
-  return page.evaluate(() => (window as unknown as {__shelf?: Array<{t: number, lifted: boolean, count: string}>}).__shelf ?? []);
+/** The shelf's recording, its times in ms since the first state (the page's clock). */
+async function shelfProbe(page: Page): Promise<Array<ShelfSample>> {
+  const recorded = await witnessOf<Omit<ShelfSample, 't'>>(page, SHELF_WITNESS).samples();
+  const t0 = recorded[0]?.t ?? 0;
+  return recorded.map((s) => ({t: s.t - t0, ...s.v}));
 }
 
-/** Any face of Proteus lifted in its place, risen out of the receiving stage, or at a seat of the reaction layer. */
+/** Any face of Proteus lifted in its place, risen out of the receiving stage, or at a seat of the reaction layer — RECORDED. */
 async function armRiseProbe(page: Page): Promise<void> {
-  await page.evaluate((card) => {
-    const w = window as unknown as {__rose: boolean};
-    w.__rose = false;
-    window.setInterval(() => {
-      if (document.querySelector(`[data-played-key="${card}"][data-reaction-lifted], [data-played-key="${card}"] [data-reaction-lifted], ` +
-        `.con-recv__emerge[data-played-key="${card}"], .con-reaction__face[data-reaction-card="${card}"]`) !== null) {
-        w.__rose = true;
-      }
-    }, 16);
-  }, PROTEUS);
+  await armWitness<boolean, string>(page, RISE_WITNESS, (card) =>
+    document.querySelector(`[data-played-key="${card}"][data-reaction-lifted], [data-played-key="${card}"] [data-reaction-lifted], ` +
+      `.con-recv__emerge[data-played-key="${card}"], .con-reaction__face[data-reaction-card="${card}"]`) !== null, {args: PROTEUS});
 }
 
 async function roseSeen(page: Page): Promise<boolean> {
-  return page.evaluate(() => (window as unknown as {__rose?: boolean}).__rose === true);
+  return witnessOf<boolean>(page, RISE_WITNESS).ever((rose) => rose);
 }
 
 const proteusTiles = (page: Page) => page.locator(`.con-cardactions__tile[data-action-card="${PROTEUS}"]`);
@@ -170,7 +164,7 @@ test.describe(`console · TR82 Proteus · ${PRESET.id}`, () => {
     await shoot(page, 'A-01-second-prelude');
     expect(await pressUntil(page, 'KeyV', async () => await page.locator('.con-start [data-forecast-layer]').count() > 0, {tries: 3, settleMs: 1100}),
       'R3 opens the «Эффекты» layer').toBeTruthy();
-    expect((await crumbText(page)).toUpperCase(), 'the crumb gains its tail').toMatch(/ЭФФЕКТЫ/);
+    await expect.poll(async () => (await crumbText(page)).toUpperCase(), {message: 'the crumb gains its tail'}).toMatch(/ЭФФЕКТЫ/);
     await expect(page.locator('.con-start [data-forecast-layer]'), 'the layer names Proteus').toContainText(PROTEUS);
     await shoot(page, 'A-02-layer');
     expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-start [data-forecast-layer]').count() === 0, {tries: 3, settleMs: 900}),
@@ -185,11 +179,11 @@ test.describe(`console · TR82 Proteus · ${PRESET.id}`, () => {
     const lifted = await expect.poll(() => shelfProbe(page).then((s) => s.some((x) => x.lifted)), {timeout: 30_000}).toBe(true).then(() => true, () => false);
     if (!lifted) {
       // Name what happened instead: the shelf's samples, a rise anywhere, the transfer trail, the reaction state.
-      const diag = await page.evaluate(() => JSON.stringify({
-        shelf: (window as unknown as {__shelf?: unknown}).__shelf,
-        rose: (window as unknown as {__rose?: boolean}).__rose,
-        ready: (window as unknown as {__conReady?: () => unknown}).__conReady?.(),
-      }));
+      const diag = JSON.stringify({
+        shelf: await shelfProbe(page),
+        rose: await roseSeen(page),
+        ready: await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()),
+      });
       writeTrail('a-diag', diag + '\n' + transferTrail(await transferWitness(page)));
     }
     expect(lifted, 'Proteus rose in its slot on the shelf (see test-results/proteus-a-diag)').toBe(true);
@@ -221,9 +215,10 @@ test.describe(`console · TR82 Proteus · ${PRESET.id}`, () => {
     expect(proteusData(start), 'the fixture: 5 data on Proteus').toBe(5);
 
     // ── the hand play.
-    for (let i = 0; i < 5 && await page.locator('.con-hand').count() === 0; i++) {
-      await press(page, 'Period', 600);
-      await press(page, 'Enter', 1400);
+    // RT → the wheel's centre (the hand): each press waits for ITS effect (the wheel, then the hand).
+    if (await page.locator('.con-hand').count() === 0) {
+      await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0, {tries: 5, settleMs: 900});
+      await pressUntil(page, 'Enter', async () => await page.locator('.con-hand').count() > 0, {tries: 3, settleMs: 1400});
     }
     await page.locator(`.con-hand [data-zoom-slot="${BUILDING_CARD}"]`).waitFor({timeout: 20_000});
     expect(await focusCard(page, BUILDING_CARD, 24), `never focused «${BUILDING_CARD}»`).toBeTruthy();
@@ -266,15 +261,11 @@ test.describe(`console · TR82 Proteus · ${PRESET.id}`, () => {
     const before = await wireOf(request, playerId);
     await armTransferWitness(page);
     // The commit — then the colonies take the whole stage.
-    for (let i = 0; i < 5 && await page.locator('.con-colonies').count() === 0; i++) {
-      await press(page, 'Enter', 1500);
-    }
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-colonies').count() > 0, {tries: 5, settleMs: 1500});
     await page.locator('.con-colonies').waitFor({timeout: 30_000});
     await settle(page, {timeoutMs: 30_000});
     await shoot(page, 'B-04-colonies');
-    for (let i = 0; i < 4 && await page.locator('.con-colfocus').count() === 0; i++) {
-      await press(page, 'Enter', 1800);
-    }
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-colfocus').count() > 0, {tries: 4, settleMs: 1800});
     await page.locator('.con-colfocus').waitFor({timeout: 20_000});
     await page.keyboard.press('Enter');
     await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.coloniesCount, {timeout: 30_000, message: 'the server: a colony built'})

@@ -5,6 +5,7 @@ import {
   cinematicBeat, createGameWithCards, openConsole, placeTile, press, seedGameOverApi, soloGameConfig,
   takeRevealCards,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE FIRST-ACTION STAGE — lifecycle witness.
@@ -17,7 +18,8 @@ import {
  * draw's embedded reveal) are answered, a SECOND owed corporation (Merger)
  * takes the seat, and the workspace finally releases to the board.
  *
- * Recorded at ~50 ms from the first script: the scene's own diagnostic
+ * Recorded from the first script, off the product's own writes (every
+ * distinct state, `armWitness`): the scene's own diagnostic
  * (`__conStartDiag` — the stage machine, the seat, the entry predicate broken
  * into its terms) beside the DOM facts a player can see (the briefing panel,
  * the seated card, the flying start proxies, the shelf faces, the crumb). The
@@ -25,8 +27,8 @@ import {
  * measured:
  *   · how many times EACH corporation rose into the seat (one per activation
  *     is the contract — a second rise with no new input is the reported loop);
- *   · frames with TWO start proxies in the air (a duplicate settle/emerge);
- *   · frames where the briefing stands over an EMPTY seat;
+ *   · states with TWO start proxies in the air (a duplicate settle/emerge);
+ *   · states where the briefing stands over an EMPTY seat;
  *   · runs where the stage STANDS but paints no briefing (the reported hang);
  *   · the tempo: A press → next actionable state / release.
  */
@@ -100,66 +102,58 @@ type Diag = {
 
 type Ready = {holds: Array<string>, transport?: {waitingForType?: string, requestInProgress: boolean, holding: boolean, gameAge: number}};
 
-const PROBE_SCRIPT = `(() => {
-  const w = window;
-  const samples = [];
-  // IN-PAGE MARKS for a \`--trace on\` run (the trace keeps page console
-  // messages with timestamps beside its screencast frames).
-  let lastMark = '';
-  const mark = (what) => {
-    if (what !== lastMark) {
-      lastMark = what;
-      console.log('[probe-mark] ' + what + ' t=' + Math.round(performance.now()));
-    }
+/**
+ * THE RECORDER (FLAKE ZERO — `armWitness`, armed before the page's first script: the replace-proof recorder installs
+ * itself in every document of the page): every distinct state, in the task the product wrote it, with the page's time.
+ * The reader returns what stands NOW — the stage's own diagnostic, the readiness facts the timeline names (`holds` and
+ * the transport; never its `at` clock, which would make every frame a new state), and the DOM facts. `settled`: the
+ * claims are about states that stand TOGETHER (two proxies at once, a standing stage over an empty seat, one rise per
+ * activation) — what a task leaves, never a state between two of its writes. A still screen records nothing, so a
+ * run's length is read between the moments its state began and ended.
+ */
+const PROBE = 'firstact-lifecycle';
+type SampleRead = Omit<Sample, 't'>;
+function readLifecycle(): SampleRead {
+  const w = window as unknown as {
+    __conStartDiag?: () => Diag, __conReady?: () => Ready, __flMark?: string,
   };
-  const sample = () => {
-    const seat = document.querySelector('.con-start__embedsource-card');
-    const diagNow = typeof w.__conStartDiag === 'function' ? w.__conStartDiag() : undefined;
-    const fa = diagNow && diagNow.firstAct ? diagNow.firstAct : undefined;
-    mark('stage=' + (fa ? fa.stage : '?') + ' corp=' + (fa && fa.corp ? fa.corp : '-') +
-      ' seat=' + (seat !== null ? (seat.classList.contains('con-deal-hold') ? 'held' : 'up') : '-') +
-      ' proxies=' + document.querySelectorAll('.con-startdock-proxy').length);
-    const start = document.querySelector('.con-start');
-    const queue = document.querySelector('.con-start__queue');
-    const panel = document.querySelector('.con-start__firstact');
-    samples.push({
-      t: Math.round(performance.now()),
-      diag: typeof w.__conStartDiag === 'function' ? w.__conStartDiag() : undefined,
-      ready: typeof w.__conReady === 'function' ? w.__conReady() : undefined,
-      panel: panel !== null,
-      panelReady: panel !== null && panel.classList.contains('con-start__firstact--ready'),
-      seatUp: seat !== null,
-      seatHeld: seat !== null && seat.classList.contains('con-deal-hold'),
-      proxies: document.querySelectorAll('.con-startdock-proxy').length,
-      heroPr: document.querySelectorAll('.con-played-hero__proxy').length,
-      shelf: Array.from(document.querySelectorAll('.con-start__played [data-played-key]'))
-        .map((el) => (el.getAttribute('data-played-key') || '') + (el.querySelector('.con-splayed__face') !== null ? '' : '(-)')).join(','),
-      startPainted: start !== null && start.checkVisibility({opacityProperty: true, visibilityProperty: true}),
-      startMounted: start !== null,
-      crumb: ((document.querySelector('.con-wshead') || {}).textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 60),
-      placing: document.querySelector('.con-context__task-kicker') !== null,
-      reveal: document.querySelector('.con-reveal') !== null,
-      queueOp: queue === null ? '-' : Number(getComputedStyle(queue).opacity).toFixed(2),
-    });
-  };
-  const start = () => {
-    sample();
-    setInterval(sample, 50);
-    new MutationObserver(sample).observe(document.documentElement, {subtree: true, childList: true, attributes: true});
-  };
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-  } else {
-    start();
+  const seat = document.querySelector('.con-start__embedsource-card');
+  const diag = typeof w.__conStartDiag === 'function' ? w.__conStartDiag() : undefined;
+  const fa = diag?.firstAct;
+  // IN-PAGE MARKS for a `--trace on` run (the trace keeps page console messages with timestamps beside its
+  // screencast frames) — logged once per change, never per sample.
+  const what = `stage=${fa?.stage ?? '?'} corp=${fa?.corp ?? '-'} seat=${seat !== null ? (seat.classList.contains('con-deal-hold') ? 'held' : 'up') : '-'}` +
+    ` proxies=${document.querySelectorAll('.con-startdock-proxy').length}`;
+  if (what !== w.__flMark) {
+    w.__flMark = what;
+    console.log(`[probe-mark] ${what} t=${Math.round(performance.now())}`);
   }
-  w.__fl = {samples};
-})();`;
+  const ready = typeof w.__conReady === 'function' ? w.__conReady() : undefined;
+  const start = document.querySelector('.con-start');
+  const queue = document.querySelector('.con-start__queue');
+  const panel = document.querySelector('.con-start__firstact');
+  return {
+    diag,
+    ready: ready === undefined ? undefined : {holds: ready.holds, transport: ready.transport},
+    panel: panel !== null,
+    panelReady: panel !== null && panel.classList.contains('con-start__firstact--ready'),
+    seatUp: seat !== null,
+    seatHeld: seat !== null && seat.classList.contains('con-deal-hold'),
+    proxies: document.querySelectorAll('.con-startdock-proxy').length,
+    heroPr: document.querySelectorAll('.con-played-hero__proxy').length,
+    shelf: Array.from(document.querySelectorAll('.con-start__played [data-played-key]'))
+      .map((el) => (el.getAttribute('data-played-key') ?? '') + (el.querySelector('.con-splayed__face') !== null ? '' : '(-)')).join(','),
+    startPainted: start !== null && (start as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true}),
+    startMounted: start !== null,
+    crumb: (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
+    placing: document.querySelector('.con-context__task-kicker') !== null,
+    reveal: document.querySelector('.con-reveal') !== null,
+    queueOp: queue === null ? '-' : Number(getComputedStyle(queue).opacity).toFixed(2),
+  };
+}
 
 async function takeSamples(page: Page): Promise<Array<Sample>> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__fl?: {samples: Array<Sample>}};
-    return w.__fl?.samples ?? [];
-  });
+  return (await witnessOf<SampleRead>(page, PROBE).stop()).map((s) => ({t: s.t, ...s.v}));
 }
 
 function stateKey(s: Sample): string {
@@ -323,7 +317,8 @@ async function bootOntoFirstAction(page: Page, request: APIRequestContext, confi
   // Merger draws.
   const playerId = await createGameWithCards(request, [corporation], {config});
   await seedGameOverApi(request, playerId, {corporation, preludes, buy: 2, until: 'startRelease', first});
-  await page.addInitScript(PROBE_SCRIPT);
+  // The whole stage is the subject — keep every state of it (the default cap drops the oldest).
+  await armWitness<SampleRead>(page, PROBE, readLifecycle, {settled: true, max: 50_000});
   await openConsole(page, playerId);
   return playerId;
 }

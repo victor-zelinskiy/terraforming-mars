@@ -16,7 +16,8 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {answerTableQuestions, bootFixture, cinematicBeat, crumbText, press, pressUntil, settle} from './consoleStart';
+import {answerTableQuestions, bootFixture, cinematicBeat, crumbText, press, pressUntil, settle, takeRevealCard} from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 const OUT = path.resolve('screenshots', 'draw-one-batch');
 const OLYMPUS = 'Olympus Conference';
@@ -49,19 +50,19 @@ type Sample = {
   crumb: string,
 };
 
-declare global {
-  interface Window {
-    __obWatch?: {samples: Array<Sample>, stop: () => void},
-  }
-}
+/** One recorded state — the sample without its clock (the recording stamps the page's time). */
+type Seen = Omit<Sample, 't'>;
+const WATCH = 'one-batch-scene';
 
-async function installWatch(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const samples: Array<Sample> = [];
-    const t0 = performance.now();
+/**
+ * THE WATCH — armed before the press, RECORDED (FLAKE ZERO — `armWitness`, settled: «never two reveals at once», «the
+ * trigger never over a slot» and «one crumb» are claims about the states a frame can paint).
+ */
+async function installWatch(page: Page): Promise<Witness<Seen>> {
+  return armWitness<Seen>(page, WATCH, () => {
     const rectOf = (el: Element) => el.getBoundingClientRect();
     const overlaps = (a: DOMRect, b: DOMRect) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-    const sample = () => {
+    const sample = (): Seen => {
       const reveals = document.querySelectorAll('.con-reveal');
       const slotEls = Array.from(document.querySelectorAll('.con-reveal .con-cards__slot'));
       const slotRects = slotEls.map(rectOf);
@@ -75,8 +76,7 @@ async function installWatch(page: Page): Promise<void> {
           overSlot: visible && slotRects.some((s) => overlaps(r, s)),
         };
       });
-      samples.push({
-        t: Math.round(performance.now() - t0),
+      return {
         reveals: reveals.length,
         slots: slotEls.length,
         received: document.querySelector('[data-reveal-received] .con-ws-stage-badge__num')?.textContent?.trim() ?? '',
@@ -97,16 +97,10 @@ async function installWatch(page: Page): Promise<void> {
           const subject = head.querySelector('.con-wshead__subject')?.textContent ?? '';
           return `${root} › ${subject}`.replace(/\s+/g, ' ').trim();
         })(),
-      });
+      };
     };
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-dd-run', 'data-dd-phase', 'class', 'style']});
-    const iv = setInterval(sample, 80);
-    window.__obWatch = {samples, stop: () => {
-      mo.disconnect();
-      clearInterval(iv);
-    }};
-  });
+    return sample();
+  }, {settled: true, max: 20_000});
 }
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -135,7 +129,7 @@ test.describe('one press, two table draws — ONE batch, ONE scene, every cause 
     await expect(page.locator('.con-composer__cta--focused'), 'the cursor stands on «Разыграть карту»').toHaveCount(1);
     await shoot(page, 'A0-composer-ready');
 
-    await installWatch(page);
+    const recording = await installWatch(page);
     await page.keyboard.press('Enter');
 
     // ONE reveal rises in the play's zone…
@@ -144,10 +138,10 @@ test.describe('one press, two table draws — ONE batch, ONE scene, every cause 
     // …with every cause named and its share counted.
     await expect(page.locator('[data-reveal-received] .con-ws-stage-badge__num'), '«ПОЛУЧЕНО 2»').toHaveText('2', {timeout: 30_000});
     await expect(page.locator('[data-reveal-source]'), 'two causes named').toHaveCount(2, {timeout: 15_000});
-    const sources = await page.locator('[data-reveal-source]').allTextContents();
-    expect(sources.join(' | '), 'Olympus named with its share').toContain(OLYMPUS_RU);
-    expect(sources.join(' | '), 'the university named with its share').toContain(MU_RU);
-    expect(sources.map((s) => s.replace(/\s+/g, ' ')).join(' | ')).toMatch(/\+1/);
+    const sources = () => page.locator('[data-reveal-source]').allTextContents();
+    await expect.poll(async () => (await sources()).join(' | '), {message: 'Olympus named with its share'}).toContain(OLYMPUS_RU);
+    await expect.poll(async () => (await sources()).join(' | '), {message: 'the university named with its share'}).toContain(MU_RU);
+    await expect.poll(async () => (await sources()).map((s) => s.replace(/\s+/g, ' ')).join(' | ')).toMatch(/\+1/);
     // The server's own queue: ONE batch for this press, two segments, one action root.
     const wire = await wireOf(request, id);
     const batches = wire.cardDrawReveals ?? [];
@@ -159,25 +153,26 @@ test.describe('one press, two table draws — ONE batch, ONE scene, every cause 
     await cinematicBeat(page, 1800, 'the assembly scene settles — the trigger surfaced, dealt and receded');
     await shoot(page, 'A1-batch-assembled');
 
-    // The take: A per card — one surface, two presses, then the workspace lets go.
+    // The take: A per card — one surface, two presses, then the workspace lets go. Each take is act → verify (the
+    // reveal's own `data-take` edge, `takeRevealCard`), never a press and a pause.
     const crumbAtTake = await crumbText(page);
     for (let i = 0; i < 6 && await page.locator('.con-reveal').count() > 0; i++) {
-      await press(page, 'Enter', 900);
-      await cinematicBeat(page, 700, 'the taken card flies to the dock');
+      await takeRevealCard(page);
     }
     await expect(page.locator('.con-reveal'), 'the batch is taken').toHaveCount(0, {timeout: 30_000});
+    // «Done» is the SERVER moving on: the reveal leaving the screen is the client's half — the take's acknowledgement
+    // may still be in flight (the old 700 ms pause after each press hid that), so the queue is POLLED, never read once.
+    await expect.poll(async () => ((await wireOf(request, id)).cardDrawReveals ?? []).length, {message: 'the queue is acknowledged', timeout: 15_000}).toBe(0);
     const after = await wireOf(request, id);
-    expect(after.cardDrawReveals ?? [], 'the queue is acknowledged').toHaveLength(0);
     expect(handOf(after).includes(MU), 'the university left the hand').toBe(false);
     expect(handOf(after).length, 'one discarded, two drawn').toBe(before.length - 1 - 1 + 2);
 
-    const watch = await page.evaluate(() => {
-      window.__obWatch?.stop();
-      return window.__obWatch?.samples ?? [];
-    });
-    expect(watch.length, 'the probe sampled the episode').toBeGreaterThan(20);
+    const watch = (await recording.stop()).map((s) => s.v);
+    // Anti-vacuous floors: only a DEAD recorder (or a reveal never recorded) fails them — the record keeps distinct
+    // states, never frames.
+    expect(watch.length, 'the probe sampled the episode').toBeGreaterThan(0);
     const withReveal = watch.filter((s) => s.reveals > 0);
-    expect(withReveal.length, 'the reveal stood in the samples').toBeGreaterThan(5);
+    expect(withReveal.length, 'the reveal stood in the samples').toBeGreaterThan(0);
     expect(Math.max(...watch.map((s) => s.reveals)), 'never two reveals at once').toBe(1);
     expect(Math.max(...withReveal.map((s) => s.slots)), 'one row of the whole batch').toBe(2);
     expect(withReveal.some((s) => s.viewer), 'never the fullscreen viewer').toBe(false);

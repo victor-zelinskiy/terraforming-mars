@@ -2,9 +2,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  createGameWithCards, crumbText, fetchPlayerModel, offeredCards, openConsole, pickCards, playQueueCard, press, reloadConsole,
+  createGameWithCards, crumbText, fetchPlayerModel, offeredCards, openConsole, pickCards, playQueueCard, pressUntil, reloadConsole,
   sendPlayerInput, settle, soloGameConfig, submitSummary, takeRevealCards, waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * P55 OLD MINING COLONY — «Increase your titanium production 1 step. Place 1 colony. Discard 1 card» (Prelude 2,
@@ -22,8 +23,8 @@ import {
  * start again.
  *
  * The rules are pinned by `tests/cards/prelude2/OldMiningColony.spec.ts`; the shell's reading by
- * `tests/console/startPreludeDiscard.spec.ts`. A TIMING-class spec (`timingSpecs.ts`): the order claims are sampled
- * from BEFORE the press (MutationObserver + setInterval, never rAF).
+ * `tests/console/startPreludeDiscard.spec.ts`. A TIMING-class spec (`timingSpecs.ts`): the order claims are RECORDED
+ * from BEFORE the press (`armWitness` — off the product's own writes, never a sampler's ticks).
  */
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const OUT = path.resolve('screenshots', 'p55', PRESET.id);
@@ -41,19 +42,29 @@ type Wire = {
   game: {colonies: Array<{name: string, isActive: boolean}>, discardPileSize?: number},
 };
 type Probe = {
-  samples: number, ticks: number,
-  /** Frames a mandatory plate stood (the discard must never be announced). */
-  plates: number,
-  /** Frames the album stood OUTSIDE the start's hand slot while the discard was live. */
-  albumOutside: number,
-  /** Frames the hand was nested inside the colonies step. */
-  albumInColonies: number,
-  /** Frames the discard's album stood in the start's hand slot. */
-  albumInSlot: number,
-  /** Frames the colonies step and the hand slot stood together. */
-  bothSteps: number,
+  /** The distinct states the record kept (its own liveness only). */
+  samples: number,
+  /** A mandatory plate ever stood (the discard must never be announced). */
+  plates: boolean,
+  /** The album ever stood OUTSIDE the start's hand slot while the discard was live. */
+  albumOutside: boolean,
+  /** The hand was ever nested inside the colonies step. */
+  albumInColonies: boolean,
+  /** The discard's album ever stood in the start's hand slot. */
+  albumInSlot: boolean,
+  /** The colonies step and the hand slot ever stood together. */
+  bothSteps: boolean,
+  /** How many distinct nodes of each step stood (a remount is a new node). */
   handSlotMounts: number,
   colonyStepMounts: number,
+  crumbs: Array<string>,
+};
+
+/** What the probe reads NOW — one observation; the story is folded on the Node side (`readProbe`). */
+type ProbeRead = {
+  plate: boolean, albumOutside: boolean, albumInColonies: boolean, albumInSlot: boolean, bothSteps: boolean,
+  /** The identity of the step node standing now (a WeakMap on `window`, first seen → a new number), or null. */
+  handSlot: number | null, colonyStep: number | null,
   crumbs: Array<string>,
 };
 
@@ -86,70 +97,92 @@ async function storyboard(page: Page, name: string): Promise<() => Promise<void>
   };
 }
 
-/** From the press on: the plate, where the album stands, the two step zones, the crumbs — and the deployment node. */
+/**
+ * From the press on: the plate, where the album stands, the two step zones, the crumbs — and the deployment node.
+ * RECORDED off the product's own writes (FLAKE ZERO, `armWitness`): every distinct state, the «ever» and the mounts
+ * folded on the Node side. A step's MOUNTS are its distinct NODES (the reader keeps each node's identity in a WeakMap
+ * on `window` — a remount is a new node). `settled`: «never two steps together», «never outside the slot» are
+ * coexistence claims — what a task leaves, never a state between two of its writes.
+ */
+const PROBE = 'p55-probe';
 async function armProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = window as unknown as {__p55: Probe};
-    const p: Probe = {samples: 0, ticks: 0, plates: 0, albumOutside: 0, albumInColonies: 0, albumInSlot: 0, bothSteps: 0,
-      handSlotMounts: 0, colonyStepMounts: 0, crumbs: []};
-    w.__p55 = p;
     const deploy = document.querySelector('.con-start__deploy');
     if (deploy !== null) {
       (deploy as unknown as {__p55Node?: boolean}).__p55Node = true;
     }
-    const painted = (el: Element | null) => el !== null && (el as HTMLElement).offsetWidth > 0;
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      if (painted(document.querySelector('.con-mandatory'))) {
-        p.plates++;
-      }
-      const slot = document.querySelector('.con-start__handslot');
-      const colonies = document.querySelector('.con-start__colonystep');
-      if (slot !== null && colonies !== null) {
-        p.bothSteps++;
-      }
-      document.querySelectorAll('.con-hand').forEach((hand) => {
-        if (!painted(hand)) {
-          return;
-        }
-        if (hand.closest('.con-start__handslot') !== null) {
-          p.albumInSlot++;
-        } else if (hand.closest('.con-start__colonystep') !== null) {
-          p.albumInColonies++;
-        } else if (slot !== null) {
-          p.albumOutside++;
-        }
-      });
-      document.querySelectorAll('.con-wshead').forEach((el) => {
-        const crumb = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
-        if (crumb !== '' && !p.crumbs.includes(crumb)) {
-          p.crumbs.push(crumb);
-        }
-      });
-    };
-    new MutationObserver((records) => {
-      for (const r of records) {
-        r.addedNodes.forEach((n) => {
-          if (!(n instanceof HTMLElement)) {
-            return;
-          }
-          if (n.classList.contains('con-start__handslot')) {
-            p.handSlotMounts++;
-          }
-          if (n.classList.contains('con-start__colonystep')) {
-            p.colonyStepMounts++;
-          }
-        });
-      }
-      sample(false);
-    }).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
   });
+  await armWitness<ProbeRead>(page, PROBE, () => {
+    const w = window as unknown as {__p55Ids?: WeakMap<Element, number>, __p55Next?: number};
+    const ids = w.__p55Ids ?? new WeakMap<Element, number>();
+    w.__p55Ids = ids;
+    const idOf = (el: Element | null): number | null => {
+      if (el === null) {
+        return null;
+      }
+      let id = ids.get(el);
+      if (id === undefined) {
+        id = (w.__p55Next ?? 0) + 1;
+        w.__p55Next = id;
+        ids.set(el, id);
+      }
+      return id;
+    };
+    const painted = (el: Element | null) => el !== null && (el as HTMLElement).offsetWidth > 0;
+    const slot = document.querySelector('.con-start__handslot');
+    const colonies = document.querySelector('.con-start__colonystep');
+    const read: ProbeRead = {
+      plate: painted(document.querySelector('.con-mandatory')),
+      albumOutside: false, albumInColonies: false, albumInSlot: false,
+      bothSteps: slot !== null && colonies !== null,
+      handSlot: idOf(slot), colonyStep: idOf(colonies),
+      crumbs: Array.from(document.querySelectorAll('.con-wshead'))
+        .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).filter((crumb) => crumb !== ''),
+    };
+    document.querySelectorAll('.con-hand').forEach((hand) => {
+      if (!painted(hand)) {
+        return;
+      }
+      if (hand.closest('.con-start__handslot') !== null) {
+        read.albumInSlot = true;
+      } else if (hand.closest('.con-start__colonystep') !== null) {
+        read.albumInColonies = true;
+      } else if (slot !== null) {
+        read.albumOutside = true;
+      }
+    });
+    return read;
+  }, {settled: true});
 }
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__p55: Probe}).__p55);
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<ProbeRead>(page, PROBE).samples();
+  const seen = samples.map((s) => s.v);
+  // A node is keyed by its document too (a reload restarts the numbering); a node already standing in the state the
+  // record was ARMED in was not mounted after the press, so it is never counted as a mount.
+  const mounts = (of: (v: ProbeRead) => number | null): number => {
+    const key = (i: number) => {
+      const id = of(samples[i].v);
+      return id === null ? null : `${samples[i].doc}:${id}`;
+    };
+    const armed = samples.length > 0 ? key(0) : null;
+    return new Set(samples.map((_, i) => key(i)).filter((k) => k !== null && k !== armed)).size;
+  };
+  const crumbs: Array<string> = [];
+  for (const v of seen) {
+    crumbs.push(...v.crumbs.filter((crumb, i) => !crumbs.includes(crumb) && v.crumbs.indexOf(crumb) === i));
+  }
+  return {
+    samples: seen.length,
+    plates: seen.some((v) => v.plate),
+    albumOutside: seen.some((v) => v.albumOutside),
+    albumInColonies: seen.some((v) => v.albumInColonies),
+    albumInSlot: seen.some((v) => v.albumInSlot),
+    bothSteps: seen.some((v) => v.bothSteps),
+    handSlotMounts: mounts((v) => v.handSlot),
+    colonyStepMounts: mounts((v) => v.colonyStep),
+    crumbs,
+  };
+}
 const deploySurvived = (page: Page): Promise<boolean> => page.evaluate(() =>
   (document.querySelector('.con-start__deploy') as unknown as {__p55Node?: boolean} | null)?.__p55Node === true);
 
@@ -226,9 +259,8 @@ async function buildInStart(page: Page, request: APIRequestContext, id: string, 
   await page.locator('.con-start__colonystep .con-colonies').waitFor({timeout: 40_000});
   await expect.poll(async () => (await crumbText(page)).toUpperCase(), {timeout: 20_000, message: 'the crumb: the start\'s flow, the colonies step'})
     .toMatch(/СТАРТ ПАРТИИ.*СТАРАЯ ГОРНЯЦКАЯ КОЛОНИЯ.*КОЛОНИИ/);
-  for (let i = 0; i < 4 && await page.locator('.con-colfocus').count() === 0; i++) {
-    await press(page, 'Enter', 1800);
-  }
+  // A, verified by the focus stage itself — a retry only after the whole window passed without one.
+  await pressUntil(page, 'Enter', async () => await page.locator('.con-colfocus').count() > 0, {tries: 4, settleMs: 1800});
   await page.locator('.con-colfocus').waitFor({timeout: 20_000});
   await shoot(page, '03-build-stage');
   await page.keyboard.press('Enter');
@@ -245,9 +277,8 @@ async function discardInStart(page: Page, request: APIRequestContext, id: string
   await shoot(page, '05-discard-step');
   const asked = await wireOf(request, id);
   const hand = asked.cardsInHand.map((c) => c.name);
-  for (let i = 0; i < 4 && (await wireOf(request, id)).waitingFor?.discardPrompt !== undefined; i++) {
-    await press(page, 'Enter', 1500);
-  }
+  // A, verified by the SERVER moving on — a retry only after the whole window passed without it.
+  await pressUntil(page, 'Enter', async () => (await wireOf(request, id)).waitingFor?.discardPrompt === undefined, {tries: 4, settleMs: 1500});
   await expect.poll(async () => (await wireOf(request, id)).waitingFor?.discardPrompt === undefined,
     {timeout: 30_000, message: 'the discard was answered'}).toBe(true);
   const after = (await wireOf(request, id)).cardsInHand.map((c) => c.name);
@@ -288,12 +319,13 @@ test.describe('P55 — Old Mining Colony: the colony, then the discard — two s
     expect(await deploySurvived(page), 'the deployment is the SAME node (released in place, never remounted)').toBe(true);
     const probe = await readProbe(page);
     test.info().annotations.push({type: 'probe', description: JSON.stringify(probe)});
-    expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(5);
-    expect(probe.plates, 'no plate announced the discard').toBe(0);
-    expect(probe.albumInColonies, 'the album never nested inside the colonies step').toBe(0);
-    expect(probe.bothSteps, 'the two steps never stood together').toBe(0);
-    expect(probe.albumOutside, 'the album never stood outside the start\'s slot').toBe(0);
-    expect(probe.albumInSlot, 'the album stood in the start\'s slot').toBeGreaterThan(0);
+    // The record's own liveness only (a dead recorder records nothing); the claims below judge the flow themselves.
+    expect(probe.samples, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(0);
+    expect(probe.plates, 'no plate announced the discard').toBe(false);
+    expect(probe.albumInColonies, 'the album never nested inside the colonies step').toBe(false);
+    expect(probe.bothSteps, 'the two steps never stood together').toBe(false);
+    expect(probe.albumOutside, 'the album never stood outside the start\'s slot').toBe(false);
+    expect(probe.albumInSlot, 'the album stood in the start\'s slot').toBe(true);
     expect(probe.colonyStepMounts, 'the colony step mounted once').toBe(1);
     expect(probe.handSlotMounts, 'the discard step mounted once').toBe(1);
     const after = await wireOf(request, id);
@@ -316,7 +348,7 @@ test.describe('P55 — Old Mining Colony: the colony, then the discard — two s
     await shoot(page, 'B-auto-discarded');
     const probe = await readProbe(page);
     expect(probe.handSlotMounts, 'no discard step').toBe(0);
-    expect(probe.plates, 'no plate').toBe(0);
+    expect(probe.plates, 'no plate').toBe(false);
   });
 
   test('C: an empty hand — the queue says «cards first», a drawing prelude first, then the play', async ({page, request}) => {
@@ -380,7 +412,7 @@ test.describe('P55 — Old Mining Colony: the colony, then the discard — two s
     await expect.poll(async () => (await crumbText(page)).toUpperCase(), {timeout: 20_000, message: 'the crumb after the reload'})
       .toMatch(/СТАРТ ПАРТИИ.*СТАРАЯ ГОРНЯЦКАЯ КОЛОНИЯ.*СБРОС КАРТ/);
     await shoot(page, 'E-reload-discard');
-    expect((await readProbe(page)).plates, 'no plate after the reload').toBe(0);
+    expect((await readProbe(page)).plates, 'no plate after the reload').toBe(false);
     await discardInStart(page, request, id);
   });
 });

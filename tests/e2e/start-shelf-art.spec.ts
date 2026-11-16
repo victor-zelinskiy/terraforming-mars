@@ -2,9 +2,10 @@ import {test, expect} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  fillPicks, pickCards, playQueueCard, playQueueUntil, press, queueCards, submitSummary,
+  fillPicks, pickCards, playQueueCard, playQueueUntil, press, queueCards, settle, submitSummary,
   waitQueueIdle, walkToSummary,
 } from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * THE START SHELF KEEPS THE ARTS.
@@ -72,29 +73,19 @@ test.describe('start shelf · covered cards keep their art', () => {
     });
     await submitSummary(page);
 
-    // A per-frame witness: the shelf only exists WHILE the deployment runs
-    // (it releases the moment the start settles), so the covered card must
-    // be caught live — a screenshot after the fact shows the board.
-    await page.evaluate(() => {
-      const w = window as unknown as {__shelf: {maxStrips: number, stripsSeen: number,
-        stripsWithArt: number, tops: number, topsWithArt: number, frames: number}};
-      const state = {maxStrips: 0, stripsSeen: 0, stripsWithArt: 0, tops: 0, topsWithArt: 0, frames: 0};
-      w.__shelf = state;
-      const tick = () => {
-        state.frames++;
-        const strips = Array.from(document.querySelectorAll('.con-splayed__strip'));
-        if (strips.length > state.maxStrips) {
-          state.maxStrips = strips.length;
-        }
-        state.stripsSeen += strips.length;
-        state.stripsWithArt += strips.filter((s) => s.querySelector('.pcard__art') !== null).length;
-        const tops = Array.from(document.querySelectorAll('.con-splayed__top .con-splayed__face'));
-        state.tops += tops.length;
-        state.topsWithArt += tops.filter((t) => t.querySelector('.pcard__art') !== null).length;
-        requestAnimationFrame(tick);
+    // A RECORDED witness (FLAKE ZERO — `armWitness`): the shelf only exists WHILE the deployment runs (it releases the
+    // moment the start settles), so the covered card must be caught live — a screenshot after the fact shows the board.
+    // The claim is about what a frame PAINTS, so the record is `settled` — the state a task leaves.
+    const shelfWitness = await armWitness(page, 'start-shelf-art', () => {
+      const strips = Array.from(document.querySelectorAll('.con-splayed__strip'));
+      const tops = Array.from(document.querySelectorAll('.con-splayed__top .con-splayed__face'));
+      return {
+        strips: strips.length,
+        stripsWithArt: strips.filter((s) => s.querySelector('.pcard__art') !== null).length,
+        tops: tops.length,
+        topsWithArt: tops.filter((t) => t.querySelector('.pcard__art') !== null).length,
       };
-      requestAnimationFrame(tick);
-    });
+    }, {settled: true});
 
     // Play the whole start queue — the two preludes stack in one family.
     for (let i = 0; i < 6; i++) {
@@ -106,14 +97,24 @@ test.describe('start shelf · covered cards keep their art', () => {
       await playQueueUntil(page, queue[0]);
       await playQueueCard(page, queue[0]);
     }
-    await page.waitForTimeout(2500);
+    // The start releases and the screen comes to rest — the state the old pause stood for.
+    await settle(page);
     await page.screenshot({path: path.join(OUT_DIR, 'shelf.png')});
 
-    const shelf = await page.evaluate(() => (window as unknown as {
-      __shelf: {maxStrips: number, stripsSeen: number, stripsWithArt: number,
-        tops: number, topsWithArt: number, frames: number}}).__shelf);
+    // The record folded over its DISTINCT states (never frames): «every state a covered card stood in, it carried its
+    // art» is the same claim as «every frame».
+    const record = await shelfWitness.stop();
+    const shelf = {maxStrips: 0, stripsSeen: 0, stripsWithArt: 0, tops: 0, topsWithArt: 0, states: record.length};
+    for (const {v} of record) {
+      shelf.maxStrips = Math.max(shelf.maxStrips, v.strips);
+      shelf.stripsSeen += v.strips;
+      shelf.stripsWithArt += v.stripsWithArt;
+      shelf.tops += v.tops;
+      shelf.topsWithArt += v.topsWithArt;
+    }
     console.log('[shelf]', JSON.stringify(shelf));
-    expect(shelf.frames, 'the witness ran').toBeGreaterThan(30);
+    // Its floor catches only a dead recorder (`tests.md`).
+    expect(shelf.states, 'the witness ran').toBeGreaterThan(0);
     expect(shelf.maxStrips, 'the run produced a covered card (two cards in one family)').toBeGreaterThan(0);
     // EVERY frame a covered card was on screen, it carried its art viewport.
     expect(shelf.stripsWithArt, 'a COVERED card on the start shelf keeps its art')

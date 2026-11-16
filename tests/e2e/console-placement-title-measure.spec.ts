@@ -1,4 +1,5 @@
-import {test, expect} from './consoleTest';
+import {test, expect, Page} from './consoleTest';
+import {readSettled} from './settledRead';
 import {TileType, isSpecialTile, tileTypeToString} from '../../src/common/TileType';
 import translations from '../../src/genfiles/translations.json';
 
@@ -71,6 +72,82 @@ function corpus(): Array<{key: string, text: string}> {
   return out;
 }
 
+/**
+ * Build the REAL sub-DOM (the header above) and measure every name of the corpus in it, plus the column and the panel — read
+ * through `readSettled` (the same answer twice, a frame apart), never one read of wherever layout had got to.
+ */
+async function measureCorpus(page: Page, names: Array<{key: string, text: string}>) {
+  return page.evaluate((names) => {
+    // THE REAL SUB-DOM. `.con-root` is `position: fixed; inset: 0` — the
+    // same box `.con-main` gives the panel in the app — so the panel's own
+    // `width: 23%` / `max-width` / padding resolve exactly as on the board,
+    // and the flex head hands the title its real column.
+    const root = document.createElement('div');
+    root.className = 'con-root';
+    root.style.visibility = 'hidden';
+    const panel = document.createElement('aside');
+    panel.className = 'con-inspector con-context';
+    const header = document.createElement('header');
+    header.className = 'con-context__id';
+    const head = document.createElement('div');
+    head.className = 'con-context__head';
+    const swatch = document.createElement('span');
+    swatch.className = 'con-context__tile';
+    const art = document.createElement('span');
+    art.className = 'con-context__tile-art';
+    const h2 = document.createElement('h2');
+    swatch.appendChild(art);
+    head.append(swatch, h2);
+    header.appendChild(head);
+    panel.appendChild(header);
+    root.appendChild(panel);
+    document.body.appendChild(root);
+
+    /** Lines this name takes in `tier`, and the widest line's INK width. */
+    const measure = (text: string, tier: '' | 'long' | 'dense') => {
+      h2.className = 'con-context__title' + (tier === '' ? '' : ` con-context__title--${tier}`);
+      h2.textContent = text;
+      const cs = getComputedStyle(h2);
+      const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.1;
+      // The INK, not the box: an `h2` is a block and fills its column, so
+      // `scrollWidth` can never report an overflow the wrapping prevented.
+      const range = document.createRange();
+      range.selectNodeContents(h2);
+      const rects = [...range.getClientRects()];
+      return {
+        lines: Math.max(1, Math.round(h2.getBoundingClientRect().height / lh)),
+        width: rects.length === 0 ? 0 : Math.max(...rects.map((r) => r.width)),
+        column: h2.getBoundingClientRect().width,
+        family: cs.fontFamily,
+      };
+    };
+
+    const out = names.map((n) => {
+      // The LIVE ladder (mirrors `placementTitleTier`).
+      const tier: '' | 'long' | 'dense' =
+        n.text.length > 22 ? 'dense' : n.text.length > 15 ? 'long' : '';
+      const live = measure(n.text, tier);
+      // …and the CALIBRATION data: the loudest tier that still lands the
+      // name on ONE line, which is what the thresholds should be read off.
+      const oneLine = (['', 'long', 'dense'] as const).find((t) => measure(n.text, t).lines === 1);
+      return {
+        key: n.key, text: n.text, chars: n.text.length, tier: tier === '' ? 'base' : tier,
+        lines: live.lines, width: live.width,
+        fitsOneLineAt: oneLine === undefined ? 'none' : oneLine === '' ? 'base' : oneLine,
+      };
+    });
+    // THE COLUMN, not one name's box. The title is a flex item with the
+    // default `flex: 0 1 auto`, so a short name reports its own INK width
+    // and would understate the space it actually has. A string that cannot
+    // fit shrinks the item to exactly the room the head leaves beside the
+    // swatch — that is the column every name is judged against.
+    const probe = measure('Ш'.repeat(240), '');
+    const panelW = panel.getBoundingClientRect().width;
+    root.remove();
+    return {measured: out, titleW: probe.column, panelW, fontFamily: probe.family};
+  }, names);
+}
+
 test.describe('placement dossier · the identity line fits the corpus', () => {
   test.use({viewport: {width: 3840, height: 2160}, deviceScaleFactor: 1});
 
@@ -103,75 +180,8 @@ test.describe('placement dossier · the identity line fits the corpus', () => {
     }, names.map((n) => n.text));
     expect(fontsReady, 'the Prototype faces (latin + cyrillic) actually loaded').toBe(true);
 
-    const {measured, titleW, panelW, fontFamily} = await page.evaluate((names) => {
-      // THE REAL SUB-DOM. `.con-root` is `position: fixed; inset: 0` — the
-      // same box `.con-main` gives the panel in the app — so the panel's own
-      // `width: 23%` / `max-width` / padding resolve exactly as on the board,
-      // and the flex head hands the title its real column.
-      const root = document.createElement('div');
-      root.className = 'con-root';
-      root.style.visibility = 'hidden';
-      const panel = document.createElement('aside');
-      panel.className = 'con-inspector con-context';
-      const header = document.createElement('header');
-      header.className = 'con-context__id';
-      const head = document.createElement('div');
-      head.className = 'con-context__head';
-      const swatch = document.createElement('span');
-      swatch.className = 'con-context__tile';
-      const art = document.createElement('span');
-      art.className = 'con-context__tile-art';
-      const h2 = document.createElement('h2');
-      swatch.appendChild(art);
-      head.append(swatch, h2);
-      header.appendChild(head);
-      panel.appendChild(header);
-      root.appendChild(panel);
-      document.body.appendChild(root);
-
-      /** Lines this name takes in `tier`, and the widest line's INK width. */
-      const measure = (text: string, tier: '' | 'long' | 'dense') => {
-        h2.className = 'con-context__title' + (tier === '' ? '' : ` con-context__title--${tier}`);
-        h2.textContent = text;
-        const cs = getComputedStyle(h2);
-        const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.1;
-        // The INK, not the box: an `h2` is a block and fills its column, so
-        // `scrollWidth` can never report an overflow the wrapping prevented.
-        const range = document.createRange();
-        range.selectNodeContents(h2);
-        const rects = [...range.getClientRects()];
-        return {
-          lines: Math.max(1, Math.round(h2.getBoundingClientRect().height / lh)),
-          width: rects.length === 0 ? 0 : Math.max(...rects.map((r) => r.width)),
-          column: h2.getBoundingClientRect().width,
-          family: cs.fontFamily,
-        };
-      };
-
-      const out = names.map((n) => {
-        // The LIVE ladder (mirrors `placementTitleTier`).
-        const tier: '' | 'long' | 'dense' =
-          n.text.length > 22 ? 'dense' : n.text.length > 15 ? 'long' : '';
-        const live = measure(n.text, tier);
-        // …and the CALIBRATION data: the loudest tier that still lands the
-        // name on ONE line, which is what the thresholds should be read off.
-        const oneLine = (['', 'long', 'dense'] as const).find((t) => measure(n.text, t).lines === 1);
-        return {
-          key: n.key, text: n.text, chars: n.text.length, tier: tier === '' ? 'base' : tier,
-          lines: live.lines, width: live.width,
-          fitsOneLineAt: oneLine === undefined ? 'none' : oneLine === '' ? 'base' : oneLine,
-        };
-      });
-      // THE COLUMN, not one name's box. The title is a flex item with the
-      // default `flex: 0 1 auto`, so a short name reports its own INK width
-      // and would understate the space it actually has. A string that cannot
-      // fit shrinks the item to exactly the room the head leaves beside the
-      // swatch — that is the column every name is judged against.
-      const probe = measure('Ш'.repeat(240), '');
-      const panelW = panel.getBoundingClientRect().width;
-      root.remove();
-      return {measured: out, titleW: probe.column, panelW, fontFamily: probe.family};
-    }, names);
+    const {measured, titleW, panelW, fontFamily} = await readSettled(page, () => measureCorpus(page, names),
+      {settle: false, message: 'the corpus measured in the real sub-DOM'});
 
     // THE GUARD THAT KEEPS THE PROBE HONEST: measuring the wrong typeface is
     // exactly how this spec failed on CI while passing everywhere else.

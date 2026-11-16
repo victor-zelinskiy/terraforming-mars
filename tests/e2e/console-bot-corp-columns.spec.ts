@@ -1,5 +1,6 @@
 import {expect, test, Page} from './consoleTest';
-import {bootSeededGame, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootSeededGame, corporationsExcluding, openBotBoardDetail, press, pressUntil, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * MANUTECH (C29) — its SETUP box puts a black cube «above the #5 and #12
@@ -41,9 +42,8 @@ test.describe('console: MarsBot corporation marked columns', () => {
     await key(page, 'KeyY', 1200);
     await expect(page.locator('.con-info'), `info mode must open; visible: ${(await visibleSurfaces(page)).join(', ')}`).toBeVisible();
     const corpLine = page.locator('.con-info__corp--bot');
-    for (let i = 0; i < 4 && await corpLine.count() === 0; i++) {
-      await key(page, 'KeyE', 900);
-    }
+    // Act → verify (the bot seat's corporation line stands) → retry only without it.
+    await pressUntil(page, 'KeyE', async () => await corpLine.count() > 0, {tries: 4, settleMs: 900});
     // Case-insensitive: the nameplate is uppercased by CSS, which lands in innerText.
     await expect(corpLine).toContainText(/manutech/i);
 
@@ -53,8 +53,8 @@ test.describe('console: MarsBot corporation marked columns', () => {
     await expect(tracks).toBeVisible();
 
     // Two bands × however many tracks this board has (7 Tharsis + Venus).
+    await expect(tracks.locator('.mb-track'), 'Venus Next adds its own track to the seven').toHaveCount(8);
     const rows = await tracks.locator('.mb-track').count();
-    expect(rows, 'Venus Next adds its own track to the seven').toBe(8);
     await expect(tracks.locator('.mb-cell--reminder')).toHaveCount(2 * rows);
 
     // The physical cube stands ABOVE the column — one per column, on the top row.
@@ -65,8 +65,11 @@ test.describe('console: MarsBot corporation marked columns', () => {
     // DOM in place and the cube cut clean away, which only a screenshot
     // showed. Assert the cube's box sits INSIDE the strip's own box.
     await expect(tracks).toHaveClass(/mb-tracks--reminders/);
-    const strip = await tracks.boundingBox();
-    const cube = await tracks.locator('.mb-cell__colcube').first().boundingBox();
+    // Both boxes measured AT REST (`readSettled` — one read, two equal reads a frame apart).
+    const {strip, cube} = await readSettled(page, async () => ({
+      strip: await tracks.boundingBox(),
+      cube: await tracks.locator('.mb-cell__colcube').first().boundingBox(),
+    }), {message: 'the strip and its first column cube'});
     expect(strip && cube, 'both boxes are laid out').toBeTruthy();
     expect(cube!.height, 'the cube has a real box').toBeGreaterThan(0);
     expect(cube!.y, 'and it is not hanging off the top of the mat').toBeGreaterThanOrEqual(strip!.y);
@@ -76,8 +79,7 @@ test.describe('console: MarsBot corporation marked columns', () => {
     // The legend states what the marked columns remind of, in RU.
     const legend = page.locator('.mb-cubelegend');
     await expect(legend).toBeVisible();
-    const legendText = (await legend.innerText()).replace(/\s+/g, ' ');
-    expect(legendText).toMatch(/дойдя до этой колонки/i);
+    await expect.poll(async () => (await legend.innerText()).replace(/\s+/g, ' ')).toMatch(/дойдя до этой колонки/i);
 
     await page.screenshot({path: 'screenshots/bot-corp-columns.png', fullPage: false});
   });

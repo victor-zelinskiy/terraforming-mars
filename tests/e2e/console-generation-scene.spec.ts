@@ -4,6 +4,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, cinematicBeat, crumbText, fetchPlayerModel, press, pressUntil, pressUntilVisible, sendPlayerInput, settle} from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness, TransferWitness} from './transferWitness';
 import {storyboard} from './consoleEndgameHarness';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE GENERATION CHANGE IS ONE SCENE (TR61 — «СМЕНА ПОКОЛЕНИЯ — ОДНА СЦЕНА»).
@@ -72,55 +74,43 @@ async function passOnUi(page: Page): Promise<void> {
 }
 
 type Sample = {
-  t: number, gen: string, flipping: boolean, convert: boolean, draftws: boolean, buy: boolean, pick: boolean,
+  gen: string, flipping: boolean, convert: boolean, draftws: boolean, buy: boolean, pick: boolean,
   taskWide: boolean, mandatory: boolean, rows: Record<string, string>,
-  /** The rows whose STOCK delta chip is painted in this sample — the standard income's one voice. */
+  /** The rows whose STOCK delta chip is painted in this state — the standard income's one voice. */
   chips: Array<string>,
 };
+const SCENE_WITNESS = 'generation-scene';
 
-/** ARM the scene probe: a MutationObserver + a 40 ms sampler (never rAF) over the strip, the rail and the surfaces. */
+/**
+ * ARM the scene probe over the strip, the rail and the surfaces — RECORDED (FLAKE ZERO: `armWitness`, armed before the
+ * pass; a value is kept only when it changes). `settled`: the verdicts are ORDER claims (the flip, the conversion, the
+ * purchase) and «never for one sample» claims — about what a frame paints, never a state between two writes of a task.
+ */
 async function armSceneProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const st = {samples: [] as Array<Sample>};
-    (window as unknown as {__genScene?: typeof st}).__genScene = st;
-    const t0 = performance.now();
+  await armWitness<Sample>(page, SCENE_WITNESS, () => {
     const rowText = (key: string) => (document.querySelector(`.con-res__row--${key} .con-res__value`)?.textContent ?? '').trim();
-    const read = () => {
-      const s: Sample = {
-        t: Math.round(performance.now() - t0),
-        gen: (document.querySelector('.con-status__gen .con-flipval__card:not(.con-flipval__card--out)')?.textContent ?? '').trim(),
-        flipping: document.querySelector('.con-status__gen .con-flipval--flip') !== null,
-        convert: document.querySelector('.resource-conversion-layer') !== null,
-        draftws: document.querySelector('.con-draftws') !== null,
-        buy: document.querySelector('.con-draftws__stage--buy .con-cards__slot') !== null,
-        pick: document.querySelector('.con-draftws__stage--pick .con-cards__slot') !== null,
-        taskWide: document.querySelector('.con-task--wide') !== null,
-        mandatory: document.querySelector('.con-mandatory') !== null,
-        rows: {
-          megacredits: rowText('megacredits'), steel: rowText('steel'), titanium: rowText('titanium'),
-          plants: rowText('plants'), energy: rowText('energy'), heat: rowText('heat'),
-        },
-        chips: ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']
-          .filter((key) => document.querySelector(`.con-res__row--${key} .con-res__digits .delta-chip`) !== null),
-      };
-      const last = st.samples[st.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0}) !== JSON.stringify({...s, t: 0})) {
-        st.samples.push(s);
-      }
+    return {
+      gen: (document.querySelector('.con-status__gen .con-flipval__card:not(.con-flipval__card--out)')?.textContent ?? '').trim(),
+      flipping: document.querySelector('.con-status__gen .con-flipval--flip') !== null,
+      convert: document.querySelector('.resource-conversion-layer') !== null,
+      draftws: document.querySelector('.con-draftws') !== null,
+      buy: document.querySelector('.con-draftws__stage--buy .con-cards__slot') !== null,
+      pick: document.querySelector('.con-draftws__stage--pick .con-cards__slot') !== null,
+      taskWide: document.querySelector('.con-task--wide') !== null,
+      mandatory: document.querySelector('.con-mandatory') !== null,
+      rows: {
+        megacredits: rowText('megacredits'), steel: rowText('steel'), titanium: rowText('titanium'),
+        plants: rowText('plants'), energy: rowText('energy'), heat: rowText('heat'),
+      },
+      chips: ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']
+        .filter((key) => document.querySelector(`.con-res__row--${key} .con-res__digits .delta-chip`) !== null),
     };
-    read();
-    const mo = new MutationObserver(read);
-    mo.observe(document.body, {childList: true, subtree: true, attributes: true, characterData: true});
-    const iv = setInterval(read, 40);
-    setTimeout(() => {
-      clearInterval(iv);
-      mo.disconnect();
-    }, 90_000);
-  });
+  }, {settled: true});
 }
 
+/** The scene's record so far, and the recording stopped. */
 async function sceneSamples(page: Page): Promise<Array<Sample>> {
-  return page.evaluate(() => (window as unknown as {__genScene?: {samples: Array<Sample>}}).__genScene?.samples ?? []);
+  return (await witnessOf<Sample>(page, SCENE_WITNESS).stop()).map((s) => s.v);
 }
 
 /** The row's FIGURE — the leading integer of the digits span (a delta chip still standing beside it is not the value). */
@@ -131,9 +121,9 @@ async function railText(page: Page, key: string): Promise<string> {
 
 /** The scene's verdicts shared by A / B / C: order, surfaces, the rail's final numbers against the server's. */
 async function expectScene(page: Page, request: APIRequestContext, playerId: string, samples: Array<Sample>, after: typeof AFTER, opts: {convert: boolean}): Promise<void> {
-  // A LIVENESS floor only (the samples are deduplicated states): since the standard income ticks with the commit
-  // instead of flying, a quiet scene is five distinct states — the floor fails a DEAD sampler, never a calm scene.
-  expect(samples.length, `the probe sampled the scene (${samples.length} distinct states)`).toBeGreaterThan(2);
+  // A LIVENESS floor only (the record keeps distinct states): it fails a DEAD recorder, never a calm scene — the
+  // order verdicts below judge the scene itself.
+  expect(samples.length, `the probe sampled the scene (${samples.length} distinct states)`).toBeGreaterThan(0);
   // THE STANDALONE PLATE NEVER MOUNTS — not for one sample: the purchase has ONE surface (TR61 part В).
   expect(samples.filter((s) => s.taskWide).length, 'the standalone cardSelect plate never rose').toBe(0);
   // …AND NO MANDATORY PLATE STANDS BETWEEN THE SCENE AND THE PURCHASE — the scene stood the flow up itself (decision 6а).
@@ -156,7 +146,7 @@ async function expectScene(page: Page, request: APIRequestContext, playerId: str
   const wire = await wireOf(request, playerId);
   for (const key of Object.keys(after) as Array<keyof typeof after>) {
     expect(wire.thisPlayer[key], `the server's ${key}`).toBe(after[key]);
-    expect(await railText(page, key), `the rail's ${key}`).toBe(String(after[key]));
+    await expect.poll(() => railText(page, key), {message: `the rail's ${key}`}).toBe(String(after[key]));
   }
 }
 
@@ -198,15 +188,15 @@ for (const preset of PRESETS) {
       expectIncomeAsChips(samples, witness, ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
       expect(endsOverGlass(witness), 'no end of a flight over glass').toEqual([]);
       // THE ONE SURFACE: the research workspace with the buy stage — its crumb, its four cards, its financial strip.
-      const crumb = await crumbText(page);
-      expect(crumb, 'the crumb names the research and the purchase').toMatch(/ИССЛЕДОВАНИЕ/i);
-      expect(crumb).toMatch(/ПОКУПКА/i);
+      await expect.poll(() => crumbText(page), {message: 'the crumb names the research and the purchase'}).toMatch(/ИССЛЕДОВАНИЕ/i);
+      await expect.poll(() => crumbText(page)).toMatch(/ПОКУПКА/i);
       await expect(page.locator('[data-draft-wallet]'), 'the wallet closes the reading row (T10 · CE)').toBeVisible();
       await expect(page.locator('.con-draftws__shelf'), 'no shelf without a draft (nothing was collected)').toBeHidden();
       // Part Г — THE PURCHASE AT THE COUCH'S SCALE: the card is a protagonist (≥ ⅓ of the workspace's height — the
       // receiving stage's law), and every line of the financial strip reads at or above the TV's type floor
-      // (effective — a `zoom` ancestor scales the computed size).
-      const scale = await page.evaluate(() => {
+      // (effective — a `zoom` ancestor scales the computed size). Read at REST (`readSettled` — the buy is a decision
+      // standing for the player and the spec settled just above, so no second settle).
+      const scale = await readSettled(page, () => page.evaluate(() => {
         const px = (el: Element | null) => {
           if (el === null) {
             return 0;
@@ -227,7 +217,7 @@ for (const preset of PRESETS) {
             detail: px(document.querySelector('.con-dread__wallet-calc')),
           },
         };
-      });
+      }), {settle: false, message: 'the purchase\'s card and financial strip'});
       console.log(`[tr61 ${preset.id}] buy card ${Math.round(scale.cardW)}×${Math.round(scale.cardH)} in a ${Math.round(scale.bandH)} band (${(scale.cardH / Math.max(1, scale.bandH) * 100).toFixed(0)} %) · finstrip ${scale.fin.label.toFixed(1)} / ${scale.fin.total.toFixed(1)} / ${scale.fin.detail.toFixed(1)} px · floor ${scale.floorPx.toFixed(1)} px`);
       expect(scale.cardH / Math.max(1, scale.bandH), 'the card is a protagonist — at least a third of the workspace').toBeGreaterThanOrEqual(1 / 3);
       if (preset.id === 'tv4k') {
@@ -322,7 +312,7 @@ test.describe('generation scene · tv4k · the honest degradations and the journ
     const wire = await wireOf(request, playerId);
     for (const key of Object.keys(AFTER) as Array<keyof typeof AFTER>) {
       expect(wire.thisPlayer[key]).toBe(AFTER[key]);
-      expect(await railText(page, key), `the rail's ${key} snapped to the server's number`).toBe(String(AFTER[key]));
+      await expect.poll(() => railText(page, key), {message: `the rail's ${key} snapped to the server's number`}).toBe(String(AFTER[key]));
     }
   });
 
