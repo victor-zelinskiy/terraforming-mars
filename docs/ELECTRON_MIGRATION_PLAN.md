@@ -2,7 +2,7 @@
 
 **Status:** Phase 0 — feasibility audit + implementation-grade plan (analysis only; no Electron runtime added yet).
 **Target runtime:** Electron **43.0.0** · **Windows-first** · macOS signing/notarization deferred to a separate future initiative.
-> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**45.3.1** as of 2026-11-12 — Chromium 156, Node 24.22.2, V8 15.6). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
+> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**45.3.3** as of 2026-11-16 — Chromium 156, Node 24.22.3, V8 15.6). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
 **Baseline:** builds on the completed WebSocket realtime layer — see `WEBSOCKET_MIGRATION_PLAN.md` (§L mutation matrix + flag ladder). This document is its desktop-shell companion.
 
 This plan is grounded in a read-only audit of the actual codebase (branch `main`, Node v22.22.3 / npm 10.9.8). Every load-bearing claim cites `file:line`. It is a plan, not an implementation — the first code lands only when Phase 1 is explicitly requested.
@@ -946,6 +946,8 @@ crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` 
 
 | Date | Pin | Chromium | Node | V8 | Notes |
 | --- | --- | --- | --- | --- | --- |
+| 2026-11-16 | **45.3.3** | 156.0.8078.100 | 24.22.3 | 15.6.75.57 | Node 24.22.3 (a security release) — every Node pin of the repo moves with it; see the upgrade notes below |
+| 2026-11-15 | **45.3.2** | 156.0.8078.100 | 24.22.2 | 15.6.75.57 | Taken with the move to Vite (`docs/claude/stack.md` S9); fixes + backports — see the upgrade notes below |
 | 2026-11-12 | **45.3.1** | 156.0.8078.96 | 24.22.2 | 15.6.75.50 | Rolls up 45.3.0 + 45.3.1 — one additive feature, fixes and security backports; see the upgrade notes below |
 | 2026-11-08 | **45.2.3** | 156.0.8078.80 | 24.22.2 | 15.6.75.27 | Rolls up 45.2.2 + 45.2.3 — fixes + security backports only; see the upgrade notes below |
 | 2026-11-01 | **45.2.1** | 156.0.8078.75 | 24.22.1 | 15.6.75.25 | Rolls up 45.1.0 + 45.2.0 + 45.2.1 — no breaking changes; see the upgrade notes below |
@@ -954,6 +956,35 @@ crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` 
 | 2026-08-31 | **44.1.0** | 152.0.7977.65 | 24.19.0 | 15.2.124.18 | Patch release - no breaking changes; see below |
 | 2026-08-25 | **44.0.0** | 152.0.7977.54 | 24.18.1 | 15.2.124.13 | See audit below |
 | (prior) | 43.4.0 | 150.0.7871.224 | 24.18.1 | 15.0.245.28 | |
+
+### 45.3.1 → 45.3.3 — upgrade notes
+
+Two patch releases — no breaking change, no API change. 45.3.3 moves Node 24.22.2 → **24.22.3**, so this time every
+Node pin of the repo moves in the same commit (`.nvmrc`, `engines.node`, the `Dockerfile`'s `NODE_VERSION`; CI reads
+`.nvmrc`; `@types/node` keeps its major) — `tests/stack/nodeSync.spec.ts` holds them together and reads the binary's
+own `process.versions.node`. What they change *for this codebase*:
+
+| Upstream change | Impact here |
+| --- | --- |
+| **Node 24.22.3 — a security release** (45.3.3, [#55753](https://github.com/electron/electron/pull/55753)): nine HIGH fixes in `http2` / `tls` / `http` (among them «tls,http: prevent nested parser execution from empty writes», a remotely reachable TLS server crash), plus `llhttp` 9.4.4, `undici` 7.30.2, `sqlite` 3.54.1, `brotli` 1.2.1 | **On our path — the reason for the bump.** The embedded server (a `utilityProcess` on Electron's Node) and the web server (Heroku, `engines.node`) both serve through `http`; neither uses `http2` or terminates TLS itself (Heroku's router does), so the `http` parser fix is the one that lands. |
+| Crash when DevTools `Fetch` interception resumed a paused response (45.3.2, [#55758](https://github.com/electron/electron/pull/55758)) | No impact — `electron/` never drives its own window over CDP; the e2e drive Chromium, not Electron. |
+| Canvas `font` / `document.fonts.check()` rejected a leading space (45.3.2, [#55737](https://github.com/electron/electron/pull/55737)) | No impact — the one canvas font of the client (`consoleTextMeasure.ts`) starts with the computed `font-style`, never a space. |
+| Cookies set shortly before quitting sometimes not saved (45.3.2, [#55773](https://github.com/electron/electron/pull/55773)) | A fix in our favour if anything ever relies on it; today the desktop keeps its identity and settings in `localStorage`, and the server's cookies are the web login's. |
+| A DevTools extension's `devtools_page` racing `chrome.devtools` (45.3.3, [#55794](https://github.com/electron/electron/pull/55794)) | No impact — the shell loads no extension. |
+| **Chromium 156.0.8078.96 → .100, V8 15.6.75.50 → .57, backports from ANGLE / Chromium / Dawn / Skia / V8** (45.3.2, [#55747](https://github.com/electron/electron/pull/55747), [#55750](https://github.com/electron/electron/pull/55750)) | Security and stability only. |
+
+**Verified on the bump (2026-11-16, Windows):** `node_modules/electron/dist/version` → `45.3.3`, the binary's own
+`process.versions.node` → `24.22.3` (the `nodeSync` guard, green); `npm run build:desktop` under Node 24.22.3 (the
+embedded bundle starts and answers `ready`); a boot in HOST mode (`TM_APP_MODE=host TM_ELECTRON_LOAD=app`, and
+`TM_SERVER_BASE` at a dead local port so a fall-back could reach nothing): the embedded `utilityProcess` server came up
+(local-filesystem DB, 11 ids preloaded, WS gateway on `/ws`), `/api/desktop/version` 200, `app://bundle/` loaded
+(CDP: `Chrome/156.0.8078.100 Electron/45.3.3`, `V8-Version` 15.6.75.57), no error in the main / embedded log.
+
+**Gotcha — the laptop's EDR holds a FRESH binary.** SentinelOne inspects a newly unpacked `electron.exe` on its first
+launches: in Node mode (`ELECTRON_RUN_AS_NODE=1 … -p process.versions.node`) the first run took 20–31 s, then 6 s, then
+1.2 s, and later launches anywhere from 1 to 31 s again (`--version` answers in 0.1 s throughout; 45.3.2 behaves the
+same, so it is the machine, not the release). The `nodeSync` guard's binary row therefore owns a 120 s budget for that
+one launch (the describe's 20 s went red on the laptop twice with nothing wrong); CI's Linux runner has no such agent.
 
 ### 45.2.3 → 45.3.1 — upgrade notes
 

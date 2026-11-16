@@ -3,7 +3,7 @@ import * as path from 'path';
 import {monitorEventLoopDelay} from 'perf_hooks';
 import {test, expect} from './consoleTest';
 import {bootFixture, settle} from './consoleStart';
-import {probeNative, readLongFrames} from './hungPageWatch';
+import {HUNG_AFTER_MS, PING_EVERY_MS, probeNative, readLongFrames} from './hungPageWatch';
 
 /** The tree the worker server runs from (as `consoleTest.ts` resolves it). */
 const SERVE_ROOT = path.resolve(__dirname, '..', '..', process.env.TM_E2E_ROOT ?? '.');
@@ -121,16 +121,21 @@ test('the native probe reads a busy renderer as BUSY, its main thread running', 
   // a MAIN-THREAD animation keeps a rendering update pending, so the spin holds a FRAME (a long-animation-frame
   // entry is recorded only for a frame that was due) — the same shape as a page held in the middle of a motion
   await page.setContent('<html><head><style>@keyframes m { to { left: 200px } } #m { position: absolute; left: 0; animation: m 1s linear infinite alternate }</style></head><body><div id="m">control</div></body></html>');
-  await page.evaluate(() => {
+  // The spin stays UNDER the watch's threshold by more than one ping: the frame read back below must be one the watch
+  // never PAUSED — Chromium ≥ 159 records no long-animation-frame entry for a spinning task a debugger pause landed in
+  // (158 recorded it, cut at the pause: a 12 s spin passed there and read back empty on 159 — 2026-11-16). The pause is
+  // A's subject; a pause that lands late inside a frame is D's.
+  const spinMs = HUNG_AFTER_MS - PING_EVERY_MS - 1_000;
+  await page.evaluate((ms) => {
     window.setTimeout(() => {
-      const until = Date.now() + 12_000;
+      const until = Date.now() + ms;
       let turns = 0;
       while (Date.now() < until) {
         turns++; // a renderer burning CPU
       }
       return turns;
     }, 50);
-  });
+  }, spinMs);
   await new Promise((resolve) => setTimeout(resolve, 500));
   const reading = await probeNative(context, page);
   console.log(`[hung-control] native probe:\n    ${reading}`);
@@ -144,4 +149,56 @@ test('the native probe reads a busy renderer as BUSY, its main thread running', 
   const frames = await readLongFrames(page);
   console.log(`[hung-control] long frames:\n    ${frames}`);
   expect(frames, `the held frame is read back with its phases:\n${frames}`).toMatch(/frame \d+ ms @\d+: script \d+ · rAF\/observers \d+ · style\+layout\+paint \d+/);
+});
+
+/**
+ * A STALL OUTSIDE JS, INSIDE A FRAME, THEN JS IN THAT FRAME (2026-11-16, the move to Chromium 159): the shape of a console
+ * page held in its own layout with a ResizeObserver callback after it. The pause cannot land in the native wait — the
+ * watch files «never landed» with the processes' clocks — and a pause cannot be retracted while the thread is stuck, so
+ * it lands on the first JS the thread runs again: in that very frame, where Chromium ≥ 159 may record NO
+ * long-animation-frame entry (it dropped a rAF callback's frame, kept an observer callback's). That late stack is the
+ * reading that is always there: it must be filed into the SAME report, beside the native probe (the two arrive in either
+ * order — neither may overwrite the other), naming where the thread came back; the long frames follow, or their absence
+ * is said.
+ */
+test('a stall outside JS: the pause never lands, then lands late and its stack joins the report', async ({page}, testInfo) => {
+  test.setTimeout(90_000);
+  // the stall ends when the report says «never landed» (released below) — the bound is only a net
+  let release: () => void = () => undefined;
+  await page.route('http://hung.control/**', async (route) => {
+    if (route.request().url().endsWith('/slow')) {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+        setTimeout(resolve, 60_000);
+      });
+      await route.fulfill({body: 'ok'});
+      return;
+    }
+    await route.fulfill({contentType: 'text/html', body: '<html><body><div id="box">control</div></body></html>'});
+  });
+  await page.goto('http://hung.control/');
+  await page.evaluate(() => {
+    // an observer callback runs inside the frame's rendering update, after its layout: a native wait (a synchronous
+    // request — no JS runs, a pause cannot land), then JS in the same frame
+    new ResizeObserver(function stalledObserver() {
+      const request = new XMLHttpRequest();
+      request.open('GET', '/slow', false);
+      request.send();
+      let after = 0;
+      for (let i = 0; i < 1000; i++) {
+        after += i;
+      }
+      (window as unknown as {hungControlAfter: number}).hungControlAfter = after;
+    }).observe(document.getElementById('box') as Element);
+  });
+  const filed = (): string => testInfo.annotations.find((a) => a.type === 'hung-page')?.description ?? '';
+  await expect.poll(filed, {timeout: 40_000, intervals: [500], message: 'the watch filed the stall'}).toMatch(/the pause never landed/);
+  release();
+  await expect.poll(filed, {timeout: 30_000, intervals: [500], message: 'the late pause joined the report'})
+    .toMatch(/the pause landed \d+ s after it was asked — the thread came back to JS here[^]*stalledObserver/);
+  await expect.poll(filed, {timeout: 20_000, intervals: [500], message: 'the native probe is in the same report'}).toMatch(/compositor: /);
+  await expect.poll(filed, {timeout: 20_000, intervals: [500], message: 'the long frames are read once it answers — or their absence named'})
+    .toMatch(/the thread answered again — (the long frames it recorded|it recorded no long frame)/);
+  expect(filed(), 'ONE report for the one hang').toMatch(/^\[hung-page\] the main thread has not answered/);
+  expect(testInfo.annotations.filter((a) => a.type === 'hung-page'), 'the late landing is a part of the report, never a second one').toHaveLength(1);
 });

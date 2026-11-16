@@ -30,7 +30,8 @@ before you rebase. The reference is `docs/claude/stack.md` (decisions S1–S16, 
 2. **Do NOT run `npm ci` / `npm install` in your worktree.** Your `node_modules` is a JUNCTION to the main clone's, and
    that one is already updated. An install there rewrites the shared folder under every other session.
 3. Rebuild: `npm run build` (web) / `npm run build:desktop`; `npm run e2e:snapshot <task>` as before.
-   Playwright stays 1.65.0, pinned exactly (Chromium build 1254 — `docs/claude/stack.md` § 4 says why not 1.65.1).
+   Since 2026-11-16: Node **24.22.3** (Electron 45.3.3 — `fnm install` reads `.nvmrc`) and Playwright **1.65.1**, pinned
+   exactly (Chromium build 1255 — `npx playwright install chromium`; `docs/claude/stack.md` § 4 has its story).
 4. The checks you know still work: `npm run lint` (now with `typecheck`), `npm run build:test`, `npm run test:server`,
    `npm run test:client`, `npm run test:client:one -- <spec>`, `npm run test:bottle`, `npm run gate:freeze`.
 

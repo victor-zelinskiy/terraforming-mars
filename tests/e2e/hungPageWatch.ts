@@ -23,8 +23,9 @@ import {monitorEventLoopDelay} from 'perf_hooks';
 import {Worker} from 'worker_threads';
 import type {BrowserContext, CDPSession, Page, TestInfo} from '@playwright/test';
 
-const PING_EVERY_MS = 3000;
-const HUNG_AFTER_MS = 10_000;
+export const PING_EVERY_MS = 3000;
+/** A page silent this long is paused (exported: a control that wants a frame the watch does NOT pause stays under it). */
+export const HUNG_AFTER_MS = 10_000;
 /** How long the mapping thread may take for one stack before the raw frames stand as the report. */
 const MAP_BUDGET_MS = 15_000;
 /** A worker event-loop stall at least this long is filed — every driver bound is a timer on that loop. */
@@ -132,7 +133,16 @@ export async function mapFrames(root: string, frames: Array<Frame>): Promise<Arr
  * runs, so the page never waits on the report.
  */
 type PauseResult = {frames: Array<Frame>} | {reason: string};
-type PageDebugger = {pause: () => Promise<PauseResult>, close: () => Promise<void>};
+/**
+ * `onLateLanding`: OUR pause, requested and given up on («never landed»), landing afterwards — the thread came back to JS
+ * there. A pause cannot be RETRACTED from outside while the thread is stuck (`Debugger.disable`, `setSkipAllPauses`
+ * and a detach all wait for the main thread; measured 2026-11-16), so it always lands on the first JS the thread runs
+ * next — often the same rendering frame (a ResizeObserver / rAF callback after the stalled layout), and Chromium ≥ 159
+ * may then record NO long-animation-frame entry for that frame (measured for a spinning task and a rAF callback; 158
+ * recorded both, cut at the pause; an observer callback's frame survived). The late stack is the reading that is
+ * always there, so it is filed, never resumed away unread.
+ */
+type PageDebugger = {pause: () => Promise<PauseResult>, onLateLanding: (take: (frames: Array<Frame>, lateByMs: number) => void) => void, close: () => Promise<void>};
 
 async function attachDebugger(context: BrowserContext, page: Page): Promise<PageDebugger | undefined> {
   let session: CDPSession;
@@ -142,6 +152,9 @@ async function attachDebugger(context: BrowserContext, page: Page): Promise<Page
     return undefined; // the page closed before its session opened
   }
   let want: ((frames: Array<Frame>) => void) | undefined;
+  /** When OUR pause was requested and has not landed yet (a stray `debugger;` lands with none outstanding). */
+  let requestedAt: number | undefined;
+  let late: ((frames: Array<Frame>, lateByMs: number) => void) | undefined;
   // A CALL FRAME'S `url` IS EMPTY in current Chromium (deprecated in CDP) — the script is named by its `scriptId`, whose
   // URL arrives once in `Debugger.scriptParsed` (replayed for every existing script by `Debugger.enable`, so the
   // listener stands BEFORE the enable). Read off `callFrame.url`, every product frame read «<evaluated>» and no stack
@@ -167,14 +180,24 @@ async function attachDebugger(context: BrowserContext, page: Page): Promise<Page
     }));
     const taker = want;
     want = undefined;
-    taker?.(frames);
+    const ours = requestedAt;
+    requestedAt = undefined;
+    if (taker !== undefined) {
+      taker(frames);
+    } else if (ours !== undefined) {
+      late?.(frames, Date.now() - ours);
+    }
   });
   return {
+    onLateLanding: (take) => {
+      late = take;
+    },
     pause: async () => {
       try {
         const paused = new Promise<Array<Frame>>((resolve) => {
           want = resolve;
         });
+        requestedAt ??= Date.now(); // a re-pause of a page still stuck keeps the FIRST request's time
         let timer: ReturnType<typeof setTimeout> | undefined;
         const frames = await Promise.race([
           session.send('Debugger.pause').then(() => paused),
@@ -189,6 +212,8 @@ async function attachDebugger(context: BrowserContext, page: Page): Promise<Page
         }
         return {frames: frames.slice(0, 40)};
       } catch (e) {
+        want = undefined;
+        requestedAt = undefined; // no pause was asked for: nothing can land late
         return {reason: `(could not pause: ${String(e).slice(0, 200)})`};
       }
     },
@@ -315,6 +340,10 @@ async function nativeProbe(context: BrowserContext, page: Page, browserSession: 
  * did not end; once the page answers again, its Long Animation Frame record (`long-animation-frame`, buffered) splits
  * that frame into script · rendering callbacks (rAF / observers) · style + layout (+ paint) and names the scripts that
  * FORCED a style / layout — so «native for 11 s» becomes «style + layout 10.8 s, forced by X» or «paint / commit».
+ * ⚠ Chromium ≥ 159 may record NO entry for a frame a debugger pause landed in (a spinning task, a rAF callback — 158
+ * recorded both, cut at the pause) — and the watch's pause, once asked, lands on the first JS the thread runs again,
+ * often in that very frame (measured 2026-11-16, `docs/claude/stack.md` § 4): the late stack (`onLateLanding`) is then
+ * the frame's reading, and an empty record is SAID, never left out.
  */
 export async function readLongFrames(page: Page): Promise<string> {
   return await page.evaluate(() => new Promise<string>((resolve) => {
@@ -368,6 +397,29 @@ function fileAnnotation(testInfo: TestInfo, type: string, line: string): {descri
   return annotation;
 }
 
+/**
+ * A HANG OUTSIDE JS IS ONE REPORT OF SEVERAL PARTS that arrive at their own times — the native probe (3 s), the pause
+ * landing late (whenever the thread comes back to JS), the long frames (once it answers) — so the annotation is
+ * re-rendered whole from its named parts: no reading overwrites another's.
+ */
+type HangReport = {part: (key: string, text: string) => void};
+
+function fileHangReport(testInfo: TestInfo, first: string): HangReport {
+  const order = ['head'];
+  const parts = new Map<string, string>([['head', first]]);
+  const annotation = fileAnnotation(testInfo, 'hung-page', first);
+  return {
+    part: (key, text) => {
+      if (!parts.has(key)) {
+        order.push(key);
+      }
+      parts.set(key, text);
+      console.log(text);
+      annotation.description = order.map((k) => parts.get(k)).join('\n').slice(0, 4000);
+    },
+  };
+}
+
 /** Arm the watch on every page of the context; returns the stop function (call it in the fixture's teardown). */
 export function armHungPageWatch(context: BrowserContext, testInfo: TestInfo, root: string): () => void {
   const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -393,7 +445,25 @@ export function armHungPageWatch(context: BrowserContext, testInfo: TestInfo, ro
     let lastAnswer = Date.now();
     let nextReportMs = HUNG_AFTER_MS;
     let inFlight = false;
-    let filedHang: {description: string} | undefined;
+    /** The report of a hang outside JS, until the thread answers (its long frames are read then). */
+    let filedHang: HangReport | undefined;
+    /** The same report, until the pause it gave up on lands late (or the next report replaces it). */
+    let awaitingLatePause: HangReport | undefined;
+    void dbg.then((d) => d?.onLateLanding((frames, lateByMs) => {
+      const report = awaitingLatePause;
+      awaitingLatePause = undefined;
+      if (report === undefined || stopped) {
+        return;
+      }
+      const head = `[hung-page] the pause landed ${Math.round(lateByMs / 1000)} s after it was asked — the thread came back to JS here (what held it ran BEFORE this point, outside JS):`;
+      const stack = frames.slice(0, 40);
+      report.part('late', `${head}\n${stack.map((f) => `    at ${rawFrame(f)}`).join('\n')}`);
+      void mapFrames(root, stack).then((mapped) => {
+        if (mapped.some((m, i) => m !== rawFrame(stack[i]))) {
+          report.part('late', `${head}\n${mapped.map((m) => `    at ${m}`).join('\n')}`);
+        }
+      });
+    }));
     const answered = () => {
       lastAnswer = Date.now();
       nextReportMs = HUNG_AFTER_MS;
@@ -402,11 +472,13 @@ export function armHungPageWatch(context: BrowserContext, testInfo: TestInfo, ro
       if (hang !== undefined && !stopped && !page.isClosed()) {
         // the thread came back: its own record of the frame that held it says WHERE the time went
         void within(5000, readLongFrames(page)).then((r) => {
-          if (r !== 'timeout' && r !== '') {
-            const line = `[hung-page] the thread answered again — the long frames it recorded:\n    ${r}`;
-            console.log(line);
-            hang.description = `${hang.description}\n${line}`.slice(0, 4000);
+          if (r === 'timeout') {
+            return;
           }
+          hang.part('frames', r !== '' ?
+            `[hung-page] the thread answered again — the long frames it recorded:\n    ${r}` :
+            // never silent: Chromium ≥ 159 may record no entry for a frame a debugger pause landed in — the late stack is then that frame's reading
+            '[hung-page] the thread answered again — it recorded no long frame ≥ 2 s (Chromium ≥ 159 may record none for a frame the watch\'s pause landed in: the late stack above stands for it)');
         });
       }
     };
@@ -431,12 +503,11 @@ export function armHungPageWatch(context: BrowserContext, testInfo: TestInfo, ro
           const head = `[hung-page] the main thread has not answered for ${Math.round(silentMs / 1000)} s — its stack:`;
           if ('reason' in result) {
             // outside JS: read the processes' own clocks — busy native loop or a wait (see `nativeProbe`)
-            const annotation = fileAnnotation(testInfo, 'hung-page', `${head}\n    ${result.reason}`);
-            filedHang = annotation;
+            const report = fileHangReport(testInfo, `${head}\n    ${result.reason}`);
+            filedHang = report;
+            awaitingLatePause = report;
             const native = await nativeProbe(context, page, openBrowserSession).catch((e) => `(native probe failed: ${String(e).slice(0, 160)})`);
-            const line = `${head}\n    ${result.reason}\n    ${native}`;
-            console.log(`[hung-page] native: \n    ${native}`);
-            annotation.description = line.slice(0, 4000);
+            report.part('native', `    ${native}`);
             return;
           }
           // the RAW frames are filed at once; the mapping (a thread, bounded) rewrites the same annotation

@@ -10,7 +10,7 @@ what is left. What the other sessions do after the move: `stack-migration-notice
 | --- | --- |
 | M0 baseline measured (webpack, `9539df61b8`, this laptop) | done — § 3 |
 | M1 TS 7 readiness on TS 6 | done — § 5 |
-| M2 Electron 45.x + Node in sync + guard | done — 45.3.2 / 24.22.2 (S8, S9); 45.3.3 when npm has it |
+| M2 Electron 45.x + Node in sync + guard | done — 45.3.3 / 24.22.3 (S8, S9; 45.3.2 / 24.22.2 at the move, 45.3.3 taken 2026-11-16) |
 | M3 client on Vite (product build) | done — `vite.config.mts` |
 | M4 unit tests on the Vite pipeline | done — `scripts/client-tests.mts` (9951 collected, the same suite) |
 | M5 Node lanes (web server, embedded server, hub, Electron main) | done — `scripts/build-node.mts` |
@@ -32,7 +32,7 @@ what is left. What the other sessions do after the move: `stack-migration-notice
 | S6 | **The SPA shell is a Vite input** (`src/client/index.html` → `build/index.html` · `build-desktop/index.html`); Vite writes the module scripts, their preloads and the components' CSS into it; the game server's own links (`styles.css`, fonts, icon) carry `vite-ignore` | keep the static `assets/index.html` and hand-write `<script type="module">` + preloads + CSS links | The CSS of a component inside `main.js` and the preloads are only known to the build; a hand-written list drifts on the next partition change. ServeApp & co. now rewrite to `/index.html` (served from `build/`) |
 | S7 | **Less stays a separate `lessc` step** (`make:css` → `build/styles.css` + `.br` / `.gz`); only the 12 SFC `<style>` blocks go through Vite (`chunks/*.css`) | `import '@/styles/common.less'` into the graph | `styles.css` is a contract of its own: render-blocking in the shell's head, the boot curtain painted from it before any script runs, served identically to the web and the desktop build from `build/`, its `url()`s the game server's paths (Vite would try to resolve 112k lines of them). Bundling it would couple a stylesheet rebuild to a JS build for no gain; `watch:less` stays the dev loop |
 | S8 | **The project's Node is the Node Electron carries** — `.nvmrc` (exact), `engines.node` (exact — Heroku installs it), the Dockerfile's `NODE_VERSION`, `@types/node`'s major, CI's `node-version-file: .nvmrc` (one `setup-node` version). Guard: `tests/stack/nodeSync.spec.ts` (+ the binary's own `process.versions.node` where Electron is unpacked — CI unpacks it) | a floating `24` | One Node runs everything: the desktop main process and embedded server ARE Electron's Node; a server or a test on another Node is a difference nobody chose |
-| S9 | **Electron 45.3.2** (Node 24.22.2), not 45.3.3 | — | 45.3.3 (Node 24.22.3) was released 2026-11-14 but is NOT on npm on 2026-11-15 (`latest` = 45.3.2). The bump to 45.3.3 is one row of `ELECTRON_NODE` + the pins the guard names, when npm has it |
+| S9 | **Electron 45.3.3** (Node 24.22.3) — 45.3.2 (Node 24.22.2) at the move | — | 45.3.3 was released 2026-11-14 but was NOT on npm on 2026-11-15 (`latest` = 45.3.2), so the move shipped 45.3.2; on 2026-11-16 npm had it and the bump was exactly what this row promised — `ELECTRON_NODE`'s row + `.nvmrc`, `engines.node`, the Dockerfile (Node 24.22.3 is a security release: `docs/ELECTRON_MIGRATION_PLAN.md` § 45.3.1 → 45.3.3) |
 | S10 | **Every Node lane is a Vite SSR build** (`scripts/build-node.mts`, CommonJS, `keepNames`): the web server (`build/src/server/server.js` — the same path `npm start`, Docker, Heroku and the e2e harness run), the embedded server, the hub, the Electron main process (one self-contained file per entry: a sandboxed preload may `require` only `electron`) | keep `tsc` emit + `tsc-alias` for the server and `tsc` for Electron | No `typescript` in any build (S1); the server bundle is one file (2 s to build, 5.6 MB; the per-file emit took a minute); the lanes speak one config language. `keepNames`: a bundle renames clashing bindings, and `deferred:${action.constructor.name}` must read the class. The type checks moved to `npm run typecheck` (inside `npm run lint` — the server, the Electron lane and, new, the build's own TypeScript: `tsconfig.tools.json` over `vite.config.mts`, `eslint.config.mts`, `scripts/*.mts`) |
 | S11 | **The embedded-server guard RUNS the bundle** (`scripts/check-embedded-bundle.mjs`: the bundle under plain Node with the embedded environment must answer `ready` in 60 s) | the webpack-5.110 pattern grep it replaces | A bundler can fail in a new way; the only question that matters is «does it start» |
 | S12 | **The bottle's page is a bundle of its own**, compiled ONCE (`vm.Script`) and RUN per page (`consoleBottle.ts` § a pristine page); a replay reaches the page's modules through `bottle.pageModules` | clearing a module cache (webpack's `__webpack_require__.c` — Rolldown has none); `require` per page | A `require` per page recompiled an 18 MB program and the search ran the process out of heap (4 GB); one compile, many runs is what webpack's module factories did |
@@ -127,7 +127,7 @@ build bundles is a devDependency.
 | `mocha` · `chai` · `chai-as-promised` · `tsx` · `fast-check` · `jsdom` · `@vue/test-utils` · `@playwright/test` | dev — kept | the runners (S2); `chai-as-promised` in 4 specs |
 | `typescript` · `vue-tsc` | dev — kept (6.x / 3.x) | the checkers; TS 7.1 is § 5 |
 | `eslint` · `@eslint/js` · `@typescript-eslint/*` · `eslint-plugin-vue` · `globals` | dev — kept | the lint (`eslint.config.mts`) |
-| `electron` · `electron-builder` | dev — kept | 45.3.2 (S9) · `--dir` packaging |
+| `electron` · `electron-builder` | dev — kept | 45.3.3 (S9) · `--dir` packaging |
 | `sharp` · `png-to-ico` | dev — kept | the asset scripts (card art, the app icon) |
 | `@types/*` | dev — kept | `@types/node` 24.x — the Node's major (guard S8) |
 
@@ -143,10 +143,21 @@ for the rows below).
 - `@types/node` 26 — the types follow the Node major we run (24).
 - `vue` — the exact RC pin (`3.6.0-rc.15` + `overrides`); a bump is ROADMAP §3.8's protocol, never part of a toolchain move.
 - `velopack` — `latest` is a nightly.
-- **`@playwright/test` stays 1.65.0, pinned EXACTLY**: 1.65.1 brings Chromium 159 (build 1255), whose headless shell does
-  not record the Long Animation Frame of a frame a spin held — `hung-page-control.spec.ts` («the native probe reads a
-  busy renderer as BUSY») is red on it and green on 1.65.0 (Chromium 158, build 1254), measured on this laptop
-  2026-11-15. The bump is its own step, with that harness probe understood first.
+- **`@playwright/test` — held at 1.65.0 by the move, 1.65.1 TAKEN 2026-11-16 (pinned EXACTLY; Chromium 159, build
+  1255)** once the red it brought was understood. It was the harness's own control, never the product:
+  `hung-page-control.spec.ts` C read back no long-animation-frame entry for its 12 s spin. Cause, isolated on this
+  laptop with a stand-alone probe over every pair of {Playwright 1.65.0 · 1.65.1} × {Chromium 158 · 159} × {headless
+  shell · full browser}: neither Playwright nor the shell — **Chromium 159 records no long-animation-frame entry for a
+  frame a debugger pause landed in** (158 recorded it, cut at the pause), and the spin outlived the watch's 10 s, so the
+  watch had paused it. The same change reaches the watch itself: a pause it gave up on («never landed» — the thread
+  outside JS) cannot be retracted from outside while the thread is stuck (`Debugger.disable`, `setSkipAllPauses`, a
+  detach — all wait for the main thread), so it lands on the first JS the thread runs next, often in the stalled frame,
+  whose record 159 may then drop (it dropped a rAF callback's frame, kept a ResizeObserver callback's). So: the watch now
+  FILES that late landing — «the pause landed N s after it was asked — the thread came back to JS here» with its mapped
+  stack — into the same report, whose parts (the native probe, the late stack, the long frames) no longer overwrite each
+  other, and an empty long-frame record is said, never left out (`tests/e2e/hungPageWatch.ts`); control C's spin stays
+  under the watch's threshold (it reads a frame nobody paused) and a new control D stands the stall outside JS inside a
+  frame. Green on 1.65.1 under the shell and the full browser (CI's), 4 / 4 each, and the driver canary.
 - **Oxlint** — not added: the lint's rules are mostly STYLISTIC (indent, quotes, spacing — eslint-config-google's), which
   Oxlint does not implement; it would be a second tool next to ESLint for a fraction of the rules. Worth it the day the
   lint moves to type-aware correctness rules (TS 7).

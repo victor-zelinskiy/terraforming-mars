@@ -1,9 +1,9 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.3281",
+  "version": "1.2.3282",
   "description": "Terraforming Mars Game",
   "engines": {
-    "node": "24.22.2"
+    "node": "24.22.3"
   },
   "private": true,
   "main": "build/electron/main.js",
@@ -17,7 +17,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@jridgewell/trace-mapping": "^0.3.31",
-    "@playwright/test": "1.65.0",
+    "@playwright/test": "1.65.1",
     "@sentry/cli": "3.8.2",
     "@sentry/core": "11.12.0",
     "@types/better-sqlite3": "^9.6.0",
@@ -37,7 +37,7 @@
     "chai-as-promised": "^8.0.2",
     "chart.js": "^4.6.1",
     "cross-env": "^10.1.0",
-    "electron": "45.3.2",
+    "electron": "45.3.3",
     "electron-builder": "^26.18.0",
     "eslint": "^10.15.0",
     "eslint-plugin-vue": "^10.12.1",

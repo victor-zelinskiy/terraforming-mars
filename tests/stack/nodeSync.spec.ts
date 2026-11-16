@@ -44,13 +44,20 @@ describe('stack — the project\'s Node is the Node Electron carries', function(
   });
 
   it('the recorded Node IS the Node of the unpacked binary (where one is unpacked)', function() {
+    // The binary's own launch owns this budget, not the logic: on the owner's Windows laptop an EDR agent holds Electron's
+    // NODE-mode start for 1–31 s, unpredictably (measured 2026-11-16 over nine launches of 45.3.2 and 45.3.3 — `--version`
+    // answers in 0.1 s throughout); the 20 s of the describe went red there with nothing wrong. A launch past the
+    // spawn's own bound fails by name below, never as a mocha timeout.
+    // eslint-disable-next-line no-invalid-this
+    this.timeout(120_000);
     const binary = path.join(ROOT, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
     if (!fs.existsSync(binary)) {
       // npm does not unpack Electron (no postinstall); CI unpacks it before the tests (`main.yml`), so this runs there.
       // eslint-disable-next-line no-invalid-this
       this.skip();
     }
-    const run = spawnSync(binary, ['-p', 'process.versions.node'], {env: {...process.env, ELECTRON_RUN_AS_NODE: '1'}, encoding: 'utf8'});
+    const run = spawnSync(binary, ['-p', 'process.versions.node'], {env: {...process.env, ELECTRON_RUN_AS_NODE: '1'}, encoding: 'utf8', timeout: 110_000});
+    expect(run.error, `the Electron binary did not answer in 110 s: ${String(run.error)}`).to.eq(undefined);
     expect(run.status, run.stderr).to.eq(0);
     expect(run.stdout.trim(), `Electron ${electronPin} carries this Node — fix ELECTRON_NODE`).to.eq(nodeOfElectron);
   });

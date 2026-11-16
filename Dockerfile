@@ -1,6 +1,6 @@
 # Define the version once at the top — the Node Electron carries, as .nvmrc names it (docs/claude/stack.md; the guard
 # tests/stack/nodeSync.spec.ts holds the two together).
-ARG NODE_VERSION=24.22.2-alpine3.23
+ARG NODE_VERSION=24.22.3-alpine3.23
 
 # Intermediate image - base for building and installing dependencies
 FROM node:${NODE_VERSION} AS install
