@@ -252,7 +252,8 @@ test.describe('campaign «Тендеры» — the storyboard at TV 4K', () => {
     await openSheetOf('openCall', 's06-opencall-sheet');
     await growBy('openCall', /prelude/i, 'prelude', 2, 'Enter');
 
-    // ── The projects: three picks, the purchase LEDGER; «Субсидия» ticks the price in place (filmed). ──
+    // ── The projects: up to three picks (as many as the dealt money buys), the purchase LEDGER; «Субсидия» ticks the price
+    //    in place (filmed). ──
     await fillPicks(page, 2);
     expect(await pressUntil(page, 'Period', async () => /проект/i.test(await subject()), {tries: 4, settleMs: 900})).toBe(true);
     await waitStepDealSettled(page);
@@ -261,10 +262,19 @@ test.describe('campaign «Тендеры» — the storyboard at TV 4K', () => {
     await expect(ledger).toBeVisible();
     // The ledger's numbers as they STAND after the last pick — two equal reads, never the one the last pick's tick
     // had not reached yet (every price claim below is computed from these).
-    const {price0, left0} = await readSettled(page, async () => ({
+    const {price0, left0, picks0} = await readSettled(page, async () => ({
       price0: Number(await ledger.getAttribute('data-purchase-cost')),
       left0: Number(await ledger.getAttribute('data-purchase-left')),
+      picks0: (await pickedCards(page)).length,
     }), {message: 'the purchase ledger before «Субсидия»'});
+    // What a red needs to say (CI 43919360711: «left» moved by ONE M€ at a price one lower): the page's picks and the
+    // router's trail of presses — never a guess at which press went where.
+    const purchaseEvidence = async () => {
+      const picks = await pickedCards(page);
+      const trail = await page.evaluate(() =>
+        (window as unknown as {__conInputEcho?: () => {trail?: string}}).__conInputEcho?.().trail ?? '');
+      return `picks ${picks0} → ${picks.length} [${picks.join(', ')}] · presses: ${trail}`;
+    };
     await shoot(page, 's08-projects-ledger');
     await openSheetOf('researchSubsidy', 's09-subsidy-sheet');
     // The price ticks on the PURCHASE page the player returns to — never under the sheet's stamp.
@@ -273,7 +283,14 @@ test.describe('campaign «Тендеры» — the storyboard at TV 4K', () => {
     stop = await story(page, 'subsidy-commit');
     await press(page, 'Enter', 900);
     await expect(ledger, 'the price fell by one').toHaveAttribute('data-purchase-cost', String(Math.max(1, price0 - 1)), {timeout: 12_000});
-    await expect(ledger, 'three picks: three M€ more left').toHaveAttribute('data-purchase-left', String(left0 + 3 * (price0 - Math.max(1, price0 - 1))));
+    // Every PICK is one M€ cheaper — the picks the page really holds, never the three `fillPicks` asked for: the campaign's
+    // deal is not seeded, and a lean finale (the lineage's 66 M€ against two 42 M€ merges, e.g. a 23 M€ corporation) can
+    // afford one card at 3 M€ — the product refuses the second by its budget gate (CI 43919360711: one pick, 2 → 3).
+    await expect(ledger, `${picks0} pick(s): ${picks0} M€ more left per M€ off the price`)
+      .toHaveAttribute('data-purchase-left', String(left0 + picks0 * (price0 - Math.max(1, price0 - 1))))
+      .catch(async (error: Error) => {
+        throw new Error(`${error.message}\n${await purchaseEvidence()}`);
+      });
     await expect(sheet).toHaveCount(0, {timeout: 10_000});
     await cinematicBeat(page, 900, 'the ledger\'s numbers tick in place');
     await stop();

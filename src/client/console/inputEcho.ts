@@ -63,6 +63,8 @@ export type InputEchoSnapshot = {
   last?: InputEchoEvent;
   /** The last PRESS edge (a key press is down + up — `last` is usually the release; a driver reads this). */
   lastPress?: InputEchoEvent;
+  /** The router's trail as one line (`inputTrailLine` — snapshot only): a red names WHICH presses led to it. */
+  trail?: string;
 };
 
 const state: InputEchoSnapshot = {
@@ -166,7 +168,7 @@ export function inputTrailLine(now: number = Date.now(), maxAgeMs = 120_000): st
 
 export function inputEchoSnapshot(): InputEchoSnapshot {
   return {...state, last: state.last === undefined ? undefined : {...state.last},
-    lastPress: state.lastPress === undefined ? undefined : {...state.lastPress}};
+    lastPress: state.lastPress === undefined ? undefined : {...state.lastPress}, trail: inputTrailLine()};
 }
 
 /** Idempotent; called from the key bridge's install so the probe exists
