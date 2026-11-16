@@ -1,10 +1,11 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, bootWithCards, openCardActions, press, soloGameConfig} from './consoleStart';
+import {bootSeededGame, bootWithCards, openCardActions, press, pressUntil, settle, soloGameConfig} from './consoleStart';
 import {
   LAUNCHPAD, TRADE_CORP, cardTradeConfig, focusTradeVariantTile, playLaunchpad,
 } from './cardTradeDoor';
+import {armWitness, Witness} from './witness';
 
 /**
  * PAST THE COMMIT THE COLONY STAGE IS A RECEIPT, AND ITS BEATS TAKE TURNS.
@@ -24,14 +25,16 @@ import {
  *      glide launched into that overlap — «карта продолжает висеть посреди
  *      экрана в момент анимации трека».
  *
- * Both are stated here as invariants over a CONTINUOUS in-page sample of the
+ * Both are stated here as invariants over a CONTINUOUS RECORD of the
  * post-commit window, because that is what they are: a claim about every frame
  * between the press and the conclusion, not about one screenshot.
  *
- * ⚠️ `MutationObserver` + `setInterval`, never `requestAnimationFrame` —
- * headless Chromium drives rAF off the compositor and stops it exactly when the
- * screen goes quiet. The sampler's own count is asserted, so a dead probe can
- * never pass as «nothing went wrong».
+ * ⚠️ RECORDED, never sampled (FLAKE ZERO — `armWitness`: the product's own
+ * writes observed in the task that makes them, plus a frame tick, replace-proof):
+ * a sampler on a timer sleeps through a short overlap on a starved renderer. The
+ * claims are about what a frame PAINTS together, so the record is `settled` (the
+ * state a task leaves). Its own liveness is asserted, so a dead record can never
+ * pass as «nothing went wrong».
  */
 
 const OUT = path.resolve('screenshots', 'colony-trade-receipt');
@@ -66,7 +69,6 @@ async function createGame(request: APIRequestContext): Promise<string> {
 }
 
 type Sample = {
-  at: number,
   /** Payment rows the stage OFFERS (the receipt row included). */
   payRows: number,
   /** Refused paths ('✕ …' rows) — a menu the committed move cannot use. */
@@ -83,13 +85,9 @@ type Sample = {
   stageUp: boolean,
 };
 
-/** Arm the post-commit sampler IN the page (see the header). */
-async function armReceiptProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as Record<string, unknown>;
-    const samples: Array<Sample> = [];
-    (w as Record<string, unknown>).__receipt = samples;
-    const t0 = performance.now();
+/** Arm the post-commit RECORD (see the header) — before the press. */
+function armReceiptProbe(page: Page): Promise<Witness<Sample>> {
+  return armWitness<Sample>(page, 'colony-trade-receipt', () => {
     const lit = (sel: string): boolean => {
       const el = document.querySelector(sel);
       if (el === null) {
@@ -97,33 +95,27 @@ async function armReceiptProbe(page: Page): Promise<void> {
       }
       return Number(getComputedStyle(el).opacity) > 0.02;
     };
-    const scan = () => {
-      samples.push({
-        at: Math.round(performance.now() - t0),
-        payRows: document.querySelectorAll('.con-colfocus__payrow').length,
-        offRows: document.querySelectorAll('.con-colfocus__payrow--off').length,
-        mainLit: lit('.con-colfocus__main'),
-        cardLit: lit('.con-colfocus__cardland'),
-        markerUp: document.querySelector('.con-coltrade-marker') !== null,
-        resolving: document.querySelector('.con-colfocus--resolving') !== null,
-        stageUp: document.querySelector('.con-colfocus') !== null,
-      });
+    return {
+      payRows: document.querySelectorAll('.con-colfocus__payrow').length,
+      offRows: document.querySelectorAll('.con-colfocus__payrow--off').length,
+      mainLit: lit('.con-colfocus__main'),
+      cardLit: lit('.con-colfocus__cardland'),
+      markerUp: document.querySelector('.con-coltrade-marker') !== null,
+      resolving: document.querySelector('.con-colfocus--resolving') !== null,
+      stageUp: document.querySelector('.con-colfocus') !== null,
     };
-    const obs = new MutationObserver(scan);
-    obs.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style']});
-    (w as Record<string, unknown>).__receiptObs = obs;
-    (w as Record<string, unknown>).__receiptTimer = window.setInterval(scan, 40);
-    scan();
-  });
+  }, {settled: true});
 }
 
-async function readReceiptProbe(page: Page): Promise<Array<Sample>> {
-  return page.evaluate(() => {
-    const w = window as unknown as Record<string, unknown>;
-    (w.__receiptObs as MutationObserver | undefined)?.disconnect();
-    window.clearInterval(w.__receiptTimer as number);
-    return w.__receipt as Array<Sample>;
-  });
+/**
+ * The post-commit window is over once the stage has LEFT the screen (its conclusion — the end state, never its first
+ * sign) and the console is at rest; then the record is stopped and returned.
+ */
+async function readReceiptProbe(page: Page, probe: Witness<Sample>): Promise<Array<Sample>> {
+  await expect(page.locator('.con-colfocus'), 'the post-commit window ends: the stage concludes and leaves')
+    .toHaveCount(0, {timeout: 30_000});
+  await settle(page, {timeoutMs: 30_000});
+  return (await probe.stop()).map((s) => s.v);
 }
 
 /**
@@ -157,7 +149,8 @@ test('the committed trade presents a RECEIPT, and its closing beats take turns',
   test.setTimeout(240_000);
   const playerId = await createGame(request);
   await bootSeededGame(page, request, playerId, {buy: 2});
-  await page.waitForTimeout(1200);
+  // The board at rest after the boot, before the wheel is driven.
+  await settle(page, {timeoutMs: 30_000});
 
   await openColonies(page);
   await key(page, 'Enter', 1400); // A → the colony focus stage
@@ -166,19 +159,19 @@ test('the committed trade presents a RECEIPT, and its closing beats take turns',
   await shoot(page, 'configure');
 
   // PRE-COMMIT the stage is a FORM: the payment paths are a real list.
-  const rowsBefore = await page.locator('.con-colfocus__payrow').count();
-  expect(rowsBefore, 'the configuration offers its payment paths').toBeGreaterThan(1);
+  await expect.poll(() => page.locator('.con-colfocus__payrow').count(), {message: 'the configuration offers its payment paths'}).toBeGreaterThan(1);
 
-  await armReceiptProbe(page);
+  const probe = await armReceiptProbe(page);
   await key(page, 'KeyX', 200); // X = confirm
   // The whole post-commit window: fleet → chips → the closing glide → conclude.
-  await page.waitForTimeout(14_000);
+  const samples = await readReceiptProbe(page, probe);
   await shoot(page, 'after');
-  const samples = await readReceiptProbe(page);
 
-  expect(samples.length, 'the in-page sampler ran').toBeGreaterThan(20);
+  // The floors only catch a DEAD record: it keeps a state only when it CHANGES, so its length counts distinct states,
+  // never frames.
+  expect(samples.length, 'the in-page record ran').toBeGreaterThan(0);
   const after = postCommit(samples);
-  expect(after.length, `the commit window was observed (${samples.length} samples)`).toBeGreaterThan(10);
+  expect(after.length, `the commit window was observed (${samples.length} states)`).toBeGreaterThan(0);
 
   // ── 1 · THE RECEIPT. From the commit on, the stage never offers a LIST
   //        again: at most the one locked row that names what was chosen, and
@@ -224,10 +217,14 @@ test('the CARD door commits into a receipt too — the next trade never re-light
 
   await openCardActions(page);
   await focusTradeVariantTile(page);
-  await press(page, 'Enter', 2000); // → the action's setup stage
-  await press(page, 'Enter', 2200); // → the colony grid, inside the workspace
-  await press(page, 'Enter', 2600); // → the colony's focus stage, fee pinned
+  // Each A of the descent waits for ITS surface — the setup stage, the hosted grid, the focus stage — before the next
+  // one goes (never re-pressed: a second A on a surface that is merely late would act on it).
   const stage = page.locator('.con-colfocus');
+  await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions__stagewrap .con-composer--stage').count() > 0,
+    {tries: 1, settleMs: 2000}); // → the action's setup stage
+  await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions .con-colonies').count() > 0,
+    {tries: 1, settleMs: 2200}); // → the colony grid, inside the workspace
+  await pressUntil(page, 'Enter', async () => await stage.count() > 0, {tries: 1, settleMs: 2600}); // → the colony's focus stage, fee pinned
   await expect.poll(() => stage.count(), {message: 'the hosted colony focus stage opened'}).toBeGreaterThan(0);
   await shoot(page, 'card-door-configure');
 
@@ -235,13 +232,12 @@ test('the CARD door commits into a receipt too — the next trade never re-light
   // row — the other paths are unreachable, not merely unpicked.
   await expect.poll(() => page.locator('.con-colfocus__payrow').count(), {message: 'the entry pins exactly one payment path'}).toBeLessThanOrEqual(1);
 
-  await armReceiptProbe(page);
+  const probe = await armReceiptProbe(page);
   await press(page, 'KeyX', 200); // X = confirm
-  await page.waitForTimeout(14_000);
+  const samples = await readReceiptProbe(page, probe);
   await shoot(page, 'card-door-after');
-  const samples = await readReceiptProbe(page);
   const after = postCommit(samples);
-  expect(after.length, `the commit window was observed (${samples.length} samples)`).toBeGreaterThan(10);
+  expect(after.length, `the commit window was observed (${samples.length} states)`).toBeGreaterThan(0);
 
   const relit = after.filter((s) => s.payRows > 1 || s.offRows > 0);
   expect(relit.slice(0, 6),

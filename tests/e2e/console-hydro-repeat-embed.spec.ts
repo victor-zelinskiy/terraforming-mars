@@ -1,9 +1,11 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi,
-  sendPlayerInput, soloGameConfig, waitForBoardHome,
+import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, pressUntil, pressUntilGone, seedGameOverApi,
+  sendPlayerInput, settle, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * THE HYDRONETWORK IS THE ACTION'S EXECUTION HOST — the repeated blue action
@@ -118,6 +120,97 @@ async function activateCard(request: APIRequestContext, id: string, card: string
   } as never);
 }
 
+/** One state of the execution: the viewer marker's cell, the reveal's DECLARED mode, the source seat. */
+type ExecutionSeen = {
+  /** The cell the viewer's marker stands on (`undefined` while it is in no cell — mid-glide). */
+  cell?: number,
+  /**
+   * The reveal as the product DECLARES it — its own mode classes, never an inference from where it happens to stand
+   * (a host zone is torn down a task before its teleported stage, and a location read calls every teardown «outside»).
+   */
+  reveal: 'none' | 'headless' | 'embedded' | 'fullscreen',
+  seat: boolean,
+};
+
+function armExecutionProbe(page: Page): Promise<Witness<ExecutionSeen>> {
+  return armWitness<ExecutionSeen>(page, 'hydro-repeat-execution', () => {
+    const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
+    const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
+    const reveal = document.querySelector('.con-reveal');
+    return {
+      cell: cellAttr === undefined || cellAttr === null ? undefined : Number(cellAttr),
+      reveal: reveal === null ? 'none' :
+        reveal.classList.contains('con-reveal--headless') ? 'headless' :
+          reveal.classList.contains('con-reveal--embedded') ? 'embedded' : 'fullscreen',
+      seat: document.querySelector('.con-hydro__embedsource') !== null,
+    };
+  }, {settled: true, max: 20_000});
+}
+
+/**
+ * The record folded into the old probe's three lists — each entry stamped with its STATE's index in the record (the
+ * order the states were written): the viewer's cells as they changed, the reveal's modes as they changed, the seat's
+ * appearances.
+ */
+async function foldExecution(execution: Witness<ExecutionSeen>): Promise<{
+  cells: Array<{i: number, cell: number}>, reveals: Array<{i: number, state: string}>, seats: Array<{i: number, on: boolean}>,
+}> {
+  const values = (await execution.stop()).map((s) => s.v);
+  const cells: Array<{i: number, cell: number}> = [];
+  const reveals: Array<{i: number, state: string}> = [];
+  const seats: Array<{i: number, on: boolean}> = [];
+  let seatWas = false;
+  values.forEach((v, i) => {
+    if (v.cell !== undefined && (cells.length === 0 || cells[cells.length - 1].cell !== v.cell)) {
+      cells.push({i, cell: v.cell});
+    }
+    if (reveals.length === 0 || reveals[reveals.length - 1].state !== v.reveal) {
+      reveals.push({i, state: v.reveal});
+    }
+    if (v.seat && !seatWas) {
+      seats.push({i, on: true});
+    }
+    seatWas = v.seat;
+  });
+  return {cells, reveals, seats};
+}
+
+/** The presented hero, its zone, its row and the source seat — and every overflowing scroll container of the stage. */
+function heroReading(page: Page): Promise<{cardH: number, cardLeft: number, zoneH: number, rowH: number, seatRight: number, seatOn: boolean,
+  scrollers: Array<string>}> {
+  return page.evaluate(() => {
+    const r1 = (n: number) => Math.round(n * 10) / 10;
+    const slot = document.querySelector('.con-reveal--embedded .con-cards__slot');
+    const zone = document.querySelector('.con-hydro__embed');
+    const strip = document.querySelector('.con-reveal--embedded .con-reveal__strip');
+    const seat = document.querySelector('.con-hydro__embedsource');
+    const card = slot?.getBoundingClientRect();
+    const seatBox = seat?.getBoundingClientRect();
+    return {
+      cardH: r1(card?.height ?? 0),
+      cardLeft: r1(card?.left ?? 0),
+      zoneH: r1(zone?.getBoundingClientRect().height ?? 0),
+      // THE USABLE PROMPT STAGE — the row the fit actually solves into, not
+      // the whole zone (the head is chrome the cards may not spend).
+      rowH: r1(strip?.getBoundingClientRect().height ?? 0),
+      seatRight: seatBox === undefined ? 0 : r1(seatBox.right),
+      seatOn: seatBox !== undefined,
+      // A NATIVE SCROLLBAR IS A BUG on a console stage — but the honest test
+      // is «is this element a SCROLL CONTAINER that overflows», not «does any
+      // node have more content than box» (a clipped card face legitimately
+      // does, and always did).
+      scrollers: Array.from(document.querySelectorAll('.con-reveal--embedded, .con-reveal--embedded *'))
+        .filter((el) => {
+          const o = getComputedStyle(el);
+          const scrollable = /(auto|scroll)/.test(o.overflowY + o.overflowX);
+          return scrollable && (el.scrollHeight - el.clientHeight > 2 ||
+            el.scrollWidth - el.clientWidth > 2);
+        })
+        .map((el) => `${el.className}`),
+    };
+  });
+}
+
 async function serverState(request: APIRequestContext, id: string): Promise<Wire> {
   const model = await fetchPlayerModel(request, id) as Wire;
   const p = model.thisPlayer ?? {};
@@ -152,11 +245,11 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     // suppresses A while the dealt proxies fly — press until the take lands),
     // let it reach the dock — every later press belongs to the hydro flow.
     await page.waitForSelector('.con-reveal', {timeout: 25_000});
-    for (let i = 0; i < 12 && await page.locator('.con-reveal').count() > 0; i++) {
-      await press(page, 'Enter', 900);
-    }
+    // Act → verify: A again only when the take has not cleared the reveal within its whole window.
+    await pressUntilGone(page, 'Enter', '.con-reveal', {tries: 12, settleMs: 900});
     await page.waitForSelector('.con-reveal', {state: 'detached', timeout: 25_000});
-    await page.waitForTimeout(1800);
+    // The taken card's flight into the dock is over — the console at rest before the board home is driven.
+    await settle(page, {timeoutMs: 30_000});
     await waitForBoardHome(page, 25);
 
     // ── Open the Hydronetwork; RT jumps to the farthest legal stage (7 —
@@ -165,103 +258,55 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     await press(page, 'ArrowLeft', 1600);
     await page.waitForSelector('.con-hydro', {timeout: 10_000});
     await press(page, 'Period', 900); // RT — «К дальнему»
-    const focused = await page.evaluate(() =>
-      document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-    expect(focused, 'the farthest legal stage is 7').toBe('7');
+    await expect.poll(() => page.evaluate(() =>
+      document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? ''),
+    {message: 'the farthest legal stage is 7'}).toBe('7');
 
-    // ── THE RAIL: two crossed choices + the stage-7 repeat pre-select. ──
-    const plan = await page.evaluate(() => ({
-      railRows: document.querySelectorAll('.con-hydro__pickrow').length,
-      conflicts: document.querySelectorAll('.con-hydro__pickrow--conflict').length,
-    }));
-    expect(plan.railRows, 'choices 1+2 and the repeat pick stand on the rail').toBe(3);
-    expect(plan.conflicts, '500 test-mode energy — the ordered plan feeds everything').toBe(0);
+    // ── THE RAIL: two crossed choices + the stage-7 repeat pre-select (the rows polled first, the conflicts read once
+    //    they stand — a zero before the rail is up proves nothing). ──
+    await expect.poll(() => page.locator('.con-hydro__pickrow').count(), {message: 'choices 1+2 and the repeat pick stand on the rail'}).toBe(3);
+    await expect.poll(() => page.locator('.con-hydro__pickrow--conflict').count(),
+      {message: '500 test-mode energy — the ordered plan feeds everything'}).toBe(0);
     await shoot(page, '01-plan');
 
     // ── Resolve choice №1 (steel) and №2 (heat production). ──
+    const ticks = page.locator('.con-hydro__pickrow .con-hydro__bonus-tick');
     await press(page, 'Enter', 900);
     await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
     await press(page, 'Enter', 900);
+    // Choice №1 is answered (its tick stands) before the A that opens №2 — never a press into the first one's leave.
+    await expect.poll(() => ticks.count(), {message: 'choice №1 resolved'}).toBe(1);
     await press(page, 'Enter', 900);
     await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
     await press(page, 'ArrowRight', 450);
     await press(page, 'Enter', 900);
-    await expect.poll(() => page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(), {message: 'both choices resolved'}).toBe(2);
+    await expect.poll(() => ticks.count(), {message: 'both choices resolved'}).toBe(2);
 
     // ── The seat moved ON to the REPEAT row (the focus contract) — open the
     //    picker (the pick bridge: the hydro workspace hides, ДЕЙСТВИЯ КАРТ
     //    stands in repeat mode). ──
-    expect(await page.evaluate(() =>
+    await expect.poll(() => page.evaluate(() =>
       document.querySelector('.con-hydro__pickrow.con-hydro__summary--focused') !== null),
-    'the automatic seat holds the repeat pick').toBe(true);
+    {message: 'the automatic seat holds the repeat pick'}).toBe(true);
     await press(page, 'Enter', 2500);
     await page.waitForSelector('.con-cardactions', {timeout: 15_000});
     await shoot(page, '02-repeat-picker');
     await press(page, 'Enter', 2000); // A — the one candidate (Development Center)
     await press(page, 'Enter', 2500); // A — «Выбрать это действие»
     await page.waitForSelector('.con-hydro', {timeout: 15_000});
-    await page.waitForTimeout(800);
-    await expect.poll(() => page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(), {message: 'the repeat pick is captured too'}).toBe(3);
+    await expect.poll(() => ticks.count(), {message: 'the repeat pick is captured too'}).toBe(3);
+    // The track is back and at rest (its return over) before the probes are armed and the commit goes.
+    await settle(page, {timeoutMs: 30_000});
     await shoot(page, '03-plan-complete');
 
     // ── ARM the probes BEFORE the commit: the traversal walk, the viewer
-    //    marker's cells, and EVERY `.con-reveal` sighting classified. ──
-    await page.evaluate(() => {
-      const w = window as unknown as {
-        __seq?: number,
-        __viewerCells?: Array<{i: number, cell: number}>,
-        __reveals?: Array<{i: number, state: string}>,
-        __seats?: Array<{i: number, on: boolean}>,
-        __doneSeq?: Array<number>,
-        __probeStop?: () => void,
-      };
-      w.__seq = 0;
-      w.__viewerCells = [];
-      w.__reveals = [];
-      w.__seats = [];
-      w.__doneSeq = [];
-      const sample = () => {
-        const i = ++(w.__seq as number);
-        const done = document.querySelectorAll('.con-hydro__travchip--done').length;
-        const seq = w.__doneSeq!;
-        if (seq.length === 0 || seq[seq.length - 1] !== done) {
-          seq.push(done);
-        }
-        const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
-        const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
-        if (cellAttr !== undefined && cellAttr !== null) {
-          const cell = Number(cellAttr);
-          const cells = w.__viewerCells!;
-          if (cells.length === 0 || cells[cells.length - 1].cell !== cell) {
-            cells.push({i, cell});
-          }
-        }
-        const reveal = document.querySelector('.con-reveal');
-        let state = 'none';
-        if (reveal !== null) {
-          state = reveal.classList.contains('con-reveal--headless') ? 'headless' :
-            reveal.closest('.con-hydro__embed') !== null ? 'embedded' : 'fullscreen';
-        }
-        const seen = w.__reveals!;
-        if (seen.length === 0 || seen[seen.length - 1].state !== state) {
-          seen.push({i, state});
-        }
-        const seatOn = document.querySelector('.con-hydro__embedsource') !== null;
-        const seats = w.__seats!;
-        if (seats.length === 0 || seats[seats.length - 1].on !== seatOn) {
-          if (seatOn) {
-            seats.push({i, on: seatOn});
-          }
-        }
-      };
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      const iv = setInterval(sample, 80);
-      w.__probeStop = () => {
-        mo.disconnect();
-        clearInterval(iv);
-      };
-    });
+    //    marker's cells, and EVERY `.con-reveal` sighting classified —
+    //    RECORDED (FLAKE ZERO — `armWitness`: the product's own writes and
+    //    every frame, replace-proof). The claims are ORDER claims (the marker
+    //    on 7 before the draw shows), so the record is `settled`: a sample is
+    //    the state a task LEAVES, never a host torn down a task before its
+    //    teleported stage. ──
+    const execution = await armExecutionProbe(page);
 
     // ── COMMIT — one press (every decision made → the CTA holds the seat). ──
     const before = await serverState(request, id);
@@ -269,12 +314,16 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
 
     // ── THE STAGE-5 STOP: the four dealt cards, keep 2, RT confirms. ──
     await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 60_000});
-    await press(page, 'Enter', 600);
-    for (let i = 0; i < 6 && await page.locator('.con-cards__slot--picked').count() < 2; i++) {
+    // Each pick is act → verify: A gets its whole window to add the pick before the walk moves on (a late pick read
+    // as «not yet» and pressed again would toggle it back off).
+    const picked = page.locator('.con-cards__slot--picked');
+    await pressUntil(page, 'Enter', async () => await picked.count() >= 1, {tries: 1, settleMs: 600});
+    for (let i = 0; i < 6 && await picked.count() < 2; i++) {
+      const had = await picked.count();
       await press(page, 'ArrowRight', 450);
-      await press(page, 'Enter', 600);
+      await pressUntil(page, 'Enter', async () => await picked.count() > had, {tries: 1, settleMs: 600});
     }
-    await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'two picks held'}).toBe(2);
+    await expect.poll(() => picked.count(), {message: 'two picks held'}).toBe(2);
     await press(page, 'Period', 1500); // RT — «Подтвердить»
 
     // ── THE REPEAT'S OWN DRAW EMBEDS: the drained tail answered in the same
@@ -286,45 +335,15 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
           (window as unknown as {__conColonyDiag?: () => unknown}).__conColonyDiag?.());
         throw new Error(`embedded reveal never presented; diag=${JSON.stringify(diag)}\n${String(e)}`);
       });
-    const during = await page.evaluate(() => ({
-      hydroVisible: (document.querySelector('.con-hydro') as HTMLElement | null)?.offsetParent !== null,
-      immersive: document.querySelector('.con-hydro__panel--immersive') !== null,
-    }));
-    expect(during.hydroVisible, 'the track workspace never leaves the screen').toBe(true);
-    expect(during.immersive, 'the embedded batch takes the frame (the immersive pose)').toBe(true);
+    await expect.poll(() => page.evaluate(() => (document.querySelector('.con-hydro') as HTMLElement | null)?.offsetParent !== null),
+      {message: 'the track workspace never leaves the screen'}).toBe(true);
+    await expect.poll(() => page.locator('.con-hydro__panel--immersive').count(),
+      {message: 'the embedded batch takes the frame (the immersive pose)'}).toBeGreaterThan(0);
     // Let the deal-in motion land before the photo — the acceptance frame is
-    // the PRESENTED hero, not the first pixel of its arrival animation.
-    await page.waitForTimeout(1300);
-    const hero = await page.evaluate(() => {
-      const slot = document.querySelector('.con-reveal--embedded .con-cards__slot');
-      const zone = document.querySelector('.con-hydro__embed');
-      const strip = document.querySelector('.con-reveal--embedded .con-reveal__strip');
-      const seat = document.querySelector('.con-hydro__embedsource');
-      const card = slot?.getBoundingClientRect();
-      const seatBox = seat?.getBoundingClientRect();
-      return {
-        cardH: card?.height ?? 0,
-        cardLeft: card?.left ?? 0,
-        zoneH: zone?.getBoundingClientRect().height ?? 0,
-        // THE USABLE PROMPT STAGE — the row the fit actually solves into, not
-        // the whole zone (the head is chrome the cards may not spend).
-        rowH: strip?.getBoundingClientRect().height ?? 0,
-        seatRight: seatBox === undefined ? 0 : seatBox.right,
-        seatOn: seatBox !== undefined,
-        // A NATIVE SCROLLBAR IS A BUG on a console stage — but the honest test
-        // is «is this element a SCROLL CONTAINER that overflows», not «does any
-        // node have more content than box» (a clipped card face legitimately
-        // does, and always did).
-        scrollers: Array.from(document.querySelectorAll('.con-reveal--embedded, .con-reveal--embedded *'))
-          .filter((el) => {
-            const o = getComputedStyle(el);
-            const scrollable = /(auto|scroll)/.test(o.overflowY + o.overflowX);
-            return scrollable && (el.scrollHeight - el.clientHeight > 2 ||
-              el.scrollWidth - el.clientWidth > 2);
-          })
-          .map((el) => `${el.className}`),
-      };
-    });
+    // the PRESENTED hero, not the first pixel of its arrival animation: read
+    // AT REST (the motion over, the same geometry twice a frame apart). No
+    // `settle` — the traversal legitimately holds the screen until the take.
+    const hero = await readSettled(page, () => heroReading(page), {settle: false, message: 'the embedded hero and its seat'});
     // ACCEPTANCE: the presented card SPENDS the usable stage — never a
     // thumbnail in a huge empty scene, and never a compact ladder fallback.
     expect(hero.cardH, `hero ${Math.round(hero.cardH)}px of ${Math.round(hero.rowH)}px row`)
@@ -341,26 +360,13 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     await expect.poll(() => page.locator('.con-hydro__embedsource .con-cards__slot').count(), {message: 'the source is not one of the drawn cards'}).toBe(0);
     await shoot(page, '04-embedded-reveal');
     // A — take every card of the embedded batch (one press per card; the
-    // arrival gate may swallow an early press, so press until it clears).
-    for (let i = 0; i < 12 && await page.locator('.con-reveal--embedded').count() > 0; i++) {
-      await press(page, 'Enter', 900);
-    }
+    // arrival gate may swallow an early press, so press until it clears —
+    // act → verify: again only when the reveal still stands past its window).
+    await pressUntilGone(page, 'Enter', '.con-reveal--embedded', {tries: 12, settleMs: 900});
 
     // ── The take → the dock landing → the RESUME: legs 6 and 7 glide. ──
     await page.waitForSelector('.con-hydro__result-stages', {timeout: 90_000});
-    await page.evaluate(() => (window as unknown as {__probeStop?: () => void}).__probeStop?.());
-    const probes = await page.evaluate(() => {
-      const w = window as unknown as {
-        __viewerCells?: Array<{i: number, cell: number}>,
-        __reveals?: Array<{i: number, state: string}>,
-        __seats?: Array<{i: number, on: boolean}>,
-        __doneSeq?: Array<number>,
-      };
-      return {
-        cells: w.__viewerCells ?? [], reveals: w.__reveals ?? [],
-        seats: w.__seats ?? [], doneSeq: w.__doneSeq ?? [],
-      };
-    });
+    const probes = await foldExecution(execution);
 
     // NEVER a full-bleed band, and never a HEADLESS PRESENTATION. The one
     // sanctioned headless moment is the DETACHED teardown tick — the batch
@@ -411,12 +417,8 @@ test.describe('Hydronetwork hosts the repeated action · fhd', () => {
     expect(probes.cells[probes.cells.length - 1].cell, 'the marker finished on 7').toBe(7);
 
     // ── The per-stage result: seven rows, nothing excluded. ──
-    const result = await page.evaluate(() => ({
-      rows: document.querySelectorAll('.con-hydro__result-stagerow').length,
-      excl: document.querySelectorAll('.con-hydro__result-stagerow--excl').length,
-    }));
-    expect(result.rows, 'seven stages, one row each').toBe(7);
-    expect(result.excl, 'nothing excluded on this path').toBe(0);
+    await expect.poll(() => page.locator('.con-hydro__result-stagerow').count(), {message: 'seven stages, one row each'}).toBe(7);
+    await expect.poll(() => page.locator('.con-hydro__result-stagerow--excl').count(), {message: 'nothing excluded on this path'}).toBe(0);
     await shoot(page, '05-result');
 
     // ── The server's totals agree with everything the screen promised. ──

@@ -1,7 +1,9 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, press} from './consoleStart';
+import {bootIntoGame, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * HAND ALBUM probe — the strict-page rework of «Карты в руке»
@@ -91,7 +93,7 @@ async function bootBigHand(page: Page, request: APIRequestContext, profileQuery 
     buy,
     query: profileQuery,
   });
-  await page.waitForTimeout(800);
+  await settle(page);
 }
 
 async function openHand(page: Page): Promise<void> {
@@ -107,7 +109,9 @@ async function openHand(page: Page): Promise<void> {
     }
   }
   await expect(page.locator('.con-hand')).toHaveCount(1);
-  await page.waitForTimeout(1200); // the open episode settles
+  // The open episode settles — a STATE (holds, the flights home, finite motion), never a duration: a fixed 1200 ms
+  // once handed a still-growing card to the size reference below.
+  await settle(page);
 }
 
 /** The album's live geometry, read in one evaluate batch. */
@@ -182,25 +186,38 @@ function readAlbum(page: Page) {
  * at that moment, so «card width identical across pages» failed by 25 px
  * against a properly settled tail page — the reference was the wrong number,
  * and the product was right both times.
+ *
+ * `readSettled` (FLAKE ZERO): the console settled, then two equal reads a
+ * frame apart, a read taken while a finite animation runs never counting —
+ * BOTH sides of every comparison below come through here.
  */
 async function readSettledAlbum(page: Page): Promise<Awaited<ReturnType<typeof readAlbum>>> {
-  const same = (a: Awaited<ReturnType<typeof readAlbum>>, b: Awaited<ReturnType<typeof readAlbum>>) =>
-    a.selName === b.selName && a.selW === b.selW && a.selH === b.selH &&
-    a.selX === b.selX && a.selY === b.selY;
-  let prev = await readAlbum(page);
-  for (let i = 0; i < 40; i++) {
-    await page.waitForTimeout(120);
-    const now = await readAlbum(page);
-    // «Settled» is the WHOLE box at rest AND on screen: a page slide reaches
-    // its final size several frames before its final transform, so settling
-    // on the size alone hands back a card that is still travelling (it read
-    // as «the focused card is not on the active page»).
-    if (now.selW > 0 && now.selOnScreen && now.selAtRest && same(now, prev)) {
-      return now;
-    }
-    prev = now;
-  }
-  return prev;
+  // «Settled» is the WHOLE box at rest AND on screen: a page slide reaches
+  // its final size several frames before its final transform, so settling
+  // on the size alone hands back a card that is still travelling (it read
+  // as «the focused card is not on the active page»). A read that is not at
+  // rest equals nothing, so it can never complete a streak.
+  const atRest = (a: Awaited<ReturnType<typeof readAlbum>>) => a.selW > 0 && a.selOnScreen && a.selAtRest;
+  return readSettled(page, () => readAlbum(page), {
+    same: (a, b) => atRest(a) && atRest(b) &&
+      a.selName === b.selName && a.selW === b.selW && a.selH === b.selH && a.selX === b.selX && a.selY === b.selY,
+    message: 'the album with its focused card at rest',
+  });
+}
+
+/** Where the focused card sits on its page (its index among the page's slots; -1 when none). */
+function focusedSlotIndex(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const sel = document.querySelector('.con-hand__slot--selected');
+    const pageEl = sel?.closest('.con-hand__page');
+    return sel === null || pageEl === null || pageEl === undefined ? -1 :
+      Array.from(pageEl.querySelectorAll('.con-hand__slot')).indexOf(sel);
+  });
+}
+
+/** The spine's page position, whitespace-free («1/2»). */
+async function pagerText(page: Page): Promise<string> {
+  return (await readAlbum(page)).indicator.replace(/\s/g, '');
 }
 
 const PROFILES = [
@@ -225,8 +242,8 @@ for (const profile of PROFILES) {
       await bootBigHand(page, request, profile.query);
       await openHand(page);
 
-      const total = await page.locator('.con-hand__slot').count();
-      expect(total, 'a multi-page hand to probe').toBeGreaterThan(profile.perPage);
+      await expect.poll(() => page.locator('.con-hand__slot').count(), {message: 'a multi-page hand to probe'})
+        .toBeGreaterThan(profile.perPage);
 
       // ── strict page shape + no scroll ────────────────────────────────
       const a1 = await readSettledAlbum(page);
@@ -245,16 +262,15 @@ for (const profile of PROFILES) {
       await shoot(page, `${profile.tag}-1-first-page`);
 
       // ── walk right across the page edge — the order simply continues ──
-      let crossed = false;
-      for (let i = 0; i < profile.perPage + 2; i++) {
-        await key(page, 'ArrowRight', 140);
+      // Act → verify → retry (`pressUntil`): every step is read for its focus, and the walk ends on its EFFECT (the
+      // spine reads page 2), never on a press count.
+      const steps: Array<string> = [];
+      const crossed = await pressUntil(page, 'ArrowRight', async () => {
         const now = await readAlbum(page);
-        expect(now.selName, `a card holds focus at every step (step ${i})`).not.toBe('');
-        if (now.indicator.replace(/\s/g, '').includes('2/')) {
-          crossed = true;
-          break;
-        }
-      }
+        steps.push(now.selName);
+        return now.indicator.replace(/\s/g, '').includes('2/');
+      }, {tries: profile.perPage + 2, settleMs: 140});
+      steps.forEach((name, i) => expect(name, `a card holds focus at every step (step ${i})`).not.toBe(''));
       expect(crossed, 'walking right crossed onto page 2').toBe(true);
       // POLL for the settled page instead of sampling once: the slide is
       // 180ms but a 4K profile needs a few more frames to paint the new
@@ -279,38 +295,40 @@ for (const profile of PROFILES) {
       await shoot(page, `${profile.tag}-2-second-page`);
 
       // ── page jump via the wheel keeps the relative slot ──────────────
-      const before = await readAlbum(page);
-      const albumBox = await page.locator('.con-hand__album').boundingBox();
+      const before = a2;
+      // The pointer is aimed at the album's box AT REST (`readSettled`).
+      const albumBox = await readSettled(page, () => page.locator('.con-hand__album').boundingBox(),
+        {message: 'the album box the wheel is aimed at'});
       if (albumBox !== null) {
         await page.mouse.move(albumBox.x + albumBox.width / 2, albumBox.y + albumBox.height / 2);
         await page.mouse.wheel(0, -120); // one firm notch back
-        await page.waitForTimeout(500);
       }
-      const after = await readAlbum(page);
-      expect(after.indicator.replace(/\s/g, ''), 'the wheel turned one page back').toContain('1/');
+      // The jump is a STATE the spine reports — polled, never a fixed beat.
+      await expect.poll(() => pagerText(page), {message: 'the wheel turned one page back'}).toContain('1/');
+      const after = await readSettledAlbum(page);
       expect(after.selName, 'focus moved with the page, not reset').not.toBe('');
       expect(after.selName, 'a DIFFERENT card holds focus after the jump').not.toBe(before.selName);
       await shoot(page, `${profile.tag}-3-wheel-back`);
 
       // ── LB/RB are the album's PAGE VERBS (the bay spine's own controls) ──
       await key(page, 'KeyE', 550); // RB → next page
-      expect((await readAlbum(page)).indicator.replace(/\s/g, ''), 'RB turned to page 2').toContain('2/');
+      await expect.poll(() => pagerText(page), {message: 'RB turned to page 2'}).toContain('2/');
       await key(page, 'KeyQ', 550); // LB → previous page
-      const backHome = await readAlbum(page);
-      expect(backHome.indicator.replace(/\s/g, ''), 'LB turned back to page 1').toContain('1/');
-      expect(backHome.edges.left, 'page 1 mutes the way back').toBe(false);
+      await expect.poll(() => pagerText(page), {message: 'LB turned back to page 1'}).toContain('1/');
+      await expect.poll(async () => (await readAlbum(page)).edges.left, {message: 'page 1 mutes the way back'}).toBe(false);
 
       if (profile.tag === 'tv4k') {
         // Focus at each horizontal edge of the page (the ring + band must
         // clear the stage — the plan's gutters are exactly this reserve).
-        for (let i = 0; i < profile.perPage + 2; i++) {
-          await key(page, 'ArrowLeft', 80);
-        }
+        // Walked to its EFFECT (the focused slot's index on its page), never
+        // a blind series: the first slot of the page, then the row's fifth.
+        await pressUntil(page, 'ArrowLeft', async () => await focusedSlotIndex(page) === 0,
+          {tries: profile.perPage + 2, settleMs: 300});
+        await settle(page);
         await shoot(page, 'tv4k-5-focus-left-edge');
-        for (let i = 0; i < 4; i++) {
-          await key(page, 'ArrowRight', 80);
-        }
-        await page.waitForTimeout(300);
+        await pressUntil(page, 'ArrowRight', async () => await focusedSlotIndex(page) === 4,
+          {tries: 4, settleMs: 300});
+        await settle(page); // the cursor's glide is over before the frame
         await shoot(page, 'tv4k-6-focus-right-edge');
         // The tag filter rides the TRIGGERS now: RT → next filter (a
         // re-pagination through the edge packets), R3 resets to «ВСЕ».
@@ -319,7 +337,7 @@ for (const profile of PROFILES) {
         await key(page, 'KeyV', 900); // R3 → reset to all
         // The focused card is FOLLOWED through the reset — its page opens,
         // whichever it is; the full universe is back in the range text.
-        expect((await readAlbum(page)).indicator.replace(/\s/g, ''), 'reset restored the full hand (2 pages again)').toContain('/2');
+        await expect.poll(() => pagerText(page), {message: 'reset restored the full hand (2 pages again)'}).toContain('/2');
       }
 
       // ── close: every card gathers home, nothing stays lifted ─────────
@@ -327,8 +345,8 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-hand')).toHaveCount(0);
       await expect(page.locator('.con-handbody:not([data-hand-body-mode="docked"])')).toHaveCount(0);
       await expect(page.locator('.con-handreveal-layer [data-reveal-card]')).toHaveCount(0);
-      const dockBacks = await page.locator('.con-handbody').count();
-      expect(dockBacks, 'the dock pack is whole again').toBeGreaterThan(0);
+      await expect.poll(() => page.locator('.con-handbody').count(), {message: 'the dock pack is whole again'})
+        .toBeGreaterThan(0);
       await shoot(page, `${profile.tag}-4-closed`);
     });
   });
@@ -391,89 +409,43 @@ function readActivePage(page: Page) {
  * enough and fails exactly where it matters: with three 4K browsers on one
  * box the slide starts late, and a strip that has not begun moving reads
  * perfectly stable — one whole stride away from where the index already is.
+ * (`readSettled`, FLAKE ZERO: a read whose strip has not reached its target
+ * equals nothing, so it can never complete the streak.)
  */
 async function readSettledPage(page: Page): Promise<Awaited<ReturnType<typeof readActivePage>>> {
-  let prev = await readActivePage(page);
-  for (let i = 0; i < 40; i++) {
-    if (prev.stripSettled) {
-      const now = await readActivePage(page);
-      if (now.stripSettled && now.leftAir === prev.leftAir && now.pageW === prev.pageW && now.slots === prev.slots) {
-        return now;
-      }
-      prev = now;
-    }
-    await page.waitForTimeout(120);
-    prev = await readActivePage(page);
-  }
-  return prev;
+  return readSettled(page, () => readActivePage(page), {
+    same: (a, b) => a.stripSettled && b.stripSettled && a.leftAir === b.leftAir && a.pageW === b.pageW && a.slots === b.slots,
+    message: 'the active page at rest',
+  });
 }
 
 /**
- * Sample the album's SOLVED CARD SIZE on every frame of `act` — «not even
- * one intermediate frame at another scale».
+ * RECORD the album's SOLVED CARD SIZE through `act` — «not even one
+ * intermediate frame at another scale».
  *
- * `setInterval` + `MutationObserver`, never rAF: headless Chromium drives
- * rAF off the compositor and stops it exactly when the screen goes quiet.
- * Samples EVERY mounted page (the neighbours are pre-mounted for the slide),
- * so a page that would arrive at another size is caught before it is even
- * the active one. The probe asserts its own sample count — a dead sampler
- * must not pass as «nothing changed».
+ * `armWitness` (FLAKE ZERO): every state the product writes, observed in the
+ * task that writes it, plus a frame tick — so a starved renderer can slow the
+ * turn but never hide a frame of it. Each state lists the shape of EVERY
+ * mounted page (the neighbours are pre-mounted for the slide), so a page that
+ * would arrive at another size is caught before it is even the active one.
+ * The probe asserts its record is not empty — a dead recorder must not pass as
+ * «nothing changed».
  */
-async function sampleSizeDuring(page: Page, act: () => Promise<void>):
-  Promise<{shapes: Array<string>, samples: number, maxGapMs: number, spanMs: number}> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__albumShapes?: Set<string>, __albumN?: number, __albumT?: number,
-      __albumO?: MutationObserver, __albumFirst?: number, __albumLast?: number, __albumGap?: number};
-    w.__albumShapes = new Set<string>();
-    w.__albumN = 0;
-    w.__albumFirst = -1;
-    w.__albumLast = -1;
-    w.__albumGap = 0;
-    const take = () => {
-      const at = performance.now();
-      if ((w.__albumFirst ?? -1) < 0) {
-        w.__albumFirst = at;
-      } else {
-        w.__albumGap = Math.max(w.__albumGap ?? 0, at - (w.__albumLast ?? at));
-      }
-      w.__albumLast = at;
-      document.querySelectorAll<HTMLElement>('.con-hand__page').forEach((p) => {
-        const row = p.querySelector<HTMLElement>('.con-hand__row');
-        if (row === null) {
-          return;
-        }
-        w.__albumN = (w.__albumN ?? 0) + 1;
-        w.__albumShapes?.add(`${getComputedStyle(p).getPropertyValue('--con-hand-zoom').trim()}|${row.style.height}|${row.style.columnGap}`);
-      });
-    };
-    w.__albumT = window.setInterval(take, 16);
-    w.__albumO = new MutationObserver(take);
-    // Scoped to the STRIP, never `document.body`: an observer over the whole
-    // tree fires on every HUD tick and `take()` forces a style flush each
-    // time — the sampler then becomes the slowest thing on the page and the
-    // very slide it is watching finishes late.
-    const strip = document.querySelector('.con-hand__pagestrip');
-    if (strip !== null) {
-      w.__albumO.observe(strip, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class']});
-    }
-    take();
-  });
+async function sampleSizeDuring(page: Page, key: string, act: () => Promise<void>):
+  Promise<{shapes: Array<string>, samples: number, spanMs: number}> {
+  const shapes = await armWitness<Array<string>>(page, key, () =>
+    Array.from(document.querySelectorAll<HTMLElement>('.con-hand__page')).flatMap((p) => {
+      const row = p.querySelector<HTMLElement>('.con-hand__row');
+      return row === null ? [] :
+        [`${getComputedStyle(p).getPropertyValue('--con-hand-zoom').trim()}|${row.style.height}|${row.style.columnGap}`];
+    }));
   await act();
-  const read = await page.evaluate(() => {
-    const w = window as unknown as {__albumShapes?: Set<string>, __albumN?: number, __albumT?: number,
-      __albumO?: MutationObserver, __albumFirst?: number, __albumLast?: number, __albumGap?: number};
-    window.clearInterval(w.__albumT ?? 0);
-    w.__albumO?.disconnect();
-    const first = w.__albumFirst ?? -1;
-    const last = w.__albumLast ?? -1;
-    return {
-      shapes: [...(w.__albumShapes ?? [])],
-      samples: w.__albumN ?? 0,
-      spanMs: first < 0 || last < 0 ? 0 : Math.round(last - first),
-      maxGapMs: Math.round(w.__albumGap ?? 0),
-    };
-  });
-  return read;
+  const recorded = await shapes.stop();
+  return {
+    shapes: [...new Set(recorded.flatMap((s) => s.v))],
+    samples: recorded.length,
+    spanMs: recorded.length === 0 ? 0 : recorded[recorded.length - 1].t - recorded[0].t,
+  };
 }
 
 /**
@@ -516,30 +488,27 @@ for (const tail of [1, 2, 3] as const) {
       await shoot(page, `tv4k-large-${tail}-1-full-page`);
 
       // ── 4 → tail. Nothing about the CARD may move on the way. ────────
-      const turn = await sampleSizeDuring(page, async () => {
-        for (let i = 0; i < 3; i++) {
-          await key(page, 'KeyE', 550);
-        }
+      // The act is the turn to its END: RB until the spine reads the tail
+      // (act → verify → retry — a press count is not the effect), then the
+      // page at rest; the record covers all of it.
+      const turn = await sampleSizeDuring(page, `hand-album-turn-${tail}`, async () => {
+        await pressUntil(page, 'KeyE', async () => (await pagerText(page)).includes('4/4'), {tries: 5, settleMs: 550});
+        await readSettledPage(page);
       });
-      // LIVENESS IS COVERAGE, NOT A COUNT. The old floor («more than 20
-      // samples») is a raw tick tally scaled by how many pages happen to be
-      // mounted and by how fast the machine is — it read exactly 20 on a
-      // loaded runner and failed a sampler that had worked perfectly. What
-      // must hold is that the sampler WATCHED THE WHOLE ACT: a dead one
-      // spans 0 ms, one that died halfway spans half.
-      // THE FLOOR CATCHES A DEAD SAMPLER, NOTHING ELSE. «More than 20» was a
-      // tick tally scaled by how many pages happen to be mounted and by
-      // machine speed — it read exactly 20 on a loaded runner and failed a
-      // sampler that had worked perfectly. Neither a coverage RATIO nor a
-      // max-GAP bound replaces it: the act is timed in Node (protocol
-      // round-trips included) while the samples are page-side, and a loaded
-      // 4K runner genuinely starves the main thread for seconds at a time
-      // (measured: 3.1 s gaps, 57-117 samples) — during which the ANIMATION
-      // is starved too, so there is nothing to miss. What must be impossible
-      // is a sampler that never ran; the numbers ride in the message so a
-      // real stall is still legible.
-      expect(turn.samples, `the sampler actually ran (${turn.samples} samples, longest gap ` +
-        `${turn.maxGapMs}ms over ${turn.spanMs}ms)`).toBeGreaterThan(5);
+      // THE FLOOR CATCHES A DEAD RECORDER, NOTHING ELSE. «More than 20» (then
+      // «more than 5») was a tick tally scaled by how many pages happen to be
+      // mounted and by machine speed — it read exactly 20 on a loaded runner
+      // and failed a sampler that had worked perfectly. Neither a coverage
+      // RATIO nor a max-GAP bound replaces it: the act is timed in Node
+      // (protocol round-trips included) while the samples are page-side, and
+      // a loaded 4K runner genuinely starves the main thread for seconds at a
+      // time (measured: 3.1 s gaps, 57-117 samples) — during which the
+      // ANIMATION is starved too, so there is nothing to miss. The record now
+      // keeps DISTINCT states (a still turn records few), so what must be
+      // impossible is a record that is empty; the numbers ride in the message
+      // so a real stall is still legible.
+      expect(turn.samples, `the recorder actually ran (${turn.samples} recorded states over ${turn.spanMs}ms)`)
+        .toBeGreaterThan(0);
       expect(turn.shapes, 'ONE card shape across every frame of the turn').toHaveLength(1);
 
       const last = await readSettledPage(page);
@@ -561,16 +530,15 @@ for (const tail of [1, 2, 3] as const) {
       await shoot(page, `tv4k-large-${tail}-2-tail-page`);
 
       // ── and back: the reverse turn is just as quiet ──────────────────
-      const back = await sampleSizeDuring(page, async () => {
-        for (let i = 0; i < 3; i++) {
-          await key(page, 'KeyQ', 400);
-        }
+      const back = await sampleSizeDuring(page, `hand-album-back-${tail}`, async () => {
+        await pressUntil(page, 'KeyQ', async () => (await pagerText(page)).includes('1/4'), {tries: 5, settleMs: 400});
+        await readSettledPage(page);
       });
-      expect(back.samples, `the sampler actually ran on the way back (${back.samples} samples, ` +
-        `longest gap ${back.maxGapMs}ms over ${back.spanMs}ms)`).toBeGreaterThan(5);
+      expect(back.samples, `the recorder actually ran on the way back (${back.samples} recorded states ` +
+        `over ${back.spanMs}ms)`).toBeGreaterThan(0);
       expect(back.shapes, 'ONE card shape on the way back too').toHaveLength(1);
       const home = await readSettledPage(page);
-      expect((await readAlbum(page)).indicator.replace(/\s/g, '')).toContain('1/4');
+      await expect.poll(() => pagerText(page)).toContain('1/4');
       expect(home.zoom, 'page 1 came back unchanged').toBe(full.zoom);
       expect(home.pageW, 'page 1 came back unchanged').toBe(full.pageW);
       await expect.poll(() => page.locator('.con-hand__slot--selected').count(), {message: 'focus is still on a real card'}).toBe(1);
@@ -578,17 +546,23 @@ for (const tail of [1, 2, 3] as const) {
       // ── a FILTER whose whole result is thin is the same page ─────────
       // (RT cycles the tag filter; a tag with 1..4 hits leaves a single
       // partial page — the size must not answer differently there either.)
-      let filtered = 0;
-      for (let i = 0; i < 8 && filtered === 0; i++) {
-        await key(page, 'Period', 900);
+      // Cycled to its EFFECT (`pressUntil` — the thin result read at rest),
+      // never a counted series.
+      const found: {thin?: Awaited<ReturnType<typeof readActivePage>>} = {};
+      await pressUntil(page, 'Period', async () => {
         const now = await readSettledPage(page);
-        if (now.slots > 0 && now.slots < 4 && (await readAlbum(page)).indicator.replace(/\s/g, '').includes('/1')) {
-          filtered = now.slots;
-          expect(now.zoom, 'a filtered thin result keeps the standard card').toBe(full.zoom);
-          expect(now.rowH, 'a filtered thin result keeps the row').toBe(full.rowH);
-          expect(Math.abs(now.leftAir - now.rightAir), 'and centres it').toBeLessThanOrEqual(2);
-          await shoot(page, `tv4k-large-${tail}-3-filtered-${filtered}`);
+        if (now.slots > 0 && now.slots < 4 && (await pagerText(page)).includes('/1')) {
+          found.thin = now;
+          return true;
         }
+        return false;
+      }, {tries: 8, settleMs: 900});
+      const filtered = found.thin?.slots ?? 0;
+      if (found.thin !== undefined) {
+        expect(found.thin.zoom, 'a filtered thin result keeps the standard card').toBe(full.zoom);
+        expect(found.thin.rowH, 'a filtered thin result keeps the row').toBe(full.rowH);
+        expect(Math.abs(found.thin.leftAir - found.thin.rightAir), 'and centres it').toBeLessThanOrEqual(2);
+        await shoot(page, `tv4k-large-${tail}-3-filtered-${filtered}`);
       }
       expect(filtered, 'the hand offered a tag with a thin result').toBeGreaterThan(0);
       await key(page, 'KeyV', 900); // R3 → reset to «ВСЕ»

@@ -785,9 +785,35 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
   const holds = parliamentHolds;
   const summary = ctx.summary;
   let at = 0;
+  const old = holds.govBefore?.enacted;
+  const winner = summary.winner.instance;
+  // The old law's landing on the discard pile is told ONCE — by its flight, or by the abort below.
+  let discardTold = old === undefined;
+  const tellDiscard = (): void => {
+    if (!discardTold) {
+      discardTold = true;
+      landOnDiscard();
+    }
+  };
+  /** The new law governs: the government stops awaiting it, the winner's slot is freed. */
+  const settle = (): void => {
+    holds.govAwaits = undefined;
+    holds.liftedFaces.delete(winner);
+    if (holds.heldSlots !== undefined && holds.heldSlots.some((slot) => slot.instance === winner)) {
+      holds.vacated.add(winner);
+    }
+    sittingMotion.litSlot = '';
+  };
+  // AN ABORTED MOVE LEAVES NOTHING SUSPENDED (the law of `killSittingMotion`; the cut enactment's holds are released by
+  // `tellEnactmentAtRest`): what THIS move would have told is told by the cut — the old law gone, the pile ticking ONCE
+  // (its flight or this, never both), the new law governing.
+  runState.kills.push(() => {
+    holds.govBefore = undefined;
+    tellDiscard();
+    settle();
+  });
   // (1) The old law leaves the government for the DISCARD PILE (turned over, carried, landed — the pile ticks) —
   //     the government then shows the NEW card, its face waiting.
-  const old = holds.govBefore?.enacted;
   if (old !== undefined) {
     tl.call(() => {
       const rect = governmentCardRect(root);
@@ -797,10 +823,10 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
           if (id !== undefined) {
             dropFlight(id);
           }
-          landOnDiscard();
+          tellDiscard();
           return;
         }
-        flyToDiscard(runState, ctx, id, 0, {onGone: landOnDiscard});
+        flyToDiscard(runState, ctx, id, 0, {onGone: tellDiscard});
         settleIfHurried();
       });
     }, undefined, at);
@@ -811,18 +837,9 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
     }, undefined, at);
   }
   // (2) The winner moves from its slot into the government — one visible card (the slot's face waits under the proxy).
-  const winner = summary.winner.instance;
   const moveMs = ENACT_MOVE_MS * k;
   tl.call(() => {
     const from = slotFaceRect(root, winner);
-    const settle = () => {
-      holds.govAwaits = undefined;
-      holds.liftedFaces.delete(winner);
-      if (holds.heldSlots !== undefined && holds.heldSlots.some((slot) => slot.instance === winner)) {
-        holds.vacated.add(winner);
-      }
-      sittingMotion.litSlot = '';
-    };
     void nextTick().then(async () => {
       const to = governmentCardRect(root);
       if (from === undefined || to === undefined || runState.finished) {
@@ -2105,6 +2122,21 @@ function beatResults(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
 
 // ── the runs ───────────────────────────────────────────────────────────────
 
+/**
+ * THE ENACTMENT AT REST: the table reads the new state — every hold of the enactment released, a cube still owed its
+ * banner stands there, the step's bonuses flushed. The ceiling's honest recovery and reduced motion end here; so does a
+ * play of the enactment CUT mid-run (`killSittingMotion`) — the walk noted the page played before it played it, so a
+ * walk that comes back (a «свёрнутое» sitting reopened) starts past it and nothing would ever tell the rest.
+ */
+function tellEnactmentAtRest(why: string): void {
+  sittingMotion.litSlot = '';
+  releaseEnactmentHolds();
+  // …and a cube still owed its banner stands there now (its card's stage, if any, goes with it).
+  abortBannerCubeStage();
+  releaseHeldBannerCubes();
+  flushAgendaBonus(why, 'phase');
+}
+
 /** Force the poses a STAGE would end in — reduced motion, or the ceiling's honest recovery. */
 function settleStagePoses(stage: SittingStage): void {
   killParliamentFlights();
@@ -2114,12 +2146,7 @@ function settleStagePoses(stage: SittingStage): void {
     sittingMotion.litSlot = '';
     break;
   case 'enact':
-    sittingMotion.litSlot = '';
-    releaseEnactmentHolds();
-    // …and a cube still owed its banner stands there now (its card's stage, if any, goes with it).
-    abortBannerCubeStage();
-    releaseHeldBannerCubes();
-    flushAgendaBonus('stage-settled', 'phase');
+    tellEnactmentAtRest('stage-settled');
     break;
   case 'reward':
     // The rail's held counters tick now — a reward whose beat cannot play is announced by its delta chip, never withheld.
@@ -2401,6 +2428,13 @@ export function killSittingMotion(): void {
   play = undefined;
   if (cut !== undefined) {
     cut.killed = true;
+  }
+  // A play still on its way when cut (a play that ended clears `play` in its own `finally`, so `cut` is always one
+  // cut mid-run). The ENACTMENT's page will not replay — the walk noted it played before it played it — so what it
+  // would have told is told now (CI, `console-parliament-sitting`: «свернуть» on a two-core runner landed inside the
+  // enactment, the reopened walk started past it, and the government read «Starting rule» for the rest of the sitting).
+  if (cut?.stage === 'enact') {
+    tellEnactmentAtRest('stage-cut');
   }
   for (const wait of Array.from(pendingGaps)) {
     wait.beat.kill();

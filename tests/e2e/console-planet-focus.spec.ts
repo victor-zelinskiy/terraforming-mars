@@ -1,7 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, focusCard, placeTile, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, focusCard, placeTile, press, settle, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * Console-native PLANET FOCUS · the main-grid placement stage.
@@ -75,6 +77,15 @@ function boardScale(page: Page): Promise<number> {
     parseFloat(document.documentElement.style.getPropertyValue('--board-scale') || '0'));
 }
 
+/**
+ * `boardScale` read AT REST (`readSettled`, FLAKE ZERO): the fit is a value the engine re-solves as the stage settles,
+ * and a comparison of two scales is only as settled as its least settled side — so every compared scale comes
+ * through here.
+ */
+function settledBoardScale(page: Page, what: string): Promise<number> {
+  return readSettled(page, () => boardScale(page), {message: what});
+}
+
 /** The top-HUD ocean readout (the `N/9` of the strip). */
 async function hudOceans(page: Page): Promise<string> {
   const text = await page.locator('.con-status').innerText();
@@ -92,8 +103,9 @@ async function focusStdProject(page: Page, title: RegExp): Promise<boolean> {
   const focusedName = () =>
     page.locator('.con-stdp__card--focused .con-stdp__name').innerText().catch(() => '');
   // Let the sheet finish its enter transition before the first press —
-  // early arrows were swallowed and the walk desynced from the grid.
-  await page.waitForTimeout(900);
+  // early arrows were swallowed and the walk desynced from the grid. The
+  // transition is a STATE the console reports (finite motion, holds).
+  await settle(page);
   const walk = ['ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowDown',
     'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft',
     'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowDown'];
@@ -144,27 +156,26 @@ function dockPose(page: Page): Promise<DockPose> {
 }
 
 /**
- * Wait until the pack's pose ride has actually SETTLED (three equal
- * samples), then report it. A fixed sleep read the eased tail (0.994) and
- * turned an exact-pose assertion into a flake.
+ * Wait until the pack's pose ride has actually SETTLED, then report it. A
+ * fixed sleep read the eased tail (0.994) and turned an exact-pose assertion
+ * into a flake.
+ *
+ * `readSettled` (FLAKE ZERO): the console settled first, then three equal
+ * reads a frame apart — and a read taken while a finite animation runs (or
+ * waits for the compositor to start it) never counts, so a pair that lands
+ * before the ride's first frame cannot read the OLD pose as "settled".
+ * Equality is the pose's own geometry (the body's width + the veil).
  */
 async function settledDockPose(page: Page): Promise<DockPose> {
-  // Poll until the pack STOPS moving — three consecutive equal samples, and
-  // never fewer than two rounds (a single pair can both land before the
-  // ride's first frame and read the OLD pose as "settled").
-  let last = await dockPose(page);
-  let stable = 0;
-  for (let i = 0; i < 30; i++) {
-    await page.waitForTimeout(120);
-    const now = await dockPose(page);
-    stable = now.bodyW === last.bodyW && now.veil === last.veil ? stable + 1 : 0;
-    last = now;
-    if (stable >= 3) {
-      break;
-    }
-  }
-  return last;
+  return readSettled(page, () => dockPose(page), {
+    equal: 3,
+    same: (a, b) => a.bodyW === b.bodyW && a.veil === b.veil,
+    message: 'the hand dock\'s pose',
+  });
 }
+
+/** One recorded state of the focus's return: is the stage focused, is it clipped, how many arc parts are PAINTED. */
+type ClipSeen = {focusing: boolean, clipped: boolean, arcs: number, bleed: number};
 
 function arcBandState(page: Page): Promise<{display: string, opacity: string}> {
   return page.evaluate(() => {
@@ -203,11 +214,10 @@ test.describe('console planet focus · main-grid placement stage', () => {
 
     // ── overview baseline ─────────────────────────────────────────────
     const board = page.locator('.con-board');
-    const scaleBefore = await boardScale(page);
+    const scaleBefore = await settledBoardScale(page, 'the overview fit');
     expect(scaleBefore, 'no overview fit ran').toBeGreaterThan(0);
-    const arcsBefore = await arcBandState(page);
-    expect(arcsBefore.display, 'no arc band on the overview board').not.toBe('none');
-    expect(arcsBefore.opacity).toBe('1');
+    await expect.poll(async () => (await arcBandState(page)).display, {message: 'no arc band on the overview board'}).not.toBe('none');
+    await expect.poll(async () => (await arcBandState(page)).opacity).toBe('1');
     const oceansBefore = await hudOceans(page);
     // POSE 1 — the dock's default: full-size pack, no pose class, no veil.
     const poseHome = await settledDockPose(page);
@@ -230,18 +240,18 @@ test.describe('console planet focus · main-grid placement stage', () => {
 
     // ── the mode engages ──────────────────────────────────────────────
     const panel = page.locator('.con-context');
-    expect((await panel.innerText()).includes('РАЗМЕЩЕНИЕ ТАЙЛА'),
-      'never reached a board placement').toBeTruthy();
+    await expect.poll(async () => (await panel.innerText()).includes('РАЗМЕЩЕНИЕ ТАЙЛА'),
+      {message: 'never reached a board placement'}).toBe(true);
     await expect(board).toHaveClass(/con-board--pfocus/);
     await page.waitForSelector('.con-board--pfocus-settled', {timeout: 5_000});
-    const scaleFocused = await boardScale(page);
+    const scaleFocused = await settledBoardScale(page, 'the focused fit');
     // The disc-framed fit + the reclaimed banner/dock rows give a LARGE
     // growth (≥25% is the conservative floor across profiles) — a weak
     // growth means the frame regressed to the transparent asset canvas.
     expect(scaleFocused, 'the planet did not grow into the freed space')
       .toBeGreaterThan(scaleBefore * 1.25);
     // The arc band receded out of the scene (display drops at settle).
-    expect((await arcBandState(page)).display).toBe('none');
+    await expect.poll(async () => (await arcBandState(page)).display).toBe('none');
     // POSE 2 — the hand steps back so it stops competing with the planet.
     const poseFocus = await settledDockPose(page);
     expect(poseFocus.compact, 'the dock did not take its compact pose').toBe(true);
@@ -285,12 +295,18 @@ test.describe('console planet focus · main-grid placement stage', () => {
     await shoot(page, '03-mid-scene');
 
     // ── the exit restores the overview… ───────────────────────────────
-    // …WITHOUT the "invisible wall": sample the return continuously and
-    // catch any frame where a VISIBLE arc band sticks out of the stage's
-    // clip box (the stage is `overflow: hidden`, so that is exactly the
-    // frame where the player saw the band sliced along the dock line).
-    const clipWatch = page.evaluate(() => new Promise<{unclipped: number, frames: number, arcs: number, at: string}>((resolve) => {
+    // …WITHOUT the "invisible wall": RECORD the return from before it starts
+    // (`armWitness`, FLAKE ZERO — every state the product writes, kept with the
+    // page's time; `settled`: a coexistence claim is judged on the state a task
+    // LEAVES, the state a frame can paint) and catch any state where a VISIBLE
+    // arc band stands on the focused stage with no clip (the stage is
+    // `overflow: hidden`, so that is exactly the frame where the player saw the
+    // band sliced along the dock line).
+    const clipWatch = await armWitness<ClipSeen>(page, 'planet-focus-clip', () => {
       const stage = document.querySelector('.con-board__stage') as HTMLElement | null;
+      if (stage === null) {
+        return {focusing: false, clipped: false, arcs: 0, bleed: 0};
+      }
       /**
        * The PAINTED opacity of one arc part, accumulated up to the stage.
        *
@@ -327,16 +343,19 @@ test.describe('console planet focus · main-grid placement stage', () => {
        * Measured through a probe element because the token is authored in rem
        * and `getPropertyValue` hands back the unresolved `"2.9rem"` string
        * (the same trap the console's own JS readers pay for — console-ui.md
-       * § Scale model).
+       * § Scale model). ONCE, at the arm (the focus engaged): the probe is a
+       * DOM write, and a recording reader that writes on every call wakes its
+       * own observer.
        */
-      let bleed = 0;
-      if (stage !== null) {
+      const memo = window as unknown as {__pfocusBleed?: number};
+      if (memo.__pfocusBleed === undefined) {
         const probe = document.createElement('div');
         probe.style.cssText = 'position:absolute;left:-9999px;top:0;width:1px;height:var(--pfocus-bleed, 0px)';
         stage.appendChild(probe);
-        bleed = probe.getBoundingClientRect().height;
+        memo.__pfocusBleed = probe.getBoundingClientRect().height;
         probe.remove();
       }
+      const bleed = Math.round(memo.__pfocusBleed);
       /*
        * WHAT THIS CAN AND CANNOT MEASURE — the correction that matters.
        *
@@ -361,37 +380,19 @@ test.describe('console planet focus · main-grid placement stage', () => {
        * remove the rule and this goes red — whereas the rect comparison could
        * only ever report the geometry of a curve.
        *
-       * `bleed` is still measured (below) because the clip's DOWNWARD extension
+       * `bleed` is still measured (above) because the clip's DOWNWARD extension
        * is the part of the shape worth naming in a failure message.
        */
-      let unclipped = 0;
-      let arcs = 0;
-      let at = '';
-      let frames = 0;
-      const started = performance.now();
-      const tick = () => {
-        frames++;
-        if (stage !== null) {
-          const focusing = stage.closest('.con-board--pfocus, .con-board--pfocus-exit') !== null;
-          const clipped = getComputedStyle(stage).clipPath !== 'none';
-          const visible = [...document.querySelectorAll(
-            '.con-board__stage .arc-scale__rail, .con-board__stage .arc-scale__edge')]
-            .filter((n) => painted(n as HTMLElement) > 0.05);
-          arcs = Math.max(arcs, visible.length);
-          if (focusing && !clipped && visible.length > 0) {
-            unclipped++;
-            at = `${visible.length} arc part(s) painted with NO clip on the stage ` +
-              `(bleed=${Math.round(bleed)}) at +${Math.round(performance.now() - started)}ms`;
-          }
-        }
-        if (performance.now() - started > 5000) {
-          resolve({unclipped, frames, arcs, at});
-          return;
-        }
-        requestAnimationFrame(tick);
+      const visible = [...document.querySelectorAll(
+        '.con-board__stage .arc-scale__rail, .con-board__stage .arc-scale__edge')]
+        .filter((n) => painted(n as HTMLElement) > 0.05);
+      return {
+        focusing: stage.closest('.con-board--pfocus, .con-board--pfocus-exit') !== null,
+        clipped: getComputedStyle(stage).clipPath !== 'none',
+        arcs: visible.length,
+        bleed,
       };
-      requestAnimationFrame(tick);
-    }));
+    }, {settled: true});
 
     await page.waitForSelector('.con-board--pfocus', {state: 'detached', timeout: 20_000});
     // …and ONLY THEN the scale story plays: the oceans accent pulse must
@@ -411,37 +412,41 @@ test.describe('console planet focus · main-grid placement stage', () => {
       return m !== null && m[1] !== before;
     }, oceansBefore, {timeout: 8_000});
 
-    const clip = await clipWatch;
-    // ANTI-VACUOUS-PASS GUARD, not a performance assertion — its own message
-    // says so. `clip.worst` is meaningless if the watcher never armed, so this
-    // only has to prove it sampled the transition. The old `> 30` encoded the
-    // machine's FRAME RATE (rAF count × duration): a loaded run sampled 17 and
-    // was failed for being slow, while the thing under test — «no arc band
-    // overflows the clip box» — was perfectly satisfied. The real assertion is
-    // the next line.
-    expect(clip.frames, 'the clip watcher never sampled a frame').toBeGreaterThan(4);
     // NON-VACUOUS: the guarantee below is meaningless if the watcher never saw
     // a painted arc part inside the stage — that is also what proves the arcs
     // are DESCENDANTS of the clipped element, which is what makes the clip bind.
-    expect(clip.arcs, 'the watcher never saw a painted arc part inside the stage')
-      .toBeGreaterThan(0);
+    // The record runs until the returned band is PAINTED (the end of the
+    // return, never its first sign) — that end is what the window must cover.
+    await clipWatch.waitFor((v) => !v.focusing && v.arcs > 0,
+      {message: 'the watcher never saw a painted arc part inside the stage'});
+    const clipSamples = await clipWatch.stop();
+    // ANTI-VACUOUS-PASS GUARD, not a performance assertion: it catches a DEAD
+    // recorder only. The old `> 30` (then `> 4`) counted rAF frames — the
+    // machine's FRAME RATE — and a loaded run was failed for being slow while
+    // the thing under test was perfectly satisfied; the record keeps distinct
+    // states, so any recorded state proves it ran.
+    expect(clipSamples.length, 'the clip watcher never recorded a state').toBeGreaterThan(0);
     // THE CONTRACT: while the focus is engaged or exiting, the stage carries the
     // clip that keeps the band off the rail. Not a tolerance — a mechanism.
-    expect(clip.unclipped, `the stage painted arcs with no clip during the focus (${clip.at})`)
+    const clipT0 = clipSamples[0]?.t ?? 0;
+    const unclipped = clipSamples.filter((s) => s.v.focusing && !s.v.clipped && s.v.arcs > 0);
+    const worst = unclipped.at(-1);
+    const at = worst === undefined ? '' : `${worst.v.arcs} arc part(s) painted with NO clip on the stage ` +
+      `(bleed=${worst.v.bleed}) at +${worst.t - clipT0}ms`;
+    expect(unclipped.length, `the stage painted arcs with no clip during the focus (${at})`)
       .toBe(0);
 
-    const arcsAfter = await arcBandState(page);
-    expect(arcsAfter.display, 'the arc band never returned').not.toBe('none');
-    expect(arcsAfter.opacity).toBe('1');
+    await expect.poll(async () => (await arcBandState(page)).display, {message: 'the arc band never returned'}).not.toBe('none');
+    await expect.poll(async () => (await arcBandState(page)).opacity).toBe('1');
     // …and the hand returns to POSE 1 with the rest of the interface.
     const poseAfter = await settledDockPose(page);
     expect(poseAfter.compact, 'the dock stayed tucked after the exit').toBe(false);
     expect(poseAfter.bodyW / poseHome.bodyW, 'the pack did not return to full size').toBeGreaterThan(0.98);
     expect(poseAfter.veil, 'the tuck veil outlived the pose').toBe(0);
-    const scaleAfter = await boardScale(page);
+    const scaleAfter = await settledBoardScale(page, 'the overview fit after the exit');
     expect(Math.abs(scaleAfter - scaleBefore), 'the overview fit did not return')
       .toBeLessThan(scaleBefore * 0.06);
-    await page.waitForTimeout(1600); // the accent window closes
+    await settle(page); // the accent window closes (the scale story's own hold)
     await shoot(page, '05-after');
   });
 
@@ -469,26 +474,19 @@ test.describe('console planet focus · main-grid placement stage', () => {
     });
 
     const board = page.locator('.con-board');
-    const scaleBefore = await boardScale(page);
+    const scaleBefore = await settledBoardScale(page, 'the overview fit');
     expect(scaleBefore, 'no overview fit ran').toBeGreaterThan(0);
     await shoot(page, '10-hand-board-home');
 
     // THE SCENARIO'S OWN WITNESS. The bug lives in one frame — «the mode is
     // engaged while the stage is 0×0» — and a run where the board happened to
     // come back early would assert the contract against a case that never
-    // occurred. So watch for it, and demand below that it really happened.
-    await page.evaluate(() => {
-      const w = window as unknown as {__focusHidden: boolean};
-      w.__focusHidden = false;
-      const tick = () => {
-        const el = document.querySelector('.con-board--pfocus, .con-board--pfocus-settled');
-        const stage = document.querySelector('.con-board__stage');
-        if (el !== null && stage !== null && stage.getBoundingClientRect().width < 40) {
-          w.__focusHidden = true;
-        }
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
+    // occurred. So RECORD it from before the play (`armWitness` — every state
+    // the product writes, in the task that writes it).
+    const focusHiddenWatch = await armWitness<boolean>(page, 'planet-focus-hidden-stage', () => {
+      const el = document.querySelector('.con-board--pfocus, .con-board--pfocus-settled');
+      const stage = document.querySelector('.con-board__stage');
+      return el !== null && stage !== null && stage.getBoundingClientRect().width < 40;
     });
 
     // ONE PRESS PER BEAT — deliberately NOT `playCardFromHand`, which presses
@@ -520,8 +518,8 @@ test.describe('console planet focus · main-grid placement stage', () => {
     // the engage-over-hidden-stage contract below), but it is no longer a
     // precondition: the load-bearing assertions are that the placement is
     // SERVED and the planet genuinely GROWS.
-    const focusHidden = await page.evaluate(() =>
-      (window as unknown as {__focusHidden: boolean}).__focusHidden);
+    const focusHidden = await focusHiddenWatch.ever((hidden) => hidden);
+    await focusHiddenWatch.stop();
     console.log(`[planet-focus] engage-over-hidden-stage window observed: ${focusHidden}`);
 
     // ENGAGED — and engaged is not a class, it is a GROWN planet. The bug this

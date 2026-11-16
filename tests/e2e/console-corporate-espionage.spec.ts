@@ -1,8 +1,13 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {fetchPlayerModel, NO_PAYMENT, openConsole, press, seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome} from './consoleStart';
+import {
+  composerLoaded, fetchPlayerModel, NO_PAYMENT, openConsole, press, pressUntil, seedGameOverApi, sendPlayerInput, settle, soloGameConfig,
+  waitForBoardHome,
+} from './consoleStart';
+import {readSettled} from './settledRead';
 import {recordTransient, stopTransient} from './transientRecorder';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * DP10 — CORPORATE ESPIONAGE, the premium vertical slice, live:
@@ -144,7 +149,24 @@ function menuIndex(menu: Wire, match: (o: Wire) => boolean, label: string): numb
  *  advance-landing shape) — the driver proves the descent: the reward-pick
  *  layer with the forward ghost on the destination cell, A opens the stage's
  *  own choice selector, A picks, A resolves back into the composer. */
+type OwnerPickSeen = {rewardPick: boolean, fwdGhost: boolean, arc: boolean, choiceOpen: boolean};
+const OWNER_PICK_WITNESS = 'esp-owner-pick';
+
 async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, sawGhost?: boolean, sawChoice?: boolean, sawArc?: boolean}): Promise<void> {
+  // THE DESCENT'S BEATS ARE RECORDED (FLAKE ZERO — `armWitness`, armed before the first A): «did the reward pick stand,
+  // with its forward ghost and its arc; did the stage's own selector open» is asked of the product's own writes, never
+  // of the driver's reads between its presses (an arc drawn a frame after its layer was read «absent» until the A
+  // that left the layer).
+  if (log !== undefined) {
+    await armWitness<OwnerPickSeen>(page, OWNER_PICK_WITNESS, () => ({
+      rewardPick: document.querySelector('.con-hydro__layer--rewardpick') !== null,
+      fwdGhost: document.querySelector('.con-hydro__stop-ghost--fwd') !== null,
+      arc: document.querySelector('.con-hydro__ghostlink-path') !== null,
+      choiceOpen: document.querySelector('.con-hydro__layer--choice') !== null,
+    }));
+  }
+  let shotRewardPick = false;
+  let shotChoice = false;
   for (let i = 0; i < 24; i++) {
     const state = await page.evaluate(() => ({
       missingFocused: document.querySelector('.con-composer__row--focused.con-composer__row--missing') !== null,
@@ -156,16 +178,15 @@ async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, 
       subOpen: document.querySelector('.con-composer__sublist .con-vchoice__opt') !== null,
     }));
     if (log !== undefined) {
-      if (state.rewardPick && log.sawRewardPick !== true) {
+      // The photos only — the claims are the record's (folded below).
+      if (state.rewardPick && !shotRewardPick) {
+        shotRewardPick = true;
         await shoot(page, 'owner-reward-pick');
       }
-      if (state.choiceOpen && log.sawChoice !== true) {
+      if (state.choiceOpen && !shotChoice) {
+        shotChoice = true;
         await shoot(page, 'owner-reward-choice');
       }
-      log.sawRewardPick = (log.sawRewardPick ?? false) || state.rewardPick;
-      log.sawGhost = (log.sawGhost ?? false) || (state.rewardPick && state.fwdGhost);
-      log.sawArc = (log.sawArc ?? false) || (state.rewardPick && state.arc);
-      log.sawChoice = (log.sawChoice ?? false) || state.choiceOpen;
     }
     // The hydro descent's three beats, each one A: the stage's own choice
     // selector picks the FOCUSED option; the reward-pick CTA opens the ask
@@ -179,7 +200,7 @@ async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, 
       continue;
     }
     if (!state.anyMissing) {
-      return;
+      break; // never `return` — the record is folded below
     }
     if (state.missingFocused) {
       await key(page, 'Enter', 700);
@@ -188,6 +209,13 @@ async function answerOwnerChoiceRow(page: Page, log?: {sawRewardPick?: boolean, 
     await key(page, 'ArrowDown', 260);
   }
   await expect.poll(() => page.locator('.con-composer__row--missing').count(), {message: 'every mandatory row answered'}).toBe(0);
+  if (log !== undefined) {
+    const seen = (await witnessOf<OwnerPickSeen>(page, OWNER_PICK_WITNESS).stop()).map((s) => s.v);
+    log.sawRewardPick = (log.sawRewardPick ?? false) || seen.some((v) => v.rewardPick);
+    log.sawGhost = (log.sawGhost ?? false) || seen.some((v) => v.rewardPick && v.fwdGhost);
+    log.sawArc = (log.sawArc ?? false) || seen.some((v) => v.rewardPick && v.arc);
+    log.sawChoice = (log.sawChoice ?? false) || seen.some((v) => v.choiceOpen);
+  }
 }
 
 /** From board home: open the hand, focus CARD, open its play composer. */
@@ -198,23 +226,28 @@ async function openEspionageComposer(page: Page): Promise<void> {
   }
   await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 15_000});
   await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
-  await page.waitForTimeout(600);
+  // The hand's own «input released» signal (its open episode over) before the walk — never a guessed pause.
+  await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 25_000});
   const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${CARD}"]`).count();
+  const selectedSlot = () => page.evaluate(() =>
+    document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
   let last = '';
   for (let i = 0; i < 60 && await onTarget() === 0; i++) {
-    const selected = await page.evaluate(() =>
-      document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
-    await key(page, selected === last && i > 0 ? 'ArrowDown' : 'ArrowRight', 240);
+    const selected = await selectedSlot();
+    // Act → verify: each step gets its whole window to move the cursor before the next is chosen.
+    await pressUntil(page, selected === last && i > 0 ? 'ArrowDown' : 'ArrowRight', async () => await selectedSlot() !== selected,
+      {tries: 1, settleMs: 240});
     last = selected;
   }
-  expect(await onTarget(), `hand cursor reached ${CARD}`).toBeGreaterThan(0);
+  await expect.poll(onTarget, {message: `hand cursor reached ${CARD}`}).toBeGreaterThan(0);
   // Act → verify → retry: a press is legitimately swallowed while the hand
-  // stage is still transitioning (longer at the 4K profile).
-  for (let i = 0; i < 8 && await page.locator('.con-composer--play').count() === 0; i++) {
-    await key(page, 'Enter', 900);
-  }
+  // stage is still transitioning (longer at the 4K profile) — again only when
+  // the composer has not stood within the press's whole window.
+  await pressUntil(page, 'Enter', async () => await page.locator('.con-composer--play').count() > 0, {tries: 8, settleMs: 900});
   await expect(page.locator('.con-composer--play')).toBeVisible({timeout: 15_000});
-  await page.waitForTimeout(900);
+  // The sheet LOADED (its preview landed) and at rest before anything reads it.
+  await composerLoaded(page);
+  await settle(page);
 }
 
 /** Count the play's input POSTs from the commit on — the play is ONE batch,
@@ -229,13 +262,8 @@ function armInputPosts(page: Page): Array<string> {
   return posts;
 }
 
-/** Watch the execution: the hydro workspace, the espionage line, the marker
- *  glide(s), the result — pressing A only on the result to conclude. The flow
- *  must END on the board: no composer left standing (or stood up again as a
- *  band), no system alert — the field report of 2026-10-23 («Unknown card name
- *  Corporate Espionage»: the A on the result went to the composer hidden under
- *  the track and posted the play a second time; in solo every menu after the
- *  first reads «Take your next action», so the composer outlived its play). */
+const ESP_ALERT_WITNESS = 'esp-alert';
+
 /**
  * THE EXECUTION'S FIRST BEATS ARE RECORDED FROM BEFORE THE COMMIT (tests.md — a transient the press starts is recorded
  * above it): the commit line and the TARGET's glide open the execution, and the watcher below starts only after the
@@ -249,53 +277,40 @@ async function armExecutionRecord(page: Page): Promise<void> {
     const color = marker === null ? '' : (Array.from(marker.classList).find((c) => c.startsWith('player_bg_color_')) ?? '');
     return `${color.replace('player_bg_color_', '')}|${document.querySelector('.con-hydro__espline') !== null ? 'line' : ''}`;
   });
+  // …and the system alert over the whole execution — «never» is asked of a record, never of a poll's samples.
+  await armWitness(page, ESP_ALERT_WITNESS, () => (document.querySelector('.con-alert')?.textContent ?? '').replace(/\s+/g, ' ').trim());
 }
 
+/** The result layer's own pose — its entrance at rest is the moment its A may go. */
+function resultPose(page: Page): Promise<{up: boolean, opacity: number}> {
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-hydro__layer--result');
+    return {up: el !== null, opacity: el === null ? 0 : Math.round(Number(getComputedStyle(el).opacity) * 100) / 100};
+  });
+}
+
+/** Watch the execution: the hydro workspace, the espionage line, the marker
+ *  glide(s), the result — pressing A only on the result to conclude. The flow
+ *  must END on the board: no composer left standing (or stood up again as a
+ *  band), no system alert — the field report of 2026-10-23 («Unknown card name
+ *  Corporate Espionage»: the A on the result went to the composer hidden under
+ *  the track and posted the play a second time; in solo every menu after the
+ *  first reads «Take your next action», so the composer outlived its play). */
 async function watchExecution(page: Page, log: {glideColors: Set<string>, sawEspLine: boolean, sawResult: boolean}): Promise<void> {
-  let resultStreak = 0;
-  let alert = '';
+  const result = page.locator('.con-hydro__layer--result');
+  const atBoard = () => page.evaluate(() =>
+    document.querySelector('.con-hydro') === null && document.querySelector('.con-composer--play') === null);
+  // The execution reaches its result summary (a STATE, waited for).
+  log.sawResult = await result.first().waitFor({state: 'visible', timeout: 60_000}).then(() => true, () => false);
   let board = false;
-  for (let i = 0; i < 240 && !board; i++) {
-    const s = await page.evaluate(() => {
-      const marker = document.querySelector('.con-hydromarker');
-      const color = marker === null ? '' :
-        (Array.from(marker.classList).find((c) => c.startsWith('player_bg_color_')) ?? '');
-      return {
-        hydro: document.querySelector('.con-hydro') !== null,
-        espLine: document.querySelector('.con-hydro__espline') !== null,
-        marker: color,
-        result: document.querySelector('.con-hydro__layer--result') !== null,
-        board: document.querySelector('.con-hydro') === null &&
-          document.querySelector('.con-composer--play') === null,
-        alert: (document.querySelector('.con-alert')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-      };
-    });
-    if (s.marker !== '') {
-      log.glideColors.add(s.marker.replace('player_bg_color_', ''));
-    }
-    if (s.espLine) {
-      log.sawEspLine = true;
-    }
-    if (s.alert !== '' && alert === '') {
-      alert = s.alert;
-      await shoot(page, 'alert');
-    }
-    if (s.result) {
-      log.sawResult = true;
-      resultStreak++;
-      if (resultStreak === 3) {
-        await shoot(page, 'result');
-      }
-      if (resultStreak > 4) {
-        await key(page, 'Enter', 600); // Continue — conclude the flow
-      }
-    } else {
-      resultStreak = 0;
-    }
-    board = log.sawResult && s.board;
-    if (!board) {
-      await page.waitForTimeout(200);
-    }
+  if (log.sawResult) {
+    // The result STANDS before its A — its entrance at rest (the old poll pressed only after five samples of it). No
+    // `settle`: the flow may legitimately hold the screen until the answer.
+    await readSettled(page, () => resultPose(page), {settle: false, message: 'the result summary at rest'});
+    await shoot(page, 'result');
+    // Continue — conclude the flow. Act → verify: A again only while the result provably still stands past its window.
+    await pressUntil(page, 'Enter', async () => await result.count() === 0, {tries: 4, settleMs: 3_000});
+    board = await expect.poll(atBoard, {timeout: 30_000}).toBe(true).then(() => true, () => false);
   }
   for (const sample of await stopTransient<string>(page, 'esp-execution')) {
     const [color, line] = sample.v.split('|');
@@ -306,9 +321,62 @@ async function watchExecution(page: Page, log: {glideColors: Set<string>, sawEsp
       log.sawEspLine = true;
     }
   }
+  const alerts = (await witnessOf<string>(page, ESP_ALERT_WITNESS).stop()).map((s) => s.v).filter((v) => v !== '');
+  const alert = alerts[0] ?? '';
+  if (alert !== '') {
+    await shoot(page, 'alert');
+  }
   expect(log.sawResult, 'the execution reached its result summary').toBeTruthy();
   expect(alert, 'no system alert during the execution (a second post of the play reads «Unknown card name …»)').toBe('');
   expect(board, 'the flow concluded to the board — no composer left standing over it').toBeTruthy();
+}
+
+const STAGE7_WITNESS = 'esp-stage7';
+type Stage7Seen = {rewardPick: boolean, arc: boolean, selector: boolean};
+
+/** What the stage-7 driver reads to choose its next press (DRIVING only — the claims are the record's). */
+async function stage7State(page: Page): Promise<{
+  esppick: boolean, rewardPick: boolean, selector: boolean, hydroShown: boolean, missingFocused: boolean, anyMissing: boolean,
+  ctaReady: boolean, composer: boolean, loading: boolean,
+}> {
+  const flags = await page.evaluate(() => ({
+    esppick: document.querySelector('.con-hydro__layer--esppick') !== null,
+    rewardPick: document.querySelector('.con-hydro__layer--rewardpick') !== null,
+    missingFocused: document.querySelector('.con-composer__row--focused.con-composer__row--missing') !== null,
+    anyMissing: document.querySelector('.con-composer__row--missing') !== null,
+    ctaReady: document.querySelector('.con-composer__cta--ready') !== null,
+    composer: document.querySelector('.con-composer--play') !== null,
+    // A sheet still LOADING is not read (`composerLoaded`'s marker): its rows arrive with the preview.
+    loading: document.querySelector('.con-composer__loading') !== null,
+  }));
+  return {
+    ...flags,
+    selector: await page.locator('.con-cardactions').filter({visible: true}).count() > 0,
+    hydroShown: await page.locator('.con-hydro').first().isVisible().catch(() => false),
+  };
+}
+
+/** The driver's next move for a state — the old loop's branches, in their order. */
+function stage7Act(s: Awaited<ReturnType<typeof stage7State>>): 'selector' | 'pick' | 'row' | 'done' | 'down' | 'wait' {
+  if (s.selector && !s.hydroShown) {
+    return 'selector';
+  }
+  if (s.esppick || s.rewardPick) {
+    return 'pick';
+  }
+  if (s.composer && s.loading) {
+    return 'wait';
+  }
+  if (s.missingFocused) {
+    return 'row';
+  }
+  if (s.composer && !s.anyMissing && s.ctaReady) {
+    return 'done';
+  }
+  if (s.composer && s.anyMissing) {
+    return 'down';
+  }
+  return 'wait';
 }
 
 test.describe('Corporate Espionage — the premium vertical slice', () => {
@@ -347,8 +415,10 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     // ui-scale zoom) — a raw px chip reads ~22px here, the shipped defect.
     const chipIcon = page.locator('.con-composer__esp-chips .hydro-reward__icon').first();
     await expect(chipIcon).toBeVisible();
-    const iconBox = await chipIcon.boundingBox();
-    expect(iconBox?.width ?? 0, `owner chip icon scales on 4K (got ${iconBox?.width}px)`).toBeGreaterThan(38);
+    // Measured AT REST (the sheet's entrance over — the same width twice a frame apart).
+    const iconWidth = await readSettled(page, async () => Math.round(((await chipIcon.boundingBox())?.width ?? 0) * 10) / 10,
+      {message: 'the owner chip icon'});
+    expect(iconWidth, `owner chip icon scales on 4K (got ${iconWidth}px)`).toBeGreaterThan(38);
     await shoot(page, 'solo-composer');
 
     // The owner's landing choice descends into the HYDRONETWORK's stage-reward
@@ -431,64 +501,58 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     // own seamless hydro→repeat frame — the repeat selector may never be
     // sighted before the reward-pick was (the «rendered over the composer»
     // violation of the screenshot this test pins).
-    const log = {sawRewardPick: false, sawArc: false, sawSelector: false, orderViolated: false};
-    const hydroVisible = () => page.evaluate(() => {
-      const el = document.querySelector('.con-hydro') as HTMLElement | null;
-      return el !== null && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
-    });
+    //
+    // The claims are RECORDED (FLAKE ZERO — `armWitness`, armed before the first A): the descent's beats and the ORDER
+    // «the reward pick before the selector» are asked of the product's own writes — `settled`, an order claim is about
+    // what a frame paints — never of the driver's reads between its presses. The driver below only DRIVES.
+    await armWitness<Stage7Seen>(page, STAGE7_WITNESS, () => ({
+      rewardPick: document.querySelector('.con-hydro__layer--rewardpick') !== null,
+      arc: document.querySelector('.con-hydro__ghostlink-path') !== null,
+      selector: Array.from(document.querySelectorAll<HTMLElement>('.con-cardactions'))
+        .some((el) => getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0),
+    }), {settled: true});
+    let shotSelector = false;
     for (let i = 0; i < 40; i++) {
-      const s = await page.evaluate(() => ({
-        esppick: document.querySelector('.con-hydro__layer--esppick') !== null,
-        rewardPick: document.querySelector('.con-hydro__layer--rewardpick') !== null,
-        arc: document.querySelector('.con-hydro__ghostlink-path') !== null,
-        selector: (() => {
-          const els = Array.from(document.querySelectorAll('.con-cardactions')) as Array<HTMLElement>;
-          return els.some((el) => getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0);
-        })(),
-        missingFocused: document.querySelector('.con-composer__row--focused.con-composer__row--missing') !== null,
-        anyMissing: document.querySelector('.con-composer__row--missing') !== null,
-        ctaReady: document.querySelector('.con-composer__cta--ready') !== null,
-        composer: document.querySelector('.con-composer--play') !== null,
-      }));
-      log.sawRewardPick = log.sawRewardPick || s.rewardPick;
-      log.sawArc = log.sawArc || (s.rewardPick && s.arc);
-      if (s.selector && !log.sawSelector) {
-        log.sawSelector = true;
-        if (!log.sawRewardPick) {
-          log.orderViolated = true;
-        }
+      const s = await stage7State(page);
+      if (s.selector && !shotSelector) {
+        shotSelector = true;
         await shoot(page, 'stage7-repeat-selector');
       }
-      if (s.rewardPick && !s.selector && log.sawRewardPick && !log.sawArc && s.arc) {
-        log.sawArc = true;
-      }
-      if (s.rewardPick && i > 0 && !log.sawSelector) {
+      if (s.rewardPick && i > 0 && !shotSelector) {
         await shoot(page, 'stage7-reward-pick');
       }
       // One A per beat: candidate pick → reward-pick CTA (opens the repeat
       // frame) → the selector walk (pick → compose → confirm) → the CTA again
       // (resolves) → the composer rows → the commit.
-      if (s.selector && !await hydroVisible()) {
-        await key(page, 'Enter', 1600);
-        continue;
-      }
-      if (s.esppick || s.rewardPick) {
-        await key(page, 'Enter', 1100);
-        continue;
-      }
-      if (s.missingFocused) {
-        await key(page, 'Enter', 900);
-        continue;
-      }
-      if (s.composer && !s.anyMissing && s.ctaReady) {
+      const act = stage7Act(s);
+      if (act === 'done') {
         break;
       }
-      if (s.composer && s.anyMissing) {
-        await key(page, 'ArrowDown', 280);
+      if (act === 'wait') {
+        // Nothing to drive YET (a beat in flight, a sheet still loading) — wait for the next drivable state, bounded.
+        const next = await expect.poll(async () => stage7Act(await stage7State(page)), {timeout: 15_000}).not.toBe('wait')
+          .then(() => true, () => false);
+        if (!next) {
+          break;
+        }
         continue;
       }
-      await page.waitForTimeout(400);
+      if (act === 'down') {
+        await key(page, 'ArrowDown', 280);
+      } else {
+        await key(page, 'Enter', act === 'selector' ? 1600 : act === 'pick' ? 1100 : 900);
+      }
     }
+    const seen = (await witnessOf<Stage7Seen>(page, STAGE7_WITNESS).stop()).map((v) => v.v);
+    const firstPick = seen.findIndex((v) => v.rewardPick);
+    const firstSelector = seen.findIndex((v) => v.selector);
+    const log = {
+      sawRewardPick: firstPick >= 0,
+      sawArc: seen.some((v) => v.rewardPick && v.arc),
+      sawSelector: firstSelector >= 0,
+      // A state carrying both counts the reward pick as already seen — as the old loop's read did.
+      orderViolated: firstSelector >= 0 && (firstPick < 0 || firstPick > firstSelector),
+    };
     expect(log.sawRewardPick, 'the repeat pre-select descended into the Hydronetwork reward surface').toBeTruthy();
     expect(log.sawArc, 'the movement arc stood on the track during the descent').toBeTruthy();
     expect(log.sawSelector, 'the hydro\'s own repeat frame opened').toBeTruthy();
@@ -634,10 +698,9 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     await expect(page.locator('dialog.con-zoom[open]')).toHaveCount(0);
     await expect(page.locator('.con-hydro__layer--esppick')).toBeVisible();
     // A — pick the focused (first legal) candidate. Act → verify → retry:
-    // a press can be legitimately swallowed while the surface settles.
-    for (let i = 0; i < 8 && await page.locator('.con-hydro__layer--esppick').count() > 0; i++) {
-      await key(page, 'Enter', 700);
-    }
+    // a press can be legitimately swallowed while the surface settles — again
+    // only when the pick has not left within the press's whole window.
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-hydro__layer--esppick').count() === 0, {tries: 8, settleMs: 1_500});
     await expect.poll(() => page.locator('.con-hydro__layer--esppick').count(), {message: 'the pick resolved'}).toBe(0);
 
     // Back in the composer: the resolved target row + the owner half.

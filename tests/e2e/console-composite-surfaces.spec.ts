@@ -1,5 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, press, reloadConsole} from './consoleStart';
+import {bootSeededGame, press, pressUntil, reloadConsole, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -86,6 +87,21 @@ async function key(page: Page, k: string, wait = 600): Promise<void> {
   await press(page, k, wait);
 }
 
+/** Which of `rows` carries its `--focused` modifier (-1 — none): the cursor's witness on a list surface. */
+function focusIndex(page: Page, rows: string): Promise<number> {
+  return page.evaluate((sel) => Array.from(document.querySelectorAll(sel))
+    .findIndex((el) => Array.from(el.classList).some((c) => c.endsWith('--focused'))), rows);
+}
+
+/**
+ * ONE HOP of the cursor — the press, and the cursor's move as its witness: the WHOLE window before «no move» is
+ * believed, and never a second press here. The press that follows a hop (A, RB) then lands on the row the hop reached.
+ */
+async function hop(page: Page, k: string, rows: string, wait: number): Promise<void> {
+  const at = await focusIndex(page, rows);
+  await pressUntil(page, k, async () => await focusIndex(page, rows) !== at, {tries: 1, settleMs: wait});
+}
+
 async function createGame(request: APIRequestContext): Promise<string> {
   const created = await request.post('/api/creategame', {data: newGameConfig()});
   expect(created.ok(), `create-game failed: ${created.status()} ${await created.text()}`).toBeTruthy();
@@ -132,11 +148,37 @@ async function openGame(page: Page, request: APIRequestContext): Promise<void> {
 
 /** Every one of these surfaces must live in the band, not over the rail. */
 async function expectsWorkspaceBand(page: Page, root: string): Promise<void> {
-  const band = await page.locator(root).boundingBox();
+  // The band's box AT REST (C — the surface's entrance may still be sliding in).
+  const band = await readSettled(page, () => page.locator(root).boundingBox(), {message: `the ${root} band`});
   expect(band).not.toBeNull();
   expect(band!.x, 'the surface starts right of the player rail').toBeGreaterThan(60);
   // …and the prompt is served natively: the stranded-prompt guard never rises.
   await expect.poll(() => page.locator('.con-stranded').count(), {message: 'the stranded-prompt guard must not stand over this prompt'}).toBe(0);
+}
+
+/** How the shared picker's cells sit in the Venus panel (undefined — no picker). Read through `readSettled`. */
+async function pickerFit(page: Page) {
+  return page.evaluate(() => {
+    const panel = document.querySelector<HTMLElement>('.con-lanes__panel');
+    const step = document.querySelector<HTMLElement>('.con-ptsel');
+    if (panel === null || step === null) {
+      return undefined;
+    }
+    const pr = panel.getBoundingClientRect();
+    const cells = Array.from(document.querySelectorAll<HTMLElement>('[data-ptsel-cell]'));
+    const outside = cells.filter((el) => {
+      const b = el.getBoundingClientRect();
+      return b.width < 40 || b.height < 40 ||
+        b.left < pr.left - 1 || b.right > pr.right + 1 ||
+        b.top < pr.top - 1 || b.bottom > pr.bottom + 1;
+    }).length;
+    const hScrollers = Array.from(step.querySelectorAll<HTMLElement>('*'))
+      .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible')
+      .map((el) => el.className);
+    const w = cells[0]?.getBoundingClientRect().width ?? 0;
+    return {outside, hScrollers, cardW: w, panelW: pr.width, panelH: pr.height,
+      vw: window.innerWidth, rootScrollW: document.documentElement.scrollWidth};
+  });
 }
 
 const amountOption = (title: string, max: number) =>
@@ -157,7 +199,7 @@ test('spend heat: a bill, two lanes, and no way to overpay', async ({page, reque
   });
   await reloadConsole(page);
   await page.waitForSelector('.con-heat', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(600); // the panel's entrance settle
+  await settle(page); // the panel's entrance settle
   await shoot(page, '1-spend-heat');
 
   await expectsWorkspaceBand(page, '.con-heat');
@@ -202,7 +244,7 @@ test('the Venus bonus: one flow — the wild first, then the placement', async (
   });
   await reloadConsole(page);
   await page.waitForSelector('.con-venus', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(600); // the panel's entrance settle
+  await settle(page); // the panel's entrance settle
   await shoot(page, '3-venus-wild');
 
   await expectsWorkspaceBand(page, '.con-venus');
@@ -215,7 +257,7 @@ test('the Venus bonus: one flow — the wild first, then the placement', async (
 
   // A on the SECOND branch («take one more standard resource») folds the wild
   // into the budget and drops straight to the lanes — 2 + 1 = 3.
-  await key(page, 'ArrowDown', 500);
+  await hop(page, 'ArrowDown', '.con-venus__opt', 500);
   await key(page, 'Enter', 900);
   await shoot(page, '4-venus-place');
   await expect(page.locator('.con-lanes__row')).toHaveCount(6);
@@ -262,7 +304,7 @@ test('a one-step bill is a radio too — the same gesture, the bill kept', async
   });
   await reloadConsole(page);
   await page.waitForSelector('.con-heat', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(600); // the panel's entrance settle
+  await settle(page); // the panel's entrance settle
   await shoot(page, '9-heat-single');
 
   // The DIALS go (0 / 1 is not a number worth a stepper) — but the BILL stays:
@@ -280,7 +322,7 @@ test('a one-step bill is a radio too — the same gesture, the bill kept', async
   await key(page, 'Enter', 700);
   await expect(page.locator('[data-prompt-meter]')).toHaveClass(/con-prompt-outcome__meter--ready/);
   await expect(bar).toContainText(/СНЯТЬ/i);
-  await key(page, 'ArrowDown', 400);
+  await hop(page, 'ArrowDown', '.con-lanes__row', 400);
   await key(page, 'Enter', 700);
   await shoot(page, '10-heat-single-floater');
   await expect(page.locator('.con-lanes__row--active')).toHaveCount(1);
@@ -311,7 +353,7 @@ test('one resource: the lanes become a radio — A places it, X takes it', async
   });
   await reloadConsole(page);
   await page.waitForSelector('.con-venus', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(600); // the panel's entrance settle
+  await settle(page); // the panel's entrance settle
   await shoot(page, '7-venus-single');
 
   await expectsWorkspaceBand(page, '.con-venus');
@@ -328,7 +370,7 @@ test('one resource: the lanes become a radio — A places it, X takes it', async
   await expect(bar).toContainText(/ЗАБРАТЬ/i);
 
   // A puts the resource on the focused lane; the row says so and the verb flips.
-  await key(page, 'ArrowDown', 400);
+  await hop(page, 'ArrowDown', '.con-lanes__row', 400);
   await key(page, 'Enter', 700);
   await shoot(page, '8-venus-single-picked');
   const steel = page.locator('.con-lanes__row').nth(1);
@@ -339,7 +381,7 @@ test('one resource: the lanes become a radio — A places it, X takes it', async
 
   // …and A on ANOTHER lane MOVES it (a second unit is impossible), so the
   // gesture is never a dead press.
-  await key(page, 'ArrowDown', 400);
+  await hop(page, 'ArrowDown', '.con-lanes__row', 400);
   await key(page, 'Enter', 700);
   await expect(page.locator('.con-lanes__row--active')).toHaveCount(1);
   await expect(page.locator('.con-lanes__row').nth(2)).toHaveClass(/con-lanes__row--active/);
@@ -370,7 +412,7 @@ test('the planetary thresholds: every row says what it DOES', async ({page, requ
   });
   await reloadConsole(page);
   await page.waitForSelector('.con-ares', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(600); // the panel's entrance settle
+  await settle(page); // the panel's entrance settle
   await shoot(page, '5-ares-thresholds');
 
   await expectsWorkspaceBand(page, '.con-ares');
@@ -384,8 +426,8 @@ test('the planetary thresholds: every row says what it DOES', async ({page, requ
   await expect(page.locator('.con-ares__count')).toContainText(/БЕЗ ИЗМЕНЕНИЙ/i);
 
   // RB shifts the focused threshold by one; °C moves TWO degrees.
-  await key(page, 'ArrowDown', 400);
-  await key(page, 'ArrowDown', 400);
+  await hop(page, 'ArrowDown', '.con-ares__row', 400);
+  await hop(page, 'ArrowDown', '.con-ares__row', 400);
   await key(page, 'KeyE', 800); // RB
   await shoot(page, '6-ares-shifted');
   const temp = page.locator('.con-ares__row').nth(2);
@@ -445,7 +487,7 @@ test.describe('the Venus wild resource: the SHARED target picker', () => {
     }, WILD_TARGETS.map((name, i) => ({name, resources: i === 1 ? 2 : i})));
     await reloadConsole(page);
     await page.waitForSelector('.con-venus', {state: 'visible', timeout: 40_000});
-    await page.waitForTimeout(600); // the panel's entrance settle
+    await settle(page); // the panel's entrance settle
 
     // A on the FIRST branch — «положите его на карту».
     await key(page, 'Enter', 1200);
@@ -462,28 +504,9 @@ test.describe('the Venus wild resource: the SHARED target picker', () => {
     // EVERY authoritative candidate is on screen — the reported bug.
     await expect(page.locator('[data-ptsel-cell]')).toHaveCount(WILD_TARGETS.length);
 
-    // …and none of them is cropped, off the panel, or behind a scrollbar.
-    const fit = await page.evaluate(() => {
-      const panel = document.querySelector<HTMLElement>('.con-lanes__panel');
-      const step = document.querySelector<HTMLElement>('.con-ptsel');
-      if (panel === null || step === null) {
-        return undefined;
-      }
-      const pr = panel.getBoundingClientRect();
-      const cells = Array.from(document.querySelectorAll<HTMLElement>('[data-ptsel-cell]'));
-      const outside = cells.filter((el) => {
-        const b = el.getBoundingClientRect();
-        return b.width < 40 || b.height < 40 ||
-          b.left < pr.left - 1 || b.right > pr.right + 1 ||
-          b.top < pr.top - 1 || b.bottom > pr.bottom + 1;
-      }).length;
-      const hScrollers = Array.from(step.querySelectorAll<HTMLElement>('*'))
-        .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible')
-        .map((el) => el.className);
-      const w = cells[0]?.getBoundingClientRect().width ?? 0;
-      return {outside, hScrollers, cardW: w, panelW: pr.width, panelH: pr.height,
-        vw: window.innerWidth, rootScrollW: document.documentElement.scrollWidth};
-    });
+    // …and none of them is cropped, off the panel, or behind a scrollbar — read AT REST (C: the step's entrance and
+    // the cells' fit are motion; the same fit twice, frames apart, after `settle`).
+    const fit = await readSettled(page, () => pickerFit(page), {message: 'the picker\'s fit'});
     expect(fit, 'the picker mounted').toBeDefined();
     expect(fit!.outside, 'no candidate leaves the panel').toBe(0);
     expect(fit!.hScrollers, 'a horizontal scrollbar in this step is the old bug').toEqual([]);
@@ -506,8 +529,11 @@ test.describe('the Venus wild resource: the SHARED target picker', () => {
     await expect.poll(reading).toMatch(/2\s*→\s*3/);
     await expect.poll(reading).toMatch(/ПО/);
     await key(page, 'ArrowLeft', 700);
-    expect((await reading()).includes('ПО'),
-      'a ПО reading that does not move is not printed').toBe(false);
+    // The reading is the FIRST candidate's again (its own «0 → 1») before its absence of ПО is judged — a read taken
+    // the moment after the press is still the neighbour's.
+    await expect.poll(reading).toMatch(/0\s*→\s*1/);
+    await expect.poll(async () => (await reading()).includes('ПО'),
+      {message: 'a ПО reading that does not move is not printed'}).toBe(false);
 
     // A locks the focused card and the flow advances to the placement — the
     // crumb only ever gains a tail.

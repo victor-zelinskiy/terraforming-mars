@@ -2,7 +2,9 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
-import {bootWithCards, closeZoomViewer, openActionFocus, openCardActions, openZoomViewer, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, closeZoomViewer, openActionFocus, openCardActions, openZoomViewer, playCardFromHand, press, pressUntil, settle, soloGameConfig,
+  waitForTurn} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * Console BLUE ACTION · the COMMIT half — the EMBEDDED PURCHASE stage
@@ -44,6 +46,55 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await press(page, code, settleMs);
 }
 
+/** The workspace's identity symbol as drawn — read AT REST (C) through `readSettled`. */
+async function emblemRead(page: Page) {
+  return page.locator('.con-wshead__emblem').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const svg = el.querySelector('svg');
+    const r = el.getBoundingClientRect();
+    return {opacity: cs.opacity, visibility: cs.visibility, inline: el.getAttribute('style') ?? '',
+      w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10, hasSvg: svg !== null,
+      svgOpacity: svg !== null ? getComputedStyle(svg).opacity : ''};
+  });
+}
+
+type HeroBox = {x: number, y: number, width: number, height: number};
+
+/** The hero card wrap's box — read AT REST (C) through `readSettled`. */
+async function heroBoxRead(page: Page): Promise<HeroBox | null> {
+  const b = await page.locator('.con-composer__actcardwrap').boundingBox();
+  return b === null ? null : {x: b.x, y: b.y, width: b.width, height: b.height};
+}
+
+/**
+ * The hero's box AND its ANCESTOR CHAIN (the diagnostic the source-stability contract hands over when it fails) — read
+ * AT REST (C) through `readSettled`, so the chain printed is the chain of the box asserted.
+ */
+async function heroAtRestRead(page: Page): Promise<{box: HeroBox | null, chain: string}> {
+  const box = await heroBoxRead(page);
+  const chain = await page.locator('.con-composer__actcardwrap').evaluate((el) => {
+    const out: Array<string> = [];
+    for (let n: HTMLElement | null = el as HTMLElement; n !== null && out.length < 6; n = n.parentElement) {
+      const r = n.getBoundingClientRect();
+      const cs = getComputedStyle(n);
+      out.push(`${n.className || n.tagName}: x=${Math.round(r.x)} w=${Math.round(r.width)} ` +
+        `just=${cs.justifyContent} align=${cs.alignItems} zoom=${cs.zoom} tf=${cs.transform}`);
+    }
+    return out.join('\n  ');
+  });
+  return {box, chain};
+}
+
+/** Two hero boxes agree within a pixel on every side (the stillness the setup baseline waits for); no box twice is
+ *  still too — the assertion after the read names it. */
+function within1px(a: HeroBox | null, b: HeroBox | null): boolean {
+  if (a === null || b === null) {
+    return a === b;
+  }
+  return Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1 &&
+    Math.abs(a.width - b.width) <= 1 && Math.abs(a.height - b.height) <= 1;
+}
+
 const PROFILES = [
   {tag: 'fhd', width: 1920, height: 1080, query: ''},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
@@ -71,7 +122,7 @@ for (const profile of PROFILES) {
         query: profile.query,
       });
       await waitForTurn(page);
-      await page.waitForTimeout(4000);
+      await settle(page);
 
       // ── Play Business Network from the hand (RT wheel → КАРТЫ). ─────────
       expect(await playCardFromHand(page, 'Business Network'),
@@ -79,25 +130,19 @@ for (const profile of PROFILES) {
 
       // ── Into the workspace → ACTION FOCUS. ──────────────────────────────
       await openCardActions(page);
-      await page.waitForTimeout(700); // the wheel-handoff enter fully settles
+      await settle(page); // the wheel-handoff enter fully settles
       const emblemInBrowse = await page.locator('.con-wshead__emblem').evaluate((el) => {
         const cs = getComputedStyle(el);
         return {opacity: cs.opacity, visibility: cs.visibility, inline: el.getAttribute('style') ?? ''};
       });
       await openActionFocus(page);
-      // The one-word stage marker: «НАСТРОЙКА», never «НАСТРОЙКА ДЕЙСТВИЯ».
-      expect((await page.locator('.con-wshead__step').innerText()).trim().toUpperCase()).toBe('НАСТРОЙКА');
-      await page.waitForTimeout(600); // the entry FLIP fully settles
+      // The one-word stage marker: «НАСТРОЙКА», never «НАСТРОЙКА ДЕЙСТВИЯ» (a live crumb — asserted by a poll).
+      await expect.poll(async () => (await page.locator('.con-wshead__step').innerText()).trim().toUpperCase()).toBe('НАСТРОЙКА');
       // THE IDENTITY SYMBOL: the lightning is part of the parent anchor in
       // EVERY state — measurably drawn, not just a reserved box (a stranded
       // wheel-echo once left it at inline opacity 0 for the workspace's life).
-      const emblemProbe = await page.locator('.con-wshead__emblem').evaluate((el) => {
-        const cs = getComputedStyle(el);
-        const svg = el.querySelector('svg');
-        const r = el.getBoundingClientRect();
-        return {opacity: cs.opacity, visibility: cs.visibility, inline: el.getAttribute('style') ?? '', w: r.width, h: r.height, hasSvg: svg !== null,
-          svgOpacity: svg !== null ? getComputedStyle(svg).opacity : ''};
-      });
+      // Read once the entry FLIP has settled (C — the same symbol twice, frames apart, after `settle`).
+      const emblemProbe = await readSettled(page, () => emblemRead(page), {message: 'the emblem at setup'});
       const emblemStory = `browse=${JSON.stringify(emblemInBrowse)} setup=${JSON.stringify(emblemProbe)}`;
       expect(emblemProbe.hasSvg, `emblem: ${emblemStory}`).toBe(true);
       expect(parseFloat(emblemProbe.opacity), `emblem: ${emblemStory}`).toBeGreaterThan(0.9);
@@ -112,7 +157,7 @@ for (const profile of PROFILES) {
        * (838, 809, … observed) while the committed-stage reading is rock steady
        * (533 every time). So the failures blamed the buy stage for moving a card
        * that had never finished arriving — the baseline was the unstable half.
-       * Poll until the box HOLDS STILL, then that is the anchor.
+       * Read until the box HOLDS STILL (`readSettled`), then that is the anchor.
        *
        * ⚠️ TWO agreeing frames are not stillness. An eased entrance has
        * near-stationary moments — at the top of its arc a 120 ms interval moves
@@ -134,28 +179,9 @@ for (const profile of PROFILES) {
       // the armed CTA exists only once the preview is in (the same gate the
       // landing probe waits on before driving the descent).
       await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 15_000});
-      const settledHeroBox = async () => {
-        const box = page.locator('.con-composer__actcardwrap');
-        let prev = await box.boundingBox();
-        let stable = 0;
-        for (let i = 0; i < 40; i++) {
-          await page.waitForTimeout(120);
-          const next = await box.boundingBox();
-          if (prev !== null && next !== null &&
-              Math.abs(next.x - prev.x) <= 1 && Math.abs(next.y - prev.y) <= 1 &&
-              Math.abs(next.width - prev.width) <= 1) {
-            stable++;
-            if (stable >= 3) {
-              return next;
-            }
-          } else {
-            stable = 0;
-          }
-          prev = next;
-        }
-        return prev;
-      };
-      const heroAtSetup = await settledHeroBox();
+      // Four consecutive reads (three agreements), each a frame apart, all within a pixel — after `settle`.
+      const heroAtSetup = await readSettled(page, () => heroBoxRead(page),
+        {equal: 4, same: within1px, timeoutMs: 15_000, message: 'the hero card wrap at setup'});
       expect(heroAtSetup).not.toBeNull();
       await shoot(page, `${profile.tag}-01-setup`);
 
@@ -174,16 +200,16 @@ for (const profile of PROFILES) {
       // spatial object across the commit — same box to the pixel. Any
       // stage-specific label leaking into its column shows up here.
       //
-      // POLLED, because the assertion is about the SETTLED stage. The embedded
+      // SETTLED, because the assertion is about the SETTLED stage. The embedded
       // host reports `count === 1` the instant it mounts — which is the first
       // frame of the UNFOLD, while the band is still reflowing around the new
       // outcome column. Measuring there read a 196px offset and blamed the
-      // product for a transition it is supposed to play. `toPass` keeps the
-      // contract exact (still 1px) and only lets the motion finish; a hero that
-      // genuinely lands somewhere else never satisfies it and still fails.
+      // product for a transition it is supposed to play. Each try reads the
+      // box AT REST (`readSettled`: after `settle`, the same box across frames),
+      // and `toPass` keeps the contract exact (still 1px) while the motion
+      // finishes; a hero that genuinely lands somewhere else never satisfies it
+      // and still fails.
       await expect(async () => {
-        const heroAtBuy = await page.locator('.con-composer__actcardwrap').boundingBox();
-        expect(heroAtBuy).not.toBeNull();
         // DIAGNOSTIC, not decoration: six structural hypotheses for the tv4k
         // shift were checked against the stylesheet and all six were wrong
         // (a payment row appearing; the right column pushing a centred row —
@@ -192,16 +218,9 @@ for (const profile of PROFILES) {
         // `--committed` — paint-only). So when this fails it must hand over
         // the ANCESTOR CHAIN rather than one number, or the next person starts
         // guessing from zero too.
-        const chain = await page.locator('.con-composer__actcardwrap').evaluate((el) => {
-          const out: Array<string> = [];
-          for (let n: HTMLElement | null = el as HTMLElement; n !== null && out.length < 6; n = n.parentElement) {
-            const r = n.getBoundingClientRect();
-            const cs = getComputedStyle(n);
-            out.push(`${n.className || n.tagName}: x=${Math.round(r.x)} w=${Math.round(r.width)} ` +
-              `just=${cs.justifyContent} align=${cs.alignItems} zoom=${cs.zoom} tf=${cs.transform}`);
-          }
-          return out.join('\n  ');
-        });
+        const {box: heroAtBuy, chain} = await readSettled(page, () => heroAtRestRead(page),
+          {equal: 4, same: (a, b) => within1px(a.box, b.box), message: 'the hero card wrap at the buy stage'});
+        expect(heroAtBuy).not.toBeNull();
         expect(Math.abs(heroAtBuy!.x - heroAtSetup!.x),
           `hero moved: setup.x=${Math.round(heroAtSetup!.x)} buy.x=${Math.round(heroAtBuy!.x)}\n  ${chain}`)
           .toBeLessThanOrEqual(1);
@@ -223,7 +242,7 @@ for (const profile of PROFILES) {
       const step = page.locator('.con-wshead__step');
       await expect(step).toHaveCount(1, {timeout: 5000});
       await expect(step).toHaveClass(/--committed/);
-      expect((await step.innerText()).trim().toUpperCase()).toBe('ПОКУПКА');
+      await expect.poll(async () => (await step.innerText()).trim().toUpperCase()).toBe('ПОКУПКА');
       // ADAPTIVE single-card copy: the actual question, not the mass selector.
       await expect(page.locator('.con-ws-stage-title')).toContainText('Купить открытую карту?', {timeout: 10_000});
       // PRIMARY-HEADING PARITY: the shared .con-ws-stage-heading role — the
@@ -255,8 +274,8 @@ for (const profile of PROFILES) {
       // computed voice, printed for the receive spec's twin probe (which
       // asserts the SAME numbers at the same profile: one fit formula, one
       // heading class, therefore one geometry).
-      const heroBox = await page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')
-        .first().boundingBox();
+      const heroBox = await readSettled(page, () => page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')
+        .first().boundingBox(), {message: 'the offered card\'s box'});
       const heroHead = await page.locator('.con-ws-stage-title').evaluate((el) => {
         const cs = window.getComputedStyle(el);
         return {size: cs.fontSize, weight: cs.fontWeight};
@@ -286,39 +305,36 @@ for (const profile of PROFILES) {
       // reads too, so a change to the shared chassis fails BOTH specs against
       // the same constant and gets re-synced in a single deliberate edit —
       // never one stage silently drifting away from the other.
-      const stageBox = await page.locator('.con-task-host--embedded')
-        .evaluate(stageProbe);
+      // The chassis box is read AT REST (C — the same box twice, frames apart, after `settle`).
+      const stageBox = await readSettled(page, () => page.locator('.con-task-host--embedded')
+        .evaluate(stageProbe), {message: 'the embedded stage\'s chassis'});
       expect(stageBox, `stage ${JSON.stringify(stageBox)}`).toEqual(WS_STAGE_BOX[profile.tag]);
       expect(heroHead, `heading ${JSON.stringify(heroHead)}`).toEqual(WS_STAGE_HEAD[profile.tag]);
-      await page.waitForTimeout(900);
+      await settle(page);
       await shoot(page, `${profile.tag}-02-embedded-buy`);
 
       // ── L3: fullscreen the SOURCE over the living stage. ────────────────
       // (Retry discipline: a press during a still-settling flight on a heavy
-      //  4K frame is deliberately consumed — same as every wizard step.)
+      //  4K frame is deliberately consumed — same as every wizard step; and
+      //  an open already IN FLIGHT is never nudged — the shared viewer driver.)
       const zoom = page.locator('dialog.con-zoom[open]');
-      for (let tries = 0; tries < 6 && await zoom.count() === 0; tries++) {
-        await key(page, 'KeyC', 1900);
-      }
-      await expect(zoom).toHaveCount(1, {timeout: 8000});
+      await openZoomViewer(page, 'KeyC');
       await expect(zoom).toContainText(/Коммерческая сеть/i);
       await shoot(page, `${profile.tag}-03-l3-source`);
       // (Close with the same retry discipline — a press inside the viewer's
       //  still-settling open flight is consumed on a heavy 4K frame.)
-      for (let tries = 0; tries < 3 && await zoom.count() > 0; tries++) {
-        await key(page, 'Escape', 1400);
-      }
-      await expect(zoom).toHaveCount(0);
+      await closeZoomViewer(page);
       // The stage survived the round trip untouched.
       await expect(embeddedHost).toHaveCount(1);
       await expect(page.locator('.con-ws-stage-title')).toContainText('Купить открытую карту?');
       // The FULLSCREEN RETURN did not move the source either (§17): the hero
       // box after the zoom round trip equals the setup box to the pixel.
-      // Polled for the same reason as the commit-boundary check above: a fixed
-      // 400 ms is a guess about the return flight, and on a loaded 4K frame it
-      // is the wrong guess. The tolerance stays 1px.
+      // Read at rest for the same reason as the commit-boundary check above: a
+      // fixed 400 ms is a guess about the return flight, and on a loaded 4K
+      // frame it is the wrong guess. The tolerance stays 1px.
       await expect(async () => {
-        const heroAfterZoom = await page.locator('.con-composer__actcardwrap').boundingBox();
+        const heroAfterZoom = await readSettled(page, () => heroBoxRead(page),
+          {equal: 4, same: within1px, message: 'the hero card wrap after the zoom'});
         expect(heroAfterZoom).not.toBeNull();
         expect(Math.abs(heroAfterZoom!.x - heroAtSetup!.x)).toBeLessThanOrEqual(1);
         expect(Math.abs(heroAfterZoom!.y - heroAtSetup!.y)).toBeLessThanOrEqual(1);
@@ -334,12 +350,7 @@ for (const profile of PROFILES) {
       // (Retry: a press inside the zoom's still-settling return flight is
       //  consumed on a heavy 4K frame — the loop stops the moment the fold
       //  lands, so a second press can never hit the board home.)
-      for (let tries = 0; tries < 3; tries++) {
-        await key(page, 'Escape', 1700);
-        if (await page.locator('.con-cardactions').count() === 0) {
-          break;
-        }
-      }
+      await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 3, settleMs: 1700});
       await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 8000});
       // The deferred-return card waits on the board home.
       const restore = page.locator('.con-mandatory');
@@ -348,9 +359,10 @@ for (const profile of PROFILES) {
       // Restore: A on the return card is the primary path; B (the board
       // home's restore branch) is the fallback — either must land back in
       // the SAME committed stage.
-      await key(page, 'Enter', 1800);
-      if (await page.locator('[data-embed-slot="workspace-reveal"] .con-task-host--embedded').count() === 0) {
-        await key(page, 'Escape', 1800);
+      // Each press gets its whole window to bring the stage back before the fallback is tried.
+      const restored = async () => await page.locator('[data-embed-slot="workspace-reveal"] .con-task-host--embedded').count() > 0;
+      if (!await pressUntil(page, 'Enter', restored, {tries: 1, settleMs: 1800})) {
+        await pressUntil(page, 'Escape', restored, {tries: 1, settleMs: 1800});
       }
       // The SAME committed stage comes back: same phase, same title, no
       // replayed cinematic, no second server trip.
@@ -370,7 +382,7 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 25_000});
       await expect(page.locator('.con-task-host')).toHaveCount(0);
       await waitForTurn(page);
-      await page.waitForTimeout(2500);
+      await settle(page);
       await shoot(page, `${profile.tag}-05-after-buy`);
     });
   });

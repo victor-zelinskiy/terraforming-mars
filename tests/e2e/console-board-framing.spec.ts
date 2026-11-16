@@ -1,5 +1,8 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
-import {bootIntoGame, press} from './consoleStart';
+import {bootIntoGame, cinematicBeat, openQuickWheel, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
+import type {ObservedSample} from './observeCore';
 
 /**
  * THE PLANET DOES NOT MOVE WHEN A SECTION HANDS THE SCREEN BACK.
@@ -21,9 +24,9 @@ import {bootIntoGame, press} from './consoleStart';
  *  2. a REAL frame change (a window resize) still re-fits — the guard must
  *     not be satisfiable by an engine that simply stopped working.
  *
- * The trace is per-rAF on purpose: `planet-focus.md` is explicit that this
- * class of bug is diagnosed with a frame trace and not by reading code, and
- * a Playwright poll is far too coarse to see a 300ms glide.
+ * The trace is a RECORDING on purpose: `planet-focus.md` is explicit that
+ * this class of bug is diagnosed with a frame trace and not by reading code,
+ * and a Playwright poll is far too coarse to see a 300ms glide.
  */
 
 function newGameConfig() {
@@ -76,8 +79,8 @@ function newGameConfig() {
   };
 }
 
-type Sample = {
-  t: number,
+/** What the board's framing looks like in one recorded state. */
+type Frame = {
   scale: string,
   dx: string,
   dy: string,
@@ -87,61 +90,105 @@ type Sample = {
   cls: string,
 };
 
+/** A recorded frame with its time (ms since the trip's first sample, on the PAGE's clock). */
+type Sample = Frame & {t: number};
+
 /**
- * A PER-FRAME in-page recorder. `docs/claude/console/planet-focus.md` is
- * explicit that this class of bug is diagnosed with a fine-grained trace and
- * not by reading code — a Playwright poll (~60ms/round trip) is far too
- * coarse to see a 300ms glide start, and coarse sampling is what made the
- * previous three fixes here guesses.
+ * THE FRAMING TRACE — RECORDED (FLAKE ZERO, `armWitness`, armed before the
+ * trip). `docs/claude/console/planet-focus.md` is explicit that this class of
+ * bug is diagnosed with a fine-grained trace and not by reading code — a
+ * Playwright poll (~60ms/round trip) is far too coarse to see a 300ms glide
+ * start, and coarse sampling is what made the previous three fixes here
+ * guesses.
  *
- * ⚠️ setInterval, NEVER requestAnimationFrame (the console-ui probe rule):
- * headless Chromium drives rAF off the compositor, so an rAF sampler stops
- * sampling exactly when the screen goes quiet — which is when a framing bug
- * would fire. This probe shipped on rAF and starved to ≤5 live frames per
- * round trip at 4K (the «no live frames captured» flake) while the framing
- * itself was perfectly still. 16ms lands on the same per-frame granularity
- * whenever frames ARE being produced.
+ * The recording samples in the very task the product writes the framing (a
+ * MutationObserver over the document — the fit writes its custom properties
+ * and the board's classes) AND once per animation frame (a glide is a CSS
+ * transition: it moves no DOM, but it paints frames). Its earlier forms each
+ * slept through what they were there to see: an rAF sampler stopped sampling
+ * on a quiet screen (≤5 live frames per round trip at 4K — the «no live
+ * frames captured» flake), and a 16 ms `setInterval` is starved for hundreds
+ * of ms at a time on a 2-core software raster. Only a CHANGED framing is
+ * kept, so a still planet is a short record.
  */
-async function startTrace(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__planetTrace?: Array<unknown>, __planetStop?: () => void};
-    w.__planetTrace = [];
-    const t0 = performance.now();
-    const tick = () => {
-      const r = (el: Element | null) => {
-        if (el === null) {
-          return 'none';
-        }
-        const b = el.getBoundingClientRect();
-        return `${b.x.toFixed(1)},${b.y.toFixed(1)} ${b.width.toFixed(1)}x${b.height.toFixed(1)}`;
-      };
-      const board = document.querySelector('.con-board');
-      const stage = document.querySelector('.con-board__stage');
-      const cont = document.querySelector('.con-board__stage > .board-cont');
-      const cs = stage === null ? undefined : getComputedStyle(stage);
-      w.__planetTrace!.push({
-        t: Math.round(performance.now() - t0),
-        scale: getComputedStyle(document.documentElement).getPropertyValue('--board-scale').trim(),
-        dx: (cs?.getPropertyValue('--con-board-dx') ?? '').trim(),
-        dy: (cs?.getPropertyValue('--con-board-dy') ?? '').trim(),
-        stage: r(stage),
-        cont: r(cont),
-        tf: cont === null ? 'none' : getComputedStyle(cont).transform,
-        cls: board === null ? 'unmounted' : board.className,
-      });
+async function armFramingTrace(page: Page, key: string) {
+  return armWitness<Frame>(page, key, () => {
+    const r = (el: Element | null) => {
+      if (el === null) {
+        return 'none';
+      }
+      const b = el.getBoundingClientRect();
+      return `${b.x.toFixed(1)},${b.y.toFixed(1)} ${b.width.toFixed(1)}x${b.height.toFixed(1)}`;
     };
-    const timer = window.setInterval(tick, 16);
-    tick();
-    w.__planetStop = () => window.clearInterval(timer);
+    const board = document.querySelector('.con-board');
+    const stage = document.querySelector('.con-board__stage');
+    const cont = document.querySelector('.con-board__stage > .board-cont');
+    const cs = stage === null ? undefined : getComputedStyle(stage);
+    return {
+      scale: getComputedStyle(document.documentElement).getPropertyValue('--board-scale').trim(),
+      dx: (cs?.getPropertyValue('--con-board-dx') ?? '').trim(),
+      dy: (cs?.getPropertyValue('--con-board-dy') ?? '').trim(),
+      stage: r(stage),
+      cont: r(cont),
+      tf: cont === null ? 'none' : getComputedStyle(cont).transform,
+      cls: board === null ? 'unmounted' : board.className,
+    };
   });
 }
 
-async function readTrace(page: Page): Promise<Array<Sample>> {
+/** The recording as a trace: every recorded state with its time since the first one. */
+function traceOf(samples: ReadonlyArray<ObservedSample<Frame>>): Array<Sample> {
+  const t0 = samples[0]?.t ?? 0;
+  return samples.map((s) => ({...s.v, t: Math.round(s.t - t0)}));
+}
+
+/** The fit engine's declared state and the framing it publishes — ONE read («settled|scale|dx|dy|rect»). */
+async function framingKey(page: Page): Promise<string> {
   return page.evaluate(() => {
-    const w = window as unknown as {__planetTrace?: Array<Sample>, __planetStop?: () => void};
-    w.__planetStop?.();
-    return w.__planetTrace ?? [];
+    const root = document.querySelector('.con-board');
+    const stage = document.querySelector('.con-board__stage');
+    const cont = document.querySelector('.con-board__stage > .board-cont');
+    const b = cont?.getBoundingClientRect();
+    const cs = stage === null ? undefined : getComputedStyle(stage);
+    return [
+      root?.getAttribute('data-framing') ?? 'missing',
+      getComputedStyle(document.documentElement).getPropertyValue('--board-scale').trim(),
+      (cs?.getPropertyValue('--con-board-dx') ?? '').trim(),
+      (cs?.getPropertyValue('--con-board-dy') ?? '').trim(),
+      b === undefined ? 'none' : `${b.x.toFixed(1)},${b.y.toFixed(1)} ${b.width.toFixed(1)}`,
+    ].join('|');
   });
+}
+
+/**
+ * Wait until the board is genuinely AT REST — the fit engine DECLARES it
+ * (`data-framing="settled"`: the normal overview framing with NO scheduled
+ * work left — no fit frame, no calibration pass, no late-verification rung
+ * pending; `ConsoleBoardSection.framingState`) AND the framing values plus
+ * the painted rect hold still across frames (`readSettled`: after `settle`,
+ * three equal reads a frame apart, never a read mid-glide). A resize
+ * legitimately re-converges (and each corrective pass glides 300ms), so a
+ * fixed timeout either starts a "must not move" trip mid-glide or hard-codes
+ * the convergence's length. A read at rest that still says «busy» (a late
+ * rung waiting on its timer) is read again.
+ */
+async function waitForFramingRest(page: Page, timeoutMs = 45_000): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const left = Math.max(1_000, deadline - Date.now());
+    const now = await readSettled(page, () => framingKey(page), {equal: 3, timeoutMs: left, message: 'the board framing'});
+    if (now.startsWith('settled|')) {
+      return now;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`board never came to rest within ${timeoutMs}ms (last=${now})`);
+    }
+  }
+}
+
+/** The fit engine's live `--board-scale`. */
+async function boardScale(page: Page): Promise<string> {
+  return page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--board-scale').trim());
 }
 
 type UnionMetrics = {
@@ -241,10 +288,6 @@ function print(label: string, rows: ReadonlyArray<Sample>): void {
   console.log(`  (${rows.length} frames traced, ${shown} discontinuities)`);
 }
 
-async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await press(page, code, settleMs);
-}
-
 /**
  * Boot a solo game and land on the board home.
  *
@@ -262,21 +305,26 @@ async function bootGame(page: Page, request: APIRequestContext, buy: number, pro
   await bootIntoGame(page, request, {config: newGameConfig(), buy, query: profileQuery});
 }
 
-/** RT wheel → A («КАРТЫ»), then let the reveal episode settle. */
+/**
+ * RT wheel → A («КАРТЫ»), then let the reveal episode settle. Every press is
+ * act → verify ITS effect → retry only without one: a stray surface is closed
+ * until none stands, the wheel is opened by the shared driver, and the centre
+ * press is repeated only while the wheel still stands (on a quick wheel the
+ * press IS the activation — the wheel leaving is its effect).
+ */
 async function openHand(page: Page): Promise<void> {
-  for (let i = 0; i < 6 && await page.locator('.con-hand').count() === 0; i++) {
-    if (await page.locator('.con-zoom, .con-quick, .con-composer').count() > 0) {
-      await key(page, 'Escape', 900);
-      continue;
-    }
-    await key(page, 'Period', 700);
-    await key(page, 'Enter', 2600);
-    if (await page.locator('.con-quick').count() > 0) {
-      await key(page, 'Escape', 700);
-    }
-  }
-  await expect(page.locator('.con-hand')).toHaveCount(1);
-  await page.waitForTimeout(600);
+  const hand = page.locator('.con-hand');
+  const wheel = page.locator('.con-quick');
+  const stray = page.locator('.con-zoom, .con-quick, .con-composer');
+  expect(await pressUntil(page, 'Escape', async () => await stray.count() === 0, {settleMs: 900}),
+    'a stray viewer / wheel / composer must close before the hand is opened').toBe(true);
+  await openQuickWheel(page);
+  expect(await pressUntil(page, 'Enter', async () => await hand.count() > 0 || await wheel.count() === 0, {settleMs: 2600}),
+    'A on the wheel\'s centre slot must open the hand').toBe(true);
+  await expect(hand).toHaveCount(1);
+  // The reveal episode is over when the hand drops its transit hold — then the console is quiet.
+  await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 20_000});
+  await settle(page);
 }
 
 const PROFILES = [
@@ -291,64 +339,32 @@ for (const profile of PROFILES) {
     test.use({viewport: profile.viewport});
     test.setTimeout(300_000);
 
-    /**
- * Wait until the board is genuinely AT REST — framing values AND the painted
- * rect unchanged for a stretch. A resize legitimately re-converges (and each
- * corrective pass glides 300ms), so a fixed timeout either starts a
- * "must not move" trip mid-glide or hard-codes the convergence's length.
- */
-    async function waitForFramingRest(page: Page, timeoutMs = 45_000): Promise<void> {
-      const read = () => page.evaluate(() => {
-        const root = document.querySelector('.con-board');
-        const stage = document.querySelector('.con-board__stage');
-        const cont = document.querySelector('.con-board__stage > .board-cont');
-        const b = cont?.getBoundingClientRect();
-        const cs = stage === null ? undefined : getComputedStyle(stage);
-        return [
-          root?.getAttribute('data-framing') ?? 'missing',
-          getComputedStyle(document.documentElement).getPropertyValue('--board-scale').trim(),
-          (cs?.getPropertyValue('--con-board-dx') ?? '').trim(),
-          (cs?.getPropertyValue('--con-board-dy') ?? '').trim(),
-          b === undefined ? 'none' : `${b.x.toFixed(1)},${b.y.toFixed(1)} ${b.width.toFixed(1)}`,
-        ].join('|');
-      });
-      const deadline = Date.now() + timeoutMs;
-      let last = await read();
-      let stableSince = Date.now();
-      while (Date.now() < deadline) {
-        await page.waitForTimeout(120);
-        const now = await read();
-        if (now !== last) {
-          last = now;
-          stableSince = Date.now();
-        } else if (now.startsWith('settled|') && Date.now() - stableSince >= 900) {
-          return;
-        }
-      }
-      throw new Error(`board never came to rest within ${timeoutMs}ms (last=${last})`);
-    }
-
-    /** One board → hand → board trip; returns every LIVE frame of it. */
+    /** One board → hand → board trip; returns every LIVE recorded state of it. */
     async function roundTrip(page: Page, label: string): Promise<Array<Sample>> {
-      await startTrace(page);
-      await page.waitForTimeout(400); // a few frames of "at rest" baseline
+      // Armed at rest: its first sample IS the "at rest" baseline.
+      const trace = await armFramingTrace(page, `planet-trace:${profile.tag}:${label}`);
       await openHand(page);
-      await page.waitForTimeout(700);
-      await page.keyboard.press('Escape');
-      // The gather flight (500ms) + its fade, then well past anything a
-      // re-derivation could arm: the fit's own glide is 300ms and the late
-      // verification 1500ms. If the planet is going to move, it has moved.
-      await page.waitForTimeout(4000);
-      const rows = await readTrace(page);
+      await press(page, 'Escape');
+      await expect(page.locator('.con-hand'), `${label}: B must hand the screen back to the board`)
+        .toHaveCount(0, {timeout: 20_000});
+      // The gather flight (500ms) + its fade, then everything a re-derivation
+      // could arm — the fit's own 300ms glide, the late verification's rungs:
+      // the trip is over when the engine DECLARES its framing settled with no
+      // work left and the framing holds still. If the planet is going to
+      // move, it has moved — and the recording saw every state of it.
+      await waitForFramingRest(page);
+      const rows = traceOf(await trace.stop());
       print(`${profile.tag} · ${label}`, rows);
       // The window in which the board is HIDDEN carries no framing — a 0×0
       // stage is not a frame anyone can see.
       return rows.filter((s) => !s.stage.startsWith('0.0,0.0 0.0x0.0') && s.cont !== 'none');
     }
 
-    /** Every live frame must show the SAME framing the trip started from. */
+    /** Every live recorded state must show the SAME framing the trip started from. */
     function expectStill(live: ReadonlyArray<Sample>, label: string): void {
-      expect(live.length, `${label}: no live frames captured`).toBeGreaterThan(5);
+      // The recorder's own liveness only (FLAKE ZERO, recipe item 8): a recording keeps a state when it CHANGES, so a
+      // still planet is ONE live state — «more than five» counted frames, i.e. the machine's speed.
+      expect(live.length, `${label}: no live frames captured`).toBeGreaterThan(0);
       const rest = live[0];
       const moved = live.filter((s) =>
         s.scale !== rest.scale || s.dx !== rest.dx || s.dy !== rest.dy || s.cont !== rest.cont);
@@ -378,7 +394,7 @@ for (const profile of PROFILES) {
     test('the boot converges on a centred board, and stays there', async ({page, request}) => {
       await bootGame(page, request, 3, profile.query);
       await waitForFramingRest(page);
-      const settled = await unionMetrics(page);
+      const settled = await readSettled(page, () => unionMetrics(page), {message: 'the board\'s union box at rest'});
       console.log(`\n──── ${profile.tag} · settled ────\n            ${JSON.stringify(settled)}`);
 
       // CENTRED: the fit engine's own convergence test, applied from outside.
@@ -395,9 +411,10 @@ for (const profile of PROFILES) {
       expect(fill, `the board fills only ${(fill * 100).toFixed(1)}% of its stage on the binding axis`)
         .toBeGreaterThan(0.97);
 
-      // …and STAYS. A convergence that is still creeping would show up here.
-      await page.waitForTimeout(8000);
-      const later = await unionMetrics(page);
+      // …and STAYS. A convergence that is still creeping would show up here —
+      // a NEGATIVE claim, so it needs its window; both ends are read at rest.
+      await cinematicBeat(page, 8000, 'the window a still-creeping convergence would need to show itself');
+      const later = await readSettled(page, () => unionMetrics(page), {message: 'the board\'s union box, later'});
       expect(later.scale, 'the framing kept moving after it reported rest').toBe(settled.scale);
       expect(Math.abs(later.dx - settled.dx)).toBeLessThan(1);
       expect(Math.abs(later.dy - settled.dy)).toBeLessThan(1);
@@ -406,7 +423,8 @@ for (const profile of PROFILES) {
     test('a hand round trip does not re-frame the planet', async ({page, request}) => {
       await bootGame(page, request, 3, profile.query);
       await waitForFramingRest(page);
-      console.log(`\n──── ${profile.tag} · union at rest ────\n            ${JSON.stringify(await unionMetrics(page))}`);
+      const atRest = await readSettled(page, () => unionMetrics(page), {message: 'the board\'s union box at rest'});
+      console.log(`\n──── ${profile.tag} · union at rest ────\n            ${JSON.stringify(atRest)}`);
 
       // THREE trips: the defect oscillated rather than converged, so a single
       // trip could pass by luck on the half of the cycle that happened to
@@ -418,17 +436,20 @@ for (const profile of PROFILES) {
       // ── …and the engine is still ALIVE ────────────────────────────────
       // A guard that only asserts "nothing moved" is satisfied by a fit
       // engine that stopped working. A REAL frame change must still re-fit.
-      const before = await page.evaluate(() =>
-        getComputedStyle(document.documentElement).getPropertyValue('--board-scale').trim());
+      const before = await boardScale(page);
       await page.setViewportSize({
         width: Math.round(profile.viewport.width * 0.8),
         height: Math.round(profile.viewport.height * 0.8),
       });
       // The re-fit CONVERGES (several bounded passes, each gliding 300ms) —
       // wait for the new frame to come to rest, don't guess how long it takes.
+      // The engine takes the change a frame or two after the resize (its
+      // ResizeObserver), and until then it still DECLARES the old framing
+      // settled: the re-fit is asserted live first (a poll), then read at rest.
+      await expect.poll(() => boardScale(page), {message: 'a real viewport change must still re-fit the board', timeout: 45_000})
+        .not.toBe(before);
       await waitForFramingRest(page);
-      const after = await page.evaluate(() =>
-        getComputedStyle(document.documentElement).getPropertyValue('--board-scale').trim());
+      const after = await boardScale(page);
       console.log(`\n──── ${profile.tag} · resize ────\n  --board-scale ${before} → ${after}`);
       expect(after, 'a real viewport change must still re-fit the board').not.toBe(before);
 
@@ -436,9 +457,10 @@ for (const profile of PROFILES) {
       // STALE frame key matching a box the board no longer has — the guard
       // would then be passing on a board that simply refuses to re-fit.
       await page.setViewportSize(profile.viewport);
+      await expect.poll(() => boardScale(page), {message: 'returning to the original viewport must re-fit again', timeout: 45_000})
+        .not.toBe(after);
       await waitForFramingRest(page);
-      const restored = await page.evaluate(() =>
-        getComputedStyle(document.documentElement).getPropertyValue('--board-scale').trim());
+      const restored = await boardScale(page);
       console.log(`  --board-scale ${after} → ${restored} (restored)`);
       expect(restored, 'returning to the original viewport must re-fit again').not.toBe(after);
 

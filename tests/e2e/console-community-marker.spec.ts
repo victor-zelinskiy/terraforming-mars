@@ -1,7 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, focusedSpaceId, press} from './consoleStart';
+import {bootIntoGame, commitFocusedSpace, dossierLoaded, focusedSpaceId, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * Console-native · ARCADIAN COMMUNITIES, the two halves of one card.
@@ -86,33 +88,37 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await press(page, code, settleMs);
 }
 
+/** One state of the landing: the cells whose owner cube plays the drop, and the printed-bonus proxies standing. */
+type ClaimSeen = {dropping: Array<string>, bonusProxies: number};
+
 /**
  * Record the landing while it happens. The drop class lives for ~1 s, so a
- * poll can legitimately miss it — an observer cannot. Also watches for the
- * tile hero's printed-bonus PROXIES, which must never appear for a claim.
+ * poll can legitimately miss it — a record cannot (FLAKE ZERO — `armWitness`:
+ * the product's own writes and every frame, replace-proof). Also watches for
+ * the tile hero's printed-bonus PROXIES, which must never appear for a claim.
  */
-async function watchCubeLanding(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const probe = {dropped: [] as Array<string>, bonusProxies: 0};
-    (window as unknown as {__claimProbe: typeof probe}).__claimProbe = probe;
-    const scan = () => {
-      document.querySelectorAll('.player-cube.board-owner-cube.player-cube--animate-in').forEach((el) => {
-        const id = el.closest('.board-space')?.getAttribute('data_space_id') ?? '';
-        if (id !== '' && !probe.dropped.includes(id)) {
-          probe.dropped.push(id);
-        }
-      });
-      probe.bonusProxies += document.querySelectorAll('.con-tileplace__bonus').length;
-    };
-    scan();
-    new MutationObserver(scan).observe(document.body,
-      {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-  });
+function watchCubeLanding(page: Page): Promise<Witness<ClaimSeen>> {
+  return armWitness<ClaimSeen>(page, 'community-claim', () => ({
+    dropping: Array.from(document.querySelectorAll('.player-cube.board-owner-cube.player-cube--animate-in'))
+      .map((el) => el.closest('.board-space')?.getAttribute('data_space_id') ?? '')
+      .filter((id) => id !== ''),
+    bonusProxies: document.querySelectorAll('.con-tileplace__bonus').length,
+  }));
 }
 
-async function claimProbe(page: Page): Promise<{dropped: Array<string>, bonusProxies: number}> {
-  return page.evaluate(() =>
-    (window as unknown as {__claimProbe: {dropped: Array<string>, bonusProxies: number}}).__claimProbe);
+/** The record folded: every cell that ever dropped a cube (first-seen order), and the most proxies ever standing. */
+async function claimProbe(claim: Witness<ClaimSeen>): Promise<{dropped: Array<string>, bonusProxies: number}> {
+  const dropped: Array<string> = [];
+  let bonusProxies = 0;
+  for (const v of await claim.values()) {
+    for (const id of v.dropping) {
+      if (!dropped.includes(id)) {
+        dropped.push(id);
+      }
+    }
+    bonusProxies = Math.max(bonusProxies, v.bonusProxies);
+  }
+  return {dropped, bonusProxies};
 }
 
 /** Every printed placement-bonus icon still on the board (a claim eats none). */
@@ -144,7 +150,8 @@ test.describe('console · Arcadian Communities', () => {
     const stage = page.locator('.con-start__firstact');
     await stage.waitFor({state: 'visible', timeout: 60_000});
     await expect.poll(() => page.locator('.con-composer--corpfirst').count(), {message: 'the retired standalone modal must not appear in the start flow'}).toBe(0);
-    await page.waitForTimeout(1200);
+    // The stage's entrance is over (the console at rest) before the photo and its CTA's A.
+    await settle(page, {timeoutMs: 30_000});
     await shoot(page, '01-first-action-stage');
     await key(page, 'Enter', 2500);
 
@@ -168,13 +175,20 @@ test.describe('console · Arcadian Communities', () => {
       .map((el) => el.getAttribute('data_space_id') ?? '')
       .filter((id) => id !== ''));
     expect(cellsWithBonus.length, 'a legal cell with a printed bonus to hover').toBeGreaterThan(0);
+    // Act → verify: each step gets its whole window to MOVE the cursor before the next one is chosen (a wall — the
+    // ring clamps — simply moves nothing, and the spiral goes on).
     for (let i = 0; i < 24 && !cellsWithBonus.includes(await focusedSpaceId(page)); i++) {
-      await key(page, ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'][i % 4], 320);
+      const at = await focusedSpaceId(page);
+      await pressUntil(page, ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'][i % 4], async () => await focusedSpaceId(page) !== at,
+        {tries: 1, settleMs: 320});
     }
-    expect(cellsWithBonus, 'the cursor reached a cell with a printed bonus').toContain(await focusedSpaceId(page));
-    await page.waitForTimeout(900); // the cell preview is fetched per cell
+    await expect.poll(async () => cellsWithBonus.includes(await focusedSpaceId(page)),
+      {message: 'the cursor reached a cell with a printed bonus'}).toBe(true);
+    // The cell preview is fetched per cell — the dossier is read once it stands for THIS cell, loaded (its own marker,
+    // `dossierLoaded` — class F), and at rest: the same text twice a frame apart.
+    await dossierLoaded(page, await focusedSpaceId(page));
+    const preview = await readSettled(page, () => panel.innerText(), {message: 'the bonus cell\'s dossier'});
     await shoot(page, '02b-bonus-cell-panel');
-    const preview = await panel.innerText();
     expect(preview, 'a claim must not promise the cell bonus').not.toContain('Бонус клетки');
     // …and the panel must not announce a TILE for a prompt that places a marker
     // (the kicker is CSS-uppercased — compare case-insensitively).
@@ -187,18 +201,22 @@ test.describe('console · Arcadian Communities', () => {
 
     // ── 1 · THE LANDING ───────────────────────────────────────────────────
     const bonusesBefore = await boardBonusIcons(page);
-    await watchCubeLanding(page);
-    for (let i = 0; i < 3 && (await claimProbe(page)).dropped.length === 0; i++) {
-      await key(page, 'Enter', 2600);
-    }
-    const probe = await claimProbe(page);
+    const landing = await watchCubeLanding(page);
+    // The claim is a board placement: the LOCK, then the separately-released confirm past its dwell — the shared
+    // two-phase primitive, verified by the server's question moving on (never a blind run of A presses).
+    expect(await commitFocusedSpace(page), 'the claim committed on the bonus cell').toBe(true);
+    await landing.waitFor((v) => v.dropping.length > 0,
+      {timeoutMs: 15_000, message: 'the claimed cube must play the premium drop, not appear at rest'});
+    const probe = await claimProbe(landing);
+    await landing.stop();
     await shoot(page, '03-cube-landed');
 
     expect(probe.dropped.length,
       'the claimed cube must play the premium drop, not appear at rest').toBeGreaterThan(0);
-    // …on a cell that has NO tile: this is a marker, not a build.
+    // …on a cell that has NO tile: this is a marker, not a build. Read AT REST — the drop's motion over (no `settle`:
+    // the start's own release may still hold the screen, and it is not what this read waits for).
     const claimed = probe.dropped[0];
-    const cell = await page.evaluate((id) => {
+    const cell = await readSettled(page, () => page.evaluate((id) => {
       const el = document.querySelector(`.board-space[data_space_id="${id}"]`);
       return {
         cube: el?.querySelectorAll('.player-cube.board-owner-cube').length ?? 0,
@@ -206,19 +224,20 @@ test.describe('console · Arcadian Communities', () => {
         bonuses: el?.querySelectorAll('.board-space-bonus').length ?? 0,
         held: el?.querySelector('.board-space-bonuses')?.classList.contains('con-deal-hold') ?? false,
       };
-    }, claimed);
+    }, claimed), {settle: false, message: 'the claimed cell'});
     expect(cell.cube, 'the claimed cell carries the owner cube').toBeGreaterThan(0);
     expect(cell.tile, 'a claim places NO tile').toBe(0);
     // …and it collected nothing: the printed icons were never lifted, blanked
     // or handed to a resource chip.
     expect(probe.bonusProxies, 'a claim must not lift the cell\'s printed bonuses').toBe(0);
     expect(cell.held, 'the claimed cell\'s printed icons stay visible').toBeFalsy();
-    expect(await boardBonusIcons(page), 'no printed bonus left the board').toBe(bonusesBefore);
+    await expect.poll(() => boardBonusIcons(page), {message: 'no printed bonus left the board'}).toBe(bonusesBefore);
 
     // ── 2 · THE ACTION BUTTON ─────────────────────────────────────────────
     const turnChip = page.locator('.con-status', {hasText: 'ДЕЙСТВИЕ'});
     await expect(turnChip).toHaveCount(1, {timeout: 30_000});
-    await page.waitForTimeout(2500);
+    // The start's release is over — the board at rest before the wheel is driven.
+    await settle(page, {timeoutMs: 30_000});
 
     const actions = page.locator('.con-cardactions');
     for (let tries = 0; tries < 4 && await actions.count() === 0; tries++) {
@@ -226,7 +245,8 @@ test.describe('console · Arcadian Communities', () => {
       await key(page, 'ArrowUp', 1200);
     }
     await expect(actions).toHaveCount(1, {timeout: 15_000});
-    await page.waitForTimeout(1500);
+    // The workspace's entrance is over before the photo.
+    await settle(page);
     await shoot(page, '04-card-actions');
 
     const canvas = page.locator('.con-cardactions__tile .con-cardactions__graphic');

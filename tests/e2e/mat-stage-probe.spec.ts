@@ -1,12 +1,15 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {walkToSummary, fillPicks, press, StepKind} from './consoleStart';
+import {cinematicBeat, walkToSummary, fillPicks, press, settle, StepKind, waitPressable} from './consoleStart';
+import {armWitness, pageNow} from './witness';
 
 /**
  * THE STAGED MATERIALIZATION probe — the Summary → deployment scene
- * transition is sampled as a SERIES (~100ms cadence) and asserted on
- * ORDERING, never on absolute times (headless frame pacing drifts):
+ * transition is RECORDED as a series (`armWitness`, FLAKE ZERO — every state
+ * the product writes, in the task that writes it, plus a frame tick) and
+ * asserted on ORDERING, never on absolute times (headless frame pacing
+ * drifts):
  *   · the standard bars (Top HUD + Player Rail) hold at opacity 0 through
  *     the swap — the frozen summary is all the player sees — and run their
  *     entrance keyframes only from the flight beat (the barshold release);
@@ -40,17 +43,30 @@ function newGameConfig() {
   };
 }
 
-type Sample = {
-  t: number,
+/** One recorded state of the materialization (the time is the record's own). */
+type StageSeen = {
   barshold: boolean, ceremony: boolean,
   freeze: boolean, freezeOp: number,
   resOp: number, statusOp: number,
   buy: boolean, buyBgA: number, buyMetaOp: number,
   proxies: number,
+  /** How many standard bars are PAINTED (`checkVisibility` — opacity AND an ancestor's `visibility: hidden`). */
+  barsVisible: number,
+  /** Is a card in the air (a start-dock proxy)? */
+  inFlight: boolean,
+  /** The first painted bar over an airborne card in this state ('' when none) — «bar × proxy». */
+  overlap: string,
 };
+/** A recorded state with `t` in ms since the press (the page's clock). */
+type Sample = StageSeen & {t: number};
 
-async function sample(page: Page, t: number): Promise<Sample> {
-  return page.evaluate((tt) => {
+/**
+ * ARM the record of the swap (`armWitness`, `settled`): «a visible bar never overlaps a card in flight» and «while
+ * held, the bars are invisible» are COEXISTENCE claims, so each state is the one a task LEAVES — the state a frame can
+ * paint, never one between two writes of a single task.
+ */
+async function armStage(page: Page) {
+  return armWitness<StageSeen>(page, 'mat-stage', () => {
     const op = (sel: string): number => {
       const el = document.querySelector(sel);
       return el === null ? -1 : parseFloat(getComputedStyle(el).opacity);
@@ -63,8 +79,25 @@ async function sample(page: Page, t: number): Promise<Sample> {
       buyBgA = m === null ? -1 : (m[1] === undefined ? 1 : parseFloat(m[1]));
     }
     const freezeEl = document.querySelector('.con-start-freeze--live');
+    // PAINTED, not merely "opacity > 0": through the preparation the bars
+    // are `visibility: hidden` on an ANCESTOR (body.con-start-prep), so an
+    // opacity-only read calls a bar that nobody can see "visible".
+    const bars = ['.con-status', '.con-res']
+      .map((s) => document.querySelector(s))
+      .filter((el): el is HTMLElement => el !== null)
+      .filter((el) => el.checkVisibility({opacityProperty: true, visibilityProperty: true}));
+    const flying = Array.from(document.querySelectorAll<HTMLElement>('.con-startdock-proxy'));
+    let overlap = '';
+    for (const bar of bars) {
+      const b = bar.getBoundingClientRect();
+      for (const p of flying) {
+        const r = p.getBoundingClientRect();
+        if (overlap === '' && r.right > b.left && r.left < b.right && r.bottom > b.top && r.top < b.bottom) {
+          overlap = `${bar.className.split(' ')[0]} × proxy`;
+        }
+      }
+    }
     return {
-      t: tt,
       barshold: document.body.classList.contains('con-start-barshold'),
       ceremony: document.body.classList.contains('con-start-ceremony'),
       freeze: freezeEl !== null,
@@ -75,8 +108,11 @@ async function sample(page: Page, t: number): Promise<Sample> {
       buyBgA,
       buyMetaOp: op('.con-start__buy-meta'),
       proxies: document.querySelector('.con-startdock-layer')?.childElementCount ?? 0,
+      barsVisible: bars.length,
+      inFlight: flying.length > 0,
+      overlap,
     };
-  }, t);
+  }, {settled: true, max: 20_000});
 }
 
 test.describe('materialization staging probe', () => {
@@ -93,7 +129,9 @@ test.describe('materialization staging probe', () => {
     await page.goto(`/player?id=${model.players[0].id}&console=1`);
     await page.waitForSelector('.con-start__frame', {timeout: 45_000});
     await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-    await page.waitForTimeout(3500);
+    // The boot's veil is gone and the deal takes presses — the state the old fixed pause stood for.
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+    await waitPressable(page);
 
     // THE WALK IS SETUP — the SHARED DRIVER owns it (consoleStart.ts). The
     // hand-rolled key script this replaces («A, →, A» per step) drifted the
@@ -116,89 +154,64 @@ test.describe('materialization staging probe', () => {
       },
     });
     await expect(page.locator('.con-start > .con-start__frame .con-start__summary')).toBeVisible();
-    await page.waitForTimeout(600);
+    // The summary's OWN arrival cinematic has let go of the status rail — the state the old fixed pause stood for (a
+    // press inside that arrival is eaten by the flow gate).
+    await waitPressable(page);
 
-    // THE PER-FRAME WITNESS. The sampling series below is ~100ms coarse; the
-    // load-bearing claim — «a visible bar never overlaps a card in flight» —
-    // is checked EVERY FRAME in page, so no pacing can hide a violation.
-    await page.evaluate(() => {
-      const w = window as unknown as {__barWatch: {frames: number, violations: number,
-        firstVisibleAt: number, lastFlightAt: number, worst: string}};
-      const state = {frames: 0, violations: 0, firstVisibleAt: -1, lastFlightAt: -1, worst: ''};
-      w.__barWatch = state;
-      const t0 = performance.now();
-      const tick = () => {
-        state.frames++;
-        const t = Math.round(performance.now() - t0);
-        // PAINTED, not merely "opacity > 0": through the preparation the bars
-        // are `visibility: hidden` on an ANCESTOR (body.con-start-prep), so an
-        // opacity-only read calls a bar that nobody can see "visible".
-        const bars = ['.con-status', '.con-res']
-          .map((s) => document.querySelector(s))
-          .filter((el): el is HTMLElement => el !== null)
-          .filter((el) => el.checkVisibility({opacityProperty: true, visibilityProperty: true}));
-        const proxies = Array.from(document.querySelectorAll<HTMLElement>('.con-startdock-proxy'));
-        if (proxies.length > 0) {
-          state.lastFlightAt = t;
-        }
-        if (bars.length > 0 && state.firstVisibleAt < 0) {
-          state.firstVisibleAt = t;
-        }
-        for (const bar of bars) {
-          const b = bar.getBoundingClientRect();
-          for (const p of proxies) {
-            const r = p.getBoundingClientRect();
-            if (r.right > b.left && r.left < b.right && r.bottom > b.top && r.top < b.bottom) {
-              state.violations++;
-              if (state.worst === '') {
-                state.worst = `t${t} ${bar.className.split(' ')[0]} × proxy`;
-              }
-            }
-          }
-        }
-        if (performance.now() - t0 < 6000) {
-          requestAnimationFrame(tick);
-        }
-      };
-      requestAnimationFrame(tick);
-    });
+    // THE RECORD of the whole swap, armed BEFORE the press: the series below
+    // and the load-bearing claim — «a visible bar never overlaps a card in
+    // flight» — are both read off every state the product writes, so no pacing
+    // can hide a violation (and no ~100 ms series can sleep through one).
+    const stage = await armStage(page);
+    const pressedAt = await pageNow(page);
 
     // THE PRESS — projects were bought, so one A submits (no skip warning).
     await page.keyboard.press('Enter');
 
-    const series: Array<Sample> = [];
-    const SHOT_AT = new Set([3, 7, 11, 15, 21, 30]);
-    for (let i = 0; i < 38; i++) {
-      series.push(await sample(page, i * 100));
-      if (SHOT_AT.has(i)) {
-        await page.screenshot({path: path.join(OUT_DIR, `t${String(i * 100).padStart(4, '0')}.png`)});
-      }
+    // THE STORYBOARD — a frame at each beat of the swap, for the eye (the old
+    // series' 300…3000 ms marks).
+    let beatAt = 0;
+    for (const shotAt of [300, 700, 1100, 1500, 2100, 3000]) {
+      await cinematicBeat(page, shotAt - beatAt, 'the materialization storyboard — the next frame of the swap');
+      beatAt = shotAt;
+      await page.screenshot({path: path.join(OUT_DIR, `t${String(shotAt).padStart(4, '0')}.png`)});
       // Absorbed-press belt: a press during the summary's reveal convoy is
       // eaten by the flow gate (double-submit guard) — press again, exactly
-      // like a real player, and keep the sampling cadence intact.
-      if (i === 8 && !series.some((s) => s.ceremony)) {
+      // like a real player, if the record shows no ceremony started.
+      if (shotAt === 1100 && !(await stage.ever((s) => s.ceremony))) {
         await page.keyboard.press('Enter');
       }
-      await page.waitForTimeout(80);
     }
-    for (const s of series) {
-      console.log(`[t${String(s.t).padStart(4, '0')}] hold=${s.barshold ? 1 : 0} cer=${s.ceremony ? 1 : 0} ` +
-        `frz=${s.freeze ? s.freezeOp.toFixed(2) : '--'} res=${s.resOp.toFixed(2)} hud=${s.statusOp.toFixed(2)} ` +
-        `buy=${s.buy ? 1 : 0} bgA=${s.buyBgA.toFixed(2)} meta=${s.buyMetaOp.toFixed(2)} prox=${s.proxies}`);
-    }
+    // «Everything settles» is the END state — waited for (the scene at rest), never a guessed window.
+    await settle(page, {timeoutMs: 30_000});
+    const series: Array<Sample> = (await stage.stop()).map((s) => ({...s.v, t: s.t - pressedAt}));
+    const line = (s: Sample) => `hold=${s.barshold ? 1 : 0} cer=${s.ceremony ? 1 : 0} ` +
+      `frz=${s.freeze ? s.freezeOp.toFixed(2) : '--'} res=${s.resOp.toFixed(2)} hud=${s.statusOp.toFixed(2)} ` +
+      `buy=${s.buy ? 1 : 0} bgA=${s.buyBgA.toFixed(2)} meta=${s.buyMetaOp.toFixed(2)} prox=${s.proxies}`;
+    series.forEach((s, i) => {
+      if (i === 0 || line(s) !== line(series[i - 1])) {
+        console.log(`[t${String(s.t).padStart(4, '0')}] ${line(s)}`);
+      }
+    });
 
-    const watch = await page.evaluate(() =>
-      (window as unknown as {__barWatch: {frames: number, violations: number,
-        firstVisibleAt: number, lastFlightAt: number, worst: string}}).__barWatch);
+    const violations = series.filter((s) => s.overlap !== '');
+    const firstVisible = series.find((s) => s.barsVisible > 0);
+    const watch = {
+      states: series.length,
+      violations: violations.length,
+      firstVisibleAt: firstVisible === undefined ? -1 : firstVisible.t,
+      lastFlightAt: series.filter((s) => s.inFlight).at(-1)?.t ?? -1,
+      worst: violations.length === 0 ? '' : `t${violations[0].t} ${violations[0].overlap}`,
+    };
     console.log('[bar-watch]', JSON.stringify(watch));
 
     // 0 · THE LOAD-BEARING CLAIM: no frame ever painted a visible bar over a
     //     card in flight, and the bars did not enter before the convoy was
     //     deep in its carry (they may not appear at take-off).
-    // Sanity only — a parallel worker's rAF is throttled hard (47 frames over
-    // the same 6s window has been observed), so this proves the witness ran,
-    // nothing more. The claims below are what matter.
-    expect(watch.frames, 'per-frame witness ran').toBeGreaterThan(20);
+    // Sanity only — it catches a DEAD recorder, nothing more (the old «more
+    // than 20 frames» counted rAF ticks, i.e. the machine's frame rate; the
+    // record keeps distinct states). The claims below are what matter.
+    expect(watch.states, 'the record ran').toBeGreaterThan(0);
     expect(watch.violations, `bar painted over an airborne card (${watch.worst})`).toBe(0);
     expect(watch.firstVisibleAt, 'bars entered').toBeGreaterThan(0);
     // …and they entered ON THE APPROACH, never at take-off (the swap, the

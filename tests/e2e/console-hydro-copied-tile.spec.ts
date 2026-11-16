@@ -2,9 +2,11 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  createGameWithCards, fetchPlayerModel, NO_PAYMENT, openConsole, placeTile, press, seedGameOverApi,
-  sendPlayerInput, soloGameConfig, waitForBoardHome,
+  composerLoaded, createGameWithCards, fetchPlayerModel, finiteMotion, NO_PAYMENT, openConsole, placeTile, press, pressUntil,
+  seedGameOverApi, sendPlayerInput, settle, soloGameConfig, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * A COPIED ACTION THAT WALKS ONTO THE BOARD — «Кочевники Марса».
@@ -108,6 +110,44 @@ async function playCard(request: APIRequestContext, id: string, card: string): P
   } as never);
 }
 
+/** Open a surface from the quick wheel (RT, then the arm) — act → verify on the surface standing, bounded. */
+async function openFromWheel(page: Page, opened: string, tries = 4): Promise<void> {
+  for (let attempt = 0; attempt < tries && await page.locator(opened).count() === 0; attempt++) {
+    await press(page, 'Period', 1400);
+    await pressUntil(page, 'ArrowLeft', async () => await page.locator(opened).count() > 0, {tries: 1, settleMs: 1800});
+  }
+}
+
+/** The motion of a hand-over at rest (bounded — the end of a window, never a claim). */
+async function motionAtRest(page: Page): Promise<void> {
+  await expect.poll(() => finiteMotion(page), {timeout: 8_000}).toBe(0).catch(() => undefined);
+}
+
+/** The CENSUS row: the marker's cell, the open cell and the board's legal cells, read TOGETHER. */
+type CensusRow = {cell: number, open: number, legal: number, hydro: boolean, result: boolean, phase: string};
+
+/** The reader of a {@link CensusRow} — in the page, self-contained. */
+function readCensus(): CensusRow {
+  const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
+  const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
+  const openCell = document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop');
+  return {
+    cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
+    // THE OPEN CELL — the magnified one that names its stage and grows
+    // the connector stem. During a walk it must BE the marker's cell.
+    open: openCell === undefined || openCell === null ? -1 : Number(openCell),
+    // The placement's own surface: the legal cells it lit.
+    legal: document.querySelectorAll('.board-space--available').length,
+    // …and whether the workspace is still standing over the board.
+    hydro: document.querySelector('.con-hydro') !== null,
+    result: document.querySelector('.con-hydro__layer--result') !== null,
+    // The FLOW's own phase — so a failure names the state machine's
+    // stall instead of the surface that did not appear because of it.
+    phase: (window as unknown as {__conHydroDiag?: () => {commit: {phase: string} | null}})
+      .__conHydroDiag?.()?.commit?.phase ?? 'none',
+  };
+}
+
 /** MOVE the nomads once — what makes the card repeatable at stage 7. */
 async function useNomads(request: APIRequestContext, id: string): Promise<void> {
   const menu = await toActionMenu(request, id);
@@ -144,99 +184,59 @@ test.describe('a copied action walks onto the board · fhd', () => {
     await waitForBoardHome(page, 30);
 
     // ── Open the Hydronetwork and plan 0 → 7. ──
-    for (let attempt = 0; attempt < 4; attempt++) {
-      await press(page, 'Period', 1400);
-      await press(page, 'ArrowLeft', 1800);
-      if (await page.locator('.con-hydro').count() > 0) {
-        break;
-      }
-    }
+    await openFromWheel(page, '.con-hydro');
     await page.waitForSelector('.con-hydro', {timeout: 20_000});
     await press(page, 'Period', 900); // RT — «К дальнему»
     const focused = () => page.evaluate(() =>
       document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-    for (let i = 0; i < 8 && await focused() !== '7'; i++) {
-      await press(page, 'ArrowLeft', 500);
-    }
-    expect(await focused(), 'the plan targets the reuse stage').toBe('7');
+    // Walking back to stage 7 — each step act → verify on the focused stop.
+    await pressUntil(page, 'ArrowLeft', async () => await focused() === '7', {tries: 8, settleMs: 500});
+    await expect.poll(() => focused(), {message: 'the plan targets the reuse stage'}).toBe('7');
     await shoot(page, '01-plan');
 
-    // ── THE CENSUS: the marker's cell and the BOARD's legal cells, together.
-    //    The board is always mounted, so «did stage 7 start early» is a
-    //    question about the PLACEMENT HIGHLIGHT, not about a surface. ──
-    await page.evaluate(() => {
-      const w = window as unknown as {
-        __c?: Array<Record<string, unknown>>, __stop?: () => void,
-      };
-      w.__c = [];
-      const sample = () => {
-        const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
-        const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
-        const openCell = document.querySelector('.con-hydro__stop--focused')
-          ?.getAttribute('data-hydro-stop');
-        const row = {
-          cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
-          // THE OPEN CELL — the magnified one that names its stage and grows
-          // the connector stem. During a walk it must BE the marker's cell.
-          open: openCell === undefined || openCell === null ? -1 : Number(openCell),
-          // The placement's own surface: the legal cells it lit.
-          legal: document.querySelectorAll('.board-space--available').length,
-          // …and whether the workspace is still standing over the board.
-          hydro: document.querySelector('.con-hydro') !== null,
-          result: document.querySelector('.con-hydro__layer--result') !== null,
-          // The FLOW's own phase — so a failure names the state machine's
-          // stall instead of the surface that did not appear because of it.
-          phase: (window as unknown as {__conHydroDiag?: () => {commit: {phase: string} | null}})
-            .__conHydroDiag?.()?.commit?.phase ?? 'none',
-        };
-        const c = w.__c;
-        if (c === undefined) {
-          return;
-        }
-        const prev = c[c.length - 1];
-        if (prev === undefined || JSON.stringify(prev) !== JSON.stringify(row)) {
-          c.push(row);
-        }
-      };
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-      const iv = setInterval(sample, 60);
-      w.__stop = () => {
-        mo.disconnect();
-        clearInterval(iv);
-      };
-    });
+    // ── THE CENSUS: the marker's cell and the BOARD's legal cells, RECORDED
+    //    TOGETHER from before the commit. The board is always mounted, so «did
+    //    stage 7 start early» is a question about the PLACEMENT HIGHLIGHT, not
+    //    about a surface — and «the highlight IS the marker» compares two cells
+    //    of one state (`settled`: the state a task leaves, never the gap between
+    //    two writes of one flush). ──
+    const censusWitness = await armWitness<CensusRow>(page, 'hydro-copied-tile-census', readCensus, {settled: true, max: 20_000});
 
-    // ── THE RAIL: answer every crossed stage that asks, including the reuse. ──
+    // ── THE RAIL: answer every crossed stage that asks, including the reuse. The rail ticks its own answered rows, so
+    //    the driver walks until they are all ticked — each A verified by its effect, never a guessed count. ──
+    const readRail = () => page.evaluate(() => ({
+      rows: document.querySelectorAll('.con-hydro__pickrow').length,
+      ticks: document.querySelectorAll('.con-hydro__pickrow .con-hydro__bonus-tick').length,
+      picker: document.querySelector('.con-cardactions') !== null,
+      composer: document.querySelector('.con-composer') !== null,
+    }));
     let planShot = false;
     for (let round = 0; round < 20; round++) {
-      const st = await page.evaluate(() => ({
-        rows: document.querySelectorAll('.con-hydro__pickrow').length,
-        ticks: document.querySelectorAll('.con-hydro__pickrow .con-hydro__bonus-tick').length,
-        picker: document.querySelector('.con-cardactions') !== null,
-        composer: document.querySelector('.con-composer') !== null,
-      }));
+      const st = await readRail();
       if (st.rows > 0 && st.ticks >= st.rows) {
         break;
       }
       if (st.picker && !st.composer) {
-        const tiles = await page.evaluate(() => Array.from(
+        const readTiles = () => page.evaluate(() => Array.from(
           document.querySelectorAll('.con-cardactions__tile')).map((t) => ({
           card: t.getAttribute('data-action-card') ?? '',
           reason: (t.querySelector('.con-cardactions__tile-reason')?.textContent ?? '').trim(),
         })));
-        expect(tiles.map((t) => t.card), `the used action is on offer — ${JSON.stringify(tiles)}`)
-          .toContain(NOMADS);
-        expect(tiles.find((t) => t.card === NOMADS)?.reason,
-          `the move is available — ${JSON.stringify(tiles)}`).toBe('');
-        await press(page, 'Enter', 2200); // A — descend into the move
+        await expect.poll(async () => (await readTiles()).map((t) => t.card),
+          {message: `the used action is on offer — ${JSON.stringify(await readTiles())}`}).toContain(NOMADS);
+        await expect.poll(async () => (await readTiles()).find((t) => t.card === NOMADS)?.reason,
+          {message: `the move is available — ${JSON.stringify(await readTiles())}`}).toBe('');
+        // A — descend into the move (verified by the composer standing).
+        await pressUntil(page, 'Enter', async () => (await readRail()).composer, {tries: 1, settleMs: 2200});
         continue;
       }
       if (st.composer) {
         // THE PLAN'S OWN VERB. The move's target is a SPACE, which does not
         // exist until the copy runs — a composer that tried to ask for it here
-        // would have nothing to offer and no way forward.
-        const cta = await page.evaluate(() => {
+        // would have nothing to offer and no way forward. Read once the
+        // composer has LOADED, at rest.
+        await composerLoaded(page);
+        const cta = await readSettled(page, () => page.evaluate(() => {
           const el = document.querySelector('.con-composer__cta');
           return {
             label: (el?.querySelector('.con-composer__cta-label')?.textContent ?? '').trim(),
@@ -245,7 +245,7 @@ test.describe('a copied action walks onto the board · fhd', () => {
             body: (document.querySelector('.con-composer')?.textContent ?? '')
               .replace(/\s+/g, ' ').trim().slice(0, 260),
           };
-        });
+        }), {settle: false, message: 'the repeat plan\'s composer'});
         if (!planShot) {
           await shoot(page, '02-repeat-plan-composer');
           planShot = true;
@@ -254,16 +254,22 @@ test.describe('a copied action walks onto the board · fhd', () => {
         expect(cta.disabled, `…and it is pressable — ${cta.body}`).toBe('false');
         await press(page, 'Enter', 2500); // A — «Выбрать это действие»
         await page.waitForSelector('.con-hydro', {timeout: 20_000});
-        await page.waitForTimeout(900);
+        // The plan's composer LEFT before the rail is read again (a second A on a lingering one is a second confirm).
+        await page.locator('.con-composer').first().waitFor({state: 'detached', timeout: 10_000}).catch(() => undefined);
         continue;
       }
-      await press(page, 'Enter', 1200);
+      // A answers the rail's next decision — given its whole window to move the rail before the next look.
+      const before = JSON.stringify(st);
+      await pressUntil(page, 'Enter', async () => JSON.stringify(await readRail()) !== before, {tries: 1, settleMs: 1200});
     }
-    const rail = await page.evaluate(() => ({
+    const readRailCount = () => page.evaluate(() => ({
       rows: document.querySelectorAll('.con-hydro__pickrow').length,
       ticks: document.querySelectorAll('.con-hydro__pickrow .con-hydro__bonus-tick').length,
     }));
-    expect(rail.ticks, `every rail decision is captured (${JSON.stringify(rail)})`).toBe(rail.rows);
+    await expect.poll(async () => {
+      const r = await readRailCount();
+      return r.ticks === r.rows;
+    }, {message: `every rail decision is captured (${JSON.stringify(await readRailCount())})`}).toBe(true);
     await shoot(page, '03-plan-complete');
 
     // ── COMMIT — one press. ──
@@ -271,13 +277,17 @@ test.describe('a copied action walks onto the board · fhd', () => {
 
     // ── The stage-5 stop: keep 2 of the four dealt cards. This is also what
     //    makes the scenario real — the copy's prompt rides the very response
-    //    that answers this pick. ──
+    //    that answers this pick. Each A verified by the pick's own band (A is a
+    //    TOGGLE), the cursor walked onto a card not yet kept. ──
     await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 120_000});
-    await press(page, 'Enter', 600);
-    for (let i = 0; i < 6 && await page.locator('.con-cards__slot--picked').count() < 2; i++) {
-      await press(page, 'ArrowRight', 450);
-      await press(page, 'Enter', 600);
-    }
+    const picked = page.locator('.con-cards__slot--picked');
+    const pickFocus = () => page.evaluate(() => {
+      const el = document.querySelector('.con-deckpick .con-cards__slot--focused[data-deckpick-slot]');
+      return el === null ? '' : `${el.getAttribute('data-deckpick-slot')}|${el.classList.contains('con-cards__slot--picked') ? 1 : 0}`;
+    });
+    await pressUntil(page, 'Enter', async () => await picked.count() >= 1, {tries: 3, settleMs: 600});
+    await walkFocusUntil(page, async () => (await pickFocus()).endsWith('|0'), async () => (await pickFocus()).split('|')[0], 6, 450);
+    await pressUntil(page, 'Enter', async () => await picked.count() >= 2, {tries: 3, settleMs: 600});
     await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'two picks held'}).toBe(2);
     await press(page, 'Period', 1500); // RT — «Подтвердить»
 
@@ -286,7 +296,12 @@ test.describe('a copied action walks onto the board · fhd', () => {
     //    reachable. ──
     await expect(page.locator('.board-space--available').first())
       .toBeVisible({timeout: 180_000});
-    await page.waitForTimeout(800);
+    // ② THE WORKSPACE YIELDS. A tile is chosen ON the board; a screen standing
+    //    over it would make the choice unreachable. (A live state — polled.)
+    await expect.poll(() => page.locator('.con-hydro').count(), {message: 'the track let the board through'}).toBe(0);
+    await expect.poll(() => page.locator('.board-space--available').count(), {message: 'and the move has real destinations'})
+      .toBeGreaterThan(0);
+    await motionAtRest(page);
     await shoot(page, '04-placement-on-the-board');
     const wire = await fetchPlayerModel(request, id) as Wire;
     console.log(`[wire] waitingFor=${wire.waitingFor?.type} stamp=${wire.waitingFor?.copiedActionSource}`);
@@ -294,34 +309,24 @@ test.describe('a copied action walks onto the board · fhd', () => {
     expect(wire.waitingFor?.copiedActionSource,
       'and the server attributes it to the copied card').toBe(NOMADS);
 
-    const atPlacement = await page.evaluate(() => ({
-      hydro: document.querySelector('.con-hydro') !== null,
-      legal: document.querySelectorAll('.board-space--available').length,
-    }));
-    // ② THE WORKSPACE YIELDS. A tile is chosen ON the board; a screen standing
-    //    over it would make the choice unreachable.
-    expect(atPlacement.hydro, 'the track let the board through').toBe(false);
-    expect(atPlacement.legal, 'and the move has real destinations').toBeGreaterThan(0);
-
-    // ── ANSWER IT, then let the flow finish on its own. ──
+    // ── ANSWER IT, then let the flow finish on its own: the record runs until
+    //    the Hydronetwork has played its result AND the finished flow has left
+    //    (the END of the flow, never its first sign — bounded; the claims below
+    //    name what never came). ──
     expect(await placeTile(page), 'the space was placed').toBe(true);
-    for (let i = 0; i < 40; i++) {
-      const done = await page.evaluate(() => (window as unknown as {
-        __c?: Array<Record<string, unknown>> }).__c?.some((r) => r.result === true) ?? false);
-      if (done) {
-        break;
-      }
-      await page.waitForTimeout(1000);
-    }
-    await page.waitForTimeout(2500);
-    await page.evaluate(() => (window as unknown as {__stop?: () => void}).__stop?.());
-    const census = await page.evaluate(() =>
-      (window as unknown as {__c?: Array<Record<string, unknown>>}).__c ?? []);
+    await censusWitness.waitFor((r) => r.result, {timeoutMs: 40_000}).catch(() => undefined);
+    await expect.poll(async () => {
+      const rows = (await censusWitness.samples()).map((s) => s.v);
+      const resultAt = rows.findIndex((r) => r.result);
+      return resultAt >= 0 && rows.slice(resultAt).some((r) => !r.hydro);
+    }, {timeout: 20_000}).toBe(true).catch(() => undefined);
+    await motionAtRest(page);
+    const census = (await censusWitness.stop()).map((s) => s.v);
     const dump = JSON.stringify(census);
     await shoot(page, '05-back-on-the-track');
 
     // ① NOTHING BELOW 7 — no legal cell may light while the marker is walking.
-    const early = census.filter((r) => (r.cell as number) >= 0 && (r.cell as number) < 7);
+    const early = census.filter((r) => r.cell >= 0 && r.cell < 7);
     expect(early.length, `the census watched the marker below 7 — ${dump}`).toBeGreaterThan(0);
     for (const r of early) {
       expect(r.legal, `the board offered ${r.legal} cells at stage ${r.cell} — ${dump}`).toBe(0);
@@ -339,9 +344,9 @@ test.describe('a copied action walks onto the board · fhd', () => {
     // PLANNING, and a plan's open cell is its destination — after a 0→7 move
     // that is stage 8, correctly. The walk is the span before the copy's own
     // follow-up lights the board, so the census is cut there.
-    const firstLegal = census.findIndex((r) => (r.legal as number) > 0);
+    const firstLegal = census.findIndex((r) => r.legal > 0);
     const walk = firstLegal === -1 ? census : census.slice(0, firstLegal);
-    const walking = walk.filter((r) => (r.cell as number) >= 1 && r.hydro === true);
+    const walking = walk.filter((r) => r.cell >= 1 && r.hydro === true);
     expect(walking.length, `the census watched the walk — ${dump}`).toBeGreaterThan(0);
     for (const r of walking) {
       expect(r.open, `the highlight ran ahead of the marker at cell ${r.cell} — ${dump}`)
@@ -369,21 +374,16 @@ flow: ${flowDiag}`).toBe(true);
     //    history: the CELLS must show player markers and nothing else (one
     //    marker per player, in the one place that player stands), while «кто
     //    здесь и что здесь было» is read in the stage panel on the left.
-    for (let attempt = 0; attempt < 4; attempt++) {
-      await press(page, 'Period', 1400);
-      await press(page, 'ArrowLeft', 1800);
-      if (await page.locator('.con-hydro').count() > 0) {
-        break;
-      }
-    }
+    await openFromWheel(page, '.con-hydro');
     await page.waitForSelector('.con-hydro', {timeout: 20_000});
     // Walk to a stage the marker has been THROUGH (its own reward taken or
     // passed) — the roster has something to say only about a reached cell.
-    for (let i = 0; i < 12 && await page.evaluate(() =>
-      document.querySelectorAll('.con-hydro__roster-row').length) === 0; i++) {
-      await press(page, 'ArrowLeft', 420);
-    }
-    const track = await page.evaluate(() => {
+    // Each step act → verify on the panel's own roster.
+    await pressUntil(page, 'ArrowLeft', async () => await page.locator('.con-hydro__roster-row').count() > 0,
+      {tries: 12, settleMs: 420});
+    // The track and its panel read AT REST (the console's quiet, then two equal reads a frame apart).
+    await settle(page, {timeoutMs: 20_000}).catch(() => { /* the read below still waits for rest */ });
+    const track = await readSettled(page, () => page.evaluate(() => {
       const seats = Array.from(document.querySelectorAll('[data-hydro-marker]'))
         .flatMap((berth) => Array.from(berth.querySelectorAll('.con-hydro__stop-marker'))
           .map((m) => `${(m.className.match(/player_bg_color_(\w+)/) ?? [])[1]}@${berth.getAttribute('data-hydro-marker')}`));
@@ -397,7 +397,7 @@ flow: ${flowDiag}`).toBe(true);
         roster: Array.from(document.querySelectorAll('.con-hydro__roster-row'))
           .map((r) => (r.textContent ?? '').replace(/\s+/g, ' ').trim()),
       };
-    });
+    }), {settle: false, message: 'the track and its stage panel'});
     await shoot(page, '06-stage-roster');
     expect(track.trail, `no per-cell history marks — ${JSON.stringify(track)}`).toBe(0);
     // ONE marker per player, in ONE position. (Solo here, so exactly one seat.)

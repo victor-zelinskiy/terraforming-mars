@@ -392,21 +392,35 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
     }
   }
   // LANDED: the start of the LAST stationary run before the reveal (or before
-  // the proxy went, when there is no reveal at all).
+  // the proxy went, when there is no reveal at all) — judged on the CARD the
+  // player sees (`proxyCard`), never on its container: the landing phase
+  // decelerates the card INSIDE a proxy that has already stopped («landing:
+  // deceleration + settle», `playedHeroModel.ts`), and a series recorded
+  // several times a painted frame (FLAKE ZERO: the observer, the frame and
+  // the timer ticks) reads a still container as a landing while the card in
+  // it is still 5–12 px short — CI, a 37 ms frame on two cores; the boundary
+  // check beside it read the handoff exact (0.0 / −0.2 px) on the same run.
+  const cardOf = (f: Frame): Rect => f.proxyCard ?? f.proxy;
+  const cardStill = (i: number) => i + 2 < end &&
+    magnitude(cardOf(frames[i]), cardOf(frames[i + 1])) <= 0.6 && magnitude(cardOf(frames[i]), cardOf(frames[i + 2])) <= 0.6;
   let iLanded = -1;
   const landedLimit = iReveal >= 0 ? Math.min(iReveal, end) : end;
   for (let i = landedLimit - 1; i >= Math.max(0, iProxyFirst); i--) {
-    if (still(i)) {
+    if (cardStill(i)) {
       iLanded = i;
     } else if (iLanded >= 0) {
       break;
     }
   }
-  // …and a run the proxy LEAVES again before the reveal is no landing: it is a render stall in mid-air (the GPU
+  // …and a run the card LEAVES again up to the reveal is no landing: it is a render stall in mid-air (the GPU
   // compiling shaders for a fresh profile — `Report.stallMs`; measured 62 / 208 px short of the slot while the
-  // handoff itself was exact). The card's landing is then where it stood when the real card was revealed.
-  if (iLanded >= 0 && frames.slice(iLanded, landedLimit).some((f) => f.proxy !== null && magnitude(frames[iLanded].proxy, f.proxy) > 1)) {
-    iLanded = landedLimit - 1;
+  // handoff itself was exact), or one painted frame of the approach recorded several times. The card's landing is
+  // then where it stood when the real card was revealed — the REVEAL frame itself while the proxy still stands there:
+  // on a slow frame (37 ms, two cores) the last move of the approach and the reveal are ONE painted frame, so the frame
+  // before it is still mid-approach.
+  const touchFrame = iReveal >= 0 && iReveal < end ? iReveal : landedLimit - 1;
+  if (iLanded >= 0 && frames.slice(iLanded, touchFrame + 1).some((f) => f.proxy !== null && magnitude(cardOf(frames[iLanded]), cardOf(f)) > 1)) {
+    iLanded = touchFrame;
   }
   // THE PAINT CLOCK (see `Report.paintMs`): every change of the proxy's
   // position over the arc is one painted frame, so the median interval

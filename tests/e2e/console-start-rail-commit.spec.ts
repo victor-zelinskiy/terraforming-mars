@@ -1,8 +1,10 @@
-import {test, expect, Page} from './consoleTest';
+import {test, expect} from './consoleTest';
 import {
-  deploymentActive, fillPicks, openConsole, press, soloGameConfig, stepKind,
-  stepSubject, summaryVisible, visibleSurfaces, waitPressable,
+  deploymentActive, fillPicks, openConsole, press, settle, soloGameConfig, stepKind,
+  stepSubject, summaryVisible, visibleSurfaces, waitPressable, waitStepDealSettled,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * THE STATUS RAIL'S FOCUS COMMIT — the prelude → projects regression.
@@ -18,75 +20,37 @@ import {
  * `transition: none` so not even one commit frame can paint through it.
  *
  * The probe therefore watches LIFECYCLE EVENTS, never a timing budget: a
- * MutationObserver + interval sampler armed BEFORE the advance press records
- * (held, name, opacity, deal-holds) per change, and the assertions are about
- * the ORDER of those samples. rAF is deliberately not used — headless
- * Chromium drives it off the compositor and it stops exactly when the screen
- * goes quiet (the window under test).
+ * WITNESS armed BEFORE the advance press records (held, name, opacity,
+ * deal-holds) off the product's own writes and a frame tick (`armWitness` —
+ * `settled`, because «nothing readable while the deal holds» and «one publish»
+ * are claims about what ONE painted state carries and in what ORDER), and the
+ * assertions are about the ORDER of those samples.
  */
 
 test.describe.configure({mode: 'serial'});
 
-type RailSample = {
-  t: number,
-  src: string,
+type RailState = {
   held: boolean,
   name: string,
   opacity: number,
   dealHolds: number,
+  missing?: boolean,
 };
+type RailSample = RailState & {t: number};
 
-declare global {
-  interface Window {
-    __railProbe?: {samples: Array<RailSample>, stop: () => void};
+/** The rail as the page holds it NOW — in the page, self-contained (the witness's reader). */
+function readRail(): RailState {
+  const inner = document.querySelector<HTMLElement>('.con-start__status-inner');
+  if (inner === null) {
+    return {held: true, name: '', opacity: 0, dealHolds: 0, missing: true};
   }
-}
-
-/** Arm the rail probe (MutationObserver + setInterval — never rAF). */
-async function armRailProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as Window;
-    w.__railProbe?.stop();
-    const samples: Array<RailSample & {missing?: boolean}> = [];
-    const sample = (src: string) => {
-      const inner = document.querySelector<HTMLElement>('.con-start__status-inner');
-      if (inner === null) {
-        samples.push({t: performance.now(), src, held: true, name: '', opacity: 0, dealHolds: 0, missing: true});
-        return;
-      }
-      const name = (inner.querySelector<HTMLElement>('.con-start__status-name, .con-cardavail__name')?.textContent ?? '').trim();
-      samples.push({
-        t: performance.now(),
-        src,
-        held: inner.classList.contains('con-start__status-inner--held'),
-        name,
-        opacity: parseFloat(getComputedStyle(inner).opacity),
-        dealHolds: document.querySelectorAll('.con-start__frame .con-deal-hold').length,
-      });
-    };
-    const frame = document.querySelector('.con-start__frame');
-    const mo = new MutationObserver(() => sample('mo'));
-    if (frame !== null) {
-      mo.observe(frame, {subtree: true, childList: true, attributes: true, characterData: true});
-    }
-    const iv = window.setInterval(() => sample('iv'), 40);
-    w.__railProbe = {
-      samples: samples as Array<RailSample>,
-      stop: () => {
-        mo.disconnect();
-        window.clearInterval(iv);
-      },
-    };
-    sample('arm');
-  });
-}
-
-async function takeRailProbe(page: Page): Promise<Array<RailSample>> {
-  return await page.evaluate(() => {
-    const w = window as Window;
-    w.__railProbe?.stop();
-    return w.__railProbe?.samples ?? [];
-  });
+  const name = (inner.querySelector<HTMLElement>('.con-start__status-name, .con-cardavail__name')?.textContent ?? '').trim();
+  return {
+    held: inner.classList.contains('con-start__status-inner--held'),
+    name,
+    opacity: parseFloat(getComputedStyle(inner).opacity),
+    dealHolds: document.querySelectorAll('.con-start__frame .con-deal-hold').length,
+  };
 }
 
 /** A sample the PLAYER can read: painted text at readable strength. */
@@ -119,44 +83,43 @@ test('prelude → projects: no project name in the rail before the focus commit,
       break;
     }
     await waitPressable(page);
-    await page.waitForTimeout(300);
+    // The step names itself once its deal has let go of the subject — read it then (bounded: the walk reads what stands).
+    await expect.poll(() => stepSubject(page), {timeout: 5_000}).not.toBe('').catch(() => undefined);
     const before = await stepSubject(page);
     await press(page, 'Enter', 800);
     if (await stepSubject(page) === before && !(await summaryVisible(page))) {
       await press(page, 'Period', 1500);
     }
-    for (let w = 0; w < 12 && await stepSubject(page) === before && !(await summaryVisible(page)); w++) {
-      await page.waitForTimeout(250);
-    }
+    // Let the step actually change before looking again — a STATE (bounded), never a sleep.
+    await expect.poll(async () => await stepSubject(page) !== before || await summaryVisible(page), {timeout: 3_000})
+      .toBe(true).catch(() => { /* the next round reads what stands */ });
   }
   expect(stepKind(await stepSubject(page)),
     `the wizard stopped on the prelude step — showing ${JSON.stringify(await visibleSurfaces(page))}`).toBe('prelude');
   await waitPressable(page);
-  await page.waitForTimeout(400);
+  // The prelude step's deal LANDED (the focused card standing, nothing still arriving) before its picks.
+  await waitStepDealSettled(page);
 
   // Answer the prelude step (2 picks), then ARM THE PROBE and advance.
   const picked = await fillPicks(page, 2);
   expect(picked.length, `picked preludes: ${JSON.stringify(picked)}`).toBe(2);
-  await armRailProbe(page);
+  const rail = await armWitness<RailState>(page, 'start-rail-commit', readRail, {settled: true, max: 20_000});
   await press(page, 'Period', 300); // RT: the transition under test begins
 
   // Wait for the ARRIVAL, by state: project step + the rail's hold released.
   const released = page.locator('.con-start__status-inner:not(.con-start__status-inner--held)');
-  const start = Date.now();
-  while (Date.now() - start < 60_000) {
-    if (stepKind(await stepSubject(page)) === 'project' && await released.count() > 0) {
-      break;
-    }
-    await page.waitForTimeout(250);
-  }
-  expect(stepKind(await stepSubject(page)), 'the projects step arrived').toBe('project');
+  await expect.poll(async () => stepKind(await stepSubject(page)) === 'project' && await released.count() > 0,
+    {timeout: 60_000}).toBe(true).catch(() => { /* the two claims below name what never arrived */ });
+  await expect.poll(async () => stepKind(await stepSubject(page)), {message: 'the projects step arrived'}).toBe('project');
   await expect(released, 'the rail released its hold (focus commit)').toHaveCount(1, {timeout: 20_000});
-  // A short settle so the probe records the post-commit steady state too.
-  await page.waitForTimeout(800);
+  // The record runs into the post-commit STEADY state: the rail itself holding still (two equal reads a frame apart,
+  // its fade over) — never a guessed beat.
+  await settle(page, {timeoutMs: 20_000}).catch(() => { /* the start is a phase-long scene — the read still waits for rest */ });
+  await readSettled(page, () => page.evaluate(readRail), {settle: false, message: 'the committed rail at rest'});
 
-  const samples = await takeRailProbe(page);
-  // The floor is where only a DEAD sampler fails (numbers in the message).
-  expect(samples.length, `probe liveness — ${samples.length} samples`).toBeGreaterThan(5);
+  const samples: Array<RailSample> = (await rail.stop()).map((s) => ({...s.v, t: s.t}));
+  // The floor is where only a DEAD recorder fails — it records DISTINCT states, never frames (numbers in the message).
+  expect(samples.length, `probe liveness — ${samples.length} samples`).toBeGreaterThan(0);
 
   // Split at the first HELD sample: everything before it is the prelude
   // step's own (legitimately visible) rail; the lifecycle under test begins

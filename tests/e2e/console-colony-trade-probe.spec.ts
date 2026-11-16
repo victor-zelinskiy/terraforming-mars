@@ -1,7 +1,8 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
+import {bootSeededGame, cinematicBeat, openMandatoryAnnounce, press, pressUntil, reloadConsole, settle, walkFocusUntil} from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 /**
  * COLONY-TRADE REWARD PROBE — drives a REAL game (colonies on, Pluto
@@ -109,7 +110,7 @@ async function createGame(request: APIRequestContext, automa: boolean, seed?: nu
  */
 async function bootGame(page: Page, request: APIRequestContext, playerId: string, keep: string): Promise<void> {
   await bootSeededGame(page, request, playerId, {buy: 2, keepColony: keep});
-  await page.waitForTimeout(1500); // entry animations settle
+  await settle(page); // entry animations settle
 }
 
 /**
@@ -166,44 +167,43 @@ async function removalPickLive(page: Page): Promise<boolean> {
  * readout moving off −30°C is the proof the action resolved.
  */
 async function burnActionOnHeatConversion(page: Page): Promise<void> {
+  const raised = () => page.getByText('-28°C').first().isVisible().catch(() => false);
   await key(page, 'Comma', 1100); // LT — basic actions wheel
   await key(page, 'ArrowRight', 1100); // the convert-heat slot (direct input)
-  for (let i = 0; i < 3 && !(await page.getByText('-28°C').first().isVisible().catch(() => false)); i++) {
-    await key(page, 'Enter', 1500); // its confirm surface, if any
-  }
-  for (let i = 0; i < 10 && !(await page.getByText('-28°C').first().isVisible().catch(() => false)); i++) {
-    await page.waitForTimeout(800); // the WGT-style marker beat settles
-  }
+  // Its confirm surface, if any — act → verify (the readout moved) → retry only without it.
+  await pressUntil(page, 'Enter', raised, {tries: 3, settleMs: 1500});
+  // …and the WGT-style marker beat settles: the readout is a STATE, polled.
+  await expect.poll(raised, {message: 'the heat conversion did not consume action 1', timeout: 8_000}).toBe(true);
   await shoot(page, 'bot-after-action1');
-  expect(await page.getByText('-28°C').first().isVisible().catch(() => false),
-    'the heat conversion did not consume action 1').toBeTruthy();
+}
+
+/** The focused colony tile's identity ('' when none) — the walk's position. */
+async function focusedColony(page: Page): Promise<string> {
+  return page.evaluate(() => document.querySelector('.con-coltile--focused')?.getAttribute('data-test') ?? '');
 }
 
 async function openColoniesAndFocus(page: Page, tag: string, target: string): Promise<void> {
   // The colonies section is the RT quick wheel's RIGHT slot («Торговля» —
-  // a direct input: RT, then one d-pad press).
+  // a direct input: RT, then one d-pad press, verified by the section it opens).
   const colonies = page.locator('.con-colonies');
   for (let i = 0; i < 4 && await colonies.count() === 0; i++) {
     await key(page, 'Period', 1100); // RT — action categories wheel
-    await key(page, 'ArrowRight', 1300); // trading
+    await pressUntil(page, 'ArrowRight', async () => await colonies.count() > 0, {tries: 1, settleMs: 1300}); // trading
   }
   await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
   await shoot(page, `${tag}-colonies`);
 
+  // The cursor WALKS onto the tile (`walkFocusUntil`: act → verify, turning round at a wall) along a row, a row down
+  // when the row does not hold it.
   const focused = page.locator(`.con-coltile--focused[data-test="con-colony-${target}"]`);
-  for (let i = 0; i < 10 && await focused.count() === 0; i++) {
-    await key(page, 'ArrowRight', 450);
-  }
-  for (let i = 0; i < 4 && await focused.count() === 0; i++) {
+  const hit = async () => await focused.count() > 0;
+  for (let row = 0; row < 5 && !await walkFocusUntil(page, hit, () => focusedColony(page), 10, 450); row++) {
     await key(page, 'ArrowDown', 450);
-    for (let j = 0; j < 5 && await focused.count() === 0; j++) {
-      await key(page, 'ArrowLeft', 400);
-    }
   }
   await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
   // Never press A while the setup pick still owns the section — that press
   // would REMOVE the focused colony instead of opening the trade composer.
-  expect(await removalPickLive(page), 'the setup removal pick is still live').toBe(false);
+  await expect.poll(() => removalPickLive(page), {message: 'the setup removal pick is still live'}).toBe(false);
 }
 
 type Observation = {
@@ -213,12 +213,15 @@ type Observation = {
   sawMarker: boolean;
   sawBonusMode: boolean;
   sawReveal: boolean;
-  /** How many times the in-page recorder actually looked (a dead probe = 0). */
+  /** How many DISTINCT states the recorder kept (a dead recorder = 0). */
   samples: number;
 };
 
+/** One observation of the trade's transient stage facts (the time is the record's own). */
+type Sighting = {proxy: boolean, marker: boolean, bonusMode: boolean, reveal: boolean, deckDraw: boolean};
+
 /**
- * ⚠️ THE SIGHTINGS ARE RECORDED IN THE PAGE, NEVER POLLED FROM NODE.
+ * ⚠️ THE SIGHTINGS ARE RECORDED OFF THE PRODUCT'S OWN WRITES, NEVER POLLED FROM NODE.
  *
  * Everything watched here is TRANSIENT by construction — a cover proxy, a track
  * marker that glides once and is gone, a `--bonus-mode` class that lives for the
@@ -227,42 +230,20 @@ type Observation = {
  * routinely blinked straight past the marker: «the track-reset marker glide
  * never played» was a statement about the PROBE, not about the product.
  *
- * A `MutationObserver` fires on the very mutation that inserts the node, and the
- * 50 ms interval covers a node that is only re-CLASSED. Deliberately not
- * `requestAnimationFrame`: headless Chromium drives rAF off the compositor, so a
- * rAF sampler stops sampling exactly when the screen goes quiet. `samples` is
- * returned and asserted so a probe that died cannot pass as «nothing happened».
+ * `armWitness` (FLAKE ZERO) observes the very mutation that inserts or re-classes
+ * the node, in the task that makes it, and keeps every distinct state with the
+ * page's time — a starved renderer can slow a transient, never hide it. The
+ * number of recorded states is asserted so a recorder that died cannot pass as
+ * «nothing happened».
  */
-async function armSightings(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as Record<string, any>;
-    const state = {proxy: false, marker: false, bonusMode: false, reveal: false,
-      deckDraw: [] as Array<number>, samples: 0, t0: performance.now()};
-    w.__sight = state;
-    const scan = () => {
-      state.samples++;
-      const at = Math.round(performance.now() - state.t0);
-      if (document.querySelector('.con-coltrade-proxy') !== null) {
-        state.proxy = true;
-      }
-      if (document.querySelector('.con-coltrade-marker') !== null) {
-        state.marker = true;
-      }
-      if (document.querySelector('.con-reveal--bonus-mode') !== null) {
-        state.bonusMode = true;
-      }
-      if (document.querySelector('.con-reveal') !== null || document.querySelector('.con-zoom') !== null) {
-        state.reveal = true;
-      }
-      if (document.querySelector('.con-deckdraw') !== null && state.deckDraw.at(-1) !== at) {
-        state.deckDraw.push(at);
-      }
-    };
-    w.__sightObs = new MutationObserver(scan);
-    w.__sightObs.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
-    w.__sightTimer = window.setInterval(scan, 50);
-    scan();
-  });
+async function armSightings(page: Page): Promise<Witness<Sighting>> {
+  return armWitness<Sighting>(page, 'colony-trade-sightings', () => ({
+    proxy: document.querySelector('.con-coltrade-proxy') !== null,
+    marker: document.querySelector('.con-coltrade-marker') !== null,
+    bonusMode: document.querySelector('.con-reveal--bonus-mode') !== null,
+    reveal: document.querySelector('.con-reveal') !== null || document.querySelector('.con-zoom') !== null,
+    deckDraw: document.querySelector('.con-deckdraw') !== null,
+  }));
 }
 
 async function tradeAndObserve(page: Page, tag: string, journal: Array<string>, windowMs: number): Promise<Observation> {
@@ -271,43 +252,40 @@ async function tradeAndObserve(page: Page, tag: string, journal: Array<string>, 
   await expect.poll(() => stage.count(), {message: 'the colony focus stage did not open'}).toBeGreaterThan(0);
   await shoot(page, `${tag}-composer`);
   // Arm BEFORE the commit — the cover leaves the tile on the very next frames.
-  await armSightings(page);
+  const sightings = await armSightings(page);
   await key(page, 'KeyX', 200); // X = confirm (folds back to the surface, the fleet lifts off)
 
-  await page.waitForTimeout(2400);
+  // THE OBSERVATION WINDOW IS THE PROBE'S SUBJECT: the storyboard frames at its beats, the record running through it.
+  await cinematicBeat(page, 2400, 'the trade storyboard — the frame 2.4 s into the resolution');
   await shoot(page, `${tag}-t2.4s`);
-  await page.waitForTimeout(3600);
+  await cinematicBeat(page, 3600, 'the trade storyboard — the frame 6 s into the resolution');
   await shoot(page, `${tag}-t6s`);
-  await page.waitForTimeout(Math.max(0, windowMs - 6000));
+  await cinematicBeat(page, Math.max(0, windowMs - 6000), 'the rest of the trade\'s observation window (the bot\'s turns deliver first)');
   await shoot(page, `${tag}-end`);
 
-  const raw = await page.evaluate(() => {
-    const w = window as unknown as Record<string, any>;
-    w.__sightObs?.disconnect();
-    window.clearInterval(w.__sightTimer);
-    return w.__sight as {proxy: boolean, marker: boolean, bonusMode: boolean, reveal: boolean,
-      deckDraw: Array<number>, samples: number};
-  });
+  const recorded = await sightings.stop();
+  const t0 = recorded[0]?.t ?? 0;
   const obs: Observation = {
     journal,
-    deckDrawSightings: raw.deckDraw.map((ms) => `t+${ms}ms`),
-    sawTradeProxy: raw.proxy,
-    sawMarker: raw.marker,
-    sawBonusMode: raw.bonusMode,
-    sawReveal: raw.reveal,
-    samples: raw.samples,
+    deckDrawSightings: recorded.filter((s) => s.v.deckDraw).map((s) => `t+${s.t - t0}ms`),
+    sawTradeProxy: recorded.some((s) => s.v.proxy),
+    sawMarker: recorded.some((s) => s.v.marker),
+    sawBonusMode: recorded.some((s) => s.v.bonusMode),
+    sawReveal: recorded.some((s) => s.v.reveal),
+    samples: recorded.length,
   };
 
   console.log(`── [colony-trade] journal (${tag}) ──`);
   journal.forEach((line) => console.log(line));
-  console.log('recorder samples:', obs.samples);
+  console.log('recorded states:', obs.samples);
   console.log('deck-draw sightings:', obs.deckDrawSightings.length > 0 ? obs.deckDrawSightings.join(', ') : 'none');
   console.log('trade cover proxy seen:', obs.sawTradeProxy);
   console.log('track marker proxy seen:', obs.sawMarker);
   console.log('reveal bonus-mode seen:', obs.sawBonusMode);
   console.log('reveal/zoom surface seen:', obs.sawReveal);
-  // A silent probe must never read as «the product did nothing».
-  expect(obs.samples, 'the in-page sighting recorder ran').toBeGreaterThan(10);
+  // A silent probe must never read as «the product did nothing» — the floor catches a DEAD recorder only (a count of
+  // recorded states is a count of changes, never of the machine's frames).
+  expect(obs.samples, 'the sighting recorder ran').toBeGreaterThan(0);
   return obs;
 }
 
@@ -388,7 +366,7 @@ test('visual: a merged trade batch renders the labelled colony-bonus zone', asyn
   // shows «БОНУС КОЛОНИИ · Ⓐ Открыть» and the payout mounts on the press.
   await openMandatoryAnnounce(page);
   await page.waitForSelector('.con-reveal__bonus-zone', {state: 'visible', timeout: 30_000});
-  await page.waitForTimeout(3000); // entrance settles
+  await settle(page); // entrance settles
   await shoot(page, 'bonus-zone');
 
   // ONE zone per owned colony (index 1 of 2 → an ACTIVE zone + a FUTURE

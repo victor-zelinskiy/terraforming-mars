@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, openMandatoryAnnounce, reloadConsole, soloGameConfig} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, press, pressUntil, reloadConsole, settle, soloGameConfig} from './consoleStart';
 
 /**
  * TWO COLONIES ON PLUTO — ONE CYCLE EACH, EACH ARRIVING EXACTLY ONCE.
@@ -36,6 +36,14 @@ const OUT = path.resolve('screenshots', 'pluto-two-colony');
 const BONUS_1 = 'Micro-Mills';
 const BONUS_2 = 'Insulation';
 
+/**
+ * THE TABLE AT REST, in its own words: no deal copy still lies over its cards (`data-cursor-pending`) and a press
+ * would ACT — nothing arriving, no take or collection in flight (`data-take`). Inside the mandatory chain a blocking
+ * hold legitimately stands until the discard is answered, so the console's quiet is not the predicate here: the
+ * table's own readiness is.
+ */
+const REVEAL_AT_REST = '.con-reveal:not([data-cursor-pending]):not([data-take="held"]):not([data-take="busy"])';
+
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
@@ -65,9 +73,10 @@ async function createGame(request: APIRequestContext): Promise<string> {
  * are recorded off the DOM the player is actually looking at, never off a
  * store the spec would have to be told about.
  *
- * ⚠️ A `MutationObserver` + `setInterval`, never `requestAnimationFrame`:
- * headless Chromium drives rAF off the compositor and stops it exactly when
- * the screen goes quiet, which is when these faults fire.
+ * ⚠️ A `MutationObserver` — every mount counted in the task that makes it — never
+ * a timer or `requestAnimationFrame`: headless Chromium drives rAF off the
+ * compositor and stops it exactly when the screen goes quiet, which is when
+ * these faults fire.
  */
 async function installDealProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -138,7 +147,7 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   const playerId = await createGame(request);
   // THE API ROAD — the pregame is setup, never the subject (`BootVia`).
   await bootSeededGame(page, request, playerId, {buy: 2, keepColony: 'Pluto'});
-  await page.waitForTimeout(1500);
+  await settle(page);
 
   // ── THE SCRIPTED RESOLUTION ────────────────────────────────────────────
   // Cycle 1 is served until the discard is answered; the answer flips the
@@ -153,7 +162,9 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   // (tests.md § A STUBBED SERVER MUST STAY CONSISTENT), and behind it a real product hole (the stranded release
   // did not know a newer cycle's marker): see `colonyDiscardStageStranded`.
   let discarded: string | undefined;
-  const script = (body: Record<string, unknown>): Record<string, unknown> => {
+  /** The discard ANSWERS the stub has taken — the «server's» own word that the step is answered. */
+  let answers = 0;
+  const script =(body: Record<string, unknown>): Record<string, unknown> => {
     const hand = ((body.cardsInHand ?? []) as Array<{name: string}>).filter((c) => cycle === 1 || c.name !== discarded);
     return {
       ...body,
@@ -191,6 +202,7 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   await page.route('**/player/input*', async (route) => {
     const answer = route.request().postDataJSON() as {cards?: Array<string>} | null;
     discarded = answer?.cards?.[0];
+    answers++;
     cycle = 2;
     await route.fulfill({
       status: 200,
@@ -205,7 +217,8 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   await installDealProbe(page);
   expect(await openMandatoryAnnounce(page), 'cycle 1 announced its colony bonus').toBeTruthy();
   await page.waitForSelector('.con-reveal__bonus-zone', {state: 'visible', timeout: 40_000});
-  await page.waitForTimeout(3200);
+  // The deal has LANDED and the table takes a press — its own readiness, never a guessed beat.
+  await page.locator(REVEAL_AT_REST).first().waitFor({state: 'visible', timeout: 30_000});
   await shoot(page, 'cycle-1');
 
   // 1 · CYCLE 1 — one active zone, one SEALED place (its card lies face-down under the seal), one open card.
@@ -214,12 +227,16 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   await expect.poll(() => page.locator('.con-reveal__bonus-zone--sealed').count()).toBe(1);
   await expect(page.locator('.con-reveal__bonus-zone--sealed [data-settlement-seal]'), 'the sealed place wears its seal').toHaveCount(1);
 
-  // 2 · take it, then open the discard step.
-  await page.keyboard.press('Escape'); // B = take all
+  // 2 · take it, then open the discard step. Each press goes through the driver (it waits out the table's own
+  //     gates and sends again a press the product says it swallowed), and each waits for the table to TAKE it: the
+  //     collection landed before the closer's A, the album standing before anything reads the step.
+  await press(page, 'Escape'); // B = take all
   await expect(page.locator('.con-cmdbar')).toContainText(/Выбрать карту для сброса/i, {timeout: 20_000});
-  await page.waitForTimeout(700);
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(1400);
+  await page.locator(REVEAL_AT_REST).first().waitFor({state: 'visible', timeout: 20_000});
+  await press(page, 'Enter');
+  await expect(page.locator('.con-hand').first(), 'the discard step opened').toBeVisible({timeout: 20_000});
+  // The shot waits for the album's own open (its transit over) — bounded, the claims below poll for themselves.
+  await page.locator('.con-hand:not(.con-hand--transit)').first().waitFor({state: 'visible', timeout: 10_000}).catch(() => undefined);
   await shoot(page, 'discard-1');
   // THE TABLE PARKS, it does not unmount (colony polish 1): it waits under the receded stage, unseen.
   await expect.poll(() => page.locator('.con-reveal:visible').count(), {message: 'the step hides the table'}).toBe(0);
@@ -234,19 +251,19 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
   // the CYCLE-2 reveal that had just mounted, took its card and acked the
   // batch. The run ended on «КОЛОНИИ › ПЛУТОН › БОНУС ВЛАДЕЛЬЦА» over an empty
   // frame: indistinguishable from the product fault this spec exists for, and
-  // ~20 % of runs (`--repeat-each`). Both exits are checked BEFORE every press.
+  // ~20 % of runs (`--repeat-each`). Every exit is checked BEFORE every press (`pressUntil` — act → verify, each A
+  // given its whole window) — and the FIRST exit is the answer itself: the stub has taken the discard.
+  const answered = async () => answers > 0;
   const handGone = async () => await page.locator('.con-hand').count() === 0;
   const nextCycleUp = async () => await page.locator('.con-reveal:visible').count() > 0;
-  for (let i = 0; i < 6; i++) {
-    if (await handGone() || await nextCycleUp()) {
-      break;
-    }
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(1200);
-  }
-  await page.locator('.con-hand').waitFor({state: 'detached', timeout: 20_000}).catch(() => undefined);
-  expect(await handGone(), 'the discard was answered').toBeTruthy();
-  await page.waitForTimeout(6000);
+  await pressUntil(page, 'Enter', async () => await answered() || await handGone() || await nextCycleUp(),
+    {tries: 6, settleMs: 1200});
+  await expect(page.locator('.con-hand'), 'the discard was answered').toHaveCount(0, {timeout: 20_000});
+  // The probe is judged over the WHOLE resolution, so cycle 2 must have PRESENTED first — colony 1 finished on the
+  // table and its deal landed (the table at rest). Bounded: a cycle that never presents is reported below, with
+  // the surfaces it left standing.
+  await page.locator('.con-reveal__bonus-zone--done').first().waitFor({state: 'visible', timeout: 30_000}).catch(() => undefined);
+  await page.locator(REVEAL_AT_REST).first().waitFor({state: 'visible', timeout: 30_000}).catch(() => undefined);
   await shoot(page, 'cycle-2');
 
   // 4 · THE CLAIM. Across the WHOLE resolution every card is dealt once —

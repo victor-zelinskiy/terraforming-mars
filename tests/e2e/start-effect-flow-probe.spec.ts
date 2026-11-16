@@ -2,9 +2,10 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  openConsole, pickCards, playQueueCard, playQueueUntil, submitSummary,
+  cinematicBeat, openConsole, pickCards, playQueueCard, playQueueUntil, settle, submitSummary,
   takeRevealCards, walkToSummary,
 } from './consoleStart';
+import {armWitness} from './witness';
 
 /**
  * THE START EFFECT FLOW probe — a corporation and two preludes whose play
@@ -17,9 +18,27 @@ import {
  *   embedded reveal owns the workspace room → the player finishes → the
  *   queue returns → the card continues into «РАЗЫГРАНО».
  *
- * A per-frame witness records the load-bearing invariants; assertions are
- * ORDERING-based (headless pacing drifts), never wall-clock.
+ * A witness records the load-bearing invariants (`armWitness`, FLAKE ZERO —
+ * every state the product writes, in the task that writes it, plus a frame
+ * tick); assertions are ORDERING-based (headless pacing drifts), never
+ * wall-clock.
  */
+
+/** A hero landing at the effect-source seat: the proxy's last painted box and the box the seat SETTLED at. */
+type Landing = {t: number, x: number, y: number, w: number, sx: number, sy: number, sw: number, settled: number};
+
+/** One recorded state of the flow (the time is the record's own). */
+type FlowSeen = {
+  queueOp: number, revealUp: boolean, colUp: boolean, dockFaceUp: boolean, intakeUp: boolean, zoomUp: boolean,
+  inEmbed: boolean, strip: number,
+  /** The reveal presented over a still-painted queue (the modal feel). */
+  ghost: boolean,
+  /** The reveal presented in its own STANDALONE mode (the full-bleed band) — its declared mode, never «not found in
+   *  its host zone» (a host is torn down a task before its teleported stage). */
+  standalone: boolean,
+  /** The hero landings so far (the landing witness's own record). */
+  handoffs: Array<Landing>,
+};
 
 const OUT_DIR = path.resolve('screenshots', 'start-effect');
 
@@ -88,20 +107,23 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     });
     await submitSummary(page);
 
-    // ── The deployment stands (materialization settles).
+    // ── The deployment stands (materialization settles) — a STATE, never a duration.
     await page.waitForSelector('.con-start__queue [data-queue-slot]', {timeout: 30_000});
-    await page.waitForTimeout(3500);
+    await settle(page, {timeoutMs: 30_000});
 
-    // THE PER-FRAME WITNESS for the whole three-effect sequence.
-    await page.evaluate(() => {
-      type Landing = {t: number, x: number, y: number, w: number,
-        sx: number, sy: number, sw: number, settled: number, prev: string};
-      const w = window as unknown as {__flowWatch: {frames: Array<unknown>, ghost: number, early: number,
-        standalone: number, zoom: number, handoffs: Array<Landing>}};
-      const state = {frames: [] as Array<unknown>, ghost: 0, early: 0, standalone: 0, zoom: 0,
-        handoffs: [] as Array<Landing>};
-      w.__flowWatch = state;
-      const t0 = performance.now();
+    // THE WITNESS for the whole three-effect sequence — a RECORD off the
+    // product's own writes (`settled`: «a reveal over a ghosted queue», «the
+    // reveal in its standalone mode» are COEXISTENCE claims, judged on the
+    // state a task LEAVES — the state a frame can paint).
+    const flow = await armWitness<FlowSeen>(page, 'start-effect-flow', () => {
+      type LandingRun = Landing & {prev: string};
+      type LandingState = {t0: number, frame: number, airborne?: {t: number, x: number, y: number, w: number},
+        handoffs: Array<LandingRun>};
+      const memo = window as unknown as {__flowLanding?: LandingState};
+      if (memo.__flowLanding === undefined) {
+        memo.__flowLanding = {t0: performance.now(), frame: Number.NaN, handoffs: []};
+      }
+      const state = memo.__flowLanding;
       const vis = (el: Element | null): boolean =>
         el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
       // THE LANDING WITNESS — the handoff is a DOUBLE, not a dissolve, and the
@@ -164,7 +186,6 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
       const seatEl = () =>
         document.querySelector<HTMLElement>('[data-embed-source-slot] :is(.card-container, .pcard)') ??
         document.querySelector<HTMLElement>('[data-embed-source-slot]');
-      let airborne: {t: number, x: number, y: number, w: number} | undefined;
       const heroDelta = () => {
         const hero = document.querySelector<HTMLElement>('.con-played-hero__proxy');
         const seat = seatEl();
@@ -175,14 +196,15 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
           // at the shelf, hundreds of px away). Near-gate at half a card.
           if (paintedOpacity(hero) > 0.97 && r.width > 10 && s !== undefined && s.width > 10 &&
               Math.abs(s.left - r.left) < 200 && Math.abs(s.top - r.top) < 200) {
-            airborne = {t: Math.round(performance.now() - t0), x: r.left, y: r.top, w: r.width};
+            state.airborne = {t: Math.round(performance.now() - state.t0), x: r.left, y: r.top, w: r.width};
           }
           return;
         }
         // The proxy is gone: the last painted box IS the handoff.
-        if (airborne !== undefined) {
-          state.handoffs.push({...airborne, sx: NaN, sy: NaN, sw: NaN, settled: 0, prev: ''});
-          airborne = undefined;
+        if (state.airborne !== undefined) {
+          // (-1 until the seat settles: a recorded value travels as JSON, which has no NaN.)
+          state.handoffs.push({...state.airborne, sx: -1, sy: -1, sw: -1, settled: 0, prev: ''});
+          state.airborne = undefined;
         }
         const h = state.handoffs[state.handoffs.length - 1];
         if (h === undefined || h.settled === 1 || seat === null) {
@@ -202,49 +224,47 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
         }
         h.prev = sig;
       };
-      const tick = () => {
-        const t = Math.round(performance.now() - t0);
+      // THE LANDING WITNESS STEPS ONCE PER FRAME. The record calls this reader
+      // on every write AND every frame, and two calls inside one frame read the
+      // same layout — «the seat read the same box twice» (its rest) must span
+      // two FRAMES, so the state machine advances only when the document's
+      // frame clock has moved (the old per-frame tick, exactly).
+      const frame = Number(document.timeline.currentTime ?? Number.NaN);
+      if (frame !== state.frame) {
+        state.frame = frame;
         heroDelta();
-        // PER-TAKE INTAKE: with a reachable dock a take flies to the hand the
-        // moment it is taken — so intake proxies must exist WHILE the reveal
-        // still stands (the fallback grammar only flies after the last card).
-        const intakeUp = document.querySelectorAll('.con-handdelivery-layer .con-deal-proxy').length > 0;
-        const queue = document.querySelector<HTMLElement>('.con-start__queue');
-        const queueOp = queue === null ? -1 : parseFloat(getComputedStyle(queue).opacity);
-        const reveal = document.querySelector('.con-reveal');
-        const revealUp = vis(reveal);
-        const inEmbed = reveal !== null && reveal.closest('.con-start__embed') !== null;
-        const colCard = document.querySelector('[data-embed-source-slot]');
-        const colUp = vis(colCard);
-        const src = colCard?.closest('.con-start__embedsource')?.querySelector('.con-start__embedsource-card');
-        void src;
-        // The source card's tableau face (any played-key face that is the
-        // embed source) — visible DURING the reveal = the premature dock.
-        const away = document.querySelector<HTMLElement>('.con-start__played [data-played-key] .con-splayed__face');
-        const dockFaceUp = vis(away);
-        // The FULLSCREEN VIEWER. Nobody presses X in this run, and a card a
-        // workspace owns is never presented headless — so the viewer opening
-        // at all means the reveal fell back to «the fullscreen IS the reveal».
-        // SF Memorial draws exactly ONE card, and its take is the seam that
-        // used to trip it: the claim is released while the batch is still up.
-        const zoomUp = document.querySelector('dialog.con-zoom[open]') !== null;
-        state.frames.push({t, queueOp, revealUp, colUp, dockFaceUp, intakeUp, zoomUp, inEmbed,
-          strip: document.querySelectorAll('.con-reveal__strip .con-cards__slot').length});
-        if (revealUp && queue !== null && queueOp > 0.1 && vis(queue)) {
-          state.ghost++; // the old scene ghosting under the reveal
-        }
-        if (revealUp && !inEmbed) {
-          state.standalone++; // the reveal escaped the workspace zone
-        }
-        if (zoomUp) {
-          state.zoom++;
-        }
-        if (performance.now() - t0 < 120_000) {
-          requestAnimationFrame(tick);
-        }
+      }
+      // PER-TAKE INTAKE: with a reachable dock a take flies to the hand the
+      // moment it is taken — so intake proxies must exist WHILE the reveal
+      // still stands (the fallback grammar only flies after the last card).
+      const intakeUp = document.querySelectorAll('.con-handdelivery-layer .con-deal-proxy').length > 0;
+      const queue = document.querySelector<HTMLElement>('.con-start__queue');
+      const queueOp = queue === null ? -1 : parseFloat(getComputedStyle(queue).opacity);
+      const reveal = document.querySelector('.con-reveal');
+      const revealUp = vis(reveal);
+      const inEmbed = reveal !== null && reveal.closest('.con-start__embed') !== null;
+      const colCard = document.querySelector('[data-embed-source-slot]');
+      const colUp = vis(colCard);
+      // The source card's tableau face (any played-key face that is the
+      // embed source) — visible DURING the reveal = the premature dock.
+      const away = document.querySelector<HTMLElement>('.con-start__played [data-played-key] .con-splayed__face');
+      const dockFaceUp = vis(away);
+      // The FULLSCREEN VIEWER. Nobody presses X in this run, and a card a
+      // workspace owns is never presented headless — so the viewer opening
+      // at all means the reveal fell back to «the fullscreen IS the reveal».
+      // SF Memorial draws exactly ONE card, and its take is the seam that
+      // used to trip it: the claim is released while the batch is still up.
+      const zoomUp = document.querySelector('dialog.con-zoom[open]') !== null;
+      return {
+        queueOp, revealUp, colUp, dockFaceUp, intakeUp, zoomUp, inEmbed,
+        strip: document.querySelectorAll('.con-reveal__strip .con-cards__slot').length,
+        // the old scene ghosting under the reveal
+        ghost: revealUp && queue !== null && queueOp > 0.1 && vis(queue),
+        // the reveal dressed as the full-bleed band — its own declared mode
+        standalone: vis(document.querySelector('.con-reveal:not(.con-reveal--embedded)')),
+        handoffs: state.handoffs.map((h) => ({t: h.t, x: h.x, y: h.y, w: h.w, sx: h.sx, sy: h.sy, sw: h.sw, settled: h.settled})),
       };
-      requestAnimationFrame(tick);
-    });
+    }, {settled: true, max: 20_000});
 
     // ── EFFECT 1 · the corporation (Pharmacy Union — reveal 1 science card).
     expect(await playQueueUntil(page, 'Pharmacy Union'), 'the corp stands in the queue').toBeTruthy();
@@ -252,7 +272,7 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     await shoot(page, '01-corp-departing');
     // The embedded reveal must present INSIDE the workspace zone.
     await page.waitForSelector('.con-start__embed .con-reveal', {timeout: 30_000});
-    await page.waitForTimeout(900);
+    await cinematicBeat(page, 900, 'the embedded reveal presents — the storyboard frame of the corp\'s effect');
     await shoot(page, '02-corp-reveal');
     // The source card presides over the effect from its seat.
     await expect(page.locator('[data-embed-source-slot]')).toBeVisible();
@@ -276,7 +296,7 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     for (const prelude of ['SF Memorial', 'Biolab']) {
       expect(await playQueueCard(page, prelude), `${prelude} was played`).toBeTruthy();
       await page.waitForSelector('.con-start__embed .con-reveal', {timeout: 30_000});
-      await page.waitForTimeout(700);
+      await cinematicBeat(page, 700, 'the embedded reveal presents — the storyboard frame of the prelude\'s effect');
       await shoot(page, `04-${prelude.replace(/\s+/g, '-').toLowerCase()}-reveal`);
       await takeRevealCards(page);
       await expect(page.locator('.con-start__embed .con-reveal')).toBeHidden({timeout: 30_000});
@@ -285,23 +305,26 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
         return q !== null && parseFloat(getComputedStyle(q).opacity) > 0.95;
       }), {timeout: 20_000}).toBeTruthy();
     }
-    await page.waitForTimeout(1500);
+    await cinematicBeat(page, 1500, 'the last prelude continues into «РАЗЫГРАНО» — the storyboard frame of the docked row');
     await shoot(page, '06-all-docked');
 
-    // ── THE WITNESS VERDICT.
-    const watch = await page.evaluate(() => (window as unknown as {
-      __flowWatch: {frames: Array<{t: number, queueOp: number, revealUp: boolean, colUp: boolean,
-        dockFaceUp: boolean, intakeUp: boolean, zoomUp: boolean, inEmbed: boolean, strip: number}>,
-        ghost: number, standalone: number, zoom: number,
-        handoffs: Array<{t: number, x: number, y: number, w: number,
-          sx: number, sy: number, sw: number, settled: number}>}}).__flowWatch);
-    const frames = watch.frames;
-    console.log(`[flow-watch] frames=${frames.length} ghost=${watch.ghost} standalone=${watch.standalone} zoom=${watch.zoom}`);
+    // ── THE WITNESS VERDICT — over RECORDED STATES (each a distinct state the
+    //    product wrote, `t` in ms since the arm on the page's clock).
+    const recorded = await flow.stop();
+    const flowT0 = recorded[0]?.t ?? 0;
+    const frames = recorded.map((s) => ({...s.v, t: s.t - flowT0}));
+    const watch = {
+      ghost: frames.filter((f) => f.ghost).length,
+      standalone: frames.filter((f) => f.standalone).length,
+      zoom: frames.filter((f) => f.zoomUp).length,
+      handoffs: frames.at(-1)?.handoffs ?? [],
+    };
+    console.log(`[flow-watch] states=${frames.length} ghost=${watch.ghost} standalone=${watch.standalone} zoom=${watch.zoom}`);
     console.log(`[flow-watch] hero landings: ${watch.handoffs.map((h) =>
       `t=${h.t} proxy=${Math.round(h.x)},${Math.round(h.y)} seat=${Math.round(h.sx)},${Math.round(h.sy)} ` +
       `Δ=${(h.sx - h.x).toFixed(2)},${(h.sy - h.y).toFixed(2)} settled=${h.settled}`).join(' · ') || 'none'}`);
     if (watch.standalone > 0) {
-      console.log(`[flow-watch] standalone at ${frames.filter((f) => f.revealUp && !f.inEmbed).map((f) => f.t).join(', ')} ms`);
+      console.log(`[flow-watch] standalone at ${frames.filter((f) => f.standalone).map((f) => f.t).join(', ')} ms`);
     }
 
     // 1 · The reveal NEVER floats over a ghosted queue (the modal feel).
@@ -309,7 +332,10 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     // 2 · The reveal never presented OUTSIDE the workspace embed zone — INCLUDING
     //     its closing tick: when the take folds the workspace the surface loses
     //     its teleport zone, and a reveal that still renders there re-dresses as
-    //     the standalone band over the board (`drawnRevealDetached`).
+    //     the standalone band over the board (`drawnRevealDetached`). Asked of
+    //     the overlay's own declared mode — never «not found inside its host»,
+    //     which every teardown reads for a task (the host leaves a task before
+    //     its teleported stage).
     expect(watch.standalone, 'reveal escaped the workspace zone').toBe(0);
     // 2b · …and never handed the card to the FULLSCREEN VIEWER. A workspace
     //      owns what it produced; the viewer is X's job, never a take's. The
@@ -318,7 +344,8 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     expect(watch.zoom, 'the fullscreen viewer opened on its own during the start effects').toBe(0);
     // 3 · While a reveal was up, the source card stood in its seat…
     const revealFrames = frames.filter((f) => f.revealUp);
-    expect(revealFrames.length, 'the reveal actually presented').toBeGreaterThan(5);
+    // An EVER claim — how many frames a sampler caught it in was the machine's frame rate.
+    expect(revealFrames.length, 'the reveal actually presented').toBeGreaterThan(0);
     expect(revealFrames.every((f) => f.colUp), 'source seat empty during a reveal').toBeTruthy();
     // 4 · …and the played card was NOT prematurely standing in «РАЗЫГРАНО»
     //     (the FIRST effect: no dock face exists at all until it completes).

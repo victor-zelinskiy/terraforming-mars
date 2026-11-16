@@ -1,5 +1,10 @@
-import {test, expect} from './consoleTest';
-import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
+import {test, expect, Page} from './consoleTest';
+import {
+  bootWithCards, cinematicBeat, composerLoaded, openActionFocus, openCardActions, playCardFromHand, settle, soloGameConfig,
+  waitForTurn,
+} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * Console DECK CHECK · THE ARRIVAL IS ONE PHYSICAL OBJECT.
@@ -22,10 +27,11 @@ import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, soloG
  *
  * The claims are therefore GEOMETRIC, not «did it animate»: the landing rect
  * may not move while the card is in the air, and the proxy's last painted box
- * must be the real card's box. A sampler that stops sampling would pass both
- * silently, so its own frame count is asserted first (and `requestAnimationFrame`
- * is deliberately not used — headless Chromium drives it off the compositor and
- * it goes quiet exactly during the beat under test).
+ * must be the real card's box. The boxes are RECORDED off the product's own
+ * writes (`armWitness` — every DOM change in the task that makes it, plus a
+ * frame tick for what only a transform moves; `settled`, because «the proxy's
+ * box IS the card's box» compares two elements of ONE painted state). A dead
+ * recorder would pass both silently, so its liveness is asserted first.
  */
 
 const GAME_CONFIG = soloGameConfig({
@@ -35,10 +41,42 @@ const GAME_CONFIG = soloGameConfig({
 });
 
 type Rect = {l: number, t: number, w: number, h: number} | null;
-type Sample = {t: number, slot: Rect, proxy: Rect, card: Rect, vslot: Rect, verdict: number};
+type Landing = {slot: Rect, proxy: Rect, card: Rect, vslot: Rect, verdict: number};
+type Sample = Landing & {t: number};
 
 /** Sub-pixel tolerance: a rect is "the same box" inside one CSS pixel. */
 const EPS = 1;
+
+/** The landing's boxes as the page holds them NOW — in the page, self-contained (the witness's reader). */
+function readLanding(): Landing {
+  const rect = (sel: string) => {
+    const el = document.querySelector(sel);
+    if (el === null) {
+      return null;
+    }
+    const r = el.getBoundingClientRect();
+    return {l: +r.left.toFixed(2), t: +r.top.toFixed(2), w: +r.width.toFixed(2), h: +r.height.toFixed(2)};
+  };
+  return {
+    slot: rect('.con-composer__revealslot'),
+    proxy: rect('.con-deal-proxy'),
+    card: rect('.con-composer__revealslot :is(.pcard, .card-container)'),
+    vslot: rect('.con-composer__verdictslot'),
+    verdict: document.querySelectorAll('.con-verdict').length,
+  };
+}
+
+/** The verdict stage's berth and slot, rounded — the layout the claims compare, read AT REST. */
+async function readBerth(page: Page) {
+  return page.evaluate(() => {
+    const box = (sel: string) => {
+      const r = document.querySelector(sel)?.getBoundingClientRect();
+      return r === undefined ? null : [Math.round(r.left * 10) / 10, Math.round(r.top * 10) / 10, Math.round(r.width * 10) / 10];
+    };
+    return {slot: box('.con-composer__revealslot'), vslot: box('.con-composer__verdictslot'),
+      card: box('.con-composer__revealslot :is(.pcard, .card-container)'), proxy: document.querySelector('.con-deal-proxy') !== null};
+  });
+}
 
 const PROFILES = [
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv', backstop: false},
@@ -63,72 +101,41 @@ for (const profile of PROFILES) {
         query: profile.query,
       });
       await waitForTurn(page);
-      await page.waitForTimeout(4000);
+      await settle(page);
       expect(await playCardFromHand(page, 'Search For Life'), 'Search For Life must have been played').toBe(true);
       await openCardActions(page);
       await openActionFocus(page);
       await expect(page.locator('.con-composer')).toHaveCount(1);
-      await page.waitForTimeout(800);
+      // The action focus LOADED and at rest — the confirm below lands on a still, ready stage.
+      await composerLoaded(page);
+      await settle(page);
 
-      // ── The sampler: `setInterval` + `MutationObserver`, never rAF. ──────
-      await page.evaluate(() => {
-        const t0 = performance.now();
-        const rect = (sel: string) => {
-          const el = document.querySelector(sel);
-          if (el === null) {
-            return null;
-          }
-          const r = el.getBoundingClientRect();
-          return {l: +r.left.toFixed(2), t: +r.top.toFixed(2), w: +r.width.toFixed(2), h: +r.height.toFixed(2)};
-        };
-        const samples: unknown[] = [];
-        const scan = () => {
-          if (samples.length > 4000) {
-            return;
-          }
-          samples.push({
-            t: +(performance.now() - t0).toFixed(1),
-            slot: rect('.con-composer__revealslot'),
-            proxy: rect('.con-deal-proxy'),
-            card: rect('.con-composer__revealslot :is(.pcard, .card-container)'),
-            vslot: rect('.con-composer__verdictslot'),
-            verdict: document.querySelectorAll('.con-verdict').length,
-          });
-        };
-        const timer = window.setInterval(scan, 16);
-        const mo = new MutationObserver(scan);
-        mo.observe(document.body, {childList: true, subtree: true, attributes: true, characterData: true});
-        (window as unknown as {__revLanding: unknown}).__revLanding = {
-          samples,
-          stop: () => {
-            window.clearInterval(timer);
-            mo.disconnect();
-          },
-        };
-      });
+      // ── The recorder: the product's own writes + a frame tick, armed BEFORE the press. ──────
+      const landing = await armWitness<Landing>(page, 'reveal-landing', readLanding, {settled: true, max: 20_000});
 
       await page.keyboard.press('Enter'); // CTA confirm → the deck pull
       // A screenshot forces a BeginFrame: headless starves the app's OWN rAF on
       // a quiet screen, and a starved GSAP tween FREEZES rather than finishing —
-      // indistinguishable from "settled" to any sampler.
-      for (let i = 0; i < 42; i++) {
+      // indistinguishable from "settled" to any recorder. The frames are pumped
+      // until the beat's own end — the verdict standing — never for a fixed count.
+      const verdict = page.locator('.con-composer--stage .con-verdict');
+      for (let i = 0; i < 400 && await verdict.count() === 0; i++) {
         await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
-        await page.waitForTimeout(40);
       }
-      await expect(page.locator('.con-composer--stage .con-verdict')).toHaveCount(1, {timeout: 15_000});
-      await page.waitForTimeout(500);
+      await expect(verdict).toHaveCount(1, {timeout: 15_000});
+      // The record runs until the stage is AT REST — the proxy handed over and the berth holding still (two equal reads
+      // a frame apart; `settle: false` — the verdict stands inside the action's flow).
+      const rest = await readSettled(page, () => readBerth(page), {settle: false, message: 'the verdict stage at rest'});
 
-      const samples = await page.evaluate(() => {
-        const p = (window as unknown as {__revLanding: {samples: unknown[], stop: () => void}}).__revLanding;
-        p.stop();
-        return p.samples as unknown[];
-      }) as Array<Sample>;
+      const samples: Array<Sample> = (await landing.stop()).map((s) => ({...s.v, t: s.t}));
 
       const P = `[${profile.tag}]`;
-      // A dead probe passes every geometric claim below — assert it lived.
-      expect(samples.length, 'the sampler must have run').toBeGreaterThan(200);
+      console.log(`${P} at rest: ${JSON.stringify(rest)} · ${samples.length} recorded states`);
+      // A dead recorder passes every geometric claim below — assert it lived (it records DISTINCT states, never
+      // frames: any recorded state is life).
+      expect(samples.length, 'the sampler must have run').toBeGreaterThan(0);
       const withSlot = samples.filter((s) => s.slot !== null);
-      expect(withSlot.length, 'the reveal slot must have been sampled').toBeGreaterThan(50);
+      expect(withSlot.length, 'the reveal slot must have been sampled').toBeGreaterThan(0);
 
       // ── 1. THE LANDING RECT MAY NOT MOVE SIDEWAYS. The verdict berth is a
       //       fixed width, so the status → breakdown swap changes nothing the
@@ -161,7 +168,7 @@ for (const profile of PROFILES) {
         //    verdict was on screen — at 20 s the claim dropped, the workspace
         //    concluded on its own and the LEGACY full-bleed modal rose carrying
         //    the very verdict the player was reading.
-        await page.waitForTimeout(23_000);
+        await cinematicBeat(page, 23_000, 'a long read PAST the claim\'s 20 s backstop — the duration IS the claim');
         await expect(page.locator('.con-composer--stage .con-verdict'),
           'the verdict stage must survive a long read').toHaveCount(1);
         await expect.poll(() => page.locator('.con-reveal').count(), {message: 'the claim backstop must not summon the standalone reveal modal'}).toBe(0);

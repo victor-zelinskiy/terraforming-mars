@@ -1,6 +1,8 @@
 <template>
   <aside class="con-inspector con-context con-info__scroll"
          ref="root"
+         :data-dossier-space="dossierSpace"
+         :data-dossier-loading="loading ? '' : undefined"
          :class="{'con-inspector--more': moreBelow, 'con-inspector--scrolled': scrolledDown}"
          :aria-label="$t('Cell details')"
          @scroll.passive="measureScroll">
@@ -533,6 +535,13 @@ const swatchClass = computed((): string | undefined => {
 const conversionIconClass = computed((): string => {
   return props.conversion !== undefined ? iconClassFor(props.conversion.icon) : '';
 });
+/**
+ * THE DOSSIER'S READINESS (FLAKE ZERO, class F — a surface is read after its own marker): the cell whose facts stand on
+ * the panel NOW (`data-dossier-space` — the preview's in a placement, the hover's in an inspection) and whether the next
+ * one is still on its way (`data-dossier-loading`). A d-pad step swaps the cell first and the facts a fetch later; a
+ * reader that waits for «this cell, not loading» can never read the previous cell's preview under the new cell's name.
+ */
+const dossierSpace = computed((): string | undefined => props.preview?.space ?? props.info?.space);
 /** The dossier body — the preview's facts regrouped by intent. */
 const sections = computed((): ReadonlyArray<DossierSection> => {
   return props.preview !== undefined ? dossierSections(props.preview, props.viewerColor, props.chosenTarget) : [];

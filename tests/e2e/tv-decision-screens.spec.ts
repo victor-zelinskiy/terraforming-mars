@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {bootSeededGame, createGameWithCards, press} from './consoleStart';
+import {bootSeededGame, composerLoaded, createGameWithCards, press, pressUntil, pressUntilVisible, settle} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -49,18 +49,23 @@ async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
-async function key(page: Page, code: string, settle = 500): Promise<void> {
-  await press(page, code, settle);
+async function key(page: Page, code: string, settleMs = 500): Promise<void> {
+  await press(page, code, settleMs);
+}
+/** Is any decision surface still standing over the board home? */
+async function surfaceUp(page: Page): Promise<boolean> {
+  return await page.locator('.con-quick, .con-stdp, .con-cardactions, .con-composer, .con-colonies, .con-hand, .con-played, .con-journal').count() > 0;
 }
 async function toBoard(page: Page): Promise<void> {
   // Escape-ONLY back to the calm board home (KeyE/KeyQ change section and
-  // can OPEN the played tableau — the driver must never do that).
-  for (let i = 0; i < 6; i++) {
-    if (await page.locator('.con-quick, .con-stdp, .con-cardactions, .con-composer, .con-colonies, .con-hand, .con-played, .con-journal').count() === 0) {
-      return;
-    }
-    await key(page, 'Escape', 400);
-  }
+  // can OPEN the played tableau — the driver must never do that). Each B gets
+  // its whole window to take a surface down before the next one goes.
+  await pressUntil(page, 'Escape', async () => !await surfaceUp(page), {tries: 6, settleMs: 400});
+}
+/** On a quick wheel the press IS the activation — its effect is `opened` standing or the wheel leaving. */
+async function wheelSlot(page: Page, code: string, opened: string, settleMs: number): Promise<void> {
+  await pressUntil(page, code,
+    async () => await page.locator(opened).count() > 0 || await page.locator('.con-quick').count() === 0, {settleMs});
 }
 
 test.describe('tv-4k decision screens', () => {
@@ -83,14 +88,17 @@ test.describe('tv-4k decision screens', () => {
 
     // ── 1 · Hand → play-card confirm — FIRST (before the wheels perturb the
     //        section state). RT wheel → A centre «Карты» → hand. ──────────
-    await key(page, 'Period', 1000);
-    if (await page.locator('.con-quick').count() > 0) {
-      await key(page, 'Enter', 1400); // A = centre «Карты» → hand
+    if (await pressUntilVisible(page, 'Period', '.con-quick', {settleMs: 1000})) {
+      await wheelSlot(page, 'Enter', '.con-hand', 1400); // A = centre «Карты» → hand
     }
     if (await page.locator('.con-hand').count() > 0) {
+      await settle(page);
       await shoot(page, '04-hand');
-      await key(page, 'Enter', 1600); // primary on the focused (playable-first) card
+      // primary on the focused (playable-first) card — one press, its effect awaited
+      await pressUntil(page, 'Enter', async () => await page.locator('.con-composer--play, .con-composer').count() > 0,
+        {tries: 1, settleMs: 1600});
       if (await page.locator('.con-composer--play, .con-composer').count() > 0) {
+        await composerLoaded(page);
         await shoot(page, '05-play-confirm');
         await key(page, 'Escape', 800);
       }
@@ -98,22 +106,24 @@ test.describe('tv-4k decision screens', () => {
     await toBoard(page);
 
     // ── 2 · LT basic-actions quick wheel (the overlap defect) ───────────
-    await key(page, 'Comma', 1000);
-    if (await page.locator('.con-quick').count() > 0) {
+    if (await pressUntilVisible(page, 'Comma', '.con-quick', {settleMs: 1000})) {
+      await settle(page);
       await shoot(page, '01-basics-wheel');
-      await key(page, 'Enter', 1200); // A = centre → Standard Projects
+      await wheelSlot(page, 'Enter', '.con-stdp', 1200); // A = centre → Standard Projects
       if (await page.locator('.con-stdp').count() > 0) {
+        await settle(page);
         await shoot(page, '02-standard-projects');
       }
     }
     await toBoard(page);
 
     // ── 3 · RT actions wheel → card-actions (ArrowUp = «Действия карт») ──
-    await key(page, 'Period', 1000);
-    if (await page.locator('.con-quick').count() > 0) {
+    if (await pressUntilVisible(page, 'Period', '.con-quick', {settleMs: 1000})) {
+      await settle(page);
       await shoot(page, '03-actions-wheel');
-      await key(page, 'ArrowUp', 1200);
+      await wheelSlot(page, 'ArrowUp', '.con-cardactions', 1200);
       if (await page.locator('.con-cardactions').count() > 0) {
+        await settle(page);
         await shoot(page, '06-card-actions');
       }
     }
@@ -134,8 +144,12 @@ test.describe('tv-4k decision screens', () => {
     await page.goto(`/player?id=${id}&console=1`);
     await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-    await page.waitForTimeout(3500);
+    // The boot veil owns the top layer (and swallows keys) until it leaves — then the console is quiet.
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+    await settle(page);
 
+    // THE START WALK IS SETUP and its outcome is not asserted (the gallery captures what it reaches) — its presses
+    // are kept as they were.
     const startUp = async () => await page.locator('.con-start__frame, .con-task-host').count() > 0;
     if (await startUp()) {
       await key(page, 'Enter', 1100);
@@ -149,22 +163,17 @@ test.describe('tv-4k decision screens', () => {
     }
     // The colony-removal setup renders the colonies section directly; capture
     // it (or navigate RT → «Торговля» if the board came up clean).
-    for (let i = 0; i < 6; i++) {
-      if (await page.locator('.con-colonies').count() > 0) {
-        break;
-      }
-      await key(page, 'Enter', 900);
-    }
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-colonies').count() > 0, {tries: 6, settleMs: 900});
     if (await page.locator('.con-colonies').count() === 0) {
       await key(page, 'Period', 1000);
       const trading = page.locator('.con-quick__slot').filter({hasText: /Торг|Trad/i}).first();
       if (await trading.count() > 0) {
         await trading.click();
-        await page.waitForTimeout(1200);
+        await settle(page);
       }
     }
     if (await page.locator('.con-colonies').count() > 0) {
-      await page.waitForTimeout(1000);
+      await settle(page);
       await shoot(page, '07-colonies');
     }
 
@@ -172,51 +181,43 @@ test.describe('tv-4k decision screens', () => {
     // «Колония» standard project → the SelectColony 'Build' pick renders the
     // colonies section in BUILD mode — the rail + dock-behind + icon-fit case
     // the user flagged).
-    for (let i = 0; i < 8; i++) {
-      if (await page.locator('.con-cmdbar').count() > 0 &&
-          await page.locator('.con-colonies, .con-start__frame, .con-task-host').count() === 0) {
-        break;
-      }
-      await key(page, 'Enter', 900);
-    }
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-cmdbar').count() > 0 &&
+      await page.locator('.con-colonies, .con-start__frame, .con-task-host').count() === 0, {tries: 8, settleMs: 900});
     await toBoard(page);
-    await key(page, 'Comma', 1000); // basics wheel
-    if (await page.locator('.con-quick').count() > 0) {
-      await key(page, 'Enter', 1200); // → standard projects
+    if (await pressUntilVisible(page, 'Comma', '.con-quick', {settleMs: 1000})) { // basics wheel
+      await wheelSlot(page, 'Enter', '.con-stdp', 1200); // → standard projects
     }
     if (await page.locator('.con-stdp').count() > 0) {
       // Walk the grid to «КОЛОНИЯ» and select it.
       const colonyRow = page.locator('.con-stdp__card').filter({hasText: /Колони|Colony/i}).first();
       if (await colonyRow.count() > 0) {
         await colonyRow.click();
-        await page.waitForTimeout(700);
+        await settle(page);
         await key(page, 'Enter', 1400); // pay / confirm
       }
     }
     // The build pick renders the colonies section (build mode) + dock behind.
-    for (let i = 0; i < 4 && await page.locator('.con-colonies').count() === 0; i++) {
-      await key(page, 'Enter', 900);
-    }
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-colonies').count() > 0, {tries: 4, settleMs: 900});
     if (await page.locator('.con-colonies').count() > 0) {
-      await page.waitForTimeout(1000);
+      await settle(page);
       await shoot(page, '08-colonies-build');
     }
     await toBoard(page);
 
     // TRADE confirm — the command bar must NOT be dimmed under the confirm
     // backdrop (the regression the footer-behind-workspace z-drop caused).
-    await key(page, 'Period', 1000); // RT wheel
-    if (await page.locator('.con-quick').count() > 0) {
+    if (await pressUntilVisible(page, 'Period', '.con-quick', {settleMs: 1000})) { // RT wheel
       const trading = page.locator('.con-quick__slot').filter({hasText: /Торг|Trad|Колони|Colon/i}).first();
       if (await trading.count() > 0) {
         await trading.click();
-        await page.waitForTimeout(1200);
+        await settle(page);
       }
     }
     if (await page.locator('.con-colonies').count() > 0) {
-      await key(page, 'Enter', 1400); // A = descend into the COLONY FOCUS STAGE
+      // A = descend into the COLONY FOCUS STAGE — one press, its effect awaited
+      await pressUntil(page, 'Enter', async () => await page.locator('.con-colfocus').count() > 0, {tries: 1, settleMs: 1400});
       if (await page.locator('.con-colfocus').count() > 0) {
-        await page.waitForTimeout(800);
+        await settle(page);
         await shoot(page, '09-trade-confirm');
       }
     }

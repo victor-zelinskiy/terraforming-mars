@@ -4,6 +4,8 @@ import {
   killSittingMotion, playSittingStage, resetSittingDirector, SittingDirectorContext, sittingMotionActive,
 } from '@/client/console/parliament/sittingDirector';
 import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
+import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import type {SittingBeat} from '@/client/console/parliament/sittingBeats';
 
 /*
  * WAIT GRAPH R4 — A KILL ENDS THE WAIT IT CUT (docs/claude/console/wait-graph-inventory.md).
@@ -88,5 +90,39 @@ describe('sitting director — wait graph R4: a kill RESOLVES the run it cut', (
     const play = playSittingStage('verdict', [], {root} as unknown as SittingDirectorContext, {compact: false});
     expect(await settledOrPending(play)).eq('settled');
     expect(sittingHolds()).eq(0);
+  });
+
+  /*
+   * AN ENACTMENT CUT MID-RUN TELLS ITS REST (CI 2026-11-16, `console-parliament-sitting` tv-4k, 3 / 3): the walk notes a
+   * page played BEFORE it plays it, so «свернуть» landing inside the enactment (a two-core runner reached it before the
+   * B; a fast one was still on the verdict) brought the sitting back PAST the page — and the government, still awaiting
+   * the new card, read «Starting rule» for the rest of the sitting. The cut now releases the enactment's holds.
+   */
+  it('a play of the ENACTMENT cut mid-run releases its holds — the government governs, nothing awaits', async () => {
+    setReduceMotionOverride(false);
+    resetParliamentHolds();
+    parliamentHolds.govAwaits = 'enacted-1';
+    parliamentHolds.govBefore = {enacted: undefined} as never;
+    const enact: SittingBeat = {kind: 'enact', stage: 'enact', id: 'enact', compact: false} as SittingBeat;
+    const play = playSittingStage('enact', [enact], {root: document.createElement('div'), agendaTold: true} as unknown as SittingDirectorContext,
+      {compact: false});
+    expect(await settledOrPending(play), 'the enactment is on its way (its first gap)').eq('pending');
+    expect(parliamentHolds.govAwaits, 'the government still awaits the card').eq('enacted-1');
+    killSittingMotion();
+    expect(await settledOrPending(play)).eq('killed');
+    expect(parliamentHolds.govAwaits, 'the cut told the rest: the new law governs').eq(undefined);
+    expect(parliamentHolds.govBefore, 'the old government let go').eq(undefined);
+    resetParliamentHolds();
+  });
+
+  it('…but a play that ENDED is not cut: a later kill leaves the holds a newer page seeded', async () => {
+    const root = document.createElement('div');
+    const done = playSittingStage('verdict', [], {root} as unknown as SittingDirectorContext, {compact: false});
+    expect(await settledOrPending(done)).eq('settled');
+    resetParliamentHolds();
+    parliamentHolds.govAwaits = 'enacted-2';
+    killSittingMotion();
+    expect(parliamentHolds.govAwaits, 'nothing was cut — nothing is told').eq('enacted-2');
+    resetParliamentHolds();
   });
 });

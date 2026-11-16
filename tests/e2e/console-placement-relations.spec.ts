@@ -1,5 +1,7 @@
 import {test, expect, Page} from './consoleTest';
-import {bootSeededGame, createGameWithCards, focusedSpaceId, press} from './consoleStart';
+import {bootSeededGame, createGameWithCards, focusedSpaceId, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -89,7 +91,10 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
 async function focusStdProject(page: Page, title: RegExp): Promise<boolean> {
   const focusedName = () =>
     page.locator('.con-stdp__card--focused .con-stdp__name').innerText().catch(() => '');
-  await page.waitForTimeout(900);
+  // The sheet is open and at rest — a focused card stands, its entrance is over — before the walk reads it.
+  await expect(page.locator('.con-stdp__card--focused .con-stdp__name'), 'the standard projects sheet focused a card')
+    .toBeVisible({timeout: 15_000});
+  await settle(page);
   const walk = ['ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowDown',
     'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft',
     'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowDown'];
@@ -122,8 +127,15 @@ test.describe('console placement · on-field relations + reticle hierarchy', () 
     if (/ОПЛАТА/.test(await page.locator('.con-root').innerText())) {
       await key(page, 'KeyX', 2600);
     }
-    expect((await panel.innerText()).includes('РАЗМЕЩЕНИЕ ТАЙЛА'), 'never reached a board placement').toBeTruthy();
+    await expect.poll(async () => (await panel.innerText().catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА'),
+      {message: 'never reached a board placement', timeout: 15_000}).toBe(true);
     await expect(page.locator('.con-bcur')).toHaveCount(1);
+
+    // The ghost mask over the whole sweep, RECORDED (FLAKE ZERO — `armWitness`, armed before the first step): any
+    // focused cell with a printed bonus must carry it, and claim 2 is «it ever did» — asked of the product's own
+    // writes, never of a read that happened to land between two steps.
+    const masked = await armWitness(page, 'rel-ghost-masked', () => document.querySelector('.con-bcur__ghost--masked') !== null);
+    const sawMaskedGhost = () => masked.ever((on) => on);
 
     // ── 1. Walk until the dossier names the hazard penalty; the FIELD must
     //       name the same neighbours. (The seed still deals hazards at
@@ -131,13 +143,7 @@ test.describe('console placement · on-field relations + reticle hierarchy', () 
     let penaltyText = '';
     const walk = ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown',
       'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowDown'];
-    let sawMaskedGhost = false;
     for (let i = 0; i < 48 && penaltyText === ''; i++) {
-      // Sample the ghost mask opportunistically: any focused cell with a
-      // printed bonus must carry it (claim 2 is asserted over the sweep).
-      if (!sawMaskedGhost && await page.locator('.con-bcur__ghost--masked').count() > 0) {
-        sawMaskedGhost = true;
-      }
       const text = await panel.innerText();
       if (text.includes('Снизить производство')) {
         penaltyText = text;
@@ -162,31 +168,19 @@ test.describe('console placement · on-field relations + reticle hierarchy', () 
     //       sweep never crossed one, keep walking — Tharsis land without a
     //       single printed-bonus cell on a whole walk is an anomaly worth
     //       failing on.
-    for (let i = 0; i < 20 && !sawMaskedGhost; i++) {
-      if (await page.locator('.con-bcur__ghost--masked').count() > 0) {
-        sawMaskedGhost = true;
-        break;
-      }
+    for (let i = 0; i < 20 && !await sawMaskedGhost(); i++) {
       await key(page, walk[i % walk.length], 380);
     }
-    expect(sawMaskedGhost, 'no focused cell ever masked the ghost under its bonuses').toBeTruthy();
+    expect(await sawMaskedGhost(), 'no focused cell ever masked the ghost under its bonuses').toBeTruthy();
+    await masked.stop();
     await shoot(page, '01b-masked-ghost');
 
     // ── 3. A step clears the marks in the SAME press (no trailing
-    //       highlights), and a fast run keeps the reticle airborne. Sample
-    //       with setInterval — never rAF (headless compositor stalls).
-    await page.evaluate(() => {
-      const w = window as unknown as {__relProbe: {samples: number, travelSeen: number, staleAfterStep: number}};
-      w.__relProbe = {samples: 0, travelSeen: 0, staleAfterStep: 0};
-      const probe = w.__relProbe;
-      const id = window.setInterval(() => {
-        probe.samples++;
-        if (document.querySelector('.con-bcur--travel') !== null) {
-          probe.travelSeen++;
-        }
-      }, 40);
-      window.setTimeout(() => window.clearInterval(id), 6_000);
-    });
+    //       highlights), and a fast run keeps the reticle airborne. The
+    //       airborne pose is RECORDED from before the run (FLAKE ZERO —
+    //       `armWitness`: the product's own writes, never a sampler that
+    //       sleeps through a 120 ms travel on a starved renderer).
+    const travel = await armWitness(page, 'rel-reticle-travel', () => document.querySelector('.con-bcur--travel') !== null);
     // Rapid presses (no settle) — the held-direction shape.
     //
     // ⚠️ THE DIRECTION HAS TO ACTUALLY MOVE THE CURSOR. The placement ring
@@ -196,40 +190,48 @@ test.describe('console placement · on-field relations + reticle hierarchy', () 
     // entered its airborne pose» about a reticle that had nowhere to go. Turn
     // around when a press does not move the cursor, and assert the run really
     // happened, so the claim can never pass vacuously either.
+    //
+    // Each raw press is judged by ITS effect — the cursor left the cell it stood on — given its whole window (a
+    // bounded poll that returns the moment the cell changes, so the run keeps its held-direction pace); a press that
+    // moved nothing within it is the wall, and the run turns around.
     let moves = 0;
     let dir: 'ArrowLeft' | 'ArrowRight' = 'ArrowLeft';
     for (let i = 0; i < 8 && moves < 4; i++) {
       const at = await focusedSpaceId(page);
       await page.keyboard.press(dir);
-      await page.waitForTimeout(90);
-      if (await focusedSpaceId(page) === at) {
-        dir = dir === 'ArrowLeft' ? 'ArrowRight' : 'ArrowLeft';
-      } else {
+      const moved = await expect.poll(() => focusedSpaceId(page), {timeout: 1_500}).not.toBe(at).then(() => true, () => false);
+      if (moved) {
         moves++;
+      } else {
+        dir = dir === 'ArrowLeft' ? 'ArrowRight' : 'ArrowLeft';
       }
     }
     expect(moves, 'the fast run never moved the cursor at all').toBeGreaterThan(0);
-    // The step's own synchronous clear: no penalty mark may survive into the
-    // very next sample window unless the NEW cell's preview re-applied it.
-    await page.waitForTimeout(900);
-    const probe = await page.evaluate(() => (window as unknown as {__relProbe: {samples: number, travelSeen: number}}).__relProbe);
-    expect(probe.samples, 'the sampler never ran').toBeGreaterThan(5);
-    expect(probe.travelSeen, 'the reticle never entered its airborne pose during a fast run').toBeGreaterThan(0);
+    // The record's own liveness (it caught at least the state it was armed on), then the claim: the reticle rode its
+    // airborne pose at some point of the run — waited for as a STATE (returns at once when it already happened).
+    expect((await travel.samples()).length, 'the recorder never ran').toBeGreaterThan(0);
+    await travel.waitFor((up) => up, {timeoutMs: 5_000, message: 'the reticle never entered its airborne pose during a fast run'});
+    await travel.stop();
     // …and it always LANDS: no airborne residue once input stops.
     await expect.poll(() => page.locator('.con-bcur--travel').count(), {timeout: 3_000}).toBe(0);
 
     // After the run settles, any standing marks must agree with the CURRENT
     // panel: a panel without the penalty line may not keep penalty marks.
-    await page.waitForTimeout(600);
-    const settledText = await panel.innerText();
-    const settledPenalties = await page.locator('.board-space.con-rel--penalty').count();
-    if (!settledText.includes('Снизить производство')) {
-      expect(settledPenalties, 'stale penalty marks survived a cursor move').toBe(0);
+    // (The step's own synchronous clear: no penalty mark may survive the run
+    // unless the NEW cell's preview re-applied it.) Read at REST — the panel
+    // and the field the same twice, a frame apart, after the console settles.
+    const atRest = await readSettled(page, async () => ({
+      penaltyLine: (await panel.innerText().catch(() => '')).includes('Снизить производство'),
+      penalties: await page.locator('.board-space.con-rel--penalty').count(),
+    }), {message: 'the panel and the field after the fast run'});
+    if (!atRest.penaltyLine) {
+      expect(atRest.penalties, 'stale penalty marks survived a cursor move').toBe(0);
     }
     await shoot(page, '02-after-fast-run');
 
     // ── 4. LOCK keeps the field steady; B returns; leaving strips all.
-    const relCountBeforeLock = await page.locator('.board-space.con-rel').count();
+    const relCountBeforeLock = await readSettled(page, () => page.locator('.board-space.con-rel').count(),
+      {message: 'the relation marks before the lock'});
     await key(page, 'Enter', 700);
     await expect(page.locator('.con-bcur--locked')).toHaveCount(1);
     await expect.poll(() => page.locator('.board-space.con-rel').count(), {message: 'the lock replayed/lost the relation marks'}).toBe(relCountBeforeLock);

@@ -1,7 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, playCardFromHand, press, soloGameConfig} from './consoleStart';
+import {bootSeededGame, openQuickWheel, playCardFromHand, press, pressUntil, settle, soloGameConfig, takeRevealCard} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * MIRANDA — THE OWNER BONUS THAT IS A PLAIN DRAW.
@@ -49,21 +51,55 @@ async function createGame(request: APIRequestContext): Promise<string> {
   return model.players[0].id;
 }
 
+/**
+ * ONE HOP OF A WALK — the press, and the cursor's move as its witness: the WHOLE window before «no move» is believed
+ * (a rail / a tile lands a beat after the press), and never a second press here — a wall is a legitimate no-move.
+ */
+async function hop(page: Page, key: string, where: () => Promise<string>, settleMs: number): Promise<void> {
+  const at = await where();
+  await pressUntil(page, key, async () => (await where()) !== at, {tries: 1, settleMs});
+}
+
+/**
+ * A SERVER witness asked at the server's pace: a press's poll asks its witness every 50 ms, and a whole player view per
+ * ask is load on the very machine that renders the scene — the answer is kept for 400 ms (the old loop's own tick).
+ */
+function serverPaced(read: () => Promise<boolean>): () => Promise<boolean> {
+  let askedAt = -Infinity;
+  let answer = false;
+  return async () => {
+    if (Date.now() - askedAt >= 400) {
+      answer = await read();
+      askedAt = Date.now();
+    }
+    return answer;
+  };
+}
+
+/** The focused colony tile — the colony walk's witness. */
+function focusedTile(page: Page): Promise<string> {
+  return page.evaluate(() => document.querySelector('.con-coltile--focused')?.getAttribute('data-test') ?? '');
+}
+
 async function openColoniesAndFocus(page: Page, target: string): Promise<void> {
   const colonies = page.locator('.con-colonies');
-  for (let i = 0; i < 4 && await colonies.count() === 0; i++) {
-    await press(page, 'Period', 1100);
-    await press(page, 'ArrowRight', 1300);
+  if (await colonies.count() === 0) {
+    // RT opens the quick wheel; its RIGHT slot is the colonies — on a quick wheel the direction press IS the
+    // activation, so the wheel leaving (or the colonies standing) is the press's effect.
+    await openQuickWheel(page);
+    await pressUntil(page, 'ArrowRight',
+      async () => await colonies.count() > 0 || await page.locator('.con-quick').count() === 0, {settleMs: 1300});
   }
   await expect.poll(() => colonies.count(), {message: 'colonies section did not open'}).toBeGreaterThan(0);
   const focused = page.locator(`.con-coltile--focused[data-test="con-colony-${target}"]`);
+  const where = () => focusedTile(page);
   for (let i = 0; i < 10 && await focused.count() === 0; i++) {
-    await press(page, 'ArrowRight', 380);
+    await hop(page, 'ArrowRight', where, 380);
   }
   for (let i = 0; i < 4 && await focused.count() === 0; i++) {
-    await press(page, 'ArrowDown', 380);
+    await hop(page, 'ArrowDown', where, 380);
     for (let j = 0; j < 5 && await focused.count() === 0; j++) {
-      await press(page, 'ArrowLeft', 320);
+      await hop(page, 'ArrowLeft', where, 320);
     }
   }
   await expect.poll(() => focused.count(), {message: `could not focus ${target}`}).toBeGreaterThan(0);
@@ -78,19 +114,24 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
 
   // ── 1 · Activate Miranda (an animal card must be in play). ───────────────
   expect(await playCardFromHand(page, PETS), 'Pets was never played (Miranda stays inactive)').toBeTruthy();
-  await page.waitForTimeout(1500);
+  // The play's own scene (the hero, its holds) ends before the next door is pressed.
+  await settle(page);
 
   // ── 2 · Build a colony on Miranda (the standard project) — the viewer must
   //      OWN a settlement there for the trade to pay them an owner bonus. ──
-  await press(page, 'Comma', 1200);
-  await press(page, 'Enter', 1400);
+  // LT opens the basic-actions wheel; its centre (A) is the standard projects — the wheel leaving is that press's effect.
+  expect(await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {settleMs: 1200}),
+    'the basic-actions wheel opens').toBe(true);
+  await pressUntil(page, 'Enter',
+    async () => await page.locator('.con-stdp').count() > 0 || await page.locator('.con-quick').count() === 0, {settleMs: 1400});
   await expect.poll(() => page.locator('.con-stdp').count(), {message: 'standard projects did not open'}).toBeGreaterThan(0);
   const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
   const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
   for (let i = 0; i < 18 && !/колони/i.test(await focusedName()); i++) {
-    await press(page, walk[i % walk.length], 300);
+    await hop(page, walk[i % walk.length], focusedName, 300);
   }
-  expect(/колони/i.test(await focusedName()), 'could not focus the colony standard project').toBeTruthy();
+  await expect.poll(async () => /колони/i.test(await focusedName()), {message: 'could not focus the colony standard project'})
+    .toBe(true);
   await press(page, 'Enter', 1800);
   await page.waitForSelector('.con-colonies', {timeout: 15_000});
   await openColoniesAndFocus(page, 'Miranda');
@@ -118,19 +159,18 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   // spec pressed A alone and called it «build confirm», which is why the
   // colony was sometimes never built at all. Alternate the two verbs rather
   // than hardcode one — that follows the surface for both shapes.
+  // Each verb gets the whole window to show its effect ON THE SERVER before the other one is tried (a press, then the
+  // server polled until the window closes — never a second press into a build already standing).
   let built = false;
   for (let tries = 0; tries < 6 && !built; tries++) {
-    await press(page, tries % 2 === 0 ? 'Enter' : 'KeyX', 1600);
-    for (let w = 0; w < 8 && !built; w++) {
-      await page.waitForTimeout(400);
-      built = await ownsMiranda();
-    }
+    built = await pressUntil(page, tries % 2 === 0 ? 'Enter' : 'KeyX', serverPaced(ownsMiranda), {tries: 1, settleMs: 1600 + 3200});
   }
   expect(built, 'the colony was never built on Miranda — without a settlement there is no owner ' +
     `bonus to probe (stage ${await page.locator('.con-colfocus').count()}, ` +
     `colonies ${await page.locator('.con-colonies').count()})`).toBe(true);
-  // The build bonus is an ANIMAL onto Pets — no reveal, no cards. Let it settle.
-  await page.waitForTimeout(3500);
+  // The build bonus is an ANIMAL onto Pets — no reveal, no cards. Let it settle (its flight's holds, the workspace's
+  // leave).
+  await settle(page);
   await shoot(page, '01-built');
 
   // ── 3 · Trade with Miranda: income = animals onto Pets, owner bonus = the
@@ -143,42 +183,31 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
    * THE TRACK RESET IS THE RESOLUTION'S LAST BEAT — it may only start once
    * every card has been taken and the colony's own stage is back in front of
    * the player. This watch is the fence: it records the marker proxy flying
-   * while cards are still on the table (`glideOverReveal`), and the moment
-   * each of the two events first happened.
+   * while cards are still on the table (`glideOverReveal`), and the ORDER of
+   * the two events.
+   *
+   * RECORDED (FLAKE ZERO — `armWitness`, armed before the trade's first
+   * press, replace-proof): every state the product writes, sampled when the
+   * task's microtasks have run (`settled` — «the marker while a card is still
+   * on the table» is a COEXISTENCE claim: a state a frame can paint) and once
+   * per frame (the stage's fade is a CSS transition). The questions are
+   * folded on this side: «ever», and the order of the first marker against
+   * the last state that still owed a card.
    */
-  const watching = page.evaluate((budget) => {
-    const out = {glideOverReveal: false, glideOverBlankStage: false, markerAtMs: -1, lastTakeAtMs: -1};
-    (window as unknown as {__miranda?: typeof out}).__miranda = out;
-    const t0 = performance.now();
-    const visible = (el: Element | null) => el !== null && (el as HTMLElement).getClientRects().length > 0;
-    const tick = () => {
-      const now = Math.round(performance.now() - t0);
-      const marker = document.querySelector('.con-coltrade-marker');
-      const cardsOnTable = document.querySelectorAll('.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length;
-      if (cardsOnTable > 0) {
-        out.lastTakeAtMs = now; // the last frame a card was still owed
-      }
-      if (visible(marker)) {
-        if (out.markerAtMs < 0) {
-          out.markerAtMs = now;
-        }
-        if (cardsOnTable > 0) {
-          out.glideOverReveal = true;
-        }
-        // …and the track it crosses must be BACK: the payout pose takes the
-        // stage's working area to opacity 0, and a marker launched into that
-        // fade is a white dot over an empty panel.
-        const main = document.querySelector('.con-colfocus__main');
-        if (main !== null && Number(getComputedStyle(main).opacity || '1') < 0.9) {
-          out.glideOverBlankStage = true;
-        }
-      }
-      if (performance.now() - t0 < budget) {
-        requestAnimationFrame(tick);
-      }
+  type GlideSeen = {marker: boolean, owed: boolean, blank: boolean};
+  const glide = await armWitness<GlideSeen>(page, 'miranda-glide', () => {
+    const marker = document.querySelector('.con-coltrade-marker');
+    const visible = marker !== null && (marker as HTMLElement).getClientRects().length > 0;
+    // …and the track it crosses must be BACK: the payout pose takes the
+    // stage's working area to opacity 0, and a marker launched into that
+    // fade is a white dot over an empty panel.
+    const main = document.querySelector('.con-colfocus__main');
+    return {
+      marker: visible,
+      owed: document.querySelectorAll('.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length > 0,
+      blank: visible && main !== null && Number(getComputedStyle(main).opacity || '1') < 0.9,
     };
-    requestAnimationFrame(tick);
-  }, 30_000);
+  }, {settled: true});
 
   // CONFIRM THE TRADE — with evidence, never blind. A press dropped on a heavy
   // frame is indistinguishable from «the product did nothing», and the wait
@@ -260,35 +289,40 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
         missing: el.className.includes('--missing'),
         focused: el.className.includes('--focused'),
       })));
+  //
+  // Every press of the walk waits for ITS effect — the stage's own signature (its rows, what is focused in it, the
+  // verb on the bar) moving — before the next one: one press per hop, never a second press into what the first opened.
+  const stageSig = (): Promise<string> => page.evaluate(() => JSON.stringify({
+    rows: Array.from(document.querySelectorAll('.con-colfocus__steprow')).map((r) => r.className),
+    focus: Array.from(document.querySelectorAll('.con-colfocus [class*="--focused"]')).map((e) => e.className),
+    bar: (document.querySelector('.con-cmdbar') as HTMLElement | null)?.innerText ?? '',
+  })).catch(() => 'gone');
   for (let guard = 0; guard < 16; guard++) {
     const missing = (await stepRows()).find((r) => r.missing);
     if (missing === undefined) {
       break;
     }
     if (!missing.focused) {
-      await press(page, 'ArrowDown', 240);
+      await hop(page, 'ArrowDown', stageSig, 600);
       continue;
     }
-    await press(page, 'Enter', 900); // A = descend into the target step
-    await press(page, 'Enter', 1200); // A = take the focused candidate
+    await hop(page, 'Enter', stageSig, 1500); // A = descend into the target step
+    await hop(page, 'Enter', stageSig, 1500); // A = take the focused candidate
   }
-  expect((await stepRows()).some((r) => r.missing),
-    `a trade step stayed unanswered, so the confirm can never arm — ${await stageState()}`).toBe(false);
+  await expect.poll(async () => (await stepRows()).some((r) => r.missing),
+    {message: `a trade step stayed unanswered, so the confirm can never arm — ${await stageState()}`}).toBe(false);
 
   const pressLog: Array<string> = [];
   let committed = false;
   for (let tries = 0; tries < 6 && !committed; tries++) {
     const verb = tries % 2 === 0 ? 'KeyX' : 'Enter';
     pressLog.push(`before ${verb}#${tries}: ${await stageState()}`);
-    await page.keyboard.press(verb);
-    pressLog.push(`after ${verb}#${tries}: ${await stageState()}`);
     // The budget is spent WATCHING THE TRADE rather than watching the screen
-    // change — and it never presses into a live payout, because the first
-    // sample that sees one stops the loop.
-    for (let w = 0; w < 10 && !committed; w++) {
-      await page.waitForTimeout(400);
-      committed = await traded();
-    }
+    // change — and it never presses into a live payout: the press waits for
+    // its effect (the reveal, or the server's batch) for the whole window, and
+    // the first look that sees one stops the loop.
+    committed = await pressUntil(page, verb, serverPaced(traded), {tries: 1, settleMs: 4000});
+    pressLog.push(`after ${verb}#${tries}: ${await stageState()}`);
   }
   expect(committed, 'the trade never committed: no reveal on screen and no owner-bonus batch ' +
     `on the server (stage ${await page.locator('.con-colfocus').count()}, ` +
@@ -322,7 +356,12 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
     .toHaveCount(0, {timeout: 30_000});
   await shoot(page, '02-bonus-reveal');
 
-  const box = await revealCard.first().boundingBox();
+  // The card's box AT REST (C — `readSettled`: the same box twice, frames apart, never a pose mid-entrance). No
+  // `settle` first: the reveal STANDS for the player's take, and what it holds meanwhile is no reason to wait.
+  const box = await readSettled(page, async () => {
+    const b = await revealCard.first().boundingBox();
+    return b === null ? null : {width: Math.round(b.width), height: Math.round(b.height)};
+  }, {settle: false, message: 'the bonus card\'s box'});
   expect(box, 'the bonus card has no box').not.toBeNull();
   expect(box?.width ?? 0, 'the bonus card rendered collapsed').toBeGreaterThan(60);
   // …and it presents INSIDE the colony workspace, like every other payout.
@@ -338,15 +377,19 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   };
   const before = await handCount();
   console.log('── before the take ──', JSON.stringify(await diag()));
-  await press(page, 'Enter', 3200); // A = take
-  console.log('── after the take ──', JSON.stringify(await diag()));
-  await page.waitForTimeout(2500);
-  await shoot(page, '03-after-take');
+  // A = take — act → verify on the reveal's own take state (`ready` → `busy`), re-pressed only when it was swallowed.
+  const took = await takeRevealCard(page);
+  console.log('── after the take ──', `took=${took}`, JSON.stringify(await diag()));
   await expect(page.locator('.con-reveal'), 'the reveal never closed after the take')
     .toHaveCount(0, {timeout: 20_000});
-  const after = await handCount();
-  if (before >= 0 && after >= 0) {
-    expect(after, `the taken card never reached the hand (${before} → ${after})`).toBeGreaterThan(before);
+  await shoot(page, '03-after-take');
+  // The dock is read LIVE (a poll): the card flies into it after the reveal closes, and the counter ticks on its
+  // landing. A dock that is not on screen (-1) says nothing — as before.
+  if (before >= 0) {
+    await expect.poll(async () => {
+      const after = await handCount();
+      return after < 0 || after > before;
+    }, {message: `the taken card never reached the hand (${before} → the dock's count never grew)`}).toBe(true);
   }
 
   // ── 5 · …and the resolution closes itself: the track glide is the last beat
@@ -355,13 +398,21 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
     .toHaveCount(0, {timeout: 25_000});
   await shoot(page, '04-closed');
 
-  await watching;
-  const order = await page.evaluate(() => (window as unknown as {__miranda?: {glideOverReveal: boolean, glideOverBlankStage: boolean, markerAtMs: number, lastTakeAtMs: number}}).__miranda);
+  const seen = await glide.stop();
+  // The ORDER, by position in the record (a frame-rate-proof claim): the first state with the marker on screen, and
+  // the last state that still owed a card.
+  const markerAt = seen.findIndex((s) => s.v.marker);
+  const lastOwedAt = seen.map((s) => s.v.owed).lastIndexOf(true);
+  const order = {
+    glideOverReveal: seen.some((s) => s.v.marker && s.v.owed),
+    glideOverBlankStage: seen.some((s) => s.v.blank),
+    markerAtMs: markerAt < 0 ? -1 : seen[markerAt].t - seen[0].t,
+    lastTakeAtMs: lastOwedAt < 0 ? -1 : seen[lastOwedAt].t - seen[0].t,
+  };
   console.log('── glide ordering ──', JSON.stringify(order));
-  expect(order?.glideOverReveal, 'the track marker glided while cards were still on the table').toBeFalsy();
-  expect(order?.glideOverBlankStage, 'the track marker glided over a HIDDEN track').toBeFalsy();
-  if ((order?.markerAtMs ?? -1) >= 0 && (order?.lastTakeAtMs ?? -1) >= 0) {
-    expect(order?.markerAtMs, 'the track reset started before the payout was collected')
-      .toBeGreaterThan(order?.lastTakeAtMs ?? 0);
+  expect(order.glideOverReveal, 'the track marker glided while cards were still on the table').toBeFalsy();
+  expect(order.glideOverBlankStage, 'the track marker glided over a HIDDEN track').toBeFalsy();
+  if (markerAt >= 0 && lastOwedAt >= 0) {
+    expect(markerAt, 'the track reset started before the payout was collected').toBeGreaterThan(lastOwedAt);
   }
 });

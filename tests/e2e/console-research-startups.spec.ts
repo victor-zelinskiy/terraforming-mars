@@ -4,6 +4,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, press, settle, waitForBoardHome, crumbText} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, type Witness} from './witness';
 
 /**
  * TR46 «ИССЛЕДОВАТЕЛЬСКИЕ СТАРТАПЫ» — the set's first answer to THE PATENT
@@ -113,51 +114,48 @@ async function focusRow(page: Page, re: RegExp): Promise<void> {
   expect(re.test(await focusedRow(page)), `could not focus ${re}`).toBeTruthy();
 }
 
-/** setInterval sampler (never rAF): the receivers, their capsules, the data cells — what the terminal shows when. */
-async function armSaleProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type S = {t: number, up: boolean, caps: Record<string, string>, phase: string};
-    const w = window as unknown as {__sale: Array<S>};
-    const samples: Array<S> = [];
-    w.__sale = samples;
-    const t0 = performance.now();
-    window.setInterval(() => {
-      const recvs = document.querySelector('.con-sale-hero__recvs');
-      const caps: Record<string, string> = {};
-      for (const el of Array.from(document.querySelectorAll('.con-sale-hero__recv-card'))) {
-        caps[el.getAttribute('data-sale-receiver') ?? ''] = (el.querySelector('.pcard__res-count')?.textContent ?? '').trim();
-      }
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        up: recvs !== null && recvs.classList.contains('con-sale-hero__recvs--up'),
-        caps,
-        phase: document.querySelector('.con-sale-hero') === null ? 'none' : 'hero',
-      });
-    }, 25);
+/**
+ * The SALE's record (FLAKE ZERO — `armWitness`: every change the product writes, observed in the task that makes it):
+ * the receivers, their capsules, the data cells — what the terminal shows when.
+ */
+type SaleSeen = {up: boolean, caps: Record<string, string>, phase: string};
+async function armSaleProbe(page: Page): Promise<Witness<SaleSeen>> {
+  return armWitness<SaleSeen>(page, 'rs-sale', () => {
+    const recvs = document.querySelector('.con-sale-hero__recvs');
+    const caps: Record<string, string> = {};
+    for (const el of Array.from(document.querySelectorAll('.con-sale-hero__recv-card'))) {
+      caps[el.getAttribute('data-sale-receiver') ?? ''] = (el.querySelector('.pcard__res-count')?.textContent ?? '').trim();
+    }
+    return {
+      up: recvs !== null && recvs.classList.contains('con-sale-hero__recvs--up'),
+      caps,
+      phase: document.querySelector('.con-sale-hero') === null ? 'none' : 'hero',
+    };
   });
 }
 
 /**
- * The ACTION's beats, sampled on a task clock (never rAF): the prepared stage's own heading (PL-205 — a look turns
- * cards over, it does not receive them), the rest of the batch leaving (`con-exit-reject`) and the kept card's proxy
- * in the delivery layer (PL-207 — the rest leave while the pick is in the air).
+ * The ACTION's beats, RECORDED (FLAKE ZERO — `armWitness`, `settled`: «the workspace left while the card was in the
+ * air» is a coexistence claim, judged on the state a task leaves): the prepared stage's own heading (PL-205 — a look
+ * turns cards over, it does not receive them), the rest of the batch leaving (`con-exit-reject`) and the kept card's
+ * proxy in the delivery layer (PL-207 — the rest leave while the pick is in the air). A 25 ms sampler slept through the
+ * fold under the flight on CI's 2-core raster.
  */
-async function armActionProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type S = {t: number, head: string, rejects: number, carried: number, ws: number};
-    const samples: Array<S> = [];
-    (window as unknown as {__act: Array<S>}).__act = samples;
-    const t0 = performance.now();
-    window.setInterval(() => {
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        head: (document.querySelector('.con-composer__beathead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        rejects: document.querySelectorAll('.con-deckpick .con-exit-reject').length,
-        carried: document.querySelectorAll('.con-handdelivery-layer > *').length,
-        ws: document.querySelectorAll('.con-ws').length,
-      });
-    }, 25);
-  });
+type ActSeen = {head: string, rejects: number, carried: number, ws: number};
+async function armActionProbe(page: Page): Promise<Witness<ActSeen>> {
+  return armWitness<ActSeen>(page, 'rs-action', () => ({
+    head: (document.querySelector('.con-composer__beathead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    rejects: document.querySelectorAll('.con-deckpick .con-exit-reject').length,
+    carried: document.querySelectorAll('.con-handdelivery-layer > *').length,
+    ws: document.querySelectorAll('.con-ws').length,
+  }), {settled: true});
+}
+
+/** A recording as timed samples (ms since its first sample, on the page's clock). */
+async function timedSamples<T>(w: Witness<T>): Promise<Array<T & {t: number}>> {
+  const all = await w.samples();
+  const t0 = all[0]?.t ?? 0;
+  return all.map((x) => ({...x.v, t: x.t - t0}));
 }
 
 for (const preset of PRESETS) {
@@ -275,7 +273,7 @@ for (const preset of PRESETS) {
 
       // ── 3. The confirm: the terminal stands the receiving card up; the data land in ITS capsule.
       await armTransferWitness(page);
-      await armSaleProbe(page);
+      const saleProbe = await armSaleProbe(page);
       const stop = await storyboard(page, preset.id, 'sale');
       await press(page, 'Period', 300);
       await expect.poll(() => seen.posts.length, {timeout: 10_000}).toBe(1);
@@ -287,7 +285,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 40_000});
       await waitForBoardHome(page, 30);
       await stop();
-      const samples = await page.evaluate(() => (window as unknown as {__sale: Array<{t: number, up: boolean, caps: Record<string, string>}>}).__sale);
+      const samples = await timedSamples(saleProbe);
       const stood = samples.filter((s) => s.up);
       expect(stood.length, 'the receiving cards stood beside the terminal').toBeGreaterThan(0);
       const caps = [...new Set(samples.map((s) => s.caps[CARD]).filter((c) => c !== undefined && c !== ''))];
@@ -336,7 +334,7 @@ for (const preset of PRESETS) {
       }
       await shoot(page, preset.id, 'c-01-composer');
       await armTransferWitness(page);
-      await armActionProbe(page);
+      const actionProbe = await armActionProbe(page);
       const stop = await storyboard(page, preset.id, 'action');
       for (let attempt = 0; attempt < 4 && seen.posts.length === 0; attempt++) {
         await press(page, 'Enter', 300);
@@ -360,8 +358,8 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 40_000});
       await waitForBoardHome(page, 30);
       await stop();
-      const act = await page.evaluate(() => (window as unknown as {__act: Array<{t: number, head: string, rejects: number, carried: number, ws: number}>}).__act);
-      expect(act.length, 'the action probe sampled').toBeGreaterThan(10);
+      const act = await timedSamples(actionProbe);
+      expect(act.length, 'the action probe recorded').toBeGreaterThan(0); // a liveness floor catches only a DEAD recorder (tests.md)
       // PL-205: the prepared stage says the cards are TURNED OVER — four of five go to the discard, none is «received».
       // Since PL-206 the head names the PROCESS until the last card has touched down («Вскрываем карты»), and the
       // landing hands the zone to the pick in the same flush — the result wording is the pick's own, never this head's.

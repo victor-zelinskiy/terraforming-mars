@@ -2,9 +2,11 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  fillPicks, focusedCard, pickCards, press, stepKind, stepSubject, summaryVisible,
-  waitForBoardHome, waitPressable,
+  composerLoaded, deploymentActive, fillPicks, focusedCard, pickCards, press, pressUntil, settle, stepKind, stepSubject,
+  summaryVisible, waitForBoardHome, waitPressable, waitQueueIdle,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * DOUBLE-NESTED CONTINUATION — the iteration-2 acceptance flow:
@@ -132,6 +134,16 @@ async function surfaces(page: Page) {
   });
 }
 
+/**
+ * `surfaces` AT REST — the one read a state is judged on. The start is a phase-long scene: a step of its chain may hold
+ * a blocking hold until the player answers (`settle` would wait it out and throw), so the console's quiet is waited
+ * for softly and the read itself is what must hold still (two equal reads a frame apart, finite motion over).
+ */
+async function settledSurfaces(page: Page, what: string): Promise<Awaited<ReturnType<typeof surfaces>>> {
+  await settle(page, {timeoutMs: 20_000}).catch(() => { /* a step of the chain holds the screen — the read still waits for rest */ });
+  return readSettled(page, () => surfaces(page), {settle: false, message: what});
+}
+
 /** Wizard → summary → begin, buying EXACTLY Trading Colony (a 1-card hand —
  *  the sponsor can only play it). */
 async function walkWizard(page: Page): Promise<void> {
@@ -139,7 +151,8 @@ async function walkWizard(page: Page): Promise<void> {
   await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
   for (let round = 0; round < 8 && !(await summaryVisible(page)); round++) {
     await waitPressable(page);
-    await page.waitForTimeout(250);
+    // The step names itself once its deal has let go of the subject — read it then (bounded: the walk reads what stands).
+    await expect.poll(() => stepSubject(page), {timeout: 5_000}).not.toBe('').catch(() => undefined);
     const kind = stepKind(await stepSubject(page));
     if (kind === 'corporation') {
       await press(page, 'Enter', 600);
@@ -152,14 +165,16 @@ async function walkWizard(page: Page): Promise<void> {
       expect(got, 'Trading Colony was dealt and picked').toContain('Trading Colony');
     }
     await press(page, 'Period', 1600);
-    for (let w = 0; w < 20 && !(await summaryVisible(page)) &&
-         stepKind(await stepSubject(page)) === kind; w++) {
-      await page.waitForTimeout(250);
-    }
+    // Let the step actually change before looking again — a STATE (bounded), never a sleep.
+    await expect.poll(async () => await summaryVisible(page) || stepKind(await stepSubject(page)) !== kind,
+      {timeout: 5_000}).toBe(true).catch(() => { /* the next round reads what stands */ });
   }
   expect(await summaryVisible(page), 'reached the summary').toBeTruthy();
   await press(page, 'Enter', 2500); // НАЧАТЬ ПАРТИЮ
-  await page.waitForTimeout(4000);
+  // The deployment STANDS and takes presses: its queue is up and idle — the state the old fixed pause stood in for.
+  await expect.poll(() => deploymentActive(page), {timeout: 45_000, message: 'the deployment took the screen'}).toBe(true);
+  await waitQueueIdle(page);
+  await settle(page, {timeoutMs: 30_000});
 }
 
 test.describe('console colonies · double-nested continuation (sponsor → card → colonies)', () => {
@@ -184,10 +199,8 @@ test.describe('console colonies · double-nested continuation (sponsor → card 
     await page.goto(`/player?id=${playerId}&console=1`);
     await walkWizard(page);
 
-    // ── Deployment: play the queue until the SPONSOR opens its hand step. ──
-    for (let i = 0; i < 12 && !(await page.locator('.con-hand').count() > 0); i++) {
-      await press(page, 'Enter', 1800);
-    }
+    // ── Deployment: play the queue until the SPONSOR opens its hand step (act → verify on the step itself). ──
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-hand').count() > 0, {tries: 12, settleMs: 1800});
     await expect.poll(() => page.locator('.con-start .con-hand').count(), {message: 'the sponsor hand opened INSIDE the start'}).toBeGreaterThan(0);
     await shoot(page, '01-sponsor-hand');
 
@@ -195,19 +208,18 @@ test.describe('console colonies · double-nested continuation (sponsor → card 
     const played = (await focusedCard(page)) ?? '';
     expect(played, 'the one-card hand focuses Trading Colony').toContain('Trading Colony');
     await press(page, 'Enter', 1800); // → the embedded play composer
+    // The sheet takes its preview a beat after it mounts — the A below is aimed at a LOADED sheet.
+    await composerLoaded(page, {mount: '.con-composer--play'});
     // A = Разыграть (the sponsor discount covers it). Act → verify → retry:
     // the descend/entry motion can swallow a single press, so keep pressing
     // until the play actually commits (the colonies step is what follows).
-    for (let i = 0; i < 6 && await page.locator('.con-colonies').count() === 0; i++) {
-      await press(page, 'Enter', 2400);
-    }
+    await pressUntil(page, 'Enter', async () => await page.locator('.con-colonies').count() > 0, {tries: 6, settleMs: 2400});
 
     // ── THE ACCEPTANCE MOMENT: the COLONY WORKSPACE opens as the NEXT
     //    continuation step — three teleports deep — and the START does NOT
     //    come back first. ──
     await page.waitForSelector('.con-colonies', {timeout: 30_000});
-    await page.waitForTimeout(1200); // entry settles
-    let s = await surfaces(page);
+    let s = await settledSurfaces(page, 'the embedded colonies after their entry');
     await shoot(page, '02-embedded-colonies');
     expect(s.tripleNested, 'start ⊃ hand ⊃ colonies (the teleport chain)').toBeTruthy();
     expect(s.queueUp, 'the deployment queue must NOT be back yet').toBeFalsy();
@@ -234,27 +246,41 @@ test.describe('console colonies · double-nested continuation (sponsor → card 
     //    A confirms, the cube physically lands in the big berth. ──
     await press(page, 'Enter', 1600);
     await page.waitForSelector('.con-colfocus', {timeout: 10_000});
-    s = await surfaces(page);
+    s = await settledSurfaces(page, 'the build focus stage after its entry');
     expect(s.destRing, 'the destination berth is ringed').toBe(1);
     expect(s.trackOverlap, 'the expanded track cells / glyphs must not bleed into each other')
       .toBeLessThanOrEqual(1);
     await shoot(page, '03-build-focus');
+    // While the cube flies the START must still be parked away — RECORDED from before the confirm over the whole
+    // flight (`settled`: «the queue painted while the cube is in the air» is a claim about ONE painted state).
+    const flight = await armWitness(page, 'sponsor-colony-cube-flight', () => ({
+      cube: document.querySelectorAll('.con-colonybuild__cube').length,
+      queueUp: (() => {
+        const painted = (el: Element | null) => el !== null &&
+          (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
+        return painted(document.querySelector('.con-start__queuecol')) ||
+          Array.from(document.querySelectorAll('.con-start [data-queue-slot]')).some((el) => painted(el));
+      })(),
+    }), {settled: true});
     await page.keyboard.press('Enter'); // confirm the build
     await page.waitForSelector('.con-colonybuild__cube', {timeout: 12_000});
     await shoot(page, '04-cube-flying');
-    // While the cube flies the START must still be parked away.
-    s = await surfaces(page);
-    expect(s.queueUp, 'the start stays away until the colony action completes').toBeFalsy();
-    await page.waitForSelector('.con-colonybuild__cube', {state: 'detached', timeout: 20_000});
-    await page.waitForTimeout(1200);
+    await page.locator('.con-colonybuild__cube').first().waitFor({state: 'detached', timeout: 20_000});
+    const inFlight = (await flight.stop()).filter((r) => r.v.cube > 0);
+    expect(inFlight.length, 'the record saw the cube in the air').toBeGreaterThan(0);
+    expect(inFlight.some((r) => r.v.queueUp), 'the start stays away until the colony action completes').toBeFalsy();
+    // The landing and the grant played to their end (softly — the start resumes on its own clock).
+    await settle(page, {timeoutMs: 20_000}).catch(() => { /* the continuation below is waited for by state */ });
     await shoot(page, '05-cube-seated');
 
     // ── CONTINUATION: only NOW the start's deployment returns and the rest
     //    of the preludes play out to the live board. ──
-    for (let i = 0; i < 20 && !(await surfaces(page)).queueUp && !(await surfaces(page)).startUp; i++) {
-      await page.waitForTimeout(600);
-    }
-    expect((await surfaces(page)).coloniesUp, 'the colonies step folded back to its parent').toBeFalsy();
+    await expect.poll(async () => {
+      const now = await surfaces(page);
+      return now.queueUp || now.startUp;
+    }, {timeout: 12_000}).toBe(true).catch(() => { /* the claim below reads what stands */ });
+    await expect.poll(async () => (await surfaces(page)).coloniesUp, {message: 'the colonies step folded back to its parent'})
+      .toBe(false);
     await shoot(page, '06-start-continues');
     await waitForBoardHome(page);
     await shoot(page, '07-board-home');

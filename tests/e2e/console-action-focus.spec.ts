@@ -1,7 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, press, settle, soloGameConfig, waitForTurn} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * Console ACTION FLOW · the browse ⇄ ACTION FOCUS recompose.
@@ -68,7 +70,8 @@ for (const profile of PROFILES) {
         step: 0.013, // the deal-search stride this spec's seed line was tuned on
       });
       await waitForTurn(page);
-      await page.waitForTimeout(4000);
+      // The start's release and the turn's arrival are over — the board at rest before the hand is driven.
+      await settle(page, {timeoutMs: 30_000});
 
       // ── Play Search For Life (RT wheel → center = КАРТЫ). ───────────────
       expect(await playCardFromHand(page, 'Search For Life'),
@@ -93,19 +96,20 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-cardactions__browse--parked')).toHaveCount(1);
       // The header is the operation breadcrumb now.
       await expect(page.locator('.con-wshead__step')).toHaveCount(1);
-      expect((await page.locator('.con-wshead__subject').innerText()).toUpperCase()).toContain('ПОИСКИ ЖИЗНИ');
+      await expect.poll(async () => (await page.locator('.con-wshead__subject').innerText()).toUpperCase()).toContain('ПОИСКИ ЖИЗНИ');
       // The hero card slot carries the FLIP/zoom contracts.
       await expect(page.locator('.con-composer--stage [data-action-focus-card][data-zoom-slot="Search For Life"]')).toHaveCount(1);
       // The CTA dock is pinned outside the scroll.
       await expect(page.locator('.con-composer__ctadock .con-composer__cta')).toHaveCount(1);
-      await page.waitForTimeout(500); // the FLIP settles
       // The couch chip weight must survive the runtime-injected scoped SFC
       // styles (the doubled-class chip-system rule): on the TV profile the
       // hero chips read at the accent size, never the 13px desktop fallback.
-      const chipFs = await page.evaluate(() => {
+      // Read once the FLIP has settled (`readSettled`: the console at rest,
+      // the same size twice a frame apart).
+      const chipFs = await readSettled(page, () => page.evaluate(() => {
         const chip = document.querySelector('.con-composer--stage .action-effect-chip');
         return chip !== null ? parseFloat(getComputedStyle(chip).fontSize) : 0;
-      });
+      }), {message: 'the hero chip\'s font size'});
       expect(chipFs, 'the effect chips must ride the console chip tokens').toBeGreaterThan(15);
       await shoot(page, `${profile.tag}-02-action-focus`);
 
@@ -139,31 +143,38 @@ for (const profile of PROFILES) {
       //    fitted size to its natural one — the workspace left with enlarged
       //    icons. The probe samples the SAME nodes across the whole leave
       //    (a detached node measures 0, so only growth can fail this).
-      //    The sampler is armed BEFORE the press, so the real key path (not a
-      //    synthetic event) is what dismisses the workspace.
-      await page.evaluate(() => {
-        const nodes = [...document.querySelectorAll<HTMLElement>('.con-cardactions__graphic')];
-        const width = (n: HTMLElement) => n.getBoundingClientRect().width;
-        const fits = () => nodes.filter((n) => n.style.getPropertyValue('--act-fit') !== '').length;
-        const probe = {base: nodes.map(width), max: nodes.map(width), fitted: fits(), stillFitted: fits()};
-        (window as unknown as {__actDismiss: typeof probe}).__actDismiss = probe;
-        const until = performance.now() + 1800;
-        const tick = () => {
-          nodes.forEach((n, i) => {
-            probe.max[i] = Math.max(probe.max[i], width(n));
-          });
-          probe.stillFitted = fits();
-          if (performance.now() < until) {
-            requestAnimationFrame(tick);
-          }
+      //    The record is armed BEFORE the press, so the real key path (not a
+      //    synthetic event) is what dismisses the workspace — RECORDED (FLAKE
+      //    ZERO — `armWitness`: the product's own writes and every frame, across
+      //    the WHOLE leave, never a frame clock that stops when the screen goes
+      //    quiet). The nodes are fixed on the first read (kept on `window`, so
+      //    every sample measures the same elements), and «never bigger on
+      //    screen» is a claim about what a frame paints: `settled`.
+      const dismiss = await armWitness(page, 'act-dismiss', () => {
+        const w = window as unknown as {__actDismissNodes?: Array<HTMLElement>};
+        w.__actDismissNodes ??= [...document.querySelectorAll<HTMLElement>('.con-cardactions__graphic')];
+        const nodes = w.__actDismissNodes;
+        return {
+          widths: nodes.map((n) => Math.round(n.getBoundingClientRect().width * 100) / 100),
+          fitted: nodes.filter((n) => n.style.getPropertyValue('--act-fit') !== '').length,
         };
-        requestAnimationFrame(tick);
-      });
+      }, {settled: true});
       await key(page, 'Escape', 2000);
-      const dismissal = await page.evaluate(() => {
-        const p = (window as unknown as {__actDismiss: {base: Array<number>, max: Array<number>, fitted: number, stillFitted: number}}).__actDismiss;
-        return {...p, grew: p.base.map((w, i) => (w > 0 ? p.max[i] / w : 1))};
-      });
+      // The leave is OVER (the workspace gone) before the record is read — its end state, never its first sign.
+      await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 8000});
+      const record = (await dismiss.stop()).map((s) => s.v);
+      const first = record[0] ?? {widths: [], fitted: 0};
+      const base = first.widths;
+      const max = base.map((w, i) => Math.max(...record.map((r) => r.widths[i] ?? 0), w));
+      // «Still fitted» is read on the LAST state the surface still painted (a node laid out at all — a detached one
+      // measures 0): the mechanism's claim is about the leave, not about the nodes once they are gone.
+      const lastPainted = record.filter((r) => r.widths.some((w) => w > 0)).at(-1) ?? first;
+      const dismissal = {
+        base, max,
+        fitted: first.fitted,
+        stillFitted: lastPainted.fitted,
+        grew: base.map((w, i) => (w > 0 ? max[i] / w : 1)),
+      };
       console.log(`[act-dismiss ${profile.tag}] formulas=${dismissal.base.length} fitted=${dismissal.fitted}` +
         ` stillFitted=${dismissal.stillFitted} maxGrowth=${Math.max(...dismissal.grew).toFixed(3)}`);
       expect(dismissal.base.length, 'the browse grid must have carried action formulas').toBeGreaterThan(0);
@@ -172,7 +183,6 @@ for (const profile of PROFILES) {
         .toBe(dismissal.fitted);
       // …and nothing on the way out is bigger than it was (what the player sees).
       expect(Math.max(...dismissal.grew), 'no formula may grow during the dismissal').toBeLessThan(1.02);
-      await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 8000});
     });
   });
 }

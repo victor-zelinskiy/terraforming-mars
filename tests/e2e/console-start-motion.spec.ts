@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import {
-  press, stepSubject, stepKind, waitPressable, summaryVisible, fillPicks, pickedCards,
+  press, stepSubject, stepKind, waitPressable, summaryVisible, fillPicks, pickedCards, settle, waitStepDealSettled,
 } from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 /**
  * THE START-FLOW MOTION ORDER — the two artefacts this probe exists to catch,
@@ -18,9 +19,11 @@ import {
  *     signature is exact and machine-checkable: a summary tile turning
  *     visible while NOTHING is in the air.
  *
- * The probe samples the live DOM at ~40 ms through a real transition and
- * asserts on the SEQUENCE. It is deliberately one spec with two transitions
- * (a step advance and the summary convoy) — the setup is the expensive part.
+ * The probe RECORDS the live DOM through a real transition (`armWitness`,
+ * FLAKE ZERO — every state the product writes, in the task that writes it,
+ * plus a frame tick for what only a computed style moves) and asserts on the
+ * SEQUENCE. It is deliberately one spec with two transitions (a step advance
+ * and the summary convoy) — the setup is the expensive part.
  */
 
 function newGameConfig() {
@@ -75,8 +78,8 @@ function newGameConfig() {
   };
 }
 
-type Sample = {
-  t: number,
+/** One recorded state of the start scene (the time is the record's own — `t` below is ms since the arm). */
+type Seen = {
   subject: string,
   /** Cards physically in the air right now. */
   proxies: number,
@@ -102,14 +105,15 @@ type Sample = {
   /** The paper edge is painting (it only does so mid-turn). */
   edge: number,
 };
+type Sample = Seen & {t: number};
 
-/** Install an in-page sampler; returns nothing (read it with `stopSampler`). */
-async function startSampler(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__mo?: {stop: () => void, out: Array<unknown>}};
-    w.__mo?.stop();
-    const out: Array<unknown> = [];
-    const t0 = Date.now();
+/**
+ * Arm the RECORD of the start scene from before the press (`armWitness`). `settled`: the claims are about ORDER and
+ * COEXISTENCE («the stage never changes while a card is in the air», «no tile turns visible with nothing in the air»),
+ * so each state is the one a task LEAVES — the state a frame can paint, never one between two writes of one task.
+ */
+async function armStartRecord(page: Page, key: string): Promise<Witness<Seen>> {
+  return armWitness<Seen>(page, key, () => {
     const visible = (el: Element): boolean => {
       const st = getComputedStyle(el);
       return st.display !== 'none' && st.visibility !== 'hidden' && Number(st.opacity) > 0.02;
@@ -119,40 +123,33 @@ async function startSampler(page: Page): Promise<void> {
         (el.closest('.con-start__steppane, .con-start__summary') === null ||
           visible(el.closest('.con-start__steppane, .con-start__summary') as Element)))
       .length;
-    const tick = () => {
-      const pane = document.querySelector('.con-start__summary');
-      const panes = Array.from(document.querySelectorAll('.con-start__steppane'));
-      const p0 = document.querySelector('.con-startdock-proxy');
-      const body = p0?.querySelector('.con-card3d');
-      const edgeEl = p0?.querySelector('.con-card3d__edge');
-      out.push({
-        t: Date.now() - t0,
-        pane: panes.findIndex((p) => getComputedStyle(p).display !== 'none'),
-        subject: (document.querySelector('.con-wshead__layer--deep .con-wshead__subject')
-          ?.textContent ?? '').trim().toLowerCase(),
-        proxies: document.querySelectorAll('.con-startdock-proxy').length,
-        gridCards: shown('.con-start__steppane .con-cards__slot'),
-        summaryCards: shown('.con-start__summary .con-start__mini'),
-        summaryUp: pane !== null && visible(pane),
-        dock: Array.from(document.querySelectorAll('.con-startdock__count'))
-          .map((el) => Number((el.textContent ?? '0').trim()) || 0),
-        persp: p0 === null ? '' : getComputedStyle(p0).perspective,
-        tf: body === null || body === undefined ? '' : getComputedStyle(body).transform,
-        edge: edgeEl === null || edgeEl === undefined ? 0 : Number(getComputedStyle(edgeEl).opacity),
-      });
+    const pane = document.querySelector('.con-start__summary');
+    const panes = Array.from(document.querySelectorAll('.con-start__steppane'));
+    const p0 = document.querySelector('.con-startdock-proxy');
+    const body = p0?.querySelector('.con-card3d');
+    const edgeEl = p0?.querySelector('.con-card3d__edge');
+    return {
+      pane: panes.findIndex((p) => getComputedStyle(p).display !== 'none'),
+      subject: (document.querySelector('.con-wshead__layer--deep .con-wshead__subject')
+        ?.textContent ?? '').trim().toLowerCase(),
+      proxies: document.querySelectorAll('.con-startdock-proxy').length,
+      gridCards: shown('.con-start__steppane .con-cards__slot'),
+      summaryCards: shown('.con-start__summary .con-start__mini'),
+      summaryUp: pane !== null && visible(pane),
+      dock: Array.from(document.querySelectorAll('.con-startdock__count'))
+        .map((el) => Number((el.textContent ?? '0').trim()) || 0),
+      persp: p0 === null ? '' : getComputedStyle(p0).perspective,
+      tf: body === null || body === undefined ? '' : getComputedStyle(body).transform,
+      edge: edgeEl === null || edgeEl === undefined ? 0 : Number(getComputedStyle(edgeEl).opacity),
     };
-    const id = window.setInterval(tick, 40);
-    tick();
-    w.__mo = {stop: () => window.clearInterval(id), out};
-  });
+  }, {settled: true, max: 20_000});
 }
 
-async function stopSampler(page: Page): Promise<Array<Sample>> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__mo?: {stop: () => void, out: Array<Sample>}};
-    w.__mo?.stop();
-    return (w.__mo?.out ?? []) as Array<Sample>;
-  });
+/** Stop a record and read it as the series the verdicts were written for — `t` in ms since the arm (page clock). */
+async function stopStartRecord(record: Witness<Seen>): Promise<Array<Sample>> {
+  const samples = await record.stop();
+  const t0 = samples[0]?.t ?? 0;
+  return samples.map((s) => ({...s.v, t: s.t - t0}));
 }
 
 test.describe('console start — the physical motion order', () => {
@@ -165,21 +162,31 @@ test.describe('console start — the physical motion order', () => {
     await page.waitForSelector('.con-start__frame', {timeout: 45_000});
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
     await waitPressable(page);
-    await page.waitForTimeout(600);
+    // The boot's veil is gone and the step's deal stands still — the state the old fixed pause stood for.
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+    await waitStepDealSettled(page);
 
     // ── ① A STEP ADVANCE: corporation → the next step ────────────────────
-    expect(stepKind(await stepSubject(page))).toBe('corporation');
+    await expect.poll(async () => stepKind(await stepSubject(page))).toBe('corporation');
     await press(page, 'Enter', 600); // pick the focused corporation
     const corpSubject = await stepSubject(page);
 
-    await startSampler(page);
+    const advanceRecord = await armStartRecord(page, 'start-motion-advance');
+    const armedPane = (await advanceRecord.samples())[0]?.v.pane ?? -1;
     await page.keyboard.press('Period'); // RT
-    await page.waitForTimeout(4000);
-    const advance = await stopSampler(page);
+    // The advance is OVER when the next step's pane stands with nothing left in the air and its deal has stopped moving —
+    // the END state, waited for (never a fixed window: on a starved renderer the flight outlasts any guess), then the
+    // scene at rest. The record runs through all of it.
+    await advanceRecord.waitFor((s) => s.pane > -1 && s.pane !== armedPane && s.proxies === 0,
+      {message: 'the stage did change eventually (the next pane, nothing in the air)'});
+    await waitStepDealSettled(page);
+    await settle(page);
+    const advance = await stopStartRecord(advanceRecord);
 
     const airborne = advance.filter((s) => s.proxies > 0);
-    expect(airborne.length, 'the pick physically flew (proxies were sampled)')
-      .toBeGreaterThan(3);
+    // «It flew» is an EVER claim (a count of sampled frames was a statement about the machine's frame rate).
+    expect(airborne.length, 'the pick physically flew (proxies were recorded)')
+      .toBeGreaterThan(0);
     const startPane = advance[0].pane;
     expect(startPane, 'a live step pane at the press').toBeGreaterThan(-1);
     // ① THE ORDER: while a card is in the air the live pane is still the one
@@ -216,11 +223,12 @@ test.describe('console start — the physical motion order', () => {
     // orthographic and reads exactly like one image replacing another), and
     // the body is genuinely rotated (a `matrix3d`, not a flat `matrix`). The
     // paper edge lights up while it passes through its own plane.
+    // (EVER claims: how many recorded frames showed it is the machine's frame rate, not the product.)
     const projected = airborne.filter((s) => s.persp !== '' && s.persp !== 'none');
     expect(projected.length, `the flyer never projected (perspective: ` +
-      `${[...new Set(airborne.map((s) => s.persp))].join(', ')})`).toBeGreaterThan(3);
+      `${[...new Set(airborne.map((s) => s.persp))].join(', ')})`).toBeGreaterThan(0);
     const turning = airborne.filter((s) => s.tf.startsWith('matrix3d'));
-    expect(turning.length, 'the card body was never in a 3D rotation').toBeGreaterThan(3);
+    expect(turning.length, 'the card body was never in a 3D rotation').toBeGreaterThan(0);
     expect(Math.max(...airborne.map((s) => s.edge)),
       'the paper edge never showed during the turn').toBeGreaterThan(0.25);
     console.log(`[probe] turn: perspective=${projected[0].persp} ` +
@@ -232,7 +240,9 @@ test.describe('console start — the physical motion order', () => {
     // ── ② THE SUMMARY CONVOY with a LARGE buy ───────────────────────────
     for (let round = 0; round < 8 && !(await summaryVisible(page)); round++) {
       await waitPressable(page);
-      await page.waitForTimeout(250);
+      // The step's deal stands still (its live pane, nothing arriving) before its crumb is read — the state the old
+      // fixed pause stood for.
+      await waitStepDealSettled(page);
       const kind = stepKind(await stepSubject(page));
       if (kind === 'prelude') {
         await fillPicks(page, 2);
@@ -241,13 +251,21 @@ test.describe('console start — the physical motion order', () => {
         await fillPicks(page, 18, 60);
         const bought = (await pickedCards(page)).length;
         expect(bought, 'a genuinely large buy to stress the convoy').toBeGreaterThan(6);
-        await startSampler(page);
+        const convoyRecord = await armStartRecord(page, 'start-motion-convoy');
         await page.keyboard.press('Period'); // RT → the summary
-        await page.waitForTimeout(9000);
-        const convoy = await stopSampler(page);
+        // The convoy is OVER when the summary stands and the dust has settled in the record itself: nothing in the air,
+        // every bought card on the summary — the END state, then the scene at rest; never a fixed window. (The summary
+        // has no status rail of its own — the wizard's rail is a step's — so the rail is no witness of it.)
+        await convoyRecord.waitFor((s) => s.summaryUp, {message: 'the summary appeared'});
+        await expect.poll(async () => {
+          const now = await convoyRecord.last();
+          return now !== undefined && now.proxies === 0 && now.summaryCards >= bought;
+        }, {message: 'the convoy came to rest with every bought project on the summary', timeout: 30_000}).toBe(true);
+        await settle(page);
+        const convoy = await stopStartRecord(convoyRecord);
 
         const flew = convoy.filter((s) => s.proxies > 0);
-        expect(flew.length, 'the buy physically flew').toBeGreaterThan(5);
+        expect(flew.length, 'the buy physically flew').toBeGreaterThan(0);
         // The shelf never claims more than the player actually picked, not
         // even for the frame in which the stage flips (a drift applied one
         // tick early doubled every earlier pile's count for ~300 ms).
@@ -286,20 +304,25 @@ test.describe('console start — the physical motion order', () => {
         break;
       }
       await press(page, 'Period', 1600);
-      for (let w = 0; w < 20 && !(await summaryVisible(page)) &&
-           stepKind(await stepSubject(page)) === kind; w++) {
-        await page.waitForTimeout(250);
-      }
+      // Let the step actually change before looking again — a STATE, polled (bounded; a step that did not change is
+      // simply looked at again by the next round, as before).
+      await expect.poll(async () => await summaryVisible(page) || stepKind(await stepSubject(page)) !== kind,
+        {timeout: 5_000}).toBe(true).catch(() => undefined);
     }
-    expect(await summaryVisible(page), 'the walk reached the summary').toBeTruthy();
+    await expect.poll(() => summaryVisible(page), {message: 'the walk reached the summary'}).toBe(true);
 
     // ── ③ BACK OFF THE SUMMARY: every card physically returns ───────────
-    await startSampler(page);
+    const backRecord = await armStartRecord(page, 'start-motion-back');
     await page.keyboard.press('Comma'); // LT
-    await page.waitForTimeout(9000);
-    const back = await stopSampler(page);
+    // The return is OVER when the summary is gone, the grid stands with nothing in the air and the step's deal has
+    // stopped moving (no card still arriving) — the END state, then the scene at rest; never a fixed window.
+    await backRecord.waitFor((s) => !s.summaryUp && s.gridCards > 0 && s.proxies === 0,
+      {message: 'the project grid is standing again'});
+    await waitStepDealSettled(page);
+    await settle(page);
+    const back = await stopStartRecord(backRecord);
     expect(back.filter((s) => s.proxies > 0).length, 'the return physically flew')
-      .toBeGreaterThan(5);
+      .toBeGreaterThan(0);
     const home = back[back.length - 1];
     expect(home.summaryUp, 'the summary is gone').toBeFalsy();
     expect(home.gridCards, 'the project grid is standing again').toBeGreaterThan(0);

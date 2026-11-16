@@ -1,11 +1,15 @@
 import {test, expect, Page} from './consoleTest';
-import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {bootIntoGame, cinematicBeat, settle, soloGameConfig} from './consoleStart';
 
 /**
  * DIAGNOSTIC (not a guard): full-resolution clip sequence of the dock zone
  * through the pose transitions — the perceptual half of the pose probe
  * (`hand-dock-pose-transitions-probe` records the numbers). Screenshots
  * force BeginFrames, so the ride is alive in headless while we sample it.
+ *
+ * The burst's own cadence IS the capture (a named `cinematicBeat` between two
+ * shots of one ride); every other wait is for the console at REST (`settle`) —
+ * the next ride starts from a still dock, never from a guessed duration.
  */
 
 /** POSE_VIEW=handheld|tv4k reruns the same capture on another profile. */
@@ -26,7 +30,7 @@ async function burst(page: Page, tag: string, shots: number, gapMs: number): Pro
       path: `screenshots/hand-dock-pose/seq/${TAG}-${tag}-${String(rel).padStart(4, '0')}ms.png`,
       clip: CLIP,
     });
-    await page.waitForTimeout(gapMs);
+    await cinematicBeat(page, gapMs, 'the burst cadence — consecutive frames of ONE pose ride are the capture');
   }
 }
 
@@ -42,19 +46,21 @@ test.describe('hand dock pose capture', () => {
         customCorporationsList: ['CrediCor', 'Helion'],
       }),
     });
-    await page.waitForTimeout(2500);
+    // Every ride starts from a dock at REST (the console quiet, its motion over). The presses stay raw: the burst must
+    // begin the instant the key lands, never after a press's own quiet wait.
+    await settle(page);
 
     await page.keyboard.press('KeyR'); // journal → rest→compact settle
     await burst(page, 'tuck', 10, 60);
-    await page.waitForTimeout(500);
+    await settle(page);
     await page.keyboard.press('Escape'); // journal closes → compact→rest
     await burst(page, 'untuck', 10, 50);
-    await page.waitForTimeout(700);
+    await settle(page);
     await page.keyboard.press('Period'); // RT wheel → rest→raised
     await burst(page, 'ready', 10, 50);
-    await page.waitForTimeout(500);
+    await settle(page);
     await page.keyboard.press('Period');
-    await page.waitForTimeout(1000);
+    await settle(page);
     expect(true).toBe(true);
   });
 });

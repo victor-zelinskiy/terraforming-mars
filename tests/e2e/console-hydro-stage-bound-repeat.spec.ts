@@ -1,9 +1,11 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, press, seedGameOverApi,
-  sendPlayerInput, soloGameConfig, waitForBoardHome,
+import {NO_PAYMENT, closeZoomViewer, createGameWithCards, fetchPlayerModel, openConsole, openQuickWheel, openZoomViewer, press,
+  pressUntil, seedGameOverApi, sendPlayerInput, settle, soloGameConfig, takeRevealCard, waitForBoardHome,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * THE STAGE-BOUND EXECUTION CONTRACT — the exact scenario of the negative
@@ -136,15 +138,87 @@ async function drainReveals(page: Page): Promise<void> {
   const revealUp = async () => await page.locator('.con-reveal').count() > 0 ||
     await page.locator('dialog.con-zoom').count() > 0;
   for (let round = 0; round < 8; round++) {
-    for (let i = 0; i < 12 && await revealUp(); i++) {
-      await press(page, 'Enter', 800);
-    }
-    await page.waitForTimeout(2000);
+    // A takes; each press gets its window to clear the screen before the next one goes.
+    await pressUntil(page, 'Enter', async () => !await revealUp(), {tries: 12, settleMs: 800});
+    // The NEXT batch mounts a beat after this one is dismissed — wait for the console to be quiet (the take's
+    // flight, the queue's next presentation) before believing «no reveal».
+    await settle(page);
     if (!await revealUp()) {
       return;
     }
   }
-  expect(await revealUp(), 'every seeded reveal was taken').toBe(false);
+  await expect.poll(revealUp, {message: 'every seeded reveal was taken'}).toBe(false);
+}
+
+/**
+ * ONE PRESS, ITS EFFECT AWAITED — the press, and `where` (the surface's own signature) as its witness: the WHOLE
+ * window before the next press is sent, and never a second press here (a press whose effect is not in the signature
+ * simply costs its window).
+ */
+async function hop(page: Page, key: string, where: () => Promise<string>, settleMs: number): Promise<void> {
+  const at = await where();
+  await pressUntil(page, key, async () => (await where()) !== at, {tries: 1, settleMs});
+}
+
+/** What a press inside the Hydronetwork can change: its layers, what is focused in it, the picker, the crumb's stage. */
+function hydroSig(page: Page): Promise<string> {
+  return page.evaluate(() => JSON.stringify({
+    choice: document.querySelectorAll('.con-hydro__layer--choice').length,
+    focus: Array.from(document.querySelectorAll('.con-hydro [class*="--focused"], .con-cardactions [class*="--focused"]'))
+      .map((e) => e.className),
+    actions: document.querySelectorAll('.con-cardactions').length,
+    stage: document.querySelectorAll('.con-cardactions__stagewrap .con-composer--stage').length,
+    hydro: document.querySelectorAll('.con-hydro').length,
+    step: (document.querySelector('.con-wshead__step')?.textContent ?? '').trim(),
+  })).catch(() => 'gone');
+}
+
+/** One census row: where the viewer's marker stands, what of stage 7 is on screen, what the crumb's stage says. */
+type CensusRow = {cell: number, reveal: boolean, anyReveal: boolean, deal: boolean, seat: boolean, seatCard: string, stage: string};
+
+/** ④'s geometry — read AT REST through `readSettled`. */
+async function stageGeom(page: Page) {
+  return page.evaluate(() => {
+    const slots = Array.from(document.querySelectorAll('.con-reveal--embedded .con-cards__slot'));
+    const strip = document.querySelector('.con-reveal--embedded .con-reveal__strip');
+    const zone = document.querySelector('.con-hydro__embed');
+    const seat = document.querySelector('.con-hydro__embedsource');
+    return {
+      cards: slots.map((s) => {
+        const b = s.getBoundingClientRect();
+        return {h: Math.round(b.height), left: Math.round(b.left)};
+      }),
+      rowH: Math.round(strip?.getBoundingClientRect().height ?? 0),
+      // THE USABLE STAGE — the zone the prompt owns, head and foot included.
+      // The row can be small because it was GIVEN a small box; measuring the
+      // card against the row alone would call that a pass.
+      zoneH: Math.round(zone?.getBoundingClientRect().height ?? 0),
+      seatRight: Math.round(seat?.getBoundingClientRect().right ?? 0),
+      seatInRow: strip?.contains(seat ?? null) === true,
+      focusable: document.querySelectorAll('.con-hydro__embedsource .con-cards__slot--focused').length,
+      // The row's own solve — never guess which input was wrong.
+      fit: strip?.getAttribute('data-fit') ?? '(no fit)',
+      // …and THE WHOLE CHAIN between the zone and the row: a short row is
+      // usually a row that was GIVEN a short box, and a break anywhere in
+      // zone → root → frame → body → main → row looks identical from here.
+      chain: ['.con-reveal--embedded', '.con-reveal__card', '.con-reveal__body',
+        '.con-reveal__main', '.con-reveal__strip']
+        .map((sel) => `${sel.replace('.con-reveal', '')}=${Math.round(
+          document.querySelector(sel)?.getBoundingClientRect().height ?? -1)}`).join(' '),
+      uiScale: getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale').trim(),
+    };
+  });
+}
+
+/** ⑤ — the viewer over the scene: open, the seat held empty, the child prompt still mounted. Read through `readSettled`. */
+async function zoomedRead(page: Page) {
+  return page.evaluate(() => ({
+    open: document.querySelector('dialog.con-zoom') !== null,
+    // The seat's own slot is emptied while the viewer holds the card.
+    seatHeld: document.querySelector('.con-hydro__embedsource .con-zoom-hold') !== null ||
+    (document.querySelector('.con-hydro__embedsource-card')?.getBoundingClientRect().height ?? 0) < 4,
+    stillEmbedded: document.querySelector('.con-hydro__embed .con-reveal--embedded') !== null,
+  }));
 }
 
 /**
@@ -192,103 +266,94 @@ for (const profile of PROFILES) {
       // THE WHEEL OPENS WHEN IT OPENS. A fixed pair of presses is a DURATION
       // standing in for a state: on the heavier 4K profile the wheel was still
       // arriving when the ArrowLeft landed, and the spec died in its own setup.
-      // Re-ask until the workspace is actually up, bounded.
-      for (let attempt = 0; attempt < 4; attempt++) {
-        await press(page, 'Period', 1400);
-        await press(page, 'ArrowLeft', 1800);
-        if (await page.locator('.con-hydro').count() > 0) {
-          break;
-        }
-      }
+      // Re-ask until the workspace is actually up, bounded: the wheel through the
+      // shared opener, then its LEFT slot until the wheel answers (on a quick
+      // wheel the press IS the activation — the wheel leaving is its effect).
+      const hydro = page.locator('.con-hydro');
+      await openQuickWheel(page);
+      await pressUntil(page, 'ArrowLeft',
+        async () => await hydro.count() > 0 || await page.locator('.con-quick').count() === 0, {settleMs: 1800});
       await page.waitForSelector('.con-hydro', {timeout: 20_000});
-      await press(page, 'Period', 900); // RT — «К дальнему»
-      expect(await page.evaluate(() =>
-        document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? ''),
-      'the farthest legal stage is 7').toBe('7');
+      const focusedStop = () => page.evaluate(() =>
+        document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
+      await hop(page, 'Period', focusedStop, 900); // RT — «К дальнему»
+      await expect.poll(focusedStop, {message: 'the farthest legal stage is 7'}).toBe('7');
 
       // ── THE RAIL: two crossed choices, then the stage-7 repeat pre-select. ──
-      await press(page, 'Enter', 900);
+      // (One press each, every one given its window to change the surface before the next goes.)
+      const sig = () => hydroSig(page);
+      await hop(page, 'Enter', sig, 900);
       await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
-      await press(page, 'Enter', 900);
-      await press(page, 'Enter', 900);
+      await hop(page, 'Enter', sig, 900);
+      await hop(page, 'Enter', sig, 900);
       await page.waitForSelector('.con-hydro__layer--choice', {timeout: 8_000});
-      await press(page, 'ArrowRight', 450);
-      await press(page, 'Enter', 900);
+      await hop(page, 'ArrowRight', sig, 450);
+      await hop(page, 'Enter', sig, 900);
 
       // ── THE PICK: walk to AI CENTRAL by its structural identity, never by
       //    position and never by the tile's translated text. ──
-      await press(page, 'Enter', 2500);
+      await hop(page, 'Enter', sig, 2500);
       await page.waitForSelector('.con-cardactions', {timeout: 15_000});
       const focusedCard = () => page.evaluate(() =>
         document.querySelector('.con-cardactions__tile--focused')?.getAttribute('data-action-card') ?? '');
-      const offered = await page.evaluate(() => Array.from(
+      // The candidates as they STAND (the picker's tiles settle in) — a poll, never one read.
+      await expect.poll(() => page.evaluate(() => Array.from(
         document.querySelectorAll('.con-cardactions__tile'))
-        .map((t) => t.getAttribute('data-action-card') ?? ''));
-      expect(offered, `both used actions are candidates (${JSON.stringify(offered)})`)
+        .map((t) => t.getAttribute('data-action-card') ?? '')), {message: 'both used actions are candidates'})
         .toEqual(expect.arrayContaining(['Development Center', 'AI Central']));
       for (let i = 0; i < 6 && await focusedCard() !== 'AI Central'; i++) {
-        await press(page, 'ArrowRight', 450);
+        await hop(page, 'ArrowRight', focusedCard, 450);
       }
-      expect(await focusedCard(), 'the cursor holds AI Central').toBe('AI Central');
+      await expect.poll(focusedCard, {message: 'the cursor holds AI Central'}).toBe('AI Central');
       await shoot(page, profile.name, '01-repeat-picker');
-      await press(page, 'Enter', 2000); // A — descend into AI Central
-      await press(page, 'Enter', 2500); // A — «Выбрать это действие»
+      await hop(page, 'Enter', sig, 2000); // A — descend into AI Central
+      await hop(page, 'Enter', sig, 2500); // A — «Выбрать это действие»
       await page.waitForSelector('.con-hydro', {timeout: 15_000});
-      await page.waitForTimeout(800);
+      // The rail is back with the pre-select on it — the console quiet before the census is armed.
+      await settle(page);
 
       // ── ARM THE CENSUS. Every sample records, together: where the viewer's
       //    marker stands, whether any stage-7 artifact is on screen, and what the
       //    breadcrumb's stage segment says. Recording them TOGETHER is the point:
       //    the defect is a CO-OCCURRENCE («cards from 7 while the marker is on
       //    5»), and three independent timelines cannot prove its absence. ──
-      await page.evaluate(() => {
-        const w = window as unknown as {
-        __seq?: number, __census?: Array<Record<string, unknown>>, __stop?: () => void,
-      };
-        w.__seq = 0;
-        w.__census = [];
-        const sample = () => {
-          const i = ++(w.__seq as number);
-          const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
-          const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
-          const seat = document.querySelector('.con-hydro__embedsource');
-          const row = {
-            cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
-            reveal: document.querySelector('.con-hydro__embed .con-reveal--embedded') !== null,
-            anyReveal: document.querySelector('.con-reveal') !== null,
-            // THE DEAL CINEMATIC — the FIRST thing that reacts to a batch
-            // existing, well before any modal.
-            deal: document.querySelector('.con-deckdraw') !== null,
-            seat: seat !== null,
-            seatCard: seat?.getAttribute('data-zoom-slot') ?? '',
-            stage: (document.querySelector('.con-wshead__step')?.textContent ?? '').trim(),
-          };
-          const census = w.__census!;
-          const prev = census[census.length - 1];
-          if (prev === undefined || JSON.stringify(prev) !== JSON.stringify({...row, i: prev?.i})) {
-            census.push({...row, i});
-          }
+      // RECORDED (FLAKE ZERO — `armWitness`, replace-proof): sampled in the task the product writes and once per
+      // frame, `settled` — a co-occurrence is judged on what a frame can paint, never between two writes of one task.
+      const censusWatch = await armWitness<CensusRow>(page, 'hydro-stage-census', () => {
+        const viewer = document.querySelector('.con-hydro__stop-marker--viewer');
+        const cellAttr = viewer?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker');
+        const seat = document.querySelector('.con-hydro__embedsource');
+        return {
+          cell: cellAttr === undefined || cellAttr === null ? -1 : Number(cellAttr),
+          reveal: document.querySelector('.con-hydro__embed .con-reveal--embedded') !== null,
+          anyReveal: document.querySelector('.con-reveal') !== null,
+          // THE DEAL CINEMATIC — the FIRST thing that reacts to a batch
+          // existing, well before any modal.
+          deal: document.querySelector('.con-deckdraw') !== null,
+          seat: seat !== null,
+          seatCard: seat?.getAttribute('data-zoom-slot') ?? '',
+          stage: (document.querySelector('.con-wshead__step')?.textContent ?? '').trim(),
         };
-        const mo = new MutationObserver(sample);
-        mo.observe(document.body, {childList: true, subtree: true, attributes: true});
-        const iv = setInterval(sample, 60);
-        w.__stop = () => {
-          mo.disconnect();
-          clearInterval(iv);
-        };
-      });
+      }, {settled: true, max: 20_000});
 
       // ── COMMIT — one press. ──
       await press(page, 'Enter', 1500);
 
       // ── THE STAGE-5 STOP: the four dealt cards, keep 2, RT confirms. ──
+      // (Each move waits for the cursor, each A for the pick count — one press each.)
       await page.waitForSelector('.con-deckpick[data-flow="choosing"]', {timeout: 60_000});
-      await press(page, 'Enter', 600);
-      for (let i = 0; i < 6 && await page.locator('.con-cards__slot--picked').count() < 2; i++) {
-        await press(page, 'ArrowRight', 450);
-        await press(page, 'Enter', 600);
+      const picked = page.locator('.con-cards__slot--picked');
+      const pickedCount = async () => String(await picked.count());
+      const focusedSlot = () => page.evaluate(() => {
+        const slots = Array.from(document.querySelectorAll('.con-deckpick .con-cards__slot'));
+        return String(slots.findIndex((s) => s.classList.contains('con-cards__slot--focused')));
+      });
+      await hop(page, 'Enter', pickedCount, 600);
+      for (let i = 0; i < 6 && await picked.count() < 2; i++) {
+        await hop(page, 'ArrowRight', focusedSlot, 450);
+        await hop(page, 'Enter', pickedCount, 600);
       }
-      await expect.poll(() => page.locator('.con-cards__slot--picked').count(), {message: 'two picks held'}).toBe(2);
+      await expect.poll(() => picked.count(), {message: 'two picks held'}).toBe(2);
       await shoot(page, profile.name, '02-stage5-pick');
       await press(page, 'Period', 1500); // RT — «Подтвердить»
 
@@ -296,11 +361,12 @@ for (const profile of PROFILES) {
       //    been reached. (`20260831011413_1.jpg` is this selector resolving with
       //    the marker still on 5.) ──
       await page.waitForSelector('.con-hydro__embed .con-reveal--embedded', {timeout: 90_000});
-      await page.waitForTimeout(1400);
+      // The census is over once the scene STANDS: the drawn row AND its source seat both recorded (the seat
+      // materializes a beat after the row) — the end state, never its first sign. A seat that never comes is judged
+      // by ③ below, with the whole record in its message.
+      await censusWatch.waitFor((r) => r.reveal && r.seat, {timeoutMs: 15_000}).catch(() => undefined);
 
-      await page.evaluate(() => (window as unknown as {__stop?: () => void}).__stop?.());
-      const census = await page.evaluate(() =>
-        (window as unknown as {__census?: Array<Record<string, unknown>>}).__census ?? []);
+      const census = (await censusWatch.stop()).map((s) => s.v);
       const dump = JSON.stringify(census);
 
       // ① NOTHING OF STAGE 7 WHILE THE MARKER IS BEHIND IT. Every single sample
@@ -347,36 +413,9 @@ for (const profile of PROFILES) {
 
       // ④ THE CARDS ARE THE SCENE. Two cards, each spending the usable row, with
       //    the seat beside them — not in their row, not in the focus ring.
-      const geom = await page.evaluate(() => {
-        const slots = Array.from(document.querySelectorAll('.con-reveal--embedded .con-cards__slot'));
-        const strip = document.querySelector('.con-reveal--embedded .con-reveal__strip');
-        const zone = document.querySelector('.con-hydro__embed');
-        const seat = document.querySelector('.con-hydro__embedsource');
-        return {
-          cards: slots.map((s) => {
-            const b = s.getBoundingClientRect();
-            return {h: Math.round(b.height), left: Math.round(b.left)};
-          }),
-          rowH: Math.round(strip?.getBoundingClientRect().height ?? 0),
-          // THE USABLE STAGE — the zone the prompt owns, head and foot included.
-          // The row can be small because it was GIVEN a small box; measuring the
-          // card against the row alone would call that a pass.
-          zoneH: Math.round(zone?.getBoundingClientRect().height ?? 0),
-          seatRight: Math.round(seat?.getBoundingClientRect().right ?? 0),
-          seatInRow: strip?.contains(seat ?? null) === true,
-          focusable: document.querySelectorAll('.con-hydro__embedsource .con-cards__slot--focused').length,
-          // The row's own solve — never guess which input was wrong.
-          fit: strip?.getAttribute('data-fit') ?? '(no fit)',
-          // …and THE WHOLE CHAIN between the zone and the row: a short row is
-          // usually a row that was GIVEN a short box, and a break anywhere in
-          // zone → root → frame → body → main → row looks identical from here.
-          chain: ['.con-reveal--embedded', '.con-reveal__card', '.con-reveal__body',
-            '.con-reveal__main', '.con-reveal__strip']
-            .map((sel) => `${sel.replace('.con-reveal', '')}=${Math.round(
-              document.querySelector(sel)?.getBoundingClientRect().height ?? -1)}`).join(' '),
-          uiScale: getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale').trim(),
-        };
-      });
+      // Read AT REST (C — the cards land and the row solves; the same geometry twice, frames apart). No `settle`: the
+      // copied draw STANDS inside the traversal's chain for the player's take.
+      const geom = await readSettled(page, () => stageGeom(page), {settle: false, message: 'the stage-7 scene'});
       const where = `fit[${geom.fit}] ui=${geom.uiScale} zone=${geom.zoneH} chain[${geom.chain}]`;
       expect(geom.cards.length, 'AI Central drew two cards').toBe(2);
       for (const c of geom.cards) {
@@ -396,39 +435,37 @@ for (const profile of PROFILES) {
       //    replays nothing. (The seat is held EMPTY for the flight, which is what
       //    makes «never two copies of one card» structural rather than lucky.)
       const untakenBefore = await page.locator('.con-reveal--embedded .con-cards__slot').count();
-      await press(page, 'KeyC', 1200); // L3 — «Источник» (consoleActionModel: KeyC → stickL)
-      await page.waitForTimeout(1200);
-      const zoomed = await page.evaluate(() => ({
-        open: document.querySelector('dialog.con-zoom') !== null,
-        // The seat's own slot is emptied while the viewer holds the card.
-        seatHeld: document.querySelector('.con-hydro__embedsource .con-zoom-hold') !== null ||
-        (document.querySelector('.con-hydro__embedsource-card')?.getBoundingClientRect().height ?? 0) < 4,
-        stillEmbedded: document.querySelector('.con-hydro__embed .con-reveal--embedded') !== null,
-      }));
+      // L3 — «Источник» (consoleActionModel: KeyC → stickL), through the shared viewer driver: re-pressed only while
+      // nothing opened, never nudged while the open is in flight.
+      await openZoomViewer(page, 'KeyC');
+      // The viewer over the scene, read AT REST (C — the source's flight into the viewer settles).
+      const zoomed = await readSettled(page, () => zoomedRead(page), {settle: false, message: 'the viewer over the scene'});
       expect(zoomed.open, 'L3 opened the shared fullscreen viewer').toBe(true);
       expect(zoomed.seatHeld, 'the source slot is held empty — never two copies').toBe(true);
       expect(zoomed.stillEmbedded, 'the child prompt was never unmounted').toBe(true);
       await shoot(page, profile.name, '04-source-fullscreen');
 
-      await press(page, 'Escape', 1400); // B — «ЗАКРЫТЬ» (consoleActionModel: Escape → back)
+      await closeZoomViewer(page); // B — «ЗАКРЫТЬ» (consoleActionModel: Escape → back)
       await page.waitForSelector('dialog.con-zoom', {state: 'detached', timeout: 15_000});
-      await page.waitForTimeout(900);
-      const after = await page.evaluate(() => ({
-        untaken: document.querySelectorAll('.con-reveal--embedded .con-cards__slot').length,
-        seat: document.querySelector('.con-hydro__embedsource')?.getAttribute('data-zoom-slot') ?? '',
-        seatCopies: document.querySelectorAll('.con-hydro__embedsource').length,
-        cell: Number(document.querySelector('.con-hydro__stop-marker--viewer')
-          ?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker') ?? -1),
-      }));
-      expect(after.untaken, 'the same batch — nothing was re-dealt').toBe(untakenBefore);
-      expect(after.seat, 'the source came back to its seat').toBe('AI Central');
-      expect(after.seatCopies, 'exactly one seat').toBe(1);
-      expect(after.cell, 'the marker did not move for an inspection').toBe(7);
+      // The return flight lands the source back in its seat: every live fact is asserted by a poll.
+      await expect.poll(() => page.locator('.con-reveal--embedded .con-cards__slot').count(),
+        {message: 'the same batch — nothing was re-dealt'}).toBe(untakenBefore);
+      await expect.poll(() => page.evaluate(() =>
+        document.querySelector('.con-hydro__embedsource')?.getAttribute('data-zoom-slot') ?? ''),
+      {message: 'the source came back to its seat'}).toBe('AI Central');
+      await expect.poll(() => page.locator('.con-hydro__embedsource').count(), {message: 'exactly one seat'}).toBe(1);
+      await expect.poll(() => page.evaluate(() => Number(document.querySelector('.con-hydro__stop-marker--viewer')
+        ?.closest('[data-hydro-marker]')?.getAttribute('data-hydro-marker') ?? -1)),
+      {message: 'the marker did not move for an inspection'}).toBe(7);
 
       // ── Take the batch and let the flow finish: the traversal must still end
       //    honestly (the gate holds nothing hostage). ──
+      // Each take is act → verify on the reveal's own take state; a take the driver could not land falls back to the
+      // plain A the walk always pressed.
       for (let i = 0; i < 12 && await page.locator('.con-reveal--embedded').count() > 0; i++) {
-        await press(page, 'Enter', 900);
+        if (!await takeRevealCard(page, 15_000)) {
+          await press(page, 'Enter', 900);
+        }
       }
       await page.waitForSelector('.con-hydro__result-stages', {timeout: 90_000});
       await expect.poll(() => page.locator('.con-hydro__result-stagerow').count(), {message: 'seven stages, one row each'}).toBe(7);

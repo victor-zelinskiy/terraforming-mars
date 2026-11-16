@@ -13,26 +13,29 @@
  * ONE FRAME. That is the whole reason this is a numeric probe and not a
  * screenshot: at 60fps the shift is 16ms of a 180ms exit and the eye reads it
  * as a twitch, not as a position. The assertion is therefore the LAYOUT itself
- * — `.con-quick`'s box, sampled every 8ms from the commit press until the
- * element leaves the DOM, must have exactly ONE distinct value.
+ * — `.con-quick`'s box, RECORDED from the commit press until the element
+ * leaves the DOM, must have exactly ONE distinct value.
  *
  * Every destination the wheel can reach is walked, because the two mechanisms
  * are different (policy class vs. a `v-show`n rail) and a fix for one is not a
  * fix for the other; the pass CONFIRMATION is walked as the control — it is a
  * dialog, the rail stays lit, and nothing may move there either.
  *
- * ⚠ setInterval, never rAF: headless Chromium starves rAF exactly on the quiet
- * frames a probe like this exists to watch (a layout read needs no compositor
- * frame — `getBoundingClientRect` flushes style itself), and the waits pump a
- * tiny screenshot so the app's own GSAP exit actually advances.
+ * ⚠ The record (`armWitness`, FLAKE ZERO) samples on the very MUTATION that can
+ * move the edge — the shell's `.con-root` class flip, the rail's own `style`
+ * change — in the task that makes it, whatever the thread is doing (a timer
+ * sampler got two samples for a whole card-actions commit on a blocked main
+ * thread), plus a frame tick; and the waits pump a tiny screenshot so the
+ * app's own GSAP exit actually advances (headless Chromium starves rAF exactly
+ * on the quiet frames a probe like this exists to watch).
  */
 import {test, expect, Page} from './consoleTest';
 import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
-type WheelSample = {
-  t: number,
-  /** Was `.con-quick` in the DOM at this sample? */
-  present: boolean,
+/** One recorded state of the cross (the time is the record's own). */
+type WheelSeen = {
   /** `.con-quick`'s viewport box — the LAYOUT truth (the panel's own GSAP
    *  transform is authored motion and identical either way). '-' when gone. */
   box: string,
@@ -41,20 +44,11 @@ type WheelSample = {
   /** The measured right inset of the central opening (0px = the rail is gone). */
   stageR: string,
 };
-
-type WheelProbe = {
-  samples: Array<WheelSample>,
-  /** The box the cross had at the moment of the press — the reference. */
-  before: string,
+type WheelSample = WheelSeen & {
+  t: number,
+  /** Was `.con-quick` in the DOM at this sample? */
+  present: boolean,
 };
-
-declare global {
-  var __wheelGeom: {
-    state: WheelProbe,
-    stop: () => void,
-    arm: () => void,
-  } | undefined;
-}
 
 const PROFILES = [
   {tag: 'fhd', width: 1920, height: 1080, query: ''},
@@ -67,108 +61,95 @@ async function forceFrame(page: Page): Promise<void> {
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
 }
 
-/**
- * The sampler.
- *
- * TWO SOURCES, deliberately: a `setInterval` for the steady beat, and a
- * `MutationObserver` because the beat alone is not enough here. Opening a
- * workspace is a heavy synchronous flush, and a blocked main thread starves
- * timers exactly across the frames this probe exists to watch (measured: two
- * samples for a whole card-actions commit). The observer fires as a microtask
- * ON the mutation that moves the edge — the shell's `.con-root` class flip and
- * the rail's own `style` change — so the frame where the box COULD move is
- * sampled by construction, whatever the thread is doing. rAF is not used at
- * all: headless Chromium drives it off the compositor, and a layout read needs
- * no frame anyway (`getBoundingClientRect` flushes style itself).
- */
-async function installProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const state: WheelProbe = {samples: [], before: '-'};
-    const t0 = performance.now();
-    const boxOf = (): string => {
-      const el = document.querySelector<HTMLElement>('.con-quick');
-      if (el === null) {
-        return '-';
-      }
-      const b = el.getBoundingClientRect();
-      return `${b.left.toFixed(1)}|${b.right.toFixed(1)}|${b.top.toFixed(1)}|${b.bottom.toFixed(1)}`;
-    };
-    const scan = (): void => {
-      const box = boxOf();
-      state.samples.push({
-        t: Math.round(performance.now() - t0),
-        present: box !== '-',
-        box,
-        replaced: document.querySelector('.con-root')?.classList.contains('con-root--rail-replaced') === true,
-        stageR: document.documentElement.style.getPropertyValue('--con-stage-r'),
-      });
-    };
-    const timer = window.setInterval(scan, 8);
-    const observer = new MutationObserver(scan);
-    observer.observe(document.body, {attributes: true, childList: true, subtree: true});
-    globalThis.__wheelGeom = {
-      state,
-      stop: () => {
-        window.clearInterval(timer);
-        observer.disconnect();
-      },
-      arm: () => {
-        state.samples.splice(0);
-        state.before = boxOf();
-      },
-    };
+/** `.con-quick`'s viewport box, rounded to 0.1 px ('-' when gone) — the probe's reference read. */
+async function wheelBox(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>('.con-quick');
+    if (el === null) {
+      return '-';
+    }
+    const b = el.getBoundingClientRect();
+    return `${b.left.toFixed(1)}|${b.right.toFixed(1)}|${b.top.toFixed(1)}|${b.bottom.toFixed(1)}`;
   });
 }
 
-/** Take the reference box and clear the window — called just before the press. */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => globalThis.__wheelGeom?.arm());
+/**
+ * ARM the record of the cross for one commit (`armWitness`, `settled`): «the box never moved» is a claim about what a
+ * FRAME can show, so each state is the one a task LEAVES — the shell's flip and the wheel's pinned insets land in one
+ * flush, and nothing between two of its writes is ever painted.
+ */
+async function armProbe(page: Page, key: string): Promise<{stop: () => Promise<Array<WheelSample>>}> {
+  const record = await armWitness<WheelSeen>(page, key, () => {
+    const el = document.querySelector<HTMLElement>('.con-quick');
+    let box = '-';
+    if (el !== null) {
+      const b = el.getBoundingClientRect();
+      box = `${b.left.toFixed(1)}|${b.right.toFixed(1)}|${b.top.toFixed(1)}|${b.bottom.toFixed(1)}`;
+    }
+    return {
+      box,
+      replaced: document.querySelector('.con-root')?.classList.contains('con-root--rail-replaced') === true,
+      stageR: document.documentElement.style.getPropertyValue('--con-stage-r'),
+    };
+  }, {settled: true, max: 20_000});
+  return {
+    stop: async () => {
+      const recorded = await record.stop();
+      const t0 = recorded[0]?.t ?? 0;
+      return recorded.map((s) => ({...s.v, t: s.t - t0, present: s.v.box !== '-'}));
+    },
+  };
 }
 
-async function readProbe(page: Page): Promise<WheelProbe> {
-  return page.evaluate(() => globalThis.__wheelGeom?.state ?? {samples: [], before: '-'});
-}
-
-/** Pump frames until `check` holds (or the budget runs out). */
+/**
+ * Pump frames until `check` holds (or the budget runs out) — a POLL whose every round pumps one real frame (a tiny
+ * screenshot), at the old 60 ms pace.
+ */
 async function waitWithFrames(page: Page, check: () => Promise<boolean>, maxMs: number): Promise<boolean> {
-  const deadline = Date.now() + maxMs;
-  while (Date.now() < deadline) {
+  return expect.poll(async () => {
     if (await check()) {
       return true;
     }
     await forceFrame(page);
-    await page.waitForTimeout(60);
-  }
-  return check();
+    return check();
+  }, {timeout: maxMs, intervals: [60]}).toBe(true).then(() => true, () => false);
 }
 
-/** Back to the calm board home — the one place a wheel can be opened. */
+/** What is still open over the board home (a count of the surfaces a wheel walk can leave behind). */
+function openSurfaces(page: Page): Promise<number> {
+  return page.locator(
+    '.con-quick, .con-stdp, .con-ma, .con-cardactions, .con-composer, .con-sheet, ' +
+    '.con-hand, .con-colonies, .con-hydro, .con-played, .con-journal, .con-confirm').count();
+}
+
+/** Back to the calm board home — the one place a wheel can be opened. Each B waits for ITS effect (one surface
+ *  fewer), bounded by the old beat, before the next. */
 async function toBoard(page: Page): Promise<void> {
   for (let i = 0; i < 8; i++) {
-    const open = await page.locator(
-      '.con-quick, .con-stdp, .con-ma, .con-cardactions, .con-composer, .con-sheet, ' +
-      '.con-hand, .con-colonies, .con-hydro, .con-played, .con-journal, .con-confirm').count();
+    const open = await openSurfaces(page);
     if (open === 0) {
       return;
     }
     await page.keyboard.press('Escape');
-    await forceFrame(page);
-    await page.waitForTimeout(450);
+    await waitWithFrames(page, async () => await openSurfaces(page) < open, 450);
   }
 }
 
 /** Open a wheel — never a second press while it is already up (the trigger
- *  TOGGLES, which is how a retry used to fight itself). */
+ *  TOGGLES, which is how a retry used to fight itself). Each press waits for
+ *  its effect (the wheel standing), bounded by the old beat. */
 async function openWheel(page: Page, trigger: string): Promise<boolean> {
+  const up = async () => await page.locator('.con-quick').count() > 0;
   for (let tries = 0; tries < 5; tries++) {
-    if (await page.locator('.con-quick').count() > 0) {
+    if (await up()) {
       return true;
     }
     await page.keyboard.press(trigger);
-    await forceFrame(page);
-    await page.waitForTimeout(500);
+    if (await waitWithFrames(page, up, 500)) {
+      return true;
+    }
   }
-  return page.locator('.con-quick').count().then((n) => n > 0);
+  return up();
 }
 
 type WheelCase = {
@@ -219,25 +200,28 @@ for (const profile of PROFILES) {
       await toBoard(page);
       await expect.poll(() => page.locator('.con-board').count(), {message: 'never reached the board home'}).toBeGreaterThan(0);
 
-      await installProbe(page);
       let walked = 0;
 
-      for (const c of CASES) {
+      for (const [index, c] of CASES.entries()) {
         await toBoard(page);
         if (!await openWheel(page, c.trigger)) {
           continue; // the wheel never came up in this seed — never faked
         }
         // The open's own choreography must be over before the box is claimed
-        // stable: a still-arriving surface is not what this probe is about.
-        await forceFrame(page);
-        await page.waitForTimeout(600);
-        await armProbe(page);
+        // stable: a still-arriving surface is not what this probe is about —
+        // the reference box is read AT REST (`readSettled`; every read pumps a
+        // real frame, so the GSAP open advances on a quiet headless screen).
+        const before = await readSettled(page, async () => {
+          await forceFrame(page);
+          return wheelBox(page);
+        }, {message: `${c.label}: the cross at rest before the press`});
+        const probe = await armProbe(page, `wheel-commit-geometry-${index}`);
 
         await page.keyboard.press(c.slot);
-        // …and hold the samples until the wheel has actually left the DOM.
+        // …and hold the record until the wheel has actually left the DOM.
         await waitWithFrames(page, async () => (await page.locator('.con-quick').count()) === 0, 6_000);
 
-        const {samples, before} = await readProbe(page);
+        const samples = await probe.stop();
         const alive = samples.filter((s) => s.present);
         if (before === '-' || await page.locator(c.surface).count() === 0) {
           // The slot refused (unavailable in this seed) or the destination
@@ -247,10 +231,12 @@ for (const profile of PROFILES) {
         }
         walked++;
 
-        // A dead probe passes every assertion — so assert it was ALIVE, and
-        // that it saw the frames that matter: the cross still in the DOM AFTER
-        // the opening's right edge moved. That sample is the whole test.
-        expect(samples.length, `${c.label}: the probe never sampled`).toBeGreaterThan(2);
+        // A dead probe passes every assertion — so assert it was ALIVE (the
+        // floor catches a DEAD recorder only: the record keeps distinct states,
+        // and how many it kept is the machine's pace), and that it saw the
+        // states that matter: the cross still in the DOM AFTER the opening's
+        // right edge moved. That sample is the whole test.
+        expect(samples.length, `${c.label}: the probe never sampled`).toBeGreaterThan(0);
         if (c.replaces) {
           expect(alive.some((s) => s.replaced || s.stageR === '0px'),
             `${c.label}: no frame with the wheel alive past the rail's departure — inert case ` +
@@ -263,12 +249,11 @@ for (const profile of PROFILES) {
         const boxes = [...new Set([before, ...alive.map((s) => s.box)])];
         // The evidence, printed: how many frames the cross was watched for and
         // in which box (a passing geometry probe is otherwise invisible).
-        console.log(`  ${profile.tag} · ${c.label}: ${alive.length}/${samples.length} live samples, box ${before}, boxes ${boxes.length}`);
+        console.log(`  ${profile.tag} · ${c.label}: ${alive.length}/${samples.length} live states, box ${before}, boxes ${boxes.length}`);
         expect(boxes, `${c.label}: the wheel moved after the press — ${JSON.stringify(samples.slice(0, 10))}`)
           .toHaveLength(1);
       }
 
-      await page.evaluate(() => globalThis.__wheelGeom?.stop());
       expect(walked, 'no wheel destination was reachable in this walk').toBeGreaterThanOrEqual(4);
     });
   });

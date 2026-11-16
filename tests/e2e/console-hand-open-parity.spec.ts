@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {bootIntoGame, press} from './consoleStart';
+import {bootIntoGame, cinematicBeat, press, settle} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -105,11 +105,13 @@ test.describe('console hand open — no flicker at the handoff', () => {
     await bootIntoGame(page, request, {buy: 20});
 
     // Open the hand and SAMPLE MID-FLIGHT: the subject is the transition, so
-    // the probe must be inside it. Poll fast (the whole flight is ~750ms) and
-    // keep the first frame where both the proxies and the held slots exist.
+    // the probe must be inside it. Wait for the proxies' first face (a STATE —
+    // the locator's own wait, never a hand-rolled frame poll), then take the
+    // mid-flight beat and read both sides.
     let proxies: Faces = {};
     let slots: Faces = {};
     let art = {flying: 0, flyingPainted: 0, landed: 0, landedPainted: 0};
+    const flyingFace = page.locator('.con-handreveal-layer .con-deal-proxy__face .pcard');
     for (let attempt = 0; attempt < 6 && Object.keys(proxies).length === 0; attempt++) {
       if (await page.locator('.con-zoom, .con-quick, .con-composer').count() > 0) {
         await key(page, 'Escape', 900);
@@ -119,29 +121,26 @@ test.describe('console hand open — no flicker at the handoff', () => {
       }
       await key(page, 'Period', 700);
       await page.keyboard.press('Enter');
-      for (let frame = 0; frame < 60; frame++) {
-        const flying = await page.locator('.con-handreveal-layer .con-deal-proxy__face .pcard').count();
-        if (flying > 0) {
-          // MID-flight, not frame zero: the proxies exist from the moment they
-          // spawn (still stacked in the dock), and a sample there would prove
-          // the wiring while showing the eye nothing. The lift is 140ms and the
-          // flight 600ms, so this lands the frame with the cards genuinely in
-          // the air and the shelf still held empty underneath.
-          await page.waitForTimeout(320);
-          // MEASURE BEFORE SHOOTING. A full-page screenshot costs a few hundred
-          // ms, and this transition is 740ms long — reading after it samples a
-          // later, calmer moment than the picture shows, which is exactly how a
-          // probe ends up disagreeing with its own evidence.
-          art = await readArt(page);
-          proxies = await readFaces(page, '.con-handreveal-layer');
-          slots = await readFaces(page, '.con-hand__album');
-          await shoot(page, 'mid-flight');
-          break;
-        }
-        await page.waitForTimeout(40);
+      const flew = await flyingFace.first().waitFor({state: 'attached', timeout: 5_000}).then(() => true, () => false);
+      if (flew) {
+        // MID-flight, not frame zero: the proxies exist from the moment they
+        // spawn (still stacked in the dock), and a sample there would prove
+        // the wiring while showing the eye nothing. The lift is 140ms and the
+        // flight 600ms, so this lands the frame with the cards genuinely in
+        // the air and the shelf still held empty underneath.
+        await cinematicBeat(page, 320, 'mid-flight: past the 140 ms lift, inside the 600 ms flight — the faces read in the air');
+        // MEASURE BEFORE SHOOTING. A full-page screenshot costs a few hundred
+        // ms, and this transition is 740ms long — reading after it samples a
+        // later, calmer moment than the picture shows, which is exactly how a
+        // probe ends up disagreeing with its own evidence.
+        art = await readArt(page);
+        proxies = await readFaces(page, '.con-handreveal-layer');
+        slots = await readFaces(page, '.con-hand__album');
+        await shoot(page, 'mid-flight');
       }
       if (Object.keys(proxies).length === 0) {
-        await page.waitForTimeout(2000);
+        // The episode was missed — let the opened hand come to rest before the next attempt closes it.
+        await settle(page);
       }
     }
 
@@ -184,7 +183,7 @@ test.describe('console hand open — no flicker at the handoff', () => {
       .toBeGreaterThanOrEqual(Math.min(art.landedPainted, art.flying));
 
     // The settled shelf, for the eye: it must look like the frame before it.
-    await page.waitForTimeout(2500);
+    await settle(page);
     await shoot(page, 'settled');
   });
 });

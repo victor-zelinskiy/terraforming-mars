@@ -405,7 +405,10 @@ function finiteMotionReader(horizonMs: number): number {
   // that came back in that gap measured the sheet half-arrived (`console-play-composer-sheet`: «the commit 18 px below
   // its sheet» — the cascade's rise, read mid-way; CI 3 / 3, and the box pinned to two cores even with the motion
   // counted, because the motion had not STARTED when the quiet was judged).
-  const loading = document.querySelector('.con-composer__loading') === null ? 0 : 1;
+  // …and the cell DOSSIER fetching the focused cell's facts (`data-dossier-loading` — FLAKE ZERO, class F) is not at
+  // rest either: the panel names the new cell a fetch before its facts arrive.
+  const loading = (document.querySelector('.con-composer__loading') === null ? 0 : 1) +
+    (document.querySelector('[data-dossier-loading]') === null ? 0 : 1);
   if (typeof document.getAnimations !== 'function') {
     return loading;
   }
@@ -4008,6 +4011,20 @@ export async function passDeferredTableQuestions(page: Page): Promise<void> {
  * leaves. A no-op without a bonus row. True once the row reads its answer (`data-venus-answered`).
  */
 const VENUS_LANES = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
+
+/**
+ * THE CELL DOSSIER IS READ FOR ITS CELL, LOADED (FLAKE ZERO, class F). A d-pad step names the new cell on the board a
+ * fetch before the panel's facts for it arrive, and the panel says which cell its facts belong to (`data-dossier-space`)
+ * and whether the next ones are still on their way (`data-dossier-loading`). Wait for THIS cell, not loading — never a
+ * stable read of whatever stood (three equal reads of the PREVIOUS cell's facts are still the previous cell's).
+ * `space` undefined: whatever cell, loaded. Bounded; a dossier that never arrives is the caller's red.
+ */
+export async function dossierLoaded(page: Page, space?: string, timeoutMs = 15_000): Promise<void> {
+  await page.waitForFunction((id) => {
+    const el = document.querySelector('.con-context[data-dossier-space]');
+    return el !== null && !el.hasAttribute('data-dossier-loading') && (id === null || el.getAttribute('data-dossier-space') === id);
+  }, space ?? null, {polling: 50, timeout: timeoutMs});
+}
 
 /**
  * A SHEET THAT IS STILL LOADING IS NOT READ (CI 2026-11-14, `console-venus-bonus-hosts` H2). A composer mounts first

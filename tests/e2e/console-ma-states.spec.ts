@@ -1,7 +1,8 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, fetchPlayerModel, NO_PAYMENT, press, reloadConsole, sendPlayerInput, soloGameConfig, waitForBoardHome} from './consoleStart';
+import {bootIntoGame, cinematicBeat, fetchPlayerModel, NO_PAYMENT, press, reloadConsole, sendPlayerInput, settle, soloGameConfig, waitForBoardHome} from './consoleStart';
+import {readSettled} from './settledRead';
 import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
 
 /**
@@ -114,21 +115,22 @@ async function fundFirstAward(request: APIRequestContext, pid: string): Promise<
   return name;
 }
 
-/** Drain transient chrome (toasts / zoom / bot review) into a quiet window. */
-async function waitQuiet(page: Page, quietMs = 1600, maxMs = 16_000): Promise<void> {
-  const started = Date.now();
-  let quietSince = Date.now();
-  while (Date.now() - started < maxMs) {
-    const noise = await page.locator('.con-notice, dialog.con-zoom[open], .con-bot-review').count();
-    if (noise > 0) {
+/**
+ * Drain transient chrome (toasts / zoom / bot review) into a quiet screen. Quiet is the product's own word, never a
+ * guessed window: no hold, no request in flight, the notification feed drained, the motion over (`settle`) — and
+ * nothing noisy standing after it (a toast that arrives late is pressed away and the screen asked again).
+ */
+async function waitQuiet(page: Page, maxRounds = 8): Promise<void> {
+  const noise = page.locator('.con-notice, dialog.con-zoom[open], .con-bot-review');
+  for (let round = 0; round < maxRounds; round++) {
+    if (await noise.count() > 0) {
       await press(page, 'Escape', 500);
-      quietSince = Date.now();
       continue;
     }
-    if (Date.now() - quietSince >= quietMs) {
+    await settle(page, {notifications: true, timeoutMs: 16_000});
+    if (await noise.count() === 0) {
       return;
     }
-    await page.waitForTimeout(250);
   }
 }
 
@@ -194,12 +196,16 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     // TWO WORKSPACES, ONE FAMILY (FB′): one kind a screen — the milestones alone, two columns of tiles of ONE width
     // (an odd fifth never spans).
     await expect.poll(() => page.locator('.con-ma.con-ma--milestones').count(), {message: 'the milestones stand on their own screen'}).toBe(1);
-    expect(await page.locator('.con-ma__card').evaluateAll((els) => {
+    // The tiles' layout is read AT REST (`readSettled`): an entering tile measured mid-cascade is the machine's pace.
+    const tiles = await readSettled(page, () => page.locator('.con-ma__card').evaluateAll((els) => {
       const w = Math.max(...els.map((el) => el.getBoundingClientRect().width));
-      return els.filter((el) => Math.abs(el.getBoundingClientRect().width - w) > 1).length;
-    }), 'every tile has the one width — nothing spans').toBe(0);
-    expect(await page.locator('.con-ma__card').evaluateAll((els) => new Set(els.map((el) => Math.round(el.getBoundingClientRect().left))).size),
-      'two columns of tiles').toBe(2);
+      return {
+        odd: els.filter((el) => Math.abs(el.getBoundingClientRect().width - w) > 1).length,
+        columns: new Set(els.map((el) => Math.round(el.getBoundingClientRect().left))).size,
+      };
+    }), {message: 'the milestone tiles at rest'});
+    expect(tiles.odd, 'every tile has the one width — nothing spans').toBe(0);
+    expect(tiles.columns, 'two columns of tiles').toBe(2);
     await press(page, 'KeyE', 1500); // RB → the family's other workspace (scenario 8)
     await expect(page.locator('.con-ma.con-ma--awards'), 'RB walks to the awards workspace').toHaveCount(1);
     await shoot(page, '11-awards-fresh');
@@ -233,13 +239,15 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await expect.poll(() => goCard.count(), {message: 'the available tile is not the focused one'}).toBe(1);
     // MATERIAL, NEVER LIGHT (FB): «available» is the row's own mint KANT (an inset ring) + the word — no rim, no
     // shelf, no pooled pedestal; the cursor's ring is a separate layer that is dark here.
-    expect(await goCard.evaluate((el) => getComputedStyle(el).boxShadow), 'the available row wears an INSET kant')
+    // Live styles are asserted by POLL (a cursor's ring fades out over frames once the focus has moved away).
+    await expect.poll(() => goCard.evaluate((el) => getComputedStyle(el).boxShadow), {message: 'the available row wears an INSET kant'})
       .toMatch(/inset/);
-    expect(await goCard.evaluate((el) => Number(getComputedStyle(el, '::after').opacity)),
-      'no cursor ring on an unfocused row — availability never borrows the focus channel').toBeLessThan(0.1);
-    expect(await page.locator('.con-ma__name').first().evaluate((el) => getComputedStyle(el).textShadow), 'no glowing name').toBe('none');
-    expect((await goCard.locator('.con-ma__avail').innerText()).trim().length,
-      'the «ДОСТУПНО» word stands without focus').toBeGreaterThan(0);
+    await expect.poll(() => goCard.evaluate((el) => Number(getComputedStyle(el, '::after').opacity)),
+      {message: 'no cursor ring on an unfocused row — availability never borrows the focus channel'}).toBeLessThan(0.1);
+    await expect.poll(() => page.locator('.con-ma__name').first().evaluate((el) => getComputedStyle(el).textShadow), {message: 'no glowing name'})
+      .toBe('none');
+    await expect.poll(async () => (await goCard.locator('.con-ma__avail').innerText()).trim().length,
+      {message: 'the «ДОСТУПНО» word stands without focus'}).toBeGreaterThan(0);
     await expect.poll(() => barText(page), {message: 'a non-actionable focus advertises the reading verb', timeout: 10_000})
       .toContain('ОСМОТРЕТЬ');
     await shoot(page, '20-milestones-avail-unfocused');
@@ -249,12 +257,13 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     await focusCardAt(page, goIdx);
     const goFocused = page.locator('.con-ma__card--go.con-ma__card--focused');
     await expect.poll(() => goFocused.count(), {message: 'focus and availability share one tile'}).toBe(1);
-    expect(await goFocused.evaluate((el) => getComputedStyle(el).boxShadow), 'focus must not eat the availability kant')
+    await expect.poll(() => goFocused.evaluate((el) => getComputedStyle(el).boxShadow), {message: 'focus must not eat the availability kant'})
       .toMatch(/inset/);
     // THE CURSOR (`.con-cursor()`): the ring is the row's own layer, lit — an inset ring, never a blurred halo.
     await expect.poll(() => goFocused.evaluate((el) => Number(getComputedStyle(el, '::after').opacity)),
       {message: 'the cursor ring stands beside the state', timeout: 5_000}).toBeGreaterThan(0.9);
-    expect(await goFocused.evaluate((el) => getComputedStyle(el, '::after').boxShadow), 'the ring is an inset kant').toMatch(/inset/);
+    await expect.poll(() => goFocused.evaluate((el) => getComputedStyle(el, '::after').boxShadow), {message: 'the ring is an inset kant'})
+      .toMatch(/inset/);
     await expect.poll(() => barText(page), {message: 'an available milestone advertises the intent verb', timeout: 10_000})
       .toContain('ЗАЯВИТЬ');
     await shoot(page, '21-milestones-avail-focused');
@@ -263,10 +272,9 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     // a tile, a second click on the focused tile descends — the controller's
     // own two-step, through the same doors.
     await page.locator(ACTIVE_ROWS).nth(awayIdx).click();
-    await page.waitForTimeout(400);
-    expect((await cardStates(page))[awayIdx]?.focused, 'a click focuses the tile').toBe(true);
+    // The click's effect is a STATE — polled, never a fixed beat.
+    await expect.poll(async () => (await cardStates(page))[awayIdx]?.focused, {message: 'a click focuses the tile'}).toBe(true);
     await page.locator(ACTIVE_ROWS).nth(awayIdx).click();
-    await page.waitForTimeout(1200);
     await expect.poll(() => page.locator('.con-mafocus').count(), {message: 'a click on the focused tile descends'}).toBe(1);
     await press(page, 'Escape', 1200);
     await focusCardAt(page, goIdx);
@@ -305,11 +313,11 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
       await focusCardAt(page, anyAwardIdx);
       await press(page, 'Enter', 1500);
       await page.waitForSelector('.con-mafocus--award', {timeout: 6_000});
-      expect(await page.locator('.con-mafocus__surface').evaluate(
+      await expect.poll(() => page.locator('.con-mafocus__surface').evaluate(
         (el) => getComputedStyle(el).backgroundImage.includes('26, 23, 18')),
-      'the award detail surface stands on the warm material').toBe(true);
-      expect(await page.locator('.con-mafocus__surface').evaluate((el) => getComputedStyle(el).backgroundImage.includes('radial-gradient')),
-        'no light pool on the detail surface').toBe(false);
+      {message: 'the award detail surface stands on the warm material'}).toBe(true);
+      await expect.poll(() => page.locator('.con-mafocus__surface').evaluate((el) => getComputedStyle(el).backgroundImage.includes('radial-gradient')),
+        {message: 'no light pool on the detail surface'}).toBe(false);
       // THE RIGHT COLUMN IS FULL (FB): the three plates in every mode — the race plate always.
       await expect.poll(() => page.locator('[data-ma-plate]').count(), {message: 'condition · what it gives · the race'}).toBe(3);
       await expect.poll(() => page.locator('[data-ma-ladder]').count(), {message: 'the sponsorship ladder'}).toBe(1);
@@ -340,13 +348,14 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     // CONTINUITY (the core criterion): the kanted row OPENS into a kanted stage — the offered milestone's pedestal
     // wears the row's mint kant (an inset ring), and nothing on the stage is light (FB).
     await expect.poll(() => page.locator('.con-mafocus--avail').count(), {message: 'the offered milestone carries its kant into the stage'}).toBe(1);
-    expect(await page.locator('.con-mafocus__stage').evaluate((el) => getComputedStyle(el).boxShadow), 'the pedestal kant')
+    await expect.poll(() => page.locator('.con-mafocus__stage').evaluate((el) => getComputedStyle(el).boxShadow), {message: 'the pedestal kant'})
       .toMatch(/inset/);
-    expect(await page.locator('.con-mafocus__name').evaluate((el) => getComputedStyle(el).textShadow), 'no glowing name').toBe('none');
+    await expect.poll(() => page.locator('.con-mafocus__name').evaluate((el) => getComputedStyle(el).textShadow), {message: 'no glowing name'})
+      .toBe('none');
     await shoot(page, '41-detail-available');
 
     await page.keyboard.press('Enter'); // the commit (past the 400ms ARM)
-    await page.waitForTimeout(250);
+    await cinematicBeat(page, 250, 'the commit beat mid-way — the storyboard\'s «committing» frame');
     await shoot(page, '42-committing');
 
     // The ceremony is GSAP-driven: pump BeginFrame while it plays.
@@ -354,11 +363,12 @@ test.describe('console MA workspace · browse state matrix (4K TV)', () => {
     // The commit latch (`--go`) holds through the ceremony — the ceremony's own light is its licence.
     await expect.poll(() => page.locator('.con-mafocus--go').count(), {message: 'the commit latch holds through the ceremony'}).toBe(1);
     await shoot(page, '43-ceremony');
-    for (let i = 0; i < 60 && await page.locator('.con-ma').count() > 0; i++) {
+    // The workspace's close is a STATE, polled — each poll pumps one real frame (a tiny screenshot) so the GSAP
+    // ceremony advances on a headless screen whose own frames starve.
+    await expect.poll(async () => {
       await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
-      await page.waitForTimeout(280);
-    }
-    await expect.poll(() => page.locator('.con-ma').count(), {message: 'the workspace closes after its ceremony'}).toBe(0);
+      return page.locator('.con-ma').count();
+    }, {message: 'the workspace closes after its ceremony', timeout: 25_000, intervals: [280]}).toBe(0);
 
     // ── 7 · the TAKEN-BY-ME state (scenario 5) ─────────────────────────────
     await waitQuiet(page);

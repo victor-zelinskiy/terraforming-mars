@@ -1,12 +1,12 @@
 {
   "//": "Frozen per-file counts of e2e flake classes (FLAKE ZERO — tests/console/e2eFlakeScan.ts). Counts may only FALL; the target in every *.spec.ts is ZERO. Regenerate with: npm run e2e:baseline",
   "totals": {
-    "waitForTimeout": 405,
-    "requestAnimationFrame": 28,
-    "setInterval": 246,
+    "waitForTimeout": 216,
+    "requestAnimationFrame": 12,
+    "setInterval": 225,
     "oneShotRead": 0,
     "driverClock": 0,
-    "looseGeometry": 1097,
+    "looseGeometry": 1015,
     "goneAsDone": 0
   },
   "files": {
@@ -21,11 +21,6 @@
     },
     "console-action-confirm.spec.ts": {
       "looseGeometry": 2
-    },
-    "console-action-focus.spec.ts": {
-      "waitForTimeout": 2,
-      "requestAnimationFrame": 2,
-      "looseGeometry": 1
     },
     "console-action-price-fold.spec.ts": {
       "setInterval": 1,
@@ -78,15 +73,6 @@
     "console-biological-simulations.spec.ts": {
       "setInterval": 2,
       "looseGeometry": 7
-    },
-    "console-blue-action-purchase.spec.ts": {
-      "waitForTimeout": 6,
-      "looseGeometry": 7
-    },
-    "console-board-framing.spec.ts": {
-      "waitForTimeout": 6,
-      "setInterval": 1,
-      "looseGeometry": 4
     },
     "console-board-of-directors.spec.ts": {
       "setInterval": 1
@@ -155,10 +141,6 @@
     "console-card-lore-measure.spec.ts": {
       "looseGeometry": 4
     },
-    "console-card-lore.spec.ts": {
-      "waitForTimeout": 5,
-      "looseGeometry": 2
-    },
     "console-card-reaction.spec.ts": {
       "setInterval": 2,
       "looseGeometry": 7
@@ -195,27 +177,9 @@
     "console-colonial-envoys.spec.ts": {
       "setInterval": 1
     },
-    "console-colony-build-flight.spec.ts": {
-      "waitForTimeout": 4,
-      "requestAnimationFrame": 2,
-      "looseGeometry": 1
-    },
-    "console-colony-cube.spec.ts": {
-      "waitForTimeout": 6
-    },
-    "console-colony-entry-probe.spec.ts": {
-      "waitForTimeout": 4,
-      "requestAnimationFrame": 2,
-      "looseGeometry": 1
-    },
     "console-colony-inspect-probe.spec.ts": {
       "setInterval": 1,
       "looseGeometry": 18
-    },
-    "console-colony-miranda-bonus.spec.ts": {
-      "waitForTimeout": 5,
-      "requestAnimationFrame": 2,
-      "looseGeometry": 1
     },
     "console-colony-payout-geometry.spec.ts": {
       "looseGeometry": 1
@@ -238,14 +202,6 @@
     "console-colony-trade-hub.spec.ts": {
       "setInterval": 1
     },
-    "console-colony-trade-probe.spec.ts": {
-      "waitForTimeout": 6,
-      "setInterval": 1
-    },
-    "console-colony-trade-receipt.spec.ts": {
-      "waitForTimeout": 3,
-      "setInterval": 1
-    },
     "console-colony-venus-cells.spec.ts": {
       "looseGeometry": 3
     },
@@ -266,14 +222,7 @@
       "setInterval": 1,
       "looseGeometry": 13
     },
-    "console-community-marker.spec.ts": {
-      "waitForTimeout": 4
-    },
     "console-composer-preselect.spec.ts": {
-      "looseGeometry": 4
-    },
-    "console-composite-surfaces.spec.ts": {
-      "waitForTimeout": 6,
       "looseGeometry": 4
     },
     "console-composting-initiative.spec.ts": {
@@ -283,10 +232,6 @@
     "console-corp-first-action.spec.ts": {
       "waitForTimeout": 3,
       "looseGeometry": 2
-    },
-    "console-corporate-espionage.spec.ts": {
-      "waitForTimeout": 4,
-      "looseGeometry": 3
     },
     "console-council-seat.spec.ts": {
       "setInterval": 1
@@ -421,10 +366,6 @@
       "setInterval": 2,
       "looseGeometry": 9
     },
-    "console-first-action-draw.spec.ts": {
-      "waitForTimeout": 5,
-      "looseGeometry": 2
-    },
     "console-first-action-unsourced-draw.spec.ts": {
       "waitForTimeout": 2
     },
@@ -447,9 +388,6 @@
     "console-frontier-town.spec.ts": {
       "looseGeometry": 3
     },
-    "console-gamepad-reload-carryover.spec.ts": {
-      "waitForTimeout": 5
-    },
     "console-generation-scene.spec.ts": {
       "setInterval": 1,
       "looseGeometry": 2
@@ -461,19 +399,6 @@
     "console-greens-campaign.spec.ts": {
       "setInterval": 1,
       "looseGeometry": 2
-    },
-    "console-hand-close-landing.spec.ts": {
-      "waitForTimeout": 5,
-      "setInterval": 2,
-      "looseGeometry": 7
-    },
-    "console-hand-open-parity.spec.ts": {
-      "waitForTimeout": 4
-    },
-    "console-hand-play-return.spec.ts": {
-      "waitForTimeout": 2,
-      "setInterval": 2,
-      "looseGeometry": 1
     },
     "console-hand-workspace.spec.ts": {
       "waitForTimeout": 3,
@@ -500,10 +425,6 @@
       "setInterval": 1,
       "looseGeometry": 3
     },
-    "console-hydro-copied-tile.spec.ts": {
-      "waitForTimeout": 4,
-      "setInterval": 1
-    },
     "console-hydro-geometry.spec.ts": {
       "waitForTimeout": 2,
       "looseGeometry": 6
@@ -511,16 +432,6 @@
     "console-hydro-repeat-bridge.spec.ts": {
       "waitForTimeout": 1,
       "looseGeometry": 1
-    },
-    "console-hydro-repeat-embed.spec.ts": {
-      "waitForTimeout": 3,
-      "setInterval": 1,
-      "looseGeometry": 4
-    },
-    "console-hydro-stage-bound-repeat.spec.ts": {
-      "waitForTimeout": 5,
-      "setInterval": 1,
-      "looseGeometry": 6
     },
     "console-ichtiology-grant.spec.ts": {
       "looseGeometry": 4
@@ -567,10 +478,6 @@
     "console-lotus-innovations.spec.ts": {
       "setInterval": 2
     },
-    "console-ma-states.spec.ts": {
-      "waitForTimeout": 5,
-      "looseGeometry": 3
-    },
     "console-ma-workspace.spec.ts": {
       "waitForTimeout": 3,
       "looseGeometry": 7
@@ -615,10 +522,6 @@
     },
     "console-nobel-prize.spec.ts": {
       "setInterval": 1
-    },
-    "console-nomads-hazard-dossier.spec.ts": {
-      "waitForTimeout": 7,
-      "looseGeometry": 2
     },
     "console-notification-bonus-attack.spec.ts": {
       "waitForTimeout": 3,
@@ -921,20 +824,11 @@
       "waitForTimeout": 2,
       "looseGeometry": 1
     },
-    "console-placement-relations.spec.ts": {
-      "waitForTimeout": 4,
-      "setInterval": 1
-    },
     "console-placement-source.spec.ts": {
       "waitForTimeout": 1,
       "looseGeometry": 1
     },
     "console-placement-title-measure.spec.ts": {
-      "looseGeometry": 3
-    },
-    "console-planet-focus.spec.ts": {
-      "waitForTimeout": 3,
-      "requestAnimationFrame": 4,
       "looseGeometry": 3
     },
     "console-planetary-alliance.spec.ts": {
@@ -971,9 +865,6 @@
     "console-pluto-settlements.spec.ts": {
       "setInterval": 1,
       "looseGeometry": 7
-    },
-    "console-pluto-two-colony-sequence.spec.ts": {
-      "waitForTimeout": 6
     },
     "console-political-donation.spec.ts": {
       "setInterval": 1,
@@ -1084,7 +975,6 @@
       "looseGeometry": 6
     },
     "console-research-startups.spec.ts": {
-      "setInterval": 2,
       "looseGeometry": 2
     },
     "console-resolution-face.spec.ts": {
@@ -1096,11 +986,6 @@
     },
     "console-reveal-availability.spec.ts": {
       "waitForTimeout": 4,
-      "looseGeometry": 1
-    },
-    "console-reveal-landing.spec.ts": {
-      "waitForTimeout": 5,
-      "setInterval": 1,
       "looseGeometry": 1
     },
     "console-reveal-priority.spec.ts": {
@@ -1122,10 +1007,6 @@
     "console-robotics-factory.spec.ts": {
       "looseGeometry": 6
     },
-    "console-scale-marker.spec.ts": {
-      "waitForTimeout": 5,
-      "looseGeometry": 4
-    },
     "console-scene-transition.spec.ts": {
       "setInterval": 1,
       "looseGeometry": 1
@@ -1137,11 +1018,6 @@
     "console-scientists-campaign.spec.ts": {
       "setInterval": 1,
       "looseGeometry": 2
-    },
-    "console-score-explorer.spec.ts": {
-      "waitForTimeout": 2,
-      "setInterval": 3,
-      "looseGeometry": 6
     },
     "console-score-header.spec.ts": {
       "waitForTimeout": 2,
@@ -1160,10 +1036,6 @@
     },
     "console-special-permit.spec.ts": {
       "looseGeometry": 2
-    },
-    "console-sponsor-colony.spec.ts": {
-      "waitForTimeout": 6,
-      "looseGeometry": 5
     },
     "console-sponsoring-nation.spec.ts": {
       "setInterval": 1
@@ -1184,19 +1056,11 @@
       "setInterval": 1,
       "looseGeometry": 4
     },
-    "console-start-motion.spec.ts": {
-      "waitForTimeout": 6,
-      "setInterval": 1
-    },
     "console-start-multiplayer.spec.ts": {
       "waitForTimeout": 3
     },
     "console-start-placement.spec.ts": {
       "waitForTimeout": 2
-    },
-    "console-start-rail-commit.spec.ts": {
-      "waitForTimeout": 5,
-      "setInterval": 1
     },
     "console-start-summary-fit.spec.ts": {
       "waitForTimeout": 1,
@@ -1226,9 +1090,6 @@
     },
     "console-supercomputer.spec.ts": {
       "setInterval": 1
-    },
-    "console-surface-motion.spec.ts": {
-      "waitForTimeout": 5
     },
     "console-system-menu.spec.ts": {
       "waitForTimeout": 3,
@@ -1314,11 +1175,6 @@
     "console-wg-project.spec.ts": {
       "setInterval": 1
     },
-    "console-wheel-commit-geometry.spec.ts": {
-      "waitForTimeout": 4,
-      "setInterval": 1,
-      "looseGeometry": 1
-    },
     "console-workspace-band.spec.ts": {
       "waitForTimeout": 2,
       "looseGeometry": 5
@@ -1341,15 +1197,6 @@
     "focusWitness.ts": {
       "setInterval": 1
     },
-    "hand-album-capture.spec.ts": {
-      "waitForTimeout": 6,
-      "looseGeometry": 1
-    },
-    "hand-album-probe.spec.ts": {
-      "waitForTimeout": 6,
-      "setInterval": 1,
-      "looseGeometry": 7
-    },
     "hand-chip-scale.spec.ts": {
       "waitForTimeout": 2,
       "setInterval": 1,
@@ -1363,9 +1210,6 @@
       "waitForTimeout": 4,
       "looseGeometry": 2
     },
-    "hand-dock-pose-capture.spec.ts": {
-      "waitForTimeout": 6
-    },
     "hand-dock-probe.spec.ts": {
       "waitForTimeout": 2,
       "looseGeometry": 2
@@ -1375,11 +1219,6 @@
       "requestAnimationFrame": 2,
       "looseGeometry": 1
     },
-    "mat-stage-probe.spec.ts": {
-      "waitForTimeout": 3,
-      "requestAnimationFrame": 2,
-      "looseGeometry": 2
-    },
     "parliamentDriveV2.ts": {
       "setInterval": 1
     },
@@ -1388,11 +1227,6 @@
     },
     "settledRead.ts": {
       "requestAnimationFrame": 2
-    },
-    "start-effect-flow-probe.spec.ts": {
-      "waitForTimeout": 4,
-      "requestAnimationFrame": 2,
-      "looseGeometry": 3
     },
     "start-flow-polish-probe.spec.ts": {
       "waitForTimeout": 3,
@@ -1412,9 +1246,6 @@
     "transientRecorder.ts": {
       "requestAnimationFrame": 2,
       "setInterval": 1
-    },
-    "tv-decision-screens.spec.ts": {
-      "waitForTimeout": 7
     },
     "tv-profile-screens.spec.ts": {
       "waitForTimeout": 2

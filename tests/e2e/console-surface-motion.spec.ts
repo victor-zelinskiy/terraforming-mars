@@ -1,7 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, openActionFocus, openCardActions, openQuickWheel, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, openActionFocus, openCardActions, openQuickWheel, playCardFromHand, press, settle, soloGameConfig, waitForTurn} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * Console surface-motion system · the Search For Life reveal chain + wheels.
@@ -46,14 +48,14 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await press(page, code, settleMs);
 }
 
-/** Sample the shade's ON state every `stepMs` — the anti-blink probe. */
-async function sampleShadeContinuity(page: Page, samples: number, stepMs: number): Promise<boolean[]> {
-  const out: boolean[] = [];
-  for (let i = 0; i < samples; i++) {
-    out.push(await page.locator('.con-shade--on').count() > 0);
-    await page.waitForTimeout(stepMs);
-  }
-  return out;
+/**
+ * THE ANTI-BLINK PROBE — the shade's ON state RECORDED from before the press (`armWitness`, FLAKE ZERO): every state the
+ * product writes, in the task that writes it. `settled`: «the shade never blinks» is a claim about what a FRAME can
+ * show, so each state is the one a task LEAVES — never the instant between one owner letting go and the next claiming
+ * in the same flush. Armed BEFORE the press, asked once the destination stands.
+ */
+async function armShadeContinuity(page: Page, key: string): Promise<Witness<boolean>> {
+  return armWitness<boolean>(page, key, () => document.querySelector('.con-shade--on') !== null, {settled: true});
 }
 
 /** The target profiles: the 1080 logical console, the 4K TV recomposition
@@ -91,7 +93,7 @@ for (const profile of PROFILES) {
         query: profile.query,
       });
       await waitForTurn(page);
-      await page.waitForTimeout(4000); // intake / delivery settle
+      await settle(page); // intake / delivery settle
 
       // ── 1. The RT wheel: open (no private backdrop, shared shade ON). ───
       // Verified entry (the driver retries) — a blind press is consumed on a
@@ -109,10 +111,14 @@ for (const profile of PROFILES) {
       // ON through the whole swap (the anti-blink probe samples it live). ──
       await key(page, 'Comma', 600);
       await expect(page.locator('.con-quick')).toHaveCount(1);
+      const handoffWatch = await armShadeContinuity(page, 'surface-motion-handoff-shade');
       await page.keyboard.press('Enter'); // center slot = Standard Projects
-      const handoffShade = await sampleShadeContinuity(page, 8, 45);
-      expect(handoffShade.every(Boolean), `shade blinked during wheel→stdp handoff: ${handoffShade}`).toBeTruthy();
       await expect(page.locator('.con-stdp')).toHaveCount(1);
+      await settle(page); // the wheel's leave and the screen's entry are over
+      // The record covers the WHOLE swap — from the press to the screen at rest — never 8 polls of 45 ms.
+      const handoffShade = await handoffWatch.values();
+      await handoffWatch.stop();
+      expect(handoffShade.every(Boolean), `shade blinked during wheel→stdp handoff: ${handoffShade}`).toBeTruthy();
       await expect(page.locator('.con-stdp[data-motion-surface]'), 'std-projects rides the shared shade (no private backdrop)').toHaveCount(1);
       await shoot(page, `${profile.tag}-02-stdp-after-wheel-handoff`);
       await key(page, 'Escape', 700);
@@ -125,20 +131,24 @@ for (const profile of PROFILES) {
       // regression: the planet mounted half-width, then jumped to size
       // while the departing screen flashed squeezed on the right).
       const boardScale = () => page.evaluate(() => document.documentElement.style.getPropertyValue('--board-scale'));
-      const baseScale = await boardScale();
+      // The reference is the board home's scale AT REST (`readSettled`) — a comparison is only as settled as its
+      // least settled side.
+      const baseScale = await readSettled(page, boardScale, {message: 'the board home\'s --board-scale'});
       expect(baseScale, 'the board scale must be set on the board home').not.toBe('');
       await key(page, 'Period', 600); // RT wheel
       await key(page, 'ArrowLeft', 1000); // ← slot = Hydronetwork
       await expect(page.locator('.con-hydro')).toHaveCount(1);
+      // RECORD the stored scale through the WHOLE exit, from before the press (`armWitness`): every value the fit
+      // engine writes, in the task that writes it — never 10 polls of 45 ms.
+      const scaleWatch = await armWitness<string>(page, 'surface-motion-exit-scale',
+        () => document.documentElement.style.getPropertyValue('--board-scale'));
       await page.keyboard.press('Escape'); // B → close → board
-      const scaleSamples: string[] = [];
-      for (let i = 0; i < 10; i++) {
-        scaleSamples.push(await boardScale());
-        await page.waitForTimeout(45);
-      }
+      await expect(page.locator('.con-hydro')).toHaveCount(0);
+      await settle(page); // the exit is over and the board home at rest — a late re-fit is the very jump guarded here
+      const scaleSamples = await scaleWatch.values();
+      await scaleWatch.stop();
       expect(scaleSamples.every((s2) => s2 === baseScale),
         `--board-scale wobbled through the section exit: [${scaleSamples.join(', ')}] vs ${baseScale}`).toBeTruthy();
-      await expect(page.locator('.con-hydro')).toHaveCount(0);
       await shoot(page, `${profile.tag}-02b-board-after-hydro-exit`);
 
       // ── 3. Play Search For Life from hand (RT → center = КАРТЫ). ────────
@@ -160,9 +170,8 @@ for (const profile of PROFILES) {
       // flip present the outcome in the SAME frame, the standalone reveal
       // overlay never mounts for the claimed reveal, and the shade cannot
       // blink (the center owns it through the whole operation).
+      const phaseWatch = await armShadeContinuity(page, 'surface-motion-phase-shade');
       await page.keyboard.press('Enter');
-      const phaseShade = await sampleShadeContinuity(page, 10, 45);
-      expect(phaseShade.every(Boolean), `shade blinked during confirm→reveal: ${phaseShade}`).toBeTruthy();
       await expect(page.locator('.con-composer--stage .con-composer__revealzone')).toHaveCount(1, {timeout: 10_000});
       await expect.poll(() => page.locator('.con-reveal').count(), {message: 'no standalone overlay for the claimed reveal'}).toBe(0);
       // The source-card anchor never left the stage (the hero column holds).
@@ -171,11 +180,15 @@ for (const profile of PROFILES) {
       // beat lets the status → verdict crossfade finish even on a heavy 4K
       // frame, so the screenshot always carries the verdict panel.
       await expect(page.locator('.con-composer--stage .con-verdict')).toHaveCount(1, {timeout: 10_000});
+      // The shade record covers the whole confirm → reveal phase, from the press to the verdict standing.
+      const phaseShade = await phaseWatch.values();
+      await phaseWatch.stop();
+      expect(phaseShade.every(Boolean), `shade blinked during confirm→reveal: ${phaseShade}`).toBeTruthy();
       // The EMBEDDED stage carries the WHOLE reading, not a four-word pill: the
       // reward row is stated either way («не получена» on a miss), which is what
       // the legacy modal used to be the only surface to say.
       await expect(page.locator('.con-composer--stage .con-verdict__row')).not.toHaveCount(0);
-      await page.waitForTimeout(900);
+      await settle(page); // the status → verdict crossfade is over before the frame
       await shoot(page, `${profile.tag}-04-reveal-result`);
 
       // ── 5b. REGRESSION — B ON THE VERDICT DOES NOTHING. «Свернуть» used to
@@ -200,7 +213,7 @@ for (const profile of PROFILES) {
       await key(page, 'Enter', 800);
       await expect(page.locator('.con-composer--stage')).toHaveCount(0);
       await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 8000});
-      await page.waitForTimeout(600);
+      // The shade letting go is a STATE — the assertion polls it (no fixed beat before it).
       await expect(page.locator('.con-shade--on')).toHaveCount(0);
       // …and the ack leaves NOTHING behind: the claim is released and the key
       // marked seen in the same press, so the standalone overlay has no verdict

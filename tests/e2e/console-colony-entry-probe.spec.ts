@@ -2,8 +2,10 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  openConsole, pickCards, press, waitForBoardHome, walkToSummary, submitSummary,
+  cinematicBeat, openConsole, pickCards, press, pressUntil, pressUntilVisible, settle, waitForBoardHome, waitQueueIdle,
+  walkToSummary, submitSummary,
 } from './consoleStart';
+import {armWitness, Witness} from './witness';
 
 /**
  * THE COLONY WORKSPACE ENTRY — the no-blink / premium-arrival guard.
@@ -17,9 +19,11 @@ import {
  *      the workspace EMBEDDED as a step of the start flow (`start ⊃
  *      colonies`, `playColonyStepEntry`).
  *
- * The probe records the whole arrival from inside the page — a per-frame
- * trace of tile visibility, the stage clip and the fit scale — and asserts
- * the two ways this family shipped broken:
+ * The probe RECORDS the whole arrival off the product's own writes
+ * (`armWitness`, FLAKE ZERO — every state of tile visibility, the stage clip
+ * and the fit scale, in the task that writes it, plus a frame tick for what
+ * only a computed style moves) and asserts the two ways this family shipped
+ * broken:
  *   · the STANDALONE door arrived as a bare panel fade («колонии просто
  *     появляются») — the director's colony cascade was guarded by
  *     `el.querySelector('.con-colonies')`, which never matches the root
@@ -33,9 +37,11 @@ import {
 
 const OUT = path.resolve('screenshots', 'colony-entry-probe');
 
-type EntrySample = {
-  t: number,
+/** One recorded state of the arrival (the time is the record's own). */
+type EntrySeen = {
   present: boolean,
+  /** The colonies ROOT's identity (1, 2, … per element ever seen; 0 = none) — a remount is a new id. */
+  rootId: number,
   rootOp: number,
   rootVis: string,
   slots: number,
@@ -48,19 +54,15 @@ type EntrySample = {
   /** The workspace stack, compact: "start(committed;slot)>colonies(committed;-)". */
   stack?: string,
 };
+/** A recorded state with `t` in ms since the arm (the page's clock). */
+type EntrySample = EntrySeen & {t: number};
 
 type EntryWatch = {
-  armed: boolean,
+  /** Distinct colonies roots that entered the document / left it while armed (element identity — a remount is both). */
   mounts: number,
   unmounts: number,
   samples: Array<EntrySample>,
 };
-
-declare global {
-  interface Window {
-    __colEntry?: EntryWatch,
-  }
-}
 
 function baseConfig(overrides: Record<string, unknown> = {}) {
   return {
@@ -98,37 +100,20 @@ async function createGame(request: APIRequestContext, config: Record<string, unk
   return model.players[0].id;
 }
 
-/** Install the watcher before any app code runs (survives navigation). */
-async function installWatch(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const watch: EntryWatch = {armed: false, mounts: 0, unmounts: 0, samples: []};
-    window.__colEntry = watch;
-    const holdsColonies = (n: Node): boolean =>
-      n instanceof HTMLElement &&
-      (n.classList.contains('con-colonies') || n.querySelector?.('.con-colonies') !== null);
-    const mo = new MutationObserver((muts) => {
-      if (!watch.armed) {
-        return;
-      }
-      for (const m of muts) {
-        m.addedNodes.forEach((n) => {
-          if (holdsColonies(n)) {
-            watch.mounts++;
-          }
-        });
-        m.removedNodes.forEach((n) => {
-          if (holdsColonies(n)) {
-            watch.unmounts++;
-          }
-        });
-      }
-    });
-    const startObserving = () => mo.observe(document.documentElement, {childList: true, subtree: true});
-    if (document.readyState === 'loading') {
-      addEventListener('DOMContentLoaded', startObserving);
-    } else {
-      startObserving();
+/**
+ * ARM the record of the arrival (`armWitness`): from here on every state the product writes is kept with the page's
+ * time, re-installed in every new document (a reload by the product neither loses nor stops it). `settled`: the
+ * verdicts are about what a FRAME can show — «never standalone-first», «never dark again once shown», «never absent»
+ * — so each state is the one a task LEAVES, never one between two writes of a single task.
+ */
+async function armEntry(page: Page, key: string): Promise<Witness<EntrySeen>> {
+  return armWitness<EntrySeen>(page, key, () => {
+    // The root's IDENTITY (a WeakMap of every root ever seen): a remount under the player is a NEW element.
+    const memo = window as unknown as {__colEntryIds?: WeakMap<Element, number>, __colEntryNext?: number};
+    if (memo.__colEntryIds === undefined) {
+      memo.__colEntryIds = new WeakMap<Element, number>();
     }
+    const ids = memo.__colEntryIds;
     const stackNow = (): string => {
       const diagFn = (window as unknown as {__conColonyDiag?: () => {
         stack?: Array<{kind: string, phase: string, slot: string}>,
@@ -147,77 +132,79 @@ async function installWatch(page: Page): Promise<void> {
         return 'diag-error';
       }
     };
-    const tick = () => {
-      if (watch.armed) {
-        const root = document.querySelector<HTMLElement>('.con-colonies');
-        if (root === null) {
-          watch.samples.push({
-            t: Math.round(performance.now()), present: false, rootOp: -1, rootVis: '',
-            slots: 0, visSlots: 0, slot0: -1, browseOp: -1, clip: '', scale: '', embedded: false,
-            stack: stackNow(),
-          });
-        } else {
-          const cs = getComputedStyle(root);
-          const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-colonies__slot'));
-          const visible = (el: HTMLElement): boolean => {
-            const s = getComputedStyle(el);
-            const r = el.getBoundingClientRect();
-            return Number(s.opacity || '1') > 0.5 && s.visibility !== 'hidden' && r.width > 4;
-          };
-          const browse = document.querySelector<HTMLElement>('.con-colonies__browse');
-          const stage = document.querySelector<HTMLElement>('.con-colonies__stagewrap');
-          watch.samples.push({
-            t: Math.round(performance.now()),
-            present: true,
-            rootOp: Number(cs.opacity || '1'),
-            rootVis: cs.visibility,
-            slots: slots.length,
-            visSlots: slots.filter(visible).length,
-            slot0: slots[0] !== undefined ? Number(getComputedStyle(slots[0]).opacity || '1') : -1,
-            browseOp: browse !== null ? Number(getComputedStyle(browse).opacity || '1') : -1,
-            clip: stage !== null ? (getComputedStyle(stage).clipPath || 'none') : '',
-            scale: cs.getPropertyValue('--coltile-scale').trim(),
-            embedded: root.classList.contains('con-colonies--embedded'),
-            stack: stackNow(),
-          });
-        }
-        if (watch.samples.length > 6000) {
-          watch.samples.shift();
-        }
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
-}
-
-async function arm(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window.__colEntry;
-    if (w !== undefined) {
-      w.armed = true;
-      w.mounts = 0;
-      w.unmounts = 0;
-      w.samples = [];
+    const root = document.querySelector<HTMLElement>('.con-colonies');
+    if (root === null) {
+      return {
+        present: false, rootId: 0, rootOp: -1, rootVis: '',
+        slots: 0, visSlots: 0, slot0: -1, browseOp: -1, clip: '', scale: '', embedded: false,
+        stack: stackNow(),
+      };
     }
-  });
+    let rootId = ids.get(root);
+    if (rootId === undefined) {
+      rootId = (memo.__colEntryNext ?? 0) + 1;
+      memo.__colEntryNext = rootId;
+      ids.set(root, rootId);
+    }
+    const cs = getComputedStyle(root);
+    const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-colonies__slot'));
+    const visible = (el: HTMLElement): boolean => {
+      const s = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return Number(s.opacity || '1') > 0.5 && s.visibility !== 'hidden' && r.width > 4;
+    };
+    const browse = document.querySelector<HTMLElement>('.con-colonies__browse');
+    const stage = document.querySelector<HTMLElement>('.con-colonies__stagewrap');
+    return {
+      present: true,
+      rootId,
+      rootOp: Number(cs.opacity || '1'),
+      rootVis: cs.visibility,
+      slots: slots.length,
+      visSlots: slots.filter(visible).length,
+      slot0: slots[0] !== undefined ? Number(getComputedStyle(slots[0]).opacity || '1') : -1,
+      browseOp: browse !== null ? Number(getComputedStyle(browse).opacity || '1') : -1,
+      clip: stage !== null ? (getComputedStyle(stage).clipPath || 'none') : '',
+      scale: cs.getPropertyValue('--coltile-scale').trim(),
+      embedded: root.classList.contains('con-colonies--embedded'),
+      stack: stackNow(),
+    };
+  }, {settled: true, max: 20_000});
 }
 
-async function collect(page: Page): Promise<EntryWatch> {
-  return page.evaluate(() => {
-    const w = window.__colEntry as EntryWatch;
-    w.armed = false;
-    return w;
-  });
+/** The grid reached its settled state: every tile visible at rest. */
+const fullyShown = (x: EntrySeen): boolean => x.present && x.slots > 0 && x.visSlots === x.slots && x.slot0 >= 0.99;
+
+/** Stop the record and read it as the trace the verdicts were written for (`t` in ms since the arm). */
+async function collect(record: Witness<EntrySeen>): Promise<EntryWatch> {
+  const recorded = await record.stop();
+  const t0 = recorded[0]?.t ?? 0;
+  const samples = recorded.map((s) => ({...s.v, t: s.t - t0}));
+  let mounts = 0;
+  let unmounts = 0;
+  let prevId = 0;
+  for (const s of samples) {
+    if (s.rootId !== prevId) {
+      mounts += s.rootId !== 0 ? 1 : 0;
+      unmounts += prevId !== 0 ? 1 : 0;
+      prevId = s.rootId;
+    }
+  }
+  return {mounts, unmounts, samples};
 }
 
 /**
- * Digest the trace into the guard's verdicts.
+ * Digest the record into the guard's verdicts — over RECORDED STATES (each a
+ * distinct state the product wrote), never over frames a sampler happened to
+ * catch.
  *
- *  · `rampFrames` — frames where the root or the first tile is mid-fade: the
- *    entry ANIMATES (an instant pop has none);
- *  · `fullShowAt` — the first frame with every tile visible at rest;
- *  · `dipAfterFullShow` — a later frame where the grid went dark again (the
+ *  · `rampStates` — states of the ENTRY (from the first present one to the
+ *    full show) where the root or the first tile is mid-fade: an entry that
+ *    ANIMATES passes through a second such state after its hidden first one;
+ *    an instant pop goes hidden → full with nothing between (an ORDER claim:
+ *    hidden, then ramping, then full);
+ *  · `fullShowAt` — the first state with every tile visible at rest;
+ *  · `dipAfterFullShow` — a later state where the grid went dark again (the
  *    replayed-entry blink: the exact shipped bug);
  *  · `absentAfterPresent` — the section left the DOM inside the window (a
  *    remount under the player);
@@ -238,7 +225,7 @@ function digest(watch: EntryWatch) {
       absentAfterPresent++;
       continue;
     }
-    if (fullShowAt === -1 && x.slots > 0 && x.visSlots === x.slots && x.slot0 >= 0.99) {
+    if (fullShowAt === -1 && fullyShown(x)) {
       fullShowAt = i;
     }
     if (fullShowAt !== -1 && i > fullShowAt && dipAfterFullShow === undefined &&
@@ -252,16 +239,17 @@ function digest(watch: EntryWatch) {
       lastScale = x.scale;
     }
   }
-  const rampFrames = s.filter((x) => x.present &&
+  const entry = first < 0 ? [] : s.slice(first, fullShowAt < 0 ? s.length : fullShowAt);
+  const rampStates = entry.filter((x) => x.present &&
     ((x.rootOp >= 0 && x.rootOp < 0.98) || (x.slot0 >= 0 && x.slot0 < 0.98))).length;
   return {
-    frames: s.length,
+    states: s.length,
     firstPresentAt: first,
     firstSample: s[first],
     fullShowAt,
     dipAfterFullShow,
     absentAfterPresent,
-    rampFrames,
+    rampStates,
     scaleChanges,
     mounts: watch.mounts,
     unmounts: watch.unmounts,
@@ -277,22 +265,24 @@ test.describe('colony workspace entry probe', () => {
   test('A · standalone: the wheel «Торговля» door', async ({page, request}) => {
     test.setTimeout(300_000);
     const playerId = await createGame(request, baseConfig());
-    await installWatch(page);
     await openConsole(page, playerId);
     await walkToSummary(page);
     await submitSummary(page);
     await waitForBoardHome(page);
-    await page.waitForTimeout(800);
+    await settle(page);
 
-    await arm(page);
+    const record = await armEntry(page, 'colony-entry-standalone');
     const colonies = page.locator('.con-colonies');
     for (let i = 0; i < 4 && await colonies.count() === 0; i++) {
       await press(page, 'Period', 900);
-      await press(page, 'ArrowRight', 1200);
+      await pressUntil(page, 'ArrowRight', async () => await colonies.count() > 0, {tries: 1, settleMs: 1200});
     }
     await expect.poll(() => colonies.count(), {message: 'colonies opened from the wheel'}).toBeGreaterThan(0);
-    await page.waitForTimeout(2500);
-    const watch = await collect(page);
+    // The record runs until the grid has fully SHOWN (the end of the entry, waited for — never a guessed window), then
+    // through the window a replayed entry would fall into.
+    await record.waitFor(fullyShown, {message: 'the grid reached its settled state'});
+    await cinematicBeat(page, 2000, 'the window after the full show in which a replayed entry (the blink) would fall');
+    const watch = await collect(record);
     const d = digest(watch);
     console.log('── standalone entry ──', JSON.stringify({...d, dipAfterFullShow: d.dipAfterFullShow ?? null}));
 
@@ -301,7 +291,7 @@ test.describe('colony workspace entry probe', () => {
     // an assertion about the sampler's frame rate on the runner.
     expect(d.firstSample?.slot0, 'the grid is hidden on its first painted frame').toBeLessThan(0.5);
     expect(d.fullShowAt, 'it takes more than one frame to reach full').toBeGreaterThan(d.firstPresentAt);
-    expect(d.rampFrames, 'the tiles ramp in').toBeGreaterThanOrEqual(2);
+    expect(d.rampStates, 'the tiles ramp in').toBeGreaterThanOrEqual(2);
     // ONE arrival: the grid never leaves or goes dark once fully shown.
     expect(d.fullShowAt, 'the grid reached its settled state').toBeGreaterThan(-1);
     expect(d.dipAfterFullShow, `the grid dipped out after settling (the replayed-entry blink): ${JSON.stringify(d.dipAfterFullShow)}`).toBeUndefined();
@@ -316,7 +306,6 @@ test.describe('colony workspace entry probe', () => {
     const playerId = await createGame(request, baseConfig({
       customCorporationsList: ['Poseidon', 'CrediCor'],
     }));
-    await installWatch(page);
     await openConsole(page, playerId);
     await walkToSummary(page, {onStep: async (p, kind) => {
       if (kind === 'corporation') {
@@ -325,31 +314,36 @@ test.describe('colony workspace entry probe', () => {
       }
     }});
     await submitSummary(page);
-    await page.waitForTimeout(1000);
+    // The deployment stands and takes presses (its cards standing, nothing in the air, the rail released) — the state
+    // the old fixed pause stood for.
+    await waitQueueIdle(page);
 
-    await arm(page);
+    const record = await armEntry(page, 'colony-entry-embedded');
     // The deployment: play the corp — its behavior defers the SelectColony,
-    // which the start workspace hosts as a step.
+    // which the start workspace hosts as a step. Act → verify (the colonies
+    // stand) → retry only without it.
     const colonies = page.locator('.con-colonies');
-    for (let i = 0; i < 10 && await colonies.count() === 0; i++) {
-      await press(page, 'Enter', 1600);
-    }
+    await pressUntilVisible(page, 'Enter', '.con-colonies', {tries: 10, settleMs: 1600});
     await expect.poll(() => colonies.count(), {message: 'colonies opened inside the start'}).toBeGreaterThan(0);
-    await page.waitForTimeout(3000);
-    const watch = await collect(page);
+    // The record runs until the grid has fully SHOWN, then through the window the shipped replay fell into (~0.5 s
+    // after the settle).
+    await record.waitFor(fullyShown, {message: 'the grid reached its settled state'});
+    await cinematicBeat(page, 2500, 'the window after the full show in which a replayed entry (the blink) would fall');
+    const watch = await collect(record);
     const d = digest(watch);
     console.log('── embedded entry ──', JSON.stringify({...d, dipAfterFullShow: d.dipAfterFullShow ?? null}));
 
     // The step arrives INSIDE the start (the teleport chain), wearing the
     // embedded shell from its very first frame — never standalone-first.
-    expect((await page.locator('.con-start .con-colonies').count()), 'embedded inside the start').toBeGreaterThan(0);
+    await expect.poll(() => page.locator('.con-start .con-colonies').count(), {message: 'embedded inside the start'})
+      .toBeGreaterThan(0);
     expect(watch.samples.every((x) => !x.present || x.embedded), 'never renders standalone-first').toBeTruthy();
     // The room OPENS (the step's clip beat ran) and the tiles ramp in.
     expect(watch.samples.some((x) => x.present && x.clip !== '' && x.clip !== 'none' && !x.clip.startsWith('inset(0')),
       'the step entry opens its room by clip').toBeTruthy();
     expect(d.firstSample?.slot0, 'the grid is hidden on its first painted frame').toBeLessThan(0.5);
     expect(d.fullShowAt, 'it takes more than one frame to reach full').toBeGreaterThan(d.firstPresentAt);
-    expect(d.rampFrames, 'the tiles ramp in').toBeGreaterThanOrEqual(2);
+    expect(d.rampStates, 'the tiles ramp in').toBeGreaterThanOrEqual(2);
     // ONE arrival — the shipped bug was this exact dip: the played-hero
     // closing beat truncated the prompt frame, the self-heal re-pushed it,
     // and the whole entry replayed ~0.5 s after it had settled.

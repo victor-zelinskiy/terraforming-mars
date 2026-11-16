@@ -23,7 +23,8 @@
  * presses B, and the bodies must cross the screen over many frames.
  */
 import {expect, test, Page} from './consoleTest';
-import {bootIntoGame, focusCard, handCount, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, focusCard, handCount, press, settle, soloGameConfig} from './consoleStart';
+import {armWitness, witnessOf} from './witness';
 
 /** A cheap, choice-free green card — the play must not raise a follow-up. */
 const CARD = 'Acquired Company';
@@ -38,7 +39,7 @@ const GAME_CONFIG = soloGameConfig({
 });
 
 /* THE ONE METRIC, read both ways: how far a body CONTINUOUSLY TRAVELS.
-   A per-frame step threshold cannot express this — the sampler is faster than
+   A per-frame step threshold cannot express this — the record is denser than
    the paint-locked flight clock, so a real 480 ms gather advances only a few px
    per sample. Distance can: a SEAT is a single teleport (excluded — that is the
    point of it) and everything else is measured, so the pack's own small moves
@@ -54,60 +55,55 @@ const MIN_FLIGHT_TRAVEL_PX = 300;
 
 type BodySample = {n: string, cx: number, cy: number};
 type Frame = {
-  t: number,
   /** The hand workspace is on screen. */
   hand: boolean,
   /** The play composer owns the workspace stage (the shelf is parked). */
   stage: boolean,
   /** Bodies owned by a reveal EPISODE right now (a real gather flight). */
   flying: number,
+  /**
+   * A finite animation of the hand's own layer (its transform or a body's transition) is running. A record keeps a
+   * state only when it CHANGES, so a body that stands between two moves leaves no «same place» sample of its own — the
+   * animation ENDING is the state change that writes it (the run-break the old fixed-rate sampler got from its next
+   * tick).
+   */
+  moving: boolean,
   bodies: Array<BodySample>,
 };
 
+const WATCH = 'hand-play-return';
+
+/**
+ * THE WATCH, RECORDED (FLAKE ZERO — `armWitness`, armed before the first press): every state the product writes and
+ * every frame, never a 16 ms timer that a starved renderer stretches to 300. `settled` — every claim here is about
+ * where a body is PAINTED (a seat's two writes inside one task are never a frame of travel).
+ */
 async function installWatch(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__hpr?: {timer: number, frames: Array<Frame>}};
-    if (w.__hpr !== undefined) {
-      window.clearInterval(w.__hpr.timer);
+  await armWitness<Frame>(page, WATCH, () => {
+    const bodies: Array<{n: string, cx: number, cy: number}> = [];
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-handbody'))) {
+      const n = el.getAttribute('data-hand-dock-card') ?? '';
+      const r = el.getBoundingClientRect();
+      if (n === '' || r.width < 4) {
+        continue;
+      }
+      bodies.push({n, cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2)});
     }
-    const state = {timer: 0, frames: [] as Array<Frame>};
-    const t0 = performance.now();
-    const scan = () => {
-      if (state.frames.length >= 4000) {
-        return;
-      }
-      const bodies: Array<BodySample> = [];
-      for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-handbody'))) {
-        const n = el.getAttribute('data-hand-dock-card') ?? '';
-        const r = el.getBoundingClientRect();
-        if (n === '' || r.width < 4) {
-          continue;
-        }
-        bodies.push({n, cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2)});
-      }
-      state.frames.push({
-        t: Math.round(performance.now() - t0),
-        hand: document.querySelector('.con-hand__frame') !== null,
-        stage: document.querySelector('.con-hand__stage .con-composer--play') !== null,
-        flying: document.querySelectorAll('.con-handreveal-layer [data-reveal-card]').length,
-        bodies,
-      });
+    const layer = document.querySelector('.con-handreveal-layer');
+    return {
+      hand: document.querySelector('.con-hand__frame') !== null,
+      stage: document.querySelector('.con-hand__stage .con-composer--play') !== null,
+      flying: document.querySelectorAll('.con-handreveal-layer [data-reveal-card]').length,
+      moving: layer !== null && typeof layer.getAnimations === 'function' &&
+        layer.getAnimations({subtree: true}).some((a) => a.playState === 'running' && Number.isFinite(Number(a.effect?.getComputedTiming().endTime))),
+      bodies,
     };
-    state.timer = window.setInterval(scan, 16) as unknown as number;
-    w.__hpr = state as never;
-    scan();
-  });
+  }, {settled: true, max: 20_000});
 }
 
+/** Stop the watch and return what it recorded, in order. */
 async function readWatch(page: Page): Promise<Array<Frame>> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__hpr: {timer: number, frames: Array<Frame>}};
-    window.clearInterval(w.__hpr.timer);
-    const out = w.__hpr.frames;
-    w.__hpr.frames = [];
-    w.__hpr.timer = window.setInterval(() => undefined, 60_000) as unknown as number;
-    return out;
-  });
+  return (await witnessOf<Frame>(page, WATCH).stop()).map((s) => s.v);
 }
 
 /**
@@ -212,7 +208,8 @@ test.describe('the hand returns to the dock behind the play', () => {
     test.setTimeout(420_000);
 
     await bootIntoGame(page, request, {buy: 6, cards: [CARD], config: GAME_CONFIG});
-    await page.waitForTimeout(2500);
+    // The start's release is over — the board and the dock at rest before the watch is armed.
+    await settle(page, {timeoutMs: 30_000});
     const held = await handCount(page);
     expect(held, 'the probe needs a real pack to send home').toBeGreaterThan(2);
 
@@ -240,7 +237,9 @@ test.describe('the hand returns to the dock behind the play', () => {
     await pump(page, 2500); // …and everything the fold set off settles
 
     const frames = await readWatch(page);
-    expect(frames.length, 'the watch sampled the whole play').toBeGreaterThan(200);
+    // The floor only catches a DEAD record (it keeps a state only when it CHANGES — its length counts states, never
+    // frames); the claims below judge the play itself.
+    expect(frames.length, 'the watch sampled the whole play').toBeGreaterThan(0);
 
     // The descent — from here the shelf is parked and the cards are off screen.
     const descent = frames.findIndex((f) => f.stage);
@@ -280,7 +279,8 @@ test.describe('the hand returns to the dock behind the play', () => {
     test.setTimeout(420_000);
 
     await bootIntoGame(page, request, {buy: 6, cards: [CARD], config: GAME_CONFIG});
-    await page.waitForTimeout(2500);
+    // The start's release is over — the board and the dock at rest before the watch is armed.
+    await settle(page, {timeoutMs: 30_000});
     await installWatch(page);
 
     await press(page, 'Period', 600);

@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, bootSeededGame, createGameWithCards, playCardFromHand, press, pressUntil, pressUntilGone, pressUntilVisible, settle, soloGameConfig} from './consoleStart';
+import {bootIntoGame, bootSeededGame, createGameWithCards, dossierLoaded, playCardFromHand, press, pressUntil, pressUntilGone, pressUntilVisible, settle, soloGameConfig} from './consoleStart';
 import {readSettled} from './settledRead';
 
 /**
@@ -173,6 +173,11 @@ async function cellReading(page: Page): Promise<CellReading> {
  * what the panel says about THAT cell.
  */
 async function settledReading(page: Page, what: string): Promise<CellReading> {
+  // The panel's own readiness first (class F): the facts that stand are THIS cell's, and none are on their way.
+  const id = (await cellReading(page)).id;
+  if (id !== '') {
+    await dossierLoaded(page, id);
+  }
   return readSettled(page, () => cellReading(page), {message: `the dossier at rest — ${what}`});
 }
 

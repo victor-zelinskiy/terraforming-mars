@@ -1,7 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame as driveToBoard, press} from './consoleStart';
+import {bootIntoGame as driveToBoard, cinematicBeat, openQuickWheel, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * Console colonies · the premium PlayerCube settlement marker.
@@ -89,6 +91,28 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await press(page, code, settleMs);
 }
 
+/**
+ * ONE HOP OF A WALK — the press, and the cursor's move as its witness: the WHOLE window before «no move» is believed
+ * (a rail / a tile lands a beat after the press), and never a second press here — a wall is a legitimate no-move.
+ */
+async function hop(page: Page, code: string, where: () => Promise<string>, settleMs: number): Promise<void> {
+  const at = await where();
+  await pressUntil(page, code, async () => (await where()) !== at, {tries: 1, settleMs});
+}
+
+/** The focused colony tile — the colony walk's witness. */
+function focusedTileOf(page: Page): Promise<string> {
+  return page.evaluate(() => document.querySelector('.con-coltile--focused')?.getAttribute('data-test') ?? '');
+}
+
+/** The focused tile WITH the rail's verdict on it — one read, so the verdict is the tile's (taken at rest). */
+function tileVerdict(page: Page): Promise<{focused: string, refused: boolean}> {
+  return page.evaluate(() => ({
+    focused: document.querySelector('.con-coltile--focused')?.getAttribute('data-test') ?? '',
+    refused: document.querySelector('.con-colonies__rail-reason--blocked') !== null,
+  }));
+}
+
 /** Boot a game and land on the LIVE board through the SHARED console-start
  *  driver (the one way console e2e boots — the local wizard walk this spec
  *  used to carry drifted the moment a step's key changed). The driver also
@@ -100,7 +124,7 @@ async function bootColonyBoard(page: Page, request: APIRequestContext, color: st
     // A real hand: the board home's dock only reads LIVE with cards in it.
     buy: 2,
   });
-  await page.waitForTimeout(1500);
+  await settle(page);
 }
 
 /** LT wheel → Standard Projects → focus the Build-Colony row → Enter. */
@@ -109,10 +133,13 @@ async function startBuildColony(page: Page, tag: string): Promise<void> {
   // swallow the wheel press — retry the whole open until the sheet mounts.
   const sheetRows = page.locator('.con-stdp__card');
   let open = false;
+  const wheel = page.locator('.con-quick');
   for (let i = 0; i < 8 && !open; i++) {
-    await key(page, 'Comma', 1100);
-    if (await page.locator('.con-quick').count() > 0) {
-      await key(page, 'Enter', 1400); // wheel centre = Standard Projects
+    // Each press waits for ITS effect (the wheel up; then the sheet, or the wheel gone — on a quick wheel the press IS
+    // the activation) before anything else is judged.
+    if (await pressUntil(page, 'Comma', async () => await wheel.count() > 0, {tries: 1, settleMs: 1100})) {
+      await pressUntil(page, 'Enter', async () => await sheetRows.count() > 0 || await wheel.count() === 0,
+        {tries: 1, settleMs: 1400}); // wheel centre = Standard Projects
     }
     open = await sheetRows.count() > 0;
     if (!open) {
@@ -121,7 +148,9 @@ async function startBuildColony(page: Page, tag: string): Promise<void> {
       if (await page.locator('.con-quick, .con-sys').count() > 0) {
         await key(page, 'Escape', 600);
       }
-      await page.waitForTimeout(1400);
+      // Whatever swallowed the press (a lingering hold) is waited out — the console quiet — before the next try.
+      await settle(page);
+      open = await sheetRows.count() > 0;
     }
   }
   expect(open, 'standard projects sheet never opened').toBeTruthy();
@@ -137,15 +166,16 @@ async function startBuildColony(page: Page, tag: string): Promise<void> {
     'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp',
     'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown',
   ];
+  const focusedText = () => focusedRow.innerText({timeout: 1500}).catch(() => '');
   let found = false;
   for (let i = 0; i <= gridWalk.length; i++) {
-    const text = await focusedRow.innerText({timeout: 1500}).catch(() => '');
+    const text = await focusedText();
     if (/колони/i.test(text) || /colony/i.test(text)) {
       found = true;
       break;
     }
     if (i < gridWalk.length) {
-      await key(page, gridWalk[i], 420);
+      await hop(page, gridWalk[i], focusedText, 600);
     }
   }
   expect(found, 'Build Colony row never focused in the standard projects sheet').toBeTruthy();
@@ -161,15 +191,18 @@ async function startBuildColony(page: Page, tag: string): Promise<void> {
 async function buildAndVerify(page: Page, tag: string): Promise<string> {
   // A corp with an ALT-RESOURCE payment (Helion's heat) gets the payment
   // panel BEFORE the SelectColony — X pays the pre-filled exact amount.
-  for (let i = 0; i < 3 && await page.locator('.con-colonies').count() === 0; i++) {
-    if (await page.locator('.con-pay').count() > 0) {
-      await key(page, 'KeyX', 1800);
-    } else {
-      await page.waitForTimeout(900);
-    }
+  // Wait for whichever answers the press — the colonies, or that payment panel — then pay (X) only while the panel
+  // stands and the colonies do not, each X given its whole window.
+  const colonies = page.locator('.con-colonies');
+  const pay = page.locator('.con-pay');
+  await page.locator('.con-colonies, .con-pay').first().waitFor({state: 'attached', timeout: 15_000}).catch(() => undefined);
+  if (await colonies.count() === 0 && await pay.count() > 0) {
+    await pressUntil(page, 'KeyX', async () => await colonies.count() > 0 || await pay.count() === 0, {tries: 3, settleMs: 1800});
   }
   await page.waitForSelector('.con-colonies', {timeout: 15_000});
-  await page.waitForTimeout(800);
+  // The pick screen is ready when its cursor stands on a tile and the console is quiet.
+  await page.locator('.con-coltile--focused').first().waitFor({state: 'attached', timeout: 15_000});
+  await settle(page);
 
   // Focus a colony the server accepts (the summary status reads OK) whose
   // build bonus KEEPS the colonies screen mounted: Europa's ocean bonus flips
@@ -177,23 +210,21 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   // unmounts the slot the assertions watch. Any other colony works.
   // OK = the rail carries NO blocked-reason line (the iteration-2 rail swaps
   // the consequence for the one honest reason when the pick is refused).
-  const railReason = page.locator('.con-colonies__rail-reason--blocked');
-  const focusedTile = page.locator('.con-coltile--focused');
   const blocked = /Europa|Pluto/i;
   let testAttr = '';
   const seen: Array<string> = [];
   for (let i = 0; i < 10; i++) {
-    // Read the FOCUSED tile first, then its verdict — the rail follows the
-    // selection, so checking the rail first races a stale reason onto a fresh
-    // tile (and made this walk pass or fail by timing rather than by fact).
-    const focused = (await focusedTile.getAttribute('data-test', {timeout: 1500}).catch(() => '')) ?? '';
-    const refused = await railReason.count() > 0;
+    // Read the FOCUSED tile and its verdict TOGETHER, at rest — the rail
+    // follows the selection, so a verdict read on its own races a stale
+    // reason onto a fresh tile (and made this walk pass or fail by timing
+    // rather than by fact): the pair must read the same across frames.
+    const {focused, refused} = await readSettled(page, () => tileVerdict(page), {message: 'the focused tile\'s verdict'});
     seen.push(`${focused || '(none)'}${refused ? ' [blocked]' : ''}`);
     if (!refused && focused !== '' && !blocked.test(focused)) {
       testAttr = focused;
       break;
     }
-    await key(page, 'ArrowRight', 500);
+    await hop(page, 'ArrowRight', () => focusedTileOf(page), 500);
   }
   expect(testAttr, `no buildable colony tile — walked ${seen.join(', ')}`).not.toBe('');
   await shoot(page, `${tag}-11-pick-mode`);
@@ -216,7 +247,7 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   // …and while it is up, the slot paints NO new static cube (one object).
   await expect.poll(() => slotCubes.count(), {message: 'a second cube appeared during the flight'}).toBe(before);
   await shoot(page, `${tag}-12-hero-flight`);
-  await page.waitForTimeout(420);
+  await cinematicBeat(page, 420, 'the hero-landing storyboard frame, a beat after the hero-flight one');
   await shoot(page, `${tag}-13-hero-landing`);
 
   // The stage clears at the handoff…
@@ -230,14 +261,16 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   // Re-open the colonies (the RT quick wheel's «Торговля» slot — the same
   // route a player takes): the seated cube renders STATICALLY at once — one
   // more cube than before, and NO hero replay.
-  for (let i = 0; i < 4 && await page.locator('.con-colonies').count() === 0; i++) {
-    await key(page, 'Period', 1100); // RT — action categories wheel
-    await key(page, 'ArrowRight', 1300); // trading
-  }
+  // «No replay» is a NEGATIVE claim over the whole reopen: RECORDED from before the first press (FLAKE ZERO —
+  // `armWitness`), asked once the reopened screen has come to rest.
+  const replay = await armWitness(page, `colony-cube-replay:${tag}`, () => document.querySelector('.con-colonybuild__cube') !== null);
+  await openQuickWheel(page); // RT — action categories wheel
+  await pressUntil(page, 'ArrowRight', // trading — on a quick wheel the press IS the activation
+    async () => await page.locator('.con-colonies').count() > 0 || await page.locator('.con-quick').count() === 0, {settleMs: 1300});
   await page.waitForSelector('.con-colonies', {timeout: 10_000});
-  await page.waitForTimeout(600);
+  await settle(page);
   await expect.poll(() => slotCubes.count(), {message: 'the seated static cube did not paint'}).toBe(before + 1);
-  await expect.poll(() => page.locator('.con-colonybuild__cube').count(), {message: 'the hero replayed on reopen'}).toBe(0);
+  expect(await replay.stop().then((s) => s.some((x) => x.v)), 'the hero replayed on reopen').toBe(false);
   await shoot(page, `${tag}-15-seated`);
   return testAttr;
 }
@@ -257,14 +290,14 @@ test.describe('console colonies · premium PlayerCube marker', () => {
       // ── Inspect (X): the FOCUS STAGE's build slots seat the same PlayerCube
       // (the workspace descend — the standalone dossier modal is gone). ──
       for (let i = 0; i < 8; i++) {
-        const focused = (await page.locator('.con-coltile--focused').getAttribute('data-test', {timeout: 1500}).catch(() => '')) ?? '';
-        if (focused === testAttr) {
+        if (await focusedTileOf(page) === testAttr) {
           break;
         }
-        await key(page, 'ArrowRight', 450);
+        await hop(page, 'ArrowRight', () => focusedTileOf(page), 450);
       }
-      await key(page, 'KeyX', 1400);
       const stage = page.locator('.con-colfocus');
+      // One X, its effect (the focus stage) given the whole window.
+      await pressUntil(page, 'KeyX', async () => await stage.count() > 0, {tries: 1, settleMs: 1400});
       if (await stage.count() > 0) {
         await expect.poll(() => stage.locator('.con-colfocus__berth-seat .player-cube').count()).toBeGreaterThan(0);
         await shoot(page, 'red1080-16-inspect');

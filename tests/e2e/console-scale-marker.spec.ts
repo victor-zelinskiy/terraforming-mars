@@ -1,7 +1,8 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import {NO_PAYMENT, createGameWithCards, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput,
-  soloGameConfig, waitForBoardHome,
+  settle, soloGameConfig, waitForBoardHome,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE GLOBAL-PARAMETER CURSOR — the ring that rides each arc dial.
@@ -56,6 +57,10 @@ async function placeOcean(request: APIRequestContext, id: string): Promise<void>
   await sendPlayerInput(request, id, {type: 'space', spaceId: (prompt.spaces ?? [])[0]} as never);
 }
 
+/**
+ * The dial, its cursor and the stage clip in one read. Geometry — so it is taken AT REST (`readSettled`: the console
+ * settled, then the same answer twice a frame apart), never wherever a WAAPI step or a section's return had got to.
+ */
 async function readMarker(page: Page): Promise<Wire> {
   return page.evaluate(() => {
     const stage = document.querySelector('.con-board__stage') as HTMLElement | null;
@@ -94,9 +99,11 @@ test('the ocean cursor is not sliced by the stage clip (4K)', async ({page, requ
   }
   await openConsole(page, id);
   await waitForBoardHome(page, 25);
-  await page.waitForTimeout(3500);
-
-  const m = await readMarker(page);
+  // The cursor's walk to the fifth ocean is over (the dial reads 5, the cursor stands ready on it) — then the clip
+  // and the cursor are read at rest.
+  await expect.poll(async () => (await readMarker(page)).currentDigit, {message: 'the dial must read 5', timeout: 30_000}).toBe('5');
+  await expect.poll(async () => String((await readMarker(page)).markerCls ?? ''), {timeout: 30_000}).toContain('scale-marker--ready');
+  const m = await readSettled(page, () => readMarker(page), {message: 'the ocean cursor and the stage clip'});
   console.log('clip:', JSON.stringify(m, null, 1));
   await page.screenshot({path: 'screenshots/console-scale-marker/oceans-4k.png'});
 
@@ -133,7 +140,8 @@ test('a change that lands off-screen is not late', async ({page, request}) => {
   ]);
 
   await openConsole(page, viewer);
-  await page.waitForTimeout(6000);
+  // The viewer's console at rest before the actor moves.
+  await settle(page, {timeoutMs: 30_000});
   console.log('before:', JSON.stringify(await readMarker(page)));
 
   // ── the first ocean must make the cursor APPEAR ──────────────────────
@@ -142,8 +150,10 @@ test('a change that lands off-screen is not late', async ({page, request}) => {
     const d = document.querySelector('.arc-scale--oceans .arc-scale__digit--current');
     return (d?.textContent ?? '').trim() === '1';
   }, undefined, {timeout: 60_000});
-  await page.waitForTimeout(2000);
-  const one = await readMarker(page);
+  // The cursor steps onto the dial (a STATE — polled), then it is read at rest.
+  await expect.poll(async () => String((await readMarker(page)).markerCls ?? ''),
+    {message: 'the cursor never stepped onto the dial', timeout: 30_000}).toContain('scale-marker--ready');
+  const one = await readSettled(page, () => readMarker(page), {message: 'the cursor on the first ocean'});
   console.log('1 ocean:', JSON.stringify(one));
   expect(one.markerCls, 'the cursor never stepped onto the dial').toContain('scale-marker--ready');
   expect(Number(one.markerOpacity)).toBe(1);
@@ -158,12 +168,13 @@ test('a change that lands off-screen is not late', async ({page, request}) => {
     const chip = document.querySelector('.con-status');
     return (chip?.textContent ?? '').includes('2/9');
   }, undefined, {timeout: 60_000});
-  await page.waitForTimeout(1500);
+  // The client has finished applying the change WHILE the section is hidden — nothing of it still in flight (holds,
+  // the transport, a finite motion) — before the section comes back: the leg under test is the hidden one.
+  await settle(page, {timeoutMs: 30_000});
   await page.evaluate(() => {
     (document.querySelector('.con-board') as HTMLElement).style.display = '';
   });
-  await page.waitForTimeout(1800);
-  const two = await readMarker(page);
+  const two = await readSettled(page, () => readMarker(page), {message: 'the cursor after the hidden leg'});
   console.log('2 oceans (after the hidden leg):', JSON.stringify(two));
   await page.screenshot({path: 'screenshots/console-scale-marker/offscreen.png'});
   expect(two.currentDigit, 'the dial must read 2').toBe('2');

@@ -1,5 +1,6 @@
-import {test, expect, Page} from './consoleTest';
-import {bootIntoGame, press} from './consoleStart';
+import {test, expect} from './consoleTest';
+import {bootIntoGame, openQuickWheel, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * HAND ALBUM capture — a VIDEO-ONLY run for the frame-by-frame motion review
@@ -7,6 +8,10 @@ import {bootIntoGame, press} from './consoleStart';
  * No assertions beyond liveness: the artifact is the video, inspected frame
  * by frame for duplicate cards / early appearances / size snaps / rail
  * jumps. Temporary review tooling — delete after the review if unwanted.
+ *
+ * The video records throughout, so no wait here is a capture timing: each
+ * episode is waited out by the state that ends it (the album standing / gone)
+ * and the console at REST (`settle`), never a guessed duration.
  */
 
 test.use({
@@ -66,10 +71,6 @@ function newGameConfig() {
   };
 }
 
-async function key(page: Page, code: string, settleMs = 300): Promise<void> {
-  await press(page, code, settleMs);
-}
-
 test('capture: open → walk → jump → close', async ({page, request}) => {
   test.setTimeout(480_000);
   // LARGE layout (4/page) — the reporting user's own mode, where most of
@@ -85,32 +86,36 @@ test('capture: open → walk → jump → close', async ({page, request}) => {
   // 13 cards: the walk crosses a page edge; with 4/page the packet tail is
   // the majority of the hand.
   await bootIntoGame(page, request, {config: newGameConfig(), buy: 13, query: ''});
-  await page.waitForTimeout(1200);
+  await settle(page);
 
-  // Open (RT wheel → A) with NO settle around the press — the open episode
-  // must be on tape from its first frame.
-  for (let i = 0; i < 4 && await page.locator('.con-hand').count() === 0; i++) {
-    await key(page, 'Period', 500);
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(2600); // the whole open episode
-  }
-  await expect(page.locator('.con-hand')).toHaveCount(1);
-  await page.waitForTimeout(600);
+  // Open (RT wheel → A) — the open episode is on tape from its first frame (the video never stops). The wheel is
+  // opened act → verify; A on its centre slot is verified by its OWN effect (the wheel took it, or the album stands),
+  // and a swallowed A is pressed again on the same standing wheel — never a second A into the opened album.
+  const hand = page.locator('.con-hand');
+  const wheel = page.locator('.con-quick');
+  await openQuickWheel(page);
+  await pressUntil(page, 'Enter', async () => await hand.count() > 0 || await wheel.count() === 0, {tries: 3, settleMs: 2600});
+  await expect(hand).toHaveCount(1, {timeout: 10_000});
+  await settle(page); // the whole open episode, played to its end
 
-  // Walk right across the page edge (the slide is on tape).
-  for (let i = 0; i < 11; i++) {
-    await key(page, 'ArrowRight', 150);
+  // Walk right across the page edge (the slide is on tape) — eleven HOPS, each act → verify on the album's own
+  // cursor (the selected slot moved), so a swallowed arrow is pressed again rather than shortening the walk.
+  const selected = () => page.evaluate(() =>
+    document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '');
+  for (let hop = 0; hop < 11; hop++) {
+    const from = await selected();
+    await pressUntil(page, 'ArrowRight', async () => await selected() !== from, {tries: 2, settleMs: 600});
   }
-  await page.waitForTimeout(600);
-  // Jump a page back with the wheel.
-  const albumBox = await page.locator('.con-hand__album').boundingBox();
+  // Jump a page back with the wheel — aimed at the album's box AT REST (the page slide over).
+  const albumBox = await readSettled(page, () => page.locator('.con-hand__album').boundingBox(),
+    {message: 'the album box before the wheel jump'});
   if (albumBox !== null) {
     await page.mouse.move(albumBox.x + albumBox.width / 2, albumBox.y + albumBox.height / 2);
     await page.mouse.wheel(0, -120);
-    await page.waitForTimeout(700);
+    await settle(page); // the page jump, played to its end
   }
-  // Close — the gather is the tail of the tape.
+  // Close — the gather is the tail of the tape: the album leaves, then the gather lands (the console at rest).
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(2600);
-  await expect(page.locator('.con-hand')).toHaveCount(0);
+  await expect(hand).toHaveCount(0, {timeout: 10_000});
+  await settle(page);
 });

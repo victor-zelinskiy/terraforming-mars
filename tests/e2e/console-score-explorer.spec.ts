@@ -1,7 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, playCardFromHand, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootIntoGame, playCardFromHand, press, pressUntil, settle, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * THE SCORE EXPLORER — the Information workspace's victory-points subtree:
@@ -75,14 +77,13 @@ async function shoot(page: Page, preset: Preset, name: string): Promise<void> {
 const crumbStage = (page: Page) => page.locator('.con-info .con-wshead__step');
 const botOnStage = (page: Page) => page.locator('.con-info .con-info__corp--bot');
 
+/**
+ * RB along the seat ring until `want` is on stage — act → verify: each press gets its whole window to show the seat
+ * before another goes (a ring of two: a second press on a seat that is merely late flips it straight back).
+ */
 async function cycleTo(page: Page, want: 'bot' | 'human'): Promise<void> {
-  for (let i = 0; i < 4; i++) {
-    if ((await botOnStage(page).count() > 0) === (want === 'bot')) {
-      return;
-    }
-    await key(page, 'KeyE', 900);
-  }
-  expect((await botOnStage(page).count() > 0) === (want === 'bot'),
+  const onStage = async () => (await botOnStage(page).count() > 0) === (want === 'bot');
+  expect(await pressUntil(page, 'KeyE', onStage, {tries: 4, settleMs: 900}),
     `the seat ring must reach the ${want} participant`).toBeTruthy();
 }
 
@@ -100,11 +101,12 @@ async function openInfo(page: Page): Promise<void> {
     `the info workspace must open; visible: ${(await visibleSurfaces(page)).join(', ')}`).toHaveCount(1);
 }
 
-/** A container proves «no scroll»: its content fits its own box. */
+/** A container proves «no scroll»: its content fits its own box — measured AT REST (an entrance's transform is
+ *  scrollable overflow while it runs). */
 async function expectFits(page: Page, selector: string, label: string): Promise<void> {
-  const verdict = await page.locator(selector).first().evaluate((el) => ({
+  const verdict = await readSettled(page, () => page.locator(selector).first().evaluate((el) => ({
     sh: el.scrollHeight, ch: el.clientHeight, sw: el.scrollWidth, cw: el.clientWidth,
-  }));
+  })), {message: `${label}: its box`});
   expect(verdict.sh, `${label}: content height ${verdict.sh} must fit ${verdict.ch}`)
     .toBeLessThanOrEqual(verdict.ch + 2);
   expect(verdict.sw, `${label}: content width ${verdict.sw} must fit ${verdict.cw}`)
@@ -123,7 +125,16 @@ async function expectFits(page: Page, selector: string, label: string): Promise<
  * inherited size. The card face in the preview is not table text (its own zoom).
  */
 async function expectTableTextScales(page: Page, label: string): Promise<void> {
-  const v = await page.locator('.con-vpx__table').first().evaluate((table) => {
+  // Read AT REST (the rows' entrance cascade over): the same sizes twice, a frame apart.
+  const v = await readSettled(page, () => tableTextSizes(page), {message: `${label}: the table's text sizes`});
+  expect(v.row, `${label}: a focused row`).toBeDefined();
+  expect(v.preview, `${label}: the preview column names the focused card at its row's size`).toBe(v.row);
+  expect(v.small, `${label}: on the TV no table text renders below the couch type floor`).toEqual([]);
+}
+
+/** The focused row's and the preview's font sizes, and every painted table text below the couch floor. */
+function tableTextSizes(page: Page): Promise<{row: string | undefined, preview: string | undefined, small: Array<string>}> {
+  return page.locator('.con-vpx__table').first().evaluate((table) => {
     const px = (el: Element | null) => el === null ? undefined : getComputedStyle(el).fontSize;
     const tv = document.documentElement.classList.contains('con-profile-tv');
     const floor = tv ? 0.8 * parseFloat(getComputedStyle(document.documentElement).fontSize) : 0;
@@ -143,13 +154,13 @@ async function expectTableTextScales(page: Page, label: string): Promise<void> {
       small,
     };
   });
-  expect(v.row, `${label}: a focused row`).toBeDefined();
-  expect(v.preview, `${label}: the preview column names the focused card at its row's size`).toBe(v.row);
-  expect(v.small, `${label}: on the TV no table text renders below the couch type floor`).toEqual([]);
 }
 
 /** Walk the overview grid cursor onto a category tile (row/col arithmetic —
- *  the grid is row-major with a profile-fixed column count). */
+ *  the grid is row-major with a profile-fixed column count). Each step is
+ *  act → verify: the press gets its whole window to MOVE the focus before the
+ *  next one is computed from where it stands (a late focus re-read as «not
+ *  moved» walked one tile too far, then back). */
 async function focusTile(page: Page, tileKey: string): Promise<void> {
   const keys = await page.locator('.con-vpx__tile').evaluateAll(
     (els) => els.map((el) => el.getAttribute('data-vpx-tile') ?? ''));
@@ -157,29 +168,56 @@ async function focusTile(page: Page, tileKey: string): Promise<void> {
   expect(target, `the ${tileKey} tile must exist (have: ${keys.join(', ')})`).toBeGreaterThanOrEqual(0);
   const cols = await page.locator('.con-vpx__grid').evaluate(
     (el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+  const focusedAt = () => page.locator('.con-vpx__tile').evaluateAll(
+    (els) => els.findIndex((el) => el.classList.contains('con-vpx__tile--focused')));
   for (let guard = 0; guard < 16; guard++) {
-    const at = await page.locator('.con-vpx__tile').evaluateAll(
-      (els) => els.findIndex((el) => el.classList.contains('con-vpx__tile--focused')));
+    const at = await focusedAt();
     if (at === target) {
       return;
     }
     const [ar, ac] = [Math.floor(at / cols), at % cols];
     const [tr, tc] = [Math.floor(target / cols), target % cols];
-    if (tr > ar) {
-      await key(page, 'ArrowDown', 260);
-    } else if (tr < ar) {
-      await key(page, 'ArrowUp', 260);
-    } else if (tc > ac) {
-      await key(page, 'ArrowRight', 260);
-    } else {
-      await key(page, 'ArrowLeft', 260);
-    }
+    const dir = tr > ar ? 'ArrowDown' : tr < ar ? 'ArrowUp' : tc > ac ? 'ArrowRight' : 'ArrowLeft';
+    await pressUntil(page, dir, async () => await focusedAt() !== at, {tries: 1, settleMs: 260});
   }
   expect.soft(false, `could not reach the ${tileKey} tile`).toBeTruthy();
 }
 
 const focusedRowName = (page: Page) =>
   page.locator('.con-vpx__row--focused .con-vpx__row-name').textContent();
+
+/** What the zero-state probe sees in one state of the page: the zero categories ON SCREEN, and how many paint bright. */
+type ZeroSeen = {shown: number, hot: number};
+
+/**
+ * THE ZERO-STATE PROBE, RECORDED (FLAKE ZERO — `armWitness`, armed before the B that runs the reverse morph): every
+ * zero category on screen (a box of at least 4 px) and how many of them paint above 0.75 opacity, in every state the
+ * product writes and every frame. «Never bright» is a claim about what a frame paints, so the record is `settled`
+ * (the state a task LEAVES — never an element mounted at its default opacity a microtask before its cascade starts).
+ */
+function armZeroWitness(page: Page, name: string): Promise<Witness<ZeroSeen>> {
+  return armWitness<ZeroSeen>(page, name, () => {
+    let shown = 0;
+    let hot = 0;
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-infovp__cat--zero'))) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) {
+        continue;
+      }
+      shown++;
+      if (parseFloat(getComputedStyle(el).opacity) > 0.75) {
+        hot++;
+      }
+    }
+    return {shown, hot};
+  }, {settled: true});
+}
+
+/** Stop the zero record and fold it: the states with a zero category on screen, and those with one painting bright. */
+async function zeroQuietVerdict(w: Witness<ZeroSeen>): Promise<{samples: number, hot: number}> {
+  const seen = (await w.stop()).filter((s) => s.v.shown > 0);
+  return {samples: seen.length, hot: seen.filter((s) => s.v.hot > 0).length};
+}
 
 // The flow video (the journey preset's run is the deliverable) — a per-
 // describe `video` forces a new worker, so it rides the top-level use.
@@ -210,7 +248,8 @@ for (const preset of PRESETS) {
       for (const card of VP_CARDS) {
         expect(await playCardFromHand(page, card), `${card} must play`).toBeTruthy();
       }
-      await page.waitForTimeout(1500);
+      // The plays' scenes are over — the board at rest before the next workspace.
+      await settle(page, {timeoutMs: 30_000});
 
       // ── MATERIAL: fund an award through the real MA workspace (RB →
       // descend → commit past the 400ms arm) — the podium the awards
@@ -229,51 +268,42 @@ for (const preset of PRESETS) {
         await key(page, 'Enter', 1000); // descend into the focused award
         await key(page, 'Enter', 1000); // fund (the commit sits past the arm)
         await page.waitForSelector('.con-ma', {state: 'detached', timeout: 40_000});
-        await page.waitForTimeout(1500);
+        // The funding's ceremony and its VP token are over — the board at rest.
+        await settle(page, {timeoutMs: 30_000});
       }
 
       // ── LEVEL 0 → 1: the summary tile opens into the overview. ────────
       await openInfo(page);
       await shoot(page, preset, '01-summary');
       await expect(page.locator('.con-info__zone--vp.con-info__zone--focused')).toHaveCount(1);
-      const summaryTotal = (await page.locator('.con-infovp__total').textContent() ?? '').trim();
+      // The tile's total is the reference the hero must repeat — read AT REST (never a count-up caught mid-way).
+      const summaryTotal = await readSettled(page, async () => (await page.locator('.con-infovp__total').textContent() ?? '').trim(),
+        {message: 'the summary tile\'s total'});
       expect(Number(summaryTotal), 'the summary total is a real number').toBeGreaterThan(20);
 
-      // THE SHARED-ELEMENT ENTRY, measured: a TOTAL-carrying node (the
+      // THE SHARED-ELEMENT ENTRY, recorded: a TOTAL-carrying node (the
       // tile's, the flight PROXY's — a clone carries the same anchor — or
-      // the hero's) must be PAINTED on every sample of the transition.
-      // setInterval, never rAF (headless starves the compositor clock).
-      await page.evaluate(() => {
-        const w = window as unknown as {__vpxGap?: {samples: number, gaps: number, timer: number}};
-        const probe = {samples: 0, gaps: 0, timer: 0};
-        probe.timer = window.setInterval(() => {
-          probe.samples++;
-          const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-vpx-total]'));
-          const painted = nodes.some((el) => {
-            const cs = getComputedStyle(el);
-            const r = el.getBoundingClientRect();
-            return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05 && r.width > 4 && r.height > 4;
-          });
-          if (!painted) {
-            probe.gaps++;
-          }
-        }, 16);
-        w.__vpxGap = probe;
-      });
+      // the hero's) must be PAINTED in every state of the transition. A
+      // RECORD from before the press (FLAKE ZERO — `armWitness`, the
+      // product's own writes and every frame), `settled` — «never dark» is a
+      // claim about what a frame can paint, so a sample is the state a task
+      // LEAVES, never the gap between the tile's hand-off and the proxy's
+      // mount inside one task.
+      const gap = await armWitness(page, 'vpx-total-painted', () => {
+        const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-vpx-total]'));
+        return nodes.some((el) => {
+          const cs = getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          return cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05 && r.width > 4 && r.height > 4;
+        });
+      }, {settled: true});
       await key(page, 'Enter', 1100); // A → the score explorer
-      const gapVerdict = await page.evaluate(() => {
-        const w = window as unknown as {__vpxGap?: {samples: number, gaps: number, timer: number}};
-        const probe = w.__vpxGap;
-        if (probe !== undefined) {
-          window.clearInterval(probe.timer);
-        }
-        return probe ?? {samples: 0, gaps: 0};
-      });
-      // The floor only catches a DEAD sampler (0–1 ticks): a starved
-      // parallel worker legitimately lands single-digit samples, and the
-      // animation it watches is starved with it (nothing to miss).
-      expect(gapVerdict.samples, 'the frame probe must have sampled the entry').toBeGreaterThan(3);
-      expect(gapVerdict.gaps, `the total never misses a frame (${gapVerdict.gaps}/${gapVerdict.samples} dark samples)`).toBe(0);
+      const gapSamples = await gap.stop();
+      const dark = gapSamples.filter((s) => !s.v);
+      // The floor only catches a DEAD recorder (it keeps a value only when it
+      // CHANGES — its count is the number of distinct states, never of frames).
+      expect(gapSamples.length, 'the frame probe must have sampled the entry').toBeGreaterThan(0);
+      expect(dark.length, `the total never misses a frame (${dark.length}/${gapSamples.length} dark states)`).toBe(0);
       const explorer = page.locator('.con-vpx');
       await expect(explorer).toHaveCount(1);
       await expect(crumbStage(page)).toHaveText(/Победные очки/i);
@@ -296,16 +326,18 @@ for (const preset of PRESETS) {
       // ZERO category has no stripe — the bar rests whole, «0 ПО» answers.
       await expect(page.locator('.con-vpx__seg.con-eg-cat--tr')).not.toHaveClass(/--dim/);
       await expect(page.locator('.con-vpx__shareline')).toContainText(/\/\s*\d+\s*·\s*\d+%/);
-      const barBoxBefore = await page.locator('[data-vpx-bar]').boundingBox();
+      // The bar's width, both sides of the comparison read AT REST (a tenth of a pixel — subpixel noise is not motion).
+      const barWidth = () => readSettled(page, async () => Math.round(((await page.locator('[data-vpx-bar]').boundingBox())?.width ?? 0) * 10) / 10,
+        {message: 'the share bar\'s width'});
+      const barWidthBefore = await barWidth();
       await key(page, 'ArrowRight', 350); // → «Достижения» (zero)
       await expect(page.locator('.con-vpx__seg--dim'), 'a zero focus dims nothing — no stripe to link').toHaveCount(0);
       await expect(page.locator('.con-vpx__shareline')).toContainText(/0\s*ПО/);
       await focusTile(page, 'cards'); // a SCORING category
-      const lit = await page.locator('.con-vpx__seg:not(.con-vpx__seg--dim)').count();
-      expect(lit, 'exactly one stripe is lit for the focused scoring card').toBe(1);
+      await expect(page.locator('.con-vpx__seg:not(.con-vpx__seg--dim)'), 'exactly one stripe is lit for the focused scoring card').toHaveCount(1);
       await expect(page.locator('.con-vpx__seg.con-eg-cat--cards')).not.toHaveClass(/--dim/);
-      const barBoxAfter = await page.locator('[data-vpx-bar]').boundingBox();
-      expect(Math.abs((barBoxAfter?.width ?? 0) - (barBoxBefore?.width ?? 0)),
+      const barWidthAfter = await barWidth();
+      expect(Math.abs(barWidthAfter - barWidthBefore),
         'focus never moves the bar\'s geometry').toBeLessThanOrEqual(1);
       await focusTile(page, 'tr');
       // Zero categories stay IN the list, compact ink.
@@ -327,9 +359,9 @@ for (const preset of PRESETS) {
         await shoot(page, preset, '04-cards-hub');
         // The CONDITIONAL family door (Ganymede Colony's row): the first door is the resource family,
         // dead in this game — Enter there opens nothing, and every table claim below used to skip.
-        for (let i = 0; i < 3 && await page.locator('[data-vpx-group="cards-conditional"].con-vpx__group--focused').count() === 0; i++) {
-          await key(page, 'ArrowRight', 300);
-        }
+        // Act → verify: each → gets its whole window to land the focus on the door before another goes.
+        await pressUntil(page, 'ArrowRight',
+          async () => await page.locator('[data-vpx-group="cards-conditional"].con-vpx__group--focused').count() > 0, {tries: 3, settleMs: 300});
         await key(page, 'Enter', 1100);
         await expect(page.locator('.con-vpx__table'), 'the conditional family table opens').toHaveCount(1);
         if (await page.locator('.con-vpx__table').count() > 0) {
@@ -350,9 +382,10 @@ for (const preset of PRESETS) {
       await key(page, 'Enter', 1100);
       await expect(page.locator('.con-vpx__cat')).toHaveCount(1);
       await expect(crumbStage(page)).toHaveText(/Победные очки.*Рейтинг/i);
+      // The rows are a live list (their cascade may still be arriving) — the sum is POLLED, the rows read after it.
+      await expect.poll(async () => (await page.locator('.con-vpx__trrow-value').allTextContents()).reduce((a, t) => a + Number(t), 0),
+        {message: 'Σ of the named TR rows ≡ the rating'}).toBe(trTileValue);
       const trRows = await page.locator('.con-vpx__trrow-value').allTextContents();
-      const trSum = trRows.reduce((a, t) => a + Number(t), 0);
-      expect(trSum, 'Σ of the named TR rows ≡ the rating').toBe(trTileValue);
       await expect(page.locator('.con-vpx__trsum b')).toHaveText(String(trTileValue));
       await expect(page.locator('.con-vpx__trrow--base')).toContainText(/Стартовый рейтинг/i);
       // The ARITHMETIC STORY: the first term bare, «+» past it, the running
@@ -421,14 +454,13 @@ for (const preset of PRESETS) {
       await expect(zoom).toHaveCount(1);
       // NO DUPLICATE: the preview slot holds EMPTY under the lifted card
       // (the zoom-hold contract — the same physicality the hand ships).
-      const slotOpacity = await page.locator('.con-vpx__preview-card')
-        .evaluate((el) => getComputedStyle(el).opacity);
-      expect(Number(slotOpacity), 'the origin slot yields its card to the viewer').toBeLessThanOrEqual(0.01);
+      await expect.poll(async () => Number(await page.locator('.con-vpx__preview-card').evaluate((el) => getComputedStyle(el).opacity)),
+        {message: 'the origin slot yields its card to the viewer'}).toBeLessThanOrEqual(0.01);
       await shoot(page, preset, '06-fullscreen');
       await key(page, 'Escape', 1400); // B → the card lands back in the preview
       await expect(zoom).toHaveCount(0, {timeout: 15_000});
       await expect(page.locator('.con-vpx__preview-card .pcard')).toBeVisible();
-      expect((await focusedRowName(page))?.trim(), 'row focus survives the round trip')
+      await expect.poll(async () => (await focusedRowName(page))?.trim() ?? '', {message: 'row focus survives the round trip'})
         .toContain('Колония на Ганимеде');
       await shoot(page, preset, '07-back-from-fullscreen');
 
@@ -438,7 +470,9 @@ for (const preset of PRESETS) {
       await key(page, 'ArrowRight', 300); // → fixed (door 3)
       await key(page, 'Enter', 1200);
       await expect(crumbStage(page)).toHaveText(/Карты.*Фиксированные/i);
-      const vps = (await page.locator('.con-vpx__row-vp').allTextContents()).map(Number);
+      // The VP column read AT REST — the rows' entrance over, the same column twice a frame apart.
+      const vps = await readSettled(page, async () => (await page.locator('.con-vpx__row-vp').allTextContents()).map(Number),
+        {message: 'the fixed family\'s VP column'});
       expect(vps.length).toBeGreaterThanOrEqual(2);
       for (let i = 1; i < vps.length; i++) {
         expect(vps[i], 'rows sort by current VP, descending').toBeLessThanOrEqual(vps[i - 1]);
@@ -483,16 +517,14 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-vpx__inspect')).toHaveCount(1);
       await expect(page.locator('.con-vpx__inspect-standrow').first()).toBeVisible();
       await expect(page.locator('.con-vpx__inspect-rule')).toContainText(/5 ПО/);
-      const srcVis = await page.locator('.con-vpx__maent--focused [data-vpx-ma-art]')
-        .evaluate((el) => getComputedStyle(el).visibility);
-      expect(srcVis, 'the source emblem yields to its flying twin').toBe('hidden');
+      await expect.poll(() => page.locator('.con-vpx__maent--focused [data-vpx-ma-art]').evaluate((el) => getComputedStyle(el).visibility),
+        {message: 'the source emblem yields to its flying twin'}).toBe('hidden');
       await shoot(page, preset, '12-award-inspect');
       await key(page, 'Escape', 900); // B → fold back into the entry
       await expect(page.locator('.con-vpx__inspect')).toHaveCount(0, {timeout: 15_000});
       await expect(page.locator('.con-vpx__maent--focused')).toHaveAttribute('data-vpx-ma', focusedEntryKey ?? '');
-      const srcVisBack = await page.locator('.con-vpx__maent--focused [data-vpx-ma-art]')
-        .evaluate((el) => getComputedStyle(el).visibility);
-      expect(srcVisBack, 'the emblem is home again').toBe('visible');
+      await expect.poll(() => page.locator('.con-vpx__maent--focused [data-vpx-ma-art]').evaluate((el) => getComputedStyle(el).visibility),
+        {message: 'the emblem is home again'}).toBe('visible');
       await expect(crumbStage(page), 'the inspection never moved the route').toHaveText(/Награды/i);
       await key(page, 'Escape', 900); // → the overview
       await cycleTo(page, 'human');
@@ -501,24 +533,7 @@ for (const preset of PRESETS) {
       // the reverse may a zero category paint bright (the cascade animates
       // to each element's OWN resting opacity now). ─────────────────────
       await expect(page.locator('.con-vpx__grid')).toBeVisible();
-      await page.evaluate(() => {
-        const w = window as unknown as {__vpxZero?: {samples: number, hot: number, timer: number}};
-        const probe = {samples: 0, hot: 0, timer: 0};
-        probe.timer = window.setInterval(() => {
-          const els = Array.from(document.querySelectorAll<HTMLElement>('.con-infovp__cat--zero'));
-          for (const el of els) {
-            const r = el.getBoundingClientRect();
-            if (r.width < 4 || r.height < 4) {
-              continue;
-            }
-            probe.samples++;
-            if (parseFloat(getComputedStyle(el).opacity) > 0.75) {
-              probe.hot++;
-            }
-          }
-        }, 16);
-        w.__vpxZero = probe;
-      });
+      const zero = await armZeroWitness(page, 'vpx-zero-quiet');
       // The SHARED TOTAL keeps ONE structure through the morph: no label
       // appears on either side of the handoff (the same «<n> ПО» signature).
       const heroSig = await page.locator('.con-vpx [data-vpx-total]')
@@ -527,19 +542,12 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-info__layout')).toHaveCount(1, {timeout: 15_000});
       await expect(page.locator('.con-info__zone--vp.con-info__zone--focused'),
         'B lands the ring on the zone the player descended from').toHaveCount(1);
-      const zeroVerdict = await page.evaluate(() => {
-        const w = window as unknown as {__vpxZero?: {samples: number, hot: number, timer: number}};
-        const probe = w.__vpxZero;
-        if (probe !== undefined) {
-          window.clearInterval(probe.timer);
-        }
-        return probe ?? {samples: 0, hot: 0};
-      });
-      expect(zeroVerdict.samples, 'the zero probe must have sampled the reverse').toBeGreaterThan(3);
-      expect(zeroVerdict.hot, `a zero category never paints bright (${zeroVerdict.hot}/${zeroVerdict.samples} hot samples)`).toBe(0);
-      const summarySig = await page.locator('.con-info__layout [data-vpx-total]')
-        .evaluate((el) => `${el.children.length}:${(el.textContent ?? '').replace(/\s+/g, '')}`);
-      expect(summarySig, 'the shared total has ONE structure on both sides').toBe(heroSig);
+      const zeroVerdict = await zeroQuietVerdict(zero);
+      expect(zeroVerdict.samples, 'the zero probe must have sampled the reverse').toBeGreaterThan(0);
+      expect(zeroVerdict.hot, `a zero category never paints bright (${zeroVerdict.hot}/${zeroVerdict.samples} hot states)`).toBe(0);
+      await expect.poll(() => page.locator('.con-info__layout [data-vpx-total]')
+        .evaluate((el) => `${el.children.length}:${(el.textContent ?? '').replace(/\s+/g, '')}`),
+      {message: 'the shared total has ONE structure on both sides'}).toBe(heroSig);
       await shoot(page, preset, '13-back-at-summary');
 
       // ── REDUCED MOTION: the whole vertical still walks cleanly. ───────
@@ -579,34 +587,11 @@ for (const preset of PRESETS) {
         await openInfo(page);
         await key(page, 'Enter', 1600);
         await expect(page.locator('.con-vpx')).toHaveCount(1);
-        await page.evaluate(() => {
-          const w = window as unknown as {__vpxZero?: {samples: number, hot: number, timer: number}};
-          const probe = {samples: 0, hot: 0, timer: 0};
-          probe.timer = window.setInterval(() => {
-            for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-infovp__cat--zero'))) {
-              const r = el.getBoundingClientRect();
-              if (r.width < 4 || r.height < 4) {
-                continue;
-              }
-              probe.samples++;
-              if (parseFloat(getComputedStyle(el).opacity) > 0.75) {
-                probe.hot++;
-              }
-            }
-          }, 16);
-          w.__vpxZero = probe;
-        });
+        const zero = await armZeroWitness(page, 'vpx-zero-quiet-slow');
         await key(page, 'Escape', 2000);
         await expect(page.locator('.con-info__layout')).toHaveCount(1);
-        const verdict = await page.evaluate(() => {
-          const w = window as unknown as {__vpxZero?: {samples: number, hot: number, timer: number}};
-          const probe = w.__vpxZero;
-          if (probe !== undefined) {
-            window.clearInterval(probe.timer);
-          }
-          return probe ?? {samples: 0, hot: 0};
-        });
-        expect(verdict.samples, 'the slow probe must have sampled').toBeGreaterThan(3);
+        const verdict = await zeroQuietVerdict(zero);
+        expect(verdict.samples, 'the slow probe must have sampled').toBeGreaterThan(0);
         expect(verdict.hot, `zero rows stay quiet on EVERY frame (${verdict.hot}/${verdict.samples})`).toBe(0);
         await key(page, 'KeyY', 800);
       });
