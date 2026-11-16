@@ -539,7 +539,7 @@ async function settleInner(page: Page, opts: {timeoutMs?: number, quietMs?: numb
     }
     last = answer.r;
     if (last === undefined) {
-      await page.waitForTimeout(quietMs);
+      await pollPause(page, quietMs);
       return;
     }
     const held = last.holds.length > 0 ||
@@ -565,7 +565,7 @@ async function settleInner(page: Page, opts: {timeoutMs?: number, quietMs?: numb
         `transportHolding=${last.transport?.holding} notificationsSettled=${last.notificationsSettled} ` +
         `waitingFor=${last.transport?.waitingForType ?? '(none)'}`);
     }
-    await page.waitForTimeout(50);
+    await pollPause(page, 50);
   }
 }
 
@@ -589,6 +589,25 @@ export async function stepSubject(page: Page): Promise<string> {
     const el = document.querySelector('.con-wshead__layer--deep .con-wshead__subject');
     return (el?.textContent ?? '').trim().toLowerCase();
   });
+}
+
+/**
+ * The live step's subject AT REST — two equal reads a poll apart (the crumb republishes a frame or more after a
+ * pane swap; on a starved 4K software frame, several). Bounded: whatever stands at the bound is the answer, and the
+ * caller's own step logic judges it (a fixed 300 ms pause stood here — a guess about the crumb's state).
+ */
+async function subjectAtRest(page: Page, maxMs = 5_000): Promise<string> {
+  const deadline = Date.now() + maxMs;
+  let last = await stepSubject(page);
+  while (Date.now() < deadline) {
+    await pollPause(page, 120);
+    const now = await stepSubject(page);
+    if (now === last && now !== '') {
+      return now;
+    }
+    last = now;
+  }
+  return last;
 }
 
 /**
@@ -698,7 +717,7 @@ export async function waitPressable(page: Page, maxMs = 20_000): Promise<void> {
       }
       continue;
     }
-    await page.waitForTimeout(400);
+    await pollPause(page, 400);
   }
 }
 
@@ -953,7 +972,7 @@ async function pickRegistered(page: Page, card: string, maxMs = 1_800): Promise<
     if ((await pickedCards(page)).includes(card)) {
       return true;
     }
-    await page.waitForTimeout(150);
+    await pollPause(page, 150);
   }
   return false;
 }
@@ -1083,13 +1102,14 @@ export async function walkToSummary(page: Page, opts: WalkOptions = {}): Promise
       return;
     }
     await waitPressable(page);
-    await page.waitForTimeout(300);
-    const kind = stepKind(await stepSubject(page));
+    // The step's subject AT REST (the crumb republishes a frame after the pane swaps) — two equal reads a poll apart,
+    // never a guessed 300 ms.
+    const kind = stepKind(await subjectAtRest(page));
     await onStep(page, kind);
     await press(page, 'Period', 1400); // RT — advance with the physical collect
     // Let the step actually change before looking again.
     for (let w = 0; w < 16 && !(await summaryVisible(page)) && stepKind(await stepSubject(page)) === kind; w++) {
-      await page.waitForTimeout(250);
+      await pollPause(page, 250);
     }
   }
   // The same «the wizard is BEHIND us» escape, one stage further out: on a 4K
@@ -1200,7 +1220,7 @@ export async function playStartQueue(page: Page, opts: {first?: string, plays?: 
       if (await payStartPurchase(page)) {
         continue;
       }
-      await page.waitForTimeout(800);
+      await pollPause(page, 800);
       continue;
     }
     // ACT → VERIFY → RETRY per card (playQueueCard) — never a blind press:
@@ -1226,6 +1246,7 @@ export async function queueCards(page: Page): Promise<Array<string>> {
  */
 export async function waitQueueIdle(page: Page, maxMs = 25_000): Promise<void> {
   const started = Date.now();
+  let idleReads = 0;
   while (Date.now() - started < maxMs) {
     const busy = await page.evaluate(() =>
       // Scope the "something is flying" check to the START scene: a
@@ -1241,11 +1262,13 @@ export async function waitQueueIdle(page: Page, maxMs = 25_000): Promise<void> {
     // The queue's items are the CARDS *and* the purchase block — a
     // deployment whose only remaining item is «ОПЛАТИТЬ» is idle, not empty.
     const items = (await queueCards(page)).length + (await page.locator('.con-start__buy').count());
-    if (!busy && items > 0) {
-      await page.waitForTimeout(400);
+    // IDLE is a STATE that HOLDS — two consecutive idle reads a poll apart (a deck-draw scene arms a beat after the
+    // play it belongs to, so one idle read can fall into that gap; a fixed 400 ms after the first read stood here).
+    idleReads = !busy && items > 0 ? idleReads + 1 : 0;
+    if (idleReads >= 2) {
       return;
     }
-    await page.waitForTimeout(300);
+    await pollPause(page, 300);
   }
 }
 
@@ -1396,7 +1419,7 @@ export async function playQueueCard(page: Page, card: string, maxPresses = 4): P
   for (let i = 0; i < maxPresses; i++) {
     await page.keyboard.press('Enter');
     for (let w = 0; w < 12; w++) {
-      await page.waitForTimeout(100);
+      await pollPause(page, 100);
       const gone = !(await queueCards(page)).includes(card);
       const sceneUp = await page.locator('.con-deckdraw, .con-reveal, .con-played-hero__proxy').count() > 0;
       if (gone || sceneUp) {
@@ -1735,7 +1758,7 @@ export async function commitFocusedSpace(page: Page, settleMs = 900): Promise<bo
       if (await gone()) {
         return true;
       }
-      await page.waitForTimeout(120);
+      await pollPause(page, 120);
     }
     return gone();
   };
@@ -1743,7 +1766,7 @@ export async function commitFocusedSpace(page: Page, settleMs = 900): Promise<bo
   await press(page, 'Enter', 420); // lock (or the whole commit in swift mode)
   if (await gone()) { // swift mode: that WAS the commit
     if (settleMs > 0) {
-      await page.waitForTimeout(settleMs);
+      await cinematicBeat(page, settleMs, 'the caller asked for a settle after the placement commit');
     }
     return true;
   }
@@ -1758,7 +1781,7 @@ export async function commitFocusedSpace(page: Page, settleMs = 900): Promise<bo
   // zero-wait read of an async submit is a coin flip, not an assertion.
   const done = await resolved(8_000);
   if (done && settleMs > 0) {
-    await page.waitForTimeout(settleMs);
+    await cinematicBeat(page, settleMs, 'the caller asked for a settle after the placement commit');
   }
   return done;
 }
@@ -1848,7 +1871,9 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
     if (await live.count() > 0 && await placement.count() === 0 && await hand.count() === 0 &&
         await start.count() === 0 && await composer.count() === 0 && await colonies.count() === 0 &&
         await mandatory.count() === 0) {
-      await page.waitForTimeout(600);
+      // Home — and AT REST (the board's own entrance is finite motion `settle` waits out; soft: home is the
+      // answer, the rest is pace), never a fixed 600 ms.
+      await settle(page).catch(() => undefined);
       return;
     }
     // ORDER MATTERS — always drive the surface that is ON TOP, or the driver
@@ -1899,7 +1924,7 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
         if (found) {
           await press(page, 'Enter', 1400);
         } else {
-          await page.waitForTimeout(700);
+          await pollPause(page, 700);
         }
       } else {
         await press(page, 'Escape', 1400);
@@ -1936,7 +1961,7 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       if (taskRounds > 3) {
         await press(page, taskRounds % 2 === 0 ? 'Enter' : 'Period', 1400);
       } else {
-        await page.waitForTimeout(700);
+        await pollPause(page, 700);
       }
     } else if (!await startSceneGone(page) && !await coloniesOnTop()) {
       // (A colony pick the start workspace HOSTS — the solo opening's «remove a colony tile» — stands ON TOP of a
@@ -2003,7 +2028,7 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       const stage = page.locator('.con-colfocus');
       if (await stage.count() > 0) {
         if (await page.locator('.con-colfocus--resolving').count() > 0) {
-          await page.waitForTimeout(900); // a transaction is landing — let it
+          await pollPause(page, 900); // a transaction is landing — let it
         } else {
           const intent = await stage.getAttribute('data-colony-intent').catch(() => null);
           if (intent === 'pick' || intent === 'build') {
@@ -2032,7 +2057,7 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
     } else {
       taskRounds = 0;
       composerRounds = 0;
-      await page.waitForTimeout(700);
+      await pollPause(page, 700);
     }
   }
   if (await live.count() === 0) {
@@ -2082,7 +2107,7 @@ export async function openMandatoryAnnounce(page: Page, maxMs = 25_000): Promise
       }
       continue;
     }
-    await page.waitForTimeout(200);
+    await pollPause(page, 200);
   }
   return false;
 }
@@ -2855,10 +2880,13 @@ export async function openBotScreenHub(page: Page): Promise<void> {
  */
 export async function openBotBoardDetail(page: Page): Promise<void> {
   await openBotScreenHub(page);
-  await page.waitForTimeout(700); // the hub's entrance settles under the cursor
-  await page.keyboard.press('Enter'); // A on the default focus → «Планшет бота»
+  // The hub's entrance at REST under the cursor (finite motion is a state `settle` waits out), then A on the default
+  // focus → «Планшет бота», verified by the detail it opens; then the detail's own entrance at rest — never a guessed
+  // 700 ms on either side.
+  await settle(page).catch(() => undefined);
+  await pressUntilVisible(page, 'Enter', '.mb-tracks', {tries: 3, settleMs: 900});
   await page.locator('.mb-tracks').waitFor({state: 'visible', timeout: 15_000});
-  await page.waitForTimeout(700); // the detail's own entrance settles
+  await settle(page).catch(() => undefined);
 }
 
 /**
@@ -2983,7 +3011,7 @@ export async function waitForStartRelease(page: Page, maxMs = 60_000): Promise<v
       return;
     }
     await playStartQueue(page, {plays: 2});
-    await page.waitForTimeout(400);
+    await pollPause(page, 400);
   }
   expect(await startSceneGone(page) || await firstActionStage.count() > 0,
     `the start workspace never released — still showing ${JSON.stringify(await visibleSurfaces(page))}`)
@@ -4278,8 +4306,9 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3, o
       await expect.poll(async () => await heroArmed() || await sheetSignature(page) !== before, {timeout: 8000}).toBe(true).catch(() => undefined);
       trail.push(`#${attempt} A${i} ${await look()}`);
     }
-    await page.waitForTimeout(4200); // the played-hero scene settles, the card lands
-    if (await played()) {
+    // The play LANDED — the server's own truth (`played()`), polled: the hero scene settles and the card lands in a
+    // time the machine sets (a fixed 4.2 s stood here — too long on a fast box, a guess on a starved one).
+    if (await expect.poll(played, {timeout: 8_000}).toBe(true).then(() => true, () => false)) {
       return true;
     }
     trail.push(`#${attempt} not played ${await look()}`);

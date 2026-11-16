@@ -357,6 +357,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {GRANT_CUBE_STAGGER_MS, GRANT_TOUCH_GAP_MS, grantCubeSchedule} from '@/client/console/parliament/grantCubeSchedule';
 import {grantContinuesSeries, grantSeriesKeyOf} from '@/client/console/parliament/grantSeries';
+import {answerSupportPlaceOnce} from '@/client/console/parliament/supportPlaceAnswer';
 import {descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
 import {armAccessToldOnStage, disarmAccessToldOnStage} from '@/client/console/parliament/accessToldOnStage';
 import {$t, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -1678,12 +1679,9 @@ function answerSupportPlace(el: HTMLElement | null): void {
   if (el === null || consoleReducedMotionActive()) {
     return;
   }
-  void nextTick(() => {
-    el.classList.remove('con-pseal__support-place--landed');
-    void el.offsetWidth;
-    el.classList.add('con-pseal__support-place--landed');
-    el.addEventListener('animationend', () => el.classList.remove('con-pseal__support-place--landed'), {once: true});
-  });
+  // An ATTRIBUTE, never a class: the next cube's landing moves the block's `filled` / `incoming` inside this answer's
+  // span, and Vapor rewrites a non-root socket's `className` whole on that flush (`supportPlaceAnswer.ts`).
+  void nextTick(() => answerSupportPlaceOnce(el, 'landed'));
 }
 /** The viewer's own delegate's flight, paced by its distance — `onLanded` is the caller's continuation (the next figure, or the landed read). */
 function flyOwnDelegate(seq: number, color: Color, onLanded: () => void, onLeftStack?: () => void): boolean {

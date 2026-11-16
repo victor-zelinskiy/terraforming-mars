@@ -56,7 +56,8 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TRANSFER_RESIDUAL_PAUSE_MS, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {cardReactionAnswerFlight, reactionDeclarationBlock} from '@/client/console/cardReaction/cardReactionDirector';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
+import {motionAfter} from '@/client/console/session/sessionWaits';
 import {TradeReceiptBase} from '@/client/console/colonyTrade/colonyTradeReceipt';
 import {settlementClaimsBatch} from '@/client/console/colonyTrade/settlementTable';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
@@ -75,8 +76,36 @@ import {owedAnswer} from '@/client/console/session/owedAnswer';
  * The ADVANCE leg's own net: whatever happens to the track's measurability,
  * the payout must go on. Generous enough for the longest honest glide (a
  * 6-cell sweep + the settle) and short enough never to read as a stall.
+ *
+ * …COUNTED FROM THE GLIDE'S REAL START, on the glide's own clock (FLAKE ZERO Ф4,
+ * class N). Counted from the request (and halved under `?motion=0.5`), it was
+ * shorter than the layer's own wait for a STANDING track before the glide: on a
+ * slow frame the net settled the leg while the marker still waited for — or glided
+ * over — its track, and the payout was read at a cell the marker had not reached.
+ * The layer reports the glide's birth (`noteColonyTrackAdvanceGliding`) and the net
+ * is re-armed there on GSAP's clock — the glide's own, a starved frame stretches
+ * both alike; before it only the «never started» ceiling stands.
  */
 const TRACK_ADVANCE_SAFETY_MS = 1800;
+
+/**
+ * THE GLIDE WAITS FOR A STANDING TRACK (the layer's `waitForStandingTrack`) — this
+ * budget counted from the track's last CHANGE (a cell that appeared, became visible
+ * or moved), never from the request: a stage still coming back is progress, not a
+ * stall (FLAKE ZERO Ф4). A track that holds still yet never stands — a parked
+ * workspace, a composition with no track — releases after the budget; the ceiling
+ * bounds a track that keeps changing. Ceilings: scaled UP with a slower motion,
+ * never down (`motionCeilingMs`).
+ */
+export const TRACK_STANDING_WAIT_MS = 2_000;
+export const TRACK_STANDING_CEILING_MS = 6_000;
+
+/**
+ * The advance leg that never STARTS its glide (no layer to answer the cue): above
+ * the layer's whole wait for a standing track plus the glide's own net — the layer
+ * settles a track that never stands itself, well before this.
+ */
+const TRACK_ADVANCE_START_MAX_MS = TRACK_STANDING_CEILING_MS + TRACK_ADVANCE_SAFETY_MS;
 
 /**
  * The receiving scene's hand-over between two waves that pay DIFFERENT cards — the pose transition of
@@ -1230,14 +1259,35 @@ function runTrackAdvance(): Promise<void> {
     colonyTradeState.glideNonce++;
     tradeLog('track advance', ctx.advanceFrom, '→', ctx.manifest?.preTradeTrackPosition);
     // The net is THIS run's (R6): kept by id, cleared by the landing and by the next arm, and it re-asks the run —
-    // an old trade's net must never settle a NEW trade's advance leg.
+    // an old trade's net must never settle a NEW trade's advance leg. Until the glide starts it is the «never started»
+    // ceiling; the glide's birth re-arms it (`noteColonyTrackAdvanceGliding`).
     clearAdvanceSafety();
-    cancelAdvanceSafety = tradeFlow.after(motionMs(TRACK_ADVANCE_SAFETY_MS), 'the advance leg\'s landing', () => {
+    cancelAdvanceSafety = tradeFlow.after(motionCeilingMs(TRACK_ADVANCE_START_MAX_MS), 'the advance leg\'s glide — its start', () => {
       if (isLiveRun(run)) {
         finishColonyTrackAdvance();
       }
     });
   });
+}
+
+/**
+ * The ADVANCE leg's glide has STARTED (the layer's `onStart` — the marker born on its cell): the leg's net counts from
+ * HERE, on the glide's own clock (GSAP's — a backstop on the wall clock beside a tween fires mid-arc on a starved
+ * frame; animations.md § A MOTION IS RIGHT ON A SLOW FRAME, law 1). The landing (`finishColonyTrackAdvance`) takes it
+ * back.
+ */
+export function noteColonyTrackAdvanceGliding(): void {
+  const scope = tradeFlow.scope;
+  if (colonyTradeState.glideKind !== 'advance' || ctx.advanceResolve === undefined || scope === undefined) {
+    return;
+  }
+  const run = tradeRun;
+  clearAdvanceSafety();
+  cancelAdvanceSafety = motionAfter(motionCeilingMs(TRACK_ADVANCE_SAFETY_MS), 'the advance leg\'s landing', () => {
+    if (isLiveRun(run)) {
+      finishColonyTrackAdvance();
+    }
+  }, scope);
 }
 
 /**

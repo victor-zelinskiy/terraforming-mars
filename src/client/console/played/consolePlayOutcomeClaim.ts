@@ -55,6 +55,8 @@ import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import type {PlayerInputModel, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {deckDrawDealing} from '@/client/console/deckDraw/consoleDeckDraw';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {nextTick, reactive} from 'vue';
 
 /** The landing scene's EXIT window — see `playLandingReleasing`. */
@@ -65,6 +67,14 @@ const landingRelease = reactive({releasing: false});
  * anything the player would notice as a stuck stage.
  */
 const LANDING_RELEASE_SAFETY_MS = 1_200;
+/**
+ * …and it runs on the DISSOLVE'S OWN CLOCK (FLAKE ZERO · class N — animations.md § A MOTION IS RIGHT ON A SLOW FRAME,
+ * law 1): the dissolve is a GSAP tween, and a wall-clock backstop beside it fired while it was still fading whenever
+ * GSAP's clock fell behind the wall's (the deal it yields to is a long task at 4K, booked as 33 ms by `lagSmoothing`)
+ * — the flag fell and the scene's `v-if` tore it out mid-fade. On GSAP's clock the tween's own `onComplete` comes
+ * first; this wall-clock ceiling is only for a clock that does not run. Never motion-scaled down.
+ */
+const LANDING_RELEASE_CEILING_MS = 4_000;
 
 /** Disarms the standing backstop — a GUARANTEED release of the session (PLAN §10 · C1); a no-op when none stands. */
 let disarmReleaseBackstop: () => void = () => {};
@@ -266,8 +276,15 @@ export function beginPlayLandingRelease(): void {
   landingRelease.releasing = true;
   clearReleaseBackstop();
   if (typeof setTimeout === 'function') {
-    // A RELEASE (the flag keeps the scene mounted): lowered at the backstop, or when the game screen leaves.
-    disarmReleaseBackstop = consoleSessionScope().guarantee(LANDING_RELEASE_SAFETY_MS, 'the landing scene\'s dissolve reports', () => markPlayLandingReleased());
+    // A RELEASE (the flag keeps the scene mounted): lowered at the backstop — on the dissolve's clock, or at the wall's
+    // ceiling — or when the game screen leaves.
+    const disarmMotion = motionGuarantee(LANDING_RELEASE_SAFETY_MS, 'the landing scene\'s dissolve reports', () => markPlayLandingReleased());
+    const disarmWall = consoleSessionScope().guarantee(motionCeilingMs(LANDING_RELEASE_SAFETY_MS) + LANDING_RELEASE_CEILING_MS,
+      'the landing scene\'s dissolve reports — its ceiling', () => markPlayLandingReleased());
+    disarmReleaseBackstop = () => {
+      disarmMotion();
+      disarmWall();
+    };
   }
 }
 

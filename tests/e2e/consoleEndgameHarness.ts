@@ -21,6 +21,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {expect, Page, APIRequestContext} from '@playwright/test';
 import {cinematicBeat, openConsole, soloGameConfig, CORP_WITH_FIRST_ACTION} from './consoleStart';
+import {recordTransient, stopTransient} from './transientRecorder';
 import {SPENDABLE_RESOURCES} from '../../src/common/inputs/Spendable';
 import {BoardName} from '../../src/common/boards/BoardName';
 import {getGlobalParameterMaximums, GlobalParameterMaximums} from '../../src/common/boards/GlobalParameterMaximums';
@@ -322,6 +323,11 @@ export async function forceFrame(page: Page): Promise<void> {
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
 }
 
+/**
+ * A POLL of `predicate` (the state waited for — it may press, so the cadence is the old one) that pumps a frame between
+ * two reads. The tick between them runs on the PAGE's clock: a starved page's own timer fires late, so the next read (and
+ * a press the predicate makes) waits until the page has had the time to take the last one in.
+ */
 export async function waitWithFrames(page: Page, predicate: () => Promise<boolean>, maxMs: number, what: string): Promise<void> {
   const t0 = Date.now();
   while (Date.now() - t0 < maxMs) {
@@ -329,7 +335,7 @@ export async function waitWithFrames(page: Page, predicate: () => Promise<boolea
       return;
     }
     await forceFrame(page);
-    await page.waitForTimeout(120);
+    await page.evaluate(() => new Promise<void>((resolve) => window.setTimeout(resolve, 120))).catch(() => undefined);
   }
   expect(false, `timed out waiting for ${what}`).toBeTruthy();
 }
@@ -461,11 +467,13 @@ export async function disarmFinaleWitness(page: Page): Promise<void> {
 }
 
 /**
- * THE PRICE PROBE (PL-306 — a greenery bought with plants): armed beside the transfer witness (same moment, same
- * `performance.now()` clock to within a millisecond), it records the plants row's digits as the player reads them,
- * the hero's own account of the price beat (`data-tile-price`) and the FIRST painted frame of the own tile proxy
- * (where the tile is born — the sprout grows out of its cell, never from the table). A 16 ms sampler + a
- * MutationObserver, never rAF.
+ * THE PRICE PROBE (PL-306 — a greenery bought with plants): armed beside the transfer witness (same moment, same page
+ * clock to within a millisecond — both measure from `performance.timeOrigin + performance.now()` at their arm), it
+ * records the plants row's digits as the player reads them, the hero's own account of the price beat
+ * (`data-tile-price`) and the FIRST painted frame of the own tile proxy (where the tile is born — the sprout grows out of
+ * its cell, never from the table). RECORDED on the replace-proof recorder (the product's own writes + a frame tick),
+ * `settled` — its claims are an ORDER (the row ticks on the departure, the tile is born at the touchdown), so a sample is
+ * the state a task LEAVES.
  */
 export type PriceProbe = {
   rows: Array<[number, string]>;
@@ -475,13 +483,15 @@ export type PriceProbe = {
   tileFirst: {t: number, cx: number, cy: number, w: number} | undefined;
 };
 
+/** One reading of the price beat: the row's digits, its chip, the hero's account, the own tile proxy's painted box. */
+type PriceReading = {row: string, chip: string, price: string, tile: {cx: number, cy: number, w: number} | null};
+
+const PRICE_KEY = 'price-probe';
+const PRICE_ORIGIN = new WeakMap<Page, number>();
+
 export async function armPriceProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type Probe = {rows: Array<[number, string]>, chips: Array<[number, string]>, price: Array<[number, string]>, tileFirst: {t: number, cx: number, cy: number, w: number} | undefined};
-    const w = window as unknown as {__priceProbe?: {probe: Probe, stop: () => void}};
-    w.__priceProbe?.stop();
-    const probe: Probe = {rows: [], chips: [], price: [], tileFirst: undefined};
-    const t0 = performance.now();
+  PRICE_ORIGIN.set(page, await page.evaluate(() => performance.timeOrigin + performance.now()));
+  await recordTransient(page, PRICE_KEY, (): PriceReading => {
     const opacityOf = (el: Element): number => {
       let op = 1;
       for (let n: Element | null = el; n !== null; n = n.parentElement) {
@@ -493,49 +503,47 @@ export async function armPriceProbe(page: Page): Promise<void> {
       }
       return op;
     };
-    const sample = () => {
-      const t = Math.round(performance.now() - t0);
-      const digits = document.querySelector('.con-res__row--plants .con-res__digits');
-      const text = (digits?.firstChild?.textContent ?? '').trim();
-      if (probe.rows[probe.rows.length - 1]?.[1] !== text) {
-        probe.rows.push([t, text]);
+    const digits = document.querySelector('.con-res__row--plants .con-res__digits');
+    let tile: PriceReading['tile'] = null;
+    const proxy = document.querySelector('.con-tileplace__tile:not(.con-tileplace__tile--depart):not(.con-tileplace__tile--cover):not(.con-tileplace__tile--remote)');
+    if (proxy !== null && opacityOf(proxy) > 0.05) {
+      const r = proxy.getBoundingClientRect();
+      if (r.width > 2) {
+        tile = {cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width};
       }
-      const chip = (document.querySelector('.con-res__row--plants .con-res__digits .metric-feedback-host')?.textContent ?? '').replace(/\s+/g, '');
-      if (probe.chips[probe.chips.length - 1]?.[1] !== chip) {
-        probe.chips.push([t, chip]);
-      }
-      const account = document.querySelector('.con-tileplace')?.getAttribute('data-tile-price') ?? '';
-      if (probe.price[probe.price.length - 1]?.[1] !== account) {
-        probe.price.push([t, account]);
-      }
-      if (probe.tileFirst === undefined) {
-        const tile = document.querySelector('.con-tileplace__tile:not(.con-tileplace__tile--depart):not(.con-tileplace__tile--cover):not(.con-tileplace__tile--remote)');
-        if (tile !== null && opacityOf(tile) > 0.05) {
-          const r = tile.getBoundingClientRect();
-          if (r.width > 2) {
-            probe.tileFirst = {t, cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width};
-          }
-        }
-      }
+    }
+    return {
+      row: (digits?.firstChild?.textContent ?? '').trim(),
+      chip: (document.querySelector('.con-res__row--plants .con-res__digits .metric-feedback-host')?.textContent ?? '').replace(/\s+/g, ''),
+      price: document.querySelector('.con-tileplace')?.getAttribute('data-tile-price') ?? '',
+      tile,
     };
-    const timer = window.setInterval(sample, 16);
-    const mo = new MutationObserver(sample);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    sample();
-    w.__priceProbe = {probe, stop: () => {
-      window.clearInterval(timer);
-      mo.disconnect();
-    }};
-  });
+  }, {settled: true, max: 100_000});
 }
 
+/** Stop the probe and fold its recording: each series as it CHANGED, the tile's first painted pose. */
 export async function readPriceProbe(page: Page): Promise<PriceProbe> {
-  return page.evaluate(() => {
-    const w = window as unknown as {__priceProbe?: {probe: PriceProbe, stop: () => void}};
-    w.__priceProbe?.stop();
-    const p = w.__priceProbe?.probe;
-    return {rows: [...(p?.rows ?? [])], chips: [...(p?.chips ?? [])], price: [...(p?.price ?? [])], tileFirst: p?.tileFirst};
-  });
+  const recorded = await stopTransient<PriceReading | null>(page, PRICE_KEY);
+  const origin = PRICE_ORIGIN.get(page) ?? recorded[0]?.t ?? 0;
+  const probe: PriceProbe = {rows: [], chips: [], price: [], tileFirst: undefined};
+  const keep = (series: Array<[number, string]>, t: number, text: string) => {
+    if (series[series.length - 1]?.[1] !== text) {
+      series.push([t, text]);
+    }
+  };
+  for (const s of recorded) {
+    if (s.v === null) {
+      continue;
+    }
+    const t = Math.round(s.t - origin);
+    keep(probe.rows, t, s.v.row);
+    keep(probe.chips, t, s.v.chip);
+    keep(probe.price, t, s.v.price);
+    if (probe.tileFirst === undefined && s.v.tile !== null) {
+      probe.tileFirst = {t, ...s.v.tile};
+    }
+  }
+  return probe;
 }
 
 /**

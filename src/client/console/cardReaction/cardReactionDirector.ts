@@ -76,6 +76,7 @@ import {
 import {RailAnswerFlight} from '@/client/console/resourceTransfer/railReward';
 import {waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {motionGuarantee} from '@/client/console/session/sessionWaits';
 import {boardSceneMemberBusy, boardSceneOwedBusy} from '@/client/console/boardSceneMembers';
@@ -226,8 +227,13 @@ const BLOCKING_QUIET_MAX_MS = 12000;
 const SITTING_QUIET_MAX_MS = 40000;
 /** …and after a DECISION standing at the centre (a drawn card to take, a deck pick) — a reactor never covers a card the player is choosing; bounded. */
 const DECISION_WAIT_MAX_MS = 6000;
-/** How long a reactor waits for its own face being dealt in before it rises at the stage instead (PL-1098). */
+/**
+ * How long a reactor waits for its own face being dealt in before it rises at the stage instead (PL-1098) — from the
+ * last moment that arrival was LIVE (a deal still carrying the face in, an entrance still running), never from the
+ * question (FLAKE ZERO Ф4); the ceiling bounds an arrival that never ends.
+ */
 const PLACE_ARRIVAL_WAIT_MS = 2400;
+const PLACE_ARRIVAL_CEILING_MS = 8000;
 const DECISION_SURFACES = '.con-reveal, .con-deckpick';
 /** A handheld's opening holds two slots; every other profile up to the model's cap. */
 const HANDHELD_MAX_SLOTS = 2;
@@ -1420,22 +1426,77 @@ function decisionStands(): boolean {
  * find their capsule (one physical card, law 3).
  */
 async function waitPlaceArrival(card: CardName, myEpoch: number): Promise<void> {
-  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  const arrival = await awaitArrivingFace({
+    find: () => findReactorPlace(card),
+    live: () => reactorPlaceArriving(card),
+    // Nothing arriving any more is the stage's at once; a new chain is no longer this one's question.
+    over: () => epoch !== myEpoch || !reactorPlaceArriving(card),
+    budgetMs: PLACE_ARRIVAL_WAIT_MS,
+    ceilingMs: PLACE_ARRIVAL_CEILING_MS,
+    node: {id: 'card-reaction:place-arrival', owner: 'cardReactionDirector', what: 'the landing of the reactor in its place'},
+    abandoned: () => epoch !== myEpoch,
+  });
+  if (arrival.late) {
+    noteTransferTrail('reaction:place-late', {card});
+  } else if (arrival.waited) {
+    noteTransferTrail('reaction:place-landed', {card});
+  }
+}
+
+/** One reactor face's arrival, waited for (`awaitArrivingFace`). */
+export type ArrivingFaceWait<T> = {
+  /** The face standing in its place — once it does. */
+  find: () => T | undefined,
+  /** Its arrival is LIVE right now: a deal still carrying it in (its hold), an entrance still running on it. */
+  live: () => boolean,
+  /** The wait is over with no face (its run is gone; for a place that must be arriving, nothing arrives any more). */
+  over: () => boolean,
+  /** The budget — from the last moment the arrival was live (from the start, before it ever was). */
+  budgetMs: number,
+  /** The hard ceiling, from the start: an arrival that never ends. */
+  ceilingMs: number,
+  /** The wait's node of the wait graph, once it has to wait (bound: the ceiling; a ceiling hit is said). */
+  node: {id: string, owner: string, what: string},
+  /** An `over` that means «the run is gone» (the node is abandoned, not met). */
+  abandoned?: () => boolean,
+};
+
+/**
+ * A REACTOR'S FACE THAT IS ARRIVING (PL-1098), waited for on the probe tick — resolves the face `find` found, or none
+ * (`late` past the bound). The budget counts from the last moment the arrival was LIVE, never from the question
+ * (FLAKE ZERO Ф4, class N): 2.4 s counted from the question ran out under a deal a slow frame had stretched, and the
+ * reactor rose at the stage — a second instance of a card that was about to stand in its place, or a token with no
+ * face to come out of. The ceiling bounds an arrival that never ends (a hold nobody lets go). Both the chain's own
+ * place wait and the start's corporation face (`ConsoleStartScene`) stand on it.
+ */
+export async function awaitArrivingFace<T>(spec: ArrivingFaceWait<T>): Promise<{face: T | undefined, waited: boolean, late: boolean}> {
+  const start = flowClock().now();
+  const hard = start + Math.max(spec.budgetMs, spec.ceilingMs);
+  let deadline = start + spec.budgetMs;
   let wait: CeilingWait | undefined;
   let waited = false;
-  while (epoch === myEpoch && findReactorPlace(card) === undefined && reactorPlaceArriving(card)) {
-    if (typeof performance !== 'undefined' && performance.now() - started > PLACE_ARRIVAL_WAIT_MS) {
+  for (;;) {
+    const face = spec.find();
+    if (face !== undefined || spec.over()) {
+      if (face === undefined && spec.abandoned?.() === true) {
+        wait?.end();
+      } else {
+        wait?.met();
+      }
+      return {face, waited, late: false};
+    }
+    const now = flowClock().now();
+    if (spec.live()) {
+      deadline = Math.min(hard, Math.max(deadline, now + spec.budgetMs));
+    }
+    if (now > deadline) {
       wait?.ceiling();
-      noteTransferTrail('reaction:place-late', {card});
-      return;
+      return {face: undefined, waited, late: true};
     }
     waited = true;
-    wait ??= beginCeilingWait({id: 'card-reaction:place-arrival', owner: 'cardReactionDirector', what: 'the landing of the reactor in its place', maxMs: PLACE_ARRIVAL_WAIT_MS});
+    // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+    wait ??= beginCeilingWait({...spec.node, maxMs: hard - start});
     await nextPaintedFrame();
-  }
-  closeReactionWait(wait, myEpoch);
-  if (waited) {
-    noteTransferTrail('reaction:place-landed', {card});
   }
 }
 

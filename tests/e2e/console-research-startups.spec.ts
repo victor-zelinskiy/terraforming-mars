@@ -138,7 +138,7 @@ async function armSaleProbe(page: Page): Promise<Witness<SaleSeen>> {
 /**
  * The ACTION's beats, RECORDED (FLAKE ZERO — `armWitness`, `settled`: «the workspace left while the card was in the
  * air» is a coexistence claim, judged on the state a task leaves): the prepared stage's own heading (PL-205 — a look
- * turns cards over, it does not receive them), the rest of the batch leaving (`con-exit-reject`) and the kept card's
+ * turns cards over, it does not receive them), the rest of the batch leaving (`[data-exit-reject]`) and the kept card's
  * proxy in the delivery layer (PL-207 — the rest leave while the pick is in the air). A 25 ms sampler slept through the
  * fold under the flight on CI's 2-core raster.
  */
@@ -146,7 +146,7 @@ type ActSeen = {head: string, rejects: number, carried: number, ws: number};
 async function armActionProbe(page: Page): Promise<Witness<ActSeen>> {
   return armWitness<ActSeen>(page, 'rs-action', () => ({
     head: (document.querySelector('.con-composer__beathead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-    rejects: document.querySelectorAll('.con-deckpick .con-exit-reject').length,
+    rejects: document.querySelectorAll('.con-deckpick [data-exit-reject]').length,
     carried: document.querySelectorAll('.con-handdelivery-layer > *').length,
     ws: document.querySelectorAll('.con-ws').length,
   }), {settled: true});

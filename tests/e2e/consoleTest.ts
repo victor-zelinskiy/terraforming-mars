@@ -46,7 +46,7 @@ import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import {currentTimingBucket, formatTiming, noteTiming, resetTiming, snapshotTiming} from './timing';
-import {describeReactionStory, installReactionWitness, reactionStory} from './reactionWitness';
+import {armReactionWitnessOn, describeReactionStory, reactionStory} from './reactionWitness';
 import {armHungPageWatch} from './hungPageWatch';
 import {armCauseHarvest, CauseRecord, fileCauseRecords} from './causeHarvest';
 
@@ -412,7 +412,7 @@ function armReactionFaceGuard(context: import('@playwright/test').BrowserContext
   context.pages().forEach(watch);
   context.on('page', watch);
   const witnessed = process.env.TM_E2E_REACTION_WITNESS === '1';
-  const armed = witnessed ? context.addInitScript(installReactionWitness, 16).catch(() => undefined) : Promise.resolve();
+  const armed = witnessed ? armReactionWitnessOn(context) : Promise.resolve();
   return async () => {
     await armed;
     const lines: Array<string> = [];

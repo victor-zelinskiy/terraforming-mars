@@ -23,6 +23,7 @@ import {Color} from '@/common/Color';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {
   arePlacementAnimationsArmed,
   PLACEMENT_ANIMATION_MS,
@@ -173,16 +174,35 @@ function startCubeDrop(id: SpaceId, reduced: boolean): void {
 
 // Covers the longest honest wait: a queued remote flight several tiles deep
 // (~1s each) — far past that, the hold is a leak and the cube must land.
-const HERO_CUBE_HOLD_SAFETY_MS = 10000;
+export const HERO_CUBE_HOLD_SAFETY_MS = 10000;
+/**
+ * …UNLESS THE SCENE THAT HOLDS IT STILL OWES ITS TILE (FLAKE ZERO Ф4, class N): the remote stage holds a cube from the
+ * STAGING, and its landing comes after the landings queued before it and after a board the viewer's own surface
+ * covers — both at the machine's (or the player's) pace. Counted from the staging, the safety dropped the cube onto a
+ * cell whose tile was still held: a cube standing on an empty hex, then dropped AGAIN at the touchdown. The owner says
+ * so (`keptWhile`) and its own bounds end the wait; this is the hard ceiling of the extension.
+ */
+export const HERO_CUBE_HOLD_KEPT_MAX_MS = 90_000;
 
-export function holdCubeForHeroPlacement(id: SpaceId): void {
+export function holdCubeForHeroPlacement(id: SpaceId, opts: {keptWhile?: () => boolean} = {}): void {
   clearTimers(id);
   phases[id] = 'hidden';
-  addTimer(id, consoleSessionScope().guarantee(HERO_CUBE_HOLD_SAFETY_MS, 'a held cube\'s safety drop', () => {
-    if (phases[id] === 'hidden') {
+  const owner = consoleSessionScope();
+  const since = flowClock().now();
+  const arm = (): void => {
+    addTimer(id, owner.guarantee(HERO_CUBE_HOLD_SAFETY_MS, 'a held cube\'s safety drop', () => {
+      if (phases[id] !== 'hidden') {
+        return;
+      }
+      // The tile is still OWED by its scene (and the session stands): the safety counts on from here.
+      if (owner.ended === undefined && opts.keptWhile?.() === true && flowClock().now() - since < HERO_CUBE_HOLD_KEPT_MAX_MS) {
+        arm();
+        return;
+      }
       dropCubeForHeroPlacement(id);
-    }
-  }));
+    }));
+  };
+  arm();
 }
 
 export function dropCubeForHeroPlacement(id: SpaceId): void {

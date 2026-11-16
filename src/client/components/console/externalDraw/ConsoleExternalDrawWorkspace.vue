@@ -171,7 +171,7 @@ import {
   armDeckPickFlight, clearDeckPickFlight, deckPickProxyEls,
 } from '@/client/console/deckPick/consoleDeckPick';
 import {
-  beginExternalDrawDeal, beginExternalDrawReady, beginExternalDrawSend,
+  beginExternalDrawDeal, beginExternalDrawReady, beginExternalDrawSend, EXTDRAW_REFLOW_ATTR,
   endExternalDrawSend, externalDrawIntakeKey, externalDrawState, externalDrawTakeOf,
   markIntakeDealt, rollbackExternalDrawSend, shouldDealIntake,
 } from '@/client/console/externalDraw/consoleExternalDraw';
@@ -777,18 +777,22 @@ function settleTaken(names: ReadonlyArray<CardName>): void {
       }
       // The slot's own focus transform (the ring's scale) rides a CSS
       // transition; the FLIP travels on the slot's inline transform with
-      // that transition switched off for its span (`--reflow`), so the
-      // two never fight over one property.
-      el.classList.add('con-extdraw__slot--reflow');
+      // that transition switched off for its span (`[data-extdraw-reflow]`),
+      // so the two never fight over one property. An ATTRIBUTE, never a
+      // class: the slot's classes are BOUND (focused / taken / held), and any
+      // re-render of them during the FLIP rewrites a non-root element's
+      // `className` whole under Vapor — the transition came back mid-travel
+      // and the two fought again (`EXTDRAW_REFLOW_ATTR`).
+      el.setAttribute(EXTDRAW_REFLOW_ATTR, '');
       // `transformOrigin` is an inline style of its own: left behind, the
       // focus ring's CSS scale grew the survivor from its top-left corner
       // and the card stood 12 px right of centre. Both props go together.
       gsap.fromTo(el, {x: dx, y: dy, scale, transformOrigin: '0 0'}, {
         x: 0, y: 0, scale: 1, duration, ease: 'power2.out', clearProps: 'transform,transformOrigin',
-        onComplete: () => el.classList.remove('con-extdraw__slot--reflow'),
+        onComplete: () => el.removeAttribute(EXTDRAW_REFLOW_ATTR),
         onInterrupt: () => {
           gsap.set(el, {clearProps: 'transform,transformOrigin'});
-          el.classList.remove('con-extdraw__slot--reflow');
+          el.removeAttribute(EXTDRAW_REFLOW_ATTR);
         },
       });
     }

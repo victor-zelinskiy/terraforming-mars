@@ -32,7 +32,7 @@
 
 import {gateCursorDuringEntry, releaseEntryCursorGate} from '@/client/console/cursorArrival';
 import {gsap} from 'gsap';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
@@ -57,7 +57,7 @@ import {
   PROMPT_COMPOSE_AT_MS, PROMPT_COMPOSE_MAX, PROMPT_COMPOSE_MS, PROMPT_COMPOSE_STEP_MS, PROMPT_RELEASE_MS,
   isPromptSurface, notePromptRelease, promptArrivalSpanMs, promptHandoffDelayNow,
 } from '@/client/console/surfaceMotion/promptHandoffModel';
-import {playPromptArrive, playPromptRelease, promptComposeItems} from '@/client/console/surfaceMotion/promptHandoffMotion';
+import {EPISODE_NET_CEILING_MS, episodeNet, NetEpisode, playPromptArrive, playPromptRelease, promptComposeItems} from '@/client/console/surfaceMotion/promptHandoffMotion';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {probeTick} from '@/client/console/probeTick';
 import {leavingRectOf} from '@/client/console/surfaceMotion/rowLeaveRect';
@@ -178,8 +178,9 @@ function panelsOf(el: Element): Array<HTMLElement> {
 }
 
 /** Anything the live registry can stop: a GSAP tween/timeline, or the
- *  compositor-driven section leave (`sectionLeaveEpisode`). */
-type LiveEpisode = {kill(): unknown};
+ *  compositor-driven section leave (`sectionLeaveEpisode`) — and what the
+ *  hook's net asks of it (`episodeNet`). */
+type LiveEpisode = NetEpisode;
 
 /** The per-element live tween registry — a new hook on the same element
  *  kills the previous episode and continues from the live values. */
@@ -239,7 +240,11 @@ function sectionLeaveEpisode(panels: ReadonlyArray<HTMLElement>, finish: () => v
   const end = beginSectionLeave();
   // Bounded like every hold: a leave whose animations never report (the
   // element detached mid-flight) must not leave the board rising forever.
-  consoleSessionScope().guarantee(motionMs(SECTION_OUT_MS) + SAFETY_SLACK_MS, 'the section leave\'s bound', end);
+  // The hook's net finishes the animations first (their own `onfinish` ends
+  // it); this bound is only for «never happened» — a ceiling, never counted
+  // short of the pending compositor start a fresh 4K layer waits for.
+  consoleSessionScope().guarantee(motionCeilingMs(SECTION_OUT_MS) + EPISODE_NET_CEILING_MS + SAFETY_SLACK_MS,
+    'the section leave\'s bound', end);
   const u = conUiScale();
   const animations = panels.map((p) => {
     p.style.transformOrigin = '50% 60%';
@@ -263,6 +268,17 @@ function sectionLeaveEpisode(panels: ReadonlyArray<HTMLElement>, finish: () => v
       for (const a of animations) {
         a.onfinish = null;
         a.cancel();
+      }
+    },
+    // The compositor's clock: a start still pending (a fresh heavy layer) is a motion on its way, never a stall.
+    moving: () => animations.some((a) => a.pending || a.playState === 'running'),
+    finish: () => {
+      for (const a of animations) {
+        try {
+          a.finish();
+        } catch {
+          // A cancelled / detached animation cannot be finished — its net ends the leave without it.
+        }
       }
     },
   };
@@ -297,7 +313,13 @@ function guarded(
     return;
   }
   liveTweens.set(el, tween);
-  safety = consoleSessionScope().guarantee(motionMs(totalMs) + SAFETY_SLACK_MS, 'surfaceMotionDirector: a beat\'s safety', finish);
+  // The net catches a STALL, never a slow motion: it looks at the budget and gives an episode still being driven
+  // more time — a `done()` on the wall clock took a leaving surface away mid-fade (`episodeNet`).
+  safety = episodeNet({
+    episode: tween, current: () => liveTweens.get(el) === tween,
+    budgetMs: motionMs(totalMs) + SAFETY_SLACK_MS, ceilingMs: motionCeilingMs(totalMs) + EPISODE_NET_CEILING_MS,
+    what: 'surfaceMotionDirector: a beat\'s safety', finish,
+  });
 }
 
 // ── the enter hook ──────────────────────────────────────────────────────────

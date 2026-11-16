@@ -69,6 +69,8 @@ import {
 } from '@/client/console/planetFocus';
 import {boardBeatParkState, holdBoardScaleForScene, releaseBoardScaleForScene} from '@/client/console/boardBeatPark';
 import {probeTick} from '@/client/console/probeTick';
+import {flowClock} from '@/client/console/kernel/flowClock';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 
 export type TerraformedScenePhase = 'idle' | 'armed' | 'recede' | 'focus' | 'show' | 'return';
 
@@ -267,6 +269,8 @@ function clearTimers(): void {
 
 /** The fade's grace past its own duration before the flip goes ahead anyway (a bound, never a beat). */
 const SECTION_FADE_GRACE_MS = 600;
+/** The hard ceiling of that wait while the fade is still on its way (a stuck style never holds the scene). */
+const SECTION_FADE_CEILING_MS = 4000;
 
 /**
  * THE FLIP HAPPENS UNDER A SECTION THE PLAYER NO LONGER SEES — read off the section's PAINTED opacity, never a clock alone.
@@ -274,19 +278,35 @@ const SECTION_FADE_GRACE_MS = 600;
  * the transition starts frames late, the timer fired first and the slot flipped while the album still painted (the
  * 2026-10-30 whole-suite run: the flip 211 ms after the recede, the fade 250 ms — «faded OUT before it left the row» red at
  * 4 workers). Bounded: a section that never reaches 0 (a stuck style) flips at the ceiling rather than holding the scene.
+ * And the grace counts from the FADE, never from this call alone (FLAKE ZERO · class N): while the section's fade is
+ * still on its way — its transition pending on the compositor, or running — the grace restarts, bounded by
+ * `SECTION_FADE_CEILING_MS`; on a software renderer the pending start alone outlasted it and the flip came under a
+ * section still painted.
  */
 async function sectionFadedOut(alive: () => boolean): Promise<void> {
   if (typeof document === 'undefined') {
     return;
   }
-  const deadline = Date.now() + consoleMotionMs(TERRAFORMED_RECEDE_MS) + SECTION_FADE_GRACE_MS;
-  while (alive() && Date.now() < deadline) {
+  const now = () => flowClock().now();
+  const start = now();
+  const ceiling = start + motionCeilingMs(TERRAFORMED_RECEDE_MS) + SECTION_FADE_CEILING_MS;
+  let deadline = start + consoleMotionMs(TERRAFORMED_RECEDE_MS) + SECTION_FADE_GRACE_MS;
+  while (alive() && now() < deadline) {
     const section = document.querySelector('.con-main > .con-hand, .con-main > .con-colonies, .con-main > .con-hydro');
     if (section === null || Number(getComputedStyle(section).opacity) <= 0.02) {
       return;
     }
+    if (sectionFadeOnItsWay(section)) {
+      deadline = Math.min(ceiling, Math.max(deadline, now() + SECTION_FADE_GRACE_MS));
+    }
     await frame();
   }
+}
+
+/** The section's fade is still ON ITS WAY: an animation of it pending (its start not resolved yet) or running. */
+function sectionFadeOnItsWay(section: Element): boolean {
+  return typeof section.getAnimations === 'function' &&
+    section.getAnimations().some((a) => a.pending || a.playState === 'running');
 }
 
 

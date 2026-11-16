@@ -4,6 +4,7 @@ import {
   __resetMotionTokensForTesting,
   applyMotionCssScale,
   createFrameGate,
+  motionCeilingMs,
   motionFpsCap,
   motionMs,
   motionScale,
@@ -51,6 +52,15 @@ describe('motionTokens', () => {
     expect(localStorage.getItem('tm_motion_speed')).to.eq('calm');
     expect(motionMs(1000)).to.eq(1300);
     expect(document.documentElement.style.getPropertyValue('--motion-scale')).to.eq('1.3');
+  });
+
+  it('motionCeilingMs — a ceiling scales UP with a slower motion, never DOWN with a faster one (FLAKE ZERO Ф4)', () => {
+    expect(motionCeilingMs(1000), 'standard: the base').to.eq(1000);
+    setMotionSpeedPreset('swift');
+    expect(motionMs(1000), 'a duration shortens').to.eq(650);
+    expect(motionCeilingMs(1000), 'the ceiling over it does not — a frame is as long as before').to.eq(1000);
+    setMotionSpeedPreset('calm');
+    expect(motionCeilingMs(1000), 'a slower motion lengthens the ceiling with it').to.eq(1300);
   });
 
   it('applyMotionCssScale writes the active multiplier', () => {

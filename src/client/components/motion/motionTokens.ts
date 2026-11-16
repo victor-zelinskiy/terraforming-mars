@@ -149,6 +149,17 @@ export function motionMs(base: number): number {
 }
 
 /**
+ * A CEILING — the bound of «it never happened» on a wait for a motion / a scene (FLAKE ZERO Ф4, class N) — scales UP
+ * with a slower setting and NEVER DOWN. A faster setting (the `fast` preset, the functional e2e's `?motion=0.5`)
+ * shortens the motion, but not the machine's frame: a 4K software frame of ~300 ms is as long at ×0.5 as at ×1, and a
+ * ceiling that halved with the motion ran out while the awaited thing was legitimately still on its way. A DURATION is
+ * `motionMs`; a ceiling over it is this.
+ */
+export function motionCeilingMs(base: number): number {
+  return Math.round(base * Math.max(1, motionScale()));
+}
+
+/**
  * Write the CSS bridge: `--motion-scale` on the root element. Call once at
  * bootstrap (main.ts) and after `setMotionSpeedPreset`. CSS animations opt in
  * with `animation-duration: calc(<base>ms * var(--motion-scale, 1))` — the

@@ -336,7 +336,7 @@ export function beginLoading(stage: LoadingStage = 'sync', context?: TransitionC
       textShownAt = sched.now();
     }
   });
-  schedule(Math.max(0, motionMs(LONG_WAIT_MS) - elapsed), () => {
+  schedule(Math.max(0, LONG_WAIT_MS - elapsed), () => { // a LOAD's length — a wall-clock fact, never motion-scaled
     if (loadingScreenState.phase === 'covering') {
       loadingScreenState.longWait = true;
     }
@@ -621,7 +621,7 @@ function buildOverlayPayload(t0: number): CurtainOverlayPayload {
     orbitMs: ORBIT_MS,
     pulseMs: motionMs(PULSE_MS),
     textAppearAtMs: t0 + curtainMs(TEXT_APPEAR_MS),
-    longWaitAtMs: t0 + motionMs(LONG_WAIT_MS),
+    longWaitAtMs: t0 + LONG_WAIT_MS,
     kicker: translateText(curtainKickerKey(ctx)),
     title: title === undefined ? '' : translateTextWithParams(title.key, title.params),
     status: translateText(curtainStatusKey(ctx, false)),

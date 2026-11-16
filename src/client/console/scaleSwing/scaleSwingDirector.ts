@@ -46,7 +46,7 @@ import {motionAfter, motionSpan} from '@/client/console/session/sessionWaits';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {scaleMarkerPoses, scaleMarkerRestsOn} from '@/client/components/board/scaleMarkerArrival';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
@@ -424,7 +424,7 @@ async function arrival(leg: SwingLeg, value: number, myEpoch: number): Promise<v
   const arrived = await waitUntil(() => {
     void scaleMarkerPoses[accent];
     return scaleMarkerRestsOn(accent, value);
-  }, motionMs(SWING_ARRIVAL_MAX_MS), myEpoch, {id: 'scale-swing:arrival', what: 'the marker resting on its value'});
+  }, motionCeilingMs(SWING_ARRIVAL_MAX_MS), myEpoch, {id: 'scale-swing:arrival', what: 'the marker resting on its value'});
   if (!arrived && epoch === myEpoch) {
     scaleSwingState.degraded = true;
   }
@@ -496,7 +496,7 @@ async function play(e: Entry, myEpoch: number): Promise<void> {
     publishDisplay();
   }
   // The raise's story told by the ordinary scale beat (an earlier response's tokens, born at the peak) lands first.
-  await waitUntil(() => !scaleStepRatingBusy(), motionMs(SWING_ARRIVAL_MAX_MS * 3), myEpoch,
+  await waitUntil(() => !scaleStepRatingBusy(), motionCeilingMs(SWING_ARRIVAL_MAX_MS * 3), myEpoch,
     {id: 'scale-swing:rating-landed', what: 'the landing of the scale rating tokens'});
   if (epoch !== myEpoch) {
     return;

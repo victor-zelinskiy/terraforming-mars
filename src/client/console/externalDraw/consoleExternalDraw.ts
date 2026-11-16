@@ -34,6 +34,15 @@ import {deriveFlowRun} from '@/client/console/session/flowRun';
  */
 export type ExternalDrawPhase = 'idle' | 'dealing' | 'ready' | 'sending';
 
+/**
+ * THE SURVIVORS' RE-SEAT MARK — set on a slot for the span of its FLIP after a landing (the surface's `settleTaken`),
+ * switching the slot's own focus transition off meanwhile (`console_extdraw.less`). An ATTRIBUTE, never a class: the
+ * slot is a `v-for` row whose classes are BOUND (focused / taken / held), and on a non-root element a Vapor class
+ * binding that changes writes `className` WHOLE — any re-render of those bindings mid-FLIP (the focus, the interactive
+ * gate, a hold) wiped a class written there, and the focus transition fought the FLIP again.
+ */
+export const EXTDRAW_REFLOW_ATTR = 'data-extdraw-reflow';
+
 export const externalDrawState = reactive({
   phase: 'idle' as ExternalDrawPhase,
   /** A take's flights are still owed — the shell must not close the frame. */

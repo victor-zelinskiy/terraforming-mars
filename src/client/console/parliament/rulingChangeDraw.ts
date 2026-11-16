@@ -11,7 +11,7 @@ import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, railRowKey
 import {beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReactionDirector';
 import {rectOf} from './parliamentFlights';
-import {allianceImpulsesSettled} from './allianceImpulse';
+import {allianceImpulseState} from './allianceImpulse';
 import {consoleParliamentUi} from './consoleParliamentFlow';
 import {generationSceneRisesIntoSitting} from '@/client/console/generationScene/generationScene';
 import {scheduleParliamentBeat} from './parliamentBeat';
@@ -20,6 +20,9 @@ import {parliamentDrawTaken} from './parliamentDraw';
 import {sittingBaselineOf} from './sittingBaseline';
 import {sittingRiseOwed} from './sittingRise';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {flowClock} from '@/client/console/kernel/flowClock';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /*
  * A CARD ANSWERS A CHANGE OF POWER (Turmoil Redux — TR62 Tharsis Alliance: «draw a card when either of those parties
@@ -57,8 +60,16 @@ import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The park's safety: a sitting that never reaches its enactment tact lets the batch go to the ordinary road. */
 const PARK_NET_MS = 30_000;
-/** The tail waits at most this long for the alliance's impulse (the seals' own answer to the change comes first). */
-const IMPULSE_WAIT_MS = 1_600;
+/**
+ * The tail waits at most this long for the alliance's impulse (the seals' own answer to the change comes first) to
+ * START. An impulse already IN THE AIR is waited for to its landing (FLAKE ZERO Ф4, class N): counted from the tail's
+ * start, this bound also covered the spark's flight, and on a slow renderer (two still measurements of the seals, a
+ * painted frame at each end of the flight) it ran out mid-flight — the card left the deck under the spark in the air,
+ * the two objects moving at once.
+ */
+export const IMPULSE_WAIT_MS = 1_600;
+/** …and the hard ceiling of the whole wait, flight included. */
+export const IMPULSE_FLIGHT_MAX_MS = 6_000;
 
 export const rulingChangeDrawState = reactive({
   /** The sitting key whose enactment has not been told yet — the park stands while it is set. */
@@ -285,6 +296,48 @@ export function closeRulingChangePark(): void {
   rulingChangeDrawState.owedKey = undefined;
 }
 
+/**
+ * The alliance's impulse is over for the tail: nothing owed and nothing in the air — or none STARTED within
+ * `IMPULSE_WAIT_MS` (the chamber could not show it: it stays owed to the next time the seals are seen). A spark in the
+ * air keeps the wait to its landing; `IMPULSE_FLIGHT_MAX_MS` bounds it all. Ceilings, never scaled down.
+ */
+function waitAllianceImpulseLanded(): Promise<void> {
+  const clock = flowClock();
+  const started = clock.now();
+  const startBy = started + motionCeilingMs(IMPULSE_WAIT_MS);
+  const hard = started + Math.max(motionCeilingMs(IMPULSE_WAIT_MS), motionCeilingMs(IMPULSE_FLIGHT_MAX_MS));
+  let wait: CeilingWait | undefined;
+  return new Promise((resolve) => {
+    const check = (): void => {
+      const now = clock.now();
+      const flying = allianceImpulseState.flying > 0;
+      if (allianceImpulseState.pending.size === 0 && !flying) {
+        wait?.met();
+        resolve();
+        return;
+      }
+      if (now >= hard) {
+        wait?.ceiling();
+        resolve();
+        return;
+      }
+      if (!flying && now >= startBy) {
+        // Not a lost signal: the chamber did not show the impulse now (covered, not at rest) — it stays owed.
+        wait?.ceiling('the chamber did not show the impulse in time — it stays owed to the next time the seals are seen');
+        resolve();
+        return;
+      }
+      // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+      wait ??= beginCeilingWait({
+        id: 'ruling-change:alliance-impulse', owner: 'rulingChangeDraw', what: 'the alliance\'s impulse landed', maxMs: hard - started,
+        detail: `the impulse to start within ${startBy - started} ms`,
+      });
+      probeTick(check);
+    };
+    check();
+  });
+}
+
 /** The batches the delivery owes: the viewer's own ruling-change draws still standing. */
 function owedBatches(): Array<DrawnCardEntry> {
   return drawnCardsState.events.filter((e) => isRulingChangeDraw(e.source) && !e.dismissed && !e.acking && e.cards.length > 0);
@@ -308,7 +361,7 @@ export async function deliverRulingChangeDraws(): Promise<void> {
   rulingChangeDrawState.owedKey = undefined;
   // THE ORDER OF THE TAIL: the seals change places → the alliance's impulse (a road the new government opened) → the
   // card. Two objects never move at once; the wait is bounded and the batch stays parked through it.
-  await allianceImpulsesSettled(IMPULSE_WAIT_MS, probeTick);
+  await waitAllianceImpulseLanded();
   try {
     for (const batch of batches) {
       const source = batch.source;

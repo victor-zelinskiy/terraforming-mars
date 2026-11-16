@@ -24,7 +24,7 @@ import {buildFinalGreenery, FINALE_KICKER, FinalGreeneryViewModel} from '@/clien
 import {collapseFinaleSession, enterFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
 import {TileType} from '@/common/TileType';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
-import {scaleStorySceneSettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
+import {boardStoryProgress, scaleStorySceneSettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {yieldStackToBoard, yieldStackForStagedPlay, discardYieldedStack, stackYieldedToBoard, boardTakeableFromStack, yieldedStackCards, goBoardHome, setWorkspaceFrameStage, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {requestStdProjectCancel, stdProjectsFlowLive} from '@/client/console/consoleStdProjects';
 import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -88,6 +88,8 @@ const FINALE_FINISH_HOLD = 'final-greenery-finish';
  * reader and writer.
  */
 let boardBeatDrainWaitArmed = false;
+/** The ceiling of that waiter, from its start — its cap counts from the cinematics' last progress. */
+const BOARD_BEAT_DRAIN_QUIET_CEILING_MS = 20_000;
 
 /**
  * The yielded stack's return waits for the board's handoff this long at most — above the reveal's own take (player-
@@ -864,7 +866,13 @@ export function createPlacementController(shell: PlacementPort) {
       return;
     }
     boardBeatDrainWaitArmed = true;
-    void waitConsoleQuiet(blocked, {alive: () => boardBeatsWatchable.value, who: 'board-beat-drain'})
+    // The cap counts from the cinematics' last PROGRESS, never from this edge (FLAKE ZERO Ф4, class N): a landing a
+    // slow frame stretched outlasted the cap counted from here, and the scales' story drained over a tile still in
+    // the air. The ceiling bounds a story that keeps moving (the park's own safety bounds the whole wait).
+    void waitConsoleQuiet(blocked, {
+      alive: () => boardBeatsWatchable.value, who: 'board-beat-drain',
+      progress: () => `${boardStoryProgress()}|${String(scaleStoryReadBlocked.value)}`, ceilingMs: BOARD_BEAT_DRAIN_QUIET_CEILING_MS,
+    })
       .then(() => {
         boardBeatDrainWaitArmed = false;
         // A reveal STANDING for the player is not a wedged story: it ends on the player's take, and the scales'

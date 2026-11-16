@@ -43,7 +43,7 @@
  */
 
 import {gsap} from 'gsap';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gateCursorDuringEntry} from '@/client/console/cursorArrival';
@@ -395,7 +395,7 @@ function artSettled(browse: HTMLElement): Promise<void> {
   return new Promise((resolve) => {
     const t0 = performance.now();
     const check = () => {
-      if (!pending() || performance.now() - t0 >= motionMs(ART_WAIT_MS)) {
+      if (!pending() || performance.now() - t0 >= motionCeilingMs(ART_WAIT_MS)) {
         resolve();
         return;
       }

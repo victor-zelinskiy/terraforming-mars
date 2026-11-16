@@ -1,10 +1,12 @@
 import {Page} from './consoleTest';
+import {readTransient, recordTransient} from './transientRecorder';
 
 /*
  * «ЗАСЕДАНИЕ v2» — the walk's witnesses and the ONE sampler of the sitting's
  * frames, shared by the v2 probes (`console-parliament-sitting-v2*.spec.ts`).
  * Everything here reads the section's own attributes and the tiers' painted
- * state; the sampler is `setInterval` + `MutationObserver`, never rAF.
+ * state; the probe RECORDS on the replace-proof recorder (`transientRecorder.ts`
+ * — the product's own writes + a frame tick), never a page-side timer.
  */
 
 /** The beat of the stage that is playing ('' at rest / a one-beat stage) — the director's own attribute. */
@@ -18,6 +20,7 @@ export async function sittingMotion(page: Page): Promise<string> {
 }
 
 export type SittingSample = {
+  /** When the reading was taken — the PAGE's `Date.now()` (a duration runs from a `pageNow(page)` taken in the spec). */
   t: number;
   /** The sitting's page, the playing stage and beat, the reward step. */
   stage: string; motion: string; beat: string; step: string;
@@ -43,106 +46,109 @@ export type SittingSample = {
 };
 export type SittingProbe = {samples: Array<SittingSample>};
 
-/** THE PROBE of the sitting's frames — armed BEFORE the press. `setInterval` + `MutationObserver`, never rAF. */
-export async function armSittingProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__sitV2: SittingProbe, __conReady?: () => {holds: Array<string>}};
-    w.__sitV2 = {samples: []};
-    const rect = (el: Element | null): {x: number, y: number, w: number, h: number} | undefined => {
-      if (el === null) {
-        return undefined;
-      }
-      const r = el.getBoundingClientRect();
-      return r.width < 1 ? undefined : {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
-    };
-    const painted = (el: Element | null): boolean => {
-      if (el === null) {
+const SITTING_KEY = 'sitting-v2';
+
+/** The page half of the probe — SELF-CONTAINED (serialized into every document the page loads): one reading. */
+function readSitting(): Omit<SittingSample, 't'> {
+  const w = window as unknown as {__conReady?: () => {holds: Array<string>}};
+  const rect = (el: Element | null): {x: number, y: number, w: number, h: number} | undefined => {
+    if (el === null) {
+      return undefined;
+    }
+    const r = el.getBoundingClientRect();
+    return r.width < 1 ? undefined : {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
+  };
+  const painted = (el: Element | null): boolean => {
+    if (el === null) {
+      return false;
+    }
+    for (let a: Element | null = el; a !== null && a !== document.body; a = a.parentElement) {
+      const cs = getComputedStyle(a);
+      if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) {
         return false;
       }
-      for (let a: Element | null = el; a !== null && a !== document.body; a = a.parentElement) {
-        const cs = getComputedStyle(a);
-        if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) {
-          return false;
-        }
-      }
-      return (el as HTMLElement).getBoundingClientRect().width > 0;
-    };
-    const sample = () => {
-      const markers: Record<string, Array<number>> = {};
-      for (const cube of Array.from(document.querySelectorAll<HTMLElement>('.con-parl__agenda-cube[data-agenda-cube]'))) {
-        if (!painted(cube)) {
-          continue;
-        }
-        const color = cube.getAttribute('data-agenda-cube') ?? '';
-        const step = Number(cube.closest('[data-agenda-markers]')?.getAttribute('data-agenda-markers') ?? '-1');
-        markers[color] = [...(markers[color] ?? []), step];
-      }
-      const support: Record<string, number> = {};
-      const tiles: Record<string, {x: number, y: number, w: number, h: number}> = {};
-      for (const tile of Array.from(document.querySelectorAll<HTMLElement>('.con-parl__party[data-party]'))) {
-        const party = tile.getAttribute('data-party') ?? '';
-        support[party] = tile.querySelectorAll('.con-pseal__support-place--on').length;
-        const r = rect(tile);
-        if (r !== undefined) {
-          tiles[party] = r;
-        }
-      }
-      const govCardEl = document.querySelector<HTMLElement>('[data-parl-gov] .con-parl__gov-card .pcard');
-      const govCard = govCardEl !== null && painted(govCardEl) ? (Array.from(govCardEl.classList).find((c) => c.startsWith('pcard--rdx-')) ?? 'card') : '';
-      const rail: Record<string, {prod: string, stock: string}> = {};
-      const deltas: Record<string, number> = {};
-      for (const key of ['plants', 'megacredits', 'heat']) {
-        const row = document.querySelector(`.con-res__row--${key}`);
-        rail[key] = {prod: row?.querySelector('.con-res__prod')?.textContent?.trim() ?? '', stock: row?.querySelector('.con-res__stockwrap')?.textContent?.trim() ?? ''};
-        deltas[key] = row?.querySelectorAll('.delta-chip').length ?? 0;
-      }
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
-        const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
-        return {id: `${el.dataset.transferId ?? '?'}:${res}`, x: r.left + r.width / 2, y: r.top + r.height / 2, res};
-      });
-      const quest = document.querySelector<HTMLElement>('[data-parl-quest]');
-      w.__sitV2.samples.push({
-        t: performance.now(),
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        motion: document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '',
-        beat: document.querySelector('.con-parl')?.getAttribute('data-sitting-beat') ?? '',
-        step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
-        holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament') || h.startsWith('resource-transfer')),
-        markers,
-        influence: document.querySelector('[data-parl-influence]')?.textContent?.trim() ?? '',
-        support,
-        govCard,
-        govEmpty: document.querySelector('[data-parl-gov-empty]') !== null,
-        ruler: document.querySelector('[data-parl-ruler] .con-parl__party[data-party]')?.getAttribute('data-party') ?? '',
-        questClosed: quest?.hasAttribute('data-parl-quest-closed') === true,
-        // v8: the plate prints no sentence — the quest's identity is its printed text's key.
-        questText: quest?.getAttribute('data-parl-quest-text') ?? '',
-        slots: Array.from(document.querySelectorAll('.con-parl__slots .con-parl__slot-home')).map((el) => `${el.getAttribute('data-home')}${el.hasAttribute('data-parl-slot-vacated') ? '!' : ''}`).join('|'),
-        litSlot: document.querySelector('.con-parl__slot--lit')?.getAttribute('data-instance') ?? '',
-        tiles,
-        rail,
-        deltas,
-        chips,
-        mech: rect(govCardEl?.querySelector('.pcard__mech') ?? null),
-        resultsHidden: document.querySelector('[data-sit-results-hidden]') !== null,
-        // v5: the winner's tile reads as a chip of the BAND (the door's verb is still the command bar's «К полю»).
-        door: document.querySelector('[data-parl-band-chip="tile"]') !== null,
-        placing: document.querySelector('.con-board--placing, .con-board--locked') !== null,
-        parl: document.querySelector('.con-parl') !== null,
-        hot: Array.from(document.querySelectorAll('.con-cmdbar__cmd--hot .con-cmdbar__label')).map((el) => el.textContent?.trim() ?? '').join('|'),
-      });
-      if (w.__sitV2.samples.length > 12000) {
-        w.__sitV2.samples.splice(0, 2000);
-      }
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-sitting-beat', 'data-sitting-motion', 'data-sit-step', 'data-parl-slot-vacated']});
-    window.setInterval(sample, 16);
+    }
+    return (el as HTMLElement).getBoundingClientRect().width > 0;
+  };
+  const markers: Record<string, Array<number>> = {};
+  for (const cube of Array.from(document.querySelectorAll<HTMLElement>('.con-parl__agenda-cube[data-agenda-cube]'))) {
+    if (!painted(cube)) {
+      continue;
+    }
+    const color = cube.getAttribute('data-agenda-cube') ?? '';
+    const step = Number(cube.closest('[data-agenda-markers]')?.getAttribute('data-agenda-markers') ?? '-1');
+    markers[color] = [...(markers[color] ?? []), step];
+  }
+  const support: Record<string, number> = {};
+  const tiles: Record<string, {x: number, y: number, w: number, h: number}> = {};
+  for (const tile of Array.from(document.querySelectorAll<HTMLElement>('.con-parl__party[data-party]'))) {
+    const party = tile.getAttribute('data-party') ?? '';
+    support[party] = tile.querySelectorAll('.con-pseal__support-place--on').length;
+    const r = rect(tile);
+    if (r !== undefined) {
+      tiles[party] = r;
+    }
+  }
+  const govCardEl = document.querySelector<HTMLElement>('[data-parl-gov] .con-parl__gov-card .pcard');
+  const govCard = govCardEl !== null && painted(govCardEl) ? (Array.from(govCardEl.classList).find((c) => c.startsWith('pcard--rdx-')) ?? 'card') : '';
+  const rail: Record<string, {prod: string, stock: string}> = {};
+  const deltas: Record<string, number> = {};
+  for (const key of ['plants', 'megacredits', 'heat']) {
+    const row = document.querySelector(`.con-res__row--${key}`);
+    rail[key] = {prod: row?.querySelector('.con-res__prod')?.textContent?.trim() ?? '', stock: row?.querySelector('.con-res__stockwrap')?.textContent?.trim() ?? ''};
+    deltas[key] = row?.querySelectorAll('.delta-chip').length ?? 0;
+  }
+  const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+    const r = el.getBoundingClientRect();
+    const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
+    const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
+    return {id: `${el.dataset.transferId ?? '?'}:${res}`, x: r.left + r.width / 2, y: r.top + r.height / 2, res};
   });
+  const quest = document.querySelector<HTMLElement>('[data-parl-quest]');
+  return {
+    stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+    motion: document.querySelector('.con-parl')?.getAttribute('data-sitting-motion') ?? '',
+    beat: document.querySelector('.con-parl')?.getAttribute('data-sitting-beat') ?? '',
+    step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
+    holds: (w.__conReady?.().holds ?? []).filter((h) => h.startsWith('parliament') || h.startsWith('resource-transfer')),
+    markers,
+    influence: document.querySelector('[data-parl-influence]')?.textContent?.trim() ?? '',
+    support,
+    govCard,
+    govEmpty: document.querySelector('[data-parl-gov-empty]') !== null,
+    ruler: document.querySelector('[data-parl-ruler] .con-parl__party[data-party]')?.getAttribute('data-party') ?? '',
+    questClosed: quest?.hasAttribute('data-parl-quest-closed') === true,
+    // v8: the plate prints no sentence — the quest's identity is its printed text's key.
+    questText: quest?.getAttribute('data-parl-quest-text') ?? '',
+    slots: Array.from(document.querySelectorAll('.con-parl__slots .con-parl__slot-home')).map((el) => `${el.getAttribute('data-home')}${el.hasAttribute('data-parl-slot-vacated') ? '!' : ''}`).join('|'),
+    litSlot: document.querySelector('.con-parl__slot--lit')?.getAttribute('data-instance') ?? '',
+    tiles,
+    rail,
+    deltas,
+    chips,
+    mech: rect(govCardEl?.querySelector('.pcard__mech') ?? null),
+    resultsHidden: document.querySelector('[data-sit-results-hidden]') !== null,
+    // v5: the winner's tile reads as a chip of the BAND (the door's verb is still the command bar's «К полю»).
+    door: document.querySelector('[data-parl-band-chip="tile"]') !== null,
+    placing: document.querySelector('.con-board--placing, .con-board--locked') !== null,
+    parl: document.querySelector('.con-parl') !== null,
+    hot: Array.from(document.querySelectorAll('.con-cmdbar__cmd--hot .con-cmdbar__label')).map((el) => el.textContent?.trim() ?? '').join('|'),
+  };
 }
 
-export const readSittingProbe = (page: Page): Promise<SittingProbe> => page.evaluate(() => (window as unknown as {__sitV2: SittingProbe}).__sitV2);
+/**
+ * THE PROBE of the sitting's frames — armed BEFORE the press, on the replace-proof recorder: every write of the product
+ * observed in the task that makes it, `settled` (its claims are ORDER claims — «nothing early», «the counter never moved
+ * before the chip left» — so a sample is the state a task LEAVES, never one between two of its writes), a frame tick for
+ * what only a computed style moves, every change pushed to the Node side at once. A sample is a CHANGE of the reading.
+ */
+export async function armSittingProbe(page: Page): Promise<void> {
+  await recordTransient(page, SITTING_KEY, readSitting, {settled: true, max: 100_000});
+}
+
+/** Every distinct reading since the arm, in order — `t` is the PAGE's clock (`Date.now()` in the page: `pageNow`). */
+export const readSittingProbe = async (page: Page): Promise<SittingProbe> =>
+  ({samples: (await readTransient<Omit<SittingSample, 't'>>(page, SITTING_KEY)).map((s) => ({t: s.t, ...s.v}))});
 
 /** The beats in the order they PLAYED (each named once, in first-seen order). */
 export function beatOrder(samples: ReadonlyArray<SittingSample>): Array<string> {

@@ -83,7 +83,9 @@ import {reactive} from 'vue';
 import {sittingBaselineOf} from './sittingBaseline';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
-import {boardBeatParkLive, boardBeatStoryPending, drainBoardBeatsIfDue} from '@/client/console/boardBeatPark';
+import {boardBeatParkLive, boardBeatParkState, boardBeatStoryPending, drainBoardBeatsIfDue} from '@/client/console/boardBeatPark';
+import {flowClock} from '@/client/console/kernel/flowClock';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {
   leaveWorkspace, pushWorkspaceFrame, resumeStackFromBoard, setWorkspaceFramePhase, stackYieldedToBoard, workspaceFrameHost, workspaceFrameIndex,
   workspaceStackState, yieldStackToBoard,
@@ -99,8 +101,18 @@ import {consoleParliamentUi} from './consoleParliamentFlow';
 import {holdColonyTracks, releaseColonyTracks, requestColonyTrackWave} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
-/** The wait for the board's own story, capped — the frame comes back either way. */
+/**
+ * The wait for the board's own story, capped — the frame comes back either way. COUNTED FROM THE STORY'S LAST
+ * PROGRESS, never from the yield (FLAKE ZERO Ф4, class N): while the story is being TOLD (the park's drain running, a
+ * landing on the remote stage) the budget restarts — the scales' glide, what the step paid and a queue of landings
+ * play at the machine's pace, and on a slow renderer they outlasted 9 s counted from the yield: the sitting came back
+ * over the board mid-story. Only a story OWED and not told (a landing parked for a covered board, a park whose drain
+ * cannot start) spends it.
+ */
 export const WORLD_STORY_MAX_MS = 9000;
+
+/** …and the hard ceiling of that extension — a story that never ends brings the frame back here. */
+export const WORLD_STORY_HARD_MAX_MS = 30_000;
 
 /** …and for the returning stage to STAND again before the door it held is handed back (a net, never the signal). */
 export const WORLD_DOOR_RETURN_MAX_MS = 4000;
@@ -284,9 +296,19 @@ export function takeWorldReceipt(sitting: string): Array<ParliamentEnactOutcomeM
   return receipt.moves;
 }
 
+/** The board's story is being TOLD right now — the drain plays the scales, or a landing is on the remote stage. */
+function storyTelling(): boolean {
+  return boardBeatParkState.draining || isRemotePlacementActive();
+}
+
 function waitForStoryQuiet(): Promise<void> {
   return new Promise<void>((resolve) => {
-    const started = Date.now();
+    const clock = flowClock();
+    const started = clock.now();
+    // Ceilings — scaled UP with a slower motion setting, never down (a fast setting does not shorten a slow frame).
+    const budget = motionCeilingMs(WORLD_STORY_MAX_MS);
+    const hard = started + Math.max(budget, motionCeilingMs(WORLD_STORY_HARD_MAX_MS));
+    let deadline = started + budget;
     let wait: CeilingWait | undefined;
     const tick = (): void => {
       // The drain is re-asked on every tick: the shell drives it on the
@@ -303,13 +325,21 @@ function waitForStoryQuiet(): Promise<void> {
         resolve();
         return;
       }
-      if (Date.now() - started > WORLD_STORY_MAX_MS) {
+      const now = clock.now();
+      // A story BEING TOLD restarts the budget (bounded by the hard ceiling): the wait counts from its last progress.
+      if (storyTelling()) {
+        deadline = Math.min(hard, Math.max(deadline, now + budget));
+      }
+      if (now >= deadline) {
         wait?.ceiling();
         resolve();
         return;
       }
       // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-      wait ??= beginCeilingWait({id: 'parliament-world:story-quiet', owner: 'parliamentWorldBeat', what: 'the board story quiet', maxMs: WORLD_STORY_MAX_MS});
+      wait ??= beginCeilingWait({
+        id: 'parliament-world:story-quiet', owner: 'parliamentWorldBeat', what: 'the board story quiet', maxMs: hard - started,
+        detail: `${budget} ms past the story's last progress`,
+      });
       probeTick(tick);
     };
     probeTick(tick);

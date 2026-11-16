@@ -1174,7 +1174,8 @@ import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsSto
 import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, rearmWorkspaceOutcomeBeat, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceClaimOwnsArrival, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {requestDiscardStream} from '@/client/console/deckDraw/consoleDeckDraw';
+import {deckDrawState, requestDiscardStream} from '@/client/console/deckDraw/consoleDeckDraw';
+import {CLAIM_BEAT_SAFETY_MS} from '@/client/console/consoleWorkspaceClaim';
 import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ActionCommitSource, actionCommitState, armActionCommit, capsuleTimelineReading, commitKindForBranch, commitRailPlan, commitRewardSpecs, commitWaveSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
@@ -7144,8 +7145,29 @@ function beginBeatFlight(): void {
     if (stream === undefined ||
         !requestDiscardStream({eventId: stream.id, cards: stream.cards, onAllPeeled: launch})) {
       launch();
+      return;
     }
+    // THE STREAM IS THE BEAT'S FIRST PART (FLAKE ZERO · class N): the backstop guards a beat that STALLED, never a slow
+    // one — while the thrown-away cards still leave the deck (the stream bounds itself) it is re-armed, and the found
+    // cards' launch re-arms it again; counted from this launch alone it ran out mid-stream on a slow renderer and the
+    // claim presented the found cards with no deal at all.
+    flow.every(CLAIM_BEAT_SAFETY_MS / 2, 'the draw beat\'s backstop follows its discard stream', () => {
+      if (launched || !beatFlightOn.value || !deckDrawState.streaming) {
+        return false;
+      }
+      rearmWorkspaceOutcomeBeat();
+      return true;
+    });
   });
+}
+/**
+ * A STEP OF THE BEAT'S FLIGHT (a card peeled off its pile, a face turned, the batch landed): the beat is PROGRESSING,
+ * so its backstop restarts (FLAKE ZERO · class N). The backstop guards a flight that stalled; counted from the launch
+ * over a whole batch (a merged assembly's runs, a search's rejects, the faces' wait) it ran out mid-air on a slow
+ * renderer and the claim presented the real cards under their own proxies. A no-op once the claim presents.
+ */
+function beatProgressed(): void {
+  rearmWorkspaceOutcomeBeat();
 }
 /**
  * The deck's hold for this beat (PL-281) — the apply block's seed adopted when the answer is already in, else the
@@ -7263,11 +7285,15 @@ function launchBeatBatch(): void {
     // The first card is visibly out of the pile — the counter may now tell
     // the truth, and the tick lands ON the separation.
     onDeparted: () => releaseDeckDisplay(),
+    // Each card leaving the pile, each face turning: the beat progresses — its backstop restarts (`beatProgressed`).
+    onCardPeeled: () => beatProgressed(),
+    onFaceShown: () => beatProgressed(),
     // Every card has touched down. Only from here may a still-silent
     // server show a loading affordance: before it, the flight IS the state
     // and a spinner over travelling cards is noise.
     onLanded: () => {
       beatLanded.value = true;
+      beatProgressed();
     },
     onSettled: () => {
       beatHandle = undefined;
@@ -7312,6 +7338,8 @@ function launchBeatAssembly(e: DrawnCardEntry, cards: ReadonlyArray<{proxy: HTML
     playComposerAssembly({
       plan, pairs: cards, slots, host,
       alive: () => beatFlightOn.value,
+      // Every card of every run leaving its origin: the beat progresses — its backstop restarts (`beatProgressed`).
+      onCardPeeled: () => beatProgressed(),
       onDeckDeparted: () => releaseDeckDisplay(),
       onDone: () => {
         beatLanded.value = true;

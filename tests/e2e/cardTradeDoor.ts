@@ -1,5 +1,5 @@
 import {expect, Page, APIRequestContext} from '@playwright/test';
-import {focusCard, press, soloGameConfig} from './consoleStart';
+import {focusCard, press, settle, soloGameConfig} from './consoleStart';
 
 /**
  * THE TRADE'S SECOND DOOR — shared fixtures for the specs that drive a colony
@@ -63,7 +63,9 @@ export async function playLaunchpad(page: Page): Promise<void> {
     await press(page, 'Enter', 1500);
   }
   await expect(composer, `${LAUNCHPAD} must commit`).toHaveCount(0, {timeout: 25_000});
-  await page.waitForTimeout(2500);
+  // The play is over when the console says so — its answer back from the server (the transport's request), the played
+  // card's scene and the floaters' flight onto the card (their holds) all done: the chain's boundary, never a duration.
+  await settle(page, {timeoutMs: 30_000});
 }
 
 /**

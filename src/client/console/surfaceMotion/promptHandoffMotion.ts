@@ -13,7 +13,8 @@
  * guarded (a kill + a safety timer — `done()` always fires).
  */
 import {gsap} from 'gsap';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
@@ -23,9 +24,82 @@ import {
 } from '@/client/console/surfaceMotion/promptHandoffModel';
 
 const SAFETY_SLACK_MS = 450;
+/**
+ * The hard ceiling of a hook's net past its episode's own length (FLAKE ZERO · class N): a motion whose clock does
+ * not run at all (no frame comes) is finished here, never left to strand its element. Never motion-scaled down.
+ */
+export const EPISODE_NET_CEILING_MS = 4000;
 
 function s(ms: number): number {
   return motionMs(ms) / 1000;
+}
+
+/** What a hook's net may ask of the episode it bounds: a GSAP tween / timeline, or a compositor episode. */
+export type NetEpisode = {
+  kill(): unknown,
+  /** GSAP: the playhead — read with no argument; `progress(1)` CATCHES IT UP (its last frame, its own onComplete). */
+  progress?: (value?: number) => unknown,
+  /** A compositor episode: are its animations still pending / running? */
+  moving?: () => boolean,
+  /** A compositor episode: finish every animation (each fires its own finish). */
+  finish?: () => void,
+};
+
+/**
+ * THE NET OF A HOOK'S EPISODE — it catches a STALL, never a SLOW motion (animations.md § A MOTION IS RIGHT ON A SLOW
+ * FRAME, law 1; FLAKE ZERO · class N). A wall-clock safety sized from the tween's own length and counted from its
+ * creation fired mid-fade whenever GSAP's clock fell behind the wall's (a long task — the board re-shown at 4K —
+ * is booked as 33 ms by `lagSmoothing`): `done()` came early and Vue took a leaving surface away at half its opacity.
+ * Now the net LOOKS at `budgetMs`: an episode still being driven (a GSAP tick since the last look, or a compositor
+ * animation pending / running) is given another slack; only one whose clock has STOPPED (two looks with no tick), one
+ * that was replaced / killed, or one past the hard ceiling is ended — CAUGHT UP first (`progress(1)` / `finish()`),
+ * never resolved in the middle. The owner's end (the game screen leaving) ends it at once, as before.
+ * Returns the disarm.
+ */
+export function episodeNet(args: {
+  episode: NetEpisode,
+  /** The episode is still the element's live one (a new hook on the element replaced / killed it otherwise). */
+  current: () => boolean,
+  budgetMs: number,
+  ceilingMs: number,
+  what: string,
+  finish: () => void,
+}): () => void {
+  const {episode} = args;
+  const owner = consoleSessionScope();
+  const start = flowClock().now();
+  let lastFrame = gsap.ticker.frame;
+  let still = 0;
+  let disarm: () => void = () => {};
+  const moving = (): boolean => {
+    if (episode.moving !== undefined) {
+      return episode.moving();
+    }
+    if (typeof episode.progress !== 'function' || !(Number(episode.progress()) < 1)) {
+      return false;
+    }
+    const frame = gsap.ticker.frame;
+    still = frame === lastFrame ? still + 1 : 0;
+    lastFrame = frame;
+    // A look that saw no tick may be the first task after a long one (the timer before the frame): only a SECOND
+    // look in a row with no tick is a clock that does not run.
+    return still < 2;
+  };
+  const look = (): void => {
+    if (args.current() && owner.ended === undefined && flowClock().now() - start < args.ceilingMs && moving()) {
+      disarm = owner.guarantee(SAFETY_SLACK_MS, `${args.what} — still moving`, look);
+      return;
+    }
+    if (args.current()) {
+      episode.finish?.();
+      if (typeof episode.progress === 'function') {
+        episode.progress(1);
+      }
+    }
+    args.finish();
+  };
+  disarm = owner.guarantee(args.budgetMs, args.what, look);
+  return () => disarm();
 }
 
 /** The blocks that COMPOSE, in reading order: the head's own lines (category · the ask · why), then the plate's
@@ -90,9 +164,9 @@ export function playPromptArrive(tl: gsap.core.Timeline, panel: HTMLElement, at:
 
 // ── the KEYED swap (a surface that stays while its panel changes prompt) ────────────────────────────────────────
 
-const live = new WeakMap<Element, {kill: () => unknown}>();
+const live = new WeakMap<Element, NetEpisode>();
 
-function guardedSwap(el: Element, totalMs: number, done: () => void, body: (finish: () => void) => {kill: () => unknown}): void {
+function guardedSwap(el: Element, totalMs: number, done: () => void, body: (finish: () => void) => NetEpisode): void {
   live.get(el)?.kill();
   let finished = false;
   let safety: () => void = () => {};
@@ -105,10 +179,15 @@ function guardedSwap(el: Element, totalMs: number, done: () => void, body: (fini
     live.delete(el);
     done();
   };
-  safety = consoleSessionScope().guarantee(motionMs(totalMs) + SAFETY_SLACK_MS, 'promptHandoffMotion: a beat\'s safety', finish);
   const episode = body(finish);
   if (!finished) {
     live.set(el, episode);
+    // The net catches a STALL, never a slow motion — on the episode's own clock (`episodeNet`).
+    safety = episodeNet({
+      episode, current: () => live.get(el) === episode,
+      budgetMs: motionMs(totalMs) + SAFETY_SLACK_MS, ceilingMs: motionCeilingMs(totalMs) + EPISODE_NET_CEILING_MS,
+      what: 'promptHandoffMotion: a beat\'s safety', finish,
+    });
   }
 }
 

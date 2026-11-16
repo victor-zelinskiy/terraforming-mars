@@ -281,7 +281,8 @@ import {
   endDeckPickCommit, markBatchDealt, rollbackDeckPickCommit, saveDeckPickDraft,
   shouldDealBatch, takeDeckPickDraft,
 } from '@/client/console/deckPick/consoleDeckPick';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {span} from '@/client/console/session/sessionWaits';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 
@@ -1654,11 +1655,16 @@ async function runPreludeExit(chosen: CardName | undefined): Promise<void> {
     return;
   }
   if (chosen !== undefined) {
-    // The hero hands the card over to the seat at its commit — the seat paints it from then on.
-    await until(() => playedHeroState.card !== chosen || playedHeroState.revealed || !isPlayedHeroActive(), 6000, {id: 'deck-pick:hero-revealed', what: 'the chosen card revealed by the play scene'});
+    // The hero hands the card over to the seat at its commit — the seat paints it from then on. Both waits follow the
+    // hero's own PROGRESS (FLAKE ZERO Ф4, class N): counted from here, a hero a slow frame stretched was still in the
+    // air when six seconds ran out, and the seat painted the card under it.
+    const heroMoves = () => `${String(playedHeroState.phase)}|${String(playedHeroState.revealed)}`;
+    await until(() => playedHeroState.card !== chosen || playedHeroState.revealed || !isPlayedHeroActive(), motionCeilingMs(6000),
+      {id: 'deck-pick:hero-revealed', what: 'the chosen card revealed by the play scene'}, {progress: heroMoves, ceilingMs: motionCeilingMs(15_000)});
     seatedPrelude.value = chosen;
     held.value.add(chosen);
-    await until(() => !isPlayedHeroActive() || playedHeroState.card !== chosen, 12000, {id: 'deck-pick:hero-done', what: 'the play scene of the chosen card done'});
+    await until(() => !isPlayedHeroActive() || playedHeroState.card !== chosen, motionCeilingMs(12000),
+      {id: 'deck-pick:hero-done', what: 'the play scene of the chosen card done'}, {progress: heroMoves, ceilingMs: motionCeilingMs(20_000)});
   }
 }
 /** One prelude to the deck object's discard — from its slot, face up (the pile is public), the count on contact. */
@@ -1684,22 +1690,36 @@ async function discardPrelude(name: CardName, delayMs: number): Promise<void> {
     },
   });
 }
-/** Bounded wait for a condition (the hero's own state) — never a fixed sleep standing in for it. */
-function until(cond: () => boolean, maxMs: number, wait: {id: string, what: string}): Promise<void> {
+/**
+ * Bounded wait for a condition (the hero's own state) — never a fixed sleep standing in for it. With `progress` the
+ * budget counts from the awaited scene's last change (a phase it moved to), bounded by `ceilingMs` from the start: a
+ * scene still moving is never cut short by a clock that started before it did.
+ */
+function until(cond: () => boolean, maxMs: number, wait: {id: string, what: string},
+  moving?: {progress: () => string, ceilingMs: number}): Promise<void> {
   if (cond() || typeof window === 'undefined') {
     return Promise.resolve();
   }
+  const start = flowClock().now();
+  const hard = start + Math.max(maxMs, moving?.ceilingMs ?? maxMs);
   // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-  const node = beginCeilingWait({id: wait.id, owner: 'deckPick', what: wait.what, maxMs});
+  const node = beginCeilingWait({id: wait.id, owner: 'deckPick', what: wait.what, maxMs: hard - start});
   return new Promise<void>((resolve) => {
-    const deadline = Date.now() + maxMs;
+    let deadline = start + maxMs;
+    let seen = moving?.progress();
     const tick = () => {
       if (cond()) {
         node.met();
         resolve();
         return;
       }
-      if (Date.now() > deadline) {
+      const now = flowClock().now();
+      const look = moving?.progress();
+      if (look !== seen) {
+        seen = look;
+        deadline = Math.min(hard, Math.max(deadline, now + maxMs));
+      }
+      if (now > deadline) {
         node.ceiling();
         resolve();
         return;

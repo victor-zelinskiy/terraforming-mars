@@ -596,7 +596,7 @@ import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCar
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {runActionRevealFlight, ActionRevealFlightHandle} from '@/client/console/consoleActionRevealMotion';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
@@ -702,7 +702,7 @@ const SEAL_BREAK_NET_MS = 900;
  * screen this waits on). Bounded: a place that never stands turns anyway (the turn is the card's only door).
  */
 function waitPlaceStanding(el: HTMLElement): Promise<void> {
-  const node = beginCeilingWait({id: 'reveal:place-standing', owner: 'revealOverlay', what: 'the place standing painted and still', maxMs: motionMs(PLACE_STANDING_WAIT_MS)});
+  const node = beginCeilingWait({id: 'reveal:place-standing', owner: 'revealOverlay', what: 'the place standing painted and still', maxMs: motionCeilingMs(PLACE_STANDING_WAIT_MS)});
   return new Promise((done) => {
     const start = performance.now();
     let last = '';
@@ -720,7 +720,7 @@ function waitPlaceStanding(el: HTMLElement): Promise<void> {
         done();
         return;
       }
-      if (performance.now() - start > motionMs(PLACE_STANDING_WAIT_MS)) {
+      if (performance.now() - start > motionCeilingMs(PLACE_STANDING_WAIT_MS)) {
         node.ceiling();
         done();
         return;
@@ -1916,10 +1916,10 @@ function waitSealGone(place: number): Promise<void> {
         return;
       }
       const waited = performance.now() - start;
-      if (settlementTable.breakingSeal !== place && waited > motionMs(SEAL_TOUCHDOWN_WAIT_MS)) {
+      if (settlementTable.breakingSeal !== place && waited > motionCeilingMs(SEAL_TOUCHDOWN_WAIT_MS)) {
         startSettlementSealBreak(place);
       }
-      if (consoleReducedMotionActive() || waited > motionMs(SEAL_TOUCHDOWN_WAIT_MS + SEAL_BREAK_NET_MS)) {
+      if (consoleReducedMotionActive() || waited > motionCeilingMs(SEAL_TOUCHDOWN_WAIT_MS + SEAL_BREAK_NET_MS)) {
         if (consoleReducedMotionActive()) {
           wait?.end();
         } else {
@@ -1931,8 +1931,8 @@ function waitSealGone(place: number): Promise<void> {
       }
       // A wait that has to wait is a node of the wait graph; its net ending it is said (`ceilingWait.ts`).
       wait ??= beginCeilingWait({
-        id: 'reveal:seal-gone', owner: 'ConsoleRevealOverlay', what: 'the break of the settlement seal', maxMs: motionMs(SEAL_TOUCHDOWN_WAIT_MS + SEAL_BREAK_NET_MS),
-        detail: `the break itself is started after ${motionMs(SEAL_TOUCHDOWN_WAIT_MS)} ms without a touchdown`,
+        id: 'reveal:seal-gone', owner: 'ConsoleRevealOverlay', what: 'the break of the settlement seal', maxMs: motionCeilingMs(SEAL_TOUCHDOWN_WAIT_MS + SEAL_BREAK_NET_MS),
+        detail: `the break itself is started after ${motionCeilingMs(SEAL_TOUCHDOWN_WAIT_MS)} ms without a touchdown`,
       });
       probeTick(poll);
     };

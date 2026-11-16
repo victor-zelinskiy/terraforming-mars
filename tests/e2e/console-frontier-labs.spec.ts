@@ -10,7 +10,7 @@
  *       (Olympus Conference): +1 science, no draw.
  *   B · `receive-board` — the LIVE PICK FROM THE FIELD (a printed microbe; an Ares tile's animal): the plate asks, A,
  *       and the answer is the BOARD's scene — the chosen card rises by the field (`.con-citypay__card`), its token is
- *       born on the board and lands on it, the card goes home; the draft's departure never plays (`.con-exit-reject`);
+ *       born on the board and lands on it, the card goes home; the draft's departure never plays (`[data-exit-reject]`);
  *       the server's count. One holder (the printed data) asks nothing and plays the same scene.
  *   C · `receive-colony` — red trades with Titan: blue's owner bonus is a live pick; the token is born on the plate's
  *       source (`source`) and lands on the chosen candidate (`slot:<card>`), the card is carried home; the server's count.
@@ -147,7 +147,7 @@ async function armSceneProbe(page: Page): Promise<void> {
     return {
       line,
       dealt: oc?.arrivalFlown === true,
-      reject: document.querySelector('.con-exit-reject') !== null,
+      reject: document.querySelector('[data-exit-reject]') !== null,
       // The headless fullscreen viewer of a drawn card — a draw that escaped its workspace: the zoom with its
       // «ПОЛУЧЕННАЯ КАРТА» pill (the overlay's own `--headless` root paints nothing — it may stand a gap frame while
       // the claimed batch waits for its zone).

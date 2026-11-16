@@ -8,6 +8,7 @@ import {
 } from './parliamentDrive';
 import {armSittingProbe, beatOrder, beatStart, readSittingProbe} from './parliamentDriveV2';
 import {readSettled} from './settledRead';
+import {pageNow} from './witness';
 
 
 /**
@@ -28,7 +29,7 @@ import {readSettled} from './settledRead';
  *     until that press; after the landing the frame comes back to the reward page in its «received» pose;
  *   · the RESULTS are ONE stage: the renewal's beats, then the card revealed in the same panel; one A
  *     («Закрыть заседание») — the other seat's API answer ends the phase and the workspace leaves.
- * Three profiles; the probe is `setInterval` + `MutationObserver`, never rAF.
+ * Three profiles; the probe RECORDS the product's own writes (the replace-proof recorder), never a page-side timer.
  */
 const OUT_ROOT = path.resolve('screenshots', 'parliament-sitting-v2');
 
@@ -59,9 +60,9 @@ for (const preset of PARLIAMENT_PRESETS) {
       //    ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ → the wave. The player presses nothing.
       await enterSittingByPass(page, request, playerId);
       await armSittingProbe(page);
-      // H — the wave is timed on the PAGE's clock (the probe's own `performance.now()`): from the moment it was armed
-      // over the risen sitting to its first sample with a chip in the air.
-      const t0 = await page.evaluate(() => performance.now());
+      // H — the wave is timed on the PAGE's clock (the clock the probe stamps its samples with — `pageNow`): from the
+      // moment it was armed over the risen sitting to its first sample with a chip in the air.
+      const t0 = await pageNow(page);
       const summary = (await parliamentWire(request, playerId)).game.parliament?.phase?.summary;
       expect(summary?.winner.player, 'the viewer won the vote').toBe(viewer);
       const winnerInstance = summary?.winner.instance ?? '';
@@ -86,7 +87,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       await waitSittingAtRest(page, 40_000);
       const probe = await readSittingProbe(page);
       const s = probe.samples;
-      expect(s.length, 'the sampler lived').toBeGreaterThan(50);
+      // A recording keeps a sample per CHANGE, so its length says nothing about the machine — only a dead probe fails this.
+      expect(s.length, 'the probe recorded').toBeGreaterThan(0);
       const order = beatOrder(s);
       console.log(`[${preset.id}] beats: ${order.join(' → ')} · the wave ${waveAt} ms after the sitting came up`);
       // The beats, in the server's order — every one that the summary has a fact for.

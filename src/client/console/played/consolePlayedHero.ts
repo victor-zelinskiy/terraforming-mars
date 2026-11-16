@@ -43,7 +43,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {changeFeedbackManager} from '@/client/components/feedback/changeFeedbackManager';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
@@ -111,6 +111,27 @@ const HERO_RESULT_PAUSE_FOLLOWUP_MS = 220;
 const HERO_RESOLVED_BEAT_MS = 260;
 /** How long we wait for the table overlay to mount + register its measurer. */
 const TARGET_WAIT_BUDGET_MS = 1600;
+/** A guarded beat of the hero's director catches its motion up at its budget + this (`playedHeroDirector.guarded`). */
+const HERO_BEAT_GUARD_MS = 1200;
+/** The lift's source poll (`executeFlight`): at most 26 probe frames, each bounded at 50 ms. */
+const HERO_SOURCE_POLL_MAX_MS = 26 * 50;
+/** The slack of the flight's bound over the sum of its inner bounds. */
+const HERO_FLIGHT_SLACK_MS = 1000;
+
+/**
+ * THE BOUND OF THE CARD'S FLIGHT — from the lift's preparation to the touchdown — is the SUM OF ITS OWN INNER BOUNDS
+ * (FLAKE ZERO · class N): the source poll, the lift (its guard) beside the target's wait, the arc and landing (its
+ * guard), and a slack. It was the motion's length + 3 s, shorter than those bounds together: on a slow renderer the
+ * commit gate opened (`runPlayedHero`'s scene safety) or the pay-back's commit half ran (`endPlayedHero`) while the
+ * proxy was still in the air — the real card revealed under it. Every inner beat catches its own motion up (law 1), so
+ * a bound past all of them can only cut a flight that never ended. Never motion-scaled down.
+ */
+export function playedHeroFlightBoundMs(): number {
+  return HERO_SOURCE_POLL_MAX_MS +
+    Math.max(motionCeilingMs(HERO_LIFT_MS) + HERO_BEAT_GUARD_MS, TARGET_WAIT_BUDGET_MS) +
+    motionCeilingMs(HERO_FLIGHT_MS + HERO_LAND_MS) + HERO_BEAT_GUARD_MS +
+    HERO_FLIGHT_SLACK_MS;
+}
 /** How long the reward beat waits for the landed card to be PAINTED before it reads it (wall clock, motion-scaled). */
 const HERO_PLACE_PAINT_MAX_MS = 1500;
 
@@ -938,6 +959,7 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   payingFromStandingCard = false;
   payingComposerView.value = undefined;
   liftGo = undefined;
+  payBackBegan = undefined;
   flightDone = undefined;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
@@ -1041,7 +1063,7 @@ export function runPlayedHero(view: PlayerViewModel, before?: PlayerViewModel): 
     runResolve.arm(resolve);
     // rAF stall / lost element — force the gate open, degrade gracefully. A RELEASE (the transport's gate hangs on it):
     // at the budget, or when the run ends.
-    cancelSceneSafety = heroRun.guarantee(motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000 +
+    cancelSceneSafety = heroRun.guarantee(playedHeroFlightBoundMs() +
       (pendingSpends !== undefined ? shipmentBudgetMs() + 1000 : 0) +
       (pendingBill !== undefined ? shipmentBudgetMs() + 1000 : 0) +
       (pendingDiscardDeparture !== undefined ? DISCARD_DEPARTURE_MAX_MS : 0) +
@@ -1414,7 +1436,7 @@ function shipDiscardPrice(mine: () => boolean): Promise<void> | undefined {
       resolve();
     };
     // A GUARANTEED release of the run: the lift is let go at the bound, or when the play ends — never left waiting.
-    const disarmBound = heroRun.guarantee(motionMs(DISCARD_DEPARTURE_MAX_MS), 'the discard\'s departure (the price leaves first)', () => finish('late'));
+    const disarmBound = heroRun.guarantee(motionCeilingMs(DISCARD_DEPARTURE_MAX_MS), 'the discard\'s departure (the price leaves first)', () => finish('late'));
     void departed.then(() => finish('left'), () => finish('late'));
   });
 }
@@ -1785,6 +1807,9 @@ export async function endPlayedHero(): Promise<void> {
     // THE EVENT PAYS BEFORE IT LEAVES (P84 · DK): the view is applied and the holds are seeded — the pay-back plays off
     // the card standing in the composer, then the card lifts, turns over in the arc and lands on its pile; only then
     // does the landing's own half run (a reveal on the pile, the reading beat — nothing left to pay).
+    // The gate's lift now waits for the pay-back's END, no longer for its start (`openGateForPayBack`).
+    payBackBegan?.();
+    payBackBegan = undefined;
     await payBackFromStandingCard(mine);
     if (!mine()) {
       return;
@@ -1799,7 +1824,7 @@ export async function endPlayedHero(): Promise<void> {
     go?.();
     await raceCeiling({
       id: 'played-hero:payback-flight', owner: 'playedHero', what: 'the landing of the lifted card (the commit half of the pay-back waits for it)',
-      maxMs: motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + PAYBACK_FLIGHT_GRACE_MS, detail: playedHeroState.card ?? '',
+      maxMs: playedHeroFlightBoundMs() + PAYBACK_FLIGHT_GRACE_MS, detail: playedHeroState.card ?? '',
     }, landed);
     if (!mine()) {
       return;
@@ -2050,6 +2075,14 @@ let flightDone: (() => void) | undefined;
 const PAYBACK_FLIGHT_GRACE_MS = 3000;
 /** How long a flight waits for a pay-back that never comes (the commit lost — the event lifts anyway). */
 const PAYBACK_WAIT_MAX_MS = 8000;
+/**
+ * …that bound is the pay-back's START (the answer applied, `endPlayedHero` paying). Once it pays, the lift waits for
+ * its END — the pay-back's own bounds come first (every token's guard, the surface clear's 9 s); this is the ceiling of
+ * a pay-back that never ends. Never motion-scaled down.
+ */
+const PAYBACK_PLAY_MAX_MS = 20_000;
+/** The pay-back has begun (`endPlayedHero`) — set while the gate's lift waits for it to start. */
+let payBackBegan: (() => void) | undefined;
 
 /**
  * THE STAGED LANDING CEREMONY is running (`runStagedPlayedLanding`) — the PRE-COMMIT half of a play whose commit is the
@@ -2086,6 +2119,13 @@ async function openGateForPayBack(mine: () => boolean): Promise<void> {
   const go = new Promise<void>((resolve) => {
     liftGo = resolve;
   });
+  let paying = false;
+  const began = new Promise<void>((resolve) => {
+    payBackBegan = () => {
+      paying = true;
+      resolve();
+    };
+  });
   capturePlayedCardReturnSource();
   freeRunGate();
   // THE WAIT GRAPH (Э4): the lift waits for the play's ANSWER — a node with that target, so a lift waiting for a commit
@@ -2095,7 +2135,19 @@ async function openGateForPayBack(mine: () => boolean): Promise<void> {
   await raceCeiling({
     id: 'played-hero:payback', owner: 'playedHero', what: 'the play\'s answer (the pay-back off the standing card)',
     maxMs: PAYBACK_WAIT_MAX_MS, detail: playedHeroState.card ?? '',
-  }, go);
+  }, began);
+  if (!paying && mine()) {
+    payBackBegan = undefined;
+  }
+  if (liftGo !== undefined && paying && mine()) {
+    // THE PAY-BACK IS PLAYING (FLAKE ZERO · class N): the 8 s bounded its START, never its length — counted from the gate
+    // over the whole pay-back, it ran out on a slow renderer while tokens were still leaving the card, and the event
+    // lifted mid-pay-back. Its go comes at its END; this ceiling only catches one that never ends.
+    await raceCeiling({
+      id: 'played-hero:payback-play', owner: 'playedHero', what: 'the pay-back off the standing card (its last token left the card)',
+      maxMs: motionCeilingMs(PAYBACK_PLAY_MAX_MS), detail: playedHeroState.card ?? '',
+    }, go);
+  }
   if (liftGo !== undefined && mine()) {
     // The pay-back never came: lift with nothing paid here (the landing's half pays off the pile, the old road).
     liftGo = undefined;
@@ -2200,8 +2252,9 @@ export async function runStagedPlayedLanding(): Promise<boolean> {
   cancelArmSafety();
   const episode = playedHeroState.nonce;
   // A stalled ceremony must not wedge the play — degrade to the abort, which restores the composer for an honest
-  // retry. PACING: it must not run once the play is over.
-  cancelSceneSafety = heroRun.after(motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000,
+  // retry. PACING: it must not run once the play is over. Bounded by the flight's own inner bounds
+  // (`playedHeroFlightBoundMs`) — never short of them, or a slow ceremony is aborted mid-air.
+  cancelSceneSafety = heroRun.after(playedHeroFlightBoundMs(),
     'the staged ceremony\'s safety', () => abortPlayedHero());
   stagedCeremony = true;
   try {
@@ -2287,6 +2340,7 @@ export function abortPlayedHero(): void {
   payingFromStandingCard = false;
   payingComposerView.value = undefined;
   liftGo = undefined;
+  payBackBegan = undefined;
   flightDone = undefined;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
@@ -2343,6 +2397,7 @@ function finish(): void {
   payingFromStandingCard = false;
   payingComposerView.value = undefined;
   liftGo = undefined;
+  payBackBegan = undefined;
   flightDone = undefined;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
@@ -2820,8 +2875,8 @@ function awaitHeroRewardPlace(card: string): Promise<void> {
   if (card === '' || typeof document === 'undefined' || heroRewardPlace(card) !== undefined) {
     return Promise.resolve();
   }
-  const deadline = performance.now() + motionMs(HERO_REWARD_PLACE_WAIT_MS);
-  const node = beginCeilingWait({id: 'played-hero:reward-place', owner: 'playedHero', what: 'the visible source of the rewards of the card', maxMs: motionMs(HERO_REWARD_PLACE_WAIT_MS), detail: card});
+  const deadline = performance.now() + motionCeilingMs(HERO_REWARD_PLACE_WAIT_MS);
+  const node = beginCeilingWait({id: 'played-hero:reward-place', owner: 'playedHero', what: 'the visible source of the rewards of the card', maxMs: motionCeilingMs(HERO_REWARD_PLACE_WAIT_MS), detail: card});
   return new Promise((resolve) => {
     const poll = (): void => {
       if (!playedHeroState.active) {
@@ -2956,7 +3011,7 @@ function heroPlacePainted(card: string): Promise<void> {
   if (typeof document === 'undefined' || card === '' || heroRewardPlace(card) !== undefined) {
     return Promise.resolve();
   }
-  const deadline = Date.now() + motionMs(HERO_PLACE_PAINT_MAX_MS);
+  const deadline = Date.now() + motionCeilingMs(HERO_PLACE_PAINT_MAX_MS);
   return new Promise((resolve) => {
     const poll = () => {
       if (!playedHeroState.active || heroRewardPlace(card) !== undefined || Date.now() >= deadline) {

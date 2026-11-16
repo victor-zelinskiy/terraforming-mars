@@ -59,7 +59,7 @@ import {Units} from '@/common/Units';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ProductionIncomeModel} from '@/common/models/ProductionIncomeModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {ResourceTransferSpec, TRANSFER_FEATURED_PACE, TransferPoint, cardResourceKey, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -257,7 +257,7 @@ export function runGenerationFlip(event: GenerationSceneEvent, displayed: Player
       resolve();
     };
     flipResolve.arm(settle);
-    flipNet = consoleSessionScope().guarantee(motionMs(FLIP_NET_MS), 'the generation readout\'s flip', settle);
+    flipNet = consoleSessionScope().guarantee(motionCeilingMs(FLIP_NET_MS), 'the generation readout\'s flip', settle);
   });
 }
 
@@ -412,7 +412,7 @@ function chargeHookMarks(cards: ReadonlyArray<CardName>): Promise<void> {
     };
     mark.addEventListener('animationend', onEnd);
     mark.setAttribute('data-income-charging', '');
-    const net = consoleSessionScope().guarantee(motionMs(CHARGE_NET_MS), 'generationScene: a beat\'s safety', done);
+    const net = consoleSessionScope().guarantee(motionCeilingMs(CHARGE_NET_MS), 'generationScene: a beat\'s safety', done);
   }))).then(() => undefined);
 }
 

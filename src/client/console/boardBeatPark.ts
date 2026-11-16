@@ -61,6 +61,8 @@ import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {GameModel} from '@/common/models/GameModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {HeldGlobalParams, planetFocusState} from '@/client/console/planetFocus';
 import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
 import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
@@ -281,8 +283,17 @@ export function registerBoardBeatStoryMember(id: string, member: BoardBeatStoryM
   };
 }
 
-/** The longest the drain waits for its members after the scale window. */
+/**
+ * The longest the drain waits for its members after the scale window — COUNTED FROM THE LAST MEMBER'S QUIET, never from
+ * the window's end alone (FLAKE ZERO Ф4, class N): the members tell what the step paid IN TURN (the rating's tokens,
+ * then the step's reward, then the Venus bonus cell — each waits for the one before), at the machine's pace, and on a
+ * slow renderer the chain outlasted one budget: the cover rose and the blocking story let go over tokens still in the
+ * air. Each member that goes quiet re-arms it, bounded by `BOARD_BEAT_MEMBERS_HARD_MAX_MS`. A ceiling — never scaled
+ * down with a faster motion setting (it halved to 4 s in every functional e2e while a CI frame does not halve).
+ */
 export const BOARD_BEAT_MEMBER_WAIT_MAX_MS = 8000;
+/** …and the hard ceiling of the whole members' story. */
+export const BOARD_BEAT_MEMBERS_HARD_MAX_MS = 20_000;
 
 /**
  * The injected «a surface is still LEAVING» verdict (shell-owned —
@@ -541,8 +552,10 @@ const boardStoryRun = deriveFlowRun('board-beat-story', () => boardBeatParkState
   orphaned: () => releaseBoardBeatPark(),
 });
 
-function schedule(run: () => void, ms: number): void {
-  drainTimers.push((boardStoryRun.scope ?? consoleSessionScope()).after(ms, 'a step of the board\'s story', run));
+function schedule(run: () => void, ms: number): () => void {
+  const cancel = (boardStoryRun.scope ?? consoleSessionScope()).after(ms, 'a step of the board\'s story', run);
+  drainTimers.push(cancel);
+  return cancel;
 }
 
 /** The settle, started only once no surface is still leaving (bounded — see `registerBoardBeatSurfaceProbe`). */
@@ -607,6 +620,15 @@ export function drainBoardBeatsIfDue(): void {
     // chip plays its capture — plain reactivity from here.
     boardBeatParkState.heldParams = undefined;
     boardBeatParkState.heldClaims = undefined;
+    // THE STORY IS BEING TOLD NOW: the park's whole-life bound (`BOARD_BEAT_PARK_SAFETY_MS`, counted from the SEED — a
+    // board kept covered) bounds what is left of the story from HERE (FLAKE ZERO Ф4, class N). A board covered for most
+    // of the bound (a Parliament sitting walking to its world trip at a slow renderer's pace) left a story released a
+    // few seconds before the due, and the degrade cut it mid-glide: the cover rose over tokens in the air, the frame
+    // that stepped aside came back over the board. Once released the values cannot be re-parked — this happens once.
+    if (ledgerStory !== undefined) {
+      clearSafety();
+      armSafety();
+    }
     const releaseBatch = () => {
       boardBeatParkState.batchHeldByDrain = false;
       boardBeatParkState.draining = false;
@@ -622,10 +644,12 @@ export function drainBoardBeatsIfDue(): void {
         return;
       }
       let done = false;
+      let cancelNet: () => void = () => {};
       const finish = () => {
         // A drain released / reset meanwhile (or a NEW drain running) is not this one's to end.
         if (!done && boardBeatParkState.nonce === nonce && boardBeatParkState.draining) {
           done = true;
+          cancelNet();
           // ONE BREATH after the last touchdown (PL-146): the member's quiet lands on the counter's own tick, and
           // a cover rising 23 ms later (measured) buries the number it just paid — a settle beat, never the window.
           schedule(() => {
@@ -635,8 +659,21 @@ export function drainBoardBeatsIfDue(): void {
           }, consoleMotionMs(BOARD_BEAT_SETTLE_MS));
         }
       };
-      void Promise.all(owed.map((m) => m.quiet())).then(finish, finish);
-      schedule(finish, consoleMotionMs(BOARD_BEAT_MEMBER_WAIT_MAX_MS));
+      // The net counts from the LAST member's quiet (the chain progressed), bounded by the hard ceiling.
+      const hardAt = flowClock().now() + motionCeilingMs(BOARD_BEAT_MEMBERS_HARD_MAX_MS);
+      const armNet = (): void => {
+        if (done) {
+          return;
+        }
+        cancelNet();
+        cancelNet = schedule(finish, Math.max(0, Math.min(motionCeilingMs(BOARD_BEAT_MEMBER_WAIT_MAX_MS), hardAt - flowClock().now())));
+      };
+      const quiets = owed.map((m) => m.quiet());
+      for (const quiet of quiets) {
+        void quiet.then(armNet, armNet);
+      }
+      void Promise.all(quiets).then(finish, finish);
+      armNet();
     };
     // THE WINDOW IS THE MEMBERS' WHEN THERE ARE MEMBERS (PL-146): a story member waits for the marker's
     // arrival itself and then tells what the step paid, so the fixed scale window on top of it was

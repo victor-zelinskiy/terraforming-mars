@@ -1,4 +1,5 @@
-import {Page} from '@playwright/test';
+import type {Page} from '@playwright/test';
+import {readTransient, recordTransient, stopTransient, TransientSample} from './transientRecorder';
 
 /*
  * THE BEAT WITNESS — «nothing changes in one frame» for the CHROME of a surface (the smoothness iteration after TR58:
@@ -11,12 +12,19 @@ import {Page} from '@playwright/test';
  *  · WHEN it appeared, against the other parts: the sample it first painted (`t05`) and the sample it was whole (`t95`),
  *    so a choreography can be asserted as an ORDER («the header is whole before the cards hand over», «the status line
  *    comes with the cursor, after the handoff») instead of a duration.
- * A part that is absent or invisible reads 0. Never rAF: MutationObserver + a 4 ms `setInterval` (a quiet compositor
- * withholds rAF exactly when these beats play); a sample is stored only when a value changed, with its own time.
+ * A part that is absent or invisible reads 0. A sample is stored only when a value changed, with its own time (ms since
+ * the arm, on the PAGE's clock).
+ *
+ * RECORDED (FLAKE ZERO — the replace-proof recorder, `transientRecorder.ts`): the product's own writes are observed in
+ * the task that makes them, a frame tick reads what only a compositor-driven fade moves (the boundaries of every CSS
+ * motion are dispatched in those very frames), and a 4 ms TIMER tick keeps the page's own pace while the compositor
+ * withholds frames — a TIMING witness: a quiet compositor withholds frames exactly when these beats play, and the held
+ * read below is only told from a stalled thread by a clock that keeps running. Every change is pushed to the Node side
+ * at once, so a page the product REPLACES neither loses the trail nor stops it.
  * ⚠ A mutation never samples IN its own microtask: the MutationObserver fires between Vue's patch and the `nextTick`
  * that writes an entrance's from-state, and would record a whole surface «visible» in a state the browser never paints
- * (the PL-473 step read SNAPPED that way, then 0 → 1 over 260 ms). It SCHEDULES a task-level sample (a MessageChannel
- * message — after every microtask of the turn), the same law as `parliament` rule 17 («a sample carries its clock»).
+ * (the PL-473 step read SNAPPED that way, then 0 → 1 over 260 ms). The recorder arms `settled` — a sample is taken
+ * behind the microtasks the task queued — the same law as `parliament` rule 17 («a sample carries its clock»).
  */
 
 /**
@@ -46,15 +54,16 @@ export type BeatMark = {
 };
 export type BeatReport = {samples: number, marks: Record<string, BeatMark>, trail: ReadonlyArray<BeatSample>, errors?: ReadonlyArray<string>};
 
-/** Arm the witness: `parts` maps a name to a selector (the first match is the part). */
-export async function armBeatWitness(page: Page, parts: Record<string, string>): Promise<void> {
-  await page.evaluate((spec) => {
-    type S = {t: number, vis: Record<string, number>, anim: Record<string, boolean>, held: Record<string, boolean>};
-    type W = {samples: Array<S>, errors: Array<string>, stop: () => void, read: () => S | undefined};
-    const g = window as unknown as {__beat?: W};
-    g.__beat?.stop();
-    const t0 = performance.now();
-    const samples: Array<S> = [];
+/** One reading of every part — or the error the reader met (a dead witness proves nothing; it says so instead). */
+type BeatObservation = {vis: Record<string, number>, anim: Record<string, boolean>, held: Record<string, boolean>} | {error: string};
+
+const BEAT_KEY = 'beat-witness';
+/** The page's `Date.now()` at the arm — the origin of the trail's `t` (the recorder stamps samples on that clock). */
+const ORIGIN = new WeakMap<Page, number>();
+
+/** The page half — SELF-CONTAINED (serialized into every document the page loads): one observation of every part. */
+function readBeats(spec: Record<string, string>): BeatObservation {
+  try {
     /** An opacity animation or transition running on `el` or an ancestor (CSS-driven fades and rises). */
     const animOf = (el: Element | null): boolean => {
       if (el === null || typeof document.getAnimations !== 'function') {
@@ -115,88 +124,52 @@ export async function armBeatWitness(page: Page, parts: Record<string, string>):
       }
       return Math.round(v * 100) / 100;
     };
-    let last = '';
-    const errors: Array<string> = [];
-    const sample = (): void => {
-      try {
-        sampleNow();
-      } catch (e) {
-        // A sampler that throws silently STOPS sampling — the report carries the error instead (a dead witness proves
-        // nothing; its absence of findings must never read as «nothing happened»).
-        if (errors.length < 5) {
-          errors.push(String(e));
-        }
-      }
-    };
-    const sampleNow = (): void => {
-      const vis: Record<string, number> = {};
-      const anim: Record<string, boolean> = {};
-      const held: Record<string, boolean> = {};
-      for (const [name, sel] of Object.entries(spec)) {
-        const el = document.querySelector(sel);
-        vis[name] = visOf(el);
-        anim[name] = animOf(el);
-        held[name] = heldOf(el);
-      }
-      const sig = JSON.stringify([vis, anim, held]);
-      if (sig !== last) {
-        last = sig;
-        samples.push({t: Math.round(performance.now() - t0), vis, anim, held});
-      }
-    };
-    const channel = new MessageChannel();
-    let queued = false;
-    channel.port1.onmessage = () => {
-      queued = false;
-      sample();
-    };
-    const schedule = (): void => {
-      if (!queued) {
-        queued = true;
-        channel.port2.postMessage(0);
-      }
-    };
-    const mo = new MutationObserver(schedule);
-    mo.observe(document.body, {subtree: true, childList: true, attributes: true});
-    const iv = window.setInterval(sample, 4);
-    // The boundaries of every CSS motion are samples too — a fade that runs on the compositor mutates no DOM.
-    const EVENTS = ['transitionrun', 'transitionend', 'transitioncancel', 'animationstart', 'animationend', 'animationcancel'];
-    for (const ev of EVENTS) {
-      document.addEventListener(ev, sample, true);
+    const vis: Record<string, number> = {};
+    const anim: Record<string, boolean> = {};
+    const held: Record<string, boolean> = {};
+    for (const [name, sel] of Object.entries(spec)) {
+      const el = document.querySelector(sel);
+      vis[name] = visOf(el);
+      anim[name] = animOf(el);
+      held[name] = heldOf(el);
     }
-    sample();
-    let stopped = false;
-    g.__beat = {samples, errors, read: () => {
-      if (!stopped) {
-        sample();
+    return {vis, anim, held};
+  } catch (e) {
+    // A reader that throws must never read as «nothing happened» — the report carries the error.
+    return {error: String(e)};
+  }
+}
+
+/** The recording as a trail (ms since the arm) and the reader's errors (at most five). */
+function foldBeats(recorded: ReadonlyArray<TransientSample<BeatObservation | null>>, origin: number | undefined): {trail: Array<BeatSample>, errors: Array<string>} {
+  const base = origin ?? recorded[0]?.t ?? 0;
+  const trail: Array<BeatSample> = [];
+  const errors: Array<string> = [];
+  for (const s of recorded) {
+    const v = s.v;
+    if (v === null || 'error' in v) {
+      if (errors.length < 5) {
+        errors.push(v === null ? 'the reader returned nothing' : v.error);
       }
-      return samples[samples.length - 1];
-    }, stop: () => {
-      if (stopped) {
-        return;
-      }
-      // The window's LAST state is a sample too — a stop that lands right after a long task (its own evaluate queued
-      // before the 4 ms interval's) would otherwise leave the report on the pre-task state.
-      sample();
-      stopped = true;
-      mo.disconnect();
-      window.clearInterval(iv);
-      channel.port1.close();
-      for (const ev of EVENTS) {
-        document.removeEventListener(ev, sample, true);
-      }
-    }};
-  }, parts);
+      continue;
+    }
+    trail.push({t: Math.round(s.t - base), vis: v.vis, anim: v.anim, held: v.held});
+  }
+  return {trail, errors};
+}
+
+/** Arm the witness: `parts` maps a name to a selector (the first match is the part). Re-arming replaces a previous one. */
+export async function armBeatWitness(page: Page, parts: Record<string, string>): Promise<void> {
+  ORIGIN.set(page, await page.evaluate(() => Date.now()));
+  await recordTransient(page, BEAT_KEY, readBeats, {args: parts, settled: true, tickMs: 4, max: 100_000});
 }
 
 /** Stop the witness and read its report. */
 export async function beatWitness(page: Page): Promise<BeatReport> {
-  const trail = await page.evaluate(() => {
-    const g = window as unknown as {__beat?: {samples: Array<{t: number, vis: Record<string, number>, anim: Record<string, boolean>, held: Record<string, boolean>}>, errors: Array<string>, stop: () => void}};
-    g.__beat?.stop();
-    return {samples: g.__beat?.samples ?? [], errors: g.__beat?.errors ?? []};
-  });
-  return {...analyseBeats(trail.samples), errors: trail.errors};
+  // The window's LAST state is a sample too: `stopTransient` flushes the reader once more before it stops — a stop that
+  // lands right after a long task would otherwise leave the report on the pre-task state.
+  const {trail, errors} = foldBeats(await stopTransient<BeatObservation | null>(page, BEAT_KEY), ORIGIN.get(page));
+  return {...analyseBeats(trail), errors};
 }
 
 export function analyseBeats(trail: ReadonlyArray<BeatSample>): BeatReport {
@@ -266,7 +239,8 @@ export async function awaitBeatsSettled(page: Page, names: ReadonlyArray<string>
   const deadline = Date.now() + timeoutMs;
   let last: BeatSample | undefined;
   for (;;) {
-    last = await page.evaluate(() => (window as unknown as {__beat?: {read: () => BeatSample | undefined}}).__beat?.read());
+    // `readTransient` flushes the reader first, so the recording's last sample IS the state now.
+    last = foldBeats(await readTransient<BeatObservation | null>(page, BEAT_KEY), ORIGIN.get(page)).trail.at(-1);
     const over = last !== undefined && names.every((n) => (last?.vis[n] ?? 0) >= 0.95 || (!(last?.anim[n] ?? false) && !(last?.held?.[n] ?? false)));
     if (over || Date.now() > deadline) {
       return {settled: over, last};

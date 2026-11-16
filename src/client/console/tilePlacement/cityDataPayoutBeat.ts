@@ -49,7 +49,7 @@ import {
 import {noteTransferTrail, runResourceTransfers, transferEndPointNow} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
-import {boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
+import {boardStoryProgress, boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {registerBoardSceneMember, registerBoardSceneOwed} from '@/client/console/boardSceneMembers';
 import {ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
@@ -111,8 +111,14 @@ export function cityPayoutWaiting(): boolean {
   return cityPayoutState.phase === 'waiting';
 }
 
-/** How long the scene waits for the scales' story before it plays anyway (bounded — a story never strands it). */
+/**
+ * How long the scene waits for the scales' story before it plays anyway (bounded — a story never strands it) — from
+ * the story's last PROGRESS (`boardStoryProgress`: the camera's exit began, the drain started, a landing reached its
+ * rewards), never from the landing (FLAKE ZERO Ф4, class N): on a slow frame the story outlasted six seconds counted
+ * from the landing and the city answered in the middle of it. The ceiling bounds a story that keeps moving.
+ */
 export const CITY_PAYOUT_SCALES_WAIT_MS = 6000;
+export const CITY_PAYOUT_SCALES_CEILING_MS = 15000;
 
 /** Releases the running scene still owes (abort pays them all — a hold may never strand). */
 let owed: Array<() => void> = [];
@@ -152,7 +158,10 @@ registerBoardSceneOwed(cityPayoutWaiting);
  * is owed.
  */
 function waitForTheScales(myEpoch: number): Promise<void> {
-  return waitConsoleQuiet(() => boardStorySettling(), {maxMs: CITY_PAYOUT_SCALES_WAIT_MS, alive: () => epoch === myEpoch, who: 'city-payout:scales'});
+  return waitConsoleQuiet(() => boardStorySettling(), {
+    maxMs: CITY_PAYOUT_SCALES_WAIT_MS, alive: () => epoch === myEpoch, who: 'city-payout:scales',
+    progress: boardStoryProgress, ceilingMs: CITY_PAYOUT_SCALES_CEILING_MS,
+  });
 }
 
 // ── the stage (the layer plugs in) ──────────────────────────────────────────

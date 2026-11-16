@@ -97,14 +97,17 @@ describe('ConsoleColonyTradeLayer — the stage of the trade\'s covers and the t
   }
 
   /** A colony tile's track on the overview, measurable (JSDOM lays nothing out — the layer reads these rects). */
-  function standTrack(colony: ColonyName, cells = 7): void {
+  function standTrack(colony: ColonyName, cells = 7, drift: () => number = () => 0): void {
     const tile = document.createElement('div');
     tile.setAttribute('data-test', `con-colony-${colony}`);
     for (let pos = 0; pos < cells; pos++) {
       const cell = document.createElement('i');
       cell.setAttribute('data-colony-track-cell', `${colony}#${pos}`);
-      const left = 100 + pos * 40;
-      cell.getBoundingClientRect = () => ({left, top: 300, right: left + 24, bottom: 324, width: 24, height: 24, x: left, y: 300, toJSON: () => ({})});
+      const at = 100 + pos * 40;
+      cell.getBoundingClientRect = () => {
+        const left = at + drift();
+        return {left, top: 300, right: left + 24, bottom: 324, width: 24, height: 24, x: left, y: 300, toJSON: () => ({})};
+      };
       tile.appendChild(cell);
     }
     document.body.appendChild(tile);
@@ -335,6 +338,112 @@ describe('ConsoleColonyTradeLayer — the stage of the trade\'s covers and the t
       expect(ctx.handles).to.deep.eq([]);
       expect(ctx.timers).to.deep.eq([]);
       expect(colonyTradeZoomOriginEl(), 'nobody lifts a cover off a layer that is gone').to.eq(null);
+    });
+  });
+
+  /*
+   * FLAKE ZERO Ф4 (class N) — every wait of the layer counts from its subject's last PROGRESS, never from the call: on CI
+   * (2 cores, a 4K frame of ~300 ms) a payout still paying, a reveal row still solving itself and a stage still coming
+   * back outlasted budgets counted from the call — covers over a card still read, no cover flight, a marker snapped.
+   */
+  describe('the waits count from their subject\'s last progress', () => {
+    // The clock steps in short slices: the scene's continuations (its `await`s) run between them, as on a page.
+    const tick = async (ms: number) => {
+      for (let left = ms; left > 0; left -= 50) {
+        clock.advance(Math.min(50, left));
+        await flushPromises();
+      }
+    };
+    /** A measurable element whose box is whatever `at()` says NOW (JSDOM lays nothing out). */
+    function boxed(el: HTMLElement, at: () => {left: number, top: number}, width = 40, height = 56): HTMLElement {
+      el.getBoundingClientRect = () => {
+        const {left, top} = at();
+        return {left, top, right: left + width, bottom: top + height, width, height, x: left, y: top, toJSON: () => ({})} as DOMRect;
+      };
+      return el;
+    }
+
+    it('the covers wait out a cause that still PLAYS — past the old eight seconds — and rise once it is over', async () => {
+      armColonyTrade(ColonyName.PLUTO, 'red');
+      const w = layer();
+      reconcileDrawnCards([tradeBatch(70, [CardName.ANTS, CardName.BIRDS])]);
+      await nextTick();
+      // A starved payout: the marker's advance, then the chip waves — each phase several seconds long.
+      await tick(5_000);
+      colonyTradeState.phase = 'advance';
+      await tick(5_000);
+      colonyTradeState.phase = 'chips';
+      await tick(3_000);
+      expect(w.findAll('.con-coltrade-proxy'), 'no card rises over a payout still paying').to.have.length(0);
+      await endCause();
+      expect(w.findAll('.con-coltrade-proxy'), 'the cause is over — the covers stand').to.have.length(2);
+    });
+
+    it('a cause that stops moving is stalled — the covers rise at the budget', async () => {
+      armColonyTrade(ColonyName.PLUTO, 'red');
+      const w = layer();
+      reconcileDrawnCards([tradeBatch(71, [CardName.ANTS, CardName.BIRDS])]);
+      await nextTick();
+      await tick(7_800);
+      expect(w.findAll('.con-coltrade-proxy')).to.have.length(0);
+      await tick(400);
+      expect(w.findAll('.con-coltrade-proxy'), 'a stalled phase never strands the batch').to.have.length(2);
+    });
+
+    it('the covers fly into a reveal row that took its time to stand — they never degrade while it still solves itself', async () => {
+      armColonyTrade(ColonyName.PLUTO, 'red');
+      // The colony's tile: the covers' launch anchor (both waves fall back to it).
+      const tile = boxed(document.createElement('div'), () => ({left: 600, top: 400}), 120, 120);
+      tile.setAttribute('data-test', `con-colony-${ColonyName.PLUTO}`);
+      document.body.appendChild(tile);
+      stood.push(tile);
+      // The veiled reveal: its two slots are still being fitted for 2.2 s after the covers ask for them.
+      let settlesAt = Number.POSITIVE_INFINITY;
+      const reveal = document.createElement('div');
+      reveal.className = 'con-reveal';
+      ['Ants#0', 'Birds#1'].forEach((key, i) => {
+        const slot = document.createElement('div');
+        slot.setAttribute('data-zoom-slot', key);
+        slot.appendChild(boxed(document.createElement('div'), () => ({
+          left: 200 + i * 200 + (clock.now() < settlesAt ? Math.round(clock.now() / 50) % 7 : 0), top: 200,
+        })));
+        slot.firstElementChild!.className = 'pcard';
+        reveal.appendChild(slot);
+      });
+      document.body.appendChild(reveal);
+      stood.push(reveal);
+      const w = layer();
+      reconcileDrawnCards([tradeBatch(72, [CardName.ANTS, CardName.BIRDS])]);
+      await nextTick();
+      settlesAt = clock.now() + 2_400;
+      await endCause();
+      await tick(2_000);
+      expect(colonyTradeState.cardScene, 'the row still moves — the covers wait for it').to.eq('fly');
+      expect(w.findAll('.con-coltrade-proxy')).to.have.length(2);
+      await tick(1_000);
+      expect(colonyTradeState.cardScene, 'never the instant hand-off').to.eq('fly');
+      expect(w.findAll('.con-coltrade-proxy'), 'the covers fly into the standing row').to.have.length(2);
+      expect(ctx.handles.length, 'one flight per cover is on its way').to.be.greaterThan(1);
+    });
+
+    it('the marker waits for a track still coming back — it glides, never snaps, past the old two seconds', async () => {
+      // The stage re-unfolds for 3 s after the cue: the track's cells are still moving.
+      let settlesAt = Number.POSITIVE_INFINITY;
+      standTrack(ColonyName.TRITON, 7, () => clock.now() < settlesAt ? Math.round(clock.now() / 50) % 5 : 0);
+      const w = layer();
+      armColonyTrade(ColonyName.TRITON, 'red');
+      detectColonyTrade({colonyTradeManifest: tritonManifest()} as unknown as PlayerViewModel);
+      colonyTradeState.phase = 'glide';
+      settlesAt = clock.now() + 3_000;
+      colonyTradeState.glideNonce++;
+      await tick(2_500);
+      expect(colonyTradeState.phase, 'the reset is not released while the track still moves').to.eq('glide');
+      expect(colonyTradeState.trackHold).to.eq(true);
+      expect(w.find('.con-coltrade-marker').exists()).to.eq(false);
+      await tick(1_000);
+      expect(w.findAll('.con-coltrade-marker'), 'the track stands — the marker glides along it').to.have.length(1);
+      expect(ctx.glideHandles).to.have.length(1);
+      expect(colonyTradeState.trackHold, 'the value moves only through the glide').to.eq(true);
     });
   });
 

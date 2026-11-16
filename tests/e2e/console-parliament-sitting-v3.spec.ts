@@ -91,9 +91,9 @@ async function armV3Probe(page: Page): Promise<Witness<V3Obs | null>> {
       row: Array.from(root.querySelectorAll<HTMLElement>('.con-parl__parties .con-parl__party')).map((el) => el.getAttribute('data-party') ?? ''),
       support,
       lit: root.querySelectorAll('.con-parl__party--lit').length,
-      landed: root.querySelectorAll('.con-pseal__support-place--landed').length,
+      landed: root.querySelectorAll('.con-pseal__support-place[data-support-landed]').length,
       // WHICH sockets answer, so a crowded frame names its pair instead of a bare count.
-      landedAt: Array.from(root.querySelectorAll<HTMLElement>('.con-pseal__support-place--landed')).map((el) =>
+      landedAt: Array.from(root.querySelectorAll<HTMLElement>('.con-pseal__support-place[data-support-landed]')).map((el) =>
         (el.closest('[data-parl-support]')?.getAttribute('data-parl-support') ?? '?') + '#' + (el.getAttribute('data-support-place') ?? '?')),
       flights: Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
         const r = el.getBoundingClientRect();

@@ -43,6 +43,7 @@
 
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {probeTick} from '@/client/console/probeTick';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {boardSceneMemberBusy} from '@/client/console/boardSceneMembers';
 import {boardBeatStoryPending} from '@/client/console/boardBeatPark';
 import {planetFocusSettling, planetFocusStoryReady} from '@/client/console/planetFocus';
@@ -143,8 +144,24 @@ export function boardStorySettling(): boolean {
   return boardSceneSettling() || boardBeatStoryPending();
 }
 
-/** Who waits for the quiet — named on the wait graph's node and on its ceiling line. */
-export type QuietWaitOpts = {maxMs?: number, alive?: () => boolean, who?: string};
+/**
+ * Who waits for the quiet — named on the wait graph's node and on its ceiling line. With `progress` (a reading of what
+ * the awaited scenes are DOING) the cap counts from their last change, bounded by `ceilingMs` from the start — a story
+ * still moving is never cut short by a clock that started before it did (FLAKE ZERO Ф4, class N).
+ */
+export type QuietWaitOpts = {maxMs?: number, alive?: () => boolean, who?: string, progress?: () => string, ceilingMs?: number};
+
+/**
+ * WHAT THE BOARD'S STORY IS DOING RIGHT NOW — every term of `boardStorySettling` and the phases of the field's own
+ * scenes. A change is the story still being told (a landing reached its rewards, the camera's exit began, the scales'
+ * drain started): a quiet-wait over it re-arms its cap on it.
+ */
+export function boardStoryProgress(): string {
+  return [
+    rewardPayoutSettling(), tilePlacementRewardsSettling(), isRemotePlacementActive(), isRemoteNomadMoveActive(),
+    isBoardCardBonusActive(), boardSceneMemberBusy(), planetFocusSettling(), planetFocusStoryReady(), boardBeatStoryPending(),
+  ].map((on) => (on ? '1' : '0')).join('') + `|${tilePlacementState.phase}|${boardCardBonusState.phase}`;
+}
 
 /**
  * The shared bounded quiet-wait loop (see the public wrappers). A wait that has to wait at all is a node of the wait
@@ -154,7 +171,10 @@ export type QuietWaitOpts = {maxMs?: number, alive?: () => boolean, who?: string
 function waitQuiet(settling: () => boolean, what: string, opts?: QuietWaitOpts): Promise<void> {
   const cap = opts?.maxMs ?? REWARD_QUIET_MAX_WAIT_MS;
   const alive = opts?.alive ?? (() => true);
-  const started = Date.now();
+  const started = flowClock().now();
+  const hard = started + Math.max(cap, opts?.progress !== undefined ? opts.ceilingMs ?? cap : cap);
+  let deadline = started + cap;
+  let seen = opts?.progress?.();
   let node: CeilingWait | undefined;
   return new Promise((done) => {
     const poll = () => {
@@ -168,12 +188,18 @@ function waitQuiet(settling: () => boolean, what: string, opts?: QuietWaitOpts):
         done();
         return;
       }
-      if (Date.now() - started >= cap) {
+      const now = flowClock().now();
+      const look = opts?.progress?.();
+      if (look !== seen) {
+        seen = look;
+        deadline = Math.min(hard, Math.max(deadline, now + cap));
+      }
+      if (now >= deadline) {
         node?.ceiling();
         done();
         return;
       }
-      node ??= beginCeilingWait({id: `quiet:${opts?.who ?? 'unnamed'}`, owner: opts?.who ?? 'rewardPayoutQuiet', what, maxMs: cap});
+      node ??= beginCeilingWait({id: `quiet:${opts?.who ?? 'unnamed'}`, owner: opts?.who ?? 'rewardPayoutQuiet', what, maxMs: hard - started});
       probeTick(poll);
     };
     poll();

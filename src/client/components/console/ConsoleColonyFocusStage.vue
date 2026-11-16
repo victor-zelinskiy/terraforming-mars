@@ -890,7 +890,7 @@ import {
 import {ColonyTradeTargets, tradeIncomeLine} from '@/client/console/colonyTrade/colonyTradeModel';
 import {PlayedTargetModel, PlayedTargetNavDir} from '@/client/console/played/consolePlayedTargetModel';
 import {cardResourceLandings, resourceTransferState} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {readingText} from '@/client/console/readingText';
 import {settlementTable} from '@/client/console/colonyTrade/settlementTable';
 import {colonyBonusEntry, colonyResolutionUi, colonyRevealSourceOf, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
@@ -3587,7 +3587,7 @@ watch(() => stageBusy.value, (busy: boolean) => {
   // PACING (the stage's own dwell): a stage that is gone lowers the flag itself, in `onBeforeUnmount`.
   stageBackTimer = flow.after(motionMs(WORKING_AREA_BACK_MS), 'the working area is back — its dwell', () => {
     stageBackTimer = undefined;
-    void workingAreaSettled(mainEl.value ?? undefined, motionMs(WORKING_AREA_BACK_CEILING_MS)).then(() => {
+    void workingAreaSettled(mainEl.value ?? undefined, motionCeilingMs(WORKING_AREA_BACK_CEILING_MS)).then(() => {
       // Only THIS fall may release — a pose re-raised meanwhile (a second colony's payout) owns the stage again.
       if (back === stageBackToken.value && !stageBusy.value) {
         setColonyStageYielded(false);
@@ -3698,7 +3698,7 @@ watch(() => resolving.value, (now: boolean, was: boolean) => {
       return;
     }
     clearCardlandDwell();
-    cardlandDwell = flow.after(motionMs(CARDLAND_NET_MS), 'the presented card\'s net — a chip that never arrives', () => {
+    cardlandDwell = flow.after(motionCeilingMs(CARDLAND_NET_MS), 'the presented card\'s net — a chip that never arrives', () => {
       cardlandDwell = undefined;
       cardlandReleased.value = true;
     });

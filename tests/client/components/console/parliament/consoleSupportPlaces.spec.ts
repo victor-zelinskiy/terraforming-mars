@@ -5,10 +5,15 @@
  */
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
-import {defineComponent, h} from 'vue';
+import {defineComponent, h, nextTick, reactive} from 'vue';
 import {globalConfig} from '../../getLocalVue';
 import ConsoleSupportPlaces from '@/client/components/console/parliament/ConsoleSupportPlaces.vue';
-import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
+import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {PartyName} from '@/common/turmoil/PartyName';
+import {
+  answerSupportPlaceOnce, answeringSupportPlaces, endSupportPlaceAnswer, SUPPORT_PLACE_ANSWER_ATTR, SupportPlaceAnswer,
+} from '@/client/console/parliament/supportPlaceAnswer';
+import {flySupportDiscard} from '@/client/console/parliament/supportDiscardScene';
 
 // The cube is the delegate figure — its own subject; this spec reads what each place HANDS it.
 // (A render function, not a template string: the runtime compiler is not in this build.)
@@ -28,6 +33,17 @@ function places(props: Record<string, unknown>, attrs: Record<string, unknown> =
 }
 
 const PLACE = '.con-pseal__support-place';
+
+/** The block as a plaque hosts it: its counts in the host's reactive state, the block named by the plaque's attribute. */
+function plaqueBlock(state: {filled: number, incoming: number}, party: ReduxParty) {
+  const Host = defineComponent({
+    render: () => h(ConsoleSupportPlaces as any, {'filled': state.filled, 'incoming': state.incoming, 'data-parl-support': party}),
+  });
+  return mount(Host, {...globalConfig, global: {...globalConfig.global, stubs: {PlayerDelegate: DelegateStub}}});
+}
+
+/** Is a place playing its one-shot answer? (The ONE reader — the mark is the product's attribute.) */
+const answering = (el: Element, answer: SupportPlaceAnswer): boolean => el.hasAttribute(SUPPORT_PLACE_ANSWER_ATTR[answer]);
 
 describe('ConsoleSupportPlaces — popular support as places', () => {
   it('the sockets are ALWAYS reserved; a neutral steel cube stands in each filled one', () => {
@@ -78,5 +94,60 @@ describe('ConsoleSupportPlaces — popular support as places', () => {
     expect((w.element as HTMLElement).tagName).to.eq('SPAN');
     expect(w.classes()).to.include.members(['con-pseal__support', 'con-parl__support-places']);
     expect(w.attributes('data-parl-support')).to.eq('');
+  });
+
+  /*
+   * THE ONE-SHOT ANSWERS ARE ATTRIBUTES, never classes (FLAKE ZERO, 2026-11-16): a socket is a `v-for` row of a Vapor
+   * template, and on a NON-ROOT element a class binding whose value changes writes `className` WHOLE. The callback
+   * that lights an answer also moves the count those bindings read — so a class written there was wiped by that very
+   * flush (`console-parliament-sitting-v4`: no socket ever answered a landing).
+   */
+  it('the TOUCHDOWN answer survives the landing\'s own re-render — the socket turns `--on` in the same task', async () => {
+    const state = reactive({filled: 1, incoming: 1});
+    const w = plaqueBlock(state, PartyName.UNITY);
+    const place = w.findAll(PLACE)[1].element as HTMLElement;
+    expect(place.classList.contains('con-pseal__support-place--incoming')).to.eq(true);
+    // The sitting's landing (`sittingDirector.answerSupportPlace`, then the hold consumed): ONE task.
+    answerSupportPlaceOnce(place, 'landed');
+    place.classList.add('probe-imperative-class');
+    state.filled = 2;
+    state.incoming = 0;
+    await nextTick();
+    expect(place.classList.contains('con-pseal__support-place--on'), 'the landing re-rendered the socket').to.eq(true);
+    expect(answering(place, 'landed'), 'the answer stands through the re-render').to.eq(true);
+    expect(place.classList.contains('probe-imperative-class'), 'a CLASS written there is wiped — why the answer is not one').to.eq(false);
+    expect((w.element as Element).querySelectorAll(answeringSupportPlaces('landed')), 'one socket answers').to.have.length(1);
+    // …and it ends on its own `animationend`; the next socket's answer ends it at once.
+    place.dispatchEvent(new window.Event('animationend'));
+    expect(answering(place, 'landed')).to.eq(false);
+    answerSupportPlaceOnce(place, 'landed');
+    endSupportPlaceAnswer(place, 'landed');
+    expect(answering(place, 'landed')).to.eq(false);
+  });
+
+  it('the LIFT-OFF answer survives the lift\'s own re-render — the discard lowers the stock and lights the place in one task', async () => {
+    const state = reactive({filled: 2, incoming: 0});
+    const w = plaqueBlock(state, PartyName.REDS);
+    // The two places whose cubes leave (the third stands empty throughout — its bindings never change).
+    const sockets = w.findAll(PLACE).map((p) => p.element as HTMLElement).slice(0, 2);
+    sockets.forEach((el) => el.classList.add('probe-imperative-class'));
+    const lifted: Array<number> = [];
+    // No measurable figure in a unit mount: every cube «lifts» and lands at once — the same order of writes.
+    flySupportDiscard(w.element as HTMLElement, PartyName.REDS, 2, {
+      onLifted: (place) => {
+        lifted.push(place);
+        state.filled -= 1; // `liftSupportDiscardCube` — the plaque stops drawing the cube
+      },
+      onLanded: () => undefined,
+      onDone: () => undefined,
+      onDegraded: () => undefined,
+    });
+    await nextTick();
+    expect(lifted, 'the places from the right').to.deep.eq([2, 1]);
+    expect(sockets.map((el) => el.classList.contains('con-pseal__support-place--on')), 'the lift re-rendered the sockets').to.deep.eq([false, false]);
+    expect(sockets.map((el) => answering(el, 'left')), 'each place that let its cube go answers').to.deep.eq([true, true]);
+    expect(sockets.map((el) => el.classList.contains('probe-imperative-class')), 'a CLASS written there is wiped').to.deep.eq([false, false]);
+    sockets.forEach((el) => el.dispatchEvent(new window.Event('animationend')));
+    expect(sockets.map((el) => answering(el, 'left'))).to.deep.eq([false, false]);
   });
 });

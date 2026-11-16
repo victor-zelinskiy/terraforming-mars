@@ -6,7 +6,7 @@
  *
  * The task host answered every single-card pick the same way — the draft's
  * hero departure (`runHeroPick`: lift, −6°, a dive to the bottom of the screen)
- * with the other candidates tumbling aside (`con-exit-reject`) — and the
+ * with the other candidates tumbling aside (`[data-exit-reject]`) — and the
  * resource the player had chosen a card FOR never flew: the satellite ticked
  * when the view applied. Now the answer to a pick the server marked
  * `resourceGainPrompt` plays the grammar of `cardReceiveDirector.ts`, in the

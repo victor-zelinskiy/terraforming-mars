@@ -790,28 +790,42 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
         const ceiling = transferCeilingFor(from, to, h, opts.uiScale, topRailBottom());
         const plan = transferArcPlan(from, to, transferLiftBias(opts.index), ceiling, opts.launch);
         const prog = {q: 0};
-        const arc = gsap.timeline({onComplete: () => {
-          restingAt = to;
-          report.restAt = to;
-          done();
-        }});
+        // THE DESTINATION IS AN OBJECT, NOT THE POINT IT WAS READ AT (T06 — FLAKE ZERO, CI 43863065930
+        // `console-habitat-science`): the destination «opened» when two probe ticks read it still — and on a starved
+        // software frame two reads can both fall inside a re-layout whose transition has not started yet (the satellite
+        // held at its pre-leave pose by a pending start), so the arc flew to where the cell WAS and touched down off it.
+        // Like every flight: past `TRANSFER_RETARGET_AT` the destination is read LIVE once and the difference ramped
+        // in; at the touchdown it is read once more and a moved end is met by a short glide — never a jump.
+        const corr = {x: 0, y: 0, readAt: -1};
+        const arc = gsap.timeline({onComplete: () => touchdownDetached(done)});
         flight = arc;
         arc.to(prog, {
           q: 1,
           duration: arcMs / 1000,
           ease: 'power1.inOut',
           onUpdate: () => {
+            if (corr.readAt < 0 && prog.q >= TRANSFER_RETARGET_AT && opts.liveTo !== undefined) {
+              corr.readAt = prog.q;
+              const live = opts.liveTo();
+              if (live !== undefined) {
+                corr.x = live.x - plan.p1.x;
+                corr.y = live.y - plan.p1.y;
+                report.end = transferEndMoved(plan.p1, live) ? 'moved' : 'live';
+              }
+            }
             const p = transferArcPoint(plan, prog.q);
+            const cw = transferRetargetWeight(prog.q, corr.readAt);
             gsap.set(chip, {
-              x: p.x - w / 2,
-              y: p.y - h / 2,
+              x: p.x + corr.x * cw - w / 2,
+              y: p.y + corr.y * cw - h / 2,
               // From the waiting pose to the landing size — the same approach curve as every flight's second half.
               scale: holdScale + (transferChipScaleAt(Math.max(0.25, prog.q)) - holdScale) * prog.q,
             });
           },
+          onComplete: () => {
+            restingAt = {x: plan.p1.x + corr.x, y: plan.p1.y + corr.y};
+          },
         }, 0);
-        arc.to(chip, {y: `+=${settlePx}`, duration: 0.08, ease: 'power1.out'});
-        arc.to(chip, {y: `-=${settlePx}`, duration: Math.max(0.02, (settleMs / 1000) - 0.08), ease: 'power2.out'});
       });
     }});
     pop.to(chip, {autoAlpha: 1, scale: holdScale, rotation: 0, duration: popMs / 1000, ease: 'power1.out'}, 0);
@@ -851,6 +865,26 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
     flight.progress(1);
     return true;
   });
+  /**
+   * THE DETACHED TOUCHDOWN: the destination read once more — moved since the approach → a short glide onto where it
+   * stands NOW (the settle's length), else the damped settle — then the absorb reads `restingAt`.
+   */
+  function touchdownDetached(done: () => void): void {
+    const live = opts.liveTo?.();
+    const glide = live !== undefined && transferEndMoved(restingAt, live);
+    if (glide) {
+      restingAt = live;
+      report.end = 'moved';
+    }
+    report.restAt = restingAt;
+    const tl = gsap.timeline({onComplete: done});
+    if (glide) {
+      tl.to(chip, {x: restingAt.x - w / 2, y: restingAt.y - h / 2, duration: Math.max(0.08, settleMs / 1000), ease: 'power2.out'});
+    } else {
+      tl.to(chip, {y: `+=${settlePx}`, duration: 0.08, ease: 'power1.out'});
+      tl.to(chip, {y: `-=${settlePx}`, duration: Math.max(0.02, (settleMs / 1000) - 0.08), ease: 'power2.out'});
+    }
+  }
   // A DETACHED token keeps no place in its wave's touchdown order: its arc waits for a surface to leave (seconds), so it
   // lets its followers touch down from its pop on (and from its end, whatever ended it).
   const leaveLandingOrder = () => {

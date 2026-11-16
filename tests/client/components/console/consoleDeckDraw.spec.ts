@@ -1,11 +1,12 @@
 import {expect} from 'chai';
 import {
-  abortDeckDraw, armDeckDraw, deckDrawHolds, deckDrawHoldingSingleZoom, deckDrawState,
+  abortDeckDraw, armDeckDraw, DECK_DRAW_STAGE_CEILING_MS, deckDrawDealing, deckDrawHolds, deckDrawHoldingSingleZoom, deckDrawState,
   deckDrawVerdict, deckDrawZoomOriginEl, endDeckDraw, isDeckDrawActive, isDeckDrawForeign,
-  isDeckDrawSource, isDeckDrawStaged, markDeckCardDrawn, markDeckDrawDiscarded,
+  isDeckDrawSource, isDeckDrawStaged, markDeckCardDrawn, markDeckDrawDealing, markDeckDrawDiscarded, markDeckDrawStageReady,
   markDeckDrawZoomReady, noteDeckDrawForeign, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
   releaseDeckDrawSeed, resetDeckDraw, seedDeckDrawHold, setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
+import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {displayedDeckSize, holdDeckDisplay, isDeckDisplayHeld, isDeckDisplaySeeded} from '@/client/console/consoleDeckDisplay';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
 import type {CardDrawRevealModel} from '@/common/models/CardDrawRevealModel';
@@ -345,6 +346,56 @@ describe('consoleDeckDraw', () => {
       seedDeckDrawHold({...view(268, []), id: 'p2'} as PlayerViewModel, view(262, [batch(4, 3, 6)]));
       seedDeckDrawHold(view(268, []), view(267, [batch(5, 1, undefined, {type: 'tile'})]));
       expect(isDeckDisplayHeld()).to.eq(false);
+    });
+  });
+
+  /*
+   * FLAKE ZERO Ф4 (class N) — the deal's start window is counted from the moment the STAGE is ours, never from the
+   * claim: the deal first waits for the scene that earned it (the layer's stage wait), and a six-second window armed at
+   * the claim ran out inside a hero scene a slow frame had stretched — the abort opened the reveal with no deck flight.
+   */
+  describe('the deal\'s start window opens when the stage is ours', () => {
+    let clock: ManualFlowClock;
+    beforeEach(() => {
+      clock = createManualClock(0);
+      setFlowClock(clock);
+    });
+    afterEach(() => {
+      resetDeckDraw();
+      setFlowClock(undefined);
+    });
+
+    it('the claim does not open it — a scene still waiting for the scene that earned it is not aborted at six seconds', () => {
+      arm(40);
+      clock.advance(7_000);
+      expect(isDeckDrawActive(), 'the earning scene is still on screen — nothing is withheld from a dead one').to.eq(true);
+    });
+
+    it('it runs from the stage: six seconds after the stage is ours with no deal, the scene gives up', () => {
+      arm(41);
+      clock.advance(7_000);
+      markDeckDrawStageReady();
+      clock.advance(5_900);
+      expect(isDeckDrawActive()).to.eq(true);
+      clock.advance(200);
+      expect(isDeckDrawActive(), 'a deal that never starts never withholds the reveal').to.eq(false);
+    });
+
+    it('a stage never reported ends on the «never happened» net — the stage wait\'s ceiling plus the window', () => {
+      arm(42);
+      clock.advance(DECK_DRAW_STAGE_CEILING_MS + 5_900);
+      expect(isDeckDrawActive()).to.eq(true);
+      clock.advance(200);
+      expect(isDeckDrawActive()).to.eq(false);
+    });
+
+    it('a deal that began takes the window back — the whole-scene safety guards the rest', () => {
+      arm(43);
+      markDeckDrawStageReady();
+      markDeckDrawDealing();
+      clock.advance(DECK_DRAW_STAGE_CEILING_MS + 7_000);
+      expect(isDeckDrawActive()).to.eq(true);
+      expect(deckDrawDealing()).to.eq(true);
     });
   });
 });

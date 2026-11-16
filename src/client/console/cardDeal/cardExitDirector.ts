@@ -560,8 +560,37 @@ const discardExitRuns = ref(0);
 export const cardExitBusy = reactivePredicate('card-exit-busy', () => discardExitRuns.value > 0);
 
 /**
+ * THE REJECT MARK — an ATTRIBUTE, never a class (FLAKE ZERO, 2026-11-16).
+ * The rejected elements are most often the host's SLOTS (`.con-cards__slot`,
+ * a `v-for` row whose classes are BOUND — focused / picked / dim / held), and
+ * the very commit that starts the exit changes those bindings in the same
+ * task (`picks = [name]` turns `--dim` on, a multi-keep draft drops
+ * `--focused`). On a NON-ROOT element a Vapor class binding that changes
+ * writes `className` WHOLE (`runtime-vapor` `setClass`): a `con-exit-reject`
+ * added there was wiped before any frame — the tumble never played, no
+ * `animationend` came, and the run held `cardExitBusy` to its safety net.
+ * A host that hands over the CARD FACE instead (`.pcard`, a component root,
+ * patched incrementally) is served by the same attribute. Two values:
+ * `tumble` (the keyframes, `console_card_deal.less`) and `held` (reduced
+ * motion — gone at once, the slot drawn empty like `.con-deal-hold`).
+ */
+export const DISCARD_EXIT_ATTR = 'data-exit-reject';
+export type DiscardExitMark = 'tumble' | 'held';
+
+/** Mark an element as leaving the table the discard's way. */
+function markDiscardExit(el: HTMLElement, mark: DiscardExitMark): void {
+  el.setAttribute(DISCARD_EXIT_ATTR, mark);
+}
+
+/** Bring a rejected element back (a recovered pick — the round is offered again). */
+export function clearDiscardExit(el: HTMLElement): void {
+  el.removeAttribute(DISCARD_EXIT_ATTR);
+  el.style.removeProperty('animation-delay');
+}
+
+/**
  * The subdued DISCARD of non-chosen cards — a cheap CSS animation on the
- * REAL slots (class + per-slot delay), never proxies: they drift toward
+ * REAL slots (the reject mark + per-slot delay), never proxies: they drift toward
  * the discard side and fade, clearly secondary to the hero/collect. The
  * `forwards` fill keeps them hidden until the frame swap replaces them.
  *
@@ -571,7 +600,7 @@ export const cardExitBusy = reactivePredicate('card-exit-busy', () => discardExi
  */
 export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs?: number, delayMs?: number}): Promise<void> {
   if (consoleReducedMotionActive() || els.length === 0) {
-    els.forEach((el) => el.classList.add(HOLD_CLASS));
+    els.forEach((el) => markDiscardExit(el, 'held'));
     return Promise.resolve();
   }
   const step = opts?.stepMs ?? 24;
@@ -598,7 +627,7 @@ export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs
     // The bounded net: a hidden/unmounted element fires no animationend.
     const net = consoleSessionScope().guarantee(motionMs(base + i * step + 300) + 1200, 'cardExitDirector: a beat\'s safety', finish);
     el.style.animationDelay = `${motionMs(base + i * step)}ms`;
-    el.classList.add('con-exit-reject');
+    markDiscardExit(el, 'tumble');
   }));
   return Promise.all(waits).then(() => {
     discardExitRuns.value = Math.max(0, discardExitRuns.value - 1);

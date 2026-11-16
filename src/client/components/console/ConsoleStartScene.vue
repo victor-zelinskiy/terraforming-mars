@@ -1519,8 +1519,8 @@ import {
 import {
   armFirstActionRail, firstActionRailBusy, firstActionRailOf, firstActionRailState, flyFirstActionRail, releaseFirstActionRail,
 } from '@/client/console/startFirstActionRail';
-import {ReactorEmergence, cardReactionAnswerFlight, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
-import {buriedUnderAnotherCard, liftInPlace, placeShowsCard, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
+import {ReactorEmergence, awaitArrivingFace, cardReactionAnswerFlight, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
+import {buriedUnderAnotherCard, liftInPlace, placeShowsCard, reactorPlaceArriving, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
 import {
   observedStartQueueBox, observeStartQueueBox, releaseStartQueueBox, retireStartReactorPlace, standStartReactorPlace,
 } from '@/client/components/console/consoleStartSceneState';
@@ -1533,7 +1533,7 @@ import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResource
 import {centreEndOf, iconMatches} from '@/client/console/consoleActionCommitMotion';
 import {clearPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainRewardState, bonusGainSourceSelectors, consumeBonusGainReward,
+  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainRewardState, bonusGainSourceSelectors, consumeBonusGainReward, noteBonusGainStageEntering,
 } from '@/client/console/startBonusGain';
 import {ActionEffect, ActionPreview} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
@@ -1710,8 +1710,10 @@ function gsapSettled(animation: gsap.core.Animation): Promise<void> {
   });
 }
 
-/** How long the start waits for its corporation's face to stand before the reactor rises at the stage instead. */
+/** How long the start waits for its corporation's face to stand before the reactor rises at the stage instead — from the
+ *  last moment the face's arrival was live; the ceiling bounds an arrival that never ends. */
 const START_REACTOR_FACE_WAIT_MS = 2400;
+const START_REACTOR_FACE_CEILING_MS = 8000;
 
 /** The deployment refuses a press while its destination is not ready / the funnel is busy (the input-absorb ledger). */
 const START_PRESS_ABSORBER = 'start-press-refusal';
@@ -8973,14 +8975,24 @@ function startVisibleFace(card: CardName): HTMLElement | undefined {
   return candidates.find((el): el is HTMLElement => el !== null && el.closest('.con-deal-hold') === null && transferEndVerdict(el).visible &&
     !buriedUnderAnotherCard(el)) ?? undefined;
 }
-/** The face — waited for (bounded, on the probe clock) while the ceremony is still bringing it, when `wait`. */
+/**
+ * The face — waited for (bounded, on the probe clock) while the ceremony is still bringing it, when `wait`. The budget
+ * counts from the last moment the face's arrival was LIVE — the seat still receiving it, a deal's hold still on it, an
+ * entrance still running (FLAKE ZERO Ф4, class N: counted from the question, it ran out under a seat flight a slow
+ * frame had stretched — the reactor found no face and its answer came out of nowhere).
+ */
 async function startReactorFace(card: CardName, wait: boolean): Promise<HTMLElement | undefined> {
-  const started = performance.now();
-  let face = startVisibleFace(card);
-  while (wait && face === undefined && performance.now() - started < START_REACTOR_FACE_WAIT_MS) {
-    await new Promise<void>((resolve) => probeTick(() => resolve()));
-    face = startVisibleFace(card);
+  if (!wait) {
+    return startVisibleFace(card);
   }
+  const {face} = await awaitArrivingFace({
+    find: () => startVisibleFace(card),
+    live: () => embedSourceIncoming.value === card || reactorPlaceArriving(card),
+    over: () => false,
+    budgetMs: START_REACTOR_FACE_WAIT_MS,
+    ceilingMs: START_REACTOR_FACE_CEILING_MS,
+    node: {id: 'start:reactor-face', owner: 'ConsoleStartScene', what: 'the corporation\'s face standing in the start'},
+  });
   return face;
 }
 // ── THE SEAT FUNNEL — one owner, one flight at a time ─────────────────
@@ -10434,6 +10446,9 @@ watch(() => orderLiveKey.value, (key: string): void => {
 watch(() => props.yielded, (now: boolean): void => {
   if (now) {
     releaseOrderStep();
+  } else {
+    // The board hands the screen back — an entrance: an owed «Фора» wave's backstop counts from here.
+    noteBonusGainStageEntering();
   }
 });
 /**
@@ -11292,7 +11307,10 @@ onMounted(() => {
   // auto-resolve is seeded by the transport while this scene does not exist
   // (the bonus turn owns the whole screen), so its edge is THIS mount and no
   // change-watcher can carry it. Asked here, the shelf the chips come out of
-  // is already rendered.
+  // is already rendered. And this mount is the ENTRANCE the owed wave waited
+  // for: its hold's backstop counts from here, never from the commit
+  // (FLAKE ZERO Ф4) — the ceremony may still be revealing on a slow frame.
+  noteBonusGainStageEntering();
   runBonusGainWaveIfDue();
   // Announce our zone for THIS mount: a minimize→restore re-creates the
   // component while `stepSlot` never changes value, so the watcher has

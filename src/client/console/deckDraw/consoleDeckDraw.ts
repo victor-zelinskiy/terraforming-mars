@@ -32,6 +32,7 @@ import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {holdDeckDisplay, releaseDeckDisplay, releaseDeckSeed, seedDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
@@ -168,8 +169,33 @@ const SCENE_SAFETY_MS = 30_000;
  * a quiet compositor never paints, an anchor that never lays out) hides a
  * mandatory surface for thirty seconds, which reads as a dead screen, not as a
  * cinematic. The deal either starts promptly or this scene has nothing to show.
+ *
+ * …AND THE WINDOW OPENS WHEN THE STAGE IS OURS, never at the claim (FLAKE ZERO Ф4,
+ * class N). The deal first waits for the scene that EARNED it (the layer's stage
+ * wait — `DECK_DRAW_STAGE_WAIT_MS`), and during that wait the earning scene IS on
+ * screen: nothing is withheld from a dead one. Counted from the claim, these six
+ * seconds ran out inside a hero scene a slow frame had stretched past them, and
+ * the abort opened the reveal with no deck flight while the counter jumped. The
+ * layer reports the stage (`markDeckDrawStageReady`) and this window starts there;
+ * the claim arms only the «never happened» net — the stage wait's own ceiling plus
+ * this window.
  */
 const DEAL_START_SAFETY_MS = 6_000;
+
+/**
+ * HOW LONG THE DEAL WAITS FOR THE SCENE THAT EARNED IT — counted from that scene's
+ * last PROGRESS (a phase it moved to), never from the claim: a hero scene still
+ * landing, paying back and closing at the machine's pace is a story the deal
+ * follows, never one it cuts in on. A scene that stops moving for this long is a
+ * stuck neighbour, and the deal plays anyway.
+ */
+export const DECK_DRAW_STAGE_WAIT_MS = 9_000;
+/**
+ * …and the hard ceiling of that wait, from its start: a neighbour that keeps
+ * «progressing» forever never withholds the reveal past it. Both are ceilings —
+ * scaled UP with a slower motion, never down (`motionCeilingMs`).
+ */
+export const DECK_DRAW_STAGE_CEILING_MS = 15_000;
 
 /**
  * THE SEED'S NET (PL-088): the apply-block seed is taken over by the flight
@@ -225,6 +251,16 @@ let cancelDealStartSafety: () => void = () => {};
 function clearDealStartSafety(): void {
   cancelDealStartSafety();
   cancelDealStartSafety = () => {};
+}
+
+/** (Re-)arm the deal's start window — `ms` from now, on the scene's run. */
+function armDealStartSafety(ms: number): void {
+  clearDealStartSafety();
+  cancelDealStartSafety = run.after(ms, 'the deal\'s start (the reveal is withheld until then)', () => {
+    if (deckDrawState.active && !deckDrawState.dealing) {
+      abortDeckDraw();
+    }
+  });
 }
 
 /** The input gate — the shell blocks pad input + commands while true. */
@@ -317,12 +353,20 @@ export function armDeckDraw(eventId: number, opts: {hasDiscards: boolean, preDra
   holdDeckDisplay(opts.preDrawSize);
   run.begin(`batch ${eventId}`);
   run.after(SCENE_SAFETY_MS, 'the scene\'s safety', () => abortDeckDraw());
-  cancelDealStartSafety = run.after(DEAL_START_SAFETY_MS, 'the deal\'s start (the reveal is withheld until then)', () => {
-    if (deckDrawState.active && !deckDrawState.dealing) {
-      abortDeckDraw();
-    }
-  });
+  // The deal's start window opens when the stage is ours (`markDeckDrawStageReady`); until then only the «never
+  // happened» net stands — the stage wait's own ceiling plus the window.
+  armDealStartSafety(motionCeilingMs(DECK_DRAW_STAGE_CEILING_MS) + DEAL_START_SAFETY_MS);
   return true;
+}
+
+/**
+ * THE STAGE IS OURS — the scene that earned this draw has finished telling its story (or the layer's stage wait gave
+ * up on it). The deal's start window (`DEAL_START_SAFETY_MS`) is counted from HERE.
+ */
+export function markDeckDrawStageReady(): void {
+  if (deckDrawState.active && !deckDrawState.dealing) {
+    armDealStartSafety(DEAL_START_SAFETY_MS);
+  }
 }
 
 /** Phase transitions only apply to a LIVE scene (zombie-safe). */

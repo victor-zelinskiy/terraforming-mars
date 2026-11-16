@@ -11,7 +11,7 @@
  */
 import {expect} from 'chai';
 import {flushPromises, mount} from '@vue/test-utils';
-import {defineComponent, h, nextTick} from 'vue';
+import {defineComponent, h, nextTick, watch} from 'vue';
 import {globalConfig} from '../../getLocalVue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
@@ -19,9 +19,10 @@ import {CardDrawRevealModel} from '@/common/models/CardDrawRevealModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {currentRevealEvent, DrawnCardEntry, reconcileDrawnCards} from '@/client/components/drawnCards/drawnCardsState';
 import {
-  abortDeckDraw, armDeckDraw, deckDrawHolds, deckDrawState, isDeckDrawForeign, isDeckDrawStaged, markDiscardStreaming,
-  requestDiscardStream, resetDeckDraw,
+  abortDeckDraw, armDeckDraw, DECK_DRAW_STAGE_CEILING_MS, DECK_DRAW_STAGE_WAIT_MS, deckDrawHolds, deckDrawState, isDeckDrawForeign,
+  isDeckDrawStaged, markDiscardStreaming, requestDiscardStream, resetDeckDraw,
 } from '@/client/console/deckDraw/consoleDeckDraw';
+import {playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {continueIntakeAssembly, resetIntakeAssembly} from '@/client/console/cardIntake/intakeAssembly';
 import {discardPileHeldBy, discardPileState, resetDiscardPile} from '@/client/console/discardPile/discardPile';
 import {PROBE_TICK_FALLBACK_MS} from '@/client/console/probeTick';
@@ -193,6 +194,85 @@ describe('ConsoleDeckDrawLayer — the stage of the deck draw', () => {
     expect(deckDrawState.active, 'a board cell\'s card is the cover scene\'s').to.eq(false);
     expect(isDeckDrawForeign(14)).to.eq(true);
     expect(w.find('.con-deckdraw').exists()).to.eq(false);
+  });
+
+  /*
+   * FLAKE ZERO Ф4 (class N): the deal waits for the scene that EARNED it — counted from that scene's last PROGRESS, never
+   * from the claim. A hero scene a slow frame stretches still moves phase by phase; the deal used to give up on it at a
+   * fixed nine seconds (and the deal's start window, armed at the claim, aborted the whole scene at six).
+   */
+  describe('the deal follows the scene that earned it', () => {
+    // The clock steps in short slices: a continuation of the scene (its `await`s) runs between them, as on a page.
+    const tick = async (ms: number) => {
+      for (let left = ms; left > 0; left -= 50) {
+        clock.advance(Math.min(50, left));
+        await flushPromises();
+      }
+    };
+    /** WHEN the first card left the deck (the scene deals, then — with no reveal in JSDOM — ends on its own). */
+    let dealtAt: number | undefined;
+    let stopWitness: () => void = () => {};
+    beforeEach(() => {
+      playedHeroState.active = true;
+      playedHeroState.phase = 'lifting';
+      dealtAt = undefined;
+      stopWitness = watch(() => deckDrawState.dealing, (on) => {
+        if (on && dealtAt === undefined) {
+          dealtAt = clock.now();
+        }
+      }, {flush: 'sync'});
+    });
+    afterEach(() => {
+      stopWitness();
+      playedHeroState.active = false;
+      playedHeroState.phase = 'idle';
+    });
+
+    it('waits while that scene still moves — past the old six and nine seconds — and deals the moment it ends', async () => {
+      standDeckPile();
+      layer();
+      reconcileDrawnCards([batch(30, [CardName.ANTS, CardName.BIRDS])]);
+      await nextTick();
+      expect(deckDrawState.active).to.eq(true);
+      // A starved hero: a phase every four seconds.
+      await tick(4_000);
+      playedHeroState.phase = 'flying';
+      await tick(4_000);
+      playedHeroState.phase = 'landing';
+      await tick(3_000);
+      expect(deckDrawState.active, 'the scene was not aborted while it waited').to.eq(true);
+      expect(dealtAt, 'no card leaves the deck over a hero still landing').to.eq(undefined);
+      playedHeroState.active = false;
+      playedHeroState.phase = 'idle';
+      await tick(PROBE_TICK_FALLBACK_MS * 6);
+      expect(dealtAt, 'the stage is ours — the deal begins').to.be.within(11_000, 11_000 + PROBE_TICK_FALLBACK_MS * 6);
+    });
+
+    it('a scene that stops moving is a stuck neighbour — the deal plays at the budget', async () => {
+      standDeckPile();
+      layer();
+      reconcileDrawnCards([batch(31, [CardName.ANTS, CardName.BIRDS])]);
+      await nextTick();
+      await tick(DECK_DRAW_STAGE_WAIT_MS - 300);
+      expect(dealtAt).to.eq(undefined);
+      await tick(600 + PROBE_TICK_FALLBACK_MS * 6);
+      expect(dealtAt, 'dealt at the budget, the earning scene still standing').to.be.within(DECK_DRAW_STAGE_WAIT_MS, DECK_DRAW_STAGE_WAIT_MS + 300 + PROBE_TICK_FALLBACK_MS * 6);
+    });
+
+    it('a scene that keeps moving for ever never withholds the deal past the ceiling', async () => {
+      standDeckPile();
+      layer();
+      reconcileDrawnCards([batch(32, [CardName.ANTS, CardName.BIRDS])]);
+      await nextTick();
+      const phases = ['flying', 'landing', 'committing', 'showing-result', 'returning', 'closing'] as const;
+      for (const phase of phases) {
+        await tick(DECK_DRAW_STAGE_CEILING_MS / phases.length - 200);
+        playedHeroState.phase = phase;
+      }
+      expect(dealtAt).to.eq(undefined);
+      await tick(1_500 + PROBE_TICK_FALLBACK_MS * 6);
+      expect(dealtAt, 'dealt at the ceiling').to.be.within(DECK_DRAW_STAGE_CEILING_MS, DECK_DRAW_STAGE_CEILING_MS + 300 + PROBE_TICK_FALLBACK_MS * 6);
+    });
   });
 
   describe('the GUEST run (another scene hands the rest of its batch over)', () => {

@@ -18,7 +18,7 @@
  * Light on purpose: the screen director imports it, and the director must not drag the generation scene in.
  */
 import {reactive} from 'vue';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The flip's own choreography length (ConsoleFlipValue's FLIP_TOTAL_MS) plus room — the net for a wedged signal. */
@@ -34,7 +34,7 @@ let disarmNet: () => void = () => {};
 export function oweDeferredGenerationFlip(generation: number): void {
   deferredGenerationFlipState.owed = generation;
   disarmNet();
-  disarmNet = consoleSessionScope().guarantee(motionMs(DEFERRED_FLIP_NET_MS), 'the strip\'s deferred generation flip (the net of a wedged signal)', () => {
+  disarmNet = consoleSessionScope().guarantee(motionCeilingMs(DEFERRED_FLIP_NET_MS), 'the strip\'s deferred generation flip (the net of a wedged signal)', () => {
     disarmNet = () => {};
     deferredGenerationFlipState.owed = 0;
   });

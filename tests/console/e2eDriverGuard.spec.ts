@@ -230,6 +230,21 @@ describe('e2e driver guard', function() {
         expect(baseline.totals[key], `totals.${key}`).to.be.a('number');
       }
     });
+
+    it('a SPEC has no row at all — every *.spec.ts is at ZERO in every class, and the baseline cannot freeze new debt in one', () => {
+      // FLAKE ZERO closed the specs (2026-11-16: 571 of 571 at zero). From here the zero is a LAW, not a frozen count:
+      // `npm run e2e:baseline` would happily write a spec's new sleep into the baseline and the growth check above
+      // would then call it «frozen». A spec row is refused here, whoever wrote it — the debt that may stand lives in
+      // the shared helpers (⑧, each with its reason), never in a spec.
+      const specRowsOf = (b: Baseline) => Object.keys(b.files).filter((rel) => rel.endsWith('.spec.ts'));
+      // The negative control: a baseline that froze a spec's sleep is SEEN (a check that finds nothing proves nothing).
+      expect(specRowsOf({totals: {}, files: {'console-x.spec.ts': {waitForTimeout: 1}, 'consoleStart.ts': {waitForTimeout: 2}}} as unknown as Baseline))
+        .to.deep.equal(['console-x.spec.ts']);
+      const baseline = JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf8')) as Baseline;
+      const specRows = specRowsOf(baseline);
+      expect(specRows, 'a spec carries no flake debt — fix the spec (tests.md § КАК ПИСАТЬ E2E-ПРОВЕРКУ), never ' +
+        'write it into the baseline: ' + specRows.join(', ')).to.deep.equal([]);
+    });
   });
 
   describe('⑧ only a NAMED PRIMITIVE may sample or sleep — a helper that does carries its reason', () => {
@@ -240,17 +255,14 @@ describe('e2e driver guard', function() {
      * disguise. The witnesses still on a page-side sampler are rows too, marked as the worklist they are.
      */
     const PRIMITIVES: Readonly<Record<string, string>> = {
-      'consoleStart.ts': 'the driver: pollPause (a poll loop\'s tick) and cinematicBeat (the named pause) — every other wait is on state',
+      'consoleStart.ts': 'the driver — exactly three: pollPause (a poll loop\'s tick, `settle`\'s own included), cinematicBeat ' +
+        '(the named pause) and the TIMING class\'s fixed press settle (its contract — `timingSpecs.ts`); every other wait is on state',
       'transientRecorder.ts': 'the recorder: a frame tick beside the MutationObserver catches what only a computed style moves; ' +
         'an opt-in TIMER tick (`tickMs`) lets a TIMING witness tell a still screen from a stalled main thread',
       'settledRead.ts': 'readSettled: the gap between two reads is two frames (or 100 ms of a still page)',
-      'campaignFixtures.ts': 'WORKLIST — a fixed pause in a campaign boot helper',
-      'cardTradeDoor.ts': 'WORKLIST — a fixed pause in the trade door driver',
-      'consoleEndgameHarness.ts': 'WORKLIST — a fixed pause and a page-side sampler in the endgame harness',
-      'parliamentDriveV2.ts': 'WORKLIST — a page-side sampler in the parliament v2 driver',
-      'beatWitness.ts': 'WORKLIST — a page-side sampler (FLAKE ZERO Ф1: onto the recorder)',
-      'focusWitness.ts': 'WORKLIST — a page-side sampler (FLAKE ZERO Ф1: onto the recorder)',
-      'reactionWitness.ts': 'WORKLIST — a page-side sampler (FLAKE ZERO Ф1: onto the recorder)',
+      // (FLAKE ZERO, 2026-11-16: the WORKLIST is EMPTY — the campaign / trade-door / endgame / parliament-v2 helpers
+      // and the beat / focus / reaction witnesses all record on the replace-proof recorder now. A new row here is a
+      // PRIMITIVE with its reason, never a worklist.)
     };
     const SAMPLES_OR_SLEEPS: ReadonlyArray<ScanKey> = ['waitForTimeout', 'requestAnimationFrame', 'setInterval'];
 

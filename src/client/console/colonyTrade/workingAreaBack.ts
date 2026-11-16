@@ -17,6 +17,14 @@
  */
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
+/**
+ * …AND THE BOUND COUNTS FROM THE TRANSITIONS' START (FLAKE ZERO Ф4, class N): a composited transition stays PENDING
+ * until the compositor resolves its start time, and counted from the dwell's end a starved frame spent the bound
+ * before the fade had even begun — the same glide over a blank stage, one ceiling later. Until every transition has
+ * started (its `ready`) only the «never started» bound stands — this many ceilings.
+ */
+export const WORKING_AREA_PENDING_CEILINGS = 3;
+
 export function workingAreaSettled(el: Element | null | undefined, ceilingMs: number): Promise<void> {
   if (el === null || el === undefined || typeof (el as Element & {getAnimations?: unknown}).getAnimations !== 'function') {
     return Promise.resolve();
@@ -39,6 +47,15 @@ export function workingAreaSettled(el: Element | null | undefined, ceilingMs: nu
     };
     // A cancelled transition REJECTS its `finished` — that is an ending too (the pose was re-raised or the node left).
     Promise.all(running.map((a) => a.finished.catch(() => undefined))).then(end, end);
-    const disarm = consoleSessionScope().guarantee(Math.max(0, ceilingMs), 'the working area\'s own return', end);
+    const bound = Math.max(0, ceilingMs);
+    let disarm = consoleSessionScope().guarantee(bound * WORKING_AREA_PENDING_CEILINGS, 'the working area\'s return — its start', end);
+    // Every transition STARTED (an engine with no `ready` counts as started): the bound runs from here.
+    const started = running.map((a) => ((a as Partial<Animation>).ready ?? Promise.resolve(a)).catch(() => undefined));
+    void Promise.all(started).then(() => {
+      if (!done) {
+        disarm();
+        disarm = consoleSessionScope().guarantee(bound, 'the working area\'s own return', end);
+      }
+    });
   });
 }

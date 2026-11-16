@@ -1,9 +1,11 @@
 import {expect} from 'chai';
+import {flushPromises} from '@vue/test-utils';
 import {
   armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainRewardState, bonusGainSourceSelectors, bonusGainSpec,
-  consumeBonusGainReward, detectBonusGainAutoResolve, noteBonusGainRows, pendingBonusGainRows,
+  consumeBonusGainReward, detectBonusGainAutoResolve, noteBonusGainRows, noteBonusGainStageEntering, pendingBonusGainRows,
   resetBonusGainReward, seedBonusGainRewardHold,
 } from '@/client/console/startBonusGain';
+import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {BonusGainRow} from '@/client/console/bonusAction';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -183,5 +185,97 @@ describe('startBonusGain · the wave waits for its source to be SEEN', () => {
     const started = Date.now();
     expect(await awaitVisibleBonusGainSource(['.con-start__played [data-played-key="Head Start"]'], 120)).to.eq(false);
     expect(Date.now() - started, 'bounded').to.be.lessThan(2_000);
+  });
+});
+
+/*
+ * FLAKE ZERO Ф4 (class N) — the two waits of the «Фора» beat count from their EVENT, never from the ask / the commit:
+ * the source wait from the last moment the card was still coming in (its entrance running or pending on a slow frame),
+ * the hold's backstop from the start scene's entrance. Counted from the ask / the commit, both ran out on a 300 ms
+ * frame and the gain ticked with no token.
+ */
+describe('startBonusGain · the waits count from their event', () => {
+  let clock: ManualFlowClock;
+  let shelf: HTMLElement | undefined;
+  const originalFromPoint = document.elementsFromPoint;
+  const originalGetAnimations = (document as unknown as {getAnimations?: unknown}).getAnimations;
+  let entrance: Array<unknown> = [];
+
+  beforeEach(() => {
+    clock = createManualClock(0);
+    setFlowClock(clock);
+    Object.defineProperty(window, 'innerWidth', {value: 1920, configurable: true});
+    Object.defineProperty(window, 'innerHeight', {value: 1080, configurable: true});
+    document.elementsFromPoint = () => [];
+    entrance = [];
+    (document as unknown as {getAnimations: () => Array<unknown>}).getAnimations = () => entrance;
+  });
+  afterEach(() => {
+    shelf?.remove();
+    shelf = undefined;
+    document.elementsFromPoint = originalFromPoint;
+    (document as unknown as {getAnimations?: unknown}).getAnimations = originalGetAnimations;
+    resetBonusGainReward();
+    clearPanelRewardHold();
+    setFlowClock(undefined);
+  });
+
+  /** «РАЗЫГРАНО» fading in: the shelf at opacity 0 under its entrance, the granting card on its hook inside it. */
+  function fadingShelf(): HTMLElement {
+    shelf = document.createElement('div');
+    shelf.className = 'con-start__played';
+    shelf.style.opacity = '0';
+    const card = document.createElement('div');
+    card.setAttribute('data-played-key', CardName.HEAD_START);
+    card.getBoundingClientRect = () => ({left: 400, top: 300, width: 160, height: 230, right: 560, bottom: 530, x: 400, y: 300, toJSON: () => ({})}) as DOMRect;
+    shelf.appendChild(card);
+    document.body.appendChild(shelf);
+    entrance = [{playState: 'running', pending: false, effect: {getComputedTiming: () => ({endTime: 300}), target: shelf}}];
+    return shelf;
+  }
+  const step = async (ms: number) => {
+    for (let left = ms; left > 0; left -= 50) {
+      clock.advance(Math.min(50, left));
+      await flushPromises();
+    }
+  };
+
+  it('the source wait goes on while the card is still COMING IN — past the old 1.2 s — and the wave flies out of it', async () => {
+    const fading = fadingShelf();
+    let seen: boolean | undefined;
+    void awaitVisibleBonusGainSource(bonusGainSourceSelectors(CardName.HEAD_START)).then((v) => {
+      seen = v;
+    });
+    // A starved frame: the shelf's entrance stands pending / running for 2.5 s.
+    await step(2_500);
+    expect(seen, 'the card is still coming in — the wave waits for it').to.eq(undefined);
+    fading.style.opacity = '1';
+    entrance = [];
+    await step(100);
+    expect(seen, 'the card is SEEN — the wave flies out of it').to.eq(true);
+  });
+
+  it('…and a card that is faded and NOT moving degrades at the budget, as before', async () => {
+    fadingShelf();
+    entrance = [];
+    let seen: boolean | undefined;
+    void awaitVisibleBonusGainSource(bonusGainSourceSelectors(CardName.HEAD_START)).then((v) => {
+      seen = v;
+    });
+    await step(1_300);
+    expect(seen).to.eq(false);
+  });
+
+  it('the hold\'s backstop counts from the scene\'s ENTRANCE — the surface that comes back gets the whole budget', () => {
+    armBonusGainClaim(STEEL, CardName.HEAD_START, {x: 10, y: 20});
+    seedBonusGainRewardHold(view({bonus: 2, gains: [STEEL]}), view({bonus: 2, hand: 3, gains: []}));
+    expect(bonusGainRewardState.owed, 'a wave is owed').to.not.eq(undefined);
+    clock.advance(5_000);
+    noteBonusGainStageEntering(); // the start scene mounts: its entrance, its ceremony still revealing
+    clock.advance(5_000);
+    expect(bonusGainRewardState.owed, 'the entrance still has the time to fly it').to.not.eq(undefined);
+    expect(heldStock('steel'), 'the panel still holds the gain for its token').to.eq(2);
+    clock.advance(1_100);
+    expect(bonusGainRewardState.owed, 'no surface flew it — the backstop lets go').to.eq(undefined);
   });
 });

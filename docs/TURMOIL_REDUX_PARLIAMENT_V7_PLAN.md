@@ -419,7 +419,7 @@
 `dealResolutionCard` 485, `flyCardOffTable` 564, `runReshuffle` 607, `riseToken` 274, `flyPriceToken` 347; константы
 `CUBE_FLIGHT_MS` 480 · `DEAL_FLIGHT_MS` 560 · `ENACT_MOVE_MS` 620 · `VOTE_FLIGHT_MS` 540 · `TOKEN_RISE_MS` 960;
 измерение `rectOf` 15 / `placeCubeRect` 26 (верхний куб стопки или центр места); отклик посадки — одноразовые
-классы `…__support-place--landed` / `--left`, `con-parl__stack--landed`; слой `.con-parl__flight` (`--card` /
+атрибуты места `[data-support-landed]` / `[data-support-left]` (`supportPlaceAnswer.ts`), класс `con-parl__stack--landed`; слой `.con-parl__flight` (`--card` /
 `--token` / `--lit`, `data-parl-flight-*`); часы `parliamentBeat.ts` + `scheduleHurriedParliamentBeat` («дожать»);
 глайд трека = `runHydroMarkerGlide` (`hydroMarkerModel.ts` 34: charge 180 / lift 130 / glide 380 / arrive 120 / lock 160 /
 pulse 220), N = 1 побайтно равен такту заседания (окно ≤ 1450 мс).

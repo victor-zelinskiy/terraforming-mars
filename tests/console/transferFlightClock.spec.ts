@@ -115,6 +115,20 @@ describe('a resource chip is born at its source — the flight starts on the ani
     expect(detached, 'the flight guard covers the extended wait').to.include('waitBudgetMs: Math.max(waitMs, coverMaxMs),');
   });
 
+  it('a DETACHED flight\'s destination is LIVE — re-read on the final approach and at the touchdown (CI 43863065930)', () => {
+    // `console-habitat-science` on CI (SwiftShader, 4K): the satellite «opened» when two probe ticks read it still — both
+    // inside a re-layout whose transition had not started — so the arc flew to where the cell WAS and touched down off
+    // it. T06's law for every flight: the end is an OBJECT, re-measured where it matters.
+    const flight = body('runDetachedTransferFlight');
+    expect(flight, 'past TRANSFER_RETARGET_AT the destination is read live').to.include('prog.q >= TRANSFER_RETARGET_AT && opts.liveTo !== undefined');
+    expect(flight, '…and the difference is RAMPED in, never a jerk').to.include('transferRetargetWeight(prog.q, corr.readAt)');
+    expect(flight, 'the touchdown reads it once more and glides onto a moved end').to.match(/function touchdownDetached\([\s\S]*opts\.liveTo\?\.\(\)[\s\S]*transferEndMoved\(restingAt, live\)/);
+    const transfer = fs.readFileSync(path.resolve(__dirname, '..', '..', 'src', 'client', 'console', 'resourceTransfer', 'consoleResourceTransfer.ts'), 'utf8')
+      .replace(/\r\n/g, '\n');
+    const detached = transfer.slice(transfer.indexOf('function flyDetached('));
+    expect(detached, 'the detached token is given its destination as a live reader').to.include('liveTo: () => targetPointFor(e.spec, undefined, {lenient: true}),');
+  });
+
   it('a flight its SAFETY outlives is CAUGHT UP to its end — never abandoned in the air (a starved renderer)', () => {
     // GSAP's lag smoothing counts a frame over 500 ms as 33 ms, so on a starved renderer a live flight falls behind the
     // wall-clock safety; resolving there faded the chip mid-arc and played its contact beat at a destination it never

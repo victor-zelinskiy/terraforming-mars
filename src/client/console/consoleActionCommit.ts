@@ -22,6 +22,9 @@
 import {reactive} from 'vue';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
+import type {FlowScope} from '@/client/console/kernel/flowScope';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreviewBranch, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2, TEMPERATURE_BONUS_FOR_PLANT} from '@/common/constants';
@@ -145,6 +148,42 @@ export const actionCommitState = reactive({
  * broken beat into a slightly abrupt one instead of a hang.
  */
 const SETTLE_SAFETY_MS = 1400;
+/**
+ * …AND IT RUNS ON THE MOTION'S OWN CLOCK (FLAKE ZERO · class N — animations.md § A MOTION IS RIGHT ON A SLOW FRAME,
+ * law 1). Counted on the wall clock from the submit, the backstop fired while the ≈0.7 s GSAP episode was still
+ * sweeping its row whenever GSAP's clock fell behind the wall's (the answer's own long task — the view applied at 4K
+ * — is booked as 33 ms by `lagSmoothing`): the dismiss gate opened and the workspace folded, or the vote's price left
+ * (PL-100), before the impulse had landed. On GSAP's clock the episode's own `onComplete` always comes first while
+ * frames run; this wall-clock CEILING is the net for a clock that does not run at all (a backgrounded tab) — never
+ * motion-scaled down.
+ */
+const COMMIT_BEAT_CEILING_MS = 5000;
+
+/**
+ * A backstop of the commit's beat: released once — at `ms` of GSAP time, at the wall-clock ceiling, or when `owner`
+ * ends, whichever comes first. Returns the disarm.
+ */
+function commitBeatBackstop(ms: number, what: string, release: () => void, owner: FlowScope): () => void {
+  let owed = true;
+  let disarmMotion: () => void = () => {};
+  let disarmWall: () => void = () => {};
+  const fire = (): void => {
+    if (!owed) {
+      return;
+    }
+    owed = false;
+    disarmMotion();
+    disarmWall();
+    release();
+  };
+  disarmMotion = motionGuarantee(ms, what, fire, owner);
+  disarmWall = owner.guarantee(motionCeilingMs(ms) + COMMIT_BEAT_CEILING_MS, `${what} — its ceiling`, fire);
+  return () => {
+    owed = false;
+    disarmMotion();
+    disarmWall();
+  };
+}
 
 /**
  * THE COMMIT'S RUN (architecture v2 — PLAN §10 · C4): `scene:action-commit#n` in the flow tree, from the arm at the
@@ -167,7 +206,8 @@ export function armActionCommit(plan: ActionCommitPlan): void {
   actionCommitState.plan = plan;
   clearSettleTimer();
   run.begin(plan.sourceCard);
-  disarmSettle = run.guarantee(SETTLE_SAFETY_MS, 'the commit\'s minimum beat (the dismiss gate)', () => markActionCommitSettled());
+  disarmSettle = commitBeatBackstop(SETTLE_SAFETY_MS, 'the commit\'s minimum beat (the dismiss gate)', () => markActionCommitSettled(),
+    run.scope ?? consoleSessionScope());
 }
 
 /** The visual beat finished (the motion's own completion, or the backstop). */
@@ -263,17 +303,18 @@ const impulseLatch = {
   net: undefined as (() => void) | undefined,
 };
 
-/** A stalled timeline (a backgrounded tab) must not hold a waiter past the whole commit's own backstop. */
+/** A stalled timeline (a backgrounded tab) must not hold a waiter past the whole commit's own backstop — on the same
+ *  clock as the impulse it waits for (`commitBeatBackstop`). */
 const IMPULSE_NET_MS = SETTLE_SAFETY_MS;
 
 /** The commit's impulse starts (the motion episode begins) — waiters now wait for its landing. */
 export function armCommitImpulse(): void {
   landCommitImpulse();
   impulseLatch.live = true;
-  impulseLatch.net = consoleSessionScope().guarantee(IMPULSE_NET_MS, 'the commit impulse\'s landing', () => {
+  impulseLatch.net = commitBeatBackstop(IMPULSE_NET_MS, 'the commit impulse\'s landing', () => {
     impulseLatch.net = undefined;
     landCommitImpulse();
-  });
+  }, consoleSessionScope());
 }
 
 /** The impulse landed (or its episode ended any other way) — every waiter runs, once, in arrival order. */

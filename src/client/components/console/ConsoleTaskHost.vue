@@ -776,7 +776,7 @@ import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/party
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import {availabilityContextFor} from '@/client/console/cardAvailability';
-import {applyDiscardExit, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
+import {applyDiscardExit, clearDiscardExit, DISCARD_EXIT_ATTR, ExitSource, runHeroPick} from '@/client/console/cardDeal/cardExitDirector';
 import {discardOpenCards} from '@/client/console/cardDiscard/discardOpenCard';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {createCardDealSequence, RiseLaunchExtras} from '@/client/console/cardDeal/cardDealSequence';
@@ -3300,7 +3300,7 @@ function commitSingleCard(name: CardName): void {
   // trade's colony bonus, a card's gift): its answer is a SCENE, never a draft departure (TR53 iteration — the
   // owner's photo: the chosen card «tilts and falls off the bottom» and no resource ever flies). The chosen
   // candidate is SEALED IN PLACE, the others RECEDE, and the transport plays the resource landing on it and the
-  // card going home (`cardReceive/promptReceive.ts`). `runHeroPick` / `con-exit-reject` are for a card that goes
+  // card going home (`cardReceive/promptReceive.ts`). `runHeroPick` / `[data-exit-reject]` are for a card that goes
   // INTO THE HAND (a draft, a buy) — never for a target.
   if (cardModel.value?.resourceGainPrompt !== undefined) {
     armPromptReceive(wf.value, name, {client: props.promptOverride !== undefined});
@@ -4034,9 +4034,8 @@ watch(() => draftTrayState.recoverNonce, () => {
   if (strip === undefined || strip === null || typeof strip.querySelectorAll !== 'function') {
     return;
   }
-  for (const el of Array.from(strip.querySelectorAll<HTMLElement>('.con-exit-reject'))) {
-    el.classList.remove('con-exit-reject');
-    el.style.removeProperty('animation-delay');
+  for (const el of Array.from(strip.querySelectorAll<HTMLElement>(`[${DISCARD_EXIT_ATTR}]`))) {
+    clearDiscardExit(el);
   }
   // The pick-beat holds the source .card-container via classList (the
   // deal's own holds live on the SLOT via a Vue :class — untouched).

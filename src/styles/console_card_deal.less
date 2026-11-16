@@ -366,8 +366,10 @@
    NOTE the `:has` keys off a DESCENDANT: hosts that hold the SLOT itself
    (the deal cinematic's `.con-cards__slot.con-deal-hold`, the hand's
    `stagedCard`) are untouched here — the base `.con-deal-hold` rule below
-   already zeroes those, class-on-self never matching this selector. */
-:is([data-zoom-slot], .con-composer__playcard):has(.con-deal-hold) {
+   already zeroes those, class-on-self never matching this selector.
+   A card face the reduced-motion discard took (`[data-exit-reject='held']`
+   on the `.pcard` a host handed over) empties its slot the same way. */
+:is([data-zoom-slot], .con-composer__playcard):has(.con-deal-hold, [data-exit-reject='held']) {
     opacity: 0 !important;
 }
 
@@ -860,9 +862,16 @@ dialog.con-zoom {
    research cards): the REAL slots drift toward the discard side and fade —
    clearly secondary to the hero/collect flight. `forwards` keeps them
    hidden until the prompt's frame swap replaces the set. Per-slot stagger
-   rides an inline animation-delay set by applyDiscardExit. */
-.con-exit-reject {
+   rides an inline animation-delay set by applyDiscardExit. An ATTRIBUTE,
+   never a class: a slot's classes are BOUND, and the commit that starts the
+   exit rewrites them whole in the same task (`cardExitDirector.ts`
+   § THE REJECT MARK). `held` is the reduced-motion form: gone at once. */
+[data-exit-reject='tumble'] {
     animation: con-exit-reject calc(300ms * var(--motion-scale, 1)) @con-ease-exit both;
+    pointer-events: none;
+}
+[data-exit-reject='held'] {
+    opacity: 0 !important;
     pointer-events: none;
 }
 @keyframes con-exit-reject {
@@ -872,7 +881,7 @@ dialog.con-zoom {
     }
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-exit-reject { animation-duration: 1ms; }
+    [data-exit-reject='tumble'] { animation-duration: 1ms; }
 }
 
 /* While the fullscreen inspector is open the IDEOLOGICAL focus is on the

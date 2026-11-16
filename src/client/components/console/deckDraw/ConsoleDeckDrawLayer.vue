@@ -77,24 +77,26 @@ import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {
-  abortDeckDraw, armDeckDraw, deckDrawState, deckDrawVerdict, DeckDrawVerdict, DiscardStreamRequest, endDeckDraw,
-  releaseDeckDrawSeed, isDeckDrawSource, markDeckCardDrawn, markDeckDrawDealing, markDeckDrawDiscarded,
-  markDeckDrawZoomReady, noteDeckDrawForeign, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
+  abortDeckDraw, armDeckDraw, DECK_DRAW_STAGE_CEILING_MS, DECK_DRAW_STAGE_WAIT_MS, deckDrawState, deckDrawVerdict, DeckDrawVerdict,
+  DiscardStreamRequest, endDeckDraw, releaseDeckDrawSeed, isDeckDrawSource, markDeckCardDrawn, markDeckDrawDealing, markDeckDrawDiscarded,
+  markDeckDrawStageReady, markDeckDrawZoomReady, noteDeckDrawForeign, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
   markDiscardStreaming, registerDiscardStreamPlayer, setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
 import {tickDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {createDeckTickPacer} from '@/client/console/deckDraw/deckTickPacer';
 import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
-import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
-import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
-import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
-import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
-import {agendaTrackOnScreen, isAgendaReveal, isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
+import {tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {nomadMoveHolding, nomadMoveState} from '@/client/console/nomads/consoleNomadMove';
+import {
+  agendaTrackOnScreen, isAgendaReveal, isBoardCardBonusActive, boardCardBonusClaimsReveal, boardCardBonusState, isBonusRevealStaged,
+} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
 import {colonyBonusPayoutParksReveal} from '@/client/console/colonyLedger/colonyBonusPayout';
@@ -103,6 +105,7 @@ import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colony
 import {adoptSettlementDeck, settlementClaimsBatch} from '@/client/console/colonyTrade/settlementTable';
 import {probeTick} from '@/client/console/probeTick';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {hydroStepQueuedFor} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyRevealBatch, workspaceClaimsRevealBatch} from '@/client/console/consoleWorkspaceOutcome';
 import {
@@ -132,13 +135,6 @@ const CARD_NATURAL_H = 460;
 
 /** The top-bar deck's own top card — the source every flight is born at. */
 const DECK_SEL = '.con-deckstack__pile';
-
-/**
- * How long we wait for the scene that EARNED this draw to finish before
- * playing anyway. Bounded on purpose: a stuck neighbour must never keep the
- * reveal withheld.
- */
-const STAGE_WAIT_MAX_MS = 9_000;
 
 /**
  * A GUEST run's flyers hover in their slots until the cover scene's handoff releases the real cards
@@ -342,6 +338,10 @@ const otherSceneOwnsScreen = computed((): boolean => {
   return isPlayedHeroActive() || isPatentSaleActive() || tilePlacementHolding() ||
     nomadMoveHolding() || isBoardCardBonusActive();
 });
+/** What those scenes are DOING — a phase that moves is progress, and the stage wait re-arms on it. */
+function earningSceneProgress(): string {
+  return [playedHeroState.phase, patentSaleState.phase, tilePlacementState.phase, nomadMoveState.phase, boardCardBonusState.phase].join('|');
+}
 
 function setProxyRef(el: unknown, i: number): void {
   proxyRefs.value[i] = (el as HTMLElement | null) ?? null;
@@ -444,20 +444,42 @@ function claimScene(e: DrawnCardEntry): void {
  * Wait for whatever scene earned this draw to finish telling its own
  * story. Bounded: if it somehow never ends, ours plays anyway rather than
  * withholding the reveal forever.
+ *
+ * The budget counts from the earning scene's last PROGRESS, never from the
+ * claim (FLAKE ZERO Ф4, class N): a hero scene a slow frame stretches is
+ * still moving phase by phase, and the deal that cut in on it at a fixed nine
+ * seconds flew over a card still landing. A scene that stops moving for the
+ * budget is a stuck neighbour; the hard ceiling bounds a chain of them. When
+ * the wait ends the stage is ours — the deal's start window opens there.
  */
 function waitForStage(): Promise<void> {
-  return new Promise((done) => {
+  return new Promise((resolve) => {
+    const done = (): void => {
+      markDeckDrawStageReady();
+      resolve();
+    };
     if (!otherSceneOwnsScreen.value) {
       done();
       return;
     }
-    const started = Date.now();
+    const started = flowClock().now();
+    const budget = motionCeilingMs(DECK_DRAW_STAGE_WAIT_MS);
+    const hard = started + motionCeilingMs(DECK_DRAW_STAGE_CEILING_MS);
+    let deadline = started + budget;
+    let progress = earningSceneProgress();
     // The wait has to wait: a node of the wait graph, its bound ending it said (`ceilingWait.ts`). A teardown drops
     // the poll's timer — the node is abandoned with it (a killed handle of the scene).
-    const wait = beginCeilingWait({id: 'deck-draw:stage', owner: 'ConsoleDeckDrawLayer', what: 'the end of the scene that earned the draw', maxMs: STAGE_WAIT_MAX_MS});
+    const wait = beginCeilingWait({id: 'deck-draw:stage', owner: 'ConsoleDeckDrawLayer', what: 'the end of the scene that earned the draw', maxMs: hard - started});
     ctx.beatHandles.push({kill: () => wait.end()});
     const poll = () => {
-      if (!deckDrawState.active || !otherSceneOwnsScreen.value || Date.now() - started > STAGE_WAIT_MAX_MS) {
+      const now = flowClock().now();
+      const mark = earningSceneProgress();
+      if (mark !== progress) {
+        // The earning scene moved on — its story is still being told: the budget restarts, bounded by the ceiling.
+        progress = mark;
+        deadline = Math.min(hard, Math.max(deadline, now + budget));
+      }
+      if (!deckDrawState.active || !otherSceneOwnsScreen.value || now > deadline) {
         if (!deckDrawState.active) {
           wait.end();
         } else if (!otherSceneOwnsScreen.value) {

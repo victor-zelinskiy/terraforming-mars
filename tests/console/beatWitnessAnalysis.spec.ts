@@ -41,11 +41,12 @@ describe('beat witness · a held entry', () => {
     expect(heldIntervals(r, 'cards')).to.deep.equal([]);
   });
 
-  it('the source: the witness reads `pending`, takes a last sample at stop, and the smoothness window waits for the cards', () => {
+  it('the source: the witness reads `pending`, takes a last sample at stop (the recorder\'s flush), and the smoothness window waits for the cards', () => {
     const witness = readFileSync(join(__dirname, '../e2e/beatWitness.ts'), 'utf8');
     expect(witness).to.match(/a\.pending/);
     expect(witness).to.match(/held\[name\] = heldOf\(el\)/);
-    expect(witness).to.match(/stop: \(\) => \{[\s\S]{0,400}?sample\(\);[\s\S]{0,40}?stopped = true/);
+    // The stop is the recorder's: `stopTransient` flushes the reader once more (the window's last state) before it stops.
+    expect(witness).to.match(/foldBeats\(await stopTransient<[^>]*>\(page, BEAT_KEY\)/);
     const spec = readFileSync(join(__dirname, '../e2e/console-smoothness.spec.ts'), 'utf8');
     expect(spec).to.match(/awaitBeatsSettled\(page, \['cards'\]/);
     expect(spec.match(/glassNet\(glass, long, held\)/g)?.length).to.equal(2);

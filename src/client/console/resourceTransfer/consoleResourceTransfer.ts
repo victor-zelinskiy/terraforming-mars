@@ -37,7 +37,7 @@ import {reactive, nextTick} from 'vue';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
@@ -1478,8 +1478,8 @@ function flyDetached(
   // The surfaces standing at the birth — the one that produced the token among them: the wait is counted from their
   // departure (`TRANSFER_DETACH_COVER_MAX_MS`), never from the birth.
   const covers = typeof document === 'undefined' ? [] : Array.from(document.querySelectorAll('.con-ws'));
-  const waitMs = motionMs(TRANSFER_DETACH_WAIT_MS);
-  const coverMaxMs = motionMs(TRANSFER_DETACH_COVER_MAX_MS);
+  const waitMs = motionCeilingMs(TRANSFER_DETACH_WAIT_MS);
+  const coverMaxMs = motionCeilingMs(TRANSFER_DETACH_COVER_MAX_MS);
   const handles = runDetachedTransferFlight(piece, {
     from: e.from,
     to: e.from,
@@ -1492,6 +1492,9 @@ function flyDetached(
     launch: transferLaunchFor(e.spec, false),
     waitBudgetMs: Math.max(waitMs, coverMaxMs),
     ...(liveFrom !== undefined ? {liveFrom} : {}),
+    // THE DESTINATION, LIVE (T06): re-read on the final approach and at the touchdown — leniently («is the object
+    // still THERE», a transient fade or cover keeps it); a cell that re-laid out after it «opened» is followed.
+    liveTo: () => targetPointFor(e.spec, undefined, {lenient: true}),
     awaitTo: () => awaitVisibleDestination(e.spec, waitMs, alive, covers, coverMaxMs).then((to) => {
       reached = to !== undefined;
       trail(runId, reached ? 'flight:detach-opened' : 'flight:detach-expired', e.id);

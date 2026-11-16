@@ -6,6 +6,7 @@
  * it publishes to the shell's one bar, what the shell's pad router reaches through the surface registry —
  * `handleIntent`, and nothing else — and the surface's own behaviours a conversion could break:
  *  - the take: ONE answer per press, the pad absorbed while it flies, the row re-seated on the server's answer;
+ *  - the survivors' re-seat mark is an ATTRIBUTE: it stands through a re-render of the slots' bound classes;
  *  - a REFUSED take (the same question still standing past the grace) gives the cards back;
  *  - THE SURFACE LEFT WITH ITS QUESTION: an unmount releases the wait at once — the take's watcher is created by the
  *    take itself, after setup, so nothing but the surface's own release ends it (R6 · R9);
@@ -21,6 +22,7 @@
 import {expect} from 'chai';
 import {flushPromises, mount, VueWrapper} from '@vue/test-utils';
 import {defineComponent, h, nextTick, shallowReactive} from 'vue';
+import {gsap} from 'gsap';
 import {globalConfig} from '../../getLocalVue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -28,7 +30,7 @@ import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {closeConsoleCardZoom, consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {clearPanelCommands, consolePanelUi} from '@/client/console/consolePanelUi';
 import {clearDeckPickFlight, deckPickFlightState} from '@/client/console/deckPick/consoleDeckPick';
-import {externalDrawHolding, externalDrawState, resetExternalDraw} from '@/client/console/externalDraw/consoleExternalDraw';
+import {EXTDRAW_REFLOW_ATTR, externalDrawHolding, externalDrawState, resetExternalDraw} from '@/client/console/externalDraw/consoleExternalDraw';
 import {activeInputAbsorbers} from '@/client/console/inputAbsorb';
 import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import ConsoleExternalDrawWorkspace from '@/client/components/console/externalDraw/ConsoleExternalDrawWorkspace.vue';
@@ -298,6 +300,48 @@ describe('ConsoleExternalDrawWorkspace — the mandatory take of an external dra
       await flushPromises();
     });
     expect(said, 'no grace is left standing').to.deep.eq([]);
+  });
+
+  it('the survivors\' RE-SEAT mark stands through a re-render of their bound classes — an attribute, never a class (FLAKE ZERO)', async () => {
+    // A slot is a `v-for` row whose classes are BOUND (focused / taken / held): on a NON-ROOT element a Vapor class
+    // binding that changes writes `className` WHOLE, so a re-render mid-FLIP wiped a class written there and the
+    // slot's focus transition fought the FLIP again.
+    const {reach, props, slots, names, focused} = await standing(viewOf(take([A, B, C], 3)));
+    reach()!.handleIntent(press('confirm'));
+    await nextTick();
+    // The unit box has no layout: every slot stands in its berth of the row, 100 px apart — so the survivors MOVE.
+    const measure = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function(this: HTMLElement): DOMRect {
+      const parent = this.parentElement;
+      if (!this.hasAttribute('data-extdraw-slot') || parent === null) {
+        return measure.call(this);
+      }
+      const left = Array.from(parent.children).indexOf(this) * 100;
+      return {left, top: 0, right: left + 80, bottom: 120, x: left, y: 0, width: 80, height: 120, toJSON: () => ({})} as DOMRect;
+    };
+    let els: Array<HTMLElement> = [];
+    try {
+      // The server's answer: the taken seat leaves and the survivors FLIP from the berths they had.
+      props.playerView = viewOf(take([B, C], 3));
+      await flushPromises();
+      expect(names()).to.deep.eq([B, C]);
+      els = slots().map((slot) => slot.element as HTMLElement);
+      expect(els.map((el) => el.hasAttribute(EXTDRAW_REFLOW_ATTR)), 'both survivors re-seat').to.deep.eq([true, true]);
+      els.forEach((el) => el.classList.add('probe-imperative-class'));
+
+      // Mid-FLIP, the cursor steps on: both slots' bound classes change.
+      reach()!.handleIntent(nav('right'));
+      await nextTick();
+      expect(focused()).to.eq(1);
+      expect(els.map((el) => el.hasAttribute(EXTDRAW_REFLOW_ATTR)), 'the re-seat mark stands through the re-render').to.deep.eq([true, true]);
+      expect(els.map((el) => el.classList.contains('probe-imperative-class')), 'a CLASS written there is wiped — why the mark is not one')
+        .to.deep.eq([false, false]);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = measure;
+      // An interrupted FLIP lets its mark go with it.
+      els.forEach((el) => gsap.killTweensOf(el));
+    }
+    expect(els.map((el) => el.hasAttribute(EXTDRAW_REFLOW_ATTR)), 'the mark leaves with the FLIP').to.deep.eq([false, false]);
   });
 
   it('a REFUSED take gives the cards back: the same question still standing after the grace rolls the take back', async () => {

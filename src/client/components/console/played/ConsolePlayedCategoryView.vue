@@ -209,7 +209,7 @@ import {albumLayoutState} from '@/client/console/consoleAlbumLayout';
 import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
 import {consolePlayedUi} from '@/client/console/consolePlayedUi';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {openConsoleCardZoom, slotZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {zoomProvenanceOver} from '@/client/components/console/played/playedProvenance';
 import {stepHandGrid, HandGridPlan} from '@/client/components/console/consoleHandGrid';
@@ -249,8 +249,13 @@ const CAT_EDGE_INSET = 22;
 const FALLBACK_W = 1280;
 const FALLBACK_H = 560;
 
-/** The flight waits for the floor's real start at most this long (wall clock) — a backstop that STARTS, never resolves. */
-const FLOOR_START_WAIT_MS = 600;
+/**
+ * The flight waits for the floor's real start (its transition's `ready`) — a backstop that STARTS, never resolves — and
+ * never a short wall clock while that start is still PENDING (FLAKE ZERO · class N): a fresh panel's raster on a
+ * software renderer outlasted the old 600 ms, the held lift went, and the cards landed on a floor still at opacity 0.
+ * This is the ceiling for a start that never resolves at all.
+ */
+const FLOOR_START_CEILING_MS = 4000;
 
 /** The open / close flight takes every press but B on purpose (B reverses / snaps it) — said on the ledger. */
 const CATEGORY_FLIGHT_ABSORBER = 'played-category-flight';
@@ -557,7 +562,7 @@ function measureUnfoldOrigin(): void {
  * Open the floor on the NEXT frame — the closed clip must paint once for the transition to have a `from` — and
  * call `started` once the floor's fade has REALLY started (its transition's `ready`: the compositor's start time,
  * which on a software renderer lags the class by the panel's raster). Bounded: a floor with no transition (reduced
- * motion) starts at once, one whose start never resolves after `FLOOR_START_WAIT_MS`.
+ * motion) starts at once, one whose start never resolves after `FLOOR_START_CEILING_MS`.
  */
 function unfoldFloor(started?: () => void): void {
   measureUnfoldOrigin();
@@ -589,7 +594,7 @@ function whenFloorStarts(started: () => void): void {
     }
   };
   // A RELEASE: the held lift waits for `started` — it comes at the backstop, or when the view leaves.
-  const disarm = flow.guarantee(FLOOR_START_WAIT_MS, 'the floor\'s real start (the held lift goes)', go);
+  const disarm = flow.guarantee(motionCeilingMs(FLOOR_START_CEILING_MS), 'the floor\'s real start (the held lift goes)', go);
   fade.ready.then(go, go);
 }
 // ── the OPEN flight (mounted at phase 'opening') ────────────────────

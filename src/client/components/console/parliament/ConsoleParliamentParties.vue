@@ -80,9 +80,18 @@ import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {flowClock} from '@/client/console/kernel/flowClock';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 
-/** How long an owed impulse waits for its two seals to be seen before it stays owed for the next mount (named, bounded). */
+/**
+ * How long an owed impulse waits for its two seals to be seen before it stays owed for the next mount (named, bounded)
+ * — COUNTED FROM THE CHAMBER'S REST, never from the change (FLAKE ZERO Ф4, class N): the access changes the moment the
+ * government has changed places, mid-enactment, and the beat's rest after it plays at the machine's pace; on a slow
+ * renderer the window ran out before the chamber was ever at rest, and the activation was never shown in its sitting.
+ * While the chamber is not at rest the window restarts; `ALLIANCE_IMPULSE_HARD_MAX_MS` bounds it all.
+ */
 const ALLIANCE_IMPULSE_WAIT_MS = 6_000;
+const ALLIANCE_IMPULSE_HARD_MAX_MS = 30_000;
 
 /**
  * The PARTIES tier: six tiles whose centre is their printed mechanic (the
@@ -265,7 +274,10 @@ function playOwedAllianceImpulses(): void {
     return;
   }
   impulseRunning.value = true;
-  const started = Date.now();
+  const clock = flowClock();
+  const started = clock.now();
+  // The window counts from the chamber's REST: re-armed while a sitting's beat plays (ceilings, never scaled down).
+  let restSince = started;
   // THE SEALS STAND STILL (П6): «at rest» is also the chamber's own ENTRY — on the first open after the play the
   // seals are visible while the surface still rises, and a spark aimed then was born ~80 px off its seal. Two equal
   // measurements in a row (the cursor's settle rule, TR58) cover the entry, a FLIP and a late re-fit alike.
@@ -275,12 +287,17 @@ function playOwedAllianceImpulses(): void {
       impulseRunning.value = false;
       return;
     }
-    const seen = chamberAtRest() && sealSeen(partner) && sealSeen(party);
+    const atRest = chamberAtRest();
+    const seen = atRest && sealSeen(partner) && sealSeen(party);
     const rects = seen ? [sealRect(partner), sealRect(party)].map((r) => r === undefined ? '-' : `${Math.round(r.left)},${Math.round(r.top)}`).join('|') : '';
     const still = seen && rects === lastRects;
     lastRects = rects;
     if (!still) {
-      if (Date.now() - started < ALLIANCE_IMPULSE_WAIT_MS) {
+      const now = clock.now();
+      if (!atRest) {
+        restSince = now;
+      }
+      if (now - restSince < motionCeilingMs(ALLIANCE_IMPULSE_WAIT_MS) && now - started < motionCeilingMs(ALLIANCE_IMPULSE_HARD_MAX_MS)) {
         probeTick(attempt);
       } else {
         // Never seen in the window (the chamber stayed covered): still owed — the next mount or change plays it.

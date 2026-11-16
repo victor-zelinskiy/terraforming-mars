@@ -15,7 +15,8 @@
  *             ▼  │ RETAIN             ▼                    a release refused while presenting keeps re-asking the same way
  *             held                   presentingOwed
  *   beat      pending ─BEAT_DONE / 2.6 s─▶ over           the execution beat; REARM_BEAT (only while awaiting) restarts it
- *   arrival   closed ─ANSWER_IN / PRESENTING─▶ timed ─ARRIVAL_DONE / 5 s─▶ open     the input gate of a card outcome
+ *   arrival   closed ─ANSWER_IN / PRESENTING─▶ timed ─ARRIVAL_DONE / 5 s─▶ open     the input gate of a card outcome; its
+ *             5 s restarts at the beat's settle and never runs out while the beat still flies
  *   host      bound ─HOST_GONE─▶ orphaned ─1.5 s─▶ released                        a claim never outlives its host
  *
  * The HOST region is the structural half: the facade binds the claim to its host frame's SCOPE
@@ -25,7 +26,7 @@
  * `mayRelease` is the release funnel's serving guard (the facade provides it): a claim that serves and whose host
  * stands is never released by its own safety.
  */
-import {assign, setup} from 'xstate';
+import {assign, setup, stateIn} from 'xstate';
 
 /** «Claimed, and nothing ever came» — deliberately longer than the surface-motion awaiting safety (6 s). */
 export const CLAIM_SAFETY_MS = 20_000;
@@ -85,6 +86,8 @@ export const claimMachine = setup({
     mayRelease: () => true,
     awaiting: ({context}) => context.stage === 'awaiting',
     retainGated: ({event}) => event.type === 'RETAIN' && event.gated,
+    /** The execution beat's flight is still in the air (the beat region pending). */
+    beatFlying: stateIn({live: {beat: 'pending'}}),
   },
   actions: {
     toAwaiting: assign({stage: 'awaiting' as const}),
@@ -176,10 +179,15 @@ export const claimMachine = setup({
               on: {
                 // The flight cannot start before the surface it lands in exists: the backstop restarts from here.
                 PRESENTING: {target: 'timed', reenter: true},
+                // …and the hand-over cannot start before the execution beat's flight has settled: from here too.
+                BEAT_DONE: {target: 'timed', reenter: true},
                 ARRIVAL_DONE: 'open',
                 RETAIN: [{guard: 'retainGated', target: 'closed'}, {target: 'open'}],
               },
-              after: {ARRIVAL_SAFETY: 'open'},
+              // NEVER WHILE THE BEAT STILL FLIES (FLAKE ZERO · class N): counted from the answer alone, the 5 s ran out
+              // on a slow renderer while the beat's cards were still in the air (its own backstop re-arms per step of
+              // the flight and bounds it) — the gate opened, the stage took presses over cards still landing.
+              after: {ARRIVAL_SAFETY: [{guard: 'beatFlying', target: 'timed', reenter: true}, {target: 'open'}]},
             },
           },
         },

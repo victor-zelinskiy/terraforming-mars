@@ -293,15 +293,17 @@
         &--void { visibility: hidden; }
         /* THE TOUCHDOWN (v3 В3, law 1): the ONE socket that received the cube answers — its material goes
            denser for a beat and settles. A one-shot ended by its own animationend: no pulse, no repeat,
-           and nothing around it moves. */
-        &--landed { .pd-footprint-landed(#e2e8f0); }
+           and nothing around it moves. An ATTRIBUTE (`supportPlaceAnswer.ts`): the socket's classes are
+           bound, and the landing's own count change rewrites them whole. */
+        &[data-support-landed] { .pd-footprint-landed(#e2e8f0); }
         /* A STANDING FIGURE THE PRESS BEING DECIDED WOULD SEND AWAY (TR12 «САНКЦИИ», the cursor on a candidate): the
            figure fades and its trace goes DASHED amber — the incoming place's grammar read backwards; the dash, not a
            colour, is what tells it from a figure that stays. */
         &--outgoing { --pd-foot-rim: fade(@con-amber, 90%); --pd-foot-style: dashed; .player-delegate { opacity: .38; } }
         /* THE LIFT-OFF (TR12): the ONE place whose figure just left for the common supply answers once — its trace
-           thins and settles empty. A one-shot ended by its own animationend; nothing around it moves. */
-        &--left::before { animation: con-pseal-support-left calc(280ms * var(--motion-scale, 1)) @con-ease-standard 1; }
+           thins and settles empty. A one-shot ended by its own animationend; nothing around it moves. An
+           ATTRIBUTE, like the touchdown's. */
+        &[data-support-left]::before { animation: con-pseal-support-left calc(280ms * var(--motion-scale, 1)) @con-ease-standard 1; }
     }
     /* THE SUPPORT-AREA MODE's reading (TR12 «САНКЦИИ») in the state row's place: a candidate's «3 → 0» in the
        roll call's tracked accent, a refused area's ONE reason in the quiet register (never amber — an empty
@@ -385,13 +387,13 @@ html.con-fx-lite .con-pseal--roll-enacted .con-pseal__seal,
 html.con-fx-lite .con-pseal--roll-lost .con-pseal__seal,
 html.con-fx-lite .con-pseal--roll-absent .con-pseal__seal { animation: none; }
 /* The support place's one-shot answer is the touchdown's own (`.pd-footprint-landed`, v3 В3). */
-html.con-fx-lite .con-pseal__support-place--landed { &::after, .player-delegate { animation: none; } }
+html.con-fx-lite .con-pseal__support-place[data-support-landed] { &::after, .player-delegate { animation: none; } }
 /* …and the lift-off's (TR12): the trace lets its figure go and thins for a beat before it reads empty. */
 @keyframes con-pseal-support-left {
     0% { opacity: 1; transform: translateX(-50%) scale(1.18); }
     100% { opacity: 1; transform: translateX(-50%) scale(1); }
 }
-html.con-fx-lite .con-pseal__support-place--left::before { animation: none; }
+html.con-fx-lite .con-pseal__support-place[data-support-left]::before { animation: none; }
 /* …and the recount's touch (TR31): the trace swells once and settles into its counted ring. */
 @keyframes con-pseal-support-counted {
     0% { transform: translateX(-50%) scale(1); }

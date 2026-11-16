@@ -1,21 +1,26 @@
-import {Page} from '@playwright/test';
+import type {Page} from '@playwright/test';
 import {CURSOR_EASE, CURSOR_MS} from '../../src/client/components/motion/motionTokens';
 import {cubicBezierFromCss} from '../../src/client/components/motion/cubicBezier';
+import {recordTransient, stopTransient, TransientSample} from './transientRecorder';
 
 /**
  * THE CURSOR IS ONE LIVING OBJECT — its witness (TR58, `.claude/rules/console-ui.md` § THE CURSOR).
  *
  * The owner's report of 2026-10-16: «the focus appears in one frame and the card makes a micro-jump». No e2e asked HOW
  * the ring arrives: the probes read classes, and a class is on or off — a ring that snaps and a ring that grows read
- * the same to them. This witness reads the PAINTED pose, sample by sample, on a clock that keeps running on a quiet
- * screen (`MutationObserver` + `setInterval` 4 ms — never rAF: headless drives rAF off the compositor and a rAF sampler
- * stops exactly when the screen goes still):
+ * the same to them. This witness reads the PAINTED pose, sample by sample, on the replace-proof recorder
+ * (`transientRecorder.ts`, FLAKE ZERO): the product's own writes observed in the task that makes them (`settled` — never
+ * a state between a patch and the `nextTick` that poses it), a frame tick (the boundaries of every CSS motion are
+ * dispatched in those very frames — a cursor's ring and lift run on the compositor and mutate no DOM), and a 4 ms TIMER
+ * tick — a TIMING witness: headless drives frames off the compositor and a frame-only sampler stops exactly when the
+ * screen goes still, so only a clock that keeps running tells a still screen from a stalled thread. Every change is
+ * pushed to the Node side at once — a page the product REPLACES neither loses the trail nor stops it. It reads:
  *  · every candidate's RING strength — the cursor layer's own opacity (`.con-cursor()` paints it on `::after` /
  *    `::before`), else the alpha of a spread ring in the element's or its face's `box-shadow` (the pre-TR58 paint);
  *  · its FACE box (the card / tile face, never a wrapper — a copy is compared face to face), its transform's scale;
  *  · its visibility down the ancestor chain;
  *  · a flying COPY of the cursored object, when the surface flies one (the hand's body);
- *  · a scroller's position; the long tasks.
+ *  · a scroller's position; the long tasks (of the document it was armed in — a diagnostic, never judged).
  * and reports the defects of the class by name:
  *  · `snaps`      — a visible ring went from ≤ 20 % to ≥ 80 % of its full strength between two consecutive samples
  *                   FASTER than the cursor's own curve can carry it in that gap (`ringCurveGain` — an opacity
@@ -90,193 +95,194 @@ export type FocusWitnessReport = {
   trail: Array<FocusSample>;
 };
 
-type WitnessWindow = {
-  __focusWitness?: {t0: number, samples: Array<FocusSample>, scroll: Array<[number, number]>, long: Array<[number, number]>, stop: () => void, uiScale: number};
-};
+/** One reading of the page: the candidates that matter (a ring, a lift, a live copy) and the scroller's position. */
+type FocusObservation = {rows: Array<Omit<FocusSample, 't'>>, scroll: number | null};
+
+/** The long-task log of the current document (diagnostic — a `longtask` entry is no sampler). */
+type LongTaskWindow = {__focusWitnessLong?: {obs?: PerformanceObserver, long: Array<[number, number]>}};
+
+const FOCUS_KEY = 'focus-witness';
+/** Per page: the page's `Date.now()` at the arm (the origin of every `t`) and the UI scale the bounds are read in. */
+const ARMS = new WeakMap<Page, {origin: number, uiScale: number}>();
 
 /** Arm the witness BEFORE the press. Re-arming replaces a previous one. */
 export async function armFocusWitness(page: Page, opts: FocusWitnessOptions): Promise<void> {
-  await page.evaluate((o) => {
-    const w = window as unknown as WitnessWindow;
-    w.__focusWitness?.stop();
+  ARMS.set(page, await page.evaluate(() => {
+    const w = window as unknown as LongTaskWindow;
+    w.__focusWitnessLong?.obs?.disconnect();
+    // One instant on both clocks: the trail's `t` is ms since `origin` (the recorder stamps samples by `Date.now()`),
+    // a long task's start is ms since `t0` (its own `startTime` is `performance.now()`).
+    const origin = Date.now();
     const t0 = performance.now();
-    const samples: Array<FocusSample> = [];
-    const scroll: Array<[number, number]> = [];
     const long: Array<[number, number]> = [];
-    const uiScale = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale')) || 1;
-    const round = (n: number) => Math.round(n * 10) / 10;
-    const boxOf = (el: Element): [number, number, number, number] => {
-      const r = el.getBoundingClientRect();
-      return [round(r.left), round(r.top), round(r.width), round(r.height)];
-    };
-    const visOf = (el: Element): number => {
-      let v = 1;
-      for (let n: Element | null = el; n !== null; n = n.parentElement) {
-        const cs = getComputedStyle(n);
-        if (cs.visibility === 'hidden' || cs.display === 'none') {
-          return 0;
-        }
-        v *= Number(cs.opacity);
-      }
-      return Math.round(v * 100) / 100;
-    };
-    /**
-     * The alpha of the first focus RING of a box-shadow list — a spread ring (`… 0px 0px 0px Npx`, inset or outer)
-     * strong enough to be a cursor (alpha ≥ 0.4) and thick enough (spread ≥ 0.9 logical px): a state HAIRLINE (the
-     * hand's mint «playable» thread, 26 %; a tile's resting border) is not a cursor. 0 when none.
-     */
-    const shadowRing = (bs: string): number => {
-      if (bs === 'none' || bs === '') {
-        return 0;
-      }
-      for (const part of bs.split(/,(?![^(]*\))/)) {
-        const m = /rgba?\(([^)]*)\)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px/.exec(part.trim());
-        if (m === null) {
-          continue;
-        }
-        const ch = m[1].split(',').map((s) => Number.parseFloat(s));
-        const alpha = ch.length >= 4 ? ch[3] : 1;
-        if (Number(m[2]) === 0 && Number(m[3]) === 0 && Number(m[5]) >= 0.9 * uiScale && alpha >= 0.4) {
-          return alpha;
-        }
-      }
-      return 0;
-    };
-    const ringOf = (el: Element, face: Element): number => {
-      for (const pseudo of ['::after', '::before']) {
-        const ps = getComputedStyle(el, pseudo);
-        if (ps.content !== 'none' && ps.content !== 'normal' && shadowRing(ps.boxShadow) > 0) {
-          return Math.round(Number(ps.opacity) * 100) / 100;
-        }
-      }
-      const own = Math.max(shadowRing(getComputedStyle(el).boxShadow), face === el ? 0 : shadowRing(getComputedStyle(face).boxShadow));
-      return Math.round(own * 100) / 100;
-    };
-    const scaleOf = (el: Element): number => {
-      const tf = getComputedStyle(el).transform;
-      const m = /matrix\(([^,]+),\s*([^,]+)/.exec(tf);
-      if (m === null) {
-        return 1;
-      }
-      return Math.round(Math.hypot(Number(m[1]), Number(m[2])) * 1000) / 1000;
-    };
-    const animatingOf = (el: Element): boolean => {
-      for (let n: Element | null = el, k = 0; n !== null && k < 12; n = n.parentElement, k++) {
-        if (n.getAnimations().some((a) => a.playState === 'running')) {
-          return true;
-        }
-      }
-      return false;
-    };
-    /** The ring layer's own opacity transition is pending (its start time not yet resolved) — see `FocusSample.held`. */
-    const ringHeldOf = (el: Element): boolean => el.getAnimations({subtree: true}).some((a) => {
-      const pseudo = (a.effect as KeyframeEffect | null)?.pseudoElement;
-      return a.pending && pseudo !== null && pseudo !== undefined && (a as CSSTransition).transitionProperty === 'opacity';
-    });
-    let last = '';
-    const sample = () => {
-      const t = Math.round(performance.now() - t0);
-      const els = Array.from(document.querySelectorAll(o.candidates));
-      const rows: Array<FocusSample> = [];
-      els.forEach((el, i) => {
-        const key = o.keyAttr !== undefined ? (el.getAttribute(o.keyAttr) ?? String(i)) : String(i);
-        const face = o.face !== undefined ? (el.querySelector(o.face) ?? el) : el;
-        const ring = ringOf(el, face);
-        const scale = scaleOf(el);
-        let proxy: FocusSample['proxy'];
-        if (o.proxy !== undefined) {
-          const p = document.querySelector(o.proxy.replace('${key}', CSS.escape(key)));
-          if (p !== null) {
-            const pf = o.proxyFace !== undefined ? (p.querySelector(o.proxyFace) ?? p) : p;
-            proxy = {box: boxOf(pf), vis: visOf(p)};
-          }
-        }
-        // Only the candidates that matter: a ring, a lift, or a live copy (the rest of a 30-tile grid is noise — and
-        // reading every tile's ancestors on every 4 ms sample would itself starve the frame being measured).
-        if (ring > 0 || scale > 1.001 || (proxy !== undefined && proxy.vis > 0)) {
-          rows.push({
-            t, key, ring, scale, proxy,
-            vis: visOf(el),
-            z: Number.parseInt(getComputedStyle(el).zIndex, 10) || 0,
-            box: boxOf(face),
-            animating: animatingOf(face),
-            held: ringHeldOf(el),
-          });
-        }
-      });
-      const sig = JSON.stringify(rows.map((r) => [r.key, r.ring, r.vis, r.scale, r.z, r.box, r.held, r.proxy]));
-      if (sig !== last) {
-        last = sig;
-        samples.push(...rows.length > 0 ? rows : [{t, key: '', ring: 0, vis: 0, scale: 1, z: 0, box: [0, 0, 0, 0] as [number, number, number, number], animating: false}]);
-      }
-      if (o.scroller !== undefined) {
-        const sc = document.querySelector(o.scroller);
-        if (sc !== null) {
-          const top = Math.round(sc.scrollTop + sc.scrollLeft);
-          if (scroll.length === 0 || scroll[scroll.length - 1][1] !== top) {
-            scroll.push([t, top]);
-          }
-        }
-      }
-    };
-    let lto: PerformanceObserver | undefined;
+    let obs: PerformanceObserver | undefined;
     try {
-      lto = new PerformanceObserver((list) => {
+      obs = new PerformanceObserver((list) => {
         for (const e of list.getEntries()) {
           long.push([Math.round(e.startTime - t0), Math.round(e.duration)]);
         }
       });
-      lto.observe({type: 'longtask', buffered: false});
+      obs.observe({type: 'longtask', buffered: false});
     } catch {
-      lto = undefined;
+      obs = undefined;
     }
-    const iv = window.setInterval(sample, 4);
-    // A mutation SCHEDULES a task-level sample (a MessageChannel message — after every microtask of the turn): sampled in
-    // its own microtask it would record states the browser never paints (a patch before the `nextTick` that poses it).
-    const channel = new MessageChannel();
-    let queued = false;
-    channel.port1.onmessage = () => {
-      queued = false;
-      sample();
-    };
-    const mo = new MutationObserver(() => {
-      if (!queued) {
-        queued = true;
-        channel.port2.postMessage(0);
+    w.__focusWitnessLong = {obs, long};
+    return {origin, uiScale: Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale')) || 1};
+  }));
+  await recordTransient(page, FOCUS_KEY, readFocus, {args: opts, settled: true, tickMs: 4, max: 100_000});
+}
+
+/** The page half — SELF-CONTAINED (serialized into every document the page loads): one reading of the candidates. */
+function readFocus(o: FocusWitnessOptions): FocusObservation {
+  const uiScale = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale')) || 1;
+  const round = (n: number) => Math.round(n * 10) / 10;
+  const boxOf = (el: Element): [number, number, number, number] => {
+    const r = el.getBoundingClientRect();
+    return [round(r.left), round(r.top), round(r.width), round(r.height)];
+  };
+  const visOf = (el: Element): number => {
+    let v = 1;
+    for (let n: Element | null = el; n !== null; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.visibility === 'hidden' || cs.display === 'none') {
+        return 0;
       }
-    });
-    mo.observe(document.body, {subtree: true, attributes: true, childList: true});
-    // …and the boundaries of every CSS motion are samples (a cursor's ring and lift run on the compositor and mutate no
-    // DOM; the harness's timers are coarse — a whole 180 ms lift fell between two samples and read as a «jump»).
-    const EVENTS = ['transitionrun', 'transitionstart', 'transitionend', 'transitioncancel', 'animationstart', 'animationend', 'animationcancel'];
-    for (const ev of EVENTS) {
-      document.addEventListener(ev, sample, true);
+      v *= Number(cs.opacity);
     }
-    sample();
-    w.__focusWitness = {t0, samples, scroll, long, uiScale, stop: () => {
-      window.clearInterval(iv);
-      mo.disconnect();
-      channel.port1.close();
-      for (const ev of EVENTS) {
-        document.removeEventListener(ev, sample, true);
+    return Math.round(v * 100) / 100;
+  };
+  /**
+   * The alpha of the first focus RING of a box-shadow list — a spread ring (`… 0px 0px 0px Npx`, inset or outer)
+   * strong enough to be a cursor (alpha ≥ 0.4) and thick enough (spread ≥ 0.9 logical px): a state HAIRLINE (the
+   * hand's mint «playable» thread, 26 %; a tile's resting border) is not a cursor. 0 when none.
+   */
+  const shadowRing = (bs: string): number => {
+    if (bs === 'none' || bs === '') {
+      return 0;
+    }
+    for (const part of bs.split(/,(?![^(]*\))/)) {
+      const m = /rgba?\(([^)]*)\)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px/.exec(part.trim());
+      if (m === null) {
+        continue;
       }
-      lto?.disconnect();
-    }};
-  }, opts);
+      const ch = m[1].split(',').map((s) => Number.parseFloat(s));
+      const alpha = ch.length >= 4 ? ch[3] : 1;
+      if (Number(m[2]) === 0 && Number(m[3]) === 0 && Number(m[5]) >= 0.9 * uiScale && alpha >= 0.4) {
+        return alpha;
+      }
+    }
+    return 0;
+  };
+  const ringOf = (el: Element, face: Element): number => {
+    for (const pseudo of ['::after', '::before']) {
+      const ps = getComputedStyle(el, pseudo);
+      if (ps.content !== 'none' && ps.content !== 'normal' && shadowRing(ps.boxShadow) > 0) {
+        return Math.round(Number(ps.opacity) * 100) / 100;
+      }
+    }
+    const own = Math.max(shadowRing(getComputedStyle(el).boxShadow), face === el ? 0 : shadowRing(getComputedStyle(face).boxShadow));
+    return Math.round(own * 100) / 100;
+  };
+  const scaleOf = (el: Element): number => {
+    const tf = getComputedStyle(el).transform;
+    const m = /matrix\(([^,]+),\s*([^,]+)/.exec(tf);
+    if (m === null) {
+      return 1;
+    }
+    return Math.round(Math.hypot(Number(m[1]), Number(m[2])) * 1000) / 1000;
+  };
+  const animatingOf = (el: Element): boolean => {
+    for (let n: Element | null = el, k = 0; n !== null && k < 12; n = n.parentElement, k++) {
+      if (n.getAnimations().some((a) => a.playState === 'running')) {
+        return true;
+      }
+    }
+    return false;
+  };
+  /** The ring layer's own opacity transition is pending (its start time not yet resolved) — see `FocusSample.held`. */
+  const ringHeldOf = (el: Element): boolean => el.getAnimations({subtree: true}).some((a) => {
+    const pseudo = (a.effect as KeyframeEffect | null)?.pseudoElement;
+    return a.pending && pseudo !== null && pseudo !== undefined && (a as CSSTransition).transitionProperty === 'opacity';
+  });
+  const rows: FocusObservation['rows'] = [];
+  Array.from(document.querySelectorAll(o.candidates)).forEach((el, i) => {
+    const key = o.keyAttr !== undefined ? (el.getAttribute(o.keyAttr) ?? String(i)) : String(i);
+    const face = o.face !== undefined ? (el.querySelector(o.face) ?? el) : el;
+    const ring = ringOf(el, face);
+    const scale = scaleOf(el);
+    let proxy: FocusSample['proxy'];
+    if (o.proxy !== undefined) {
+      const p = document.querySelector(o.proxy.replace('${key}', CSS.escape(key)));
+      if (p !== null) {
+        const pf = o.proxyFace !== undefined ? (p.querySelector(o.proxyFace) ?? p) : p;
+        proxy = {box: boxOf(pf), vis: visOf(p)};
+      }
+    }
+    // Only the candidates that matter: a ring, a lift, or a live copy (the rest of a 30-tile grid is noise — and
+    // reading every tile's ancestors on every 4 ms sample would itself starve the frame being measured).
+    if (ring > 0 || scale > 1.001 || (proxy !== undefined && proxy.vis > 0)) {
+      rows.push({
+        key, ring, scale, proxy,
+        vis: visOf(el),
+        z: Number.parseInt(getComputedStyle(el).zIndex, 10) || 0,
+        box: boxOf(face),
+        animating: animatingOf(face),
+        held: ringHeldOf(el),
+      });
+    }
+  });
+  let scroll: number | null = null;
+  if (o.scroller !== undefined) {
+    const sc = document.querySelector(o.scroller);
+    if (sc !== null) {
+      scroll = Math.round(sc.scrollTop + sc.scrollLeft);
+    }
+  }
+  return {rows, scroll};
+}
+
+/**
+ * The recording as the witness's trail: a candidate row is STORED only when the pose changed (its key, ring, visibility,
+ * scale, z, box, hold or copy — never on `animating` alone, so a pair of samples stays the pair the analysis was
+ * calibrated on), an empty reading as one blank row; the scroller's position only when it moved.
+ */
+function foldFocus(recorded: ReadonlyArray<TransientSample<FocusObservation | null>>, origin: number): {samples: Array<FocusSample>, scroll: Array<[number, number]>} {
+  const samples: Array<FocusSample> = [];
+  const scroll: Array<[number, number]> = [];
+  let last = '';
+  for (const s of recorded) {
+    const v = s.v;
+    if (v === null) {
+      continue;
+    }
+    const t = Math.round(s.t - origin);
+    const sig = JSON.stringify(v.rows.map((r) => [r.key, r.ring, r.vis, r.scale, r.z, r.box, r.held, r.proxy]));
+    if (sig !== last) {
+      last = sig;
+      samples.push(...v.rows.length > 0 ? v.rows.map((r) => ({t, ...r})) :
+        [{t, key: '', ring: 0, vis: 0, scale: 1, z: 0, box: [0, 0, 0, 0] as [number, number, number, number], animating: false}]);
+    }
+    if (v.scroll !== null && (scroll.length === 0 || scroll[scroll.length - 1][1] !== v.scroll)) {
+      scroll.push([t, v.scroll]);
+    }
+  }
+  return {samples, scroll};
 }
 
 /** Stop the witness and read its report. */
 export async function focusWitness(page: Page): Promise<FocusWitnessReport> {
-  const raw = await page.evaluate(() => {
-    const w = window as unknown as WitnessWindow;
-    const fw = w.__focusWitness;
-    fw?.stop();
-    return fw === undefined ? undefined : {samples: fw.samples, scroll: fw.scroll, long: fw.long, uiScale: fw.uiScale};
-  });
-  if (raw === undefined) {
+  const arm = ARMS.get(page);
+  if (arm === undefined) {
     throw new Error('focusWitness: the witness was never armed');
   }
-  return analyseFocusTrail(raw.samples, raw.scroll, raw.long, raw.uiScale);
+  // `stopTransient` flushes the reader once more first — the window's last pose is a sample too.
+  const {samples, scroll} = foldFocus(await stopTransient<FocusObservation | null>(page, FOCUS_KEY), arm.origin);
+  const long = await page.evaluate(() => {
+    const w = window as unknown as LongTaskWindow;
+    w.__focusWitnessLong?.obs?.disconnect();
+    return w.__focusWitnessLong?.long ?? [];
+  }).catch(() => [] as Array<[number, number]>); // a page the product replaced took its long-task log with it
+  return analyseFocusTrail(samples, scroll, long, arm.uiScale);
 }
 
 /** The analysis, pure (so a stand can re-read a saved trail). */

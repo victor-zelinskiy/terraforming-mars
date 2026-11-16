@@ -61,7 +61,7 @@ import {SpaceModel} from '@/common/models/SpaceModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
   FreshPlacement, detectFreshPlacements, detectFreshRemovals, OWN_FLIGHT_PROFILE, REMOTE_FLIGHT_PROFILE,
@@ -130,8 +130,13 @@ import {createFlowRun} from '@/client/console/session/flowRun';
 
 /** A whole queue can legitimately take several seconds (N sequential
  *  flights) — far past that, something stalled and every held tile must
- *  become visible. Deliberately under the animation-hold 35 s ceiling. */
-const REMOTE_STAGE_SAFETY_MS = 15000;
+ *  become visible. Deliberately under the animation-hold 35 s ceiling.
+ *  RE-ARMED PER LANDING (FLAKE ZERO Ф4, class N): it bounds ONE landing (and
+ *  the score's tokens after the last), never the queue counted from its
+ *  staging — a queue of landings plays at the machine's pace, and on a slow
+ *  renderer three of them outlasted it: the abort revealed the rest at once,
+ *  mid-flight. A ceiling, so never scaled down with a faster motion setting. */
+export const REMOTE_STAGE_SAFETY_MS = 15000;
 
 /**
  * HOW LONG A LANDING WILL WAIT FOR A BOARD THE PLAYER CAN SEE.
@@ -591,7 +596,7 @@ export function stageRemoteTileEvents(
       // B — hidden until the touchdown; its cube is the one riding the proxy.
       holdRemoteReveal(e.spaceId);
       if (e.color !== undefined) {
-        holdCubeForHeroPlacement(e.spaceId);
+        holdCubeForHeroPlacement(e.spaceId, {keptWhile: () => landingOwedAt(e.spaceId)});
       }
       queue.push({
         ...e,
@@ -618,7 +623,7 @@ export function stageRemoteTileEvents(
         holdRemoteReveal(e.spaceId, e.tileType);
       }
       if (e.color !== undefined) {
-        holdCubeForHeroPlacement(e.spaceId);
+        holdCubeForHeroPlacement(e.spaceId, {keptWhile: () => landingOwedAt(e.spaceId)});
       }
       queue.push({...e, aresExtension: opts?.aresExtension === true, own: false, income: []});
       remotePlacementState.queued = queue.length;
@@ -632,11 +637,11 @@ export function stageRemoteTileEvents(
     if (e.color !== undefined) {
       // Same synchronous block as the colour commit — observeCube keeps a
       // phase already in flight, so the cube waits for its explicit drop.
-      holdCubeForHeroPlacement(e.spaceId);
+      holdCubeForHeroPlacement(e.spaceId, {keptWhile: () => landingOwedAt(e.spaceId)});
     }
     // …and the RING it brought (TR79): every cube held with it, set down in turn after it.
     for (const id of e.ring ?? []) {
-      holdCubeForHeroPlacement(id);
+      holdCubeForHeroPlacement(id, {keptWhile: () => landingOwedAt(id)});
     }
     // THE SERVER'S RECORD OF THIS PLACEMENT (the tile language): who placed it, what the cell paid them.
     const record = claimPlacementRecordOf(e.spaceId, opts);
@@ -667,6 +672,15 @@ export function stageRemoteTileEvents(
 function ownHeroOwns(spaceId: string): boolean {
   return tilePlacementState.active &&
     (tilePlacementState.spaceId === spaceId || tilePlacementState.move?.from === spaceId);
+}
+
+/**
+ * Does this stage still OWE the landing on `spaceId` — its event (or the ring it brought) still queued, waiting for the
+ * board or on stage? A cube held for it waits for that landing, never for a clock started at the staging (the stage's
+ * own bounds end it: the landing drops it, a degrade / an abort rests it — `holdCubeForHeroPlacement`).
+ */
+function landingOwedAt(spaceId: string): boolean {
+  return queue.some((ev) => ev.spaceId === spaceId || (ev.ring ?? []).some((id) => id === spaceId));
 }
 
 /**
@@ -881,8 +895,10 @@ async function drainQueue(): Promise<void> {
     // A tile queued WHILE the score's tokens fly is drained after them — the outer loop re-reads the queue.
     do {
       await drainEvents(myEpoch);
-      // THE VIEWER'S SCORE answers the tiles it just watched land (TR55): their shares fly now, each from its cause.
+      // THE VIEWER'S SCORE answers the tiles it just watched land (TR55): their shares fly now, each from its cause —
+      // a beat of its own under the stage's safety.
       if (epoch === myEpoch) {
+        armStageSafety();
         await flyRemoteVp();
       }
     } while (queue.length > 0 && epoch === myEpoch);
@@ -902,6 +918,8 @@ async function drainQueue(): Promise<void> {
 async function drainEvents(myEpoch: number): Promise<void> {
   while (queue.length > 0 && epoch === myEpoch) {
     const ev = queue[0];
+    // The stage's safety bounds THIS landing — the queue progressed (see `REMOTE_STAGE_SAFETY_MS`).
+    armStageSafety();
     try {
       if (ev.move !== undefined) {
         await moveRemote(ev, ev.move, myEpoch);
@@ -1742,7 +1760,7 @@ export function remoteOriginPoint(color: Color | undefined, ui: number): Transfe
 
 function armStageSafety(): void {
   cancelStageSafety();
-  cancelStageSafety = (remoteRun.scope ?? remoteRun.begin()).after(REMOTE_STAGE_SAFETY_MS, 'the remote stage\'s safety', () => abortRemotePlacements());
+  cancelStageSafety = (remoteRun.scope ?? remoteRun.begin()).after(motionCeilingMs(REMOTE_STAGE_SAFETY_MS), 'the remote stage\'s safety', () => abortRemotePlacements());
 }
 
 /** The stage is over (the queue drained, or it was aborted): its safety goes, and so does its run. */

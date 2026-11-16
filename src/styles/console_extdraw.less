@@ -171,8 +171,9 @@
 
 /* The survivors' re-seat rides the slot's inline transform for its span; the
    slot's own focus transition on the same property is switched off meanwhile,
-   so the two never fight (`settleTaken`). */
-:is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row > .con-cards__slot.con-extdraw__slot--reflow {
+   so the two never fight (`settleTaken`). An ATTRIBUTE (`EXTDRAW_REFLOW_ATTR`):
+   the slot's classes are bound, and a re-render mid-FLIP rewrites them whole. */
+:is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row > .con-cards__slot[data-extdraw-reflow] {
     transition: none;
 }
 

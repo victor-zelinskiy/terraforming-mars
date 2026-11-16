@@ -202,9 +202,10 @@
 
 /* THE SOURCE CELL ANSWERS A DEPARTURE — a one-shot press as each card
    physically separates from its printed back (the deck-tick idiom). Cue is
-   transform + box-shadow only, so it survives performance mode. */
-.con-colcell--dealt .con-colfocus__xcell-glyph,
-.con-colcell--dealt .con-colfocus__rglyph {
+   transform + box-shadow only, so it survives performance mode. An ATTRIBUTE (`[data-dealt]`): the cell's classes
+   are bound, and a class written onto it was wiped by the next marker beat's re-render. */
+[data-dealt] .con-colfocus__xcell-glyph,
+[data-dealt] .con-colfocus__rglyph {
     animation: con-colcell-dealt calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
 }
 @keyframes con-colcell-dealt {
@@ -214,8 +215,8 @@
     100% { transform: scale(1); }
 }
 /* …and its frame answers by MATERIAL: an inset kant of the gain's mint for the beat (never a halo). */
-.con-colcell--dealt.con-colfocus__xcell .con-colfocus__xcell-body,
-.con-colcell--dealt .con-colfocus__ob-value {
+.con-colfocus__xcell[data-dealt] .con-colfocus__xcell-body,
+[data-dealt] .con-colfocus__ob-value {
     box-shadow: inset 0 0 0 .07rem fade(@con-mint, 70%);
     border-radius: .35rem;
     transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;

@@ -38,7 +38,7 @@ import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {
   PatentSalePhase,
@@ -298,7 +298,7 @@ export function runPatentSale(): Promise<void> {
   return new Promise<void>((resolve) => {
     runResolve.arm(resolve);
     // rAF stall / lost element — force the gate open, degrade gracefully.
-    cancelSceneSafety = run.guarantee(motionMs(SALE_LIFT_MS + SALE_GATHER_MS + SALE_INSERT_MS + SALE_PROCESS_MIN_MS + transferFlightBudgetMs()) + 3000,
+    cancelSceneSafety = run.guarantee(motionCeilingMs(SALE_LIFT_MS + SALE_GATHER_MS + SALE_INSERT_MS + SALE_PROCESS_MIN_MS + transferFlightBudgetMs()) + 3000,
       'the scene\'s safety (the commit gate)', () => freeRunGate());
     void executePayout().finally(() => freeRunGate());
   });
@@ -478,7 +478,7 @@ async function executePayout(): Promise<void> {
   // preempts it (the chip can only come out of a terminal that has taken
   // the cards in). Frame-polled with a hard deadline: a stalled leg can
   // never wedge the commit.
-  const deadline = Date.now() + motionMs(SALE_LIFT_MS + SALE_GATHER_MS + SALE_INSERT_MS) + 2500;
+  const deadline = Date.now() + motionCeilingMs(SALE_LIFT_MS + SALE_GATHER_MS + SALE_INSERT_MS) + 2500;
   while (patentSaleState.active && patentSaleState.phase !== 'processing' && Date.now() < deadline) {
     await frame();
   }
@@ -588,8 +588,8 @@ function raiseReceivers(): void {
 
 /** The receivers' rise has landed: every receiver card painted at full opacity (bounded — a lost frame never wedges the payout). */
 async function receiversStanding(): Promise<void> {
-  const deadline = Date.now() + motionMs(SALE_RECEIVERS_RISE_MS) + 400;
-  const node = beginCeilingWait({id: 'patent-sale:receivers-standing', owner: 'patentSale', what: 'the receivers strip risen and opaque', maxMs: motionMs(SALE_RECEIVERS_RISE_MS) + 400});
+  const deadline = Date.now() + motionCeilingMs(SALE_RECEIVERS_RISE_MS) + 400;
+  const node = beginCeilingWait({id: 'patent-sale:receivers-standing', owner: 'patentSale', what: 'the receivers strip risen and opaque', maxMs: motionCeilingMs(SALE_RECEIVERS_RISE_MS) + 400});
   while (patentSaleState.active && Date.now() < deadline) {
     const strip = typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('.con-sale-hero__recvs--up');
     if (strip !== null && Number(getComputedStyle(strip).opacity) >= 0.98) {

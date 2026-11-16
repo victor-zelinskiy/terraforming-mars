@@ -16,7 +16,8 @@
  */
 import {nextTick, reactive} from 'vue';
 import {Color} from '@/common/Color';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ResourceTransferSpec, TransferEnd} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
@@ -56,9 +57,12 @@ export type SeatIntake = {
 
 /**
  * The longest the opening waits for the plaque to be PAINTED (its CSS entry — `.con-intake-enter-active`, 160 ms —
- * starts a frame after the mount) — then the tokens go anyway (on the chip). Waited on `probeTick` + the wall clock.
+ * starts a frame after the mount) — then the tokens go anyway (on the chip). Waited on `probeTick` + the wall clock,
+ * counted from the ENTRY'S START (never from the mount — see `painted`).
  */
 export const INTAKE_PAINT_WAIT_MS = 700;
+/** The hard ceiling of that wait, from the mount — a plaque whose entry never starts (never motion-scaled down). */
+export const INTAKE_PAINT_CEILING_MS = 3000;
 /** The received plaque stands for one read (ms @ motion scale 1) — then folds back into the chip. */
 export const INTAKE_READ_MS = 1200;
 /**
@@ -122,7 +126,7 @@ export function openSeatIntake(seat: Color, specs: ReadonlyArray<IntakeToken>): 
     return Promise.resolve();
   }
   cancelFold(seat);
-  folds.set(seat, motionGuarantee(motionMs(INTAKE_SAFETY_MS), 'a seat intake whose tokens never came', () => foldSeatIntake(seat)));
+  folds.set(seat, motionGuarantee(motionCeilingMs(INTAKE_SAFETY_MS), 'a seat intake whose tokens never came', () => foldSeatIntake(seat)));
   const standing = intakeOf(seat);
   if (standing !== undefined) {
     standing.items = mergeIntakeItems(standing.items, specs);
@@ -136,16 +140,46 @@ export function openSeatIntake(seat: Color, specs: ReadonlyArray<IntakeToken>): 
 
 /**
  * The plaque's numbers are PAINTED (the one verdict of a visible end — its entry transition starts a frame after the
- * mount, so the motion clock alone cannot promise it) — measured on `probeTick`, bounded by `INTAKE_PAINT_WAIT_MS`;
- * past the bound the tokens go anyway and land on the chip itself.
+ * mount, so the motion clock alone cannot promise it) — measured on `probeTick`, bounded by `INTAKE_PAINT_WAIT_MS`
+ * COUNTED FROM THE ENTRY'S START (FLAKE ZERO · class N): counted from the mount, the bound ran out on a software
+ * renderer while the plaque's entry was still pending on the compositor, and the token landed on the seat's chip with
+ * the plaque appearing beside it a frame later. Past the bound the tokens go anyway and land on the chip itself;
+ * `INTAKE_PAINT_CEILING_MS` bounds an entry that never starts.
  */
 async function painted(seat: Color, specs: ReadonlyArray<IntakeToken>): Promise<void> {
   await nextTick();
-  const deadline = performance.now() + motionMs(INTAKE_PAINT_WAIT_MS);
+  const now = () => flowClock().now();
+  const ceiling = now() + motionCeilingMs(INTAKE_PAINT_CEILING_MS);
+  let deadline: number | undefined;
   const ready = () => specs.every((spec) => spec.amount <= 0 || seatIntakeEnd(seat, spec.resource, isProduction(spec)) !== undefined);
-  while (!ready() && performance.now() < deadline) {
+  while (!ready()) {
+    if (deadline === undefined && intakeEntryStarted(seat)) {
+      deadline = now() + motionCeilingMs(INTAKE_PAINT_WAIT_MS);
+    }
+    if ((deadline !== undefined && now() >= deadline) || now() >= ceiling) {
+      return;
+    }
     await new Promise<void>((resolve) => probeTick(() => resolve()));
   }
+}
+
+/**
+ * Has the seat's plaque STARTED its entry? Mounted, and its entry transition running (the compositor resolved its
+ * start) — or no entry to wait for (reduced motion, an entry already over). Not mounted / still pending: not yet.
+ */
+function intakeEntryStarted(seat: Color): boolean {
+  if (typeof document === 'undefined') {
+    return true;
+  }
+  const plaque = document.querySelector<HTMLElement>(`[data-intake-seat="${seat}"]`);
+  if (plaque === null) {
+    return false;
+  }
+  if (!plaque.classList.contains('con-intake-enter-active') || typeof plaque.getAnimations !== 'function') {
+    return true;
+  }
+  const entry = plaque.getAnimations();
+  return entry.length > 0 && entry.every((a) => !a.pending);
 }
 
 /**

@@ -19,7 +19,10 @@ import {
   presentedColonyModel, resetColonyTrade, runColonyTradeRewards, seedColonyTradeRewardHold,
   setColonyTradeCardScene, stageColonyTradeReveal,
   colonyTrackWaveState, finishColonyTrackWave, requestColonyTrackWave, colonyTradeDiagnostics, colonyTradeRunId,
+  noteColonyTrackAdvanceGliding,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
+import {gsap} from 'gsap';
+import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 
 function manifest(over: Partial<ColonyTradeManifestModel> = {}): ColonyTradeManifestModel {
   return {
@@ -521,5 +524,57 @@ describe('consoleColonyTrade', () => {
       expect(colonyTradeState.glideKind, 'B’s advance still owed').eq('advance');
       expect(colonyTradeState.phase).eq('advance');
     }).timeout(6_000);
+  });
+
+  /*
+   * FLAKE ZERO Ф4 (class N) — the ADVANCE leg's net counts from the glide's real START, on the glide's own clock: counted
+   * from the request (1.8 s, halved under `?motion=0.5`) it was shorter than the layer's wait for a standing track
+   * before the glide, and on a slow frame the payout was read at a cell the marker had not reached.
+   */
+  describe('the advance leg\'s net counts from the glide\'s start', () => {
+    let clock: ManualFlowClock;
+    beforeEach(() => {
+      clock = createManualClock(0);
+      setFlowClock(clock);
+    });
+    afterEach(() => {
+      resetColonyTrade();
+      setFlowClock(undefined);
+    });
+    async function startAdvance(): Promise<void> {
+      armColonyTrade(ColonyName.TRITON, 'red', undefined, 2);
+      detectColonyTrade(view(manifest()));
+      void runColonyTradeRewards();
+      await nextTick();
+      expect(colonyTradeState.phase).eq('advance');
+    }
+
+    it('a leg whose marker has not left yet is not settled by a net counted from the request', async () => {
+      await startAdvance();
+      clock.advance(3_000);
+      await nextTick();
+      expect(colonyTradeState.glideKind, 'the marker still waits for its track — the leg is owed').eq('advance');
+    });
+
+    it('the glide\'s birth re-arms it on GSAP\'s clock — the wall clock no longer settles a leg in the air', async () => {
+      await startAdvance();
+      clock.advance(3_000);
+      noteColonyTrackAdvanceGliding();
+      clock.advance(20_000);
+      await nextTick();
+      expect(colonyTradeState.glideKind, 'a starved frame stretches the glide and its net alike').eq('advance');
+      const t0 = gsap.globalTimeline.time();
+      gsap.globalTimeline.time(t0 + 1.9);
+      await nextTick();
+      expect(colonyTradeState.glideKind, 'the glide\'s own clock ran past its net — the leg settles').eq('reset');
+    });
+
+    it('a glide that never starts ends on the ceiling', async () => {
+      await startAdvance();
+      clock.advance(7_700);
+      expect(colonyTradeState.glideKind).eq('advance');
+      clock.advance(200);
+      expect(colonyTradeState.glideKind).eq('reset');
+    });
   });
 });

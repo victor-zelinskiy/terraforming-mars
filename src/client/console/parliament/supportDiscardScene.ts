@@ -7,8 +7,8 @@
  * plaque — the places from the right, the last one laid down going first — and
  * flies to the common supply on the bench (`[data-parl-neutral-cube]`), one
  * after another at the support scene's rhythm (law 12: a cube every ≥ 90 ms).
- * The place goes dark on the LIFT-OFF and answers once (`--left`, ended by its
- * own `animationend`); the pool's count grows on the TOUCHDOWN. Nothing flies
+ * The place goes dark on the LIFT-OFF and answers once (`[data-support-left]`, ended
+ * by its own `animationend`); the pool's count grows on the TOUCHDOWN. Nothing flies
  * without a measured source and destination: a miss is CONFESSED (the caller
  * publishes it on the section root) and the cube simply lands.
  *
@@ -20,6 +20,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {flyDelegate, placeFigureRect} from './parliamentFlights';
 import {SUPPORT_CUBE_STAGGER_MS} from './consoleParliamentModel';
 import {supportDiscardOrder} from './supportPickModel';
+import {answerSupportPlaceOnce} from './supportPlaceAnswer';
 
 /** The selector of a plaque's support place — the plaque's OWN block (`data-parl-support`), never the vote panel's. */
 export function plaquePlaceSelector(party: ReduxParty, place: number): string {
@@ -46,10 +47,9 @@ function answerPlaceLeft(root: HTMLElement, party: ReduxParty, place: number): v
   if (el === null) {
     return;
   }
-  el.classList.remove('con-pseal__support-place--left');
-  void el.offsetWidth;
-  el.classList.add('con-pseal__support-place--left');
-  el.addEventListener('animationend', () => el.classList.remove('con-pseal__support-place--left'), {once: true});
+  // An ATTRIBUTE, never a class: `onLifted` has just lowered the area's `standing` (`liftSupportDiscardCube`), which
+  // flips this socket's bound `--on`, and Vapor rewrites a non-root element's `className` whole on that flush.
+  answerSupportPlaceOnce(el, 'left');
 }
 
 /**

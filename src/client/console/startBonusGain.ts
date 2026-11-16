@@ -49,6 +49,7 @@ import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTran
 import {beginPanelRewardHold, clearPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -103,6 +104,12 @@ let armedClaim: BonusGainReward | undefined;
  * game. Generous next to the workspace's own return (~1 s), short enough that
  * the failure reads as «the chip fired a little late» rather than «my resources
  * did not arrive».
+ *
+ * …AND THE SURFACE THAT COMES BACK GETS IT WHOLE (FLAKE ZERO Ф4, class N): counted
+ * only from the commit, the backstop ran out while the start scene was already
+ * making its entrance (mounted, its ceremony still revealing on a slow frame) — the
+ * panel let go, «Фора» ticked with no token, and the wave the scene then asked for
+ * was gone. The scene's entrance re-arms it (`noteBonusGainStageEntering`).
  */
 const BONUS_GAIN_HOLD_SAFETY_MS = 6_000;
 
@@ -110,6 +117,26 @@ let disarmSafety: () => void = () => {};
 
 function clearSafety(): void {
   disarmSafety();
+}
+
+/** (Re-)arm the hold's backstop — `BONUS_GAIN_HOLD_SAFETY_MS` from now. */
+function armSafety(): void {
+  clearSafety();
+  // A RELEASE: the panel's hold lets go at the backstop — or when the game screen leaves first.
+  disarmSafety = consoleSessionScope().guarantee(BONUS_GAIN_HOLD_SAFETY_MS, 'the bonus gain\'s hold backstop (no surface flew it)', () => {
+    bonusGainRewardState.owed = undefined;
+    clearPanelRewardHold();
+  });
+}
+
+/**
+ * THE SURFACE THAT FLIES THE GAIN IS MAKING ITS ENTRANCE (the start scene mounting, the board handing it the screen
+ * back): an owed wave's backstop counts from HERE — the entrance and the ceremony it reveals get the whole budget.
+ */
+export function noteBonusGainStageEntering(): void {
+  if (bonusGainRewardState.owed !== undefined) {
+    armSafety();
+  }
 }
 
 /**
@@ -224,11 +251,7 @@ export function seedBonusGainRewardHold(
   beginPanelRewardHold(reward.specs);
   clearSafety();
   if (typeof setTimeout === 'function') {
-    // A RELEASE: the panel's hold lets go at the backstop — or when the game screen leaves first.
-    disarmSafety = consoleSessionScope().guarantee(BONUS_GAIN_HOLD_SAFETY_MS, 'the bonus gain\'s hold backstop (no surface flew it)', () => {
-      bonusGainRewardState.owed = undefined;
-      clearPanelRewardHold();
-    });
+    armSafety();
   }
 }
 
@@ -284,7 +307,13 @@ export function awaitVisibleBonusGainSource(
   if (typeof document === 'undefined' || selectors.length === 0) {
     return Promise.resolve(false);
   }
-  const deadline = Date.now() + budgetMs;
+  // The budget counts from the last moment the card was still COMING IN (its entrance running or pending, a deal's
+  // hold on it) — never from the ask (FLAKE ZERO Ф4, class N): on a slow frame the shelf's fade had not produced a
+  // frame when 1.2 s from the ask were over, and «Фора» ticked with no token. The ceiling bounds an entrance that never
+  // ends.
+  const start = flowClock().now();
+  const hard = start + Math.max(budgetMs, BONUS_GAIN_SOURCE_CEILING_MS);
+  let deadline = start + budgetMs;
   let wait: CeilingWait | undefined;
   return new Promise((resolve) => {
     const poll = (): void => {
@@ -298,16 +327,49 @@ export function awaitVisibleBonusGainSource(
         resolve(true);
         return;
       }
-      if (Date.now() >= deadline) {
+      const now = flowClock().now();
+      if (sourceArriving(selectors)) {
+        deadline = Math.min(hard, Math.max(deadline, now + budgetMs));
+      }
+      if (now >= deadline) {
         wait?.ceiling();
         resolve(false);
         return;
       }
       // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-      wait ??= beginCeilingWait({id: 'start-bonus:visible-source', owner: 'startBonusGain', what: 'a visible source card of the bonus gain', maxMs: budgetMs});
+      wait ??= beginCeilingWait({id: 'start-bonus:visible-source', owner: 'startBonusGain', what: 'a visible source card of the bonus gain', maxMs: hard - start});
       probeTick(poll);
     };
     poll();
+  });
+}
+
+/** …and the ceiling of that wait, from the ask: an entrance that never ends degrades as before. */
+export const BONUS_GAIN_SOURCE_CEILING_MS = 4_000;
+
+/**
+ * A SOURCE CARD STILL COMING IN — mounted on one of the selectors and either under a deal's hold (`.con-deal-hold`) or
+ * under an entrance of its own or an ancestor's that is running or still pending its first frame (a FINITE one: an
+ * endless loop is a standing state, not an arrival).
+ */
+function sourceArriving(selectors: ReadonlyArray<string>): boolean {
+  const els = selectors.flatMap((sel) => Array.from(document.querySelectorAll<HTMLElement>(sel)));
+  if (els.length === 0) {
+    return false;
+  }
+  if (els.some((el) => el.closest('.con-deal-hold') !== null)) {
+    return true;
+  }
+  if (typeof document.getAnimations !== 'function') {
+    return false;
+  }
+  return document.getAnimations().some((animation) => {
+    if (animation.playState !== 'running' && !animation.pending) {
+      return false;
+    }
+    const timing = animation.effect?.getComputedTiming();
+    const target = (animation.effect as KeyframeEffect | null)?.target ?? null;
+    return timing !== undefined && Number.isFinite(Number(timing.endTime)) && target !== null && els.some((el) => target.contains(el));
   });
 }
 

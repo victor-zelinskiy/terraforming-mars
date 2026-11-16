@@ -65,13 +65,15 @@
  */
 import {gsap} from 'gsap';
 import {bannerCubeHeld, releaseBannerCube, releaseHeldBannerCubes} from './bannerCubeScene';
+import {answerSupportPlaceOnce, answeringSupportPlaces, endSupportPlaceAnswer} from './supportPlaceAnswer';
 import {abortBannerCubeStage, BANNER_STAGE_TOTAL_MS, playBannerCubeStage} from './bannerCubeStage';
 import {nextTick, reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
@@ -586,15 +588,14 @@ function answerSupportPlace(root: HTMLElement, party: ReduxParty, index: number)
   // a cube every ≥ 90 ms and the next party's wave ~220 ms after the last one, so two sockets of two parties
   // were lit together (`console-parliament-sitting-v3` measured Unity#1 + Scientists#1 for 60 ms). The earlier
   // answer is in its settling tail by then (the peak is at 38 %), so ending it here is not a visible cut.
-  root.querySelectorAll<HTMLElement>('.con-pseal__support-place--landed').forEach((other) => {
+  root.querySelectorAll<HTMLElement>(answeringSupportPlaces('landed')).forEach((other) => {
     if (other !== el) {
-      other.classList.remove('con-pseal__support-place--landed');
+      endSupportPlaceAnswer(other, 'landed');
     }
   });
-  el.classList.remove('con-pseal__support-place--landed');
-  void el.offsetWidth;
-  el.classList.add('con-pseal__support-place--landed');
-  el.addEventListener('animationend', () => el.classList.remove('con-pseal__support-place--landed'), {once: true});
+  // An ATTRIBUTE, never a class: the caller consumes `supportIncoming` in this same task, which flips the socket's
+  // bound `--on`, and Vapor rewrites a non-root element's `className` whole on that flush (`supportPlaceAnswer.ts`).
+  answerSupportPlaceOnce(el, 'landed');
 }
 
 /** ONE wave: this party's cubes, each from its own place, one every `SUPPORT_CUBE_STAGGER_MS`. */
@@ -1386,11 +1387,15 @@ function waitUntil(runState: StageRun, ready: () => boolean, maxMs: number, node
     const end = (ok: boolean): void => {
       if (!over) {
         over = true;
-        bound.kill();
+        cancelBound();
         resolve(ok);
       }
     };
-    const bound = scheduleParliamentBeat(maxMs, () => {
+    // THE BOUND IS A CEILING, never a beat (FLAKE ZERO Ф4, class N): a Parliament beat is motion-scaled — halved under
+    // the functional e2e's `?motion=0.5` and capped to a blink under reduced motion — while what it bounds (the drawn
+    // cards reaching the hand, the receipt pane's entrance and leave) takes a machine's frames, not the setting's.
+    // `motionCeilingMs` scales up with a slower setting and never down.
+    const cancelBound = motionGuarantee(motionCeilingMs(maxMs), `the sitting's wait — ${node.what} (its ceiling)`, () => {
       wait?.ceiling();
       end(false);
     });

@@ -139,9 +139,13 @@ export async function seedIdentity(page: Page, name: string): Promise<void> {
   }, {displayName: name, cubeColor: 'blue'});
 }
 
+/**
+ * Open the Campaign Map as `name` and wait until it is DRIVABLE — the route rendered, then the session's GPU warm-up
+ * veil gone (it paints over the standing map and every key pressed under it is lost — the same order as `reloadMenu`).
+ */
 export async function openMapAs(page: Page, id: string, name: string): Promise<void> {
   await seedIdentity(page, name);
   await page.goto(`${campaignBase()}/campaign?id=${id}`);
   await page.waitForSelector('.cmap__card', {timeout: 20_000});
-  await page.waitForTimeout(600);
+  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => undefined);
 }

@@ -24,6 +24,8 @@ import {setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/
 import {deckPickFlightState, deckPickHolding, deckPickState, resetDeckPick} from '@/client/console/deckPick/consoleDeckPick';
 import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {PROBE_TICK_FALLBACK_MS} from '@/client/console/probeTick';
+import {abortPlayedHero, detectPlayedHero, isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {endPreludePlayChain} from '@/client/console/deckPick/preludePlayChain';
 import ConsoleDeckPick from '@/client/components/console/deckPick/ConsoleDeckPick.vue';
 
 /** What the pad router reads through the registry — the surface's whole contract with the shell. */
@@ -60,12 +62,21 @@ const StageHeadStub = defineComponent({
   },
 });
 
+/** The prelude deck object of the PLAY mode — its «РАЗЫГРАНО» seat paints `played`. */
+const PreludeDeckStub = defineComponent({
+  name: 'ConsolePreludeDeck',
+  props: {deckCount: {type: Number, default: 0}, discardCount: {type: Number, default: 0}, played: {type: String, default: undefined}},
+  render() {
+    return h('i', {'class': 'predeck-stub', 'data-played': this.played ?? ''});
+  },
+});
+
 const STUBS = {
   Card: CardStub,
   ConsoleWsHead: WsHeadStub,
   ConsoleWsStageHead: StageHeadStub,
   ConsoleCardAvailabilityPanel: true,
-  ConsolePreludeDeck: true,
+  ConsolePreludeDeck: PreludeDeckStub,
   ConsoleTableImpact: true,
   ConsolePreludeVariantStep: true,
   ConsolePaymentPanel: true,
@@ -423,5 +434,52 @@ describe('ConsoleDeckPick — the draw & select surface', () => {
     expect(again.focused()).to.eq(1);
     expect(again.badge()).to.eq('1/2');
     expect(again.surface().emitted('submit'), 'nothing was answered for the player').to.eq(undefined);
+  });
+
+  /*
+   * FLAKE ZERO Ф4 (class N) — the PRELUDE PLAY's seat paints the played card only once the hero scene has revealed it,
+   * however long the hero takes while it still moves: a six-second wait counted from the commit ran out under a hero a
+   * slow frame had stretched, and the seat painted the card under the flying one.
+   */
+  describe('the prelude play — the seat follows the hero', () => {
+    const tick = async (ms: number) => {
+      for (let left = ms; left > 0; left -= 50) {
+        clock.advance(Math.min(50, left));
+        await flushPromises();
+      }
+    };
+    afterEach(() => {
+      abortPlayedHero();
+      endPreludePlayChain();
+    });
+
+    it('the seat stays empty while the hero still moves — past the old six seconds — and paints the card at its reveal', async () => {
+      const play = {
+        type: 'card', title: 'Play a prelude', buttonLabel: 'Play', cards: [{name: A}],
+        deckPickPrompt: {revealed: 1, min: 1, max: 1, origin: 'prelude', mode: 'play'},
+      };
+      const view = {...viewOf(play), game: {deckSize: 40, preludeDeckSize: 5, preludeDiscardSize: 0}} as unknown as PlayerViewModel;
+      const stand = await standing(view);
+      stand.reach()!.handleIntent(press('confirm'));
+      stand.reach()!.handleIntent(press('triggerR'));
+      await flushPromises();
+      expect(stand.surface().emitted('submit'), 'the play was answered').to.have.length(1);
+      expect(isPlayedHeroActive(), 'the hero is armed in the press').to.eq(true);
+      // The transport detects the play (the card on the table): the hero is the scene from here.
+      detectPlayedHero({thisPlayer: {tableau: [{name: A}]}} as unknown as PlayerViewModel);
+      const seat = () => stand.wrapper.find('.predeck-stub').attributes('data-played');
+      // A starved hero: a phase every four seconds.
+      await tick(4_000);
+      playedHeroState.phase = 'preparing';
+      await tick(4_000);
+      playedHeroState.phase = 'lifting';
+      await tick(3_000);
+      expect(isPlayedHeroActive()).to.eq(true);
+      expect(seat(), 'nothing paints the card on the seat while the hero still carries it').to.eq('');
+      playedHeroState.phase = 'committing';
+      playedHeroState.revealed = true;
+      await tick(200);
+      expect(seat(), 'the hero handed the card over — the seat paints it').to.eq(A);
+    });
   });
 });

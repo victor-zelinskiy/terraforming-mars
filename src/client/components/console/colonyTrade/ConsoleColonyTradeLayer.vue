@@ -51,20 +51,21 @@ import {computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, wat
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {presentationTarget} from '@/client/console/boardCardBonus/boardCardBonusModel';
 import {probeTick} from '@/client/console/probeTick';
 import {motionGuarantee} from '@/client/console/session/sessionWaits';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
   colonyPayoutPending, colonyTrackWavePlan, colonyTrackWaveState, noteColonyTrackWaveTouched, colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState,
   finishColonyTrackAdvance, finishColonyTrackReset, finishColonyTrackWave, isColonyTradeRevealStaged,
-  markColonyTradeZoomReady, noteColonyTrackWaveGliding, noteColonyTrackWaveLanded, registerColonyTradeZoomOrigin, setColonyTradeBeat,
-  setColonyTradeCardScene, stageColonyTradeReveal, tradeLog,
+  markColonyTradeZoomReady, noteColonyTrackAdvanceGliding, noteColonyTrackWaveGliding, noteColonyTrackWaveLanded, registerColonyTradeZoomOrigin,
+  setColonyTradeBeat, setColonyTradeCardScene, stageColonyTradeReveal, TRACK_STANDING_CEILING_MS, TRACK_STANDING_WAIT_MS, tradeLog,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {
   TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FRAME_MS, TRADE_LIFTOFF_AT_F,
@@ -83,8 +84,14 @@ import {ctx} from '@/client/components/console/colonyTrade/consoleColonyTradeLay
 /** The natural (unscaled) FaceLite height — the premium card frame (320×460). */
 const CARD_NATURAL_H = 460;
 
-/** How long we wait for the chip waves to clear the stage before the covers fly. */
+/**
+ * How long we wait for the chip waves to clear the stage before the covers fly — counted from the cause's last
+ * PROGRESS (a phase, a wave, a card read), never from the claim: on a slow frame a payout still paying outlasted a budget
+ * counted from the claim, and the covers rose over a card the player was still reading (FLAKE ZERO Ф4, class N). The
+ * ceiling bounds a cause that keeps moving. Ceilings: scaled UP with a slower motion, never down.
+ */
 const CHIP_WAIT_MAX_MS = 8_000;
+const CHIP_WAIT_CEILING_MS = 20_000;
 
 /** One flying cover: a real card ('' name + `sealedPlace` for a settlement table's later place — no face). */
 type CoverCard = {name: CardName | '', role: 'income' | 'bonus', sealedPlace?: number};
@@ -125,15 +132,23 @@ function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefi
  * row is one object: every slot must exist, be non-degenerate, and hold the
  * SAME set of rects across two consecutive frames before anything takes off.
  * Bounded by its own net — a row that never settles degrades honestly rather
- * than stranding the batch.
+ * than stranding the batch. The net counts from the row's last CHANGE (a slot
+ * that appeared or moved — the fit still solving is progress), bounded by its
+ * ceiling — never from the call (FLAKE ZERO Ф4, class N).
  */
 function waitForStandingSlots(
   resolve: () => Array<HTMLElement | null>,
-  deadlineMs: number,
+  /** The budget from the row's last change (0 = one honest look). */
+  budgetMs: number,
+  /** The hard ceiling from the start. */
+  ceilingMs: number,
 ): Promise<Array<DOMRect> | undefined> {
   return new Promise((done) => {
-    const start = performance.now();
+    const start = flowClock().now();
+    const hard = start + Math.max(budgetMs, ceilingMs);
+    let deadline = start + budgetMs;
     let last = '';
+    let seen: string | undefined;
     const poll = () => {
       if (!colonyTradeState.active) {
         done(undefined);
@@ -147,9 +162,16 @@ function waitForStandingSlots(
           rects.push(r);
         }
       }
+      const now = flowClock().now();
+      // What the row looks like now — how many slots stand, and where. A change is the row still solving itself.
+      const look = `${rects.length}/${els.length}:${rects.map(rectSig).join('|')}`;
+      if (budgetMs > 0 && seen !== undefined && look !== seen) {
+        deadline = Math.min(hard, Math.max(deadline, now + budgetMs));
+      }
+      seen = look;
       if (rects.length === els.length) {
-        const sig = rects.map((r) => `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`).join('|');
-        if (sig === last || deadlineMs <= 0) {
+        const sig = rects.map(rectSig).join('|');
+        if (sig === last || budgetMs <= 0) {
           done(rects);
           return;
         }
@@ -157,7 +179,7 @@ function waitForStandingSlots(
       } else {
         last = '';
       }
-      if (performance.now() - start > deadlineMs) {
+      if (now > deadline) {
         done(undefined);
         return;
       }
@@ -167,10 +189,18 @@ function waitForStandingSlots(
   });
 }
 
-/** How long the covers may wait for the reveal row to finish solving itself.
- *  Generous enough for the fit's own settle pass, short enough that a row that
- *  never stands degrades to the instant handoff instead of stranding a batch. */
+/** The left / top / width of a measured box — what «it moved» compares. */
+function rectSig(r: DOMRect): string {
+  return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`;
+}
+
+/** How long the covers may wait for the reveal row to finish solving itself —
+ *  from its last change. Generous enough for the fit's own settle pass, short
+ *  enough that a row that never stands degrades to the instant handoff instead of
+ *  stranding a batch; the ceiling bounds a row that keeps moving. Ceilings:
+ *  scaled UP with a slower motion, never down (`motionCeilingMs`). */
 const SLOTS_STANDING_WAIT_MS = 1_400;
+const SLOTS_STANDING_CEILING_MS = 5_000;
 
 function cssEscape(value: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : value.replace(/"/g, '\\"');
@@ -201,9 +231,13 @@ function honestlyVisible(el: HTMLElement): boolean {
  * bounded by its own net, so a track that never stands (a parked workspace,
  * a composition with no track at all) degrades to the instant commit instead
  * of flying a marker across emptiness.
+ *
+ * The net counts from the track's last CHANGE (`TRACK_STANDING_WAIT_MS`, a cell
+ * that appeared, became visible or moved), bounded by its ceiling
+ * (`TRACK_STANDING_CEILING_MS`) — never from the cue: on a slow frame a stage
+ * still coming back outlasted a budget counted from the cue, and the marker
+ * snapped instead of gliding (FLAKE ZERO Ф4, class N).
  */
-const TRACK_STANDING_WAIT_MS = 2_000;
-
 /**
  * THE WAVE'S OWN STANDING NET (a law's show step — Unity Budget). Its request is made the moment the colonies frame
  * is PUSHED: the host's door is published post-flush, the section mounts and fits, its entry cascade unfolds
@@ -214,27 +248,40 @@ const TRACK_WAVE_STANDING_WAIT_MS = 6_000;
 
 function waitForStandingTrack(
   resolveCells: () => Array<HTMLElement | null>,
-  deadlineMs: number,
+  /** The budget from the track's last change (0 = one honest look). */
+  budgetMs: number,
+  /** The hard ceiling from the start. */
+  ceilingMs: number,
   /** The scene this wait serves is still on (the trade's transaction by default; a law's wave names its own). */
   alive: () => boolean = () => colonyTradeState.active,
 ): Promise<Array<DOMRect> | undefined> {
   return new Promise((done) => {
-    const start = performance.now();
+    const start = flowClock().now();
+    const hard = start + Math.max(budgetMs, ceilingMs);
+    let deadline = start + budgetMs;
     let last = '';
+    let seen: string | undefined;
     const poll = () => {
       if (!alive()) {
         done(undefined);
         return;
       }
       const els = resolveCells();
+      // What the path looks like now — a cell missing, hidden or at a rect. A change is the track still coming in.
+      const look = els.map((el) => el === null ? 'x' : !honestlyVisible(el) ? 'h' : rectSig(el.getBoundingClientRect())).join('|');
+      const now = flowClock().now();
+      if (budgetMs > 0 && seen !== undefined && look !== seen) {
+        deadline = Math.min(hard, Math.max(deadline, now + budgetMs));
+      }
+      seen = look;
       const standing = els.every((el) => el !== null && honestlyVisible(el));
       if (standing) {
         const rects = els.map((el) => (el as HTMLElement).getBoundingClientRect());
         const ok = rects.every((r) => r.width > 2 && r.height > 2);
-        const sig = ok ? rects.map((r) => `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`).join('|') : '';
-        // A zero deadline is the single-look mode (reduced motion): the first
+        const sig = ok ? rects.map(rectSig).join('|') : '';
+        // A zero budget is the single-look mode (reduced motion): the first
         // honest measurement is accepted — there is no flight to protect.
-        if (ok && (sig === last || deadlineMs <= 0)) {
+        if (ok && (sig === last || budgetMs <= 0)) {
           done(rects);
           return;
         }
@@ -242,7 +289,7 @@ function waitForStandingTrack(
       } else {
         last = '';
       }
-      if (performance.now() - start > deadlineMs) {
+      if (now > deadline) {
         done(undefined);
         return;
       }
@@ -378,8 +425,8 @@ function claimBatch(e: DrawnCardEntry): void {
  *    made the reveal open while the track was still moving — and the track
  *    the marker was crossing vanished from under it;
  *  · `chips`   — the resource waves are still leaving the tile.
- * Bounded by the same net as before: a stalled phase must never strand a
- * batch on the table.
+ * Bounded (`CHIP_WAIT_MAX_MS` from the cause's last progress, under its
+ * ceiling): a stalled phase must never strand a batch on the table.
  */
 function waitForCause(): Promise<void> {
   // The phase list lives in the orchestrator (`colonyPayoutPending`) — the
@@ -390,18 +437,31 @@ function waitForCause(): Promise<void> {
   // they used to lift at the chips' landing, over a card the player was
   // still reading, and the stage dissolved it from under its own reward.
   const busy = () => colonyPayoutPending() || colonyResolutionUi.cardSceneLive;
+  // What the cause is DOING — its phase, the wave it narrates, the card it reads on: a change is the cause still
+  // playing, and the budget restarts on it (bounded by the ceiling) — never counted from the claim (FLAKE ZERO Ф4).
+  const progress = () => `${colonyTradeState.phase}|${colonyTradeState.beat}|${String(colonyResolutionUi.cardSceneLive)}`;
   return new Promise((done) => {
     if (!busy()) {
       done();
       return;
     }
-    const started = Date.now();
+    const started = flowClock().now();
+    const budget = motionCeilingMs(CHIP_WAIT_MAX_MS);
+    const hard = started + motionCeilingMs(CHIP_WAIT_CEILING_MS);
+    let deadline = started + budget;
+    let seen = progress();
     // The wait has to wait: a node of the wait graph, its net ending it said (`ceilingWait.ts`). A cover reset
     // drops the poll's timer — the node is abandoned with it (a killed handle of the cycle).
-    const wait = beginCeilingWait({id: 'colony-trade:cause', owner: 'ConsoleColonyTradeLayer', what: 'the end of the payout cause beats', maxMs: CHIP_WAIT_MAX_MS});
+    const wait = beginCeilingWait({id: 'colony-trade:cause', owner: 'ConsoleColonyTradeLayer', what: 'the end of the payout cause beats', maxMs: hard - started});
     ctx.handles.push({kill: () => wait.end()});
     const poll = () => {
-      if (!colonyTradeState.active || !busy() || Date.now() - started > CHIP_WAIT_MAX_MS) {
+      const now = flowClock().now();
+      const look = progress();
+      if (look !== seen) {
+        seen = look;
+        deadline = Math.min(hard, Math.max(deadline, now + budget));
+      }
+      if (!colonyTradeState.active || !busy() || now > deadline) {
         if (!colonyTradeState.active) {
           wait.end();
         } else if (!busy()) {
@@ -483,7 +543,9 @@ async function runCoverScene(e: DrawnCardEntry): Promise<void> {
   const incomeRect = await stableRect(() => pickAnchor(incomeLadder));
   const bonusRect = await stableRect(() => pickAnchor(bonusLadder));
   // The SOURCE CELL answers each departure: a one-shot press as every
-  // card separates (the deck-tick idiom — direct classList, self-clean).
+  // card separates — an ATTRIBUTE (`data-dealt`), self-clean: the cell is a v-for row of the track instrument whose
+  // classes are bound, and a marker beat inside the 420 ms window rewrote its `className` whole (Vapor's non-root
+  // class write — `.claude/rules/tests.md` law 19); a class written here was wiped mid-pulse.
   const pulseTargets = {
     income: pickAnchor(incomeLadder)?.closest<HTMLElement>('.con-colfocus__xcell') ?? null,
     bonus: pickAnchor(bonusLadder)?.closest<HTMLElement>('.con-colfocus__ownerbonus') ?? null,
@@ -494,9 +556,9 @@ async function runCoverScene(e: DrawnCardEntry): Promise<void> {
       return;
     }
     ctx.timers.push(flow.after(motionMs(delayMs), 'a cover\'s departure — its source cell answers', () => {
-      el.classList.add('con-colcell--dealt');
+      el.setAttribute('data-dealt', '');
       // The cell is the stage's, not the layer's: its mark comes off even when the layer leaves first.
-      ctx.timers.push(flow.guarantee(motionMs(420), 'the source cell\'s dealt pulse', () => el.classList.remove('con-colcell--dealt')));
+      ctx.timers.push(flow.guarantee(motionMs(420), 'the source cell\'s dealt pulse', () => el.removeAttribute('data-dealt')));
     }));
   };
   if (!colonyTradeState.active) {
@@ -536,7 +598,8 @@ async function runCoverScene(e: DrawnCardEntry): Promise<void> {
       ...sealedPlaces.map((place) => document.querySelector<HTMLElement>(
         `.con-reveal [data-settlement-body="${place}"]`)),
     ],
-    colonyTradeState.reducedMotion ? 0 : motionMs(SLOTS_STANDING_WAIT_MS),
+    colonyTradeState.reducedMotion ? 0 : motionCeilingMs(SLOTS_STANDING_WAIT_MS),
+    motionCeilingMs(SLOTS_STANDING_CEILING_MS),
   );
   if (!colonyTradeState.active || !isColonyTradeRevealStaged(e.id)) {
     return;
@@ -763,7 +826,8 @@ async function runTrackGlide(): Promise<void> {
   // one honest look (there is no flight to protect, only a snap).
   const standing = await waitForStandingTrack(
     () => [cellEl(plan.from), ...plan.path.map((pos) => cellEl(pos))],
-    colonyTradeState.reducedMotion ? 0 : motionMs(TRACK_STANDING_WAIT_MS),
+    colonyTradeState.reducedMotion ? 0 : motionCeilingMs(TRACK_STANDING_WAIT_MS),
+    motionCeilingMs(TRACK_STANDING_CEILING_MS),
   );
   if (!colonyTradeState.active) {
     return;
@@ -791,6 +855,8 @@ async function runTrackGlide(): Promise<void> {
     cells: resolved as ReadonlyArray<RectLike>,
     perCellMs: plan.perCellMs,
     reduced: colonyTradeState.reducedMotion,
+    // The advance leg's net counts from HERE — the marker born on its cell — never from the request.
+    onStart: advancing ? noteColonyTrackAdvanceGliding : undefined,
     onCellPassed: (i) => {
       // A light impulse on each passed cell — one-shot, self-cleaning, an ATTRIBUTE (`trackCellSweep.ts`: the cell's
       // classes are bound, and a re-render of them would wipe a class written here).
@@ -849,7 +915,8 @@ async function runTrackWave(): Promise<void> {
   const alive = () => colonyTrackWaveState.active;
   const standing = await waitForStandingTrack(
     () => legs.flatMap((leg) => [cellEl(leg.colony, leg.from), ...leg.path.map((pos) => cellEl(leg.colony, pos))]),
-    colonyTrackWaveState.reduced ? 0 : motionMs(TRACK_WAVE_STANDING_WAIT_MS),
+    colonyTrackWaveState.reduced ? 0 : motionCeilingMs(TRACK_WAVE_STANDING_WAIT_MS),
+    motionCeilingMs(TRACK_WAVE_STANDING_WAIT_MS),
     alive,
   );
   if (!alive()) {

@@ -214,7 +214,7 @@ async function armV4Probe(page: Page): Promise<void> {
           shown: getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity || 1) > 0.02,
         };
       }),
-      support, landed: root.querySelectorAll('.con-pseal__support-place--landed').length,
+      support, landed: root.querySelectorAll('.con-pseal__support-place[data-support-landed]').length,
       // §2.1: the verdict is read ON THE OBJECTS — the seat that carried the resolution is a cube in the
       // winning card's own chip, not a line in a panel over the table. The SLOT is sampled with it: the mark
       // must stand on the card the server enacted, and the live «принимается» badge is off once the vote is

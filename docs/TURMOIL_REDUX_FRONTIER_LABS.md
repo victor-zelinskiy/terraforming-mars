@@ -89,7 +89,7 @@ alive?})`: фазы **PRESENT → PAY → READ → RETURN**, вердикт `don
 
 **Живой промт** (`promptReceive.ts`): семья — маркеры сервера, не заголовок (`fromSpace` → `field`; `choiceContext.source.kind
 === 'colony'` → `colony`; иначе `plate`; резолюция — свой гейт `resolutionPayout`). ARM на нажатии (`ConsoleTaskHost.
-commitSingleCard` — для `resourceGainPrompt` **`runHeroPick` / `con-exit-reject` не играют никогда**; арт карты прогревается
+commitSingleCard` — для `resourceGainPrompt` **`runHeroPick` / `[data-exit-reject]` не играют никогда**; арт карты прогревается
 там же), DETECT в транспорте (карта взяла ровно `amount`; поле — ещё и свежая запись `asked`, `claimCityPayout`, иначе честный
 откат в `plate`), гейт `transportHolds.promptReceive` держит коммит, пока сцена играет; бар — статус «Выполняется…»; отказ
 сервера — батарея снимает печать. Поле играется с `inPrompt` — слой поля НЕ понижается под ws (`con-flight-to-board` снят),

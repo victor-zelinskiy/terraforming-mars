@@ -18,6 +18,14 @@ import {type LawPlayDetail} from '@/client/console/consolePlayPick';
 import {armBlockadeExecution, beginBlockadeExecution, consumeBlockadeExecution, deltaBlockadeResponseOf} from '@/client/console/hydroFlow/deltaBlockadeEntry';
 import type {WheelController} from '@/client/console/shell/wheelController';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
+
+/**
+ * The awaiting handoff's expiry, once the server ANSWERED and only the commit's fold is owed: the fold ends it (its
+ * tokens' surface clear is bounded at 9 s from their start, the arbiter grants an owed fold 12 s) — this is the hard
+ * ceiling past all of them, for a fold that never runs. Counted from the submit's own expiry.
+ */
+export const AWAITING_FOLD_OWED_MAX_MS = 20_000;
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -81,12 +89,23 @@ export function createCardActionsController(shell: CardActionsPort) {
     // fire; this timer needs nothing). Fingerprinted by startedAt so a
     // newer awaiting is never clobbered.
     const startedAt = surfaceMotionState.awaiting?.startedAt;
-    flow.after(AWAITING_SAFETY_MS + 250, 'the awaiting handoff\'s expiry', () => {
-      if (surfaceMotionState.awaiting !== undefined && surfaceMotionState.awaiting.startedAt === startedAt) {
-        clearAwaitingHandoff();
-        closeConsoleLayers();
+    const expire = (ceiling: boolean): void => {
+      if (surfaceMotionState.awaiting === undefined || surfaceMotionState.awaiting.startedAt !== startedAt) {
+        return;
       }
-    });
+      // …A LOST RESPONSE, never an ANSWERED one (FLAKE ZERO · class N): this clock counts from the SUBMIT, and an answer
+      // that resolved the commit keeps the awaiting standing ON PURPOSE while its fold is owed (`commitFoldOwed` — a
+      // token still in the air off the surface, a dismissal parked on the commit beat's settle, a law's card landing):
+      // the fold itself ends it. On a slow renderer the answer's tokens outlived this budget, and the expiry closed the
+      // layers under them. Past the answer the net waits for the fold, bounded by its own ceiling (a fold that never runs).
+      if (!ceiling && shell.commitFoldOwed) {
+        flow.after(motionCeilingMs(AWAITING_FOLD_OWED_MAX_MS), 'the owed fold\'s ceiling', () => expire(true));
+        return;
+      }
+      clearAwaitingHandoff();
+      closeConsoleLayers();
+    };
+    flow.after(AWAITING_SAFETY_MS + 250, 'the awaiting handoff\'s expiry', () => expire(false));
     shell.submitBatch(responses);
   }
 
