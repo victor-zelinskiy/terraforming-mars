@@ -194,6 +194,42 @@ test.describe('a stall names its cause and says how it ended', () => {
     expect(lines.rebuilds, 'ONE rebuild, no refusal').toHaveLength(1);
   });
 
+  test('A SCREEN THAT MOVES AND GOES NOWHERE: a surface blinking by itself under a live question is named a loop, judged, and the page is rebuilt — once', async ({page, request}) => {
+    test.setTimeout(300_000);
+    test.info().annotations.push({type: EXPECTS_LIVENESS_STALL, description: 'the arbiter\'s judgement of a loop is this control\'s subject — a surface is made to blink on purpose'});
+    const lines = watchLines(page);
+    const loops: Array<string> = [];
+    page.on('console', (m) => {
+      if (m.text().startsWith('[liveness] oscillating')) {
+        loops.push(m.text());
+      }
+    });
+    await reachPlayFromHand(page, request, PRESET.query);
+
+    const left = page.waitForEvent('framenavigated', {predicate: (frame) => frame === page.mainFrame(), timeout: 180_000});
+    // THE PLANT: a surface of the arbiter's own picture (the journal's panel) appears and disappears once a second by
+    // itself — the blinking modal, on demand. The hand still stands; nobody presses anything. Until the loop was
+    // judged this was «progress» every second, for ever: no stall, no rung, no last line.
+    const planted = await page.evaluate(() => {
+      const seam = (window as unknown as {__conBlinkSurface?: () => void}).__conBlinkSurface;
+      seam?.();
+      return seam !== undefined;
+    });
+    expect(planted, 'the control seam is installed by the flag').toBe(true);
+    await expect.poll(() => loops.length, {timeout: 40_000, message: 'the loop is named'}).toBeGreaterThan(0);
+    expect(loops[0]).toMatch(/^\[liveness\] oscillating — the picture changed \d+ times in 10s among [23] state\(s\) with no press; asked: projectCard#\d+; task: \S+; top: \S+/);
+    await expect.poll(() => lines.rebuilds.length, {timeout: 90_000, message: 'a loop that stands as long again: the last line, asked directly'}).toBeGreaterThan(0);
+    expect(lines.rebuilds[0]).toMatch(/^\[session-rebuild\] page — «\S+» \(projectCard#\d+\) — by liveness: the picture turned in a loop for \d+s with no press/);
+    expect(lines.stalls, 'the ladder was never walked for a loop — the hand stood until the page left').toEqual([]);
+    await left;
+    await consoleStandsAgain(page);
+    // The rebuilt page has no ghost: the hand serves the question again, and the arbiter is silent over it.
+    await expect(page.locator('.con-hand'), 'the hand stands for the question again').toHaveCount(1, {timeout: 30_000});
+    await cinematicBeat(page, 16_000, 'the arbiter and the loop\'s judge look at a healthy screen — they must say nothing');
+    expect(lines.rebuilds, 'ONE rebuild, no refusal').toHaveLength(1);
+    expect(loops, 'the loop was named once').toHaveLength(1);
+  });
+
   test('THE PLAYER\'S OWN WAY OUT: on a dead screen the Menu button still answers — the system overlay stands outside the shell', async ({page, request}) => {
     test.setTimeout(300_000);
     test.info().annotations.push({type: EXPECTS_LIVENESS_STALL, description: 'a dead screen is this control\'s ground — the stall is planted and the last line switched off'});

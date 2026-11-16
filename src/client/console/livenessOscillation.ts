@@ -19,12 +19,15 @@
  *   · the player touched NOTHING for the whole spell (`inputs` — every press edge and direction of any device: a
  *     thumb walking ← → ← → flips the focus between two states and is nobody's defect);
  *   · and the picture CHANGED at least `OSCILLATION_MIN_FLIPS` times in `OSCILLATION_LOOKS` looks while showing no
- *     more than `OSCILLATION_MAX_STATES` different pictures — it keeps coming back to where it was.
+ *     more than `OSCILLATION_MAX_STATES` different pictures — it keeps coming back to where it was — and is STILL
+ *     turning (a change within the last `OSCILLATION_STILL_LOOKS` looks: a loop that stopped is over at once).
  * A cinematic passes through its states once (many pictures, none revisited); a ticking counter is a new picture a
  * second (many states); a player thinking is no flips at all. Only a loop is few states, many flips, no hand.
  *
- * PURE: the next state and the verdict. The supervisor names it (`[liveness] oscillating …`) and — once the passes
- * have shown it silent on every healthy table — hands it to the arbiter as a stall of its own.
+ * PURE: the next state and the verdict. The supervisor names it (`[liveness] oscillating …`) and, when the loop has
+ * stood as long again (`OSCILLATION_LAST_LINE_LOOKS`), asks THE LAST LINE for it directly (`sessionRebuild.ts`) —
+ * never the ladder: a loop is not a wait, and rungs that change the picture only hide it from this judge for one
+ * more spell (decision F14 and the lesson under it, PLAN §0 row A8).
  */
 
 /** Looks (seconds) the spell must have stood — untouched, on one question. */
@@ -33,6 +36,17 @@ export const OSCILLATION_LOOKS = 10;
 export const OSCILLATION_MIN_FLIPS = 6;
 /** …among no more than this many different pictures. */
 export const OSCILLATION_MAX_STATES = 3;
+/**
+ * …and it is STILL TURNING: the picture changed within the last this-many looks. A loop that has stopped is over NOW —
+ * the window remembers its flips for ten looks, and a screen that settled must not be judged by what it did before
+ * (the arbiter takes a loop for «not progress, not accepting»: on a settled screen that would be a stall of nothing).
+ */
+export const OSCILLATION_STILL_LOOKS = 3;
+/**
+ * A loop that stands THIS MANY looks after it was named is due for the last line (`sessionRebuild.ts`): twenty
+ * untouched seconds of a picture turning between the same few states under a live question. Asked once per spell.
+ */
+export const OSCILLATION_LAST_LINE_LOOKS = 10;
 
 export type OscillationSample = {
   /** The server asks THIS player (a live, non-optional question). */
@@ -52,9 +66,11 @@ export type OscillationState = {
   seen: ReadonlyArray<string>,
   /** The spell was already named (one line per spell). */
   told: boolean,
+  /** Consecutive looks at which the spell was judged a loop (0 = it is not one now). */
+  standing: number,
 };
 
-export const OSCILLATION_REST: OscillationState = {question: '', inputs: -1, seen: [], told: false};
+export const OSCILLATION_REST: OscillationState = {question: '', inputs: -1, seen: [], told: false, standing: 0};
 
 export type OscillationVerdict =
   | {oscillating: false}
@@ -66,6 +82,10 @@ export type OscillationVerdict =
     /** The few pictures it turns between, in the order first seen. */
     states: ReadonlyArray<string>,
     looks: number,
+    /** Consecutive looks the loop has stood since it was named (1 at the naming). */
+    standing: number,
+    /** The loop has stood `OSCILLATION_LAST_LINE_LOOKS` looks past its naming — said at exactly that look. */
+    due: boolean,
   };
 
 export function observeOscillation(state: OscillationState, sample: OscillationSample): {state: OscillationState, verdict: OscillationVerdict} {
@@ -74,7 +94,7 @@ export function observeOscillation(state: OscillationState, sample: OscillationS
     return {state: OSCILLATION_REST, verdict: {oscillating: false}};
   }
   if (sample.question !== state.question || sample.inputs !== state.inputs) {
-    return {state: {question: sample.question, inputs: sample.inputs, seen: [sample.signature], told: false}, verdict: {oscillating: false}};
+    return {state: {question: sample.question, inputs: sample.inputs, seen: [sample.signature], told: false, standing: 0}, verdict: {oscillating: false}};
   }
   const seen = [...state.seen, sample.signature].slice(-OSCILLATION_LOOKS);
   if (seen.length < OSCILLATION_LOOKS) {
@@ -87,8 +107,14 @@ export function observeOscillation(state: OscillationState, sample: OscillationS
     }
   }
   const states = [...new Set(seen)];
-  if (flips < OSCILLATION_MIN_FLIPS || states.length > OSCILLATION_MAX_STATES) {
-    return {state: {...state, seen, told: false}, verdict: {oscillating: false}};
+  const tail = seen.slice(-(OSCILLATION_STILL_LOOKS + 1));
+  const stillTurning = tail.some((picture, i) => i > 0 && picture !== tail[i - 1]);
+  if (flips < OSCILLATION_MIN_FLIPS || states.length > OSCILLATION_MAX_STATES || !stillTurning) {
+    return {state: {...state, seen, told: false, standing: 0}, verdict: {oscillating: false}};
   }
-  return {state: {...state, seen, told: true}, verdict: {oscillating: true, first: !state.told, flips, states, looks: seen.length}};
+  const standing = state.standing + 1;
+  return {
+    state: {...state, seen, told: true, standing},
+    verdict: {oscillating: true, first: !state.told, flips, states, looks: seen.length, standing, due: standing === OSCILLATION_LAST_LINE_LOOKS + 1},
+  };
 }

@@ -514,6 +514,54 @@ describe('THE CONSOLE IN A BOTTLE — the real shell and the real server in one 
     expect(named[0].cause?.tier).to.equal('defect');
     expect(named[0].text).to.match(/^\[liveness\] oscillating — the picture changed \d+ times in 10s among 2 state\(s\) with no press; asked: \w+#\d+; task: \S+; top: \S+/);
     expect(named[0].evidence, 'with what stood').to.not.equal(undefined);
+
+    // …AND ENDED (2026-11-15, decision F14). The loop goes on for as long again: THE LAST LINE, asked directly — never
+    // through the ladder (a loop is not a wait; on a real page the rungs only hid it for one more spell and took the
+    // player's surface away every twenty seconds). Until this a blinking surface was «progress» every second, for
+    // ever: no stall, no rung, and a player closing the game.
+    expect(bottle.rebuildsAsked(), 'naming a loop is not yet a cure').to.equal(0);
+    let rebuilt = false;
+    for (let second = 13; second < 70 && !rebuilt; second++) {
+      if (second % 2 === 0) {
+        document.body.appendChild(ghost);
+      } else {
+        ghost.remove();
+      }
+      await bottle.advance(1_000);
+      rebuilt = bottle.rebuildsAsked() > 0;
+    }
+    ghost.remove();
+    expect(rebuilt, 'a loop that stands as long again reaches the last line').to.equal(true);
+    expect(bottle.lines().find((text) => text.includes('[session-rebuild] page')), 'asked for the loop, in so many words')
+      .to.match(/by liveness: the picture turned in a loop for \d+s with no press/);
+    expect(bottle.journal().filter((entry) => entry.text.startsWith('[liveness] stall')).map((entry) => entry.text.slice(0, 120)),
+      'the ladder was never walked for it — nothing of the player\'s was released').to.deep.equal([]);
+    expect(bottle.rebuildsAsked(), 'asked once').to.equal(1);
+  });
+
+  it('15a · a loop that ENDS BY ITSELF inside the grace is forgotten — nothing is released, nothing is rebuilt', async () => {
+    const table = await bottleServer().bootFixture(FIXTURE);
+    bottle = await bootBottle(table);
+    await bottle.advance(6_000);
+    const ghost = document.createElement('div');
+    ghost.className = 'con-journal';
+    // Nine seconds of blinking — enough to be NAMED a loop (six flips in the ten looks) — and then the surface
+    // settles, gone for good, well inside the arbiter's grace.
+    for (let second = 0; second < 9; second++) {
+      if (second % 2 === 0) {
+        document.body.appendChild(ghost);
+      } else {
+        ghost.remove();
+      }
+      await bottle.advance(1_000);
+    }
+    ghost.remove();
+    await bottle.advance(40_000);
+    expect(bottle.journal().filter((entry) => (entry.cause?.cls ?? '').startsWith('liveness/oscillating')).length, 'it WAS a loop, and was named').to.equal(1);
+    expect(bottle.journal().filter((entry) => entry.text.startsWith('[liveness] stall')).map((entry) => entry.text.slice(0, 120)),
+      'the screen stands on its serving surface again: no stall was ever due').to.deep.equal([]);
+    expect(bottle.rebuildsAsked()).to.equal(0);
+    expect(bottle.liveness().why.filter((why) => !why.startsWith('liveness/oscillating')), 'the player can act — the loop that was is the only thing on record').to.deep.equal([]);
   });
 
   it('12 · a bottle leaves nothing behind', async () => {

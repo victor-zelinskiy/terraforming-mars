@@ -588,8 +588,13 @@ export function createSupervisorController(shell: SupervisorPort) {
       withDiagEvidence(captureDiagEvidence(), () => console.warn(`[question] unanswerable — «${taskFor(shell.playerView)?.kind ?? 'none'}» (${wf?.type ?? 'none'}#${wf?.promptId ?? ''}): ${dead}`));
     }
     //  · A SCREEN THAT MOVES AND GOES NOWHERE: the picture flips between the same few states by itself, so «the
-    //    picture moved» restarts the stall clock every second and no rung ever runs. Observed here (the line and its
-    //    evidence); it becomes a stall of the arbiter's own once the passes have shown it silent on healthy tables.
+    //    picture moved» restarts the stall clock every second and no rung ever runs. Named here (the line and its
+    //    evidence) — and, if it goes on for as long again, ended by THE LAST LINE, asked directly: NEVER through the
+    //    ladder. (The ladder releases what waits; a loop is not a wait. Fed to the arbiter as a stall, on a real
+    //    page its rungs changed the picture — the loop read as «healed», came back, was named again — and every
+    //    twenty seconds the «stack home» rung took the player's serving surface away, for ever: a livelock of the
+    //    cure, found by `console-stall-cause` on the box, 2026-11-15. A page that turns by itself is client state
+    //    that stopped following the server's truth — exactly what a rebuilt page does not have.)
     const loop = observeOscillation(oscillation, {promptLive: wf !== undefined && wf.optional !== true, question: asked, signature, inputs: inputTrailCount()});
     oscillation = loop.state;
     if (loop.verdict.oscillating && loop.verdict.first) {
@@ -597,6 +602,12 @@ export function createSupervisorController(shell: SupervisorPort) {
       withDiagEvidence(captureDiagEvidence(), () => console.warn(
         `[liveness] oscillating — the picture changed ${seen.flips} times in ${seen.looks}s among ${seen.states.length} state(s) with no press; ` +
         `asked: ${asked}; task: ${taskFor(shell.playerView)?.kind ?? 'none'}; top: ${topWord()}`));
+    }
+    if (loop.verdict.oscillating && loop.verdict.due) {
+      rebuildConsoleSession({
+        by: 'liveness', seat: shell.playerView.id ?? '', question: asked, task: taskFor(shell.playerView)?.kind ?? 'none',
+        why: `the picture turned in a loop for ${loop.verdict.standing + loop.verdict.looks - 1}s with no press — ${loop.verdict.states.length} picture(s), nothing of them an answer`,
+      });
     }
     // THE WAIT GRAPH (Э2 — a shadow): the same second's waits, judged structurally — a cycle, a dangling wait, a dead
     // end, an overdue one — logged `[wait-graph] …` once per confirmed finding; nothing is acted on yet.
@@ -1105,7 +1116,27 @@ export function createSupervisorController(shell: SupervisorPort) {
         (window as unknown as {__conBreakSupervisorPass?: () => void}).__conBreakSupervisorPass = () => {
           passBrokenOnPurpose = true;
         };
+        // …and A SCREEN THAT MOVES AND GOES NOWHERE on demand (the oscillation's control — `livenessOscillation.ts`): a
+        // surface of the arbiter's own picture (the journal's panel, empty and unseen) comes and goes once a second by
+        // itself — the blinking modal. A tick of the session: it ends with the game screen, like the loop it stands for.
+        let stopBlink: (() => void) | undefined;
+        const ghost = document.createElement('div');
+        ghost.className = 'con-journal';
+        ghost.style.display = 'none';
+        (window as unknown as {__conBlinkSurface?: () => void}).__conBlinkSurface = () => {
+          stopBlink?.();
+          stopBlink = consoleSessionScope().every(1_000, 'the blink of the oscillation control', () => {
+            if (ghost.isConnected) {
+              ghost.remove();
+            } else {
+              document.body.appendChild(ghost);
+            }
+          });
+        };
         return [() => {
+          stopBlink?.();
+          ghost.remove();
+          delete (window as unknown as {__conBlinkSurface?: unknown}).__conBlinkSurface;
           still?.release();
           delete (window as unknown as {__conBreakSupervisorPass?: unknown}).__conBreakSupervisorPass;
           delete (window as unknown as {__conDisarmWaitCures?: unknown}).__conDisarmWaitCures;

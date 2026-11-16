@@ -46,6 +46,8 @@ const LAYOUT: 'none' | 'synthetic' = env.TM_BOTTLE_MONKEY_LAYOUT === 'synthetic'
 const SHRINK = env.TM_BOTTLE_MONKEY_SHRINK === undefined ? undefined : new RegExp(env.TM_BOTTLE_MONKEY_SHRINK);
 /** THE RELOAD: on average once in this many presses the page is reloaded where the walk stands (unset = never). */
 const RELOAD_EVERY = env.TM_BOTTLE_MONKEY_RELOAD === undefined ? undefined : Number(env.TM_BOTTLE_MONKEY_RELOAD);
+/** The untouched spell after a walk (`TM_BOTTLE_MONKEY_IDLE_MS`): past the arbiter's grace and the loop's twenty looks. */
+const IDLE_MS = Number(env.TM_BOTTLE_MONKEY_IDLE_MS ?? 25_000);
 
 // (The walk itself — the generator, the pad's weights, the rhythm — is `monkeyWalk.ts`: the class replays use it too.)
 
@@ -121,8 +123,10 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
         for (const before of walked.carried) {
           records.push(filed(before.cls, before.blind ? 'info' : 'defect', before.count, before.blind ? `(the bottle is blind here) ${before.text}` : before.text));
         }
-        // THE LAST WORD: a quiet spell past the arbiter's grace — whatever the walk left on screen is judged.
-        await bottle.advance(14_000);
+        // THE LAST WORD: a quiet spell past the arbiter's grace AND past the loop's whole road (ten untouched looks to
+        // be named, ten more to be due — `livenessOscillation.ts`): whatever the walk left on screen is judged, and a
+        // healthy screen left alone must neither stall nor turn.
+        await bottle.advance(IDLE_MS);
         const live = bottle.liveness();
         why = live.why;
         const covered = bottle.coverage();

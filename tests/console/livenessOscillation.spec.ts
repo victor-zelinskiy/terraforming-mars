@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  OSCILLATION_LOOKS, OSCILLATION_REST, OscillationSample, OscillationState, OscillationVerdict, observeOscillation,
+  OSCILLATION_LAST_LINE_LOOKS, OSCILLATION_LOOKS, OSCILLATION_REST, OscillationSample, OscillationState, OscillationVerdict, observeOscillation,
 } from '../../src/client/console/livenessOscillation';
 
 /**
@@ -65,6 +65,28 @@ describe('liveness · a screen that moves and goes nowhere', () => {
 
   it('OFF TURN the screen is other seats\' theatre — a bot\'s cards rising and falling are never judged', () => {
     expect(firstLoopAt(walk(blink(30, {promptLive: false})))).to.eq(-1);
+  });
+
+  it('a loop that has STOPPED is over at once — a screen that settled is not judged by what it did before', () => {
+    // Twelve looks of blinking, then the surface stands: the window still holds six flips for a few looks more.
+    const verdicts = walk([...blink(12), ...Array.from({length: 8}, () => ({signature: 'board'}))]);
+    const looping = verdicts.map((v) => v.oscillating);
+    expect(looping.slice(OSCILLATION_LOOKS - 1, 12).every(Boolean), 'a loop while it turns').to.eq(true);
+    // The last flip is the settle itself (look 12); three looks later nothing has changed — the loop is over.
+    expect(looping.slice(12 + 3), 'over within three looks of standing still').to.deep.eq([false, false, false, false, false]);
+  });
+
+  it('a loop that STANDS as long again is DUE for the last line — said at exactly one look, never before, never twice', () => {
+    const verdicts = walk(blink(OSCILLATION_LOOKS + OSCILLATION_LAST_LINE_LOOKS + 8));
+    const due = verdicts.map((v, i) => (v.oscillating && v.due ? i : -1)).filter((i) => i >= 0);
+    expect(due, 'ten looks to be named, ten more to be due').to.deep.eq([OSCILLATION_LOOKS - 1 + OSCILLATION_LAST_LINE_LOOKS]);
+    // A press before it is due starts the spell over — the player is trying something: nothing is taken from them.
+    const pressed = walk([...blink(OSCILLATION_LOOKS + 6), ...blink(OSCILLATION_LOOKS + 6, {inputs: 1})]);
+    expect(pressed.some((v) => v.oscillating && v.due)).to.eq(false);
+    // …and a loop that stopped and came back owes its whole second half again.
+    // (Stood still for a whole window: the second spell starts from nothing.)
+    const twice = walk([...blink(OSCILLATION_LOOKS + 6), ...Array.from({length: OSCILLATION_LOOKS + 2}, () => ({signature: 'board'})), ...blink(OSCILLATION_LOOKS + 4)]);
+    expect(twice.some((v) => v.oscillating && v.due)).to.eq(false);
   });
 
   it('a NEW question is a new story: the spell starts over with it', () => {

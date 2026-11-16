@@ -245,8 +245,10 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
           walk(page, request, apiSeats, r, log, RELOAD ? rng(`${seed}:reload`) : undefined),
           ...(page2 === undefined ? [] : [walk(page2, request, [], rng(`${seed}:duo`), log2, RELOAD ? rng(`${seed}:duo:reload`) : undefined)]),
         ]);
-        // THE LAST WORD: a quiet spell longer than the arbiter's grace — whatever the walk left on screen is judged.
-        await cinematicBeat(page, 14_000, 'the last word — a quiet spell past the liveness grace, so the arbiter judges the screen the walk left');
+        // THE LAST WORD: a quiet spell longer than the arbiter's grace AND than the loop's whole road (ten untouched looks
+        // to be named, ten more to be due — `livenessOscillation.ts`): whatever the walk left on screen is judged, and a
+        // healthy screen left alone must neither stall nor turn.
+        await cinematicBeat(page, 25_000, 'the last word — a quiet spell past the liveness grace and the loop\'s twenty looks, so the screen the walk left is judged whole');
       } finally {
         // THE WALK'S OWN NUMBERS beside the cause classes its pages named (`cause-classes/…json` — what
         // `scripts/monkey-report.mjs` sums): «fires per 1000 presses» needs the presses.
