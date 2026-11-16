@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, focusCard, openQuickWheel, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE VOTE PANEL — ONE GLANCE: THE NUMBER, THEN THE CONSEQUENCES (P77 · DH, docs/claude/prompts/prelude2-p77-jovian-envoys.md §4).
@@ -23,7 +24,7 @@ import {bootFixture, focusCard, openQuickWheel, press, pressUntil, settle} from 
  * The «before» run of this very spec (the same build without the polish) is red on (а), (в), (д), (е), (ж).
  *
  * Shots: `screenshots/p77/<profile>/panel-<fixture>-<phase>.png` (`TM_E2E_PANEL_PHASE=before|after`, default after).
- * FUNCTIONAL — every probe is a DOM read (no rAF, no frame count).
+ * FUNCTIONAL — every probe is a DOM read AT REST (`readSettled`: two equal reads a frame apart; no rAF, no frame count).
  */
 
 const PRESETS = [
@@ -340,8 +341,10 @@ const near = (a: Box | null, b: Box | null, tol: number): boolean =>
 
 /** Every claim of the panel, judged at once and reported as one table row (a red names every point, not the first). */
 async function judge(page: Page, label: string, opts: {walk: boolean}): Promise<void> {
-  await expect.poll(() => clipProblems(page), {timeout: 8_000, message: `${label} (з): nothing clipped`}).toEqual([]);
-  const m = await readPanel(page);
+  // Every box is read AT REST: the clip, the panel — and after each press of the walk, the panel again.
+  const clipped = await readSettled(page, () => clipProblems(page), {message: `${label} (з): the clip read`});
+  expect(clipped, `${label} (з): nothing clipped`).toEqual([]);
+  const m = await readSettled(page, () => readPanel(page), {message: `${label}: the panel`});
   test.info().annotations.push({type: 'panel', description: `${label} ${JSON.stringify(m).slice(0, 1800)}`});
   const fails: Array<string> = [];
   // (а)
@@ -410,7 +413,8 @@ async function judge(page: Page, label: string, opts: {walk: boolean}): Promise<
     for (const key of ['KeyE', 'KeyQ', 'ArrowRight', 'ArrowLeft']) {
       await press(page, key, 500);
       await settle(page, {timeoutMs: 10_000}).catch(() => undefined);
-      const after = await readPanel(page);
+      // The settle above is the walk's own (tolerant) one — the read only waits for the boxes to hold still.
+      const after = await readSettled(page, () => readPanel(page), {settle: false, message: `${label}: the panel after ${key}`});
       if (!near(before.panel, after.panel, 1) || !near(before.cta, after.cta, 1)) {
         fails.push(`(б) ${key} moved a box: panel ${JSON.stringify(before.panel)} → ${JSON.stringify(after.panel)}, confirm ${JSON.stringify(before.cta)} → ${JSON.stringify(after.cta)}`);
       }
@@ -440,7 +444,7 @@ for (const preset of PRESETS) {
         await openHallVote(page);
         await shoot(page, preset.id, fixture.name);
         await judge(page, `${fixture.name} @ ${preset.id}`, {walk: false});
-        const st = await readStanding(page);
+        const st = await readSettled(page, () => readStanding(page), {message: `${fixture.name}: the standing`});
         test.info().annotations.push({type: 'standing', description: `${fixture.name} @ ${preset.id} ${JSON.stringify(st).slice(0, 1200)}`});
         if (fixture.pose === 'voice') {
           expect(st.standing && st.hero && !st.kicker && st.yields === 0, `(и) the law pays nothing at the enactment — the standing is the plate's VOICE (${st.own})`).toBe(true);

@@ -7,6 +7,8 @@ import {
 } from './consoleStart';
 import {DOCK_WALK, dockStatusLines, docksInGrid, enterDocks, focusedDock, tileSizes} from './fleetDockDriver';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR27 «СТАНЦИЯ АВРОРА» — THE THIRD FLEET DOCK: THE CARD PAYS A CARD
@@ -22,7 +24,7 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
  *      block of the stage.
  *   3. A → EXACTLY ONE POST: the destination `{fleetDock}` and the target's
  *      `{type: 'card'}` as its tail.
- *   4. The scene, by ORDER (MutationObserver + setInterval — never rAF): the
+ *   4. The scene, by ORDER (a RECORDING of the product's own writes): the
  *      receiving card stands before the first token → token 1 born inside the
  *      first printed floater icon, token 2 inside the second, the production
  *      token inside the production plate → the card's counter 1 on every sample
@@ -114,72 +116,64 @@ async function storyboard(page: Page, preset: string, name: string): Promise<() 
 /** The wheel's «Торговля» — the colonies workspace, verified by its own root. */
 async function openColonies(page: Page): Promise<void> {
   const colonies = page.locator('.con-colonies');
-  for (let i = 0; i < 4 && await colonies.count() === 0; i++) {
-    await press(page, 'Period', 1100);
-    await press(page, 'ArrowRight', 1300);
-  }
+  const coloniesUp = async () => await colonies.count() > 0;
+  // The wheel, then its «Торговля» arm (on a quick wheel the direction press IS the activation) — each press verified by
+  // what it opens, never a blind pair.
+  await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await coloniesUp(), {tries: 4, settleMs: 1100});
+  await pressUntil(page, 'ArrowRight', coloniesUp, {tries: 3, settleMs: 1300});
   await expect(colonies, 'the colonies workspace opened').toHaveCount(1, {timeout: 10_000});
   await settle(page, {timeoutMs: 15_000});
 }
 
-/** A value read until it stands still: every read behind a FORCED frame (a tiny screenshot is a BeginFrame). */
-async function settled(page: Page, read: () => Promise<string>): Promise<string> {
-  let last = await read();
-  let equal = 0;
-  for (let i = 0; i < 60 && equal < 2; i++) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
-    const now = await read();
-    equal = now === last ? equal + 1 : 0;
-    last = now;
-  }
-  return last;
-}
-
 type Rect = {l: number, t: number, r: number, b: number};
 
-/** The boxes of every element `selector` matches whose inline background names `needle` ('' = any), settled. */
+/** The boxes of every element `selector` matches whose inline background names `needle` ('' = any) — read AT REST. */
 async function settledRects(page: Page, selector: string, needle = ''): Promise<Array<Rect>> {
-  const raw = await settled(page, () => page.evaluate(([sel, bg]) => Array.from(document.querySelectorAll<HTMLElement>(sel))
+  const raw = await readSettled(page, () => page.evaluate(([sel, bg]) => Array.from(document.querySelectorAll<HTMLElement>(sel))
     .filter((el) => bg === '' || el.style.backgroundImage.includes(bg))
     .map((el) => el.getBoundingClientRect())
     .filter((r) => r.width >= 2)
     .map((r) => [r.left, r.top, r.right, r.bottom].map((v) => Math.round(v * 10) / 10).join(','))
-    .join(' '), [selector, needle] as const));
+    .join(' '), [selector, needle] as const), {message: `the boxes of ${selector}${needle === '' ? '' : ` (${needle})`}`});
   return raw === '' ? [] : raw.split(' ').map((one) => {
     const [l, t, r, b] = one.split(',').map(Number);
     return {l, t, r, b};
   });
 }
 
-/** The planet tiles' scale as the grid's own fit solved it. */
-const tileScale = (page: Page) => settled(page, () => page.evaluate(() => {
+/** The planet tiles' scale as the grid's own fit solved it — read AT REST. */
+const tileScale = (page: Page) => readSettled(page, () => page.evaluate(() => {
   const host = document.querySelector<HTMLElement>('.con-colonies');
   return host === null ? '' : host.style.getPropertyValue('--coltile-scale').trim();
-}));
+}), {message: 'the colony grid\'s tile scale'});
 
-/** The boxes of the stage's own blocks — what must stand still while the choice changes. */
-const stageBlocks = (page: Page) => settled(page, () => page.evaluate(() => ['[data-fleet-dock-hero]', '[data-fleet-dock-target]', '[data-fleet-dock-result]', '.con-fleetdock__config']
+/** The boxes of the stage's own blocks — what must stand still while the choice changes (read AT REST). */
+const stageBlocks = (page: Page) => readSettled(page, () => page.evaluate(() => ['[data-fleet-dock-hero]', '[data-fleet-dock-target]', '[data-fleet-dock-result]', '.con-fleetdock__config']
   .map((sel) => {
     const r = document.querySelector(`.con-fleetdock ${sel}`)?.getBoundingClientRect();
     return r === undefined ? '-' : [r.left, r.top, r.width, r.height].map(Math.round).join(',');
-  }).join(' | ')));
+  }).join(' | ')), {message: 'the fleet dock stage\'s blocks'});
 
 type Chip = {id: string, x: number, y: number, w: number, h: number};
 type Sample = {
-  t: number, tick: boolean, ws: number, crumb: string, stage: boolean, scene: string, receiving: boolean,
+  t: number, ws: number, crumb: string, stage: boolean, scene: string, receiving: boolean,
   chips: Array<Chip>, counter: string, hero: string, vp: string, sat: string, prod: string,
   degraded: string, stranded: boolean, asked: boolean, bar: string,
 };
-type Probe = {samples: Array<Sample>, ticks: number, births: Array<Chip & {t: number}>};
+type Probe = {samples: Array<Sample>, births: Array<Chip & {t: number}>};
+const TR27_WITNESS = 'tr27-scene';
 
-/** MutationObserver + setInterval — never rAF. Every NEW chip is recorded at its first sighting (its birth point). */
+/**
+ * THE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): every state of the scene, kept
+ * on change with the page's time. A chip keeps its identity across samples by a `WeakMap` on `window` (never an attribute
+ * written onto the product's element — a reader that writes wakes its own observer); every NEW chip is folded at its
+ * first recorded state (its birth point). `settled` — the state a TASK leaves: «the counter never ahead of the tokens
+ * born», «the production after the floaters» are ORDER claims, judged on what a frame can paint.
+ */
 async function armProbe(page: Page, receiving: string): Promise<void> {
-  await page.evaluate((card) => {
-    const w = window as unknown as {__tr27: Probe};
-    const p: Probe = {samples: [], ticks: 0, births: []};
-    w.__tr27 = p;
-    const t0 = performance.now();
-    let seq = 0;
+  await armWitness<Omit<Sample, 't'>, string>(page, TR27_WITNESS, (card) => {
+    const w = window as unknown as {__tr27Ids?: WeakMap<Element, string>, __tr27Seq?: number};
+    const ids = (w.__tr27Ids ??= new WeakMap<Element, string>());
     const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const shown = (el: HTMLElement | null) => {
       if (el === null) {
@@ -189,58 +183,55 @@ async function armProbe(page: Page, receiving: string): Promise<void> {
       const cs = getComputedStyle(el);
       return r.width > 2 && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05;
     };
-    const sample = (tick: boolean) => {
-      if (tick) {
-        p.ticks++;
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
+      let id = ids.get(el);
+      if (id === undefined) {
+        w.__tr27Seq = (w.__tr27Seq ?? 0) + 1;
+        id = String(w.__tr27Seq - 1);
+        ids.set(el, id);
       }
-      const now = Math.round(performance.now() - t0);
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
-        if (el.dataset.tr27 === undefined) {
-          el.dataset.tr27 = String(seq++);
-          const r = el.getBoundingClientRect();
-          p.births.push({id: el.dataset.tr27, t: now, x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10, w: Math.round(r.width), h: Math.round(r.height)});
-        }
-        const r = el.getBoundingClientRect();
-        return {id: el.dataset.tr27, x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10, w: Math.round(r.width), h: Math.round(r.height)};
-      });
-      const stage = document.querySelector<HTMLElement>('.con-fleetdock');
-      const s: Sample = {
-        t: now,
-        tick,
-        ws: document.querySelectorAll('.con-ws').length,
-        crumb: text(document.querySelector('.con-colonies .con-wshead')).toUpperCase(),
-        stage: stage !== null,
-        scene: stage?.getAttribute('data-fleet-dock-scene') ?? '',
-        receiving: document.querySelector('[data-fleet-dock-receiving]') !== null,
-        chips,
-        counter: text(document.querySelector(`[data-fleet-dock-receiving] [data-played-key="${card}"] .pcard__res`)),
-        hero: text(document.querySelector('.con-fleetdock [data-fleet-dock-hero] .pcard__res')),
-        vp: text(document.querySelector('.con-res .con-score__cell--vp .con-score__value')),
-        sat: text(document.querySelector('.con-res-aux__cell[data-aux-resource="floater"]')),
-        prod: text(document.querySelector('.con-res .con-res__row--megacredits .con-res__prod')),
-        degraded: stage?.getAttribute('data-fleet-dock-degraded') ?? '',
-        stranded: document.querySelector('.con-stranded') !== null,
-        asked: document.querySelector('.con-ptsel') !== null && stage === null,
-        bar: text(document.querySelector('.con-cmdbar__cmds--right')),
-      };
-      const last = p.samples[p.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
-        p.samples.push(s);
-      }
-      if (p.samples.length > 8000) {
-        p.samples.splice(0, 1000);
-      }
-    };
-    sample(true);
-    new MutationObserver(() => sample(false)).observe(document.body, {
-      subtree: true, childList: true, characterData: true, attributes: true,
-      attributeFilter: ['class', 'style', 'data-fleet-dock-scene', 'data-fleet-dock-degraded'],
+      const r = el.getBoundingClientRect();
+      return {id, x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10, w: Math.round(r.width), h: Math.round(r.height)};
     });
-    window.setInterval(() => sample(true), 30);
-  }, receiving);
+    const stage = document.querySelector<HTMLElement>('.con-fleetdock');
+    return {
+      ws: document.querySelectorAll('.con-ws').length,
+      crumb: text(document.querySelector('.con-colonies .con-wshead')).toUpperCase(),
+      stage: stage !== null,
+      scene: stage?.getAttribute('data-fleet-dock-scene') ?? '',
+      receiving: document.querySelector('[data-fleet-dock-receiving]') !== null,
+      chips,
+      counter: text(document.querySelector(`[data-fleet-dock-receiving] [data-played-key="${card}"] .pcard__res`)),
+      hero: text(document.querySelector('.con-fleetdock [data-fleet-dock-hero] .pcard__res')),
+      vp: text(document.querySelector('.con-res .con-score__cell--vp .con-score__value')),
+      sat: text(document.querySelector('.con-res-aux__cell[data-aux-resource="floater"]')),
+      prod: text(document.querySelector('.con-res .con-res__row--megacredits .con-res__prod')),
+      degraded: stage?.getAttribute('data-fleet-dock-degraded') ?? '',
+      stranded: document.querySelector('.con-stranded') !== null,
+      asked: document.querySelector('.con-ptsel') !== null && stage === null,
+      bar: text(document.querySelector('.con-cmdbar__cmds--right')),
+    };
+  }, {args: receiving, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr27: Probe}).__tr27);
+/** The record folded: every state with its time (ms from the first recorded one), every chip at its first state. */
+const readProbe = async (page: Page): Promise<Probe> => {
+  const recorded = await witnessOf<Omit<Sample, 't'>>(page, TR27_WITNESS).samples();
+  const origin = recorded[0]?.t ?? 0;
+  const samples = recorded.map((s) => ({...s.v, t: s.t - origin}));
+  const births: Array<Chip & {t: number}> = [];
+  const born = new Set<string>();
+  recorded.forEach((s, i) => {
+    for (const chip of s.v.chips) {
+      const key = `${s.doc}:${chip.id}`;
+      if (!born.has(key)) {
+        born.add(key);
+        births.push({...chip, t: samples[i].t});
+      }
+    }
+  });
+  return {samples, births};
+};
 
 const inside = (chip: {x: number, y: number}, rect: Rect, slack: number) =>
   chip.x >= rect.l - slack && chip.x <= rect.r + slack && chip.y >= rect.t - slack && chip.y <= rect.b + slack;
@@ -250,7 +241,7 @@ const firstAt = (samples: ReadonlyArray<Sample>, read: (s: Sample) => string, va
 
 function trail(samples: ReadonlyArray<Sample>): string {
   return samples.slice(0, 120).map((s) =>
-    `${s.t}${s.tick ? 't' : 'm'} scene=${s.scene} recv=${+s.receiving} chips=${s.chips.map((c) => `${c.id}@${c.x},${c.y}`).join('/')} card=${s.counter} hero=${s.hero} vp=${s.vp} sat=${s.sat} prod=${s.prod} ws=${s.ws} bar=«${s.bar}»${s.degraded === '' ? '' : ` DEGRADED=${s.degraded}`}`).join('\n');
+    `${s.t} scene=${s.scene} recv=${+s.receiving} chips=${s.chips.map((c) => `${c.id}@${c.x},${c.y}`).join('/')} card=${s.counter} hero=${s.hero} vp=${s.vp} sat=${s.sat} prod=${s.prod} ws=${s.ws} bar=«${s.bar}»${s.degraded === '' ? '' : ` DEGRADED=${s.degraded}`}`).join('\n');
 }
 
 /** Stand on the station's stage from the board: the colonies, the station's cell (the first dock), A. */
@@ -301,20 +292,11 @@ for (const preset of PRESETS) {
       red.on('pageerror', (e) => redErrors.push(e.message));
       await openConsole(red, seats[1], preset.query);
       await settle(red, {timeoutMs: 30_000});
-      await red.evaluate(() => {
-        const w = window as unknown as {__redFeed: Array<string>};
-        w.__redFeed = [];
-        const read = () => {
-          for (const card of Array.from(document.querySelectorAll('.con-notif'))) {
-            const line = (card.textContent ?? '').replace(/\s+/g, ' ').trim();
-            if (line !== '' && !w.__redFeed.includes(line)) {
-              w.__redFeed.push(line);
-            }
-          }
-        };
-        new MutationObserver(read).observe(document.body, {subtree: true, childList: true, characterData: true});
-        window.setInterval(read, 200);
-      });
+      // RED'S FEED — RECORDED (`armWitness`): the notification cards standing now, kept on change; the lines red was
+      // told are every distinct one the recording ever held (never a timer a short card could pass between).
+      const redFeedWitness = await armWitness<Array<string>>(red, 'tr27-red-feed', () => Array.from(document.querySelectorAll('.con-notif'))
+        .map((card) => (card.textContent ?? '').replace(/\s+/g, ' ').trim()).filter((line) => line !== ''));
+      const redFeedLines = async (): Promise<Array<string>> => [...new Set((await redFeedWitness.values()).flat())];
       await page.bringToFront();
 
       // ── 1. The stage: the «КУДА» row empty, «Торговать» refused, nothing sent.
@@ -325,8 +307,9 @@ for (const preset of PRESETS) {
         }
       });
       await openStationStage(page);
-      const crumb = ((await page.locator('.con-colonies .con-wshead').textContent()) ?? '').replace(/\s+/g, ' ').toUpperCase();
-      expect(crumb, `the crumb reads «КОЛОНИИ › СТАНЦИЯ АВРОРА › ТОРГОВЛЯ» — got «${crumb}»`).toMatch(/КОЛОНИИ.*СТАНЦИЯ АВРОРА.*ТОРГОВЛЯ/);
+      // The crumb republishes a frame after the stage stands — a live string is asserted by a POLL.
+      const crumbNow = async () => ((await page.locator('.con-colonies .con-wshead').textContent()) ?? '').replace(/\s+/g, ' ').toUpperCase();
+      await expect.poll(crumbNow, {message: 'the crumb reads «КОЛОНИИ › СТАНЦИЯ АВРОРА › ТОРГОВЛЯ»'}).toMatch(/КОЛОНИИ.*СТАНЦИЯ АВРОРА.*ТОРГОВЛЯ/);
       const row = page.locator('[data-fleet-dock-target]');
       await expect(row, 'the «КУДА» row stands').toHaveCount(1);
       await expect.poll(() => row.getAttribute('data-fleet-dock-target-card'), {message: 'nothing is pre-chosen'}).toBe('');
@@ -342,14 +325,13 @@ for (const preset of PRESETS) {
 
       // ── 2. The target step: both holders, the station as «ЭТА КАРТА», each «n → n + 2»; B returns with nothing chosen.
       // ↓ walks the payment rows first (the live paths), then reaches the «КУДА» row below them.
+      // Each ↓ gets its whole window before the next (a cursor landing a beat late is never pressed past).
       const rowFocused = async () => ((await row.getAttribute('class')) ?? '').includes('con-colfocus__steprow--focused');
-      for (let i = 0; i < 6 && !await rowFocused(); i++) {
-        await press(page, 'ArrowDown', 400);
-      }
+      await pressUntil(page, 'ArrowDown', rowFocused, {tries: 6, settleMs: 400});
       await expect(row, 'the cursor stands on the «КУДА» row').toHaveClass(/con-colfocus__steprow--focused/);
       await pressUntilVisible(page, 'Enter', '.con-fleetdock .con-colfocus__targetstage', {tries: 3, settleMs: 900});
       await settle(page, {timeoutMs: 15_000});
-      expect(((await page.locator('.con-colonies .con-wshead').textContent()) ?? '').replace(/\s+/g, ' ').toUpperCase(), 'only the tail advances').toMatch(/КОЛОНИИ.*СТАНЦИЯ АВРОРА.*ЦЕЛЬ НАГРАДЫ/);
+      await expect.poll(crumbNow, {message: 'only the tail advances'}).toMatch(/КОЛОНИИ.*СТАНЦИЯ АВРОРА.*ЦЕЛЬ НАГРАДЫ/);
       await expect(page.locator('.con-fleetdock [data-ptsel-cell]'), 'two candidates').toHaveCount(2);
       await expect(page.locator('.con-fleetdock [data-ptsel-self]'), 'the station stands as «ЭТА КАРТА», never a second face').toHaveCount(1);
       await expect(page.locator(`.con-fleetdock [data-zoom-slot="${HABS}"]`), 'Floating Habs as its own face').toHaveCount(1);
@@ -359,26 +341,22 @@ for (const preset of PRESETS) {
       await expect.poll(() => row.getAttribute('data-fleet-dock-target-card'), {message: 'B is not a choice'}).toBe('');
       await pressUntilVisible(page, 'Enter', '.con-fleetdock .con-colfocus__targetstage', {tries: 3, settleMs: 900});
       await settle(page, {timeoutMs: 15_000});
-      for (let i = 0; i < 4 && await focusedCandidate(page) !== HABS; i++) {
-        await press(page, 'ArrowRight', 400);
-      }
+      await walkFocusUntil(page, async () => await focusedCandidate(page) === HABS, () => focusedCandidate(page), 4, 400);
       expect(await focusedCandidate(page), 'the cursor stands on Floating Habs').toBe(HABS);
       await press(page, 'Enter', 900);
       await expect(page.locator('.con-fleetdock .con-colfocus__targetstage'), 'A answered the step').toHaveCount(0, {timeout: 10_000});
       await settle(page, {timeoutMs: 15_000});
       await expect.poll(() => row.getAttribute('data-fleet-dock-target-card'), {message: 'the row names the choice'}).toBe(HABS);
-      const result = ((await page.locator('[data-fleet-dock-result]').textContent()) ?? '').replace(/\s+/g, ' ');
-      expect(result, `the chip re-aimed at Habs — «${result}»`).toMatch(/1\s*→\s*3/);
+      await expect.poll(async () => ((await page.locator('[data-fleet-dock-result]').textContent()) ?? '').replace(/\s+/g, ' '),
+        {message: 'the chip re-aimed at Habs'}).toMatch(/1\s*→\s*3/);
       expect(await stageBlocks(page), 'no block of the stage moved with the choice').toBe(blocks0);
       expect(posts, 'nothing was sent while choosing').toEqual([]);
       await shoot(page, preset.id, '03-target-chosen');
 
       // ── 3–4. Back to the CHOSEN path (A on another path would select it, not trade), A → ONE POST, the scene.
       const onChosen = () => page.locator('.con-fleetdock .con-colfocus__payrow--focused.con-colfocus__payrow--chosen').count();
-      for (let i = 0; i < 6 && await onChosen() === 0; i++) {
-        await press(page, 'ArrowUp', 400);
-      }
-      expect(await onChosen(), 'the cursor stands on the chosen payment path').toBe(1);
+      await pressUntil(page, 'ArrowUp', async () => await onChosen() > 0, {tries: 6, settleMs: 400});
+      await expect.poll(onChosen, {message: 'the cursor stands on the chosen payment path'}).toBe(1);
       await expect(page.locator('.con-cmdbar .con-cmdbar__cmd', {hasText: /Подтвердить торговлю/i}), 'X «Подтвердить торговлю» is live once the card is named').not.toHaveClass(/con-cmdbar__cmd--disabled/);
       const icons = await settledRects(page, '.con-fleetdock [data-fleet-dock-hero] .pcard-ic', 'floater');
       const prodPlate = (await settledRects(page, '.con-fleetdock [data-fleet-dock-hero] .pcard-prod'))[0];
@@ -395,7 +373,8 @@ for (const preset of PRESETS) {
       const probe = await readProbe(page);
       const samples = probe.samples;
       console.log(`[${preset.id}] icons=${JSON.stringify(icons)} prod=${JSON.stringify(prodPlate)} births=${JSON.stringify(probe.births)}\n${trail(samples)}`);
-      expect(probe.ticks, 'the probe was alive').toBeGreaterThan(10);
+      // The recording's liveness floor: it recorded at all (a count of samples is a count of frames — the real claims judge below).
+      expect(samples.length, 'the probe was alive').toBeGreaterThan(0);
       expect(posts.length, 'A sent EXACTLY ONE request').toBe(1);
       expect(posts[0], 'the destination is the station').toContain(`"fleetDock":"${AURORA}"`);
       // The target rides it as the tail, ADDRESSED to the dock's own reward pick (the pre-select law — a byte
@@ -475,8 +454,8 @@ for (const preset of PRESETS) {
       expect(errors, `no page error — ${errors.join(' | ')}`).toEqual([]);
 
       // ── 8. The watcher: red, never reloaded — told of the trade, and the fleet on the station in «РАЗЫГРАНО».
-      await expect.poll(() => red.evaluate(() => (window as unknown as {__redFeed: Array<string>}).__redFeed.length), {timeout: 30_000, message: 'red was told'}).toBeGreaterThan(0);
-      const redFeed = await red.evaluate(() => (window as unknown as {__redFeed: Array<string>}).__redFeed);
+      await expect.poll(async () => (await redFeedLines()).length, {timeout: 30_000, message: 'red was told'}).toBeGreaterThan(0);
+      const redFeed = await redFeedLines();
       expect(redFeed.some((line) => line.includes('Станция Аврора')), `red's feed named the station — it read: ${redFeed.join(' ¦ ')}`).toBe(true);
       await red.bringToFront();
       const redOnBoard = () => red.evaluate(() => {
@@ -493,10 +472,8 @@ for (const preset of PRESETS) {
       await press(red, 'KeyY', 1200);
       await expect(red.locator('.con-info'), 'red opened the Information workspace').toBeVisible();
       const onBlue = async () => ((await red.locator('.con-info .con-wshead').textContent()) ?? '').includes('player1');
-      for (let i = 0; i < 4 && !await onBlue(); i++) {
-        await press(red, 'KeyE', 900);
-      }
-      expect(await onBlue(), 'blue\'s seat is on stage').toBe(true);
+      // Each E gets its whole window before the next (a seat that lands a beat late is never cycled past).
+      expect(await pressUntil(red, 'KeyE', onBlue, {tries: 4, settleMs: 900}), 'blue\'s seat is on stage').toBe(true);
       await openInfoPlayedTable(red);
       const focusedFamily = () => red.evaluate(() => document.querySelector('.con-played__family--focused')?.className ?? '');
       const onActive = async () => (await focusedFamily()).includes('con-played__family--active');
@@ -590,10 +567,10 @@ for (const preset of PRESETS) {
       });
       await settle(page);
       const cellRect = async () => (await settledRects(page, '.board-space[data_space_id="c80"]'))[0];
-      const neighbours = await page.evaluate(() => ['c70', 'c71', 'c72', 'c73'].map((id) => {
+      const neighbours = await readSettled(page, () => page.evaluate(() => ['c70', 'c71', 'c72', 'c73'].map((id) => {
         const r = document.querySelector(`.board-space[data_space_id="${id}"]`)?.getBoundingClientRect();
         return r === undefined ? undefined : {l: r.left, t: r.top, r: r.right, b: r.bottom};
-      }));
+      })), {message: 'the Venus flank\'s cities'});
       const cell0 = await cellRect();
       expect(cell0, 'the board draws the fifth cell of the Venus flank').toBeDefined();
       const overlap = (a: Rect, b: Rect) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
@@ -602,28 +579,24 @@ for (const preset of PRESETS) {
           expect(overlap(cell0!, n) / ((cell0!.r - cell0!.l) * (cell0!.b - cell0!.t)), 'the cell overlaps no Venus city').toBeLessThan(0.05);
         }
       }
-      // The cell is EMPTY on every sample while a workspace stands; the tile appears only once it has left.
-      await page.evaluate(() => {
+      // The cell is EMPTY on every recorded state while a workspace stands; the tile appears only once it has left.
+      // RECORDED (`armWitness`, settled — «tile and workspace at once» is a coexistence claim about what a frame paints).
+      const cellWitness = await armWitness<{ws: number, tile: boolean, proxy: boolean}>(page, 'tr27-flank-cell', () => {
         // The tile is the cell's child with a TYPE suffix; a HELD tile keeps reading as empty (`--placement-cleared`).
-        const w = window as unknown as {__cell: Array<{ws: number, tile: boolean, proxy: boolean}>};
-        w.__cell = [];
-        const read = () => {
-          const tile = document.querySelector('.board-space[data_space_id="c80"] [class*="board-space-tile--"]');
-          w.__cell.push({
-            ws: document.querySelectorAll('.con-ws').length,
-            tile: tile !== null && !tile.className.includes('board-space-tile--placement-cleared'),
-            proxy: document.querySelector('.con-tileplace__tile--remote') !== null,
-          });
+        const tile = document.querySelector('.board-space[data_space_id="c80"] [class*="board-space-tile--"]');
+        return {
+          ws: document.querySelectorAll('.con-ws').length,
+          tile: tile !== null && !tile.className.includes('board-space-tile--placement-cleared'),
+          proxy: document.querySelector('.con-tileplace__tile--remote') !== null,
         };
-        new MutationObserver(read).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-        window.setInterval(read, 30);
-      });
+      }, {settled: true});
       expect(await playCardFromHand(page, AURORA), 'the station was played').toBe(true);
       await expect.poll(async () => (await wireOf(request, playerId)).game.spaces.find((s) => s.id === 'c80')?.tileType !== undefined, {timeout: 30_000, message: 'the server placed the city'}).toBe(true);
       await waitForBoardHome(page);
       await settle(page, {timeoutMs: 30_000});
-      const cellSamples = await page.evaluate(() => (window as unknown as {__cell: Array<{ws: number, tile: boolean, proxy: boolean}>}).__cell);
-      expect(cellSamples.length, 'the cell was sampled').toBeGreaterThan(5);
+      const cellSamples = await cellWitness.values();
+      // A recording keeps a state when it CHANGES: its liveness floor is «it recorded at all».
+      expect(cellSamples.length, 'the cell was sampled').toBeGreaterThan(0);
       const underWorkspace = cellSamples.filter((s) => s.ws > 0 && s.tile).length;
       expect(underWorkspace, `the cell reads EMPTY while a workspace stands — ${underWorkspace} of ${cellSamples.length} samples`).toBe(0);
       expect(cellSamples.some((s) => s.proxy && s.ws === 0), 'the city FLEW onto the flank over a board the player can see').toBe(true);

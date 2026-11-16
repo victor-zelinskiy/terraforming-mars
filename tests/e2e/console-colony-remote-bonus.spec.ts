@@ -1,7 +1,8 @@
 import {test, expect, Page, APIRequestContext, Route} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, press, pressUntil, reloadConsole} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * SOMEBODY ELSE TRADED ON MY COLONY — the whole leg, to its END.
@@ -391,12 +392,16 @@ test('a FOREIGN trade pays this colony: the bonus composition, and an ending', a
   // A remote colony bonus is ANNOUNCED, never auto-opened.
   expect(await openMandatoryAnnounce(page), 'the colony bonus was not announced').toBeTruthy();
   await page.waitForSelector('.con-colfocus', {timeout: 30_000});
-  await page.waitForTimeout(2600); // the entrance + the card's arrival settle
+  // The entrance + the card's arrival: the payout stands in the stage (the state the reading below is ABOUT), then
+  // every fact is read AT REST (`readSettled` — no `settle` first: the payout STANDS for the player's take, and what
+  // it holds meanwhile is no reason to wait).
+  await page.locator('.con-colfocus__outcome .con-reveal .con-cards__slot').first().waitFor({state: 'attached', timeout: 30_000})
+    .catch(() => undefined); // a payout that never presents is the assertion's to name
+  const opened = await readSettled(page, () => snapshot(page), {settle: false, message: 'the bonus stage, cycle 1'});
   await shoot(page, '01-bonus-stage');
 
   // ── 1 · THE BONUS COMPOSITION — the paying colony, whose trade it was, and
   //    the choice. Not the trading screen with a decision hidden inside it.
-  const opened = await snapshot(page);
   console.log('── remote bonus, cycle 1 ──', JSON.stringify(opened));
   expect(opened.intent, 'the stage did not open in its BONUS composition').toBe('bonus');
   expect(opened.track, 'the trade track stood in a payout the player did not trade for').toBe(0);
@@ -413,14 +418,13 @@ test('a FOREIGN trade pays this colony: the bonus composition, and an ending', a
   //    opens, here without a trade.
   await takePayout(page);
   const hand = page.locator('.con-colonies .con-hand.con-hand--embedded');
-  for (let i = 0; i < 5 && await hand.count() === 0; i++) {
-    await press(page, 'Enter', 1600);
-  }
+  // Act → verify (the embedded discard stands) → retry only without it.
+  await pressUntil(page, 'Enter', async () => await hand.count() > 0, {tries: 5, settleMs: 1600});
   await expect(hand, 'the mandatory discard did not open inside the colony workspace')
     .toBeVisible({timeout: 25_000});
   await shoot(page, '02-embedded-discard');
   await press(page, 'Enter', 2600); // answer it (single-select)
-  expect(sequence.cycle(), 'the discard was never answered').toBeGreaterThan(1);
+  await expect.poll(() => sequence.cycle(), {message: 'the discard was never answered'}).toBeGreaterThan(1);
 
   // ── 3 · THE END, and the whole point of this spec.
   //
@@ -434,9 +438,9 @@ test('a FOREIGN trade pays this colony: the bonus composition, and an ending', a
   const gone = page.locator('.con-colonies');
   await expect(gone, 'the colony workspace never left after its payout was over')
     .toHaveCount(0, {timeout: 25_000});
-  await page.waitForTimeout(1200);
+  // The END STATE, at rest: the console quiet (`settle`), then the same facts twice a frame apart.
+  const end = await readSettled(page, () => snapshot(page), {message: 'the console after the payout'});
   await shoot(page, '03-after');
-  const end = await snapshot(page);
   console.log('── remote bonus, after ──', JSON.stringify(end));
   expect(end.resolutionEvidence, 'the server still owes something (the drive misfired)').toBeFalsy();
   expect(end.resolutionLive,
@@ -485,10 +489,11 @@ for (const profile of FIT_PROFILES) {
       await reloadConsole(page);
       expect(await openMandatoryAnnounce(page), 'the colony bonus was not announced').toBeTruthy();
       await page.waitForSelector('.con-reveal__bonus-zone', {state: 'visible', timeout: 40_000});
-      await page.waitForTimeout(3200); // the arrival + the fit's own settle pass
+      // The arrival + the fit's own pass: the row states its solve (`data-fit`), then its geometry is read AT REST
+      // (`readSettled`; no `settle` first — the payout STANDS for the player's take).
+      await page.waitForSelector('.con-reveal__strip[data-fit]', {state: 'attached', timeout: 30_000});
+      const geo = await readSettled(page, () => rowGeometry(page), {settle: false, message: `the merged payout's row @${profile.tag}`});
       await shoot(page, `10-merged-${profile.tag}`);
-
-      const geo = await rowGeometry(page);
       console.log(`── merged payout @${profile.tag} ──`, JSON.stringify(geo));
       expect(geo.items, 'two income cards + two colony zones').toBe(4);
       // ① NOTHING IS CROPPED — measured against the box that actually clips.

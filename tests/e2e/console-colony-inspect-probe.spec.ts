@@ -2,6 +2,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootSeededGame, cinematicBeat, press, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, Witness} from './witness';
 
 /**
  * THE COLONY DOSSIER PROBE — X = «Осмотреть» in the colony workspace
@@ -198,38 +200,49 @@ async function composition(page: Page): Promise<Composition> {
   });
 }
 
-/**
- * Count the LIT planets on screen every 40 ms for `windowMs` — on a TASK
- * clock (`setInterval`), never rAF: headless Chromium drives rAF off the
- * compositor, and a loaded runner starved the hand-off sampler to two frames.
- * The result is read with `takePlanetSamples`; a dead sampler fails its floor.
- */
-async function armPlanetSampler(page: Page, windowMs: number): Promise<void> {
-  await page.evaluate((limit) => {
-    const w = window as unknown as {__planets?: Array<number>, __planetTimer?: number};
-    if (w.__planetTimer !== undefined) {
-      window.clearInterval(w.__planetTimer);
-    }
-    w.__planets = [];
-    const t0 = performance.now();
-    w.__planetTimer = window.setInterval(() => {
-      const n = Array.from(document.querySelectorAll('.con-planet')).filter((el) => {
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        return r.width > 2 && Number(cs.opacity) > 0.05 && cs.visibility !== 'hidden';
-      }).length;
-      w.__planets?.push(n);
-      if (performance.now() - t0 >= limit) {
-        window.clearInterval(w.__planetTimer);
-        w.__planetTimer = undefined;
-      }
-    }, 40);
-  }, windowMs);
+/** The composition AT REST — two equal reads a frame apart, after `settle` (a hero disc mid-flight is not a size). */
+async function settledComposition(page: Page, what: string): Promise<Composition> {
+  return readSettled(page, () => composition(page), {message: `the dossier's composition — ${what}`});
 }
 
-async function takePlanetSamples(page: Page, floor: number): Promise<Array<number>> {
-  const samples = await page.evaluate(() => (window as unknown as {__planets?: Array<number>}).__planets ?? []);
-  expect(samples.length, `the planet sampler is alive (${samples.length} samples)`).toBeGreaterThanOrEqual(floor);
+/** The command bar's text as the eye reads it ('' while none). */
+async function barText(page: Page): Promise<string> {
+  return ((await page.locator('.con-cmdbar').textContent().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim();
+}
+
+type PlanetState = {n: number, dossier: boolean};
+
+/** The LIT planets on screen, and whether the dossier stands — the page half of the planet witness (self-contained:
+ *  it is serialized). */
+function planetState(): PlanetState {
+  const n = Array.from(document.querySelectorAll('.con-planet')).filter((el) => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return r.width > 2 && Number(cs.opacity) > 0.05 && cs.visibility !== 'hidden';
+  }).length;
+  return {n, dossier: document.querySelector('.con-colinspect') !== null};
+}
+
+/**
+ * Record the LIT planets on screen from before the press (`armWitness` — off the product's own writes and every
+ * frame, never a timer that a loaded runner starves). «One planet at a time» is a COEXISTENCE claim, so the record
+ * is `settled`: what a task LEAVES, never the instant between two writes of one task that no frame paints.
+ */
+async function armPlanetWitness(page: Page, key: string): Promise<Witness<PlanetState>> {
+  return armWitness(page, key, planetState, {settled: true});
+}
+
+/**
+ * The recorded planet counts (every distinct state, in order); a DEAD recorder fails the floor. A record keeps the
+ * state it was ARMED in — the screen BEFORE the press (the grid, every tile's medallion lit) — so a window that is
+ * «the dossier's entrance» starts at the first state in which the dossier stands (`fromDossier`), never at the arm.
+ */
+async function takePlanetRecord(w: Witness<PlanetState>, fromDossier = false): Promise<Array<number>> {
+  const all = (await w.stop()).map((s) => s.v);
+  const start = fromDossier ? all.findIndex((v) => v.dossier) : 0;
+  const samples = start < 0 ? [] : all.slice(start).map((v) => v.n);
+  expect(samples.length, `the planet recorder is alive (${samples.length} recorded states${fromDossier ? ' with the dossier' : ''})`)
+    .toBeGreaterThan(0);
   return samples;
 }
 
@@ -243,21 +256,20 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   await focusTile(page, 'Luna');
   await shoot(page, '00-overview-4k');
 
-  // The bar advertises X on the grid.
-  const barBefore = (await page.locator('.con-cmdbar').textContent().catch(() => '')) ?? '';
-  console.log('── bar on the grid ──', barBefore.replace(/\s+/g, ' ').trim());
-  expect(barBefore, 'the grid advertises «Осмотреть»').toMatch(/Осмотреть/);
+  // The bar advertises X on the grid (a live string — polled: the bar republishes a frame after the focus lands).
+  await expect.poll(() => barText(page), {message: 'the grid advertises «Осмотреть»'}).toMatch(/Осмотреть/);
+  console.log('── bar on the grid ──', await barText(page));
 
-  // ── X → the dossier. Sample the planets on screen through the entrance. ──
-  await armPlanetSampler(page, 2200);
+  // ── X → the dossier. Record the planets on screen through the entrance. ──
+  const entryWitness = await armPlanetWitness(page, 'inspect-planets-entry');
   await page.keyboard.press('KeyX');
   await cinematicBeat(page, 300, 'the dossier mid-unfold — the opening frame');
   await shoot(page, '01-inspect-opening-4k');
-  await cinematicBeat(page, 2000, 'the entrance + the late reveal wave — the planet sampler\'s window');
+  // The entrance's window ends on its END STATE — the composition at rest (the late reveal wave included).
+  const open = await settledComposition(page, 'the dossier (4K)');
   await shoot(page, '02-inspect-settled-4k');
-  const entryPlanets = await takePlanetSamples(page, 12);
+  const entryPlanets = await takePlanetRecord(entryWitness, true);
 
-  const open = await composition(page);
   console.log('── the dossier (4K) ──', JSON.stringify(open, null, 2));
   expect(open.dossier, 'X opened the dossier').toBe(true);
   expect(open.stage, 'X must NOT open the trade stage').toBe(false);
@@ -293,63 +305,63 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   // art's ceiling is ~1100; the composition targets ~800).
   expect(open.planetW, 'the planet disc at hero size').toBeGreaterThanOrEqual(760);
   expect(open.past, 'nothing paints past the surface').toEqual([]);
-  // At most ONE lit planet per sampled frame through the whole entrance
+  // At most ONE lit planet in any recorded state of the whole entrance
   // (the tile's medallion goes dark the instant the disc starts to fly).
-  console.log('── planets per frame (entry) ──', entryPlanets.join(''));
+  console.log('── planets per recorded state (entry) ──', entryPlanets.join(''));
   expect(Math.max(...entryPlanets), 'one planet on screen at every frame of the entrance').toBeLessThanOrEqual(1);
 
   // ── The bar: A = the act's verb, B back. ──
-  const barOpen = (await page.locator('.con-cmdbar').textContent().catch(() => '')) ?? '';
-  console.log('── bar on the dossier ──', barOpen.replace(/\s+/g, ' ').trim());
+  console.log('── bar on the dossier ──', await barText(page));
   // A LEADS ON — «К торговле», never «Торговать», and never disabled.
-  expect(barOpen).toMatch(/К торговле/);
+  await expect.poll(() => barText(page)).toMatch(/К торговле/);
   const aDisabled = await page.evaluate(() => {
     const btns = Array.from(document.querySelectorAll('.con-cmdbar [class*="disabled"], .con-cmdbar [aria-disabled="true"]'));
     return btns.map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim()).filter((t) => /К торговле/.test(t));
   });
   expect(aDisabled, 'A is never disabled on the dossier').toEqual([]);
-  expect(barOpen).toMatch(/Назад/);
+  await expect.poll(() => barText(page)).toMatch(/Назад/);
 
   // ── ↓ scrolls the rules panel (and nothing else). ──
-  await press(page, 'ArrowDown', 500);
-  await press(page, 'ArrowDown', 500);
-  const scrolled = await page.evaluate(() => {
+  const rulesScrollTop = () => page.evaluate(() => {
     const vp = document.querySelector('.con-colinspect__rules-scroll .con-scroll-area__viewport') as HTMLElement | null;
     return vp === null ? -1 : vp.scrollTop;
   });
-  console.log('── rules scrollTop after ↓↓ ──', scrolled, '(overflow', open.rulesScroll, 'px)');
+  await press(page, 'ArrowDown', 500);
+  await press(page, 'ArrowDown', 500);
   if (open.rulesScroll > 0) {
-    expect(scrolled, 'the rules panel scrolled').toBeGreaterThan(0);
+    // A smooth scroll is a state that arrives — polled, never read where the machine had got to.
+    await expect.poll(rulesScrollTop, {message: 'the rules panel scrolled'}).toBeGreaterThan(0);
   }
+  console.log('── rules scrollTop after ↓↓ ──', await rulesScrollTop(), '(overflow', open.rulesScroll, 'px)');
 
   // ── B → the grid breathes back, the dossier is gone. ──
-  await press(page, 'Escape', 1600);
-  await shoot(page, '03-folded-back-4k');
-  await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'B folded the dossier'}).toBe(0);
-  const browse = await page.evaluate(() => {
+  const browseState = () => page.evaluate(() => {
     const el = document.querySelector('.con-colonies__browse') as HTMLElement | null;
     return el === null ? null : {opacity: getComputedStyle(el).opacity, visibility: getComputedStyle(el).visibility};
   });
-  expect(browse?.opacity, 'the browse grid did not breathe back').toBe('1');
-  expect(browse?.visibility).toBe('visible');
+  await press(page, 'Escape', 1600);
+  await shoot(page, '03-folded-back-4k');
+  await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'B folded the dossier'}).toBe(0);
+  await expect.poll(async () => (await browseState())?.opacity, {message: 'the browse grid did not breathe back'}).toBe('1');
+  await expect.poll(async () => (await browseState())?.visibility).toBe('visible');
 
   // ── X again, then A → the trade stage takes the dossier's place. ──
   await press(page, 'KeyX', 2200);
   await expect.poll(() => page.locator('.con-colinspect').count()).toBe(1);
-  await armPlanetSampler(page, 2400);
+  const handoffWitness = await armPlanetWitness(page, 'inspect-planets-handoff');
   await page.keyboard.press('Enter');
   await cinematicBeat(page, 260, 'the hand-off mid-flight — the cross-fade frame');
   await shoot(page, '04-handoff-mid-4k');
-  await cinematicBeat(page, 2200, 'the stage settles after the hand-off — the planet sampler\'s window');
+  // The hand-off's window ends on its END STATE — the trade stage at rest.
+  const after = await settledComposition(page, 'the trade stage after the hand-off');
   await shoot(page, '05-stage-after-handoff-4k');
-  const handoffPlanets = await takePlanetSamples(page, 12);
-  console.log('── planets per frame (hand-off) ──', handoffPlanets.join(''));
-  const after = await composition(page);
+  const handoffPlanets = await takePlanetRecord(handoffWitness);
+  console.log('── planets per recorded state (hand-off) ──', handoffPlanets.join(''));
   expect(after.dossier, 'the dossier left').toBe(false);
   expect(after.stage, 'the trade stage took its place').toBe(true);
-  const stageCrumb = (await page.locator('.con-colonies .con-wshead').textContent().catch(() => '')) ?? '';
-  console.log('── crumb on the stage ──', stageCrumb.replace(/\s+/g, ' ').trim());
-  expect(stageCrumb).toMatch(/ЛУНА.*ТОРГОВЛЯ/i);
+  const stageCrumb = () => page.locator('.con-colonies .con-wshead').textContent().then((t) => (t ?? '').replace(/\s+/g, ' ').trim()).catch(() => '');
+  await expect.poll(stageCrumb).toMatch(/ЛУНА.*ТОРГОВЛЯ/i);
+  console.log('── crumb on the stage ──', await stageCrumb());
   // The hand-off overlaps the two surfaces for ONE beat — during which the
   // dossier's disc is fading while the stage's hero FLIPs out of it. Two
   // discs may briefly co-exist at the cross-fade (the leaving one is
@@ -361,17 +373,13 @@ test('colony dossier: X opens the read, B folds back, A enters the act (TV 4K)',
   await press(page, 'Escape', 1800);
   await shoot(page, '06-stage-folded-4k');
   await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'the stage folded'}).toBe(0);
-  const browse2 = await page.evaluate(() => {
-    const el = document.querySelector('.con-colonies__browse') as HTMLElement | null;
-    return el === null ? null : {opacity: getComputedStyle(el).opacity, visibility: getComputedStyle(el).visibility};
-  });
-  expect(browse2?.opacity).toBe('1');
-  expect(browse2?.visibility).toBe('visible');
-  const tilePlanet = await page.evaluate(() => {
+  await expect.poll(async () => (await browseState())?.opacity).toBe('1');
+  await expect.poll(async () => (await browseState())?.visibility).toBe('visible');
+  const tilePlanet = () => page.evaluate(() => {
     const el = document.querySelector('.con-coltile--focused .con-coltile__planet') as HTMLElement | null;
     return el === null ? '' : getComputedStyle(el).opacity;
   });
-  expect(tilePlanet, 'the tile\'s medallion is lit again').toBe('0.97');
+  await expect.poll(tilePlanet, {message: 'the tile\'s medallion is lit again'}).toBe('0.97');
 });
 
 test('colony dossier: a TILE glyph in a rule renders whole (Europa\'s ocean, TV 4K)', async ({page, request}) => {
@@ -385,8 +393,8 @@ test('colony dossier: a TILE glyph in a rule renders whole (Europa\'s ocean, TV 
   await focusTile(page, 'Europa');
   await press(page, 'KeyX', 2400);
   await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'the dossier did not open'}).toBe(1);
-  await shoot(page, '08-europa-ocean-4k');
-  const glyph = await page.evaluate(() => {
+  // The glyph's box and the tile's, AT REST (two equal reads a frame apart) — the dossier's entrance re-fits them.
+  const glyph = await readSettled(page, () => page.evaluate(() => {
     const box = document.querySelector('.con-colinspect__group--build .con-colinspect__glyph');
     const tile = box?.querySelector('.benefit-glyph__tile');
     if (box === null || box === undefined || tile === null || tile === undefined) {
@@ -399,7 +407,8 @@ test('colony dossier: a TILE glyph in a rule renders whole (Europa\'s ocean, TV 
       tile: {l: Math.round(t.left), t: Math.round(t.top), r: Math.round(t.right), b: Math.round(t.bottom), w: Math.round(t.width), h: Math.round(t.height)},
       art: getComputedStyle(tile).backgroundImage.includes('ocean'),
     };
-  });
+  }), {message: 'Europa\'s ocean glyph'});
+  await shoot(page, '08-europa-ocean-4k');
   console.log('── the ocean glyph ──', JSON.stringify(glyph));
   expect(glyph, 'Europa\'s build rule carries the ocean tile glyph').not.toBeNull();
   if (glyph !== null) {
@@ -428,24 +437,10 @@ test('colony dossier: the composition holds at 1080p and on the Deck', async ({p
   ];
   for (const p of profiles) {
     await page.setViewportSize({width: p.w, height: p.h});
-    // The profile switch re-fits the whole surface: wait on STATE — two
-    // consecutive agreeing samples of the geometry the assertions read.
-    await settle(page);
-    let prev = '';
-    for (let i = 0; i < 40; i++) {
-      const now = await page.evaluate(() => JSON.stringify([
-        document.querySelector('.con-colinspect__planet')?.getBoundingClientRect().width,
-        document.querySelector('.con-colinspect__rules')?.getBoundingClientRect().height,
-        document.querySelector('.con-colinspect__act')?.getBoundingClientRect().top,
-      ]));
-      if (now === prev) {
-        break;
-      }
-      prev = now;
-      await cinematicBeat(page, 120, 'the profile re-fit — two agreeing samples end the wait');
-    }
+    // The profile switch re-fits the whole surface: wait on STATE — the
+    // composition the assertions read, two agreeing reads a frame apart.
+    const c = await settledComposition(page, `profile ${p.name}`);
     await shoot(page, `07-profile-${p.name}`);
-    const c = await composition(page);
     console.log(`── profile ${p.name} (${p.w}×${p.h}) ──`, JSON.stringify({...c, lore: c.lore.slice(0, 40) + '…'}));
     expect(c.dossier).toBe(true);
     expect(c.cells, `${p.name}: seven cells`).toBe(7);

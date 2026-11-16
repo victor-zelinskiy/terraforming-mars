@@ -4,7 +4,7 @@ import {test, expect, Page} from './consoleTest';
 import {
   press, stepKind, stepSubject, waitPressable, summaryVisible, pickCards,
   submitSummary, queueCards, waitQueueIdle, focusCard, yieldToPurchase,
-  cinematicBeat,
+  cinematicBeat, settle, waitStepDealSettled, walkFocusUntil,
 } from './consoleStart';
 
 /**
@@ -114,7 +114,11 @@ async function reachDeployment(page: Page): Promise<void> {
   await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
   for (let round = 0; round < 8 && !(await summaryVisible(page)); round++) {
     await waitPressable(page);
-    await page.waitForTimeout(250);
+    // THE WARM-UP the step's first press needs (it was a 250 ms pause): the crumb names the step (the read below), and
+    // the step's deal STANDS — a focused card, nothing still arriving, no cursor pending (an A before that is the
+    // cinematic's skip, not a pick). Bounded waits, never assertions: the walk reads what then stands.
+    await expect.poll(() => stepSubject(page), {timeout: 5_000}).not.toBe('').catch(() => undefined);
+    await waitStepDealSettled(page);
     const kind = stepKind(await stepSubject(page));
     if (kind === 'corporation') {
       await press(page, 'Enter', 600);
@@ -128,10 +132,9 @@ async function reachDeployment(page: Page): Promise<void> {
         expect.arrayContaining([WAITING, ENABLER]));
     }
     await press(page, 'Period', 1600);
-    for (let w = 0; w < 20 && !(await summaryVisible(page)) &&
-         stepKind(await stepSubject(page)) === kind; w++) {
-      await page.waitForTimeout(250);
-    }
+    // The step actually changes (or the summary stands) before the walk looks again — a poll, bounded as before.
+    await expect.poll(async () => await summaryVisible(page) || stepKind(await stepSubject(page)) !== kind,
+      {timeout: 5_000, intervals: [250]}).toBe(true).catch(() => undefined);
   }
   expect(await summaryVisible(page) || await page.locator('.con-start__queue').isVisible().catch(() => false),
     'reached the summary or its committed deployment').toBeTruthy();
@@ -169,6 +172,41 @@ async function waitPreludeRailLive(page: Page, maxMs = 20_000): Promise<void> {
   }, [WAITING, ENABLER], {timeout: maxMs}).catch(() => { /* the gate read reports what it really is */ });
 }
 
+/**
+ * THE QUEUE HAS TAKEN THE PRESS AND STANDS AGAIN — the warm-up a deployment press needs before the next one (it was a
+ * 700 ms pause, and it is NOT «the card left»: that reads the lift, the first frame of the play — the next A then came
+ * before the rail republished the focused card, FLAKE ZERO wave 1). The console quiet (`settle`: the submit answered,
+ * the play's flight and landing holds released), then the queue's focus REPUBLISHED: a focused card standing with its
+ * A verb under it (the verb exists only while the server's prompt makes the card playable), the rail naming it.
+ * Bounded waits, never assertions — the caller's own reads say what really stands.
+ */
+async function queueRepublished(page: Page): Promise<void> {
+  await settle(page).catch(() => undefined);
+  await expect.poll(() => page.evaluate(() => {
+    const focused = document.querySelector('.con-start__qcard--focused:not(.con-deal-hold)');
+    return (focused !== null && focused.querySelector('.con-start__slot-a') !== null &&
+      (document.querySelector('.con-start__statusrail .con-start__status-name')?.textContent ?? '').trim() !== '') ||
+      document.querySelector('.con-start__buy') !== null;
+  }), {timeout: 10_000}).toBe(true).catch(() => undefined);
+}
+
+/**
+ * THE PRELUDE IS PRESSABLE — the readiness the A on `card` waits for (the warm-up the old pauses gave it): the card
+ * is the FOCUSED one, the server's prompt makes it playable (not `--awaiting`), nothing of it is still arriving, its A
+ * verb stands under it and the rail names it; with `warned`, its verdict (the caution band) is published too — the
+ * order gate arms only off that verdict. Bounded, never an assertion.
+ */
+async function preludePressable(page: Page, card: string, warned: boolean): Promise<void> {
+  await expect.poll(() => page.evaluate(({card, warned}) => {
+    const el = Array.from(document.querySelectorAll('.con-start__qcard--focused'))
+      .find((q) => q.getAttribute('data-queue-slot') === card);
+    return el !== undefined && !el.classList.contains('con-start__qcard--awaiting') && !el.classList.contains('con-deal-hold') &&
+      el.querySelector('.con-start__slot-a') !== null &&
+      (!warned || el.querySelector('.con-cards__pickband--warn') !== null) &&
+      (document.querySelector('.con-start__statusrail .con-start__status-name')?.textContent ?? '').trim() !== '';
+  }, {card, warned}), {timeout: 15_000}).toBe(true).catch(() => undefined);
+}
+
 /** Drain the deployment down to the prelude rail (the corporation lands first). */
 async function reachPreludeRail(page: Page): Promise<void> {
   for (let round = 0; round < 14; round++) {
@@ -180,7 +218,8 @@ async function reachPreludeRail(page: Page): Promise<void> {
         await waitPreludeRailLive(page);
         return;
       }
-      await page.waitForTimeout(700);
+      // The queue has not published its cards yet: wait for them (bounded — the round then looks again).
+      await expect.poll(async () => (await queueCards(page)).length, {timeout: 5_000}).toBeGreaterThan(0).catch(() => undefined);
       continue;
     }
     // ONE press at a time, and ONLY while the setup card is the focused one.
@@ -188,12 +227,13 @@ async function reachPreludeRail(page: Page): Promise<void> {
     // as it drains, so a retry that fires blind plays the very prelude this
     // probe came to look at (it did, once).
     if (!(await focusQueue(page, setup[0]))) {
-      await page.waitForTimeout(500);
+      // The queue is re-focusing as it drains: let it stand again before the next round walks.
+      await queueRepublished(page);
       continue;
     }
     await waitPressable(page);
     await press(page, 'Enter', 1500);
-    await page.waitForTimeout(700);
+    await queueRepublished(page);
   }
   expect(await queueCards(page), 'the deployment drained down to the preludes').toEqual(
     expect.arrayContaining([WAITING, ENABLER]));
@@ -223,11 +263,10 @@ async function moveFocusAway(page: Page): Promise<void> {
     document.querySelector('.con-start__qcard--focused')?.getAttribute('data-queue-slot') ?? '');
   await yieldToPurchase(page);
   const from = await focused();
-  await press(page, 'ArrowRight', 450);
-  if (await focused() === from) {
-    await press(page, 'ArrowLeft', 450);
-  }
-  expect(await focused(), 'the focus actually left the card').not.toBe(from);
+  // Act → verify (the focus moved) → turn round at the wall: the shared walk gives each hop its whole window before
+  // it believes «no move» (the cursor lands a beat after the press).
+  await walkFocusUntil(page, async () => await focused() !== from, focused, 3, 450);
+  await expect.poll(focused, {message: 'the focus actually left the card'}).not.toBe(from);
 }
 
 /**
@@ -246,10 +285,10 @@ async function gateWithStage(page: Page, timeoutMs = 15_000): Promise<Awaited<Re
   return gate(page);
 }
 
-/** Hold A for `ms` — the shared hold gate's real input. */
+/** Hold A for `ms` — the shared hold gate's real input (the hold's LENGTH is the input itself, not a wait). */
 async function holdConfirm(page: Page, ms: number): Promise<void> {
   await page.keyboard.down('Enter');
-  await page.waitForTimeout(ms);
+  await cinematicBeat(page, ms, 'A held down — the hold\'s length IS the input under test');
   await page.keyboard.up('Enter');
 }
 
@@ -288,6 +327,7 @@ test.describe('console — the prelude ORDER GATE', () => {
     // ── FIRST A: it EXPLAINS. Nothing is sent, nothing moves ──────────────
     await waitQueueIdle(page);
     await waitPressable(page);
+    await preludePressable(page, WAITING, true);
     await shoot(page, 'before');
     await press(page, 'Enter', 1200);
     const armed = await gateWithStage(page);
@@ -352,13 +392,19 @@ test.describe('console — the prelude ORDER GATE', () => {
     expect(await focusQueue(page, ENABLER), 'focused the enabling prelude').toBeTruthy();
     await waitQueueIdle(page);
     await waitPressable(page);
+    await preludePressable(page, ENABLER, false);
     await press(page, 'Enter', 2600);
-    await page.waitForTimeout(1500);
-    const played = await gate(page);
-    expect(played.queue, 'an ordinary prelude still plays on ONE press').not.toContain(ENABLER);
+    // The play is a STATE that arrives (the card leaves the queue) — polled, on the same one press.
+    await expect.poll(async () => (await gate(page)).queue, {message: 'an ordinary prelude still plays on ONE press'}).not.toContain(ENABLER);
 
+    // The server's NEXT prompt re-publishes the copier's verdict: the console quiet again, then the verdict read once
+    // it has moved off the old one (bounded — the assertions below read what really stands).
     await waitPressable(page).catch(() => {});
-    await page.waitForTimeout(1200);
+    await settle(page).catch(() => undefined);
+    await expect.poll(async () => {
+      const g = await gate(page);
+      return !g.queue.includes(WAITING) || (g.badged.length === 0 && g.enablers.length === 0);
+    }, {timeout: 10_000}).toBe(true).catch(() => undefined);
     const after = await gate(page);
     if (after.queue.includes(WAITING)) {
       expect(after.badged, 'with a prelude played, the copier is a real prelude again').toEqual([]);
@@ -383,17 +429,21 @@ test.describe('console — the prelude ORDER GATE', () => {
 
     await waitQueueIdle(page);
     await waitPressable(page);
+    await preludePressable(page, WAITING, true);
     await press(page, 'Enter', 1000);
     expect((await gateWithStage(page)).stageUp, 'the risk stage is up').toBeTruthy();
 
-    // A SHORT hold is not a hold: releasing early is a complete, safe cancel.
+    // A SHORT hold is not a hold: releasing early is a complete, safe cancel. Judged once the console is at REST — a
+    // commit, had the release made one, would be in flight or landed by then (the transport and the play's holds).
     await holdConfirm(page, 200);
-    await page.waitForTimeout(600);
+    await settle(page).catch(() => undefined);
     expect((await gate(page)).queue, 'an interrupted hold commits nothing').toContain(WAITING);
 
-    // …and the full hold does commit, through the ORDINARY play animation.
+    // …and the full hold does commit, through the ORDINARY play animation — read once the play has LANDED: the card
+    // gone from the queue and the console quiet again (the server's answer applied, the play's holds released).
     await holdConfirm(page, 1100);
-    await page.waitForTimeout(1200);
+    await expect.poll(async () => (await gate(page)).queue, {timeout: 10_000}).not.toContain(WAITING).catch(() => undefined);
+    await settle(page).catch(() => undefined);
     // ONE press, ONE commit. The button was still down when the hold completed
     // and the server answered with the NEXT prelude — a second commit riding
     // that same press would silently play a card the player never chose.

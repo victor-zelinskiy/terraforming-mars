@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, press, settle, waitForBoardHome} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR38 «БИОЛОГИЧЕСКИЕ СИМУЛЯЦИИ» — the set's first Greens' plate, a data
@@ -104,7 +106,7 @@ type Rect = {l: number, t: number, r: number, b: number};
 /** One flying token: its centre, its size and its KIND (`prod:<res>` · `mc` · `<res>`) with its amount. */
 type Chip = {x: number, y: number, w: number, v: string};
 type Sample = {
-  t: number, tick: boolean, ws: number, chips: Array<Chip>, beats: Array<{x: number, y: number}>, stranded: boolean,
+  t: number, ws: number, chips: Array<Chip>, beats: Array<{x: number, y: number}>, stranded: boolean,
   /** The holder EMERGED forward in the landing scene: its box, its capsule and the capsule's count. */
   emerge?: Rect, emergeCap?: Rect, emergeCount: string,
   /** The landing scene's FRONT card and the zone it is composed in (PL-126: the protagonist is a third of the zone). */
@@ -124,13 +126,17 @@ type Sample = {
 };
 type Probe = {samples: Array<Sample>};
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+const TR38_WITNESS = 'tr38-scene';
+
+/**
+ * THE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): every state of the scene,
+ * kept on change with the page's time. `settled` — the state a TASK leaves: «a token rests with its contact beat beside
+ * it» (two objects in one sample) and «the counter ticks no earlier than the touchdown» (an order) are claims about what a
+ * frame paints, never about a pose between two writes of one task. A birth is still caught in the task that writes it.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({card, hero, auxSel, plantSel, mcSel}) => {
-    const w = window as unknown as {__tr38: Probe};
-    const p: Probe = {samples: []};
-    w.__tr38 = p;
-    const t0 = performance.now();
+  type Args = {card: string, hero: string, auxSel: string, plantSel: string, mcSel: string};
+  await armWitness<Omit<Sample, 't'>, Args>(page, TR38_WITNESS, ({card, hero, auxSel, plantSel, mcSel}) => {
     const read = (sel: string) => (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const shown = (el: HTMLElement) => {
       const r = el.getBoundingClientRect();
@@ -152,65 +158,55 @@ async function armProbe(page: Page): Promise<void> {
       }
       return el.classList.contains('con-transfer__chip--production') ? `prod:${res}` : res;
     };
-    const sample = (tick: boolean) => {
-      if (p.samples.length > 9000) {
-        return;
-      }
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {
-          x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10, w: Math.round(r.width),
-          v: `${kindOf(el)}${(el.querySelector('.con-transfer__amt')?.textContent ?? el.textContent ?? '').replace(/\s+/g, '')}`,
-        };
-      });
-      const beats = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).filter(shown).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
-      });
-      const emerge = document.querySelector(`.con-recv__emerge[data-played-key="${esc}"]`);
-      const s: Sample = {
-        t: Math.round(performance.now() - t0), tick,
-        ws: document.querySelectorAll('.con-ws').length,
-        chips, beats,
-        stranded: document.querySelector('.con-stranded') !== null,
-        emerge: rect(emerge), emergeCap: rect(emerge?.querySelector('.pcard__res')),
-        emergeCount: emerge === null ? '' : (emerge.querySelector('.pcard__res-count')?.textContent ?? '').trim(),
-        tag: rect(document.querySelector('.con-recv [data-recv-front] .pcard-tag[data-tag="microbe"]')),
-        causeTag: document.querySelector('.con-recv [data-recv-front] .pcard-tag[data-tag="microbe"][data-reaction-cause]') !== null,
-        emergeIcon: rect(Array.from(emerge?.querySelectorAll<HTMLElement>('.pcard-effect:not(.pcard-effect--action) .pcard-ic') ?? [])
-          .find((el) => (el.style.backgroundImage ?? '').includes('data'))),
-        front: rect(document.querySelector('.con-recv [data-recv-front]')),
-        recv: rect(document.querySelector('.con-recv')),
-        aux: read(auxSel).match(/^\d+/)?.[0] ?? '',
-        cap: rect(document.querySelector(`${hero} .pcard__res`)),
-        capCount: read(`${hero} .pcard__res-count`),
-        prodBox: rect(document.querySelector(`${hero} .pcard-prod`)),
-        plantProd: read(plantSel).match(/^[-+]?\d+/)?.[0] ?? '',
-        mcProd: read(mcSel).match(/^[-+]?\d+/)?.[0] ?? '',
-        plantProdBox: rect(document.querySelector(plantSel)),
-        mcProdBox: rect(document.querySelector(mcSel)),
-        fxChip: rect(document.querySelector('.con-cardactions .con-composer [data-forecast-rail="production:megacredits"]')),
-        fxChipCause: document.querySelector('.con-cardactions .con-composer [data-forecast-rail="production:megacredits"][data-reaction-cause]') !== null,
-        fxChipWs: document.querySelectorAll('.con-cardactions').length,
-        // THE PARTY'S CHARTER at the reaction stage (iteration 6 — a party is a reactor), and its printed M€ production icon.
-        charter: rect(document.querySelector('.con-reaction__face[data-reaction-card="Greens"]')),
-        charterIcon: rect(Array.from(document.querySelectorAll<HTMLElement>('.con-reaction__face[data-reaction-card="Greens"] .pcard-ic'))
-          .find((el) => /megacredit/.test(el.style.backgroundImage ?? '') && el.closest('.pcard-prod') !== null)),
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter(shown).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10, w: Math.round(r.width),
+        v: `${kindOf(el)}${(el.querySelector('.con-transfer__amt')?.textContent ?? el.textContent ?? '').replace(/\s+/g, '')}`,
       };
-      const last = p.samples[p.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0, tick: false}) !== JSON.stringify({...s, t: 0, tick: false})) {
-        p.samples.push(s);
-      }
-    };
-    sample(true);
-    new MutationObserver(() => sample(false)).observe(document.body, {
-      subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style'],
     });
-    window.setInterval(() => sample(true), 30);
-  }, {card: CARD, hero: HERO, auxSel: AUX_DATA, plantSel: PLANT_PROD, mcSel: MC_PROD});
+    const beats = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).filter(shown).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
+    });
+    const emerge = document.querySelector(`.con-recv__emerge[data-played-key="${esc}"]`);
+    return {
+      ws: document.querySelectorAll('.con-ws').length,
+      chips, beats,
+      stranded: document.querySelector('.con-stranded') !== null,
+      emerge: rect(emerge), emergeCap: rect(emerge?.querySelector('.pcard__res')),
+      emergeCount: emerge === null ? '' : (emerge.querySelector('.pcard__res-count')?.textContent ?? '').trim(),
+      tag: rect(document.querySelector('.con-recv [data-recv-front] .pcard-tag[data-tag="microbe"]')),
+      causeTag: document.querySelector('.con-recv [data-recv-front] .pcard-tag[data-tag="microbe"][data-reaction-cause]') !== null,
+      emergeIcon: rect(Array.from(emerge?.querySelectorAll<HTMLElement>('.pcard-effect:not(.pcard-effect--action) .pcard-ic') ?? [])
+        .find((el) => (el.style.backgroundImage ?? '').includes('data'))),
+      front: rect(document.querySelector('.con-recv [data-recv-front]')),
+      recv: rect(document.querySelector('.con-recv')),
+      aux: read(auxSel).match(/^\d+/)?.[0] ?? '',
+      cap: rect(document.querySelector(`${hero} .pcard__res`)),
+      capCount: read(`${hero} .pcard__res-count`),
+      prodBox: rect(document.querySelector(`${hero} .pcard-prod`)),
+      plantProd: read(plantSel).match(/^[-+]?\d+/)?.[0] ?? '',
+      mcProd: read(mcSel).match(/^[-+]?\d+/)?.[0] ?? '',
+      plantProdBox: rect(document.querySelector(plantSel)),
+      mcProdBox: rect(document.querySelector(mcSel)),
+      fxChip: rect(document.querySelector('.con-cardactions .con-composer [data-forecast-rail="production:megacredits"]')),
+      fxChipCause: document.querySelector('.con-cardactions .con-composer [data-forecast-rail="production:megacredits"][data-reaction-cause]') !== null,
+      fxChipWs: document.querySelectorAll('.con-cardactions').length,
+      // THE PARTY'S CHARTER at the reaction stage (iteration 6 — a party is a reactor), and its printed M€ production icon.
+      charter: rect(document.querySelector('.con-reaction__face[data-reaction-card="Greens"]')),
+      charterIcon: rect(Array.from(document.querySelectorAll<HTMLElement>('.con-reaction__face[data-reaction-card="Greens"] .pcard-ic'))
+        .find((el) => /megacredit/.test(el.style.backgroundImage ?? '') && el.closest('.pcard-prod') !== null)),
+    };
+  }, {args: {card: CARD, hero: HERO, auxSel: AUX_DATA, plantSel: PLANT_PROD, mcSel: MC_PROD}, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr38: Probe}).__tr38);
+/** Every recorded state, its time the PAGE's in ms from the first one. */
+const readProbe = async (page: Page): Promise<Probe> => {
+  const samples = await witnessOf<Omit<Sample, 't'>>(page, TR38_WITNESS).samples();
+  const origin = samples[0]?.t ?? 0;
+  return {samples: samples.map((s) => ({...s.v, t: s.t - origin}))};
+};
 
 const inside = (p: {x: number, y: number}, r: Rect, slack: number) =>
   p.x >= r.l - slack && p.x <= r.r + slack && p.y >= r.t - slack && p.y <= r.b + slack;
@@ -251,7 +247,7 @@ function firstReading(samples: ReadonlyArray<Sample>, field: 'aux' | 'emergeCoun
 
 function trail(samples: ReadonlyArray<Sample>): string {
   return samples.slice(0, 220).map((s) =>
-    `${s.t}${s.tick ? 't' : 'm'} ws=${s.ws} aux=${s.aux} em=${s.emerge === undefined ? '-' : `${s.emerge.l},${s.emerge.t}/${s.emergeCount}`} tag=${s.tag === undefined ? '-' : `${s.tag.l},${s.tag.t}`} cap=${s.capCount} pp=${s.plantProd} mp=${s.mcProd} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}${s.beats.length > 0 ? ` beats=${s.beats.map((b) => `${b.x},${b.y}`).join(' ')}` : ''}`,
+    `${s.t} ws=${s.ws} aux=${s.aux} em=${s.emerge === undefined ? '-' : `${s.emerge.l},${s.emerge.t}/${s.emergeCount}`} tag=${s.tag === undefined ? '-' : `${s.tag.l},${s.tag.t}`} cap=${s.capCount} pp=${s.plantProd} mp=${s.mcProd} chips=${s.chips.map((c) => `${c.v}@${c.x},${c.y}`).join(' ')}${s.beats.length > 0 ? ` beats=${s.beats.map((b) => `${b.x},${b.y}`).join(' ')}` : ''}`,
   ).join('\n');
 }
 
@@ -273,17 +269,19 @@ function watchPage(page: Page): {posts: Array<string>, errors: Array<string>, ov
 
 /** RT → «КАРТЫ» → the card → A: the play composer of `card`, nothing sent. */
 async function openPlayComposerOf(page: Page, card: string): Promise<void> {
-  await press(page, 'Period', 600);
-  await press(page, 'Enter', 1600);
+  // The wheel, then the hand — each press verified by what it opens, never a blind pair.
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  expect(await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 4, settleMs: 900}),
+    'the quick wheel opens').toBe(true);
+  expect(await pressUntil(page, 'Enter', handUp, {tries: 3, settleMs: 1600}), 'the wheel\'s centre slot opens the hand').toBe(true);
   await page.locator(`.con-hand [data-zoom-slot="${card}"]`).waitFor({timeout: 12_000});
   // The album's ENTRY swallows the d-pad on 4K (its fit runs longer there): walk only once it stands.
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   await settle(page);
   const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
   expect(await focusCard(page, card, slots * 2 + 6), `never focused «${card}» in the hand`).toBe(true);
-  for (let i = 0; i < 3 && await page.locator(PLAY_COMPOSER).count() === 0; i++) {
-    await press(page, 'Enter', 900);
-  }
+  // A, verified by the composer itself — a retry only after the whole window passed without one.
+  await pressUntil(page, 'Enter', async () => await page.locator(PLAY_COMPOSER).count() > 0, {tries: 3, settleMs: 900});
   await expect(page.locator(PLAY_COMPOSER), 'the play composer stands').toHaveCount(1);
   await settle(page);
 }
@@ -306,11 +304,9 @@ async function openActionOf(page: Page, card: string): Promise<void> {
   await settle(page);
 }
 
-/** Walk the cursor to the commit row of the action composer. */
+/** Walk the cursor to the commit row of the action composer — each ↓ given its whole window before the next. */
 async function readyToCommit(page: Page): Promise<void> {
-  for (let i = 0; i < 8 && await page.locator(`${ACTION_COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
-    await press(page, 'ArrowDown', 200);
-  }
+  await pressUntil(page, 'ArrowDown', async () => await page.locator(`${ACTION_COMPOSER} .con-composer__cta--focused`).count() > 0, {tries: 8, settleMs: 200});
   await expect(page.locator(`${ACTION_COMPOSER} .con-composer__cta--focused`), 'the cursor stands on the commit row').toHaveCount(1);
 }
 
@@ -339,30 +335,32 @@ async function noChipsLeft(page: Page): Promise<void> {
 }
 
 type RedNote = {at: number, text: string};
-/** RED'S WITNESS: every notification card as it APPEARS. */
+const RED_WITNESS = 'tr38-red-feed';
+/**
+ * RED'S WITNESS: every notification card as it APPEARS — RECORDED (`armWitness`: the cards standing now, kept on change;
+ * a card is NOTED at its first recorded state, by its id). Never a timer that a short card could pass between.
+ */
 async function armRedProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__red: Array<RedNote>};
-    const notes: Array<RedNote> = [];
-    w.__red = notes;
-    const t0 = Date.now();
-    const seen = new Set<string>();
+  await armWitness<Array<{id: string, text: string}>>(page, RED_WITNESS, () => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = () => {
-      document.querySelectorAll<HTMLElement>('.con-notif').forEach((el) => {
-        const id = el.getAttribute('data-notif-id') ?? text(el);
-        if (seen.has(id)) {
-          return;
-        }
-        seen.add(id);
-        notes.push({at: Date.now() - t0, text: text(el)});
-      });
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 50);
+    return Array.from(document.querySelectorAll<HTMLElement>('.con-notif')).map((el) => ({id: el.getAttribute('data-notif-id') ?? text(el), text: text(el)}));
   });
 }
-const readRedProbe = (page: Page): Promise<Array<RedNote>> => page.evaluate(() => (window as unknown as {__red: Array<RedNote>}).__red);
+const readRedProbe = async (page: Page): Promise<Array<RedNote>> => {
+  const samples = await witnessOf<Array<{id: string, text: string}>>(page, RED_WITNESS).samples();
+  const origin = samples[0]?.t ?? 0;
+  const seen = new Set<string>();
+  const notes: Array<RedNote> = [];
+  for (const s of samples) {
+    for (const card of s.v) {
+      if (!seen.has(card.id)) {
+        seen.add(card.id);
+        notes.push({at: s.t - origin, text: card.text});
+      }
+    }
+  }
+  return notes;
+};
 
 for (const preset of PRESETS) {
   test.describe(`TR38 Biological Simulations · ${preset.id}`, () => {
@@ -492,7 +490,7 @@ for (const preset of PRESETS) {
       await expect(row.locator('[data-forecast-chip="own"]'), 'ONE own chip — the M€ production step').toHaveCount(1);
       await expect(row.locator('[data-forecast-chip="own"] .resource_icon--megacredits'), 'an M€ chip').toHaveCount(1);
       await readyToCommit(page);
-      const dataIcons = await heroIcons(page, 'data.');
+      const dataIcons = await readSettled(page, () => heroIcons(page, 'data.'), {message: 'the hero\'s printed data icons'});
       expect(dataIcons.length, 'the hero prints its data icons (the action row and the bottom block)').toBeGreaterThanOrEqual(2);
       await shoot(page, preset.id, 'b-01-composer');
       expect(seen.posts, 'nothing sent before A').toEqual([]);
@@ -500,12 +498,13 @@ for (const preset of PRESETS) {
       // zone (it was 11 %), the decision column stands level with it, and the rail's rows the formula does not touch
       // are quiet while the ones it moves (plants, M€) stay lit.
       if (preset.id === 'tv4k') {
-        const shares = await page.evaluate(({hero, stage}) => {
+        // Measured AT REST (`readSettled`): the hero's share read mid-entrance is wherever the machine had got to.
+        const shares = await readSettled(page, () => page.evaluate(({hero, stage}) => {
           const h = document.querySelector(hero)?.getBoundingClientRect();
           const s = document.querySelector(stage)?.getBoundingClientRect();
           const quiet = Array.from(document.querySelectorAll<HTMLElement>('.con-res__row')).map((el) => `${el.className.match(/con-res__row--(megacredits|steel|titanium|plants|energy|heat)/)?.[1]}:${el.classList.contains('con-res__row--quiet') ? 'quiet' : 'lit'}`);
           return {hero: h === undefined || s === undefined ? 0 : (h.width * h.height) / (s.width * s.height), quiet};
-        }, {hero: HERO, stage: '.con-cardactions__stagewrap'});
+        }, {hero: HERO, stage: '.con-cardactions__stagewrap'}), {message: 'the hero\'s share of the stage and the rail\'s rows'});
         expect(shares.hero, `the hero card's share of the stage zone (${shares.hero.toFixed(3)}) is at least a quarter`).toBeGreaterThanOrEqual(0.25);
         expect(shares.quiet, 'the rows the formula touches stay lit, the rest recede').toEqual([
           'megacredits:lit', 'steel:quiet', 'titanium:quiet', 'plants:lit', 'energy:quiet', 'heat:quiet',

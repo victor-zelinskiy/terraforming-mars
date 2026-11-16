@@ -3,6 +3,9 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle} from './consoleStart';
 import {openColoniesSection} from './cardTradeDoor';
+import {ObservedSample} from './observeCore';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR22 «НОВА-СИТИ» — A CITY LAID ON A COLONY TILE, the staged colony door's
@@ -87,8 +90,8 @@ const cardScoreOf = (wire: Wire) => wire.thisPlayer.victoryPointsBreakdown?.deta
 
 type Box = {x: number, y: number, w: number, h: number};
 type Probe = {
+  /** The states the recording kept (one per CHANGE — never a count of frames). */
   samples: number;
-  ticks: number;
   // ── the flow (own client) ──
   steps: Array<string>;
   /** The tail as it stood on the LAST sample with one settled step on the crumb (a crossfade holds two). */
@@ -105,8 +108,8 @@ type Probe = {
   boardProxyMax: number;
   /** The first sample the proxy was in the DOM: whether anything of it was visible. */
   born?: {at: number, visible: boolean};
-  /** The proxy's centre on every sample its ink was visible: [ms, x, y, on a tick]. */
-  track: Array<[number, number, number, boolean]>;
+  /** The proxy's centre on every sample its ink was visible: [ms, x, y]. */
+  track: Array<[number, number, number]>;
   /** The seat the proxy lands on (its box at the first sample of the scene) and the scene's scale. */
   seat?: Box;
   scale: Array<string>;
@@ -125,7 +128,7 @@ type Probe = {
   countedAt?: number;
   /** The HUD's M€, on every change: [ms, text]. */
   money: Array<[number, string]>;
-  /** TICK samples only: two tiles apart (the proxy off its seat while the seat paints the tile), or none past the contact. */
+  /** Two tiles apart (the proxy off its seat while the seat paints the tile), or none past the contact — FRAME claims. */
   twoTiles: Array<string>;
   noTile: Array<string>;
   /** EVERY sample past the contact: the proxy stood OFF its seat (a piece that has touched does not hang in the air). */
@@ -138,21 +141,40 @@ type Probe = {
   status: [number, number];
 };
 
+/** What the recording keeps per change — an OBSERVATION of the screen; the folding into `Probe` is `foldProbe`'s. */
+type NovaSeen = {
+  /** The player's own flow (null on a watcher's page): the hand's crumb, the colonies' instances, the bands. */
+  own: {head: {root: string, subjects: Array<string>, standing: Array<string>} | null, colonies: number, coloniesOutside: boolean, ws: number} | null;
+  stranded: boolean;
+  /** The colonies section: its degrade, whether it stands as a receipt, its projected seats and the pick's rail. */
+  section: {degraded: string | null, receipt: boolean, ghosts: number, pickRail: boolean} | null;
+  /** The status lines standing on a VISIBLE grid (null while no grid is visible). */
+  status: number | null;
+  beat: string;
+  scale: string;
+  proxies: number;
+  boardProxies: number;
+  /** Luna's seat as the player sees it (null when none stands). */
+  seat: {pose: string, tile: boolean, cube: boolean, landed: boolean, box: Box} | null;
+  /** The city's proxy (the first one), its ink and — while that ink is visible — its centre. */
+  proxy: {ink: boolean, x?: number, y?: number} | null;
+  cubeProxy: boolean;
+  /** The stage's «cities» fact. */
+  count: {value: string, counted: boolean} | null;
+  money: string;
+};
+const NOVA_WITNESS = 'tr22-nova-city';
+
 /**
- * MutationObserver + setInterval — never rAF (headless drives rAF off the
- * compositor: it stops when the screen is quiet). `own` — the player's flow
- * (crumb, hand); a watcher's probe skips those.
+ * THE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed before the door, replace-proof): the reader returns what stands
+ * NOW, every change is kept with the page's time, and the folding (the crumb's steps, the seat's poses and edges, the
+ * proxy's track, the counters' series) is `foldProbe`'s on the Node side. `settled` — the state a TASK leaves: «never
+ * two tiles», «never none past the contact», «one colonies instance», «a status line never blinked» are claims about
+ * what a frame paints, never about what stands between two writes of one task. `own` — the player's flow (crumb,
+ * hand); a watcher's probe skips those.
  */
 async function armProbe(page: Page, own: boolean): Promise<void> {
-  await page.evaluate(({card, root, own}) => {
-    const w = window as unknown as {__tr22: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, steps: [], tail: '', crumbMisses: [], coloniesOutsideHand: false, coloniesMax: 0, wsMax: 0, stranded: false,
-      degraded: [], proxyMax: 0, boardProxyMax: 0, track: [], scale: [], beats: [], poses: [], landed: [], cubeProxy: {},
-      count: [], money: [], twoTiles: [], noTile: [], afterReceipt: [], status: [Infinity, 0], offSeat: [],
-    };
-    w.__tr22 = p;
-    const t0 = Date.now();
+  await armWitness<NovaSeen, {own: boolean}>(page, NOVA_WITNESS, ({own}) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const shown = (el: HTMLElement) => {
       let opacity = 1;
@@ -175,155 +197,191 @@ async function armProbe(page: Page, own: boolean): Promise<void> {
       }
       return null;
     };
-    let wasLanded = false;
-    let contactAt: number | undefined;
-    const sample = (tick: boolean) => {
-      const now = Date.now() - t0;
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      if (own) {
-        const head = document.querySelector('.con-hand')?.querySelector('.con-wshead') ?? null;
-        if (head !== null) {
-          const rootText = text(head.querySelector('.con-wshead__root'));
-          const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-          if ((rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) && p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${now}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-          const standing = Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((step) => step !== '');
-          for (const step of standing) {
-            if (!p.steps.includes(step)) {
-              p.steps.push(step);
-            }
-          }
-          if (standing.length === 1) {
-            p.tail = standing[0];
-          }
-        }
-        const colonies = document.querySelectorAll('.con-colonies');
-        p.coloniesMax = Math.max(p.coloniesMax, colonies.length);
-        colonies.forEach((el) => {
-          if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-            p.coloniesOutsideHand = true;
-          }
-        });
-        p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      }
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      const section = document.querySelector('.con-colonies');
-      const degraded = section?.getAttribute('data-colony-city-degraded');
-      if (degraded !== null && degraded !== undefined && !p.degraded.includes(degraded)) {
-        p.degraded.push(degraded);
-      }
-      if (section?.querySelector('[data-colony-city-receipt]') !== null && section !== null && p.receiptAt === undefined) {
-        p.receiptAt = now;
-      }
-      if (p.receiptAt !== undefined && section !== null && section !== undefined && p.afterReceipt.length < 6) {
-        const ghosts = section.querySelectorAll('[data-colony-city-pose="projected"]').length;
-        const rail = section.querySelector('[data-colonies-rail-city]') !== null;
-        if (ghosts > 0 || rail) {
-          p.afterReceipt.push(`${now}ms ghosts=${ghosts} pickRail=${rail}`);
-        }
-      }
-      const gridEl = document.querySelector<HTMLElement>('.con-colonies__grid');
-      if (gridEl !== null && gridEl.getBoundingClientRect().width > 10 && shown(gridEl) > 0.9) {
-        const lines = Array.from(gridEl.querySelectorAll('.con-coltile__status')).filter((el) => text(el) !== '').length;
-        p.status = [Math.min(p.status[0], lines), Math.max(p.status[1], lines)];
-      }
-      // ── the stage of the scene ──
-      const fx = document.querySelector<HTMLElement>('.con-colcityfx');
-      const beat = fx?.getAttribute('data-colony-city-beat') ?? '';
-      if (beat !== '' && p.beats[p.beats.length - 1] !== beat) {
-        p.beats.push(beat);
-      }
-      const scale = fx?.getAttribute('data-colony-city-scale') ?? '';
-      if (scale !== '' && !p.scale.includes(scale)) {
-        p.scale.push(scale);
-      }
-      const proxies = document.querySelectorAll<HTMLElement>('[data-colony-city-proxy]');
-      p.proxyMax = Math.max(p.proxyMax, proxies.length);
-      p.boardProxyMax = Math.max(p.boardProxyMax, document.querySelectorAll('.con-tileplace .con-tileplace__tile').length);
-      const seat = lunaSeat();
-      const pose = seat?.getAttribute('data-colony-city-pose') ?? '';
-      if (pose !== '' && p.poses[p.poses.length - 1]?.[1] !== pose) {
-        p.poses.push([now, pose]);
-      }
-      const tilePainted = seat !== null && pose === 'seated' && seat.querySelector('[data-colony-city-tile]') !== null;
-      if (tilePainted && p.tileAt === undefined) {
-        p.tileAt = now;
-      }
-      if (seat !== null && seat.querySelector('[data-colony-city-cube] .player-cube') !== null && p.cubeAt === undefined) {
-        p.cubeAt = now;
-      }
-      const landed = seat !== null && seat.classList.contains('con-colcity--landed');
-      if (landed && !wasLanded) {
-        p.landed.push(now);
-        contactAt = contactAt ?? now;
-      }
-      wasLanded = landed;
-      let proxyInk: {x: number, y: number} | undefined;
-      const proxy = proxies[0];
-      if (proxy !== undefined) {
-        const art = proxy.querySelector<HTMLElement>('.con-tileplace__art');
-        const edge = proxy.querySelector<HTMLElement>('.con-tileplace__edge');
-        const ink = Math.max(art === null ? 0 : shown(art), edge === null ? 0 : shown(edge));
-        if (p.born === undefined) {
-          p.born = {at: now, visible: ink > 0.02};
-          if (seat !== null) {
-            const r = seat.getBoundingClientRect();
-            p.seat = {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
-          }
-        }
-        if (ink > 0.02) {
-          const r = proxy.getBoundingClientRect();
-          proxyInk = {x: r.left + r.width / 2, y: r.top + r.height / 2};
-          p.track.push([now, Math.round(proxyInk.x * 10) / 10, Math.round(proxyInk.y * 10) / 10, tick]);
-        }
-      }
-      if (document.querySelector('[data-colony-city-cube-proxy]') !== null) {
-        p.cubeProxy.first = p.cubeProxy.first ?? now;
-        p.cubeProxy.last = now;
-      }
-      // Past the contact the piece is ON its seat — on every sample, the observer's included (a state, not a frame).
-      if (contactAt !== undefined && proxyInk !== undefined && p.seat !== undefined && p.offSeat.length < 6 &&
-          Math.hypot(proxyInk.x - p.seat.x, proxyInk.y - p.seat.y) > Math.max(6, p.seat.h * 0.1)) {
-        p.offSeat.push(`${now}ms (+${now - contactAt}) proxy ${Math.round(proxyInk.x)},${Math.round(proxyInk.y)} · seat ${Math.round(p.seat.x)},${Math.round(p.seat.y)}`);
-      }
-      // FRAME claims — only on the sampler's own ticks.
-      if (tick && p.seat !== undefined) {
-        if (proxyInk !== undefined && tilePainted && Math.hypot(proxyInk.x - p.seat.x, proxyInk.y - p.seat.y) > Math.max(3, p.seat.h * 0.08) && p.twoTiles.length < 6) {
-          p.twoTiles.push(`${now}ms proxy at ${Math.round(proxyInk.x)},${Math.round(proxyInk.y)} while the seat paints its tile`);
-        }
-        if (contactAt !== undefined && proxyInk === undefined && !tilePainted && seat !== null && p.noTile.length < 6) {
-          p.noTile.push(`${now}ms no proxy and no tile on the seat (pose ${pose})`);
-        }
-      }
-      // ── the readings ──
-      const fact = document.querySelector('.con-colfocus [data-city-fact="cities"]');
-      if (fact !== null) {
-        const value = text(fact.querySelector('.con-colfocus__cityfact-value'));
-        if (value !== '' && p.count[p.count.length - 1]?.[1] !== value) {
-          p.count.push([now, value]);
-        }
-        if (fact.hasAttribute('data-city-counted') && p.countedAt === undefined) {
-          p.countedAt = now;
-        }
-      }
-      const digits = document.querySelector('.con-res__row .resource_icon--megacredits')?.closest('.con-res__row')?.querySelector('.con-res__digits');
-      const money = (digits?.childNodes[0]?.textContent ?? '').trim();
-      if (money !== '' && p.money[p.money.length - 1]?.[1] !== money) {
-        p.money.push([now, money]);
-      }
+    let ownSeen: NovaSeen['own'] = null;
+    if (own) {
+      const head = document.querySelector('.con-hand')?.querySelector('.con-wshead') ?? null;
+      const colonies = Array.from(document.querySelectorAll('.con-colonies'));
+      ownSeen = {
+        head: head === null ? null : {
+          root: text(head.querySelector('.con-wshead__root')),
+          subjects: Array.from(head.querySelectorAll('.con-wshead__subject')).map(text),
+          standing: Array.from(head.querySelectorAll('.con-wshead__step')).map(text).filter((step) => step !== ''),
+        },
+        colonies: colonies.length,
+        coloniesOutside: colonies.some((el) => el.closest('.con-hand') === null || el.classList.contains('con-ws')),
+        ws: document.querySelectorAll('.con-ws').length,
+      };
+    }
+    const section = document.querySelector('.con-colonies');
+    const gridEl = document.querySelector<HTMLElement>('.con-colonies__grid');
+    const gridVisible = gridEl !== null && gridEl.getBoundingClientRect().width > 10 && shown(gridEl) > 0.9;
+    const fx = document.querySelector<HTMLElement>('.con-colcityfx');
+    const proxies = document.querySelectorAll<HTMLElement>('[data-colony-city-proxy]');
+    const seat = lunaSeat();
+    const proxy = proxies[0];
+    let proxySeen: NovaSeen['proxy'] = null;
+    if (proxy !== undefined) {
+      const art = proxy.querySelector<HTMLElement>('.con-tileplace__art');
+      const edge = proxy.querySelector<HTMLElement>('.con-tileplace__edge');
+      const ink = Math.max(art === null ? 0 : shown(art), edge === null ? 0 : shown(edge)) > 0.02;
+      const r = proxy.getBoundingClientRect();
+      proxySeen = ink ? {ink, x: Math.round((r.left + r.width / 2) * 10) / 10, y: Math.round((r.top + r.height / 2) * 10) / 10} : {ink};
+    }
+    const fact = document.querySelector('.con-colfocus [data-city-fact="cities"]');
+    const digits = document.querySelector('.con-res__row .resource_icon--megacredits')?.closest('.con-res__row')?.querySelector('.con-res__digits');
+    return {
+      own: ownSeen,
+      stranded: document.querySelector('.con-stranded') !== null,
+      section: section === null ? null : {
+        degraded: section.getAttribute('data-colony-city-degraded'),
+        receipt: section.querySelector('[data-colony-city-receipt]') !== null,
+        ghosts: section.querySelectorAll('[data-colony-city-pose="projected"]').length,
+        pickRail: section.querySelector('[data-colonies-rail-city]') !== null,
+      },
+      status: gridVisible && gridEl !== null ? Array.from(gridEl.querySelectorAll('.con-coltile__status')).filter((el) => text(el) !== '').length : null,
+      beat: fx?.getAttribute('data-colony-city-beat') ?? '',
+      scale: fx?.getAttribute('data-colony-city-scale') ?? '',
+      proxies: proxies.length,
+      boardProxies: document.querySelectorAll('.con-tileplace .con-tileplace__tile').length,
+      seat: seat === null ? null : (() => {
+        const r = seat.getBoundingClientRect();
+        const pose = seat.getAttribute('data-colony-city-pose') ?? '';
+        return {
+          pose,
+          tile: pose === 'seated' && seat.querySelector('[data-colony-city-tile]') !== null,
+          cube: seat.querySelector('[data-colony-city-cube] .player-cube') !== null,
+          landed: seat.classList.contains('con-colcity--landed'),
+          box: {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height},
+        };
+      })(),
+      proxy: proxySeen,
+      cubeProxy: document.querySelector('[data-colony-city-cube-proxy]') !== null,
+      count: fact === null ? null : {value: text(fact.querySelector('.con-colfocus__cityfact-value')), counted: fact.hasAttribute('data-city-counted')},
+      money: (digits?.childNodes[0]?.textContent ?? '').trim(),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 16);
-  }, {card: CARD_RU, root: ROOT_RU, own});
+  }, {args: {own}, settled: true, max: 40_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr22: Probe}).__tr22);
+/** The record folded into the scene's facts — times are the PAGE's, from the first recorded state. */
+function foldProbe(samples: ReadonlyArray<ObservedSample<NovaSeen>>): Probe {
+  const p: Probe = {
+    samples: samples.length, steps: [], tail: '', crumbMisses: [], coloniesOutsideHand: false, coloniesMax: 0, wsMax: 0, stranded: false,
+    degraded: [], proxyMax: 0, boardProxyMax: 0, track: [], scale: [], beats: [], poses: [], landed: [], cubeProxy: {},
+    count: [], money: [], twoTiles: [], noTile: [], afterReceipt: [], status: [Infinity, 0], offSeat: [],
+  };
+  const origin = samples[0]?.t ?? 0;
+  let wasLanded = false;
+  let contactAt: number | undefined;
+  for (const s of samples) {
+    const now = s.t - origin;
+    const v = s.v;
+    if (v.own !== null) {
+      const head = v.own.head;
+      if (head !== null) {
+        if ((head.root.toLowerCase() !== ROOT_RU.toLowerCase() || !head.subjects.some((x) => x.toLowerCase() === CARD_RU.toLowerCase())) && p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${now}ms root=«${head.root}» subject=«${head.subjects.join('|')}»`);
+        }
+        for (const step of head.standing) {
+          if (!p.steps.includes(step)) {
+            p.steps.push(step);
+          }
+        }
+        if (head.standing.length === 1) {
+          p.tail = head.standing[0];
+        }
+      }
+      p.coloniesMax = Math.max(p.coloniesMax, v.own.colonies);
+      p.coloniesOutsideHand ||= v.own.coloniesOutside;
+      p.wsMax = Math.max(p.wsMax, v.own.ws);
+    }
+    p.stranded ||= v.stranded;
+    const degraded = v.section?.degraded;
+    if (degraded !== null && degraded !== undefined && !p.degraded.includes(degraded)) {
+      p.degraded.push(degraded);
+    }
+    if (v.section !== null && v.section.receipt && p.receiptAt === undefined) {
+      p.receiptAt = now;
+    }
+    if (p.receiptAt !== undefined && v.section !== null && p.afterReceipt.length < 6 && (v.section.ghosts > 0 || v.section.pickRail)) {
+      p.afterReceipt.push(`${now}ms ghosts=${v.section.ghosts} pickRail=${v.section.pickRail}`);
+    }
+    if (v.status !== null) {
+      p.status = [Math.min(p.status[0], v.status), Math.max(p.status[1], v.status)];
+    }
+    // ── the stage of the scene ──
+    if (v.beat !== '' && p.beats[p.beats.length - 1] !== v.beat) {
+      p.beats.push(v.beat);
+    }
+    if (v.scale !== '' && !p.scale.includes(v.scale)) {
+      p.scale.push(v.scale);
+    }
+    p.proxyMax = Math.max(p.proxyMax, v.proxies);
+    p.boardProxyMax = Math.max(p.boardProxyMax, v.boardProxies);
+    const pose = v.seat?.pose ?? '';
+    if (pose !== '' && p.poses[p.poses.length - 1]?.[1] !== pose) {
+      p.poses.push([now, pose]);
+    }
+    const tilePainted = v.seat !== null && v.seat.tile;
+    if (tilePainted && p.tileAt === undefined) {
+      p.tileAt = now;
+    }
+    if (v.seat !== null && v.seat.cube && p.cubeAt === undefined) {
+      p.cubeAt = now;
+    }
+    const landed = v.seat !== null && v.seat.landed;
+    if (landed && !wasLanded) {
+      p.landed.push(now);
+      contactAt = contactAt ?? now;
+    }
+    wasLanded = landed;
+    let proxyInk: {x: number, y: number} | undefined;
+    if (v.proxy !== null) {
+      if (p.born === undefined) {
+        p.born = {at: now, visible: v.proxy.ink};
+        if (v.seat !== null) {
+          p.seat = v.seat.box;
+        }
+      }
+      if (v.proxy.ink && v.proxy.x !== undefined && v.proxy.y !== undefined) {
+        proxyInk = {x: v.proxy.x, y: v.proxy.y};
+        p.track.push([now, v.proxy.x, v.proxy.y]);
+      }
+    }
+    if (v.cubeProxy) {
+      p.cubeProxy.first = p.cubeProxy.first ?? now;
+      p.cubeProxy.last = now;
+    }
+    // Past the contact the piece is ON its seat — on every recorded state (a state, not a frame).
+    if (contactAt !== undefined && proxyInk !== undefined && p.seat !== undefined && p.offSeat.length < 6 &&
+        Math.hypot(proxyInk.x - p.seat.x, proxyInk.y - p.seat.y) > Math.max(6, p.seat.h * 0.1)) {
+      p.offSeat.push(`${now}ms (+${now - contactAt}) proxy ${Math.round(proxyInk.x)},${Math.round(proxyInk.y)} · seat ${Math.round(p.seat.x)},${Math.round(p.seat.y)}`);
+    }
+    // FRAME claims — every recorded state is one a task left (settled): what a frame can paint.
+    if (p.seat !== undefined) {
+      if (proxyInk !== undefined && tilePainted && Math.hypot(proxyInk.x - p.seat.x, proxyInk.y - p.seat.y) > Math.max(3, p.seat.h * 0.08) && p.twoTiles.length < 6) {
+        p.twoTiles.push(`${now}ms proxy at ${Math.round(proxyInk.x)},${Math.round(proxyInk.y)} while the seat paints its tile`);
+      }
+      if (contactAt !== undefined && proxyInk === undefined && !tilePainted && v.seat !== null && p.noTile.length < 6) {
+        p.noTile.push(`${now}ms no proxy and no tile on the seat (pose ${pose})`);
+      }
+    }
+    // ── the readings ──
+    if (v.count !== null) {
+      if (v.count.value !== '' && p.count[p.count.length - 1]?.[1] !== v.count.value) {
+        p.count.push([now, v.count.value]);
+      }
+      if (v.count.counted && p.countedAt === undefined) {
+        p.countedAt = now;
+      }
+    }
+    if (v.money !== '' && p.money[p.money.length - 1]?.[1] !== v.money) {
+      p.money.push([now, v.money]);
+    }
+  }
+  return p;
+}
+
+const readProbe = async (page: Page): Promise<Probe> => foldProbe(await witnessOf<NovaSeen>(page, NOVA_WITNESS).samples());
 
 async function shoot(page: Page, preset: string, name: string): Promise<void> {
   const dir = path.join(OUT, preset);
@@ -420,11 +478,15 @@ const lunaClearance = (page: Page, scope: string) => page.evaluate((scope) => {
 
 /** Open the hand from board home and descend into the card's play composer. */
 async function openComposer(page: Page): Promise<void> {
-  await press(page, 'Period', 600); // the quick wheel
-  await press(page, 'Enter', 1600); // centre slot → the hand
+  // The wheel and the hand: each press verified by what it opens (act → verify → retry only without one).
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  expect(await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 4, settleMs: 900}),
+    'the quick wheel opens').toBe(true);
+  expect(await pressUntil(page, 'Enter', handUp, {tries: 3, settleMs: 1600}), 'the wheel\'s centre slot opens the hand').toBe(true);
   await page.locator(`.con-hand [data-zoom-slot="${CARD}"]`).waitFor({timeout: 20_000});
   expect(await focusCard(page, CARD, 24), `never focused «${CARD}»`).toBeTruthy();
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
+  // ONE A, verified by the composer itself (a second A on the composer would be its «Выбрать колонию»).
   await press(page, 'Enter', 1200);
   await page.locator(composer).waitFor({timeout: 15_000});
   await settle(page);
@@ -671,11 +733,12 @@ for (const preset of PRESETS) {
       const dump = JSON.stringify({
         steps: own.steps, tail: own.tail, beats: own.beats, poses: own.poses, born: own.born, landed: own.landed, tileAt: own.tileAt, cubeAt: own.cubeAt,
         cubeProxy: own.cubeProxy, count: own.count, countedAt: own.countedAt, money: own.money, receiptAt: own.receiptAt,
-        track: own.track.length, ticks: own.ticks,
+        track: own.track.length, samples: own.samples,
       });
       fs.mkdirSync('test-results', {recursive: true});
       fs.writeFileSync(`test-results/nova-city-${preset.id}.json`, JSON.stringify(own, null, 1));
-      expect(own.ticks, `the probe's sampler ran (${own.samples} samples)`).toBeGreaterThan(40);
+      // The recording's liveness floor: it recorded at all (only a dead recorder fails it — the real claims judge below).
+      expect(own.samples, `the probe's sampler ran (${own.samples} samples)`).toBeGreaterThan(0);
 
       // ── 2. one flow ──
       expect(own.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);
@@ -780,7 +843,7 @@ for (const preset of PRESETS) {
       expect(restAfter.filter((t) => t.name !== 'Luna').map((t) => t.pose), 'no other tile carries one').toEqual(['empty', 'empty', 'empty', 'empty']);
       expect(restAfter.map((t) => t.box), 'no tile\'s box moved by the city').toEqual(restBoxes.map((t) => t.box));
       expect(restAfter.filter((t) => t.cut !== false).map((t) => t.name), 'no colony name is cut').toEqual([]);
-      const clear = await lunaClearance(redGrid, '.con-colonies');
+      const clear = await readSettled(redGrid, () => lunaClearance(redGrid, '.con-colonies'), {message: 'Luna\'s seat, its name and its fleet'});
       expect(clear, 'Luna\'s seat could be measured').toBeDefined();
       expect(clear!.name, `the seat does not touch the name's ink (${JSON.stringify(clear)})`).toBe(0);
       expect(clear!.fleet, `the seat does not touch the fleet's ship or its ring (${JSON.stringify(clear)})`).toBe(0);
@@ -790,7 +853,7 @@ for (const preset of PRESETS) {
       // ── 8b. RED ON THE BOARD: nothing flies, nothing is held ──
       await settle(redBoard, {timeoutMs: 30_000});
       const board = await readProbe(redBoard);
-      expect(board.ticks, 'the board probe sampled').toBeGreaterThan(40);
+      expect(board.samples, 'the board probe sampled').toBeGreaterThan(0);
       expect(board.proxyMax, 'on the Mars board no city proxy is ever mounted').toBe(0);
       expect(board.boardProxyMax, '…and no tile flies onto the board').toBe(0);
       expect(board.beats, '…no scene played').toEqual([]);

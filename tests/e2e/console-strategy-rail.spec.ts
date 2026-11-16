@@ -1,5 +1,6 @@
-import {expect, test, Page} from './consoleTest';
-import {bootIntoGame, press, soloGameConfig} from './consoleStart';
+import {expect, test, Locator, Page} from './consoleTest';
+import {bootIntoGame, press, pressUntil, settle, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * P30 — the right STRATEGY RAIL (Milestones/Awards premium HUD).
@@ -16,9 +17,35 @@ import {bootIntoGame, press, soloGameConfig} from './consoleStart';
  * legal-but-degenerate render).
  */
 
+type Box = {x: number, y: number, width: number, height: number};
+
+/** A tenth of a pixel — what the geometry claims compare (a subpixel that jitters is not motion). */
+const tenth = (v: number) => Math.round(v * 10) / 10;
+
+/** A locator's box to a tenth of a pixel, or null where Playwright sees none. */
+async function boxOf(locator: Locator): Promise<Box | null> {
+  const b = await locator.boundingBox();
+  return b === null ? null : {x: tenth(b.x), y: tenth(b.y), width: tenth(b.width), height: tenth(b.height)};
+}
+
+/** Every medal row of the strategy rail, in order. */
+async function itemBoxes(page: Page): Promise<Array<Box | null>> {
+  const out: Array<Box | null> = [];
+  for (const row of await page.locator('.con-strat__item').all()) {
+    out.push(await boxOf(row));
+  }
+  return out;
+}
+
+/**
+ * The two rails' boxes AT REST (FLAKE ZERO, class C): the twin claim compares one against the other, so both come
+ * from ONE settled reading — never wherever the machine had got to on the board's entrance.
+ */
 async function railBoxes(page: Page) {
-  const left = await page.locator('.con-res').boundingBox();
-  const right = await page.locator('.con-strat').boundingBox();
+  const {left, right} = await readSettled(page, async () => ({
+    left: await boxOf(page.locator('.con-res')),
+    right: await boxOf(page.locator('.con-strat')),
+  }), {message: 'the two side rails'});
   expect(left).not.toBeNull();
   expect(right).not.toBeNull();
   return {left: left!, right: right!};
@@ -30,7 +57,8 @@ async function bootHome(page: Page, request: Parameters<typeof bootIntoGame>[1],
     query,
   });
   await page.waitForSelector('.con-strat', {timeout: 30_000});
-  await page.waitForTimeout(800);
+  // The board home at rest (the rail's own entrance included) — a state, never a pause.
+  await settle(page);
 }
 
 /**
@@ -178,9 +206,18 @@ async function headFits(page: Page): Promise<Array<HeadFit>> {
  * The zone titles are whole AND stay whole wherever this runs. Asserted at
  * every profile: a fit claim proved at one resolution is a claim about one
  * resolution, and one proved on one platform is a claim about one platform.
+ *
+ * The heads' reconstruction and this run's own ellipsis deficits are ONE
+ * reading AT REST (`readSettled` — two equal reads a frame apart): the model
+ * is a statement about the laid-out line, and a line still settling its
+ * entrance is not the line the player reads.
  */
 async function expectTitlesFit(page: Page, where: string) {
-  const fits = await headFits(page);
+  const {fits, deficits} = await readSettled(page, async () => ({
+    fits: await headFits(page),
+    deficits: await page.evaluate(() =>
+      [...document.querySelectorAll('.con-strat__title')].map((t) => t.scrollWidth - t.clientWidth)),
+  }), {message: `the strategy rail's zone heads (${where})`});
   console.log(`[strat head · ${where}] ` + fits.map((f) =>
     `«${f.text}» ${f.font} ink ${f.ink} → worst ${f.worst} · column ${f.avail} (need ${f.need})`)
     .join(' | '));
@@ -202,8 +239,6 @@ async function expectTitlesFit(page: Page, where: string) {
   }
 
   // ① This run's own truth: nothing is ellipsized HERE …
-  const deficits = await page.evaluate(() =>
-    [...document.querySelectorAll('.con-strat__title')].map((t) => t.scrollWidth - t.clientWidth));
   for (const d of deficits) {
     expect(d, `zone title fully visible (no ellipsis) — ${where}`).toBeLessThanOrEqual(1);
   }
@@ -225,7 +260,7 @@ test.describe('console strategy rail — FHD', () => {
     // remote runner names one number and hides the eight that would say WHY —
     // and this spec's whole subject is a composition. Printed always: a green
     // run costs one line, a red one stops costing a re-run.
-    console.log('[strategy rail FHD] ' + JSON.stringify(await page.evaluate(() => {
+    console.log('[strategy rail FHD] ' + JSON.stringify(await readSettled(page, () => page.evaluate(() => {
       const round = (sel: string) => {
         const el = document.querySelector(sel);
         if (el === null) {
@@ -249,15 +284,15 @@ test.describe('console strategy rail — FHD', () => {
         // is how a width claim passes on one OS and fails on another.
         prototype: document.fonts.check('700 1rem Prototype', 'ДОСТИЖЕНИЯ'),
       };
-    })));
+    }), {message: 'the FHD composition'})));
 
     const {left, right} = await railBoxes(page);
     // The SAME seam token → the same rendered width, to the pixel budget.
     expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(1.5);
     // No hidden spacer: the old wide panel is unmounted on the idle home.
     await expect.poll(() => page.locator('.con-inspector').count()).toBe(0);
-    // The board section really spans between the two rails.
-    const board = await page.locator('.con-board').boundingBox();
+    // The board section really spans between the two rails (read at rest, like the rails).
+    const board = await readSettled(page, () => boxOf(page.locator('.con-board')), {message: 'the board section'});
     expect(board).not.toBeNull();
     expect(board!.x).toBeGreaterThanOrEqual(left.x + left.width);
     expect(board!.x + board!.width).toBeLessThanOrEqual(right.x + 2);
@@ -296,20 +331,23 @@ test.describe('console strategy rail — FHD', () => {
 
   test('a board task raises the dossier OVERLAY without reflowing the board', async ({page, request}) => {
     await bootHome(page, request);
-    const boardBefore = await page.locator('.con-board').boundingBox();
+    // Both sides of «the board did not reflow» are read at rest.
+    const boardBefore = await readSettled(page, () => boxOf(page.locator('.con-board')), {message: 'the board before the inspection'});
 
     // Enter board inspection (L3 = KeyC in the console key bridge) — the cell
     // dossier must rise as an OVERLAY (any dossier mode serves the claim).
-    await press(page, 'KeyC', 900);
     const overlayUp = async () => (await page.locator('.con-inspector').count()) > 0;
+    await pressUntil(page, 'KeyC', overlayUp, {tries: 1, settleMs: 900});
     if (!(await overlayUp())) {
       // Fallback: scale inspection (R3 = KeyV) is a dossier mode too.
-      await press(page, 'KeyV', 900);
+      await pressUntil(page, 'KeyV', overlayUp, {tries: 1, settleMs: 900});
     }
-    expect(await overlayUp(), 'a dossier mode must raise the overlay').toBe(true);
+    await expect.poll(overlayUp, {message: 'a dossier mode must raise the overlay'}).toBe(true);
 
-    const overlay = await page.locator('.con-inspector').boundingBox();
-    const boardAfter = await page.locator('.con-board').boundingBox();
+    const {overlay, boardAfter} = await readSettled(page, async () => ({
+      overlay: await boxOf(page.locator('.con-inspector')),
+      boardAfter: await boxOf(page.locator('.con-board')),
+    }), {message: 'the dossier overlay over the board'});
     expect(overlay).not.toBeNull();
     // The overlay is pinned to the right edge…
     expect(overlay!.x + overlay!.width).toBeGreaterThan(boardAfter!.x + boardAfter!.width - 4);
@@ -326,11 +364,13 @@ test.describe('console strategy rail — Deck handheld', () => {
     await bootHome(page, request);
     const {left, right} = await railBoxes(page);
     expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(1.5);
-    const rail = await page.locator('.con-strat').boundingBox();
-    const rows = await page.locator('.con-strat__item').all();
+    // The rail and every row inside it — one reading at rest.
+    const {rail, rows} = await readSettled(page, async () => ({
+      rail: await boxOf(page.locator('.con-strat')),
+      rows: await itemBoxes(page),
+    }), {message: 'the strategy rail\'s rows (Deck)'});
     expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) {
-      const box = await row.boundingBox();
+    for (const box of rows) {
       expect(box).not.toBeNull();
       expect(box!.y).toBeGreaterThanOrEqual(rail!.y - 1);
       expect(box!.y + box!.height).toBeLessThanOrEqual(rail!.y + rail!.height + 1);
@@ -352,11 +392,10 @@ test.describe('console strategy rail — 4K TV profile', () => {
     const {left, right} = await railBoxes(page);
     expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(2);
     await expect.poll(() => page.locator('.con-inspector').count()).toBe(0);
-    // Nothing overflows the rail: every medal row lies inside the rail box.
-    const rows = await page.locator('.con-strat__item').all();
+    // Nothing overflows the rail: every medal row lies inside the rail box (read at rest, like the rail).
+    const rows = await readSettled(page, () => itemBoxes(page), {message: 'the strategy rail\'s rows (TV)'});
     expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) {
-      const box = await row.boundingBox();
+    for (const box of rows) {
       expect(box).not.toBeNull();
       expect(box!.x).toBeGreaterThanOrEqual(right.x - 1);
       expect(box!.x + box!.width).toBeLessThanOrEqual(right.x + right.width + 1);

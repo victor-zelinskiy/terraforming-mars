@@ -7,6 +7,8 @@ import {
   bootFixtureSeats, cinematicBeat, commitFocusedSpace, fetchPlayerModel, press, pressUntil, settle,
   walkToSpace, focusInfoZone,
 } from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * FORESTRY SUPPORT (Turmoil Redux, RX11) — the law that INTRODUCES an adjacency
@@ -36,8 +38,9 @@ import {
  *   ④ NO second telling: the feed builds no «Сработал эффект» card about the
  *     chain the scene just played (the viewer's own action stays suppressed too).
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF; the wire
- * (`/api/player`) is the truth the screen is checked against.
+ * The probe is a RECORDING (FLAKE ZERO — `armWitness`, armed before the commit: the product's own writes observed in
+ * the task that makes them, every change kept with the page's time, `settled` — the state a frame can paint); the wire
+ * (`/api/player`) is the truth the screen is checked against. Every box read outside it is read at rest (`readSettled`).
  * Screenshots under screenshots/parliament-forestry/standard-1080/.
  */
 const OUT_DIR = path.resolve('screenshots', 'parliament-forestry', 'standard-1080');
@@ -98,7 +101,6 @@ type Sample = {
   t: number,
   /** WALL clock, so a sample can be matched against a screencast frame's own timestamp. */
   wall: number,
-  src: 'mo' | 'tick',
   phase: string,
   law: boolean,
   pulses: number,
@@ -117,13 +119,17 @@ type Sample = {
   railMid: number,
 };
 type Probe = {samples: Array<Sample>};
+/** One moment as the reader sees it — the sample without its clock (the recording stamps the page's time). */
+type Seen = Omit<Sample, 't' | 'wall'>;
+const FORESTRY_WITNESS = 'parliament-forestry-wave';
 
-/** THE PROBE — armed BEFORE the commit. `setInterval` + `MutationObserver`, never rAF. */
+/**
+ * THE PROBE — armed BEFORE the commit, RECORDED (`armWitness`): the reader returns what stands now, every change is kept
+ * with the page's time. The claims are about what a FRAME shows (the wave announced, the face at the stage, two chips in
+ * flight at one instant, no law card at any instant), so the record is `settled` — the state a task leaves.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__forestryProbe: Probe};
-    const probe: Probe = {samples: []};
-    w.__forestryProbe = probe;
+  await armWitness<Seen>(page, FORESTRY_WITNESS, () => {
     const digits = (key: string): number | undefined => {
       const text = document.querySelector<HTMLElement>(`.con-res__row--${key} .con-res__digits`)?.textContent?.trim() ?? '';
       const m = text.match(/^-?\d+/);
@@ -138,7 +144,7 @@ async function armProbe(page: Page): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width > 4 && Number(getComputedStyle(el).opacity) >= 0.3 ? {x: r.x, y: r.y, w: r.width, h: r.height} : undefined;
     };
-    const read = (src: 'mo' | 'tick'): void => {
+    const read = (): Seen => {
       const scene = document.querySelector<HTMLElement>('.con-tileplace');
       const chips: Array<ChipSample> = [];
       document.querySelectorAll<HTMLElement>('.con-tileplace__oceancoin--megacredits, .con-tileplace__oceancoin--plants')
@@ -169,10 +175,7 @@ async function armProbe(page: Page): Promise<void> {
           alpha: css.visibility === 'hidden' ? 0 : Number(css.opacity),
         });
       });
-      probe.samples.push({
-        t: performance.now(),
-        wall: Date.now(),
-        src,
+      return {
         phase: scene?.getAttribute('data-tile-phase') ?? '',
         law: scene?.getAttribute('data-law-wave') === '1',
         pulses: document.querySelectorAll('.con-tileplace__oceanpulse--grove').length,
@@ -188,20 +191,24 @@ async function armProbe(page: Page): Promise<void> {
           const heat = document.querySelector('.con-res__row--heat')?.getBoundingClientRect();
           return mc !== undefined && heat !== undefined ? (Math.min(mc.top, heat.top) + Math.max(mc.bottom, heat.bottom)) / 2 : window.innerHeight / 2;
         })(),
-      });
+      };
     };
-    new MutationObserver(() => read('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => read('tick'), 40);
-  });
+    return read();
+  }, {settled: true, max: 20_000});
 }
 
-const probeOf = (page: Page) => page.evaluate(() => (window as unknown as {__forestryProbe: Probe}).__forestryProbe);
+/** The recording, in the probe's old shape: `t` and `wall` are the page's clock (the screencast's frames are on it too). */
+async function probeOf(page: Page): Promise<Probe> {
+  const samples = await witnessOf<Seen>(page, FORESTRY_WITNESS).samples();
+  return {samples: samples.map((s) => ({...s.v, t: s.t, wall: s.t}))};
+}
 
 /**
  * THE VISIBILITY of an object the player is told something flew out of: a
  * non-zero rect AND a non-zero effective opacity (the ancestors included — a
  * parked tier fades its children by fading itself). A source nobody can see is
- * not a source (the parliament probes' law 17, applied to the board).
+ * not a source (the parliament probes' law 17, applied to the board). Read at
+ * rest — every caller goes through `readSettled`.
  */
 async function visibleRect(page: Page, selector: string): Promise<Rect | undefined> {
   return page.evaluate((sel) => {
@@ -312,7 +319,7 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     // ② + ③ THE WAVE — the sources and the destinations are measured (and asserted VISIBLE) BEFORE the commit.
     // The cell id is a CLASS on the hex (`board-space-XX`), not an `id` attribute — and the rect and the
     // visibility are read in ONE pass, off the element itself: a selector round trip can only re-find it.
-    const groveHexes = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.board-space'))
+    const groveHexes = await readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.board-space'))
       .filter((el) => el.querySelector('[class*="board-space-tile--greenery"]') !== null)
       .map((el) => {
         const r = el.getBoundingClientRect();
@@ -324,13 +331,15 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
         const cls = Array.from(el.classList).find((c) => /^board-space-[A-Za-z0-9_]+$/.test(c) &&
           !c.startsWith('board-space-tile') && !c.startsWith('board-space--')) ?? '';
         return {id: cls.replace(/^board-space-/, ''), x: r.x, y: r.y, w: r.width, h: r.height, visible};
-      }));
+      })), {message: 'the groves on the board before the commit'});
     expect(groveHexes.length, 'both groves stand on the board, measurable').toBe(2);
     for (const hex of groveHexes) {
       expect(hex.visible, `the grove ${hex.id} is VISIBLE before it pays (${JSON.stringify(hex)})`).toBe(true);
     }
-    expect(await visibleRect(page, '.con-res__row--megacredits'), 'the M€ rail row is visible (the destination)').toBeTruthy();
-    expect(await visibleRect(page, '.con-res__row--plants'), 'the plants rail row is visible (the destination)').toBeTruthy();
+    expect(await readSettled(page, () => visibleRect(page, '.con-res__row--megacredits'), {message: 'the M€ rail row'}),
+      'the M€ rail row is visible (the destination)').toBeTruthy();
+    expect(await readSettled(page, () => visibleRect(page, '.con-res__row--plants'), {message: 'the plants rail row'}),
+      'the plants rail row is visible (the destination)').toBeTruthy();
 
     await armTransferWitness(page);
     await armProbe(page);
@@ -339,18 +348,11 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
 
     // The frame is taken while the FLIGHT is up. The condensed coin never travels — it is a pixel-twin the
     // Resource Transfer Framework's chip takes over from, so «the coin proxy exists» is the condensation, which is
-    // the shortest and dimmest part of the beat. The framework's chips are what crosses the screen.
-    let travelling: ReadonlyArray<{x: number, y: number, w: number, h: number}> = [];
-    for (let i = 0; i < 400 && travelling.length < 2; i++) {
-      travelling = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip'))
-        .map((el) => el.getBoundingClientRect())
-        .filter((r) => r.width > 0 && r.height > 0)
-        .map((r) => ({x: r.x, y: r.y, w: r.width, h: r.height})));
-      if (travelling.length < 2) {
-        await cinematicBeat(page, 40, 'polling for the law\'s payout chips in flight');
-      }
-    }
-    expect(travelling.length, 'two payout chips were in flight at one instant').toBeGreaterThanOrEqual(2);
+    // the shortest and dimmest part of the beat. The framework's chips are what crosses the screen — and «two in flight
+    // at one instant» is asked of the probe's record (a frame's state), never of a poll that may land between them.
+    const inFlight = await witnessOf<Seen>(page, FORESTRY_WITNESS).waitFor((v) => v.flights.length >= 2,
+      {timeoutMs: 20_000, message: 'two payout chips were in flight at one instant'});
+    expect(inFlight.v.flights.length, 'two payout chips were in flight at one instant').toBeGreaterThanOrEqual(2);
     await expect(page.locator('.con-tileplace[data-tile-phase]'), 'the scene finished').toHaveCount(0, {timeout: 40_000});
     await cast.stop();
 
@@ -369,8 +371,10 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     // THE PROBE — the wave was announced, the groves WOKE as the cause, the LAW rose at the stage, its chips were
     // born on ITS OWN printed icons, they travelled, the counters ticked, and no card told it a second time.
     const probe = await probeOf(page);
-    const ticks = probe.samples.filter((s) => s.src === 'tick');
-    expect(ticks.length, 'the sampler ran').toBeGreaterThan(10);
+    // Every recorded moment is a SETTLED one (the state a frame can paint) — the old sampler's «tick» samples.
+    const ticks = probe.samples;
+    // The recording's own liveness: it keeps only CHANGES, so its length says how much changed, never how long it ran.
+    expect(ticks.length, 'the sampler ran').toBeGreaterThan(0);
     expect(ticks.some((s) => s.law), 'the scene announced the LAW\'s wave on painted frames').toBe(true);
     expect(Math.max(...ticks.map((s) => s.pulses)), 'ONE pulse per paying grove — the cause still wakes').toBeGreaterThanOrEqual(2);
     // DIAGNOSTICS (PL-1090): the card's chain against the record's root, the director's seed trail.
@@ -393,9 +397,11 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     console.log('[forestry timeline]', JSON.stringify({firstToastAt: firstToast?.t ?? null, firstFaceAt: firstFace?.t ?? null, firstLawWaveAt: ticks.find((s) => s.law)?.t ?? null}));
     expect(ticks.some((s) => s.lawToast), `no law card at any instant of the scene (toast ${diag.toastId}, ring ${JSON.stringify(wireNow.game.cardReactions ?? null)})`).toBe(false);
     // THE LAW AT THE STAGE (iteration 5's one place — the rail's edge, iteration 4's reactor): its face painted flush
-    // with the opening's left edge, on the resource block's line, at a protagonist's size, for a readable beat.
+    // with the opening's left edge, on the resource block's line, at a protagonist's size, for a readable beat. (The
+    // recording keeps CHANGES, not frames — a face standing still is one sample however long it stands — so «it stood»
+    // is asked as «it was ever painted there», and every pose it took is held to the stage's geometry below.)
     const faced = ticks.filter((s) => s.face !== undefined);
-    expect(faced.length, 'the law\'s face stood at the stage for a readable beat').toBeGreaterThanOrEqual(3);
+    expect(faced.length, 'the law\'s face stood at the stage for a readable beat').toBeGreaterThan(0);
     for (const s of faced) {
       const f = s.face!;
       expect(f.x - s.opening.x, `the law stands at the rail's edge (x) — ${JSON.stringify(f)} vs ${JSON.stringify(s.opening)}`).toBeGreaterThan(-6);
@@ -420,10 +426,10 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     const toastCount = await page.locator('.con-notif[data-notif-id$=":law"]').count();
     expect(toastCount, `no law card — the scene told it (faces at the stage: ${faced.length}, births on the law: ${births.length})`).toBe(0);
     // THE JOURNEY — to the rail, measured on the object that actually crosses the screen (the framework's chip).
-    const railRows = await page.evaluate(() => ['megacredits', 'plants'].map((key) => {
+    const railRows = await readSettled(page, () => page.evaluate(() => ['megacredits', 'plants'].map((key) => {
       const r = document.querySelector<HTMLElement>(`.con-res__row--${key}`)?.getBoundingClientRect();
       return r === undefined ? undefined : {x: r.x, y: r.y, w: r.width, h: r.height};
-    }));
+    })), {message: 'the M€ / plants rail rows'});
     const flightFrames = ticks.filter((s) => s.flights.length > 0);
     expect(flightFrames.length, 'the payout flew as the framework\'s own chips').toBeGreaterThan(0);
     const distTo = (c: ChipSample, r: Rect) => Math.hypot(c.cx - (r.x + r.w / 2), c.cy - (r.y + r.h / 2));

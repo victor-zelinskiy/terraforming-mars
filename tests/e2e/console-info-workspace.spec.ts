@@ -1,7 +1,8 @@
-import {test, expect, Page} from './consoleTest';
+import {test, expect, Locator, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, focusInfoZone, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootIntoGame, focusInfoZone, press, pressUntil, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE INFORMATION WORKSPACE (Y) — the overlay workspace probe.
@@ -69,10 +70,55 @@ async function shoot(page: Page, preset: Preset, name: string): Promise<void> {
  */
 async function closeZoom(page: Page): Promise<void> {
   const plate = page.locator('.con-zoom__prov');
-  for (let i = 0; i < 5 && await plate.count() > 0; i++) {
-    await key(page, 'Escape', 900);
-  }
+  await pressUntil(page, 'Escape', async () => await plate.count() === 0, {tries: 5, settleMs: 900});
   await expect(plate).toHaveCount(0);
+}
+
+type Box = {x: number, y: number, width: number, height: number};
+
+/** A tenth of a pixel — what the parity claims compare (a subpixel that jitters is not motion). */
+const tenth = (v: number) => Math.round(v * 10) / 10;
+
+/** A locator's box to a tenth of a pixel, or null where Playwright sees none. */
+async function boxOf(locator: Locator): Promise<Box | null> {
+  const b = await locator.boundingBox();
+  return b === null ? null : {x: tenth(b.x), y: tenth(b.y), width: tenth(b.width), height: tenth(b.height)};
+}
+
+type SeatGeometry = {vp: Box | null, played: Box | null, extras: Box | null, rows: Array<Box | null>, tags: Box | null, axis: number};
+
+/**
+ * ONE SEAT'S SHARED GEOMETRY — the summary's shared zones, the extras satellite, the rail skeleton (the six standard
+ * rows + the МЕТКИ anchor) and the VALUE AXIS (the number's right edge on the M€ row). Every parity claim compares the
+ * human seat's reading with the bot's, so BOTH sides come through `readSettled` (FLAKE ZERO, class C): a box read once
+ * is wherever the seat switch's ride had got to on a 300 ms software frame.
+ */
+async function seatGeometry(page: Page): Promise<SeatGeometry> {
+  const workspace = page.locator('.con-info');
+  const satellite = page.locator('.con-res-aux');
+  const rows = page.locator('.con-res .con-res__row');
+  const rowBoxes: Array<Box | null> = [];
+  for (let i = 0, n = await rows.count(); i < n; i++) {
+    rowBoxes.push(await boxOf(rows.nth(i)));
+  }
+  const stock = await boxOf(page.locator('.con-res .con-res__row--megacredits .con-res__stockwrap'));
+  return {
+    vp: await boxOf(workspace.locator('[data-zone="vp"]')),
+    played: await boxOf(workspace.locator('[data-zone="played"]')),
+    extras: (await satellite.count()) > 0 ? await boxOf(satellite) : null,
+    rows: rowBoxes,
+    tags: await boxOf(page.locator('.con-res .con-tagmx')),
+    axis: stock === null ? -1 : tenth(stock.x + stock.width),
+  };
+}
+
+/** The guest fan's tray line and the top of every docked OWN card — the own pack's AWAY pose. */
+async function dockAway(page: Page): Promise<{plateTop: number, bodyTops: Array<number>}> {
+  const plate = await page.locator('.con-handdock__plate').boundingBox();
+  const bodyTops: Array<number> = await page.$$eval(
+    '.con-handbody[data-hand-body-mode="docked"]',
+    (els) => els.map((e) => Math.round(e.getBoundingClientRect().top * 10) / 10));
+  return {plateTop: tenth(plate?.y ?? 0), bodyTops};
 }
 
 const railMc = (page: Page) => page.locator('.con-res__row--megacredits .con-res__value');
@@ -81,17 +127,11 @@ const crumbStage = (page: Page) => page.locator('.con-info .con-wshead__step');
 /** Is the BOT participant on stage? The corp meta wears the bot accent. */
 const botOnStage = (page: Page) => page.locator('.con-info .con-info__corp--bot');
 
-/** Cycle LB/RB until the bot participant (or the human) is on stage. */
+/** Cycle LB/RB until the bot participant (or the human) is on stage — each press verified by its effect. */
 async function cycleTo(page: Page, want: 'bot' | 'human'): Promise<void> {
-  for (let i = 0; i < 4; i++) {
-    const isBot = await botOnStage(page).count() > 0;
-    if ((want === 'bot') === isBot) {
-      return;
-    }
-    await key(page, 'KeyE', 900);
-  }
-  expect((await botOnStage(page).count() > 0) === (want === 'bot'),
-    `the seat ring must reach the ${want} participant`).toBeTruthy();
+  const there = async () => (await botOnStage(page).count() > 0) === (want === 'bot');
+  await pressUntil(page, 'KeyE', there, {tries: 4, settleMs: 900});
+  await expect.poll(there, {message: `the seat ring must reach the ${want} participant`}).toBe(true);
 }
 
 for (const preset of PRESETS) {
@@ -126,7 +166,8 @@ for (const preset of PRESETS) {
       }
       await expect(workspace,
         `the info workspace must open; visible: ${(await visibleSurfaces(page)).join(', ')}`).toHaveCount(1);
-      const ownMc = (await railMc(page).textContent()) ?? '';
+      // The own M€ is the RESTORE witness below — read at rest, never mid-tick.
+      const ownMc = await readSettled(page, async () => (await railMc(page).textContent()) ?? '', {message: 'the own rail M€'});
       expect(ownMc).not.toBe('');
       await shoot(page, preset, '01-summary-self');
 
@@ -134,10 +175,12 @@ for (const preset of PRESETS) {
       await expect(workspace.locator('.con-wshead__root')).toHaveText('Информация');
       await expect(workspace.locator('.con-wshead__subject')).toBeVisible();
 
-      // GEOMETRY: fills .con-main right of the rail (±4px tolerance).
-      const main = await page.locator('.con-main').boundingBox();
-      const rail = await page.locator('.con-res-host').boundingBox();
-      const ws = await workspace.boundingBox();
+      // GEOMETRY: fills .con-main right of the rail (±4px tolerance) — read at rest, all three boxes together.
+      const {main, rail, ws} = await readSettled(page, async () => ({
+        main: await boxOf(page.locator('.con-main')),
+        rail: await boxOf(page.locator('.con-res-host')),
+        ws: await boxOf(workspace),
+      }), {message: 'the workspace beside the rail'});
       expect(main && rail && ws).toBeTruthy();
       if (main && rail && ws) {
         expect(Math.abs(ws.y - main.y)).toBeLessThanOrEqual(4);
@@ -178,43 +221,27 @@ for (const preset of PRESETS) {
       await expect(satellite.filter({hasText: /Доп\. ресурсы/i})).toHaveCount(0);
       await expect(page.locator('.con-res-aux:not(:has(.con-res-aux__cell))'), 'the ghost plate is retired').toHaveCount(0);
 
-      // PARITY BASELINE: capture the shared zones' boxes on the human seat.
-      const zoneBox = async (zone: string) =>
-        await workspace.locator(`[data-zone="${zone}"]`).boundingBox();
-      const humanVp = await zoneBox('vp');
-      const humanPlayed = await zoneBox('played');
-      const humanExtras = (await satellite.count()) > 0 ? await satellite.boundingBox() : null;
+      // PARITY BASELINE: the shared zones' boxes on the human seat, and THE
+      // RAIL SKELETON BASELINE — the six standard rows + the МЕТКИ anchor. The
+      // bot seat must reproduce these boxes EXACTLY (the normalization's whole
+      // point: one skeleton, two fills). And the VALUE AXIS — the number's
+      // right edge on the M€ row: the bot's empty production track must not
+      // let the value drift right. One reading, at rest (`seatGeometry`).
+      const human = await readSettled(page, () => seatGeometry(page), {message: 'the human seat\'s geometry'});
+      const humanVp = human.vp;
+      const humanPlayed = human.played;
+      const humanExtras = human.extras;
       await expect(workspace.locator('[data-zone="actions"]')).toHaveCount(1);
       await expect(workspace.locator('[data-zone="effects"]')).toHaveCount(1);
-
-      // THE RAIL SKELETON BASELINE — the six standard rows + the МЕТКИ
-      // anchor. The bot seat must reproduce these boxes EXACTLY (the
-      // normalization's whole point: one skeleton, two fills).
-      const railRowBoxes = async () => {
-        const rows = page.locator('.con-res .con-res__row');
-        const n = await rows.count();
-        const out: Array<{x: number, y: number, width: number, height: number} | null> = [];
-        for (let i = 0; i < n; i++) {
-          out.push(await rows.nth(i).boundingBox());
-        }
-        return out;
-      };
-      const humanRows = await railRowBoxes();
+      const humanRows = human.rows;
       expect(humanRows.length, 'the human rail is six rows').toBe(6);
-      const humanTags = await page.locator('.con-res .con-tagmx').boundingBox();
-      // The VALUE AXIS — the number's right edge on the M€ row. The bot's
-      // empty production track must not let the value drift right.
-      const valueAxis = async (): Promise<number> => {
-        const b = await page.locator('.con-res .con-res__row--megacredits .con-res__stockwrap').boundingBox();
-        return b === null ? -1 : b.x + b.width;
-      };
-      const humanAxis = await valueAxis();
+      const humanTags = human.tags;
+      const humanAxis = human.axis;
       expect(humanAxis).toBeGreaterThan(0);
 
       // ── 2 · RB → the MarsBot participant: ONE canonical summary ─────
       await cycleTo(page, 'bot');
-      const botMc = await railMc(page).textContent();
-      expect(botMc, 'rail M€ must switch to the inspected bot').not.toBe(ownMc);
+      await expect.poll(() => railMc(page).textContent(), {message: 'rail M€ must switch to the inspected bot'}).not.toBe(ownMc);
       // THE RAIL IS THE SAME SKELETON: the six standard rows (zeros as
       // definite 0s — titanium reads «0», never a dash and never absent),
       // the production track reserved but visually EMPTY (no chips, no
@@ -229,8 +256,11 @@ for (const preset of PRESETS) {
 
       // THE SKELETON PARITY: every standard row and the МЕТКИ block sit at
       // the SAME coordinates as on the human seat (±2px) — the geometry may
-      // not depend on the seat's fill, fonts or reserved-height math.
-      const botRows = await railRowBoxes();
+      // not depend on the seat's fill, fonts or reserved-height math. Read at
+      // rest like the human side (the seat switch and the own pack's away ride
+      // both move boxes).
+      const bot = await readSettled(page, () => seatGeometry(page), {message: 'the bot seat\'s geometry'});
+      const botRows = bot.rows;
       expect(botRows.length, 'the bot rail keeps the six standard rows').toBe(6);
       for (let i = 0; i < 6; i++) {
         const a = humanRows[i];
@@ -243,13 +273,13 @@ for (const preset of PRESETS) {
           expect(Math.abs(a.height - b.height), `row ${i} height parity`).toBeLessThanOrEqual(2);
         }
       }
-      const botTags = await page.locator('.con-res .con-tagmx').boundingBox();
+      const botTags = bot.tags;
       expect(humanTags && botTags, 'the МЕТКИ block stands on both seats').toBeTruthy();
       if (humanTags && botTags) {
         expect(Math.abs(humanTags.y - botTags.y), 'МЕТКИ y parity — the anchor may not drift').toBeLessThanOrEqual(2);
         expect(Math.abs(humanTags.x - botTags.x), 'МЕТКИ x parity').toBeLessThanOrEqual(2);
       }
-      expect(Math.abs((await valueAxis()) - humanAxis),
+      expect(Math.abs(bot.axis - humanAxis),
         'the value AXIS is seat-invariant — the empty production track reserves its width').toBeLessThanOrEqual(2);
 
       // THE DOCK BECOMES THE INSPECTED SEAT'S HAND (hand-dock integration):
@@ -260,32 +290,31 @@ for (const preset of PRESETS) {
       await expect(dock).toHaveClass(/con-handdock--guest/);
       const guestFan = page.locator('.con-handdock__insp');
       await expect(guestFan).toHaveCount(1);
-      const countText = (await page.locator('.con-handdock__status--insp .con-handdock__num').textContent() ?? '').trim();
+      const countText = await readSettled(page,
+        async () => (await page.locator('.con-handdock__status--insp .con-handdock__num').textContent() ?? '').trim(),
+        {message: 'the guest fan\'s count'});
       expect(countText).toMatch(/^\d+$/);
       const guestCount = Number(countText);
-      const sleeves = await page.locator('.con-handdock__insp-sleeve').count();
-      expect(sleeves, 'sleeves = min(count, visual cap)').toBe(Math.min(guestCount, 24));
+      await expect.poll(() => page.locator('.con-handdock__insp-sleeve').count(), {message: 'sleeves = min(count, visual cap)'})
+        .toBe(Math.min(guestCount, 24));
       expect(guestCount, 'a live bot mid-game holds action cards').toBeGreaterThan(0);
       // No playable half for a guest (playability is the viewer's own fact).
       await expect(page.locator('.con-handdock__status--insp .con-handdock__sep')).toHaveCount(0);
       // Privacy: the fan carries no faces, no names, no hand-body anchors.
       await expect(guestFan.locator('.pcard')).toHaveCount(0);
       await expect(guestFan.locator('[data-hand-dock-card]')).toHaveCount(0);
-      expect(((await guestFan.textContent()) ?? '').trim()).toBe('');
+      await expect.poll(async () => ((await guestFan.textContent()) ?? '').trim()).toBe('');
       // The OWN pack is away: every docked body's top sits below the plate's
-      // top line (the away pose sinks the whole card past the tray axis).
-      await page.waitForTimeout(900); // the away ride settles (620ms + slack)
-      const plateTop = (await page.locator('.con-handdock__plate').boundingBox())?.y ?? 0;
-      const bodyTops: Array<number> = await page.$$eval(
-        '.con-handbody[data-hand-body-mode="docked"]',
-        (els) => els.map((e) => e.getBoundingClientRect().top));
+      // top line (the away pose sinks the whole card past the tray axis) —
+      // read once the away ride (620 ms) has come to rest, never on a clock.
+      const {plateTop, bodyTops} = await readSettled(page, () => dockAway(page), {message: 'the own pack away under the guest fan'});
       expect(bodyTops.length, 'the boot bought cards — the handover assert must not be vacuous').toBeGreaterThan(0);
       for (const top of bodyTops) {
         expect(top, 'an own docked card may not peek over the tray under a guest fan').toBeGreaterThan(plateTop - 2);
       }
       // THE SHARED ZONES SIT AT THE SAME COORDINATES (±2px):
-      const botVp = await zoneBox('vp');
-      const botPlayed = await zoneBox('played');
+      const botVp = bot.vp;
+      const botPlayed = bot.played;
       for (const [label, a, b] of [
         ['vp', humanVp, botVp], ['played', humanPlayed, botPlayed],
       ] as const) {
@@ -300,7 +329,7 @@ for (const preset of PRESETS) {
       // content, the column stands at the same anchor (it never travels).
       // A seat without extra-resource sources renders no column at all —
       // that absence must stay calm (asserted above), never a plate.
-      const botExtras = (await satellite.count()) > 0 ? await satellite.boundingBox() : null;
+      const botExtras = bot.extras;
       if (humanExtras && botExtras) {
         expect(Math.abs(humanExtras.x - botExtras.x), 'satellite x parity').toBeLessThanOrEqual(2);
         expect(Math.abs(humanExtras.y - botExtras.y), 'satellite y parity').toBeLessThanOrEqual(2);
@@ -419,9 +448,7 @@ for (const preset of PRESETS) {
       await closeZoom(page);
       await expect(page.locator('.con-info .con-played--embedded')).toHaveCount(1);
       // B closes the category scene (back onto the table), B again leaves the table.
-      for (let i = 0; i < 3 && await page.locator('.con-info .con-played-cat').count() > 0; i++) {
-        await key(page, 'Escape', 1200);
-      }
+      await pressUntil(page, 'Escape', async () => await page.locator('.con-info .con-played-cat').count() === 0, {tries: 3, settleMs: 1200});
       await expect(page.locator('.con-info .con-played-cat')).toHaveCount(0);
       await key(page, 'Escape', 800);
       await expect(workspace.locator('.con-info__layout')).toHaveCount(1);
@@ -465,7 +492,8 @@ for (const preset of PRESETS) {
         await key(page, 'ArrowDown', 500); // move the cursor off the default row
         const focusedRow = async () =>
           (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
-        const rowBefore = await focusedRow();
+        // The row the cursor came to REST on (the step's glide is a beat after the press).
+        const rowBefore = await readSettled(page, focusedRow, {message: 'the focused standard-project row'});
         expect(rowBefore, 'a standard-project row is focused').not.toBe('');
         await key(page, 'KeyY', 1000);
         await expect(page.locator('.con-info'), 'the overlay opens OVER the workspace').toHaveCount(1);
@@ -475,7 +503,7 @@ for (const preset of PRESETS) {
         await key(page, 'KeyY', 900); // close from depth — restores the context
         await expect(page.locator('.con-info')).toHaveCount(0);
         await expect(page.locator('.con-stdp'), 'the workspace below SURVIVED the overlay').toBeVisible();
-        expect(await focusedRow(), 'the focused row survived the round trip').toBe(rowBefore);
+        await expect.poll(focusedRow, {message: 'the focused row survived the round trip'}).toBe(rowBefore);
         await key(page, 'Escape', 900); // B closes the workspace normally
         await page.waitForSelector('.con-stdp', {state: 'detached', timeout: 15_000});
       }

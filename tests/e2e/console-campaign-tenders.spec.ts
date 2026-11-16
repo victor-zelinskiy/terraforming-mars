@@ -2,6 +2,7 @@ import {expect, test} from './consoleTest';
 import {fillPicks, openConsole, pickedCards, press, pressUntil, waitStepDealSettled} from './consoleStart';
 import {campaignBase, campaignModelAs, createCampaign, devCommit, launchMission, seedIdentity} from './campaignFixtures';
 import {readTransient, recordTransient} from './transientRecorder';
+import {readSettled} from './settledRead';
 import {NO_PAYMENT, titleOf} from './consoleEndgameHarness';
 
 /**
@@ -189,11 +190,13 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect.poll(bar, {timeout: 5_000, message: 'the lit door never pushes the step forward off the bar'}).toMatch(/след\. шаг/i);
     // The dock's «ТЕНДЕРЫ» block stands on the lineage's chassis — one row of miniature certificates, LEFT of «НАСЛЕДИЕ»
     // (the left stick for the left door), never taller than the lineage block.
-    const dockBoxes = await page.evaluate(() => ({
+    // Both blocks AT REST (`readSettled`: the same boxes twice, frames apart) — a comparison is as settled as its least
+    // settled side.
+    const dockBoxes = await readSettled(page, () => page.evaluate(() => ({
       tenders: document.querySelector('[data-tender-dock]')?.getBoundingClientRect(),
       lineage: document.querySelector('.con-startdock__legacy:not(.con-startdock__tenders):not(.con-startdock__legacy--projects)')?.getBoundingClientRect(),
       cards: document.querySelectorAll('[data-tender-dock-chip] .con-tender').length,
-    }));
+    })), {message: 'the tenders block and the lineage block of the dock'});
     expect(dockBoxes.cards, 'every holding is a miniature certificate').toBe(5);
     expect(dockBoxes.tenders!.height, `the tenders block is no taller than the lineage block ${JSON.stringify(dockBoxes)}`).toBeLessThanOrEqual(dockBoxes.lineage!.height * 1.15);
     expect(dockBoxes.tenders!.right, `the tenders block stands LEFT of «НАСЛЕДИЕ» ${JSON.stringify(dockBoxes)}`).toBeLessThanOrEqual(dockBoxes.lineage!.left + 1);
@@ -211,7 +214,9 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     // THE LIST READS AT ONE GLANCE (the owner's point 6): the certificates of another page step back under a scrim (the
     // console strips every `filter`, so a filtered dim never painted), the one of THIS page stands bright; the row is
     // large, and the cursor's ring stands clear of the journey rail above the layer.
-    const listLook = await page.evaluate(() => {
+    // Read AT REST (`readSettled`) — the certificates RISE into the list; a box read mid-rise is wherever the machine
+    // had got to.
+    const listLook = await readSettled(page, () => page.evaluate(() => {
       const face = (state: string) => document.querySelector<HTMLElement>(`[data-tport-state="${state}"]:not([data-tport-focused]) > .con-tender`) ??
         document.querySelector<HTMLElement>(`[data-tport-state="${state}"] > .con-tender`);
       const ready = face('ready');
@@ -226,7 +231,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
         focusTop: focused?.getBoundingClientRect().top ?? 0,
         railBottom: rail?.getBoundingClientRect().bottom ?? 0,
       };
-    });
+    }), {message: 'the tenders list'});
     expect(listLook.readyScrim, `the certificate of THIS page stands bright ${JSON.stringify(listLook)}`).toBe('none');
     expect(listLook.otherScrim, `a certificate of another page steps back under a scrim ${JSON.stringify(listLook)}`).toMatch(/^rgba\(.+, 0\.[3-9]\d*\)$/);
     expect(listLook.w / listLook.vw, `the certificates are large ${JSON.stringify(listLook)}`).toBeGreaterThan(0.12);
@@ -270,11 +275,11 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect(page.locator('.con-restructure__slot--arriving'), 'every candidate has landed').toHaveCount(0, {timeout: 10_000});
     // ONE row: the two groups' card lines stand on one top (the focused card's lift is a transform — it moves with the
     // cursor, the layout does not), the lineage left of the candidates.
-    const rowGeometry = await page.evaluate(() => {
+    const rowGeometry = await readSettled(page, () => page.evaluate(() => {
       const lines = Array.from(document.querySelectorAll('[data-tender-mode="restructure"] .con-restructure__cards')).map((el) => el.getBoundingClientRect());
       const slots = Array.from(document.querySelectorAll<HTMLElement>('[data-tender-mode="restructure"] [data-tender-mode-card]'));
       return {tops: [...new Set(lines.map((r) => Math.round(r.top)))], lefts: slots.map((el) => Math.round(el.getBoundingClientRect().left))};
-    });
+    }), {message: 'the restructuring row'});
     expect(rowGeometry.tops, `ONE row ${JSON.stringify(rowGeometry)}`).toHaveLength(1);
     expect([...rowGeometry.lefts].sort((x, y) => x - y), `the lineage first, the candidates after ${JSON.stringify(rowGeometry)}`).toEqual(rowGeometry.lefts);
     await expect.poll(crumb, {timeout: 5_000}).toMatch(/реструктуризац/i);
@@ -415,11 +420,13 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     expect(requestDealt.filter((n) => projectNames.includes(n)), `the request deals only its three (dealt: ${requestDealt.join(',')})`).toEqual([]);
     expect(requestDealt.length, 'the three requested cards came off the deck').toBe(3);
     await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(4);
-    const grown = await page.evaluate(() => {
+    // The grown deal AT REST (`readSettled`) — the standing cards GLIDE to their new places; a box read mid-glide is
+    // wherever the machine had got to.
+    const grown = await readSettled(page, () => page.evaluate(() => {
       const body = document.querySelector('.con-start__body--cards')!.getBoundingClientRect();
       const slots = Array.from(document.querySelectorAll('[data-step-slot^="projects|"]')).map((el) => el.getBoundingClientRect());
       return {bodyTop: body.top, bodyBottom: body.bottom, top: Math.min(...slots.map((r) => r.top)), bottom: Math.max(...slots.map((r) => r.bottom))};
-    });
+    }), {message: 'the grown project deal'});
     expect(grown.top, `the grown deal's first row is whole in the body ${JSON.stringify(grown)}`).toBeGreaterThanOrEqual(grown.bodyTop - 1);
     expect(grown.bottom, `the grown deal's last row is whole above the dock ${JSON.stringify(grown)}`).toBeLessThanOrEqual(grown.bodyBottom + 1);
     await page.screenshot({path: 'screenshots/tenders/door-4-request-landed.png'});

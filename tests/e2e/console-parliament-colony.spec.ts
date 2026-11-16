@@ -1,10 +1,12 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, crumbText, fetchPlayerModel, placementState, placeTile, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, crumbText, fetchPlayerModel, placementState, placeTile, pressUntil, settle, walkFocusUntil} from './consoleStart';
 import {
   armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * COLONY CONTEST (Turmoil Redux, RX09) — titanium by influence for everyone and
@@ -60,6 +62,8 @@ type Wire = {
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
 type Rect = {x: number, y: number, w: number, h: number};
+/** One recorded state (the witness stamps it with the page's time — `Sample.t`). */
+type Seen = Omit<Sample, 't'>;
 type Sample = {
   t: number;
   stage: string;
@@ -84,12 +88,16 @@ type Sample = {
   hero: boolean;
 };
 type Probe = {samples: Array<Sample>};
+const COLONY_WITNESS = 'parliament-colony';
 
-/** THE PROBE — a task clock (`setInterval` + `MutationObserver`), never rAF; armed BEFORE the gate is answered. */
+/**
+ * THE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed BEFORE the gate is answered, replace-proof): every state the
+ * product leaves, kept on change with the page's time. `settled` — the state a TASK leaves: «never two live bodies»,
+ * «the body never empty», «the door after the touchdown» are claims about what a frame paints (law 17: an observer's
+ * callback runs between two writes of one patch).
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({stage, grid, focus, targets}) => {
-    const w = window as unknown as {__colonyProbe: Probe};
-    w.__colonyProbe = {samples: []};
+  await armWitness<Seen, {stage: string, grid: string, focus: string, targets: string}>(page, COLONY_WITNESS, ({stage, grid, focus, targets}) => {
     const rectOf = (el: Element | null): Rect | undefined => {
       if (el === null) {
         return undefined;
@@ -113,80 +121,75 @@ async function armProbe(page: Page): Promise<void> {
       }
       return true;
     };
-    const sample = () => {
-      const gridEl = document.querySelector<HTMLElement>(grid);
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
-        const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
-        return {x: r.left + r.width / 2, y: r.top + r.height / 2, res};
-      });
-      const heads = Array.from(document.querySelectorAll<HTMLElement>('.con-wshead')).filter((el) => el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
-      const head = heads[heads.length - 1];
-      const body = document.querySelector<HTMLElement>('.con-parl__bodyzone');
-      const bodyEmpty = body !== null && !Array.from(body.children).some((child) => {
-        const r = child.getBoundingClientRect();
-        const cs = getComputedStyle(child);
-        return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
-      });
-      w.__colonyProbe.samples.push({
-        t: performance.now(),
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
-        crumb: head === undefined ? '' : (head.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        zone: {
-          grid: visible(gridEl),
-          focus: visible(document.querySelector(focus)),
-          targets: visible(document.querySelector(targets)),
-          task: visible(document.querySelector(`${stage} .con-task`)),
-          results: visible(document.querySelector('.con-sit__panel--results.con-sit__panel--on [data-sit-results]')),
-        },
-        gridMotionId: gridEl === null ? null : gridEl.getAttribute('data-motion-surface'),
-        gridHead: gridEl !== null && gridEl.querySelector('.con-wshead') !== null,
-        chips,
-        // The digits' LEADING number only: the delta chip («+2») rides inside the same span for ~2.4 s after the
-        // touchdown, and reading the whole text as the count put the tick 2.4 s after the counter had moved.
-        ti: ((document.querySelector('.con-res__row--titanium .con-res__digits')?.textContent?.trim() ?? '').match(/^-?\d+/) ?? [''])[0],
-        walk: (() => {
-          const root = document.querySelector('.con-parl');
-          return root === null ? '' : `${root.getAttribute('data-sitting-page') ?? ''}/${root.getAttribute('data-sitting-beat') ?? ''}/${root.getAttribute('data-sitting-motion') ?? ''}`;
-        })(),
-        field: document.querySelector('.con-parl__stage--field') !== null,
-        door: document.querySelector('.con-sit__embed--on') !== null,
-        pr: (() => {
-          const fn = (window as unknown as {__conReady?: () => {parliamentReward?: {owed: Array<string>, flying: Array<string>, landed: Array<string>}}}).__conReady;
-          const pr = fn?.()?.parliamentReward;
-          return pr === undefined ? '' : `${pr.owed.length}·${pr.flying.length}·${pr.landed.length}`;
-        })(),
-        // The CARRIER card wherever it stands: in the government while the wave flies (a plain payout keeps the row of
-        // parties), on the sitting's hero slot once the field opens for the step — one element, teleported.
-        heroRect: rectOf(document.querySelector('.con-parl [data-parl-sit-hero] .con-parl__gov-card .pcard') ??
-          document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard')),
-        bandH: Math.round(document.querySelector('.con-band')?.getBoundingClientRect().height ?? 0),
-        bodyEmpty,
-        hero: document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') !== null,
-      });
+    const gridEl = document.querySelector<HTMLElement>(grid);
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
+      const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
+      return {x: r.left + r.width / 2, y: r.top + r.height / 2, res};
+    });
+    const heads = Array.from(document.querySelectorAll<HTMLElement>('.con-wshead')).filter((el) => el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
+    const head = heads[heads.length - 1];
+    const body = document.querySelector<HTMLElement>('.con-parl__bodyzone');
+    const bodyEmpty = body !== null && !Array.from(body.children).some((child) => {
+      const r = child.getBoundingClientRect();
+      const cs = getComputedStyle(child);
+      return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
+    });
+    return {
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
+      crumb: head === undefined ? '' : (head.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      zone: {
+        grid: visible(gridEl),
+        focus: visible(document.querySelector(focus)),
+        targets: visible(document.querySelector(targets)),
+        task: visible(document.querySelector(`${stage} .con-task`)),
+        results: visible(document.querySelector('.con-sit__panel--results.con-sit__panel--on [data-sit-results]')),
+      },
+      gridMotionId: gridEl === null ? null : gridEl.getAttribute('data-motion-surface'),
+      gridHead: gridEl !== null && gridEl.querySelector('.con-wshead') !== null,
+      chips,
+      // The digits' LEADING number only: the delta chip («+2») rides inside the same span for ~2.4 s after the
+      // touchdown, and reading the whole text as the count put the tick 2.4 s after the counter had moved.
+      ti: ((document.querySelector('.con-res__row--titanium .con-res__digits')?.textContent?.trim() ?? '').match(/^-?\d+/) ?? [''])[0],
+      walk: (() => {
+        const root = document.querySelector('.con-parl');
+        return root === null ? '' : `${root.getAttribute('data-sitting-page') ?? ''}/${root.getAttribute('data-sitting-beat') ?? ''}/${root.getAttribute('data-sitting-motion') ?? ''}`;
+      })(),
+      field: document.querySelector('.con-parl__stage--field') !== null,
+      door: document.querySelector('.con-sit__embed--on') !== null,
+      pr: (() => {
+        const fn = (window as unknown as {__conReady?: () => {parliamentReward?: {owed: Array<string>, flying: Array<string>, landed: Array<string>}}}).__conReady;
+        const pr = fn?.()?.parliamentReward;
+        return pr === undefined ? '' : `${pr.owed.length}·${pr.flying.length}·${pr.landed.length}`;
+      })(),
+      // The CARRIER card wherever it stands: in the government while the wave flies (a plain payout keeps the row of
+      // parties), on the sitting's hero slot once the field opens for the step — one element, teleported.
+      heroRect: rectOf(document.querySelector('.con-parl [data-parl-sit-hero] .con-parl__gov-card .pcard') ??
+        document.querySelector('.con-parl [data-parl-gov-carry] .con-parl__gov-card .pcard')),
+      bandH: Math.round(document.querySelector('.con-band')?.getBoundingClientRect().height ?? 0),
+      bodyEmpty,
+      hero: document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') !== null,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-    window.setInterval(sample, 16);
-  }, {stage: STAGE, grid: GRID, focus: FOCUS, targets: TARGETS});
+  }, {args: {stage: STAGE, grid: GRID, focus: FOCUS, targets: TARGETS}, settled: true, max: 40_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__colonyProbe: Probe}).__colonyProbe);
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Seen>(page, COLONY_WITNESS).samples()).map((s) => ({...s.v, t: s.t}))});
 
 /** The console's own readiness facts (`e2eReadiness.ts`). */
 const ready = (page: Page): Promise<{wsDepth: number, wsYielded: boolean, holds: Array<string>}> =>
   page.evaluate(() => (window as unknown as {__conReady: () => {wsDepth: number, wsYielded: boolean, holds: Array<string>}}).__conReady());
 
-/** Walk the embedded grid until the named tile carries the cursor (the tiles are one row; a wrap is guarded). */
+/**
+ * Walk the embedded grid until the named tile carries the cursor (the tiles are one row; a wrap is guarded) — the ONE
+ * walk primitive: each hop verified by the cursor itself, turning around at the row's end.
+ */
 async function focusColonyTile(page: Page, name: string): Promise<void> {
   const focused = page.locator(`${GRID} .con-coltile--focused[data-test="con-colony-${name}"]`);
-  for (let i = 0; i < 8 && await focused.count() === 0; i++) {
-    await press(page, 'ArrowRight', 380);
-  }
-  for (let i = 0; i < 8 && await focused.count() === 0; i++) {
-    await press(page, 'ArrowLeft', 380);
-  }
+  const cursorAt = () => page.evaluate((grid) => document.querySelector(`${grid} .con-coltile--focused`)?.getAttribute('data-test') ?? '', GRID);
+  await walkFocusUntil(page, async () => await focused.count() > 0, cursorAt, 16, 380);
   await expect.poll(() => focused.count(), {message: `could not focus ${name} on the embedded grid`}).toBeGreaterThan(0);
 }
 
@@ -209,7 +212,7 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     const {playerId, red, before} = await openRewardStage(page, request);
 
     // ── ① THE TITANIUM WAVE: the chip flies, the counter ticks on the touchdown — 0 → 2.
-    await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.ti === '2'), {timeout: 40_000, message: 'the titanium counter ticked to 2'}).toBe(true);
+    await witnessOf<Seen>(page, COLONY_WITNESS).waitFor((s) => s.ti === '2', {timeoutMs: 40_000, message: 'the titanium counter ticked to 2'});
     let probe = await readProbe(page);
     const tiChips = probe.samples.flatMap((s) => s.chips.filter((c) => c.res === 'titanium').map((c) => ({...c, t: s.t, hero: s.heroRect})));
     expect(tiChips.length, 'the titanium chips flew').toBeGreaterThan(0);
@@ -242,22 +245,22 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     // THE STEP TAKES THE STAGE WHOLE: no carrier card beside the grid, the grid as wide as the zone's stage.
     await expect(page.locator('[data-sit-fullstep]'), 'the colonies take the whole stage').toHaveCount(1);
     await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card'), 'the law is not squeezed beside the grid').toHaveCount(0);
-    const widths = await page.evaluate(({grid}) => {
+    // Measured AT REST: the grid's box and the zone's, both through one settled read.
+    const widths = await readSettled(page, () => page.evaluate(({grid}) => {
       const zone = document.querySelector('.con-sit__reward')?.getBoundingClientRect();
       const g = document.querySelector(grid)?.getBoundingClientRect();
       return {zone: zone?.width ?? 0, grid: g?.width ?? 0};
-    }, {grid: GRID});
+    }, {grid: GRID}), {message: 'the colonies grid and the reward zone'});
     expect(widths.grid, `the grid spans the stage (${JSON.stringify(widths)})`).toBeGreaterThan(widths.zone * 0.9);
-    const sourceHint = (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
-    expect(sourceHint, `L3 names the law that asked (${sourceHint})`).toMatch(/источник|source/i);
+    // The bar and the crumb republish a frame after the surface stands — a live string is asserted by a POLL.
+    const barText = async () => (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
+    await expect.poll(barText, {message: 'L3 names the law that asked'}).toMatch(/источник|source/i);
     await expect(page.locator('.con-sit')).toHaveAttribute('data-sit-step', 'colony');
     await expect(page.locator(`${GRID} .con-coltile`)).toHaveCount(4);
-    const crumb = await crumbText(page);
-    expect(crumb, 'ONE continuous crumb: the workspace, the sitting, the step').toMatch(/парламент|parliament/i);
-    expect(crumb).toMatch(/заседание|sitting/i);
-    expect(crumb).toMatch(/колонии|colonies/i);
-    const barLabels = (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
-    expect(barLabels, `B is «Свернуть» past the commit, never a close (${barLabels})`).toMatch(/свернуть|minimi[sz]e/i);
+    await expect.poll(() => crumbText(page), {message: 'ONE continuous crumb: the workspace, the sitting, the step'}).toMatch(/парламент|parliament/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb names the sitting'}).toMatch(/заседание|sitting/i);
+    await expect.poll(() => crumbText(page), {message: 'the crumb names the colonies step'}).toMatch(/колонии|colonies/i);
+    await expect.poll(barText, {message: 'B is «Свернуть» past the commit, never a close'}).toMatch(/свернуть|minimi[sz]e/i);
     await shoot(page, '01-colonies-embedded');
     await expectParliamentFits(page, `${PRESET.id} colonies`);
 
@@ -270,26 +273,27 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
         missing: el.className.includes('--missing'), focused: el.className.includes('--focused'),
       })), FOCUS);
     expect((await stepRows()).some((r) => r.missing), 'the build asks WHERE the 3 floaters go (two holders)').toBe(true);
+    // Every press of the walk is verified by ITS effect (act → verify → retry only without one): ↓ until the unanswered
+    // row holds the cursor, A until the recipient pick stands, A until the decision is answered.
+    const missingCount = async () => (await stepRows()).filter((r) => r.missing).length;
+    const missingFocused = async () => (await stepRows()).some((r) => r.missing && r.focused);
     let pickShot = false;
-    for (let guard = 0; guard < 12; guard++) {
-      const missing = (await stepRows()).find((r) => r.missing);
-      if (missing === undefined) {
-        break;
-      }
-      if (!missing.focused) {
-        await press(page, 'ArrowDown', 240);
-        continue;
-      }
-      await press(page, 'Enter', 900); // A = descend into the target step
-      if (!pickShot && await page.locator(TARGETS).count() > 0) {
+    for (let guard = 0; guard < 4 && await missingCount() > 0; guard++) {
+      expect(await pressUntil(page, 'ArrowDown', missingFocused, {tries: 6, settleMs: 240}), 'the cursor reaches the unanswered decision').toBe(true);
+      // A = descend into the target step.
+      expect(await pressUntil(page, 'Enter', async () => await page.locator(TARGETS).count() > 0, {tries: 3, settleMs: 1500}),
+        'A opens the recipient pick').toBe(true);
+      if (!pickShot) {
         await expect(page.locator(TARGETS), 'the recipient pick stands one level deeper, still inside the sitting').toBeVisible();
-        const deeper = await crumbText(page);
-        expect(deeper).toMatch(/парламент|parliament/i);
-        expect(deeper).toMatch(/заседание|sitting/i);
+        await expect.poll(() => crumbText(page), {message: 'the deeper crumb keeps the workspace'}).toMatch(/парламент|parliament/i);
+        await expect.poll(() => crumbText(page), {message: 'the deeper crumb keeps the sitting'}).toMatch(/заседание|sitting/i);
         await shoot(page, '02-target-pick');
         pickShot = true;
       }
-      await press(page, 'Enter', 1200); // A = take the focused candidate
+      // A = take the focused candidate — verified by the decision being answered.
+      const owed = await missingCount();
+      expect(await pressUntil(page, 'Enter', async () => await missingCount() < owed, {tries: 3, settleMs: 1500}),
+        'A takes the focused recipient').toBe(true);
     }
     expect(pickShot, 'the recipient pick was on screen').toBe(true);
     expect((await stepRows()).some((r) => r.missing), 'every decision is in').toBe(false);
@@ -323,7 +327,8 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     const twoBodies = probe.samples.filter((s) => (s.zone.grid || s.zone.focus) && (s.zone.results || s.zone.task));
     expect(twoBodies.length, 'never two live bodies in one frame').toBe(0);
     const gridSamples = probe.samples.filter((s) => s.zone.grid || s.zone.focus || s.zone.targets);
-    expect(gridSamples.length, 'the probe saw the colonies inside the zone').toBeGreaterThan(3);
+    // A recording keeps a state when it CHANGES — «saw the colonies» is «ever», never a count of frames.
+    expect(gridSamples.length, 'the probe saw the colonies inside the zone').toBeGreaterThan(0);
     expect(gridSamples.every((s) => /парламент|parliament/i.test(s.crumb) && /заседание|sitting/i.test(s.crumb)), 'the crumb kept its root and its subject through the whole step').toBe(true);
     expect(gridSamples.every((s) => s.gridMotionId === null && !s.gridHead), 'the embedded grid never carried a motion id or a head').toBe(true);
     expect(gridSamples.some((s) => s.hero), 'no carrier card beside the whole-stage step').toBe(false);

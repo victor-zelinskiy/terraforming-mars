@@ -2,6 +2,8 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, crumbText, openMandatoryAnnounce, placementState, placeTile, press, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 import {
   answerAsksAs, armLeakWitness, awaitSittingUp, enterSittingByPass, expectParliamentFits, hotVerb, mandatoryPlate, parliament, PARLIAMENT_PRESETS,
   parliamentWire, passAs, sittingStage, sittingStep, strandedReports, turnTo, waitSittingAtRest,
@@ -36,7 +38,8 @@ import {
  *   · every `parliament-sitting:*` hold is released at rest; nothing of the
  *     parliament sticks out or scrolls, on every pose.
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF.
+ * The probe is a RECORDING (`armWitness`, `settled`) — never a sampler of our own; every box
+ * read outside it is read at rest (`readSettled`).
  * Screenshots under screenshots/parliament-sitting-reward/<preset>/.
  */
 const OUT_ROOT = path.resolve('screenshots', 'parliament-sitting-reward');
@@ -61,11 +64,20 @@ type Sample = {
 };
 type Probe = {samples: Array<Sample>};
 
-/** THE PROBE — armed BEFORE the gate is answered. `setInterval` + `MutationObserver`, never rAF. */
+/** One moment as the reader sees it — the sample without its clock (the recording stamps the page's time). */
+type Seen = Omit<Sample, 't'>;
+const REWARD_WITNESS = 'parliament-sitting-reward';
+
+/**
+ * THE PROBE — armed BEFORE the gate is answered, RECORDED (FLAKE ZERO — `armWitness`: the product's own writes observed
+ * in the task that makes them, a frame tick for what only a computed style moves, every change kept with the page's
+ * time). The claims are about ORDER (the counter after its chip's touchdown, the take / the renewal after the landing,
+ * the answer after the rating) — `settled`: a sample is the state a task leaves, the state a frame can paint. The
+ * samples' INDICES are their order; every duration is read off their `t` (the page's clock).
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__rewardProbe: Probe, __conReady?: () => {holds: Array<string>}};
-    w.__rewardProbe = {samples: []};
+  await armWitness<Seen>(page, REWARD_WITNESS, () => {
+    const w = window as unknown as {__conReady?: () => {holds: Array<string>}};
     const rectOf = (el: Element | null): Rect | undefined => {
       if (el === null) {
         return undefined;
@@ -73,7 +85,7 @@ async function armProbe(page: Page): Promise<void> {
       const r = el.getBoundingClientRect();
       return r.width < 2 ? undefined : {x: r.left, y: r.top, w: r.width, h: r.height};
     };
-    const sample = () => {
+    const sample = (): Seen => {
       // A chip is sampled only once the director has POSED it (its inline
       // transform is written on the tick after its mount) — the observer fires
       // on the mount itself, when the element still sits at the layer's origin.
@@ -96,8 +108,7 @@ async function armProbe(page: Page): Promise<void> {
         deltas[key] = row?.querySelectorAll('.delta-chip').length ?? 0;
       }
       deltas.rating = document.querySelectorAll('.con-res .con-score__cell--tr .delta-chip').length;
-      w.__rewardProbe.samples.push({
-        t: performance.now(),
+      return {
         stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
         step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
         chips,
@@ -136,26 +147,26 @@ async function armProbe(page: Page): Promise<void> {
           ((el) => el !== null && !el.classList.contains('con-reveal--bonus-veiled'))(document.querySelector('.con-reveal')),
         plate: document.querySelector('.con-mandatory') !== null,
         hand: document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? '',
-      });
-      if (w.__rewardProbe.samples.length > 9000) {
-        w.__rewardProbe.samples.splice(0, 1500);
-      }
+      };
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'data-sitting-stage', 'data-sit-step', 'data-yield-context']});
-    window.setInterval(sample, 16);
-  });
+    return sample();
+  }, {settled: true, max: 20_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__rewardProbe: Probe}).__rewardProbe);
+/** The recording in the probe's old shape: `t` is the page's clock. */
+async function readProbe(page: Page): Promise<Probe> {
+  const samples = await witnessOf<Seen>(page, REWARD_WITNESS).samples();
+  return {samples: samples.map((s) => ({...s.v, t: s.t}))};
+}
 
 /** A red run carries its own evidence: the probe's tail rides the report. */
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__rewardProbe?: Probe, __conReady?: () => unknown};
-    return {samples: w.__rewardProbe?.samples.slice(-4000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
+  // The recording lives on the Node side — it outlives a page that died with the red.
+  const samples = (await readProbe(page).catch(() => ({samples: []}))).samples.slice(-4000);
+  const ready = await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()).catch(() => undefined);
+  const evidence = samples.length > 0 || ready !== undefined ? {samples, ready} : undefined;
   if (evidence !== undefined) {
     // A `path` attachment is written to disk beside the screenshot (a `body` one lives only in the report).
     const file = testInfo.outputPath('reward-probe.json');
@@ -279,7 +290,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'verdict'), {timeout: 20_000, message: 'the verdict was sampled'}).toBe(true);
         const verdictSample = (await readProbe(page)).samples.find((s) => s.stage === 'verdict')!;
         const rowBefore: Record<string, {prod: string, stock: string}> = verdictSample.rail;
-        // A tick is looked for from the verdict on (time, not index — the sampler sheds its oldest samples).
+        // A tick is looked for from the verdict on (time, not index — the recording sheds its oldest samples).
         const railFromT = verdictSample.t;
 
         if (c.waves.length > 0) {
@@ -437,7 +448,8 @@ for (const preset of PARLIAMENT_PRESETS) {
           await expect.poll(() => page.locator('.con-extdraw .con-cards__slot').count(), {timeout: 20_000}).toBe(total - 1);
           await expect.poll(() => page.locator('.con-handdelivery-layer .con-deal-proxy').count(), {timeout: 20_000}).toBe(0);
           await settle(page, {timeoutMs: 20_000});
-          const centred = await page.evaluate(() => {
+          // Measured at REST (`readSettled`): the re-seat's glide over, the same boxes two frames apart.
+          const centred = await readSettled(page, () => page.evaluate(() => {
             const row = document.querySelector('.con-extdraw__row');
             const slots = Array.from(document.querySelectorAll('.con-extdraw .con-cards__slot'));
             if (row === null || slots.length === 0) {
@@ -449,7 +461,7 @@ for (const preset of PARLIAMENT_PRESETS) {
             const groupCentre = (first.left + last.right) / 2;
             const rowCentre = r.left + r.width / 2;
             return {ok: Math.abs(groupCentre - rowCentre) < 6, why: `group ${Math.round(groupCentre)} vs row ${Math.round(rowCentre)}`};
-          });
+          }), {message: 'the survivors\' row'});
           expect(centred.ok, `the survivors stand centred after the landing (${centred.why})`).toBe(true);
           await expect(page.locator('.con-extdraw__status')).toContainText(/Забрано|Taken/i);
           await shoot(page, preset.id, `${c.rx}-05-after-take`);
@@ -599,7 +611,7 @@ test.describe('the big draw on the Deck (deck-handheld)', () => {
     await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded')).toHaveCount(1, {timeout: 30_000});
     await expect(page.locator('.con-extdraw .con-cards__slot')).toHaveCount(6, {timeout: 30_000});
     await settle(page, {timeoutMs: 30_000});
-    const shape = await page.evaluate(() => {
+    const shape = await readSettled(page, () => page.evaluate(() => {
       const row = document.querySelector<HTMLElement>('.con-extdraw__row');
       const zone = document.querySelector('.con-sit__zone--on')?.getBoundingClientRect();
       const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-extdraw .con-cards__slot')).map((el) => el.getBoundingClientRect());
@@ -612,7 +624,7 @@ test.describe('the big draw on the Deck (deck-handheld)', () => {
       }, []);
       const insideZone = zone === undefined ? false : slots.every((r) => r.left >= zone.left - 1 && r.right <= zone.right + 1 && r.top >= zone.top - 1 && r.bottom <= zone.bottom + 1);
       return {perRow: row?.style.getPropertyValue('--con-ws-stage-per-row') ?? '', rows: tops.length, insideZone, minW: Math.min(...slots.map((r) => r.width))};
-    });
+    }), {message: 'the big draw\'s rows'});
     expect(shape.rows, `two rows (slot tops: ${shape.rows}, per-row ${shape.perRow})`).toBe(2);
     expect(shape.insideZone, 'every card inside the zone').toBe(true);
     expect(shape.minW, 'a readable card (≥ 96 px wide on the Deck)').toBeGreaterThan(96);
@@ -663,11 +675,13 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     expect(track, `a rating chip flew (${since()}; ledger ${ledger})`).toBeDefined();
     const first = track![0];
     const last = track![track!.length - 1];
-    const stepRect = await page.evaluate((step) => {
+    // The reached step's box, read at REST — without the settle: the walk goes on by itself here, and its own page
+    // beats may stand while the Agenda track (which they never move) is measured.
+    const stepRect = await readSettled(page, () => page.evaluate((step) => {
       const el = document.querySelector(`.con-parl__step[data-step="${step}"]`);
       const r = el?.getBoundingClientRect();
       return r === undefined ? undefined : {x: r.left, y: r.top, w: r.width, h: r.height};
-    }, wire.game.parliament?.phase?.summary?.agenda?.to);
+    }, wire.game.parliament?.phase?.summary?.agenda?.to), {settle: false, message: 'the reached Agenda step'});
     expect(inside({x: first.c.x, y: first.c.y}, stepRect, 10), `the chip is BORN on the reached Agenda step (${JSON.stringify({chip: [first.c.x, first.c.y], step: stepRect})})`).toBe(true);
     expect(inside({x: last.c.x, y: last.c.y}, last.s.trCell, 10), `the chip LANDED on the rail's rating cell (${JSON.stringify({chip: [last.c.x, last.c.y], cell: last.s.trCell})})`).toBe(true);
     const tickAt = probe.samples.findIndex((s) => s.tr === String(trBefore + 1));

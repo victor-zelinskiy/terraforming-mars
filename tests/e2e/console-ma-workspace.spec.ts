@@ -1,5 +1,7 @@
 import {test, expect, Page} from './consoleTest';
-import {bootIntoGame, press, soloGameConfig} from './consoleStart';
+import {bootIntoGame, press, settle, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -51,22 +53,69 @@ async function barText(page: Page): Promise<string> {
 
 /**
  * THE GRID STANDS WHOLE (FB′ — the owner, 2026-11-03: the one-screen split scrolled with Venus): every tile of the
- * workspace sits inside the scroll viewport, nothing to scroll, two columns of tiles of ONE width (no span).
+ * workspace sits inside the scroll viewport, nothing to scroll, two columns of tiles of ONE width (no span). Read AT
+ * REST (`settledListFit` — FLAKE ZERO class C): the workspace's entrance on a 300 ms software frame is a grid still
+ * moving.
  */
 async function listFit(page: Page): Promise<{overflow: number, rows: number, lastBottom: number, vpBottom: number, widths: number, columns: number}> {
   return page.evaluate(() => {
+    const tenth = (v: number) => Math.round(v * 10) / 10;
     const vp = document.querySelector('.con-ma__scroll-host .con-scroll-area__viewport');
     const cards = [...document.querySelectorAll('.con-ma__card')].map((el) => el.getBoundingClientRect());
     const box = vp?.getBoundingClientRect();
     return {
       overflow: vp === null ? -1 : vp.scrollHeight - vp.clientHeight,
       rows: cards.length,
-      lastBottom: Math.max(...cards.map((r) => r.bottom)),
-      vpBottom: box?.bottom ?? 0,
+      lastBottom: tenth(Math.max(...cards.map((r) => r.bottom))),
+      vpBottom: tenth(box?.bottom ?? 0),
       widths: new Set(cards.map((r) => Math.round(r.width))).size,
       columns: new Set(cards.map((r) => Math.round(r.left))).size,
     };
   });
+}
+
+/** A tenth of a pixel — what the geometry claims compare (a subpixel that jitters is not motion). */
+const tenth = (v: number) => Math.round(v * 10) / 10;
+
+async function settledListFit(page: Page, tag: string): Promise<Awaited<ReturnType<typeof listFit>>> {
+  return readSettled(page, () => listFit(page), {message: `the MA grid (${tag})`});
+}
+
+type Rect = {x: number, w: number};
+
+/**
+ * The CORONATION'S POSE, frame by frame (runs IN THE PAGE — the witness's reader): the ceremony zone, the dressing
+ * (the kicker past 0.6 — the coronation lines have faded in), the hero emblem's box and the ceremony seat's.
+ */
+function coronationReader(): {cere: boolean, dressed: boolean, hero: Rect | null, seat: Rect | null} {
+  const rect = (sel: string): Rect | null => {
+    const el = document.querySelector(sel);
+    if (el === null) {
+      return null;
+    }
+    const r = el.getBoundingClientRect();
+    return {x: Math.round(r.x * 10) / 10, w: Math.round(r.width * 10) / 10};
+  };
+  const kicker = document.querySelector('.con-mafocus__cere-kicker');
+  return {
+    cere: document.querySelector('.con-mafocus__cere') !== null,
+    dressed: kicker !== null && Number(getComputedStyle(kicker).opacity) > 0.6,
+    hero: rect('[data-ma-focus-hero]'),
+    seat: rect('[data-ma-cere-seat]'),
+  };
+}
+
+/**
+ * THE CARRY, frame by frame (runs IN THE PAGE): is the hero pedestal CARRYING (the descent's own tween stands on it —
+ * an inline transform, or the reveal's inline opacity), and the pressed browse card's emblem opacity.
+ */
+function carryReader(): {carry: boolean, emblem: number | null} {
+  const hero = document.querySelector<HTMLElement>('.con-mafocus [data-ma-focus-hero]');
+  const art = document.querySelector('.con-ma__card--focused .con-ma__stage');
+  return {
+    carry: hero !== null && (hero.style.transform !== '' || hero.style.opacity !== ''),
+    emblem: art === null ? null : Math.round(Number(getComputedStyle(art).opacity) * 1000) / 1000,
+  };
 }
 
 function expectListFits(fit: Awaited<ReturnType<typeof listFit>>, rows: number, tag: string): void {
@@ -117,20 +166,19 @@ for (const profile of PROFILES) {
       // ── 1 · The AWARDS overview (LB opens milestones; RB switches over) ────
       await key(page, 'KeyQ', 1400);
       await page.waitForSelector('.con-ma', {timeout: 8_000});
-      expectListFits(await listFit(page), 5, profile.tag + ' · milestones');
+      expectListFits(await settledListFit(page, profile.tag + ' · milestones'), 5, profile.tag + ' · milestones');
       await key(page, 'KeyE', 1400); // → the AWARDS workspace (the family's other screen — a lateral move)
       await expect.poll(() => page.locator('.con-ma').count(), {message: 'one MA workspace on screen after the bumper'}).toBe(1);
       await expect(page.locator('.con-ma.con-ma--awards'), 'RB walked to the awards workspace').toHaveCount(1);
-      expectListFits(await listFit(page), 5, profile.tag + ' · awards');
+      expectListFits(await settledListFit(page, profile.tag + ' · awards'), 5, profile.tag + ' · awards');
 
       // No per-item CTA (criterion 1); A carries the CONTEXTUAL verb (2):
       // the focused first fundable award advertises the INTENT («Спонсировать»),
       // and the universal «Выбрать» is gone — a dead race and a live claim no
       // longer promise the same thing.
       await expect.poll(() => page.locator('.con-ma__card .gp-glyph').count(), {message: 'the per-item CTA must be gone'}).toBe(0);
-      const listBar = await barText(page);
-      expect(listBar, 'the overview footer advertises the intent verb').toContain('СПОНСИРОВАТЬ');
-      expect(listBar, 'the universal select verb must be gone').not.toContain('ВЫБРАТЬ');
+      await expect.poll(() => barText(page), {message: 'the overview footer advertises the intent verb'}).toContain('СПОНСИРОВАТЬ');
+      await expect.poll(() => barText(page), {message: 'the universal select verb must be gone'}).not.toContain('ВЫБРАТЬ');
 
       // THE HEAD-TALLY states the SYSTEM: the live price, never a wallet delta.
       const head = (await page.locator('.con-ma__wshead [data-ma-tally]').innerText()).replace(/\s+/g, ' ');
@@ -140,36 +188,38 @@ for (const profile of PROFILES) {
       // THE STATUS RAIL carries the WHOLE projection of the focused item, in
       // the shared chips (M€ + the category counter), and nothing else does.
       await page.waitForSelector('.con-marail', {timeout: 4_000});
-      const railChips = await page.locator('.con-marail .action-effect-chip').count();
-      expect(railChips, 'the focused award projects M€ + the slot counter').toBe(2);
-      const railText = (await page.locator('.con-marail').innerText()).replace(/\s+/g, ' ');
-      expect(railText, 'the rail states the resulting balance').toContain('→');
-      expect(railText, 'no bespoke «будет потрачено» dialect').not.toContain('потрачено');
+      await expect(page.locator('.con-marail .action-effect-chip'), 'the focused award projects M€ + the slot counter').toHaveCount(2);
+      await expect.poll(async () => (await page.locator('.con-marail').innerText()).replace(/\s+/g, ' '),
+        {message: 'the rail states the resulting balance'}).toContain('→');
+      await expect.poll(async () => (await page.locator('.con-marail').innerText()).replace(/\s+/g, ' '),
+        {message: 'no bespoke «будет потрачено» dialect'}).not.toContain('потрачено');
       await shoot(page, profile.tag + '-01-overview');
 
-      // The focused item (the first fundable award — openSheet homes on it).
-      const focusedName = (await page.locator('.con-ma__card--focused .con-ma__name').innerText()).trim();
+      // The focused item (the first fundable award — openSheet homes on it), read at rest.
+      const focusedName = await readSettled(page,
+        async () => (await page.locator('.con-ma__card--focused .con-ma__name').innerText()).trim(),
+        {message: 'the focused award\'s name'});
       expect(focusedName.length, 'an award must be focused').toBeGreaterThan(0);
 
       // ── 2 · A = SELECT → the hero detail descend ───────────────────────────
+      // The carry, RECORDED from before the press (never one read 140 ms after it): the pressed card's own emblem
+      // must already be DARK while the hero pedestal carries it — one physical object, never two. Every recorded
+      // frame of the carry is asked, the first one included (`settled` — the state a frame can paint).
+      const carry = await armWitness(page, 'ma-carry', carryReader, {settled: true});
       await page.keyboard.press('Enter');
-      // Mid-transition: the pressed card's own emblem must already be DARK
-      // while the hero pedestal carries it — one physical object, never two.
-      await page.waitForTimeout(140);
-      const midOpacity = await page.locator('.con-ma__card--focused .con-ma__stage').evaluate(
-        (el) => getComputedStyle(el).opacity);
       await page.waitForSelector('.con-mafocus', {timeout: 6_000});
-      expect(Number(midOpacity), 'the browse emblem must go dark the instant the carry starts').toBeLessThan(0.05);
-      await page.waitForTimeout(1100); // the reveal waves settle
+      await settle(page); // the reveal waves settle
+      const carried = (await carry.stop()).filter((s) => s.v.carry && s.v.emblem !== null).map((s) => s.v.emblem as number);
+      expect(carried.length, 'the carry was recorded over the pressed card').toBeGreaterThan(0);
+      expect(Math.max(...carried), 'the browse emblem must go dark the instant the carry starts').toBeLessThan(0.05);
       await shoot(page, profile.tag + '-02-detail');
 
       // The stage restates the item; the crumb grew the tail; the bar shows the
       // REAL verb.
-      const crumbSubject = (await page.locator('.con-wshead__subject').innerText().catch(() => '')).trim();
-      expect(crumbSubject.toUpperCase(), 'the crumb subject names the descended item')
-        .toBe(focusedName.toUpperCase());
-      expect((await page.locator('.con-wshead__step').innerText()).trim().toUpperCase(),
-        'the pre-commit stage word').toBe('СПОНСОРСТВО');
+      await expect.poll(async () => (await page.locator('.con-wshead__subject').innerText().catch(() => '')).trim().toUpperCase(),
+        {message: 'the crumb subject names the descended item'}).toBe(focusedName.toUpperCase());
+      await expect.poll(async () => (await page.locator('.con-wshead__step').innerText()).trim().toUpperCase(),
+        {message: 'the pre-commit stage word'}).toBe('СПОНСОРСТВО');
       await expect.poll(() => barText(page), {message: 'the detail footer advertises the commit verb', timeout: 10_000}).toContain('СПОНСИРОВАТЬ');
 
       // The detail state speaks the SAME rail — one projection, one language,
@@ -178,7 +228,7 @@ for (const profile of PROFILES) {
 
       // THE BADGE stays inside its hero column (the clipped «ПОРОГ ДОСТИГНУТ —
       // МОЖНО ВЗЯТЬ СЕЙЧАС» is what this measures against).
-      const badgeFits = await page.evaluate(() => {
+      const badgeFits = await readSettled(page, () => page.evaluate(() => {
         const chip = document.querySelector('.con-mafocus__state-chip') as HTMLElement | null;
         const col = document.querySelector('.con-mafocus__side') as HTMLElement | null;
         if (chip === null || col === null) {
@@ -186,26 +236,32 @@ for (const profile of PROFILES) {
         }
         const c = chip.getBoundingClientRect();
         const s = col.getBoundingClientRect();
-        return {ok: true, overflow: Math.max(s.left - c.left, c.right - s.right)};
-      });
+        return {ok: true, overflow: Math.round(Math.max(s.left - c.left, c.right - s.right) * 10) / 10};
+      }), {message: 'the state badge in its hero column'});
       expect(badgeFits.ok, 'the state badge must exist').toBeTruthy();
       expect(badgeFits.overflow, 'the state badge must stay inside the hero column').toBeLessThan(1);
 
       // ── 3 · B folds back; the focus survives on the SAME item ──────────────
       await key(page, 'Escape', 1200);
       await expect.poll(() => page.locator('.con-mafocus').count(), {message: 'B must fold the stage'}).toBe(0);
-      const refocused = (await page.locator('.con-ma__card--focused .con-ma__name').innerText()).trim();
-      expect(refocused, 'the fold returns the focus to the entered item').toBe(focusedName);
-      const restoredOpacity = await page.locator('.con-ma__card--focused .con-ma__stage').evaluate(
-        (el) => getComputedStyle(el).opacity);
-      expect(Number(restoredOpacity), 'the browse emblem is whole again after the fold').toBeGreaterThan(0.9);
+      await expect.poll(async () => (await page.locator('.con-ma__card--focused .con-ma__name').innerText()).trim(),
+        {message: 'the fold returns the focus to the entered item'}).toBe(focusedName);
+      await expect.poll(async () => Number(await page.locator('.con-ma__card--focused .con-ma__stage').evaluate(
+        (el) => getComputedStyle(el).opacity)), {message: 'the browse emblem is whole again after the fold'}).toBeGreaterThan(0.9);
       await shoot(page, profile.tag + '-03-folded-back');
 
       // ── 4 · Descend again → COMMIT → the ceremony INSIDE the workspace ─────
       await key(page, 'Enter', 1300);
       await page.waitForSelector('.con-mafocus', {timeout: 6_000});
-      // The artefact's STATIC size, measured on the stage it is about to leave.
-      const heroBefore = await page.locator('[data-ma-focus-hero]').boundingBox();
+      // The artefact's STATIC size, measured on the stage it is about to leave — at REST (the descent's carry is a
+      // box still growing).
+      const heroBefore = await readSettled(page, async () => {
+        const b = await page.locator('[data-ma-focus-hero]').boundingBox();
+        return b === null ? null : {x: tenth(b.x), width: tenth(b.width)};
+      }, {message: 'the static hero emblem'});
+      // The coronation's pose, RECORDED from before the commit: the ceremony is a scene that ends by closing the
+      // workspace, so its pose is a witness's, never a read taken some protocol trips after the dressing arrived.
+      const coronation = await armWitness(page, 'ma-coronation', coronationReader, {settled: true});
       await page.keyboard.press('Enter'); // the commit — the stage does NOT close
 
       // The ceremony arrives ON the stage; the global own-beat scene must not.
@@ -215,33 +271,33 @@ for (const profile of PROFILES) {
       // Wait for the SCENE, not for a clock: the dressing is up once the
       // coronation lines have faded in (a busy 4K frame can spend a second on
       // the first paint, and a fixed sleep then measures the wrong moment).
-      await page.waitForFunction(() => {
-        const k = document.querySelector('.con-mafocus__cere-kicker');
-        return k !== null && Number(getComputedStyle(k).opacity) > 0.6;
-      }, undefined, {timeout: 20_000});
+      // The pose is the one the page HAD in that very frame.
+      const dressed = await coronation.waitFor((v) => v.cere && v.dressed,
+        {timeoutMs: 20_000, message: 'the coronation lines faded in'});
+      await coronation.stop();
       await expect.poll(() => barText(page), {message: 'no commit verb may survive the commit', timeout: 10_000}).not.toContain('СПОНСИРОВАТЬ');
 
       // THE CORONATION MAY NEVER SHRINK THE ARTEFACT. Both are the same
       // physical object, so the ceremony seat is derived from the detail hero
       // (`--mafocus-cere-*`); a fixed seat beside a token-scaled hero made the
       // 4K ceremony smaller than the static emblem it grew out of.
-      const heroAfter = await page.locator('[data-ma-focus-hero]').boundingBox();
+      const heroAfter = dressed.v.hero;
       expect(heroBefore?.width ?? 0, 'the static hero must be measurable').toBeGreaterThan(0);
-      expect(heroAfter?.width ?? 0, 'the ceremony emblem must not be smaller than the static one')
+      expect(heroAfter?.w ?? 0, 'the ceremony emblem must not be smaller than the static one')
         .toBeGreaterThanOrEqual((heroBefore?.width ?? 0) - 1);
       // …and it must actually be IN the seat (the glide ran, not just a fade).
-      const seatBox = await page.locator('[data-ma-cere-seat]').boundingBox();
-      const heroCx = (heroAfter?.x ?? 0) + (heroAfter?.width ?? 0) / 2;
-      const seatCx = (seatBox?.x ?? 0) + (seatBox?.width ?? 0) / 2;
+      const seatBox = dressed.v.seat;
+      const heroCx = (heroAfter?.x ?? 0) + (heroAfter?.w ?? 0) / 2;
+      const seatCx = (seatBox?.x ?? 0) + (seatBox?.w ?? 0) / 2;
       expect(Math.abs(heroCx - seatCx), 'the emblem must have glided into the ceremony seat')
-        .toBeLessThan((seatBox?.width ?? 1) * 0.12);
+        .toBeLessThan((seatBox?.w ?? 1) * 0.12);
       await shoot(page, profile.tag + '-04-ceremony');
 
       // ── 5 · The workspace closes ONLY after the ceremony settles ───────────
       await page.waitForSelector('.con-ma', {state: 'detached', timeout: 20_000});
       await expect.poll(() => page.locator('.con-mafocus, .con-mafocus__cere, .con-ceremony-fx').count(), {message: 'no ceremony layer may outlive the workspace'}).toBe(0);
       await expect.poll(() => page.locator('.con-macere__scene').count(), {message: 'the beat was consumed by the stage — never replayed globally'}).toBe(0);
-      await page.waitForTimeout(600);
+      await settle(page); // the board home at rest for the shot
       await shoot(page, profile.tag + '-05-closed');
 
       // The final state is already on the books: re-open the awards and the
@@ -249,12 +305,12 @@ for (const profile of PROFILES) {
       await key(page, 'KeyQ', 1400);
       await page.waitForSelector('.con-ma', {timeout: 8_000});
       await key(page, 'KeyE', 1400);
-      const panel = (await page.locator('.con-ma').innerText()).replace(/\s+/g, ' ');
-      expect(panel, 'the funded tally is live after the close').toContain('1/3');
+      await expect.poll(async () => (await page.locator('.con-ma').innerText()).replace(/\s+/g, ' '),
+        {message: 'the funded tally is live after the close'}).toContain('1/3');
       // …and the PRICE followed the game: the second funding costs 14, from the
       // engine's own ladder (the UI never re-derives it from a constant).
-      expect((await page.locator('[data-ma-price="awards"]').innerText()).replace(/\s+/g, ' '),
-        'the header price is the LIVE next-award cost').toContain('14');
+      await expect.poll(async () => (await page.locator('[data-ma-price="awards"]').innerText()).replace(/\s+/g, ' '),
+        {message: 'the header price is the LIVE next-award cost'}).toContain('14');
       await shoot(page, profile.tag + '-06-reopened');
 
       // ── 7 · A blocked item still OPENS, and tells the truth ────────────────
@@ -276,13 +332,11 @@ for (const profile of PROFILES) {
         await expect.poll(() => barText(page), {message: 'a blocked item offers «Осмотреть»', timeout: 10_000}).toContain('ОСМОТРЕТЬ');
         await key(page, 'Enter', 1400);
         if (await page.locator('.con-mafocus').count() > 0) {
-          const stage = (await page.locator('.con-mafocus').innerText()).replace(/\s+/g, ' ');
-          expect(stage, 'a blocked item opens and explains itself')
-            .not.toContain('ПОТРАЧЕНО');
+          await expect.poll(async () => (await page.locator('.con-mafocus').innerText()).replace(/\s+/g, ' '),
+            {message: 'a blocked item opens and explains itself'}).not.toContain('ПОТРАЧЕНО');
           // …and it NEVER draws a success preview of a payment it cannot make.
-          const railTone = await page.locator('.con-mafocus .con-marail').getAttribute('class');
-          expect(railTone ?? '', 'a blocked stage rail is blocked, never projected')
-            .not.toContain('con-marail--projected');
+          await expect.poll(async () => (await page.locator('.con-mafocus .con-marail').getAttribute('class')) ?? '',
+            {message: 'a blocked stage rail is blocked, never projected'}).not.toContain('con-marail--projected');
           await shoot(page, profile.tag + '-07-blocked-detail');
           await key(page, 'Escape', 1000);
         }
@@ -305,11 +359,11 @@ for (const profile of PROFILES) {
       await page.waitForSelector('.con-board', {timeout: 45_000});
       await key(page, 'KeyQ', 1400);
       await page.waitForSelector('.con-ma.con-ma--milestones', {timeout: 8_000});
-      expectListFits(await listFit(page), 6, profile.tag + ' · venus milestones');
+      expectListFits(await settledListFit(page, profile.tag + ' · venus milestones'), 6, profile.tag + ' · venus milestones');
       await shoot(page, profile.tag + '-10-venus-milestones');
       await key(page, 'KeyE', 1400);
       await expect(page.locator('.con-ma.con-ma--awards'), 'RB walked to the awards workspace').toHaveCount(1);
-      expectListFits(await listFit(page), 6, profile.tag + ' · venus awards');
+      expectListFits(await settledListFit(page, profile.tag + ' · venus awards'), 6, profile.tag + ' · venus awards');
       await shoot(page, profile.tag + '-11-venus-awards');
     });
   });

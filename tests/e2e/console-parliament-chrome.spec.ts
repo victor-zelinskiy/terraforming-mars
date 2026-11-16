@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, settle} from './consoleStart';
 import {expectParliamentFits, openParliament, PARLIAMENT_PRESETS} from './parliamentDrive';
+import {readSettled} from './settledRead';
 
 /*
  * THE PARLIAMENT'S CHROME — ONE GLANCE (P70, ledger DA · K1…K6). The tier that stands on EVERY stage of the Parliament —
@@ -137,7 +138,9 @@ for (const preset of PARLIAMENT_PRESETS) {
       await settle(page, {timeoutMs: 20_000});
       fs.mkdirSync(OUT, {recursive: true});
       await page.screenshot({path: path.join(OUT, `${preset.id}-overview.png`)});
-      const c = await readChrome(page);
+      // The chrome is measured AT REST (`readSettled` — two equal reads a frame apart, after `settle`): a disc, a tile or
+      // the quest plate read mid-entrance is wherever the machine had got to, never the layout under test.
+      const c = await readSettled(page, () => readChrome(page), {message: `the Parliament's chrome (${preset.id})`});
       const told = JSON.stringify(c);
       test.info().annotations.push({type: 'chrome', description: told});
 

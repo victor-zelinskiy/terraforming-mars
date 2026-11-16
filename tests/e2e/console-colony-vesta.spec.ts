@@ -1,7 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixture, bootSeededGame, cinematicBeat, press, settle, soloGameConfig} from './consoleStart';
+import {bootFixture, bootSeededGame, press, settle, soloGameConfig, walkFocusUntil} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 import {armLeakWitness, strandedReports, PARLIAMENT_PRESETS} from './parliamentDrive';
 import {seedIdentity} from './campaignFixtures';
 import {ColonyBenefit} from '../../src/common/colonies/ColonyBenefit';
@@ -204,54 +206,52 @@ async function focusTargetRow(page: Page): Promise<void> {
   for (let i = 0; i < 10 && !(await focusedRowText(page)).includes('ЦЕЛЬ'); i++) {
     await press(page, 'ArrowDown', 350);
   }
-  expect(await focusedRowText(page), 'the target decision row must take focus').toContain('ЦЕЛЬ');
+  await expect.poll(() => focusedRowText(page), {message: 'the target decision row must take focus'}).toContain('ЦЕЛЬ');
 }
 
 const focusedCandidate = (page: Page): Promise<string> => page.evaluate(() =>
   document.querySelector('.con-ptsel__slot--focused .pcard')?.closest('[data-ptsel-cell]')?.querySelector('[data-zoom-slot]')?.getAttribute('data-zoom-slot') ?? '');
 
-type Sample = {t: number, colonies: boolean, cardland: boolean, leaving: boolean, landed: boolean, chipKinds: string, stranded: boolean};
-type Probe = {samples: Array<Sample>, ticks: number, chipKinds: Array<string>};
-
-/** A sampler over the trade's whole life: which kinds the flying chips wear, and where they land. */
-async function armProbe(page: Page): Promise<void> {
-  await page.evaluate((kinds) => {
-    const w = window as unknown as {__vestaTrade: Probe};
-    w.__vestaTrade = {samples: [], ticks: 0, chipKinds: []};
-    const t0 = performance.now();
-    const sample = () => {
-      const chips = Array.from(document.querySelectorAll('.con-transfer__chip--cardres .con-transfer__icon'));
-      const chipKinds = chips.map((i) => kinds.find((k) => i.classList.contains('card-resource-' + k)) ?? '?');
-      for (const k of chipKinds) {
-        if (!w.__vestaTrade.chipKinds.includes(k)) {
-          w.__vestaTrade.chipKinds.push(k);
-        }
-      }
-      const s: Sample = {
-        t: Math.round(performance.now() - t0),
-        colonies: document.querySelector('.con-colonies') !== null,
-        cardland: document.querySelector('.con-colfocus__cardland') !== null,
-        leaving: document.querySelector('.con-colfocus__cardland--leaving') !== null,
-        landed: document.querySelector('.con-colfocus__landcell--landed') !== null,
-        chipKinds: chipKinds.join(','),
-        stranded: document.querySelector('.con-stranded') !== null,
-      };
-      w.__vestaTrade.ticks++;
-      const last = w.__vestaTrade.samples[w.__vestaTrade.samples.length - 1];
-      if (last === undefined || JSON.stringify({...last, t: 0}) !== JSON.stringify({...s, t: 0})) {
-        w.__vestaTrade.samples.push(s);
-      }
-      if (w.__vestaTrade.samples.length > 6000) {
-        w.__vestaTrade.samples.splice(0, 1000);
-      }
+/** The focused candidate's reading: the kinds its rail / tag icons wear, and the rail's text (`| tag`). */
+async function focusedReading(page: Page): Promise<{kinds: Array<string>, rail: string}> {
+  return page.evaluate((kinds) => {
+    const tag = document.querySelector('.con-ptsel__cell[data-focused="1"] .con-ptsel__tag');
+    const icons = [
+      ...Array.from(document.querySelectorAll('.con-ptsel__rail .con-ptsel__imp-icon')),
+      ...Array.from(tag?.querySelectorAll('.con-ptsel__tag-icon') ?? []),
+    ];
+    return {
+      kinds: kinds.filter((k) => icons.some((i) => i.classList.contains('card-resource-' + k))),
+      rail: `${document.querySelector('.con-ptsel__rail')?.textContent ?? ''} | ${tag?.textContent ?? ''}`.replace(/\s+/g, ' ').trim(),
     };
-    sample();
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
-    window.setInterval(sample, 40);
   }, KINDS);
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__vestaTrade: Probe}).__vestaTrade);
+/** One observation of the trade's flight: which kinds the flying chips wear, the workspace, the stranded guard. */
+type Sighting = {colonies: boolean, chipKinds: string, stranded: boolean};
+/** One observation of the landing's stage: the card land, its leave, the landed cell. */
+type Landing = {cardland: boolean, leaving: boolean, landed: boolean};
+
+/**
+ * The trade's whole life, RECORDED off the product's own writes from before the confirm (`armWitness` — never a
+ * timer that a loaded runner starves): the chips' kinds and the stranded guard as «did it ever happen» (the default —
+ * a transient is caught in the task that wrote it), and the landing against the card's stand as a COEXISTENCE claim
+ * («landed while the card stood») — `settled`, the state a task LEAVES, never the instant between two of its writes.
+ */
+async function armProbe(page: Page) {
+  const sightings = await armWitness<Sighting, Array<string>>(page, 'vesta-trade-sightings', (kinds) => ({
+    colonies: document.querySelector('.con-colonies') !== null,
+    chipKinds: Array.from(document.querySelectorAll('.con-transfer__chip--cardres .con-transfer__icon'))
+      .map((i) => kinds.find((k) => i.classList.contains('card-resource-' + k)) ?? '?').join(','),
+    stranded: document.querySelector('.con-stranded') !== null,
+  }), {args: KINDS});
+  const landing = await armWitness<Landing>(page, 'vesta-trade-landing', () => ({
+    cardland: document.querySelector('.con-colfocus__cardland') !== null,
+    leaving: document.querySelector('.con-colfocus__cardland--leaving') !== null,
+    landed: document.querySelector('.con-colfocus__landcell--landed') !== null,
+  }), {settled: true});
+  return {sightings, landing};
+}
 
 test.describe('Vesta at 1080', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
@@ -274,10 +274,8 @@ test.describe('Vesta at 1080', () => {
     await settle(page);
     await openColonies(page);
     await focusTile(page, VESTA);
-    await cinematicBeat(page, 600, 'the grid settles on the focused tile');
-    await shoot(page, '00-grid');
-
-    const tile = await page.evaluate(() => {
+    // The grid settles on the focused tile: its reading AT REST (two equal reads a frame apart, after `settle`).
+    const tile = await readSettled(page, () => page.evaluate(() => {
       const el = document.querySelector(`.con-coltile--focused[data-test="con-colony-Vesta"]`);
       const glyph = el?.querySelector('[data-colony-trade-source] .benefit-glyph');
       return {
@@ -286,8 +284,9 @@ test.describe('Vesta at 1080', () => {
         tradeGlyphType: glyph?.getAttribute('data-bg-type') ?? '',
         planetClass: el?.querySelector('.con-planet')?.className ?? '',
       };
-    });
-    const tileCell = await readTile(page);
+    }), {message: 'the focused tile'});
+    const tileCell = await readSettled(page, () => readTile(page), {message: 'the tile\'s trade cell'});
+    await shoot(page, '00-grid');
     console.log('── tile ──', JSON.stringify({...tile, ...tileCell}));
     expect(tile.status, 'the tile names the server\'s refusal').toContain(REASON_RU);
     expect(tile.statusClass).toContain('con-coltile__status--blocked');
@@ -305,10 +304,10 @@ test.describe('Vesta at 1080', () => {
     expect(tileCell.cut.y, 'the trade cell is not cut (height)').toBeLessThanOrEqual(1);
 
     // ── X → the dossier: the verdict, the three printed rules, the lore, the seven cells. ──
-    await page.keyboard.press('KeyX');
-    await cinematicBeat(page, 2300, 'the dossier entrance + the late reveal wave');
-    await shoot(page, '01-dossier');
-    const dossier = await page.evaluate((kinds) => {
+    await press(page, 'KeyX', 2300);
+    await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'X opened the dossier'}).toBe(1);
+    // The entrance + the late reveal wave: every reading below is taken AT REST.
+    const dossier = await readSettled(page, () => page.evaluate((kinds) => {
       const tradeGlyph = document.querySelector('.con-colinspect__group--trade .benefit-glyph');
       return {
         crumb: (document.querySelector('.con-colonies .con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
@@ -334,8 +333,9 @@ test.describe('Vesta at 1080', () => {
         gainOrs: document.querySelectorAll('.con-colinspect__gain .con-colinspect__gain-or').length,
         lost: (document.querySelector('.con-colinspect__lost')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
       };
-    }, KINDS);
-    const cells = await instrumentCells(page);
+    }, KINDS), {message: 'the dossier'});
+    const cells = await readSettled(page, () => instrumentCells(page), {message: 'the dossier\'s cells'});
+    await shoot(page, '01-dossier');
     console.log('── dossier ──', JSON.stringify(dossier, null, 2));
     console.log('── cells ──', JSON.stringify(cells));
     expect(dossier.crumb).toMatch(/КОЛОНИИ.*ВЕСТА.*ОСМОТР/i);
@@ -361,14 +361,11 @@ test.describe('Vesta at 1080', () => {
     await press(page, 'Escape', 1600);
     await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'B folded the dossier'}).toBe(0);
     await press(page, 'Enter', 2200);
+    const stageVerdict = () => page.evaluate(() => (document.querySelector('.con-colfocus__verdict')?.textContent ?? '').replace(/\s+/g, ' ').trim());
+    await expect.poll(() => page.locator('.con-colfocus').count(), {message: 'A entered the trade stage'}).toBeGreaterThan(0);
+    await expect.poll(stageVerdict, {message: 'the stage carries the refusal'}).toContain(REASON_RU);
     await shoot(page, '02-stage');
-    const stage = await page.evaluate(() => ({
-      up: document.querySelector('.con-colfocus') !== null,
-      verdict: (document.querySelector('.con-colfocus__verdict')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-    }));
-    console.log('── stage ──', JSON.stringify(stage));
-    expect(stage.up, 'A entered the trade stage').toBe(true);
-    expect(stage.verdict, 'the stage carries the refusal').toContain(REASON_RU);
+    console.log('── stage ──', JSON.stringify({verdict: await stageVerdict()}));
     await press(page, 'Escape', 1200);
 
     // ── The lobby row's expansion chip reads the NEW Russian name. ──
@@ -377,9 +374,10 @@ test.describe('Vesta at 1080', () => {
     await page.waitForSelector('.cm-menu__items', {timeout: 20_000});
     await page.click('.cm-item:has-text("Мои партии")');
     await page.waitForSelector('.cm-game', {timeout: 60_000});
-    const alts = await page.evaluate(() => Array.from(document.querySelectorAll('.cm-game .cm-game__exp img')).map((i) => i.getAttribute('alt')));
+    const lobbyAlts = () => page.evaluate(() => Array.from(document.querySelectorAll('.cm-game .cm-game__exp img')).map((i) => i.getAttribute('alt')));
+    await expect.poll(lobbyAlts, {message: 'the Turmoil Redux chip reads «Кризис: Возвращение»'}).toContain(EXPANSION_RU);
+    const alts = await lobbyAlts();
     console.log('── lobby expansion chips (alt) ──', JSON.stringify(alts));
-    expect(alts, 'the Turmoil Redux chip reads «Кризис: Возвращение»').toContain(EXPANSION_RU);
     expect(alts).not.toContain('Кризис Redux');
     expect(alts).not.toContain('Turmoil Redux');
     await shoot(page, '03-lobby');
@@ -404,67 +402,54 @@ test.describe('Vesta at 1080', () => {
     await shoot(page, '10-trade-review');
 
     // The stage's track is the WIDE host: each sprite takes the footprint a single icon has on this track (40 px).
-    const stageCells = await instrumentCells(page, '.con-colfocus');
+    const stageCells = await readSettled(page, () => instrumentCells(page, '.con-colfocus'), {message: 'the stage\'s cells'});
     console.log('── stage cells ──', JSON.stringify(stageCells));
     expectReadableCells(stageCells, 36, 'stage');
 
     // The reward reads the three-kind unit; no single icon stands for it.
-    const review = await page.evaluate((kinds) => {
+    const reviewRead = () => page.evaluate((kinds) => {
       const total = document.querySelector('.con-colfocus__rrow--big .con-colfocus__rglyph');
       return {
         icons: Array.from(total?.querySelectorAll('i') ?? []).map((i) => kinds.find((k) => i.classList.contains('card-resource-' + k)) ?? '?'),
         ors: total?.querySelectorAll('.con-colfocus__ror').length ?? 0,
       };
     }, KINDS);
-    console.log('── review ──', JSON.stringify(review));
-    expect(review.icons, 'the total names the unit as mech · asteroid · fighter').toEqual(KINDS);
-    expect(review.ors).toBe(2);
+    await expect.poll(async () => (await reviewRead()).icons, {message: 'the total names the unit as mech · asteroid · fighter'}).toEqual(KINDS);
+    await expect.poll(async () => (await reviewRead()).ors).toBe(2);
+    console.log('── review ──', JSON.stringify(await reviewRead()));
 
     // The target decision: descend, walk onto the asteroid holder, choose.
     await focusTargetRow(page);
     await press(page, 'Enter', 1200);
     await expect.poll(() => page.locator('.con-colfocus__targetstage').count(), {message: 'the embedded target step stands'}).toBeGreaterThan(0);
-    const candidates = await page.evaluate(() => Array.from(document.querySelectorAll('[data-ptsel-cell] [data-zoom-slot]')).map((el) => el.getAttribute('data-zoom-slot')));
-    console.log('── candidates ──', JSON.stringify(candidates));
-    expect(candidates, 'both holders are candidates — the holders of ANY kind').toEqual(expect.arrayContaining([TARGET, OTHER]));
-    for (let i = 0; i < 4 && (await focusedCandidate(page)) !== TARGET; i++) {
-      await press(page, 'ArrowRight', 450);
-    }
-    expect(await focusedCandidate(page), 'the cursor reached the asteroid holder').toBe(TARGET);
+    const candidatesRead = () => page.evaluate(() => Array.from(document.querySelectorAll('[data-ptsel-cell] [data-zoom-slot]')).map((el) => el.getAttribute('data-zoom-slot')));
+    await expect.poll(candidatesRead, {message: 'both holders are candidates — the holders of ANY kind'}).toEqual(expect.arrayContaining([TARGET, OTHER]));
+    console.log('── candidates ──', JSON.stringify(await candidatesRead()));
+    // The cursor WALKS onto the holder (act → verify, turning round at a wall) — never a blind series of presses.
+    await walkFocusUntil(page, async () => (await focusedCandidate(page)) === TARGET, () => focusedCandidate(page), 6, 450);
+    await expect.poll(() => focusedCandidate(page), {message: 'the cursor reached the asteroid holder'}).toBe(TARGET);
     // Each candidate's reading names ITS OWN kind — the selector's status rail («ПОЛОСТИ В АСТЕРОИДАХ → [icon] Ресурсы на
     // этой карте 0 → 2») wears the asteroid for this card. The colony's target step draws no PL-219 tag under its cards
     // (PL-058), so the rail keeps the count; where a host draws the tag, the count is the TAG's (TR56 П4) — read both.
-    const focusedIcon = await page.evaluate((kinds) => {
-      const tag = document.querySelector('.con-ptsel__cell[data-focused="1"] .con-ptsel__tag');
-      const icons = [
-        ...Array.from(document.querySelectorAll('.con-ptsel__rail .con-ptsel__imp-icon')),
-        ...Array.from(tag?.querySelectorAll('.con-ptsel__tag-icon') ?? []),
-      ];
-      return {
-        kinds: kinds.filter((k) => icons.some((i) => i.classList.contains('card-resource-' + k))),
-        rail: `${document.querySelector('.con-ptsel__rail')?.textContent ?? ''} | ${tag?.textContent ?? ''}`.replace(/\s+/g, ' ').trim(),
-      };
-    }, KINDS);
-    console.log('── focused candidate reading ──', JSON.stringify(focusedIcon));
-    expect(focusedIcon.kinds, 'the asteroid holder reads asteroids, never mechs or fighters').toEqual(['asteroid']);
-    expect(focusedIcon.rail).toMatch(/0\s*→\s*2/);
+    // The rail republishes a beat after the cursor: polled.
+    await expect.poll(async () => (await focusedReading(page)).kinds, {message: 'the asteroid holder reads asteroids, never mechs or fighters'}).toEqual(['asteroid']);
+    await expect.poll(async () => (await focusedReading(page)).rail).toMatch(/0\s*→\s*2/);
+    console.log('── focused candidate reading ──', JSON.stringify(await focusedReading(page)));
     await shoot(page, '11-target-step');
     await press(page, 'Enter', 1000);
     await expect.poll(() => page.locator('.con-colfocus__targetstage').count(), {message: 'the pick returns to the review'}).toBe(0);
-    const picked = await page.evaluate((kinds) => ({
-      rows: Array.from(document.querySelectorAll('.con-colfocus__rcard')).map((r) => ({
-        text: (r.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        kind: kinds.find((k) => r.querySelector('i')?.classList.contains('card-resource-' + k)) ?? '?',
-      })),
-    }), KINDS);
-    console.log('── picked ──', JSON.stringify(picked));
-    expect(picked.rows.length, 'one chosen card').toBe(1);
-    expect(picked.rows[0].text, 'the row shows the chosen card with its before → after').toMatch(/0\s*→\s*2/);
-    expect(picked.rows[0].kind, 'the destination row wears the CARD\'s kind').toBe('asteroid');
+    const pickedRows = () => page.evaluate((kinds) => Array.from(document.querySelectorAll('.con-colfocus__rcard')).map((r) => ({
+      text: (r.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      kind: kinds.find((k) => r.querySelector('i')?.classList.contains('card-resource-' + k)) ?? '?',
+    })), KINDS);
+    await expect.poll(async () => (await pickedRows()).length, {message: 'one chosen card'}).toBe(1);
+    await expect.poll(async () => (await pickedRows())[0]?.text ?? '', {message: 'the row shows the chosen card with its before → after'}).toMatch(/0\s*→\s*2/);
+    await expect.poll(async () => (await pickedRows())[0]?.kind ?? '', {message: 'the destination row wears the CARD\'s kind'}).toBe('asteroid');
+    console.log('── picked ──', JSON.stringify({rows: await pickedRows()}));
     await shoot(page, '12-picked');
     lap('target picked');
 
-    await armProbe(page);
+    const probe = await armProbe(page);
     await press(page, 'KeyX', 300); // confirm the trade
     lap('confirmed');
 
@@ -473,20 +458,26 @@ test.describe('Vesta at 1080', () => {
     await settle(page);
     await shoot(page, '13-after');
 
-    const probe = await readProbe(page);
-    const samples = probe.samples;
-    const firstLanded = samples.findIndex((s) => s.landed);
+    const sightings = await probe.sightings.stop();
+    const landings = await probe.landing.stop();
+    const firstLanded = landings.findIndex((s) => s.v.landed);
+    const chipKinds = [...new Set(sightings.flatMap((s) => s.v.chipKinds === '' ? [] : s.v.chipKinds.split(',')))];
     const summary = {
-      samples: samples.length, ticks: probe.ticks, firstLanded,
-      landedOnStanding: firstLanded >= 0 && samples[firstLanded].cardland && !samples[firstLanded].leaving,
-      chipKinds: probe.chipKinds,
-      stranded: samples.filter((s) => s.stranded).length,
+      sightings: sightings.length, landings: landings.length, firstLanded,
+      landedOnStanding: firstLanded >= 0 && landings[firstLanded].v.cardland && !landings[firstLanded].v.leaving,
+      chipKinds,
+      stranded: sightings.filter((s) => s.v.stranded).length,
     };
     console.log('── vesta trade summary ──', JSON.stringify(summary, null, 1));
-    console.log('── trace (changes only) ──\n' + samples.map((s) =>
-      `${s.t} col:${+s.colonies} land:${+s.cardland}${s.leaving ? 'L' : ''} landed:${+s.landed} chips:[${s.chipKinds}] str:${+s.stranded}`).join('\n'));
+    const t0Page = Math.min(sightings[0]?.t ?? 0, landings[0]?.t ?? 0);
+    console.log('── trace (changes only) ──\n' + [
+      ...sightings.map((s) => ({t: s.t, line: `col:${+s.v.colonies} chips:[${s.v.chipKinds}] str:${+s.v.stranded}`})),
+      ...landings.map((s) => ({t: s.t, line: `land:${+s.v.cardland}${s.v.leaving ? 'L' : ''} landed:${+s.v.landed}`})),
+    ].sort((a, b) => a.t - b.t).map((s) => `${s.t - t0Page} ${s.line}`).join('\n'));
 
-    expect(summary.ticks, 'the probe was alive').toBeGreaterThan(30);
+    // A DEAD recorder fails these floors — a count of recorded states is a count of changes, never of frames.
+    expect(summary.sightings, 'the flight recorder was alive').toBeGreaterThan(0);
+    expect(summary.landings, 'the landing recorder was alive').toBeGreaterThan(0);
     expect(summary.chipKinds, 'the chip flew as the CHOSEN card\'s own kind — the asteroid, never the mech (the first of the list) nor the fighter').toEqual(['asteroid']);
     expect(firstLanded, 'a chip physically landed on the presented card').toBeGreaterThanOrEqual(0);
     expect(summary.landedOnStanding, 'the chip landed while the card stood (not leaving, not gone)').toBe(true);
@@ -512,8 +503,8 @@ test.describe('Vesta at 4K', () => {
     await settle(page);
     await openColonies(page);
     await focusTile(page, VESTA);
+    const tile = await readSettled(page, () => readTile(page), {message: 'the tv tile\'s trade cell'});
     await shoot(page, '20-tv-tile');
-    const tile = await readTile(page);
     console.log('── tv tile ──', JSON.stringify(tile));
     expect(tile.unit).toEqual(COMPACT_UNIT);
     expect(tile.visible, 'all three sprites stand inside the trade cell — none clipped').toBe(true);
@@ -521,10 +512,11 @@ test.describe('Vesta at 4K', () => {
     expect(tile.cut.x, 'the tile\'s trade cell is not cut (width)').toBeLessThanOrEqual(1);
     expect(tile.cut.y, 'the tile\'s trade cell is not cut (height)').toBeLessThanOrEqual(1);
 
-    await page.keyboard.press('KeyX');
-    await cinematicBeat(page, 2300, 'the dossier entrance + the late reveal wave');
+    await press(page, 'KeyX', 2300);
+    await expect.poll(() => page.locator('.con-colinspect').count(), {message: 'X opened the dossier'}).toBe(1);
+    // The entrance + the late reveal wave: the cells AT REST.
+    const cells = await readSettled(page, () => instrumentCells(page), {message: 'the tv dossier\'s cells'});
     await shoot(page, '21-tv-dossier');
-    const cells = await instrumentCells(page);
     console.log('── tv cells ──', JSON.stringify(cells));
     // The TV profile doubles the rem: the narrowest host's sprites double with it.
     expectReadableCells(cells, 40, 'tv dossier');

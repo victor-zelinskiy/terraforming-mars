@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, focusInfoZone, press, pressUntil, pressUntilVisible, settle} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * «ИНФОРМАЦИЯ — СДЕРЖАННО И ДОРОГО» (the Information polish of 2026-10-19, the owner's 4K report). On the WORST honest
@@ -103,17 +104,26 @@ const heroRatio = (page: Page) => page.evaluate(() => {
   return {total, maxValue: Math.max(0, ...values), rows: document.querySelector('.con-info [data-dossier-score]')?.getAttribute('data-dscore-rows') ?? ''};
 });
 
+/**
+ * The seat's whole dossier audit as ONE reading AT REST (`readSettled`, FLAKE ZERO class C): every claim compares a box
+ * with its plate's, and a seat switch's arrival is boxes still moving — two equal reads a frame apart, or no verdict.
+ */
 async function expectSeatClean(page: Page, preset: string, seat: string): Promise<void> {
-  const audit = await auditZones(page);
+  const {audit, ledgerCut, pileCut, medallionCut} = await readSettled(page, async () => ({
+    audit: await auditZones(page),
+    ledgerCut: await cutNames(page, '.con-info .con-dscore__label'),
+    pileCut: await cutNames(page, '.con-info .con-dcards__label'),
+    medallionCut: await cutNames(page, '.con-info .con-deff__label'),
+  }), {message: `${preset} · ${seat}: the dossier audit`});
   expect(audit.zones.length, `${seat}: the dossier stands`).toBeGreaterThanOrEqual(3);
   for (const z of audit.zones) {
     expect(z.escapes, `${preset} · ${seat} · zone «${z.zone}»: nothing stands outside the plate`).toEqual([]);
   }
-  expect(await cutNames(page, '.con-info .con-dscore__label'), `${preset} · ${seat}: no ledger name is cut`).toEqual([]);
-  expect(await cutNames(page, '.con-info .con-dcards__label'), `${preset} · ${seat}: no pile name is cut`).toEqual([]);
-  expect(await cutNames(page, '.con-info .con-deff__label'), `${preset} · ${seat}: no medallion name is cut`).toEqual([]);
+  expect(ledgerCut, `${preset} · ${seat}: no ledger name is cut`).toEqual([]);
+  expect(pileCut, `${preset} · ${seat}: no pile name is cut`).toEqual([]);
+  expect(medallionCut, `${preset} · ${seat}: no medallion name is cut`).toEqual([]);
   expect(audit.overlappingNames, `${preset} · ${seat}: no two pile names overlap`).toEqual([]);
-  const hero = await heroRatio(page);
+  const hero = await readSettled(page, () => heroRatio(page), {message: `${preset} · ${seat}: the score's hierarchy`});
   if (hero.total > 0) {
     expect(hero.total, `${preset} · ${seat}: the total (${hero.total}px) is the zone's hero over every category value (${hero.maxValue}px)`)
       .toBeGreaterThanOrEqual(hero.maxValue * 2.5);
@@ -136,12 +146,14 @@ for (const preset of PRESETS) {
 
       // ── (A)(B) the seat's own dossier, then a rival's ──
       await expectSeatClean(page, preset.id, 'own');
-      expect((await heroRatio(page)).rows, 'eight categories (the Hydronetwork, a penalty) → four rows of two').toBe('4');
+      await expect.poll(async () => (await heroRatio(page)).rows, {message: 'eight categories (the Hydronetwork, a penalty) → four rows of two'}).toBe('4');
       await shoot(page, preset.id, '01-own');
       const seatName = () => page.locator('.con-info__head').first().innerText();
       let botSeen = false;
       for (let hop = 0; hop < 2; hop++) {
-        await press(page, 'KeyE', 900);
+        // RB — pressed again only while the seat on stage has not changed (act → verify).
+        const before = await seatName();
+        await pressUntil(page, 'KeyE', async () => (await seatName()) !== before, {tries: 3, settleMs: 900});
         await settle(page, {timeoutMs: 20_000});
         const isBot = await page.locator('.con-info [data-zone="botdoor"]').count() > 0;
         await expectSeatClean(page, preset.id, isBot ? 'bot' : `rival «${(await seatName()).split('\n')[0]}»`);
@@ -156,11 +168,11 @@ for (const preset of PRESETS) {
         await expect(door.locator('.con-card-back, .mb-tracks'), 'no bot-only objects on the summary (no card backs, no mat)').toHaveCount(0);
         if (preset.id === 'tv4k') {
           // The owner's decision (2026-10-19, «крупнее на TV»): on the couch the door's one plate is filled by its medallions.
-          const fill = await door.evaluate((zone) => {
+          const fill = await readSettled(page, () => door.evaluate((zone) => {
             const z = zone.getBoundingClientRect();
             const disc = zone.querySelector('.con-deff__disc')!.getBoundingClientRect();
-            return {disc: disc.height / z.height};
-          });
+            return {disc: Math.round(disc.height / z.height * 1000) / 1000};
+          }), {message: 'tv4k: the door\'s medallions against its plate'});
           expect(fill.disc, `tv4k: the door's medallions stand at the tier's scale (disc ${Math.round(fill.disc * 100)} % of the plate)`).toBeGreaterThan(0.22);
         }
 
@@ -169,11 +181,11 @@ for (const preset of PRESETS) {
         await pressUntilVisible(page, 'Enter', '[data-bot-entry="botBoard"]', {tries: 3, settleMs: 900});
         await settle(page, {timeoutMs: 20_000});
         await expect(page.locator('.con-botscr__entry'), 'the hub\'s two doors').toHaveCount(2);
-        const plates = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-botscr__plate')).map((p) => ({
+        const plates = await readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-botscr__plate')).map((p) => ({
           cls: p.className.toString().split(' ').find((c) => c.startsWith('con-botscr__plate--')) ?? '',
           over: p.scrollHeight - p.clientHeight,
           wide: p.scrollWidth - p.clientWidth,
-        })));
+        }))), {message: 'the bot hub\'s plates'});
         expect(plates.length, 'the hub\'s plates').toBeGreaterThanOrEqual(5);
         for (const p of plates) {
           expect(p.over, `${preset.id}: «${p.cls}» holds its content (overflow ${p.over}px)`).toBeLessThanOrEqual(1);
@@ -186,12 +198,13 @@ for (const preset of PRESETS) {
         await expect(page.locator('.con-botboard__rule'), 'the three rules that read the board').toHaveCount(3);
         await expect(page.locator('.con-botboard .mb-guide'), 'the teaching layer stands beside the board').toHaveCount(1);
         if (!preset.handheld) {
-          const board = await page.evaluate(() => {
+          const board = await readSettled(page, () => page.evaluate(() => {
+            const tenth = (v: number) => Math.round(v * 10) / 10;
             const tracks = document.querySelector('.con-botboard .mb-tracks')!.getBoundingClientRect();
             const frame = document.querySelector('.con-botboard')!.getBoundingClientRect();
             const rules = Array.from(document.querySelectorAll('.con-botboard__rule')).map((r) => r.getBoundingClientRect().bottom);
-            return {share: tracks.width / frame.width, rulesBottom: Math.max(...rules), frameBottom: frame.bottom};
-          });
+            return {share: Math.round(tracks.width / frame.width * 1000) / 1000, rulesBottom: tenth(Math.max(...rules)), frameBottom: tenth(frame.bottom)};
+          }), {message: 'the printed board in its opening'});
           expect(board.share, `${preset.id}: the board spans the opening (${Math.round(board.share * 100)} %)`).toBeGreaterThan(0.8);
           expect(board.rulesBottom, `${preset.id}: the rules stand inside the opening`).toBeLessThanOrEqual(board.frameBottom + 1);
         }
@@ -201,11 +214,11 @@ for (const preset of PRESETS) {
         await pressUntil(page, 'ArrowDown', async () => await page.locator('[data-bot-entry="botBonus"].con-botscr__entry--focused').count() > 0, {tries: 3, settleMs: 500});
         await pressUntilVisible(page, 'Enter', '.con-botbonus', {tries: 3, settleMs: 900});
         await settle(page, {timeoutMs: 20_000});
-        const piles = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-botbonus__pile')).map((p) => ({
+        const piles = await readSettled(page, () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-botbonus__pile')).map((p) => ({
           key: p.dataset.bonusPile ?? '',
           faces: p.querySelectorAll('.mb-face').length,
           over: p.scrollHeight - p.clientHeight,
-        })));
+        }))), {message: 'the bonus piles'});
         expect(piles.map((p) => p.key), 'the discard and the destroyed piles').toEqual(expect.arrayContaining(['discard', 'destroyed']));
         expect(piles.find((p) => p.key === 'discard')?.faces, 'the discard pile shows its two faces').toBe(2);
         if (!preset.handheld) {

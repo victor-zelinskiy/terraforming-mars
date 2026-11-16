@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootIntoGame, soloGameConfig, press} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * STANDARD PROJECTS · the STABLE-GEOMETRY contract (the anti-jumping-grid
@@ -92,6 +93,17 @@ async function forceFrame(page: Page): Promise<void> {
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
 }
 
+/**
+ * The geometry AT REST (`readSettled`: after `settle`, `equal` identical reads a frame apart — the UNROUNDED `raw`
+ * positions included, so an ease still running sub-pixel never reads as rest), each read behind a pumped frame.
+ */
+async function settledGeometry(page: Page, message: string, equal = 2): Promise<StdpGeometry> {
+  return readSettled(page, async () => {
+    await forceFrame(page);
+    return readGeometry(page);
+  }, {equal, message});
+}
+
 function expectStable(now: StdpGeometry, base: StdpGeometry, step: string): void {
   const boxEq = (a: Box, b: Box, what: string) => {
     expect(Math.abs(a.x - b.x), `${what} x @ ${step}`).toBeLessThanOrEqual(EPS);
@@ -133,35 +145,21 @@ for (const profile of PROFILES) {
       // the open — with old and new edge tokens alike), and a baseline
       // captured mid-ease indicts the focus walk for the entry's last easing
       // frame. So the baseline waits for the SUB-PIXEL positions to repeat
-      // TWICE — and the wait then asserts its own success, because a settle
-      // probe that gave up looks exactly like one that succeeded.
-      await page.waitForTimeout(600);
-      await forceFrame(page);
-      let base = await readGeometry(page);
-      let agreed = 0;
-      for (let i = 0; i < 24 && agreed < 2; i++) {
-        await page.waitForTimeout(120);
-        await forceFrame(page);
-        await page.waitForTimeout(120);
-        const now = await readGeometry(page);
-        const same = now.raw.length === base.raw.length &&
-          now.raw.every((v, j) => v === base.raw[j]);
-        agreed = same ? agreed + 1 : 0;
-        base = now;
-      }
-      expect(agreed, 'the entry motion never settled — the baseline would be mid-ease')
-        .toBeGreaterThanOrEqual(2);
+      // TWICE (three identical reads) — and a settle that never comes THROWS
+      // (`readSettled` names it), because a settle probe that gave up looks
+      // exactly like one that succeeded.
+      await page.waitForSelector('.con-stdp__foot', {timeout: 8_000}).catch(() => undefined);
+      const base = await settledGeometry(page, 'the entry motion never settled — the baseline would be mid-ease', 3);
       expect(base.cards.length, 'the whole family renders').toBeGreaterThanOrEqual(6);
       // The stable-foot token in action: the rail is a fixed-height box.
       expect(base.foot.h).toBeGreaterThan(0);
 
       // Walk DOWN the grid (covers «Продажа патентов» → projects with chip
-      // rows → back): every step re-reads the full geometry.
+      // rows → back): every step re-reads the full geometry — AT REST, like the
+      // baseline it is compared with (both sides of a comparison settled).
       const step = async (code: string, label: string): Promise<void> => {
         await press(page, code, 250);
-        await forceFrame(page);
-        await page.waitForTimeout(150);
-        expectStable(await readGeometry(page), base, label);
+        expectStable(await settledGeometry(page, `the geometry after ${label}`), base, label);
       };
       const steps = base.cards.length + 2;
       for (let i = 0; i < steps; i++) {
@@ -177,7 +175,7 @@ for (const profile of PROFILES) {
       // content-safe line — its right edge must clear viewport − content
       // inset (i.e. the gallery is NOT limited by the text inset any more),
       // while the foot text stays inside the content-safe line.
-      const insets = await page.evaluate(() => {
+      const insets = await readSettled(page, () => page.evaluate(() => {
         const probe = document.createElement('div');
         probe.style.cssText = 'position:fixed;left:0;top:0;width:var(--con-hud-pad-x);height:1px;visibility:hidden';
         const root = document.querySelector('.con-root');
@@ -190,7 +188,7 @@ for (const profile of PROFILES) {
         const stage = probe.getBoundingClientRect().width;
         probe.remove();
         return {contentSafe, stage};
-      });
+      }), {message: 'the two insets'});
       expect(insets.stage).toBeLessThan(insets.contentSafe);
       const vw = profile.width;
       // Grid right edge sits on the stage line (± the grid's own tiny pad),

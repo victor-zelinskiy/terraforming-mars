@@ -6,6 +6,8 @@ import {
   answerAsksAs, armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, sittingStage, strandedReports,
   waitSittingAtRest,
 } from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
  * COLONIAL AFFAIRS (Turmoil Redux, RX07) — «gain all your colony bonuses 2 times +
@@ -61,7 +63,9 @@ const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => 
 
 type Rect = {x: number, y: number, w: number, h: number};
 type Sample = {
+  /** The page's clock at the sample (the recording's `t`) and its place in the record — ORDER is judged on `i`. */
   t: number;
+  i: number;
   stage: string;
   step: string;
   crumb: string;
@@ -81,18 +85,23 @@ type Sample = {
   hero: boolean;
 };
 type Probe = {samples: Array<Sample>};
+type Seen = Omit<Sample, 't' | 'i'>;
+const PROBE = 'parliament-colonial';
 
-/** THE PROBE — a task clock (`setInterval` + `MutationObserver`), never rAF; armed BEFORE the gate is answered. */
+/**
+ * THE PROBE — a RECORDING (FLAKE ZERO — `armWitness`, armed BEFORE the gate is answered): the reader returns what stands
+ * now, every change is kept with the page's time. The claims are about ORDER (the counter never ticks before the chips
+ * are in the air) and about what a FRAME shows (the body never empty, the delta chip never over the digits), so the
+ * record is `settled` — the state a task leaves, the state a frame can paint.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(({stage, ledger}) => {
-    const w = window as unknown as {__colonialProbe: Probe};
-    w.__colonialProbe = {samples: []};
+  await armWitness<Seen, {stage: string, ledger: string}>(page, PROBE, ({stage, ledger}) => {
     const rectOf = (el: Element | null): Rect | undefined => {
       if (el === null) {
         return undefined;
       }
       const r = el.getBoundingClientRect();
-      return r.width < 2 ? undefined : {x: r.left, y: r.top, w: r.width, h: r.height};
+      return r.width < 2 ? undefined : {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
     };
     const visible = (el: Element | null): boolean => {
       if (el === null) {
@@ -112,68 +121,65 @@ async function armProbe(page: Page): Promise<void> {
     };
     const overlap = (a: DOMRect, b: DOMRect): number =>
       Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-    const sample = () => {
-      const ledgerEl = document.querySelector<HTMLElement>(ledger);
-      const rows: Record<string, {state: string, active: boolean}> = {};
-      for (const row of Array.from(document.querySelectorAll<HTMLElement>(`${ledger} [data-colony-row]`))) {
-        rows[row.dataset.colonyRow ?? ''] = {state: row.dataset.colonyRowState ?? '', active: row.hasAttribute('data-colony-row-active')};
-      }
-      const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
-        const r = el.getBoundingClientRect();
-        const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
-        // A M€ chip draws its coin without the resource sprite — the reward probe's own reading (no icon = megacredits).
-        const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
-        return {id: el.dataset.transferId ?? '?', x: r.left + r.width / 2, y: r.top + r.height / 2, res, text: el.textContent?.trim() ?? ''};
-      });
-      const mcRow = document.querySelector<HTMLElement>('.con-res__row--megacredits');
-      const digits = mcRow?.querySelector<HTMLElement>('.con-res__digits') ?? null;
-      const delta = mcRow?.querySelector<HTMLElement>('.delta-chip') ?? null;
-      let mcDelta: Sample['mcDelta'];
-      if (mcRow !== null && mcRow !== undefined && digits !== null && delta !== null) {
-        const range = document.createRange();
-        range.selectNodeContents(digits.firstChild ?? digits);
-        const ink = range.getBoundingClientRect();
-        const chip = delta.getBoundingClientRect();
-        const row = mcRow.getBoundingClientRect();
-        mcDelta = {overDigits: Math.round(overlap(chip, ink)), outsideRow: Math.round(chip.width * chip.height - overlap(chip, row))};
-      }
-      const heads = Array.from(document.querySelectorAll<HTMLElement>('.con-wshead')).filter((el) => el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
-      const head = heads[heads.length - 1];
-      const body = document.querySelector<HTMLElement>('.con-parl__bodyzone');
-      const bodyEmpty = body !== null && !Array.from(body.children).some((child) => {
-        const r = child.getBoundingClientRect();
-        const cs = getComputedStyle(child);
-        return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
-      });
-      w.__colonialProbe.samples.push({
-        t: performance.now(),
-        stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
-        step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
-        crumb: head === undefined ? '' : (head.textContent ?? '').replace(/\s+/g, ' ').trim(),
-        ledgerShown: visible(ledgerEl),
-        k: ledgerEl?.querySelector('[data-colony-ledger]')?.getAttribute('data-colony-ledger-multiplier') ?? '',
-        rows,
-        lunaCell: rectOf(document.querySelector(`${ledger} [data-colony-row="Luna"] [data-colony-bonus]`)),
-        zone: {
-          task: document.querySelector(`${stage} .con-task`) !== null,
-          extdraw: document.querySelector(`${stage} .con-extdraw`) !== null,
-          hand: document.querySelector(`${stage} .con-hand`) !== null,
-          handDiscard: document.querySelector(`${stage} .con-hand.con-hand--discard`) !== null,
-        },
-        chips,
-        mc: digits?.textContent?.trim() ?? '',
-        mcDelta,
-        bandH: Math.round(document.querySelector('.con-band')?.getBoundingClientRect().height ?? 0),
-        bodyEmpty,
-        hero: document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') !== null,
-      });
+    const ledgerEl = document.querySelector<HTMLElement>(ledger);
+    const rows: Record<string, {state: string, active: boolean}> = {};
+    for (const row of Array.from(document.querySelectorAll<HTMLElement>(`${ledger} [data-colony-row]`))) {
+      rows[row.dataset.colonyRow ?? ''] = {state: row.dataset.colonyRowState ?? '', active: row.hasAttribute('data-colony-row-active')};
+    }
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').map((el) => {
+      const r = el.getBoundingClientRect();
+      const icon = el.querySelector<HTMLElement>('.con-transfer__icon');
+      // A M€ chip draws its coin without the resource sprite — the reward probe's own reading (no icon = megacredits).
+      const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
+      return {id: el.dataset.transferId ?? '?', x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), res, text: el.textContent?.trim() ?? ''};
+    });
+    const mcRow = document.querySelector<HTMLElement>('.con-res__row--megacredits');
+    const digits = mcRow?.querySelector<HTMLElement>('.con-res__digits') ?? null;
+    const delta = mcRow?.querySelector<HTMLElement>('.delta-chip') ?? null;
+    let mcDelta: {overDigits: number, outsideRow: number} | undefined;
+    if (mcRow !== null && mcRow !== undefined && digits !== null && delta !== null) {
+      const range = document.createRange();
+      range.selectNodeContents(digits.firstChild ?? digits);
+      const ink = range.getBoundingClientRect();
+      const chip = delta.getBoundingClientRect();
+      const row = mcRow.getBoundingClientRect();
+      mcDelta = {overDigits: Math.round(overlap(chip, ink)), outsideRow: Math.round(chip.width * chip.height - overlap(chip, row))};
+    }
+    const heads = Array.from(document.querySelectorAll<HTMLElement>('.con-wshead')).filter((el) => el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
+    const head = heads[heads.length - 1];
+    const body = document.querySelector<HTMLElement>('.con-parl__bodyzone');
+    const bodyEmpty = body !== null && !Array.from(body.children).some((child) => {
+      const r = child.getBoundingClientRect();
+      const cs = getComputedStyle(child);
+      return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
+    });
+    return {
+      stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
+      step: document.querySelector('.con-sit')?.getAttribute('data-sit-step') ?? '',
+      crumb: head === undefined ? '' : (head.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      ledgerShown: visible(ledgerEl),
+      k: ledgerEl?.querySelector('[data-colony-ledger]')?.getAttribute('data-colony-ledger-multiplier') ?? '',
+      rows,
+      lunaCell: rectOf(document.querySelector(`${ledger} [data-colony-row="Luna"] [data-colony-bonus]`)),
+      zone: {
+        task: document.querySelector(`${stage} .con-task`) !== null,
+        extdraw: document.querySelector(`${stage} .con-extdraw`) !== null,
+        hand: document.querySelector(`${stage} .con-hand`) !== null,
+        handDiscard: document.querySelector(`${stage} .con-hand.con-hand--discard`) !== null,
+      },
+      chips,
+      mc: digits?.textContent?.trim() ?? '',
+      mcDelta,
+      bandH: Math.round(document.querySelector('.con-band')?.getBoundingClientRect().height ?? 0),
+      bodyEmpty,
+      hero: document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard') !== null,
     };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
-    window.setInterval(sample, 16);
-  }, {stage: STAGE, ledger: LEDGER});
+  }, {args: {stage: STAGE, ledger: LEDGER}, settled: true, max: 40_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__colonialProbe: Probe}).__colonialProbe);
+/** The record, in order: each sample with the page's time (`t`) and its place in the record (`i`). */
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Seen>(page, PROBE).samples()).map((s, i) => ({...s.v, t: s.t, i}))});
 
 test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
@@ -206,15 +212,14 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     // marked while they fly, the M€ counter ticks on the touchdown, the row reads «получено» after it.
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.rows.Luna?.state === 'received'), {timeout: 40_000, message: 'Luna\'s row received its payout'}).toBe(true);
     let probe = await readProbe(page);
-    const mcChips = probe.samples.flatMap((s) => s.chips.filter((c) => c.res === 'megacredits').map((c) => ({...c, t: s.t, lunaActive: s.rows.Luna?.active === true, cell: s.lunaCell})));
+    const mcChips = probe.samples.flatMap((s) => s.chips.filter((c) => c.res === 'megacredits').map((c) => ({...c, t: s.t, i: s.i, lunaActive: s.rows.Luna?.active === true, cell: s.lunaCell})));
     if (mcChips.length === 0) {
       // Name the state the flight was missed IN: every chip the probe ever saw, the ledger's trail, the console's own readiness facts.
-      const diag = await page.evaluate(() => {
-        const w = window as unknown as {__colonialProbe: Probe, __conReady?: () => unknown};
-        const ready = typeof w.__conReady === 'function' ? w.__conReady() : undefined;
-        const chips = w.__colonialProbe.samples.flatMap((s) => s.chips);
-        return {chips: chips.slice(0, 12), samples: w.__colonialProbe.samples.length, ready: JSON.stringify(ready ?? null).slice(0, 2500)};
+      const ready = await page.evaluate(() => {
+        const w = window as unknown as {__conReady?: () => unknown};
+        return typeof w.__conReady === 'function' ? w.__conReady() : undefined;
       });
+      const diag = {chips: probe.samples.flatMap((s) => s.chips).slice(0, 12), samples: probe.samples.length, ready: JSON.stringify(ready ?? null).slice(0, 2500)};
       throw new Error(`the M€ chips never flew: ${JSON.stringify(diag)}`);
     }
     const firstMc = mcChips[0];
@@ -225,26 +230,27 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
       expect(Math.abs(firstMc.x - (firstMc.cell.x + firstMc.cell.w / 2)) <= 3 * rem && Math.abs(firstMc.y - (firstMc.cell.y + firstMc.cell.h / 2)) <= 2 * rem,
         `the first chip is born on Luna's bonus cell (chip ${firstMc.x.toFixed(0)},${firstMc.y.toFixed(0)} vs cell ${JSON.stringify(firstMc.cell)})`).toBe(true);
     }
-    const lastChipT = Math.max(...mcChips.map((c) => c.t));
     // The rail paints «committed − held» until the touchdown: the baseline is what the rail showed as the first chip was
-    // born (the pass paid the production phase before the sitting — that income is not the ledger's tick).
-    const mcBase = [...probe.samples].reverse().find((s) => s.t < firstMc.t && s.mc !== '')?.mc ?? '';
-    const tickSample = probe.samples.find((s) => s.t >= firstMc.t && s.mc !== mcBase && s.mc !== '');
-    const earlier = probe.samples.filter((s) => s.t < firstMc.t && s.mc !== '');
+    // born (the pass paid the production phase before the sitting — that income is not the ledger's tick). ORDER is read
+    // off the record's own order (`i`) — the page's clock is a millisecond one, and two samples may share a millisecond.
+    const mcBase = [...probe.samples].reverse().find((s) => s.i < firstMc.i && s.mc !== '')?.mc ?? '';
+    const tickSample = probe.samples.find((s) => s.i >= firstMc.i && s.mc !== mcBase && s.mc !== '');
+    const earlier = probe.samples.filter((s) => s.i < firstMc.i && s.mc !== '');
     test.info().annotations.push({type: 'mc before the ledger', description: [...new Set(earlier.map((s) => s.mc))].join(' → ')});
     expect(tickSample, 'the M€ counter ticked').not.toBe(undefined);
-    expect(tickSample!.t, `the tick (${tickSample!.mc}) came with the touchdown, never before the chips were in the air (tick ${tickSample!.t.toFixed(0)} vs first chip ${firstMc.t.toFixed(0)})`).toBeGreaterThan(firstMc.t);
+    expect(tickSample!.i, `the tick (${tickSample!.mc}) came with the touchdown, never before the chips were in the air (tick ${tickSample!.t.toFixed(0)} vs first chip ${firstMc.t.toFixed(0)})`).toBeGreaterThan(firstMc.i);
     const receivedSample = probe.samples.find((s) => s.rows.Luna?.state === 'received');
     expect(receivedSample!.t, 'the row reads «получено» on the touchdown, never on the record\'s arrival').toBeGreaterThanOrEqual(tickSample!.t - 40);
     // A chip still on screen once the row reads «получено» is ABSORBING at the rail (the touchdown's own tail), never still crossing the stage.
-    const railX = (await page.locator('.con-res').boundingBox())?.width ?? 320;
+    // The rail's width at rest (mid-sitting: a blocking hold of the reward page legitimately stands — no settle).
+    const railX = await readSettled(page, () => page.locator('.con-res').boundingBox().then((b) => Math.round(b?.width ?? 320)),
+      {settle: false, message: 'the player rail\'s width'});
     const strays = probe.samples.filter((s) => s.rows.Luna?.state === 'received').flatMap((s) => s.chips.filter((c) => c.res === 'megacredits' && c.x > railX + 40));
     expect(strays, 'no M€ chip is still crossing the stage once the row reads received').toEqual([]);
-    void lastChipT;
     // ── ③ THE DELTA CHIP ON THE M€ ROW obeys the anchor law in every sample it was seen in.
     // The LEDGER's own chip — from its first token on (the pass ran the production phase first: the income's chip on the
     // same row belongs to the generation scene and to its own guard, `console-delta-chip-anchor`).
-    const deltas = probe.samples.filter((s) => s.t >= firstMc.t).map((s) => s.mcDelta).filter((d): d is NonNullable<Sample['mcDelta']> => d !== undefined);
+    const deltas = probe.samples.filter((s) => s.i >= firstMc.i).map((s) => s.mcDelta).filter((d): d is NonNullable<Sample['mcDelta']> => d !== undefined);
     const worst = (key: 'overDigits' | 'outsideRow') => deltas.reduce((m, d) => Math.max(m, d[key]), 0);
     expect(deltas.length, 'the M€ row showed its delta chip').toBeGreaterThan(0);
     expect(deltas.every((d) => d.overDigits <= 1), `the delta chip never covered the digits (worst ${worst('overDigits')} px)`).toBe(true);
@@ -288,26 +294,18 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     await expect.poll(() => crumbText(page), {timeout: 10_000}).toMatch(/получение|intake/i);
     await waitSittingAtRest(page, 30_000);
     await shoot(page, '05-take-one');
-    // THE ZONE'S OVERFLOW, SAMPLED FROM THE PRESS: every moment the sitting's zone scrolls by more than 2 px, with the
-    // CSS animations running in it then — so a clip is told apart as an ENTRY POSE (a chrome rising on a transform)
-    // or a standing layout.
-    await page.evaluate(() => {
-      const w = window as unknown as {__zoneOverflow?: {log: Array<string>, timer: number}};
-      if (w.__zoneOverflow !== undefined) {
-        window.clearInterval(w.__zoneOverflow.timer);
+    // THE ZONE'S OVERFLOW, RECORDED FROM THE PRESS (`armWitness`): every change of the sitting's zone scrolling by more
+    // than 2 px, with the CSS animations running in it then — so a clip is told apart as an ENTRY POSE (a chrome rising
+    // on a transform) or a standing layout. A diagnosis for the annotation, never a claim.
+    const zoneT0 = await pageNow(page);
+    const zoneOverflow = await armWitness<string | null>(page, 'parliament-colonial-zone-overflow', () => {
+      const zone = document.querySelector<HTMLElement>('.con-sit__zone');
+      if (zone === null || zone.scrollHeight <= zone.clientHeight + 2) {
+        return null;
       }
-      const log: Array<string> = [];
-      const t0 = performance.now();
-      const timer = window.setInterval(() => {
-        const zone = document.querySelector<HTMLElement>('.con-sit__zone');
-        if (zone === null || zone.scrollHeight <= zone.clientHeight + 2) {
-          return;
-        }
-        const anims = zone.getAnimations({subtree: true}).filter((a) => a.playState === 'running')
-          .map((a) => (a as CSSAnimation).animationName ?? 'waapi').join(',');
-        log.push(`${Math.round(performance.now() - t0)}ms ${zone.scrollHeight}>${zone.clientHeight} [${anims}]`);
-      }, 10);
-      w.__zoneOverflow = {log, timer};
+      const anims = zone.getAnimations({subtree: true}).filter((a) => a.playState === 'running')
+        .map((a) => (a as CSSAnimation).animationName ?? 'waapi').join(',');
+      return `${zone.scrollHeight}>${zone.clientHeight} [${anims}]`;
     });
     expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).waitingFor?.discardPrompt !== undefined, {tries: 4, settleMs: 1800}),
       'A takes the card — the server asks for the discard').toBe(true);
@@ -321,25 +319,20 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'the hero stays through the discard').toHaveCount(1);
     await expect(page.locator('.con-hand__discard-src'), 'the header names the tile that demands it').toHaveText(/Плутон|Pluto/);
     await expect(page.locator('.con-hand__discard-seq'), '…and the pair\'s position').toHaveText(/1 из 3|1 of 3/);
-    const crumb = await crumbText(page);
-    expect(crumb, 'ONE continuous crumb: the workspace, the sitting, then the step').toMatch(/парламент|parliament/i);
-    expect(crumb).toMatch(/заседание|sitting/i);
-    expect(crumb).toMatch(/сброс|discarding/i);
-    const barLabels = (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
-    expect(barLabels, `B is «Свернуть» past the commit, never a close (${barLabels})`).toMatch(/свернуть|minimi[sz]e/i);
-    expect(barLabels).not.toMatch(/закрыть|^close$/i);
+    // The crumb and the bar republish a frame after the step stands — read through a poll, never once.
+    await expect.poll(() => crumbText(page), {message: 'ONE continuous crumb: the workspace, the sitting, then the step', timeout: 10_000}).toMatch(/парламент|parliament/i);
+    await expect.poll(() => crumbText(page), {timeout: 10_000}).toMatch(/заседание|sitting/i);
+    await expect.poll(() => crumbText(page), {timeout: 10_000}).toMatch(/сброс|discarding/i);
+    const barLabels = async () => (await page.locator('.con-cmdbar__label').allTextContents()).map((t) => t.trim()).join(' | ');
+    await expect.poll(barLabels, {message: 'B is «Свернуть» past the commit, never a close', timeout: 10_000}).toMatch(/свернуть|minimi[sz]e/i);
+    await expect.poll(barLabels, {timeout: 10_000}).not.toMatch(/закрыть|^close$/i);
     await shoot(page, '06-discard');
     try {
       await expectParliamentFits(page, `${PRESET.id} discard`);
-      const zoneLog = await page.evaluate(() => {
-        const w = window as unknown as {__zoneOverflow?: {log: Array<string>, timer: number}};
-        if (w.__zoneOverflow !== undefined) {
-          window.clearInterval(w.__zoneOverflow.timer);
-        }
-        return w.__zoneOverflow?.log ?? [];
-      });
+      const zoneLog = (await zoneOverflow.stop()).filter((s) => s.v !== null).map((s) => `${Math.round(s.t - zoneT0)}ms ${s.v}`);
       test.info().annotations.push({type: 'zone-overflow', description: zoneLog.length === 0 ? 'none' : `${zoneLog.length}: ${zoneLog.slice(0, 6).join(' · ')}`});
-      const rest = await page.evaluate((stage) => {
+      // The boxes at rest (inside the sitting's chain — no settle); a diagnosis, so a read that never stills says so.
+      const rest = await readSettled(page, () => page.evaluate((stage) => {
         const box = (sel: string) => {
           const el = document.querySelector(sel);
           const r = el?.getBoundingClientRect();
@@ -348,11 +341,11 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
         const kids = Array.from(document.querySelector(`${stage} .con-hand__browse`)?.children ?? [])
           .map((c) => `${c.className.toString().split(' ')[0]}:${Math.round(c.getBoundingClientRect().height)}`).join(',');
         return `zone ${box('.con-sit__zone')} browse ${box(`${stage} .con-hand__browse`)} [${kids}]`;
-      }, STAGE);
+      }, STAGE), {settle: false, message: 'the discard boxes'}).catch((e: Error) => `never still — ${e.message}`);
       test.info().annotations.push({type: 'discard-boxes', description: rest});
     } catch (error) {
       // Name the box the hand did not fit IN: the zone, the embed slot, the hand and every child of its frame.
-      const boxes = await page.evaluate((stage) => {
+      const boxes = await readSettled(page, () => page.evaluate((stage) => {
         const read = (el: Element | null, label: string) => {
           if (el === null) {
             return `${label}: -`;
@@ -369,7 +362,7 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
           ...Array.from(frame?.querySelectorAll('.con-hand__browse, .con-hand__stagewrap, .con-cards__strip, .con-hand__album') ?? []).map((c) => read(c, c.className.split(' ')[0])),
           // What the browse layer holds beside the album — the row that does not fit is one of these.
           ...Array.from(frame?.querySelector('.con-hand__browse')?.children ?? []).map((c) => read(c, 'browse>' + c.className.toString().split(' ')[0]))].join('\n');
-      }, STAGE);
+      }, STAGE), {settle: false, message: 'the hand boxes'}).catch((e: Error) => `never still — ${e.message}`);
       throw new Error(`${(error as Error).message}\n[hand boxes]\n${boxes}`);
     }
     const handBefore = (await wireOf(request, playerId)).cardsInHand?.length ?? -1;
@@ -415,10 +408,15 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     const lastLedger = [...probe.samples].reverse().find((s) => s.stage === 'reward' && s.ledgerShown);
     expect(lastLedger, 'the ledger came back after the steps').not.toBe(undefined);
     expect(Object.entries(lastLedger!.rows).map(([colony, r]) => `${colony}:${r.state}`).sort(), 'every row received').toEqual(['Luna:received', 'Miranda:received', 'Pluto:received', 'Titan:received']);
-    // …and it was READ, not flashed: the ledger stood with every row received for a beat (the read beat, ≥ 1 s of task-clock samples).
-    const readSamples = probe.samples.filter((s) => s.stage === 'reward' && s.ledgerShown && Object.values(s.rows).every((r) => r.state === 'received'));
-    expect(readSamples.length, 'the finished ledger stood long enough to read').toBeGreaterThan(3);
-    expect(readSamples[readSamples.length - 1].t - readSamples[0].t, 'the read beat lasted').toBeGreaterThanOrEqual(900);
+    // …and it was READ, not flashed: the ledger stood with every row received for a beat (the read beat, ≥ 1 s on the
+    // PAGE's clock). The record keeps only changes, so the count says the state was recorded (> 0, never a number of
+    // frames) and the beat runs from its first sample to the change that ended its last stand (now, if none did).
+    const finished = (s: Sample) => s.stage === 'reward' && s.ledgerShown && Object.values(s.rows).every((r) => r.state === 'received');
+    const readSamples = probe.samples.filter(finished);
+    expect(readSamples.length, 'the finished ledger stood long enough to read').toBeGreaterThan(0);
+    const lastRead = readSamples[readSamples.length - 1];
+    const readEnd = probe.samples.find((s) => s.i > lastRead.i)?.t ?? await pageNow(page);
+    expect(readEnd - readSamples[0].t, 'the read beat lasted').toBeGreaterThanOrEqual(900);
     // The ledger prints blue's TOTALS and, under them, WHERE they came from — a planet mark per tile with its ×k (P71 · CY).
     const blueTiles = await page.locator(`.con-sit [data-sit-payout-seat="${before.thisPlayer.color}"] [data-sit-total-source][data-sit-total-source-kind="colony"]`)
       .evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-total-source-of') ?? ''));

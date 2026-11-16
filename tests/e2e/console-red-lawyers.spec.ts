@@ -4,6 +4,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle} from './consoleStart';
 import {openParliament} from './parliamentDrive';
 import {startTrace} from './traceProbe';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR37 «ЮРИСТЫ КРАСНЫХ» — TR04's walk WITHOUT the influence ceiling: the CARD
@@ -76,8 +77,8 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
 type Series = Array<[number, string]>;
 type Point = {x: number, y: number};
 type Probe = {
+  /** The DISTINCT moments the recording kept (a change each — never a count of frames). */
   samples: number;
-  ticks: number;
   steps: Array<string>;
   crumbMisses: Array<string>;
   parlOutsideHand: boolean;
@@ -94,7 +95,7 @@ type Probe = {
   pt0: number;
   /** The landed card REVEALED on the receiving stage (the real card under the proxy): the first sample, ms (PL-120). */
   landedMs: number | undefined;
-  /** The command bar's text on every change (task samples). */
+  /** The command bar's text on every change. */
   bar: Series;
   cube: Series;
   cubeDrawn: Series;
@@ -113,49 +114,79 @@ type Probe = {
   /** The fullscreen viewer / the reveal overlay on screen. */
   viewer: Series;
   chip: Array<[number, number, number]>;
+  /** The marker proxy's distinct POSES in flight: [ms, x, y]. */
   proxy: Array<[number, number, number]>;
   /** The marker proxy's LIFT off the rail (max |y − rail y|) and the marker's own height — the arc in the profile's scale. */
   lift: {max: number, cube: number};
   cubesOnEnd: Array<string>;
 };
 
-/** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
+/**
+ * THE WALK, RECORDED (FLAKE ZERO — `armWitness`, armed before the press, replace-proof): the reader returns what stands
+ * NOW — the crumb, the Parliament's pose, the marker, the cover, the dock, the rail's counts — and every change is kept
+ * with the page's time; `readProbe` folds the record into the series the claims read. Every claim here is about what a
+ * FRAME shows and in which ORDER (the walk pose on the first sample, one Parliament, ⑦ before the cover before the dock
+ * before ⑧), so the record is `settled`: the state a task LEAVES (its reactive flush included), never a state between
+ * two writes of one task that no frame paints — the old sampler's «frame claims on the timer ticks only».
+ */
+type Tr37Seen = {
+  head: {root: string, subjects: Array<string>, steps: Array<string>} | null;
+  landed: boolean;
+  /** The unveiled Parliaments (a WARMED one — PL-127, mounted invisible ahead of its frame — is not on screen). */
+  parls: Array<{walk: boolean, opacity: number, outside: boolean, ownHead: boolean, degraded: string | null}>;
+  ws: number;
+  stranded: boolean;
+  bar: string;
+  cubeDrawn: Array<number>;
+  cube: Array<number>;
+  /** The marker proxy in flight: its centre, its height, and how far above the end row's centre it stands. */
+  proxy: {x: number, y: number, h: number, lift: number | null} | null;
+  /** The card-bonus cover lifting: its centre, and node k's centre and width at that moment. */
+  cover: {at: Point | null, node: Point | null, nodeWidth: number} | null;
+  viewer: string;
+  hand: string;
+  tr: string;
+  mc: string;
+  inf: string;
+  band: string;
+  beat: string;
+  chips: Array<Point>;
+  onEnd: Array<string>;
+};
+type Tr37Args = {viewer: string, cardStep: number, endStep: number};
+const TR37_WITNESS = 'tr37-walk';
+/** The probe's ZERO on both page clocks (`Date.now()` for the samples, `performance.now()` for the trace and the long tasks). */
+const probeZero = new WeakMap<Page, {wall: number, perf: number}>();
+
 async function armProbe(page: Page, viewer: string, cardStep: number, endStep: number): Promise<void> {
-  await page.evaluate(({viewer, card, root, cardStep, endStep}) => {
-    const w = window as unknown as {__tr37: Probe};
-    const p: Probe = {
-      samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false,
-      degraded: [], stranded: false, parlFirst: undefined, landedMs: undefined, bar: [], cube: [], cubeDrawn: [], tr: [], mc: [], inf: [], band: [], beat: [], hand: [],
-      cover: [], coverBirth: undefined, nodeAtBirth: undefined, nodeWidth: 0, viewer: [], chip: [], proxy: [], lift: {max: 0, cube: 0}, cubesOnEnd: [],
-      longTasks: [], pt0: 0,
-    };
-    w.__tr37 = p;
-    const t0 = Date.now();
-    // THE MAIN THREAD'S LONG TASKS (PL-127): a frozen thread is a hole in the samples and in the storyboard — named by
-    // its own clock, so the rise of the step can be told from the mount of its surface.
-    const pt0 = performance.now();
-    p.pt0 = pt0;
+  // THE MAIN THREAD'S LONG TASKS (PL-127): a frozen thread is a hole in the storyboard — named by its own clock, so the
+  // rise of the step can be told from the mount of its surface. A diagnosis printed beside the claims, never a claim.
+  const zero = await page.evaluate(() => {
+    const w = window as unknown as {__tr37LongTasks?: Array<{t: number, ms: number}>};
+    const perf = performance.now();
+    const wall = Date.now();
+    const tasks: Array<{t: number, ms: number}> = [];
+    w.__tr37LongTasks = tasks;
     try {
       new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
-          p.longTasks.push({t: Math.round(entry.startTime - pt0), ms: Math.round(entry.duration)});
+          tasks.push({t: Math.round(entry.startTime - perf), ms: Math.round(entry.duration)});
         }
       }).observe({type: 'longtask', buffered: true});
     } catch {
-      // No longtask support — the holes still speak.
+      // No longtask support — the record still speaks.
     }
+    return {wall, perf};
+  });
+  probeZero.set(page, zero);
+  await armWitness<Tr37Seen, Tr37Args>(page, TR37_WITNESS, ({viewer, cardStep, endStep}) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const note = (series: Series, value: string | undefined) => {
-      if (value !== undefined && value !== '' && series[series.length - 1]?.[1] !== value) {
-        series.push([Date.now() - t0, value]);
-      }
-    };
-    const centre = (el: Element | null): Point | undefined => {
+    const centre = (el: Element | null): Point | null => {
       if (el === null) {
-        return undefined;
+        return null;
       }
       const r = el.getBoundingClientRect();
-      return r.width < 1 ? undefined : {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
+      return r.width < 1 ? null : {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
     };
     const visible = (el: HTMLElement | null, minOpacity = 0.5): boolean => {
       if (el === null) {
@@ -175,181 +206,237 @@ async function armProbe(page: Page, viewer: string, cardStep: number, endStep: n
       }
       return opacity > minOpacity;
     };
-    const sample = (tick: boolean) => {
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      const hand = document.querySelector('.con-hand');
-      const head = hand?.querySelector('.con-wshead') ?? null;
-      let tail = '';
-      if (head !== null) {
-        const rootText = text(head.querySelector('.con-wshead__root'));
-        const subjects = Array.from(head.querySelectorAll('.con-wshead__subject')).map(text);
-        if (rootText.toLowerCase() !== root.toLowerCase() || !subjects.some((s) => s.toLowerCase() === card.toLowerCase())) {
-          if (p.crumbMisses.length < 8) {
-            p.crumbMisses.push(`${Date.now() - t0}ms root=«${rootText}» subject=«${subjects.join('|')}»`);
-          }
-        }
-        const stepEls = Array.from(head.querySelectorAll('.con-wshead__step'));
-        stepEls.forEach((el) => {
-          const step = text(el);
-          if (step !== '' && !p.steps.includes(step)) {
-            p.steps.push(step);
-          }
-        });
-        tail = text(stepEls[stepEls.length - 1] ?? null);
-      }
-      if (p.landedMs === undefined && document.querySelector('.con-recv [data-recv-front][data-played-key]') !== null) {
-        p.landedMs = Date.now() - t0;
-      }
-      // A WARMED Parliament (PL-127: mounted invisible ahead of its frame, from the press) is not on screen — the
-      // first sample that counts is the unveiled one.
-      const parls = document.querySelectorAll<HTMLElement>('.con-parl:not(.con-parl--warm)');
-      p.parlMax = Math.max(p.parlMax, parls.length);
-      if (parls.length > 0 && p.parlFirst === undefined) {
-        p.parlFirst = {walk: parls[0].classList.contains('con-parl--walk'), tail, ms: Date.now() - t0, opacity: Number(getComputedStyle(parls[0]).opacity)};
-      }
-      parls.forEach((el) => {
-        if (el.closest('.con-hand') === null || el.classList.contains('con-ws')) {
-          p.parlOutsideHand = true;
-        }
-        if (el.querySelector('.con-wshead') !== null) {
-          p.ownHead = true;
-        }
-        const degraded = el.getAttribute('data-parl-grant-degraded') ?? el.getAttribute('data-renewal-degraded');
-        if (degraded !== null && !p.degraded.includes(degraded)) {
-          p.degraded.push(degraded);
-        }
-      });
-      p.wsMax = Math.max(p.wsMax, document.querySelectorAll('.con-ws').length);
-      if (document.querySelector('.con-stranded') !== null) {
-        p.stranded = true;
-      }
-      if (!tick) {
-        return; // the frame claims below are made on the task samples only (a microtask sees states never painted)
-      }
-      note(p.bar, text(document.querySelector('.con-cmdbar')));
-      for (let step = 0; step <= 12; step++) {
-        const cube = document.querySelector<HTMLElement>(`[data-agenda-markers="${step}"] [data-agenda-cube="${viewer}"]`);
-        if (cube !== null && !cube.classList.contains('con-parl__agenda-cube--hidden')) {
-          if (cube.getBoundingClientRect().width > 1) {
-            note(p.cubeDrawn, String(step));
-          }
-          if (visible(cube)) {
-            note(p.cube, String(step));
-          }
-        }
-      }
-      const proxy = document.querySelector<HTMLElement>('.con-parl__flight--agenda');
-      if (proxy !== null && visible(proxy)) {
-        const r = proxy.getBoundingClientRect();
-        p.proxy.push([Date.now() - t0, Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]);
-        // The rail's y is the marker row's: the lift is how far above it the proxy rises mid-leg.
-        const row = document.querySelector<HTMLElement>(`[data-agenda-markers="${endStep}"]`)?.getBoundingClientRect();
-        if (row !== undefined) {
-          p.lift.cube = Math.max(p.lift.cube, r.height);
-          p.lift.max = Math.max(p.lift.max, (row.top + row.height / 2) - (r.top + r.height / 2));
-        }
-      }
-      const cover = document.querySelector<HTMLElement>('.con-bonusfly-cover');
-      if (cover !== null && visible(cover, 0.1)) {
-        if (p.coverBirth === undefined) {
-          p.coverBirth = centre(cover);
-          const node = document.querySelector<HTMLElement>(`.con-parl__step[data-step="${cardStep}"] .con-parl__step-res`);
-          p.nodeAtBirth = centre(node);
-          p.nodeWidth = node?.getBoundingClientRect().width ?? 0;
-        }
-        note(p.cover, 'up');
-      }
-      // «The card opened»: it stands in the Parliament's draw stage («ПРИЁМКА» — the embedded reveal, where the marker walked), or a viewer the player opened.
-      note(p.viewer, document.querySelector('dialog.con-zoom[open]') !== null ? 'zoom' :
-        (document.querySelector('.con-parl [data-parl-draw] .con-reveal--embedded:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]') !== null ? 'scene' : undefined));
-      note(p.hand, document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? undefined);
-      note(p.tr, text(document.querySelector('.con-res .con-score__value--tr')));
-      // The digits ONLY — a delta chip inside the row («7−3») is the move's story, not the count.
-      note(p.mc, (text(document.querySelector('.con-res__row--megacredits .con-res__digits')).match(/^-?\d+/) ?? [undefined])[0]);
-      note(p.inf, text(document.querySelector('.con-parl [data-parl-influence]')));
-      note(p.band, Array.from(document.querySelectorAll('[data-parl-band-chip="agenda"]')).map((el) => el.getAttribute('data-parl-band-step') ?? '?').join(','));
-      note(p.beat, document.querySelector('.con-parl')?.getAttribute('data-walk-beat') ?? undefined);
-      document.querySelectorAll<HTMLElement>('.con-transfer__chip').forEach((el) => {
-        if (el.style.transform === '' || el.querySelector('.resource_icon--rating') === null) {
-          return;
-        }
-        const r = el.getBoundingClientRect();
-        p.chip.push([Date.now() - t0, Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]);
-      });
-      const onEnd = Array.from(document.querySelectorAll<HTMLElement>(`[data-agenda-markers="${endStep}"] [data-agenda-cube]`))
-        .filter((el) => !el.classList.contains('con-parl__agenda-cube--hidden'))
-        .map((el) => el.getAttribute('data-agenda-cube') ?? '?');
-      if (onEnd.length > 0) {
-        p.cubesOnEnd = onEnd;
-      }
+    const hand = document.querySelector('.con-hand');
+    const headEl = hand?.querySelector('.con-wshead') ?? null;
+    const head = headEl === null ? null : {
+      root: text(headEl.querySelector('.con-wshead__root')),
+      subjects: Array.from(headEl.querySelectorAll('.con-wshead__subject')).map(text),
+      steps: Array.from(headEl.querySelectorAll('.con-wshead__step')).map(text),
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(() => sample(true), 30);
-  }, {viewer, card: CARD_RU, root: ROOT_RU, cardStep, endStep});
+    const parls = Array.from(document.querySelectorAll<HTMLElement>('.con-parl:not(.con-parl--warm)')).map((el) => ({
+      walk: el.classList.contains('con-parl--walk'),
+      opacity: Number(getComputedStyle(el).opacity),
+      outside: el.closest('.con-hand') === null || el.classList.contains('con-ws'),
+      ownHead: el.querySelector('.con-wshead') !== null,
+      degraded: el.getAttribute('data-parl-grant-degraded') ?? el.getAttribute('data-renewal-degraded'),
+    }));
+    const cubeDrawn: Array<number> = [];
+    const cube: Array<number> = [];
+    for (let step = 0; step <= 12; step++) {
+      const el = document.querySelector<HTMLElement>(`[data-agenda-markers="${step}"] [data-agenda-cube="${viewer}"]`);
+      if (el !== null && !el.classList.contains('con-parl__agenda-cube--hidden')) {
+        if (el.getBoundingClientRect().width > 1) {
+          cubeDrawn.push(step);
+        }
+        if (visible(el)) {
+          cube.push(step);
+        }
+      }
+    }
+    let proxy: Tr37Seen['proxy'] = null;
+    const proxyEl = document.querySelector<HTMLElement>('.con-parl__flight--agenda');
+    if (proxyEl !== null && visible(proxyEl)) {
+      const r = proxyEl.getBoundingClientRect();
+      // The rail's y is the marker row's: the lift is how far above it the proxy rises mid-leg.
+      const row = document.querySelector<HTMLElement>(`[data-agenda-markers="${endStep}"]`)?.getBoundingClientRect();
+      proxy = {
+        x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), h: Math.round(r.height * 10) / 10,
+        lift: row === undefined ? null : Math.round(((row.top + row.height / 2) - (r.top + r.height / 2)) * 10) / 10,
+      };
+    }
+    let cover: Tr37Seen['cover'] = null;
+    const coverEl = document.querySelector<HTMLElement>('.con-bonusfly-cover');
+    if (coverEl !== null && visible(coverEl, 0.1)) {
+      const node = document.querySelector<HTMLElement>(`.con-parl__step[data-step="${cardStep}"] .con-parl__step-res`);
+      cover = {at: centre(coverEl), node: centre(node), nodeWidth: node === null ? 0 : Math.round(node.getBoundingClientRect().width * 10) / 10};
+    }
+    const chips: Array<Point> = [];
+    document.querySelectorAll<HTMLElement>('.con-transfer__chip').forEach((el) => {
+      if (el.style.transform === '' || el.querySelector('.resource_icon--rating') === null) {
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      chips.push({x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)});
+    });
+    return {
+      head,
+      landed: document.querySelector('.con-recv [data-recv-front][data-played-key]') !== null,
+      parls,
+      ws: document.querySelectorAll('.con-ws').length,
+      stranded: document.querySelector('.con-stranded') !== null,
+      bar: text(document.querySelector('.con-cmdbar')),
+      cubeDrawn,
+      cube,
+      proxy,
+      cover,
+      // «The card opened»: it stands in the Parliament's draw stage («ПРИЁМКА» — the embedded reveal, where the marker walked), or a viewer the player opened.
+      viewer: document.querySelector('dialog.con-zoom[open]') !== null ? 'zoom' :
+        (document.querySelector('.con-parl [data-parl-draw] .con-reveal--embedded:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]') !== null ? 'scene' : ''),
+      hand: document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? '',
+      tr: text(document.querySelector('.con-res .con-score__value--tr')),
+      // The digits ONLY — a delta chip inside the row («7−3») is the move's story, not the count.
+      mc: (text(document.querySelector('.con-res__row--megacredits .con-res__digits')).match(/^-?\d+/) ?? [''])[0],
+      inf: text(document.querySelector('.con-parl [data-parl-influence]')),
+      band: Array.from(document.querySelectorAll('[data-parl-band-chip="agenda"]')).map((el) => el.getAttribute('data-parl-band-step') ?? '?').join(','),
+      beat: document.querySelector('.con-parl')?.getAttribute('data-walk-beat') ?? '',
+      chips,
+      onEnd: Array.from(document.querySelectorAll<HTMLElement>(`[data-agenda-markers="${endStep}"] [data-agenda-cube]`))
+        .filter((el) => !el.classList.contains('con-parl__agenda-cube--hidden'))
+        .map((el) => el.getAttribute('data-agenda-cube') ?? '?'),
+    };
+  }, {args: {viewer, cardStep, endStep}, settled: true, max: 20_000});
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr37: Probe}).__tr37);
+/** The record folded into the probe's series, on the probe's clock (ms since the arm). */
+async function readProbe(page: Page): Promise<Probe> {
+  const zero = probeZero.get(page) ?? {wall: 0, perf: 0};
+  const samples = await witnessOf<Tr37Seen>(page, TR37_WITNESS).samples();
+  const longTasks = await page.evaluate(() => (window as unknown as {__tr37LongTasks?: Array<{t: number, ms: number}>}).__tr37LongTasks ?? []).catch(() => []);
+  const p: Probe = {
+    samples: samples.length, steps: [], crumbMisses: [], parlOutsideHand: false, parlMax: 0, wsMax: 0, ownHead: false,
+    degraded: [], stranded: false, parlFirst: undefined, landedMs: undefined, bar: [], cube: [], cubeDrawn: [], tr: [], mc: [], inf: [], band: [], beat: [], hand: [],
+    cover: [], coverBirth: undefined, nodeAtBirth: undefined, nodeWidth: 0, viewer: [], chip: [], proxy: [], lift: {max: 0, cube: 0}, cubesOnEnd: [],
+    longTasks, pt0: zero.perf,
+  };
+  const note = (series: Series, ms: number, value: string) => {
+    if (value !== '' && series[series.length - 1]?.[1] !== value) {
+      series.push([ms, value]);
+    }
+  };
+  for (const {t, v} of samples) {
+    const ms = t - zero.wall;
+    let tail = '';
+    if (v.head !== null) {
+      if (v.head.root.toLowerCase() !== ROOT_RU.toLowerCase() || !v.head.subjects.some((s) => s.toLowerCase() === CARD_RU.toLowerCase())) {
+        if (p.crumbMisses.length < 8) {
+          p.crumbMisses.push(`${ms}ms root=«${v.head.root}» subject=«${v.head.subjects.join('|')}»`);
+        }
+      }
+      for (const step of v.head.steps) {
+        if (step !== '' && !p.steps.includes(step)) {
+          p.steps.push(step);
+        }
+      }
+      tail = v.head.steps[v.head.steps.length - 1] ?? '';
+    }
+    if (p.landedMs === undefined && v.landed) {
+      p.landedMs = ms;
+    }
+    p.parlMax = Math.max(p.parlMax, v.parls.length);
+    if (v.parls.length > 0 && p.parlFirst === undefined) {
+      p.parlFirst = {walk: v.parls[0].walk, tail, ms, opacity: v.parls[0].opacity};
+    }
+    for (const parl of v.parls) {
+      p.parlOutsideHand ||= parl.outside;
+      p.ownHead ||= parl.ownHead;
+      if (parl.degraded !== null && !p.degraded.includes(parl.degraded)) {
+        p.degraded.push(parl.degraded);
+      }
+    }
+    p.wsMax = Math.max(p.wsMax, v.ws);
+    p.stranded ||= v.stranded;
+    note(p.bar, ms, v.bar);
+    v.cubeDrawn.forEach((step) => note(p.cubeDrawn, ms, String(step)));
+    v.cube.forEach((step) => note(p.cube, ms, String(step)));
+    if (v.proxy !== null) {
+      const last = p.proxy[p.proxy.length - 1];
+      if (last === undefined || last[1] !== v.proxy.x || last[2] !== v.proxy.y) {
+        p.proxy.push([ms, v.proxy.x, v.proxy.y]);
+      }
+      if (v.proxy.lift !== null) {
+        p.lift.cube = Math.max(p.lift.cube, v.proxy.h);
+        p.lift.max = Math.max(p.lift.max, v.proxy.lift);
+      }
+    }
+    if (v.cover !== null) {
+      if (p.coverBirth === undefined) {
+        p.coverBirth = v.cover.at ?? undefined;
+        p.nodeAtBirth = v.cover.node ?? undefined;
+        p.nodeWidth = v.cover.nodeWidth;
+      }
+      note(p.cover, ms, 'up');
+    }
+    note(p.viewer, ms, v.viewer);
+    note(p.hand, ms, v.hand);
+    note(p.tr, ms, v.tr);
+    note(p.mc, ms, v.mc);
+    note(p.inf, ms, v.inf);
+    note(p.band, ms, v.band);
+    note(p.beat, ms, v.beat);
+    for (const chip of v.chips) {
+      p.chip.push([ms, chip.x, chip.y]);
+    }
+    if (v.onEnd.length > 0) {
+      p.cubesOnEnd = v.onEnd;
+    }
+  }
+  return p;
+}
 
 type RedNote = {at: number, text: string, detail: string};
+/** `proxy`: the distinct moments the marker stood on red's table as the gliding PROXY (never a count of frames). */
 type RedProbe = {notes: Array<RedNote>, cube: Series, proxy: number};
+type RedSeen = {notes: Array<{id: string, text: string, detail: string}>, position: string | null, proxy: boolean};
+const RED_WITNESS = 'tr37-red';
 
 /**
- * RED'S WITNESS: every notification card as it APPEARS, and WHERE blue's marker stands on red's own Parliament —
- * the real cube when it is drawn, else the gliding PROXY (a rival's walk hides the real cube under the proxy
- * for the whole walk: the proxy IS the marker the rival sees), by the marker row its centre is over.
+ * RED'S WITNESS, RECORDED (`armWitness`, settled — the claim is the ORDER of the marker's positions): every notification
+ * card on screen, and WHERE blue's marker stands on red's own Parliament — the real cube when it is drawn, else the
+ * gliding PROXY (a rival's walk hides the real cube under the proxy for the whole walk: the proxy IS the marker the
+ * rival sees), by the marker row its centre is over. `readRedProbe` keeps each card's first appearance.
  */
 async function armRedProbe(page: Page, blue: string): Promise<void> {
-  await page.evaluate(({blue}) => {
-    const w = window as unknown as {__red: RedProbe};
-    const p: RedProbe = {notes: [], cube: [], proxy: 0};
-    w.__red = p;
-    const t0 = Date.now();
-    const seen = new Set<string>();
+  await armWitness<RedSeen, string>(page, RED_WITNESS, (blue) => {
     const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const sample = () => {
-      document.querySelectorAll<HTMLElement>('.con-notif').forEach((el) => {
-        const id = el.getAttribute('data-notif-id') ?? text(el);
-        if (seen.has(id)) {
-          return;
-        }
-        seen.add(id);
-        p.notes.push({at: Date.now() - t0, text: text(el), detail: text(el.querySelector('.con-notif__action--detail'))});
-      });
-      let position: string | undefined;
-      for (let step = 0; step <= 12 && position === undefined; step++) {
-        const cube = document.querySelector<HTMLElement>(`[data-agenda-markers="${step}"] [data-agenda-cube="${blue}"]`);
-        if (cube !== null && !cube.classList.contains('con-parl__agenda-cube--hidden') && cube.getBoundingClientRect().width > 1) {
-          position = String(step);
-        }
+    const notes = Array.from(document.querySelectorAll<HTMLElement>('.con-notif')).map((el) => ({
+      id: el.getAttribute('data-notif-id') ?? text(el), text: text(el), detail: text(el.querySelector('.con-notif__action--detail')),
+    }));
+    let position: string | null = null;
+    let proxy = false;
+    for (let step = 0; step <= 12 && position === null; step++) {
+      const cube = document.querySelector<HTMLElement>(`[data-agenda-markers="${step}"] [data-agenda-cube="${blue}"]`);
+      if (cube !== null && !cube.classList.contains('con-parl__agenda-cube--hidden') && cube.getBoundingClientRect().width > 1) {
+        position = String(step);
       }
-      if (position === undefined) {
-        const proxy = document.querySelector<HTMLElement>('.con-parl__flight--agenda');
-        const r = proxy?.getBoundingClientRect();
-        if (r !== undefined && r.width > 1) {
-          p.proxy++;
-          const cx = r.left + r.width / 2;
-          for (let step = 0; step <= 12 && position === undefined; step++) {
-            const row = document.querySelector<HTMLElement>(`[data-agenda-markers="${step}"]`)?.getBoundingClientRect();
-            if (row !== undefined && cx >= row.left && cx <= row.right) {
-              position = String(step);
-            }
+    }
+    if (position === null) {
+      const r = document.querySelector<HTMLElement>('.con-parl__flight--agenda')?.getBoundingClientRect();
+      if (r !== undefined && r.width > 1) {
+        proxy = true;
+        const cx = r.left + r.width / 2;
+        for (let step = 0; step <= 12 && position === null; step++) {
+          const row = document.querySelector<HTMLElement>(`[data-agenda-markers="${step}"]`)?.getBoundingClientRect();
+          if (row !== undefined && cx >= row.left && cx <= row.right) {
+            position = String(step);
           }
         }
       }
-      const last = p.cube[p.cube.length - 1];
-      if (position !== undefined && (last === undefined || last[1] !== position)) {
-        p.cube.push([Date.now() - t0, position]);
-      }
-    };
-    new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-    window.setInterval(sample, 50);
-  }, {blue});
+    }
+    return {notes, position, proxy};
+  }, {args: blue, settled: true, max: 20_000});
 }
 
-const readRedProbe = (page: Page): Promise<RedProbe> => page.evaluate(() => (window as unknown as {__red: RedProbe}).__red);
+async function readRedProbe(page: Page): Promise<RedProbe> {
+  const samples = await witnessOf<RedSeen>(page, RED_WITNESS).samples();
+  const first = samples[0]?.t ?? 0;
+  const p: RedProbe = {notes: [], cube: [], proxy: 0};
+  const seen = new Set<string>();
+  for (const {t, v} of samples) {
+    for (const n of v.notes) {
+      if (!seen.has(n.id)) {
+        seen.add(n.id);
+        p.notes.push({at: t - first, text: n.text, detail: n.detail});
+      }
+    }
+    if (v.proxy) {
+      p.proxy++;
+    }
+    if (v.position !== null && p.cube[p.cube.length - 1]?.[1] !== v.position) {
+      p.cube.push([t - first, v.position]);
+    }
+  }
+  return p;
+}
 
 const composer = '.con-composer--play';
 
@@ -475,7 +562,9 @@ async function waitFlowLeft(page: Page): Promise<void> {
 
 /** The flow's invariants every table shares: one flow, one Parliament, the entrance's one phrase, nothing degraded. */
 function expectOneFlow(probe: Probe, run: Run, dump: string): void {
-  expect(probe.ticks, `the probe's sampler ran (${probe.samples} samples)`).toBeGreaterThan(40);
+  // The recording's own liveness: it keeps only CHANGES, so its count says how much changed, never how long it ran —
+  // only a dead recorder has none (the real claims below judge themselves).
+  expect(probe.samples, `the probe's recording ran (${probe.samples} samples)`).toBeGreaterThan(0);
   expect(probe.crumbMisses, 'the crumb kept its root and the card\'s name on every sample').toEqual([]);
   expect(probe.steps[0], `the tail starts at the play (${dump})`).toBe('Розыгрыш');
   expect(probe.steps[probe.steps.length - 1], `…and ends at the walk (${dump})`).toBe('Карьера');
@@ -640,7 +729,8 @@ for (const preset of PRESETS) {
       expect(doubled, `the band never holds two chips of one step (PL-119) (${dump})`).toEqual([]);
       expectCoverBornAtNode(probe, dump);
       expect(probe.chip.length, `no rating chip on this walk (${dump})`).toBe(0);
-      expect(probe.proxy.length, `the marker's proxy was seen in flight (${dump})`).toBeGreaterThan(2);
+      // «Seen in flight» is EVER (a recorded pose of the proxy in the air), never a count of the frames that caught it.
+      expect(probe.proxy.length, `the marker's proxy was seen in flight (${dump})`).toBeGreaterThan(0);
       expect(probe.cubesOnEnd, `blue's cube alone stood on ⑧ at the end (${dump})`).toEqual([viewer]);
       // THE LIFT is in the profile's scale: the arc off the rail is a fraction of the cube on 1080 and on 4K alike.
       expect(probe.lift.cube, `the proxy's height was measured (${dump})`).toBeGreaterThan(0);
@@ -648,10 +738,10 @@ for (const preset of PRESETS) {
 
       // ── 5. red, without reloading, with the Parliament open: the walk played on their table; the notification opens the Parliament ──
       await red.bringToFront();
-      await expect.poll(async () => (await readRedProbe(red)).cube[(await readRedProbe(red)).cube.length - 1]?.[1], {timeout: 30_000, message: 'red saw blue\'s cube reach 8'}).toBe('8');
+      await expect.poll(async () => (await readRedProbe(red)).cube.at(-1)?.[1], {timeout: 30_000, message: 'red saw blue\'s cube reach 8'}).toBe('8');
       const redProbe = await readRedProbe(red);
       expect(redProbe.cube.map(([, s]) => s), `red's track walked blue's marker forward, step by step — the proxy over ⑦ before ⑧ (${JSON.stringify(redProbe.cube)}, proxy samples ${redProbe.proxy})`).toEqual(['6', '7', '8']);
-      expect(redProbe.proxy, 'the marker was seen gliding on red\'s table').toBeGreaterThan(2);
+      expect(redProbe.proxy, 'the marker was seen gliding on red\'s table').toBeGreaterThan(0);
       const told = redProbe.notes.find((n) => n.text.includes(CARD_RU));
       expect(told, `red was told of the play (${JSON.stringify(redProbe.notes)})`).toBeDefined();
       expect(told!.detail, 'the card opens the Parliament — the object it is about').toContain('Парламент');
@@ -763,7 +853,7 @@ for (const preset of PRESETS) {
       expectOneFlow(probe, run, dump);
       expect(landings(probe.cube, 11), `one landing, on ⑫ (${dump})`).toEqual(['12']);
       expect(probe.band[probe.band.length - 1]?.[1], `the band grew exactly one chip (${dump})`).toBe('12');
-      expect(probe.proxy.length, `the marker's proxy was seen in flight (${dump})`).toBeGreaterThan(2);
+      expect(probe.proxy.length, `the marker's proxy was seen in flight (${dump})`).toBeGreaterThan(0);
       expect(at(probe.inf, '5'), `the influence ticked to 5 on the landing (${dump})`).toBeDefined();
       expect(probe.cover, `no cover on this walk (${dump})`).toEqual([]);
       expect(probe.viewer, `no card opened (${dump})`).toEqual([]);

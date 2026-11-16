@@ -6,9 +6,10 @@
  *      tallest seat, a face), five seats with five corporation faces, the content reaching the opening's foot (≥ 85 %),
  *      no empty band over a third of the height, no scroll, no text under the couch floor outside a card face;
  *  B · the DUEL: two side-by-side seats, the hero ≥ a third, both faces;
- *  C′ · THE COUNT ARRIVES AS LIGHT (T08): an init-script probe (setInterval — never rAF, from the mount) sees ONE
- *      light per category and never a body crossing the stage, the seats' medallions igniting IN TURN left to right
- *      (a cascade, never «all at once»), and a seat's total standing until ITS ignition; the server's totals;
+ *  C′ · THE COUNT ARRIVES AS LIGHT (T08): a witness armed before the journey (the replace-proof recorder — the
+ *      product's own writes and frames, from the mount) sees ONE light per category and never a body crossing the
+ *      stage, the seats' medallions igniting IN TURN left to right (a cascade, never «all at once»), and a seat's
+ *      total standing until ITS ignition; the server's totals;
  *  H · X HURRIES, never skips (CI — its OWN choreography: one pass of the light, an odometer): the remainder after X is
  *      a fraction of the natural categories, the pass is over before the ranking, the ranking FLIP and the crowning
  *      FLIP play at the full pace, the bar drops X; the server's totals (the light budget of both paces is
@@ -21,6 +22,8 @@
  */
 import {test, expect, Page} from './consoleTest';
 import {fixtureTable, getModel, journeyToEndgame, pumpFrames, shoot, storyboard, waitWithFrames} from './consoleEndgameHarness';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow, witnessOf} from './witness';
 
 const SHOT_DIR = 'screenshots/console-finale-podium';
 
@@ -35,9 +38,13 @@ type Shares = {
   faces: number,
 };
 
-/** The opening's shares: the content's foot, the hero's height, the largest empty band, the type under the floor. */
+/**
+ * The opening's shares: the content's foot, the hero's height, the largest empty band, the type under the floor —
+ * read AT REST (`readSettled`, FLAKE ZERO class C: two equal reads a frame apart; the callers stand on a scene at rest
+ * already, this is the read's own last word).
+ */
 async function shares(page: Page, rootSel: string, tv: boolean): Promise<Shares> {
-  return await page.evaluate(({sel, tv}) => {
+  return await readSettled(page, () => page.evaluate(({sel, tv}) => {
     const root = document.querySelector<HTMLElement>(sel)!;
     const rr = root.getBoundingClientRect();
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -83,26 +90,27 @@ async function shares(page: Page, rootSel: string, tv: boolean): Promise<Shares>
       seats: document.querySelectorAll('.con-eg__row').length,
       faces: document.querySelectorAll('.con-eg__face .pcard').length,
     };
-  }, {sel: rootSel, tv});
+  }, {sel: rootSel, tv}), {message: `the opening's shares under ${rootSel}`});
+}
+
+/** Every measured object under `sel` (a seat, a face, a board line, the players' hero) as one signature. */
+async function restSignature(page: Page, sel: string): Promise<string> {
+  return page.evaluate((s) => Array.from(document.querySelectorAll<HTMLElement>(
+    `${s} .pcard, ${s} [data-eg-row], ${s} .con-ovs__line, ${s} .con-ovpl__hero, ${s} .con-ovpl__group`))
+    .map((el) => {
+      const r = el.getBoundingClientRect();
+      return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)},${getComputedStyle(el).opacity}`;
+    }).join('|'), sel);
 }
 
 /**
- * The scene is AT REST: two consecutive equal reads of every measured object under `sel` (a seat, a face, a board
- * line, the players' hero) — a state, never a duration (a FLIP / a crowning / a fit still moving reads differently).
+ * The scene is AT REST: two consecutive equal reads, a frame apart, of every measured object under `sel` — a state,
+ * never a duration (a FLIP / a crowning / a fit still moving reads differently). An empty signature is no scene.
  */
 async function layoutAtRest(page: Page, sel: string, what: string): Promise<void> {
-  let last = '';
-  await waitWithFrames(page, async () => {
-    const now = await page.evaluate((s) => Array.from(document.querySelectorAll<HTMLElement>(
-      `${s} .pcard, ${s} [data-eg-row], ${s} .con-ovs__line, ${s} .con-ovpl__hero, ${s} .con-ovpl__group`))
-      .map((el) => {
-        const r = el.getBoundingClientRect();
-        return `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)},${getComputedStyle(el).opacity}`;
-      }).join('|'), sel);
-    const same = now !== '' && now === last;
-    last = now;
-    return same;
-  }, 20_000, what);
+  await readSettled(page, () => restSignature(page, sel), {
+    message: what, timeoutMs: 20_000, same: (a, b) => a !== '' && a === b,
+  });
 }
 
 async function settled(page: Page): Promise<void> {
@@ -118,7 +126,7 @@ async function overviewTab(page: Page, name: RegExp): Promise<void> {
     await page.keyboard.press('KeyE');
     await waitWithFrames(page, async () => (await active()) !== before, 8_000, `the overview's tab after «${before.trim()}»`);
   }
-  expect(await active()).toMatch(name);
+  await expect.poll(active, {message: `the overview's tab ${name}`}).toMatch(name);
 }
 
 async function serverTotals(request: Parameters<typeof getModel>[0], id: string): Promise<Array<number>> {
@@ -128,6 +136,12 @@ async function serverTotals(request: Parameters<typeof getModel>[0], id: string)
 
 async function shownTotals(page: Page): Promise<Array<number>> {
   return (await page.locator('.con-eg__total-num').allTextContents()).map((t) => Number(t.trim())).sort((a, b) => b - a);
+}
+
+/** The hidden score opens HERE: the podium's totals are the server's own (a poll — the seats' digits are live text). */
+async function expectServerTotals(page: Page, request: Parameters<typeof getModel>[0], id: string): Promise<void> {
+  const server = await serverTotals(request, id);
+  await expect.poll(() => shownTotals(page), {message: 'the podium\'s totals are the server\'s'}).toEqual(server);
 }
 
 for (const profile of [
@@ -154,14 +168,14 @@ for (const profile of [
       expect(s.maxVoid, `no empty band over a third (${s.maxVoid.toFixed(2)})`).toBeLessThanOrEqual(1 / 3);
       expect(s.below, 'no text under the couch floor outside a card face').toEqual([]);
       // The hero is the TALLEST seat; the winner's ribbon stands on it.
-      const heights = await page.locator('.con-eg__row').evaluateAll((els) => els.map((el) => ({
+      const heights = await readSettled(page, () => page.locator('.con-eg__row').evaluateAll((els) => els.map((el) => ({
         hero: el.classList.contains('con-eg__row--hero'), h: el.getBoundingClientRect().height,
-      })));
+      }))), {message: 'the seats\' heights'});
       const heroH = Math.max(...heights.filter((x) => x.hero).map((x) => x.h));
       expect(heights.filter((x) => !x.hero).every((x) => x.h < heroH)).toBe(true);
       await expect(page.locator('.con-eg__row--hero .con-eg__ribbon')).toHaveCount(1);
       // The hidden score opens HERE — the server's own totals.
-      expect(await shownTotals(page)).toEqual(await serverTotals(request, ids[0]));
+      await expectServerTotals(page, request, ids[0]);
     });
   });
 }
@@ -190,7 +204,7 @@ for (const profile of [
       expect(s.below).toEqual([]);
       // Every seat HOLDS its reading column (the name over the seat and the medallions over the actions on a narrow box
       // were the Deck's defect) — and nothing of a seat reaches into the actions below.
-      const spill = await page.evaluate(() => {
+      const spill = await readSettled(page, () => page.evaluate(() => {
         const out: Array<string> = [];
         const actions = document.querySelector('.con-eg__actions')?.getBoundingClientRect();
         for (const row of Array.from(document.querySelectorAll<HTMLElement>('.con-eg__row'))) {
@@ -205,7 +219,7 @@ for (const profile of [
           }
         }
         return out;
-      });
+      }), {message: 'the seats\' reading columns'});
       expect(spill, 'every seat holds its reading column, clear of the actions').toEqual([]);
 
       // D · «Обзор партии» → «Счёт»: the board with a face per place, filling the opening.
@@ -232,9 +246,8 @@ for (const profile of [
   });
 }
 
-/** One sample of the count, taken by an INIT-SCRIPT sampler (setInterval — never rAF; it watches from the mount). */
-type CountSample = {
-  t: number,
+/** One frame of the count — the observation the count WITNESS records (`countReader`). */
+type CountFrame = {
   phase: string,
   beat: string,
   cat: number,
@@ -252,35 +265,113 @@ type CountSample = {
   lightVisible: number,
   /** The hero seat's inline transform (the crowning FLIP's own tween), '' at rest. */
   heroTransform: string,
+  /** Every seat's inline transform — the ranking FLIP's own tween, so each of its frames is a recorded state. */
+  seatTransforms: Array<string>,
   /** Seats carrying an inline transform (the ranking FLIP). */
   movingSeats: number,
   /** The command bar offers X «Ускорить подсчёт». */
   hurryVerb: boolean,
 };
 
-/** Install the sampler BEFORE the journey (the console navigates): every 16 ms from the workspace's mount. */
+/** A recorded frame of the count, its `t` on the PAGE's clock relative to the count's first recorded frame. */
+type CountSample = CountFrame & {t: number};
+
+const COUNT_KEY = 'finale-count';
+
+/**
+ * THE COUNT, AS THE PAGE HAS IT NOW (null while no results workspace stands). Runs IN THE PAGE (self-contained): the
+ * recorder calls it on every write of the product and on every frame, and keeps each DISTINCT state with its time.
+ * The seats' left edges are measured ONCE — at the first frame that shows the seats — exactly as the cascade's order
+ * on screen was always read; that one write goes to `window`, never to the DOM.
+ */
+function countReader(): CountFrame | null {
+  const root = document.querySelector<HTMLElement>('.con-endgame');
+  if (root === null) {
+    return null;
+  }
+  const w = window as unknown as {__countLeft?: Record<string, number>};
+  const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-eg-row]'));
+  const measureLeft = w.__countLeft === undefined && rows.length > 0;
+  const left: Record<string, number> = w.__countLeft ?? {};
+  const phase = Array.from(root.classList)
+    .find((c) => /^con-endgame--(idle|entering|scoring|settling|ranking|tiebreak|winner|champion|actions)$/.test(c))?.slice(13) ?? '';
+  const active = document.querySelector<HTMLElement>('.con-eg__lchip--active')?.dataset.egRail ?? '';
+  const totals: Record<string, string> = {};
+  const lit: Record<string, boolean> = {};
+  const seatTransforms: Array<string> = [];
+  let movingSeats = 0;
+  for (const row of rows) {
+    const color = row.dataset.egRow ?? '';
+    totals[color] = row.querySelector('[data-eg-total]')?.textContent ?? '';
+    lit[color] = active !== '' && row.querySelector(`[data-eg-medal="${active}"]`)?.classList.contains('con-eg__medal--on') === true;
+    if (measureLeft) {
+      left[color] = Math.round(row.getBoundingClientRect().left);
+    }
+    seatTransforms.push(row.style.transform);
+    if (row.style.transform !== '' && row.style.transform !== 'none') {
+      movingSeats++;
+    }
+  }
+  if (measureLeft) {
+    w.__countLeft = left;
+  }
+  const layer = document.querySelector<HTMLElement>('.con-eg__light');
+  let lightVisible = 0;
+  for (const el of Array.from(layer?.querySelectorAll<HTMLElement>('.con-eg__beam-wash') ?? [])) {
+    if (Number(getComputedStyle(el).opacity) > 0.05) {
+      lightVisible++;
+    }
+  }
+  const hero = document.querySelector<HTMLElement>('.con-eg__row--hero');
+  return {
+    phase, beat: root.dataset.egBeat ?? '', cat: Number(root.dataset.egCat ?? -1),
+    active, hurried: root.dataset.egHurried ?? '', totals, lit, left,
+    lightChildren: layer?.querySelectorAll('*').length ?? 0, lightVisible,
+    heroTransform: hero !== null && hero.style.transform !== 'none' ? hero.style.transform : '',
+    seatTransforms,
+    movingSeats,
+    hurryVerb: /Ускорить подсчёт/i.test(document.querySelector('.con-cmdbar')?.textContent ?? ''),
+  };
+}
+
+/** How many of the count's light washes paint now (runs IN THE PAGE — the reduced-motion witness's reader). */
+function beamLightReader(): number {
+  let lit = 0;
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-eg__beam-wash'))) {
+    if (Number(getComputedStyle(el).opacity) > 0.05) {
+      lit++;
+    }
+  }
+  return lit;
+}
+
+/** A long animation frame, stamped on the page's EPOCH clock (`timeOrigin + startTime` — the witness's `t` clock). */
+type LongFrame = {at: number, dur: number, render: number, style: number, script: string};
+
+/**
+ * Arm the count's WITNESS and its FRAME LEDGER before the journey (the console navigates: both live in every new
+ * document of the page). The witness records `countReader` `settled` — every state is one a task LEAVES, the state a
+ * frame can paint: the claims below are about order and coexistence (seats igniting in turn, one light at a time, a
+ * total standing until its own ignition). The ledger keeps THE FRAMES the page did not get (a motion claim is only as
+ * good as its frames): every LONG ANIMATION FRAME once the workspace stands — its end, its length, its heaviest script
+ * — read beside the verdict (a cascade inside a stall is the frame's verdict), never asserted. LoAF, not a rAF clock:
+ * the box's stalls were main-thread frames blocked on the GPU's commit (`WaitForCommitCompletion`), exactly what LoAF
+ * measures.
+ */
 async function armCountProbe(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const samples: Array<unknown> = [];
-    let t0 = -1;
-    // THE FRAMES the page did not get (a motion claim is only as good as its frames): every LONG ANIMATION FRAME while
-    // the workspace stands — its end, its length, its heaviest script — read beside the verdict (a cascade inside a
-    // stall is the frame's verdict), never asserted. LoAF, not a rAF clock: the box's stalls were main-thread frames
-    // blocked on the GPU's commit (`WaitForCommitCompletion`), exactly what LoAF measures.
-    const stalls: Array<{t: number, gap: number}> = [];
-    const loaf: Array<{t: number, dur: number, render: number, style: number, script: string}> = [];
+    const loaf: Array<{at: number, dur: number, render: number, style: number, script: string}> = [];
+    let standing = false;
     try {
       new PerformanceObserver((list) => {
+        standing = standing || document.querySelector('.con-endgame') !== null;
+        if (!standing) {
+          return;
+        }
         for (const e of list.getEntries() as Array<PerformanceEntry & {renderStart?: number, styleAndLayoutStart?: number, scripts?: Array<{duration: number, sourceFunctionName?: string, invoker?: string}>}>) {
-          if (t0 < 0) {
-            continue;
-          }
           const top = [...(e.scripts ?? [])].sort((a, b) => b.duration - a.duration)[0];
-          if (e.duration > 100) {
-            stalls.push({t: Math.round(e.startTime + e.duration - t0), gap: Math.round(e.duration)});
-          }
           loaf.push({
-            t: Math.round(e.startTime - t0), dur: Math.round(e.duration),
+            at: Math.round(performance.timeOrigin + e.startTime), dur: Math.round(e.duration),
             render: Math.round((e.renderStart ?? e.startTime) - e.startTime),
             style: Math.round(e.startTime + e.duration - (e.styleAndLayoutStart ?? e.startTime + e.duration)),
             script: top === undefined ? '' : `${Math.round(top.duration)} ${top.invoker ?? ''} ${top.sourceFunctionName ?? ''}`,
@@ -288,77 +379,32 @@ async function armCountProbe(page: Page): Promise<void> {
         }
       }).observe({type: 'long-animation-frame', buffered: false});
     } catch { /* no LoAF */ }
-    let left: Record<string, number> | undefined;
-    const timer = window.setInterval(() => {
-      const root = document.querySelector<HTMLElement>('.con-endgame');
-      if (root === null) {
-        return;
-      }
-      if (t0 < 0) {
-        t0 = performance.now();
-      }
-      const phase = Array.from(root.classList)
-        .find((c) => /^con-endgame--(idle|entering|scoring|settling|ranking|tiebreak|winner|champion|actions)$/.test(c))?.slice(13) ?? '';
-      const active = document.querySelector<HTMLElement>('.con-eg__lchip--active')?.dataset.egRail ?? '';
-      const totals: Record<string, string> = {};
-      const lit: Record<string, boolean> = {};
-      let movingSeats = 0;
-      const measureLeft = left === undefined;
-      if (measureLeft) {
-        left = {};
-      }
-      for (const row of Array.from(document.querySelectorAll<HTMLElement>('[data-eg-row]'))) {
-        const color = row.dataset.egRow ?? '';
-        totals[color] = row.querySelector('[data-eg-total]')?.textContent ?? '';
-        lit[color] = active !== '' && row.querySelector(`[data-eg-medal="${active}"]`)?.classList.contains('con-eg__medal--on') === true;
-        if (measureLeft) {
-          left![color] = Math.round(row.getBoundingClientRect().left);
-        }
-        if (row.style.transform !== '' && row.style.transform !== 'none') {
-          movingSeats++;
-        }
-      }
-      const layer = document.querySelector<HTMLElement>('.con-eg__light');
-      let lightVisible = 0;
-      for (const el of Array.from(layer?.querySelectorAll<HTMLElement>('.con-eg__beam-wash') ?? [])) {
-        if (Number(getComputedStyle(el).opacity) > 0.05) {
-          lightVisible++;
-        }
-      }
-      const hero = document.querySelector<HTMLElement>('.con-eg__row--hero');
-      samples.push({
-        t: Math.round(performance.now() - t0), phase, beat: root.dataset.egBeat ?? '', cat: Number(root.dataset.egCat ?? -1),
-        active, hurried: root.dataset.egHurried ?? '', totals, lit, left: left ?? {},
-        lightChildren: layer?.querySelectorAll('*').length ?? 0, lightVisible,
-        heroTransform: hero !== null && hero.style.transform !== 'none' ? hero.style.transform : '',
-        movingSeats,
-        hurryVerb: /Ускорить подсчёт/i.test(document.querySelector('.con-cmdbar')?.textContent ?? ''),
-      });
-    }, 16);
-    (window as unknown as {__count: unknown}).__count = {samples, stalls, loaf, stop: () => window.clearInterval(timer)};
+    (window as unknown as {__countFrames: unknown}).__countFrames = loaf;
   });
+  await armWitness(page, COUNT_KEY, countReader, {settled: true, max: 50_000});
 }
 
-/** The frames the page did NOT get (a rAF gap over 100 ms ends at `t`) — the last probe read's. */
+/** The frames the page did NOT get (a long frame over 100 ms ends at `t`) — the last probe read's, on the count's clock. */
 let lastStalls: Array<{t: number, gap: number}> = [];
+/** The page time of the count's first recorded frame — the zero of every `t` the last probe read returned. */
+let countT0 = 0;
 
 async function readCountProbe(page: Page): Promise<Array<CountSample>> {
-  const read = await page.evaluate(() => {
-    const p = (window as unknown as {__count: {samples: Array<CountSample>, stalls: Array<{t: number, gap: number}>, loaf: Array<{t: number, dur: number, render: number, style: number, script: string}>, stop: () => void}}).__count;
-    p.stop();
-    return {samples: p.samples, stalls: p.stalls, loaf: p.loaf};
-  });
-  lastStalls = read.stalls;
+  const recorded = (await witnessOf<CountFrame | null>(page, COUNT_KEY).stop())
+    .flatMap((s) => s.v === null ? [] : [{t: s.t, v: s.v}]);
+  countT0 = recorded[0]?.t ?? 0;
+  const loaf = await page.evaluate(() => (window as unknown as {__countFrames?: Array<LongFrame>}).__countFrames ?? []);
+  lastStalls = loaf.filter((e) => e.dur > 100).map((e) => ({t: e.at + e.dur - countT0, gap: e.dur}));
   // The frames beside the verdict: the long frames and what filled them.
   const frames = {
-    over100: read.loaf.filter((e) => e.dur > 100).length,
-    over200: read.loaf.filter((e) => e.dur > 200).length,
-    over500: read.loaf.filter((e) => e.dur > 500).length,
-    loaf: [...read.loaf].sort((a, b) => b.dur - a.dur).slice(0, 8),
+    over100: loaf.filter((e) => e.dur > 100).length,
+    over200: loaf.filter((e) => e.dur > 200).length,
+    over500: loaf.filter((e) => e.dur > 500).length,
+    loaf: [...loaf].sort((a, b) => b.dur - a.dur).slice(0, 8).map(({at, ...rest}) => ({t: at - countT0, ...rest})),
   };
   test.info().annotations.push({type: 'frames', description: JSON.stringify(frames)});
   console.log('[frames]', JSON.stringify(frames));
-  return read.samples;
+  return recorded.map((s) => ({...s.v, t: s.t - countT0}));
 }
 
 /** The time the count's FIRST sample of each (category, seat) shows the seat lit — the ignition, as painted. */
@@ -405,7 +451,8 @@ test.describe('console finale podium — the count arrives as light (4K)', () =>
     await unpump();
     const samples = await readCountProbe(page);
     const counting = samples.filter((s) => s.phase === 'scoring');
-    expect(counting.length, 'the probe saw the count').toBeGreaterThan(60);
+    // The recorder's own liveness: it keeps DISTINCT states (never frames), so only a dead recorder fails this floor.
+    expect(counting.length, `the probe saw the count (${counting.length} distinct states)`).toBeGreaterThan(0);
     // NO BODY CROSSES THE STAGE: the light layer is ONE beam and nothing else, and at most that one light paints.
     expect(Math.max(...samples.map((s) => s.lightChildren)), 'the light layer holds the beam and its wash only').toBeLessThanOrEqual(2);
     expect(Math.max(...samples.map((s) => s.lightVisible)), 'at most ONE light at a time').toBeLessThanOrEqual(1);
@@ -465,7 +512,7 @@ test.describe('console finale podium — the count arrives as light (4K)', () =>
     }
     // The settled podium carries no light over it, and the server's totals.
     expect(samples[samples.length - 1].lightVisible).toBe(0);
-    expect(await shownTotals(page)).toEqual(await serverTotals(request, ids[0]));
+    await expectServerTotals(page, request, ids[0]);
     await expect(page.locator('.con-eg__row--hero')).toHaveCount(1);
   });
 
@@ -479,10 +526,8 @@ test.describe('console finale podium — the count arrives as light (4K)', () =>
     await waitWithFrames(page, async () => Number(await page.locator('.con-endgame').getAttribute('data-eg-cat')) >= 2, 60_000, 'the third category');
     await expect(page.locator('.con-cmdbar'), 'the bar offers the hurry while the count runs').toContainText(/Ускорить подсчёт/i);
     const stop = await storyboard(page, SHOT_DIR, 'tv4k-5p-hurry');
-    const xAt = await page.evaluate(() => {
-      const p = (window as unknown as {__count: {samples: Array<{t: number}>}}).__count;
-      return p.samples[p.samples.length - 1]?.t ?? 0;
-    });
+    // X's moment on the PAGE's clock — the clock the witness stamps its states with (never the driver's).
+    const xAtPage = await pageNow(page);
     await page.keyboard.press('KeyX');
     await waitWithFrames(page, async () => (await page.locator('.con-endgame[data-eg-hurried="on"]').count()) > 0, 5_000, 'the hurry');
     await page.keyboard.press('KeyX'); // a second X is a no-op
@@ -490,6 +535,7 @@ test.describe('console finale podium — the count arrives as light (4K)', () =>
     await stop();
     await unpump();
     const samples = await readCountProbe(page);
+    const xAt = xAtPage - countT0;
     const after = samples.filter((s) => s.t > xAt);
     // The phases after X: the count goes on (hurried), then the ranking, then the crowning — never a jump to the end.
     const phases: Array<string> = [];
@@ -510,8 +556,8 @@ test.describe('console finale podium — the count arrives as light (4K)', () =>
     // The hurried REMAINDER — X to the count's end — against the same categories at their natural pace: ≤ ¼. The box's
     // long frames (LoAF — the GPU commit; once a category whatever the pace) are the frames', never the hurry's, and
     // come off the remainder (they are printed with the frames).
-    // The count's END is its first post-count sample: the settle — or, when the hurried settle is shorter than one
-    // sampler step (it ran ×6 under X), the ranking that follows it.
+    // The count's END is its first post-count state: the settle — or, when the hurried settle never stood as a state
+    // of its own (it ran ×6 under X), the ranking that follows it.
     const settledAt = after.find((s) => s.phase === 'settling' || s.phase === 'ranking')?.t ?? -1;
     expect(settledAt, 'the hurried count reached its end').toBeGreaterThan(xAt);
     const stallMs = lastStalls.filter((st) => st.t >= xAt && st.t - st.gap <= settledAt).reduce((sum, st) => sum + st.gap, 0);
@@ -523,9 +569,10 @@ test.describe('console finale podium — the count arrives as light (4K)', () =>
     const returned = after.find((s) => s.hurried === 'returned')?.t ?? -1;
     expect(returned, 'the pace returned').toBeGreaterThan(0);
     expect(returned).toBeLessThanOrEqual(rankAt);
-    // A FLIP's span is what the sampler SAW plus the long frames inside it: a 4K render frame starves the sampler
-    // while the tween's clock runs on (measured on the box: a 308 + 249 ms pair inside the ranking FLIP left 354 ms of
-    // samples of its 820). The same accounting as the remainder's — the frames' time, never the hurry's.
+    // A FLIP's span is what the witness RECORDED (every frame of the tween is a state — the seats' and the hero's inline
+    // transforms) plus the long frames inside it: a 4K render frame starves the main thread while the tween's clock
+    // runs on (measured on the box: a 308 + 249 ms pair inside the ranking FLIP left 354 ms of samples of its 820). The
+    // same accounting as the remainder's — the frames' time, never the hurry's.
     const seenSpan = (run: Array<CountSample>, from: number): {span: number, stalls: number} => {
       if (run.length === 0) {
         return {span: 0, stalls: 0};
@@ -543,7 +590,7 @@ test.describe('console finale podium — the count arrives as light (4K)', () =>
     // Once hurried, the bar no longer offers X (and never during the ranking / crowning).
     expect(after.filter((s) => s.t > xAt + 200 && s.phase !== 'actions').some((s) => s.hurryVerb), 'no X after the hurry').toBe(false);
     // The server's totals.
-    expect(await shownTotals(page)).toEqual(await serverTotals(request, ids[0]));
+    await expectServerTotals(page, request, ids[0]);
     await expect(page.locator('.con-eg__row--hero')).toHaveCount(1);
   });
 });
@@ -567,7 +614,7 @@ test.describe('console finale podium — MarsBot in the race (FHD)', () => {
     expect(s.scrolls).toBe(false);
     expect(s.heroHeight, `the hero is a third of the opening (${s.heroHeight.toFixed(2)})`).toBeGreaterThanOrEqual(1 / 3);
     expect(s.below).toEqual([]);
-    expect(await shownTotals(page)).toEqual(await serverTotals(request, ids[0]));
+    await expectServerTotals(page, request, ids[0]);
   });
 });
 
@@ -586,27 +633,14 @@ test.describe('console finale podium — reduced motion (FHD)', () => {
       media: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
       bridge: document.documentElement.classList.contains('con-reduced-motion'),
     })), 'the page runs under reduced motion').toEqual({media: true, bridge: true});
-    await page.evaluate(() => {
-      const seen = {light: 0, samples: 0};
-      const timer = window.setInterval(() => {
-        seen.samples++;
-        for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-eg__beam-wash'))) {
-          if (Number(getComputedStyle(el).opacity) > 0.05) {
-            seen.light++;
-          }
-        }
-      }, 30);
-      (globalThis as unknown as {__rm: {seen: {light: number, samples: number}, stop: () => void}}).__rm = {seen, stop: () => window.clearInterval(timer)};
-    });
+    // Every light the count paints, recorded from here to the settled podium (each state a task leaves).
+    const light = await armWitness(page, 'reduced-light', beamLightReader, {settled: true});
     await settled(page);
-    const seen = await page.evaluate(() => {
-      const p = (globalThis as unknown as {__rm: {seen: {light: number, samples: number}, stop: () => void}}).__rm;
-      p.stop();
-      return p.seen;
-    });
-    expect(seen.samples, 'the probe sampled').toBeGreaterThan(5);
-    expect(seen.light, 'reduced motion draws no light').toBe(0);
-    expect(await shownTotals(page)).toEqual(await serverTotals(request, ids[0]));
+    const seen = await light.stop();
+    // The recorder's own liveness (distinct states, never frames): only a dead recorder fails it.
+    expect(seen.length, 'the probe sampled').toBeGreaterThan(0);
+    expect(seen.filter((s) => s.v > 0).length, 'reduced motion draws no light').toBe(0);
+    await expectServerTotals(page, request, ids[0]);
     await expect(page.locator('.con-eg__row--hero')).toHaveCount(1);
   });
 
@@ -619,11 +653,9 @@ test.describe('console finale podium — reduced motion (FHD)', () => {
     await waitWithFrames(page, async () => (await page.locator('.con-endgame--entering, .con-endgame--scoring').count()) > 0, 20_000, 'the count');
     await page.keyboard.press('KeyX');
     await waitWithFrames(page, async () => (await page.locator('.con-eg__actions').count()) > 0, 30_000, 'the hurried count settled');
-    // The sampler's own tick reads the settled root (state, not a sleep).
-    await waitWithFrames(page, async () => await page.evaluate(() => {
-      const p = (window as unknown as {__count: {samples: Array<{phase: string}>}}).__count;
-      return p.samples[p.samples.length - 1]?.phase === 'actions';
-    }), 3_000, 'the sampler on the settled root');
+    // The witness has recorded the settled root (state, not a sleep).
+    await witnessOf<CountFrame | null>(page, COUNT_KEY).waitFor((v) => v?.phase === 'actions',
+      {timeoutMs: 3_000, message: 'the sampler on the settled root'});
     const samples = await readCountProbe(page);
     const phases: Array<string> = [];
     for (const s of samples) {
@@ -634,7 +666,7 @@ test.describe('console finale podium — reduced motion (FHD)', () => {
     expect(phases, `the phases: ${phases.join(' → ')}`).toEqual(expect.arrayContaining(['ranking', 'winner', 'actions']));
     expect(phases[phases.length - 1]).toBe('actions');
     expect(Math.max(...samples.map((x) => x.lightVisible)), 'reduced motion draws no light, hurried or not').toBe(0);
-    expect(await shownTotals(page)).toEqual(await serverTotals(request, ids[0]));
+    await expectServerTotals(page, request, ids[0]);
     await expect(page.locator('.con-eg__row--hero')).toHaveCount(1);
   });
 });

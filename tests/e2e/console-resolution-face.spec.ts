@@ -5,6 +5,8 @@ import {bootFixtureSeats, closeZoomViewer, openZoomViewer, pressUntil, settle} f
 import {
   answerAsksAs, enterSittingByPass, focusParliamentZone, openParliament, PARLIAMENT_PRESETS, sittingStage, waitSittingAtRest,
 } from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * THE FACE OF A RESOLUTION — «THE BILL» (docs/claude/resolution-face-progress.md).
@@ -38,7 +40,8 @@ import {
  * vote row, the inspector, the government, the verdict, the payout's hero and
  * the table after the deal. Screenshots: screenshots/resolution-face/<preset>/.
  *
- * Probes are DOM reads and `setInterval` samplers — never the compositor's clock.
+ * Probes are DOM reads AT REST (`readSettled` — two equal reads a frame apart) and RECORDINGS of the cards in the air
+ * (`armWitness` — every change the product writes, armed before the press) — never a sampler of our own.
  */
 const OUT_ROOT = path.resolve('screenshots', 'resolution-face');
 
@@ -130,17 +133,21 @@ const readFaces = (page: Page, scope: string) => page.evaluate((sel) => {
   return {count: faces.length, problems, accents, questShare};
 }, scope) as Promise<FaceReport>;
 
-async function expectFaces(page: Page, label: string, scope: string, atLeast: number): Promise<FaceReport> {
-  const report = await readFaces(page, scope);
+/**
+ * `inChain` — the read stands INSIDE a sitting (a step or a gate the player still owes, a blocking hold of the sitting may
+ * legitimately stand): read at rest without the console-wide settle.
+ */
+async function expectFaces(page: Page, label: string, scope: string, atLeast: number, inChain = false): Promise<FaceReport> {
+  const report = await readSettled(page, () => readFaces(page, scope), {settle: !inChain, message: `${label}: the faces`});
   expect(report.count, `${label}: resolution faces on screen`).toBeGreaterThanOrEqual(atLeast);
   expect(report.problems, `${label}: every face is the bill, whole and inside its page`).toEqual([]);
   expect(report.questShare, `${label}: the quest is a footnote (≤ 10 % of the face)`).toBeLessThanOrEqual(0.1);
   return report;
 }
 
-/** (д) every face inside the host box that holds it. */
-async function expectInsideHosts(page: Page, label: string, pairs: Array<{host: string, face: string}>): Promise<void> {
-  const out = await page.evaluate((list) => {
+/** (д) every face inside the host box that holds it — measured at rest (`inChain` as in `expectFaces`). */
+async function expectInsideHosts(page: Page, label: string, pairs: Array<{host: string, face: string}>, inChain = false): Promise<void> {
+  const out = await readSettled(page, () => page.evaluate((list) => {
     const problems: Array<string> = [];
     let seen = 0;
     for (const {host, face} of list) {
@@ -163,91 +170,108 @@ async function expectInsideHosts(page: Page, label: string, pairs: Array<{host: 
       }
     }
     return {problems, seen};
-  }, pairs);
+  }, pairs), {settle: !inChain, message: `${label}: the hosted faces`});
   expect(out.seen, `${label}: hosted faces measured (an empty set proves nothing)`).toBeGreaterThan(0);
   expect(out.problems, `${label}: the face fits its host`).toEqual([]);
 }
 
 type FlightWitness = {faces: number, backs: number, foreign: Array<string>, faceUp: number, blankArt: number, blankTrail: Array<string>};
 
+/** One card proxy in the air as the frame shows it — the reading of one recorded moment. */
+type ProxySeen = {
+  flight: string,
+  /** A face is on the body, and it is the bill. */
+  face: boolean, bill: boolean,
+  /** The face is turned TOWARDS the player (cos θ > 0.25) and carries an illustration; whether that is painted. */
+  up: boolean, painted: boolean, blank: string,
+  /** The body carries a back, and it is the project card's back texture. */
+  back: boolean, projectBack: boolean,
+  /** Wide enough to be a card (≥ 40 px) — and, for the frame of the deal, turned past the edge (cos θ < 0.35). */
+  wide: boolean, showsBack: boolean,
+};
+const FLIGHT_WITNESS = 'resolution-face-flights';
+
 /**
- * (е) Every frame a CARD PROXY paints is sampled on a timer: a card in the air is the bill too — the face on
- * one side, the bill's own back on the other, never the project card's back texture.
+ * (е) Every CARD PROXY in the air is RECORDED (FLAKE ZERO — `armWitness`, armed before the press): a card in the air
+ * is the bill too — the face on one side, the bill's own back on the other, never the project card's back texture.
+ * «Never a blank face turned to the player» is a claim about what a FRAME shows, so the record is `settled` — the
+ * state a task leaves (a proxy mid-construction, its art not yet faded in by the same task, is no frame).
  */
 async function armFlightWitness(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__faceFlights?: FlightWitness};
-    if (w.__faceFlights !== undefined) {
-      return;
+  await armWitness<Array<ProxySeen>>(page, FLIGHT_WITNESS, () => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight--card'))
+    .filter((proxy) => getComputedStyle(proxy).visibility !== 'hidden')
+    .map((proxy) => {
+      const face = proxy.querySelector('.pcard');
+      // A face TURNED TOWARDS the player must carry its illustration: a blank window in the air is the
+      // old «the card flies black» defect (the art re-fading in on a proxy, or never warmed for a deal).
+      // (rotateY → m11 = cos θ of the matrix; the pattern is a string so the reader's source stays bracket-balanced)
+      const body = proxy.querySelector<HTMLElement>('.con-card3d');
+      const m = body === null ? null : new RegExp('matrix3d\\(([^,]+),').exec(getComputedStyle(body).transform);
+      const cos = m === null ? 1 : parseFloat(m[1]);
+      const img = face?.querySelector<HTMLImageElement>('.pcard__art img') ?? null;
+      const up = face !== null && cos > 0.25 && img !== null;
+      const painted = img !== null && img.complete && img.naturalWidth > 0 && parseFloat(getComputedStyle(img).opacity) > 0.95;
+      const back = proxy.querySelector<HTMLElement>('.con-parl__cardback');
+      return {
+        flight: proxy.getAttribute('data-parl-flight') ?? '',
+        face: face !== null,
+        bill: face?.classList.contains('pcard--bill') === true,
+        up,
+        painted,
+        blank: up && !painted ? `complete=${img?.complete} natural=${img?.naturalWidth} opacity=${img === null ? '' : getComputedStyle(img).opacity} cos=${cos.toFixed(2)}` : '',
+        back: back !== null,
+        projectBack: back !== null && getComputedStyle(back).backgroundImage.includes('card.webp'),
+        wide: proxy.getBoundingClientRect().width >= 40,
+        showsBack: m !== null && cos < 0.35,
+      };
+    }), {settled: true, max: 20_000});
+}
+
+/** The record folded: how many recorded moments showed a face / a back / a face turned up / a blank face, and what was foreign. */
+async function readFlightWitness(page: Page): Promise<FlightWitness> {
+  const witness: FlightWitness = {faces: 0, backs: 0, foreign: [], faceUp: 0, blankArt: 0, blankTrail: []};
+  const note = (what: string) => {
+    if (!witness.foreign.includes(what)) {
+      witness.foreign.push(what);
     }
-    const witness: FlightWitness = {faces: 0, backs: 0, foreign: [], faceUp: 0, blankArt: 0, blankTrail: []};
-    w.__faceFlights = witness;
-    const note = (what: string) => {
-      if (!witness.foreign.includes(what)) {
-        witness.foreign.push(what);
-      }
-    };
-    setInterval(() => {
-      for (const proxy of Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight--card'))) {
-        if (getComputedStyle(proxy).visibility === 'hidden') {
-          continue;
+  };
+  for (const proxies of await witnessOf<Array<ProxySeen>>(page, FLIGHT_WITNESS).values()) {
+    for (const p of proxies) {
+      if (p.face) {
+        witness.faces++;
+        if (!p.bill) {
+          note('a flying face that is not the bill');
         }
-        const face = proxy.querySelector('.pcard');
-        if (face !== null) {
-          witness.faces++;
-          if (!face.classList.contains('pcard--bill')) {
-            note('a flying face that is not the bill');
-          }
-          // A face TURNED TOWARDS the player must carry its illustration: a blank window in the air is the
-          // old «the card flies black» defect (the art re-fading in on a proxy, or never warmed for a deal).
-          const body = proxy.querySelector<HTMLElement>('.con-card3d');
-          const m = body === null ? null : /matrix3d\(([^,]+),/.exec(getComputedStyle(body).transform);
-          const cos = m === null ? 1 : parseFloat(m[1]);
-          const img = face.querySelector<HTMLImageElement>('.pcard__art img');
-          if (cos > 0.25 && img !== null) {
-            witness.faceUp++;
-            const painted = img.complete && img.naturalWidth > 0 && parseFloat(getComputedStyle(img).opacity) > 0.95;
-            if (!painted) {
-              witness.blankArt++;
-              if (witness.blankTrail.length < 6) {
-                witness.blankTrail.push(`${proxy.getAttribute('data-parl-flight')}: complete=${img.complete} natural=${img.naturalWidth} opacity=${getComputedStyle(img).opacity} cos=${cos.toFixed(2)}`);
-              }
+        if (p.up) {
+          witness.faceUp++;
+          if (!p.painted) {
+            witness.blankArt++;
+            if (witness.blankTrail.length < 6) {
+              witness.blankTrail.push(`${p.flight}: ${p.blank}`);
             }
           }
         }
-        const back = proxy.querySelector<HTMLElement>('.con-parl__cardback');
-        if (back !== null) {
-          witness.backs++;
-          if (getComputedStyle(back).backgroundImage.includes('card.webp')) {
-            note('a flying back that is the project card back');
-          }
+      }
+      if (p.back) {
+        witness.backs++;
+        if (p.projectBack) {
+          note('a flying back that is the project card back');
         }
       }
-    }, 30);
-  });
+    }
+  }
+  return witness;
 }
-
-const readFlightWitness = (page: Page): Promise<FlightWitness> =>
-  page.evaluate(() => (window as unknown as {__faceFlights: FlightWitness}).__faceFlights);
 
 /**
  * A FRAME OF A CARD IN THE AIR — for the eye only (best effort, never an assertion: a frame taken a moment late
- * shows the table at rest, and that is harmless). Armed BEFORE the press that starts the flights and polled on a
- * timer; `part` picks the proxy: a body that carries a back (a deal) or any flying face.
+ * shows the table at rest, and that is harmless). Asks the FLIGHT RECORD (`armFlightWitness`, armed BEFORE the press
+ * that starts the flights); `part` picks the proxy: a body that carries a back (a deal) or any flying face.
  */
 function shootInTheAir(page: Page, preset: string, name: string, part: 'back' | 'face'): Promise<void> {
-  return page.waitForFunction((which) => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight--card')).some((proxy) => {
-    if (getComputedStyle(proxy).visibility === 'hidden' || proxy.getBoundingClientRect().width < 40 || proxy.querySelector('.pcard') === null) {
-      return false;
-    }
-    if (which === 'face') {
-      return true;
-    }
-    // A body showing its BACK: the 3D body is turned past the edge (rotateY → m11 = cos θ of the matrix).
-    const body = proxy.querySelector<HTMLElement>('.con-card3d');
-    const m = body === null ? null : /matrix3d\(([^,]+),/.exec(getComputedStyle(body).transform);
-    return m !== null && parseFloat(m[1]) < 0.35;
-  }), part, {timeout: 120_000, polling: 25})
+  const flights = witnessOf<Array<ProxySeen>>(page, FLIGHT_WITNESS);
+  const inTheAir = (proxies: Array<ProxySeen>) => proxies.some((p) => p.wide && p.face && (part === 'face' || p.showsBack));
+  return expect.poll(() => flights.ever(inTheAir), {timeout: 120_000, intervals: [25]}).toBe(true)
     .then(() => shoot(page, preset, name))
     .catch(() => undefined);
 }
@@ -344,8 +368,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       // THE HERO OF THE PAYOUT — the enacted card carried beside the recipient zone (it FLEW from its slot to get here).
       await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the pick stands').toHaveCount(1, {timeout: 40_000});
       await waitSittingAtRest(page, 30_000);
-      await expectFaces(page, `${preset.id} payout hero`, '.con-parl', 1);
-      await expectInsideHosts(page, `${preset.id} payout hero`, [{host: '.con-sit__hero--field', face: '.pcard'}]);
+      await expectFaces(page, `${preset.id} payout hero`, '.con-parl', 1, true);
+      await expectInsideHosts(page, `${preset.id} payout hero`, [{host: '.con-sit__hero--field', face: '.pcard'}], true);
       const flights = await readFlightWitness(page);
       expect(flights.foreign, 'every card in the air is the bill').toEqual([]);
       expect(flights.faces, 'the enacted card was seen in the air (a dead sampler proves nothing)').toBeGreaterThan(0);
@@ -382,7 +406,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       });
       expect(pile, 'the top card of the pile').toBe('bill back');
       await dealInTheAir;
-      await expectFaces(page, `${preset.id} results`, '.con-parl', 1);
+      await expectFaces(page, `${preset.id} results`, '.con-parl', 1, true);
       await shoot(page, preset.id, '07-results-after-the-deal');
     });
   });

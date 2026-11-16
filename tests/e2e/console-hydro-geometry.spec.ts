@@ -1,7 +1,8 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, soloGameConfig, press} from './consoleStart';
+import {bootIntoGame, soloGameConfig, press, pressUntil} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * HYDRO NETWORKS · the VERTICAL-COMPOSITION contract (iteration: «Гидросеть
@@ -27,6 +28,24 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
+/** The track cursor: the focused stop's position and the last stop's (-1 while none). */
+async function hydroCursor(page: Page): Promise<{at: number, last: number}> {
+  return page.evaluate(() => ({
+    at: Number(document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? -1),
+    last: Math.max(-1, ...Array.from(document.querySelectorAll('.con-hydro__stop[data-hydro-stop]')).map((s) => Number(s.getAttribute('data-hydro-stop')))),
+  }));
+}
+
+/**
+ * Walk the track cursor `steps` stops to the right (clamped at the last stop) — act → verify (the cursor's own
+ * position) → retry only without it; never a blind series of presses.
+ */
+async function stepRight(page: Page, steps: number, settleMs: number): Promise<void> {
+  const from = await hydroCursor(page);
+  const target = Math.min(from.at + steps, from.last);
+  await pressUntil(page, 'ArrowRight', async () => (await hydroCursor(page)).at >= target, {tries: steps + 2, settleMs});
+}
+
 const PROFILES = [
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
 ] as const;
@@ -50,10 +69,12 @@ for (const profile of PROFILES) {
       await press(page, 'Period', 1100);
       await press(page, 'ArrowLeft', 1500);
       await page.waitForSelector('.con-hydro', {timeout: 8_000});
-      await page.waitForTimeout(700);
-      await shoot(page, `${profile.tag}-01-hydro-browse`);
-
-      const geo = await page.evaluate(() => {
+      // The chrome the reading needs is mounted, then every box is read AT REST (`readSettled`: after `settle`, the
+      // same boxes twice a frame apart — never wherever the section's entrance had got to).
+      await page.waitForSelector('.con-hydro__panel', {timeout: 8_000});
+      await page.waitForSelector('.con-hydro .con-hydro__stop--focused', {timeout: 8_000})
+        .catch(() => undefined); // no focused stop is the assertion's to name («a focused stop exists»)
+      const geo = await readSettled(page, () => page.evaluate(() => {
         const r = (el: Element) => {
           const b = el.getBoundingClientRect();
           return {x: b.left, y: b.top, w: b.width, h: b.height, r: b.right, b: b.bottom};
@@ -80,7 +101,8 @@ for (const profile of PROFILES) {
           rail: r(rail),
           stem: stemColor.includes('gradient'),
         };
-      });
+      }), {message: 'the hydro section at rest'});
+      await shoot(page, `${profile.tag}-01-hydro-browse`);
       const rem = geo.rem;
 
       // Track presence: the stop floors (base 5.2 × 10.4rem; the profile
@@ -109,7 +131,7 @@ for (const profile of PROFILES) {
 
       // VISUAL-STAGE inset: the track's right edge clears the old
       // content-safe boundary (one inset, the stage one).
-      const insets = await page.evaluate(() => {
+      const insets = await readSettled(page, () => page.evaluate(() => {
         const probe = document.createElement('div');
         probe.style.cssText = 'position:fixed;left:0;top:0;width:var(--con-hud-pad-x);height:1px;visibility:hidden';
         const root = document.querySelector('.con-root');
@@ -122,16 +144,14 @@ for (const profile of PROFILES) {
         const stage = probe.getBoundingClientRect().width;
         probe.remove();
         return {contentSafe, stage};
-      });
+      }), {message: 'the two insets'});
       expect(insets.stage).toBeLessThan(insets.contentSafe);
       expect(geo.root.r).toBeGreaterThan(profile.width - 1); // welded to the edge
       expect(geo.rail.r).toBeGreaterThan(profile.width - insets.contentSafe - 1);
 
       // Walk to the farthest stop: geometry stays sane, the stem follows.
-      await press(page, 'ArrowRight', 400);
-      await press(page, 'ArrowRight', 400);
-      await shoot(page, `${profile.tag}-02-hydro-step3`);
-      const after = await page.evaluate(() => {
+      await stepRight(page, 2, 400);
+      const after = await readSettled(page, () => page.evaluate(() => {
         const p = document.querySelector('.con-hydro__panel');
         const f = document.querySelector('.con-hydro__stop--focused');
         if (p === null || f === null) {
@@ -139,7 +159,8 @@ for (const profile of PROFILES) {
         }
         const pb = p.getBoundingClientRect();
         return {panelTop: pb.top, panelW: pb.width, stem: getComputedStyle(f, '::after').backgroundImage.includes('gradient')};
-      });
+      }), {message: 'the panel after two steps'});
+      await shoot(page, `${profile.tag}-02-hydro-step3`);
       // The panel frame does not move on a step (top-anchored contract).
       expect(Math.abs(after.panelTop - geo.panel.y)).toBeLessThanOrEqual(1);
       expect(Math.abs(after.panelW - geo.panel.w)).toBeLessThanOrEqual(1);
@@ -149,11 +170,8 @@ for (const profile of PROFILES) {
       //    compact count — never the raw roster of stage names (the old
       //    two-line list drowned the decision it annotated). The frame's own
       //    coordinates still do not move. ──
-      for (let i = 0; i < 8; i++) {
-        await press(page, 'ArrowRight', 350);
-      }
-      await page.waitForTimeout(600);
-      const far = await page.evaluate(() => {
+      await stepRight(page, 8, 350);
+      const far = await readSettled(page, () => page.evaluate(() => {
         const p = document.querySelector('.con-hydro__panel');
         const f = document.querySelector('.con-hydro__stop--focused');
         const notes = Array.from(document.querySelectorAll('.con-hydro__routenote'))
@@ -166,7 +184,7 @@ for (const profile of PROFILES) {
           skip,
           reqCount: document.querySelectorAll('.con-hydro__req-tag').length,
         };
-      });
+      }), {message: 'the far stage'});
       expect(Math.abs(far.panelTop - geo.panel.y), 'the far stage keeps the anchor').toBeLessThanOrEqual(1);
       expect(far.reqCount, 'the far stage states its whole requirement set').toBeGreaterThanOrEqual(5);
       const skipNote = far.skip;

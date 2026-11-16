@@ -25,8 +25,10 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
   bootFixture, commitFocusedSpace, fetchPlayerModel, focusCard, openActionFocus, openCardActions, placeTile, press, pressUntil, settle, showAllCardReactions, waitForBoardHome,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {readTransient, recordTransient} from './transientRecorder';
+import {armWitness, witnessOf} from './witness';
 
 const OUT = path.resolve('screenshots', 'hartlan');
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -83,73 +85,75 @@ type Sample = {
   railMid: number,
 };
 
-/** The reaction layer's state + the faces' geometry + the hero's phase, sampled on a task clock (never rAF). */
+const REACTION_WITNESS = 'card-reaction-layer';
+
+/**
+ * The reaction layer's state + the faces' geometry + the hero's phase — RECORDED (FLAKE ZERO — `armWitness`, armed
+ * before the press, replace-proof): every change the product writes is kept with the page's time, never a timer that can
+ * sleep through a face. `settled` — the state a TASK leaves: «two faces never share a box», «two reactors side by side»
+ * are claims about what a frame paints, never about a face posed between two writes of one task. Boxes are kept to the
+ * pixel (a subpixel is not a new state).
+ */
 async function armReactionProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type Box = {l: number, t: number, w: number, h: number};
-    type FaceSample = Box & {card: string, op: number};
-    type Sample = {
-      t: number, phase: string, groups: string, seats: string, landed: string, summarized: string, hurried: string,
-      seated: string, emerged: string, hero: string, faces: Array<FaceSample>, lifted: string, row: boolean, opening: Box,
-      edge: number, railMid: number,
-    };
-    const w = window as unknown as {__reaction: Array<Sample>};
-    w.__reaction = [];
-    let last = '';
+  await armWitness<Omit<Sample, 't'>>(page, REACTION_WITNESS, () => {
     const px = (name: string): number => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
-    window.setInterval(() => {
-      const root = document.querySelector('.con-reaction');
-      const read = (a: string) => root?.getAttribute(a) ?? '';
-      const faces: Array<FaceSample> = Array.from(document.querySelectorAll<HTMLElement>('.con-reaction__face[data-reaction-card]')).map((el) => {
-        const r = el.getBoundingClientRect();
-        return {card: el.getAttribute('data-reaction-card') ?? '', l: r.left, t: r.top, w: r.width, h: r.height, op: Number(getComputedStyle(el).opacity)};
-      }).filter((f) => f.w > 4 && f.op >= 0.3);
-      const liftedEl = document.querySelector<HTMLElement>('[data-reaction-lifted]');
-      const lifted = liftedEl === null ? '' :
-        (liftedEl.getAttribute('data-reaction-home') ?? liftedEl.getAttribute('data-composer-card') ?? liftedEl.getAttribute('data-played-key') ?? 'lifted');
-      const t = px('--con-stage-t');
-      const b = px('--con-stage-b');
-      const l = px('--con-stage-l');
-      const r = px('--con-stage-r');
-      const openingW = window.innerWidth - l - r;
-      let edge = l;
-      for (const sel of ['.con-composer__actcardwrap', '.con-composer__actlaw', '.con-composer__actparty', '.con-composer__playcard', '.con-hydro__ctx']) {
-        for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
-          const rr = el.getBoundingClientRect();
-          if (rr.width > 4 && getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.3 && rr.left < l + openingW * 0.45) {
-            edge = Math.max(edge, rr.right);
-          }
+    const root = document.querySelector('.con-reaction');
+    const read = (a: string) => root?.getAttribute(a) ?? '';
+    const faces = Array.from(document.querySelectorAll<HTMLElement>('.con-reaction__face[data-reaction-card]')).map((el) => {
+      const r = el.getBoundingClientRect();
+      return {card: el.getAttribute('data-reaction-card') ?? '', l: r.left, t: r.top, w: r.width, h: r.height, op: Number(getComputedStyle(el).opacity)};
+    }).filter((f) => f.w > 4 && f.op >= 0.3)
+      .map((f) => ({card: f.card, l: Math.round(f.l), t: Math.round(f.t), w: Math.round(f.w), h: Math.round(f.h), op: Math.round(f.op * 100) / 100}));
+    const liftedEl = document.querySelector<HTMLElement>('[data-reaction-lifted]');
+    const lifted = liftedEl === null ? '' :
+      (liftedEl.getAttribute('data-reaction-home') ?? liftedEl.getAttribute('data-composer-card') ?? liftedEl.getAttribute('data-played-key') ?? 'lifted');
+    const t = px('--con-stage-t');
+    const b = px('--con-stage-b');
+    const l = px('--con-stage-l');
+    const r = px('--con-stage-r');
+    const openingW = window.innerWidth - l - r;
+    let edge = l;
+    for (const sel of ['.con-composer__actcardwrap', '.con-composer__actlaw', '.con-composer__actparty', '.con-composer__playcard', '.con-hydro__ctx']) {
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+        const rr = el.getBoundingClientRect();
+        if (rr.width > 4 && getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.3 && rr.left < l + openingW * 0.45) {
+          edge = Math.max(edge, rr.right);
         }
       }
-      const mcRow = document.querySelector('.con-res__row--megacredits')?.getBoundingClientRect();
-      const heatRow = document.querySelector('.con-res__row--heat')?.getBoundingClientRect();
-      const railMid = mcRow !== undefined && heatRow !== undefined ? (Math.min(mcRow.top, heatRow.top) + Math.max(mcRow.bottom, heatRow.bottom)) / 2 : t + (window.innerHeight - t - b) / 2;
-      const sample: Sample = {
-        t: performance.now(),
-        phase: read('data-reaction-phase') || 'none',
-        groups: read('data-reaction-groups'),
-        seats: read('data-reaction-seats'),
-        landed: read('data-reaction-landed'),
-        summarized: read('data-reaction-summarized'),
-        hurried: read('data-reaction-hurried'),
-        seated: faces.map((f) => f.card).join('|'),
-        emerged: Array.from(document.querySelectorAll('.con-recv__emerge[data-played-key]')).map((e) => e.getAttribute('data-played-key')).join('|'),
-        hero: document.querySelector('.con-played-hero')?.getAttribute('data-hero-phase') ?? 'none',
-        faces, lifted, row: document.querySelector('[data-reaction-row]') !== null,
-        opening: {l, t, w: openingW, h: window.innerHeight - t - b},
-        edge, railMid,
-      };
-      const key = JSON.stringify({...sample, t: 0, faces: sample.faces.map((f) => ({c: f.card, l: Math.round(f.l / 8), t: Math.round(f.t / 8), op: Math.round(f.op * 4)}))});
-      if (key !== last) {
-        last = key;
-        w.__reaction.push(sample);
-      }
-    }, 16);
-  });
+    }
+    const mcRow = document.querySelector('.con-res__row--megacredits')?.getBoundingClientRect();
+    const heatRow = document.querySelector('.con-res__row--heat')?.getBoundingClientRect();
+    const railMid = mcRow !== undefined && heatRow !== undefined ? (Math.min(mcRow.top, heatRow.top) + Math.max(mcRow.bottom, heatRow.bottom)) / 2 : t + (window.innerHeight - t - b) / 2;
+    return {
+      phase: read('data-reaction-phase') || 'none',
+      groups: read('data-reaction-groups'),
+      seats: read('data-reaction-seats'),
+      landed: read('data-reaction-landed'),
+      summarized: read('data-reaction-summarized'),
+      hurried: read('data-reaction-hurried'),
+      seated: faces.map((f) => f.card).join('|'),
+      emerged: Array.from(document.querySelectorAll('.con-recv__emerge[data-played-key]')).map((e) => e.getAttribute('data-played-key')).join('|'),
+      hero: document.querySelector('.con-played-hero')?.getAttribute('data-hero-phase') ?? 'none',
+      faces, lifted, row: document.querySelector('[data-reaction-row]') !== null,
+      opening: {l, t, w: openingW, h: window.innerHeight - t - b},
+      edge: Math.round(edge), railMid: Math.round(railMid),
+    };
+  }, {settled: true, max: 20_000});
 }
 
 async function reactionProbe(page: Page): Promise<Array<Sample>> {
-  return page.evaluate(() => (window as unknown as {__reaction?: Array<Sample>}).__reaction ?? []);
+  return (await witnessOf<Omit<Sample, 't'>>(page, REACTION_WITNESS).samples()).map((s) => ({...s.v, t: s.t}));
+}
+
+/** The samples for a LOG line, as coarse as the old sampler kept them (8 px, a quarter of opacity) — the evidence stays whole. */
+function coarse(samples: ReadonlyArray<Sample>): Array<Sample> {
+  let last = '';
+  return samples.filter((s) => {
+    const key = JSON.stringify({...s, t: 0, faces: s.faces.map((f) => ({c: f.card, l: Math.round(f.l / 8), t: Math.round(f.t / 8), op: Math.round(f.op * 4)}))});
+    const keep = key !== last;
+    last = key;
+    return keep;
+  });
 }
 
 /** The chain's wall-clock: from the first `rising` sample of the standalone chain to its first `idle` after it. */
@@ -197,22 +201,25 @@ function expectAtTheStage(samples: ReadonlyArray<Sample>, label: string, share =
 }
 
 /**
- * EVERY FACE STANDS FOR A READABLE BEAT (the Steam Deck law): each card painted at the stage is seen in at least
- * `minSamples` samples of the task clock (≥ 50 ms apart in time) — never one frame.
+ * EVERY FACE STANDS FOR A READABLE BEAT (the Steam Deck law): each card painted at the stage stood for at least `minMs`
+ * of the PAGE's time — never one frame. A recording keeps a state until it CHANGES, so a face present in a sample stood
+ * at least until the NEXT sample: its span runs from its first sample to the sample after its last one (the moment it
+ * was no longer painted).
  */
 function expectEveryFaceStood(samples: ReadonlyArray<Sample>, label: string, minMs: number): void {
   const spans = new Map<string, {first: number, last: number, n: number}>();
-  for (const s of samples) {
+  samples.forEach((s, i) => {
+    const until = samples[i + 1]?.t ?? s.t;
     for (const f of s.faces) {
       const span = spans.get(f.card);
       if (span === undefined) {
-        spans.set(f.card, {first: s.t, last: s.t, n: 1});
+        spans.set(f.card, {first: s.t, last: until, n: 1});
       } else {
-        span.last = s.t;
+        span.last = until;
         span.n++;
       }
     }
-  }
+  });
   expect(spans.size, `${label}: faces stood at the stage`).toBeGreaterThan(0);
   for (const [card, span] of spans) {
     expect(span.last - span.first, `${label}: ${card} stood for a readable beat (${span.n} samples)`).toBeGreaterThanOrEqual(minMs);
@@ -221,10 +228,11 @@ function expectEveryFaceStood(samples: ReadonlyArray<Sample>, label: string, min
 
 /** Open the hand workspace and descend into `card`'s play composer. */
 async function openPlayComposer(page: Page, card: string): Promise<void> {
-  for (let i = 0; i < 5 && await page.locator('.con-hand').count() === 0; i++) {
-    await press(page, 'Period', 600);
-    await press(page, 'Enter', 1400);
-  }
+  // Each press verified by what it opens (act → verify → retry only without one): the wheel, then the hand.
+  const handUp = async () => await page.locator('.con-hand').count() > 0;
+  expect(await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await handUp(), {tries: 5, settleMs: 900}),
+    'the quick wheel opens').toBeTruthy();
+  expect(await pressUntil(page, 'Enter', handUp, {tries: 3, settleMs: 1400}), 'the wheel\'s centre slot opens the hand').toBeTruthy();
   await page.locator(`.con-hand [data-zoom-slot="${card}"]`).first().waitFor({timeout: 20_000});
   await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 15_000});
   expect(await focusCard(page, card, 24), `never focused «${card}»`).toBeTruthy();
@@ -245,7 +253,8 @@ async function openStandardProject(page: Page, card: string): Promise<void> {
   await expect(page.locator('.con-stdp'), 'the standard projects stand').toBeVisible({timeout: 15_000});
   let hit = false;
   for (let i = 0; i < 16 && !hit; i++) {
-    const step = await page.evaluate((c) => {
+    // The direction is read off the cards AT REST (`readSettled`): a box read mid-step points the cursor at a pose.
+    const step = await readSettled(page, () => page.evaluate((c) => {
       const at = document.querySelector('.con-stdp__card--focused');
       const target = document.querySelector(`.con-stdp__card[data-stdp-card="${c}"]`);
       if (at === null || target === null) {
@@ -259,7 +268,7 @@ async function openStandardProject(page: Page, card: string): Promise<void> {
       const dx = (b.left + b.width / 2) - (a.left + a.width / 2);
       const dy = (b.top + b.height / 2) - (a.top + a.height / 2);
       return Math.abs(dy) > a.height / 2 ? (dy > 0 ? 'ArrowDown' : 'ArrowUp') : (dx > 0 ? 'ArrowRight' : 'ArrowLeft');
-    }, card);
+    }, card), {message: `the cursor's way to ${card}`});
     expect(step, `the ${card} card stands on the screen`).not.toBe('none');
     hit = step === 'hit';
     if (!hit) {
@@ -329,7 +338,7 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const witness = await transferWitness(page);
     writeTrail('many', PRESET, transferTrail(witness));
     const samples = await reactionProbe(page);
-    console.log(`[${PRESET.id} MANY probe] ${JSON.stringify(samples.map((s) => ({...s, faces: s.faces.map((f) => `${f.card}@${Math.round(f.l)},${Math.round(f.t)} ${Math.round(f.w)}×${Math.round(f.h)} ${f.op.toFixed(2)}`)})))}`);
+    console.log(`[${PRESET.id} MANY probe] ${JSON.stringify(coarse(samples).map((s) => ({...s, faces: s.faces.map((f) => `${f.card}@${Math.round(f.l)},${Math.round(f.t)} ${Math.round(f.w)}×${Math.round(f.h)} ${f.op.toFixed(2)}`)})))}`);
     expect(endsOverGlass(witness), `every end visible\n${transferTrail(witness)}`).toEqual([]);
     // Every reactor's tokens were born on ITS OWN face — never on the played card. Four rail groups fire in the server's
     // order (the three the city woke at the placement, then Hartlan's DEFERRED gain): from four groups the ceiling is
@@ -383,7 +392,7 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const witness = await transferWitness(page);
     writeTrail('board', PRESET, transferTrail(witness));
     const samples = await reactionProbe(page);
-    console.log(`[${PRESET.id} BOARD probe] ${JSON.stringify(samples.map((s) => ({...s, faces: s.faces.map((f) => `${f.card}@${Math.round(f.l)},${Math.round(f.t)} ${Math.round(f.w)}×${Math.round(f.h)} ${f.op.toFixed(2)}`)})))}`);
+    console.log(`[${PRESET.id} BOARD probe] ${JSON.stringify(coarse(samples).map((s) => ({...s, faces: s.faces.map((f) => `${f.card}@${Math.round(f.l)},${Math.round(f.t)} ${Math.round(f.w)}×${Math.round(f.h)} ${f.op.toFixed(2)}`)})))}`);
     expect(endsOverGlass(witness), `every end visible\n${transferTrail(witness)}`).toEqual([]);
     const tharsis = witness.births.filter((b) => b.under.startsWith(`reactor:${THARSIS}:`));
     expect(tharsis.length, `Tharsis' answer was born on its printed M€ / production\n${transferTrail(witness)}`).toBeGreaterThan(0);
@@ -415,10 +424,11 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     expect(redBefore?.tableau.map((c) => c.name), 'red holds Tharsis Republic').toContain(THARSIS);
     await armTransferWitness(page);
     await armReactionProbe(page);
-    await playStandardCity(page);
-    // The rival's face stands at THE stage — a step smaller than an own reactor — under a caption naming red. Read in
-    // the SAME in-page tick the face turns visible (a separate read after the wait once found the face already gone).
-    const handle = await page.waitForFunction((card) => {
+    // The rival's face stands at THE stage — a step smaller than an own reactor — under a caption naming red. RECORDED
+    // from before the press (`armWitness`, settled): the face and its caption are read in the very state the face turns
+    // visible (a separate read after a wait once found the face already gone).
+    type RivalFace = {face: {l: number, t: number, r: number, b: number, h: number}, caption: {seat: string | null, text: string} | null};
+    const rivalFace = await armWitness<RivalFace | null, string>(page, 'card-reaction-rival-face', (card) => {
       const el = document.querySelector<HTMLElement>(`.con-reaction__face[data-reaction-card="${card}"]`);
       const f = el?.getBoundingClientRect();
       if (el === null || el === undefined || f === undefined || f.width < 4 || Number(getComputedStyle(el).opacity) < 0.3) {
@@ -429,8 +439,9 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
         face: {l: f.left, t: f.top, r: f.right, b: f.bottom, h: f.height},
         caption: caption === null ? null : {seat: caption.getAttribute('data-reaction-caption'), text: caption.textContent?.trim() ?? ''},
       };
-    }, THARSIS, {timeout: 60_000, polling: 40});
-    const geometry = await handle.jsonValue() as {face: {l: number, t: number, r: number, b: number, h: number}, caption: {seat: string | null, text: string} | null} | null;
+    }, {args: THARSIS, settled: true});
+    await playStandardCity(page);
+    const geometry = (await rivalFace.waitFor((v) => v !== null, {timeoutMs: 60_000, message: 'the rival\'s face never stood at the stage'})).v;
     await shoot(page, PRESET, 'RIVAL-01-tharsis-at-the-stage');
     expect(geometry, 'the face is measurable').not.toBeNull();
     expect(geometry!.caption, 'the rival\'s face wears a caption').not.toBeNull();
@@ -541,7 +552,7 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const witness = await transferWitness(page);
     writeTrail('fiber', PRESET, transferTrail(witness));
     const samples = await reactionProbe(page);
-    console.log(`[${PRESET.id} FIBER probe] ${JSON.stringify(samples.map((s) => ({t: Math.round(s.t), phase: s.phase, seated: s.seated, lifted: s.lifted, row: s.row})))}`);
+    console.log(`[${PRESET.id} FIBER probe] ${JSON.stringify(coarse(samples).map((s) => ({t: Math.round(s.t), phase: s.phase, seated: s.seated, lifted: s.lifted, row: s.row})))}`);
     expect(endsOverGlass(witness), `every end visible\n${transferTrail(witness)}`).toEqual([]);
     // ONE physical card: the layer never painted a second Martian Fiber; the hero itself was LIFTED and its row lit.
     expect(samples.some((s) => s.faces.some((f) => f.card === FIBER)), 'the layer never painted a copy of the hero').toBe(false);
@@ -576,7 +587,7 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const witness = await transferWitness(page);
     writeTrail('hurry', PRESET, transferTrail(witness));
     const samples = await reactionProbe(page);
-    console.log(`[${PRESET.id} HURRY probe] ${JSON.stringify(samples.map((s) => ({t: Math.round(s.t), phase: s.phase, seated: s.seated, hurried: s.hurried, summarized: s.summarized})))}`);
+    console.log(`[${PRESET.id} HURRY probe] ${JSON.stringify(coarse(samples).map((s) => ({t: Math.round(s.t), phase: s.phase, seated: s.seated, hurried: s.hurried, summarized: s.summarized})))}`);
     expect(samples.some((s) => s.hurried === '1'), 'the press HURRIED the chain').toBe(true);
     const seen = expectAtTheStage(samples, 'HURRY');
     expect([...seen], 'every face still rose — hurried, never cut').toEqual(expect.arrayContaining([THARSIS, ROVER, IMMIGRANT]));
@@ -615,7 +626,7 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const witness = await transferWitness(page);
     writeTrail('party', PRESET, transferTrail(witness));
     const samples = await reactionProbe(page);
-    console.log(`[${PRESET.id} PARTY probe] ${JSON.stringify(samples.map((s) => ({...s, faces: s.faces.map((f) => `${f.card}@${Math.round(f.l)},${Math.round(f.t)} ${Math.round(f.w)}×${Math.round(f.h)} ${f.op.toFixed(2)}`)})))}`);
+    console.log(`[${PRESET.id} PARTY probe] ${JSON.stringify(coarse(samples).map((s) => ({...s, faces: s.faces.map((f) => `${f.card}@${Math.round(f.l)},${Math.round(f.t)} ${Math.round(f.w)}×${Math.round(f.h)} ${f.op.toFixed(2)}`)})))}`);
     expect(endsOverGlass(witness), `every end visible\n${transferTrail(witness)}`).toEqual([]);
     const greens = witness.births.filter((b) => b.under.startsWith(`reactor:${GREENS}:`));
     expect(greens.length, `the Greens' M€ born on the charter's printed M€\n${transferTrail(witness)}`).toBeGreaterThan(0);
@@ -650,8 +661,12 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const before = await wireOf(request, playerId);
     const focusedStop = async (): Promise<string> =>
       await page.evaluate(() => document.querySelector('.con-hydro__stop--focused')?.getAttribute('data-hydro-stop') ?? '');
-    await press(page, 'Period', 1100);
-    await press(page, 'ArrowLeft', 1600);
+    // The wheel, then its left arm (on a quick wheel the direction press IS the activation) — each press verified by what
+    // it opens, never a blind pair.
+    const hydroUp = async () => await page.locator('.con-hydro').count() > 0;
+    expect(await pressUntil(page, 'Period', async () => await page.locator('.con-quick').count() > 0 || await hydroUp(), {tries: 4, settleMs: 1100}),
+      'the quick wheel opens').toBe(true);
+    expect(await pressUntil(page, 'ArrowLeft', hydroUp, {tries: 3, settleMs: 1600}), 'the wheel\'s left arm opens the Hydronetwork').toBe(true);
     await page.waitForSelector('.con-hydro', {timeout: 10_000});
     await settle(page, {timeoutMs: 15_000});
     // ◀ / ▶ walk the plan's cursor onto stage 2 (the section's own grammar; RT would seat it on the farthest reachable).
@@ -669,21 +684,14 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     await settle(page, {timeoutMs: 15_000});
     await armTransferWitness(page);
     await armReactionProbe(page);
-    // THE ORDER PROBE: the flow's phase beside the charter's presence, sampled on the task clock.
-    await page.evaluate(() => {
-      const w = window as unknown as {__hydroOrder: Array<{t: number, phase: string, face: boolean}>, __conHydroDiag?: () => {commit: {phase: string} | null} | null};
-      w.__hydroOrder = [];
-      let last = '';
-      window.setInterval(() => {
-        const phase = w.__conHydroDiag?.()?.commit?.phase ?? (document.querySelector('.con-hydro') === null ? 'closed' : 'open');
-        const face = document.querySelector('.con-reaction__face[data-reaction-card="Greens"]') !== null;
-        const key = `${phase}|${face}`;
-        if (key !== last) {
-          last = key;
-          w.__hydroOrder.push({t: performance.now(), phase, face});
-        }
-      }, 16);
-    });
+    // THE ORDER PROBE: the flow's phase beside the charter's presence — RECORDED (`armWitness`, settled: an ORDER claim
+    // is judged on the state a task leaves), kept on every change with the page's time.
+    const hydroOrder = await armWitness<{phase: string, face: boolean}>(page, 'card-reaction-hydro-order', () => {
+      const w = window as unknown as {__conHydroDiag?: () => {commit: {phase: string} | null} | null};
+      const phase = w.__conHydroDiag?.()?.commit?.phase ?? (document.querySelector('.con-hydro') === null ? 'closed' : 'open');
+      const face = document.querySelector('.con-reaction__face[data-reaction-card="Greens"]') !== null;
+      return {phase, face};
+    }, {settled: true});
     await page.keyboard.press('Enter');
     await page.locator(`.con-reaction__face[data-reaction-card="${GREENS}"]`).waitFor({state: 'visible', timeout: 90_000});
     await shoot(page, PRESET, 'HYDRO-01-greens-rise');
@@ -692,7 +700,7 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const witness = await transferWitness(page);
     writeTrail('hydro', PRESET, transferTrail(witness));
     const samples = await reactionProbe(page);
-    const order = await page.evaluate(() => (window as unknown as {__hydroOrder?: Array<{t: number, phase: string, face: boolean}>}).__hydroOrder ?? []);
+    const order = (await hydroOrder.samples()).map((s) => ({t: s.t, ...s.v}));
     console.log(`[${PRESET.id} HYDRO order] ${JSON.stringify(order.map((s) => ({t: Math.round(s.t), phase: s.phase, face: s.face})))}`);
     expect(order.some((s) => s.phase === 'moving' || s.phase === 'resolving'), 'the flow\'s own story was seen').toBe(true);
     const firstFace = order.find((s) => s.face);
@@ -742,10 +750,10 @@ test.describe(`console · card reaction — the handheld under load · ${DECK.id
     const witness = await transferWitness(page);
     writeTrail('slow', DECK, transferTrail(witness));
     const samples = await reactionProbe(page);
-    console.log(`[${DECK.id} SLOW probe] ${JSON.stringify(samples.map((s) => ({t: Math.round(s.t), phase: s.phase, seated: s.seated, seats: s.seats})))}`);
+    console.log(`[${DECK.id} SLOW probe] ${JSON.stringify(coarse(samples).map((s) => ({t: Math.round(s.t), phase: s.phase, seated: s.seated, seats: s.seats})))}`);
     const seen = expectAtTheStage(samples, 'SLOW');
     expect([...seen]).toEqual(expect.arrayContaining([THARSIS, ROVER, IMMIGRANT]));
-    // The read beat: every face stood at least a third of a second of task-clock time (a painted, warmed face —
+    // The read beat: every face stood at least a third of a second of the page's time (a painted, warmed face —
     // never a card that appeared finished and left on the next frame).
     expectEveryFaceStood(samples, 'SLOW', 320);
     expect(samples.every((s) => s.seats === '' || Number(s.seats) <= 2), 'a handheld\'s row holds two').toBe(true);

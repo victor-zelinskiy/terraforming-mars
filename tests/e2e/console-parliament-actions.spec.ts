@@ -7,6 +7,8 @@ import {
   sendPlayerInput, settle, takeRevealCards, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
 import {focusParty} from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * THE PARTY ACTIONS ARE ACTIONS (Turmoil Redux) — they live in the standard
@@ -93,8 +95,9 @@ async function openParliament(page: Page): Promise<void> {
 /**
  * In «ДЕЙСТВИЯ КАРТ»: steer the cursor onto a PARTY's action tile. The menu is
  * a 2-D grid (groups flow in columns), so the walk is steered by GEOMETRY —
- * each hop goes toward the target's measured rect — with the focused tile's
- * identity as the positive witness on every step.
+ * each hop goes toward the target's measured rect (read at REST — the cursor's
+ * glide over, `readSettled`) — with the focused tile's identity as the positive
+ * witness on every step.
  */
 async function focusPartyTile(page: Page, party: string): Promise<void> {
   const focused = () => page.evaluate(() => {
@@ -104,7 +107,7 @@ async function focusPartyTile(page: Page, party: string): Promise<void> {
   await expect(page.locator(`.con-cardactions__tile[data-action-party="${party}"]`), `the «${party}» tile is in the menu`).toHaveCount(1);
   const trail: Array<string> = [];
   for (let i = 0; i < 16 && await focused() !== party; i++) {
-    const dir = await page.evaluate((target) => {
+    const dir = await readSettled(page, () => page.evaluate((target) => {
       const f = document.querySelector('.con-cardactions__tile--focused')?.getBoundingClientRect();
       const t = document.querySelector(`.con-cardactions__tile[data-action-party="${target}"]`)?.getBoundingClientRect();
       if (f === undefined || t === undefined) {
@@ -116,7 +119,7 @@ async function focusPartyTile(page: Page, party: string): Promise<void> {
         return dy > 0 ? 'ArrowDown' : 'ArrowUp';
       }
       return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    }, party);
+    }, party), {message: `the hop toward the «${party}» tile`});
     trail.push(`${await focused()}→${dir}`);
     await press(page, dir, 260);
   }
@@ -147,9 +150,10 @@ async function passSeat(request: APIRequestContext, playerId: string): Promise<v
   await sendPlayerInput(request, playerId, {type: 'or', index, response: {type: 'option'}});
 }
 
-/** The composer fits: nothing of it leaves the viewport; the commit row and every decision row stand inside it. */
+/** The composer fits: nothing of it leaves the viewport; the commit row and every decision row stand inside it (read at
+ *  rest — `readSettled`). */
 async function expectComposerFits(page: Page, label: string): Promise<void> {
-  const problems = await page.evaluate(() => {
+  const problems = await readSettled(page, () => page.evaluate(() => {
     const out: Array<string> = [];
     const root = document.querySelector('.con-cardactions .con-composer')?.getBoundingClientRect();
     const cta = document.querySelector('.con-cardactions .con-composer__cta')?.getBoundingClientRect();
@@ -169,7 +173,7 @@ async function expectComposerFits(page: Page, label: string): Promise<void> {
       }
     }
     return out;
-  });
+  }), {message: `${label}: the action composer's boxes`});
   expect(problems, `${label}: the action composer fits`).toEqual([]);
 }
 
@@ -180,9 +184,10 @@ async function expectComposerFits(page: Page, label: string): Promise<void> {
  * The tile once drew 14 px glyphs at 1080 — the ui-scale applied TWICE
  * (the graphic's zoom over the formula's own) squared the scale, so a 4K
  * tile was fit-limited while the Unity «→ ▲» was unreadable from the sofa.
+ * Measured at rest (`readSettled`).
  */
 async function expectPartyTilesLegible(page: Page, label: string): Promise<void> {
-  const report = await page.evaluate(() => {
+  const report = await readSettled(page, () => page.evaluate(() => {
     const out: Array<string> = [];
     const root = document.querySelector<HTMLElement>('.con-root');
     const scale = (root === null ? NaN : Number.parseFloat(getComputedStyle(root).getPropertyValue('--con-ui-scale'))) || 1;
@@ -213,7 +218,7 @@ async function expectPartyTilesLegible(page: Page, label: string): Promise<void>
       }
     }
     return out;
-  });
+  }), {message: `${label}: the party tiles' boxes`});
   expect(report, `${label}: the party tiles are legible and fit`).toEqual([]);
 }
 
@@ -427,7 +432,8 @@ test.describe('parliament · party actions', () => {
     await settle(page, {timeoutMs: 10_000});
     // The colony stage stands in the WHOLE focus stage — the party composer's
     // zone once collapsed to 0 px and the trade laid itself out in no room.
-    const colonyStage = await page.locator('.con-colfocus').evaluate((el) => el.getBoundingClientRect().height);
+    const colonyStage = await readSettled(page, () => page.locator('.con-colfocus').evaluate((el) => Math.round(el.getBoundingClientRect().height * 10) / 10),
+      {message: 'the colony trade stage\'s height'});
     expect(colonyStage, 'the colony trade stage has the room of the focus stage').toBeGreaterThan(300);
     await expect(page.locator('.con-colfocus__payrow', {hasText: /бесплатно/i}).first(), 'the free path is on screen').toBeVisible();
     await shoot(page, '07-unity-free-path');
@@ -485,52 +491,39 @@ test.describe('parliament · party actions', () => {
     await page.evaluate(() => {
       (window as unknown as {__wsTrace?: boolean}).__wsTrace = true;
     });
-    // WHEN the workspace lets go, relative to the press and the answer — a timeline named in the payout's failure.
-    await page.evaluate(() => {
-      const w = window as unknown as {__redsTimeline?: Array<string>};
-      const out: Array<string> = [];
-      w.__redsTimeline = out;
-      const t0 = performance.now();
-      let last = '';
-      const sample = () => {
-        const ready = (window as unknown as {__conReady?: () => {wsDepth?: number, transport?: unknown}}).__conReady?.();
-        const now = [
-          document.querySelector('.con-cardactions') !== null ? 'ws' : '-',
-          document.querySelector('.con-cardactions .con-composer') !== null ? 'comp' : '-',
-          document.querySelector('.con-hand--discard') !== null ? 'hand' : '-',
-          // THE DISCARD IS SEEN LEAVING: the shared card-discard cinematic's proxies, and the table's one pile held by it.
-          document.querySelector('.con-discard-proxy') !== null ? 'proxy' : '-',
-          document.querySelector('[data-discard-pile-holders*="hand-discard"]') !== null ? 'pile' : '-',
-          'depth=' + String(ready?.wsDepth ?? '?'),
-          'crumb=' + (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
-        ].join(' ');
-        if (now !== last) {
-          out.push(Math.round(performance.now() - t0) + 'ms ' + now);
-          last = now;
-        }
-      };
-      const mo = new MutationObserver(sample);
-      mo.observe(document.body, {subtree: true, childList: true});
-      const timer = window.setInterval(sample, 25);
-      window.setTimeout(() => {
-        mo.disconnect();
-        window.clearInterval(timer);
-      }, 20_000);
-      sample();
+    // WHEN the workspace lets go, relative to the press and the answer — a timeline named in the payout's failure. RECORDED
+    // (FLAKE ZERO — `armWitness`, armed before the press: the line of the moment, every change kept with the page's time;
+    // a proxy that lives one short frame is caught in the task that mounts it).
+    const redsLine = await armWitness(page, 'parliament-actions-reds-timeline', () => {
+      const ready = (window as unknown as {__conReady?: () => {wsDepth?: number, transport?: unknown}}).__conReady?.();
+      return [
+        document.querySelector('.con-cardactions') !== null ? 'ws' : '-',
+        document.querySelector('.con-cardactions .con-composer') !== null ? 'comp' : '-',
+        document.querySelector('.con-hand--discard') !== null ? 'hand' : '-',
+        // THE DISCARD IS SEEN LEAVING: the shared card-discard cinematic's proxies, and the table's one pile held by it.
+        document.querySelector('.con-discard-proxy') !== null ? 'proxy' : '-',
+        document.querySelector('[data-discard-pile-holders*="hand-discard"]') !== null ? 'pile' : '-',
+        'depth=' + String(ready?.wsDepth ?? '?'),
+        'crumb=' + (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
+      ].join(' ');
     });
     await press(page, 'Period', 1200); // RT — confirm the set
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 30_000, message: 'the discard was answered'}).not.toBe('card');
     // What the payout stood on at the answer — named in the failure below (the rail's held reward, the workspace).
-    const atAnswer = await page.evaluate(() => {
-      const ready = (window as unknown as {__conReady?: () => {railReward?: unknown}}).__conReady?.();
-      return {
-        workspace: document.querySelector('.con-cardactions') !== null, composer: document.querySelector('.con-cardactions .con-composer') !== null, rail: ready?.railReward,
-        timeline: (window as unknown as {__redsTimeline?: Array<string>}).__redsTimeline,
-      };
-    });
+    const lines = await redsLine.stop();
+    const t0 = lines[0]?.t ?? 0;
+    const atAnswer = {
+      ...await page.evaluate(() => {
+        const ready = (window as unknown as {__conReady?: () => {railReward?: unknown}}).__conReady?.();
+        return {
+          workspace: document.querySelector('.con-cardactions') !== null, composer: document.querySelector('.con-cardactions .con-composer') !== null, rail: ready?.railReward,
+        };
+      }),
+      timeline: lines.map((s) => `${s.t - t0}ms ${s.v}`),
+    };
     // THE DISCARD PLAYS THE CONSOLE'S ONE DISCARD CINEMATIC (as Pluto's, as Mars University's): the thrown cards fly out
     // of the album onto the table's pile — never a hand that just vanishes.
-    const timeline = atAnswer.timeline ?? [];
+    const timeline = atAnswer.timeline;
     expect(timeline.some((line) => line.includes(' proxy ')), `the thrown cards fly (timeline: ${JSON.stringify(timeline)})`).toBe(true);
     expect(timeline.some((line) => line.includes(' pile ')), `…onto the table's discard pile (timeline: ${JSON.stringify(timeline)})`).toBe(true);
     // The payout is the ACTION COMMIT's language — a wave off the plaque's printed «2 M€», never a result panel.

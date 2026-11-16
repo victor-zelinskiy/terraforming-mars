@@ -1,6 +1,8 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {press, soloGameConfig} from './consoleStart';
+import {press, pressUntil, soloGameConfig} from './consoleStart';
 import {campaignBase, createCampaign, seedIdentity} from './campaignFixtures';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * TR68 «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА» (docs/claude/console/pregame-showcase.md) — the pregame is a SHOWCASE, never a
@@ -60,9 +62,12 @@ async function openItem(page: Page, id: string): Promise<void> {
   await press(page, 'Enter', 200);
 }
 
-/** THE FLOOR PROBE (TV): every own-text element under `root` against `--con-t-floor` × the rem — zoom-aware, SVG out. */
+/**
+ * THE FLOOR PROBE (TV): every own-text element under `root` against `--con-t-floor` × the rem — zoom-aware, SVG out.
+ * Read AT REST (`readSettled`): which elements paint is a box question, and a deck still arriving answers it half-way.
+ */
 async function belowFloor(page: Page, root: string): Promise<{floorPx: number, below: Array<string>, texts: number}> {
-  return await page.evaluate((sel) => {
+  return readSettled(page, () => page.evaluate((sel) => {
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
     const token = getComputedStyle(document.documentElement).getPropertyValue('--con-t-floor').trim();
     const floorPx = (token.endsWith('rem') ? parseFloat(token) : 0.8) * rem;
@@ -87,7 +92,40 @@ async function belowFloor(page: Page, root: string): Promise<{floorPx: number, b
       }
     }
     return {floorPx, below, texts};
-  }, root);
+  }, root), {message: `the type floor under ${root}`});
+}
+
+/** The decks of the creator, by the root each one renders (RB walks them in this order). */
+const DECK_ROOT: Readonly<Record<string, string>> = {rules: '.cm-rules', expansions: '.cm-exp', map: '.cm-maps__stage'};
+
+/** RB onto the creator's `deck` — pressed again only while that deck's own root has not come up. */
+async function toDeck(page: Page, deck: string): Promise<void> {
+  await pressUntil(page, 'KeyE', async () => await page.locator(DECK_ROOT[deck]).count() > 0, {tries: 3, settleMs: 500});
+}
+
+/** One frame of the lobby phrase: the menu column's opacity, the screen plate's transform / opacity, every card's opacity. */
+type PhraseFrame = {items: number, plate: string | null, plateOp: number | null, cards: Array<number>};
+function lobbyPhraseReader(): PhraseFrame {
+  const items = document.querySelector('.cm-menu__items');
+  const plate = document.querySelector('.cm-screen__plate');
+  return {
+    items: items === null ? -1 : parseFloat(getComputedStyle(items).opacity),
+    plate: plate === null ? null : getComputedStyle(plate).transform,
+    plateOp: plate === null ? null : parseFloat(getComputedStyle(plate).opacity),
+    cards: Array.from(document.querySelectorAll('.cm-lcard')).map((c) => parseFloat(getComputedStyle(c).opacity)),
+  };
+}
+
+/** The screen plate's computed transform (null while no plate stands). */
+function lobbyPlateTransform(): string | null {
+  const plate = document.querySelector('.cm-screen__plate');
+  return plate === null ? null : getComputedStyle(plate).transform;
+}
+
+/** The creator's prelude tile: its server total and its painted value (`none` while the tile is absent). */
+function preludeTileReading(): string {
+  const tile = document.querySelector('.cm-expdeck [data-deck-tile="preludes"]');
+  return `${tile?.getAttribute('data-deck-total') ?? 'none'}|${tile?.querySelector('.cm-meter__value')?.textContent?.trim() ?? ''}`;
 }
 
 /** The phrase is over: no finite animation still running anywhere on the page (an ambient loop is not a phrase). */
@@ -122,21 +160,24 @@ for (const preset of PRESETS) {
       await expect.poll(() => page.locator('.cm-lcard[data-lobby-card="game"]').count(), {timeout: 30_000}).toBeGreaterThanOrEqual(2);
       await expect.poll(() => page.locator('.cm-overlay').count(), {message: 'never a dialog'}).toBe(0);
       await settled(page);
-      const facts = await page.evaluate(() => {
+      // The showcase's facts AT REST (two equal reads a frame apart) — the cards' wave is a box still moving.
+      const facts = await readSettled(page, () => page.evaluate(() => {
+        const tenth = (v: number) => Math.round(v * 10) / 10;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         const scr = document.querySelector('.cm-screen')!.getBoundingClientRect();
         const cards = Array.from(document.querySelectorAll<HTMLElement>('.cm-lcard[data-lobby-card="game"]'));
+        const card = cards[0].getBoundingClientRect();
         return {
-          share: (scr.width * scr.height) / (vw * vh),
+          share: Math.round((scr.width * scr.height) / (vw * vh) * 10_000) / 10_000,
           miniatures: cards.filter((c) => c.querySelector('.cm-lcard__map .map-fp') !== null).length,
           cards: cards.length,
           cutNames: cards.map((c) => c.querySelector<HTMLElement>('.cm-lcard__name')!)
             .filter((n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1).map((n) => n.textContent),
-          cardBox: cards[0].getBoundingClientRect().toJSON(),
+          cardBox: {x: tenth(card.x), y: tenth(card.y), width: tenth(card.width), height: tenth(card.height)},
           docOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         };
-      });
+      }), {message: 'the games screen'});
       expect(facts.share, `the screen fills the opening (${JSON.stringify(facts)})`).toBeGreaterThan(0.55);
       expect(facts.miniatures, 'every game card draws its board').toBe(facts.cards);
       expect(facts.cutNames, 'no name is cut while its card has room').toEqual([]);
@@ -187,7 +228,9 @@ for (const preset of PRESETS) {
       await expect(card).toHaveCount(1, {timeout: 60_000});
       await expect.poll(() => page.locator('.cm-overlay').count()).toBe(0);
       await settled(page);
-      const cut = await card.locator('.cm-lcard__name').evaluate((n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1);
+      const cut = await readSettled(page,
+        () => card.locator('.cm-lcard__name').evaluate((n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1),
+        {message: 'the campaign\'s name'});
       expect(cut, 'the campaign\'s name is never cut while the card has room').toBe(false);
       await expect(card.locator('.cm-lcard__node'), 'the route: one node per mission').toHaveCount(4);
       await expect(card.locator('.cm-lcard__node--current')).toHaveCount(1);
@@ -212,44 +255,26 @@ for (const preset of PRESETS) {
       await press(page, 'Escape', 200);
       await expect(page.locator('.cm-screen')).toHaveCount(0, {timeout: 10_000});
       await expect(page.locator('.cm-item--cursor')).toHaveAttribute('data-menu-item', 'games');
-      // THE SAMPLER — MutationObserver + setInterval, never rAF.
-      await page.evaluate(() => {
-        // A MutationObserver sample is a MICROTASK (it can see a state the browser never paints) — the claims below
-        // about FRAMES read the interval's samples only (`tick`).
-        type S = {t: number, tick: boolean, items: number, plate: string | undefined, plateOp: number | undefined, cards: Array<number>};
-        const w = window as unknown as {__lobbyPhrase: Array<S>};
-        w.__lobbyPhrase = [];
-        const t0 = performance.now();
-        const sample = (tick: boolean) => {
-          const items = document.querySelector('.cm-menu__items');
-          const plate = document.querySelector('.cm-screen__plate');
-          w.__lobbyPhrase.push({
-            t: Math.round(performance.now() - t0),
-            tick,
-            items: items === null ? -1 : parseFloat(getComputedStyle(items).opacity),
-            plate: plate === null ? undefined : getComputedStyle(plate).transform,
-            plateOp: plate === null ? undefined : parseFloat(getComputedStyle(plate).opacity),
-            cards: Array.from(document.querySelectorAll('.cm-lcard')).map((c) => parseFloat(getComputedStyle(c).opacity)),
-          });
-        };
-        new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true});
-        window.setInterval(() => sample(true), 30);
-      });
+      // THE WITNESS — the phrase recorded off the product's own writes and frames, armed before the press. `settled`:
+      // each sample is the state a task LEAVES (a frame can paint it), never one caught between two writes of a task —
+      // the claims below are about painted frames.
+      const phraseWitness = await armWitness(page, 'lobby-phrase', lobbyPhraseReader, {settled: true, max: 20_000});
       await press(page, 'Enter', 200);
       await expect(page.locator('.cm-lcard[data-lobby-card="game"]').first()).toBeVisible({timeout: 30_000});
-      await expect.poll(async () => await page.evaluate(() => {
-        const s = (window as unknown as {__lobbyPhrase: Array<{cards: Array<number>}>}).__lobbyPhrase;
-        const last = s[s.length - 1];
+      await expect.poll(async () => {
+        const last = await phraseWitness.last();
         return last !== undefined && last.cards.length > 0 && last.cards.every((o) => o > 0.99);
-      }), {timeout: 10_000}).toBe(true);
-      const phrase = (await page.evaluate(() => (window as unknown as {__lobbyPhrase: Array<{t: number, tick: boolean, items: number, plate?: string, plateOp?: number, cards: Array<number>}>}).__lobbyPhrase))
-        .filter((s) => s.tick);
+      }, {timeout: 10_000}).toBe(true);
+      const recorded = await phraseWitness.stop();
+      const t0 = recorded[0]?.t ?? 0;
+      const phrase = recorded.map((s) => ({t: s.t - t0, ...s.v}));
       const dump = JSON.stringify(phrase.filter((_, i) => i % 3 === 0).slice(0, 60));
       // The column RECEDES through intermediate values (never a cut).
       expect(phrase.some((s) => s.items > 0.08 && s.items < 0.92), `the column recedes progressively (${dump})`).toBe(true);
       // The plate UNFOLDS: its first painted sample is a transform out of the item, its last the identity.
-      const plates = phrase.filter((s) => s.plate !== undefined);
-      expect(plates.length, 'the plate was sampled').toBeGreaterThan(2);
+      const plates = phrase.filter((s) => s.plate !== null);
+      // The recorder's own liveness (it keeps DISTINCT states, never frames): only a dead recorder fails it.
+      expect(plates.length, 'the plate was sampled').toBeGreaterThan(0);
       expect(plates.some((s) => s.plate !== 'none' && /matrix/.test(s.plate!)), `the plate unfolds out of the item (${dump})`).toBe(true);
       expect(plates[plates.length - 1].plate === 'none' || /matrix\(1, 0, 0, 1, 0, 0\)/.test(plates[plates.length - 1].plate!), 'the plate lands at rest').toBe(true);
       // The cards come in a WAVE: each surfaces after the plate opened, and not all in one sample.
@@ -282,11 +307,11 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 600); // «Отдельная партия»
       await page.waitForSelector('.cm-crew', {timeout: 30_000});
       await settled(page);
-      const crew = await page.evaluate(() => {
+      const crew = await readSettled(page, () => page.evaluate(() => {
         const deck = document.querySelector('.cm-create__deck')!.getBoundingClientRect();
         const rows = Array.from(document.querySelectorAll('.cm-crew .cm-row')).map((r) => r.getBoundingClientRect());
         return {deckH: deck.height, tops: rows.map((r) => Math.round(r.top)), heights: rows.map((r) => r.height)};
-      });
+      }), {message: 'the crew deck'});
       if (preset.id !== 'deck') {
         expect(new Set(crew.tops).size, `the crew stands in a ROW (${JSON.stringify(crew)})`).toBe(1);
         expect(Math.min(...crew.heights) / crew.deckH, 'a seat card is a card, not a strip').toBeGreaterThan(0.4);
@@ -294,7 +319,7 @@ for (const preset of PRESETS) {
       await page.screenshot({path: `screenshots/tr68/${preset.id}/after-e-crew.png`});
       const decks: Array<string> = ['crew'];
       for (const deck of ['rules', 'expansions', 'map']) {
-        await press(page, 'KeyE', 500); // RB
+        await toDeck(page, deck); // RB
         decks.push(deck);
         await settled(page);
         await page.screenshot({path: `screenshots/tr68/${preset.id}/after-e-${deck}.png`});
@@ -302,7 +327,9 @@ for (const preset of PRESETS) {
           expect((await belowFloor(page, '.cm-create')).below, `the ${deck} deck on the floor`).toEqual([]);
         }
         if (deck === 'rules' && preset.id !== 'deck') {
-          const lefts = await page.evaluate(() => new Set(Array.from(document.querySelectorAll('.cm-rules .cm-row')).map((r) => Math.round(r.getBoundingClientRect().left))).size);
+          const lefts = await readSettled(page,
+            () => page.evaluate(() => new Set(Array.from(document.querySelectorAll('.cm-rules .cm-row')).map((r) => Math.round(r.getBoundingClientRect().left))).size),
+            {message: 'the rules deck\'s columns'});
           expect(lefts, 'the rules stand in two columns').toBe(2);
         }
         if (deck === 'expansions' && preset.id !== 'deck') {
@@ -311,7 +338,7 @@ for (const preset of PRESETS) {
         if (deck === 'map') {
           // THE MAP SHOWCASE (P44 · ER): a grid solved from the stage — every map on the page INSIDE the stage (the
           // carousel once parked the cursor ~2560 px past the edge), four columns on the TV, the dossier beside it.
-          const geo = await page.evaluate(() => {
+          const geo = await readSettled(page, () => page.evaluate(() => {
             const stage = document.querySelector('.cm-maps__stage')!.getBoundingClientRect();
             const tiles = Array.from(document.querySelectorAll('.cm-map')).map((t) => t.getBoundingClientRect());
             const tol = 0.04 * stage.height;
@@ -320,7 +347,7 @@ for (const preset of PRESETS) {
               outside: tiles.filter((r) => r.left < stage.left - tol || r.right > stage.right + tol || r.top < stage.top - tol || r.bottom > stage.bottom + tol).length,
               cols: Number(document.querySelector<HTMLElement>('[data-map-showcase]')?.dataset.mapCols ?? 0),
             };
-          });
+          }), {message: 'the map showcase'});
           expect(geo.outside, `every map inside the stage (${JSON.stringify(geo)})`).toBe(0);
           if (preset.id === 'tv4k') {
             // Random-all + eleven boards — Arabia Terra (BF4) joined the creator on 2026-11-05 (`PREMIUM_MAPS`).
@@ -390,27 +417,19 @@ for (const preset of PRESETS) {
       await page.waitForSelector('.cm-mode__tile', {timeout: 30_000});
       await press(page, 'Enter', 600);
       await page.waitForSelector('.cm-crew', {timeout: 30_000});
-      for (let i = 0; i < 2; i++) {
-        await press(page, 'KeyE', 500);
-      }
+      // RB twice — crew → rules → expansions, each press verified by the deck it brings up.
+      await toDeck(page, 'rules');
+      await toDeck(page, 'expansions');
       await page.waitForSelector('.cm-exp', {timeout: 15_000});
       const meter = page.locator('.cm-expdeck [data-deck-meter]');
       await expect(meter, 'the deck head carries the meter').toHaveCount(1);
       await expect(meter.locator('[data-deck-tile="projects"]'), 'the server answered').toHaveAttribute('data-deck-total', /^[1-9]\d*$/, {timeout: 15_000});
       await settled(page);
 
-      // A toggle is answered in place: «Прелюдия» flips the prelude total, sampled on TASKS — never blank, never «…».
+      // A toggle is answered in place: «Прелюдия» flips the prelude total, RECORDED from before the click (every state a
+      // task leaves — a frame can paint it) — never blank, never «…».
       const preludeOn = await page.locator('.cm-exp[data-exp="prelude"]').evaluate((el) => el.classList.contains('cm-exp--on'));
-      await page.evaluate(() => {
-        const out: Array<string> = [];
-        const sample = () => {
-          const tile = document.querySelector('.cm-expdeck [data-deck-tile="preludes"]');
-          out.push(`${tile?.getAttribute('data-deck-total') ?? 'none'}|${tile?.querySelector('.cm-meter__value')?.textContent?.trim() ?? ''}`);
-        };
-        sample();
-        const timer = window.setInterval(sample, 50);
-        (window as unknown as {__decks: {out: Array<string>, stop: () => void}}).__decks = {out, stop: () => window.clearInterval(timer)};
-      });
+      const tileWitness = await armWitness(page, 'prelude-tile', preludeTileReading, {settled: true});
       await page.locator('.cm-exp[data-exp="prelude"]').click();
       // The answer to THIS toggle (an ask already in flight may land after the click — it is not ours).
       const ours = () => [...answers].reverse().find((a) => (a.body.expansions as Record<string, boolean>).prelude === !preludeOn);
@@ -418,11 +437,7 @@ for (const preset of PRESETS) {
       await expect(meter.locator('[data-deck-tile="preludes"]'), 'the tile reads the answer to the toggle')
         .toHaveAttribute('data-deck-total', String(ours()!.model.preludes.total), {timeout: 10_000});
       await settled(page);
-      const samples = await page.evaluate(() => {
-        const d = (window as unknown as {__decks: {out: Array<string>, stop: () => void}}).__decks;
-        d.stop();
-        return d.out;
-      });
+      const samples = (await tileWitness.stop()).map((s) => s.v);
       const totals = [...new Set(samples.map((s) => s.split('|')[0]))];
       expect(samples.every((s) => !s.startsWith('none') && s.split('|')[1] !== '' && !s.includes('…')), `never blank, never «…»: ${samples.join(' ')}`).toBe(true);
       expect(totals.length, `the prelude total moved: ${totals.join(' → ')}`).toBeGreaterThanOrEqual(2);
@@ -480,10 +495,14 @@ for (const preset of PRESETS) {
         }
         await settled(page);
         await page.screenshot({path: `screenshots/tr68/${preset.id}/after-i-all-expansions.png`});
-        const marks = await page.locator('.cm-launch__icons img').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+        const marks = await readSettled(page,
+          () => page.locator('.cm-launch__icons img').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top))),
+          {message: 'the briefing\'s marks'});
         expect(marks.length, 'nine marks').toBe(9);
         expect(new Set(marks).size, `the marks hold one row: ${marks.join(' ')}`).toBe(1);
-        const fit = await page.locator('.cm-launch__scroll .con-scroll-area__viewport').evaluate((el) => ({over: el.scrollHeight - el.clientHeight, height: el.clientHeight}));
+        const fit = await readSettled(page,
+          () => page.locator('.cm-launch__scroll .con-scroll-area__viewport').evaluate((el) => ({over: el.scrollHeight - el.clientHeight, height: el.clientHeight})),
+          {message: 'the briefing\'s fit'});
         expect(fit.over, `the briefing overflows by ${fit.over}px of ${fit.height}`).toBeLessThanOrEqual(0);
         await expect(page.locator('.cm-launch .con-scroll-area--overflowing')).toHaveCount(0);
         await expect(page.locator('.cm-launch button'), 'the briefing is a readout').toHaveCount(0);
@@ -492,10 +511,10 @@ for (const preset of PRESETS) {
           expect((await belowFloor(page, '.cm-create')).below, 'the meter and the chips on the floor').toEqual([]);
         }
       } else {
-        const lines = await meter.evaluate((el) => {
+        const lines = await readSettled(page, () => meter.evaluate((el) => {
           const tiles = Array.from(el.querySelectorAll('[data-deck-tile]')).map((t) => Math.round(t.getBoundingClientRect().top));
           return new Set(tiles).size;
-        });
+        }), {message: 'the Deck meter\'s lines'});
         expect(lines, 'the Deck: the totals stand in ONE line').toBe(1);
         await expect(page.locator('.cm-exp [data-exp-chips]').first(), 'the Deck plate stays one line').toBeHidden();
       }
@@ -513,22 +532,15 @@ test.describe('TR68 the pregame showcase · reduced motion', () => {
     await seedIdentity(page, NAME);
     await toMenu(page, PRESETS[0]);
     expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
-    await page.evaluate(() => {
-      const w = window as unknown as {__plates: Array<string>};
-      w.__plates = [];
-      const sample = () => {
-        const plate = document.querySelector('.cm-screen__plate');
-        if (plate !== null) {
-          w.__plates.push(getComputedStyle(plate).transform);
-        }
-      };
-      new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
-      window.setInterval(sample, 25);
-    });
+    // The plate's every painted transform, recorded from before the door opens to the screen at rest.
+    const plateWitness = await armWitness(page, 'lobby-plate', lobbyPlateTransform, {settled: true});
     await openItem(page, 'games');
     await expect(page.locator('[data-lobby-screen="games"]')).toBeVisible();
-    await expect.poll(() => page.evaluate(() => (window as unknown as {__plates: Array<string>}).__plates.length), {timeout: 5_000}).toBeGreaterThan(2);
-    const plates = await page.evaluate(() => (window as unknown as {__plates: Array<string>}).__plates);
+    // The recorder's own liveness: the plate was recorded at all (it keeps distinct states, never frames).
+    await plateWitness.waitFor((t) => t !== null, {timeoutMs: 5_000, message: 'the plate was recorded'});
+    // The window ends on the END STATE — the arrival over (no finite motion left) — never on a count of samples.
+    await settled(page);
+    const plates = (await plateWitness.stop()).map((s) => s.v).filter((t): t is string => t !== null);
     expect(plates.filter((t) => t !== 'none' && !/matrix\(1, 0, 0, 1, 0, 0\)/.test(t)), 'no scale of the plate under reduced motion').toEqual([]);
   });
 });

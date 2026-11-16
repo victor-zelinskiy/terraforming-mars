@@ -2,9 +2,10 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootWithCards, focusCard, openActionFocus, openCardActions, playCardFromHand, press,
-  soloGameConfig, waitForTurn,
+  bootWithCards, focusCard, openActionFocus, openCardActions, playCardFromHand, press, pressUntil,
+  settle, soloGameConfig, waitForTurn,
 } from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * A REPEATED ACTION'S VERDICT BELONGS TO THE WORKSPACE THE PRESS WAS MADE IN.
@@ -102,7 +103,7 @@ for (const profile of PROFILES) {
         config: GAME_CONFIG,
       });
       await waitForTurn(page);
-      await page.waitForTimeout(2500);
+      await settle(page); // the turn's arrival settles before the first press
 
       // ── SETUP 1: play Search For Life, so the tableau has a blue action. ──
       expect(await playCardFromHand(page, 'Search For Life'), 'Search For Life played').toBe(true);
@@ -120,7 +121,7 @@ for (const profile of PROFILES) {
       await expect.poll(() => page.locator('.con-reveal').count(), {message: 'the card-actions stage draws its own verdict'}).toBe(0);
       await press(page, 'Enter', 3500); // ОК — the activation is over
       await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 10_000});
-      await page.waitForTimeout(1500);
+      await settle(page); // the activation's fold settles before the wheel
 
       // ── THE SUBJECT: play «Проверка проекта» and copy that action. ────────
       await press(page, 'Period', 700); // RT → the quick wheel
@@ -129,9 +130,7 @@ for (const profile of PROFILES) {
       // …same retry-on-absence discipline (a press on a settling hand is
       // consumed; a second press on an OPEN composer would answer its row).
       const playComposer = page.locator('.con-composer--play');
-      for (let i = 0; i < 4 && await playComposer.count() === 0; i++) {
-        await press(page, 'Enter', 1200);
-      }
+      await pressUntil(page, 'Enter', async () => await playComposer.count() > 0, {tries: 4, settleMs: 1200});
       await expect(playComposer, 'A opens the play composer').toHaveCount(1, {timeout: 10_000});
 
       // A on the «Действие для повтора» row hands the choice to the ДЕЙСТВИЯ
@@ -143,9 +142,7 @@ for (const profile of PROFILES) {
       // is the common case), and a second press on an OPEN grid would activate
       // whatever tile the cursor sits on.
       const repeatGrid = page.locator('.con-cardactions');
-      for (let i = 0; i < 4 && await repeatGrid.count() === 0; i++) {
-        await press(page, 'Enter', 1600);
-      }
+      await pressUntil(page, 'Enter', async () => await repeatGrid.count() > 0, {tries: 4, settleMs: 1600});
       await expect(repeatGrid, 'A on the repeat row opens the ДЕЙСТВИЯ КАРТ bridge')
         .toHaveCount(1, {timeout: 10_000});
       expect(await walkToSource(page, 'Search For Life'), 'focus the copyable action').toBe(true);
@@ -169,14 +166,17 @@ for (const profile of PROFILES) {
       // The crumb only ever GAINS a tail: the workspace and the played card stay,
       // the stage segment is the verdict's own name (handed UP by the surface).
       await expect(page.locator('.con-wshead__step')).toHaveText(/ВСКРЫТ/i, {timeout: 10_000});
-      await page.waitForTimeout(1200);
-      await shoot(page, `${profile.tag}-02-embedded-verdict`);
+      // The band states its own solve (`data-verdict-fit` — its readiness marker); every box below is then read AT
+      // REST (`readSettled`; no `settle` first — the verdict STANDS for the player's «ОК», and what it holds meanwhile
+      // is no reason to wait).
+      await page.waitForSelector('[data-embed-slot="hand-outcome"] .con-reveal__body--result[data-verdict-fit]', {state: 'attached', timeout: 20_000})
+        .catch(() => undefined); // a band that never solves is the assertions' to name
 
       // THE STAGE FITS ITS ZONE. The row is two premium faces plus a panel, and
       // the zone — not the viewport — is the room: nothing may hang out of the
       // hand workspace's own frame. (Asking the VIEWPORT is what missed every
       // earlier overflow of this family: the viewport was never what clipped.)
-      const fits = await page.evaluate(() => {
+      const fits = await readSettled(page, () => page.evaluate(() => {
         const zone = document.querySelector('[data-embed-slot="hand-outcome"]');
         const body = document.querySelector('.con-reveal__body--result');
         if (zone === null || body === null) {
@@ -189,14 +189,15 @@ for (const profile of PROFILES) {
           why: `body ${Math.round(b.left)},${Math.round(b.top)}–${Math.round(b.right)},${Math.round(b.bottom)} ` +
           `vs zone ${Math.round(z.left)},${Math.round(z.top)}–${Math.round(z.right)},${Math.round(z.bottom)}`,
         };
-      });
+      }), {settle: false, message: 'the verdict stage against its zone'});
+      await shoot(page, `${profile.tag}-02-embedded-verdict`);
       expect(fits.ok, `the verdict stage must fit its zone: ${fits.why}`).toBeTruthy();
 
       // …AND IT MUST SPEND IT. «Fits» and «uses» are different claims, and only
       // the first was ever asserted: the verdict is a row of NATURAL-size cards
       // centred in whatever band it is given, so it reads as a small cluster
       // adrift in an empty stage exactly when the stage is largest (4K).
-      const spend = await page.evaluate(() => {
+      const spend = await readSettled(page, () => page.evaluate(() => {
         const zone = document.querySelector('[data-embed-slot="hand-outcome"]');
         const cards = Array.from(document.querySelectorAll(
           '.con-reveal__body--result :is(.con-reveal__source, .con-reveal__revealed) .card-container, ' +
@@ -225,7 +226,7 @@ for (const profile of PROFILES) {
           fit: document.querySelector('.con-reveal__body--result')
             ?.getAttribute('data-verdict-fit') ?? '(no fit)',
         };
-      });
+      }), {settle: false, message: 'the spend of the verdict band'});
       const pct = Math.round(100 * spend.tallest / Math.max(1, spend.zh));
 
       console.log(`[${profile.tag}] verdict card ${spend.tallest}px of ${spend.zh}px zone ` +

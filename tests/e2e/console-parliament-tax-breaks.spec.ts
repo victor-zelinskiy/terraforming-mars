@@ -6,7 +6,9 @@ import {
   armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage,
   strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
+import {readSettled} from './settledRead';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TAX BREAKS (Turmoil Redux, RX41) — the ONE e2e of the card: an ASSEMBLY of Central Power Grid's payout (M€ production
@@ -24,7 +26,8 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *   ③ the results: blue «+5» production; server truth — M€ production 2 → 7, red 1 → 3 (1 type + influence 1).
  *   PART 2: the «Полигон» stand — the counted-holders family's cap scenario reads «6 → 5 MAX».
  *
- * The probe is `MutationObserver` + `setInterval` — never rAF. Screens + the storyboard under
+ * The probe is a RECORDING (`armWitness` — the product's own writes, never a sampler that can sleep through a state);
+ * geometry read once is read AT REST (`readSettled`). Screens + the storyboard under
  * screenshots/parliament-tax-breaks/<profile>/ (the 4K storyboard is trusted on the GPU only — `TM_E2E_GPU=1`).
  */
 const OUT_ROOT = path.resolve('screenshots', 'parliament-tax-breaks');
@@ -84,69 +87,63 @@ function writeFrameAt(frames: ReadonlyArray<CastFrame>, wall: number, preset: st
   console.log(`[tax-breaks ${preset}] ${name}: frame Δ${Math.round(best.wall - wall)} ms`);
 }
 
-type Sample = {t: number, wall: number, tick: boolean, stage: string, prod: string, chips: number, beat: string, ruler: string, rulerFits: boolean, rulerDiag: string};
+/** What the recording keeps per change; `t` is the PAGE's wall clock (`Date.now()` — the screencast frames' own base). */
+type Seen = {stage: string, prod: string, chips: number, beat: string, ruler: string, rulerFits: boolean, rulerDiag: string};
+type Sample = Seen & {t: number};
 type Probe = {samples: Array<Sample>};
+const RX41_WITNESS = 'rx41-sitting';
 
-/** THE PROBE — armed BEFORE the gate is answered: the M€ production cell, the chips in the air, the sitting's beat. */
+/**
+ * THE PROBE — RECORDED (FLAKE ZERO — `armWitness`, armed BEFORE the gate is answered, replace-proof): the M€ production
+ * cell, the chips in the air, the sitting's beat, the ruler's name on the dais. `settled` — the state a task LEAVES
+ * (the old sampler's `tick` samples): «the ruler's name is never cut» is a claim about a frame, and the observer's
+ * callback runs between two writes of a FLIP.
+ */
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__rx41: Probe};
-    w.__rx41 = {samples: []};
-    const sample = (tick: boolean) => {
-      const root = document.querySelector('.con-parl');
-      // THE RULER'S NAME on the dais: whole in its own box AND inside the government's plate — never cut by an ancestor.
-      const name = document.querySelector<HTMLElement>('[data-parl-ruler-slot] .con-pseal__name');
-      const plate = document.querySelector('.con-parl__gov')?.getBoundingClientRect();
-      const nr = name?.getBoundingClientRect();
-      const range = name === null ? undefined : document.createRange();
-      range?.selectNodeContents(name!);
-      const ink = range?.getBoundingClientRect();
-      // A change of government FLIPs the tile across tiers (`con-parl--swapping`): mid-flight it legitimately stands outside.
-      const swapping = root?.classList.contains('con-parl--swapping') === true;
-      const rulerFits = swapping || name === null || plate === undefined || nr === undefined || ink === undefined || nr.width < 1 ||
-        (name.scrollWidth <= name.clientWidth + 1 && ink.left >= plate.left - 1 && ink.right <= plate.right + 1);
-      w.__rx41.samples.push({
-        ruler: name?.textContent?.trim() ?? '',
-        rulerFits,
-        rulerDiag: name === null || ink === undefined || plate === undefined ? '' :
-          `sw ${name.scrollWidth}/${name.clientWidth} ink ${Math.round(ink.left)}..${Math.round(ink.right)} plate ${Math.round(plate.left)}..${Math.round(plate.right)} fs ${getComputedStyle(name).fontSize} ${name.className}` +
-          ['.con-parl__ruler', '[data-parl-ruler-slot]', '[data-parl-ruler-slot] .con-pseal', '[data-parl-ruler-slot] .con-pseal__head'].map((sel) => {
-            const r = document.querySelector(sel)?.getBoundingClientRect();
-            return r === undefined ? '' : ` ${sel.replace(/.*\s/, '')} ${Math.round(r.left)}..${Math.round(r.right)}`;
-          }).join('') + ((el) => el === null ? '' : ` pad ${getComputedStyle(el).paddingLeft}/${getComputedStyle(el).paddingRight} cols ${getComputedStyle(el).gridTemplateColumns} cls ${el.className}`)(
-            document.querySelector('[data-parl-ruler-slot] .con-pseal')),
-        t: performance.now(),
-        wall: Date.now(),
-        tick,
-        stage: root?.getAttribute('data-sitting-stage') ?? '',
-        prod: document.querySelector('.con-res__row--megacredits .con-res__prod')?.textContent?.trim() ?? '',
-        chips: Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').length,
-        beat: `${root?.getAttribute('data-sitting-page') ?? ''}/${root?.getAttribute('data-sitting-motion') ?? ''}/${root?.getAttribute('data-sitting-beat') ?? ''}`,
-      });
-      if (w.__rx41.samples.length > 16000) {
-        w.__rx41.samples.splice(0, 2000);
-      }
+  await armWitness<Seen>(page, RX41_WITNESS, () => {
+    const root = document.querySelector('.con-parl');
+    // THE RULER'S NAME on the dais: whole in its own box AND inside the government's plate — never cut by an ancestor.
+    const name = document.querySelector<HTMLElement>('[data-parl-ruler-slot] .con-pseal__name');
+    const plate = document.querySelector('.con-parl__gov')?.getBoundingClientRect();
+    const nr = name?.getBoundingClientRect();
+    const range = name === null ? undefined : document.createRange();
+    range?.selectNodeContents(name!);
+    const ink = range?.getBoundingClientRect();
+    // A change of government FLIPs the tile across tiers (`con-parl--swapping`): mid-flight it legitimately stands outside.
+    const swapping = root?.classList.contains('con-parl--swapping') === true;
+    const rulerFits = swapping || name === null || plate === undefined || nr === undefined || ink === undefined || nr.width < 1 ||
+      (name.scrollWidth <= name.clientWidth + 1 && ink.left >= plate.left - 1 && ink.right <= plate.right + 1);
+    return {
+      ruler: name?.textContent?.trim() ?? '',
+      rulerFits,
+      rulerDiag: name === null || ink === undefined || plate === undefined ? '' :
+        `sw ${name.scrollWidth}/${name.clientWidth} ink ${Math.round(ink.left)}..${Math.round(ink.right)} plate ${Math.round(plate.left)}..${Math.round(plate.right)} fs ${getComputedStyle(name).fontSize} ${name.className}` +
+        ['.con-parl__ruler', '[data-parl-ruler-slot]', '[data-parl-ruler-slot] .con-pseal', '[data-parl-ruler-slot] .con-pseal__head'].map((sel) => {
+          const r = document.querySelector(sel)?.getBoundingClientRect();
+          return r === undefined ? '' : ` ${sel.replace(/.*\s/, '')} ${Math.round(r.left)}..${Math.round(r.right)}`;
+        }).join('') + ((el) => el === null ? '' : ` pad ${getComputedStyle(el).paddingLeft}/${getComputedStyle(el).paddingRight} cols ${getComputedStyle(el).gridTemplateColumns} cls ${el.className}`)(
+          document.querySelector('[data-parl-ruler-slot] .con-pseal')),
+      stage: root?.getAttribute('data-sitting-stage') ?? '',
+      prod: document.querySelector('.con-res__row--megacredits .con-res__prod')?.textContent?.trim() ?? '',
+      chips: Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__chip')).filter((el) => el.style.transform !== '').length,
+      beat: `${root?.getAttribute('data-sitting-page') ?? ''}/${root?.getAttribute('data-sitting-motion') ?? ''}/${root?.getAttribute('data-sitting-beat') ?? ''}`,
     };
-    new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true,
-      attributeFilter: ['style', 'class', 'data-sitting-beat', 'data-sitting-stage']});
-    window.setInterval(() => sample(true), 16);
-  });
+  }, {settled: true, max: 20_000});
 }
-const readProbe = (page: Page) => page.evaluate(() => (window as unknown as {__rx41: Probe}).__rx41);
+const readProbe = async (page: Page): Promise<Probe> =>
+  ({samples: (await witnessOf<Seen>(page, RX41_WITNESS).samples()).map((s) => ({...s.v, t: s.t}))});
 
 test.afterEach(async ({page}, testInfo) => {
   if (testInfo.status === testInfo.expectedStatus) {
     return;
   }
-  const evidence = await page.evaluate(() => {
-    const w = window as unknown as {__rx41?: Probe, __conReady?: () => unknown};
-    return {samples: w.__rx41?.samples.slice(-16000) ?? [], ready: w.__conReady?.()};
-  }).catch(() => undefined);
-  if (evidence !== undefined) {
-    const file = testInfo.outputPath('tax-breaks-probe.json');
-    fs.writeFileSync(file, JSON.stringify(evidence));
-    await testInfo.attach('tax-breaks-probe', {path: file, contentType: 'application/json'});
-  }
+  // The recording lives on the Node side (it outlives a page that died with the failure); the console's readiness is
+  // the page's own, when it still answers.
+  const samples = (await readProbe(page)).samples.slice(-16000);
+  const ready = await page.evaluate(() => (window as unknown as {__conReady?: () => unknown}).__conReady?.()).catch(() => undefined);
+  const file = testInfo.outputPath('tax-breaks-probe.json');
+  fs.writeFileSync(file, JSON.stringify({samples, ready}));
+  await testInfo.attach('tax-breaks-probe', {path: file, contentType: 'application/json'});
 });
 
 for (const preset of PRESETS) {
@@ -190,12 +187,12 @@ for (const preset of PRESETS) {
       const fit = Number(await page.locator('.con-parl__info-readings').getAttribute('data-reading-fit'));
       console.log(`[tax-breaks ${preset.id}] reading fit ×${fit}`);
       expect(fit, 'the reading took the frame\'s room').toBeGreaterThan(1);
-      const rows = await plate.evaluate((el) => {
+      const rows = await readSettled(page, () => plate.evaluate((el) => {
         const top = (sel: string) => el.querySelector(sel)?.getBoundingClientRect();
         const a = top('.con-iyield__in');
         const b = top('.con-iyield__out');
         return a === undefined || b === undefined ? 'missing' : Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < Math.max(a.height, b.height) / 2 ? 'one' : 'two';
-      });
+      }), {message: 'the yield plate\'s lines'});
       expect(rows, 'the plate reads on ONE line — inputs and result side by side').toBe('one');
       await expectParliamentFits(page, `${preset.id} vote`);
       await shoot(page, preset.id, '01-vote-panel');
@@ -230,10 +227,11 @@ for (const preset of PRESETS) {
       const cast = await recordFrames(page);
 
       // ② THE WAVE: the production token leaves the law and lands on the rail's M€ production cell.
-      await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.chips > 0), {timeout: 60_000, message: 'the wave left the law'}).toBe(true);
+      await witnessOf<Seen>(page, RX41_WITNESS).waitFor((s) => s.chips > 0, {timeoutMs: 60_000, message: 'the wave left the law'});
       await expect.poll(() => sittingStage(page), {timeout: 180_000, message: 'the walk reaches the results'}).toBe('results');
       const probe = await readProbe(page);
-      const ticks = probe.samples.filter((s) => s.tick);
+      // Every recorded sample is a state a task left — what the old sampler's `tick` samples were.
+      const ticks = probe.samples;
       {
         let lastKey = '';
         const lines: Array<string> = [];
@@ -255,9 +253,11 @@ for (const preset of PRESETS) {
       const lawBirths = witness.births.filter((b) => b.under === 'law');
       const railLandings = witness.landings.filter((end) => end.under === 'rail:megacredits' && lawBirths.some((b) => b.id === end.id));
       expect(railLandings.length, `a token born on the law's own face landed on the M€ row of the rail (births: ${witness.births.map((b) => b.under).join(', ')})`).toBeGreaterThanOrEqual(1);
-      // THE CELL TICKS ON THE TOUCHDOWN: «2» until the token's contact, then «7» — never before.
-      const witnessT0 = await page.evaluate(() => (window as unknown as {__transferWitness?: {t0: number}}).__transferWitness?.t0 ?? 0);
-      const touchedAt = witnessT0 + Math.min(...railLandings.map((end) => end.touched ?? end.t));
+      // THE CELL TICKS ON THE TOUCHDOWN: «2» until the token's contact, then «7» — never before. Both on the PAGE's wall
+      // clock: the transfer witness counts from its arm (`performance.timeOrigin + t0` in the page's `Date.now()` terms),
+      // the recording stamps `Date.now()`.
+      const transferOrigin = await page.evaluate(() => performance.timeOrigin + ((window as unknown as {__transferWitness?: {t0: number}}).__transferWitness?.t0 ?? 0));
+      const touchedAt = transferOrigin + Math.min(...railLandings.map((end) => end.touched ?? end.t));
       const tickedAt = probe.samples.find((s) => s.prod !== '' && !/^\+?2$/.test(s.prod))?.t;
       expect(tickedAt, 'the M€ production cell ticked').toBeDefined();
       expect(tickedAt!, `the cell ticks on the token's touchdown, not before (tick ${Math.round(tickedAt!)} · touch ${Math.round(touchedAt)})`).toBeGreaterThanOrEqual(touchedAt - 40);
@@ -266,7 +266,7 @@ for (const preset of PRESETS) {
       // (PL-801: an ancestor cut it to «…ДУСТРИАЛИСТЫ» at 1080 and 4K).
       const industrial = probe.samples.filter((s) => /ИНДУСТРИАЛИСТЫ|INDUSTRIALISTS/i.test(s.ruler));
       expect(industrial.length, 'the Industrialists stood on the dais').toBeGreaterThan(0);
-      const cut = industrial.filter((s) => s.tick && !s.rulerFits);
+      const cut = industrial.filter((s) => !s.rulerFits);
       expect(cut.length, `the ruler's name is never cut on the dais (first: ${cut[0]?.stage} ${cut[0]?.rulerDiag})`).toBe(0);
 
       // THE STORYBOARD (4K on the GPU): the first chip in the air, the touchdown, the results.
@@ -279,7 +279,7 @@ for (const preset of PRESETS) {
       await cast.stop();
       for (const [sample, name] of [[air, '03-wave-air'], [after, '03b-wave-landed']] as const) {
         if (sample !== undefined) {
-          writeFrameAt(cast.frames, sample.wall, preset.id, name);
+          writeFrameAt(cast.frames, sample.t, preset.id, name);
         }
       }
 
@@ -293,11 +293,11 @@ for (const preset of PRESETS) {
       const redRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${redBefore.thisPlayer.color}"]`);
       const reason = redRow.locator('[data-sit-part="skipped"] [data-sit-part-reason]');
       await expect(reason, 'red\'s skip names its reason').toContainText(/Ни на одной карте нет ресурса и нет влияния|No resources on your cards and no influence/);
-      expect(await reason.evaluate((el) => {
+      expect(await readSettled(page, () => reason.evaluate((el) => {
         const plate = el.closest('[data-sit-payout]')!.getBoundingClientRect();
         const r = el.getBoundingClientRect();
         return el.scrollWidth <= el.clientWidth + 1 && r.left >= plate.left - 1 && r.right <= plate.right + 1;
-      }), 'the skip\'s reason stands whole inside its plate — no ellipsis, nothing past the plate').toBe(true);
+      }), {message: 'red\'s skip reason in its plate'}), 'the skip\'s reason stands whole inside its plate — no ellipsis, nothing past the plate').toBe(true);
       await expectParliamentFits(page, `${preset.id} results`);
       const end = await wireOf(request, playerId);
       expect(end.thisPlayer.megacreditProduction, 'blue: 3 types + influence 3 = 6 → +5').toBe(7);

@@ -224,9 +224,25 @@ CI-профиле: `TM_E2E_CI_LIKE=2 npm run e2e:remote -- <task> <spec> --worke
   на сводке»), которое спек уже проверял следующей строкой. Урок: конечное состояние берётся из продукта (`grep`
   селектора в шаблоне и условия его `v-if`), никогда — по имени класса.
 
-### Дальше (волна 3+)
-- B/G/rAF/H в спеках: ≈190 файлов с `setInterval` (обычно сэмплер MO + `setInterval`), 81 с `waitForTimeout`, 259 с
-  нестабильной геометрией. Порядок: вес → остальные; исполнители по 10 файлов, проверка — бокс + CI владельца.
+### Волна 3 (2026-11-16) — 40 спеков: парламент, колонии и геометрия, инфо и рейлы
+Четыре исполнителя по 10 файлов (16 парламентских: `parliament-v2`, `-colonial`, `-vote-panel`, `-zone-v5`, `-forestry`,
+`-sitting-reward`, `-chrome`, `-renewal`, `-results-honesty`, …; колонии `inspect-probe`, `vesta`, `exclusive`,
+`remote-bonus`; геометрия `hydro-geometry`, `stdp-stable-geometry`, `played-table`; инфо и рейлы `info-workspace`,
+`strategy-rail` (логика `headFits` нетронута), `rail-contract`, `pregame-showcase`, `finale-podium`; и
+`prelude-burn-gate` — паузы-разогрев заменены готовностью, которой ждёт СЛЕДУЮЩЕЕ нажатие: рельс перепубликовал
+фокусную прелюдию с её A, никогда «карта ушла»). Все 40 — в нуле. Храповик: `waitForTimeout` 216 → 181,
+`setInterval` 225 → 189, `looseGeometry` 1015 → 648.
+Бокс (`fz-flake4`): функциональные 173 / 173, тайминговые 48 / 49 — красный от миграции; CI-профиль (13 спеков
+с риском, включая `prelude-burn-gate`, `info-polish`, `zone-v5`, `forestry`, `martian-media-center`): 56 / 56.
+- **Запись хранит состояние, в котором её АРМИРОВАЛИ** (`colony-inspect-probe`): свидетель, армированный до X, первым
+  записал сетку — три светящихся медальона тайлов — и «вход досье» прочёл «три планеты». Окно «вход» начинается с
+  первого состояния, в котором стоит досье (`takePlanetRecord(w, fromDossier)`), не с армирования. После: при входе
+  1, при передаче 1 → 2 → 1; 6 / 6.
+
+### Дальше (волна 4+)
+- Осталось ≈260 файлов с долгом, почти все лёгкие (1–7 мест; обычно сэмплер MO + `setInterval`). Волна 4 — 60 файлов
+  (4 × 15). Проверка — бокс + CI-профиль + CI владельца.
+- В помощниках: `walkToSummary` в `consoleStart.ts` (пауза-разогрев 300 мс после `waitPressable`).
 - Свидетели `reactionWitness` (харнес-аудит `TM_E2E_REACTION_WITNESS`), `focusWitness`, `beatWitness` (тайминг,
   4 мс + переходы/`held`) — ещё на страничном сэмплере (⑧ — строки WORKLIST).
 - Помощники: паузы в `consoleStart.ts` (26) — свести к `pollPause`/`cinematicBeat`; `campaignFixtures`,

@@ -1,7 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusInfoZone, openCardActions, openZoomViewer, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusInfoZone, openCardActions, openZoomViewer, press, pressUntil, settle, walkFocusUntil} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * «ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА» (TR60). The Information workspace on a SATURATED table (`info-dossier`: blue
@@ -19,7 +21,8 @@ import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusInfoZone, open
  *       never empty on the way in, B folds back onto the same zone, and LB/RB never blinks the frame;
  *   (E) TR60 — «Гражданские истребители» stands in «Действия карт» as its two variants, and its fighters on the
  *       satellite wear the SET role (one plate, two goods joined by «and»).
- * The probes are `MutationObserver` + `setInterval` samplers (never rAF — a quiet screen stops rAF).
+ * The frame probes are WITNESSES (`armWitness` — the replace-proof recorder: the product's own writes and frames,
+ * `settled`), armed before the press; every measured box is read at rest (`readSettled`).
  */
 const FIXTURE = 'info-dossier';
 const OUT = path.resolve(__dirname, '..', '..', 'screenshots', 'e2e', 'info-dossier');
@@ -55,7 +58,7 @@ async function openInfo(page: Page): Promise<void> {
   await settle(page, {timeoutMs: 20_000});
 }
 
-/** The overview's geometry as data: the two tiers, the frame, what scrolls. */
+/** The overview's geometry as data: the two tiers, the frame, what scrolls — read at rest (`settledOverview`). */
 const overviewOf = (page: Page) => page.evaluate(() => {
   const frame = document.querySelector<HTMLElement>('.con-info__frame');
   const dossier = document.querySelector<HTMLElement>('.con-info [data-dossier]');
@@ -88,61 +91,57 @@ const overviewOf = (page: Page) => page.evaluate(() => {
   };
 });
 
-/** Arm the sampler (MutationObserver + setInterval) over the Information frame. */
-async function armFrameProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    type Sample = {t: number, tick: boolean, unfolding: {left: number, top: number, width: number, height: number} | null, filled: boolean};
-    const w = window as unknown as {__dossierProbe?: {samples: Array<Sample>, stop: () => void}};
-    w.__dossierProbe?.stop();
-    const samples: Array<Sample> = [];
-    const t0 = performance.now();
-    // The plate unfolds under a CLIP (`descendUnfold`): what is painted is the box minus the clip's inset.
-    const painted = (el: HTMLElement) => {
-      const r = el.getBoundingClientRect();
-      const m = /^inset\(([^)]*)\)/.exec(getComputedStyle(el).clipPath);
-      if (m === null) {
-        return {left: r.left, top: r.top, width: r.width, height: r.height};
-      }
-      const px = m[1].split(' round ')[0].trim().split(/\s+/).map((v) => parseFloat(v));
-      const [t, rr, b, l] = px.length === 1 ? [px[0], px[0], px[0], px[0]] : px.length === 2 ? [px[0], px[1], px[0], px[1]] :
-        px.length === 3 ? [px[0], px[1], px[2], px[1]] : px;
-      return {left: r.left + l, top: r.top + t, width: r.width - l - rr, height: r.height - t - b};
-    };
-    const sample = (tick: boolean) => {
-      const plate = document.querySelector<HTMLElement>('.con-info .con-info__unfolding');
-      // The frame is FILLED when the overview or a detail host stands in it with a painted box.
-      const host = document.querySelector<HTMLElement>('.con-info [data-dossier], .con-info [data-info-zone]');
-      const hr = host?.getBoundingClientRect();
-      samples.push({
-        t: Math.round(performance.now() - t0),
-        tick,
-        unfolding: plate === null ? null : painted(plate),
-        filled: hr !== undefined && hr.width > 0 && hr.height > 0,
-      });
-    };
-    const mo = new MutationObserver(() => sample(false));
-    const root = document.querySelector('.con-info') ?? document.body;
-    mo.observe(root, {subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style']});
-    const timer = window.setInterval(() => sample(true), 16);
-    w.__dossierProbe = {samples, stop: () => {
-      mo.disconnect();
-      window.clearInterval(timer);
-    }};
-  });
+async function settledOverview(page: Page, what: string) {
+  return readSettled(page, () => overviewOf(page), {message: what});
 }
 
-async function readFrameProbe(page: Page) {
-  return page.evaluate(() => {
-    const w = window as unknown as {__dossierProbe?: {samples: Array<{t: number, tick: boolean, unfolding: {left: number, top: number, width: number, height: number} | null, filled: boolean}>, stop: () => void}};
-    w.__dossierProbe?.stop();
-    return w.__dossierProbe?.samples ?? [];
-  });
+type FrameState = {unfolding: {left: number, top: number, width: number, height: number} | null, filled: boolean};
+
+/**
+ * THE INFORMATION FRAME, as the page has it now (runs IN THE PAGE — the frame witness's reader): the unfolding plate's
+ * PAINTED box, and whether the frame is filled.
+ */
+function frameStateReader(): FrameState {
+  // The plate unfolds under a CLIP (`descendUnfold`): what is painted is the box minus the clip's inset.
+  const painted = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    const m = /^inset\(([^)]*)\)/.exec(getComputedStyle(el).clipPath);
+    if (m === null) {
+      return {left: r.left, top: r.top, width: r.width, height: r.height};
+    }
+    const px = m[1].split(' round ')[0].trim().split(/\s+/).map((v) => parseFloat(v));
+    const [t, rr, b, l] = px.length === 1 ? [px[0], px[0], px[0], px[0]] : px.length === 2 ? [px[0], px[1], px[0], px[1]] :
+      px.length === 3 ? [px[0], px[1], px[2], px[1]] : px;
+    return {left: r.left + l, top: r.top + t, width: r.width - l - rr, height: r.height - t - b};
+  };
+  const plate = document.querySelector<HTMLElement>('.con-info .con-info__unfolding');
+  // The frame is FILLED when the overview or a detail host stands in it with a painted box.
+  const host = document.querySelector<HTMLElement>('.con-info [data-dossier], .con-info [data-info-zone]');
+  const hr = host?.getBoundingClientRect();
+  return {
+    unfolding: plate === null ? null : painted(plate),
+    filled: hr !== undefined && hr.width > 0 && hr.height > 0,
+  };
+}
+
+/**
+ * Arm the frame WITNESS over the Information frame — before the press, asked after. `settled`: «never empty» is a
+ * claim about a painted frame, so each state recorded is one a task LEAVES (never the gap between two writes of one
+ * task — a host torn down a microtask before its successor stands).
+ */
+async function armFrameProbe(page: Page, key: string) {
+  return armWitness(page, key, frameStateReader, {settled: true});
 }
 
 const zoneRect = (page: Page, zone: string) => page.evaluate((z) => {
   const r = document.querySelector<HTMLElement>(`.con-info [data-zone="${z}"]`)?.getBoundingClientRect();
   return r === undefined ? null : {left: r.left, top: r.top, width: r.width, height: r.height};
 }, zone);
+
+/** The gallery's cursor: the focused tile's index ('' while none is focused). */
+async function galleryAt(page: Page): Promise<string> {
+  return page.evaluate(() => document.querySelector('.con-dgal__tile--focused')?.getAttribute('data-dgal-index') ?? '');
+}
 
 for (const preset of PRESETS) {
   test.describe(`Information · the dossier · ${preset.id}`, () => {
@@ -157,7 +156,7 @@ for (const preset of PRESETS) {
       await openInfo(page);
 
       // ── (A) two tiers: the heroes over the plates, the foot reached, nothing scrolls, nothing outside ──
-      const o = await overviewOf(page);
+      const o = await settledOverview(page, 'the own overview');
       expect(o, 'the dossier stands').not.toBeNull();
       expect(o!.zones, 'the five zones of a human seat in a parliament game').toEqual(expect.arrayContaining(['vp', 'played', 'actions', 'effects', 'parliament']));
       expect(o!.vp, 'the score is a hero').not.toBeNull();
@@ -177,13 +176,13 @@ for (const preset of PRESETS) {
       expect(ownStates, 'the own plate reads the three states').toEqual(['blocked', 'ready', 'used']);
       await expect(page.locator('[data-zone="actions"] [data-dossier-action="Civilian Spacefighters"]'), 'TR60 stands on the plate').toHaveCount(1);
       // The parliament plate's delegates are ONE row, by construction.
-      const tokenTops = await page.locator('[data-zone="parliament"] .con-dparl__token')
-        .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+      const tokenTops = await readSettled(page, () => page.locator('[data-zone="parliament"] .con-dparl__token')
+        .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top))), {message: 'the parliament plate\'s delegates'});
       expect(tokenTops.length, 'the delegates stand as tokens').toBeGreaterThan(1);
       expect(Math.max(...tokenTops) - Math.min(...tokenTops), `the delegates are one row (${tokenTops.join(', ')})`).toBeLessThanOrEqual(2);
       // Nothing under the TV floor outside a card face (the type-floor law, measured).
       if (preset.id === 'tv4k') {
-        const below = await page.evaluate(() => {
+        const below = await readSettled(page, () => page.evaluate(() => {
           const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
           const floor = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--con-t-floor')) * rem;
           return Array.from(document.querySelectorAll<HTMLElement>('.con-info [data-dossier] *'))
@@ -191,7 +190,7 @@ for (const preset of PRESETS) {
             .filter((el) => el.closest('.pcard, svg, .gp-glyph') === null && !/^(p?card-)/.test(el.className.toString()))
             .filter((el) => el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) + 0.5 < floor)
             .map((el) => `${el.className.toString().split(' ')[0]} «${(el.textContent ?? '').trim().slice(0, 24)}»`);
-        });
+        }), {message: 'the overview\'s type floor'});
         expect(below, 'no text of the overview under the TV floor').toEqual([]);
       }
       await shoot(page, preset.id, 'A-overview');
@@ -224,7 +223,7 @@ for (const preset of PRESETS) {
       const rivalStates = await page.locator('[data-zone="actions"] [data-action-state]')
         .evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute('data-action-state') ?? ''))]);
       expect(rivalStates.every((st) => st === 'idle' || st === 'used'), `a rival's plate says only what is public (${rivalStates.join(', ')})`).toBe(true);
-      const ro = await overviewOf(page);
+      const ro = await settledOverview(page, 'the rival\'s overview');
       expect(ro!.scrolling, 'the rival\'s overview scrolls nothing').toEqual([]);
       expect(ro!.outside, 'every rival zone stays inside the frame').toEqual([]);
       await shoot(page, preset.id, 'C-rival');
@@ -244,20 +243,23 @@ for (const preset of PRESETS) {
 
       // ── (D) the entry: the plate's first box is the zone's own, the frame is never empty ──
       expect(await focusInfoZone(page, 'actions'), 'the ring reaches «Действия»').toBe(true);
-      const from = await zoneRect(page, 'actions');
+      // The zone's own box, at rest (the ring's focus lift is a box still moving).
+      const from = await readSettled(page, () => zoneRect(page, 'actions'), {message: 'the «Действия» zone'});
       expect(from, 'the zone has a box').not.toBeNull();
-      await armFrameProbe(page);
+      const entryWitness = await armFrameProbe(page, 'dossier-entry');
       expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-info-zone="actions"] .con-dgal__tile').count() > 0, {tries: 3, settleMs: 1200}),
         'A opens the gallery').toBe(true);
       await settle(page);
-      const entry = await readFrameProbe(page);
-      expect(entry.length, `the sampler ran (${entry.length} samples)`).toBeGreaterThan(5);
+      const entry = (await entryWitness.stop()).map((s) => s.v);
+      // The recorder's own liveness (distinct states, never frames): only a dead recorder fails it.
+      expect(entry.length, `the sampler ran (${entry.length} states)`).toBeGreaterThan(0);
       expect(entry.filter((s) => !s.filled).length, 'the frame is never empty on the way in').toBe(0);
       // The START of the unfold is the pose the enter hook writes in the same task as the plate's class (`descendUnfold`
-      // is a `fromTo` — its start clip is rendered immediately), so the FIRST sample of either clock that sees the plate
-      // reads it. A task-clock sample alone cannot carry the claim: on a loaded 4K run the first `setInterval` tick came
-      // after the whole 160 ms door had opened (the final functional run of 2026-10-22: «first plate» 3001 × 1736, the
-      // product right). The claim that the door then OPENS is read off the plate's own growth.
+      // is a `fromTo` — its start clip is rendered immediately), so the FIRST recorded state that sees the plate reads
+      // it — the recorder samples in the task the product wrote. (A timer sampler could not carry the claim: on a loaded
+      // 4K run its first tick came after the whole 160 ms door had opened — the final functional run of 2026-10-22:
+      // «first plate» 3001 × 1736, the product right.) The claim that the door then OPENS is read off the plate's own
+      // growth.
       const plates = entry.filter((s) => s.unfolding !== null).map((s) => s.unfolding!);
       const firstPlate = plates[0];
       expect(firstPlate, 'the detail arrives as the zone\'s plate').toBeDefined();
@@ -284,15 +286,14 @@ for (const preset of PRESETS) {
           verdictSet.add(v);
         }
       };
-      await readVerdicts();
-      let walked = 0;
-      for (; walked < 24 && verdictSet.size < 3; walked++) {
-        await press(page, 'ArrowRight', 160);
+      // The walk is the ONE focus primitive (each hop verified by the cursor's move, a wall turns it around), there and
+      // back to the tile it stood on — never a blind count of arrows.
+      const startTile = await galleryAt(page);
+      await walkFocusUntil(page, async () => {
         await readVerdicts();
-      }
-      for (let i = 0; i < walked; i++) {
-        await press(page, 'ArrowLeft', 120);
-      }
+        return verdictSet.size >= 3;
+      }, () => galleryAt(page), 24, 160);
+      await walkFocusUntil(page, async () => (await galleryAt(page)) === startTile, () => galleryAt(page), 48, 120);
       const verdicts = [...verdictSet];
       expect(verdicts.length, `the gallery's tiles read their states by the server's verdict (${verdicts.join(', ')})`).toBeGreaterThanOrEqual(3);
       await shoot(page, preset.id, 'B-gallery');
@@ -310,14 +311,15 @@ for (const preset of PRESETS) {
       await settle(page);
       await expect(page.locator('.con-info__zone--actions.con-info__zone--focused'), 'the ring stands on the zone it left').toHaveCount(1);
 
-      // ── (D) LB/RB never blinks the frame ──
-      await armFrameProbe(page);
-      await press(page, 'KeyE', 1200);
+      // ── (D) LB/RB never blinks the frame ── (each bumper pressed again only while the seat it walks to has not come)
+      const swapWitness = await armFrameProbe(page, 'dossier-swap');
+      await pressUntil(page, 'KeyE', async () => await page.locator('[data-info-readonly]').count() > 0, {tries: 3, settleMs: 1200});
       await settle(page);
-      await press(page, 'KeyQ', 1200);
+      await pressUntil(page, 'KeyQ', async () => await page.locator('[data-info-readonly]').count() === 0, {tries: 3, settleMs: 1200});
       await settle(page);
-      const swap = await readFrameProbe(page);
-      expect(swap.length, `the sampler ran (${swap.length} samples)`).toBeGreaterThan(5);
+      const swap = (await swapWitness.stop()).map((s) => s.v);
+      // The recorder's own liveness (distinct states, never frames): only a dead recorder fails it.
+      expect(swap.length, `the sampler ran (${swap.length} states)`).toBeGreaterThan(0);
       expect(swap.filter((s) => !s.filled).length, 'the seat switch never empties the frame').toBe(0);
       expect(posts, 'the whole Information walk sent nothing').toEqual([]);
 

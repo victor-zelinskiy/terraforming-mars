@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE SIDE-RAIL LAYOUT CONTRACTS (capital-iteration stabilization guard).
@@ -73,11 +74,17 @@ type RailAudit = {
   deck: {cell: Box, host?: Box},
 };
 
+/**
+ * Both rails and the deck cell as data — read AT REST by the caller (`readSettled`, FLAKE ZERO class C): every claim
+ * compares one box with another, and a rail still settling its entrance answers wherever the machine had got to.
+ * Lengths to a tenth of a pixel (a subpixel that jitters is not motion).
+ */
 async function readRails(page: Page): Promise<RailAudit> {
   return await page.evaluate(() => {
+    const tenth = (v: number) => Math.round(v * 10) / 10;
     const box = (el: Element): Box => {
       const b = el.getBoundingClientRect();
-      return {x: b.left, y: b.top, w: b.width, h: b.height, r: b.right, b: b.bottom};
+      return {x: tenth(b.left), y: tenth(b.top), w: tenth(b.width), h: tenth(b.height), r: tenth(b.right), b: tenth(b.bottom)};
     };
     type Box = {x: number, y: number, w: number, h: number, r: number, b: number};
     const one = (sel: string): Element => {
@@ -90,9 +97,9 @@ async function readRails(page: Page): Promise<RailAudit> {
     const probe = document.createElement('div');
     probe.style.cssText = 'position:fixed;left:0;top:0;width:var(--con-hud-pad-x);height:1px;visibility:hidden';
     one('.con-root').appendChild(probe);
-    const contentSafePx = probe.getBoundingClientRect().width;
+    const contentSafePx = tenth(probe.getBoundingClientRect().width);
     probe.style.width = 'var(--con-pad-x)';
-    const padXPx = probe.getBoundingClientRect().width;
+    const padXPx = tenth(probe.getBoundingClientRect().width);
     probe.remove();
 
     const strat = one('.con-strat');
@@ -116,7 +123,7 @@ async function readRails(page: Page): Promise<RailAudit> {
     const nums = [...document.querySelectorAll('.con-strat__cell, .con-strat__race-wrap')].map((el) => {
       const c = el as HTMLElement;
       return {
-        r: c.getBoundingClientRect().right,
+        r: tenth(c.getBoundingClientRect().right),
         clipped: c.scrollWidth > c.clientWidth + 1,
         text: (c.textContent ?? '').trim(),
       };
@@ -130,7 +137,7 @@ async function readRails(page: Page): Promise<RailAudit> {
     const colCenters: Array<Array<number>> = [[], [], []];
     tagCells.forEach((cell, i) => {
       const b = cell.getBoundingClientRect();
-      colCenters[i % 3].push(b.left + b.width / 2);
+      colCenters[i % 3].push(tenth(b.left + b.width / 2));
     });
 
     const deckCell = document.querySelector('.con-deckstack');
@@ -157,18 +164,18 @@ async function readRails(page: Page): Promise<RailAudit> {
         tagmxBottom: tagmx !== null ? box(tagmx).b : 0,
         rowIconXs: rows.map((r) => {
           const icon = r.querySelector('.con-res__icon');
-          return icon !== null ? icon.getBoundingClientRect().left : -1;
+          return icon !== null ? tenth(icon.getBoundingClientRect().left) : -1;
         }),
         rowValueRs: rows.map((r) => {
           const v = r.querySelector('.con-res__value');
-          return v !== null ? v.getBoundingClientRect().right : -1;
+          return v !== null ? tenth(v.getBoundingClientRect().right) : -1;
         }),
         // Production chip vs its own row plate: right-edge delta (negative =
         // inside). The row grid's third track makes overflow impossible by
         // construction — this measures the construction.
         rowProdOver: rows.map((r) => {
           const p = r.querySelector('.con-res__prod');
-          return p !== null ? p.getBoundingClientRect().right - r.getBoundingClientRect().right : -99;
+          return p !== null ? tenth(p.getBoundingClientRect().right - r.getBoundingClientRect().right) : -99;
         }),
         tagColCenters: colCenters,
       },
@@ -201,10 +208,9 @@ for (const profile of PROFILES) {
         await expect(page.locator('html')).toHaveClass(/con-profile-tv/);
       }
       await page.waitForSelector('.con-strat', {timeout: 15_000});
-      await page.waitForTimeout(800);
+      // The rails at REST — never a pause: two equal readings a frame apart, after the console went quiet.
+      const a = await readSettled(page, () => readRails(page), {message: `the side rails (${profile.tag})`});
       await shoot(page, `${profile.tag}-board`);
-
-      const a = await readRails(page);
       const rem = a.rem;
       console.log(`[RAIL:${profile.tag}] rem=${rem} contentSafe=${a.contentSafePx.toFixed(1)} ` +
         `stratRail=[${a.strat.rail.x.toFixed(0)}..${a.strat.rail.r.toFixed(0)}] ` +

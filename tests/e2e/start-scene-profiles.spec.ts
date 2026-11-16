@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {press} from './consoleStart';
+import {fillPicks, press, waitStepDealSettled} from './consoleStart';
+import {readSettled} from './settledRead';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -90,9 +91,11 @@ async function assertNoScroll(page: Page, label: string): Promise<void> {
 
 /** The flow is one header child on the fixed second tier. Its LEFT edge is the
  *  connector hand-off under the root marker on every profile; the active
- *  chapter remains expanded even when secondary chrome tightens. */
+ *  chapter remains expanded even when secondary chrome tightens. Read AT REST
+ *  (`readSettled` — two equal reads a frame apart, FLAKE ZERO class C): the
+ *  journey rail's chapter swap and the step's entrance are boxes still moving. */
 async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
-  const flow = await page.evaluate(() => {
+  const flow = await readSettled(page, () => page.evaluate(() => {
     const head = document.querySelector('.con-start__wshead')?.getBoundingClientRect();
     const flowTierEl = document.querySelector<HTMLElement>('.con-start__wshead .con-wshead__flow');
     const flowTier = flowTierEl?.getBoundingClientRect();
@@ -167,7 +170,7 @@ async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
       uiScale: Number(getComputedStyle(document.documentElement)
         .getPropertyValue('--con-ui-scale').trim() || '1') || 1,
     };
-  });
+  }), {message: `${preset.id}: the journey rail`});
   expect(flow.count, `${preset.id}: one flow instance`).toBe(1);
   expect(flow.connectorCount, `${preset.id}: one root-to-flow connector`).toBe(1);
   // ⚠️ TOLERANCES IN LOGICAL UNITS, never in raw CSS pixels — see `uiScale`.
@@ -202,7 +205,11 @@ for (const preset of PRESETS) {
       await page.goto(`/player?id=${id}&console=1${preset.q}`);
       await page.waitForSelector('.con-start__frame', {timeout: 45_000});
       await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-      await page.waitForTimeout(4000); // deal cinematic + fit settle
+      // What the old 4 s pause waited for, as STATES: the boot veil gone (the GPU warm-up paints the console under it
+      // and swallows every key until it unmounts — `openConsole`'s own boundary), then the first step's deal ON SCREEN
+      // and still (the step's own markers — the deal cinematic + fit).
+      await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+      await waitStepDealSettled(page);
 
       // Adaptive walk on the breadcrumb SUBJECT: A selects, RT (Period)
       // advances with the physical collect. Capture each screen.
@@ -216,15 +223,14 @@ for (const preset of PRESETS) {
         const onSummary = subject.includes('сводка') &&
           await page.locator('.con-start > .con-start__frame .con-start__summary').isVisible().catch(() => false);
         if (subject.includes('пролог') && !shotPre) {
-          await page.waitForTimeout(1200);
+          // The step's deal landed and stopped (the next A is aimed at a card that has ARRIVED).
+          await waitStepDealSettled(page);
           await assertFlowGeometry(page, preset);
           await shoot(page, preset, '01-preludes');
           await assertNoScroll(page, preset.id + ' preludes');
           shotPre = true;
-          // pick two preludes then advance (RT — the collect flight)
-          await key(page, 'Enter', 700);
-          await key(page, 'ArrowRight', 400);
-          await key(page, 'Enter', 700);
+          // pick two preludes then advance (RT — the collect flight); each pick verified by the step's own slots
+          await fillPicks(page, 2);
           await expect(page.locator(
             '.con-jrail [data-phase="selection"] [data-item="projects"]',
           ), 'projects unlock after the mandatory picks').toHaveClass(/con-jrail__item--available/);
@@ -236,7 +242,7 @@ for (const preset of PRESETS) {
           continue;
         }
         if (subject.includes('проект') && !shotProj) {
-          await page.waitForTimeout(1200);
+          await waitStepDealSettled(page);
           await expect(page.locator(
             '.con-jrail [data-phase="selection"] [data-item="summary"]',
           ), 'opening Projects unlocks the summary destination').toHaveClass(/con-jrail__item--available/);
@@ -244,17 +250,13 @@ for (const preset of PRESETS) {
           await shoot(page, preset, '02-projects');
           await assertNoScroll(page, preset.id + ' projects');
           shotProj = true;
-          // buy a few projects then advance
-          await key(page, 'Enter', 500);
-          await key(page, 'ArrowRight', 300);
-          await key(page, 'Enter', 500);
-          await key(page, 'ArrowRight', 300);
-          await key(page, 'Enter', 500);
+          // buy a few projects (three, each verified by the step's own slots) then advance
+          await fillPicks(page, 3);
           await key(page, 'Period', 1600);
           continue;
         }
         if (onSummary) {
-          await page.waitForTimeout(1200);
+          // The summary is no deal: `assertFlowGeometry` reads it at rest before the shot.
           await assertFlowGeometry(page, preset);
           await shoot(page, preset, '03-summary');
           await assertNoScroll(page, preset.id + ' summary');

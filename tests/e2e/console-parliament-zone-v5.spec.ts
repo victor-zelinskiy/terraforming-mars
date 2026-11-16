@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, bootFixtureSeats, pressUntil, settle} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness, pageNow, witnessOf} from './witness';
 import {
   answerAsksAs, closeSitting, closeSittingAs, enterSittingByPass, expectRailHonest, openParliament, openParliamentAfterSitting, PARLIAMENT_PRESETS, parliamentWire, sittingStage,
   waitSittingAtRest,
@@ -21,11 +23,11 @@ import {
  * the object's own centre, tested both by `elementFromPoint` and by geometric overlap with every mounted
  * panel (a `pointer-events: none` panel is invisible to hit testing and would cover an object unnoticed).
  *
- * The sampler is `setInterval` + `MutationObserver`, never rAF (headless Chromium drives rAF off the
- * compositor and stops exactly when the screen goes quiet). A sample carries the CLOCK that took it: an
- * `mo` sample runs as a microtask and can observe a state between a Vue patch and the `nextTick` that
- * applies an inverse transform — a state the browser never paints. Claims about FRAMES are made on the
- * `tick` samples only.
+ * The probe is a RECORDING (FLAKE ZERO — `armWitness`, armed before the walk: the product's own writes observed in
+ * the task that makes them, every change kept with the page's time, replace-proof). It is `settled`: a sample is the
+ * state a task LEAVES — never one taken between a Vue patch and the `nextTick` that applies an inverse transform, a
+ * state the browser never paints — so every claim below is about FRAMES. A still pose is ONE sample however long it
+ * stands: a count of samples is a count of changes, never of frames, and a duration is read off the samples' `t`.
  *
  * ПАРЛАМЕНТ v8 «ПЛЕНАРНЫЙ ЗАЛ» KEPT THE ZONE CONTRACT AND MOVED ITS BODY: the middle zone's body is the TABLE (the bills'
  * tier — it carries the `data-parl-row-shown` marker now), the parties sit on the chamber's benches beside the dais,
@@ -36,7 +38,6 @@ type Rect = {x: number, y: number, w: number, h: number};
 type Vis = {box: boolean, ink: number, free: boolean, overlap: number};
 type TileSample = {party: string, where: 'row' | 'ruler', rect: Rect, vis: Vis, y: number};
 type V5Sample = {
-  src: 'mo' | 'tick',
   t: number, stage: string, motion: string, beat: string, wave: string, swapping: boolean,
   bandRect: Rect | undefined, bandVis: Vis, bandKey: string, bandKicker: string, bandLines: number,
   bodyRect: Rect | undefined, agendaY: number, fieldY: number,
@@ -46,6 +47,9 @@ type V5Sample = {
   sections: Array<string>, payouts: Array<string>,
 };
 type V5Probe = {samples: Array<V5Sample>};
+/** One moment as the reader sees it — the sample without its clock (the recording stamps the page's time). */
+type V5Seen = Omit<V5Sample, 't'>;
+const V5_WITNESS = 'parliament-zone-v5';
 
 const OUT_DIR = path.resolve(__dirname, '..', '..', 'artifacts', 'parliament-v5');
 
@@ -55,9 +59,9 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function armV5Probe(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as {__v5: V5Probe};
-    w.__v5 = {samples: []};
+  // A whole sitting's walk is recorded: the kept samples are bounded well above what a walk changes (the oldest would be
+  // dropped first — and the first samples are the resting poses every claim is measured against).
+  await armWitness<V5Seen | null>(page, V5_WITNESS, () => {
     const rect = (el: Element | null | undefined): Rect | undefined => {
       if (el === null || el === undefined) {
         return undefined;
@@ -109,52 +113,47 @@ async function armV5Probe(page: Page): Promise<void> {
         y: r.top,
       };
     });
-    const sample = (src: 'mo' | 'tick') => {
-      const root = document.querySelector('.con-parl');
-      if (root === null) {
-        return;
-      }
-      const band = document.querySelector('.con-band');
-      // v8: the BODY is the table's tier (its slots are what the step and the results push shut).
-      const row = document.querySelector('.con-parl__table-tier');
-      const panel = document.querySelector<HTMLElement>('.con-parl__stage');
-      const panelShown = panel !== null && getComputedStyle(panel).display !== 'none';
-      w.__v5.samples.push({
-        src,
-        t: performance.now(),
-        stage: root.getAttribute('data-sitting-stage') ?? '',
-        motion: root.getAttribute('data-sitting-motion') ?? '',
-        beat: root.getAttribute('data-sitting-beat') ?? '',
-        wave: '',
-        swapping: root.classList.contains('con-parl--swapping'),
-        bandRect: rect(band),
-        bandVis: vis(band),
-        bandKey: band?.getAttribute('data-parl-band') ?? '',
-        bandKicker: band?.getAttribute('data-parl-band-kicker') ?? '',
-        bandLines: document.querySelectorAll('.con-band__line').length,
-        bodyRect: rect(document.querySelector('.con-parl__bodyzone')),
-        agendaY: document.querySelector('.con-parl__agenda')?.getBoundingClientRect().top ?? -1,
-        fieldY: document.querySelector('.con-parl__field')?.getBoundingClientRect().top ?? -1,
-        rowShown: row?.getAttribute('data-parl-row-shown') !== null,
-        rowVis: vis(row),
-        rowRect: rect(row),
-        slotY: document.querySelector('.con-parl__table-tier .con-parl__slot')?.getBoundingClientRect().top ?? -1,
-        panel: panelShown,
-        panelRect: panelShown ? rect(panel) : undefined,
-        panelInk: panelShown ? Number(getComputedStyle(panel).opacity || '1') : 0,
-        tiles: tiles(),
-        sections: Array.from(document.querySelectorAll('[data-sit-section]')).map((el) => el.getAttribute('data-sit-section') ?? ''),
-        payouts: Array.from(document.querySelectorAll('[data-sit-payout]')).map((el) => el.getAttribute('data-sit-payout-seat') ?? ''),
-      });
+    const root = document.querySelector('.con-parl');
+    if (root === null) {
+      return null;
+    }
+    const band = document.querySelector('.con-band');
+    // v8: the BODY is the table's tier (its slots are what the step and the results push shut).
+    const row = document.querySelector('.con-parl__table-tier');
+    const panel = document.querySelector<HTMLElement>('.con-parl__stage');
+    const panelShown = panel !== null && getComputedStyle(panel).display !== 'none';
+    return {
+      stage: root.getAttribute('data-sitting-stage') ?? '',
+      motion: root.getAttribute('data-sitting-motion') ?? '',
+      beat: root.getAttribute('data-sitting-beat') ?? '',
+      wave: '',
+      swapping: root.classList.contains('con-parl--swapping'),
+      bandRect: rect(band),
+      bandVis: vis(band),
+      bandKey: band?.getAttribute('data-parl-band') ?? '',
+      bandKicker: band?.getAttribute('data-parl-band-kicker') ?? '',
+      bandLines: document.querySelectorAll('.con-band__line').length,
+      bodyRect: rect(document.querySelector('.con-parl__bodyzone')),
+      agendaY: document.querySelector('.con-parl__agenda')?.getBoundingClientRect().top ?? -1,
+      fieldY: document.querySelector('.con-parl__field')?.getBoundingClientRect().top ?? -1,
+      rowShown: row?.getAttribute('data-parl-row-shown') !== null,
+      rowVis: vis(row),
+      rowRect: rect(row),
+      slotY: document.querySelector('.con-parl__table-tier .con-parl__slot')?.getBoundingClientRect().top ?? -1,
+      panel: panelShown,
+      panelRect: panelShown ? rect(panel) : undefined,
+      panelInk: panelShown ? Number(getComputedStyle(panel).opacity || '1') : 0,
+      tiles: tiles(),
+      sections: Array.from(document.querySelectorAll('[data-sit-section]')).map((el) => el.getAttribute('data-sit-section') ?? ''),
+      payouts: Array.from(document.querySelectorAll('[data-sit-payout]')).map((el) => el.getAttribute('data-sit-payout-seat') ?? ''),
     };
-    new MutationObserver(() => sample('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample('tick'), 40);
-    sample('tick');
-  });
+  }, {settled: true, max: 50_000});
 }
 
+/** The recording, STOPPED, in the probe's old shape (`t` — the page's clock); a moment with no Parliament is no sample. */
 async function readV5(page: Page): Promise<V5Probe> {
-  return await page.evaluate(() => (window as unknown as {__v5: V5Probe}).__v5);
+  const samples = await witnessOf<V5Seen | null>(page, V5_WITNESS).stop();
+  return {samples: samples.flatMap((s) => (s.v === null ? [] : [{...s.v, t: s.t}]))};
 }
 
 /** Boot the table ONE PASS before its sitting and pass on screen (the soft gates): the sitting comes up on its walk. */
@@ -171,7 +170,6 @@ async function runWalk(page: Page): Promise<void> {
   await settle(page, {timeoutMs: 20_000});
 }
 
-const ticks = (s: ReadonlyArray<V5Sample>) => s.filter((x) => x.src === 'tick');
 const same = (a: Rect | undefined, b: Rect | undefined) =>
   a !== undefined && b !== undefined && Math.abs(a.y - b.y) < 0.6 && Math.abs(a.h - b.h) < 0.6;
 
@@ -184,8 +182,10 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     await armV5Probe(page);
     await runWalk(page);
 
-    const all = ticks((await readV5(page)).samples);
-    expect(all.length, 'the sampler ran (a dead probe passes everything)').toBeGreaterThan(40);
+    const all = (await readV5(page)).samples;
+    // The recording's own liveness: it keeps CHANGES, so its length says how much changed, never how long it ran — only
+    // a dead one has none.
+    expect(all.length, 'the sampler ran (a dead probe passes everything)').toBeGreaterThan(0);
     const withBand = all.filter((s) => s.bandRect !== undefined);
     expect(withBand.length, 'the band was mounted for every sample').toBe(all.length);
 
@@ -218,11 +218,12 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     await closeSitting(page, request, playerId);
     await settle(page, {timeoutMs: 30_000});
     await openParliamentAfterSitting(page);
-    const overview = await page.evaluate(() => {
+    // Read at REST (`readSettled`): the overview's entrance over, the box the same two frames apart.
+    const overview = await readSettled(page, () => page.evaluate(() => {
       const b = document.querySelector('.con-band');
       const r = b?.getBoundingClientRect();
       return r === undefined ? undefined : {x: r.left, y: r.top, w: r.width, h: r.height, key: b?.getAttribute('data-parl-band') ?? ''};
-    });
+    }), {message: 'the overview\'s band'});
     expect(overview, 'the band exists outside a sitting too').toBeDefined();
     expect(same(overview, first), `the overview's band stands where the sitting's did (${JSON.stringify(overview)} vs ${JSON.stringify(first)})`).toBe(true);
     // v8 (П1–П2): the overview's band reads the FOCUSED object — the cursor's slot, party or the government.
@@ -236,10 +237,12 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     await armV5Probe(page);
     await runWalk(page);
 
-    const all = ticks((await readV5(page)).samples);
+    const all = (await readV5(page)).samples;
     // The beats that MOVE something on the table: the Agenda, the support, the enactment, and the renewal.
+    // (A count of the record's moments is a count of CHANGES — «they were sampled at all» is the honest floor; every
+    // recorded working moment is then held to the law below.)
     const working = all.filter((s) => s.motion !== '' && (s.beat !== '' || s.stage === 'enact' || s.stage === 'renewal'));
-    expect(working.length, 'the physical beats were sampled').toBeGreaterThan(15);
+    expect(working.length, 'the physical beats were sampled').toBeGreaterThan(0);
     const bad = working.filter((s) => s.tiles.length < 6 || s.tiles.some((t) => !t.vis.box || t.vis.ink < 0.9 || t.vis.overlap > 0.02));
     expect(bad.map((s) => `${s.stage}/${s.beat} tiles=${s.tiles.length} ` +
       s.tiles.filter((t) => t.vis.ink < 0.9 || t.vis.overlap > 0.02).map((t) => `${t.party}:ink=${t.vis.ink.toFixed(2)}/over=${t.vis.overlap.toFixed(2)}`).join(',')).slice(0, 8),
@@ -264,8 +267,10 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     await waitSittingAtRest(page, 60_000);
     await settle(page, {timeoutMs: 20_000});
 
-    const all = ticks((await readV5(page)).samples);
-    expect(all.length, 'the sampler ran').toBeGreaterThan(60);
+    const all = (await readV5(page)).samples;
+    // The page's clock at the end of the record — where the last recorded pose's stand ends.
+    const recordEnd = await pageNow(page);
+    expect(all.length, 'the sampler ran').toBeGreaterThan(0);
 
     // ① THE BODY CHANGED EXACTLY THREE TIMES: row → step → row → results.
     const flips: Array<string> = [];
@@ -284,8 +289,9 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     // ③ THE TRANSITION IS PHYSICAL: while both are on screen the table's bills are BELOW their resting place (the
     //    drawer being pushed shut) and the arriving surface is not yet at full ink — never a cut.
     const restingY = all.find((s) => s.rowShown && s.slotY >= 0)?.slotY ?? 0;
+    // (Asked as «ever»: the record keeps changes, not frames — a swap shows NO moment with both, a crossfade does.)
     const both = all.filter((s) => s.panel && s.panelInk > 0.05 && s.rowVis.ink > 0.05);
-    expect(both.length, 'the two surfaces overlapped in time — a swap would show none').toBeGreaterThan(2);
+    expect(both.length, 'the two surfaces overlapped in time — a swap would show none').toBeGreaterThan(0);
     const moving = both.filter((s) => s.slotY > restingY + 2);
     expect(moving.length, `the bills were travelling downward while the new body arrived (resting y=${Math.round(restingY)})`).toBeGreaterThan(0);
 
@@ -296,15 +302,16 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     expect(heights, `the band's height never changes (${heights.join(',')})`).toHaveLength(1);
     const resting = Math.round(all[0].bandRect!.y);
     const fieldTop = Math.round(all[0].fieldY);
-    // A PLACE IS HELD FOR A WALL-CLOCK DURATION, never «the same value N samples running»: a starved
-    // `setInterval` coalesces its missed ticks and reads one mid-travel pixel three times in a row. The
-    // slide is 400 ms, so anything a band HOLDS for 500 ms is a pose and nothing else can be.
+    // A PLACE IS HELD FOR A WALL-CLOCK DURATION (the page's clock), never «the same value N samples running»: a
+    // sample count is a count of changes of the WHOLE reading, not of frames. The slide is 400 ms, so anything a band
+    // HOLDS for 500 ms is a pose and nothing else can be. A pose stands from its first sample until the first sample
+    // that moved it (the last one until the record's end).
     const settled: Array<number> = [];
     let runStart = 0;
     for (let i = 1; i <= all.length; i++) {
       const y = i < all.length ? Math.round(all[i].bandRect?.y ?? -1) : Number.NaN;
       if (y !== Math.round(all[runStart].bandRect?.y ?? -2)) {
-        if (all[i - 1].t - all[runStart].t >= 500) {
+        if ((i < all.length ? all[i].t : recordEnd) - all[runStart].t >= 500) {
           settled.push(Math.round(all[runStart].bandRect?.y ?? -1));
         }
         runStart = i;
@@ -332,7 +339,7 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
 
     // A SITTING WITH NOTHING TO ANSWER SWAPS THE BODY EXACTLY ONCE — for the results. Every beat before
     // that (verdict · Agenda · support · enactment · reward) is read on the objects and in the band.
-    const all = ticks((await readV5(page)).samples);
+    const all = (await readV5(page)).samples;
     const flips: Array<string> = [];
     for (let i = 1; i < all.length; i++) {
       if (all[i].rowShown !== all[i - 1].rowShown) {
@@ -378,7 +385,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await settle(page, {timeoutMs: 20_000});
       await shoot(page, `p5-${preset.id}-overview`);
 
-      const geo = await page.evaluate(() => {
+      const geo = await readSettled(page, () => page.evaluate(() => {
         const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
         const band = document.querySelector('.con-band');
         const line = document.querySelector('.con-band__line');
@@ -402,7 +409,7 @@ for (const preset of PARLIAMENT_PRESETS) {
             return `${Math.round(r.width)}x${Math.round(r.height)}`;
           }))],
         };
-      });
+      }), {message: `${preset.id}: the zones' geometry`});
 
       // ONE HEIGHT IN REM, everywhere (the token is profile-independent by contract).
       expect(geo.bandH / geo.rem, `the band is 1.95rem (${geo.bandH}px at ${geo.rem}px/rem)`).toBeCloseTo(1.95, 1);

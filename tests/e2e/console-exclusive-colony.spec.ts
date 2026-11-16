@@ -3,6 +3,8 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle} from './consoleStart';
 import {openColoniesSection} from './cardTradeDoor';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 /**
  * TR25 «ЭКСКЛЮЗИВНАЯ КОЛОНИЯ» — A COLONY BEYOND THE 3-COLONY LIMIT, the staged
@@ -84,10 +86,10 @@ async function wireOf(request: APIRequestContext, playerId: string): Promise<Wir
 const colonyOf = (wire: Wire, name: string) => wire.game.colonies.find((c) => c.name === name);
 
 type Probe = {
+  /** The recorded states of the flow's record and of its settled (painted) record — a DEAD recorder reads 0. */
   samples: number;
   ticks: number;
-  /** The crumb's tail on every change, and every sample the root or the card's name was missing while the flow stood. */
-  steps: Array<string>;
+  /** Every recorded state in which the root or the card's name was missing from the crumb while the flow stood. */
   crumbMisses: Array<string>;
   wsMax: number;
   stranded: boolean;
@@ -106,126 +108,146 @@ type Probe = {
   /** The proxy's centre on its last visible sample, and the box of the seat it was aimed at (read at the proxy's first sample). */
   proxyRest?: [number, number];
   seat?: [number, number, number, number];
-  /** TICK samples: no cube at all in the fourth berth after the landing (neither the proxy nor the real one). */
+  /** Painted states: no cube at all in the fourth berth after the landing (neither the proxy nor the real one). */
   noCube: Array<number>;
   stopCol: Array<[number, string]>;
-  /** Samples where the colony stage AND a hosted Parliament step both stood (the step may only stand once the stage is home). */
+  /** Painted states where the colony stage AND a hosted Parliament step both stood (the step may only stand once the stage is home). */
   overlap: Array<number>;
   /** Every distinct text the command bar showed while the grid stood as the receipt. */
   receiptBars: Array<string>;
 };
 
-/**
- * MutationObserver + setInterval — never rAF (headless drives rAF off the
- * compositor: it stops when the screen is quiet). `colony` — the tile being
- * built on; `slot` — the berth the cube takes.
- */
-async function armProbe(page: Page, colony: string, slot: number): Promise<void> {
-  await page.evaluate(({card, root, colony, slot}) => {
-    const w = window as unknown as {__tr25: Probe};
-    const p: Probe = {samples: 0, ticks: 0, steps: [], crumbMisses: [], wsMax: 0, stranded: false, degraded: false, phases: [], proxyMax: 0, noCube: [], stopCol: [], overlap: [], receiptBars: []};
-    w.__tr25 = p;
-    const t0 = Date.now();
-    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const prodText = () => text(document.querySelector('.con-res__row .con-res__prod'));
-    const prod0 = prodText();
-    const sample = (tick: boolean) => {
-      const at = Date.now() - t0;
-      p.samples++;
-      if (tick) {
-        p.ticks++;
-      }
-      // ── the flow ──
-      const ws = document.querySelectorAll('.con-ws');
-      p.wsMax = Math.max(p.wsMax, ws.length);
-      p.stranded = p.stranded || document.querySelector('.con-stranded') !== null;
-      p.degraded = p.degraded || document.querySelector('[data-colony-build-degraded]') !== null;
-      const head = document.querySelector('.con-hand .con-wshead') ?? document.querySelector('.con-wshead');
-      if (head !== null && document.querySelector('.con-hand') !== null) {
-        const crumb = text(head).toUpperCase();
-        if (!crumb.includes(root.toUpperCase()) || (document.querySelector('.con-hand .con-colonies') !== null && !crumb.includes(card.toUpperCase()))) {
-          p.crumbMisses.push(`${at}: ${crumb.slice(0, 120)}`);
-        }
-        const tail = crumb.split('›').pop()?.trim() ?? '';
-        if (tail !== '' && p.steps[p.steps.length - 1] !== tail) {
-          p.steps.push(tail);
-        }
-      }
-      // ── the scene ──
-      const phase = document.querySelector('[data-colony-build-phase]')?.getAttribute('data-colony-build-phase');
-      if (phase !== null && phase !== undefined && !p.phases.includes(phase)) {
-        p.phases.push(phase);
-      }
-      const stage = document.querySelector<HTMLElement>('.con-colfocus');
-      const berth = stage?.querySelector<HTMLElement>(`[data-colony-build-slot="${colony}#${slot}"]`)?.closest<HTMLElement>('.con-colfocus__berth') ?? null;
-      const seatEl = stage?.querySelector<HTMLElement>(`[data-colony-build-slot="${colony}#${slot}"]`) ?? null;
-      if (p.admittedAt === undefined && berth !== null && (berth.getAttribute('data-colony-berth-overlimit') === 'passed' || berth.classList.contains('con-colfocus__berth--taken'))) {
-        p.admittedAt = at;
-      }
-      const proxies = Array.from(document.querySelectorAll<HTMLElement>('.con-colonybuild__cube')).filter((el) => el.getBoundingClientRect().width > 2);
-      p.proxyMax = Math.max(p.proxyMax, proxies.length);
-      if (proxies.length > 0) {
-        // THE SEAT THE CUBE IS AIMED AT — read ONCE, in the first sample the cube exists: the press has been made,
-        // so the stage is pinned and at rest (read at the probe's very first sample, a stage still unfolding on a
-        // loaded 4K runner gave a seat 538 px away from where it — and the cube — came to rest). Deliberately NOT
-        // re-read later: at the commit the berth gains its owner's name and re-centres, the seat with it (~10 px
-        // up at 1080 — the shared build signature's own handoff, measured identical on the base build).
-        if (p.proxyAt === undefined) {
-          const seatBox = seatEl?.getBoundingClientRect();
-          if (seatBox !== undefined && seatBox.width > 3) {
-            p.seat = [seatBox.left, seatBox.top, seatBox.width, seatBox.height];
-          }
-        }
-        p.proxyAt ??= at;
-        const r = proxies[0].getBoundingClientRect();
-        p.proxyRest = [r.left + r.width / 2, r.top + r.height / 2];
-      }
-      if (p.landedAt === undefined && (phase === 'landed' || phase === 'done')) {
-        p.landedAt = at;
-      }
-      if (p.latchAt === undefined && stage?.querySelector('.con-colfocus__berth--latching, .con-colfocus__xcell--latching') !== null && stage !== null && stage !== undefined) {
-        p.latchAt = at;
-      }
-      const zone = stage?.querySelector<HTMLElement>('.con-colfocus__trackzone');
-      const stop = zone === null || zone === undefined ? '' : zone.style.getPropertyValue('--stop-col').trim();
-      if (stop !== '' && (p.stopCol.length === 0 || p.stopCol[p.stopCol.length - 1][1] !== stop)) {
-        p.stopCol.push([at, stop]);
-        if (p.stopCol.length > 1) {
-          p.stopAt ??= at;
-        }
-      }
-      if (p.prodAt === undefined && prodText() !== prod0) {
-        p.prodAt = at;
-      }
-      const receipt = document.querySelector('[data-colony-build-receipt]') !== null;
-      if (p.receiptAt === undefined && receipt) {
-        p.receiptAt = at;
-      }
-      if (receipt && tick) {
-        const bar = text(document.querySelector('.con-cmdbar'));
-        if (bar !== '' && !p.receiptBars.includes(bar)) {
-          p.receiptBars.push(bar);
-        }
-      }
-      const parliamentStep = document.querySelector<HTMLElement>('[data-embed-slot="colonies-parliament"] .con-parl');
-      if (tick && parliamentStep !== null && parliamentStep.getBoundingClientRect().width > 2 &&
-          stage !== null && stage !== undefined && stage.getBoundingClientRect().width > 2) {
-        p.overlap.push(at);
-      }
-      // A cube stands in the berth on every TICK past the landing: the proxy, or the real one under it.
-      if (tick && p.landedAt !== undefined && seatEl !== null && seatEl.getBoundingClientRect().width > 3) {
-        const real = seatEl.querySelector('.player-cube') !== null;
-        if (!real && proxies.length === 0) {
-          p.noCube.push(at);
-        }
-      }
-    };
-    new MutationObserver(() => sample(false)).observe(document.documentElement, {subtree: true, childList: true, attributes: true, characterData: true});
-    setInterval(() => sample(true), 30);
-  }, {card: CARD_RU, root: ROOT_RU, colony, slot});
+type ProbeArgs = {card: string, root: string, colony: string, slot: number};
+
+/** One observation of the flow and of the build's scene, the instant the product wrote it. */
+type FlowState = {
+  ws: number, stranded: boolean, degraded: boolean,
+  /** The crumb (upper-cased) while the hand stands with a head; `null` otherwise. */
+  crumb: string | null, crumbMiss: boolean,
+  phase: string | null, admitted: boolean, proxies: number,
+  /** The seat's box while a cube proxy exists (`null` otherwise), and the first proxy's centre. */
+  seat: [number, number, number, number] | null, proxy: [number, number] | null,
+  latching: boolean, stop: string, prod: string, receipt: boolean,
+};
+
+/** One observation of what a frame can PAINT (the state a task leaves). */
+type FrameState = {landed: boolean, seatShown: boolean, realCube: boolean, proxies: number, receiptBar: string | null, overlap: boolean};
+
+/** The page half of the flow record (self-contained: it is serialized). */
+function tr25FlowState(a: ProbeArgs): FlowState {
+  const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const head = document.querySelector('.con-hand .con-wshead') ?? document.querySelector('.con-wshead');
+  const crumb = head !== null && document.querySelector('.con-hand') !== null ? text(head).toUpperCase() : null;
+  const stage = document.querySelector<HTMLElement>('.con-colfocus');
+  const seatEl = stage?.querySelector<HTMLElement>(`[data-colony-build-slot="${a.colony}#${a.slot}"]`) ?? null;
+  const berth = seatEl?.closest<HTMLElement>('.con-colfocus__berth') ?? null;
+  const proxies = Array.from(document.querySelectorAll<HTMLElement>('.con-colonybuild__cube')).filter((el) => el.getBoundingClientRect().width > 2);
+  const seatBox = proxies.length > 0 ? seatEl?.getBoundingClientRect() : undefined;
+  const r = proxies[0]?.getBoundingClientRect();
+  const zone = stage?.querySelector<HTMLElement>('.con-colfocus__trackzone');
+  return {
+    ws: document.querySelectorAll('.con-ws').length,
+    stranded: document.querySelector('.con-stranded') !== null,
+    degraded: document.querySelector('[data-colony-build-degraded]') !== null,
+    crumb,
+    crumbMiss: crumb !== null && (!crumb.includes(a.root.toUpperCase()) ||
+      (document.querySelector('.con-hand .con-colonies') !== null && !crumb.includes(a.card.toUpperCase()))),
+    phase: document.querySelector('[data-colony-build-phase]')?.getAttribute('data-colony-build-phase') ?? null,
+    admitted: berth !== null && (berth.getAttribute('data-colony-berth-overlimit') === 'passed' || berth.classList.contains('con-colfocus__berth--taken')),
+    proxies: proxies.length,
+    seat: seatBox !== undefined && seatBox.width > 3 ? [seatBox.left, seatBox.top, seatBox.width, seatBox.height] : null,
+    proxy: r === undefined ? null : [r.left + r.width / 2, r.top + r.height / 2],
+    latching: stage !== null && stage.querySelector('.con-colfocus__berth--latching, .con-colfocus__xcell--latching') !== null,
+    stop: zone === null || zone === undefined ? '' : zone.style.getPropertyValue('--stop-col').trim(),
+    prod: text(document.querySelector('.con-res__row .con-res__prod')),
+    receipt: document.querySelector('[data-colony-build-receipt]') !== null,
+  };
 }
 
-const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__tr25: Probe}).__tr25);
+/** The page half of the painted-state record (self-contained: it is serialized). */
+function tr25FrameState(a: ProbeArgs): FrameState {
+  const stage = document.querySelector<HTMLElement>('.con-colfocus');
+  const seatEl = stage?.querySelector<HTMLElement>(`[data-colony-build-slot="${a.colony}#${a.slot}"]`) ?? null;
+  const phase = document.querySelector('[data-colony-build-phase]')?.getAttribute('data-colony-build-phase') ?? null;
+  const parliamentStep = document.querySelector<HTMLElement>('[data-embed-slot="colonies-parliament"] .con-parl');
+  const receipt = document.querySelector('[data-colony-build-receipt]') !== null;
+  return {
+    landed: phase === 'landed' || phase === 'done',
+    seatShown: seatEl !== null && seatEl.getBoundingClientRect().width > 3,
+    realCube: seatEl !== null && seatEl.querySelector('.player-cube') !== null,
+    proxies: Array.from(document.querySelectorAll<HTMLElement>('.con-colonybuild__cube')).filter((el) => el.getBoundingClientRect().width > 2).length,
+    receiptBar: receipt ? (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim() : null,
+    overlap: parliamentStep !== null && parliamentStep.getBoundingClientRect().width > 2 &&
+      stage !== null && stage.getBoundingClientRect().width > 2,
+  };
+}
+
+/**
+ * The build's whole flow, RECORDED off the product's own writes from before the press (`armWitness` — never a timer a
+ * loaded runner starves): the FLOW record keeps every state the instant it was written (the order of the beats, «did
+ * it ever happen»); the FRAME record is `settled` — the state a task LEAVES, i.e. what a frame can paint — for the
+ * claims about what STOOD on screen («a cube in the berth», «never the step over the stage», the receipt's bar).
+ * `colony` — the tile being built on; `slot` — the berth the cube takes. Re-arming resets both records.
+ */
+async function armProbe(page: Page, colony: string, slot: number): Promise<void> {
+  const args: ProbeArgs = {card: CARD_RU, root: ROOT_RU, colony, slot};
+  await armWitness(page, 'tr25-flow', tr25FlowState, {args, max: 20_000});
+  await armWitness(page, 'tr25-frame', tr25FrameState, {args, settled: true, max: 20_000});
+}
+
+/** The two records folded into the probe's readings (the times are the page's, from the record's first state). */
+async function readProbe(page: Page): Promise<Probe> {
+  const flow = await witnessOf<FlowState>(page, 'tr25-flow').samples();
+  const frame = await witnessOf<FrameState>(page, 'tr25-frame').samples();
+  const t0 = flow[0]?.t ?? 0;
+  const at = (s: {t: number} | undefined) => s === undefined ? undefined : s.t - t0;
+  const firstProxy = flow.find((s) => s.v.proxies > 0);
+  const lastProxy = [...flow].reverse().find((s) => s.v.proxies > 0 && s.v.proxy !== null);
+  const stopCol: Array<[number, string]> = [];
+  for (const s of flow) {
+    if (s.v.stop !== '' && (stopCol.length === 0 || stopCol[stopCol.length - 1][1] !== s.v.stop)) {
+      stopCol.push([s.t - t0, s.v.stop]);
+    }
+  }
+  const prod0 = flow[0]?.v.prod;
+  const noCube: Array<number> = [];
+  let landed = false;
+  for (const s of frame) {
+    landed = landed || s.v.landed;
+    // A cube stands in the berth in every painted state past the landing: the proxy, or the real one under it.
+    if (landed && s.v.seatShown && !s.v.realCube && s.v.proxies === 0) {
+      noCube.push(s.t - t0);
+    }
+  }
+  return {
+    samples: flow.length,
+    ticks: frame.length,
+    crumbMisses: flow.filter((s) => s.v.crumbMiss).map((s) => `${s.t - t0}: ${(s.v.crumb ?? '').slice(0, 120)}`),
+    wsMax: Math.max(0, ...flow.map((s) => s.v.ws)),
+    stranded: flow.some((s) => s.v.stranded),
+    degraded: flow.some((s) => s.v.degraded),
+    phases: [...new Set(flow.flatMap((s) => s.v.phase === null ? [] : [s.v.phase]))],
+    admittedAt: at(flow.find((s) => s.v.admitted)),
+    proxyAt: at(firstProxy),
+    landedAt: at(flow.find((s) => s.v.phase === 'landed' || s.v.phase === 'done')),
+    latchAt: at(flow.find((s) => s.v.latching)),
+    stopAt: stopCol.length > 1 ? stopCol[1][0] : undefined,
+    prodAt: at(flow.find((s) => s.v.prod !== prod0)),
+    receiptAt: at(flow.find((s) => s.v.receipt)),
+    proxyMax: Math.max(0, ...flow.map((s) => s.v.proxies)),
+    // THE SEAT THE CUBE IS AIMED AT — read ONCE, in the first state the cube exists: the press has been made, so the
+    // stage is pinned and at rest (read at the probe's very first sample, a stage still unfolding on a loaded 4K runner
+    // gave a seat 538 px away from where it — and the cube — came to rest). Deliberately NOT re-read later: at the
+    // commit the berth gains its owner's name and re-centres, the seat with it (~10 px up at 1080 — the shared build
+    // signature's own handoff, measured identical on the base build).
+    seat: firstProxy?.v.seat ?? undefined,
+    proxyRest: lastProxy?.v.proxy ?? undefined,
+    noCube,
+    stopCol,
+    overlap: frame.filter((s) => s.v.overlap).map((s) => s.t - t0),
+    receiptBars: [...new Set(frame.flatMap((s) => s.v.receiptBar === null || s.v.receiptBar === '' ? [] : [s.v.receiptBar]))],
+  };
+}
 
 async function shoot(page: Page, preset: string, name: string): Promise<void> {
   const dir = path.join(OUT, preset);
@@ -264,38 +286,28 @@ const focusedTile = (page: Page) => page.evaluate(() =>
   document.querySelector('.con-colonies__slot--focused [data-test^="con-colony-"]')?.getAttribute('data-test')?.replace('con-colony-', '') ?? '');
 
 /**
- * Every tile as the grid draws it — SETTLED (equal reads 100 ms apart; timers, never rAF): its LAYOUT box (the slot's
- * position, the tile's size — never a painted rect: the focused tile is lifted by a transform), its berths, its ghost,
- * its over-limit berths and its status line.
+ * Every tile as the grid draws it, read ONCE: its LAYOUT box (the slot's position, the tile's size — never a painted
+ * rect: the focused tile is lifted by a transform), its berths, its ghost, its over-limit berths and its status line.
  */
-const tilesOf = (page: Page, scope: string) => page.evaluate(async ({scope, names}) => {
-  const pause = () => new Promise((resolve) => setTimeout(resolve, 100));
-  const read = () => names.map((name) => {
-    const el = document.querySelector<HTMLElement>(`${scope} [data-test="con-colony-${name}"]`);
-    const slot = el?.closest<HTMLElement>('.con-colonies__slot') ?? el;
-    return {
-      name,
-      box: el === null || el === undefined || slot === null || slot === undefined ? '' :
-        [slot.offsetLeft, slot.offsetTop, el.offsetWidth, el.offsetHeight].join(','),
-      berths: el?.querySelectorAll('.con-coltile__build-slot').length ?? 0,
-      cubes: el?.querySelectorAll('.con-coltile__build-slot .player-cube').length ?? 0,
-      ghosts: el?.querySelectorAll('.con-coltile__ghost-cube').length ?? 0,
-      over: el?.querySelectorAll('[data-colony-berth-overlimit]').length ?? 0,
-      blocked: (el?.querySelector('.con-coltile__status--blocked, .con-coltile__status--inactive')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-      status: (el?.querySelector('.con-coltile__status--ok')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-      track: (el?.querySelector('.con-coltile__track-pos')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
-    };
-  });
-  let last = read();
-  let equal = 0;
-  for (let i = 0; i < 60 && equal < 2; i++) {
-    await pause();
-    const now = read();
-    equal = JSON.stringify(now) === JSON.stringify(last) ? equal + 1 : 0;
-    last = now;
-  }
-  return last;
-}, {scope, names: [...TILES]});
+const tileReadings = (page: Page, scope: string) => page.evaluate(({scope, names}) => names.map((name) => {
+  const el = document.querySelector<HTMLElement>(`${scope} [data-test="con-colony-${name}"]`);
+  const slot = el?.closest<HTMLElement>('.con-colonies__slot') ?? el;
+  return {
+    name,
+    box: el === null || el === undefined || slot === null || slot === undefined ? '' :
+      [slot.offsetLeft, slot.offsetTop, el.offsetWidth, el.offsetHeight].join(','),
+    berths: el?.querySelectorAll('.con-coltile__build-slot').length ?? 0,
+    cubes: el?.querySelectorAll('.con-coltile__build-slot .player-cube').length ?? 0,
+    ghosts: el?.querySelectorAll('.con-coltile__ghost-cube').length ?? 0,
+    over: el?.querySelectorAll('[data-colony-berth-overlimit]').length ?? 0,
+    blocked: (el?.querySelector('.con-coltile__status--blocked, .con-coltile__status--inactive')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    status: (el?.querySelector('.con-coltile__status--ok')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    track: (el?.querySelector('.con-coltile__track-pos')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+  };
+}), {scope, names: [...TILES]});
+
+/** Every tile AT REST (`readSettled`: after `settle`, three equal reads a frame apart) — every compared box reads here. */
+const tilesOf = (page: Page, scope: string) => readSettled(page, () => tileReadings(page, scope), {equal: 3, message: `the colony tiles under ${scope}`});
 
 /** Open the hand from board home and descend into the card's play composer. */
 async function openComposer(page: Page): Promise<void> {
@@ -329,7 +341,7 @@ async function walkTo(page: Page, name: string): Promise<void> {
     await press(page, step < 6 ? 'ArrowRight' : 'ArrowLeft', 200);
     await expect.poll(() => focusedTile(page), {timeout: 2_500}).not.toBe(before).catch(() => undefined);
   }
-  expect(await focusedTile(page), `the cursor reached ${name}`).toBe(name);
+  await expect.poll(() => focusedTile(page), {message: `the cursor reached ${name}`}).toBe(name);
 }
 
 /** A on the focused tile → its `build` stage (the press verified by the stage itself). */
@@ -409,8 +421,8 @@ for (const preset of PRESETS) {
       await openComposer(page);
       await expect(page.locator(composer), 'the CTA is the door\'s navigation verb').toContainText('Выбрать колонию');
       await expect(page.locator(composer), 'the next step is named, not guessed').toContainText('Колония — плитка выбирается в «Колониях»');
+      await expect.poll(() => textOf(page, `${composer} .con-pay`), {message: 'the payment line states the price'}).toContain('10');
       const paymentBefore = await textOf(page, `${composer} .con-pay`);
-      expect(paymentBefore, 'the payment line states the price').toContain('10');
       await shoot(page, preset.id, '01-composer');
       await armProbe(page, 'Luna', 3);
       await chooseColony(page);
@@ -442,7 +454,7 @@ for (const preset of PRESETS) {
       const doorSizes = doorTiles.map((t) => t.box.split(',').slice(2).join('×'));
       expect(new Set(doorSizes).size, `every tile keeps ONE box under the door (${doorSizes.join(' | ')})`).toBe(1);
       expect(doorSizes[0], 'the tile\'s box is the one a door-less grid draws').toBe(restTiles[0].box.split(',').slice(2).join('×'));
-      expect(await focusedTile(page), 'the cursor stands on the first candidate (A only descends)').toBe('Luna');
+      await expect.poll(() => focusedTile(page), {message: 'the cursor stands on the first candidate (A only descends)'}).toBe('Luna');
       await expect(page.locator(`${grid} [data-colonies-rail-overlimit]`), 'the rail names the berth: «Место 4 · сверх лимита»').toContainText('Место 4 · сверх лимита');
       const walkBefore = await tilesOf(page, grid);
       await walkTo(page, 'Titan');
@@ -475,7 +487,8 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${stage} .con-colfocus__limitmark`), 'ONE limit mark').toHaveCount(1);
       await expect(page.locator(`${stage} .con-colfocus__limitword`), 'ONE word, in the lane').toContainText(/сверх лимита/i);
       await expect(page.locator(`${stage} [data-colony-build-overlimit]`), 'the rail: «Место 4 · сверх лимита»').toContainText('Место 4 · сверх лимита');
-      const geometry = await page.evaluate((stageSel) => {
+      // The stage's geometry AT REST (two equal reads a frame apart, after `settle`) — the descent unfolds it.
+      const geometry = await readSettled(page, () => page.evaluate((stageSel) => {
         const root = document.querySelector<HTMLElement>(stageSel)!;
         const cells = Array.from(root.querySelectorAll<HTMLElement>('.con-colfocus__xcell')).map((c) => c.getBoundingClientRect());
         const berths = Array.from(root.querySelectorAll<HTMLElement>('.con-colfocus__berth')).map((b) => b.getBoundingClientRect());
@@ -492,7 +505,7 @@ for (const preset of PRESETS) {
           ghostCol: zone.style.getPropertyValue('--ghost-col').trim(),
           willProtect: Array.from(root.querySelectorAll('.con-colfocus__xcell')).findIndex((c) => c.classList.contains('con-colfocus__xcell--willprotect')),
         };
-      }, stage);
+      }, stage), {message: 'Luna\'s build stage'});
       expect(geometry.berths, 'four berths on the stage').toBe(4);
       expect(geometry.aligned.map((d) => Math.abs(d) <= 1), `berth i stands under cell i (${geometry.aligned.join(', ')})`).toEqual([true, true, true, true]);
       expect(geometry.bonusOverlap, 'the owner bonus gave its column: it does not stand under the fourth berth').toBe(0);
@@ -512,7 +525,7 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-hand .con-colfocus').count() === 0, {tries: 3, settleMs: 900}),
         'B on the stage folds back to the grid').toBe(true);
       await settle(page, {timeoutMs: 20_000});
-      expect(await focusedTile(page), 'B is one level: the grid, the same tile in focus').toBe('Luna');
+      await expect.poll(() => focusedTile(page), {message: 'B is one level: the grid, the same tile in focus'}).toBe('Luna');
       expect(own.posts, 'the whole ladder sent nothing').toEqual([]);
       await descend(page);
 
@@ -549,7 +562,9 @@ for (const preset of PRESETS) {
 
       // ── 5. the scene, in order ──
       const probe = await readProbe(page);
-      expect(probe.samples, `the probe ran (${probe.samples} samples, ${probe.ticks} ticks)`).toBeGreaterThan(20);
+      // The floors catch a DEAD recorder only — a count of recorded states is a count of changes, never of frames.
+      expect(probe.samples, `the probe ran (${probe.samples} recorded states, ${probe.ticks} painted states)`).toBeGreaterThan(0);
+      expect(probe.ticks, `the painted-state record ran (${probe.ticks})`).toBeGreaterThan(0);
       expect(probe.degraded, 'the cube\'s flight was never degraded').toBe(false);
       expect(probe.proxyMax, 'ONE cube proxy').toBe(1);
       expect(probe.admittedAt, 'the limit was lifted').toBeDefined();
@@ -567,7 +582,7 @@ for (const preset of PRESETS) {
       const [px, py] = probe.proxyRest!;
       expect(Math.abs(px - (sx + sw / 2)), `the cube rests on the seat's centre, x (${px} vs ${sx + sw / 2})`).toBeLessThanOrEqual(2);
       expect(Math.abs(py - (sy + sh / 2)), `the cube rests on the seat's centre, y (${py} vs ${sy + sh / 2})`).toBeLessThanOrEqual(2);
-      expect(probe.noCube, 'past the landing a cube stands in the berth on every tick (the proxy, then the real one)').toEqual([]);
+      expect(probe.noCube, 'past the landing a cube stands in the berth in every painted state (the proxy, then the real one)').toEqual([]);
       expect(probe.receiptAt, 'the grid stood as a receipt').toBeDefined();
       expect(probe.receiptAt!, 'HOME after the scene').toBeGreaterThan(probe.landedAt!);
       // The receipt takes no verbs, so the bar offers none: a STATUS, never the door's «Выбрать · Осмотреть · Назад».
@@ -580,7 +595,7 @@ for (const preset of PRESETS) {
 
       // ── 8. red: the fourth cube with no reload; red's own build door refuses Luna as full ──
       await redGrid.bringToFront();
-      await expect.poll(async () => (await tilesOf(redGrid, '.con-colonies')).find((t) => t.name === 'Luna')?.cubes ?? 0,
+      await expect.poll(async () => (await tileReadings(redGrid, '.con-colonies')).find((t) => t.name === 'Luna')?.cubes ?? 0,
         {timeout: 30_000, message: 'red sees four cubes on Luna'}).toBe(4);
       const redAfter = await tilesOf(redGrid, '.con-colonies');
       const redLuna = redAfter.find((t) => t.name === 'Luna')!;
@@ -712,11 +727,12 @@ for (const preset of PRESETS) {
       await step.waitFor({timeout: 60_000});
       await settle(page, {timeoutMs: 30_000});
       await expect(page.locator('.con-hand .con-colfocus'), 'the build\'s stage went home before the step stood').toHaveCount(0);
-      const crumb = (await textOf(page, '.con-hand .con-wshead')).toUpperCase();
-      expect(crumb, 'the crumb keeps the root and the card').toContain(ROOT_RU.toUpperCase());
-      expect(crumb).toContain(CARD_RU.toUpperCase());
-      expect(crumb, 'the tail names the tile and the step').toContain('ВЕНЕРА');
-      expect(crumb).toContain('ГОЛОСОВАНИЕ');
+      // The crumb is a live string (it republishes a frame after the step stands) — polled.
+      const crumb = async () => (await textOf(page, '.con-hand .con-wshead')).toUpperCase();
+      await expect.poll(crumb, {message: 'the crumb keeps the root and the card'}).toContain(ROOT_RU.toUpperCase());
+      await expect.poll(crumb).toContain(CARD_RU.toUpperCase());
+      await expect.poll(crumb, {message: 'the tail names the tile and the step'}).toContain('ВЕНЕРА');
+      await expect.poll(crumb).toContain('ГОЛОСОВАНИЕ');
       await expect(page.locator('.con-cmdbar'), 'the bar is the vote\'s own — never the stage\'s verbs').toContainText('Отправить делегатов');
       await expect(page.locator('.con-cmdbar')).not.toContainText('Разыграть карту');
       await shoot(page, preset.id, '11-venus-grant-step');
@@ -731,7 +747,9 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-ws'), 'no workspace is left standing').toHaveCount(0, {timeout: 60_000});
       await settle(page, {timeoutMs: 30_000});
       const probe = await readProbe(page);
-      expect(probe.samples, `the probe ran (${probe.samples} samples, ${probe.ticks} ticks)`).toBeGreaterThan(20);
+      // The floors catch a DEAD recorder only — a count of recorded states is a count of changes, never of frames.
+      expect(probe.samples, `the probe ran (${probe.samples} recorded states, ${probe.ticks} painted states)`).toBeGreaterThan(0);
+      expect(probe.ticks, `the painted-state record ran (${probe.ticks})`).toBeGreaterThan(0);
       expect(probe.overlap, 'the Parliament\'s step never stood over the colony stage').toEqual([]);
       expect(probe.receiptAt, 'the grid stood as the receipt after the step').toBeDefined();
       expect(probe.degraded, 'the cube\'s flight was never degraded').toBe(false);

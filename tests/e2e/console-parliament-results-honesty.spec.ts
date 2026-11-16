@@ -6,6 +6,8 @@ import {
   closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, expectRailHonest, openParliament, openParliamentAfterSitting, PARLIAMENT_PRESETS, parliamentWire,
   sittingStage, waitSittingAtRest,
 } from './parliamentDrive';
+import {readSettled} from './settledRead';
+import {armWitness, witnessOf} from './witness';
 
 
 /**
@@ -23,16 +25,25 @@ import {
  * ⑤ the government's swap changes a plaque's state in the frame it ARRIVES, never in flight.
  *
  * EVERY PROBE ASSERTS VISIBILITY, not that an event fired — a rect, the element's own computed
- * `visibility`, and the box of the ancestor that could cut it. The sampler is `setInterval` +
- * `MutationObserver`, never rAF (headless Chromium drives rAF off the compositor and stops exactly when
- * the screen goes quiet), and a sample carries the CLOCK that took it: an `mo` sample runs as a microtask
- * and legitimately sees a FLIP's re-parent before the `nextTick` that writes its inverse transform — a
- * state the browser never paints. Claims about FRAMES are made on the `tick` samples only.
+ * `visibility`, and the box of the ancestor that could cut it. The probe is a RECORDING (FLAKE ZERO —
+ * `armWitness`, armed before the walk, replace-proof), and it records what a TASK LEAVES (`settled`): an
+ * observer's callback runs between two writes of one task and legitimately sees a FLIP's re-parent before
+ * the `nextTick` that writes its inverse transform — a state the browser never paints. Claims about FRAMES
+ * are made on those settled samples (the old sampler's `tick` samples).
+ * Geometry read once at the end of a walk is read AT REST (`readSettled`).
  */
 type TileSample = {party: string, inSlot: boolean, socketsHidden: boolean, socketsBox: boolean};
 type ZoneWord = {zone: string, text: string};
+/** What the recording keeps per change (the witness stamps it with the page's time). */
+type HonestySeen = {
+  stage: string, swapping: boolean,
+  sections: Array<string>,
+  panelText: string,
+  panelStrict: string,
+  zoneWords: Array<ZoneWord>,
+  tiles: Array<TileSample>,
+};
 type HonestySample = {
-  src: 'mo' | 'tick',
   t: number, stage: string, swapping: boolean,
   sections: Array<string>,
   panelText: string,
@@ -42,7 +53,6 @@ type HonestySample = {
   zoneWords: Array<ZoneWord>,
   tiles: Array<TileSample>,
 };
-type HonestyProbe = {samples: Array<HonestySample>};
 
 /*
  * ЗАКОН ПАНЕЛИ, ЗАКРЕПЛЁННЫЙ МЕХАНИЧЕСКИ (Ф2): the results panel never prints what is VISIBLE IN ANOTHER
@@ -92,10 +102,11 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
+const HONESTY_WITNESS = 'parliament-results-honesty';
+
+/** Armed BEFORE the walk: every state of the sitting's screen a task leaves (null while no Parliament stands). */
 async function armHonestyProbe(page: Page): Promise<void> {
-  await page.evaluate(([zones, exceptions]: [typeof ZONE_WORDS, ReadonlyArray<string>]) => {
-    const w = window as unknown as {__hon: HonestyProbe};
-    w.__hon = {samples: []};
+  await armWitness<HonestySeen | null, [typeof ZONE_WORDS, ReadonlyArray<string>]>(page, HONESTY_WITNESS, ([zones, exceptions]) => {
     const text = (el: Element | null | undefined): string =>
       (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const tiles = (): Array<TileSample> => Array.from(document.querySelectorAll('.con-parl__party[data-party]')).map((el) => {
@@ -148,34 +159,27 @@ async function armHonestyProbe(page: Page): Promise<void> {
       }
       return text(clone).toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim();
     };
-    const sample = (src: 'mo' | 'tick') => {
-      const root = document.querySelector('.con-parl');
-      if (root === null) {
-        return;
-      }
-      w.__hon.samples.push({
-        src,
-        t: performance.now(),
-        stage: root.getAttribute('data-sitting-stage') ?? '',
-        swapping: root.classList.contains('con-parl--swapping'),
-        sections: painted(document.querySelector('[data-sit-results]')) ?
-          Array.from(document.querySelectorAll('[data-sit-section]')).map((el) => el.getAttribute('data-sit-section') ?? '') : [],
-        panelText: text(document.querySelector('[data-sit-results]')),
-        panelStrict: strict(),
-        zoneWords: words(),
-        tiles: tiles(),
-      });
+    const root = document.querySelector('.con-parl');
+    if (root === null) {
+      return null;
+    }
+    return {
+      stage: root.getAttribute('data-sitting-stage') ?? '',
+      swapping: root.classList.contains('con-parl--swapping'),
+      sections: painted(document.querySelector('[data-sit-results]')) ?
+        Array.from(document.querySelectorAll('[data-sit-section]')).map((el) => el.getAttribute('data-sit-section') ?? '') : [],
+      panelText: text(document.querySelector('[data-sit-results]')),
+      panelStrict: strict(),
+      zoneWords: words(),
+      tiles: tiles(),
     };
-    new MutationObserver(() => sample('mo')).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
-    window.setInterval(() => sample('tick'), 40);
-    sample('tick');
-  }, [ZONE_WORDS, PANEL_EXCEPTIONS] as [typeof ZONE_WORDS, ReadonlyArray<string>]);
+  }, {args: [ZONE_WORDS, PANEL_EXCEPTIONS], settled: true, max: 20_000});
 }
 
-const readHonesty = (page: Page): Promise<HonestyProbe> =>
-  page.evaluate(() => (window as unknown as {__hon: HonestyProbe}).__hon);
-
-const ticks = (s: ReadonlyArray<HonestySample>) => s.filter((x) => x.src === 'tick');
+/** Every recorded state with a Parliament on screen, in order, stamped with the page's time. */
+const readHonesty = async (page: Page): Promise<Array<HonestySample>> =>
+  (await witnessOf<HonestySeen | null>(page, HONESTY_WITNESS).samples())
+    .flatMap((s) => s.v === null ? [] : [{...s.v, t: s.t}]);
 
 type SittingSummary = {
   support?: Array<{party: string, gained: number}>,
@@ -237,12 +241,14 @@ test.describe('«Итоги: честность» — панель, поддер
     expect(zone.palataOpacity, 'the chamber is out of sight under the card').toBe(0);
     expect(zone.quest.length, 'the chairman\'s quest plate stands beside the card and names itself').toBeGreaterThan(3);
 
-    const all = ticks((await readHonesty(page)).samples);
-    expect(all.length, 'the sampler ran (a dead probe passes everything)').toBeGreaterThan(40);
+    // A recording keeps a state only when it CHANGES: its liveness floor is «it recorded at all» (a dead recorder fails
+    // it), and «the panel was sampled» is «the panel was ever painted» — a count of samples is a count of frames.
+    const all = await readHonesty(page);
+    expect(all.length, 'the sampler ran (a dead probe passes everything)').toBeGreaterThan(0);
 
     // ② TWO SECTIONS, in every beat the panel is mounted in.
     const withPanel = all.filter((s) => s.sections.length > 0);
-    expect(withPanel.length, 'the results panel was sampled').toBeGreaterThan(5);
+    expect(withPanel.length, 'the results panel was sampled').toBeGreaterThan(0);
     const wrongSections = withPanel.filter((s) => s.sections.join('|') !== 'enacted|payouts|table');
     expect(wrongSections.map((s) => `${s.stage}: ${s.sections.join('|')}`).slice(0, 4),
       'the enacted law, the payouts and the next vote — and nothing else').toEqual([]);
@@ -331,7 +337,7 @@ test.describe('«Итоги: честность» — панель, поддер
     expect(model.rulingParty, 'the government changed hands — the starting-rule ruler stepped down').not.toBe(startingRuler);
     expect(model.popularSupport[model.rulingParty] ?? 0, 'the ruling party holds no stock (the rule the hidden sockets stand on)').toBe(0);
 
-    const tiles = await page.locator('.con-parl__party[data-party]').evaluateAll((els) => els.map((el) => {
+    const tiles = await readSettled(page, () => page.locator('.con-parl__party[data-party]').evaluateAll((els) => els.map((el) => {
       const sockets = el.querySelector<HTMLElement>('.con-pseal__support');
       const r = sockets?.getBoundingClientRect();
       return {
@@ -341,7 +347,7 @@ test.describe('«Итоги: честность» — панель, поддер
         socketsBox: r !== undefined && r.width > 0 && r.height > 0,
         filled: el.querySelectorAll('.con-pseal__support-place--on').length,
       };
-    }));
+    })), {message: 'the plaques of the overview'});
     expect(tiles.length, 'six plaques: five in the row and the one in the government').toBe(6);
 
     const ruler = tiles.find((t) => t.inSlot);
@@ -369,7 +375,7 @@ test.describe('«Итоги: честность» — панель, поддер
     const model = wire.game.parliament as unknown as {rulingParty: string, popularSupport: Record<string, number>};
     const gained = new Map((summaryOf(wire).support ?? []).map((e) => [e.party, e.gained]));
 
-    const row = await page.locator('[data-sit-support]').evaluateAll((els) => els.map((el) => {
+    const row = await readSettled(page, () => page.locator('[data-sit-support]').evaluateAll((els) => els.map((el) => {
       const places = Array.from(el.querySelectorAll('.con-sit__support-place'));
       // The place's FOOTPRINT (its ::before trace) carries the rim — its colour and its fill, never a glow (FG: a
       // standing state is a kant, the trace's halo is gone) and never the box.
@@ -393,7 +399,7 @@ test.describe('«Итоги: честность» — панель, поддер
           .map((p) => traceOf(p)).join(' | '),
         inside: own.left >= rowBox.left - 1 && own.right <= rowBox.right + 1,
       };
-    }));
+    })), {message: 'the support row of the results'});
 
     expect(row.map((e) => e.party), `the RULING party (${model.rulingParty}) is not in the row`).not.toContain(model.rulingParty);
     expect(row.length, 'the row states every party but the one that rules').toBe(5);
@@ -431,10 +437,10 @@ test.describe('«Итоги: честность» — панель, поддер
     const byCard = (await parliamentWire(request, playerId)).game.parliament?.rulingParty;
     expect(byCard, `the walk changed the government (${rulerBefore} → ${byCard})`).not.toBe(rulerBefore);
 
-    const all = ticks((await readHonesty(page)).samples);
-    expect(all.length, 'the sampler ran').toBeGreaterThan(40);
+    const all = await readHonesty(page);
+    expect(all.length, 'the sampler ran').toBeGreaterThan(0);
     const full = all.filter((s) => s.tiles.length === 6);
-    expect(full.length, 'the six plaques were sampled').toBeGreaterThan(20);
+    expect(full.length, 'the six plaques were sampled').toBeGreaterThan(0);
 
     // ① AT REST the sockets are hidden on exactly the tile standing in the government WHEN IT RULES BY AN ENACTED CARD,
     //    and nowhere else. Before the first enactment the Greens rule by the STARTING RULE and keep their sockets
@@ -518,7 +524,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await settle(page, {timeoutMs: 20_000});
       await shoot(page, `honesty-plaque-${preset.id}`);
 
-      const geo = await page.evaluate(() => {
+      const geo = await readSettled(page, () => page.evaluate(() => {
         const box = (el: Element | null) => {
           const r = el?.getBoundingClientRect();
           return r === undefined ? undefined : {w: Math.round(r.width), h: Math.round(r.height)};
@@ -541,7 +547,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           rowBoxes: rowTiles.map((el) => box(el)),
           rowSockets: rowTiles.map((el) => ({party: el.getAttribute('data-party') ?? '', ...sockets(el)})),
         };
-      });
+      }), {message: `the ruler's plaque and the row (${preset.id})`});
 
       expect(geo.rowBoxes.length, 'the five opposition tiles').toBe(5);
       expect(geo.rulerBox, 'the ruler\'s tile stands in its slot').toBeDefined();

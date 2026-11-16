@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
 
 /**
  * THE RAIL VALUE BADGES — the passive information layer on the left rail:
@@ -51,11 +52,17 @@ type RailBadgesAudit = {
   vpBadgeCount: number,
 };
 
+/**
+ * The rail's badges as data — read AT REST by its callers (`readSettled`, FLAKE ZERO class C): every claim below
+ * compares one box against another, and a rail still settling its entrance answers wherever the machine had got to.
+ * Boxes to a tenth of a pixel (a subpixel that jitters is not motion).
+ */
 async function readBadges(page: Page): Promise<RailBadgesAudit> {
   return await page.evaluate(() => {
+    const tenth = (v: number) => Math.round(v * 10) / 10;
     const box = (el: Element): Box => {
       const b = el.getBoundingClientRect();
-      return {x: b.left, y: b.top, w: b.width, h: b.height, r: b.right, b: b.bottom};
+      return {x: tenth(b.left), y: tenth(b.top), w: tenth(b.width), h: tenth(b.height), r: tenth(b.right), b: tenth(b.bottom)};
     };
     type Box = {x: number, y: number, w: number, h: number, r: number, b: number};
     const badges: Array<{key: string, text: string, wide: boolean, badge: Box, textBox: Box, row: Box, valueLeft: number}> = [];
@@ -78,14 +85,14 @@ async function readBadges(page: Page): Promise<RailBadgesAudit> {
         badge: box(el),
         textBox: box(text),
         row: box(row),
-        valueLeft: inkRange.getBoundingClientRect().left,
+        valueLeft: tenth(inkRange.getBoundingClientRect().left),
       });
     }
     const rows = [...document.querySelectorAll('.con-res__row')];
     return {
       badges,
-      rowHeights: rows.map((r) => r.getBoundingClientRect().height),
-      iconXs: rows.map((r) => r.querySelector('.con-res__icon')?.getBoundingClientRect().left ?? -1),
+      rowHeights: rows.map((r) => tenth(r.getBoundingClientRect().height)),
+      iconXs: rows.map((r) => tenth(r.querySelector('.con-res__icon')?.getBoundingClientRect().left ?? -1)),
       vpBadgeCount: document.querySelectorAll('[data-tag-vp]').length,
     };
   });
@@ -111,10 +118,9 @@ for (const profile of PROFILES) {
       }
       await page.waitForSelector('.con-res__row', {timeout: 15_000});
       await page.waitForSelector('[data-mc-badge="steel"]', {timeout: 15_000});
-      await page.waitForTimeout(600);
+      // The rail at REST — never a pause: two equal readings a frame apart, after the console went quiet.
+      const a = await readSettled(page, () => readBadges(page), {message: `the rail badges (${profile.tag})`});
       await shoot(page, `${profile.tag}-board`);
-
-      const a = await readBadges(page);
       console.log(`[RAILBADGE:${profile.tag}] ` +
         a.badges.map((b) => `${b.key}=«${b.text}» box=${b.badge.w.toFixed(1)}×${b.badge.h.toFixed(1)}`).join(' ') +
         ` rows=${a.rowHeights.map((h) => h.toFixed(1)).join(',')} vp=${a.vpBadgeCount}`);
@@ -176,10 +182,8 @@ test.describe('rail value badges · deterministic corp scenarios (fhd)', () => {
       corporation: 'Crescent Research Association',
     });
     await page.waitForSelector('[data-tag-vp="moon"]', {timeout: 15_000});
-    await page.waitForTimeout(400);
-    await shoot(page, 'fhd-tag-vp-crescent');
-
-    const audit = await page.evaluate(() => {
+    // The shield against its cell, at REST (never a pause).
+    const audit = await readSettled(page, () => page.evaluate(() => {
       const badge = document.querySelector('[data-tag-vp="moon"]');
       const cell = badge?.closest('.con-tagmx__cell');
       const num = cell?.querySelector('.con-tagmx__num');
@@ -196,7 +200,8 @@ test.describe('rail value badges · deterministic corp scenarios (fhd)', () => {
         clearOfCount: b.bottom <= n.top + 1,
         vpTotal: document.querySelectorAll('[data-tag-vp]').length,
       };
-    });
+    }), {message: 'the moon VP shield'});
+    await shoot(page, 'fhd-tag-vp-crescent');
     expect(audit, 'the moon VP shield renders').toBeDefined();
     expect(audit?.text, 'a third per moon tag').toBe('⅓');
     expect(audit?.inCellX, 'shield inside its cell (x)').toBe(true);
@@ -215,10 +220,8 @@ test.describe('rail value badges · deterministic corp scenarios (fhd)', () => {
       corporation: 'Carbon Nanosystems',
     });
     await page.waitForSelector('.con-res-aux__cell [data-mc-badge]', {timeout: 15_000});
-    await page.waitForTimeout(400);
-    await shoot(page, 'fhd-aux-graphene');
-
-    const audit = await page.evaluate(() => {
+    // The coin against its chip, at REST (never a pause).
+    const audit = await readSettled(page, () => page.evaluate(() => {
       const badge = document.querySelector('.con-res-aux__cell [data-mc-badge]');
       const cell = badge?.closest('.con-res-aux__cell');
       const value = cell?.querySelector('.con-res-aux__value');
@@ -236,7 +239,8 @@ test.describe('rail value badges · deterministic corp scenarios (fhd)', () => {
         inCellY: b.top >= c.top - 3 && b.bottom <= c.bottom + 3,
         clearOfValue: b.right <= ink.getBoundingClientRect().left - 1,
       };
-    });
+    }), {message: 'the graphene coin'});
+    await shoot(page, 'fhd-aux-graphene');
     expect(audit, 'the graphene coin renders').toBeDefined();
     expect(audit?.key).toBe('graphene');
     expect(audit?.text, 'graphene pays 4').toBe('4');

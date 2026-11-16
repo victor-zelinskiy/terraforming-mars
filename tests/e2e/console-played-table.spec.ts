@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, bootIntoGame, closeZoomViewer, press, pressUntil, settle, soloGameConfig} from './consoleStart';
+import {readSettled} from './settledRead';
+import {armWitness} from './witness';
 
 /**
  * «РАЗЫГРАНО» — ONE PAGE OF TABLE STACKS (the owner, 2026-10-19; TR65's chassis stays: the screen stands in the central
@@ -42,11 +44,9 @@ async function key(page: Page, code: string, settleMs = 500): Promise<void> {
   await press(page, code, settleMs);
 }
 
-/** X from the board home → the table, settled. */
+/** X from the board home → the table, settled (act → verify: the table stands → retry only without it). */
 async function openTable(page: Page): Promise<void> {
-  for (let i = 0; i < 3 && await page.locator(TABLE).count() === 0; i++) {
-    await key(page, 'KeyX', 1200);
-  }
+  await pressUntil(page, 'KeyX', async () => await page.locator(TABLE).count() > 0, {tries: 3, settleMs: 1200});
   await expect(page.locator(TABLE), 'the table stands').toHaveCount(1);
   await settle(page).catch(() => undefined);
 }
@@ -119,6 +119,24 @@ async function shapeOf(page: Page): Promise<Shape> {
   }, TABLE);
 }
 
+/**
+ * Every geometry reading here is AT REST — `readSettled` (equal reads a frame apart, while no finite motion runs) with
+ * `REST`: no `settle` first, because the table's own scenes may keep a hold standing (the spec's settles here are
+ * soft — `.catch`), and the reading's own frames are what judge rest.
+ */
+const REST = {settle: false} as const;
+
+/** The first slot of the active stack — its box (0.1 px), `null` while it has none. */
+async function activeSlotBox(page: Page): Promise<{width: number, height: number} | null> {
+  const b = await page.locator('[data-played-stack="active"] .con-played__slot').first().boundingBox();
+  return b === null ? null : {width: Math.round(b.width * 10) / 10, height: Math.round(b.height * 10) / 10};
+}
+
+/** The table's numbers AT REST. */
+async function settledShape(page: Page, what: string): Promise<Shape> {
+  return readSettled(page, () => shapeOf(page), {...REST, message: `the table's shape — ${what}`});
+}
+
 const bar = (page: Page) => page.evaluate(() => (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim());
 const crumb = (page: Page) => page.evaluate(() => (document.querySelector('.con-played .con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim());
 const focusedZone = (page: Page) => page.evaluate(() => document.querySelector<HTMLElement>('.con-played__family--focused')?.dataset.playedCat ?? '');
@@ -134,7 +152,7 @@ async function focusStack(page: Page, stack: string): Promise<void> {
   for (let i = 0; i < 8 && await focusedZone(page) !== stack; i++) {
     await key(page, 'ArrowLeft', 350);
   }
-  expect(await focusedZone(page), `the cursor on the ${stack} stack`).toBe(stack);
+  await expect.poll(() => focusedZone(page), {message: `the cursor on the ${stack} stack`}).toBe(stack);
 }
 
 for (const preset of PRESETS) {
@@ -146,7 +164,7 @@ for (const preset of PRESETS) {
       await bootFixtureSeats(page, request, 'info-dossier', {query: preset.query});
       await settle(page);
       await openTable(page);
-      const s = await shapeOf(page);
+      const s = await settledShape(page, 'the 20-card table');
       // THE OPENING: the table's box is the central opening (the strategy rail yields — the policy class).
       expect(s.root.y, 'the top of the opening').toBeCloseTo(s.stage.t, -1);
       expect(s.root.x, 'the player rail\'s seam').toBeCloseTo(s.stage.l, -1);
@@ -170,13 +188,13 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-played-stack="active"] [data-played-key]')).toHaveCount(14);
       await expect.poll(() => crumb(page), {timeout: 10_000}).toMatch(/Разыграно/i);
       await expect.poll(() => crumb(page), {timeout: 10_000}).toMatch(/player1/i);
-      const b = await bar(page);
-      expect(b, 'A opens, B closes').toMatch(/Открыть/);
-      expect(b).toMatch(/Закрыть/);
-      expect(b, 'one page — no page verb at the table').not.toMatch(/Листать/);
+      // The bar is a live string (it republishes a frame after the table stands) — polled.
+      await expect.poll(() => bar(page), {message: 'A opens, B closes'}).toMatch(/Открыть/);
+      await expect.poll(() => bar(page)).toMatch(/Закрыть/);
+      await expect.poll(() => bar(page), {message: 'one page — no page verb at the table'}).not.toMatch(/Листать/);
       await shoot(page, preset.id, '01-table-20');
       // The command bar stays ON TOP of the screen (a workspace, not a drawer under the footer).
-      expect(await page.locator('.con-footer').evaluate((el) => el.classList.contains('con-footer--under-scene'))).toBe(false);
+      await expect.poll(() => page.locator('.con-footer').evaluate((el) => el.classList.contains('con-footer--under-scene'))).toBe(false);
       await key(page, 'Escape', 1000);
       await expect(page.locator(TABLE)).toHaveCount(0, {timeout: 8_000});
     });
@@ -192,7 +210,7 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       await bootFixtureSeats(page, request, 'played-table-50', {query: preset.query});
       await settle(page);
       await openTable(page);
-      const s = await shapeOf(page);
+      const s = await settledShape(page, 'the 50-card table');
       // Every card of the table lies on the one page: the face-up ones as keyed slots, the events in their pile.
       const total = Number(await page.locator('.con-played__total b').textContent());
       const events = Number(await page.locator('.con-played__family--event .con-played__caption-count').textContent());
@@ -218,10 +236,10 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       await expect(page.locator('[data-cat-spine] .con-played-cat__spine-dot')).toHaveCount(pages);
       await expect.poll(() => page.locator('.con-played-cat__grid').count(), {message: 'never a scrolling grid'}).toBe(0);
       // Two rows a page at least.
-      const rows = await page.evaluate(() => {
+      const rows = await readSettled(page, () => page.evaluate(() => {
         const page0 = document.querySelector('[data-cat-page-index="0"]');
         return new Set(Array.from(page0?.querySelectorAll<HTMLElement>('.con-played-cat__slot') ?? []).map((el) => Math.round(el.getBoundingClientRect().top))).size;
-      });
+      }), {...REST, message: 'the rows of the first album page'});
       expect(rows, 'the album page has at least two rows').toBeGreaterThanOrEqual(2);
       await expect.poll(() => bar(page), {message: 'LB/RB «Листать» inside the album', timeout: 10_000}).toMatch(/Листать/);
       await shoot(page, preset.id, '03-album-page1');
@@ -234,13 +252,15 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       await expect.poll(() => crumb(page), {timeout: 10_000}).not.toMatch(/player2/i);
       // A STATE, never a timer: the strip SLIDES to the page, and under a loaded box the slide outlives the press's
       // fixed wait (one read 700 ms after RB was red 1 / 3 beside another 4K test — before the Vapor flip and after it).
-      await expect.poll(() => page.evaluate(() => {
+      // So the slide's END is read — the album at rest (`readSettled`), page 2 in its box.
+      const page2Stands = await readSettled(page, () => page.evaluate(() => {
         const box = document.querySelector('.con-played-cat__album')!.getBoundingClientRect();
         return Array.from(document.querySelectorAll<HTMLElement>('.con-played-cat__slot')).some((el) => {
           const r = el.getBoundingClientRect();
           return el.closest('[data-cat-page-index="1"]') !== null && r.left >= box.left - 1 && r.right <= box.right + 1;
         });
-      }), {message: 'page 2 stands in the album box', timeout: 10_000}).toBe(true);
+      }), {...REST, message: 'the album after RB'});
+      expect(page2Stands, 'page 2 stands in the album box').toBe(true);
       await shoot(page, preset.id, '04-album-page2');
       // LB — back.
       await key(page, 'KeyQ', 700);
@@ -259,7 +279,9 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       await settle(page);
       await openTable(page);
       await focusStack(page, 'active');
-      const slotBefore = await page.locator('[data-played-stack="active"] .con-played__slot').first().boundingBox();
+      // The slot's box on the table and inside the category view — BOTH at rest (a comparison is as settled as its
+      // least settled side).
+      const slotBefore = await readSettled(page, () => activeSlotBox(page), {...REST, message: 'the active slot on the table'});
       expect(slotBefore?.width ?? 0).toBeGreaterThan(4);
       await key(page, 'Enter', 400);
       await expect(page.locator('.con-played-cat'), 'the category view mounts').toHaveCount(1, {timeout: 8_000});
@@ -268,11 +290,11 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       // ONE PHYSICAL COPY: the stack's slots of the lifted cards hold their place (invisible, laid out).
       const held = page.locator('[data-played-stack="active"] .con-played__slot--held-out');
       await expect.poll(() => held.count(), {message: 'the active cards are away'}).toBe(14);
-      const slotDuring = await page.locator('[data-played-stack="active"] .con-played__slot').first().boundingBox();
+      const slotDuring = await readSettled(page, () => activeSlotBox(page), {...REST, message: 'the active slot under the category view'});
       expect(slotDuring?.width ?? 0, 'the slot keeps its geometry').toBeCloseTo(slotBefore?.width ?? 0, 0);
       await expect.poll(() => page.locator('.con-played-cat__slot').count(), {message: 'every card of the zone in the view'}).toBe(14);
       // Fourteen cards stand on ONE screen at this size — no scroll, no pages.
-      const grid = await page.evaluate(() => {
+      const grid = await readSettled(page, () => page.evaluate(() => {
         const el = document.querySelector<HTMLElement>('.con-played-cat__grid');
         if (el === null) {
           return {grid: false, scrolls: false, inView: 0};
@@ -283,13 +305,13 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
           return r.top >= box.top - 1 && r.bottom <= box.bottom + 1;
         }).length;
         return {grid: true, scrolls: el.scrollHeight > el.clientHeight + 2, inView};
-      });
+      }), {...REST, message: 'the category grid'});
       expect(grid.grid, 'one screen holds the zone — the grid').toBe(true);
       expect(grid.scrolls).toBe(false);
       expect(grid.inView, 'the whole zone stands in view').toBe(14);
       await shoot(page, preset.id, '05-category-grid');
       // THE VIEW STANDS OVER THE TABLE'S BODY (PL-626): the crumb is painted, the view's box is the body's.
-      const room = await page.evaluate(() => {
+      const room = await readSettled(page, () => page.evaluate(() => {
         const head = document.querySelector<HTMLElement>('.con-played__head');
         const body = document.querySelector<HTMLElement>('.con-played__body');
         const view = document.querySelector<HTMLElement>('.con-played-cat');
@@ -304,7 +326,7 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
           headCovered: atHead !== null && view.contains(atHead),
           dTop: v.top - b.top, dLeft: v.left - b.left, dRight: b.right - v.right, dBottom: b.bottom - v.bottom,
         };
-      });
+      }), {...REST, message: 'the category view over the body of the table'});
       expect(room, 'the head, the body and the view are on the page').toBeDefined();
       expect(room?.headCovered, 'the crumb is not under the category view').toBe(false);
       for (const [edge, d] of Object.entries({top: room?.dTop, left: room?.dLeft, right: room?.dRight, bottom: room?.dBottom})) {
@@ -316,7 +338,7 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       await key(page, 'KeyX', 1200);
       await expect(page.locator('dialog.con-zoom[open]')).toHaveCount(1, {timeout: 8_000});
       await expect(page.locator('.con-zoom__prov-cat')).toHaveText('Активные');
-      expect(await page.locator(TABLE).evaluate((el) => getComputedStyle(el).visibility)).toBe('visible');
+      await expect.poll(() => page.locator(TABLE).evaluate((el) => getComputedStyle(el).visibility)).toBe('visible');
       await closeZoomViewer(page);
       // B — the cards fly home; every hold releases. (Act → verify → retry: the viewer's own return can absorb the
       // first B on a loaded runner — a second B mid-flight only snaps the cards home.)
@@ -324,7 +346,7 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
         'B closes the category').toBe(true);
       await expect(page.locator('.con-played-cat')).toHaveCount(0, {timeout: 15_000});
       await expect(held).toHaveCount(0);
-      expect(await focusedZone(page), 'the cursor stays on the zone it came from').toBe('active');
+      await expect.poll(() => focusedZone(page), {message: 'the cursor stays on the zone it came from'}).toBe('active');
       await key(page, 'Escape', 1000);
     });
 
@@ -334,24 +356,18 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       await settle(page);
       await openTable(page);
       const own = await crumb(page);
-      // A table-count witness armed BEFORE the press: the chassis never leaves the DOM across the switch.
-      await page.evaluate(() => {
-        const w = window as unknown as {__tableGaps: number, __tableObs?: MutationObserver};
-        w.__tableGaps = 0;
-        w.__tableObs = new MutationObserver(() => {
-          if (document.querySelector('.con-played__table') === null) {
-            w.__tableGaps++;
-          }
-        });
-        w.__tableObs.observe(document.body, {childList: true, subtree: true});
-      });
+      // A table-presence witness armed BEFORE the press (`armWitness`, off the product's own writes): the chassis never
+      // leaves the DOM across the switch. «Never a frame without it» is a coexistence claim — recorded `settled`.
+      const table = await armWitness(page, 'played-table-presence', () => document.querySelector('.con-played__table') !== null, {settled: true});
       await key(page, 'KeyE', 1000); // RB — the rival
+      // The crumb is a live string (it republishes a frame after the switch) — polled.
+      await expect.poll(() => crumb(page)).toMatch(/player2/i);
       const rival = await crumb(page);
       expect(rival).not.toBe(own);
-      expect(rival).toMatch(/player2/i);
       await expect(page.locator('.con-played__family--corporation .con-played__slot').first()).toBeVisible();
-      expect(await page.evaluate(() => (window as unknown as {__tableGaps: number}).__tableGaps), 'no frame without the table').toBe(0);
-      const s = await shapeOf(page);
+      const gaps = (await table.stop()).filter((sample) => !sample.v).length;
+      expect(gaps, 'no frame without the table').toBe(0);
+      const s = await settledShape(page, 'the rival\'s table');
       expect(s.frontW, 'the rival\'s faces at the couch scale').toBeGreaterThanOrEqual(preset.faceFloor);
       expect(s.outside).toEqual([]);
       // NO EVENT YET (PL-620): the stack's place is an outline that names what is missing — never a card-sized plate.
@@ -403,7 +419,7 @@ test.describe('the played table · the bot, the early table, reduced motion', ()
     await bootFixtureSeats(page, request, 'info-dossier', {query: '&consoleProfile=auto'});
     await settle(page);
     await openTable(page);
-    const s = await shapeOf(page);
+    const s = await settledShape(page, 'the table under reduced motion');
     expect(s.frontW).toBeGreaterThanOrEqual(190);
     await focusStack(page, 'active');
     await key(page, 'Enter', 600);
