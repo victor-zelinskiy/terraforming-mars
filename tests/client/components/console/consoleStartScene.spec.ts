@@ -356,6 +356,10 @@ describe('consoleStartSceneState — the handles the start scene keeps for the P
     // The scene yielded the screen to the board (a prelude's tile waits for the player's cell): no face of anything is
     // painted until the player has placed — the reactor rises at the stage at once, never after an eight-second wait.
     expect(startOffersReactorPlace({carries: true, buried: false, painting: false}), 'a scene that does not paint has no face to show').to.eq(false);
+    // The shelf is put away for another card's embedded step (that card presides in the seat) and nothing is bringing
+    // the corporation's face: «nothing is coming, the stage is right at once» (CI, CPU x4: the ceiling 8 runs of 8).
+    expect(startOffersReactorPlace({carries: true, buried: false, painting: true, putAway: true}), 'a home the scene put away is no place').to.eq(false);
+    expect(startOffersReactorPlace({carries: true, buried: false, painting: true, putAway: false})).to.eq(true);
   });
 
   it('the queue box is observed once per box: a new box answers «solve now», the same one does not, the release lets it go', () => {

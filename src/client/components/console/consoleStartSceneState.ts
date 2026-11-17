@@ -24,9 +24,16 @@ export function standStartReactorPlace(place: ReactorPlace): void {
  * stage (`wait-graph/ceiling/start:reactor-face` — CI, `field-start-sbp-triton`: eight runs of eight under CPU x4,
  * one walk of 606 at full speed). A place that cannot show a face is no place: the reactor rises at the stage at
  * once, over the board the player is looking at.
+ *
+ * …AND ITS HOME IS NOT PUT AWAY. That guess («the scene has yielded») was wrong for the class it was made for — the
+ * ceiling's own line said what stands (`ArrivingFaceWait.whyNot`): «seat none; shelf hidden; scene ceremony; seat
+ * shows Experimental Forest, receives nothing; arriving false». The corporation's face lies on the shelf «РАЗЫГРАНО»,
+ * and the scene itself has put the shelf away: an EMBEDDED STEP of another card spans the row, and that card presides
+ * in the seat. Nothing is bringing the corporation's face anywhere until the player ends the step — the framework's
+ * own law for a receded card («nothing is coming, the stage is right at once»), which the start's promise overrode.
  */
-export function startOffersReactorPlace(s: {carries: boolean, buried: boolean, painting: boolean}): boolean {
-  return s.carries && !s.buried && s.painting;
+export function startOffersReactorPlace(s: {carries: boolean, buried: boolean, painting: boolean, putAway?: boolean}): boolean {
+  return s.carries && !s.buried && s.painting && s.putAway !== true;
 }
 
 /** The start is no reactor's place any more (its scene unmounts); nothing to do when it was none. */

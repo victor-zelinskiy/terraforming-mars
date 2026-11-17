@@ -8970,6 +8970,23 @@ function startReactorBuried(card: CardName): boolean {
   const slot = startShelfFace(card);
   return slot !== undefined && slot.closest('.con-deal-hold') === null && transferEndVerdict(slot).visible && buriedUnderAnotherCard(slot);
 }
+/**
+ * `card`'s home is PUT AWAY by the scene itself: its slot on the shelf is mounted and HIDDEN (the shelf yielded the row
+ * to an embedded step), ANOTHER card presides in the seat, and nothing is bringing `card` to it. Until the player
+ * ends that step no face of it can stand — the start is not its place (`startOffersReactorPlace`).
+ */
+function startReactorPutAway(card: CardName): boolean {
+  const seated = embedSourceShown.value;
+  if (seated === undefined || seated === card || embedSourceIncoming.value === card || reactorPlaceArriving(card)) {
+    return false;
+  }
+  const slot = startShelfFace(card);
+  if (slot === undefined) {
+    return false; // not mounted (yet) — a card still on its way to the shelf is the wait's own case
+  }
+  const verdict = transferEndVerdict(slot);
+  return !verdict.visible && verdict.why === 'hidden';
+}
 /** The carried card's face as painted in the start right now — the seat first, the shelf's top slot second. */
 function startVisibleFace(card: CardName): HTMLElement | undefined {
   const root = sceneRoot();
@@ -11234,7 +11251,9 @@ onMounted(() => {
     // to the board): no honest place — the reactor rises at the stage (`startOffersReactorPlace`).
     standsIn: (card) => {
       const carries = startCarriesReactor(card);
-      return startOffersReactorPlace({carries, buried: carries && startReactorBuried(card), painting: !props.yielded});
+      return startOffersReactorPlace({
+        carries, buried: carries && startReactorBuried(card), painting: !props.yielded, putAway: carries && startReactorPutAway(card),
+      });
     },
     emergeTarget: async (card) => {
       const face = await startReactorFace(card, true);
