@@ -180,3 +180,52 @@ gate's own leavings are ignored by the repository; anything else untracked is ne
   the lane landed or was refused) and the morning digest — the routine's last message.
 - **A working session's first look:** `gh issue list --label ci-finding --label triage:real` — what is left for it —
   and `gh pr list --label ci-fix` (a pull request the landing refused twice is its to finish or to close).
+
+## 5. A working session takes what the lane could not — its procedure, and the owner's template
+
+What the agent leaves is a finding with a verdict: `triage:real` (a defect that is not simple), `triage:noise` (a net
+that raised a false alarm — the NET is what gets fixed), `triage:harness` (the instrument), or a `ci-fix` pull
+request the landing refused twice. A working session — any Claude Code session in a clone of this repository —
+closes them. **The first one closed this way: #21** (CI red on the Windows runner — `npm ci` had dropped the optional
+`better-sqlite3` and the server build needed it resolved; `7664d4f318`, 2026-11-17).
+
+**The procedure:**
+
+1. **The queue** (always `--repo victor-zelinskiy/terraforming-mars` — in this clone `gh` defaults to the upstream):
+   `gh issue list --label ci-finding --state open --json number,title,labels` — take `triage:real` first, then
+   `triage:noise` / `triage:harness`; a `triage:needed` one is not yet read by the agent (take it only when asked);
+   `gh pr list --label ci-fix --state open` — the refused fixes.
+2. **Read** the issue body (the class or the test, the table and seed, the «Repeat it» command, the run) and the
+   agent's comment (what it reproduced, the suspected cause with `file:line`, what it could NOT determine) — the
+   comment is a lead, never a conclusion.
+3. **Reproduce** by the issue's own command; a finding of the monkey or the e2e suite — on CI
+   (`gh workflow run … -f only=…` / `-f grep=… -f shards=1`), the box only for a pointwise run.
+4. **Fix it at the root** — the program's law for the area (a freeze class: `docs/claude/console/freeze-zero/PLAN.md`
+   § 4 — the law, the guard, the replay; an e2e check: `.claude/rules/tests.md`), never a baseline row to make it
+   quiet. A baseline row (`monkeyBaseline.json`, `LAYOUT_BLIND`) is written only when a real browser said «not there»,
+   with the reason in the row.
+5. **Land it** by the project's own routine (`CLAUDE.md` § Pushing) with `Fixes #<issue>` in the commit message — the
+   issue closes itself; seen again, it reopens as a `regression`.
+6. **What does not close in one session** stays open: write on the issue what was established and what is next, and
+   keep its row in the area's worklist.
+
+**The owner's template** — paste into a new session (replace the first line's choice):
+
+```
+Разбери очередь тикетов CI — по контракту docs/claude/ci-findings.md § 5.
+
+Что брать: <все открытые triage:real | тикет #N | только src:e2e | только отвергнутые PR ci-fix>.
+
+Порядок:
+1. Покажи очередь: открытые тикеты ci-finding с их вердиктами и открытые PR с меткой ci-fix
+   (всегда --repo victor-zelinskiy/terraforming-mars).
+2. По каждому взятому тикету: прочитай тело и комментарий агента, воспроизведи командой из тикета
+   (бутылка — локально по зерну; обезьяна и e2e — на CI, бокс только точечно), доведи до причины в коде.
+3. Чини в корне, по закону своей области (зависания — PLAN § 4: закон + гард + повтор; e2e — .claude/rules/tests.md).
+   Базовые линии не трогать, чтобы «стало тихо».
+4. Коммит с «Fixes #N», пуш по правилам проекта, после пуша — проверь CI этого коммита.
+5. Что не закрывается за сессию — допиши в тикет, что выяснено и что дальше, оставь открытым.
+
+В конце — короткая сводка: что закрыто (тикет → коммит), что осталось и почему, что требует моего решения.
+Меня спрашивай только о том, что стоит денег или меняет то, что видит игрок.
+```
