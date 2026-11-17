@@ -320,11 +320,22 @@ function endSupplierRun(entry: SupplierEntry, end: ScopeEnd): void {
 }
 
 /**
- * WHY a ceiling ended a hold — in the line's own words: `(planned: the page painted …)` when the page was not
- * painting while the hold stood (`kernel/frameWitness.ts` — the hold's honest end: counted, never an event), the
- * old suspicion otherwise.
+ * WHY a ceiling ended a hold — in the line's own words. WHO OWNS THE WAIT DECIDES WHAT THE LINE IS (FREEZE ZERO,
+ * PLAN § 8 stage 1), and the ceiling asks the hold itself first: a hold that waits on the PLAYER right now
+ * (`heldForPlayer` — said in the present tense, with its reason) ended on a bound over somebody's reading, never on a
+ * leak: `(planned: the hold waits for the player — …)`. Then the page: `(planned: the page painted …)` when it was
+ * not painting while the hold stood (`kernel/frameWitness.ts`). The old suspicion only when neither is true.
  */
-function ceilingWhy(painted: FrameWatch): string {
+function ceilingWhy(painted: FrameWatch, heldForPlayer: (() => string | undefined) | undefined): string {
+  let player: string | undefined;
+  try {
+    player = heldForPlayer?.();
+  } catch {
+    player = undefined;
+  }
+  if (player !== undefined) {
+    return `(planned: the hold waits for the player — ${player.replace(/[()]/g, '')})`;
+  }
   const starved = painted.starved();
   return starved === undefined ? '(leaked hold?)' : `(planned: ${starved})`;
 }
@@ -346,7 +357,7 @@ function armCeiling(label: string, entry: SupplierEntry): void {
     }
     entry.run = undefined;
     store.expired.add(label);
-    console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling ${ceilingWhy(painted)}${safeDiagnose(entry.diagnose)}`);
+    console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling ${ceilingWhy(painted, entry.heldForPlayer)}${safeDiagnose(entry.diagnose)}`);
     safeExpireRecovery(label, entry.expire);
     run.end({how: 'expired', bound: `the ${entry.maxHoldMs} ms ceiling`});
   });
@@ -422,7 +433,7 @@ export function beginAnimationHold(label: string, options?: AnimationHoldOptions
   const painted = watchFrames();
   run.onEnd(() => painted.stop());
   run.after(maxHoldMs, CEILING, () => {
-    const why = ceilingWhy(painted);
+    const why = ceilingWhy(painted, options?.heldForPlayer);
     const dropped = dropManualHold(id, {how: 'expired', bound: `the ${maxHoldMs} ms ceiling`});
     if (dropped !== undefined) {
       console.warn(`[animation-hold] "${label}" held for over ${maxHoldMs}ms — force-released by the safety ceiling ${why}${safeDiagnose(dropped.diagnose)}`);

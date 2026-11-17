@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {reactive} from 'vue';
 import {
-  activeAnimationHoldDetails, beginAnimationHold, playerOwnedHolds, registerAnimationHoldSupplier, resetAnimationHoldsForTest,
+  activeAnimationHoldDetails, beginAnimationHold, isAnimationHoldActive, playerOwnedHolds, registerAnimationHoldSupplier, resetAnimationHoldsForTest,
   unregisterAnimationHoldSupplier,
 } from '@/client/components/presentation/animationHold';
 import {causeOf} from '@/common/diagnostics/cause';
@@ -69,6 +69,43 @@ describe('playerOwnedHolds — a hold that waits on the player says so', () => {
     }});
     state.held = true;
     expect(playerOwnedHolds()).to.eq(undefined);
+  });
+
+  /*
+   * THE CEILING ASKS THE HOLD ITSELF (the gate's seed `fz1` · `parliament-skyscrapers-enact`, 2026-11-17): the seat
+   * stood on the sitting's verdict with a sheet of its own open, a reward owed and nothing in the air — and thirty-five
+   * seconds of the player's reading ended as «leaked hold?», a defect.
+   */
+  it('THE CEILING\'S OWN LINE: a hold that waits on the player ends PLANNED, with its reason; a motion ends as the leak it is', async () => {
+    // (REAL timers, like the registry's own spec: the ceiling under test is the kernel's timer.)
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const warns: Array<string> = [];
+    const original = console.warn;
+    console.warn = (...args: Array<unknown>) => warns.push(args.map(String).join(' '));
+    try {
+      registerAnimationHoldSupplier('vp-shares', () => state.held, {
+        maxHoldMs: 20,
+        heldForPlayer: () => (state.covered ? 'the reward waits for a walk that stands on this seat\'s answer (a reading)' : undefined),
+      });
+      state.held = true;
+      state.covered = true;
+      expect(isAnimationHoldActive()).to.eq(true);
+      await wait(60);
+      expect(warns[0]).to.match(/force-released by the safety ceiling \(planned: the hold waits for the player — the reward waits for a walk that stands on this seat's answer a reading\)$/);
+      expect(causeOf(warns[0], 'warn')).to.deep.include({cls: 'animation-hold/ceiling/vp-shares', tier: 'planned'});
+
+      // …and the same hold as a plain motion: nothing excuses it.
+      unregisterAnimationHoldSupplier('vp-shares');
+      resetAnimationHoldsForTest();
+      state.covered = false;
+      registerAnimationHoldSupplier('vp-shares', () => state.held, {maxHoldMs: 20, heldForPlayer: () => (state.covered ? 'x' : undefined)});
+      expect(isAnimationHoldActive()).to.eq(true);
+      await wait(60);
+      expect(warns[1]).to.match(/force-released by the safety ceiling \(leaked hold\?\)$/);
+      expect(causeOf(warns[1], 'warn')).to.deep.include({tier: 'defect'});
+    } finally {
+      console.warn = original;
+    }
   });
 
   it('THE FEED\'S TWO LINES: a starved queue behind an owned wait is PLANNED; behind a motion it is the defect it always was', () => {

@@ -155,6 +155,12 @@ export const parliamentRewardState = reactive({
    * stage stands (the plate itself must come up); the rising edge then arms the registry's ceiling as ever.
    */
   awaitingStage: false,
+  /**
+   * THE SERVER ASKS THIS SEAT — as of the last commit (the seeder runs in every commit's own block). The owed records
+   * wait for the walk's stops, and a stop is somebody's answer: while it is THIS seat's, a ceiling over the wait is a
+   * bound over the player's reading, never a leaked hold (`heldForPlayer` below).
+   */
+  seatAsked: false,
 });
 
 /**
@@ -191,6 +197,12 @@ function claimsForeground(): boolean {
 registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPending() && claimsForeground(), {
   // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): owed records wait for the walk's own stops (an ask of this seat, a wait on another).
   waitsFor: 'player',
+  // …and SAYS SO when it is true right now (the gate's seed `fz1` · `parliament-skyscrapers-enact`, 2026-11-17: the
+  // seat stood on the verdict with a sheet of its own open over it, the reward owed, nothing in the air — and the
+  // ceiling called thirty-five seconds of the player's reading «leaked hold?»). A record IN THE AIR is a motion: a
+  // ceiling over that is the defect it always was.
+  heldForPlayer: () => (parliamentRewardState.owed.length > 0 && parliamentRewardState.flying.length === 0 && parliamentRewardState.seatAsked ?
+    'the rewards the sitting owes wait for its walk, and the walk stands on this seat\'s answer' : undefined),
   diagnose: () => ({
     sitting: parliamentRewardState.sitting,
     owed: parliamentRewardState.owed.map((r) => r.key),
@@ -630,6 +642,7 @@ function enterSitting(key: string): void {
  * ticks with the commit. Reduced motion never holds anything.
  */
 export function seedParliamentRewardHold(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): void {
+  parliamentRewardState.seatAsked = after?.waitingFor !== undefined;
   if (after === undefined) {
     return;
   }
