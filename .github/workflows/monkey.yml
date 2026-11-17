@@ -1,0 +1,163 @@
+name: Monkey
+
+# THE MONKEY ON CI (docs/claude/console/freeze-zero/PLAN.md § 3, § 8): a seeded random walk of the pad over EVERY
+# table in a real browser (tests/e2e/console-monkey.spec.ts), each walk ending in an untouched spell so the screen it
+# leaves is judged — and the whole run summed by cause class (scripts/monkey-report.mjs) against
+# tests/e2e/monkeyBaseline.json. Red = an episode that was never cured, or a DEFECT class the baseline does not hold.
+#
+# This is the pass the Steam Machine used to make overnight (3 h of the box per pass): on CI it is a matrix of
+# shards side by side, and the box is left for pointwise runs. A perturbation (`perturb`) is one more pass — a race a
+# quiet machine never loses must be given a machine that loses it.
+#
+# Manual only: a whole pass is ~15 runner-hours (606 tables × ~1.5 min, one worker a shard).
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'The walk''s seed — the same seed is the same walk (fz0 is the baseline''s; a NEW seed is another 606 walks)'
+        required: false
+        default: 'fz0'
+      perturb:
+        description: 'Perturbation: none · cpu4 · cpu6 (CPU throttle) · net400 · net1500 (a delay on every answer, ms) · reload (the page reloaded at random presses) · duo (the second human seat walks its own page)'
+        required: false
+        default: 'none'
+        type: choice
+        options: [none, cpu4, cpu6, net400, net1500, reload, duo]
+      shards:
+        description: 'How many shards side by side'
+        required: false
+        default: '16'
+      only:
+        description: 'Only tables whose name matches this regex (a slice)'
+        required: false
+        default: ''
+      presses:
+        description: 'Presses a walk'
+        required: false
+        default: '60'
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Shard matrix
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.m.outputs.shards }}
+      list: ${{ steps.m.outputs.list }}
+    steps:
+      - id: m
+        run: |
+          N='${{ inputs.shards || '16' }}'
+          case "$N" in ''|*[!0-9]*) echo "shards must be a positive integer, got '$N'"; exit 1;; esac
+          echo "shards=$N" >> "$GITHUB_OUTPUT"
+          echo "list=[$(seq -s, 1 "$N")]" >> "$GITHUB_OUTPUT"
+
+  walk:
+    name: Walk ${{ matrix.shard }}/${{ needs.plan.outputs.shards }} · ${{ inputs.seed }} · ${{ inputs.perturb }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Build application
+        run: npm run build
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Chromium
+        run: |
+          for attempt in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "::warning::playwright install failed (attempt $attempt) — retrying in 60 s"
+            sleep 60
+            sudo apt-get update || true
+          done
+          exit 1
+      # A walk that names a class still PASSES (the class is filed in test-results/cause-classes — the report is the
+      # judge); what fails a walk is the harness's own guards (a stall nobody cured, a Vue error, a page that died).
+      - name: The monkey (shard ${{ matrix.shard }})
+        env:
+          TM_E2E_MONKEY: '1'
+          TM_E2E_MONKEY_SEED: ${{ inputs.seed || 'fz0' }}
+          TM_E2E_MONKEY_PRESSES: ${{ inputs.presses || '60' }}
+          TM_E2E_MONKEY_ONLY: ${{ inputs.only }}
+          TM_E2E_COVERAGE: '1'
+          PERTURB: ${{ inputs.perturb || 'none' }}
+        run: |
+          case "$PERTURB" in
+            cpu4) export TM_E2E_CPU_THROTTLE=4;;
+            cpu6) export TM_E2E_CPU_THROTTLE=6;;
+            net400) export TM_E2E_MONKEY_NET_MS=400;;
+            net1500) export TM_E2E_MONKEY_NET_MS=1500;;
+            reload) export TM_E2E_MONKEY_RELOAD=1;;
+            duo) export TM_E2E_MONKEY_DUO=1;;
+          esac
+          if [ -z "$TM_E2E_MONKEY_ONLY" ]; then unset TM_E2E_MONKEY_ONLY; fi
+          npx playwright test tests/e2e/console-monkey.spec.ts --project=chromium --workers=1 --retries=0 \
+            --shard=${{ matrix.shard }}/${{ needs.plan.outputs.shards }} --reporter=list,github
+      # What the report sums (every walk's cause file) and what a red is read from (each failed walk's own folder:
+      # the presses, the console's tail, the screenshot).
+      - name: Upload the walks
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: monkey-${{ github.run_id }}-${{ github.run_attempt }}-shard${{ matrix.shard }}
+          path: |
+            test-results/cause-classes
+            test-results/**/monkey-walk.txt
+            test-results/**/*.png
+            test-results/**/error-context.md
+          if-no-files-found: warn
+          retention-days: 14
+
+  report:
+    name: Report · ${{ inputs.seed }} · ${{ inputs.perturb }}
+    needs: [plan, walk]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - name: Download every shard's walks
+        uses: actions/download-artifact@v5
+        with:
+          pattern: monkey-${{ github.run_id }}-${{ github.run_attempt }}-shard*
+          path: monkey-results
+      # THE GATE: by cause class against the committed baseline — exit 3 on an episode never cured or a NEW defect class.
+      - name: The report, as a gate
+        run: |
+          node scripts/monkey-report.mjs monkey-results --against tests/e2e/monkeyBaseline.json --out monkey-report.json --gate | tee monkey-report.txt
+          exit ${PIPESTATUS[0]}
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Monkey · seed `${{ inputs.seed }}` · perturb `${{ inputs.perturb }}`'
+            echo '```'
+            head -n 60 monkey-report.txt 2>/dev/null || echo 'no report'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: monkey-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            monkey-report.json
+            monkey-report.txt
+          retention-days: 30
