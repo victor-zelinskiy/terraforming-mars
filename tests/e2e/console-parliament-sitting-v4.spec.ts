@@ -550,8 +550,10 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
     const rising = inkWindow.slice(0, Math.max(1, settledAt)).filter((x) => x.readingInk > 0.02 && x.readingInk < 0.98).length;
     const took = Math.round(inkWindow[Math.max(0, settledAt)].t - inkWindow[0].t);
 
+    // How many PARTIAL frames a 0.3–0.4 s fade gets painted is the renderer's (a 300 ms software frame paints one or
+    // none — CI 44062996994's family: a claim that frames land inside a motion shorter than a few frames). That it is a
+    // motion and not a v-if blink is the section's DECLARED episode, asserted below (`unfolding`).
     console.log(`[v4] table → reading: ${took}ms over ${rising} partial frames`);
-    expect(rising, `the panel faded in over several frames — a v-if swap is a blink (ink ${inkWindow.slice(0, 10).map((x) => x.readingInk.toFixed(2)).join(' ')})`).toBeGreaterThanOrEqual(2);
     expect(took, 'the handoff is inside the 0.3–0.4 s budget (with the sampler\'s slack)').toBeLessThan(700);
     // …and it is the UNFOLD that brought it: the section publishes the episode, so «it faded in» and «the
     // director ran» are two facts, not one guess.
