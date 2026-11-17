@@ -43,6 +43,10 @@ on:
         description: 'Presses a walk'
         required: false
         default: '60'
+      repeat:
+        description: 'Walk every table this many times (the same presses, another run of the machine) — how OFTEN a class of a slice comes'
+        required: false
+        default: '1'
 
 permissions:
   contents: read
@@ -142,7 +146,9 @@ jobs:
             duo) export TM_E2E_MONKEY_DUO=1;;
           esac
           if [ -z "$TM_E2E_MONKEY_ONLY" ]; then unset TM_E2E_MONKEY_ONLY; fi
-          npx playwright test tests/e2e/console-monkey.spec.ts --project=chromium --workers=1 --retries=0 \
+          REPEAT='${{ inputs.repeat || '1' }}'
+          case "$REPEAT" in ''|*[!0-9]*) echo "repeat must be a positive integer, got '$REPEAT'"; exit 1;; esac
+          npx playwright test tests/e2e/console-monkey.spec.ts --project=chromium --workers=1 --retries=0 --repeat-each="$REPEAT" \
             --shard=${{ matrix.shard }}/${{ needs.plan.outputs.shards }} --reporter=list,github
       # What the report sums (every walk's cause file) and what a red is read from (each failed walk's own folder:
       # the presses, the console's tail, the screenshot).

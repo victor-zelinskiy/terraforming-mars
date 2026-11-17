@@ -135,7 +135,9 @@ export function fileCauseRecords(testInfo: TestInfo, records: ReadonlyArray<Caus
   const out = path.join(testInfo.project.outputDir, 'cause-classes');
   fs.mkdirSync(out, {recursive: true});
   const slug = `${path.basename(testInfo.file, '.spec.ts')}--${testInfo.title}`.replace(/[^\w.-]+/g, '-').slice(0, 150);
-  fs.writeFileSync(path.join(out, `${slug}-r${testInfo.retry}.json`), JSON.stringify({
+  // (A test repeated for its frequency — `--repeat-each` — files each run apart: one file a run, never the last one alone.)
+  const repeat = testInfo.repeatEachIndex > 0 ? `-x${testInfo.repeatEachIndex}` : '';
+  fs.writeFileSync(path.join(out, `${slug}-r${testInfo.retry}${repeat}.json`), JSON.stringify({
     file: path.basename(testInfo.file), title: testInfo.title, retry: testInfo.retry, status: testInfo.status, ...extra, records,
   }, null, 1));
 }

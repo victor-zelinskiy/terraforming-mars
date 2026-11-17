@@ -203,7 +203,8 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
       const watch = (p: Page, tag: string): void => {
         p.on('console', (message) => {
           const text = message.text();
-          consoleTail.push(`${Date.now() % 1_000_000} ${tag}${message.type()} ${text.slice(0, 600)}`);
+          // (The start's own findings carry the scene's whole state — the line a reader needs entire, never its first 600.)
+          consoleTail.push(`${Date.now() % 1_000_000} ${tag}${message.type()} ${text.slice(0, /^\[start-(stranded|shadow)\]/.test(text) ? 6_000 : 600)}`);
           if (consoleTail.length > 400) {
             consoleTail.shift();
           }
