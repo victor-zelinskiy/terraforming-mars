@@ -166,7 +166,8 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
           try {
             await replayed.advance(3_000);
             replayed = await replaySteps(replayed, seats, candidate);
-            await replayed.advance(14_000);
+            // (The walk's own last word: a class named late in the untouched spell — a loop needs ten looks — must be named here too.)
+            await replayed.advance(IDLE_MS);
             const live = replayed.liveness();
             return [...live.defects, ...live.blind].some((named) => named.cls === target);
           } finally {

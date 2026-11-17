@@ -11,7 +11,8 @@
 import {expect} from 'chai';
 import {bootBottle, ConsoleBottle} from './consoleBottle';
 import {bottleServer} from './bottleNode';
-import {MonkeyStep, monkeyWalk, replaySteps} from './monkeyWalk';
+import {MonkeyStep, monkeyRng, monkeyWalk, replaySteps} from './monkeyWalk';
+import {watchSurfaceEdges} from '@/client/console/supervisor/surfaceEdges';
 
 describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bottle', function() {
   // A bottle boots a whole application; a budget for that, never a timing.
@@ -345,6 +346,42 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
       expect(bottle.rebuildsAsked(), 'asked once').to.equal(1);
     } finally {
       host.fetch = wire;
+    }
+  });
+
+  /*
+   * `liveness/oscillating/parliamentphase/board` — THE BLINKING REVEAL: the gate's seeds `fz1`
+   * (`parliament-skyscrapers-enact`) and `fz3` (`parliament-marsfirst-budget-vote`), 2026-11-17 — the first loop the
+   * judge ended that nobody had planted. A card drawn by the ruling party's passive arrives while the sitting's
+   * question stands; the deck-draw scene claims the batch, closes the reveal's gate, finds nothing to deal from (in
+   * the bottle: no deck anchor; on a real page: any abort — a deal that cannot start, a stall) and ABORTS — which
+   * cleared the one thing that said «this batch has had its scene». So the batch was claimed again: the reveal band up
+   * for a quarter of a second of every second or two, the deck counter flipping with it, until the last line rebuilt
+   * the page. The law: a batch's arrival is decided ONCE — claimed, somebody else's, or GIVEN UP
+   * (`consoleDeckDraw.gaveUp`); and the loop is counted on the picture's own edges, so no phase of a look hides it.
+   *
+   * (The whole walk of the gate, on the gate's seed — the loop needs its sixty presses' state, not three of them.)
+   */
+  it('a drawn batch whose deck scene gives it up: the reveal comes ONCE and stands — nothing turns, nothing is rebuilt', async () => {
+    const fixture = 'parliament-marsfirst-budget-vote';
+    const seed = `fz3:${fixture}`;
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+    try {
+      const table = await bottleServer().bootFixture(fixture);
+      bottle = await bootBottle(table, {query: 'coverage=1'});
+      await bottle.advance(3_000);
+      bottle = (await monkeyWalk(bottle, table.seats.length, seed, 60, {mode: 'plain'})).bottle;
+      // Left alone past the loop's whole road: ten untouched looks to be named, ten more to be due.
+      const edges = watchSurfaceEdges(document.body);
+      await bottle.advance(25_000);
+      const turned = edges.turned();
+      edges.stop();
+      expect(classes().filter((cls) => cls.startsWith('liveness/oscillating')), 'no loop is named').to.deep.equal([]);
+      expect(bottle.rebuildsAsked(), 'and the last line is asked nothing').to.equal(0);
+      expect(turned, 'the reveal band neither mounts nor leaves while nobody touches the pad').to.not.match(/con-reveal/);
+      expect(classes(), 'the walk leaves nothing for a net').to.deep.equal([]);
+    } finally {
+      restoreRandom();
     }
   });
 });

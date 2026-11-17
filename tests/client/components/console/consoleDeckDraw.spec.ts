@@ -281,6 +281,39 @@ describe('consoleDeckDraw', () => {
       expect(deckDrawVerdict(undefined)).to.eq(undefined);
     });
 
+    /**
+     * THE BLINKING REVEAL (FREEZE ZERO · `liveness/oscillating`, 2026-11-17). An abort clears the staging — it must,
+     * the overlay unveils on it — and the staging was all that said «this batch has had its scene». So a batch the
+     * scene had just given up on was claimed again, the arm closed the reveal's gate again, the scene found the same
+     * reason to abort again: the reveal band up for a quarter of a second every second or two, for as long as the
+     * batch stood untaken.
+     */
+    it('a batch the scene GAVE UP on is never claimed again — an abort decides the batch too', () => {
+      expect(own(5, false)).to.deep.eq({kind: 'claim', eventId: 5});
+      arm(5);
+      expect(deckDrawHolds()).to.eq(true);
+      // No deck anchor to deal from, a deal that could not start, a stall: the scene gives the batch up.
+      abortDeckDraw();
+      expect(isDeckDrawStaged(5)).to.eq(false);
+      expect(deckDrawHolds()).to.eq(false);
+      // The reveal is still on screen, untaken — and it is the stock modal's now, for good.
+      expect(own(5, false)).to.eq(undefined);
+      expect(own(5, false)).to.eq(undefined);
+      // …for THAT batch only: the next draw gets its scene.
+      expect(own(6, false)).to.deep.eq({kind: 'claim', eventId: 6});
+    });
+
+    it('a clean end and a given-up batch are both final; only a full reset forgets', () => {
+      arm(8);
+      abortDeckDraw();
+      arm(9);
+      endDeckDraw();
+      expect(own(8, false)).to.eq(undefined);
+      expect(own(9, false)).to.eq(undefined);
+      resetDeckDraw();
+      expect(own(8, false)).to.deep.eq({kind: 'claim', eventId: 8});
+    });
+
     it('the memory is bounded and survives every exit but a full reset', () => {
       for (let id = 100; id < 120; id++) {
         noteDeckDrawForeign(id);
@@ -379,6 +412,8 @@ describe('consoleDeckDraw', () => {
       expect(isDeckDrawActive()).to.eq(true);
       clock.advance(200);
       expect(isDeckDrawActive(), 'a deal that never starts never withholds the reveal').to.eq(false);
+      // …and it never withholds it AGAIN: the batch it gave up on is not claimed a second time (the blinking reveal).
+      expect(deckDrawVerdict({eventId: 41, foreign: false, waiting: false})).to.eq(undefined);
     });
 
     it('a stage never reported ends on the «never happened» net — the stage wait\'s ceiling plus the window', () => {

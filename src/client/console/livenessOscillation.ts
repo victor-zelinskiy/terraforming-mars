@@ -24,6 +24,13 @@
  * A cinematic passes through its states once (many pictures, none revisited); a ticking counter is a new picture a
  * second (many states); a player thinking is no flips at all. Only a loop is few states, many flips, no hand.
  *
+ * A LOOK IS A SAMPLE, AND A SAMPLE HAS A PHASE (stage 1, 2026-11-17). A band that is up for a quarter of a second of
+ * every second or two is seen or missed by WHEN the look falls: the same loop stood a day on a green gate and turned
+ * it red the next, on the same code. So a change is counted on the picture's own EDGES too (`edges` — every mount
+ * and unmount of a surface, counted as it happens: `supervisor/surfaceEdges.ts`): a look that finds the same picture
+ * as the one before it, with two or more edges between them, is a ROUND TRIP — a surface left and came back, or came
+ * and left — and it is a flip like any other. No phase can hide a loop, and none can invent one.
+ *
  * PURE: the next state and the verdict. The supervisor names it (`[liveness] oscillating …`) and, when the loop has
  * stood as long again (`OSCILLATION_LAST_LINE_LOOKS`), asks THE LAST LINE for it directly (`sessionRebuild.ts`) —
  * never the ladder: a loop is not a wait, and rungs that change the picture only hide it from this judge for one
@@ -57,13 +64,22 @@ export type OscillationSample = {
   signature: string,
   /** Every press edge and direction the router has seen, of any device — a count that only grows. */
   inputs: number,
+  /** Every mount and unmount of a surface of the picture so far — a count that only grows (absent = not counted). */
+  edges?: number,
 };
+
+/** A look that found the picture it had found before, with at least this many edges in between, saw a round trip. */
+export const OSCILLATION_ROUND_TRIP_EDGES = 2;
 
 export type OscillationState = {
   question: string,
   inputs: number,
   /** The pictures of the spell, one a look, oldest first (bounded by `OSCILLATION_LOOKS`). */
   seen: ReadonlyArray<string>,
+  /** …and, beside each, whether a ROUND TRIP fell between it and the look before it (same bound, same order). */
+  trips?: ReadonlyArray<boolean>,
+  /** The edge count at the last look. */
+  edges?: number,
   /** The spell was already named (one line per spell). */
   told: boolean,
   /** Consecutive looks at which the spell was judged a loop (0 = it is not one now). */
@@ -81,6 +97,8 @@ export type OscillationVerdict =
     flips: number,
     /** The few pictures it turns between, in the order first seen. */
     states: ReadonlyArray<string>,
+    /** How many of the flips were ROUND TRIPS — a change no look saw (the picture was the same at both ends). */
+    roundTrips: number,
     looks: number,
     /** Consecutive looks the loop has stood since it was named (1 at the naming). */
     standing: number,
@@ -120,28 +138,30 @@ export function observeOscillation(state: OscillationState, sample: OscillationS
   if (!sample.promptLive) {
     return {state: OSCILLATION_REST, verdict: {oscillating: false}};
   }
+  const edges = sample.edges ?? 0;
   if (sample.question !== state.question || sample.inputs !== state.inputs) {
-    return {state: {question: sample.question, inputs: sample.inputs, seen: [sample.signature], told: false, standing: 0}, verdict: {oscillating: false}};
+    return {state: {question: sample.question, inputs: sample.inputs, seen: [sample.signature], trips: [false], edges, told: false, standing: 0}, verdict: {oscillating: false}};
   }
+  // A ROUND TRIP: the same picture as at the look before, and the surfaces moved in between — a change no look saw.
+  const before = state.seen[state.seen.length - 1];
+  const trip = sample.signature === before && edges - (state.edges ?? edges) >= OSCILLATION_ROUND_TRIP_EDGES;
   const seen = [...state.seen, sample.signature].slice(-OSCILLATION_LOOKS);
+  const trips = [...(state.trips ?? state.seen.map(() => false)), trip].slice(-OSCILLATION_LOOKS);
   if (seen.length < OSCILLATION_LOOKS) {
-    return {state: {...state, seen}, verdict: {oscillating: false}};
+    return {state: {...state, seen, trips, edges}, verdict: {oscillating: false}};
   }
-  let flips = 0;
-  for (let i = 1; i < seen.length; i++) {
-    if (seen[i] !== seen[i - 1]) {
-      flips++;
-    }
-  }
+  // A look CHANGED when its picture differs from the one before it — or when a round trip fell between them.
+  const changed = seen.map((picture, i) => i > 0 && (picture !== seen[i - 1] || trips[i]));
+  const flips = changed.filter(Boolean).length;
+  const roundTrips = trips.filter((flag, i) => i > 0 && flag).length;
   const states = [...new Set(seen)];
-  const tail = seen.slice(-(OSCILLATION_STILL_LOOKS + 1));
-  const stillTurning = tail.some((picture, i) => i > 0 && picture !== tail[i - 1]);
+  const stillTurning = changed.slice(-OSCILLATION_STILL_LOOKS).some(Boolean);
   if (flips < OSCILLATION_MIN_FLIPS || states.length > OSCILLATION_MAX_STATES || !stillTurning) {
-    return {state: {...state, seen, told: false, standing: 0}, verdict: {oscillating: false}};
+    return {state: {...state, seen, trips, edges, told: false, standing: 0}, verdict: {oscillating: false}};
   }
   const standing = state.standing + 1;
   return {
-    state: {...state, seen, told: true, standing},
-    verdict: {oscillating: true, first: !state.told, flips, states, looks: seen.length, standing, due: standing === OSCILLATION_LAST_LINE_LOOKS + 1},
+    state: {...state, seen, trips, edges, told: true, standing},
+    verdict: {oscillating: true, first: !state.told, flips, states, roundTrips, looks: seen.length, standing, due: standing === OSCILLATION_LAST_LINE_LOOKS + 1},
   };
 }

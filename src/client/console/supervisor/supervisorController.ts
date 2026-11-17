@@ -35,6 +35,7 @@ import {noteSupervisorPass, noteSupervisorStarted, noteSupervisorStopped} from '
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputTrailCount} from '@/client/console/inputEcho';
 import {observeOscillation, OSCILLATION_REST, oscillationTurns, OscillationState} from '@/client/console/livenessOscillation';
+import {PICTURE_SURFACES, SurfaceEdges, watchSurfaceEdges} from '@/client/console/supervisor/surfaceEdges';
 import {unanswerableReason} from '@/common/inputs/promptAnswerable';
 import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
@@ -150,6 +151,8 @@ export function createSupervisorController(shell: SupervisorPort) {
   let passBrokenOnPurpose = false;
   /** A SCREEN THAT MOVES AND GOES NOWHERE (`livenessOscillation.ts`) — the spell being watched, one look a second. */
   let oscillation: OscillationState = OSCILLATION_REST;
+  /** The picture's own edges — every mount and unmount of its surfaces, counted as it happens (`surfaceEdges.ts`). */
+  let surfaceEdges: SurfaceEdges | undefined;
   /** A QUESTION NOBODY CAN ANSWER (`promptAnswerable.ts`) — the question it was said of (one line per question). */
   let unanswerableTold = '';
   /** The liveness arbiter's last `accepting` (a surface takes input for the live question) — read by the ghost gate. */
@@ -340,6 +343,8 @@ export function createSupervisorController(shell: SupervisorPort) {
     // reads the count, and a game screen whose supervisor completes none is rebuilt by the same last line. A pass
     // that throws is said by the kernel (the tick goes on) and is NOT one: the arbiter was never reached.
     noteSupervisorStarted();
+    surfaceEdges?.stop();
+    surfaceEdges = watchSurfaceEdges(document.body);
     beatStallTimer.value = consoleSessionScope().every(1000, 'the supervisor\'s tick', () => {
       if (passBrokenOnPurpose) {
         throw new Error('the supervisor\'s pass is broken on purpose (the pulse\'s control)');
@@ -354,6 +359,8 @@ export function createSupervisorController(shell: SupervisorPort) {
     noteSupervisorStopped();
     passBrokenOnPurpose = false;
     oscillation = OSCILLATION_REST;
+    surfaceEdges?.stop();
+    surfaceEdges = undefined;
     unanswerableTold = '';
     setDiagEvidenceProvider(undefined);
     beatStallTimer.value?.();
@@ -548,7 +555,7 @@ export function createSupervisorController(shell: SupervisorPort) {
       wf === undefined ? 'none' : `${promptIdentityKey(wf)}#${wf.promptId ?? ''}`,
       workspaceStackState.frames.map((f) => f.kind + ':' + f.phase).join(';'),
       `${consoleState.section}/${consoleState.sheet ?? ''}`,
-      [dom('.con-ws'), dom('.con-hand'), dom('.con-reveal'), dom('.con-task'), dom('.con-mandatory'), dom('.con-deckdraw'), dom('.con-zoom'), dom('.con-journal'), dom('.con-sys')].join(','),
+      PICTURE_SURFACES.map((name) => dom(`.${name}`)).join(','),
       (document.querySelector('.con-cmdbar, .con-bar, [data-command-bar]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
       focused === null ? '' : `${focused.className.toString().slice(0, 40)}:${(focused.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)}`,
       String(transport?.requestInProgress ?? false),
@@ -595,13 +602,19 @@ export function createSupervisorController(shell: SupervisorPort) {
     //    twenty seconds the «stack home» rung took the player's serving surface away, for ever: a livelock of the
     //    cure, found by `console-stall-cause` on the box, 2026-11-15. A page that turns by itself is client state
     //    that stopped following the server's truth — exactly what a rebuilt page does not have.)
-    const loop = observeOscillation(oscillation, {promptLive: wf !== undefined && wf.optional !== true, question: asked, signature, inputs: inputTrailCount()});
+    // (…counted on the picture's own EDGES too: a surface that left and came back between two looks is a round trip
+    //  no look sees — `livenessOscillation.ts`, `surfaceEdges.ts`.)
+    const loop = observeOscillation(oscillation, {
+      promptLive: wf !== undefined && wf.optional !== true, question: asked, signature, inputs: inputTrailCount(), edges: surfaceEdges?.count() ?? 0,
+    });
     oscillation = loop.state;
+    const edgesTurned = surfaceEdges?.turned() ?? '';
     if (loop.verdict.oscillating && loop.verdict.first) {
       const seen = loop.verdict;
+      const turning = seen.roundTrips > 0 ? `${oscillationTurns(seen.states)}; ${seen.roundTrips} round trip(s) between looks — ${edgesTurned}` : oscillationTurns(seen.states);
       withDiagEvidence(captureDiagEvidence(), () => console.warn(
         `[liveness] oscillating — the picture changed ${seen.flips} times in ${seen.looks}s among ${seen.states.length} state(s) with no press; ` +
-        `asked: ${asked}; task: ${taskFor(shell.playerView)?.kind ?? 'none'}; top: ${topWord()} — turning: ${oscillationTurns(seen.states)}`));
+        `asked: ${asked}; task: ${taskFor(shell.playerView)?.kind ?? 'none'}; top: ${topWord()} — turning: ${turning}`));
     }
     if (loop.verdict.oscillating && loop.verdict.due) {
       rebuildConsoleSession({

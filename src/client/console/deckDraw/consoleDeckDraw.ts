@@ -137,9 +137,25 @@ export const deckDrawState = reactive({
    * screen can ever be asked about.
    */
   foreign: [] as Array<number>,
+  /**
+   * BATCHES THIS SCENE GAVE UP ON — an abort is a decision about the batch too, and it is final.
+   *
+   * An abort clears `stagedEventId` (it must: the overlay unveils on it, so a reveal can never be left invisible) —
+   * and `stagedEventId` was also the ONLY thing that told the entry decision «this batch has had its scene». So the
+   * batch a scene had just given up on looked like one nobody had ever claimed, and it was claimed AGAIN: the arm
+   * closed the reveal's gate (`deckDrawHolds`), the reveal left, the scene found the same reason to abort (no deck
+   * anchor to deal from, a deal that could not start inside its window, a stall), the reveal came back, and the entry
+   * decision claimed the batch once more — the reveal band up for a quarter of a second every second or two, the deck
+   * counter flipping with it, for as long as the batch stood untaken (FREEZE ZERO · `liveness/oscillating`, the gate's
+   * seeds `fz1` / `fz3`, 2026-11-17 — the first loop the judge ended that nobody had planted).
+   *
+   * «The stock modal shows at once» is what an abort promises; this memory is what keeps the promise. An id is only
+   * ever ADDED: ownership of a batch's arrival is decided once — claimed, somebody else's, or given up.
+   */
+  gaveUp: [] as Array<number>,
 });
 
-/** How many finished batches the «somebody else flew it» memory keeps. */
+/** How many finished batches the «somebody else flew it» memory keeps (and the «gave it up» one). */
 const FOREIGN_MEMORY = 8;
 
 let handle: DeckDrawHandle | undefined;
@@ -474,8 +490,9 @@ export function deckDrawVerdict(o: DeckDrawOwnership | undefined): DeckDrawVerdi
     return undefined;
   }
   // Ours — but one scene at a time, and a finished scene never re-arms its own
-  // batch (the reveal stays current until the last card is taken).
-  if (deckDrawState.active || deckDrawState.stagedEventId === o.eventId) {
+  // batch (the reveal stays current until the last card is taken) — finished CLEANLY (`stagedEventId` is kept) or
+  // GIVEN UP (an abort clears the staging, so the batch is remembered apart: `gaveUp`).
+  if (deckDrawState.active || deckDrawState.stagedEventId === o.eventId || deckDrawState.gaveUp.includes(o.eventId)) {
     return undefined;
   }
   return {kind: 'claim', eventId: o.eventId};
@@ -513,6 +530,12 @@ export function abortDeckDraw(): void {
   const h = handle;
   handle = undefined;
   zoomOriginResolver = undefined;
+  // THE BATCH IS GIVEN UP FOR GOOD — remembered before the staging that named it is cleared (see `gaveUp`).
+  const givenUp = deckDrawState.stagedEventId;
+  if (givenUp !== undefined && !deckDrawState.gaveUp.includes(givenUp)) {
+    deckDrawState.gaveUp.push(givenUp);
+    deckDrawState.gaveUp.splice(0, Math.max(0, deckDrawState.gaveUp.length - FOREIGN_MEMORY));
+  }
   deckDrawState.active = false;
   deckDrawState.dealing = false;
   deckDrawState.phase = 'idle';
@@ -580,13 +603,25 @@ export function resetDeckDraw(): void {
   deckDrawState.trayCount = 0;
   deckDrawState.reducedMotion = false;
   deckDrawState.zoomEntryReady = false;
-  // Only HERE. An abort/end deliberately keeps the memory — a batch somebody
-  // else flew stays theirs for its whole on-screen life, which is exactly the
-  // window in which their ownership expires.
+  // Only HERE (and when the game screen leaves — below). An abort/end deliberately keeps the memory — a batch
+  // somebody else flew stays theirs for its whole on-screen life, which is exactly the window in which their
+  // ownership expires; and a batch this scene gave up on stays given up.
   deckDrawState.foreign = [];
+  deckDrawState.gaveUp = [];
+}
+
+/**
+ * THE GAME SCREEN LEAVES — the scene in flight is dropped (zombie-safe), and what was decided about batches is
+ * forgotten WITH the screen: a batch id is a small number counted per game, so a memory kept across games would call
+ * the next game's first draws «somebody else's» or «given up». The same game coming back loses nothing by it — the
+ * layer mounts again, and a batch already on screen at its mount is marked staged, never dealt a second time.
+ */
+function leaveDeckDraw(): void {
+  abortDeckDraw();
+  deckDrawState.foreign = [];
+  deckDrawState.gaveUp = [];
 }
 
 // THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
-// Drop any in-flight deck-draw scene (zombie-safe)
-sessionState('deck-draw', abortDeckDraw, 540);
+sessionState('deck-draw', leaveDeckDraw, 540);

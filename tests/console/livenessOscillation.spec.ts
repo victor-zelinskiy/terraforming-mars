@@ -107,4 +107,54 @@ describe('liveness · a screen that moves and goes nowhere', () => {
     expect(firsts.length, 'named twice: two spells').to.eq(2);
     expect(firsts[0]).to.eq(OSCILLATION_LOOKS - 1);
   });
+
+  /*
+   * A LOOK IS A SAMPLE, AND A SAMPLE HAS A PHASE (stage 1, 2026-11-17). The reveal band of the blinking deck draw was
+   * up for a quarter of a second of every second or two: the same loop stood a day on a green gate and turned it red
+   * the next, on the same code — seen or missed by WHEN the look fell. The picture's own edges (every mount and
+   * unmount of a surface, counted as it happens) say what no look can.
+   */
+  describe('counted on the picture\'s own edges — no phase hides a loop, none invents one', () => {
+    /** A band that mounts and leaves between two looks: the picture is the same at both, two edges fell between. */
+    const hiddenBlink = (n: number, perLook = 2): Array<Look> => Array.from({length: n}, (_, i) => ({signature: 'board', edges: i * perLook}));
+
+    it('a band that comes and goes BETWEEN the looks is a loop — every look found the same picture', () => {
+      const verdicts = walk(hiddenBlink(14));
+      expect(firstLoopAt(verdicts)).to.eq(OSCILLATION_LOOKS - 1);
+      const named = verdicts[OSCILLATION_LOOKS - 1] as Extract<OscillationVerdict, {oscillating: true}>;
+      expect(named.states, 'one picture — the sampler alone would call it a still screen').to.deep.eq(['board']);
+      expect(named.roundTrips, 'every flip was a round trip').to.eq(named.flips);
+    });
+
+    it('whatever the phase: looks that catch the band and looks that miss it are ONE loop', () => {
+      // The band up at looks 0, 3, 4, 8 only — by the sampler: 6 changes among 12 looks, never 6 inside one window.
+      const up = new Set([0, 3, 4, 8]);
+      const looks: Array<Look> = Array.from({length: 14}, (_, i) => ({signature: up.has(i) ? 'band' : 'board', edges: i * 2}));
+      expect(firstLoopAt(walk(looks)), 'named as soon as the spell is whole').to.eq(OSCILLATION_LOOKS - 1);
+      // …and with the edges not counted the same looks are judged by the sampler alone: not a loop inside any window.
+      expect(firstLoopAt(walk(looks.map(({signature}) => ({signature})))), 'the sampler alone misses it').to.eq(-1);
+    });
+
+    it('ONE re-home is not a loop — a surface moved once (two edges), then stood', () => {
+      const looks: Array<Look> = Array.from({length: 16}, (_, i) => ({signature: 'board', edges: i >= 3 ? 2 : 0}));
+      expect(firstLoopAt(walk(looks))).to.eq(-1);
+    });
+
+    it('a single edge between two looks is the change the looks already see — never counted twice', () => {
+      // A modal that mounts at one look and leaves at the next: one edge a look, the pictures differ.
+      const looks: Array<Look> = Array.from({length: 14}, (_, i) => ({signature: i % 2 === 0 ? 'modal' : 'board', edges: i}));
+      const named = walk(looks)[OSCILLATION_LOOKS - 1] as Extract<OscillationVerdict, {oscillating: true}>;
+      expect(named.oscillating).to.eq(true);
+      expect(named.roundTrips).to.eq(0);
+      expect(named.flips).to.eq(OSCILLATION_LOOKS - 1);
+    });
+
+    it('the player\'s own hand starts the spell over, edges or not — and a hidden loop that stopped is over at once', () => {
+      const pressed = walk(Array.from({length: 14}, (_, i) => ({signature: 'board', edges: i * 2, inputs: i})));
+      expect(firstLoopAt(pressed)).to.eq(-1);
+      const stopped = walk([...hiddenBlink(12), ...Array.from({length: 6}, () => ({signature: 'board', edges: 22}))]);
+      expect(stopped[11].oscillating, 'named while it turns').to.eq(true);
+      expect(stopped.slice(15).some((v) => v.oscillating), 'three still looks later it is over').to.eq(false);
+    });
+  });
 });
