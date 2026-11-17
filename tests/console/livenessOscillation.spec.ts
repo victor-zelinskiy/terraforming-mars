@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  OSCILLATION_LAST_LINE_LOOKS, OSCILLATION_LOOKS, OSCILLATION_REST, OscillationSample, OscillationState, OscillationVerdict, observeOscillation,
+  OSCILLATION_LAST_LINE_LOOKS, OSCILLATION_LOOKS, OSCILLATION_REST, OscillationSample, OscillationState, OscillationVerdict, observeOscillation, oscillationTurns,
 } from '../../src/client/console/livenessOscillation';
 
 /**
@@ -87,6 +87,13 @@ describe('liveness · a screen that moves and goes nowhere', () => {
     // (Stood still for a whole window: the second spell starts from nothing.)
     const twice = walk([...blink(OSCILLATION_LOOKS + 6), ...Array.from({length: OSCILLATION_LOOKS + 2}, () => ({signature: 'board'})), ...blink(OSCILLATION_LOOKS + 4)]);
     expect(twice.some((v) => v.oscillating && v.due)).to.eq(false);
+  });
+
+  it('WHAT TURNS is named — the fields of the picture that differ, read from the end (the key of the question may hold the separator)', () => {
+    const sig = (surfaces: string, focus: string) => ['or|Select one option#3', 'parliament:committed', 'board/', surfaces, 'Board', focus, 'false'].join('|');
+    expect(oscillationTurns([sig('0,0,0,0,0,1,0,0,0', ''), sig('0,0,1,0,0,1,0,0,0', 'con-cards__slot:Algae')]))
+      .to.eq('surfaces: «0,0,0,0,0,1,0,0,0» ⇄ «0,0,1,0,0,1,0,0,0» · focus: «» ⇄ «con-cards__slot:Algae»');
+    expect(oscillationTurns([sig('0', ''), sig('0', '')])).to.eq('nothing the signature names');
   });
 
   it('a NEW question is a new story: the spell starts over with it', () => {

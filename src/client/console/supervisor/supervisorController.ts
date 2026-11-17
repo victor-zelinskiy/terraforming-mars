@@ -34,7 +34,7 @@ import {rebuildConsoleSession} from '@/client/console/session/sessionRebuild';
 import {noteSupervisorPass, noteSupervisorStarted, noteSupervisorStopped} from '@/client/console/session/supervisorPulse';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputTrailCount} from '@/client/console/inputEcho';
-import {observeOscillation, OSCILLATION_REST, OscillationState} from '@/client/console/livenessOscillation';
+import {observeOscillation, OSCILLATION_REST, oscillationTurns, OscillationState} from '@/client/console/livenessOscillation';
 import {unanswerableReason} from '@/common/inputs/promptAnswerable';
 import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
@@ -601,7 +601,7 @@ export function createSupervisorController(shell: SupervisorPort) {
       const seen = loop.verdict;
       withDiagEvidence(captureDiagEvidence(), () => console.warn(
         `[liveness] oscillating — the picture changed ${seen.flips} times in ${seen.looks}s among ${seen.states.length} state(s) with no press; ` +
-        `asked: ${asked}; task: ${taskFor(shell.playerView)?.kind ?? 'none'}; top: ${topWord()}`));
+        `asked: ${asked}; task: ${taskFor(shell.playerView)?.kind ?? 'none'}; top: ${topWord()} — turning: ${oscillationTurns(seen.states)}`));
     }
     if (loop.verdict.oscillating && loop.verdict.due) {
       rebuildConsoleSession({

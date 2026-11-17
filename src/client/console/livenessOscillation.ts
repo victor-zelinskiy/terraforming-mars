@@ -88,6 +88,33 @@ export type OscillationVerdict =
     due: boolean,
   };
 
+/**
+ * The fields of the arbiter's signature AFTER the question, in its own order (`supervisorController.checkLiveness`).
+ * Read from the END of the signature: the question's identity key may itself hold the separator.
+ */
+const SIGNATURE_TAIL = ['frames', 'section', 'surfaces', 'bar', 'focus', 'request'] as const;
+
+/**
+ * WHAT TURNS — the fields of the picture that differ between the loop's states, each with its values: a loop named
+ * only as «2 states» sends its reader to reproduce it; named as «bar: «A Open» ⇄ «Waiting»» it names its cause. PURE.
+ */
+export function oscillationTurns(states: ReadonlyArray<string>): string {
+  const rows = states.map((state) => {
+    const parts = state.split('|');
+    const tail = parts.slice(-SIGNATURE_TAIL.length);
+    return [parts.slice(0, Math.max(0, parts.length - SIGNATURE_TAIL.length)).join('|'), ...tail];
+  });
+  const names = ['question', ...SIGNATURE_TAIL];
+  const turning: Array<string> = [];
+  names.forEach((name, i) => {
+    const values = [...new Set(rows.map((row) => row[i] ?? ''))];
+    if (values.length > 1) {
+      turning.push(`${name}: ${values.map((value) => `«${value.slice(0, 60)}»`).join(' ⇄ ')}`);
+    }
+  });
+  return turning.length === 0 ? 'nothing the signature names' : turning.join(' · ');
+}
+
 export function observeOscillation(state: OscillationState, sample: OscillationSample): {state: OscillationState, verdict: OscillationVerdict} {
   // Not asked, another question, or the player's own hand: the spell starts over from this look.
   if (!sample.promptLive) {
