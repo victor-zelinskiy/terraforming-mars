@@ -79,5 +79,10 @@ describe('ci-fix landing rules', () => {
     expect(workflow).to.contain("startsWith(github.event.pull_request.head.ref, 'claude/ci-fix-')");
     expect(workflow).to.contain('github.event.pull_request.head.repo.full_name == github.repository');
     expect(land).to.contain('PROOF_MARK.exec(issue.body');
+    // NOTHING HANGS ON AN EVENT: a run started with a workflow's own token raises none when it ends (the lane's
+    // first live pass, 2026-11-17) — so the judgement waits for the proof, and a sweep judges every open one again.
+    expect(workflow).to.match(/schedule:\s+- cron:/);
+    expect(workflow).to.contain('--wait');
+    expect(land).to.contain('proofMissing');
   });
 });

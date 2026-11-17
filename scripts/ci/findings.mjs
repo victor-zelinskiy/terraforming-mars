@@ -314,6 +314,11 @@ function file() {
         opened++;
         continue;
       }
+      // THE SAME RUN, FILED TWICE (a re-run of the filing job, the sweep coming by again) is seen ONCE.
+      if (doc.run.id !== '' && issue.state !== 'CLOSED' && (issue.body ?? '').includes(`/actions/runs/${doc.run.id})`)) {
+        console.log(`  already counted for run ${doc.run.id}: #${issue.number}`);
+        continue;
+      }
       const count = Number(SEEN.exec(issue.body ?? '')?.[1] ?? 1) + 1;
       const counted = SEEN.test(issue.body ?? '') ? issue.body.replace(SEEN, seenBlock(count, doc)) : `${issue.body ?? ''}\n\n${seenBlock(count, doc)}`;
       // (An issue filed before proofs existed gains its proof the next time it is seen.)

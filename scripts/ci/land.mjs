@@ -10,8 +10,10 @@
  *   node scripts/ci/land.mjs <pr> --open     the pull request appeared or moved: label it, judge WHAT IT IS and WHAT
  *                                            IT TOUCHES, and start the PROOF — the re-run the finding's own issue
  *                                            names (`<!-- ci-proof:… -->`, written by scripts/ci/findings.mjs)
- *   node scripts/ci/land.mjs <pr>            a run of its head commit ended: judge everything; while a proof is
- *                                            still running say nothing; when all is green LAND
+ *   node scripts/ci/land.mjs <pr> [--wait <minutes>]
+ *                                            a run of its head commit ended, or the sweep came by: judge everything;
+ *                                            a proof that was never started is started; while one still runs wait
+ *                                            (`--wait`) or say nothing; when all is green LAND
  *   node scripts/ci/land.mjs <pr> --dry      judge and print, change nothing
  *
  * LANDED = the change squashed onto the tip of `main` as ONE commit carrying its own version bump (every push to
@@ -22,6 +24,11 @@
  * REFUSED — in writing, once per head commit: it is not a one-finding fix from a `claude/ci-fix-…` branch of THIS
  * repository; it touches what the lane may never touch or is larger than a simple fix (scripts/ci/landRules.mjs);
  * its proof is red; it no longer applies to `main`.
+ *
+ * WHY IT WAITS AND WHY THERE IS A SWEEP: a run started with a workflow's own token (the proof; the release and CI of
+ * a landed commit) raises NO event when it ends — found on the lane's first live pass, 2026-11-17. So the judgement
+ * that `CI` of the pull request wakes waits for the proof itself, and a scheduled sweep judges every open pull
+ * request of the lane again: no landing hangs on the order two runs happen to end in.
  *
  * Nothing of the pull request is ever EXECUTED here: this script and the version rule are loaded from `main` before
  * the change is applied, and `scripts/**` is itself forbidden ground.
@@ -34,7 +41,9 @@ import {fileRefusals} from './landRules.mjs';
 const args = process.argv.slice(2);
 const dry = args.includes('--dry');
 const opening = args.includes('--open');
-const pr = args.find((arg) => /^\d+$/.test(arg));
+const waitAt = args.indexOf('--wait');
+const waitMinutes = waitAt === -1 ? 0 : Number(args[waitAt + 1] ?? 0) || 0;
+const pr = args.find((arg, i) => /^\d+$/.test(arg) && i !== waitAt + 1);
 const repo = process.env.GITHUB_REPOSITORY ?? '';
 if (pr === undefined || repo === '') {
   console.error('usage: node scripts/ci/land.mjs <pr number> [--open] [--dry]   (needs GH_TOKEN and GITHUB_REPOSITORY)');
@@ -143,10 +152,12 @@ function judgeProof(shape) {
   const runs = JSON.parse(gh(['api', `repos/${repo}/actions/runs?head_sha=${shape.head}&per_page=100`])).workflow_runs ?? [];
   const latest = (name, event) => runs.filter((run) => run.name === name && run.event === event)
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+  let proofMissing = false;
   const check = (name, event) => {
     const run = latest(name, event);
     if (run === undefined || run.status !== 'completed') {
       pending.push(name);
+      proofMissing ||= run === undefined && event === 'workflow_dispatch';
     } else if (run.conclusion !== 'success') {
       reasons.push(`\`${name}\` on its head commit is \`${run.conclusion}\` — ${run.html_url}`);
     } else {
@@ -157,7 +168,14 @@ function judgeProof(shape) {
   if (shape.proof !== undefined) {
     check(shape.proof.workflow, 'workflow_dispatch');
   }
-  return {reasons, pending, proofs};
+  return {reasons, pending, proofs, proofMissing};
+}
+
+function startProof(shape) {
+  const inputs = Object.entries(shape.proof.inputs ?? {}).flatMap(([name, value]) => ['-f', `${name}=${value}`]);
+  if (!dry) {
+    gh(['workflow', 'run', shape.proof.workflow, '--repo', repo, '--ref', shape.view.headRefName, ...inputs]);
+  }
 }
 
 /** `--open`: label it, refuse what can be refused at sight, start the proof on its branch. */
@@ -176,10 +194,7 @@ function open(shape) {
     say('proof', shape.head, 'The ci-fix lane took this pull request: its finding is a red job of a push, so `CI` on this pull request is the proof. Green → it lands by itself.');
     return;
   }
-  const inputs = Object.entries(shape.proof.inputs ?? {}).flatMap(([name, value]) => ['-f', `${name}=${value}`]);
-  if (!dry) {
-    gh(['workflow', 'run', shape.proof.workflow, '--repo', repo, '--ref', shape.view.headRefName, ...inputs]);
-  }
+  startProof(shape);
   say('proof', shape.head, [`The ci-fix lane took this pull request and started its proof on this branch: \`${shape.proof.workflow}\``,
     `(${Object.entries(shape.proof.inputs ?? {}).map(([name, value]) => `\`${name}=${value}\``).join(' · ')}).`,
     'That run and `CI` green on this head commit → it lands by itself.'].join(' '));
@@ -260,15 +275,35 @@ if (opening) {
   if (shape.reasons.length > 0) {
     refuse(shape.head, shape.reasons);
   }
-  const proof = judgeProof(shape);
-  if (proof.reasons.length > 0) {
-    refuse(shape.head, proof.reasons, 'refused-proof');
-  }
-  if (proof.pending.length > 0) {
-    // NOT YET: said by nobody — the run that ends last asks again.
-    console.log(`[land] #${pr} waits for: ${proof.pending.join(', ')}`);
-  } else {
-    console.log(`[land] #${pr} judged: ${shape.files.length} file(s), proven by ${proof.proofs.length} run(s)`);
-    land(shape, proof.proofs);
+  const deadline = Date.now() + waitMinutes * 60_000;
+  let restarted = false;
+  for (;;) {
+    const proof = judgeProof(shape);
+    if (proof.reasons.length > 0) {
+      refuse(shape.head, proof.reasons, 'refused-proof');
+    }
+    if (proof.pending.length === 0) {
+      console.log(`[land] #${pr} judged: ${shape.files.length} file(s), proven by ${proof.proofs.length} run(s)`);
+      land(shape, proof.proofs);
+      break;
+    }
+    // A PROOF NOBODY STARTED (the dispatch was lost, the issue gained its marker later) is started here, once.
+    if (proof.proofMissing && !restarted && !dry) {
+      console.log(`[land] #${pr}: no run of «${shape.proof.workflow}» on its head commit — starting it`);
+      startProof(shape);
+      restarted = true;
+    }
+    if (Date.now() >= deadline) {
+      // NOT YET: said by nobody — the next run that ends, or the sweep, asks again.
+      console.log(`[land] #${pr} waits for: ${proof.pending.join(', ')}`);
+      break;
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30_000);
+    // A new commit while we waited is another judgement — its own event has it.
+    const now = JSON.parse(gh(['pr', 'view', pr, '--repo', repo, '--json', 'headRefOid,state']));
+    if (now.headRefOid !== shape.head || now.state !== 'OPEN') {
+      console.log(`[land] #${pr} moved while it was waited for — left to its own event`);
+      break;
+    }
   }
 }

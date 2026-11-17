@@ -7,10 +7,14 @@ name: Land ci-fix
 #   the pull request appears or moves  →  it is labelled, judged by WHAT IT IS and WHAT IT TOUCHES
 #                                         (scripts/ci/landRules.mjs), and its PROOF is started on its branch — the
 #                                         re-run the finding's own issue names
-#   a run of its head commit ends      →  judged again; while a proof still runs nothing is said; `CI` and the proof
-#                                         green → LANDED: squashed onto `main` as one commit with its own version
-#                                         bump, the release and CI of that commit started (a push made with a
-#                                         workflow's token starts no workflow), the pull request and the issue closed
+#   `CI` of its head commit ends       →  judged again, waiting for the proof if it still runs; red → refused in
+#                                         writing; `CI` and the proof green → LANDED: squashed onto `main` as one
+#                                         commit with its own version bump, the release and CI of that commit started
+#                                         (a push made with a workflow's token starts no workflow), the pull request
+#                                         and the issue closed
+#   every half hour (THE SWEEP)        →  every open pull request of the lane judged again, and a red `CI` / release
+#                                         of a landed commit filed — a run started with a workflow's own token raises
+#                                         NO event when it ends, so nothing here may hang on an event arriving
 #
 # `pull_request_target` and `workflow_run` run the workflow and the script of the BASE branch with a write token;
 # nothing of the pull request is ever installed or executed here — it is only read and applied by git.
@@ -20,11 +24,14 @@ on:
   workflow_run:
     workflows: ['CI', 'Playwright E2E', 'Monkey', 'Freeze gate']
     types: [completed]
+  schedule:
+    - cron: '7,37 * * * *'
   workflow_dispatch:
     inputs:
       pr:
-        description: 'A ci-fix pull request to judge again (a number)'
-        required: true
+        description: 'A ci-fix pull request to judge again (a number; empty = the sweep)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -35,7 +42,7 @@ permissions:
 # One judgement at a time for a branch (a later event sees everything an earlier one saw). Two branches may land side
 # by side: the push is retried on the new tip, each landing taking the next version above the one before it.
 concurrency:
-  group: land-ci-fix-${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch || inputs.pr }}
+  group: land-ci-fix-${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch || inputs.pr || 'sweep' }}
   cancel-in-progress: false
 
 jobs:
@@ -43,7 +50,7 @@ jobs:
     name: Judge, prove, land
     # Only the lane's own branches of THIS repository — every other pull request and run passes by untouched.
     if: >-
-      ${{ github.event_name == 'workflow_dispatch'
+      ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         || (github.event_name == 'pull_request_target'
             && startsWith(github.event.pull_request.head.ref, 'claude/ci-fix-')
             && github.event.pull_request.head.repo.full_name == github.repository)
@@ -51,30 +58,73 @@ jobs:
             && startsWith(github.event.workflow_run.head_branch, 'claude/ci-fix-')
             && github.event.workflow_run.head_repository.full_name == github.repository) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: main
-          fetch-depth: 0
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-      - name: Judge the pull request — start its proof, land it, or refuse it in writing
+      # THE SWEEP IS CHEAP WHEN THERE IS NOTHING TO DO: asked before anything is checked out.
+      - name: What is there to judge
+        id: what
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           PR_OF_EVENT: ${{ github.event.pull_request.number || inputs.pr }}
           BRANCH_OF_RUN: ${{ github.event.workflow_run.head_branch }}
         run: |
-          PR="$PR_OF_EVENT"
-          if [ "$EVENT" = "workflow_run" ]; then
-            PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH_OF_RUN" --base main --state open --json number --jq '.[0].number // empty')
-            if [ -z "$PR" ]; then echo "no open pull request for $BRANCH_OF_RUN — nothing to judge"; exit 0; fi
-          fi
-          case "$PR" in ''|*[!0-9]*) echo "not a pull request number: '$PR'"; exit 1;; esac
+          MODE=judge
+          PRS="$PR_OF_EVENT"
           if [ "$EVENT" = "pull_request_target" ]; then
-            node scripts/ci/land.mjs "$PR" --open
-          else
-            node scripts/ci/land.mjs "$PR"
+            MODE=open
+          elif [ "$EVENT" = "workflow_run" ]; then
+            PRS=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH_OF_RUN" --base main --state open --json number --jq '.[0].number // empty')
+          elif [ -z "$PRS" ]; then
+            MODE=sweep
+            PRS=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --state open --limit 50 --json number,headRefName \
+              --jq '[.[] | select(.headRefName | startswith("claude/ci-fix-")) | .number] | join(" ")')
+            # A red CI / release of a commit the lane landed — started by name, so no watcher heard it end.
+            SINCE=$(date -u -d '-26 hours' +%Y-%m-%dT%H:%M:%SZ)
+            RED=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=main&event=workflow_dispatch&status=failure&created=>$SINCE&per_page=30" \
+              --jq '[.workflow_runs[] | select(.name == "CI" or .name == "Release Electron App") | "\(.id):\(.name)"] | join("|")')
+            echo "red=$RED" >> "$GITHUB_OUTPUT"
           fi
+          for PR in $PRS; do
+            case "$PR" in *[!0-9]*) echo "not a pull request number: '$PR'"; exit 1;; esac
+          done
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "prs=$PRS" >> "$GITHUB_OUTPUT"
+          echo "mode=$MODE prs='$PRS' red='${RED:-}'"
+      - uses: actions/checkout@v6
+        if: ${{ steps.what.outputs.prs != '' || steps.what.outputs.red != '' }}
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        if: ${{ steps.what.outputs.prs != '' || steps.what.outputs.red != '' }}
+        with:
+          node-version-file: .nvmrc
+      - name: Judge the pull request — start its proof, land it, or refuse it in writing
+        if: ${{ steps.what.outputs.prs != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.what.outputs.mode }}
+          PRS: ${{ steps.what.outputs.prs }}
+        run: |
+          for PR in $PRS; do
+            case "$MODE" in
+              open) node scripts/ci/land.mjs "$PR" --open;;
+              # `CI` ended (or somebody asked): the proof may still run — it is waited for, bounded.
+              judge) node scripts/ci/land.mjs "$PR" --wait 50;;
+              sweep) node scripts/ci/land.mjs "$PR" || echo "::warning::the judgement of #$PR failed";;
+            esac
+          done
+      - name: File a red run of a landed commit
+        if: ${{ steps.what.outputs.red != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RED: ${{ steps.what.outputs.red }}
+        run: |
+          echo "$RED" | tr '|' '\n' | while IFS=: read -r ID NAME; do
+            [ -n "$ID" ] || continue
+            SOURCE=ci
+            if [ "$NAME" != "CI" ]; then SOURCE=release; fi
+            node scripts/ci/findings.mjs red-run --source "$SOURCE" --workflow "$NAME" --run-id "$ID" --out "red-$ID.json"
+            node scripts/ci/findings.mjs file "red-$ID.json"
+          done

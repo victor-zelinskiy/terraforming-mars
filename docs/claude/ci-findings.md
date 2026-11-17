@@ -20,7 +20,7 @@ a workflow run ──► findings (one JSON shape) ──► scripts/ci/findings
 | `Playwright E2E` (`playwright-e2e.yml`) — the whole suite | 00:30 nightly | a FAILED test · a FLAKY test (one issue per test) |
 | `Monkey` (`monkey.yml`) — the real-browser monkey | 03:00 nightly (plain, the seed of the day) · Sunday 07 / 10 / 13 / 16: `cpu4` · `net400` · `reload` · `duo` | a NEW cause class · a stall never cured · a run with no verdict |
 | `CI` (`main.yml`) · `Release Electron App` (`release.yml`) | every push — watched by `CI findings` (`ci-findings.yml`, a `workflow_run` AFTER the run ended; a cancelled run is not a finding) | a RED run: one issue per failed JOB |
-| `Land ci-fix` (`land-ci-fix.yml`) | when a pull request from a `claude/ci-fix-*` branch appears, and when a run of its head commit ends | nothing — it starts the fix's proof, lands the fix or refuses it in writing (§ 3b) |
+| `Land ci-fix` (`land-ci-fix.yml`) | when a pull request from a `claude/ci-fix-*` branch appears, when `CI` of its head commit ends, and every half hour (the sweep) | nothing — it starts the fix's proof, lands the fix or refuses it in writing (§ 3b) |
 
 **The release is never stalled by them.** A scheduled run commits nothing (so it starts no release and cancels none),
 shares no concurrency group with `CI` / the release, and takes at most 8 – 10 runners at a time (`max-parallel`) — the
@@ -135,8 +135,12 @@ pull request is ever installed or executed) watches the lane's own branches, `cl
    TOUCHES; refused at sight, in writing, or its **PROOF is started on its branch — the re-run that the finding's own
    issue names** (a hidden `ci-proof` marker written by the run that FOUND the defect: the same test by its title, the
    same table by the same seed and perturbation). What proves a fix is never chosen by whoever fixes it.
-2. **A run of its head commit ends** (`CI` of the pull request, the proof) → judged again. While one of them still
-   runs, nothing is said. Red → refused in writing, once. **Both green → LANDED.**
+2. **`CI` of its head commit ends** → judged again, WAITING for the proof if it still runs (bounded). Red → refused
+   in writing, once. **Both green → LANDED.**
+3. **THE SWEEP, every half hour** — every open pull request of the lane is judged again (a proof nobody started is
+   started), and a red `CI` / release of a commit the lane landed is filed. **Nothing hangs on an event arriving:** a
+   run started with a workflow's own token — the proof, the release and CI of a landed commit — raises NO event when
+   it ends (found on the lane's first live pass, 2026-11-17: pull request #20, landed as `96c0276754`).
 
 | Judged | The rule |
 | --- | --- |
