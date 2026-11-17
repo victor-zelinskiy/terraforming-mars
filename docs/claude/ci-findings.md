@@ -48,8 +48,9 @@ issues (needs `GH_TOKEN`, `issues: write`).
 
 ## 3. The morning triage (the agent's procedure)
 
-A scheduled cloud agent (a Claude Code routine, 05:30 UTC) works the queue. **It writes verdicts; it changes no
-product code.** Per run:
+A scheduled cloud agent (a Claude Code routine, 05:30 UTC, Opus 5.5) works the queue. **Every finding gets a verdict;
+a SIMPLE one is also FIXED by the agent — on a branch, proven on CI, handed over as a pull request (§ 3a); a complex
+one goes by the verdict alone, to a working session** (the owner, 2026-11-17). Per run:
 
 1. `gh issue list --label ci-finding --label triage:needed --state open --json number,title,labels,body` — the queue.
    Nothing there → say so in one line and stop.
@@ -79,18 +80,64 @@ product code.** Per run:
    - **Comment** (one comment, in English, ≤ 25 lines): the verdict and WHY in two sentences · what you reproduced or
      read (the shrunk steps when you have them) · the suspected cause with `file:line` · what a fix would have to be
      (the law, not the patch) · what you could NOT determine. Never guess a cause you did not read.
-   - Do **not** close the issue (a working session closes it with the fix) — except `triage:infra` that did not recur
-     in the last run.
+   - **Then decide the LANE** (§ 3a): SIMPLE → fix it; anything else → the verdict is the whole of the work.
+   - Do **not** close the issue (the merge of its fix closes it) — except `triage:infra` that did not recur in the
+     last run.
 3. **End with a digest** — the routine's final message: `N triaged: a real · b noise · c harness · d flake · e infra;
-   M left`, then one line per `triage:real`.
+   F fixed (pull requests); M left`, then one line per pull request and one per `triage:real` left to a session.
 
-**Never:** push to `main`, open a pull request with product changes, edit a baseline
-(`tests/client/bottle/monkeyBaseline.json`, `tests/e2e/monkeyBaseline.json`, `LAYOUT_BLIND`) — a baseline row is a
-decision of a working session, made after a real browser said «not there».
+### 3a. THE FIX LANE — what the agent fixes itself
+
+**SIMPLE is one of three, and only when the cause was READ, not guessed:**
+
+1. **A wrong e2e check** — the spec or its driver breaks the canon of `.claude/rules/tests.md` § «КАК ПИСАТЬ
+   E2E-ПРОВЕРКУ» (a wait on time, a one-shot read of a transient, geometry read in motion, a selector the product no
+   longer has), or asserts what the product never promised. The fix lives in `tests/e2e/**` alone.
+2. **Not a bug** — the test's expectation is stale against a DELIBERATE product change (the commit that made it is
+   named in the pull request). The fix is the expectation, in `tests/**` alone.
+3. **A trivial bug** — a local product defect: one cause, at most ~40 changed lines in at most 3 product files, with a
+   unit spec that is RED before the fix and green after it.
+
+**NEVER simple, whatever the size** (the verdict lane — a working session decides): game rules and anything
+server-authoritative (`src/server/**` beyond a log line or a typo), saves and serialization, the transport
+(`src/client/console/transport/**`), the flow kernel (`src/client/console/kernel/**`), the liveness nets / the wait
+graph / the hold registry, a diagnostic line's tier or shape, a motion's timing, RU copy, a dependency, a workflow —
+and **every baseline** (`tests/client/bottle/monkeyBaseline.json`, `tests/e2e/monkeyBaseline.json`, `LAYOUT_BLIND`,
+any `*Baseline.json` ratchet): a baseline row is a decision of a working session, made after a real browser said
+«not there». A finding of the monkey or the gate (`kind:new-class`) is simple only as case 3.
+
+**How a fix is made and proven:**
+
+- A branch off `origin/main`: `claude/ci-fix-<issue number>-<slug>`. ONE commit, `TM_SKIP_VERSION_BUMP=1` (a branch
+  never bumps the version; `package.json` / `package-lock.json` stay untouched), the message through `-F <file>`,
+  English, saying the cause.
+- Before the push, in the sandbox: `npm run lint`, `npm run build:test` (when `tests/` is touched), the unit specs of
+  what was touched (`npm run test:client:one -- <spec>` / the mocha line of `CLAUDE.md`), and for a gate finding the
+  issue's own «Repeat it» command — green.
+- Push the branch, open a pull request to `main` labelled `ci-fix`: title `[ci-fix #<issue>] <what>`, body — the
+  cause, the fix, what was run, and `Fixes #<issue>`.
+- **RE-RUN THE TEST ON CI, on the branch** — the laptop and the box are not there, and a browser is never started in
+  the sandbox: `gh workflow run "Playwright E2E" --ref <branch> -f grep="<the test's title>" -f shards=4
+  -f burnin_depth=0` (the monkey: `gh workflow run Monkey --ref <branch> -f seed=<seed> -f shards=1
+  -f only='^<table>$'`; the gate: `gh workflow run "Freeze gate" --ref <branch> -f seeds=<seed> -f only='^<table>$'`).
+  Wait for it (bounded: 40 minutes), and write the run's link and its result into the pull request.
+- Green → the issue gets `fix:proposed` beside its verdict label. Red → ONE more attempt; red again → close the pull
+  request with what was learned, and the finding goes by the verdict lane (`triage:real`), the comment saying what the
+  two attempts ruled out.
+- **The agent never merges and never pushes to `main`.** Every push to `main` is a RELEASE with its own version bump
+  (`npm run push`), so a pull request is LANDED by a working session — or on the owner's word — through that path;
+  GitHub's merge button would ship a version a release already claimed.
+- At most 4 pull requests a morning; the rest of the queue goes by verdicts.
+
+**Never, in any lane:** push to `main`, merge, force-push, edit a baseline, change a workflow, touch an issue without
+the `ci-finding` label.
 
 ## 4. What the agent needs (the owner's side)
 
-- The routine clones `victor-zelinskiy/terraforming-mars` and must be able to **comment on and label issues** and to
-  **download run artifacts**: a GitHub token in the routine's environment (`GH_TOKEN`) with, for this one repository,
-  `Issues: read and write`, `Actions: read`, `Contents: read`, `Metadata: read`.
-- Nothing else: no access to the box, to Sentry, or to the release.
+- The routine clones `victor-zelinskiy/terraforming-mars` through the GitHub account connected to Claude, and must be
+  able, for this one repository, to: **comment on and label issues** (`Issues: read and write`), **download run
+  artifacts and dispatch a workflow on its branch** (`Actions: read and write`), **push a `claude/…` branch**
+  (`Contents: read and write`) and **open a pull request** (`Pull requests: read and write`).
+- Nothing else: no push to `main`, no access to the box, to Sentry, or to the release.
+- **A working session's first look** (and the owner's): `gh pr list --label ci-fix` — the fixes waiting to be landed;
+  `gh issue list --label ci-finding --label triage:real` — what is left for a session.
