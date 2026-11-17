@@ -365,6 +365,9 @@ function claimRemoteVp(): void {
   disarmRemoteVpDrop();
   disarmRemoteVpDrop = () => {};
   claimVpShares(REMOTE_TILE_VP_OWNER, isBoardVpShare, REMOTE_TILE_VP_RANK, {
+    // The share flies with its tile — and the tile waits for a board the viewer can SEE (`parkForBoard`): that wait
+    // is the player's, and whoever would call the share's hold «leaked» is told so.
+    heldForPlayer: () => (remotePlacementState.waitingForBoard ? 'the tile of another seat waits for a board the viewer keeps covered' : undefined),
     // Seeded after the story's tiles already landed (the bot's last turn): fly now, from the cells they landed on.
     onSeeded: () => {
       if (!draining) {

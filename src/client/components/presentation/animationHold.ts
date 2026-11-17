@@ -116,6 +116,14 @@ export type AnimationHoldOptions = {
    * (`motionWitness.ts`). Declare it on any hold that may honestly stand STILL.
    */
   waitsFor?: 'player' | 'server',
+  /**
+   * WHY THE HOLD WAITS ON THE PLAYER RIGHT NOW — the dynamic half of `waitsFor: 'player'` (FREEZE ZERO, PLAN § 8
+   * stage 1: a line's tier is decided by WHO OWNS the wait, never by how long it stood). A hold that is usually a
+   * motion and sometimes stands behind the player's own choice — a score share whose token waits for a board the
+   * player keeps covered — says so here (`undefined` = it does not). A net that would call a long hold «leaked»
+   * asks `playerOwnedHolds()` first.
+   */
+  heldForPlayer?: () => string | undefined,
 };
 
 /**
@@ -135,6 +143,7 @@ type SupplierEntry = {
   /** The flow's predicate, DECLARED through the reactivity witness (see `registerAnimationHoldSupplier`). */
   supplier: ReactivePredicate<boolean>,
   diagnose: (() => unknown) | undefined,
+  heldForPlayer: (() => string | undefined) | undefined,
   expire: (() => void) | undefined,
   stop: () => void,
   /** The hold's run while it stands and is bounded (the ceiling is a timer owned by it). `undefined` = not holding,
@@ -280,6 +289,7 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
     // heals both caches through the predicate's own epoch. The sweep (`refreshAnimationHolds`) stays the net.
     supplier: reactivePredicate(`hold:${label}`, supplier),
     diagnose: options?.diagnose,
+    heldForPlayer: options?.heldForPlayer,
     expire: options?.expire,
     stop: () => {},
     run: undefined,
@@ -624,6 +634,65 @@ export function activeAnimationHoldLabels(): Array<string> {
     }
   }
   return labels;
+}
+
+/**
+ * DO THE STANDING HOLDS ALL WAIT ON THE PLAYER? The reasons, joined — or `undefined` when none stands or at least one
+ * is a motion nobody is waited for (then a long hold is what the nets always took it for). A supplier's hold says so
+ * dynamically (`heldForPlayer`) or by declaration (`waitsFor: 'player'`); a manual hold by its declaration.
+ */
+export function playerOwnedHolds(): string | undefined {
+  const reasons: Array<string> = [];
+  for (const [label, entry] of suppliers) {
+    if (store.expired.has(label) || store.quarantined.has(label) || !safeRead(label, entry.supplier)) {
+      continue;
+    }
+    let why: string | undefined;
+    try {
+      why = entry.heldForPlayer?.();
+    } catch {
+      why = undefined;
+    }
+    if (why === undefined && entry.waitsFor !== 'player') {
+      return undefined;
+    }
+    reasons.push(`${label}: ${why ?? 'waits for the player'}`);
+  }
+  for (const hold of store.manual.values()) {
+    if (store.quarantined.has(hold.label)) {
+      continue;
+    }
+    if (hold.waitsFor !== 'player') {
+      return undefined;
+    }
+    reasons.push(`${hold.label}: waits for the player`);
+  }
+  return reasons.length === 0 ? undefined : reasons.join(' · ').replace(/[()]/g, '');
+}
+
+/**
+ * WHAT EACH STANDING HOLD SAYS OF ITSELF (its owner's `diagnose`) — for a line that must name WHO holds and for what,
+ * not only the hold's label (the feed's starvation line named «vp-shares» and sent its reader to reproduce it).
+ */
+export function activeAnimationHoldDetails(): Array<string> {
+  const details: Array<string> = [];
+  const said = (label: string, diagnose: (() => unknown) | undefined): void => {
+    const detail = safeDiagnose(diagnose).replace(/^ — /, '').replace(/[()]/g, '').slice(0, 200);
+    if (detail !== '') {
+      details.push(`${label}: ${detail}`);
+    }
+  };
+  for (const [label, entry] of suppliers) {
+    if (!store.expired.has(label) && !store.quarantined.has(label) && safeRead(label, entry.supplier)) {
+      said(label, entry.diagnose);
+    }
+  }
+  for (const [id, hold] of store.manual) {
+    if (!store.quarantined.has(hold.label)) {
+      said(hold.label, manualRecovery.get(id)?.diagnose);
+    }
+  }
+  return details;
 }
 
 /**

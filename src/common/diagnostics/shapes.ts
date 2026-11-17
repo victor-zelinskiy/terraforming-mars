@@ -252,6 +252,10 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
   ],
   'notifications': [
     {name: 'starvation', re: /queued event\(s\) held behind an ANIMATION hold .*\(leaked hold: (.*)\)$/, tier: 'defect', parts: [1]},
+    {
+      name: 'starvation-owned', re: /queued event\(s\) held behind an ANIMATION hold .*\(the holds wait for the player: ([^:)]*)/, tier: 'planned', parts: [1],
+      why: 'every hold behind the queue says it waits on the player (`AnimationHoldOptions.heldForPlayer`): the delivery at the bound is the designed degraded mode',
+    },
     {name: 'correlation-ceiling', re: /^correlation \S+ stayed open for over .* — held by (.*)$/, tier: 'defect', parts: [1]},
     {name: 'unclassified-variant', re: /^variant '([^']*)' has no feed-relevance classification/, tier: 'defect', parts: [1]},
     {name: 'band-no-cause', re: /^band with no nameable cause:/, tier: 'defect'},

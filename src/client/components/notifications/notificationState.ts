@@ -18,7 +18,7 @@ import {
   onForegroundFreed,
   registerFlowHoldSupplier,
 } from '@/client/components/presentation/presentationFlow';
-import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldDetails, activeAnimationHoldLabels, playerOwnedHolds} from '@/client/components/presentation/animationHold';
 import {PendingQueueSummary, pendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {ackBotTurn} from '@/client/components/marsbot/botTurnAck';
 
@@ -204,6 +204,12 @@ export function notificationKnownId(id: string): boolean {
  */
 export const QUEUE_STARVATION_MS = 12_000;
 
+/** What the holds behind a starved queue say of themselves — WHO holds and for what (the label alone names no cause). */
+function holdsSay(): string {
+  const details = activeAnimationHoldDetails();
+  return details.length === 0 ? '' : ` — ${details.join(' · ')}`;
+}
+
 /** When the current undelivered backlog started waiting (undefined = flowing). */
 let queueBlockedSince: number | undefined;
 
@@ -249,10 +255,21 @@ export function promoteFromQueue(): void {
     }
     if (!starvationWarned) {
       starvationWarned = true;
-      console.warn(
-        `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
-        `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway (leaked hold: ` +
-        `${activeAnimationHoldLabels().join(', ') || 'none named'})`);
+      // WHO OWNS THE WAIT decides what the line is (FREEZE ZERO, stage 1). «An animation has no player in the loop» —
+      // the premise of this escape — is false of a hold that says it waits on the player (a score share whose token
+      // waits for a board the player keeps covered): the delivery at the bound is then the DESIGNED degraded mode,
+      // said as such (counted, never an event). A hold nobody is waited for is the leak it always was.
+      const owned = playerOwnedHolds();
+      if (owned !== undefined) {
+        console.warn(
+          `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
+          `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} (the holds wait for the player: ${owned})`);
+      } else {
+        console.warn(
+          `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
+          `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} (leaked hold: ` +
+          `${activeAnimationHoldLabels().join(', ') || 'none named'})`);
+      }
     }
   }
   queueBlockedSince = undefined;

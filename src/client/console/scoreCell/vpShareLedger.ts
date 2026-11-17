@@ -60,6 +60,8 @@ export type VpClaim = {
   owner: string, rank: number, match: VpShareMatch, seq: number, releaseOnLanding: boolean,
   /** Told (after the seed's block) that shares were held for it — a host whose scene is already over flies them now. */
   onSeeded?: () => void,
+  /** WHY the host's flight waits on the PLAYER right now (a board they keep covered) — `undefined` = it does not. */
+  heldForPlayer?: () => string | undefined,
 };
 
 /** Is this share the host's to show? `after` is the server's breakdown the share was read from (its mechanics). */
@@ -131,6 +133,19 @@ onCardResourceLanded((spec) => {
 registerAnimationHoldSupplier('vp-shares', () => vpShareState.held.length > 0, {
   scope: 'notification-only',
   diagnose: () => vpShareState.held.map((h) => `${h.owner} · ${vpSourceKey(h.share.source)} ${h.share.points}${h.flying ? ' (flying)' : ''}`),
+  // The hold waits on the PLAYER when every share it keeps is a host's whose flight does (`VpClaim.heldForPlayer`):
+  // one share of a host that is simply late makes it a motion again.
+  heldForPlayer: () => {
+    const reasons = new Set<string>();
+    for (const held of vpShareState.held) {
+      const why = held.flying ? undefined : claims.get(held.owner)?.heldForPlayer?.();
+      if (why === undefined) {
+        return undefined;
+      }
+      reasons.add(why);
+    }
+    return reasons.size === 0 ? undefined : [...reasons].join('; ');
+  },
   expire: () => releaseAllVpShares('ceiling'),
 });
 
@@ -148,9 +163,13 @@ export const isBoardVpShare: VpShareMatch = (share, after) =>
 /** A host claims the shares `match` accepts (at its arm). Re-claiming an owner replaces its claim. */
 export function claimVpShares(
   owner: string, match: VpShareMatch, rank = 0,
-  opts: {releaseOnLanding?: boolean, onSeeded?: () => void} = {},
+  opts: {releaseOnLanding?: boolean, onSeeded?: () => void, heldForPlayer?: () => string | undefined} = {},
 ): void {
-  claims.set(owner, {owner, rank, match, seq: ++claimSeq, releaseOnLanding: opts.releaseOnLanding === true, ...(opts.onSeeded !== undefined ? {onSeeded: opts.onSeeded} : {})});
+  claims.set(owner, {
+    owner, rank, match, seq: ++claimSeq, releaseOnLanding: opts.releaseOnLanding === true,
+    ...(opts.onSeeded !== undefined ? {onSeeded: opts.onSeeded} : {}),
+    ...(opts.heldForPlayer !== undefined ? {heldForPlayer: opts.heldForPlayer} : {}),
+  });
 }
 
 /** The host's claim ends (its every ending) — what it already holds stays its own to fly or release. */
