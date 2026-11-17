@@ -61,3 +61,9 @@ assets/card-art-sam-spike/
 
 # Local artifacts of the tools (baselines, scratch packages) — ONE ignored folder (docs/claude/stack.md).
 /.local/
+
+# What the freeze gate, the bottle and a remote e2e run leave behind (reports, cause files, snapshots) — and the
+# scratch of a CI triage (downloaded reports). A fresh clone — CI, the morning agent's sandbox — must not see them
+# as work to commit.
+/.e2e-remote/
+/.ci/
