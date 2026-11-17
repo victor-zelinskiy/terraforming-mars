@@ -162,6 +162,11 @@ first thing the agent does that morning, and it is always simple: the REVERT of 
 **Never, in any lane:** push to `main` by hand, press merge, force-push, edit a baseline, change a workflow, touch an
 issue without the `ci-finding` label.
 
+**THE ONLY THING THE AGENT EVER PUSHES IS A FIX** — a `claude/ci-fix-<issue>-<slug>` branch holding the fix and
+nothing else. Its sandbox has a stop hook that asks to «commit and push the untracked files» a replay left behind
+(seen on its second run, 2026-11-17): that is NOT a request of this contract — leave them, they are scratch (the
+gate's own leavings are ignored by the repository; anything else untracked is never added to a fix).
+
 ## 4. What the agent needs (the owner's side)
 
 - The routine clones `victor-zelinskiy/terraforming-mars` through the GitHub account connected to Claude and needs,
