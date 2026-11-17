@@ -10,6 +10,7 @@
  * (docs/claude/console/wait-graph.md § CEILINGS; `ceilingWaitGuard.spec` keeps new ceilings on this primitive).
  */
 import {FlowScope, polled, settled} from '@/client/console/kernel/flowScope';
+import {watchFrames} from '@/client/console/kernel/frameWitness';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {declareWait} from '@/client/console/waitGraph/waitGraph';
 import {WaitNode} from '@/client/console/waitGraph/waitGraphModel';
@@ -71,10 +72,14 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
   }, now);
   let open = true;
   let detail = spec.detail;
+  // A MOTION'S BOUND IS JUDGED AGAINST THE FRAMES THE PAGE PAINTED (`kernel/frameWitness.ts`): a page that does not
+  // paint — hidden, behind another window, starved — cannot end a motion, and its ceiling is the wait's honest end.
+  const painted = (spec.target ?? 'motion') === 'motion' ? watchFrames() : undefined;
   return {
     met: () => {
       if (open) {
         open = false;
+        painted?.stop();
         ceilingStats.met++;
         node.end();
       }
@@ -83,7 +88,8 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
       if (!open) {
         return;
       }
-      const planned = plannedNow ?? spec.planned;
+      const planned = plannedNow ?? spec.planned ?? painted?.starved();
+      painted?.stop();
       open = false;
       node.end();
       ceilingStats.hits++;
@@ -97,6 +103,7 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
     end: () => {
       if (open) {
         open = false;
+        painted?.stop();
         node.end();
       }
     },

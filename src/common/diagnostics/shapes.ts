@@ -228,7 +228,11 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
   ],
   // ── holds, stories, hand-overs ──────────────────────────────────────────────────────────────────────────────────
   'animation-hold': [
-    {name: 'ceiling', re: /^"([^"]*)" held for over \S+ — force-released by the safety ceiling/, tier: 'defect', parts: [1]},
+    {
+      name: 'ceiling', re: /^"([^"]*)" held for over \S+ — force-released by the safety ceiling/, tier: 'defect', parts: [1],
+      // A hold whose ceiling came on a page that painted nothing says so (`kernel/frameWitness.ts`) — its honest end.
+      read: (_m, body) => (/ \(planned: [^)]*\)/.test(body) ? {tier: 'planned'} : {}),
+    },
     {name: 'recovery-threw', re: /^the "([^"]*)" owner recovery threw/, tier: 'defect', parts: [1]},
     {name: 'supplier-threw', re: /^supplier "([^"]*)" threw/, tier: 'defect', parts: [1]},
   ],

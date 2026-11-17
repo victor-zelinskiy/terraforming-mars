@@ -23,16 +23,22 @@
  * judge (`common/inputs/promptAnswerable.ts`) where that model is built anyway — for whatever shape the structural
  * read does not know: said once per question, never a throw (the view must still be served).
  */
+import {UNANSWERABLE_QUESTION} from '../../common/app/AppErrorId';
 import {unanswerableReason} from '../../common/inputs/promptAnswerable';
 import {PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {IPlayer} from '../IPlayer';
 import {PlayerInput} from '../PlayerInput';
 import {reportServerError} from '../diagnostics/serverDiagnostics';
+import {AppError} from '../server/AppError';
 
-/** The question was refused: it could not have been answered. An ENGINE error (never a rule's refusal). */
-export class UnanswerableInputError extends Error {
+/**
+ * The question was refused: it could not have been answered. An ENGINE defect (reported here, with its stack) that
+ * reaches the seat as a TYPED refusal — `AppError` with `UNANSWERABLE_QUESTION`: the page says it in the player's
+ * language by the id, never by this English diagnostic line.
+ */
+export class UnanswerableInputError extends AppError {
   constructor(message: string) {
-    super(message);
+    super(UNANSWERABLE_QUESTION, message);
     this.name = 'UnanswerableInputError';
   }
 }

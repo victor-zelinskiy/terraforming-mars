@@ -93,6 +93,9 @@ export const LAYOUT_BLIND: ReadonlyArray<{cls: RegExp, why: string}> = [
   // named them too — they are the GAME's (the plan's worklist), and they are not rows here.
   {cls: /^wait-graph\/ceiling\/ma-price:price-end$/, why: '«the price\'s end» — the token of a milestone / award price lands on a measured cell (116 tables in the bottle, none on the box)'},
   {cls: /^wait-graph\/ceiling\/played-hero:reward-place$/, why: '«a place for the reward» of a played card — a measured slot, the sibling of `played-hero:target`'},
+  // (2026-11-17 — the wait is new on main since the e2e rework's phase 4: `ConsoleStartScene.startReactorFace`. The same
+  // table, the same seed, in a real browser on the box: not there.)
+  {cls: /^wait-graph\/ceiling\/start:reactor-face$/, why: '«the corporation\'s face standing in the start» is a face whose rect is VISIBLE (`transferEndVerdict`) — a 0×0 rect is no face'},
   {cls: /^wait-graph\/overdue\/admission:host:card-arrival$/, why: 'the arrival of a drawn card into the dock is a flight to a measured slot; the admission block that waits for it runs to its bound'},
 ];
 

@@ -8,6 +8,7 @@ import {
 } from '@/client/console/transport/gameTransport';
 import {SUBMIT_NO_RESPONSE_MS, SUBMIT_PRESENT_MAX_MS} from '@/client/console/transport/submitMachine';
 import {ViewModel} from '@/common/models/PlayerModel';
+import {UNANSWERABLE_QUESTION, UNANSWERABLE_QUESTION_TEXT} from '@/common/app/AppErrorId';
 
 type FakeResponse = {ok: boolean, status: number, statusText?: string, json: () => Promise<unknown>};
 
@@ -27,7 +28,7 @@ async function flush(): Promise<void> {
  */
 describe('the submit funnel', () => {
   let clock: ManualFlowClock;
-  let root: TransportRoot & {updates: number, alerts: Array<string>};
+  let root: TransportRoot & {updates: number, alerts: Array<string>, messages: Array<string>};
   let fetches: Array<{url: string, signal: AbortSignal | undefined, resolve: (response: FakeResponse) => void, reject: (error: unknown) => void}>;
   let realFetch: typeof fetch;
   let warn: typeof console.warn;
@@ -59,11 +60,13 @@ describe('the submit funnel', () => {
       isServerSideRequestInProgress: false,
       updates: 0,
       alerts: [],
+      messages: [],
       updatePlayer() {
         this.updates++;
       },
-      showAlert(title: string) {
+      showAlert(title: string, message?: string) {
         this.alerts.push(title);
+        this.messages.push(message ?? '');
       },
     };
     startGameTransport(root);
@@ -152,6 +155,23 @@ describe('the submit funnel', () => {
     expect((await ticket.settled).status).to.eq('refused');
     expect(root.alerts).to.deep.eq(['Error with input']);
     expect(transportRequestInProgress()).to.eq(false);
+  });
+
+  it('THE SERVER REFUSED TO ASK A QUESTION WITH NO ANSWER: said by a fixed i18n key — never the English line of the server — and the truth is re-fetched', async () => {
+    const ticket = submitInput({type: 'option'});
+    fetches[0].resolve({ok: false, status: 400, json: () => Promise.resolve({
+      id: UNANSWERABLE_QUESTION, message: 'A question nobody can answer was not asked — card «Select a card to discard»: 1 card(s) asked of 0 — phase action, generation 3',
+    })});
+    expect((await ticket.settled).status).to.eq('refused');
+    expect(root.alerts).to.deep.eq(['Error with input']);
+    expect(root.messages, 'the key the locale translates (ru/ui.json) — an English interface reads it as it is').to.deep.eq([UNANSWERABLE_QUESTION_TEXT]);
+    expect(root.updates, 'what the action did before it failed stays done: the view is re-fetched').to.be.greaterThan(0);
+    expect(transportRequestInProgress()).to.eq(false);
+    // …any other refusal is said in the server's own words, as ever.
+    const other = submitInput({type: 'option'});
+    fetches[fetches.length - 1].resolve({ok: false, status: 400, json: () => Promise.resolve({id: undefined, message: 'You cannot overspend heat'})});
+    await other.settled;
+    expect(root.messages[1]).to.eq('You cannot overspend heat');
   });
 
   it('a network failure: said, settled `failed`, the funnel reopens', async () => {

@@ -40,6 +40,7 @@ import {onRealtimeWake} from '@/client/components/realtime/realtimeSync';
 import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import {midPromptRefreshEnabled, serverAheadOfView, viewLagIsALie, viewLagOf} from '@/client/components/realtime/viewFreshness';
 import {deferredViewRefreshArmed, noteViewCommitted} from '@/client/components/deferredViewRefresh';
+import {viewFetchOnWire} from '@/client/console/transport/viewDelivery';
 import {registerTruthWitness} from '@/client/console/presentationLedger';
 import {apiUrl, identitySearch} from '@/client/utils/runtimeConfig';
 import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
@@ -51,7 +52,7 @@ import {Phase} from '@/common/Phase';
 import {paths} from '@/common/app/paths';
 import {statusCode} from '@/common/http/statusCode';
 import {InputResponse} from '@/common/inputs/InputResponse';
-import {INVALID_RUN_ID, STALE_PROMPT, AppErrorResponse} from '@/common/app/AppErrorId';
+import {INVALID_RUN_ID, STALE_PROMPT, UNANSWERABLE_QUESTION, UNANSWERABLE_QUESTION_TEXT, AppErrorResponse} from '@/common/app/AppErrorId';
 import {Color} from '@/common/Color';
 import {gameDocumentTitle} from '@/client/utils/documentTitle';
 import {setFaviconStatus, setFaviconTurnFrame} from '@/client/utils/favicon';
@@ -384,6 +385,8 @@ let animationFrame = 0;
  * re-arm is likewise suppressed.
  */
 let pollStopped = true;
+/** A poll is on the wire (sent, no terminal event yet) — the freshness witness reads it: a lag being paid is owned. */
+let pollOnWire = false;
 /**
  * THE SERVER'S WORD THE VIEW HAS NOT HEARD (`viewDelivery.ts`): the poll said «you are being waited on» while the
  * applied view asked nothing — since when, and of which view. Spent by the view that replaces that one, by a question
@@ -535,11 +538,12 @@ export function startGameTransport(transportRoot: TransportRoot): void {
         ahead: serverAheadOfView(currentView().game),
         requestInProgress: root.isServerSideRequestInProgress === true,
         refreshParked: deferredViewRefreshArmed(),
+        onTheWire: pollOnWire || viewFetchOnWire(),
       }),
     graceMs: 3000,
     heal: () => waitForUpdate(true),
     // WHAT the lie is made of — a heal that only says «healing» names no cause (the ledger's own rule for a witness).
-    diagnose: () => ({behind: viewLagOf(currentView().game), holding: transportHolding(), prompt: currentWaitingFor()?.type ?? 'none'}),
+    diagnose: () => ({behind: viewLagOf(currentView().game), holding: transportHolding(), prompt: currentWaitingFor()?.type ?? 'none', polling: pollOnWire, fetching: viewFetchOnWire()}),
   });
 }
 
@@ -587,6 +591,7 @@ export function stopGameTransport(): void {
   stopTitleSpinner();
   stopTitleSpinner = () => {};
   pollStopped = true;
+  pollOnWire = false;
   disarmPoll();
   disarmPoll = () => {};
   // The transport's scope ends with the game screen — a submit still standing is over with it (its funnel reopens,
@@ -1778,7 +1783,16 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
            */
           r.updatePlayer();
         }
-        showAlert('Error with input', resp.message, cb);
+        let said = resp.message;
+        if (resp.id === UNANSWERABLE_QUESTION) {
+          // THE SERVER REFUSED TO ASK A QUESTION WITH NO ANSWER (`server/liveness/UnanswerablePrompt.ts`): the action
+          // failed where it ran and the seat keeps its question. Said in the PLAYER's language — a fixed i18n key,
+          // never the server's English diagnostic line — and the truth is re-fetched (what the action did before it
+          // failed stays done).
+          said = UNANSWERABLE_QUESTION_TEXT;
+          r.updatePlayer();
+        }
+        showAlert('Error with input', said, cb);
       } else {
         showAlert('Error processing response', 'Unexpected response from server. Please try again.');
         console.error(response.statusText);
@@ -1987,18 +2001,21 @@ export function waitForUpdate(immediate = false): void {
     // is a network hiccup, and the next cycle is the retry.
     xhr.timeout = POLL_XHR_TIMEOUT_MS;
     xhr.ontimeout = () => {
+      pollOnWire = false;
       // Immediate retry: the link just proved unhealthy, so the stretched
       // WS-healthy interval must not add its 20 s on top of the 15 lost.
       // One request is in flight at a time, so this can never stampede.
       waitForUpdate(true);
     };
     xhr.onerror = function() {
+      pollOnWire = false;
       // (The alert owns the chain from here — a wait on the player, in plain view; its dismissal re-arms.)
       disarmPoll();
       disarmPoll = () => {};
       r.showAlert('Error fetching state', CANNOT_CONTACT_SERVER, () => waitForUpdate());
     };
     xhr.onload = () => {
+      pollOnWire = false;
       if (pollStopped || root === undefined) {
         return;
       }
@@ -2022,6 +2039,7 @@ export function waitForUpdate(immediate = false): void {
       waitForUpdate();
     };
     xhr.responseType = 'json';
+    pollOnWire = true;
     xhr.send();
     // THE CHAIN CANNOT DIE WITH ITS REQUEST. Its liveness used to ride the request's own terminal events — an answer
     // taken to the end, an error's alert dismissed, the timeout — and nothing stood for «none of them came» (a
@@ -2032,6 +2050,7 @@ export function waitForUpdate(immediate = false): void {
       xhr.onload = null;
       xhr.onerror = null;
       xhr.ontimeout = null;
+      pollOnWire = false;
       try {
         xhr.abort();
       } catch {

@@ -146,6 +146,7 @@ describe('PlayerInput', () => {
 
     expect(res.statusCode).eq(statusCode.badRequest);
     expect(JSON.parse(res.content).message).to.match(/^A question nobody can answer was not asked — card «Select a card to discard»: 1 card\(s\) asked of 0/);
+    expect(JSON.parse(res.content).id, 'typed: the page says it in the language of the player, by this id').eq('#unanswerable-question');
     expect(player.getWaitingFor(), 'the seat keeps the question it answered').eq(first);
     expect(player.waitingForSerial, 'under the identity the page still shows — a retry is not stale').eq(serial);
   });

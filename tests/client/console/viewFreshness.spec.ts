@@ -7,6 +7,16 @@ import {expect} from 'chai';
 import {serverAheadOfView, midPromptRefreshEnabled, viewLagIsALie, viewLagOf} from '@/client/components/realtime/viewFreshness';
 import {realtimeState} from '@/client/components/realtime/realtimeService';
 
+describe('viewLagIsALie — a debt being PAID is owned too (2026-11-17)', () => {
+  it('a lag with the poll or the fetch of the view ON THE WIRE is no lie — and with nothing on the wire it is, as before', () => {
+    const lag = {ahead: true, requestInProgress: false, refreshParked: false};
+    expect(viewLagIsALie(lag)).to.eq(true);
+    expect(viewLagIsALie({...lag, onTheWire: false})).to.eq(true);
+    expect(viewLagIsALie({...lag, onTheWire: true}), 'the round trip that will pay it is in flight — bounded by its own law').to.eq(false);
+    expect(viewLagIsALie({...lag, ahead: false, onTheWire: true})).to.eq(false);
+  });
+});
+
 describe('viewFreshness', () => {
   let savedAge: number | undefined;
   let savedUndo: number | undefined;

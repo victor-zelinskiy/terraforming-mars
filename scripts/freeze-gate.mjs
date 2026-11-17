@@ -4,7 +4,7 @@
  * (FREEZE ZERO · part D — docs/claude/console/freeze-zero/PLAN.md §5).
  *
  *   npm run gate:freeze                       the whole gate (≈ 35 min of a laptop in two shards)
- *   npm run gate:freeze -- --shards 4         more processes (a machine with the cores for it)
+ *   npm run gate:freeze -- --shards 8 --parallel 3   the pass cut into 8 processes, 3 at a time (default: 6 and 2)
  *   npm run gate:freeze -- --only parliament  a regex over the table names (a slice — never a release's answer)
  *   npm run gate:freeze -- --skip-replays     the monkey's pass alone
  *   npm run gate:freeze -- --write-baseline   accept what this pass named: the baseline is rewritten (the notes kept)
@@ -48,7 +48,12 @@ const value = (name, fallback) => {
   const at = args.indexOf(`--${name}`);
   return at === -1 || args[at + 1] === undefined ? fallback : args[at + 1];
 };
-const shards = Math.max(1, Number(value('shards', '2')) || 2);
+// SHARDS ARE PROCESSES, `--parallel` IS HOW MANY RUN AT ONCE. A bottle's page is a whole application, and a process
+// that has stood a hundred of them holds gigabytes (2026-11-17: two shards of 303 walks each ran out of a 4 GB heap
+// at walk 168) — so the pass is cut into MORE processes than run side by side: each one is short, and the gate fits
+// a CI runner's memory as well as a laptop's.
+const shards = Math.max(1, Number(value('shards', '6')) || 6);
+const parallel = Math.max(1, Math.min(shards, Number(value('parallel', '2')) || 2));
 const seed = value('seed', 'fz0');
 const only = value('only', undefined);
 
@@ -103,14 +108,39 @@ async function main() {
 
   // 2. THE MONKEY, in shards.
   console.log(reportOnly ? '[freeze-gate] 2/3 the monkey in the bottle — NOT run (--report-only: the pass on disk is judged)' :
-    `[freeze-gate] 2/3 the monkey in the bottle — seed ${seed}, ${shards} shard(s)${only === undefined ? ', every table' : `, only /${only}/`} …`);
-  const codes = reportOnly ? [] : await Promise.all(Array.from({length: shards}, (_, i) => run(
-    `shard ${i + 1}`, node, [runner, 'tests/client/bottle/monkey.bottle.ts'],
-    {
-      ...bottleEnv, TM_BOTTLE_MONKEY: '1', TM_BOTTLE_MONKEY_SEED: seed, TM_BOTTLE_MONKEY_SHARD: `${i + 1}/${shards}`,
-      TM_BOTTLE_MONKEY_OUT: path.relative(ROOT, OUT), ...(only === undefined ? {} : {TM_BOTTLE_MONKEY_ONLY: only}),
-    },
-    path.join(OUT, `shard-${i + 1}.log`))));
+    `[freeze-gate] 2/3 the monkey in the bottle — seed ${seed}, ${shards} shard(s), ${parallel} at a time${only === undefined ? ', every table' : `, only /${only}/`} …`);
+  const codes = [];
+  if (!reportOnly) {
+    let next = 0;
+    const lane = async () => {
+      while (next < shards) {
+        const i = next++;
+        codes[i] = await run(
+          `shard ${i + 1}`, node, [runner, 'tests/client/bottle/monkey.bottle.ts'],
+          {
+            ...bottleEnv, TM_BOTTLE_MONKEY: '1', TM_BOTTLE_MONKEY_SEED: seed, TM_BOTTLE_MONKEY_SHARD: `${i + 1}/${shards}`,
+            TM_BOTTLE_MONKEY_OUT: path.relative(ROOT, OUT), ...(only === undefined ? {} : {TM_BOTTLE_MONKEY_ONLY: only}),
+          },
+          path.join(OUT, `shard-${i + 1}.log`));
+      }
+    };
+    await Promise.all(Array.from({length: parallel}, lane));
+  }
+  // A SHARD THAT DIED (out of memory, a crash of the runner) walked only a part of its tables: the pass is not whole,
+  // and a gate over a part of the tables is no gate — said, and red, whatever the report would say.
+  const died = codes.map((code, i) => ({code, i})).filter(({i}) => {
+    try {
+      return /FATAL ERROR|heap out of memory/.test(fs.readFileSync(path.join(OUT, `shard-${i + 1}.log`), 'utf8'));
+    } catch {
+      return true;
+    }
+  });
+  if (died.length > 0) {
+    died.forEach(({code, i}) => console.error(`── shard ${i + 1} died (exit ${code}) ──
+${tail(path.join(OUT, `shard-${i + 1}.log`), 12)}`));
+    console.error(`[freeze-gate] RED — ${died.length} shard(s) died before walking their tables: the pass is not whole`);
+    return 1;
+  }
   // A walk that ends «not ok» fails its test on purpose (the class is filed either way) — the JUDGE is the report.
   // What must not pass in silence is a shard that did not run at all.
   const filed = fs.existsSync(path.join(OUT, 'cause-classes')) ? fs.readdirSync(path.join(OUT, 'cause-classes')).length : 0;

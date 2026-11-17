@@ -1,0 +1,79 @@
+name: Freeze gate
+
+# THE FREEZE GATE ON CI (docs/claude/console/freeze-zero/PLAN.md § 5, § 8): the real console shell against the real
+# server in one process on a manual clock («the bottle») — the replays of every closed freeze class, then a seeded
+# monkey walk over EVERY table, judged against tests/client/bottle/monkeyBaseline.json. Red = an episode that was
+# never cured, or a defect class the baseline does not hold. No browser, no box: deterministic by its seed, so a red
+# here replays on a laptop with the same seed (`npm run gate:freeze -- --seed <seed> --only <table>`).
+#
+# Manual only (it spends ~1 runner-hour a seed): dispatch it after a push that touches the console's flows, the
+# transport or the server's prompts — one job per seed, side by side.
+on:
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: 'Seeds, space-separated — each is another 606 walks (the baseline is a union over fz0 fz1; a NEW seed finds new classes)'
+        required: false
+        default: 'fz0 fz1'
+      only:
+        description: 'Only tables whose name matches this regex (a slice — never a release''s answer)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Seeds
+    runs-on: ubuntu-latest
+    outputs:
+      seeds: ${{ steps.m.outputs.seeds }}
+    steps:
+      - id: m
+        env:
+          SEEDS: ${{ inputs.seeds || 'fz0 fz1' }}
+        run: |
+          LIST=$(printf '%s\n' $SEEDS | grep -E '^[A-Za-z0-9_-]+$' | sed 's/.*/"&"/' | paste -sd, -)
+          [ -n "$LIST" ] || { echo "no valid seed in '$SEEDS'"; exit 1; }
+          echo "seeds=[$LIST]" >> "$GITHUB_OUTPUT"
+
+  gate:
+    name: Gate · seed ${{ matrix.seed }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      # One seed red must never cancel the others — each names its own classes.
+      fail-fast: false
+      matrix:
+        seed: ${{ fromJSON(needs.plan.outputs.seeds) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run make:static
+      - name: The freeze gate (seed ${{ matrix.seed }})
+        env:
+          ONLY: ${{ inputs.only }}
+          # Two bottles side by side hold two whole applications and the game server each.
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          ARGS="--seed ${{ matrix.seed }} --shards 8 --parallel 2"
+          if [ -n "$ONLY" ]; then ARGS="$ARGS --only $ONLY"; fi
+          node scripts/freeze-gate.mjs $ARGS
+      # The report and every walk's cause file — what a red is read from (and what `--against` compares the next run with).
+      - name: Upload the gate's report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: freeze-gate-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.seed }}
+          path: |
+            .e2e-remote/bottle-gate/monkey-report.json
+            .e2e-remote/bottle-gate/cause-classes
+            .e2e-remote/bottle-gate/*.log
+          if-no-files-found: warn
+          retention-days: 14

@@ -78,6 +78,7 @@ import {computed, reactive, watch} from 'vue';
 import {ReactivePredicate, reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 import {FlowScope, ScopeEnd} from '@/client/console/kernel/flowScope';
 import {traceFlow} from '@/client/console/kernel/flowTrace';
+import {FrameWatch, watchFrames} from '@/client/console/kernel/frameWitness';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type AnimationHoldScope = 'blocking' | 'notification-only';
@@ -308,6 +309,16 @@ function endSupplierRun(entry: SupplierEntry, end: ScopeEnd): void {
   run?.end(end);
 }
 
+/**
+ * WHY a ceiling ended a hold — in the line's own words: `(planned: the page painted …)` when the page was not
+ * painting while the hold stood (`kernel/frameWitness.ts` — the hold's honest end: counted, never an event), the
+ * old suspicion otherwise.
+ */
+function ceilingWhy(painted: FrameWatch): string {
+  const starved = painted.starved();
+  return starved === undefined ? '(leaked hold?)' : `(planned: ${starved})`;
+}
+
 /** Arm the ceiling for a supplier's rising edge (idempotent): the hold's run opens, bounded. */
 function armCeiling(label: string, entry: SupplierEntry): void {
   if (entry.run !== undefined || store.expired.has(label) || store.quarantined.has(label)) {
@@ -316,13 +327,16 @@ function armCeiling(label: string, entry: SupplierEntry): void {
   entry.heldSince = entry.heldSince ?? Date.now();
   const run = openHoldRun(label);
   entry.run = run;
+  // (A hold claims a story is PLAYING: its ceiling on a page that painted nothing is the hold's honest end.)
+  const painted = watchFrames();
+  run.onEnd(() => painted.stop());
   run.after(entry.maxHoldMs, CEILING, () => {
     if (entry.run !== run) {
       return;
     }
     entry.run = undefined;
     store.expired.add(label);
-    console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(entry.diagnose)}`);
+    console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling ${ceilingWhy(painted)}${safeDiagnose(entry.diagnose)}`);
     safeExpireRecovery(label, entry.expire);
     run.end({how: 'expired', bound: `the ${entry.maxHoldMs} ms ceiling`});
   });
@@ -395,10 +409,13 @@ export function beginAnimationHold(label: string, options?: AnimationHoldOptions
   }
   const run = openHoldRun(label);
   manualRuns.set(id, run);
+  const painted = watchFrames();
+  run.onEnd(() => painted.stop());
   run.after(maxHoldMs, CEILING, () => {
+    const why = ceilingWhy(painted);
     const dropped = dropManualHold(id, {how: 'expired', bound: `the ${maxHoldMs} ms ceiling`});
     if (dropped !== undefined) {
-      console.warn(`[animation-hold] "${label}" held for over ${maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(dropped.diagnose)}`);
+      console.warn(`[animation-hold] "${label}" held for over ${maxHoldMs}ms — force-released by the safety ceiling ${why}${safeDiagnose(dropped.diagnose)}`);
       // The ceiling ends the WEDGE, not just the count: the owner's recovery runs (the supplier's contract).
       safeExpireRecovery(label, dropped.expire);
     }

@@ -46,9 +46,15 @@ export function serverAheadOfView(game: ViewCursor | undefined): boolean {
  *
  * The law: a debt that has an owner is not a lie. The witness judges only a lag NOBODY holds — no request on the
  * wire, no refresh parked: a consumed wake, a dropped model.
+ *
+ * …AND A DEBT BEING PAID IS OWNED TOO (2026-11-17 — the box monkey's CPU ×4 pass: one heal in 606 walks, «age +1»,
+ * nothing holding): the poll that will learn of the change, or the view's own fetch, is ON THE WIRE — each bounded
+ * by its own law (the poll's answer is a guarantee of the transport's scope; the fetch is cut at its bound). On a
+ * slow page the round trip simply outlives the witness's three seconds; a heal then is one more poll on top of the
+ * one in flight, and a defect line for a page that is doing exactly what it should.
  */
-export function viewLagIsALie(f: {ahead: boolean, requestInProgress: boolean, refreshParked: boolean}): boolean {
-  return f.ahead && !f.requestInProgress && !f.refreshParked;
+export function viewLagIsALie(f: {ahead: boolean, requestInProgress: boolean, refreshParked: boolean, onTheWire?: boolean}): boolean {
+  return f.ahead && !f.requestInProgress && !f.refreshParked && f.onTheWire !== true;
 }
 
 /** What the view is behind by, for a line: `age +3 (undo +0)`. */

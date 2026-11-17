@@ -347,6 +347,7 @@
     "claimed by": "получено игроком",
     "Claim a milestone": "Взять достижение",
     "Error with input": "Ошибка!",
+    "This action could not be completed: it led to a choice with no possible answer. Choose another action.": "Это действие не удалось завершить: оно привело к выбору, в котором нет ни одного варианта. Выберите другое действие.",
     "Error looking for predefined game Bad request: invalid game id": "Ошибка при поиске определенной игры: неверный ID",
     "Not your turn to take any actions": "Сейчас не ваш ход",
     "Minimize": "Свернуть",

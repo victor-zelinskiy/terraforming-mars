@@ -16,6 +16,7 @@
  */
 
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {watchFrames} from '@/client/console/kernel/frameWitness';
 import {gsap} from 'gsap';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {motionAfter} from '@/client/console/session/sessionWaits';
@@ -340,6 +341,7 @@ function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: ()
       if (!settled) {
         settled = true;
         openGuards.delete(finish);
+        painted.stop();
         disarmSafety();
         disarmGrace();
         if (waiter !== undefined) {
@@ -375,6 +377,10 @@ function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: ()
     // leaves — never left pending.
     let disarmGrace: () => void = () => {};
     const owner = consoleSessionScope();
+    // THE FLIGHT'S OWN WATCH (`kernel/frameWitness.ts`): how much motion time the page gave from the token's start —
+    // the ceiling below is said the moment it comes, so the wait it names is born and ended in one statement and
+    // would have nothing to judge the page by.
+    const painted = watchFrames();
     const disarmSafety = owner.guarantee(budgetMs + 1200, 'the touchdown of a token in flight', () => {
       if (owner.ended !== undefined) {
         // The game screen left under the flight: the promise is let go — silently (not a ceiling: nothing was late).
@@ -387,7 +393,7 @@ function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: ()
       } else {
         // The token never touched down inside its budget and nothing could catch it up — the safety ends its beat (said on
         // the wait graph's worklist; a flight CAUGHT UP on a starved renderer is the designed road, never a line).
-        beginCeilingWait({id: 'transfer:touchdown', owner: 'resourceTransferDirector', what: 'the touchdown of a token in flight', maxMs: budgetMs + 1200}).ceiling();
+        beginCeilingWait({id: 'transfer:touchdown', owner: 'resourceTransferDirector', what: 'the touchdown of a token in flight', maxMs: budgetMs + 1200}).ceiling(painted.starved());
         finish();
       }
     });
