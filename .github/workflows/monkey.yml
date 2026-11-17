@@ -193,7 +193,7 @@ jobs:
           RED=""
           if [ "${{ steps.gate.outcome }}" != "success" ] || [ "${{ needs.walk.result }}" != "success" ]; then RED="--gate-red"; fi
           if [ -f monkey-report.json ]; then
-            node scripts/ci/findings.mjs from-monkey monkey-report.json --source monkey --context "$CONTEXT" --failed-walks monkey-results $RED \
+            node scripts/ci/findings.mjs from-monkey monkey-report.json --source monkey --context "$CONTEXT" --perturb "${{ needs.plan.outputs.perturb }}" --failed-walks monkey-results $RED \
               --repro "gh workflow run Monkey -f seed=<seed> -f perturb=${{ needs.plan.outputs.perturb }} -f shards=1 -f only='^<table>\$'   # or on the box: TM_E2E_MONKEY=1 TM_E2E_MONKEY_SEED=<seed> TM_E2E_MONKEY_ONLY='^<table>\$' npm run e2e:remote -- <task> tests/e2e/console-monkey.spec.ts" \
               --out ci-findings.json
           else

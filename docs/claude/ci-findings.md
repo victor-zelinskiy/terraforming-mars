@@ -20,7 +20,7 @@ a workflow run ──► findings (one JSON shape) ──► scripts/ci/findings
 | `Playwright E2E` (`playwright-e2e.yml`) — the whole suite | 00:30 nightly | a FAILED test · a FLAKY test (one issue per test) |
 | `Monkey` (`monkey.yml`) — the real-browser monkey | 03:00 nightly (plain, the seed of the day) · Sunday 07 / 10 / 13 / 16: `cpu4` · `net400` · `reload` · `duo` | a NEW cause class · a stall never cured · a run with no verdict |
 | `CI` (`main.yml`) · `Release Electron App` (`release.yml`) | every push — watched by `CI findings` (`ci-findings.yml`, a `workflow_run` AFTER the run ended; a cancelled run is not a finding) | a RED run: one issue per failed JOB |
-| `Land ci-fix` (`land-ci-fix.yml`) | when a pull request of the fix lane is labelled `land` | nothing — it lands the fix or refuses it in writing (§ 3b) |
+| `Land ci-fix` (`land-ci-fix.yml`) | when a pull request from a `claude/ci-fix-*` branch appears, and when a run of its head commit ends | nothing — it starts the fix's proof, lands the fix or refuses it in writing (§ 3b) |
 
 **The release is never stalled by them.** A scheduled run commits nothing (so it starts no release and cancels none),
 shares no concurrency group with `CI` / the release, and takes at most 8 – 10 runners at a time (`max-parallel`) — the
@@ -108,50 +108,49 @@ and **every baseline** (`tests/client/bottle/monkeyBaseline.json`, `tests/e2e/mo
 any `*Baseline.json` ratchet): a baseline row is a decision of a working session, made after a real browser said
 «not there». A finding of the monkey or the gate (`kind:new-class`) is simple only as case 3.
 
-**How a fix is made and proven:**
+**What the agent does — and it is ALL the agent does:**
 
-- A branch off `origin/main`: `claude/ci-fix-<issue number>-<slug>`. ONE commit, `TM_SKIP_VERSION_BUMP=1` (a branch
-  never bumps the version; `package.json` / `package-lock.json` stay untouched), the message through `-F <file>`,
-  English, saying the cause.
+- A branch off `origin/main`: `claude/ci-fix-<issue number>-<slug>` (lower case, digits, dashes). The commit is made
+  with `TM_SKIP_VERSION_BUMP=1` (a branch never bumps the version; `package.json` / `package-lock.json` stay
+  untouched), its message through `-F <file>`, English, saying the cause.
 - Before the push, in the sandbox: `npm run lint`, `npm run build:test` (when `tests/` is touched), the unit specs of
   what was touched (`npm run test:client:one -- <spec>` / the mocha line of `CLAUDE.md`), and for a gate finding the
-  issue's own «Repeat it» command — green.
-- Push the branch, open a pull request to `main` labelled `ci-fix`: title `[ci-fix #<issue>] <what>`, body — the
-  cause, the fix, what was run, and `Fixes #<issue>`.
-- **RE-RUN THE TEST ON CI, on the branch** — the laptop and the box are not there, and a browser is never started in
-  the sandbox: `gh workflow run "Playwright E2E" --ref <branch> -f grep="<the test's title>" -f shards=1
-  -f burnin_depth=0` (ONE shard: a shard that holds no matching test is red by «No tests found», and so is a grep that
-  matches nothing — a green run is a test that RAN) (the monkey: `gh workflow run Monkey --ref <branch> -f seed=<seed> -f shards=1
-  -f only='^<table>$'`; the gate: `gh workflow run "Freeze gate" --ref <branch> -f seeds=<seed> -f only='^<table>$'`).
-  Wait for it (bounded: 40 minutes), and write the run's link and its result into the pull request.
-- Wait for `CI` on the pull request too (it runs by itself: lint, the builds, the unit suites).
-- **Green on both → ask for the landing: label the pull request `land`** (§ 3b), and the issue `fix:proposed`. Red →
-  ONE more attempt (a new commit REPLACING the first — the branch stays one commit; prove it again); red again → close
-  the pull request with what was learned, and the finding goes by the verdict lane (`triage:real`), the comment
+  issue's own «Repeat it» command — green. A browser is never started in the sandbox.
+- Push the branch and open a pull request to `main`: title `[ci-fix #<issue>] <what>`, body — the cause, the fix, what
+  was run, and the line `Fixes #<issue>`.
+- **That is the end of the agent's part.** It does not wait, does not start a run, does not label, does not merge: the
+  repository proves the fix and lands it by itself (§ 3b). The agent goes on with the queue.
+- **The next morning it reads its own pull requests first** (`ci-fix`, open): one the lane REFUSED (the comment names
+  every reason) gets ONE more attempt — a new commit on the same branch is judged from the start; refused again →
+  close the pull request with what was learned, and the finding goes by the verdict lane (`triage:real`), the comment
   saying what the two attempts ruled out.
-- **The agent never pushes to `main` and never presses merge** — every push to `main` is a RELEASE with its own
-  version bump, and GitHub's merge button would ship a version a release already claimed. The landing is a workflow.
 - At most 4 pull requests a morning; the rest of the queue goes by verdicts.
 
-### 3b. THE LANDING — `main` takes a ci-fix by a rule, never by the agent's opinion of its own work
+### 3b. THE LANDING — the repository proves a ci-fix and takes it into `main` by a rule, with nobody's hand on it
 
-`Land ci-fix` (`.github/workflows/land-ci-fix.yml` → `scripts/ci/land.mjs`, both read from `main`) starts when a pull
-request is labelled `land`. It **judges by what it can read** and refuses in writing (a comment naming every reason;
-the label taken back), or lands:
+`Land ci-fix` (`.github/workflows/land-ci-fix.yml` → `scripts/ci/land.mjs`, both read from `main` — nothing of the
+pull request is ever installed or executed) watches the lane's own branches, `claude/ci-fix-*` of this repository:
+
+1. **The pull request appears (or gains a commit)** → it is labelled `ci-fix` and judged by WHAT IT IS and WHAT IT
+   TOUCHES; refused at sight, in writing, or its **PROOF is started on its branch — the re-run that the finding's own
+   issue names** (a hidden `ci-proof` marker written by the run that FOUND the defect: the same test by its title, the
+   same table by the same seed and perturbation). What proves a fix is never chosen by whoever fixes it.
+2. **A run of its head commit ends** (`CI` of the pull request, the proof) → judged again. While one of them still
+   runs, nothing is said. Red → refused in writing, once. **Both green → LANDED.**
 
 | Judged | The rule |
 | --- | --- |
-| what it is | an open, non-draft pull request to `main` from a `claude/ci-fix-<issue>-<slug>` branch of this repository, labelled `ci-fix`, ONE commit, its body saying `Fixes #<issue>` for an open `ci-finding` issue |
+| what it is | an open, non-draft pull request to `main` from a `claude/ci-fix-<issue>-<slug>` branch of this repository, its body saying `Fixes #<issue>` for that one open `ci-finding` issue |
 | what it touches | `scripts/ci/landRules.mjs` (guard `tests/ci/landRules.spec.ts`): never a workflow, a script, a hook, a document, the version or a dependency, a baseline, the bottle harness, the server, the shared models, the translations, the flow kernel / the transport / the wait graph, a liveness net, the hold registry, the desktop shell |
 | how large | at most 12 files and 600 lines; of the PRODUCT (`src/**`) at most 3 files and 80 lines, and never without a spec in the same diff |
-| what proves it | on its HEAD commit: `CI` green on the pull request, and — for a finding of the e2e suite, the monkey or the freeze gate — a green re-run of THAT workflow |
+| what proves it | on its HEAD commit: `CI` green on the pull request, and the proof its issue names green (`Playwright E2E` on one shard — a grep that matches nothing is red, so a green proof is a test that RAN; `Monkey` / `Freeze gate` on the finding's table). A red job of a push (`src:ci`) is proven by `CI` alone; a finding that names no re-run (a flood, a run with no verdict, a release) is not the lane's to land |
 | whether it still applies | squashed onto the tip of `main` it changes exactly the files it was judged by |
 
 **Landed** = the change squashed onto `main` as ONE commit with the next free version (`scripts/version.mjs` — the
 ceiling over `origin/main` and the release tags, the push wrapper's own rule), pushed; then `Release Electron App` and
 `CI` are started for that commit by name (a push made with a workflow's token starts no workflow); the pull request
 is closed with the commit and its proofs, the issue closed — and **seen again, it reopens as a `regression`**, so a
-fix that did not fix is back in the queue the next morning. One landing at a time.
+fix that did not fix is back in the queue the next morning.
 
 **A landing that left `main` red** arrives in the queue by itself (`src:ci` — the watcher of § 1). Its fix is the
 first thing the agent does that morning, and it is always simple: the REVERT of the landed commit, by the same lane.
@@ -161,11 +160,13 @@ issue without the `ci-finding` label.
 
 ## 4. What the agent needs (the owner's side)
 
-- The routine clones `victor-zelinskiy/terraforming-mars` through the GitHub account connected to Claude, and must be
-  able, for this one repository, to: **comment on and label issues** (`Issues: read and write`), **download run
-  artifacts and dispatch a workflow on its branch** (`Actions: read and write`), **push a `claude/…` branch**
-  (`Contents: read and write`) and **open a pull request** (`Pull requests: read and write`).
-- Nothing else: no push to `main` (the landing workflow's own token does that), no access to the box, to Sentry.
+- The routine clones `victor-zelinskiy/terraforming-mars` through the GitHub account connected to Claude and needs,
+  for this one repository, exactly three things: to **push a `claude/…` branch** and **open a pull request** (what a
+  Claude Code cloud session is made for), and to **comment on and label issues** (`Issues: read and write` — the
+  verdicts). Reading runs, logs and artifacts is public. It starts no workflow and pushes nothing to `main`: the
+  proof and the landing are the repository's own, on the workflow's token.
+- Its sandbox has no Node of `.nvmrc` by default — the routine's prompt installs it (a tarball of nodejs.org) before
+  any `npm` command.
 - **The owner does nothing.** What is worth a look when there is time: `gh pr list --label ci-fix --state all` (what
   the lane landed or was refused) and the morning digest — the routine's last message.
 - **A working session's first look:** `gh issue list --label ci-finding --label triage:real` — what is left for it —

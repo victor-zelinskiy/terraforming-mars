@@ -75,5 +75,9 @@ describe('ci-fix landing rules', () => {
     expect(workflow).to.contain('ref: main');
     expect(workflow).not.to.match(/npm (ci|install|run)/);
     expect(workflow).to.contain('cancel-in-progress: false');
+    // Only the lane's own branches of THIS repository — and the proof is the one the FINDING names, never the fix.
+    expect(workflow).to.contain("startsWith(github.event.pull_request.head.ref, 'claude/ci-fix-')");
+    expect(workflow).to.contain('github.event.pull_request.head.repo.full_name == github.repository');
+    expect(land).to.contain('PROOF_MARK.exec(issue.body');
   });
 });

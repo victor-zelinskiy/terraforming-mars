@@ -18,7 +18,12 @@
  * `--gate-red` (the gate was red and the report names nothing: said as a `broken-run`, never a quiet night).
  *
  * `from-*` print the findings file to stdout (`--out <file>` writes it). A findings file:
- *   {source, context, run: {id, url, sha}, findings: [{key, kind, title, body}]}
+ *   {source, context, run: {id, url, sha}, findings: [{key, kind, title, body, proof?}]}
+ *
+ * `proof` = THE RE-RUN THAT WOULD PROVE A FIX: `{workflow, inputs}` — the same table by the same seed, the same test
+ * by its title. It rides the issue as a hidden marker (`<!-- ci-proof:… -->`), and the ci-fix lane
+ * (scripts/ci/land.mjs) starts exactly that run on a fix's branch — so what proves a fix is named by the run that
+ * FOUND the defect, never by whoever fixes it.
  *
  * KINDS: `new-class` (a cause class no baseline holds) · `never-cured` (a stall nobody ended) · `failed` (a test red on
  * every attempt) · `flaky` (red, then green on a retry) · `broken-run` (the run itself did not produce a verdict).
@@ -73,9 +78,15 @@ function fromMonkey() {
   for (const cls of report.diff?.newClasses ?? []) {
     const info = report.classes?.[cls] ?? {};
     const first = info.first ?? {};
+    const table = String(first.title ?? '').replace(/^monkey · /, '');
+    const seed = String(first.seed ?? '').split(':')[0];
+    const named = /^[A-Za-z0-9_-]+$/.test(table) && /^[A-Za-z0-9_-]+$/.test(seed);
     findings.push({
       key: `${source}|class|${cls}`,
       kind: 'new-class',
+      ...(named ? {proof: source === 'freeze-gate' ?
+        {workflow: 'Freeze gate', inputs: {seeds: seed, only: `^${table}$`}} :
+        {workflow: 'Monkey', inputs: {seed, only: `^${table}$`, shards: '1', perturb: flag('perturb', 'none')}}} : {}),
       title: `[${source}] new cause class: ${cls}`,
       body: [
         `**A cause class no baseline holds** — named by \`${source}\`${context === '' ? '' : ` (${context})`}.`,
@@ -135,6 +146,20 @@ function fromMonkey() {
   emit({source, context, run: runInfo(), findings});
 }
 
+/**
+ * A test's title as a `--grep` that matches it literally. The e2e workflow puts the value inside a double-quoted
+ * shell word, so what a shell reads there (a quote, a backtick, a dollar, a backslash) becomes «any character» —
+ * the pattern can only match MORE, never run anything.
+ */
+function grepFor(title) {
+  return [...String(title)].map((ch) => {
+    if (ch === '"' || ch === '`' || ch === '$' || ch === '\\' || ch === '\n' || ch === '\r') {
+      return '.';
+    }
+    return /[.*+?^{}()|[\]]/.test(ch) ? `\\${ch}` : ch;
+  }).join('');
+}
+
 // ── from Playwright's merged JSON report ────────────────────────────────────────────────────────────────────────────
 function fromPlaywright() {
   const source = flag('source', 'e2e');
@@ -173,6 +198,8 @@ function fromPlaywright() {
           // (One key for a test whether it failed or flaked: a flake that hardens into a failure is the same story.)
           key: `${source}|test|${where}|${name}|${test.projectName ?? ''}`,
           kind,
+          // ONE shard: a grep that matches nothing is then red («No tests found»), so a green proof is a test that RAN.
+          proof: {workflow: 'Playwright E2E', inputs: {grep: grepFor(spec.title), shards: '1', burnin_depth: '0'}},
           title: `[${source}] ${kind}: ${where.replace(/^tests\/e2e\//, '')} › ${spec.title}`.slice(0, 240),
           body: [
             `**An e2e test ${kind === 'flaky' ? 'FLAKED (red, then green on a retry)' : 'FAILED on every attempt'}**${context === '' ? '' : ` (${context})`}.`,
@@ -221,6 +248,7 @@ function asOneStory(doc) {
 }
 
 const MARK = (key) => `<!-- ci-finding:${Buffer.from(key).toString('base64')} -->`;
+const PROOF = (proof) => (proof === undefined ? '' : `\n<!-- ci-proof:${Buffer.from(JSON.stringify(proof)).toString('base64')} -->`);
 const SEEN = /<!-- seen:(\d+) -->[\s\S]*?<!-- \/seen -->/;
 
 function gh(args, input) {
@@ -274,7 +302,7 @@ function file() {
       const mark = MARK(finding.key);
       const issue = known.find((candidate) => (candidate.body ?? '').includes(mark));
       if (issue === undefined) {
-        const body = `${finding.body}\n\n${seenBlock(1, doc)}\n\n${mark}`;
+        const body = `${finding.body}\n\n${seenBlock(1, doc)}\n\n${mark}${PROOF(finding.proof)}`;
         if (dry) {
           console.log(`  OPEN  ${finding.title}`);
         } else {
@@ -287,7 +315,9 @@ function file() {
         continue;
       }
       const count = Number(SEEN.exec(issue.body ?? '')?.[1] ?? 1) + 1;
-      const body = SEEN.test(issue.body ?? '') ? issue.body.replace(SEEN, seenBlock(count, doc)) : `${issue.body ?? ''}\n\n${seenBlock(count, doc)}`;
+      const counted = SEEN.test(issue.body ?? '') ? issue.body.replace(SEEN, seenBlock(count, doc)) : `${issue.body ?? ''}\n\n${seenBlock(count, doc)}`;
+      // (An issue filed before proofs existed gains its proof the next time it is seen.)
+      const body = counted.includes('<!-- ci-proof:') ? counted : `${counted}${PROOF(finding.proof)}`;
       if (dry) {
         console.log(`  ${issue.state === 'CLOSED' ? 'REOPEN' : 'TOUCH '} #${issue.number} ${finding.title}`);
         continue;
