@@ -56,6 +56,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run make:static
+      # The client's generated files the bottle bundles (card renders, the art manifest) — what `npm run build` makes first.
+      - run: npm run make:cards
       - name: The freeze gate (seed ${{ matrix.seed }})
         env:
           ONLY: ${{ inputs.only }}
