@@ -43,7 +43,11 @@ const OPTIONAL_NATIVE = ['bufferutil', 'utf-8-validate', 'pg', 'pg-native', 'bet
 const ELECTRON_EXTERNAL = ['electron', 'velopack'];
 
 const LANES: Record<string, Array<Lane>> = {
-  server: [{entry: 'src/server/server.ts', outDir: 'build/src/server', fileName: 'server.js', external: [], bundleDependencies: false}],
+  // The server keeps every npm package a `require` of node_modules — and an OPTIONAL one (`optionalDependencies`:
+  // the database drivers; `ws`'s native helpers) is declared external BY NAME: npm drops an optional package it
+  // could not fetch without a word, and a build that then cannot resolve the `require` is a red run for a module
+  // nobody was going to load (CI 44121175685, 2026-11-17: `better-sqlite3` missing on the Windows runner).
+  server: [{entry: 'src/server/server.ts', outDir: 'build/src/server', fileName: 'server.js', external: OPTIONAL_NATIVE, bundleDependencies: false}],
   embedded: [{entry: 'src/server/embedded/embeddedServerMain.ts', outDir: 'build/electron', fileName: 'embedded-server.js', external: OPTIONAL_NATIVE, bundleDependencies: true}],
   hub: [{entry: 'src/server/diagnostics/hub/index.ts', outDir: 'build/electron', fileName: 'diagnostics-hub.js', external: [], bundleDependencies: true, exports: 'named'}],
   electron: ['main', 'preload', 'curtainPreload'].map((name) => ({
