@@ -333,7 +333,9 @@ function file() {
         // CLOSED AND SEEN AGAIN — a regression: back in the queue, said once.
         gh(['issue', 'reopen', String(issue.number), '--repo', repo, '--comment',
           `Seen again after it was closed${doc.run.url === '' ? '' : ` — [run ${doc.run.id}](${doc.run.url})`}${doc.context === '' ? '' : ` (${doc.context})`}.`]);
-        const verdicts = (issue.labels ?? []).map((label) => label.name).filter((name) => name.startsWith('triage:') && name !== 'triage:needed');
+        // (Back to the agent: its old verdict and the hand-over to a session are both withdrawn.)
+        const verdicts = (issue.labels ?? []).map((label) => label.name)
+          .filter((name) => (name.startsWith('triage:') && name !== 'triage:needed') || name === 'for:session');
         gh(['issue', 'edit', String(issue.number), '--repo', repo, '--add-label', 'triage:needed', '--add-label', 'regression',
           ...verdicts.flatMap((name) => ['--remove-label', name])]);
         issue.state = 'OPEN';

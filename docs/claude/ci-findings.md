@@ -44,6 +44,14 @@ issues (needs `GH_TOKEN`, `issues: write`).
 - **Closed and seen again → REOPENED**, labelled `regression`, back to `triage:needed`.
 - **Labels:** `ci-finding` · `src:<source>` · `kind:new-class | never-cured | failed | flaky | broken-run` ·
   `triage:needed` (no verdict yet).
+- **WHOSE MOVE IT IS, read from the labels of an OPEN issue** — never guessed:
+
+  | The issue has | Whose move |
+  | --- | --- |
+  | `triage:needed` | the morning agent's — it has not read it yet |
+  | a verdict and an open `ci-fix` pull request (`Fixes #<issue>`) | the repository's — the fix is being proven and landed |
+  | **`for:session`** | **a working session's (§ 5) — nothing automatic will close it** |
+  | `triage:infra`, no `for:session` | nobody's — it closes itself when it does not recur |
 - A run narrowed by hand (`grep`, `only`) may file too when it is the gate or the monkey (a class is a class); the e2e
   suite files only when it ran WHOLE.
 
@@ -82,7 +90,10 @@ a SIMPLE one is also FIXED by the agent — on a branch, proven on CI, and LANDE
    - **Comment** (one comment, in English, ≤ 25 lines): the verdict and WHY in two sentences · what you reproduced or
      read (the shrunk steps when you have them) · the suspected cause with `file:line` · what a fix would have to be
      (the law, not the patch) · what you could NOT determine. Never guess a cause you did not read.
-   - **Then decide the LANE** (§ 3a): SIMPLE → fix it; anything else → the verdict is the whole of the work.
+   - **Then decide the LANE** (§ 3a): SIMPLE → fix it; anything else → the verdict is the whole of the work, **and the
+     issue is HANDED OVER BY A LABEL: `for:session`** — the one sign that nobody automatic is going to close it. The
+     same label goes on a finding whose pull request was refused twice. (`triage:infra` is never handed over: it
+     closes when it does not recur.)
    - Do **not** close the issue (the merge of its fix closes it) — except `triage:infra` that did not recur in the
      last run.
 3. **End with a digest** — the routine's final message: `N triaged: a real · b noise · c harness · d flake · e infra;
@@ -192,9 +203,9 @@ closes them. **The first one closed this way: #21** (CI red on the Windows runne
 **The procedure:**
 
 1. **The queue** (always `--repo victor-zelinskiy/terraforming-mars` — in this clone `gh` defaults to the upstream):
-   `gh issue list --label ci-finding --state open --json number,title,labels` — take `triage:real` first, then
-   `triage:noise` / `triage:harness`; a `triage:needed` one is not yet read by the agent (take it only when asked);
-   `gh pr list --label ci-fix --state open` — the refused fixes.
+   `gh issue list --label for:session --state open --json number,title,labels` — THE queue of a session
+   (`regression` first, then `triage:real`, then `triage:noise` / `triage:harness`). An issue without that label is
+   somebody else's move (§ 2) — take it only when asked.
 2. **Read** the issue body (the class or the test, the table and seed, the «Repeat it» command, the run) and the
    agent's comment (what it reproduced, the suspected cause with `file:line`, what it could NOT determine) — the
    comment is a lead, never a conclusion.
@@ -214,11 +225,11 @@ closes them. **The first one closed this way: #21** (CI red on the Windows runne
 ```
 Разбери очередь тикетов CI — по контракту docs/claude/ci-findings.md § 5.
 
-Что брать: <все открытые triage:real | тикет #N | только src:e2e | только отвергнутые PR ci-fix>.
+Что брать: <все открытые с меткой for:session | тикет #N | только src:e2e из for:session>.
 
 Порядок:
-1. Покажи очередь: открытые тикеты ci-finding с их вердиктами и открытые PR с меткой ci-fix
-   (всегда --repo victor-zelinskiy/terraforming-mars).
+1. Покажи очередь: открытые тикеты с меткой for:session и их вердикты
+   (всегда --repo victor-zelinskiy/terraforming-mars). Тикеты без этой метки не трогай — их ведёт автоматика.
 2. По каждому взятому тикету: прочитай тело и комментарий агента, воспроизведи командой из тикета
    (бутылка — локально по зерну; обезьяна и e2e — на CI, бокс только точечно), доведи до причины в коде.
 3. Чини в корне, по закону своей области (зависания — PLAN § 4: закон + гард + повтор; e2e — .claude/rules/tests.md).
