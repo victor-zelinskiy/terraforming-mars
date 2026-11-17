@@ -8992,6 +8992,30 @@ function startVisibleFace(card: CardName): HTMLElement | undefined {
  * entrance still running (FLAKE ZERO Ф4, class N: counted from the question, it ran out under a seat flight a slow
  * frame had stretched — the reactor found no face and its answer came out of nowhere).
  */
+/**
+ * WHY NO FACE OF `card` IS VISIBLE IN THE START RIGHT NOW — what each of its two homes shows (the seat, the shelf's
+ * slot) and what the scene is doing: the ceiling's line carries it (a wait that only says «did not come» was read
+ * wrongly once already — 2026-11-17: «the scene has yielded» was a guess, and CI said no, eight runs of eight).
+ */
+function startFaceWhyNot(card: CardName): string {
+  const root = sceneRoot();
+  const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card;
+  const say = (name: string, el: HTMLElement | null): string => {
+    if (el === null) {
+      return `${name} none`;
+    }
+    const verdict = transferEndVerdict(el);
+    return `${name} ${el.closest('.con-deal-hold') !== null ? 'in a deal hold, ' : ''}` +
+      `${verdict.visible ? 'visible' : `${verdict.why}${verdict.by !== undefined ? ` by ${verdict.by}` : ''}`}${buriedUnderAnotherCard(el) ? ', buried' : ''}`;
+  };
+  return [
+    say('seat', root?.querySelector<HTMLElement>(`.con-start__embedsource-card[data-start-seat-card="${esc}"]`) ?? null),
+    say('shelf', startShelfFace(card) ?? null),
+    `scene ${root === undefined ? 'unmounted' : props.yielded ? 'yielded' : mode.value}`,
+    `seat shows ${embedSourceShown.value ?? 'nothing'}, receives ${embedSourceIncoming.value ?? 'nothing'}`,
+    `arriving ${reactorPlaceArriving(card)}`,
+  ].join('; ');
+}
 async function startReactorFace(card: CardName, wait: boolean): Promise<HTMLElement | undefined> {
   if (!wait) {
     return startVisibleFace(card);
@@ -9003,6 +9027,7 @@ async function startReactorFace(card: CardName, wait: boolean): Promise<HTMLElem
     budgetMs: START_REACTOR_FACE_WAIT_MS,
     ceilingMs: START_REACTOR_FACE_CEILING_MS,
     node: {id: 'start:reactor-face', owner: 'ConsoleStartScene', what: 'the corporation\'s face standing in the start'},
+    whyNot: () => startFaceWhyNot(card),
   });
   return face;
 }

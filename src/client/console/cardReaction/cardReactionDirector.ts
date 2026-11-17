@@ -1488,6 +1488,11 @@ export type ArrivingFaceWait<T> = {
   node: {id: string, owner: string, what: string},
   /** An `over` that means «the run is gone» (the node is abandoned, not met). */
   abandoned?: () => boolean,
+  /**
+   * WHY THE FACE IS NOT THERE, right now (one phrase, no parentheses) — kept on the wait's node and named by its
+   * ceiling line: a ceiling that says only «did not come» sends its reader to guess.
+   */
+  whyNot?: () => string,
 };
 
 /**
@@ -1525,6 +1530,9 @@ export async function awaitArrivingFace<T>(spec: ArrivingFaceWait<T>): Promise<{
     waited = true;
     // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
     wait ??= beginCeilingWait({...spec.node, maxMs: hard - start});
+    if (spec.whyNot !== undefined) {
+      wait.update(spec.whyNot().replace(/[()]/g, '').slice(0, 300));
+    }
     await nextPaintedFrame();
   }
 }
