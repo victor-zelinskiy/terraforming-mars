@@ -627,6 +627,14 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
   const key = `${group.record.seq}:${++faceSeq}`;
   const specs = [...group.rail, ...group.cards];
   const place = opts.place !== undefined ? opts.place ?? undefined : placeOf(group, emergence);
+  // A RISE BELONGS TO THE CHAIN IT STARTED IN. Every `await` below can outlive that chain: a place waits for its
+  // face (bounded in SECONDS — the start's corporation, eight of them), a seat waits for a painted frame — and a cut
+  // meanwhile has already unseated every face and cleared every declaration (`cutCardReactions`). A rise that came back
+  // after it seated a face NOBODY would ever recede: the reactor stood on the stage for the rest of the game, and the
+  // next chain's reactor rose into the same slot on top of it («stacked-faces … overlap 100 %» — CI's CPU x4 pass,
+  // `field-start-sbp-triton`, 8 runs of 8, 2026-11-17). Past a cut a rise seats nothing and lifts nothing.
+  const born = epoch;
+  const cutMeanwhile = (): boolean => epoch !== born;
   if (place !== undefined) {
     // DECLARED before the face moves — the identity sentinel (and the e2e witness) read every lift against this.
     noteReactorRising({key, seq: group.record.seq, card: group.card, via: 'place'});
@@ -635,6 +643,16 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
     const risen: Risen = {group, key, face: undefined, via: 'place', emergence: place};
     liveRisen.set(key, risen);
     await place.emergeTarget(group.card);
+    if (cutMeanwhile()) {
+      liveRisen.delete(key);
+      noteReactorSettled(key);
+      noteTransferTrail('reaction:rise-after-cut', {card: group.card, via: 'place'});
+      // (A face the place lifted in that very wait is the player's own card: it settles, never left raised.)
+      if (place.emergedFaceEl(group.card) !== undefined) {
+        void place.settleTarget(group.card);
+      }
+      return {group, key, face: undefined, via: 'none'};
+    }
     risen.face = place.emergedFaceEl(group.card);
     if (risen.face === undefined) {
       // A PLACE THAT SHOWS NO FACE IS NO PLACE (P64 · GF): a registered host may promise the card (the start holds every
@@ -662,8 +680,19 @@ async function rise(group: CardReactionGroup, slot: number, view: PlayerViewMode
     dropWarmFacesOf([group.record.seq]);
     return {group, key, face: undefined, via: 'none'};
   }
+  if (cutMeanwhile()) {
+    unseatReactor(seated.key);
+    noteTransferTrail('reaction:rise-after-cut', {card: group.card, via: 'stage'});
+    return {group, key, face: undefined, via: 'none'};
+  }
   noteReactorRising({key: seated.key, seq: group.record.seq, card: group.card, via: 'seat'});
   await riseReactor(seated.el, seat, tempoFor(cardReactionState.chain?.cards.length ?? 1), consoleReducedMotionActive());
+  if (cutMeanwhile()) {
+    unseatReactor(seated.key);
+    noteReactorSettled(seated.key);
+    noteTransferTrail('reaction:rise-after-cut', {card: group.card, via: 'stage'});
+    return {group, key, face: undefined, via: 'none'};
+  }
   markReactionRow(seated.el, group.record.printedEffect, specs, opts.readMs);
   noteTransferTrail('reaction:rise', {card: group.card, via: 'stage', places: describeReactorPlaces(group.card)});
   checkReactionIdentity(`rise:${group.card}`);

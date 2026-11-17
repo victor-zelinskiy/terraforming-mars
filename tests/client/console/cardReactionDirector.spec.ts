@@ -266,6 +266,67 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     }
   });
 
+  /*
+   * A RISE BELONGS TO THE CHAIN IT STARTED IN (FREEZE ZERO, stage 1 — CI's CPU x4 pass on `field-start-sbp-triton`,
+   * 8 runs of 8, 2026-11-17). The start promised the corporation's face and waited for it — eight seconds on a machine
+   * four times slower; the chain was cut meanwhile (every face unseated, every declaration cleared); the wait came
+   * back faceless and the rise seated the reactor at the stage of a chain that no longer existed. Nobody ever receded
+   * it: the face stood on the board for the rest of the game, and the next chain's reactor rose into the same slot
+   * on top of it («stacked-faces: Proteus+Greens … overlap 100 %»).
+   */
+  it('A RISE THAT COMES BACK AFTER A CUT SEATS NOTHING: a place whose wait outlived its chain leaves no reactor on the stage', async () => {
+    const deal = CardName.TERRAFORMING_DEAL;
+    let letTheWaitEnd: () => void = () => undefined;
+    let asked = false;
+    const waited = new Promise<void>((resolve) => {
+      letTheWaitEnd = resolve;
+    });
+    const unplace = registerReactorPlace({
+      id: 'slow',
+      standsIn: (card) => card === deal,
+      // The start's bounded wait for a face that is not coming yet.
+      emergeTarget: () => {
+        asked = true;
+        return waited;
+      },
+      settleTarget: async () => {},
+      emergedFaceEl: () => undefined,
+    });
+    const face = document.createElement('div');
+    document.body.appendChild(face);
+    const unstage = registerCardReactionStage({faceEl: () => face, stageRect: () => ({left: 0, top: 0, width: 1920, height: 1080})});
+    try {
+      const answer: Array<ResourceTransferSpec> = [{channel: 'stock', resource: 'megacredits', amount: 6}];
+      beginPanelRewardHold(answer);
+      declareHeldAnswers(answer);
+      seedCardReactionHolds(view([]), view([record(81, {kind: 'card', card: deal, channel: 'tr-increase', printedEffect: 0,
+        impacts: [{kind: 'stock', resource: Resource.MEGACREDITS, amount: 6, to: BLUE}]})]), snapshotRailHolds());
+      const flight = cardReactionAnswerFlight({rows: ['stock:megacredits']});
+      const prepared = flight?.prepare?.();
+      // The rise has asked its place and waits (bounded here: a place never asked is the test's own failure)…
+      for (let i = 0; i < 400 && !asked; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(asked, 'the place was asked for its face').eq(true);
+      // …and the chain is cut under that wait (a second hurry, the ceiling, the screen leaving).
+      cutCardReactions('the chain ended under the wait');
+      // …then the place's wait comes back, faceless.
+      letTheWaitEnd();
+      await prepared;
+      await Promise.resolve();
+      const trail = transferTrailTail(40).map((e) => e.ev);
+      expect(trail, 'the late rise is named').to.include('reaction:rise-after-cut');
+      expect(trail.slice(trail.lastIndexOf('reaction:cut')), 'nothing rose after the cut').not.to.include('reaction:rise');
+      expect(reactionIdentitySnapshot().declared.filter((d) => d.card === deal), 'no reactor is declared').deep.eq([]);
+      expect(cardReactionState.faces.filter((f) => f.name === deal), 'and no face stands on the stage').deep.eq([]);
+    } finally {
+      unstage();
+      unplace();
+      face.remove();
+      resetReactorPlaces();
+    }
+  });
+
   it('a host\'s OWN promise on the row (undeclared — a standard project\'s production step) never absorbs the reaction: it is standalone, held HERE on top', () => {
     const before = snapshotRailHolds();
     // The placement scene holds the city's own +1 M€ production; Tharsis' +1 on the same row is the RECORD's.
