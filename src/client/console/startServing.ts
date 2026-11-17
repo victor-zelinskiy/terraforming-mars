@@ -130,6 +130,28 @@ export function startStranded(s: {serves: StartServes | undefined, promptLive: b
   return s.promptLive && !s.servedElsewhere && s.serves === 'none';
 }
 
+/**
+ * WHAT A HOSTED STEP SERVES, as the watchdog reads it (pure). A step serves only the question a frame of it answers:
+ * one left standing past its own prompt (a colony grid after its build, the server already asking the next thing)
+ * serves NOTHING — a strand dressed as a step. EXCEPT while the step is IN TRANSIT: its own bounded entry or leave
+ * (the hand lifting out of the dock, or gathering back into it after the pick that ended it) is a BEAT — the same law
+ * the scene states for its own stages («a stage's own entry / leave — a bounded beat, never a strand by itself»).
+ * A machine four times slower stretches that leave past the watchdog's confirm, and the watchdog named a leaving
+ * step «the start serves nothing» six runs of eight (CI's CPU x4 pass, `hydro-terminal-surge`, 2026-11-17).
+ */
+export function hostedStepServes(s: {
+  serves: StartServes | undefined,
+  /** A frame of the stack answers the live question's kind — or the step is the start's own. */
+  stepAnswers: boolean,
+  /** The hosted step is on its own entry / leave episode right now. */
+  inTransit: boolean,
+}): StartServes | undefined {
+  if (s.serves !== 'step' || s.stepAnswers) {
+    return s.serves;
+  }
+  return s.inTransit ? 'beat' : 'none';
+}
+
 /** How long a strand must STAND before the watchdog names and heals it (a hand-off frame is never one). */
 export const START_STRAND_CONFIRM_MS = 2500;
 /** …and how long a heal gets before the watchdog hands the question to the shell's own surfaces (the yield). */

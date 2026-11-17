@@ -1,7 +1,5 @@
 import {expect} from 'chai';
-import {
-  START_YIELDS_FOR_PLACEMENT_BLOCKS, StartServingSignals, startServesOf, startServesSomething, startStranded, startYieldsForHeldPlacement,
-} from '../../src/client/console/startServing';
+import {hostedStepServes, START_YIELDS_FOR_PLACEMENT_BLOCKS, StartServingSignals, startServesOf, startServesSomething, startStranded, startYieldsForHeldPlacement} from '../../src/client/console/startServing';
 
 /**
  * «ЧТО СЕЙЧАС ОБСЛУЖИВАЕТ СТАРТ» — the game-start scene's honest answer about itself (the reliability iteration of
@@ -50,6 +48,28 @@ describe('startServing — what the start serves right now', () => {
     expect(startStranded({serves: 'none', promptLive: true, servedElsewhere: true}), 'another surface stands').is.false;
     expect(startStranded({serves: 'queue', promptLive: true, servedElsewhere: false}), 'the queue serves').is.false;
     expect(startStranded({serves: 'beat', promptLive: true, servedElsewhere: false}), 'a beat is bounded').is.false;
+  });
+});
+
+describe('startServing — a hosted step that outlived its question', () => {
+  it('a step that answers the live question is a step', () => {
+    expect(hostedStepServes({serves: 'step', stepAnswers: true, inTransit: false})).eq('step');
+  });
+
+  it('a step left standing past its own prompt, AT REST, serves nothing — a strand dressed as a step', () => {
+    expect(hostedStepServes({serves: 'step', stepAnswers: false, inTransit: false})).eq('none');
+    expect(startStranded({serves: hostedStepServes({serves: 'step', stepAnswers: false, inTransit: false}), promptLive: true, servedElsewhere: false})).is.true;
+  });
+
+  it('…but ON ITS OWN LEAVE it is a beat: the hand gathering back into the dock is never a strand (CPU x4, 6 runs of 8)', () => {
+    expect(hostedStepServes({serves: 'step', stepAnswers: false, inTransit: true})).eq('beat');
+    expect(startStranded({serves: hostedStepServes({serves: 'step', stepAnswers: false, inTransit: true}), promptLive: true, servedElsewhere: false})).is.false;
+  });
+
+  it('nothing else is touched: every other answer of the scene passes through', () => {
+    for (const serves of ['none', 'queue', 'stage', 'beat', 'outcome', 'wizard', 'yielded', undefined] as const) {
+      expect(hostedStepServes({serves, stepAnswers: false, inTransit: true}), String(serves)).eq(serves);
+    }
   });
 });
 

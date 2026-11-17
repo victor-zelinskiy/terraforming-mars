@@ -36,7 +36,8 @@ import {consoleState} from '@/client/console/consoleRouter';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
-import {START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
+import {hostedStepServes, START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
+import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
@@ -312,8 +313,12 @@ export function createStartController(shell: StartPort) {
     // colony grid after its build, the server already asking the prelude's city) serves nothing — it is a strand
     // dressed as a step.
     // …except the start's OWN step (P58 · FS — a prelude's «which tile next»): the scene itself is its surface.
-    const serves = consoleStartState.serves === 'step' && task !== undefined && !stackServes(task.kind) &&
-      startPlacementOrderOf(shell.playerView) === undefined ? 'none' : consoleStartState.serves;
+    // …and a step IN TRANSIT is a beat (`hostedStepServes`): the hand on its own opening / gathering episode.
+    const serves = hostedStepServes({
+      serves: consoleStartState.serves,
+      stepAnswers: task === undefined || stackServes(task.kind) || startPlacementOrderOf(shell.playerView) !== undefined,
+      inTransit: handRevealState.phase === 'opening' || handRevealState.phase === 'closing',
+    });
     return startSceneMounted.value && !startStrandYield.value && startStranded({
       serves,
       promptLive: wf !== undefined && wf.optional !== true,
@@ -757,6 +762,8 @@ export function createStartController(shell: StartPort) {
         placementBlock: wf?.type === 'space' ? promptAdmissionBlock('placement', shell.admissionSignals) ?? null : null,
         hostBlock: promptAdmissionBlock('host', shell.admissionSignals) ?? null,
         frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
+        // (What the hosted step itself is doing — at rest, or on its own entry / leave.)
+        hand: `${handRevealState.phase}/${consoleState.section}`,
         diag: diag ?? null,
       }));
     };
