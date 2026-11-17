@@ -116,7 +116,11 @@ function fromMonkey() {
         continue;
       }
       const dir = String(entry.parentPath ?? entry.path).replace(/\\/g, '/');
-      const walk = dir.split('/').pop().replace(/^console-monkey-/, '').replace(/-chromium(-retry\d+)?$/, '');
+      // (ONE walk, however many times it was run: a retry or a repeat of the same table is the same finding.)
+      const walk = dir.split('/').pop().replace(/^console-monkey-/, '').replace(/-chromium(-retry\d+)?(-repeat\d+)?$/, '');
+      if (findings.some((finding) => finding.key === `${source}|walk|${walk}`)) {
+        continue;
+      }
       const text = fs.readFileSync(`${dir}/error-context.md`, 'utf8').split('\n').slice(0, 40).join('\n');
       findings.push({
         key: `${source}|walk|${walk}`,

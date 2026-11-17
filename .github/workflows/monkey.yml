@@ -205,7 +205,13 @@ jobs:
           else
             node scripts/ci/findings.mjs broken --source monkey --context "$CONTEXT" --what "The pass produced no report (no shard uploaded its walks)" --out ci-findings.json
           fi
-          node scripts/ci/findings.mjs file ci-findings.json
+          # A REPEATED slice is somebody's measurement (how often a class comes), not the night's verdict: its
+          # findings are kept with the report, and nothing is filed.
+          if [ "${{ inputs.repeat || '1' }}" = "1" ]; then
+            node scripts/ci/findings.mjs file ci-findings.json
+          else
+            echo "repeat=${{ inputs.repeat }} — a measurement: findings kept in the report's artifact, not filed"
+          fi
       - name: Summary
         if: always()
         run: |
