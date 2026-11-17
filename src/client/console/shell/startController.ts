@@ -359,6 +359,7 @@ export function createStartController(shell: StartPort) {
       promptSurface: startPromptSurfaceStands.value || shell.standalonePromptSurfaceStands,
       strandYield: startStrandYield.value,
       parked: consoleState.task.deferred,
+      stepInTransit: handRevealState.phase === 'opening' || handRevealState.phase === 'closing',
     });
     const held = wf === undefined ? undefined :
       (wf.type === 'space' ? promptAdmissionBlock('placement', shell.admissionSignals) : promptAdmissionBlock('host', shell.admissionSignals));

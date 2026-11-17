@@ -105,6 +105,8 @@ export type ActualStartSignals = {
   strandYield: boolean,
   /** The player minimized the task («свернуть») — whatever stands is the player's own choice. */
   parked: boolean,
+  /** A step the start hosts is on its own entry / leave episode (the hand lifting out of the dock, or gathering back). */
+  stepInTransit?: boolean,
 };
 
 export function actualStartOwner(s: ActualStartSignals): ActualStartOwner {
@@ -128,6 +130,13 @@ export function actualStartOwner(s: ActualStartSignals): ActualStartOwner {
     // A paint-only yield with nothing standing for it is a bounded beat (the placement's completion chain, the scale
     // glide) — the strand watchdog owns the case where it is not.
     return s.promptSurface || s.strandYield ? 'shell' : 'beat';
+  }
+  // A HOSTED STEP ON ITS OWN ENTRY / LEAVE is a beat — bounded by its own episode, never judged (`startServing.
+  // hostedStepServes` is the watchdog's reading of the same fact). A machine four times slower stretches the hand's
+  // gather past the shadow's confirm: «expected game, on screen step», and a cure that released the start under a
+  // leave that was ending by itself (CI's CPU x4 pass, `hydro-terminal-surge`, 2026-11-17).
+  if (s.stepInTransit === true) {
+    return 'beat';
   }
   if (s.promptSurface) {
     return 'step';

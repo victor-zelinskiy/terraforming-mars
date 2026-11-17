@@ -59,6 +59,19 @@ describe('startDirector — what the latches put on screen', () => {
     expect(actualStartOwner({...rest, mounted: false, placementLive: true}), 'a placement outside the start is the game\'s — out of the shadow\'s scope').eq('game');
     expect(actualStartOwner({...rest, promptSurface: true, serves: 'queue'}), 'a surface over the scene serves the step').eq('step');
   });
+
+  it('a hosted step ON ITS OWN ENTRY / LEAVE is a beat — never judged, whatever it will serve once it stands', () => {
+    // The hand gathering back into the dock after the pick that ended the start: the server already asks the action menu.
+    expect(actualStartOwner({...rest, serves: 'step', stepInTransit: true})).eq('beat');
+    expect(actualStartOwner({...rest, serves: 'step', promptSurface: true, stepInTransit: true})).eq('beat');
+    expect(startShadowVerdict('game', actualStartOwner({...rest, serves: 'step', stepInTransit: true}), undefined)).eq('agree');
+    // …AT REST it is what it always was: a step standing where the game proper should be.
+    expect(startShadowVerdict('game', actualStartOwner({...rest, serves: 'step'}), undefined)).eq('disagree');
+    // …and a transit never hides the board, the park or a scene that is gone.
+    expect(actualStartOwner({...rest, stepInTransit: true, placementLive: true})).eq('board');
+    expect(actualStartOwner({...rest, stepInTransit: true, parked: true})).eq('parked');
+    expect(actualStartOwner({...rest, stepInTransit: true, mounted: false})).eq('game');
+  });
 });
 
 describe('startDirector — agreement and scope', () => {
