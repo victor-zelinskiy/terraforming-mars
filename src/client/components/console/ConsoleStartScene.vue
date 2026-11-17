@@ -1523,6 +1523,7 @@ import {ReactorEmergence, awaitArrivingFace, cardReactionAnswerFlight, markReact
 import {buriedUnderAnotherCard, liftInPlace, placeShowsCard, reactorPlaceArriving, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
 import {
   observedStartQueueBox, observeStartQueueBox, releaseStartQueueBox, retireStartReactorPlace, standStartReactorPlace,
+  startOffersReactorPlace,
 } from '@/client/components/console/consoleStartSceneState';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
@@ -11204,8 +11205,12 @@ onMounted(() => {
   const liftedFaces = new Map<CardName, HTMLElement>();
   standStartReactorPlace({
     id: 'start',
-    // …unless its face lies BURIED on the shelf under another card: no honest place — the reactor rises at the stage.
-    standsIn: (card) => startCarriesReactor(card) && !startReactorBuried(card),
+    // …unless its face lies BURIED on the shelf under another card, or the scene does not PAINT (it yielded the screen
+    // to the board): no honest place — the reactor rises at the stage (`startOffersReactorPlace`).
+    standsIn: (card) => {
+      const carries = startCarriesReactor(card);
+      return startOffersReactorPlace({carries, buried: carries && startReactorBuried(card), painting: !props.yielded});
+    },
     emergeTarget: async (card) => {
       const face = await startReactorFace(card, true);
       if (face !== undefined) {

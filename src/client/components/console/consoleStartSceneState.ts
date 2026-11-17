@@ -15,6 +15,20 @@ export function standStartReactorPlace(place: ReactorPlace): void {
   startReactorPlaceOff = registerReactorPlace(place);
 }
 
+/**
+ * DOES THE START OFFER ITSELF AS A REACTOR'S PLACE (pure)? It CARRIES the card (the corporation or a prelude the
+ * ceremony brings — the queue, the shelf, the seat), the card's face is not BURIED under another on the shelf — and
+ * the scene PAINTS. A start that has yielded the screen (the board owns it: a prelude's tile waits for the player's
+ * cell) shows no face of anything until the player has placed — a wait for the PLAYER, which the reactor's place
+ * bounded in seconds: the rise waited its whole eight for a face that could not come, and only then rose at the
+ * stage (`wait-graph/ceiling/start:reactor-face` — CI, `field-start-sbp-triton`: eight runs of eight under CPU x4,
+ * one walk of 606 at full speed). A place that cannot show a face is no place: the reactor rises at the stage at
+ * once, over the board the player is looking at.
+ */
+export function startOffersReactorPlace(s: {carries: boolean, buried: boolean, painting: boolean}): boolean {
+  return s.carries && !s.buried && s.painting;
+}
+
 /** The start is no reactor's place any more (its scene unmounts); nothing to do when it was none. */
 export function retireStartReactorPlace(): void {
   startReactorPlaceOff?.();

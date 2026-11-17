@@ -22,6 +22,7 @@ import {globalConfig} from '../getLocalVue';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import {
   observedStartQueueBox, observeStartQueueBox, releaseStartQueueBox, retireStartReactorPlace, standStartReactorPlace,
+  startOffersReactorPlace,
 } from '@/client/components/console/consoleStartSceneState';
 import {CardName} from '@/common/cards/CardName';
 import {Phase} from '@/common/Phase';
@@ -346,6 +347,15 @@ describe('consoleStartSceneState — the handles the start scene keeps for the P
     retireStartReactorPlace();
     expect(findReactorPlace(CardName.CREDICOR)).to.eq(undefined);
     retireStartReactorPlace(); // idempotent — a scene that never stood retires nothing
+  });
+
+  it('the start offers itself as a place only where a face can stand: it carries the card, the face is not buried, the scene PAINTS', () => {
+    expect(startOffersReactorPlace({carries: true, buried: false, painting: true})).to.eq(true);
+    expect(startOffersReactorPlace({carries: false, buried: false, painting: true}), 'not its card').to.eq(false);
+    expect(startOffersReactorPlace({carries: true, buried: true, painting: true}), 'a strip under another card is no face').to.eq(false);
+    // The scene yielded the screen to the board (a prelude's tile waits for the player's cell): no face of anything is
+    // painted until the player has placed — the reactor rises at the stage at once, never after an eight-second wait.
+    expect(startOffersReactorPlace({carries: true, buried: false, painting: false}), 'a scene that does not paint has no face to show').to.eq(false);
   });
 
   it('the queue box is observed once per box: a new box answers «solve now», the same one does not, the release lets it go', () => {
