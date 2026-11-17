@@ -6,9 +6,13 @@ name: Freeze gate
 # never cured, or a defect class the baseline does not hold. No browser, no box: deterministic by its seed, so a red
 # here replays on a laptop with the same seed (`npm run gate:freeze -- --seed <seed> --only <table>`).
 #
-# Manual only (it spends ~1 runner-hour a seed): dispatch it after a push that touches the console's flows, the
-# transport or the server's prompts — one job per seed, side by side.
+# NIGHTLY (docs/claude/ci-findings.md): the baseline's seeds and a SEED OF THE DAY (another 606 walks nobody has made).
+# What a run finds is FILED — one issue per cause class, for good (scripts/ci/findings.mjs); the morning triage agent
+# works that queue. By hand: a job per seed of the `seeds` input.
 on:
+  schedule:
+    # 23:30 UTC — the night's first run (01:30 in Kyiv): four jobs, well before the e2e suite takes the runners.
+    - cron: '30 23 * * *'
   workflow_dispatch:
     inputs:
       seeds:
@@ -23,6 +27,11 @@ on:
 permissions:
   contents: read
 
+# A run never shares a group with the release or with CI: it can queue behind them, it can never cancel them.
+concurrency:
+  group: freeze-gate-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   plan:
     name: Seeds
@@ -32,8 +41,10 @@ jobs:
     steps:
       - id: m
         env:
-          SEEDS: ${{ inputs.seeds || 'fz0 fz1' }}
+          GIVEN: ${{ inputs.seeds }}
         run: |
+          # On a schedule: the baseline's seeds, the seed that found the last classes, and the seed of the day.
+          SEEDS="${GIVEN:-fz0 fz1 fz3 d$(date -u +%Y%m%d)}"
           LIST=$(printf '%s\n' $SEEDS | grep -E '^[A-Za-z0-9_-]+$' | sed 's/.*/"&"/' | paste -sd, -)
           [ -n "$LIST" ] || { echo "no valid seed in '$SEEDS'"; exit 1; }
           echo "seeds=[$LIST]" >> "$GITHUB_OUTPUT"
@@ -67,6 +78,30 @@ jobs:
           ARGS="--seed ${{ matrix.seed }} --shards 8 --parallel 2"
           if [ -n "$ONLY" ]; then ARGS="$ARGS --only $ONLY"; fi
           node scripts/freeze-gate.mjs $ARGS
+      # WHAT THE RUN FOUND, in the one shape every workflow speaks (scripts/ci/findings.mjs): a NEW cause class, a stall
+      # never cured — or, when the gate died before its report, the run's own failure.
+      - name: Findings
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p ci-findings
+          REPORT=.e2e-remote/bottle-gate/monkey-report.json
+          RED=""
+          if [ "${{ job.status }}" != "success" ]; then RED="--gate-red"; fi
+          if [ -f "$REPORT" ]; then
+            node scripts/ci/findings.mjs from-monkey "$REPORT" --source freeze-gate --context "seed ${{ matrix.seed }}" $RED \
+              --repro "npm run gate:freeze -- --seed <seed> --only '^<table>\$' --skip-replays" --out ci-findings/freeze-gate-${{ matrix.seed }}.json
+          elif [ "${{ job.status }}" != "success" ]; then
+            node scripts/ci/findings.mjs broken --source freeze-gate --context "seed ${{ matrix.seed }}" \
+              --what "The gate ended before its report (the replays of the closed classes, the bundle, or a shard that died)" --out ci-findings/freeze-gate-${{ matrix.seed }}.json
+          fi
+      - name: Upload the findings
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: ci-findings-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.seed }}
+          path: ci-findings/
+          if-no-files-found: ignore
+          retention-days: 14
       # The report and every walk's cause file — what a red is read from (and what `--against` compares the next run with).
       - name: Upload the gate's report
         if: always()
@@ -79,3 +114,25 @@ jobs:
             .e2e-remote/bottle-gate/*.log
           if-no-files-found: warn
           retention-days: 14
+
+  file:
+    name: File the findings
+    needs: gate
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: ci-findings-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: ci-findings
+          merge-multiple: true
+      - name: One issue per finding — opened, touched or reopened
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          node scripts/ci/findings.mjs file ci-findings/*.json

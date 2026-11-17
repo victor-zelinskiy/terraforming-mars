@@ -1,6 +1,10 @@
 name: Playwright E2E
 
 on:
+  # NIGHTLY (docs/claude/ci-findings.md): the whole suite once a day — 00:30 UTC, after the freeze gate, before the
+  # monkey. A failed or a flaky test is FILED (scripts/ci/findings.mjs), one issue per test, for good.
+  schedule:
+    - cron: '30 0 * * *'
   workflow_dispatch:
     inputs:
       shards:
@@ -58,6 +62,8 @@ jobs:
       # One shard failing must never cancel the others — the whole point is to
       # learn the state of the WHOLE suite in one run.
       fail-fast: false
+      # A scheduled run leaves runners to the day's pushes — the release of a push must never queue behind the suite.
+      max-parallel: ${{ github.event_name == 'schedule' && 10 || 20 }}
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.list) }}
 
@@ -186,6 +192,9 @@ jobs:
     if: ${{ !cancelled() }}
     needs: [e2e]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -229,6 +238,17 @@ jobs:
       - name: Merge JSON report
         run: npx playwright merge-reports --reporter=json ./all-blobs > merged-report.json
 
+      # WHAT THE SUITE FOUND, in the one shape every workflow speaks — and filed: one issue per failed or flaky test
+      # (scripts/ci/findings.mjs; a test that failed once and is seen again touches its issue, a closed one reopens).
+      # Only for the WHOLE suite: a run narrowed by `grep` is somebody's experiment, not the night's verdict.
+      - name: File the findings
+        if: ${{ !cancelled() && inputs.grep == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/ci/findings.mjs from-playwright merged-report.json --source e2e --context "${{ github.event_name == 'schedule' && 'nightly' || 'dispatched' }}" --out ci-findings.json
+          node scripts/ci/findings.mjs file ci-findings.json
+
       - name: Fix brief (copyable, on the summary page)
         if: ${{ !cancelled() }}
         run: node scripts/e2e-fix-brief.mjs merged-report.json --run "${{ github.run_id }}.${{ github.run_attempt }}" --commit "${{ github.sha }}"
@@ -267,7 +287,7 @@ jobs:
   # a refactor day cannot triple the whole suite).
   burn-in:
     name: Burn-in changed specs (×3)
-    if: ${{ inputs.burnin_depth != '0' }}
+    if: ${{ github.event_name != 'schedule' && inputs.burnin_depth != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

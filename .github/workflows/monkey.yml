@@ -9,8 +9,16 @@ name: Monkey
 # shards side by side, and the box is left for pointwise runs. A perturbation (`perturb`) is one more pass — a race a
 # quiet machine never loses must be given a machine that loses it.
 #
-# Manual only: a whole pass is ~15 runner-hours (606 tables × ~1.5 min, one worker a shard).
+# NIGHTLY (docs/claude/ci-findings.md): a plain pass with THE SEED OF THE DAY; on Sunday the perturbations, one pass
+# each. A scheduled run takes at most 8 runners at a time — the release of a push must never queue behind it. What a
+# run finds is FILED, one issue per cause class (scripts/ci/findings.mjs).
 on:
+  schedule:
+    - cron: '0 3 * * *'    # every night — plain, the seed of the day
+    - cron: '0 7 * * 0'    # Sunday — cpu4
+    - cron: '0 10 * * 0'   # Sunday — net400
+    - cron: '0 13 * * 0'   # Sunday — reload
+    - cron: '0 16 * * 0'   # Sunday — duo
   workflow_dispatch:
     inputs:
       seed:
@@ -24,7 +32,7 @@ on:
         type: choice
         options: [none, cpu4, cpu6, net400, net1500, reload, duo]
       shards:
-        description: 'How many shards side by side'
+        description: 'How many shards'
         required: false
         default: '16'
       only:
@@ -39,28 +47,56 @@ on:
 permissions:
   contents: read
 
+# Never in a group with the release or with CI: a pass can queue behind them, it can never cancel them.
+concurrency:
+  group: monkey-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   plan:
-    name: Shard matrix
+    name: Plan
     runs-on: ubuntu-latest
     outputs:
       shards: ${{ steps.m.outputs.shards }}
       list: ${{ steps.m.outputs.list }}
+      seed: ${{ steps.m.outputs.seed }}
+      perturb: ${{ steps.m.outputs.perturb }}
+      parallel: ${{ steps.m.outputs.parallel }}
     steps:
       - id: m
+        env:
+          CRON: ${{ github.event.schedule }}
+          SEED: ${{ inputs.seed }}
+          PERTURB: ${{ inputs.perturb }}
         run: |
           N='${{ inputs.shards || '16' }}'
           case "$N" in ''|*[!0-9]*) echo "shards must be a positive integer, got '$N'"; exit 1;; esac
+          PARALLEL="$N"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # A scheduled pass leaves the runners to the day's pushes: half of its shards at a time.
+            PARALLEL=8
+            case "$CRON" in
+              '0 7 * * 0') PERTURB=cpu4; SEED=fz0;;
+              '0 10 * * 0') PERTURB=net400; SEED=fz0;;
+              '0 13 * * 0') PERTURB=reload; SEED=fz0;;
+              '0 16 * * 0') PERTURB=duo; SEED=fz0;;
+              *) PERTURB=none; SEED="d$(date -u +%Y%m%d)";;
+            esac
+          fi
           echo "shards=$N" >> "$GITHUB_OUTPUT"
           echo "list=[$(seq -s, 1 "$N")]" >> "$GITHUB_OUTPUT"
+          echo "seed=${SEED:-fz0}" >> "$GITHUB_OUTPUT"
+          echo "perturb=${PERTURB:-none}" >> "$GITHUB_OUTPUT"
+          echo "parallel=$PARALLEL" >> "$GITHUB_OUTPUT"
 
   walk:
-    name: Walk ${{ matrix.shard }}/${{ needs.plan.outputs.shards }} · ${{ inputs.seed }} · ${{ inputs.perturb }}
+    name: Walk ${{ matrix.shard }}/${{ needs.plan.outputs.shards }} · ${{ needs.plan.outputs.seed }} · ${{ needs.plan.outputs.perturb }}
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 240
     strategy:
       fail-fast: false
+      max-parallel: ${{ fromJSON(needs.plan.outputs.parallel) }}
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.list) }}
     steps:
@@ -91,11 +127,11 @@ jobs:
       - name: The monkey (shard ${{ matrix.shard }})
         env:
           TM_E2E_MONKEY: '1'
-          TM_E2E_MONKEY_SEED: ${{ inputs.seed || 'fz0' }}
+          TM_E2E_MONKEY_SEED: ${{ needs.plan.outputs.seed }}
           TM_E2E_MONKEY_PRESSES: ${{ inputs.presses || '60' }}
           TM_E2E_MONKEY_ONLY: ${{ inputs.only }}
           TM_E2E_COVERAGE: '1'
-          PERTURB: ${{ inputs.perturb || 'none' }}
+          PERTURB: ${{ needs.plan.outputs.perturb }}
         run: |
           case "$PERTURB" in
             cpu4) export TM_E2E_CPU_THROTTLE=4;;
@@ -124,10 +160,13 @@ jobs:
           retention-days: 14
 
   report:
-    name: Report · ${{ inputs.seed }} · ${{ inputs.perturb }}
+    name: Report · ${{ needs.plan.outputs.seed }} · ${{ needs.plan.outputs.perturb }}
     needs: [plan, walk]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -140,14 +179,32 @@ jobs:
           path: monkey-results
       # THE GATE: by cause class against the committed baseline — exit 3 on an episode never cured or a NEW defect class.
       - name: The report, as a gate
+        id: gate
         run: |
           node scripts/monkey-report.mjs monkey-results --against tests/e2e/monkeyBaseline.json --out monkey-report.json --gate | tee monkey-report.txt
           exit ${PIPESTATUS[0]}
+      # WHAT THE PASS FOUND, in the one shape every workflow speaks — and filed: one issue per cause class.
+      - name: Findings
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTEXT: seed ${{ needs.plan.outputs.seed }} · perturb ${{ needs.plan.outputs.perturb }}
+        run: |
+          RED=""
+          if [ "${{ steps.gate.outcome }}" != "success" ] || [ "${{ needs.walk.result }}" != "success" ]; then RED="--gate-red"; fi
+          if [ -f monkey-report.json ]; then
+            node scripts/ci/findings.mjs from-monkey monkey-report.json --source monkey --context "$CONTEXT" --failed-walks monkey-results $RED \
+              --repro "gh workflow run Monkey -f seed=<seed> -f perturb=${{ needs.plan.outputs.perturb }} -f shards=1 -f only='^<table>\$'   # or on the box: TM_E2E_MONKEY=1 TM_E2E_MONKEY_SEED=<seed> TM_E2E_MONKEY_ONLY='^<table>\$' npm run e2e:remote -- <task> tests/e2e/console-monkey.spec.ts" \
+              --out ci-findings.json
+          else
+            node scripts/ci/findings.mjs broken --source monkey --context "$CONTEXT" --what "The pass produced no report (no shard uploaded its walks)" --out ci-findings.json
+          fi
+          node scripts/ci/findings.mjs file ci-findings.json
       - name: Summary
         if: always()
         run: |
           {
-            echo '### Monkey · seed `${{ inputs.seed }}` · perturb `${{ inputs.perturb }}`'
+            echo '### Monkey · seed `${{ needs.plan.outputs.seed }}` · perturb `${{ needs.plan.outputs.perturb }}`'
             echo '```'
             head -n 60 monkey-report.txt 2>/dev/null || echo 'no report'
             echo '```'
@@ -160,4 +217,5 @@ jobs:
           path: |
             monkey-report.json
             monkey-report.txt
+            ci-findings.json
           retention-days: 30
