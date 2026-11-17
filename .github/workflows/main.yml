@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # A commit landed by the ci-fix lane (.github/workflows/land-ci-fix.yml) is pushed with a workflow's own token,
+  # which starts no workflow — the landing asks for this run by name.
+  workflow_dispatch: {}
 
 # A newer push to the same ref cancels the in-flight CI run.
 concurrency:

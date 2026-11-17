@@ -440,7 +440,7 @@ it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed o
 the real-browser monkey (03:00 plain with the seed of the day; Sunday `cpu4` / `net400` / `reload` / `duo`), and a
 watcher over every push's `CI` / release. **Every one of them files what it finds through ONE script
 (`scripts/ci/findings.mjs`): one GitHub issue per cause class / test / failed job, touched when seen again, reopened as
-a regression** — and a scheduled cloud agent triages the queue each morning: a verdict label + a comment for every finding, and a SIMPLE one (a wrong e2e check, a stale expectation, a trivial bug) fixed on a branch, re-run on CI and handed over as a pull request labelled `ci-fix` — it never merges, a push to `main` is a release. A
+a regression** — and a scheduled cloud agent triages the queue each morning: a verdict label + a comment for every finding, and a SIMPLE one (a wrong e2e check, a stale expectation, a trivial bug) fixed on a branch, re-run on CI and LANDED in `main` by the `Land ci-fix` workflow, which judges the pull request by a rule of the repository (`scripts/ci/landRules.mjs` — what a fix may touch, how large, what proves it) and bumps the version itself. A
 working session starts from `gh issue list --label ci-finding --label triage:real`. No scheduled run shares a
 concurrency group with the release, and each takes at most 8 – 10 runners at a time.
 

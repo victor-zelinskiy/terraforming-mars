@@ -20,6 +20,7 @@ a workflow run ──► findings (one JSON shape) ──► scripts/ci/findings
 | `Playwright E2E` (`playwright-e2e.yml`) — the whole suite | 00:30 nightly | a FAILED test · a FLAKY test (one issue per test) |
 | `Monkey` (`monkey.yml`) — the real-browser monkey | 03:00 nightly (plain, the seed of the day) · Sunday 07 / 10 / 13 / 16: `cpu4` · `net400` · `reload` · `duo` | a NEW cause class · a stall never cured · a run with no verdict |
 | `CI` (`main.yml`) · `Release Electron App` (`release.yml`) | every push — watched by `CI findings` (`ci-findings.yml`, a `workflow_run` AFTER the run ended; a cancelled run is not a finding) | a RED run: one issue per failed JOB |
+| `Land ci-fix` (`land-ci-fix.yml`) | when a pull request of the fix lane is labelled `land` | nothing — it lands the fix or refuses it in writing (§ 3b) |
 
 **The release is never stalled by them.** A scheduled run commits nothing (so it starts no release and cancels none),
 shares no concurrency group with `CI` / the release, and takes at most 8 – 10 runners at a time (`max-parallel`) — the
@@ -49,8 +50,9 @@ issues (needs `GH_TOKEN`, `issues: write`).
 ## 3. The morning triage (the agent's procedure)
 
 A scheduled cloud agent (a Claude Code routine, 05:30 UTC, Opus 5.5) works the queue. **Every finding gets a verdict;
-a SIMPLE one is also FIXED by the agent — on a branch, proven on CI, handed over as a pull request (§ 3a); a complex
-one goes by the verdict alone, to a working session** (the owner, 2026-11-17). Per run:
+a SIMPLE one is also FIXED by the agent — on a branch, proven on CI, and LANDED IN `main` with nobody's hand on it
+(§ 3a, § 3b); a complex one goes by the verdict alone, to a working session** (the owner, 2026-11-17: «максимально
+автономная схема, без моего вмешательства, особенно по тривиальным кейсам»). Per run:
 
 1. `gh issue list --label ci-finding --label triage:needed --state open --json number,title,labels,body` — the queue.
    Nothing there → say so in one line and stop.
@@ -117,20 +119,45 @@ any `*Baseline.json` ratchet): a baseline row is a decision of a working session
 - Push the branch, open a pull request to `main` labelled `ci-fix`: title `[ci-fix #<issue>] <what>`, body — the
   cause, the fix, what was run, and `Fixes #<issue>`.
 - **RE-RUN THE TEST ON CI, on the branch** — the laptop and the box are not there, and a browser is never started in
-  the sandbox: `gh workflow run "Playwright E2E" --ref <branch> -f grep="<the test's title>" -f shards=4
-  -f burnin_depth=0` (the monkey: `gh workflow run Monkey --ref <branch> -f seed=<seed> -f shards=1
+  the sandbox: `gh workflow run "Playwright E2E" --ref <branch> -f grep="<the test's title>" -f shards=1
+  -f burnin_depth=0` (ONE shard: a shard that holds no matching test is red by «No tests found», and so is a grep that
+  matches nothing — a green run is a test that RAN) (the monkey: `gh workflow run Monkey --ref <branch> -f seed=<seed> -f shards=1
   -f only='^<table>$'`; the gate: `gh workflow run "Freeze gate" --ref <branch> -f seeds=<seed> -f only='^<table>$'`).
   Wait for it (bounded: 40 minutes), and write the run's link and its result into the pull request.
-- Green → the issue gets `fix:proposed` beside its verdict label. Red → ONE more attempt; red again → close the pull
-  request with what was learned, and the finding goes by the verdict lane (`triage:real`), the comment saying what the
-  two attempts ruled out.
-- **The agent never merges and never pushes to `main`.** Every push to `main` is a RELEASE with its own version bump
-  (`npm run push`), so a pull request is LANDED by a working session — or on the owner's word — through that path;
-  GitHub's merge button would ship a version a release already claimed.
+- Wait for `CI` on the pull request too (it runs by itself: lint, the builds, the unit suites).
+- **Green on both → ask for the landing: label the pull request `land`** (§ 3b), and the issue `fix:proposed`. Red →
+  ONE more attempt (a new commit REPLACING the first — the branch stays one commit; prove it again); red again → close
+  the pull request with what was learned, and the finding goes by the verdict lane (`triage:real`), the comment
+  saying what the two attempts ruled out.
+- **The agent never pushes to `main` and never presses merge** — every push to `main` is a RELEASE with its own
+  version bump, and GitHub's merge button would ship a version a release already claimed. The landing is a workflow.
 - At most 4 pull requests a morning; the rest of the queue goes by verdicts.
 
-**Never, in any lane:** push to `main`, merge, force-push, edit a baseline, change a workflow, touch an issue without
-the `ci-finding` label.
+### 3b. THE LANDING — `main` takes a ci-fix by a rule, never by the agent's opinion of its own work
+
+`Land ci-fix` (`.github/workflows/land-ci-fix.yml` → `scripts/ci/land.mjs`, both read from `main`) starts when a pull
+request is labelled `land`. It **judges by what it can read** and refuses in writing (a comment naming every reason;
+the label taken back), or lands:
+
+| Judged | The rule |
+| --- | --- |
+| what it is | an open, non-draft pull request to `main` from a `claude/ci-fix-<issue>-<slug>` branch of this repository, labelled `ci-fix`, ONE commit, its body saying `Fixes #<issue>` for an open `ci-finding` issue |
+| what it touches | `scripts/ci/landRules.mjs` (guard `tests/ci/landRules.spec.ts`): never a workflow, a script, a hook, a document, the version or a dependency, a baseline, the bottle harness, the server, the shared models, the translations, the flow kernel / the transport / the wait graph, a liveness net, the hold registry, the desktop shell |
+| how large | at most 12 files and 600 lines; of the PRODUCT (`src/**`) at most 3 files and 80 lines, and never without a spec in the same diff |
+| what proves it | on its HEAD commit: `CI` green on the pull request, and — for a finding of the e2e suite, the monkey or the freeze gate — a green re-run of THAT workflow |
+| whether it still applies | squashed onto the tip of `main` it changes exactly the files it was judged by |
+
+**Landed** = the change squashed onto `main` as ONE commit with the next free version (`scripts/version.mjs` — the
+ceiling over `origin/main` and the release tags, the push wrapper's own rule), pushed; then `Release Electron App` and
+`CI` are started for that commit by name (a push made with a workflow's token starts no workflow); the pull request
+is closed with the commit and its proofs, the issue closed — and **seen again, it reopens as a `regression`**, so a
+fix that did not fix is back in the queue the next morning. One landing at a time.
+
+**A landing that left `main` red** arrives in the queue by itself (`src:ci` — the watcher of § 1). Its fix is the
+first thing the agent does that morning, and it is always simple: the REVERT of the landed commit, by the same lane.
+
+**Never, in any lane:** push to `main` by hand, press merge, force-push, edit a baseline, change a workflow, touch an
+issue without the `ci-finding` label.
 
 ## 4. What the agent needs (the owner's side)
 
@@ -138,6 +165,8 @@ the `ci-finding` label.
   able, for this one repository, to: **comment on and label issues** (`Issues: read and write`), **download run
   artifacts and dispatch a workflow on its branch** (`Actions: read and write`), **push a `claude/…` branch**
   (`Contents: read and write`) and **open a pull request** (`Pull requests: read and write`).
-- Nothing else: no push to `main`, no access to the box, to Sentry, or to the release.
-- **A working session's first look** (and the owner's): `gh pr list --label ci-fix` — the fixes waiting to be landed;
-  `gh issue list --label ci-finding --label triage:real` — what is left for a session.
+- Nothing else: no push to `main` (the landing workflow's own token does that), no access to the box, to Sentry.
+- **The owner does nothing.** What is worth a look when there is time: `gh pr list --label ci-fix --state all` (what
+  the lane landed or was refused) and the morning digest — the routine's last message.
+- **A working session's first look:** `gh issue list --label ci-finding --label triage:real` — what is left for it —
+  and `gh pr list --label ci-fix` (a pull request the landing refused twice is its to finish or to close).

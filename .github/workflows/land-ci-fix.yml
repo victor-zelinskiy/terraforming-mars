@@ -1,0 +1,51 @@
+name: Land ci-fix
+
+# THE LANDING OF A CI-FIX (docs/claude/ci-findings.md § 3b): the morning triage agent proposes a fix as a pull request
+# from a `claude/ci-fix-<issue>-…` branch and asks for it to land by the label `land`. THIS workflow decides —
+# scripts/ci/land.mjs, loaded from `main`, reads what the pull request touches and what was PROVEN on its head commit,
+# and refuses in writing — and lands: the change squashed onto the tip of `main` as one commit with its own version
+# bump, then the release and CI of that commit started (a push made with the workflow's token starts no workflow).
+#
+# `pull_request_target` runs the workflow and the script of the BASE branch with a write token; nothing of the pull
+# request is ever executed here — it is only read and applied by git. Only somebody who may label may ask.
+on:
+  pull_request_target:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'The pull request to land (a number)'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+# One landing at a time: each takes the next version above the one before it.
+concurrency:
+  group: land-ci-fix
+  cancel-in-progress: false
+
+jobs:
+  land:
+    name: Judge and land
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'land' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - name: Judge the pull request, land it or refuse it in writing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+        run: |
+          case "$PR" in ''|*[!0-9]*) echo "not a pull request number: '$PR'"; exit 1;; esac
+          node scripts/ci/land.mjs "$PR"
