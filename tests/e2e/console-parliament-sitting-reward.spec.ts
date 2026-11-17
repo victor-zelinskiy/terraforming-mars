@@ -430,8 +430,14 @@ for (const preset of PARLIAMENT_PRESETS) {
           await expect(page.locator('.con-extdraw__status')).toContainText(/Принятая резолюция|The enacted resolution/i);
           expect((await crumbText(page)).toUpperCase()).toMatch(/ПОЛУЧЕНИЕ|INTAKE/);
           await settle(page, {timeoutMs: 30_000});
+          // THE DEAL IS A 3D TURN — the JOURNEY, read off the recording: the take's cards flew as bodies turned on their
+          // flip (`rotateY` written there — never an image swap) and were BORN face-down. That the turn passes through
+          // every angle is the director's tween, proven on the animation clock (`tests/client/console/cardDealTurn.spec.ts`):
+          // the whole turn is ≈ 231 ms, and whether a painted frame lands inside it is the renderer's speed — a 300 ms
+          // software frame went 170° → 2° in one tick (CI 43998786293) and a «mid-angle sample» called a real turn a snap.
           const deals = (await readProbe(page)).samples.flatMap((s) => s.deals).filter((r) => r >= 0);
-          expect(deals.some((r) => r > 20 && r < 160), `the deal TURNED in flight (rotateY samples ${deals.slice(0, 12).map(Math.round).join(',')}…)`).toBe(true);
+          expect(deals.length, 'the take\'s cards flew as bodies turned on their flip (a rotateY written on it)').toBeGreaterThan(0);
+          expect(deals.some((r) => r >= 160), `the deal was BORN face-down (rotateY samples ${deals.slice(0, 12).map(Math.round).join(',')}…)`).toBe(true);
           await expectParliamentFits(page, `${preset.id} ${c.rx} take`);
           await shoot(page, preset.id, `${c.rx}-03-take`);
           // L3 = the SOURCE: the resolution's own inspector opens over the stage.

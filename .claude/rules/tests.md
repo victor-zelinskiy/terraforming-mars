@@ -119,7 +119,10 @@ traps below are `docs/claude/e2e-flake-history.md`.
 13. **`readSettled` settles first by default** — inside a scene that STANDS for the player (a reveal waiting for its
     take, a decision, a chain between two presses) read with `{settle: false}`.
 14. **A bound on samples is a POSITIONAL claim** — «vanished for at most one sample» says where the tolerated moment
-    stands in the sequence; never «one contiguous run» (any length), never a ms bound (a 300 ms frame).
+    stands in the sequence; never «one contiguous run» (any length), never a ms bound (a 300 ms frame). Nor a claim
+    that a frame landed INSIDE a motion shorter than a frame (a «mid-turn sample» of a 231 ms flip — CI 43998786293):
+    the e2e reads the motion's STANDING ends, and «it is a tween through every angle» is a unit spec on the animation
+    clock (`cardDealTurn.spec` — `gsap.globalTimeline.time(…)`).
 15. **A transient that comes and goes is never waited for AFTER a server poll** (a `waitFor(visible)` of a 340 ms
     receipt) — it is read from a recording armed before the press.
 16. **`toContainText` reads `textContent`** — a read of what the player SEES under `text-transform` is

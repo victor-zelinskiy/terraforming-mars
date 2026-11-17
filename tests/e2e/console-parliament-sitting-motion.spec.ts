@@ -18,8 +18,8 @@ import {armWitness, pageNow, witnessOf} from './witness';
  *     travel, the parties tier PEEKS for the support cubes, the government's
  *     face shows only on the touchdown; every hold is released at rest;
  *   · ИТОГИ: the fresh resolutions are DEALT with a REAL 3D TURN — the body
- *     starts face-down (rotateY 180), passes through the plane (a sample
- *     between 30° and 150°), rests face-up (0); the slot's own face is hidden
+ *     starts face-down (rotateY 180) and rests face-up (0), one way only (the
+ *     turn through its plane is the tween's — unit-proven); the slot's own face is hidden
  *     while its card is in the air and shows on the touchdown; the deck's
  *     count ticks per launch; no card is ever painted twice at rest; the
  *     results card reveals only after the beats;
@@ -288,8 +288,11 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     }
     expect(byId.size, `the ${dealt} dealt cards flew as 3D bodies`).toBe(dealt);
     for (const [id, rots] of byId) {
+      // Born face-down, resting face-up, one way only — the persisting ends of the turn. That it passes through its
+      // plane is `addCard3DTurn`'s tween (unit: `card3dInner.spec` § the turn; the deal layers it —
+      // `parliamentDealTurn.spec`): a painted frame inside a ~350 ms turn (0.62 × 560) is the renderer's speed, never the product's
+      // (the reward's deal: CI 43998786293, one 300 ms tick 170° → 2°).
       expect(rots[0], `${id} is born face-down`).toBeGreaterThan(170);
-      expect(rots.some((r) => r > 30 && r < 150), `${id} passed through its plane (samples ${rots.map((r) => Math.round(r)).join(',')})`).toBe(true);
       expect(rots[rots.length - 1], `${id} rests face-up`).toBeLessThan(10);
       for (let i = 1; i < rots.length; i++) {
         expect(rots[i], `${id} never turns back`).toBeLessThanOrEqual(rots[i - 1] + 0.5);
