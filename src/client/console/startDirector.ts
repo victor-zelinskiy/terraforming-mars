@@ -107,6 +107,8 @@ export type ActualStartSignals = {
   parked: boolean,
   /** A step the start hosts is on its own entry / leave episode (the hand lifting out of the dock, or gathering back). */
   stepInTransit?: boolean,
+  /** What stands on the start is the player's own look (`hostCarriesPlayersLook`) — a browse layer they walked into. */
+  playersLook?: boolean,
 };
 
 export function actualStartOwner(s: ActualStartSignals): ActualStartOwner {
@@ -124,6 +126,13 @@ export function actualStartOwner(s: ActualStartSignals): ActualStartOwner {
     return 'board';
   }
   if (s.parked) {
+    return 'parked';
+  }
+  // THE PLAYER'S OWN LOOK over the start (the colony rail they walked into) is the player's choice exactly as a parked
+  // task is: whatever the server asks meanwhile, the screen is theirs until they close it — never judged, and never
+  // «cured» by releasing the start from under what they are reading (`startServing.hostedStepServes` — the watchdog's
+  // reading of the same fact).
+  if (s.playersLook === true && s.mounted) {
     return 'parked';
   }
   if (!s.visible) {

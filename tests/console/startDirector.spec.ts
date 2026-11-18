@@ -72,6 +72,18 @@ describe('startDirector — what the latches put on screen', () => {
     expect(actualStartOwner({...rest, stepInTransit: true, parked: true})).eq('parked');
     expect(actualStartOwner({...rest, stepInTransit: true, mounted: false})).eq('game');
   });
+
+  it('THE PLAYER\'S OWN LOOK over the start is the player\'s choice — never judged, never «cured» from under them', () => {
+    // The colony rail the player went to over a start with nothing left to ask; the server asks the action menu.
+    const look = actualStartOwner({...rest, serves: 'step', playersLook: true});
+    expect(look).eq('parked');
+    expect(startShadowVerdict('game', look, undefined)).eq('agree');
+    // …without the look the same pose is what it always was: a step standing where the game proper should be.
+    expect(startShadowVerdict('game', actualStartOwner({...rest, serves: 'step'}), undefined)).eq('disagree');
+    // …and a look never hides the board's own placement or a scene that is gone.
+    expect(actualStartOwner({...rest, playersLook: true, placementLive: true})).eq('board');
+    expect(actualStartOwner({...rest, playersLook: true, mounted: false})).eq('game');
+  });
 });
 
 describe('startDirector — agreement and scope', () => {

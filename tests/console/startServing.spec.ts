@@ -61,6 +61,14 @@ describe('startServing — a hosted step that outlived its question', () => {
     expect(startStranded({serves: hostedStepServes({serves: 'step', stepAnswers: false, inTransit: false}), promptLive: true, servedElsewhere: false})).is.true;
   });
 
+  it('THE PLAYER\'S OWN LOOK over the start is no step of the start\'s: it serves the player, who closes it (duo, 8 walks of 8)', () => {
+    // The colony rail the player walked into answers no question by design — and is not a strand for that.
+    expect(hostedStepServes({serves: 'step', stepAnswers: false, inTransit: false, playersLook: true})).eq('step');
+    expect(startStranded({serves: hostedStepServes({serves: 'step', stepAnswers: false, inTransit: false, playersLook: true}), promptLive: true, servedElsewhere: false})).is.false;
+    // A scene that serves NOTHING is a strand whatever stands on the stack: the look does not excuse an empty start.
+    expect(hostedStepServes({serves: 'none', stepAnswers: false, inTransit: false, playersLook: true})).eq('none');
+  });
+
   it('…but ON ITS OWN LEAVE it is a beat: the hand gathering back into the dock is never a strand (CPU x4, 6 runs of 8)', () => {
     expect(hostedStepServes({serves: 'step', stepAnswers: false, inTransit: true})).eq('beat');
     expect(startStranded({serves: hostedStepServes({serves: 'step', stepAnswers: false, inTransit: true}), promptLive: true, servedElsewhere: false})).is.false;

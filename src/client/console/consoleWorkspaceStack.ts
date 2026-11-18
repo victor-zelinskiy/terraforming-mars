@@ -855,6 +855,29 @@ export function workspaceFrameHasNested(kind: WorkspaceFrameKind): boolean {
 }
 
 /**
+ * IS WHAT STANDS ON THIS HOST THE PLAYER'S OWN LOOK — nothing but screens the player went to themselves? «The player
+ * goes to a screen» (`enterWorkspace`) over a phase root that survives the move leaves exactly one shape: an OVERLAY
+ * (it stands OVER the root, never in its zone), anchored `always`, in `browse` — B closes it. A STEP a flow opened
+ * nests with `pushWorkspaceFrame` INSIDE the host (the hand for a prelude, a colony pick anchored to its `prompt`);
+ * a look is none of that, and nothing of the host's flow waits inside it: whoever asks «what is the host waiting
+ * for» is told THE PLAYER (the stage-1 law — who is waited for decides the wait).
+ *
+ * CI's two-window pass, 2026-11-18, `fz3` · `duo` · `parliament`, 11 walks of 11: the second seat opened the colonies
+ * over a start that had nothing left to ask, the server asked the action menu, and the start's watchdog read the
+ * player's own rail as «a step left standing past its prompt» — a strand, a finding, a «cure» that released the
+ * start from under what the player was reading, a failed walk. The line's own evidence: `above:
+ * ["colonies@always/overlay"]`, `painted: .con-colonies` at all five points of the screen, nothing in flight.
+ */
+export function hostCarriesPlayersLook(host: WorkspaceFrameKind): boolean {
+  const depth = workspaceFrameIndex(host);
+  const above = depth === -1 ? [] : workspaceStackState.frames.slice(depth + 1);
+  if (above.length === 0) {
+    return false;
+  }
+  return above.every((frame) => frame.overlay && frame.anchor.type === 'always' && frame.phase === 'browse');
+}
+
+/**
  * Does everything standing ABOVE this frame stand INSIDE its zone — embedded steps all the way up, none an overlay and
  * none handed a whole scene? False when nothing stands above it.
  *

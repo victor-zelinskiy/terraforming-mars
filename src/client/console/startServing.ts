@@ -138,6 +138,11 @@ export function startStranded(s: {serves: StartServes | undefined, promptLive: b
  * the scene states for its own stages («a stage's own entry / leave — a bounded beat, never a strand by itself»).
  * A machine four times slower stretches that leave past the watchdog's confirm, and the watchdog named a leaving
  * step «the start serves nothing» six runs of eight (CI's CPU x4 pass, `hydro-terminal-surge`, 2026-11-17).
+ *
+ * AND EXCEPT THE PLAYER'S OWN LOOK (`consoleWorkspaceStack.hostCarriesPlayersLook`): a browse layer the player walked
+ * into over the start — the colony rail, opened from the scene — is no step of the start's and was never opened for a
+ * question; it answers none BY DESIGN, it is on screen, and B closes it. What the start waits for there is the
+ * PLAYER (who is waited for decides the wait): it serves their look, and ends when they close it.
  */
 export function hostedStepServes(s: {
   serves: StartServes | undefined,
@@ -145,8 +150,10 @@ export function hostedStepServes(s: {
   stepAnswers: boolean,
   /** The hosted step is on its own entry / leave episode right now. */
   inTransit: boolean,
+  /** What stands on the start is the player's own look — browse layers they walked into, on screen. */
+  playersLook?: boolean,
 }): StartServes | undefined {
-  if (s.serves !== 'step' || s.stepAnswers) {
+  if (s.serves !== 'step' || s.stepAnswers || s.playersLook === true) {
     return s.serves;
   }
   return s.inTransit ? 'beat' : 'none';

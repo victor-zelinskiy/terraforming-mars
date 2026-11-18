@@ -14,7 +14,7 @@ import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
 import {neutralRallyFlow} from '@/client/console/parliament/neutralRally';
 import {HostedParliamentStepKind, hostedStepLiveIn, hostedStepOwedTo, startHostedStepToEnter, startPreludeGrantOf} from '@/client/console/parliament/hostedParliamentStep';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
-import {workspaceHostYieldsScene, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, workspaceFrameHasNested, workspaceFrameMounted, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, workspaceStackState, stackServes} from '@/client/console/consoleWorkspaceStack';
+import {hostCarriesPlayersLook, workspaceHostYieldsScene, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, workspaceFrameHasNested, workspaceFrameMounted, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, workspaceStackState, stackServes} from '@/client/console/consoleWorkspaceStack';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 import {Phase} from '@/common/Phase';
@@ -320,6 +320,8 @@ export function createStartController(shell: StartPort) {
       serves: consoleStartState.serves,
       stepAnswers: task === undefined || stackServes(task.kind) || startPlacementOrderOf(shell.playerView) !== undefined,
       inTransit: handRevealState.phase === 'opening' || handRevealState.phase === 'closing',
+      // …and THE PLAYER'S OWN LOOK is no step of the start's at all: it serves the player, who closes it.
+      playersLook: hostCarriesPlayersLook('start'),
     });
     return startSceneMounted.value && !startStrandYield.value && startStranded({
       serves,
@@ -369,6 +371,7 @@ export function createStartController(shell: StartPort) {
       strandYield: startStrandYield.value,
       parked: consoleState.task.deferred,
       stepInTransit: handRevealState.phase === 'opening' || handRevealState.phase === 'closing',
+      playersLook: hostCarriesPlayersLook('start'),
     });
     const held = wf === undefined ? undefined :
       (wf.type === 'space' ? promptAdmissionBlock('placement', shell.admissionSignals) : promptAdmissionBlock('host', shell.admissionSignals));
