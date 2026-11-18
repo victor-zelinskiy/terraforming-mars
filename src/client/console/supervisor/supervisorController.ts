@@ -36,6 +36,7 @@ import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputTrailCount} from '@/client/console/inputEcho';
 import {observeOscillation, OSCILLATION_REST, oscillationTurns, OscillationState} from '@/client/console/livenessOscillation';
 import {PICTURE_SURFACES, SurfaceEdges, watchSurfaceEdges} from '@/client/console/supervisor/surfaceEdges';
+import {notePageLook, pageStarvedNow, standPagePaintWitness} from '@/client/console/kernel/frameWitness';
 import {unanswerableReason} from '@/common/inputs/promptAnswerable';
 import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
@@ -153,6 +154,8 @@ export function createSupervisorController(shell: SupervisorPort) {
   let oscillation: OscillationState = OSCILLATION_REST;
   /** The picture's own edges — every mount and unmount of its surfaces, counted as it happens (`surfaceEdges.ts`). */
   let surfaceEdges: SurfaceEdges | undefined;
+  /** The page's own paint, witnessed while the game screen stands (`frameWitness.standPagePaintWitness`). */
+  let stopPagePaint: (() => void) | undefined;
   /** A QUESTION NOBODY CAN ANSWER (`promptAnswerable.ts`) — the question it was said of (one line per question). */
   let unanswerableTold = '';
   /** The liveness arbiter's last `accepting` (a surface takes input for the live question) — read by the ghost gate. */
@@ -345,10 +348,14 @@ export function createSupervisorController(shell: SupervisorPort) {
     noteSupervisorStarted();
     surfaceEdges?.stop();
     surfaceEdges = watchSurfaceEdges(document.body);
+    stopPagePaint?.();
+    stopPagePaint = standPagePaintWitness();
     beatStallTimer.value = consoleSessionScope().every(1000, 'the supervisor\'s tick', () => {
       if (passBrokenOnPurpose) {
         throw new Error('the supervisor\'s pass is broken on purpose (the pulse\'s control)');
       }
+      // (One look: the page's paint in the second that just ended is judged before anything reads the screen.)
+      notePageLook();
       checkLiveness();
       noteSupervisorPass();
     });
@@ -361,6 +368,8 @@ export function createSupervisorController(shell: SupervisorPort) {
     oscillation = OSCILLATION_REST;
     surfaceEdges?.stop();
     surfaceEdges = undefined;
+    stopPagePaint?.();
+    stopPagePaint = undefined;
     unanswerableTold = '';
     setDiagEvidenceProvider(undefined);
     beatStallTimer.value?.();
@@ -632,6 +641,8 @@ export function createSupervisorController(shell: SupervisorPort) {
       motionInFlight: inFlight.length > 0,
       // …and how long nothing has moved on the page: a blocking hold claiming a story while nothing plays is a dead end.
       stillMs: page.stillMs,
+      // …unless the page itself is not painting: nobody is looking at it, and nothing on it is dead.
+      pageStarved: pageStarvedNow() !== undefined,
     });
     const verdict = tickLiveness({
       now: Date.now(),

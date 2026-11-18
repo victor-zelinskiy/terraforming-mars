@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {createManualClock, FlowClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {
-  __resetFrameWitnessForTesting, LAG_BOOKED_MS, LAG_THRESHOLD_MS, STARVED_MIN_MS, starvedReason, watchFrames,
+  __resetFrameWitnessForTesting, LAG_BOOKED_MS, LAG_THRESHOLD_MS, notePageLook, pageStarvedNow, standPagePaintWitness, STARVED_MIN_MS, starvedReason, watchFrames,
 } from '@/client/console/kernel/frameWitness';
 import {beginCeilingWait, resetCeilingStats} from '@/client/console/waitGraph/ceilingWait';
 import {resetWaitGraph} from '@/client/console/waitGraph/waitGraph';
@@ -65,6 +65,51 @@ describe('frameWitness — a motion\'s bound is judged against the motion time t
     expect(starvedReason(3_400, 4_000, 1), 'one hiccup in four seconds is not a starved page').to.eq(undefined);
     expect(starvedReason(1_780, 1_780, 0)).to.eq(undefined);
     expect(starvedReason(33, 1_780, 1), 'no parenthesis: the reason is printed inside the line\'s own (planned: …)').not.to.match(/[()]/);
+  });
+
+  /*
+   * THE PAGE'S OWN PAINT, STANDING (stage 1 — «a hidden / starved page is a state the judges know»). CI's two-window
+   * pass: the second seat's page stands behind the first; the wait graph named its waits dead ends and the feed named
+   * its holds leaked — on a page nobody was looking at.
+   */
+  it('THE STANDING WITNESS: a page that paints is never starved; a page that stops painting is, within a look — and is not, a look after it paints again', () => {
+    expect(pageStarvedNow(), 'nobody witnesses: nothing is said').to.eq(undefined);
+    const stop = standPagePaintWitness();
+    for (let look = 0; look < 3; look++) {
+      clock.advance(1_000);
+      notePageLook();
+      expect(pageStarvedNow(), `look ${look}: a painting page`).to.eq(undefined);
+    }
+    // The window goes behind another: frames stop (the kernel's clock goes on — a timer still ticks there).
+    const page = stalledPage(clock);
+    setFlowClock(page.clock);
+    notePageLook();
+    clock.advance(1_000);
+    expect(pageStarvedNow(), 'the look in progress already says it').to.match(/^the page gave the motion \d+ of 1000 ms/);
+    notePageLook();
+    expect(pageStarvedNow(), 'and the look that ended is remembered while the next one is too young to say').to.match(/a page that does not paint$/);
+    clock.advance(1_000);
+    notePageLook();
+    expect(pageStarvedNow()).to.not.eq(undefined);
+    // It is looked at again: it paints, and one look later nothing is left of the starvation.
+    setFlowClock(clock);
+    notePageLook();
+    clock.advance(1_000);
+    notePageLook();
+    clock.advance(600);
+    expect(pageStarvedNow(), 'a page that paints again').to.eq(undefined);
+    stop();
+    stop();
+    expect(pageStarvedNow(), 'the game screen left: nothing is witnessed').to.eq(undefined);
+  });
+
+  it('the feed\'s line on a page that does not paint is PLANNED — a hold there outlives twelve seconds and has not leaked', () => {
+    const starved = '[notifications] 1 queued event(s) held behind an ANIMATION hold for over 12000ms — delivering anyway ' +
+      '(planned: the page gave the motion 33 of 1000 ms, 1 frame gap over 500 ms — a motion cannot keep its bound on a page that does not paint)';
+    const leaked = '[notifications] 1 queued event(s) held behind an ANIMATION hold for over 12000ms — delivering anyway (leaked hold: hand-open[notification-only])';
+    expect(causeOf(starved, 'warn')).to.deep.include({tier: 'planned'});
+    expect(causeOf(starved, 'warn')?.cls).to.match(/^notifications\/starvation-page/);
+    expect(causeOf(leaked, 'warn')).to.deep.include({tier: 'defect'});
   });
 
   it('a HEALTHY page gives a motion all of its time — whatever the frame rate, as long as no gap passes GSAP\'s threshold', () => {

@@ -45,6 +45,23 @@ describe('waitGraphModel', () => {
     expect(judgeWaitGraph(q, world({accepting: false, motionInFlight: false})).map((f) => f.kind)).to.deep.eq(['dead-end']);
   });
 
+  /*
+   * A PAGE NOBODY IS LOOKING AT (stage 1 — CI's two-window pass, 2026-11-18: the second seat's page stands behind the
+   * first, paints a frame a second or none, and three of its waits were named dead ends — «the player browses — B
+   * leaves cannot come», «take the revealed cards cannot come»). No press comes to such a page and no motion ends on
+   * it; nothing on it is dead.
+   */
+  it('on a page that is NOT PAINTING a press owed and a visible motion are not dead ends — it waits to be looked at; the moment it paints it is judged again', () => {
+    const q = [node('surface:card-actions', 'surface', [{kind: 'player', what: 'the player browses — B leaves'}])];
+    expect(judgeWaitGraph(q, world({accepting: false, motionInFlight: false, pageStarved: true}))).to.deep.eq([]);
+    expect(judgeWaitGraph(q, world({accepting: false, motionInFlight: false, pageStarved: false})).map((f) => f.kind)).to.deep.eq(['dead-end']);
+    const hold = [node('hold:rail-reward', 'hold', [{kind: 'motion', what: 'rail-reward', witnessed: true}], {boundMs: 35_000, recovery: 'hold-expire'})];
+    expect(judgeWaitGraph(hold, world({stillMs: WAIT_STILL_MOTION_MS, pageStarved: true})), 'a motion cannot end on a page that does not paint').to.deep.eq([]);
+    // …and a wait on the SERVER is the server's whatever the page does: nothing on the wire and no debt is still a dead end.
+    const answer = [node('question:option#3', 'question', [{kind: 'server', what: 'the answer'}])];
+    expect(judgeWaitGraph(answer, world({requestInFlight: false, serverOwes: false, pageStarved: true})).map((f) => f.kind)).to.deep.eq(['dead-end']);
+  });
+
   it('a VISIBLE motion with the page standing still is a dead end — a blocking hold claiming a story while nothing plays', () => {
     const hold = [node('hold:rail-reward', 'hold', [{kind: 'motion', what: 'rail-reward', witnessed: true}], {boundMs: 35_000, recovery: 'hold-expire'})];
     // The wait is 9 s old (since 1 000, now 10 000): the page still as long as the threshold → it cannot come.

@@ -19,6 +19,7 @@ import {
   registerFlowHoldSupplier,
 } from '@/client/components/presentation/presentationFlow';
 import {activeAnimationHoldDetails, activeAnimationHoldLabels, playerOwnedHolds} from '@/client/components/presentation/animationHold';
+import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {PendingQueueSummary, pendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {ackBotTurn} from '@/client/components/marsbot/botTurnAck';
 
@@ -260,10 +261,17 @@ export function promoteFromQueue(): void {
       // waits for a board the player keeps covered): the delivery at the bound is then the DESIGNED degraded mode,
       // said as such (counted, never an event). A hold nobody is waited for is the leak it always was.
       const owned = playerOwnedHolds();
+      // …and A PAGE THAT IS NOT PAINTING ends no animation at all (`frameWitness.pageStarvedNow` — behind another
+      // window, a hidden tab): every hold on it outlives twelve seconds, and none of them leaked.
+      const starved = pageStarvedNow();
       if (owned !== undefined) {
         console.warn(
           `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
           `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} (the holds wait for the player: ${owned})`);
+      } else if (starved !== undefined) {
+        console.warn(
+          `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
+          `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} (planned: ${starved})`);
       } else {
         console.warn(
           `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +

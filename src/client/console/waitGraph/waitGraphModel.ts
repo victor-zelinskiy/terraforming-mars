@@ -101,6 +101,12 @@ export type WaitWorld = {
    * a 35 s ceiling (the Hi-Tech Lab lesson: a cure after the player gave up is no cure).
    */
   stillMs?: number;
+  /**
+   * THE PAGE IS NOT PAINTING (`kernel/frameWitness.pageStarvedNow` — behind another window, a hidden tab, a starved
+   * compositor): no motion ends there and no press comes, because nobody is looking at it. A wait on such a page is
+   * not a dead end — it is waiting to be looked at; it is judged again the moment the page paints.
+   */
+  pageStarved?: boolean;
 };
 
 /** How long a witnessed motion may stand with nothing moving before it is judged unable to come. */
@@ -199,10 +205,10 @@ export function yieldingMember(nodes: ReadonlyArray<WaitNode>, members: Readonly
  */
 function externalCanCome(t: WaitTarget, world: WaitWorld, ageMs: number): boolean {
   switch (t.kind) {
-  case 'player': return world.accepting || world.motionInFlight === true;
+  case 'player': return world.accepting || world.motionInFlight === true || world.pageStarved === true;
   case 'server': return world.requestInFlight || world.serverOwes;
   // A motion is its own clock — unless it is a VISIBLE one and the page stood still as long as the wait has stood.
-  case 'motion': return t.witnessed !== true || Math.min(world.stillMs ?? 0, ageMs) < WAIT_STILL_MOTION_MS;
+  case 'motion': return t.witnessed !== true || world.pageStarved === true || Math.min(world.stillMs ?? 0, ageMs) < WAIT_STILL_MOTION_MS;
   case 'node': return true;
   }
 }

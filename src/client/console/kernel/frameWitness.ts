@@ -127,8 +127,61 @@ export function watchFrames(): FrameWatch {
   };
 }
 
+/*
+ * ── THE PAGE'S OWN PAINT, STANDING — a state every judge of the screen knows ────────────────────────────────────────
+ *
+ * A watch above answers «could THIS motion have kept its bound?». The judges that look at the whole screen once a
+ * second — the wait graph («a press cannot come»), the feed's starvation escape («a hold leaked») — ask something
+ * wider: IS THE PAGE PAINTING AT ALL? A page behind another window, a hidden tab, a starved compositor paints a frame
+ * a second or none: no motion ends there, no transition finishes, and no press comes — the player is at another
+ * window. Nothing on such a page is dead and nothing leaked; it is WAITING TO BE LOOKED AT (stage 1 of the second
+ * phase, PLAN § 8 — «a hidden / starved page is a state the judges know»; named by CI's two-window pass, 2026-11-18:
+ * six classes of seven were judges reading a page nobody was looking at).
+ *
+ * One standing watch while a game screen stands, rolled at every look of the supervisor (`notePageLook`): the page is
+ * STARVED when the look that just ended was (or the one in progress already is) — the same arithmetic as every
+ * watch, on the same clock.
+ */
+let standing: FrameWatch | undefined;
+let lastLook: string | undefined;
+
+/** The game screen stands: the page's paint is witnessed from now. Returns the stop (idempotent). */
+export function standPagePaintWitness(): () => void {
+  standing?.stop();
+  standing = watchFrames();
+  lastLook = undefined;
+  const mine = standing;
+  return () => {
+    mine.stop();
+    if (standing === mine) {
+      standing = undefined;
+      lastLook = undefined;
+    }
+  };
+}
+
+/** A look of the supervisor: the window that just ended is judged and remembered, the next one begins. */
+export function notePageLook(): void {
+  if (standing === undefined) {
+    return;
+  }
+  lastLook = standing.starved();
+  standing.stop();
+  standing = watchFrames();
+}
+
+/**
+ * WHY THE PAGE IS NOT PAINTING, right now — or `undefined` (it paints; or nobody is witnessing). True of the look in
+ * progress as soon as it can be said, of the look before it otherwise.
+ */
+export function pageStarvedNow(): string | undefined {
+  return standing === undefined ? undefined : standing.starved() ?? lastLook;
+}
+
 /** Tests only. */
 export function __resetFrameWitnessForTesting(): void {
+  standing = undefined;
+  lastLook = undefined;
   cancelNext?.();
   cancelNext = undefined;
   scheduledOn = undefined;
