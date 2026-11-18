@@ -145,6 +145,33 @@ describe('waitGraph registry', () => {
     expect(calls).to.deep.eq(['announce:task#9']);
   });
 
+  /*
+   * THE TIME A PAGE DID NOT PAINT IS BOOKED PER WAIT, TICK BY TICK (stage 1 — a bound on the clock of the thing it
+   * bounds). A scene bounded at five seconds, a window behind another for ten of its twelve: it is not overdue — and
+   * it is, four painted seconds later. A NEWER run of the same id starts with nothing booked.
+   */
+  it('a motion\'s bound does not run while the page does not paint — the registry books the unpainted span to every wait that stood through it', () => {
+    let since = 1_000;
+    registerWaitSource('t', () => [{id: 'flow:scene', family: 'flow', owner: 't', since, targets: [{kind: 'motion', what: 'the beats'}], boundMs: 5_000}]);
+    const tick = (now: number, pageStarved: boolean) => tickWaitGraph({...world(now), pageStarved});
+    tick(1_000, false);
+    tick(2_000, false);
+    for (let now = 3_000; now <= 12_000; now += 1_000) {
+      tick(now, true);
+    }
+    expect(waitGraphSnapshot().nodes[0].unpaintedMs, 'ten ticks on a page that did not paint').eq(10_000);
+    tick(13_000, false);
+    expect(warns.filter((w) => w.includes('overdue')), 'twelve seconds on the wall, two of them painted').to.deep.eq([]);
+    for (let now = 14_000; now <= 14_000 + (4 + WAIT_GRAPH_CONFIRM_TICKS) * 1_000; now += 1_000) {
+      tick(now, false);
+    }
+    expect(warns.filter((w) => w.includes('[wait-graph] overdue flow:scene')), 'past five PAINTED seconds it is overdue, once').to.have.length(1);
+    // Another run of the same id: nothing of the first one's book is its.
+    since = 30_000;
+    tick(30_000, false);
+    expect(waitGraphSnapshot().nodes[0].unpaintedMs).eq(undefined);
+  });
+
   it('a source that throws is named and skipped — the graph never dies with it', () => {
     registerWaitSource('bad', () => {
       throw new Error('boom');

@@ -17,7 +17,7 @@
 import {
   confirmWaitFindings, findingKey, initialWaitGraphConfirm, judgeWaitGraph, WaitFinding, WaitFindingKind, WaitGraphConfirm, WaitNode, WaitWorld,
 } from '@/client/console/waitGraph/waitGraphModel';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /** A node as a source returns it — `since` optional (the registry stamps the first sighting). */
 export type WaitNodeInput = Omit<WaitNode, 'since'> & {since?: number};
@@ -238,9 +238,44 @@ function actOn(finding: WaitFinding, nodes: ReadonlyArray<WaitNode>, now: number
   console.warn(`[wait-graph] cure ${finding.kind} — no member's door could yield (${finding.members.join(', ')}): a worklist row`);
 }
 
+/*
+ * THE TIME A PAGE DID NOT PAINT, per standing wait (`WaitNode.unpaintedMs`): every tick taken on a page that is not
+ * painting (`WaitWorld.pageStarved` — the standing witness's word) books the span since the tick before to every wait
+ * that stood through it. Keyed by the RUN (`id@since`): a newer wait of the same id starts with nothing.
+ */
+const unpainted = new Map<string, number>();
+let lastTickAt: number | undefined;
+// (The book is the running game's: a session that ends takes it down — the next game's waits start with nothing.)
+sessionState('wait-graph-unpainted', () => {
+  unpainted.clear();
+  lastTickAt = undefined;
+}, 667);
+
+function stampUnpainted(nodes: ReadonlyArray<WaitNode>, world: WaitWorld): Array<WaitNode> {
+  const span = lastTickAt === undefined ? 0 : Math.max(0, world.now - lastTickAt);
+  lastTickAt = world.now;
+  const runOf = (n: WaitNode): string => `${n.id}@${n.since}`;
+  const standing = new Set(nodes.map(runOf));
+  for (const run of [...unpainted.keys()]) {
+    if (!standing.has(run)) {
+      unpainted.delete(run);
+    }
+  }
+  if (world.pageStarved === true && span > 0) {
+    for (const n of nodes) {
+      // (Only the part of the span the wait itself stood through.)
+      unpainted.set(runOf(n), (unpainted.get(runOf(n)) ?? 0) + Math.min(span, Math.max(0, world.now - n.since)));
+    }
+  }
+  return nodes.map((n) => {
+    const ms = unpainted.get(runOf(n));
+    return ms === undefined ? n : {...n, unpaintedMs: ms};
+  });
+}
+
 /** One tick: read, judge, confirm, log the newly confirmed. Returns the confirmed findings of this tick. */
 export function tickWaitGraph(world: WaitWorld): Array<WaitFinding> {
-  const nodes = collectWaitNodes(world.now);
+  const nodes = stampUnpainted(collectWaitNodes(world.now), world);
   lastNodes = nodes;
   waitGraphStats.ticks++;
   waitGraphStats.maxNodes = Math.max(waitGraphStats.maxNodes, nodes.length);
@@ -279,6 +314,8 @@ export function resetWaitGraph(): void {
   sources.splice(0);
   declared.clear();
   firstSeen.clear();
+  unpainted.clear();
+  lastTickAt = undefined;
   confirm = initialWaitGraphConfirm();
   lastNodes = [];
   waitGraphStats.ticks = 0;

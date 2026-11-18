@@ -76,7 +76,32 @@ export type WaitNode = {
   recovery?: string;
   /** Free-form facts for the log (a stage, a prompt id). */
   detail?: string;
+  /**
+   * How much of its standing THE PAGE WAS NOT PAINTING (ms) — stamped by the registry, tick by tick, from the page's
+   * own witness (`WaitWorld.pageStarved`). A bound is measured on the clock of the thing it bounds
+   * ({@link boundClockOf}): this time is not a motion's, and not a player's.
+   */
+  unpaintedMs?: number;
 };
+
+/**
+ * THE CLOCK OF THE THING A BOUND BOUNDS (freeze zero, stage 1). A wait for the SERVER alone runs on the wall clock —
+ * the wire does not sleep when the window goes behind another, and an answer that does not come in its bound did not
+ * come. Every other wait — a motion, a press, a wait on other waits — runs on the PAINTED clock: on a page that is
+ * not painting no motion advances and nobody presses, so that time is not time the wait was given. (Until this, a
+ * node's bound was `now - since` whatever it bounded: a 30 s bound over a scene was spent by a window left behind
+ * another for half a minute.)
+ */
+export function boundClockOf(node: WaitNode): 'wall' | 'painted' {
+  const externals = node.targets.filter((t) => t.kind !== 'node');
+  return externals.length > 0 && externals.every((t) => t.kind === 'server') ? 'wall' : 'painted';
+}
+
+/** How long the node has stood ON ITS BOUND'S CLOCK (ms). */
+export function stoodOnBoundClock(node: WaitNode, now: number): number {
+  const wall = Math.max(0, now - node.since);
+  return boundClockOf(node) === 'wall' ? wall : Math.max(0, wall - Math.min(wall, node.unpaintedMs ?? 0));
+}
 
 /** The world the externals are judged against (read by the registry from the live screen). */
 export type WaitWorld = {
@@ -248,7 +273,8 @@ export function judgeWaitGraph(nodes: ReadonlyArray<WaitNode>, world: WaitWorld)
       });
       continue;
     }
-    if (n.boundMs !== undefined && world.now - n.since > n.boundMs) {
+    // (On the clock of the thing the bound bounds — `boundClockOf`: the time a page did not paint is no motion's.)
+    if (n.boundMs !== undefined && stoodOnBoundClock(n, world.now) > n.boundMs) {
       findings.push({kind: 'overdue', members: [n.id], ageMs: age([n.id]), why: `past its ${Math.round(n.boundMs / 1000)} s bound`});
       continue;
     }

@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {
-  confirmWaitFindings, initialWaitGraphConfirm, judgeWaitGraph, WAIT_GRAPH_CONFIRM_TICKS, WAIT_STILL_MOTION_MS, waitCycles, WaitNode, WaitWorld, yieldingMember,
+  boundClockOf, confirmWaitFindings, initialWaitGraphConfirm, judgeWaitGraph, stoodOnBoundClock, WAIT_GRAPH_CONFIRM_TICKS, WAIT_STILL_MOTION_MS, waitCycles, WaitNode,
+  WaitWorld, yieldingMember,
 } from '@/client/console/waitGraph/waitGraphModel';
 
 /*
@@ -60,6 +61,27 @@ describe('waitGraphModel', () => {
     // …and a wait on the SERVER is the server's whatever the page does: nothing on the wire and no debt is still a dead end.
     const answer = [node('question:option#3', 'question', [{kind: 'server', what: 'the answer'}])];
     expect(judgeWaitGraph(answer, world({requestInFlight: false, serverOwes: false, pageStarved: true})).map((f) => f.kind)).to.deep.eq(['dead-end']);
+  });
+
+  /*
+   * A BOUND IS MEASURED ON THE CLOCK OF THE THING IT BOUNDS (stage 1). A scene's thirty seconds are thirty seconds of
+   * a page that paints: a window left behind another for half a minute has not spent them. The server's answer is the
+   * wire's — it does not sleep with the window.
+   */
+  it('a bound over a motion runs on the PAINTED clock, a bound over the server on the wall clock', () => {
+    const scene = node('flow:scene', 'flow', [{kind: 'motion', what: 'the beats'}], {boundMs: 30_000});
+    const answer = node('submit#7', 'question', [{kind: 'server', what: 'the answer'}], {boundMs: 30_000});
+    expect(boundClockOf(scene)).to.eq('painted');
+    expect(boundClockOf(answer)).to.eq('wall');
+    expect(boundClockOf(node('flow:host', 'flow', [{kind: 'node', id: 'flow:scene'}], {boundMs: 30_000})), 'a wait on other waits is as painted as they are').to.eq('painted');
+    const late = world({now: scene.since + 45_000, requestInFlight: true});
+    // Forty-five seconds on the wall, twenty of them on a page that did not paint: twenty-five of the scene's thirty.
+    expect(stoodOnBoundClock({...scene, unpaintedMs: 20_000}, late.now)).to.eq(25_000);
+    expect(judgeWaitGraph([{...scene, unpaintedMs: 20_000}], late).map((f) => f.kind), 'the scene is inside its bound').to.deep.eq([]);
+    expect(judgeWaitGraph([scene], late).map((f) => f.kind), 'the same wall time on a page that painted is past it').to.deep.eq(['overdue']);
+    expect(judgeWaitGraph([{...answer, unpaintedMs: 20_000}], late).map((f) => f.kind), 'the wire did not sleep').to.deep.eq(['overdue']);
+    // (More unpainted time than the wait has stood is the registry's rounding, never a negative age.)
+    expect(stoodOnBoundClock({...scene, unpaintedMs: 99_000}, late.now)).to.eq(0);
   });
 
   it('a VISIBLE motion with the page standing still is a dead end — a blocking hold claiming a story while nothing plays', () => {
