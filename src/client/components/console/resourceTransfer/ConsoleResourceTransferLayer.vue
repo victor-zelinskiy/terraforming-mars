@@ -17,8 +17,11 @@
         </div>
       </ConsoleTeleport>
       <ConsoleTeleport defer to="[data-transfer-under]" :disabled="layerOf(f.id, 'end') !== 'under'">
+        <!-- `data-transfer-beat` names the flight the beat answers — the e2e transfer witness stamps a token's touchdown
+             on ITS OWN beat only (a token crossing a neighbour's beat on its way has not touched down — CI #43). -->
         <div class="con-transfer__beat"
              :class="{'con-transfer__beat--production': f.spec.channel === 'production', 'con-transfer__beat--vp': isVp(f.spec)}"
+             :data-transfer-beat="f.id"
              :ref="(el) => setBeatRef(f.id, el as HTMLElement | null)"></div>
         <!-- THE RECEIVER ANNOUNCES ITSELF (T06 — «ожидает»): a thin ring in the resource's tone over the destination
              from the token's birth to its touchdown (the director places it on the receiver's resting box). -->

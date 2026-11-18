@@ -1226,6 +1226,11 @@ export function surfaceEnterCancelledHook(el: Element): void {
 export function surfaceLeaveCancelledHook(el: Element): void {
   const id = surfaceIdOf(el);
   killLive(el);
+  // The surface STANDS again: it is no leaver any more — it answers the pointer, and a landing waiting for the
+  // leaves to end (`consoleRemotePlacement.awaitSurfacesLeft`) does not wait for it.
+  if (el instanceof HTMLElement) {
+    delete el.dataset.motionLeaving;
+  }
   // A cancelled section leave returns to the flow — drop the freeze; a
   // cancelled wheel leave (the player re-opened a selector mid-recession, so
   // Vue re-uses the very same element) drops its commit PIN and is centred by

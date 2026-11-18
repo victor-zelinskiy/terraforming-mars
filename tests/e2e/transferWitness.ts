@@ -344,10 +344,14 @@ export async function armTransferWitness(page: Page): Promise<void> {
     if (chips.length === 0) {
       return [];
     }
-    const beats = Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).filter(painted).map((b) => {
+    // THE TOKEN'S OWN BEAT (CI #43): a wave flies its tokens along one row, so a later token CROSSES an earlier one's
+    // face while that face's beat is painted — a beat of ANY flight stamped it «touched» there, before its own
+    // touchdown. A beat names its flight (`data-transfer-beat`), the chip too (`data-transfer-id`).
+    const beats = new Map<string, {x: number, y: number}>();
+    for (const b of Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__beat')).filter(painted)) {
       const r = b.getBoundingClientRect();
-      return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-    });
+      beats.set(b.dataset.transferBeat ?? '', {x: r.left + r.width / 2, y: r.top + r.height / 2});
+    }
     const out: Array<ChipPose> = [];
     for (const chip of chips) {
       const r = chip.getBoundingClientRect();
@@ -362,9 +366,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
       }
       const x = Math.round((r.left + r.width / 2) * 10) / 10;
       const y = Math.round((r.top + r.height / 2) * 10) / 10;
+      const beat = beats.get(chip.dataset.transferId ?? '');
       out.push({
         id, value: (chip.textContent ?? '').replace(/\s+/g, ''), x, y, under: classify(x, y),
-        touched: beats.some((b) => Math.hypot(b.x - x, b.y - y) <= Math.max(r.width, 24)),
+        touched: beat !== undefined && Math.hypot(beat.x - x, beat.y - y) <= Math.max(r.width, 24),
       });
     }
     return out;

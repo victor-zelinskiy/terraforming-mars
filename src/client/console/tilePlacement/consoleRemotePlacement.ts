@@ -79,6 +79,7 @@ import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {SpaceId} from '@/common/Types';
 import {probeTick} from '@/client/console/probeTick';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {flowClock} from '@/client/console/kernel/flowClock';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {
   AresAdjacencyFlight, ARES_WAVE_LEAD_MS,
@@ -187,6 +188,20 @@ export function registerBoardShownDespiteStack(probe: (() => boolean) | undefine
  *  workspace's own leave is still dissolving over the board it just vacated,
  *  and a tile landing under it is the same invisible flight one beat later. */
 const BOARD_SETTLE_MS = 320;
+
+/**
+ * …and the settle is a FLOOR, never the leave's length: the flight starts once it has passed AND no band surface is
+ * still painting its leave (`surfaceLeaveHook` marks a leaver `data-motion-leaving` until it is removed). On a starved
+ * frame the leave outlasts the 320 ms — CI #42: the Parliament sitting that stepped aside for the bot's city was still
+ * in the DOM 48 ms after the bot's proxy had mounted under it. Bounded: a leave that never ends is a stuck surface,
+ * and the tile flies (said by the wait's ceiling) rather than wait for it.
+ */
+const SURFACE_LEAVE_WAIT_MAX_MS = 1200;
+const SURFACE_LEAVE_POLL_MS = 40;
+
+function surfaceStillLeaving(): boolean {
+  return typeof document !== 'undefined' && document.querySelector('[data-motion-leaving]') !== null;
+}
 
 export const remotePlacementState = reactive({
   /**
@@ -1725,9 +1740,11 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
         // before it (measured on Water Export's observer: 0/9 read a beat
         // before the ocean lifted).
         remotePlacementState.waitingForBoard = false;
-        // The event awaits this — a RELEASE: it answers when the settle has passed, or when the stage is over.
-        (remoteRun.scope ?? consoleSessionScope()).guarantee(epoch === myEpoch ? motionMs(BOARD_SETTLE_MS) : 0,
-          'the board\'s settle before the landing', done);
+        // The event awaits this — a RELEASE: it answers when the settle has passed AND the surface that uncovered the
+        // board has left (both — the settle is the floor, the leave its event), or when the stage is over.
+        const settled = new Promise<void>((passed) => (remoteRun.scope ?? consoleSessionScope()).guarantee(
+          epoch === myEpoch ? motionMs(BOARD_SETTLE_MS) : 0, 'the board\'s settle before the landing', passed));
+        void Promise.all([settled, awaitSurfacesLeft(myEpoch)]).then(() => done());
         return;
       }
       armStageSafety();
@@ -1735,6 +1752,39 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
       (remoteRun.scope ?? consoleSessionScope()).guarantee(140, 'the next look at a busy board', poll);
     };
     poll();
+  });
+}
+
+/**
+ * Wait for every band surface still LEAVING to be gone (see `SURFACE_LEAVE_WAIT_MAX_MS`) — the landing never flies
+ * under a dissolving surface. Ends at once with the stage (an epoch moved on), and on its ceiling, named.
+ */
+function awaitSurfacesLeft(myEpoch: number): Promise<void> {
+  if (epoch !== myEpoch || !surfaceStillLeaving()) {
+    return Promise.resolve();
+  }
+  const maxMs = motionCeilingMs(SURFACE_LEAVE_WAIT_MAX_MS);
+  const deadline = flowClock().now() + maxMs;
+  const wait = beginCeilingWait({
+    id: 'remote-placement:surface-leave', owner: 'consoleRemotePlacement', what: 'the leave of the surface that uncovered the board',
+    maxMs,
+  });
+  return new Promise<void>((done) => {
+    const look = () => {
+      if (epoch !== myEpoch) {
+        wait.end();
+      } else if (!surfaceStillLeaving()) {
+        wait.met();
+      } else if (flowClock().now() >= deadline) {
+        wait.ceiling();
+      } else {
+        // A link of the landing's await — a RELEASE (the stage's end lets it go through the epoch above).
+        (remoteRun.scope ?? consoleSessionScope()).guarantee(SURFACE_LEAVE_POLL_MS, 'the next look at a leaving surface', look);
+        return;
+      }
+      done();
+    };
+    look();
   });
 }
 
