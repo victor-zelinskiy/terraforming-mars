@@ -228,6 +228,40 @@ describe('consoleForegroundWatchdog', () => {
       expect(notificationState.transient.length).eq(0);
       expect(notificationState.queue.length).eq(1, 'still queued, never lost');
     });
+
+    /*
+     * THE ESCAPE'S TWELVE SECONDS ARE AN ANIMATION'S (freeze zero, stage 1 — the bottle's monkey, seed fz5 ·
+     * sagitta-start): a backlog that stood a minute behind a surface the player was reading, then a cinematic began —
+     * and at once it was «held behind an ANIMATION hold for over 12000ms», delivered over the cinematic's first frames
+     * and filed as that hold's leak.
+     */
+    it('the clock starts when an ANIMATION takes the block over — a minute behind a surface the player reads is not its time', () => {
+      const warned: Array<string> = [];
+      const realWarn = console.warn;
+      console.warn = (...args: Array<unknown>) => warned.push(args.map(String).join(' '));
+      try {
+        const reading = acquireForegroundLease('ceremony');
+        queueOne('q1');
+        runForegroundWatchdog({surfaceRendered: true, promptLive: true});
+        clock += QUEUE_STARVATION_MS * 5;
+        runForegroundWatchdog({surfaceRendered: true, promptLive: true});
+        // The player is done reading; a cinematic begins in the same breath.
+        const hold = beginAnimationHold('watchdog-spec-delivery', {scope: 'notification-only'});
+        reading();
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        clock += 1_000;
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        expect(notificationState.transient.length, 'a second into the cinematic nothing is forced over it').eq(0);
+        expect(warned.filter((line) => line.includes('queued event')), 'and no hold is called a leak').to.deep.eq([]);
+        // The cinematic ends in its own time: the backlog flows, nothing was ever said.
+        hold.release();
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        expect(notificationState.transient.map((n) => n.id)).deep.eq(['q1']);
+        expect(warned.filter((line) => line.includes('queued event'))).to.deep.eq([]);
+      } finally {
+        console.warn = realWarn;
+      }
+    });
   });
 
   describe('the staleness mask', () => {

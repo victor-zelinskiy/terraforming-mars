@@ -211,7 +211,14 @@ function holdsSay(): string {
   return details.length === 0 ? '' : ` — ${details.join(' · ')}`;
 }
 
-/** When the current undelivered backlog started waiting (undefined = flowing). */
+/**
+ * When the current undelivered backlog started waiting BEHIND AN ANIMATION (undefined = flowing, or held by something
+ * a player is looking at). The escape's twelve seconds are an ANIMATION's — the clock of the thing it bounds (freeze
+ * zero, stage 1): it used to start with ANY block, so a backlog that stood a minute behind a surface the player was
+ * reading was «held behind an ANIMATION hold for over 12000ms» the tick a cinematic began, delivered over that
+ * cinematic's first frames and filed as its leak (the bottle's monkey, seed `fz5` · `sagitta-start`, 2026-11-18:
+ * «leaked hold: hand-delivery» over a hand delivery that had stood under five seconds).
+ */
 let queueBlockedSince: number | undefined;
 
 let starvationWarned = false;
@@ -246,12 +253,18 @@ export function promoteFromQueue(): void {
       queueBlockedSince = undefined;
       return;
     }
+    // (A block that is NOT an animation's is a player's time: the escape's clock does not run under it, and starts
+    // from nothing when an animation takes the block over.)
+    if (currentBlockReason() !== 'animation') {
+      queueBlockedSince = undefined;
+      return;
+    }
     const now = Date.now();
     if (queueBlockedSince === undefined) {
       queueBlockedSince = now;
       return;
     }
-    if (now - queueBlockedSince < QUEUE_STARVATION_MS || currentBlockReason() !== 'animation') {
+    if (now - queueBlockedSince < QUEUE_STARVATION_MS) {
       return;
     }
     if (!starvationWarned) {
