@@ -55,7 +55,10 @@ export const WAIT_FAMILY_RANK: Readonly<Record<WaitFamily, number>> = {
 /** What a node waits for. */
 export type WaitTarget =
   | {kind: 'node', id: string}
-  | {kind: 'player', what: string}
+  /** `accepts`: THIS press has a surface of its own standing on screen that takes it — whatever the frame under it
+   *  does (a reveal standing over a card's transient beat: the beat absorbs the pad, the reveal takes its A). Without
+   *  it a press is judged by the world's one answer («some surface accepts the live question»). */
+  | {kind: 'player', what: string, accepts?: boolean}
   | {kind: 'server', what: string}
   /** `witnessed`: the motion is a VISIBLE one — the page moves while it plays; a page standing still past
    *  `WAIT_STILL_MOTION_MS` (and the wait as old) proves it is not playing (the motion witness, `motionWitness.ts`). */
@@ -230,7 +233,7 @@ export function yieldingMember(nodes: ReadonlyArray<WaitNode>, members: Readonly
  */
 function externalCanCome(t: WaitTarget, world: WaitWorld, ageMs: number): boolean {
   switch (t.kind) {
-  case 'player': return world.accepting || world.motionInFlight === true || world.pageStarved === true;
+  case 'player': return t.accepts === true || world.accepting || world.motionInFlight === true || world.pageStarved === true;
   case 'server': return world.requestInFlight || world.serverOwes;
   // A motion is its own clock — unless it is a VISIBLE one and the page stood still as long as the wait has stood.
   case 'motion': return t.witnessed !== true || world.pageStarved === true || Math.min(world.stillMs ?? 0, ageMs) < WAIT_STILL_MOTION_MS;

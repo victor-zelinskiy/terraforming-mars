@@ -926,9 +926,15 @@ export function createSupervisorController(shell: SupervisorPort) {
         return announceId;
       }
       const id = `admission:${family}:${block}`;
+      // THE REVEAL TAKES ITS OWN PRESS (freeze zero, stage 1 — the seed of the day on CI, 2026-11-18 ·
+      // `red-lawyers-tr-first`, issue #47): «Получена карта» stood in the Parliament with «A Взять · B Взять всё» on
+      // the bar, over the played card's own transient beat — the world's one «accepting» is false there (a beat
+      // absorbs the pad), and the graph read a press that was being offered as one that «cannot come». The reveal on
+      // screen is the surface of this press; only a reveal that is mounted nowhere leaves it to the world's answer.
+      const revealStands = block === 'reveal' && document.querySelector('.con-reveal') !== null;
       out.push({
         id, family: 'admission', owner: 'consolePromptAdmission',
-        targets: block === 'reveal' ? [{kind: 'player', what: 'take the revealed cards'}] : [{kind: 'motion', what: block}],
+        targets: block === 'reveal' ? [{kind: 'player', what: 'take the revealed cards', ...(revealStands ? {accepts: true} : {})}] : [{kind: 'motion', what: block}],
         ...(block === 'reveal' ? {} : {boundMs: WAIT_ADMISSION_BOUND_MS[block]}),
         detail: `${family} held by ${block}`,
       });

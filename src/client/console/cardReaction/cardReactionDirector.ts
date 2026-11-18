@@ -1551,7 +1551,13 @@ async function waitDecisionClear(myEpoch: number): Promise<void> {
       return;
     }
     cardReactionState.waitingOnOther = true;
-    wait ??= beginCeilingWait({id: 'card-reaction:decision-clear', owner: 'cardReactionDirector', what: 'the decision at the centre taken', maxMs: DECISION_WAIT_MAX_MS});
+    // (WHO IS WAITED FOR: the player, deciding over the card at the centre. The bound is this wait's honest end by its
+    // nature — «past the bound it plays»: the chain goes on beside the decision. Said as such, never an event — the
+    // seed of the day on CI, 2026-11-18 · `parliament-urban-enacted`, issue #55.)
+    wait ??= beginCeilingWait({
+      id: 'card-reaction:decision-clear', owner: 'cardReactionDirector', what: 'the decision at the centre taken', maxMs: DECISION_WAIT_MAX_MS,
+      target: 'player', planned: 'the player keeps the decision at the centre — past its bound the chain plays beside it',
+    });
     await nextPaintedFrame();
   }
   closeReactionWait(wait, myEpoch);

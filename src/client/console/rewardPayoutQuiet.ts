@@ -149,7 +149,15 @@ export function boardStorySettling(): boolean {
  * the awaited scenes are DOING) the cap counts from their last change, bounded by `ceilingMs` from the start — a story
  * still moving is never cut short by a clock that started before it did (FLAKE ZERO Ф4, class N).
  */
-export type QuietWaitOpts = {maxMs?: number, alive?: () => boolean, who?: string, progress?: () => string, ceilingMs?: number};
+export type QuietWaitOpts = {
+  maxMs?: number, alive?: () => boolean, who?: string, progress?: () => string, ceilingMs?: number,
+  /**
+   * WHO KEEPS THE CONSOLE FROM BEING QUIET, asked at the ceiling: a phrase when it is the PLAYER (a reveal they have
+   * not taken, a card they are reading over it) — the ceiling is then this wait's honest end, said as planned; and
+   * `undefined` when it is a story that never ended (the defect the ceiling exists to name).
+   */
+  heldByPlayer?: () => string | undefined,
+};
 
 /**
  * WHAT THE BOARD'S STORY IS DOING RIGHT NOW — every term of `boardStorySettling` and the phases of the field's own
@@ -195,7 +203,7 @@ function waitQuiet(settling: () => boolean, what: string, opts?: QuietWaitOpts):
         deadline = Math.min(hard, Math.max(deadline, now + cap));
       }
       if (now >= deadline) {
-        node?.ceiling();
+        node?.ceiling(opts?.heldByPlayer?.());
         done();
         return;
       }

@@ -871,6 +871,11 @@ export function createPlacementController(shell: PlacementPort) {
     // the air. The ceiling bounds a story that keeps moving (the park's own safety bounds the whole wait).
     void waitConsoleQuiet(blocked, {
       alive: () => boardBeatsWatchable.value, who: 'board-beat-drain',
+      // (A reveal STANDING for the player is the player's time — the comment below; said so when the ceiling comes: the
+      // seed of the day on CI, 2026-11-18 · `parliament-openip-enacted`, issue #56 — a card read in the viewer over a
+      // draw the player had not taken, and the drain's wait filed three times as a story that never ended.)
+      heldByPlayer: () => (shell.rawAdmissionSignals.revealOpen && !scaleStorySceneSettling() ?
+        'the player keeps a reveal open — the scales\' story waits for the board that take uncovers' : undefined),
       progress: () => `${boardStoryProgress()}|${String(scaleStoryReadBlocked.value)}`, ceilingMs: BOARD_BEAT_DRAIN_QUIET_CEILING_MS,
     })
       .then(() => {

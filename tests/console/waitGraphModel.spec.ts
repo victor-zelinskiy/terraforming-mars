@@ -40,6 +40,17 @@ describe('waitGraphModel', () => {
     expect(judgeWaitGraph(plate, world({accepting: true})), 'reading is not a stall').to.deep.eq([]);
   });
 
+  /*
+   * THE PRESS HAS A SURFACE OF ITS OWN (CI's seed of the day, 2026-11-18 · red-lawyers-tr-first): a reveal stands over a
+   * card's transient beat — the beat absorbs the pad, so the world's one «accepting» is false; the reveal takes its A.
+   */
+  it('a press whose OWN surface stands on screen can come whatever the world says — without one it is the world\'s answer', () => {
+    const offered = [node('admission:host:reveal', 'admission', [{kind: 'player', what: 'take the revealed cards', accepts: true}])];
+    const nowhere = [node('admission:host:reveal', 'admission', [{kind: 'player', what: 'take the revealed cards'}])];
+    expect(judgeWaitGraph(offered, world({accepting: false})), 'the reveal is on screen: A is being offered').to.deep.eq([]);
+    expect(judgeWaitGraph(nowhere, world({accepting: false})).map((f) => f.kind), 'a reveal mounted nowhere is the dead end it was').to.deep.eq(['dead-end']);
+  });
+
   it('a press owed with nothing accepting is NOT a dead end while something moves on screen — the arbiter\'s own definition of a stall', () => {
     const q = [node('question:cardSelect#252', 'question', [{kind: 'player', what: 'answer the question'}])];
     expect(judgeWaitGraph(q, world({accepting: false, motionInFlight: true})), 'a hand-over / a scene in flight').to.deep.eq([]);
