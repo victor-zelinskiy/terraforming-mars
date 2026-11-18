@@ -229,6 +229,7 @@ export function noteChairmanQuestAnswer(): void {
   if (state !== undefined && state.awaitingSeatPick) {
     // The delegate pick is answered: the office can change hands now.
     state.awaitingSeatPick = false;
+    chairmanQuestFlow.awaitsPlayer = state.awaitingReaction;
     state.seatStarted = false;
   }
   maybeStartSeat();
@@ -262,6 +263,7 @@ function beatSeat(): void {
     // and the section hands its stage to the picker.
     chairmanQuestFlow.beat = 'seat';
     state.awaitingSeatPick = true;
+    chairmanQuestFlow.awaitsPlayer = true;
     return;
   }
   const change = parliamentHolds.chairAwaits;
@@ -452,6 +454,7 @@ function afterAnswer(): void {
   chairmanQuestFlow.beat = 'reaction';
   chairmanQuestFlow.stage = 'reaction';
   state.awaitingReaction = true;
+  chairmanQuestFlow.awaitsPlayer = true;
   // The pick is the player's: no animation hold stands over a decision (a ceiling over a reading fires as a leak).
   state.hold?.release();
   state.hold = undefined;
@@ -513,6 +516,7 @@ export function hurryChairmanQuestReaction(): boolean {
   }
   if (state.ctx.owesReaction?.() === undefined) {
     state.awaitingReaction = false;
+    chairmanQuestFlow.awaitsPlayer = state.awaitingSeatPick;
     state.reactionProbe?.kill();
     state.reactionProbe = undefined;
     finishRun();
@@ -540,6 +544,7 @@ export function noteChairmanQuestReactionAnswered(): void {
     return;
   }
   state.awaitingReaction = false;
+  chairmanQuestFlow.awaitsPlayer = state.awaitingSeatPick;
   state.reactionProbe?.kill();
   state.reactionProbe = undefined;
   scheduleReactionTail(state, () => finishRun());
@@ -672,6 +677,7 @@ export function killChairmanQuestBeats(): void {
     return;
   }
   state.killed = true;
+  chairmanQuestFlow.awaitsPlayer = false;
   for (const beat of state.beats) {
     beat.kill();
   }

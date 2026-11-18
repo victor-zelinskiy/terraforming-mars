@@ -20,6 +20,7 @@ import {clearPanelRewardHold, heldStock, takeDeclaredAnswers} from '@/client/con
 import {parliamentCrumbStage, parliamentCrumbSubject, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {chairmanQuestRunLive, chairmanQuestStalled, killChairmanQuestBeats, settleChairmanQuestBeats} from '@/client/console/parliament/chairmanQuestDirector';
+import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
 
 /*
  * «ПРЕДСЕДАТЕЛЬСТВО» — the flow's PURE half (probes 6 and 7 of
@@ -255,5 +256,33 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the chairman-quest flow', () 
     expect(chairmanQuestStalled(), 'a finished flow is not stalled — A closes it').is.false;
     killChairmanQuestBeats();
     resetChairmanQuestFlow();
+  });
+
+  /*
+   * WHO IS WAITED FOR DECIDES THE WAIT (FREEZE ZERO, stage 1 — the box, seed `fz3` · `arwind-chairman-quest`,
+   * 2026-11-18): the quest stood on the table's question — the pick is the player's, and the director had let its
+   * hold go for that very reason — while the wait graph still read the flow as a motion with thirty seconds to end:
+   * «overdue flow:chairman-quest — past its 30 s bound», a defect, over a decision the player had not made yet.
+   */
+  it('the quest as a wait: its beats are a bounded motion; a decision of the player and the closing A are the time of the player — unbounded, and the line names the beat', () => {
+    const quest = () => collectWaitNodes(1_000).find((node) => node.id === 'flow:chairman-quest');
+    expect(quest(), 'no flow, no wait').to.eq(undefined);
+    chairmanQuestFlow.live = true;
+    chairmanQuestFlow.beat = 'agenda';
+    expect(quest()).to.deep.include({boundMs: 30_000, detail: 'agenda'});
+    expect(quest()?.targets).to.deep.eq([{kind: 'motion', what: 'the beats (agenda)'}]);
+    // The table asks where the step's unit goes: the next thing to happen is the player's press.
+    chairmanQuestFlow.beat = 'reaction';
+    chairmanQuestFlow.awaitsPlayer = true;
+    expect(quest()?.targets).to.deep.eq([{kind: 'player', what: 'the player\'s decision (reaction)'}]);
+    expect(quest()?.boundMs, 'a decision has no bound').to.eq(undefined);
+    // The receipt of the same stage playing (no question) is the flow's own motion again.
+    chairmanQuestFlow.awaitsPlayer = false;
+    expect(quest()).to.deep.include({boundMs: 30_000, detail: 'reaction'});
+    chairmanQuestFlow.beat = 'done';
+    expect(quest()?.targets).to.deep.eq([{kind: 'player', what: 'A closes the chairmanship'}]);
+    expect(quest()?.boundMs).to.eq(undefined);
+    resetChairmanQuestFlow();
+    expect(chairmanQuestFlow.awaitsPlayer, 'a reset flow waits for nobody').is.false;
   });
 });

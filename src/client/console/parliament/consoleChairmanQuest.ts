@@ -87,12 +87,21 @@ export const chairmanQuestFlow = reactive({
   bonus: undefined as 'tr' | 'card' | undefined,
   /** The stage word of the table's answer to the step (TR78 — «Fighter»), set when the flow holds for it. */
   reactionKey: '',
+  /**
+   * THE FLOW STANDS ON THE PLAYER'S OWN DECISION — which seat the delegate leaves, or the table's question («ОТВЕТ
+   * СТОЛА»: where the step's unit goes). Its beats are a motion everywhere else; here the next thing to happen is a
+   * press, and the director has already let its hold go for that very reason. The wait graph reads it: a decision is
+   * the player's time, never a motion past its bound (the box, seed `fz3` · `arwind-chairman-quest`, 2026-11-18:
+   * «overdue flow:chairman-quest — past its 30 s bound» over a pick the player had not made yet).
+   */
+  awaitsPlayer: false,
 });
 
 function freshFlow() {
   return {
     live: false, stage: 'task' as ChairmanQuestStage, beat: '' as ChairmanQuestBeat, sent: false, answered: false,
     player: undefined, seatWas: undefined, seatSource: 'reserve' as const, move: undefined, bonus: undefined, reactionKey: '',
+    awaitsPlayer: false,
   };
 }
 
@@ -260,9 +269,15 @@ registerWaitSource('flow:chairman-quest', () => {
   if (!flow.live) {
     return [];
   }
+  // WHO IS WAITED FOR decides the wait: a decision of the player's (the seat, the table's question) and the closing A
+  // are the player's time — honest, unbounded, a dead end only when nothing on screen accepts the press; the beats in
+  // between are the flow's own motion, bounded.
+  const players = flow.beat === 'done' ? 'A closes the chairmanship' : flow.awaitsPlayer ? `the player's decision (${flow.beat})` : undefined;
   return [{
     id: 'flow:chairman-quest', family: 'flow', owner: 'chairmanQuest',
-    targets: [flow.beat === 'done' ? {kind: 'player', what: 'A closes the chairmanship'} : {kind: 'motion', what: `the beats (${flow.beat})`}],
-    ...(flow.beat === 'done' ? {} : {boundMs: 30_000}),
+    // (The beat it stands on — an overdue line that names only the flow sends its reader to reproduce it.)
+    detail: flow.beat,
+    targets: [players !== undefined ? {kind: 'player', what: players} : {kind: 'motion', what: `the beats (${flow.beat})`}],
+    ...(players !== undefined ? {} : {boundMs: 30_000}),
   }];
 });
