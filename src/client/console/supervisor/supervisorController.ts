@@ -987,11 +987,17 @@ export function createSupervisorController(shell: SupervisorPort) {
     // `dangling … surface:card-actions — not there` while the player browsed «Действия карт» over a pending plate).
     if (top !== undefined) {
       const reversible = !isTransientBeat(top.phase) && top.phase !== 'committed';
+      // A BEAT WHOSE STAGE SHOWS A REVEAL waits for the player's take, not for a motion (freeze zero, stage 1 — CI,
+      // the seed of the day · `red-lawyers-tr-first`, 6 of 6: «overdue surface:parliament (executing) — past its 12 s
+      // bound» while «Получена карта» stood with «A Взять» on the bar). The reveal takes its own press; the beat ends
+      // with it. A beat with no reveal over it is the bounded motion it always was.
+      const revealOverBeat = isTransientBeat(top.phase) && !owedNow.some((o) => o.kind === top.kind) && document.querySelector('.con-reveal') !== null;
       const targets: Array<WaitTarget> = owedNow.some((o) => o.kind === top.kind) ? [{kind: 'node', id: `conclusion:${top.kind}`}] :
-        isTransientBeat(top.phase) ? [{kind: 'motion', what: `${top.kind}:${top.phase}`}] :
-          questionId !== undefined && task !== undefined && frameServing(task.kind)?.kind === top.kind ? [{kind: 'node', id: questionId}] :
-            reversible ? [{kind: 'player', what: 'the player browses — B leaves'}] :
-              [{kind: 'player', what: 'B collapses / A continues'}];
+        revealOverBeat ? [{kind: 'player', what: 'take the revealed cards', accepts: true}] :
+          isTransientBeat(top.phase) ? [{kind: 'motion', what: `${top.kind}:${top.phase}`}] :
+            questionId !== undefined && task !== undefined && frameServing(task.kind)?.kind === top.kind ? [{kind: 'node', id: questionId}] :
+              reversible ? [{kind: 'player', what: 'the player browses — B leaves'}] :
+                [{kind: 'player', what: 'B collapses / A continues'}];
       // The node's age is the age of THIS PHASE of the frame, never of the frame (a hand that stood `committed` and then
       // `executing` read 47 s of a 12 s beat — the monkey's wg2 `stratospheric-expedition-sole`): its id stays the frame's
       // (the plate and the conclusion point at it), its `since` is re-stamped at every phase change.
@@ -1002,7 +1008,7 @@ export function createSupervisorController(shell: SupervisorPort) {
       }
       out.push({
         id: `surface:${top.kind}`, family: 'surface', owner: `workspace:${top.kind}`, targets, since: waitSurfacePhase.since,
-        ...(isTransientBeat(top.phase) && !owedNow.some((o) => o.kind === top.kind) ? {boundMs: WORKSPACE_BEAT_STALL_MS} : {}),
+        ...(isTransientBeat(top.phase) && !owedNow.some((o) => o.kind === top.kind) && !revealOverBeat ? {boundMs: WORKSPACE_BEAT_STALL_MS} : {}),
         detail: top.phase,
       });
     }
