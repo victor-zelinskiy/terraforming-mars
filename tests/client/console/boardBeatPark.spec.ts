@@ -22,7 +22,7 @@ import {
   boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending,
   changedGlobalParams, drainBoardBeatsIfDue,
   noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatStoryMember,
-  registerBoardWatchableProbe, releaseBoardBeatPark,
+  registerBoardCoverReasons, registerBoardWatchableProbe, releaseBoardBeatPark,
   resetBoardBeatPark,
 } from '@/client/console/boardBeatPark';
 import {
@@ -32,6 +32,7 @@ import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMot
 import {claimWorkspaceOutcome, resetWorkspaceOutcome} from '@/client/console/consoleWorkspaceOutcome';
 import {currentRevealEvent, drawnCardsState, DrawnCardEntry, registerRevealQueuePark} from '@/client/components/drawnCards/drawnCardsState';
 import {HeldGlobalParams} from '@/client/console/planetFocus';
+import {causeOf} from '@/common/diagnostics/cause';
 
 function gameWith(partial: Partial<GameModel>): GameModel {
   return {
@@ -387,5 +388,71 @@ describe('boardBeatPark', function() {
     watchable = false;
     settlePresentationDue();
     expect(redriven).to.equal(1);
+  });
+
+  /*
+   * WHOSE WAIT A DEGRADE WAS — THE DRAIN IS THE WITNESS (the monkey under a reload, 2026-11-18: «the board was seen»
+   * with a section and a workspace over it, filed as a defect, and nothing in the line to tell a board the player
+   * CROSSED from a board that stood open while the drain never ran). The story's own diagnose says what the drain
+   * did with every board it saw, and the tier is read from that.
+   */
+  const tierOfTheDegrade = (): {why: Record<string, unknown>, tier: string | undefined} => {
+    const why = presentationLedgerSnapshot().stories.find((s) => s.id === 'board-beat-park')?.why ?? '{}';
+    return {
+      why: JSON.parse(why),
+      tier: causeOf(`[presentation-ledger] story «board-beat-park» degraded after 30s — the release edge never came — ${why}`, 'warn')?.tier,
+    };
+  };
+
+  it('a board the player CROSSED — seen, drained, covered again before the settle — is the player\'s wait, and says so', async () => {
+    registerBoardCoverReasons(() => (watchable ? [] : ['section', 'workspace']));
+    watchable = false;
+    noteBoardScaleAdvance(gameWith({oceans: 0}), gameWith({oceans: 1}));
+    settlePresentationDue();
+    // The player crosses the board twice — each time for less than the drain's settle. The drain is opened once by
+    // the ledger's own look (it sees the board and re-drives) and once by the shell's watchable edge (a direct call).
+    const crossings = [() => settlePresentationDue(), () => drainBoardBeatsIfDue()];
+    for (const open of crossings) {
+      watchable = true;
+      open();
+      expect(boardBeatParkState.draining, 'the drain opened').to.equal(true);
+      watchable = false;
+      await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + 60);
+      expect(boardBeatParkState.draining, 'covered again: re-parked').to.equal(false);
+    }
+    const {why, tier} = tierOfTheDegrade();
+    expect(why).to.deep.include({watchable: false, watchableSeen: true, drains: 2, coveredAgain: 2});
+    // (ONE look saw the board — the ledger's; how many looks the window had in all is the heartbeat's own count.)
+    expect(why.looks).to.match(/^1\/\d+$/);
+    expect(why.coveredAgainBy).to.have.members(['section', 'workspace']);
+    expect(boardBeatParkState.heldParams, 'still held: the story was never told').to.deep.equal({oceans: 0});
+    expect(tier).to.equal('planned');
+  });
+
+  it('a board that stood open while no drain ran is a DEFECT — and a drain the game\'s own scene covered is one too', async () => {
+    // The re-drive is refused by something of the shell's (here: a hook that does nothing) — the board was seen, no drain opened.
+    registerBoardCoverReasons(() => (watchable ? [] : ['workspace']));
+    registerBoardBeatRedrive(() => {});
+    watchable = false;
+    noteBoardScaleAdvance(gameWith({oceans: 0}), gameWith({oceans: 1}));
+    watchable = true;
+    settlePresentationDue();
+    watchable = false;
+    const stood = tierOfTheDegrade();
+    expect(stood.why).to.deep.include({watchableSeen: true, looks: '1/1', drains: 0, coveredAgain: 0});
+    expect(stood.tier).to.equal('defect');
+
+    // …and a drain covered again by the GAME's scene (a sitting on its way up) is not the player's wait.
+    releaseBoardBeatPark();
+    registerBoardBeatRedrive(undefined as never);
+    registerBoardCoverReasons(() => (watchable ? [] : ['workspace', 'sitting-rise']));
+    noteBoardScaleAdvance(gameWith({oceans: 1}), gameWith({oceans: 2}));
+    watchable = true;
+    settlePresentationDue();
+    watchable = false;
+    await delay(consoleMotionMs(BOARD_BEAT_SETTLE_MS) + 60);
+    const scene = tierOfTheDegrade();
+    expect(scene.why).to.deep.include({drains: 1, coveredAgain: 1});
+    expect(scene.tier).to.equal('defect');
   });
 });

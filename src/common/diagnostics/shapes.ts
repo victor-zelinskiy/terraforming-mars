@@ -80,8 +80,15 @@ const PLAYER_BOARD_COVERS: ReadonlySet<string> = new Set(['section', 'sheet', 'w
 
 /**
  * A degraded board story's diagnose (`boardBeatPark` — `{"watchable":…, "watchableSeen":…, "coveredBy":[…]}`): was it
- * the honest wait — the board never watchable in the whole window, and every cover the player's own? A line printed
+ * the honest wait — every cover the player's own, and the board never open long enough to be told? A line printed
  * before `coveredBy` existed answers by `watchable` alone (its old reading).
+ *
+ * «Never open long enough» is the DRAIN's own word, never a guess from one look: the board was not seen at all — or
+ * it was seen, the drain opened (`drains` > 0) and EVERY drain ended «covered again before anything released»
+ * (`coveredAgain` === `drains`) by the player's own covers (`coveredAgainBy`): the player crossed the board for less
+ * than the drain's settle, which re-parks by design. A board seen with no drain opened, or a drain that neither
+ * released nor was covered again, or a cover of the game's own (a sitting on its way up, the camera) is a defect. A
+ * line of a build before the drain spoke (`drains` absent) keeps the stricter reading: seen = defect.
  */
 export function storyCoveredByPlayer(body: string): boolean {
   if (!/"watchable":\s*false/.test(body)) {
@@ -91,11 +98,22 @@ export function storyCoveredByPlayer(body: string): boolean {
   if (covered === null) {
     return true;
   }
-  if (/"watchableSeen":\s*true/.test(body)) {
+  const namesOf = (list: string): Array<string> => list.split(',').map((s) => s.trim().replace(/^"|"$/g, '')).filter((s) => s !== '');
+  const names = namesOf(covered[1]);
+  if (names.length === 0 || !names.every((n) => PLAYER_BOARD_COVERS.has(n))) {
     return false;
   }
-  const names = covered[1].split(',').map((s) => s.trim().replace(/^"|"$/g, '')).filter((s) => s !== '');
-  return names.length > 0 && names.every((n) => PLAYER_BOARD_COVERS.has(n));
+  if (!/"watchableSeen":\s*true/.test(body)) {
+    return true;
+  }
+  const drains = Number(/"drains":\s*(\d+)/.exec(body)?.[1] ?? Number.NaN);
+  const again = Number(/"coveredAgain":\s*(\d+)/.exec(body)?.[1] ?? Number.NaN);
+  const againBy = /"coveredAgainBy":\s*\[([^\]]*)\]/.exec(body);
+  if (!(drains > 0) || again !== drains || againBy === null) {
+    return false;
+  }
+  const by = namesOf(againBy[1]);
+  return by.length > 0 && by.every((n) => PLAYER_BOARD_COVERS.has(n));
 }
 
 /** The node ids of a wait-graph finding's member list (`id (owner: detail) · id (owner)`), sorted — a cycle has no first member. */

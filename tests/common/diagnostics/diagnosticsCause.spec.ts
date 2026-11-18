@@ -92,6 +92,16 @@ describe('diagnostics cause — the class is the line\'s structure, never its wo
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["workspace","planet-focus"],"pending":true}')).to.eq('defect');
     // The board WAS watchable at some look of the window and the story still was not told: a defect.
     expect(story('{"watchable":false,"watchableSeen":true,"coveredBy":["workspace"],"pending":true}')).to.eq('defect');
+    // SEEN, AND WHAT THE DRAIN DID WITH IT (the drain is the witness — never one look): the player CROSSED the board —
+    // every drain the window opened was covered again by the player's own covers before its settle — an honest wait…
+    const seen = (rest: string) => story(`{"watchable":false,"watchableSeen":true,"looks":"2/30",${rest},"coveredBy":["section","workspace"],"pending":true}`);
+    expect(seen('"drains":2,"coveredAgain":2,"coveredAgainBy":["workspace","section"]')).to.eq('planned');
+    // …the board stood open and no drain ever opened; a drain that neither released nor was covered again; a drain
+    // covered again by the GAME's own scene — each is a defect.
+    expect(seen('"drains":0,"coveredAgain":0,"coveredAgainBy":[]')).to.eq('defect');
+    expect(seen('"drains":2,"coveredAgain":1,"coveredAgainBy":["workspace"]')).to.eq('defect');
+    expect(seen('"drains":1,"coveredAgain":1,"coveredAgainBy":["sitting-rise"]')).to.eq('defect');
+    expect(seen('"drains":1,"coveredAgain":1,"coveredAgainBy":["workspace","planet-focus"]')).to.eq('defect');
     // Not watchable, yet no term names a cover (a probe that disagrees with its own verdict): a defect, never silence.
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":[],"pending":true}')).to.eq('defect');
     // Another board story (a snapshot, no window) answers by its cover alone.

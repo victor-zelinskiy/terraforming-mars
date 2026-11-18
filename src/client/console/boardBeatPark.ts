@@ -267,6 +267,25 @@ export function boardCoverReasonsNow(): Array<string> {
 /** Was the board watchable at ANY look of the owed story's window? (A degrade's verdict is the whole window's, never one snapshot's.) */
 let watchableSeen = false;
 
+/**
+ * WHAT THE DRAIN DID WITH THE BOARD IT SAW, over the owed story's window. «Seen» alone cannot tell two windows apart:
+ * a board that stood open while the drain never ran (a defect), and a board the player CROSSED — open for less than
+ * the drain's own settle (`BOARD_BEAT_SETTLE_MS`, after a leaving surface), then covered again, which re-parks by
+ * design (the monkey under a reload, 2026-11-18: `watchableSeen: true` behind a section and a workspace, filed as a
+ * defect with nothing in the line to say which). The drain itself is the witness: how many looks saw the board, how
+ * many drains it opened, how many of them ended «covered again before anything released», and BY WHAT.
+ */
+const parkWindow = {looks: 0, seen: 0, drains: 0, coveredAgain: 0, coveredAgainBy: new Set<string>()};
+
+function resetParkWindow(): void {
+  watchableSeen = false;
+  parkWindow.looks = 0;
+  parkWindow.seen = 0;
+  parkWindow.drains = 0;
+  parkWindow.coveredAgain = 0;
+  parkWindow.coveredAgainBy.clear();
+}
+
 /** Is the park LIVE — a shell registered its watchable verdict? Without one the module is inert (desktop / tests). */
 export function boardBeatParkLive(): boolean {
   return watchableProbeRef.value !== undefined;
@@ -341,7 +360,7 @@ let drainTimers: Array<() => void> = [];
 function clearSafety(): void {
   ledgerStory?.settle();
   ledgerStory = undefined;
-  watchableSeen = false;
+  resetParkWindow();
 }
 
 function clearDrainTimers(): void {
@@ -363,14 +382,16 @@ function armSafety(): void {
   if (ledgerStory !== undefined) {
     return;
   }
-  watchableSeen = false;
+  resetParkWindow();
   ledgerStory = owePresentation({
     id: 'board-beat-park',
     ready: () => {
       // Every look of the ledger's heartbeat is a sample of the window — the degrade reports whether ANY saw the board.
       const watchable = boardWatchable();
+      parkWindow.looks++;
       if (watchable) {
         watchableSeen = true;
+        parkWindow.seen++;
       }
       return watchable && boardBeatParkPending() && !boardBeatParkState.draining && !boardBeatParkState.sceneHeld;
     },
@@ -383,11 +404,16 @@ function armSafety(): void {
     // design); `watchable: true` is the interesting case — the drain was
     // re-driven for 30 s over an open board and something in its own quiet
     // gate (scene settling / read admission) never let it run.
-    // `coveredBy` + `watchableSeen` decide the TIER (`shapes.ts` story-due): an honest wait only when the board was
-    // never watchable in the whole window AND only the player's own choices covered it; anything else is a defect.
+    // `coveredBy` + `watchableSeen` + what the drain did decide the TIER (`shapes.ts` story-due): an honest wait only
+    // when the player's own choices covered the board — for the whole window, or again each time the drain opened
+    // (`drains` === `coveredAgain`, every `coveredAgainBy` the player's); anything else is a defect.
     diagnose: () => ({
       watchable: boardWatchable(),
       watchableSeen,
+      looks: `${parkWindow.seen}/${parkWindow.looks}`,
+      drains: parkWindow.drains,
+      coveredAgain: parkWindow.coveredAgain,
+      coveredAgainBy: [...parkWindow.coveredAgainBy],
       coveredBy: [...(coverReasonsProbe?.() ?? [])],
       pending: boardBeatParkPending(),
       draining: boardBeatParkState.draining,
@@ -621,6 +647,7 @@ export function drainBoardBeatsIfDue(): void {
   clearDrainTimers();
   boardBeatParkState.draining = true;
   boardBeatParkState.nonce++;
+  parkWindow.drains++;
   // The BLOCKING story window opens with the drain when values are owed —
   // a follow-up modal must not land during the settle gap either, or it
   // covers the very release it is about to explain.
@@ -634,7 +661,11 @@ export function drainBoardBeatsIfDue(): void {
   scheduleSettle(() => {
     if (!boardWatchable()) {
       // Covered again before anything released — everything stays held; the
-      // next watchable edge re-runs the whole drain.
+      // next watchable edge re-runs the whole drain. (Said to the window: WHO covered it decides whose wait this was.)
+      parkWindow.coveredAgain++;
+      for (const reason of coverReasonsProbe?.() ?? []) {
+        parkWindow.coveredAgainBy.add(reason);
+      }
       boardBeatParkState.draining = false;
       endScaleStory();
       return;
@@ -772,7 +803,7 @@ export function resetBoardBeatPark(): void {
   setBoardSwingDisplay(undefined);
   watchableProbeRef.value = undefined;
   coverReasonsProbe = undefined;
-  watchableSeen = false;
+  resetParkWindow();
   surfaceLeavingProbe = undefined;
   redriveHook = undefined;
   liveParamsSource = undefined;

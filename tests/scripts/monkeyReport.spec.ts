@@ -55,6 +55,36 @@ describe('the monkey\'s report — a run summed by cause class', () => {
     expect(report.nets['liveness/stall'].per1000Presses).to.eq(3.33);
   });
 
+  it('A CLASS IS AS BAD AS ITS WORST RECORD: a defect behind a planned record of the same class is named, gated and re-runnable', async () => {
+    const {aggregateCauseFiles, compareReports, gateVerdict, renderReport} = await load();
+    // One class, read at two tiers by who owned the wait (`shapes.ts` story-due) — the planned one is met FIRST.
+    const PARK = 'presentation-ledger/story-due/board-beat-park';
+    const report = aggregateCauseFiles([
+      walk('a-covered-by-the-player', [rec(PARK, 'planned')]),
+      walk('b-seen-and-not-told', [rec(PARK, 'defect')]),
+      walk('c-covered-again', [rec(PARK, 'planned')]),
+    ]);
+    expect(report.totals.defects).to.eq(1);
+    expect(report.classes[PARK]).to.deep.include({tier: 'defect', tests: 3, records: 3});
+    expect((report.classes[PARK] as unknown as {tiers: Record<string, number>}).tiers).to.deep.eq({planned: 2, defect: 1});
+    expect(report.classes[PARK].first, 'the record to re-run is the DEFECT, never the first one met').to.deep.include({title: 'monkey · b-seen-and-not-told', seed: 's:b-seen-and-not-told'});
+    expect(report.nets['presentation-ledger/story-due'].tier).to.eq('defect');
+    const before = aggregateCauseFiles([walk('a-covered-by-the-player', [rec(PARK, 'planned')])]);
+    const diff = compareReports(report, before);
+    expect(diff.newClasses, 'the earlier run held it as a planned wait only').to.deep.eq([PARK]);
+    expect(gateVerdict(report, diff).pass).to.eq(false);
+    const text = renderReport(report, diff);
+    expect(text).to.contain('── DEFECT classes (1) ──');
+    expect(text).to.contain(`${PARK}   {planned 2, defect 1}`);
+    expect(text).to.contain('seed s:b-seen-and-not-told');
+    // …and an episode's inner net raises a class the same way.
+    const inner = aggregateCauseFiles([
+      walk('a', [rec(CEILING, 'planned')]),
+      walk('b', [rec(STALL, 'defect', {outcome: 'healed', stoodS: 9, cure: 'x', nets: [{cls: CEILING, tier: 'defect', n: 1}]})]),
+    ]);
+    expect(inner.classes[CEILING].tier).to.eq('defect');
+  });
+
   it('a retried test counts by its LAST run', async () => {
     const {aggregateCauseFiles} = await load();
     const report = aggregateCauseFiles([

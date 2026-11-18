@@ -82,8 +82,35 @@ export function aggregateCauseFiles(files) {
   const classes = {};
   const nets = {};
   const totals = {tests: last.size, walks: 0, presses: 0, records: 0, defects: 0, episodes: 0, notCured: 0, outcomes: {}};
-  const row = (cls, tier) => classes[cls] ?? (classes[cls] = {tier, shape: shapeOfClass(cls), tests: 0, records: 0, lines: 0, outcomes: {}, worstStoodS: 0, first: undefined});
-  const net = (shape, tier) => nets[shape] ?? (nets[shape] = {tier, records: 0, lines: 0, tests: 0});
+  /*
+   * A CLASS IS AS BAD AS ITS WORST RECORD. One class may be read at two tiers — the same line is an honest wait or a
+   * defect by WHO OWNED the wait (`shapes.ts` `read`: a story the player kept covered, a story the board saw and did
+   * not tell). The class once took the tier of the FIRST record met, in the order of the files: on 2026-11-18 a run
+   * counted «defects 1» and named no defect class — the defect stood behind a planned record of another table, the
+   * gate passed and nothing was filed. The tier rises to the worst record's, and `first` is the first record OF THAT
+   * TIER (the one to re-run); `tiers` says how many records were read at each.
+   */
+  const RANK = {info: 0, planned: 1, defect: 2};
+  const raised = (holder, tier) => {
+    if ((RANK[tier] ?? 0) > (RANK[holder.tier] ?? 0)) {
+      holder.tier = tier;
+      return true;
+    }
+    return false;
+  };
+  const row = (cls, tier) => {
+    const c = classes[cls] ?? (classes[cls] = {tier, shape: shapeOfClass(cls), tests: 0, records: 0, lines: 0, outcomes: {}, worstStoodS: 0, first: undefined, tiers: {}});
+    if (raised(c, tier)) {
+      c.first = undefined;
+    }
+    c.tiers[tier] = (c.tiers[tier] ?? 0) + 1;
+    return c;
+  };
+  const net = (shape, tier) => {
+    const n = nets[shape] ?? (nets[shape] = {tier, records: 0, lines: 0, tests: 0});
+    raised(n, tier);
+    return n;
+  };
   for (const f of [...last.values()].sort((a, b) => `${a.file}${a.title}`.localeCompare(`${b.file}${b.title}`))) {
     if (f.monkey !== undefined) {
       totals.walks++;
@@ -100,7 +127,9 @@ export function aggregateCauseFiles(files) {
         seenClass.add(r.cls);
         c.tests++;
       }
-      c.first ??= {file: f.file, title: f.title, seed: f.monkey?.seed, atMs: r.atMs, line: r.title, dims: r.dims};
+      if (r.tier === c.tier) {
+        c.first ??= {file: f.file, title: f.title, seed: f.monkey?.seed, atMs: r.atMs, line: r.title, dims: r.dims};
+      }
       const n = net(r.shape ?? shapeOfClass(r.cls), r.tier);
       n.records++;
       n.lines += r.lines ?? 1;
@@ -303,7 +332,9 @@ export function renderReport(report, diff) {
     L.push(`── ${tier.toUpperCase()} classes (${of.length}) ──`);
     for (const [cls, c] of of) {
       const outcomes = Object.entries(c.outcomes).map(([k, v]) => `${k} ${v}`).join(', ');
-      L.push(`${String(c.tests).padStart(4)} test(s) ${String(c.records).padStart(5)} rec  ${cls}${outcomes !== '' ? `   [${outcomes}; worst ${c.worstStoodS}s]` : ''}`);
+      // (A class read at two tiers says so: «2 rec» of a defect class may be one defect and one honest wait.)
+      const mixed = Object.keys(c.tiers ?? {}).length > 1 ? `   {${Object.entries(c.tiers).map(([k, v]) => `${k} ${v}`).join(', ')}}` : '';
+      L.push(`${String(c.tests).padStart(4)} test(s) ${String(c.records).padStart(5)} rec  ${cls}${mixed}${outcomes !== '' ? `   [${outcomes}; worst ${c.worstStoodS}s]` : ''}`);
       if (tier === 'defect' && c.first !== undefined) {
         L.push(`       first: ${c.first.file} › ${c.first.title}${c.first.seed !== undefined ? `  (seed ${c.first.seed})` : ''}`);
       }
