@@ -29,7 +29,7 @@ import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
 import {observeStillHold, pageMoves, StillHoldState} from '@/client/console/waitGraph/motionWitness';
-import {advanceLivenessRung, LAST_LINE_REST, LastLineState, lastLineStep, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
+import {advanceLivenessRung, LAST_LINE_REST, LastLineState, lastLineStep, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, PAD_OWNING_OVERLAY_SELECTOR, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {rebuildConsoleSession} from '@/client/console/session/sessionRebuild';
 import {noteSupervisorPass, noteSupervisorStarted, noteSupervisorStopped} from '@/client/console/session/supervisorPulse';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
@@ -745,8 +745,9 @@ export function createSupervisorController(shell: SupervisorPort) {
       return false;
     }
     // A surface of its OWN standing over the frame takes B by its own contract (a reveal is taken with A, the
-    // announce plate is answered, the viewer / journal / system menu own the pad): there B may honestly do nothing.
-    return document.querySelector('.con-reveal, .con-mandatory, .con-zoom, .con-journal, .con-sys, .con-task, .con-stranded') === null;
+    // announce plate is answered, the viewer / journal / system menu / information screen own the pad): there B may
+    // honestly do nothing — `consoleLiveness.PAD_OWNING_OVERLAYS`, each with its reason.
+    return document.querySelector(PAD_OWNING_OVERLAY_SELECTOR) === null;
   }
 
   /** The transient beat the arbiter judges (`workspaceBeatStall.ts`): the stack's TOP frame's (`<kind>:<phase>`), or

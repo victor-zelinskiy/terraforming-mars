@@ -1,4 +1,6 @@
 import {expect} from 'chai';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   advanceLivenessRung,
   initialLivenessState,
@@ -12,6 +14,8 @@ import {
   LivenessRung,
   livenessLadder,
   observeLiveness,
+  PAD_OWNING_OVERLAY_SELECTOR,
+  PAD_OWNING_OVERLAYS,
   registerLivenessRelease,
   resetLiveness,
   restoreLivenessLadderForTest,
@@ -226,5 +230,32 @@ describe('consoleLiveness', () => {
     expect(tickLiveness(sample(LIVENESS_GRACE_MS)).stalled).is.true;
     resetLiveness();
     expect(tickLiveness(sample(LIVENESS_GRACE_MS + 1000)).stalled).is.false;
+  });
+
+  /*
+   * THE SURFACES THAT OWN THE PAD OVER A STANDING FRAME (freeze zero, stage 1 - CI's seed of the day, 2026-11-18,
+   * parliament-research-enact: a player reading the information screen over a Parliament that had asked them to take
+   * drawn cards was a stall of 33 s, and the ladder took the Parliament down under them). On such a surface a B that
+   * leaves the frame alone is the surface working - the arbiter does not judge it.
+   */
+  describe('the surfaces that own the pad over a standing frame', () => {
+    const components = path.resolve(__dirname, '../../src/client/components/console');
+    const vue = (dir: string): Array<string> => fs.readdirSync(dir, {withFileTypes: true}).flatMap((entry) =>
+      entry.isDirectory() ? vue(path.join(dir, entry.name)) : entry.name.endsWith('.vue') ? [path.join(dir, entry.name)] : []);
+    const sources = vue(components).map((file) => fs.readFileSync(file, 'utf8')).join(String.fromCharCode(10));
+
+    it('the information screen and the opened turn review are among them, and every row says why', () => {
+      const selectors = PAD_OWNING_OVERLAYS.map((overlay) => overlay.selector);
+      expect(selectors).to.include.members(['.con-info', '.con-bot-review', '.con-journal', '.con-zoom', '.con-sys', '.con-reveal', '.con-mandatory']);
+      expect(PAD_OWNING_OVERLAYS.filter((overlay) => overlay.why.trim().length < 12).map((overlay) => overlay.selector), 'a row with no reason').to.deep.eq([]);
+      expect(new Set(selectors).size, 'no row twice').to.eq(selectors.length);
+      expect(PAD_OWNING_OVERLAY_SELECTOR.split(', ')).to.deep.eq(selectors);
+    });
+
+    it('no row is dead: every surface of the list is a class some console component still mounts', () => {
+      const dead = PAD_OWNING_OVERLAYS.map((overlay) => overlay.selector.slice(1))
+        .filter((name) => !new RegExp('class="[^"]*\\b' + name + '(?![\\w-])').test(sources));
+      expect(dead, 'a listed surface no component mounts - the class was renamed or the surface is gone').to.deep.eq([]);
+    });
   });
 });

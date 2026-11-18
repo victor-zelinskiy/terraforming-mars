@@ -236,6 +236,35 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
   };
 }
 
+/*
+ * ── THE SURFACES THAT OWN THE PAD OVER A STANDING FRAME ─────────────────────────────────────────────────────────────
+ *
+ * On a frame past its commit, with the server asking, the arbiter judges every B a handler TOOK: B must have collapsed
+ * something (`backJudged`). That is false while a surface of its OWN stands over the frame and takes B by its own
+ * contract — there a B that leaves the frame alone is the surface working, and three of them are a player reading it.
+ *
+ * WHO OWNS THE WAIT (freeze zero, stage 1): the list missed the INFORMATION screen. The seed of the day on CI
+ * (2026-11-18 · `d20261118:parliament-research-enact`, issues #54 / #57) and the box's two-window pass
+ * (`fz0:parliament-climate-enact`) both show a player reading «ИНФОРМАЦИЯ › соперник» — read-only, opened by them —
+ * over a Parliament whose resolution had just asked them to take drawn cards: «stall (presses-no-effect): 33s without
+ * progress, 4 presses … holder: deaf», and the ladder then took the Parliament down under them (`stack-home`,
+ * `phase-root-park`). A view the player opened is the player's time; its B is its own.
+ */
+export const PAD_OWNING_OVERLAYS: ReadonlyArray<{selector: string, why: string}> = [
+  {selector: '.con-reveal', why: 'a reveal is taken with A — B may honestly do nothing'},
+  {selector: '.con-mandatory', why: 'the announce plate is answered, never backed out of'},
+  {selector: '.con-zoom', why: 'the fullscreen card viewer: B closes the viewer'},
+  {selector: '.con-journal', why: 'the journal: B closes it (or its inspected entry)'},
+  {selector: '.con-sys', why: 'the system menu, the settings, the diagnostics: B is theirs'},
+  {selector: '.con-task', why: 'the task host serves the question itself'},
+  {selector: '.con-stranded', why: 'the stranded-prompt plate owns the way back'},
+  {selector: '.con-info', why: 'the information screen (a seat\'s dossier, read-only): B walks back through it and closes it'},
+  {selector: '.con-bot-review', why: 'the turn review the player opened: B closes it'},
+];
+
+/** One selector for `document.querySelector` — any of {@link PAD_OWNING_OVERLAYS}. */
+export const PAD_OWNING_OVERLAY_SELECTOR = PAD_OWNING_OVERLAYS.map((overlay) => overlay.selector).join(', ');
+
 // ── THE LADDER — releases registered by their owners, in the order they are run ───────────────────────────────
 
 export type LivenessRung = {
