@@ -48,7 +48,7 @@ function signals(partial: Partial<AdmissionSignals> = {}): AdmissionSignals {
 }
 
 /** Run `n` watchdog passes with the same observations; returns recovery count. */
-function tick(n: number, pass: {surfaceRendered: boolean, promptLive: boolean}): number {
+function tick(n: number, pass: {surfaceRendered: boolean, promptLive: boolean, pageStarved?: string}): number {
   let recovered = 0;
   for (let i = 0; i < n; i++) {
     if (runForegroundWatchdog(pass)) {
@@ -402,6 +402,49 @@ describe('consoleForegroundWatchdog', () => {
       } finally {
         Date.now = realNow;
       }
+    });
+
+    /*
+     * THE PAGE THAT IS NOT PAINTING (CI's two-window pass, 2026-11-18 — `fz1` · `duo`: a frame a second on the page
+     * behind, and `board-beat-drain` + `scale-step-rating`, `resource-transfer` expired as leaks). A hold's age is
+     * counted on the clock of what it holds for: frames.
+     */
+    it('a hold on a page that does not paint is not aged by the wall — and nothing is judged there', () => {
+      const realNow = Date.now;
+      try {
+        let clock = 9_000_000;
+        Date.now = () => clock;
+        const starved = {...STALLED, pageStarved: 'the page gave the motion 33 of 1000 ms'};
+        const hold = beginAnimationHold('watchdog-spec-scene');
+        noteAdmissionSignals(signals({anyAnimation: true, presentation: true}));
+        tick(1, starved);
+        // A MINUTE of wall time behind another window: a pass a second, each finding the page not painting.
+        for (let i = 0; i < 60; i++) {
+          clock += 1_000;
+          expect(tick(1, starved), 'nothing is expired on a page nobody is looking at').eq(0);
+        }
+        expect(foregroundWatchdogState.streak).eq(0);
+        // THE PAGE IS IN FRONT AGAIN: the story has had no frames yet — the hold is YOUNG, whatever the wall says.
+        for (let i = 0; i < STALL_CONFIRM_TICKS * 2; i++) {
+          clock += 1_000;
+          expect(tick(1, STALLED), 'a story that is only now getting its frames is not a leak').eq(0);
+        }
+        expect(currentBlockReason()).eq('animation');
+        // …and a hold that then stands past every flow's own safety ON A PAINTING PAGE is the leak it always was.
+        clock += ANIMATION_STALL_GRACE_MS;
+        expect(tick(STALL_CONFIRM_TICKS, STALLED)).eq(1);
+        expect(foregroundWatchdogState.lastDiagnosis).contains('animation:watchdog-spec-scene');
+        hold.release();
+      } finally {
+        Date.now = realNow;
+      }
+    });
+
+    it('a claim with NO hold behind it is not judged on a starved page either — and is cured three passes after it paints', () => {
+      noteAdmissionSignals(signals({playedHero: true}));
+      expect(tick(STALL_CONFIRM_TICKS * 4, {...STALLED, pageStarved: 'hidden'})).eq(0);
+      expect(tick(STALL_CONFIRM_TICKS - 1, STALLED)).eq(0);
+      expect(tick(1, STALLED)).eq(1);
     });
 
     it('names what it expired instead of a bare "something was stuck"', () => {

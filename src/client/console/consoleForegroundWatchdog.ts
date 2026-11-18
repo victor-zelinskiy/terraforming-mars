@@ -166,6 +166,34 @@ export const foregroundWatchdogState = reactive({
 let lastRaw: AdmissionSignals | undefined;
 
 /**
+ * A HOLD's AGE IS COUNTED ON THE CLOCK OF WHAT IT HOLDS FOR — THE PAINTED ONE (FREEZE ZERO, stage 1: «a hidden /
+ * starved page is a state the judges know»). An animation hold claims a story is PLAYING, and a story plays in
+ * frames: on a page behind another window (a frame a second — CI's two-window pass, 2026-11-18, `fz1` · `duo`:
+ * `[long-frame] 1016ms — NATIVE` every second of the walk) a 2 s scale story stands for a minute of wall time, the
+ * grace below ran out on the wall, and this watchdog expired `board-beat-drain` + `scale-step-rating` and
+ * `resource-transfer` — honest, working holds — as leaks. The time a pass found the page NOT PAINTING while an
+ * animation hold stood is therefore not the hold's age; and on such a page the rule is not judged at all: a hand-off
+ * that resolves inside one tick takes many there, nobody is looking, and whatever is truly stuck is cured three
+ * passes after the page paints again.
+ */
+let lastPassAt: number | undefined;
+let unpaintedHeldMs = 0;
+
+function noteUnpaintedPass(starved: boolean): void {
+  const now = Date.now();
+  const span = lastPassAt === undefined ? 0 : Math.max(0, now - lastPassAt);
+  lastPassAt = now;
+  if (activeAnimationHoldLabels().length === 0) {
+    unpaintedHeldMs = 0;
+    return;
+  }
+  if (starved) {
+    // (Only the part of the span the oldest hold itself stood through.)
+    unpaintedHeldMs += Math.min(span, oldestAnimationHoldAgeMs());
+  }
+}
+
+/**
  * Live mirror of "the player is on the BOARD HOME and has opened nothing of
  * their own" (the shell's `boardHomeIdle`). The watchdog acts ONLY here.
  *
@@ -259,7 +287,7 @@ function foregroundClaimed(): boolean {
   // hold that does not exist is just 20 s of a dead game.
   const animationCountIsPhantom = animationHoldCount() > 0 && activeAnimationHoldLabels().length === 0;
   const animationClaimIsStale = animationCountIsPhantom ||
-    oldestAnimationHoldAgeMs() >= ANIMATION_STALL_GRACE_MS;
+    oldestAnimationHoldAgeMs() - unpaintedHeldMs >= ANIMATION_STALL_GRACE_MS;
   const reason = currentBlockReason();
   if (reason !== undefined && (reason !== 'animation' || animationClaimIsStale)) {
     return true;
@@ -371,6 +399,8 @@ export type WatchdogPass = {
   surfaceRendered: boolean;
   /** The server is waiting for this player's input. */
   promptLive: boolean;
+  /** WHY the page is not painting right now (`frameWitness.pageStarvedNow`) — `undefined`: it paints. */
+  pageStarved?: string;
 };
 
 /**
@@ -393,6 +423,12 @@ export function runForegroundWatchdog(pass: WatchdogPass): boolean {
   // hold is a bug wherever the player happens to be standing. This is the
   // guarantee that does not depend on correctly identifying which claim lied.
   promoteFromQueue();
+  // THE PAGE IS NOT PAINTING (behind another window, a hidden tab): nothing on it is judged — see `noteUnpaintedPass`.
+  noteUnpaintedPass(pass.pageStarved !== undefined);
+  if (pass.pageStarved !== undefined) {
+    foregroundWatchdogState.streak = 0;
+    return false;
+  }
   if (!boardHomeIdle) {
     foregroundWatchdogState.streak = 0;
     return false;
@@ -444,6 +480,8 @@ export function resetForegroundWatchdog(): void {
   foregroundWatchdogState.recoveries = 0;
   foregroundWatchdogState.lastDiagnosis = '';
   lastRaw = undefined;
+  lastPassAt = undefined;
+  unpaintedHeldMs = 0;
   boardHomeIdle = false;
   stallSignatures.clear();
   quarantinedSignals.clear();

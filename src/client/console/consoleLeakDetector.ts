@@ -44,6 +44,7 @@ import {sittingAskResolution} from '@/client/console/promptSource';
 import {agendaReactionOf} from '@/client/console/parliament/agendaReaction';
 import {sittingTailVenusBonusOf} from '@/client/console/parliament/consoleSittingFlow';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
+import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceHostForStep, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenCurePlan, ScreenOwner, ScreenShadowFinding, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, planScreenCure, recordScreenShadowFinding, screenCureArmed, screenShadowKey, screenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
 import {StartServes, startServesSomething} from '@/client/console/startServing';
@@ -813,7 +814,7 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // is the same querySelector pass the stranded check already needs, so this
   // costs one shared computation, not a second clock.
   const served = anyServingSurfaceRendered(task);
-  runForegroundWatchdog({surfaceRendered: served, promptLive: wf !== undefined});
+  runForegroundWatchdog({surfaceRendered: served, promptLive: wf !== undefined, pageStarved: pageStarvedNow()});
 
   // 2b. THE ONE-BATCH INVARIANT — dev evidence, never a mask. At most ONE
   // card batch may be VISIBLE in the working scene per frame: a deck pick
