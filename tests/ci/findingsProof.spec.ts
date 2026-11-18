@@ -67,4 +67,32 @@ describe('ci findings: a finding names its proof', function() {
     // …and still a pattern that matches the title it was made from.
     expect(new RegExp(grep).test(title)).to.eq(true);
   });
+
+  /*
+   * WHAT A REAL SESSION REPORTED (docs/claude/ci-findings.md § 1a): Sentry's unresolved issues enter the same queue.
+   * The repository is public and the sessions are not — a finding carries structure, never a session's data.
+   */
+  it('a Sentry issue is one finding by its short id — only an unresolved one, its title scrubbed, a return said', () => {
+    const issue = (over: Record<string, unknown>) => ({
+      shortId: 'TERRAFORMING-MARS-T', status: 'unresolved', substatus: 'new', level: 'warning', count: '2', userCount: 1,
+      title: '[wait-graph] cycle (announce:parliament:genn · question:parliamentphase · surface:parliament)',
+      firstSeen: '2026-11-18T13:34:56Z', lastSeen: '2026-11-18T13:46:47Z', permalink: 'https://example.sentry.io/issues/1/', ...over,
+    });
+    const findings = findingsOf('from-sentry', [
+      issue({}),
+      issue({shortId: 'TERRAFORMING-MARS-U', status: 'resolved'}),
+      issue({shortId: 'TERRAFORMING-MARS-V', substatus: 'regressed',
+        title: 'HTTP 404 — GET http://192.168.1.20:17325/api/campaign?id=c37200da3a391&name=Somebody from /home/deck/x and C:\\Users\\somebody\\y by a@b.co'}),
+    ], '--since', '26h');
+    expect(findings.map((f) => f.key), 'a resolved issue is not a finding').to.deep.eq(['sentry|issue|TERRAFORMING-MARS-T', 'sentry|issue|TERRAFORMING-MARS-V']);
+    expect(findings.every((f) => f.kind === 'field' && f.proof === undefined), 'a field defect names no re-run').to.eq(true);
+    expect(findings[0].title).to.eq('[sentry] [wait-graph] cycle (announce:parliament:genn · question:parliamentphase · surface:parliament)');
+    expect(findings[0].body).to.contain('npm run diag -- issue TERRAFORMING-MARS-T');
+    expect(findings[0].body).not.to.contain('came back');
+    const leaked = findings[1].title + findings[1].body;
+    expect(leaked, 'it came back after a resolve').to.contain('came back after being resolved');
+    for (const secret of ['192.168.1.20', 'Somebody', 'c37200da3a391', '/home/deck', 'somebody', 'a@b.co']) {
+      expect(leaked, `«${secret}» must not reach a public issue`).not.to.contain(secret);
+    }
+  });
 });

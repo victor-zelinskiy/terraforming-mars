@@ -20,6 +20,7 @@ a workflow run ──► findings (one JSON shape) ──► scripts/ci/findings
 | `Playwright E2E` (`playwright-e2e.yml`) — the whole suite | 00:47 nightly | a FAILED test · a FLAKY test (one issue per test) |
 | `Monkey` (`monkey.yml`) — the real-browser monkey | 03:13 nightly (plain, the seed of the day) · Sunday 07:13 / 10:13 / 13:13 / 16:13 / 19:13: `cpu4` · `net400` · `reload` · `duo` · `hidden` | a NEW cause class · a stall never cured · a run with no verdict |
 | `CI` (`main.yml`) · `Release Electron App` (`release.yml`) | every push — watched by `CI findings` (`ci-findings.yml`, a `workflow_run` AFTER the run ended; a cancelled run is not a finding) | a RED run: one issue per failed JOB |
+| `Sentry findings` (`sentry-findings.yml`) — what REAL sessions reported (the box, a player's machine) | 04:41 nightly, before the morning triage | one issue per unresolved Sentry issue seen in the last 26 h (= one cause class): kind `field`, source `sentry` |
 | `Land ci-fix` (`land-ci-fix.yml`) | when a pull request from a `claude/ci-fix-*` branch appears, when `CI` of its head commit ends, and every half hour (the sweep) | nothing — it starts the fix's proof, lands the fix or refuses it in writing (§ 3b) |
 
 **GITHUB'S SCHEDULER IS LATE, AND MAY SKIP** (the first night, 2026-11-17/18: a half-hourly sweep added at 15:55 UTC fired for the first time at 23:27 — once; the gate's 23:30 had not come by 00:15, and the night's set was started by hand). A cron is never on the hour or the half hour (the scheduler is at its latest there), and **a night whose runs did not start is a fact to CHECK, not to assume**: `gh run list --event schedule --limit 10`. A night that keeps being skipped is started by something that has a clock of its own.
@@ -28,6 +29,34 @@ a workflow run ──► findings (one JSON shape) ──► scripts/ci/findings
 shares no concurrency group with `CI` / the release, and takes at most 8 – 10 runners at a time (`max-parallel`) — the
 account's concurrent-job limit is the one resource they share (measured 2026-11-17: two 16-shard passes dispatched by
 hand delayed a release's start by 4 minutes; at night nobody pushes).
+
+### 1a. Sentry is one more source of the same queue
+
+The game sends what failed to Sentry (`docs/claude/diagnostics.md`) — and nobody reads Sentry at night: on 2026-11-18
+a defect of the owner's own game stood there until the owner said so. `Sentry findings` asks Sentry once a night
+(`node scripts/diag.mjs issues --since 26h --json`, the read-only secret `SENTRY_READ_TOKEN` as `SENTRY_AUTH_TOKEN`)
+and files through the ONE filer (`findings.mjs from-sentry`):
+
+- **One GitHub issue per Sentry issue**, keyed by its short id (`sentry|issue|TERRAFORMING-MARS-T` — one Sentry issue
+  IS one cause class, the diagnostics' own grouping). It is touched every night it keeps happening («Seen N times»)
+  and reopened as a `regression` when it returns.
+- **Only `unresolved` ones.** A class closed with `npm run diag -- resolve <class>` (resolved in the release that
+  carries the fix) is not filed again by events of OLDER builds still running on the box — Sentry reopens it only
+  for an event of that release or a later one, and then it is a regression here too. **Closing a `src:sentry` issue
+  therefore has two halves: the fix in `main`, and `diag resolve` in the release that carries it** — an issue closed
+  on GitHub alone comes back the next night.
+- **The repository is public, the sessions are not.** The finding carries the Sentry issue's title (a cause class is
+  structure, and it is scrubbed all the same: addresses, e-mails, query values, home directories), its counts, its
+  dates and the link into Sentry (a login is asked). Never an event, a breadcrumb, a save, a name.
+- **Triage (`src:sentry`):** the agent's sandbox has no Sentry access — it reads the class off the title
+  (`[family] shape (structural words)` → the row of `src/common/diagnostics/shapes.ts` → the print site), the code
+  there, and `docs/claude/console/freeze-zero/PLAN.md` § 4 (is the class known? was it «left to the net»?). A field
+  defect has no re-run that proves a fix (no `ci-proof`), so the lane never lands one by itself: the verdict is
+  `triage:real` + `for:session`, with the suspected cause — or `triage:noise` for a line that is no defect (then the
+  fix is the line's tier in `shapes.ts`, a working session's). The session reads the evidence
+  (`npm run diag -- issue <short id>`, the skill `diagnose-report`).
+- **A flood is one finding**, as everywhere (`MASS`): a broken build on the box that files forty classes in a night
+  opens one issue that lists them.
 
 ## 2. A finding, and its issue
 
@@ -191,6 +220,10 @@ gate's own leavings are ignored by the repository; anything else untracked is ne
   any `npm` command.
 - **The owner does nothing.** What is worth a look when there is time: `gh pr list --label ci-fix --state all` (what
   the lane landed or was refused) and the morning digest — the routine's last message.
+- **Sentry:** the secret `SENTRY_READ_TOKEN` (repository → Settings → Secrets → Actions) is a READ-ONLY token of a
+  Sentry internal integration (Issue & Event: Read · Project: Read · Organization: Read). `Sentry findings` is its
+  only reader; nothing in the repository can write to Sentry with it. A night it cannot ask Sentry files a
+  `broken-run` finding of its own — a revoked token never reads as a quiet night.
 - **A working session's first look:** `gh issue list --label ci-finding --label triage:real` — what is left for it —
   and `gh pr list --label ci-fix` (a pull request the landing refused twice is its to finish or to close).
 

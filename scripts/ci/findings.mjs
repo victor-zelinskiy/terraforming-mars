@@ -11,6 +11,7 @@
  *   node scripts/ci/findings.mjs from-playwright <merged-report.json> --source e2e [--context "nightly"]
  *   node scripts/ci/findings.mjs broken --source <source> --context "seed fz1" --what "the gate died before its report"
  *   node scripts/ci/findings.mjs red-run --source ci|release --workflow "CI" --run-id <id>   (a red run of a push: one finding per failed job)
+ *   node scripts/ci/findings.mjs from-sentry <issues.json> [--since 26h]       (what REAL sessions reported: `node scripts/diag.mjs issues --json`)
  *   node scripts/ci/findings.mjs file <findings.json> [<findings.json> …]      (needs GH_TOKEN and GITHUB_REPOSITORY)
  *   node scripts/ci/findings.mjs file --dry <findings.json>                    (prints what it would do)
  *
@@ -26,7 +27,8 @@
  * FOUND the defect, never by whoever fixes it.
  *
  * KINDS: `new-class` (a cause class no baseline holds) · `never-cured` (a stall nobody ended) · `failed` (a test red on
- * every attempt) · `flaky` (red, then green on a retry) · `broken-run` (the run itself did not produce a verdict).
+ * every attempt) · `flaky` (red, then green on a retry) · `broken-run` (the run itself did not produce a verdict) ·
+ * `field` (a defect a real session reported to Sentry — the box, a player's machine).
  *
  * A FLOOD IS ONE FINDING: a run that names more than MASS findings (a broken build reads as 571 red tests) files ONE
  * issue that lists them — never a hundred issues a night.
@@ -230,6 +232,55 @@ function fromPlaywright() {
 /** More findings than this from ONE run are one story (a broken build, a dead server) — filed as one issue. */
 const MASS = 25;
 
+/*
+ * WHAT A REAL SESSION REPORTED (docs/claude/ci-findings.md § 1 — `Sentry findings`). The game sends what failed to
+ * Sentry (docs/claude/diagnostics.md): one Sentry issue per CAUSE CLASS. Nobody opened Sentry on 2026-11-18 until the
+ * owner said «we played a game today and it found one» — so the unresolved issues seen in the window are filed in the
+ * SAME queue as what CI finds: one GitHub issue per Sentry issue, touched while it keeps happening, reopened as a
+ * regression when it returns after `npm run diag -- resolve`.
+ *
+ * THE REPOSITORY IS PUBLIC, THE SESSIONS ARE NOT: the finding carries the issue's title (a cause class is structure,
+ * never data — and it is scrubbed all the same), its counts, its dates and the link into Sentry (which asks for a
+ * login). Never an event, a breadcrumb, a save, a name.
+ */
+const scrubbed = (text) => String(text ?? '')
+  .replace(/\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b/g, '<ip>')
+  .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '<email>')
+  .replace(/([?&][\w-]+=)[^&\s)]+/g, '$1<…>')
+  .replace(/\/(?:home|Users)\/[^/\s]+/g, '/<home>')
+  .replace(/[A-Za-z]:\\Users\\[^\\\s]+/g, '<home>');
+
+function fromSentry() {
+  const issues = JSON.parse(fs.readFileSync(positional[0], 'utf8'));
+  const since = flag('since', '26h');
+  const day = (iso) => String(iso ?? '').slice(0, 16).replace('T', ' ');
+  const findings = (Array.isArray(issues) ? issues : []).filter((issue) => issue.status === 'unresolved').map((issue) => {
+    const title = scrubbed(issue.title).slice(0, 200);
+    const returned = issue.substatus === 'regressed';
+    return {
+      // (One Sentry issue is one cause class — the diagnostics' own grouping; the short id is its name for good.)
+      key: `sentry|issue|${issue.shortId}`,
+      kind: 'field',
+      title: `[sentry] ${title}`.slice(0, 240),
+      body: [
+        `**A real session reported it** — Sentry \`${issue.shortId}\`${returned ? ' · **it came back after being resolved**' : ''}.`,
+        '',
+        fence(title),
+        '',
+        `- level: \`${issue.level ?? '?'}\` · events: ${issue.count ?? '?'} · sessions' users: ${issue.userCount ?? '?'}`,
+        `- first seen: ${day(issue.firstSeen)} UTC · last seen: ${day(issue.lastSeen)} UTC`,
+        ...(issue.permalink ? [`- in Sentry (a login is asked): ${issue.permalink}`] : []),
+        '',
+        '**Read it** (a machine with Sentry access — the laptop; the triage sandbox has none):',
+        fence(`npm run diag -- issue ${issue.shortId}        # the newest case, laid out in reading order\nnpm run diag -- resolve ${issue.shortId}      # AFTER the fix is committed: closes the class in that release`),
+        '',
+        'The title of a stall is its cause class — `[family] shape (structural words)`: the row in `src/common/diagnostics/shapes.ts` names the print site, and `docs/claude/console/freeze-zero/PLAN.md` § 4 says whether the class is already known.',
+      ].join('\n'),
+    };
+  });
+  emit({source: 'sentry', context: `the last ${since}`, run: runInfo(), findings});
+}
+
 function asOneStory(doc) {
   if (doc.findings.length <= MASS) {
     return doc;
@@ -392,9 +443,11 @@ if (command === 'broken') {
   fromMonkey();
 } else if (command === 'from-playwright') {
   fromPlaywright();
+} else if (command === 'from-sentry') {
+  fromSentry();
 } else if (command === 'file') {
   file();
 } else {
-  console.error('usage: node scripts/ci/findings.mjs from-monkey|from-playwright|broken|red-run|file … (see the header)');
+  console.error('usage: node scripts/ci/findings.mjs from-monkey|from-playwright|from-sentry|broken|red-run|file … (see the header)');
   process.exit(2);
 }

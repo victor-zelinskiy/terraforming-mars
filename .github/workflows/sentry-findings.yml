@@ -1,0 +1,66 @@
+name: Sentry findings
+
+# WHAT REAL SESSIONS REPORTED (docs/claude/ci-findings.md § 1): the game sends what failed to Sentry — the box, a
+# player's machine — and nobody reads Sentry at night. Once a night, before the morning triage, the unresolved issues
+# seen in the window are filed in the SAME queue as what CI finds (scripts/ci/findings.mjs `from-sentry`): one GitHub
+# issue per Sentry issue (= one cause class), touched while it keeps happening, reopened as a regression when it
+# returns after `npm run diag -- resolve`.
+#
+# THE REPOSITORY IS PUBLIC: a finding carries the issue's title (scrubbed), its counts, its dates and the link into
+# Sentry — never an event, a save or a name. The token is READ-ONLY (`SENTRY_READ_TOKEN`) and reaches one process's
+# environment; the issues' JSON stays in the runner's workspace and is never printed.
+on:
+  schedule:
+    - cron: '41 4 * * *'   # before the morning triage (05:30 UTC); never on the hour — the scheduler is latest there
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'The window: issues last seen within it (Sentry syntax — 26h, 7d)'
+        default: '26h'
+      dry:
+        description: 'Print what would be filed, file nothing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: sentry-findings
+  cancel-in-progress: false
+
+jobs:
+  file:
+    name: File what the sessions reported
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      # (`scripts/diag.mjs` needs no dependency of the project: Node and the token.)
+      - name: Ask Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_READ_TOKEN }}
+          SINCE: ${{ inputs.since || '26h' }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then echo "::error::the secret SENTRY_READ_TOKEN is not set"; exit 1; fi
+          node scripts/diag.mjs issues --since "$SINCE" --limit 100 --json > sentry-issues.json
+          node -e "const l=JSON.parse(require('fs').readFileSync('sentry-issues.json','utf8'));console.log('issues seen in the window: '+l.length+' · unresolved: '+l.filter(i=>i.status==='unresolved').length)"
+      - name: One issue per Sentry issue — opened, touched or reopened
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SINCE: ${{ inputs.since || '26h' }}
+          DRY: ${{ inputs.dry && '--dry' || '' }}
+        run: |
+          node scripts/ci/findings.mjs from-sentry sentry-issues.json --since "$SINCE" --out findings.json
+          node scripts/ci/findings.mjs file $DRY findings.json
+      - name: The asking itself failed — said, never a quiet night
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/ci/findings.mjs broken --source sentry --context "the nightly asking" --what "Sentry could not be asked (the token, the API, the tool)" --out broken.json
+          node scripts/ci/findings.mjs file broken.json
