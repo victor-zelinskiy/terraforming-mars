@@ -32,6 +32,14 @@ export const LAG_BOOKED_MS = 33;
 export const STARVED_SHARE = 0.75;
 /** …judged only over a watch at least this long: a wait that ended at once says nothing about the page. */
 export const STARVED_MIN_MS = 500;
+/**
+ * …AND NEVER OF A MOTION THE PAGE GAVE THIS MUCH TIME. The share alone excuses too much over a long watch: a 35 s hold
+ * with one nine-second alt-tab reads «the page gave 26 of 35 s» = under three quarters = starved — and a real leak
+ * was counted as an honest end (the tier audit of 2026-11-18, row 4). No motion of this game needs twenty seconds of
+ * painted time (every flow's own safety is below it — the foreground watchdog's `ANIMATION_STALL_GRACE_MS`): a page
+ * that gave that much has given the motion its time, whatever it did not paint beside it.
+ */
+export const STARVED_ENOUGH_MS = 20_000;
 
 export type FrameWatch = {
   /** Motion time the page gave since the watch began — frame gaps booked the way GSAP books them. */
@@ -78,7 +86,7 @@ function schedule(): void {
 
 /** PURE: why a page that gave `motionMs` of `elapsedMs` could not keep a motion's bound — or `undefined`. */
 export function starvedReason(motionMs: number, elapsedMs: number, stalls: number): string | undefined {
-  if (elapsedMs < STARVED_MIN_MS || motionMs >= STARVED_SHARE * elapsedMs) {
+  if (elapsedMs < STARVED_MIN_MS || motionMs >= STARVED_SHARE * elapsedMs || motionMs >= STARVED_ENOUGH_MS) {
     return undefined;
   }
   // (No parenthesis in the reason: it is printed inside the line's own `(planned: …)`.)

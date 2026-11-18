@@ -72,7 +72,8 @@ import {
   abortOceanBeat, oceanBonusFor, runOceanAdjacencyBeat,
 } from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
-import {boardCovered} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {boardCovered, boardCoverTerms} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {watchBoardCover} from '@/client/console/boardCoverWitness';
 import {PlacementBonus, TileRect, findSpace} from '@/client/console/tilePlacement/tilePlacementModel';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
@@ -822,18 +823,26 @@ function awaitWatchableBoard(myEpoch: number): Promise<void> {
   // The wait has to wait: a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`).
   const wait = beginCeilingWait({
     id: 'nomad-move:watchable-board', owner: 'consoleNomadMove', what: 'an uncovered board for the remote nomad move', maxMs: NOMAD_BOARD_WAIT_MAX_MS,
-    // The viewer decides how long their own workspace covers the board: past the ceiling the move is shown without its flight.
-    planned: 'the viewer keeps the board covered — the move lands without its flight',
   });
+  // WHOSE TIME THE WAIT WAS is read from what covered the board, look by look (`boardCoverWitness.ts`): the viewer's own
+  // workspace — past the ceiling the move is shown without its flight, by design; the game's own scenes alone — a
+  // defect that names them.
+  const cover = watchBoardCover();
   return new Promise<void>((done) => {
     const poll = () => {
-      if (remoteEpoch !== myEpoch || !boardCovered() || Date.now() > deadline) {
+      const covered = boardCovered();
+      if (covered) {
+        wait.update(cover.look(boardCoverTerms(), Date.now()));
+      }
+      if (remoteEpoch !== myEpoch || !covered || Date.now() > deadline) {
         if (remoteEpoch !== myEpoch) {
           wait.end();
-        } else if (!boardCovered()) {
+        } else if (!covered) {
           wait.met();
         } else {
-          wait.ceiling();
+          const verdict = cover.verdict(Date.now());
+          wait.update(verdict.detail);
+          wait.ceiling(verdict.planned === undefined ? undefined : `${verdict.planned} — the move lands without its flight`);
         }
         // The hop awaits this — a RELEASE: it answers when the settle has passed, or when the leg is over.
         (remoteRun.scope ?? consoleSessionScope()).guarantee(remoteEpoch === myEpoch ? motionMs(NOMAD_BOARD_SETTLE_MS) : 0,

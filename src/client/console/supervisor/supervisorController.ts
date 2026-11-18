@@ -21,7 +21,7 @@ import {scenesHoldingView} from '@/client/components/deferredViewRefresh';
 import {liveViewScenes} from '@/client/components/viewScenes';
 import {botStagingState} from '@/client/components/marsbot/marsBotStagedCommits';
 import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
-import {activeAnimationHoldLabels, activeAnimationHoldWaits, AnimationHold, beginAnimationHold, blockingAnimationHoldCount, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldLabels, activeAnimationHoldWaits, AnimationHold, beginAnimationHold, blockingAnimationHoldCount, oldestAnimationHoldAgeMs, registerPlayerCanAnswerProbe} from '@/client/components/presentation/animationHold';
 import {isTransientBeat, resetBeatStall, transientSurfaceBeats, WORKSPACE_BEAT_STALL_MS} from '@/client/console/workspaceBeatStall';
 import {registerWaitRecovery, registerWaitSource, tickWaitGraph, waitGraphArming, waitGraphDigest, WaitNodeInput} from '@/client/console/waitGraph/waitGraph';
 import {flowTreeDigest} from '@/client/console/kernel/flowScope';
@@ -350,6 +350,8 @@ export function createSupervisorController(shell: SupervisorPort) {
     surfaceEdges = watchSurfaceEdges(document.body);
     stopPagePaint?.();
     stopPagePaint = standPagePaintWitness();
+    // (A hold's «I wait for the player» is believed only while the screen takes a press — the arbiter's own reading.)
+    registerPlayerCanAnswerProbe(() => lastLivenessAccepting.value);
     beatStallTimer.value = consoleSessionScope().every(1000, 'the supervisor\'s tick', () => {
       if (passBrokenOnPurpose) {
         throw new Error('the supervisor\'s pass is broken on purpose (the pulse\'s control)');
@@ -370,6 +372,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     surfaceEdges = undefined;
     stopPagePaint?.();
     stopPagePaint = undefined;
+    registerPlayerCanAnswerProbe(undefined);
     unanswerableTold = '';
     setDiagEvidenceProvider(undefined);
     beatStallTimer.value?.();

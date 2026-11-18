@@ -320,6 +320,26 @@ function endSupplierRun(entry: SupplierEntry, end: ScopeEnd): void {
 }
 
 /**
+ * CAN THE PLAYER ANSWER right now — does the screen take a press (the liveness arbiter's own `accepting`: no beat in
+ * flight absorbing input, no stranded question, no hand-over owed)? Injected by the console's supervisor: this module
+ * stands below the console and imports nothing of it. With no shell (the desktop tree, a unit test) nobody says
+ * otherwise, and a hold's own word stands.
+ */
+let playerCanAnswerProbe: (() => boolean) | undefined;
+
+export function registerPlayerCanAnswerProbe(probe: (() => boolean) | undefined): void {
+  playerCanAnswerProbe = probe;
+}
+
+export function playerCanAnswerNow(): boolean {
+  try {
+    return playerCanAnswerProbe?.() !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * WHY a ceiling ended a hold — in the line's own words. WHO OWNS THE WAIT DECIDES WHAT THE LINE IS (FREEZE ZERO,
  * PLAN § 8 stage 1), and the ceiling asks the hold itself first: a hold that waits on the PLAYER right now
  * (`heldForPlayer` — said in the present tense, with its reason) ended on a bound over somebody's reading, never on a
@@ -334,6 +354,12 @@ function ceilingWhy(painted: FrameWatch, heldForPlayer: (() => string | undefine
     player = undefined;
   }
   if (player !== undefined) {
+    // …AND THE PLAYER MUST BE ABLE TO ANSWER (the tier audit of 2026-11-18, row 2): «waits for the player» over a
+    // screen whose pad is shut — a beat in flight absorbs every press, the question is stranded, a hand-over is owed —
+    // waits for nobody. That ceiling is a DEFECT, and the line says both halves.
+    if (!playerCanAnswerNow()) {
+      return `(the hold says it waits for the player — ${player.replace(/[()]/g, '')} — but nothing on screen takes a press)`;
+    }
     return `(planned: the hold waits for the player — ${player.replace(/[()]/g, '')})`;
   }
   const starved = painted.starved();
@@ -653,6 +679,10 @@ export function activeAnimationHoldLabels(): Array<string> {
  * dynamically (`heldForPlayer`) or by declaration (`waitsFor: 'player'`); a manual hold by its declaration.
  */
 export function playerOwnedHolds(): string | undefined {
+  // (A hold «waits for the player» only while the player can answer — `playerCanAnswerNow`.)
+  if (!playerCanAnswerNow()) {
+    return undefined;
+  }
   const reasons: Array<string> = [];
   for (const [label, entry] of suppliers) {
     if (store.expired.has(label) || store.quarantined.has(label) || !safeRead(label, entry.supplier)) {

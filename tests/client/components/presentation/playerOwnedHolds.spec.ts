@@ -1,8 +1,8 @@
 import {expect} from 'chai';
 import {reactive} from 'vue';
 import {
-  activeAnimationHoldDetails, beginAnimationHold, isAnimationHoldActive, playerOwnedHolds, registerAnimationHoldSupplier, resetAnimationHoldsForTest,
-  unregisterAnimationHoldSupplier,
+  activeAnimationHoldDetails, beginAnimationHold, isAnimationHoldActive, playerOwnedHolds, registerAnimationHoldSupplier, registerPlayerCanAnswerProbe,
+  resetAnimationHoldsForTest, unregisterAnimationHoldSupplier,
 } from '@/client/components/presentation/animationHold';
 import {causeOf} from '@/common/diagnostics/cause';
 
@@ -25,6 +25,7 @@ describe('playerOwnedHolds — a hold that waits on the player says so', () => {
   afterEach(() => {
     unregisterAnimationHoldSupplier('vp-shares');
     unregisterAnimationHoldSupplier('tile-flight');
+    registerPlayerCanAnswerProbe(undefined);
     resetAnimationHoldsForTest();
   });
 
@@ -103,6 +104,39 @@ describe('playerOwnedHolds — a hold that waits on the player says so', () => {
       await wait(60);
       expect(warns[1]).to.match(/force-released by the safety ceiling \(leaked hold\?\)$/);
       expect(causeOf(warns[1], 'warn')).to.deep.include({tier: 'defect'});
+    } finally {
+      console.warn = original;
+    }
+  });
+
+  /*
+   * «WAITS FOR THE PLAYER» IS BELIEVED ONLY WHILE THE PLAYER CAN ANSWER (the tier audit of 2026-11-18, row 2: a still
+   * Parliament whose owed reward said «the seat is asked» for thirty-five seconds — over a pad that took no press —
+   * ended as an honest wait). The screen's own word comes down as a probe (the arbiter's `accepting`).
+   */
+  it('a hold that says it waits for the player over a SHUT pad waits for nobody — a defect, and the line says both halves', async () => {
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const warns: Array<string> = [];
+    const original = console.warn;
+    console.warn = (...args: Array<unknown>) => warns.push(args.map(String).join(' '));
+    let accepting = false;
+    registerPlayerCanAnswerProbe(() => accepting);
+    try {
+      registerAnimationHoldSupplier('vp-shares', () => state.held, {maxHoldMs: 20, heldForPlayer: () => 'the seat is asked (a reading)'});
+      state.held = true;
+      expect(playerOwnedHolds(), 'the feed does not believe it either').to.eq(undefined);
+      await wait(60);
+      expect(warns[0]).to.match(/force-released by the safety ceiling \(the hold says it waits for the player — the seat is asked a reading — but nothing on screen takes a press\)$/);
+      expect(causeOf(warns[0], 'warn')).to.deep.include({cls: 'animation-hold/ceiling/vp-shares', tier: 'defect'});
+
+      // …the pad takes a press: the same hold's word stands.
+      unregisterAnimationHoldSupplier('vp-shares');
+      resetAnimationHoldsForTest();
+      accepting = true;
+      registerAnimationHoldSupplier('vp-shares', () => state.held, {maxHoldMs: 20, heldForPlayer: () => 'the seat is asked'});
+      expect(playerOwnedHolds()).to.eq('vp-shares: the seat is asked');
+      await wait(60);
+      expect(causeOf(warns[1], 'warn')).to.deep.include({tier: 'planned'});
     } finally {
       console.warn = original;
     }

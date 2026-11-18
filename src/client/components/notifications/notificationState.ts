@@ -19,7 +19,7 @@ import {
   registerFlowHoldSupplier,
 } from '@/client/components/presentation/presentationFlow';
 import {activeAnimationHoldDetails, activeAnimationHoldLabels, playerOwnedHolds} from '@/client/components/presentation/animationHold';
-import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
+import {FrameWatch, watchFrames} from '@/client/console/kernel/frameWitness';
 import {PendingQueueSummary, pendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {ackBotTurn} from '@/client/components/marsbot/botTurnAck';
 
@@ -218,9 +218,21 @@ function holdsSay(): string {
  * reading was «held behind an ANIMATION hold for over 12000ms» the tick a cinematic began, delivered over that
  * cinematic's first frames and filed as its leak (the bottle's monkey, seed `fz5` · `sagitta-start`, 2026-11-18:
  * «leaked hold: hand-delivery» over a hand delivery that had stood under five seconds).
+ *
+ * …WITH WHAT THE PAGE PAINTED OVER THAT SAME SPAN (`frameWitness.watchFrames`, from the moment the clock starts): «the
+ * page was not painting» is a verdict over the WHOLE twelve seconds. It used to be read off the supervisor's last
+ * one-second look — where a single frame gap over half a second reads «starved» — so one GC pause in the second the
+ * escape fired turned a leaked hold into an honest end (the tier audit of 2026-11-18, row 4).
  */
-let queueBlockedSince: number | undefined;
+let queueBlocked: {since: number, painted: FrameWatch} | undefined;
 
+function clearQueueBlocked(): void {
+  queueBlocked?.painted.stop();
+  queueBlocked = undefined;
+}
+
+/** Said once per starvation — and armed again the moment the queue FLOWS (it was armed again only at the endgame, so
+ *  after one line every later leak of the same game printed nothing: the same audit row). */
 let starvationWarned = false;
 
 /**
@@ -250,21 +262,21 @@ export function promoteFromQueue(): void {
   }
   if (isNotificationDeliveryBlocked()) {
     if (notificationState.queue.length === 0) {
-      queueBlockedSince = undefined;
+      clearQueueBlocked();
       return;
     }
     // (A block that is NOT an animation's is a player's time: the escape's clock does not run under it, and starts
     // from nothing when an animation takes the block over.)
     if (currentBlockReason() !== 'animation') {
-      queueBlockedSince = undefined;
+      clearQueueBlocked();
       return;
     }
     const now = Date.now();
-    if (queueBlockedSince === undefined) {
-      queueBlockedSince = now;
+    if (queueBlocked === undefined) {
+      queueBlocked = {since: now, painted: watchFrames()};
       return;
     }
-    if (now - queueBlockedSince < QUEUE_STARVATION_MS) {
+    if (now - queueBlocked.since < QUEUE_STARVATION_MS) {
       return;
     }
     if (!starvationWarned) {
@@ -274,9 +286,9 @@ export function promoteFromQueue(): void {
       // waits for a board the player keeps covered): the delivery at the bound is then the DESIGNED degraded mode,
       // said as such (counted, never an event). A hold nobody is waited for is the leak it always was.
       const owned = playerOwnedHolds();
-      // …and A PAGE THAT IS NOT PAINTING ends no animation at all (`frameWitness.pageStarvedNow` — behind another
-      // window, a hidden tab): every hold on it outlives twelve seconds, and none of them leaked.
-      const starved = pageStarvedNow();
+      // …and A PAGE THAT IS NOT PAINTING ends no animation at all (behind another window, a hidden tab): every hold on
+      // it outlives twelve seconds, and none of them leaked — read over the whole span the queue stood blocked.
+      const starved = queueBlocked.painted.starved();
       if (owned !== undefined) {
         console.warn(
           `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
@@ -292,8 +304,11 @@ export function promoteFromQueue(): void {
           `${activeAnimationHoldLabels().join(', ') || 'none named'})`);
       }
     }
+  } else {
+    // THE QUEUE FLOWS: whatever starved it is over, and the next starvation is a new one to say.
+    starvationWarned = false;
   }
-  queueBlockedSince = undefined;
+  clearQueueBlocked();
   while (notificationState.transient.length < MAX_VISIBLE_TRANSIENT && notificationState.queue.length > 0) {
     let bestIdx = 0;
     notificationState.queue.forEach((n, i) => {
@@ -586,7 +601,7 @@ export function clearTransient(): void {
   notificationState.preparing = new Map<number, NotificationModel>();
   notificationState.preparingSince = new Map<number, number>();
   notificationState.leaving = 0;
-  queueBlockedSince = undefined;
+  clearQueueBlocked();
   starvationWarned = false;
 }
 

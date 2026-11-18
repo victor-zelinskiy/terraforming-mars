@@ -64,6 +64,11 @@ describe('frameWitness — a motion\'s bound is judged against the motion time t
     expect(starvedReason(2_066, 4_000, 2), 'half the time frozen').to.match(/^the page gave the motion 2066 of 4000 ms, 2 frame gaps over 500 ms/);
     expect(starvedReason(3_400, 4_000, 1), 'one hiccup in four seconds is not a starved page').to.eq(undefined);
     expect(starvedReason(1_780, 1_780, 0)).to.eq(undefined);
+    // …AND NEVER OF A MOTION THE PAGE GAVE ITS TIME (the tier audit, row 4): a 35 s hold with one nine-second alt-tab
+    // had twenty-six seconds of painted time — no motion needs that; it is the leak it always was.
+    expect(starvedReason(26_000, 35_000, 1), 'under three quarters, and more than enough').to.eq(undefined);
+    expect(starvedReason(20_000, 35_000, 1)).to.eq(undefined);
+    expect(starvedReason(15_000, 35_000, 9), 'a page behind another window for most of the hold').to.match(/^the page gave the motion 15000 of 35000 ms/);
     expect(starvedReason(33, 1_780, 1), 'no parenthesis: the reason is printed inside the line\'s own (planned: …)').not.to.match(/[()]/);
   });
 
@@ -205,6 +210,12 @@ describe('frameWitness — a motion\'s bound is judged against the motion time t
    * acted, this page still showed the old question for a second and a half, its answer was refused and the frame put
    * back. «The question had moved on» is the designed recovery; any other refusal of an answer the page offered is not.
    */
+  it('…and «the question had moved on» is honest ONCE: refused again with no answer landed between, the page is what is stale', () => {
+    const again = '[workspace] «card-actions» goes back executing → configure — its answer did not land (refused: #stale-prompt) — ' +
+      'refused 2 times in a row with no answer landed between: the page keeps offering a question the server has left';
+    expect(causeOf(again, 'warn')).to.deep.include({cls: 'workspace/beat-rollback/card-actions/executing/configure', tier: 'defect'});
+  });
+
   it('a frame put back because THE QUESTION HAD MOVED ON is planned; put back by any other refusal it is the defect it was', () => {
     const moved = '[workspace] «parliament» goes back executing → committed — its answer did not land (refused: #stale-prompt)';
     const unnamed = '[workspace] «parliament» goes back executing → committed — its answer did not land (refused: no-id)';

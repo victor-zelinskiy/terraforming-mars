@@ -81,6 +81,18 @@ describe('diagnostics cause — the class is the line\'s structure, never its wo
     expect(wedge, 'an open board and a drain that never ran: a defect').to.deep.include({tier: 'defect', cls: park?.cls});
   });
 
+  it('A FRAME HELD OVER THE FREE TURN is evidence only when the PLAYER is what it waits for (the tier audit, row 5)', () => {
+    const held = (reason: string) => causeOf(`[workspace-stale] «colonies» stands committed over the free turn 9s with nothing in flight — held: ${reason}`, 'warn');
+    // A result of its own to take or to read, a step standing inside it: the player's time.
+    expect(held('live-outcome')).to.deep.include({cls: 'workspace-stale/held/colonies/live-outcome', tier: 'info'});
+    expect(held('nested-step')?.tier).to.eq('info');
+    // A step «owed» to a server that asks the action menu, a prompt «owned» by a frame that does not serve it, a
+    // refusal nobody named: nothing is coming — the frame stands dead.
+    expect(held('owed-step')).to.deep.include({cls: 'workspace-stale/held/colonies/owed-step', tier: 'defect'});
+    expect(held('owned-prompt')?.tier).to.eq('defect');
+    expect(held('unknown')?.tier).to.eq('defect');
+  });
+
   it('A COVERED BOARD IS AN HONEST WAIT ONLY WHEN THE PLAYER COVERED IT FOR THE WHOLE WINDOW (the tier audit, row 1)', () => {
     const story = (diagnose: string) => causeOf(`[presentation-ledger] story «board-beat-park» degraded after 30s — the release edge never came — ${diagnose}`, 'warn')?.tier;
     // The player sat in a workspace / a sheet / another section / their own aim the whole time: planned.

@@ -1,0 +1,73 @@
+/*
+ * @console-shared LIVE — console native stands on this file.
+ *
+ * WHO KEPT THE BOARD COVERED — the witness of a wait for «a board the player can see».
+ *
+ * Another seat's tile, a nomad's hop, a law's own tile wait for a board that is not covered, and their ceiling is the
+ * designed end when the VIEWER keeps it covered: the tile is revealed without its flight. Those waits used to DECLARE
+ * that reason unconditionally (`CeilingWaitSpec.planned`) — and «covered» is a list of very different owners: the
+ * viewer's own workspace or a reveal waiting for their take, but also a resource wave, a card on its way into the dock,
+ * the played card's scene, the deck dealing, a sitting on its way up. A wave that never ends hides the foreign tile and
+ * holds the `remote-landing` block — no placement grid for the viewer — and the line read «planned: the viewer keeps
+ * the board covered» with nothing in it to say otherwise (the tier audit of 2026-11-18, row 3: four such lines of one
+ * box session were «not judgeable»).
+ *
+ * THE LAW (who is waited for decides the wait — and a planned verdict is PROOF over the wait, never a declaration):
+ * the wait looks at the cover's terms at every poll; its ceiling is the player's own time when a cover of the
+ * PLAYER's stood at the ceiling or until moments before it, and a DEFECT — naming the terms — when nothing but the
+ * game's own scenes has kept the board for `GAME_ONLY_TAIL_MS`. A leaked scene hidden behind the player's own cover
+ * is not this wait's to name: its hold has its own ceiling.
+ *
+ * Pure: no DOM, no Vue, no timers — spec'd under the server runner (`tests/console/boardCoverWitness.spec.ts`).
+ */
+
+/** What the PLAYER looks at instead of the board: their own workspace, a reveal that waits for their take. */
+export const PLAYER_COVER_TERMS: ReadonlySet<string> = new Set(['workspace', 'reveal']);
+
+/** The game's own scenes alone kept the board for this long at the ceiling: no player is being waited for. */
+export const GAME_ONLY_TAIL_MS = 5000;
+
+export type BoardCoverWitness = {
+  /** One look of the wait: the terms that cover the board right now. Returns the wait's detail (what holds it). */
+  look: (terms: ReadonlyArray<string>, now: number) => string,
+  /** At the ceiling: `planned` — why it was the wait's honest end — or `undefined` (a defect); `detail` names the holders. */
+  verdict: (now: number) => {planned: string | undefined, detail: string},
+};
+
+export function watchBoardCover(): BoardCoverWitness {
+  /** Since when nothing of the player's has covered the board (`undefined` — a player's cover stands). */
+  let gameOnlySince: number | undefined;
+  const gameTerms = new Set<string>();
+  const playerTerms = new Set<string>();
+  let last: ReadonlyArray<string> = [];
+  return {
+    look: (terms, now) => {
+      last = terms;
+      const players = terms.filter((term) => PLAYER_COVER_TERMS.has(term));
+      for (const term of players) {
+        playerTerms.add(term);
+      }
+      if (players.length > 0 || terms.length === 0) {
+        gameOnlySince = undefined;
+        gameTerms.clear();
+      } else {
+        gameOnlySince ??= now;
+        for (const term of terms) {
+          gameTerms.add(term);
+        }
+      }
+      return `covered by ${terms.join(' + ') || 'nothing'}`;
+    },
+    verdict: (now) => {
+      const tailMs = gameOnlySince === undefined ? 0 : now - gameOnlySince;
+      if (tailMs >= GAME_ONLY_TAIL_MS) {
+        return {
+          planned: undefined,
+          detail: `held by the game's own scenes for the last ${Math.round(tailMs / 1000)} s: ${[...gameTerms].join(' + ')}`,
+        };
+      }
+      const by = [...playerTerms].join(' + ') || last.join(' + ');
+      return {planned: `the viewer kept the board covered (${by})`, detail: `covered by ${last.join(' + ') || 'nothing'}`};
+    },
+  };
+}

@@ -79,6 +79,7 @@ import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {SpaceId} from '@/common/Types';
 import {probeTick} from '@/client/console/probeTick';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {watchBoardCover} from '@/client/console/boardCoverWitness';
 import {flowClock} from '@/client/console/kernel/flowClock';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {
@@ -1657,10 +1658,32 @@ export const remoteLandingOwed = reactivePredicate('remote-landing-owed', (): bo
 });
 
 export function boardCovered(): boolean {
-  return (workspaceStackActive() && boardShownDespiteStack?.() !== true) || playedHeroHolding() || isDeckDrawActive() ||
-    currentRevealEvent() !== undefined ||
-    // …or a sitting on its way up (the soft gates): the law's tile waits for the sitting's own world beat.
-    sittingRiseOwed();
+  return boardCoverTerms().length > 0;
+}
+
+/**
+ * WHAT covers the board right now — the terms of `boardCovered`, named (`boardCoverWitness.ts`: whose time a wait for
+ * the board was is read from them — `workspace` and `reveal` are the player's own, the rest the game's scenes).
+ */
+export function boardCoverTerms(): Array<string> {
+  const terms: Array<string> = [];
+  if (workspaceStackActive() && boardShownDespiteStack?.() !== true) {
+    terms.push('workspace');
+  }
+  if (playedHeroHolding()) {
+    terms.push('played-hero');
+  }
+  if (isDeckDrawActive()) {
+    terms.push('deck-draw');
+  }
+  if (currentRevealEvent() !== undefined) {
+    terms.push('reveal');
+  }
+  // …or a sitting on its way up (the soft gates): the law's tile waits for the sitting's own world beat.
+  if (sittingRiseOwed()) {
+    terms.push('sitting-rise');
+  }
+  return terms;
 }
 
 /**
@@ -1689,10 +1712,23 @@ function awaitWatchableBoard(myEpoch: number): Promise<void> {
  * and for the taken card's flight into the dock.
  */
 function ownPlacementStoryLive(): boolean {
+  return ownPlacementStoryTerms().length > 0;
+}
+
+function ownPlacementStoryTerms(): Array<string> {
+  const terms: Array<string> = [];
   const phase = tilePlacementState.phase;
-  return (tilePlacementState.active && phase !== 'idle' && phase !== 'armed' && phase !== 'failed') || isResourceTransferActive() ||
-    // …and the card that story dealt, still on its way into the dock after the take (the eye follows it there).
-    handDeliveryState.flights.length > 0 || handDeliveryState.inFlight.length > 0;
+  if (tilePlacementState.active && phase !== 'idle' && phase !== 'armed' && phase !== 'failed') {
+    terms.push('own-placement');
+  }
+  if (isResourceTransferActive()) {
+    terms.push('transfer');
+  }
+  // …and the card that story dealt, still on its way into the dock after the take (the eye follows it there).
+  if (handDeliveryState.flights.length > 0 || handDeliveryState.inFlight.length > 0) {
+    terms.push('hand-delivery');
+  }
+  return terms;
 }
 
 /** The board is no stage for another seat's landing yet: covered, or still the viewer's own placement's. */
@@ -1718,18 +1754,26 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
   const wait = beginCeilingWait({
     id: 'remote-placement:watchable-board', owner: 'consoleRemotePlacement', what: 'a board free for the landing of another seat',
     maxMs: BOARD_WAIT_MAX_MS, detail: `kept up to ${BOARD_WAIT_KEPT_MAX_MS} ms while the keeper holds`,
-    // The viewer decides how long their own workspace covers the board: past the ceiling the tile is revealed without its flight.
-    planned: 'the viewer keeps the board covered — the tile is revealed without its flight',
   });
+  // WHOSE TIME THE WAIT WAS is read from what covered the board, look by look (`boardCoverWitness.ts`): the viewer's own
+  // workspace decides how long it stands — past the ceiling the tile is revealed without its flight, by design; the
+  // game's own scenes alone keeping another seat's tile off the board is a defect, and the line names them.
+  const cover = watchBoardCover();
   return new Promise<void>((done) => {
     const poll = () => {
-      if (epoch !== myEpoch || !boardBusyForRemote() || expired()) {
+      const busy = boardBusyForRemote();
+      if (busy) {
+        wait.update(cover.look([...boardCoverTerms(), ...ownPlacementStoryTerms()], Date.now()));
+      }
+      if (epoch !== myEpoch || !busy || expired()) {
         if (epoch !== myEpoch) {
           wait.end();
-        } else if (!boardBusyForRemote()) {
+        } else if (!busy) {
           wait.met();
         } else {
-          wait.ceiling();
+          const verdict = cover.verdict(Date.now());
+          wait.update(verdict.detail);
+          wait.ceiling(verdict.planned === undefined ? undefined : `${verdict.planned} — the tile is revealed without its flight`);
         }
         // The board is back (or we gave up): let the workspace's own leave
         // finish before the tile flies into the space it just vacated.

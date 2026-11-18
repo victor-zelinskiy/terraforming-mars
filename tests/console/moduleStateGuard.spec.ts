@@ -66,6 +66,9 @@ const PAGE_LIFETIME: Readonly<Record<string, Readonly<Record<string, string>>>> 
     trail: 'the device\'s own last presses — evidence that must outlive the session it is about (a stall right after a rematch is read with the presses before it)',
     trailCount: 'how many presses the router ever saw — a count that only grows; its readers compare it with their own last look',
   },
+  'src/client/components/presentation/animationHold.ts': {
+    playerCanAnswerProbe: 'an injected probe (this module stands below the console): registered by the console\'s supervisor at its start and withdrawn at its stop — the supervisor\'s own life is what reaches it',
+  },
   'src/client/console/session/supervisorPulse.ts': {
     passes: 'the count of supervisor passes completed in this DOCUMENT — the witness that reads it stands outside every session, and compares it only with its own last look',
     standing: 'whether a supervisor is started — written by the supervisor\'s own start and stop (the shell\'s mount and unmount), read by the page\'s witness',

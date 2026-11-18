@@ -25,7 +25,27 @@ PROOF over the wait's whole span, and the line names the term that held** — ot
 - **Rows 7 · 8 · 9 (the discard pile) — CLOSED.** `[reaction-identity] foreign face` and `[discard-count] released
   under its count` are integrity families with shape rows; the seven swallowed exceptions are
   `reportDiagnosticError(pageErrorLine('caught by …', e), e)` — errors, grouped by their stack.
-- Still open: rows 2–6, the deck pick and the pad line of row 9, row 10.
+- **Row 2 — CLOSED (2026-11-19).** «Waits for the player» is believed only while the player CAN ANSWER: the
+  arbiter's own `accepting` comes down to the hold registry as a probe (`animationHold.registerPlayerCanAnswerProbe`),
+  and a hold that says so over a shut pad — a beat in flight absorbing input, a stranded question, a hand-over owed —
+  ends as a DEFECT whose line says both halves («the hold says it waits for the player — … — but nothing on screen
+  takes a press»); the feed's `starvation-owned` reads the same probe. Spec `playerOwnedHolds.spec`.
+- **Row 3 — CLOSED.** No wait declares «the viewer keeps the board covered» any more: `boardCoverWitness.ts` looks at
+  the cover's TERMS at every poll (`workspace` · `reveal` are the player's; `played-hero` · `deck-draw` ·
+  `sitting-rise` · `own-placement` · `transfer` · `hand-delivery` the game's). The ceiling is planned when a cover of
+  the player's stood at it or until moments before; the game's own scenes alone for `GAME_ONLY_TAIL_MS` (5 s) → a
+  defect that names them in the line's detail. `remote-placement:watchable-board`, `nomad-move:watchable-board`.
+  Spec `boardCoverWitness.spec`. (The `rulingChangeDraw` impulse wait: not converted — see «open».)
+- **Row 4 — CLOSED.** (a) `frameWitness.STARVED_ENOUGH_MS`: a page that gave a motion 20 s of painted time has given
+  it its time — one alt-tab over a 35 s hold no longer reads «starved»; (b) the feed's «the page was not painting»
+  is a verdict over the WHOLE blocked span (a frame watch from the moment its clock starts), never the supervisor's
+  last one-second look; (c) the feed's warn re-arms the moment the queue flows — it was once per game.
+- **Row 5 — CLOSED.** `workspace-stale/held` is evidence only for `live-outcome` / `nested-step`; held by
+  `owed-step` · `owned-prompt` · `unknown` over the free turn it is a defect (the row's `read`).
+- **Row 6 — CLOSED.** `#stale-prompt` is honest ONCE: the second refusal in a row with no answer landed between says
+  so after the reason and reads as a defect (`consoleWorkspaceStack.staleRefusalSaid`).
+- Still open: the deck pick and the pad line of row 9, row 10, the ruling-change impulse wait of row 3 — and the
+  REVERSE direction (what is sent and is not a bug), §«The other direction» below.
 
 ## Worklist — WRONG / RISKY (fix in this order)
 

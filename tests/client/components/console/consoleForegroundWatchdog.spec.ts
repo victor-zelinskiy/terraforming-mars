@@ -262,6 +262,44 @@ describe('consoleForegroundWatchdog', () => {
         console.warn = realWarn;
       }
     });
+
+    /*
+     * SAID ONCE PER STARVATION — NOT ONCE PER GAME (the tier audit of 2026-11-18, row 4): the flag was armed again
+     * only at the endgame, so after one line every later leak of the same game was delivered in silence.
+     */
+    it('a second starvation of the same game is said again — the flag re-arms when the queue flows', () => {
+      const warned: Array<string> = [];
+      const realWarn = console.warn;
+      console.warn = (...args: Array<unknown>) => warned.push(args.map(String).join(' '));
+      try {
+        const said = () => warned.filter((line) => line.includes('queued event'));
+        const first = beginAnimationHold('watchdog-spec-leak', {scope: 'notification-only'});
+        queueOne('q1');
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        clock += QUEUE_STARVATION_MS + 1;
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        expect(said().length).eq(1);
+        // (Which of the escape's three lines it is depends on what the page painted — no frame comes in this runner.)
+        // While the SAME starvation stands nothing is repeated…
+        clock += 3_000;
+        queueOne('q2');
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        expect(said().length).eq(1);
+        // …the hold lets go, the queue flows…
+        first.release();
+        clearTransient();
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        // …and another leak, later in the same game, is a new line.
+        beginAnimationHold('watchdog-spec-second', {scope: 'notification-only'});
+        queueOne('q3');
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        clock += QUEUE_STARVATION_MS + 1;
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        expect(said().length).eq(2);
+      } finally {
+        console.warn = realWarn;
+      }
+    });
   });
 
   describe('the staleness mask', () => {

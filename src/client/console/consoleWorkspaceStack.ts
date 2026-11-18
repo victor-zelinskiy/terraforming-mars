@@ -1992,6 +1992,7 @@ export function resetWorkspaceStack(): void {
   workspaceStackState.frames.splice(0);
   workspaceStackState.parked.splice(0);
   boardYielded.splice(0);
+  staleRefusalsInARow = 0;
   syncFrameLifetimes();
 }
 
@@ -2181,12 +2182,37 @@ function leaseBeat(runtime: FrameRuntime, ticket: SubmitTicket): void {
   runtime.flow.send({type: 'LEASED'});
   void ticket.settled.then((settle) => {
     if (submitDidNotLand(settle.status)) {
-      rollBackBeat(runtime, beat, `its answer did not land (${settle.status}${settle.why !== undefined ? `: ${settle.why}` : ''})`);
+      rollBackBeat(runtime, beat, `its answer did not land (${settle.status}${settle.why !== undefined ? `: ${settle.why}` : ''})${staleRefusalSaid(settle)}`);
     }
   });
 }
 
+/**
+ * «THE QUESTION HAD MOVED ON» IS HONEST ONCE. A `#stale-prompt` refusal is the designed recovery — another seat acted
+ * while this page still showed the old question; the page refetches and puts its frame back — and its line is counted,
+ * never an event (`shapes.ts` `workspace/beat-rollback`). The SECOND one in a row, with no answer of this page landed
+ * between, is not another seat's doing: the page keeps offering a question the server has left (a view that does not
+ * refetch, a prompt id that is never refreshed) — an endless honest-looking refusal, and the player cannot move. From
+ * the second on the line says so after the reason, and reads as the defect it is (the tier audit of 2026-11-18, row 6).
+ */
+let staleRefusalsInARow = 0;
+
+function staleRefusalSaid(settle: {status: string, why?: string}): string {
+  if (settle.status !== 'refused' || settle.why !== '#stale-prompt') {
+    return '';
+  }
+  staleRefusalsInARow++;
+  return staleRefusalsInARow < 2 ? '' :
+    ` — refused ${staleRefusalsInARow} times in a row with no answer landed between: the page keeps offering a question the server has left`;
+}
+
 onSubmitTicket((ticket) => {
+  // (Any answer that LANDS ends the row: the page and the server agree again.)
+  void ticket.settled.then((settle) => {
+    if (ticket.accepted && !submitDidNotLand(settle.status)) {
+      staleRefusalsInARow = 0;
+    }
+  });
   const now = currentStretch();
   lastTicket = {ticket, stretch: now};
   for (const runtime of [...frameRuntimes.values()]) {
