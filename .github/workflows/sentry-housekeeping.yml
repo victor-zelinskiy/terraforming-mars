@@ -61,6 +61,9 @@ jobs:
             echo "::notice::the secret SENTRY_WRITE_TOKEN is not set — Sentry was not told that #$NUMBER is closed (docs/claude/ci-findings.md § 1b)"
             exit 0
           fi
+          # THE TOKEN IS ASKED WHAT IT MAY DO before anything is asked of it (scopes only — nothing of the account):
+          # to resolve or archive an issue, and to name the release a class is resolved in.
+          node scripts/diag.mjs access --need event:read,event:write --any project:releases,project:write,project:admin,org:ci
           SHORT=$(node scripts/ci/findings.mjs sentry-id-of "$NUMBER")
           if [ -z "$SHORT" ]; then
             echo "#$NUMBER is not an issue of a Sentry issue (a broken-run, a flood) — nothing to close there"
@@ -109,6 +112,9 @@ jobs:
             echo "::notice::the secret SENTRY_WRITE_TOKEN is not set — nothing was put away (docs/claude/ci-findings.md § 1b)"
             exit 0
           fi
+          # THE TOKEN IS ASKED WHAT IT MAY DO first (scopes only): a token made with the wrong permissions is said the
+          # night it is made, not on the first finding somebody closes.
+          node scripts/diag.mjs access --need event:read,event:write --any project:releases,project:write,project:admin,org:ci
           node scripts/diag.mjs tidy $DRY > tidy.txt 2> err.txt || CODE=$?
           # (Counts and short ids only: a line of the list carries a title.)
           grep -E "^the tool's own: " tidy.txt || true

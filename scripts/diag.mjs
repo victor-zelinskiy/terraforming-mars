@@ -1737,6 +1737,43 @@ async function cmdStatus(args) {
  * the next event of that issue reopens it as a regression. `diag autoresolve` reads the rule, `diag autoresolve 14`
  * sets it, `diag autoresolve off` removes it. (A project setting: it needs the project's write access.)
  */
+/**
+ * WHAT THIS TOKEN MAY DO — its scopes, as the collector itself names them (the API's root), and nothing else: the
+ * answer goes into a public log, so never the account behind the token. `--need a,b` fails (exit 1) when a scope is
+ * missing, saying which; `--any a,b` when none of a group is held. The housekeeping workflow asks this FIRST: a token
+ * made with the wrong permissions is said the night it is made, not on the first finding somebody closes.
+ */
+async function cmdAccess(args) {
+  // (The API's ROOT is the collector's own, not a region's: `de.sentry.io` answers 404 for it.)
+  const token = process.env.SENTRY_AUTH_TOKEN || await tokenFromCli();
+  if (token === '' || token === undefined) {
+    throw new Failure('no Sentry access: set SENTRY_AUTH_TOKEN or authorise the `sentry` CLI');
+  }
+  let root;
+  try {
+    const res = await fetch('https://sentry.io/api/0/', {headers: {Authorization: `Bearer ${token}`}});
+    if (!res.ok) {
+      throw new Failure(`sentry: GET the API's root — HTTP ${res.status}`);
+    }
+    root = await res.json();
+  } catch (err) {
+    throw err instanceof Failure ? err : new Failure(`sentry: GET the API's root — network error: ${err.cause?.message ?? err.message}`);
+  }
+  const scopes = Array.isArray(root?.auth?.scopes) ? root.auth.scopes.map(String).sort() : [];
+  const listed = (value) => (typeof value === 'string' ? value.split(',').map((s) => s.trim()).filter((s) => s !== '') : []);
+  const missing = listed(args.flags.need).filter((scope) => !scopes.includes(scope));
+  const anyOf = listed(args.flags.any);
+  const noneOfGroup = anyOf.length > 0 && !anyOf.some((scope) => scopes.includes(scope));
+  console.log(`scopes: ${scopes.length > 0 ? scopes.join(' · ') : '(the collector named none)'}`);
+  if (missing.length > 0) {
+    console.log(`MISSING: ${missing.join(' · ')}`);
+  }
+  if (noneOfGroup) {
+    console.log(`MISSING: one of ${anyOf.join(' · ')}`);
+  }
+  return missing.length > 0 || noneOfGroup ? 1 : 0;
+}
+
 async function cmdAutoresolve(args) {
   const asked = args.positional[0];
   const said = (hours) => (hours > 0 ? `an unresolved issue not seen for ${hours / 24} day(s) is resolved by the collector` : 'off — an issue stays unresolved until somebody resolves it');
@@ -1866,6 +1903,8 @@ usage: npm run diag -- <command> [args]
                                 session's class that holds only the probe's samples; what stays is the sessions'
   archive <shortId> [--forever] archive one issue (default: until it escalates) — a class judged «not a defect»
   status <shortId…> [--json]    the state of named issues as the collector holds it now (structure only, no title)
+  access [--need a,b] [--any a,b]
+                                the scopes of the token in use (nothing else); exit 1 when a needed one is missing
   autoresolve [<days> | off]    the collector's rule for what nobody reports any more: an unresolved issue not seen
                                 for N days resolves itself (its next event reopens it as a regression)
   issue <shortId | id> [--event <eventId>]
@@ -1938,6 +1977,7 @@ async function main() {
   case 'archive': return cmdArchive(args);
   case 'status': return cmdStatus(args);
   case 'autoresolve': return cmdAutoresolve(args);
+  case 'access': return cmdAccess(args);
   case 'tidy': return cmdTidy(args);
   case 'where': return cmdWhere(args);
   case 'selftest': return cmdSelftest(args);

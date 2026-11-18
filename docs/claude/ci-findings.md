@@ -102,6 +102,9 @@ closed class reopens it in Sentry, the nightly filing reads it as unresolved aga
   Actions bot wrote it and it carries `src:sentry` (`findings.mjs sentry-id-of` — the repository is public: anybody
   may open an issue with any marker in it). Its log is public too: the tool's output goes to a file and only its
   structural lines are printed (a title of a player's report carries the player's words).
+- **The token is asked what it may do before anything is asked of it** (`diag access --need … --any …` — its scopes
+  as the collector names them, nothing of the account): one made with the wrong permissions fails the night it is
+  made, by name, not on the first finding somebody closes.
 - **Without the secret nothing breaks:** both jobs say «not set» as a notice and end green; the direction
   Sentry → GitHub and the auto-resolve work on the read token alone. A night the housekeeping could not do its work
   (a revoked token, the API) files a `broken-run` finding of its own.
