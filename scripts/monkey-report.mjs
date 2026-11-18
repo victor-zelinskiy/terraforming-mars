@@ -128,7 +128,7 @@ export function aggregateCauseFiles(files) {
         c.tests++;
       }
       if (r.tier === c.tier) {
-        c.first ??= {file: f.file, title: f.title, seed: f.monkey?.seed, atMs: r.atMs, line: r.title, dims: r.dims};
+        c.first ??= {file: f.file, title: f.title, seed: f.monkey?.seed, atMs: r.atMs, line: r.line ?? r.title, dims: r.dims};
       }
       const n = net(r.shape ?? shapeOfClass(r.cls), r.tier);
       n.records++;

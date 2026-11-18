@@ -148,6 +148,20 @@ const NOWHERE = {
   user: {geo: {region: 'not collected'}},
 };
 
+/**
+ * THE LEVEL OF AN AUTOMATIC EVENT, as the collector files it. Whatever leaves by itself IS a defect — the policy sends
+ * nothing else (`hub.ts` `autoDecision`: an exception, or a stall / integrity line of tier `defect`) — so it is an
+ * ERROR there: it used to carry the level of the CONSOLE CALL that printed it, and every stall and every broken
+ * invariant is printed with `console.warn`, so a freeze a player sat through was filed as a «warning» beside the real
+ * warnings of the web (the owner, 2026-11-19: «все ли баги мы реально помечаем как error»). And an episode the nets did
+ * NOT cure — the page was reloaded, rebuilt or closed under it, or it stood to the end — is FATAL: the player lost the
+ * screen. (A report and a session's ledger set their own `info`; nothing planned or informational is ever sent.)
+ */
+export function eventLevelOf(entry: DiagEntry): 'fatal' | 'error' {
+  const episode = entry.episode;
+  return episode !== undefined && episode.state !== 'open' && episode.state !== 'healed' ? 'fatal' : 'error';
+}
+
 function baseEvent(entry: DiagEntry, facts: EventFacts): SentryEvent {
   const tags: Record<string, string> = {
     kind: entry.kind,
@@ -192,7 +206,7 @@ function baseEvent(entry: DiagEntry, facts: EventFacts): SentryEvent {
     event_id: facts.eventId,
     timestamp: entry.at / 1000,
     platform: entry.runtime === 'page' ? 'javascript' : 'node',
-    level: entry.level === 'error' ? 'error' : 'warning',
+    level: eventLevelOf(entry),
     logger: 'tm.diagnostics',
     release: facts.release,
     environment: facts.environment,
@@ -237,7 +251,8 @@ function baseEvent(entry: DiagEntry, facts: EventFacts): SentryEvent {
       values: facts.trail.slice(-BREADCRUMBS).map((e) => ({
         timestamp: e.at / 1000,
         category: `${e.runtime}.${e.family}`,
-        level: e.level === 'error' ? 'error' : 'warning',
+        // (A breadcrumb is evidence around the event: a defect among them reads as one, the rest as what they are.)
+        level: e.level === 'error' || e.cause?.tier === 'defect' ? 'error' : (e.kind === 'note' || e.kind === 'perf' || e.cause?.tier === 'info' ? 'info' : 'warning'),
         message: e.title,
         type: e.kind === 'error' ? 'error' : 'default',
         ...(e.cause !== undefined ? {data: {cause: e.cause.cls, tier: e.cause.tier}} : {}),

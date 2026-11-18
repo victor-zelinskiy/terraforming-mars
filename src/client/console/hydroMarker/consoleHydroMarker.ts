@@ -30,6 +30,7 @@
  */
 
 import {reactive} from 'vue';
+import {invariantBroken} from '@/client/diagnostics/invariant';
 import {CardName} from '@/common/cards/CardName';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {Color} from '@/common/Color';
@@ -345,7 +346,7 @@ function armClaimNet(): void {
   cancelClaimNet = markerRun().after(CLAIM_PROGRESS_MAX_MS, 'the claimed advance reaching its handoff', () => {
     claimNetArmed = false;
     recordHydroStepEvent('claim:stalled');
-    console.warn('[hydro-marker] the claimed advance never reached its handoff — recalling the glide (claim net)');
+    invariantBroken('hydro-marker:claim-never-handed-over', 'the claimed advance never reached its handoff — recalling the glide (the claim net: a dead transaction)');
     abortHydroMarker();
   });
 }

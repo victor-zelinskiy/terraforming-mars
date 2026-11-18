@@ -265,3 +265,48 @@ describe('diagnostics — the page runs no SDK and nothing in the client sends b
       '(src/client/diagnostics/diagnosticsTransport.ts), and the hub — not a browser SDK — decides, scrubs and sends').to.deep.eq([]);
   });
 });
+
+/*
+ * WHAT REACHES THE COLLECTOR AS AN ERROR IS DECIDED AT A DOOR, NEVER BY A BARE `console.error` (the audit of
+ * 2026-11-19 — `docs/claude/diagnostics-tier-audit.md` § «The other direction»). An UNTAGGED `console.error(…)` of the
+ * client is received as an exception of the game, and 15 of the 34 such sites were a connection blinking or a server
+ * answering. A caught exception goes through `reportDiagnosticError` (law 3); a request's `catch` through
+ * `requestFailed` / `requestRefused` (the network's word is a note); a broken invariant through `invariantBroken`.
+ */
+describe('diagnostics — nothing of the client reaches the collector by a bare console.error', () => {
+  /** The interceptor itself — the one place that hands a line back to the platform's console. */
+  const THE_DOOR = new Set(['src/client/diagnostics/diagnosticsCapture.ts']);
+
+  it('every console.error of src/client is a TAGGED line — an untagged one is an exception of the game for whatever it says', () => {
+    const offenders: Array<string> = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        const file = path.relative(ROOT, full).replace(/\\/g, '/');
+        if (!/\.(ts|vue)$/.test(entry.name) || THE_DOOR.has(file)) {
+          continue;
+        }
+        fs.readFileSync(full, 'utf8').split('\n').forEach((line, index) => {
+          const call = /console\.error\(\s*(.?)(.?)/.exec(line);
+          if (call === null || /^\s*(\/\/|\*|\/\*)/.test(line)) {
+            return;
+          }
+          const tagged = (call[1] === '\'' || call[1] === '"' || call[1] === '`') && call[2] === '[';
+          if (!tagged) {
+            offenders.push(`${file}:${index + 1}  ${line.trim().slice(0, 110)}`);
+          }
+        });
+      }
+    };
+    walk(path.join(ROOT, 'src/client'));
+    expect(offenders, 'an untagged console.error is sent to the collector as an exception. Use the door that says what it is:\n' +
+      '  a caught exception      → reportDiagnosticError(pageErrorLine(\'caught by …\', err), err)   (client/diagnostics/diagnosticsCapture)\n' +
+      '  a request that failed   → requestFailed(where, err) / requestRefused(where, status)      (client/diagnostics/requestFailure)\n' +
+      '  «this cannot happen»    → invariantBroken(id, what)                                      (client/diagnostics/invariant)\n' +
+      '  a line of a known family → console.warn(\'[tag] …\') with its row in classify.ts / shapes.ts').to.deep.eq([]);
+  });
+});

@@ -1,6 +1,7 @@
 import {reactive} from 'vue';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {requestFailed, requestRefused} from '@/client/diagnostics/requestFailure';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {GameEvent} from '@/common/events/GameEvent';
 import {ParticipantId} from '@/common/Types';
@@ -100,7 +101,7 @@ export function createJournalDataSource(host: Host): JournalDataSource {
       })
       .catch((err) => {
         if (err.name !== 'AbortError') {
-          console.error('error updating journal events');
+          requestFailed('the journal\'s events fetch', err);
         }
       });
   }
@@ -127,7 +128,7 @@ export function createJournalDataSource(host: Host): JournalDataSource {
     fetch(url, {signal: controller.signal})
       .then((resp) => {
         if (!resp.ok) {
-          console.error(`error updating journal, response code ${resp.status}`);
+          requestRefused('the journal\'s logs fetch', resp.status, resp.statusText);
           return null;
         }
         return resp.json();
@@ -154,7 +155,7 @@ export function createJournalDataSource(host: Host): JournalDataSource {
           return;
         }
         state.loading = false;
-        console.error('error updating journal, unable to reach server');
+        requestFailed('the journal\'s logs fetch', err);
       });
   }
 

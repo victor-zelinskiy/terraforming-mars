@@ -18,6 +18,7 @@
  */
 
 import {reactive} from 'vue';
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 
 export type ConsoleSystemAlert = {
   title: string;
@@ -63,7 +64,7 @@ export function dismissConsoleAlert(): void {
   try {
     alert.cb();
   } catch (err) {
-    // A faulty callback must never wedge the alert queue.
-    console.error(err);
+    // A faulty callback must never wedge the alert queue — and what it threw is an error, by the one door.
+    reportDiagnosticError(pageErrorLine('caught by a system alert\'s callback', err), err);
   }
 }

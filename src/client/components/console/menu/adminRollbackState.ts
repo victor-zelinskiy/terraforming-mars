@@ -1,5 +1,6 @@
 import {reactive} from 'vue';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {HttpStatusError, requestFailed} from '@/client/diagnostics/requestFailure';
 import {paths} from '@/common/app/paths';
 import {GameId} from '@/common/Types';
 import {
@@ -57,11 +58,11 @@ export async function loadAdminGames(name: string): Promise<void> {
   try {
     const resp = await fetch(apiUrl(paths.API_ADMIN_ROLLBACK_GAMES + '?' + nameQuery(name)));
     if (!resp.ok) {
-      throw new Error(`status ${resp.status}`);
+      throw new HttpStatusError(resp.status, resp.statusText);
     }
     adminRollbackState.games = await resp.json() as ReadonlyArray<AdminRollbackGameSummary>;
   } catch (err) {
-    console.error('loadAdminGames failed', err);
+    requestFailed('the rollback tool\'sgames list fetch', err);
     adminRollbackState.gamesError = true;
   } finally {
     adminRollbackState.loadingGames = false;
@@ -77,11 +78,11 @@ export async function loadAdminHistory(name: string, gameId: GameId): Promise<vo
   try {
     const resp = await fetch(apiUrl(paths.API_ADMIN_ROLLBACK_HISTORY + '?id=' + encodeURIComponent(gameId) + '&' + nameQuery(name)));
     if (!resp.ok) {
-      throw new Error(`status ${resp.status}`);
+      throw new HttpStatusError(resp.status, resp.statusText);
     }
     adminRollbackState.history = await resp.json() as AdminRollbackHistory;
   } catch (err) {
-    console.error('loadAdminHistory failed', err);
+    requestFailed('the rollback tool\'shistory fetch', err);
     adminRollbackState.historyError = true;
   } finally {
     adminRollbackState.loadingHistory = false;
@@ -97,11 +98,11 @@ export async function performAdminRollback(name: string, gameId: GameId, saveId:
       apiUrl(paths.API_ADMIN_ROLLBACK + '?id=' + encodeURIComponent(gameId) + '&saveId=' + saveId + '&' + nameQuery(name)),
       {method: 'POST'});
     if (!resp.ok) {
-      throw new Error(`status ${resp.status}`);
+      throw new HttpStatusError(resp.status, resp.statusText);
     }
     return await resp.json() as AdminRollbackResult;
   } catch (err) {
-    console.error('performAdminRollback failed', err);
+    requestFailed('the rollback tool\'srollback request', err);
     adminRollbackState.submitError = true;
     return undefined;
   } finally {

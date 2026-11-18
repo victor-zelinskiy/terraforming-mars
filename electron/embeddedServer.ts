@@ -232,7 +232,9 @@ function spawn(options: StartOptions): UtilityProcess | undefined {
   const script = serverScriptPath();
   if (script === undefined) {
     // eslint-disable-next-line no-console
-    console.error('[embedded] no server script found (run `npm run build:embedded` or `npm run build:server`)');
+    // (A packaged build without its server is a broken package — an ERROR of the main process, sent; it was a note
+    // of `[embedded]`, and the session fell back to remote mode with nothing said to anybody.)
+    console.error('[main-error] the embedded server has no script (run `npm run build:embedded` or `npm run build:server`)');
     return undefined;
   }
   const root = embeddedRoot();
@@ -327,7 +329,8 @@ export function startEmbeddedServer(options: StartOptions): Promise<number> {
             })
             .catch((err) => {
               // eslint-disable-next-line no-console
-              console.error('[embedded] respawn failed', err);
+              // (The session lost its server for good — an ERROR, with what the respawn threw; it was a note.)
+              console.error(`[main-error] the embedded server's respawn failed: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`, err);
             });
         }, RESPAWN_DELAY_MS);
       } else {

@@ -63,6 +63,10 @@ const INTEGRITY: ReadonlyArray<string> = [
   // its owner declared — a lost touchdown (`discardPile.ts`). Both were NOTES of their scene's family until the tier
   // audit of 2026-11-18 (`docs/claude/diagnostics-tier-audit.md` rows 7, 9): a defect never sent.
   'reaction-identity', 'discard-count',
+  // «This cannot happen, and it did» — the one door for a broken invariant (`client/diagnostics/invariant.ts`): the
+  // lines whose own comments read «it is a BUG, not a mode» were notes of their modules, several of them printed in
+  // development builds only (the audit of 2026-11-19).
+  'invariant',
 ];
 
 const PERF: ReadonlyArray<string> = ['long-frame', 'perf', 'bot-turn', 'console-overflow'];
@@ -87,6 +91,10 @@ const NOTE: ReadonlyArray<string> = [
   // «Проверка связи»: the test error each runtime throws on purpose. A NOTE of the journal — nothing failed — which the
   // hub sends as an exception only when the connection check asks (its event is tagged `selftest`).
   'selftest',
+  // A request that failed by the NETWORK's word or by the server's own answer (`client/diagnostics/requestFailure.ts`):
+  // a player's connection, a server being restarted, a login that is not there — never a defect of the page. What
+  // the same `catch` received of OUR OWN is an error, by the sanctioned door.
+  'net',
   // The main process's own breadcrumbs (they reach the journal through the hub).
   'embedded', 'electron', 'shutdown', 'velopack', 'diagnostics', 'TM affinity', 'console-export',
 ];

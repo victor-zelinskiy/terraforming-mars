@@ -441,6 +441,18 @@ function install(deps: DiagnosticsMainDeps): DiagnosticsMain {
       if (details.reason === 'clean-exit' || details.reason === 'killed') {
         return;
       }
+      // THE DEVICE'S, NOT THE GAME'S: the GPU process lost to a driver reset (Chromium starts another), a helper an
+      // antivirus would not let start or whose image failed its integrity check. Said as a note of the main process —
+      // a breadcrumb of whatever follows —, never an exception of the game. A process of OURS (a utility with a
+      // service name: the embedded server) and anything that ran out of memory stay errors.
+      const ours = details.type === 'Utility' && (details.serviceName ?? '').startsWith('tm-');
+      const devices = !ours && details.reason !== 'oom' &&
+        (details.type === 'GPU' || details.reason === 'launch-failed' || details.reason === 'integrity-failure');
+      if (devices) {
+        // eslint-disable-next-line no-console
+        console.warn(`[electron] a ${details.type} process is gone (${details.reason}, exit ${details.exitCode}) — the device's own: Chromium starts another`);
+        return;
+      }
       // eslint-disable-next-line no-console
       console.error(`[process-gone] ${details.type}${details.name !== undefined ? ` (${details.name})` : ''}${details.serviceName !== undefined ? ` ${details.serviceName}` : ''}: ${details.reason}, exit ${details.exitCode}`);
     });

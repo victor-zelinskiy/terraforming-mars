@@ -36,6 +36,7 @@
  * armed press; reduced motion arms nothing.
  */
 import {reactive} from 'vue';
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -440,7 +441,10 @@ export async function runPromptReceive(event: PromptReceiveEvent): Promise<void>
   promptReceiveState.family = a.family;
   try {
     promptReceiveState.outcome = event.record !== undefined ? await runField(a, event.record) : await runInSurface(a);
-  } catch {
+  } catch (e) {
+    // The scene degrades and never rejects — but what it threw is an ERROR somebody must hear of (it was swallowed
+    // without a line: the audit of 2026-11-19, the same class as the seven scenes of the tier audit's row 8).
+    reportDiagnosticError(pageErrorLine('caught by the prompt-receive scene — degraded', e), e);
     promptReceiveState.outcome = 'degraded';
   }
   noteTransferTrail('prompt-receive:end', {card: a.card, family: a.family, outcome: promptReceiveState.outcome});

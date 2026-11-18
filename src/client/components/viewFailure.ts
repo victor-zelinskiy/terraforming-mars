@@ -19,6 +19,8 @@
  * Under the loading curtain every failure is the curtain's own error state at once (the boot, a rebuild in flight).
  */
 import {failLoading, loadingScreenState} from '@/client/console/loadingScreenState';
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
+import {isNetworkFailure} from '@/client/diagnostics/requestFailure';
 import {rebuildConsoleSession} from '@/client/console/session/sessionRebuild';
 
 /** The view the page stands on, as far as the bound of the last line needs it. */
@@ -27,7 +29,13 @@ export type StandingView = {id?: string, game?: {gameAge?: number}} | undefined;
 export type ViewFailure = 'curtain' | 'said' | 'rebuilding' | 'refused';
 
 export function viewFailed(phase: 'fetch' | 'apply', err: unknown, standing: StandingView): ViewFailure {
-  console.error(err);
+  // WHAT IS SAID TO THE COLLECTOR FOLLOWS WHAT FAILED: a fetch the NETWORK ended is the network's word — the `[view]
+  // fetch failed` line below says it (it used to be an untagged error besides: an exception of the game on every
+  // blink of a connection, grouped with the real ones). A throw of OUR OWN — the apply's, or one inside the fetch's
+  // chain — is an error, with its stack.
+  if (phase === 'apply' || !isNetworkFailure(err)) {
+    reportDiagnosticError(pageErrorLine(`caught by the view's ${phase}`, err), err);
+  }
   if (loadingScreenState.active) {
     failLoading('Error getting game data');
     return 'curtain';

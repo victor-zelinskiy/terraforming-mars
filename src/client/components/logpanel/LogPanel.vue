@@ -28,6 +28,7 @@
 import {computed, nextTick, onMounted, ref} from 'vue';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {requestFailed, requestRefused} from '@/client/diagnostics/requestFailure';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
 import {playerColorClass} from '@/common/utils/utils';
@@ -120,7 +121,7 @@ function getLogsForGeneration(generationNow: number): void {
   fetch(url, {signal: controller.signal})
     .then((resp) => {
       if (!resp.ok) {
-        console.error(`error updating messages, response code ${resp.status}`);
+        requestRefused('the log panel\'s generation fetch', resp.status, resp.statusText);
         return null;
       }
       return resp.json();
@@ -143,7 +144,7 @@ function getLogsForGeneration(generationNow: number): void {
         // ignore aborted requests
         return;
       }
-      console.error('error updating messages, unable to reach server');
+      requestFailed('the log panel\'s generation fetch', err);
     });
 }
 function scrollToEnd() {

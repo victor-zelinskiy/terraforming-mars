@@ -17,6 +17,7 @@ import {computed, onMounted, ref} from 'vue';
 import raw_settings from '@/genfiles/settings.json';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {requestFailed, requestRefused} from '@/client/diagnostics/requestFailure';
 
 defineOptions({name: 'login-home'});
 
@@ -43,7 +44,7 @@ onMounted(() => {
   fetch(url)
     .then((resp) => {
       if (!resp.ok) {
-        console.error('Unexpected server response: ' + resp.statusText);
+        requestRefused('the session profile fetch', resp.status, resp.statusText);
         return null;
       }
       return resp.json();
@@ -60,7 +61,7 @@ onMounted(() => {
     })
     .catch((err) => {
       alert('Error getting session profile data');
-      console.error(err);
+      requestFailed('the session profile fetch', err);
     });
 });
 </script>

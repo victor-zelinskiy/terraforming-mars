@@ -311,6 +311,7 @@ import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentat
 import {armDeferredViewRefresh, disarmDeferredViewRefresh, scenesHoldingView} from '@/client/components/deferredViewRefresh';
 import {liveViewScenes} from '@/client/components/viewScenes';
 import {viewFailed} from '@/client/components/viewFailure';
+import {HttpStatusError, isStaleChunkFailure, requestFailed, staleChunkNoted} from '@/client/diagnostics/requestFailure';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
 import {watchSupervisorPulse} from '@/client/console/session/supervisorPulse';
 import {noteViewFetch} from '@/client/console/transport/viewDelivery';
@@ -900,7 +901,7 @@ function applyRoute(): void {
     fetch(url)
       .then((resp) => {
         if (!resp.ok) {
-          throw new Error(`Error getting game data: ${resp.statusText}`);
+          throw new HttpStatusError(resp.status, resp.statusText);
         }
         return resp.json();
       })
@@ -916,7 +917,7 @@ function applyRoute(): void {
       .catch((err) => {
         // The route's own boot fetch: its failure is the loading curtain's error state — never a native dialog.
         failLoading('Error getting game data');
-        console.error(err);
+        requestFailed('the game route\'s boot fetch', err);
       });
   } else if (currentPathname === paths.GAMES_OVERVIEW) {
     screen.value = 'games-overview';
@@ -1107,13 +1108,18 @@ onMounted(() => {
 onErrorCaptured((err: unknown) => {
   // Chunk errors occur when the server is redeployed with new chunk names
   // and the client doesn't know about them. In that case, reload the page.
-  if (err instanceof Error && err.name === 'ChunkLoadError') {
-    console.error(err);
+  // (`isStaleChunkFailure` — what the BROWSER rejects a dynamic import with: the old check named webpack's
+  // `ChunkLoadError`, which the Vite build never throws, so this branch was dead and the reload was never offered.)
+  if (isStaleChunkFailure(err)) {
+    staleChunkNoted(err);
     // A RELEASE of the PAGE's scope: once OK is pressed the reload is owed, whatever game screen comes or goes.
     showAlert('Page out of date', 'This page is out of date. Click OK to refresh it.', () => {
       consoleAppScope().guarantee(100, 'the reload after a chunk load error', () => window.location.reload());
     });
+    // (Said, and answered: it does not go on to the error handler as an exception of the game.)
+    return false;
   }
+  return undefined;
 });
 
 // THE ROOT'S PUBLIC SURFACE IS ITS PORT: what a holder of the root reaches (its unit specs — the application itself

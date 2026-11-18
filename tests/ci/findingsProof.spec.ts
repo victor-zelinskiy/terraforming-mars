@@ -54,6 +54,33 @@ describe('ci findings: a finding names its proof', function() {
     expect(finding.proof).to.deep.eq({workflow: 'Monkey', inputs: {seed: 'fz0', only: '^hydro-terminal-surge$', shards: '1', perturb: 'cpu4'}});
   });
 
+  /*
+   * A FINDING SAYS WHERE ITS CLASS LIVES IN THE CODE (the owner, 2026-11-19: findings must be quick to work with for
+   * an agent that has no collector access and no memory of yesterday) — read off the checkout, the same search as
+   * `npm run diag -- where <class>`.
+   */
+  it('a finding of a cause class says where to start: the shape\'s row, the print site, where its words are declared', () => {
+    const report = {
+      totals: {notCured: 0},
+      classes: {
+        'wait-graph/ceiling/remote-placement:watchable-board': {tier: 'defect', tests: 1, records: 1, first: {title: 'monkey · a', seed: 'fz0:a', line: 'x'}},
+        'invariant/broken/start-flight:no-rise-end': {tier: 'defect', tests: 1, records: 1, first: {title: 'monkey · b', seed: 'fz0:b', line: 'x'}},
+      },
+      diff: {newClasses: ['wait-graph/ceiling/remote-placement:watchable-board', 'invariant/broken/start-flight:no-rise-end']},
+    };
+    const [wait, invariant] = findingsOf('from-monkey', report, '--source', 'monkey');
+    expect(wait.body).to.contain('**Where to start**');
+    expect(wait.body).to.match(/- the shape's row \(what the line is, its tier\): `src\/common\/diagnostics\/shapes\.ts:\d+`/);
+    expect(wait.body).to.match(/- printed at: `src\/client\/console\/waitGraph\/ceilingWait\.ts:\d+`/);
+    expect(wait.body, 'the wait\'s own id is a name of the code').to.match(/- `remote-placement:watchable-board` is declared at: `src\/client\/console\/tilePlacement\/consoleRemotePlacement\.ts:\d+`/);
+    expect(wait.body).to.match(/- named in the tests: `tests\//);
+    // An invariant is found by the call that checks it — its id is often built from parts.
+    expect(invariant.body).to.match(/- the invariant is checked at: `src\/client\/console\/startDockMotion\.ts:\d+`/);
+    // A class this checkout knows nothing of files without the block — never with a guess.
+    const [unknown] = findingsOf('from-monkey', {...report, classes: {'nonsense/shape/x': {first: {title: 'monkey · c', seed: 'fz0:c'}}}, diff: {newClasses: ['nonsense/shape/x']}}, '--source', 'monkey');
+    expect(unknown.body).not.to.contain('printed at');
+  });
+
   it('a table or a seed that is not a plain name carries no proof', () => {
     const report = {...monkeyReport, classes: {'wait-graph/ceiling/x': {first: {title: 'monkey · a b; rm', seed: 'fz0:x'}}}};
     const [finding] = findingsOf('from-monkey', report, '--source', 'monkey');

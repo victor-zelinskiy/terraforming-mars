@@ -37,6 +37,7 @@
  */
 
 import {reactive, nextTick, shallowRef} from 'vue';
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -2939,7 +2940,8 @@ function peekTargetRect(): HeroRect | undefined {
   }
   try {
     return targetPeek?.();
-  } catch {
+  } catch (e) {
+    reportDiagnosticError(pageErrorLine('caught by the played hero\'s landing peek — no landing rect', e), e);
     return undefined;
   }
 }
@@ -2991,7 +2993,8 @@ async function measureTargetRect(budgetMs: number): Promise<HeroRect | undefined
   }
   try {
     return await measure();
-  } catch {
+  } catch (e) {
+    reportDiagnosticError(pageErrorLine('caught by the played hero\'s landing measure — no landing rect', e), e);
     return undefined;
   }
 }

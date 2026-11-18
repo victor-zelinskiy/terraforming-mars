@@ -320,6 +320,7 @@ import {$t} from '@/client/directives/i18n';
 import {campaignsState, refreshCampaigns, takeCampaignsReturn} from '@/client/console/campaign/campaignsState';
 import {activeCampaignRowCount, campaignActionRequired, visibleCampaignSourceRows} from '@/client/console/campaign/campaignListModel';
 import {useAppRoot} from '@/client/components/appRoot';
+import {HttpStatusError, requestFailed} from '@/client/diagnostics/requestFailure';
 
 type MenuItemId = 'continue' | 'create' | 'games' | 'campaigns' | 'profile' | 'options' | 'report' | 'admin' | 'playground' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
@@ -1370,14 +1371,15 @@ async function executeGamesDelete(): Promise<void> {
     const query = confirm.kind === 'all' ? 'all=1' : 'id=' + encodeURIComponent(confirm.game.id);
     const res = await fetch(apiUrl(paths.API_LOCAL_GAME_DELETE) + '?' + query, {method: 'POST'});
     if (!res.ok) {
-      throw new Error(`delete failed (${res.status})`);
+      throw new HttpStatusError(res.status, res.statusText);
     }
     gamesConfirm.value = undefined;
     // Re-ask rather than patch the list locally: the server is the one that
     // knows what is left (and the same refresh rewrites the CONTINUE cache).
     await refreshLobby({archive: true});
     gamesCursor.value = Math.min(gamesCursor.value, Math.max(0, gamesCount.value - 1));
-  } catch {
+  } catch (err) {
+    requestFailed('the local game delete', err);
     gamesError.value = true;
   } finally {
     gamesDeleting.value = false;

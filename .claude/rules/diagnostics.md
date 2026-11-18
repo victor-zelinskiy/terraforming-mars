@@ -105,6 +105,30 @@ a report or a Sentry issue is the skill `diagnose-report` (`npm run diag -- …`
     card or duration. A new field of the event is proven by the probe on the real project (`scripts/diag-probe.mjs`),
     and `diag issue --event` is how it is read back.
 
+20. **WHAT REACHES THE COLLECTOR AS AN ERROR IS DECIDED AT A DOOR — never by a bare `console.error`.** An untagged
+    `console.error(…)` of the client is received as an exception of the game for whatever it says (guard:
+    `diagnosticsClassification.spec` «nothing … by a bare console.error» — it lists the doors). The doors:
+    a caught exception → `reportDiagnosticError(pageErrorLine('caught by …', err), err)` (law 3); **a request's
+    `catch` → `requestFailed(where, err)`, a non-OK answer → `requestRefused(where, status)`**
+    (`client/diagnostics/requestFailure.ts`: the NETWORK's word and the SERVER's own answer are a note of the family
+    `net`; a throw of our own inside the same catch is an error — and the player is told the truth, never «cannot
+    contact the server» about a presenter that threw); a non-OK status is thrown as `HttpStatusError`.
+21. **«THIS CANNOT HAPPEN» HAS ONE DOOR: `invariantBroken(id, what)`** (`client/diagnostics/invariant.ts`) —
+    `[invariant] <module>:<what-broke> — …`, kind `integrity`, a defect, ONE issue per id, IN EVERY BUILD. Never a
+    `console.warn` under the module's own tag (a NOTE: never sent), never behind `NODE_ENV !== 'production'` (then it
+    is not even a breadcrumb in the field). A line whose comment reads «it is a bug, not a mode» is this door's.
+22. **A `catch` THAT SWALLOWS SAYS WHY — or reports.** A body that neither rethrows nor reports carries a comment
+    naming why swallowing is right (a cancelled animation, an optional platform call); a degraded mode that follows a
+    throw (`outcome = 'degraded'`, `return undefined`) reports the throw first.
+23. **A PLANNED VERDICT IS PROOF OVER THE WAIT — never a declaration** (`docs/claude/diagnostics-tier-audit.md`):
+    «the viewer keeps the board covered» is read from the cover's terms at every look (`boardCoverWitness.ts`);
+    «the hold waits for the player» is believed only while the pad takes a press (`registerPlayerCanAnswerProbe`);
+    «the page was not painting» is a verdict over the whole span, and never of a motion the page gave 20 s
+    (`STARVED_ENOUGH_MS`). A new `planned` names the fact it read and where it read it over the wait's whole life.
+24. **A FINDING SAYS WHERE ITS CLASS LIVES IN THE CODE** (`scripts/ci/findings.mjs` `startHere` — the search of
+    `npm run diag -- where`, run at filing time): keep a class's words NAMES OF THE CODE (a wait's `id`, a hold's
+    label, an invariant's id as the literal first argument's module word) — a class built from prose points nowhere.
+
 ## Where a signal comes from (do not add a fourth road)
 | runtime | the road |
 | --- | --- |

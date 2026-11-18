@@ -188,9 +188,25 @@ describe('the submit funnel', () => {
 
   it('a network failure: said, settled `failed`, the funnel reopens', async () => {
     const ticket = submitInput({type: 'option'});
-    fetches[0].reject(new Error('offline'));
+    // (What a browser's fetch rejects with when the request never got an answer.)
+    fetches[0].reject(new TypeError('Failed to fetch'));
     expect((await ticket.settled).status).to.eq('failed');
     expect(root.alerts).to.deep.eq(['Error sending input,']);
+    expect(transportRequestInProgress()).to.eq(false);
+  });
+
+  /*
+   * THE SAME CATCH RECEIVES A THROW OF OUR OWN (the audit of what reaches the collector, 2026-11-19): a response that
+   * would not parse, a presenter that threw while applying it — told to the player as «cannot contact the server» and
+   * filed under the network's noise. It is said as what it is, and the truth is fetched again.
+   */
+  it('a throw of OUR OWN in the submit\'s chain is not «the network»: said as an unexpected response, the view re-fetched', async () => {
+    const before = root.updates;
+    const ticket = submitInput({type: 'option'});
+    fetches[0].reject(new TypeError('Cannot read properties of undefined (reading \'game\')'));
+    expect((await ticket.settled).status).to.eq('failed');
+    expect(root.alerts).to.deep.eq(['Error processing response']);
+    expect(root.updates, 'what the answer did before it threw may stand half-applied').to.be.greaterThan(before);
     expect(transportRequestInProgress()).to.eq(false);
   });
 

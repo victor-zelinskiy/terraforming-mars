@@ -123,6 +123,7 @@
  * loading (the real screen loads underneath and is revealed on fade-out).
  */
 import {computed, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, ref, useTemplateRef} from 'vue';
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import Card from '@/client/components/card/CardFace.vue';
 import {CardName} from '@/common/cards/CardName';
@@ -318,10 +319,10 @@ onErrorCaptured((err): boolean => {
   // A warm-up render failure (an isolated board component missing some game
   // context it normally gets from a live game) must NEVER crash the app —
   // it stops here. The pipeline it would have warmed just compiles at first
-  // real use instead. The loader itself keeps running. It is SAID, though (a
-  // note of the diagnostics journal): a warm-up that fails on every boot is a
-  // first deal that hitches on every boot, and nothing used to name it.
-  console.warn('[boot-warmup] a warm-up render failed — its pipeline compiles at first real use', err);
+  // real use instead. The loader itself keeps running. It is SAID, though — as
+  // the exception it is, with its stack (it was a note: never sent): a warm-up
+  // that fails on every boot is a first deal that hitches on every boot.
+  reportDiagnosticError(pageErrorLine('caught by the boot warm-up (its pipeline compiles at first real use)', err), err);
   return false;
 });
 </script>

@@ -34,6 +34,8 @@
 /* global RequestInit */
 
 import {nextTick, reactive, shallowRef} from 'vue';
+import {requestFailed, requestRefused} from '@/client/diagnostics/requestFailure';
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import * as constants from '@/common/constants';
 import raw_settings from '@/genfiles/settings.json';
 import {onRealtimeWake} from '@/client/components/realtime/realtimeSync';
@@ -1815,7 +1817,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
         showAlert('Error with input', said, cb);
       } else {
         showAlert('Error processing response', 'Unexpected response from server. Please try again.');
-        console.error(response.statusText);
+        // THE SERVER'S OWN ANSWER (a 5xx while it restarts, a proxy's page): its word, and its defect to report with its
+        // own stack — on the page a note, with the status the line never used to print (`requestFailure.ts`).
+        requestRefused('the submit', response.status, response.statusText);
       }
     })
     .catch((e) => {
@@ -1836,8 +1840,16 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
         r.updatePlayer();
         return;
       }
-      r.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
-      console.error(e);
+      // THE NETWORK'S WORD, OR A THROW OF OUR OWN: this catch receives both — the fetch that never got an answer, and a
+      // response that would not parse or a presenter that threw while applying it. The second was told to the player
+      // as «cannot contact the server» and filed under the network's noise (`requestFailure.ts` reads which it is).
+      if (requestFailed('the submit', e) === 'network') {
+        r.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
+      } else {
+        r.showAlert('Error processing response', 'Unexpected response from server. Please try again.');
+        // (What the answer did before it threw may stand half-applied: the truth is fetched again.)
+        r.updatePlayer();
+      }
     })
     .finally(() => scope.end());
   const ticket: SubmitTicket = {accepted: true, id: scope.id, settled};
@@ -2051,8 +2063,10 @@ export function waitForUpdate(immediate = false): void {
       } catch (err) {
         // THE CHAIN OUTLIVES ITS ANSWER: the re-arm below used to be the LAST statement of this handler — any throw
         // above it (a body that is not a model, a refresh that threw) ended the chain for good, in silence.
+        // ONE INCIDENT — ONE EVENT: the exception is the defect, with its stack (the one door); the tagged line beside
+        // it says what the chain did, as evidence (it used to be a second event of the same throw).
         console.warn(`[transport] the poll's answer could not be taken — ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)} — the chain goes on`);
-        console.error(err);
+        reportDiagnosticError(pageErrorLine('caught by the poll\'s answer — the chain goes on', err), err);
       }
       // ALWAYS keep polling — whichever path `updatePlayer` took, this chain stays the one live poller (a re-arm
       // clears the pending timer, so only one chain runs at a time).

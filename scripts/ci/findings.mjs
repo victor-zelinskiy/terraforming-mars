@@ -41,6 +41,9 @@
  */
 import {execFileSync} from 'node:child_process';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {findReproductions, whereSearch} from '../diag-lib.mjs';
 
 const [command, ...rest] = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -73,6 +76,120 @@ function emit(doc) {
 
 const fence = (text) => `\`\`\`\n${String(text).replace(/```/g, "'''")}\n\`\`\``;
 
+/*
+ * WHERE TO START — every finding of a cause class says where its class LIVES IN THE CODE, read off this checkout by
+ * the same search as `npm run diag -- where <class>`: the row of the shape table that reads the line, the site that
+ * prints it, where each word of the class is declared, the tests and replays that name the class, and the lines of
+ * the freeze program's worklist that mention it. A reader of the ticket — the morning agent has no collector access
+ * and no memory of yesterday — starts at a file and a line instead of at a grep (the owner, 2026-11-19: «чтобы
+ * проблемы зависаний было как можно более удобно находить … и другим агентам»). Nothing of a session is in it: it is
+ * the repository's own text.
+ */
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+let sourceCache;
+function repoTexts() {
+  if (sourceCache !== undefined) {
+    return sourceCache;
+  }
+  const read = (dir, exts) => {
+    const out = [];
+    const walk = (at) => {
+      for (const entry of fs.readdirSync(at, {withFileTypes: true})) {
+        const full = path.join(at, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== 'node_modules' && entry.name !== 'genfiles') {
+            walk(full);
+          }
+        } else if (exts.some((ext) => entry.name.endsWith(ext))) {
+          out.push({path: path.relative(REPO, full).split(path.sep).join('/'), text: fs.readFileSync(full, 'utf8')});
+        }
+      }
+    };
+    if (fs.existsSync(dir)) {
+      walk(dir);
+    }
+    return out;
+  };
+  const shapesPath = path.join(REPO, 'src', 'common', 'diagnostics', 'shapes.ts');
+  const planPath = path.join(REPO, 'docs', 'claude', 'console', 'freeze-zero', 'PLAN.md');
+  sourceCache = {
+    code: [...read(path.join(REPO, 'src', 'client'), ['.ts', '.vue']), ...read(path.join(REPO, 'electron'), ['.ts'])],
+    tests: read(path.join(REPO, 'tests'), ['.ts']),
+    shapes: fs.existsSync(shapesPath) ? fs.readFileSync(shapesPath, 'utf8') : '',
+    plan: fs.existsSync(planPath) ? fs.readFileSync(planPath, 'utf8').split('\n') : [],
+  };
+  return sourceCache;
+}
+
+/** The «where to start» lines of a cause class (markdown) — empty when the class names nothing this checkout knows. */
+function startHere(cls) {
+  if (typeof cls !== 'string' || !/^[a-z][a-z0-9-]*\/[^\s]+$/i.test(cls)) {
+    return [];
+  }
+  let repo;
+  try {
+    repo = repoTexts();
+  } catch {
+    return [];
+  }
+  const lines = [];
+  const at = (hit) => `\`${hit.file}:${hit.line}\``;
+  try {
+    const found = whereSearch(repo.code, cls, {shapesText: repo.shapes});
+    if (found.row !== undefined) {
+      lines.push(`- the shape's row (what the line is, its tier): ${at(found.row)}`);
+    }
+    const printed = found.hits.filter((hit) => hit.rank === 0).slice(0, 3);
+    if (printed.length > 0) {
+      lines.push(`- printed at: ${printed.map(at).join(' · ')}`);
+    }
+    // AN INVARIANT's id is the first argument of its one door (`invariantBroken('<module>:<what>', …)`) — often built
+    // from parts, so it is found by its module word beside the call, never as one literal.
+    const invariant = cls.startsWith('invariant/broken/') ? cls.slice('invariant/broken/'.length).split(':')[0] : undefined;
+    if (invariant !== undefined) {
+      const checked = [];
+      for (const {path: file, text} of repo.code) {
+        if (!text.includes('invariantBroken(')) {
+          continue;
+        }
+        text.split('\n').forEach((line, index) => {
+          if (checked.length < 4 && line.includes('invariantBroken(') && line.toLowerCase().includes(`${invariant}:`)) {
+            checked.push({file, line: index + 1});
+          }
+        });
+      }
+      if (checked.length > 0) {
+        lines.push(`- the invariant is checked at: ${checked.map(at).join(' · ')}`);
+      }
+    }
+    // The class's own words are names of the code too — a wait's id, a hold's label.
+    for (const word of invariant !== undefined ? [] : found.rest.slice(0, 4)) {
+      if (!/[a-z]{3}/i.test(word)) {
+        continue;
+      }
+      const declared = whereSearch(repo.code, word, {shapesText: repo.shapes}).hits.filter((hit) => hit.rank <= 2).slice(0, 2);
+      if (declared.length > 0) {
+        lines.push(`- \`${word}\` is declared at: ${declared.map(at).join(' · ')}`);
+      }
+    }
+  } catch {
+    // (A search that failed says nothing — the finding is filed without its pointers.)
+  }
+  const named = findReproductions(repo.tests, cls).slice(0, 4);
+  lines.push(named.length > 0 ? `- named in the tests: ${named.map(at).join(' · ')}` : '- no test or replay names this class yet');
+  const tail = cls.split('/').slice(2).join('/');
+  const planned = [];
+  repo.plan.forEach((line, index) => {
+    if (planned.length < 4 && (line.includes(cls) || (tail.length >= 6 && line.includes(tail)))) {
+      planned.push(index + 1);
+    }
+  });
+  if (planned.length > 0) {
+    lines.push(`- the freeze program's worklist mentions it: \`docs/claude/console/freeze-zero/PLAN.md\` line${planned.length === 1 ? '' : 's'} ${planned.join(', ')}`);
+  }
+  return lines.length === 0 ? [] : ['', '**Where to start** (read off this checkout — `npm run diag -- where <class>` prints the same, with the lines):', ...lines];
+}
+
 // ── from a monkey report (the bottle's gate and the real-browser monkey speak the same report) ──────────────────────
 function fromMonkey() {
   const source = flag('source', 'monkey');
@@ -100,6 +217,7 @@ function fromMonkey() {
         `- walks that named it: ${info.tests ?? '?'} · records: ${info.records ?? '?'}`,
         `- first: ${first.title ?? '?'}${first.seed === undefined ? '' : ` · seed \`${first.seed}\``}`,
         ...(first.line === undefined ? [] : ['', fence(first.line)]),
+        ...startHere(cls),
         ...(repro === '' ? [] : ['', '**Repeat it:**', fence(repro.replace(/<table>/g, String(first.title ?? '').replace(/^monkey · /, '')).replace(/<seed>/g, String(first.seed ?? '').split(':')[0]))]),
       ].join('\n'),
     });
@@ -305,6 +423,7 @@ function fromSentry() {
           '**What its latest event said of itself** (structural tags — nothing of a session\'s identity):',
           ...Object.entries(issue.structure).map(([key, value]) => `- \`${key}\`: \`${String(value).replace(/`/g, "'").slice(0, 160)}\``),
         ] : []),
+        ...startHere(issue.structure?.cause),
         '',
         '**Read it** (a machine with Sentry access — the laptop; the triage sandbox has none):',
         fence(`npm run diag -- issue ${issue.shortId}        # the newest case, laid out in reading order\nnpm run diag -- resolve ${issue.shortId}      # AFTER the fix is committed: closes the class in that release`),

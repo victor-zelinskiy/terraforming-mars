@@ -36,6 +36,7 @@
  */
 
 import {reactive} from 'vue';
+import {invariantBroken} from '@/client/diagnostics/invariant';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /**
@@ -92,9 +93,9 @@ export function beginDockIntakeAccent(label: string): () => void {
     // screen leaves — there the lease is let go silently (the session's own cleanup).
     const owner = consoleSessionScope();
     const cancelCeiling = owner.after(ACCENT_MAX_MS, 'the dock accent\'s ceiling', () => {
-      if (process.env.NODE_ENV !== 'production' && leases.some((l) => l.id === id)) {
-        console.warn(`[dock-accent] «${label}» outlived ${ACCENT_MAX_MS}ms and was released — ` +
-          'the compact pose must never be disabled by a leaked presentation.');
+      if (leases.some((l) => l.id === id)) {
+        invariantBroken(`dock-accent:leaked-lease:${label}`,
+          `the accent lease outlived ${ACCENT_MAX_MS}ms and was released — the compact pose must never be disabled by a leaked presentation`);
       }
       drop(id);
     });

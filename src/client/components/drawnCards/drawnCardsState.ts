@@ -4,6 +4,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep, CardIntakeBatchRef, CardIntakePendingAnswer, CardIntakeSegment, ColonyTradeRevealSegment, DrawSearchModel, tradeSegmentsOf} from '@/common/models/CardDrawRevealModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {requestFailed, requestRefused} from '@/client/diagnostics/requestFailure';
 import {whenPainted} from '@/client/console/session/sessionWaits';
 
 /**
@@ -396,12 +397,12 @@ export function acknowledgeDraw(viewId: string, id: number): void {
     .then((resp) => {
       if (!resp.ok) {
         setAcking(id, false);
-        console.warn('acknowledge-draw failed', resp.status);
+        requestRefused('the drawn cards acknowledgement', resp.status, resp.statusText);
       }
     })
     .catch((err) => {
       setAcking(id, false);
-      console.error(err);
+      requestFailed('the drawn cards acknowledgement', err);
     });
 }
 

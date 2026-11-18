@@ -50,6 +50,7 @@
  * own spec (under a virtual-DOM parent and a Vapor one).
  */
 import {nextTick, onBeforeUnmount, PropType, reactive, ref, watch} from 'vue';
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import type {Component} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {embedZoneEpoch} from '@/client/console/embedZoneRegistry';
@@ -64,7 +65,9 @@ function resolveTeleportTarget(to: TeleportTo): HTMLElement | null {
   }
   try {
     return document.querySelector<HTMLElement>(to);
-  } catch {
+  } catch (e) {
+    // (An INVALID selector is a bug of the caller, not «the target is absent»: the content would wait for ever.)
+    reportDiagnosticError(pageErrorLine('caught by a teleport\'s target lookup — an invalid selector', e), e);
     return null;
   }
 }

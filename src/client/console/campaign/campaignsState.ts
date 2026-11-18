@@ -31,6 +31,7 @@ import {ensureIdentityLoaded, identityState} from '../../components/mainMenu/ide
 import {LOCAL_SOURCE_ID, lobbyState} from '../../components/mainMenu/lobbyState';
 import {CampaignSourceRow, CampaignSourceSlice, CampaignsTab, mergeCampaignSources} from './campaignListModel';
 import {consoleAppScope} from '../session/consoleSession';
+import {HttpStatusError, requestFailed} from '@/client/diagnostics/requestFailure';
 
 export type CampaignsListStatus = 'idle' | 'loading' | 'ok' | 'error';
 
@@ -93,7 +94,7 @@ async function refreshLocalCampaigns(name: string): Promise<LocalOutcome> {
   try {
     const res = await fetch(apiUrl(paths.API_CAMPAIGNS) + campaignsQuery(name));
     if (!res.ok) {
-      throw new Error(`campaigns list failed (${res.status})`);
+      throw new HttpStatusError(res.status, res.statusText);
     }
     const summaries = await res.json() as Array<CampaignSummaryModel>;
     if (seqs.get(LOCAL_SOURCE_ID) !== seq) {
@@ -102,6 +103,7 @@ async function refreshLocalCampaigns(name: string): Promise<LocalOutcome> {
     sourceRows.set(LOCAL_SOURCE_ID, {hostLabel: '', endpoint: undefined, summaries: Array.isArray(summaries) ? summaries : []});
     return 'ok';
   } catch (err) {
+    requestFailed('the campaigns list fetch', err);
     return seqs.get(LOCAL_SOURCE_ID) !== seq ? 'stale' : 'failed';
   }
 }
@@ -311,6 +313,7 @@ export async function deleteCampaignCascade(id: CampaignId): Promise<boolean> {
     await refreshCampaigns();
     return true;
   } catch (err) {
+    requestFailed('the campaign delete', err);
     campaignsState.deleteError = 'Could not delete the campaign';
     return false;
   } finally {

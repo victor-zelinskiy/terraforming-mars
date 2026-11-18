@@ -57,6 +57,7 @@
  * degenerate-geometry fallbacks) — a lost element can never wedge the flow.
  */
 import {gsap} from 'gsap';
+import {invariantBroken} from '@/client/diagnostics/invariant';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -813,9 +814,7 @@ export function riseToSeats(
   // and it is a BUG, not a mode: the seat/tile should have been measurable.
   for (const p of pairs) {
     if (!live.some((l) => l.name === p.name)) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn(`[start-flight] «${p.name}» has no measurable rise end — revealed in place.`);
-      }
+      invariantBroken('start-flight:no-rise-end', `«${p.name}» has no measurable rise end — revealed in place`);
       onDepart?.(p.name);
       onLanded?.(p.name);
     }
@@ -1178,10 +1177,8 @@ export function captureCards(sources: ReadonlyArray<DockFlightSource>): Captured
       // "just appears".
       for (const name of allNames) {
         if (flights.every((f) => f.name !== name)) {
-          if (process.env.NODE_ENV !== 'production') {
-            console.warn(`[start-flight] «${name}» has no ${proxies.has(name) ? 'destination' : 'source'} — ` +
-              'it cannot be carried and will be revealed in place. Prewarm the destination layout before the transition.');
-          }
+          invariantBroken(`start-flight:no-${proxies.has(name) ? 'destination' : 'source'}`,
+            `«${name}» cannot be carried and is revealed in place — the destination layout must be prewarmed before the transition`);
           const p = proxies.get(name);
           if (p !== undefined) {
             handoff(p.card.outer, () => onLanded?.(name));

@@ -53,7 +53,8 @@ try {
   VelopackApp.build().setAutoApplyOnStartup(false).run();
 } catch (err) {
   // eslint-disable-next-line no-console
-  console.error('[velopack] startup hook failed (continuing normal launch)', err);
+  // (Expected of an unpackaged / dev run; in a PACKAGED build it means updates are broken — an error there.)
+  console.error(`${app.isPackaged ? '[main-error] the update hook failed at startup' : '[velopack] startup hook failed'} (continuing normal launch)`, err);
 }
 
 // Steam launch-options bridge: fold any `--tm-*` argv flags (Steam passes launch
@@ -411,7 +412,9 @@ function applyPCoreAffinity(): Promise<void> {
   affinityInFlight = pinToPCores()
     .catch((err) => {
       // eslint-disable-next-line no-console
-      console.warn('[TM affinity] unexpected failure', err); // best-effort: never break the window
+      // (Best-effort — never break the window; but `pinToPCores` handles its own EXPECTED failures, so what escapes it
+      // is a throw of ours: an error with its stack, not the note it was.)
+      console.error(`[main-error] the P-core pin threw: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`, err);
     })
     .finally(() => {
       affinityInFlight = undefined;
@@ -928,7 +931,9 @@ if (!app.requestSingleInstanceLock()) {
         console.log(`[embedded] game server ready on 127.0.0.1:${port}`);
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error('[embedded] startup failed — falling back to remote mode', err);
+        // HOST MODE SILENTLY BECAME REMOTE MODE: an ERROR of the main process, sent with what the start threw (it was
+        // a note of `[embedded]` — the player found themselves on the remote server and nobody was told).
+        console.error(`[main-error] the embedded server did not start — falling back to remote mode: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`, err);
         effectiveMode = 'remote';
       }
     }

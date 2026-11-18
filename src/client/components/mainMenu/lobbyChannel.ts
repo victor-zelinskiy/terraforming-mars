@@ -11,6 +11,7 @@ import {
 } from '@/common/realtime/Protocol';
 import {realtimeClientEnabled} from '@/client/components/realtime/realtimeConfig';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 
 /**
  * THE LOBBY PUSH CHANNEL — one WebSocket per SERVER, saying only «the set of
@@ -177,7 +178,7 @@ function notify(channel: Channel, revision: number): void {
     try {
       listener(revision);
     } catch (err) {
-      console.warn('lobbyChannel: listener failed', err);
+      reportDiagnosticError(pageErrorLine('caught by the lobby channel listener', err), err);
     }
   }
 }
@@ -193,7 +194,7 @@ function notifyHealth(channel: Channel): void {
     try {
       listener();
     } catch (err) {
-      console.warn('lobbyChannel: health listener failed', err);
+      reportDiagnosticError(pageErrorLine('caught by the lobby channel health listener', err), err);
     }
   }
 }

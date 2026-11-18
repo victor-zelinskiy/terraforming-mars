@@ -220,6 +220,7 @@
 <script setup vapor lang="ts">
 
 import {computed, onMounted} from 'vue';
+import {invariantBroken} from '@/client/diagnostics/invariant';
 import * as constants from '@/common/constants';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {gameDocumentTitle} from '@/client/utils/documentTitle';
@@ -423,14 +424,9 @@ function translateMilestoneDetails(data: MADetail): string {
 }
 function translateAwardDetails(data: MADetail): string {
   if ( ! data.messageArgs || data.messageArgs.length < 3) {
-    console.error( // data.message: ${0} place for ${1} award (funded by ${2})
-      `Award detail has not enought data.
-          It must contain at least 3 arguments:
-          1) a Player's place in the race for the award
-          2) translatable Award name
-          3) not translatable Player name
-          `,
-    );
+    // data.message: ${0} place for ${1} award (funded by ${2})
+    invariantBroken('game-end:award-detail-args',
+      'an award detail came with fewer than its 3 arguments (the player\'s place, the award\'s name, the funder\'s name) — shown as a milestone detail');
     return translateMilestoneDetails(data);
   }
   const message: Message = {

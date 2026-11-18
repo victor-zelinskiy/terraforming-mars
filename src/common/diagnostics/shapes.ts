@@ -346,7 +346,7 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'fetch-failed', re: /^fetch failed — /, tier: 'info', why: 'the network\'s word, not the page\'s: nothing was applied, the poll re-asks and owns the «cannot contact the server» alert'},
   ],
   'transport': [
-    {name: 'poll-answer', re: /^the poll's answer could not be taken — /, tier: 'defect'},
+    {name: 'poll-answer', re: /^the poll's answer could not be taken — /, tier: 'info', why: 'what the chain did with a throw — the exception reported beside it (`reportDiagnosticError`, with its stack) is the defect'},
     {name: 'poll-never-ended', re: /^the poll never ended — /, tier: 'defect'},
     {name: 'gate-bound', re: /^gate «([^»]*)» of \S+ outlived its bound/, tier: 'defect', parts: [1]},
     {name: 'abandoned', re: /^\S+ abandoned — its presentation never ended/, tier: 'defect'},
@@ -405,6 +405,10 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'painted-under', re: /^token painted under (\S+) at the (\S+)/, tier: 'defect', parts: [1, 2]},
     {name: 'told-twice', re: /^told twice — .*?: (\S+) tells it; (\S+) reached for it too/, tier: 'defect', parts: [1, 2]},
     {name: 'no-visible-end', re: /^no visible (\S+) — /, tier: 'planned', parts: [1], why: 'the law of visible ends: a covered end is not flown, its counter ticks with its chip'},
+  ],
+  // ── «this cannot happen, and it did» (`client/diagnostics/invariant.ts`): one class per invariant id ──────────────
+  'invariant': [
+    {name: 'broken', re: /^(\S+) — /, tier: 'defect', parts: [1]},
   ],
   'reactivity': [
     {name: 'latch-healed', re: /^«([^»]*)» changed without a reactive edge/, tier: 'defect', parts: [1]},

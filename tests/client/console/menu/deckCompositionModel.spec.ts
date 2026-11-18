@@ -177,7 +177,7 @@ describe('deckCompositionState — asked by the creator, live on every toggle', 
     toggleExpansion('promo');
     await nextTick();
     await tick();
-    failures[3](new Error('offline'));
+    failures[3](new TypeError('Failed to fetch'));
     await tick();
     expect(deckCompositionState.status).eq('error');
     expect(deckCompositionState.composition?.corporations.total, 'the numbers stand').eq(30);

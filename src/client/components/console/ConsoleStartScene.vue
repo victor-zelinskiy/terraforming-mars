@@ -1358,6 +1358,7 @@
  */
 
 import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
+import {invariantBroken} from '@/client/diagnostics/invariant';
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {RootElHolder} from '@/client/components/rootEl';
@@ -5629,9 +5630,9 @@ async function toSummaryConvoy(step: StartWizardStep, capture: CapturedFlight, f
   everyPick.forEach((n) => summaryArriving.value.add(n));
   await prewarmSummary();
   const {missing} = await measureTargets(everyPick, (n) => summaryTileFor(n), 40);
-  if (missing.length > 0 && process.env.NODE_ENV !== 'production') {
-    console.warn('[console-start] summary tiles never measured: ' + missing.join(', ') +
-      ' — those cards cannot be carried physically.');
+  if (missing.length > 0) {
+    invariantBroken('console-start:summary-tiles-unmeasured',
+      `${missing.length} summary tile(s) never measured after the prewarm (${missing.join(', ')}) — those cards cannot be carried physically, they just appear`);
   }
   // ④ The table retires, with the taken cards already held above it.
   setStartTransitionPhase('parking-current-surface');

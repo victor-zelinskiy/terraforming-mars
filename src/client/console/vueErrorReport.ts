@@ -1,5 +1,6 @@
 import type {App, ComponentPublicInstance} from 'vue';
 import {reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
+import {isStaleChunkFailure, staleChunkNoted} from '@/client/diagnostics/requestFailure';
 
 /**
  * A VUE ERROR NAMES ITS COMPONENT — and it is a diagnostic line, not noise.
@@ -69,6 +70,12 @@ export function vueErrorLine(err: unknown, chain: string, info: string): string 
 
 export function installVueErrorReport(app: App): void {
   app.config.errorHandler = (err, instance, info) => {
+    // A CHUNK OF AN OLDER BUILD is the deployment's word, not a defect of a component (`requestFailure.ts`): a note —
+    // the root offers the reload where it catches it; here it is only kept out of the errors.
+    if (isStaleChunkFailure(err)) {
+      staleChunkNoted(err);
+      return;
+    }
     // Through the page's one interceptor: printed once (the same line, the error beside it) and recorded once, with the
     // error's own stack — `diagnostics/diagnosticsCapture.ts`.
     reportDiagnosticError(vueErrorLine(err, componentChainOf(instance), info), err);

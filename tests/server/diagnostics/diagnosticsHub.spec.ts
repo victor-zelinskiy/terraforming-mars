@@ -345,7 +345,13 @@ describe('diagnostics hub — an automatic event', () => {
     expect((event.extra as Record<string, any>).ending).to.eq('cured after 16s');
     // (A record written before the cause class existed — an older page's, adopted from the mirror — keeps a key of its own.)
     expect(event.fingerprint).to.deep.eq(['stall', 'liveness', 'unserved', 'or']);
-    expect(event.level).to.eq('warning');
+    // WHATEVER LEAVES BY ITSELF IS A DEFECT — an error in the collector, whatever console call printed it; and an
+    // episode the nets did not cure is fatal: the player lost the screen.
+    expect(event.level, 'a stall the nets healed').to.eq('error');
+    const lost = (outcome: 'reload' | 'quit' | 'unhealed' | 'rebuilt') =>
+      eventOf(entry({kind: 'stall', family: 'liveness', level: 'warn', stack: undefined, title: 'stall', text, episode: {state: 'unhealed', outcome, durationMs: 31_000, steps: [], lines: 2}}), FACTS).level;
+    expect(lost('reload'), 'the page was reloaded under it').to.eq('fatal');
+    expect(lost('unhealed')).to.eq('fatal');
     expect((event.contexts as Record<string, any>).episode).to.deep.include({state: 'healed', duration_s: 16, lines: 4});
     expect(splitErrorHead('TypeError: x is not a function')).to.deep.eq({type: 'TypeError', value: 'x is not a function'});
     expect(splitErrorHead('a plain sentence: with a colon')).to.deep.eq({type: 'Error', value: 'a plain sentence: with a colon'});

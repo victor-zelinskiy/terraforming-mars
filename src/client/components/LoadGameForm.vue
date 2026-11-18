@@ -26,6 +26,7 @@ import {useAppRoot} from '@/client/components/appRoot';
 import {GameId} from '@/common/Types';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {HttpStatusError, requestFailed} from '@/client/diagnostics/requestFailure';
 import {vI18n} from '@/client/directives/vDirectives';
 
 defineOptions({name: 'LoadGameForm'});
@@ -59,7 +60,7 @@ function loadGame() {
   })
     .then((resp) => {
       if (!resp.ok) {
-        throw new Error(`Error getting game data: ${resp.statusText}`);
+        throw new HttpStatusError(resp.status, resp.statusText);
       }
       return resp.json();
     })
@@ -77,7 +78,7 @@ function loadGame() {
     })
     .catch((err) => {
       alert('Error loading game');
-      console.error(err);
+      requestFailed('the saved game load', err);
     });
 }
 </script>

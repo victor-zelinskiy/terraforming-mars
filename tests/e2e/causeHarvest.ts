@@ -35,6 +35,8 @@ export type CauseRecord = {
   /** Milliseconds from the harvest's arming to the record's first line. */
   atMs: number;
   title: string;
+  /** A defect's whole first line (the title is cut at the journal's bound). */
+  line?: string;
   dims: Record<string, string>;
   episode?: {
     /** `healed` · `unhealed` · `reload`; `test-ended` — the test was over before the episode was. */
@@ -94,6 +96,9 @@ export function armCauseHarvest(context: BrowserContext): CauseHarvest {
           cls: entry.cause.cls, shape: entry.cause.shape, tier: entry.cause.tier, family: entry.family, page,
           count: entry.count, lines: Math.max(entry.count, episode?.lines ?? 1), atMs: entry.at - t0,
           title: entry.title.slice(0, 400), dims: {...entry.cause.dims},
+          // A DEFECT carries its WHOLE first line (the title is the journal's 220 characters — a diagnose printed as
+          // JSON is cut mid-field, and a reader of the ticket had to download the walk to see what held).
+          ...(entry.cause.tier === 'defect' ? {line: entry.text.split('\n')[0].slice(0, 2000)} : {}),
           ...(episode !== undefined ? {
             episode: {
               outcome: open.has(entry.id) ? 'test-ended' : (episode.outcome ?? episode.state),

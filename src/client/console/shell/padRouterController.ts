@@ -4,6 +4,7 @@
  * THE PADROUTER CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {invariantBroken} from '@/client/diagnostics/invariant';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {stickScrollBy} from '@/client/console/stickScrollTarget';
@@ -328,13 +329,21 @@ export function createPadRouterController(shell: PadRouterPort) {
    * router vouched for it. The intent is still consumed (nothing may act under an owned pad); the verb is counted
    * DROPPED (`inputEcho.noteUnreceivedPress`), and the surface is named once while it stays away.
    */
-  const deafSurfaces = new Set<string>();
+  const deafSurfaces = new Map<string, number>();
   function handedTo(surface: {handleIntent(intent: GamepadIntent): unknown} | undefined | null, name: string, intent: GamepadIntent): void {
     if (surface === undefined || surface === null) {
       noteUnreceivedPress(name);
-      if (intent.kind === 'press' && !deafSurfaces.has(name)) {
-        deafSurfaces.add(name);
-        console.warn(`[pad] «${name}» owns the pad and is not mounted — the press went to nobody (counted as dropped)`);
+      if (intent.kind === 'press') {
+        const presses = (deafSurfaces.get(name) ?? 0) + 1;
+        deafSurfaces.set(name, presses);
+        if (presses === 1) {
+          console.warn(`[pad] «${name}» owns the pad and is not mounted — the press went to nobody (counted as dropped)`);
+        } else if (presses === 2) {
+          // ONE press into a mount's gap is a hand-off of a frame; a SECOND one in a row is a surface the state says
+          // stands and the tree does not hold — a deaf screen. That was a note of `[pad]`, never sent (the tier audit
+          // of 2026-11-18, row 9): the one door for «this cannot happen».
+          invariantBroken(`pad:owner-not-mounted:${name}`, `«${name}» owns the pad and is not mounted — two presses in a row went to nobody`);
+        }
       }
       return;
     }
@@ -2047,9 +2056,9 @@ export function createPadRouterController(shell: PadRouterPort) {
         // cover must separate at submit time (never after the response).
         shell.armBoardBonusIfCardCell(targetId, shell.placementSpaceModel?.placementEffect);
         if (board?.activate() !== true) {
-          console.warn('[placement] refused: the board section did not take the press', {
-            targetId, section: board === undefined ? 'no-ref' : 'refused',
-          });
+          // (A cell the shell judged legal, refused by the surface that binds it: the two disagree about the board.)
+          invariantBroken(`placement:legal-press-refused:${board === undefined ? 'no-ref' : 'refused'}`,
+            `the board section did not take a press on a cell the shell judged legal (${targetId})`);
           shell.showNotice('Cannot place here');
           // Nothing was submitted — recall the armed cover instantly.
           abortBoardCardBonus('instant');

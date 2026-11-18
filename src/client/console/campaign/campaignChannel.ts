@@ -11,6 +11,7 @@ import {
 } from '@/common/realtime/Protocol';
 import {realtimeClientEnabled} from '@/client/components/realtime/realtimeConfig';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 
 /**
  * THE CAMPAIGN PUSH CHANNEL — one WebSocket per (server, campaign), saying
@@ -180,7 +181,7 @@ function notify(channel: Channel, rev: number): void {
     try {
       listener(rev);
     } catch (err) {
-      console.warn('campaignChannel: listener failed', err);
+      reportDiagnosticError(pageErrorLine('caught by the campaign channel listener', err), err);
     }
   }
 }
@@ -191,7 +192,7 @@ function notifyHealth(channel: Channel): void {
     try {
       listener();
     } catch (err) {
-      console.warn('campaignChannel: health listener failed', err);
+      reportDiagnosticError(pageErrorLine('caught by the campaign channel health listener', err), err);
     }
   }
 }

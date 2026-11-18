@@ -30,6 +30,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /**
  * `idle`     — nothing running (the surface is not up, or it is waiting for a
@@ -192,8 +193,15 @@ export function beginDeckPickDeal(handover?: () => void, ceilingMs: number = DEA
   // PACING, not a guarantee (PLAN §10 · C1): the ceiling WARNS when it fires, so it must not come due when the game
   // screen leaves — there the deal is let go silently (the session's own cleanup: no surface stands, the flow rests).
   const owner = consoleSessionScope();
+  // THE CEILING IS A WAIT OF THE GRAPH (the tier audit of 2026-11-18, row 9): it was a bare timer whose line is a note
+  // of this module — eight seconds of a shut pad that no net reported. As a ceiling wait its line is the stall
+  // family's (a defect; on a page that painted nothing, its honest end — `ceilingWait.ts` reads the frames).
+  const wait = beginCeilingWait({
+    id: 'deck-pick:deal', owner: 'consoleDeckPick', what: 'the landing of the dealt cards', maxMs: motionMs(ceilingMs),
+  });
   const cancelTimer = owner.after(motionMs(ceilingMs), 'the deck pick\'s deal ceiling', () => {
     forgetRelease();
+    wait.ceiling();
     endDealAtCeiling(seq);
   });
   const forgetRelease = owner.defer(() => {
@@ -206,6 +214,7 @@ export function beginDeckPickDeal(handover?: () => void, ceilingMs: number = DEA
   cancelDealCeiling = () => {
     cancelTimer();
     forgetRelease();
+    wait.end();
   };
   return seq;
 }

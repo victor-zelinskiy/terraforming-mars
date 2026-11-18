@@ -17,6 +17,7 @@ import {apiUrl, wsBaseUrl} from '@/client/utils/runtimeConfig';
 import {CampaignChannelHandle, campaignChannelHealthy, openCampaignChannel} from '@/client/console/campaign/campaignChannel';
 import {ensureIdentityLoaded, identityState} from '@/client/components/mainMenu/identity/identityState';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
+import {HttpStatusError, requestFailed} from '@/client/diagnostics/requestFailure';
 
 export type CampaignLoadStatus = 'idle' | 'loading' | 'ok' | 'error';
 
@@ -229,7 +230,7 @@ export async function submitCampaignBid(instance: string): Promise<boolean> {
     });
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(text || 'bid failed');
+      throw new HttpStatusError(res.status, res.statusText);
     }
     const next = JSON.parse(text) as CampaignModel;
     if (campaignState.model === undefined || next.rev >= campaignState.model.rev) {
@@ -238,6 +239,7 @@ export async function submitCampaignBid(instance: string): Promise<boolean> {
     campaignState.error = '';
     return true;
   } catch (err) {
+    requestFailed('the campaign pick submit', err);
     campaignState.error = 'Could not submit the pick. Please try again.';
     return false;
   } finally {
@@ -268,7 +270,7 @@ export async function submitCampaignTender(instance: string): Promise<boolean> {
     });
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(text || 'tender failed');
+      throw new HttpStatusError(res.status, res.statusText, text || 'tender failed');
     }
     const next = JSON.parse(text) as CampaignModel;
     if (campaignState.model === undefined || next.rev >= campaignState.model.rev) {
@@ -277,6 +279,7 @@ export async function submitCampaignTender(instance: string): Promise<boolean> {
     campaignState.error = '';
     return true;
   } catch (err) {
+    requestFailed('the campaign tender execution', err);
     campaignState.error = err instanceof Error && err.message.length > 0 ? err.message : 'Could not execute the tender. Please try again.';
     return false;
   } finally {
@@ -301,7 +304,7 @@ export async function launchCampaignMission(): Promise<{gameId: string, yourPlay
     const res = await fetch(apiUrl(paths.API_CAMPAIGN_LAUNCH) + `?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`, {method: 'POST'});
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(text || 'launch failed');
+      throw new HttpStatusError(res.status, res.statusText);
     }
     const json = JSON.parse(text) as {gameId: string, yourPlayerId?: PlayerId, model?: CampaignModel};
     if (json.model !== undefined) {
@@ -309,6 +312,7 @@ export async function launchCampaignMission(): Promise<{gameId: string, yourPlay
     }
     return {gameId: json.gameId, yourPlayerId: json.yourPlayerId};
   } catch (err) {
+    requestFailed('the campaign mission launch', err);
     campaignState.error = 'Could not launch the mission. Please try again.';
     return undefined;
   } finally {
@@ -335,7 +339,7 @@ export async function submitCampaignCarryover(playerId: PlayerId, cards: Readonl
     });
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(text || 'carryover failed');
+      throw new HttpStatusError(res.status, res.statusText);
     }
     const model = JSON.parse(text) as CampaignModel;
     if (campaignState.model === undefined || model.rev >= campaignState.model.rev) {
@@ -343,6 +347,7 @@ export async function submitCampaignCarryover(playerId: PlayerId, cards: Readonl
     }
     return true;
   } catch (err) {
+    requestFailed('the campaign project selection save', err);
     campaignState.error = 'Could not save the project selection. Please try again.';
     return false;
   } finally {

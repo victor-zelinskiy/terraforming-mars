@@ -24,6 +24,7 @@
  * Dependency-free and non-reactive (the `inputEcho.ts` idiom): the router imports it, so it must not drag anything
  * behind it. Published as `window.__conInputAbsorb(code?)` by the key bridge's install (`installInputAbsorbProbe`).
  */
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 
 /** The semantic buttons a press can carry (`SemanticButton` — repeated here to stay dependency-free) plus `nav`. */
 export type AbsorbButton = string;
@@ -67,7 +68,10 @@ export function registerInputAbsorber(name: string, active: () => boolean, opts:
 function isActive(a: Absorber): boolean {
   try {
     return a.active();
-  } catch {
+  } catch (e) {
+    // (Read as «not absorbing» — the press goes on; but a predicate that throws switches a double-input guard OFF,
+    // and that is said: it used to happen with no trace.)
+    reportDiagnosticError(pageErrorLine('caught by an input absorber\'s predicate — read as not absorbing', e), e);
     return false;
   }
 }

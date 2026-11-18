@@ -6,6 +6,7 @@ import {NewGameConfig} from '@/common/game/NewGameConfig';
 import {createGameState} from '@/client/components/create/premium/createGameState';
 import {buildCreateGamePayloadFromPremiumState} from '@/client/components/create/premium/buildCreateGamePayload';
 import {consoleAppScope} from '@/client/console/session/consoleSession';
+import {HttpStatusError, requestFailed} from '@/client/diagnostics/requestFailure';
 
 /*
  * THE CREATOR'S DECKS, AS THE SERVER COUNTS THEM (T04 «the deck is visible before
@@ -36,7 +37,7 @@ async function serverFetch(body: NewGameConfig): Promise<DeckCompositionModel> {
     headers: {'Content-Type': 'application/json'},
   });
   if (!res.ok) {
-    throw new Error(`deck composition: ${res.status}`);
+    throw new HttpStatusError(res.status, res.statusText);
   }
   return await res.json() as DeckCompositionModel;
 }
@@ -72,7 +73,8 @@ async function ask(body: NewGameConfig): Promise<void> {
     }
     deckCompositionState.composition = composition;
     deckCompositionState.status = 'ok';
-  } catch {
+  } catch (err) {
+    requestFailed('the deck composition fetch', err);
     if (seq === deckCompositionState.seq) {
       deckCompositionState.status = 'error';
     }

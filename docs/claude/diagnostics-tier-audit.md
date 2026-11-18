@@ -47,6 +47,38 @@ PROOF over the wait's whole span, and the line names the term that held** — ot
 - Still open: the deck pick and the pad line of row 9, row 10, the ruling-change impulse wait of row 3 — and the
   REVERSE direction (what is sent and is not a bug), §«The other direction» below.
 
+## The other direction — what IS sent and is not a bug (2026-11-19)
+
+**Question (the owner):** is everything we send as an error really a bug — and is every expected check an info, with
+nothing the other way round? The first half of this file answers «what hides behind planned / info / note»; this
+half reads the 34 sites that reach the collector as ERRORS (an untagged `console.error`, an error-kind tag,
+`reportDiagnosticError`) and the 101 failure-worded lines that never do. Inventory:
+`C:\Projects\Mods\tm-fz-tools\sentry-audit-inventory.md` (not in the repository — a working file).
+
+| What was found | n | Now |
+| --- | --- | --- |
+| **Sent as an error, and it is the NETWORK's word or the server's own answer** — the view's fetch, the journal's and the log's polls, the boot fetch, a login, a saved game's load, the admin tools, the reveal acknowledgement, a submit answered 5xx | 15 of 34 | ONE DOOR — `client/diagnostics/requestFailure.ts`: `requestFailed` / `requestRefused` print a NOTE of the family `net`; a non-OK status is thrown as `HttpStatusError`. Rule law 20 + the guard «nothing … by a bare console.error» |
+| **One `catch` for the network AND for our own throw** — the submit's (`gameTransport`), the view's (`viewFailure`): a presenter that threw was told to the player as «cannot contact the server» and filed under the network's noise | 2 | `requestFailed` reads which it is: the throw is an error with its stack, and the player is told «unexpected response» |
+| **A stale page after a redeploy** — the branch tested for webpack's `ChunkLoadError`, which the Vite build never throws: the reload was never offered, and the failed import was a `[vue-error]` | 1 | `isStaleChunkFailure` reads the BROWSER's words; a note, the reload offered, kept out of the error handler |
+| **A child process gone that is the DEVICE's** — the GPU process lost to a driver reset, a helper an antivirus would not start | 1 | a note of `[electron]`; our own utility process (`tm-…`) and anything out of memory stay errors |
+| **One incident, two events** — the poll's answer that threw was a `[transport]` defect AND an untagged error | 1 | the exception (with its stack) is the event; `transport/poll-answer` is its evidence (info) |
+| **«It is a BUG, not a mode» printed as a NOTE** — and in development builds only: a card with nowhere to fly from, a leaked accent lease, a legal press the board section refused, a claim that never reached its hand-over, a save without a space | 10 | ONE DOOR — `invariantBroken(id, what)`: family `invariant` (integrity, a defect, one issue per id), in every build. Law 21 |
+| **A caught exception filed as a note or not at all** — the boot warm-up's render, the prompt-receive scene (no line at all), an input absorber's predicate (a double-input guard silently off), the played hero's landing measure, a teleport's invalid selector, the lobby / campaign channels' listeners, a system alert's callback | 12 | `reportDiagnosticError` at each. Law 22 |
+| **The main process: host mode silently became remote mode** — the embedded server did not start / had no script / did not respawn: notes of `[embedded]` | 3 | `[main-error]`, with what was thrown; the P-core pin's escaped throw and (packaged only) the update hook likewise |
+| **A bare timer whose line is a note** — the deck pick's deal: eight seconds of a shut pad no net reported (row 9) | 1 | a ceiling wait of the graph (`deck-pick:deal`) — the stall family's line, painted-aware |
+| **Requests whose `catch` kept a UI string and lost the error** — the campaign's submits, the campaigns list, a game's delete, the deck composition | 9 | `requestFailed` first in each |
+
+**Left as they are, on purpose** (each read): the 39 «outlived its ceiling — ended» notes inside hold-expiry
+callbacks (echoes of a hold's own ceiling line, which is the event); `[selftest]` (the connection check — sent only
+when asked); the dev-only layout guards (`console-overflow`, an icon with no mapping) — coverage specs' business.
+
+**Open — not decided by reading:** the Parliament's cube that «never touched down» (`banner-stage`) and the sitting
+that «never told its enactment» (`ruling-change-draw` — seen in the monkey's walks under a reload): a lost touchdown
+or a designed fallback? each needs the walk that prints it; `[colony-ledger] the payout stalled with nothing owed`;
+the console export's failures (the device's disk or our gather); the pad line of row 9; row 10 (a server
+unreachable for minutes — a defect only where the server is OURS, the host's embedded one); and 60 silent catches
+around catalogue lookups (`getCard` on an unknown name) that fall back by design and say nothing.
+
 ## Worklist — WRONG / RISKY (fix in this order)
 
 | # | Row / site | Verdict | What hides | Fix |

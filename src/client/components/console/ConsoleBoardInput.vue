@@ -51,6 +51,7 @@ the always-mounted board:
 
 <script setup vapor lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
+import {invariantBroken} from '@/client/diagnostics/invariant';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
@@ -510,7 +511,7 @@ function saveData() {
   if (spaceId.value === undefined) {
     // Headless: there is no warning strip to show — an id-less save is a
     // programming error upstream (onTileSelected always sets it).
-    console.warn('[board-input] save without a selected space — ignored');
+    invariantBroken('board-input:save-without-space', 'a save came with no selected space — ignored (onTileSelected always sets it)');
     return;
   }
   // CONSOLE PLACEMENT HERO: ARM the matching premium transaction BEFORE
@@ -572,7 +573,7 @@ function saveData() {
 function saveMove(spaceId: SpaceId) {
   const from = placementMoveState.from;
   if (from === undefined) {
-    console.warn('[board-input] a move saved with no city lifted — ignored');
+    invariantBroken('board-input:move-without-lifted-city', 'a move was saved with no city lifted — ignored (the cell level cannot exist without it)');
     return;
   }
   // THE FOURTH CASE of the one arm: the pick DECLARES the pair, which is
