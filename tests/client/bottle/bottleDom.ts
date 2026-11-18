@@ -34,6 +34,18 @@
  *                   clock (its header says what asked for it). ⚠ `takePage` must run BEFORE `takeTime` gives the
  *                   globals away only in the sense that nothing here captures a timer: every `setTimeout` /
  *                   `Date.now` below is read at the CALL, when the bottle's clock stands.
+ *   CSS lifetime    jsdom runs no stylesheet and no animation, so an element whose END the product binds to
+ *                   `animationend` never ends: the notification card's lifetime is the end of its own bar's shrink
+ *                   (`ConsoleNotificationCard.vue` — `:style="{animationDuration: ttl + 'ms'}"` + `@animationend`), and
+ *                   in the bottle a flow-holding card stood until a press took it (the `hidden` pass, 2026-11-18 ·
+ *                   `price-fold-bot-second`: «overdue admission:host:presentation — standing 58 s» behind a bot's turn
+ *                   card a browser dismisses in seconds). The stand-in: an element that stands in the DOM with an
+ *                   INLINE `animation-duration` — a duration the component set itself — is given ONE `animationend`
+ *                   that long after it was first seen, on the bottle's clock, IN A FRAME (a browser dispatches
+ *                   animation events in its rendering step: on a page that is not painted the end waits for the page
+ *                   to come back); never if it left the DOM or is not displayed by then (the animation was
+ *                   cancelled). A pause a STYLESHEET writes (`animation-play-state` under a class — the X-hold) is
+ *                   not seen: the bottle loads no CSS.
  *   scrolling       `Element#scrollBy` / `scrollTo` / `scrollIntoView` are absent, `window.scrollTo` prints «Not
  *                   implemented»: no-ops (nothing scrolls without layout).
  *   listeners       every listener the page adds to `window` / `document` is remembered and removed with the page (a
@@ -421,6 +433,49 @@ export function takePage(nodeRequire: (id: string) => unknown, url: string, stor
   }
   // (The page is gone by the time this runs: what still played is dropped, nobody is told.)
   saved.push(() => animations.clear());
+
+  // ── a CSS animation's END ── (the header's «CSS lifetime»)
+  const ended = new WeakSet<Element>();
+  const timeOf = (text: string): number => {
+    const value = parseFloat(text);
+    return Number.isFinite(value) ? (/ms\s*$/.test(text) ? value : value * 1000) : NaN;
+  };
+  const armLifetime = (el: Element): void => {
+    const style = (el as HTMLElement).style;
+    const ms = style === undefined ? NaN : timeOf(style.animationDuration ?? '');
+    if (ended.has(el) || !Number.isFinite(ms) || ms <= 0) {
+      return;
+    }
+    ended.add(el);
+    // (Read at the CALL: by the time a component mounts, the bottle's clock stands.)
+    const later = globals.setTimeout as (fn: () => void, ms: number) => unknown;
+    const frame = globals.requestAnimationFrame as (fn: () => void) => unknown;
+    later(() => frame(() => {
+      if (displayed(el)) {
+        const PageEvent = win.Event as new (type: string, init?: object) => Event;
+        el.dispatchEvent(new PageEvent('animationend', {bubbles: true}));
+      }
+    }), ms);
+  };
+  const Observer = win.MutationObserver as (new (cb: (records: Array<{addedNodes: ArrayLike<Node>, target: Node, type: string}>) => void) => {observe(target: Node, init: object): void, disconnect(): void}) | undefined;
+  if (Observer !== undefined) {
+    const lifetimes = new Observer((records) => {
+      for (const record of records) {
+        const roots = record.type === 'attributes' ? [record.target] : Array.from(record.addedNodes);
+        for (const root of roots) {
+          if (root.nodeType !== 1) {
+            continue;
+          }
+          armLifetime(root as Element);
+          if (record.type !== 'attributes') {
+            (root as Element).querySelectorAll('[style*="animation-duration"]').forEach(armLifetime);
+          }
+        }
+      }
+    });
+    lifetimes.observe(doc.documentElement, {childList: true, subtree: true, attributes: true, attributeFilter: ['style']});
+    saved.push(() => lifetimes.disconnect());
+  }
 
   // ── the page's listeners on the two objects that outlive it ──
   type Listens = {

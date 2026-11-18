@@ -222,6 +222,42 @@ describe('THE CONSOLE IN A BOTTLE — the real shell and the real server in one 
     expect(pageSays()).to.be.a('string');
   });
 
+  /*
+   * A CSS ANIMATION'S END (the bottle's stand-in — `bottleDom.ts` § CSS lifetime). The product binds a notification
+   * card's lifetime to the end of its bar's shrink; without the stand-in a card never left a bottle's page by itself.
+   */
+  it('4b · an element with an INLINE animation-duration gets its `animationend` — in a frame, on the clock; never when it is gone or the page is not painted', async () => {
+    const table = await bottleServer().bootFixture(FIXTURE);
+    bottle = await bootBottle(table);
+    await bottle.advance(2_000);
+    const ends: Array<string> = [];
+    const bar = (name: string, duration: string): HTMLElement => {
+      const el = document.createElement('span');
+      el.style.animationDuration = duration;
+      el.addEventListener('animationend', () => ends.push(name));
+      document.body.appendChild(el);
+      return el;
+    };
+    bar('half a second', '500ms');
+    bar('two seconds', '2s');
+    const gone = bar('gone before its end', '1s');
+    const hiddenAway = bar('not displayed at its end', '1s');
+    await bottle.advance(400);
+    expect(ends, 'not before its time').to.deep.equal([]);
+    gone.remove();
+    hiddenAway.style.display = 'none';
+    await bottle.advance(200);
+    expect(ends).to.deep.equal(['half a second']);
+    await bottle.advance(1_500);
+    expect(ends, 'each once, in its time; a cancelled animation ends nothing').to.deep.equal(['half a second', 'two seconds']);
+    // On a page that is not painted the end waits for the page to come back.
+    bar('due while away', '1s');
+    await bottle.away(4_000, false);
+    expect(ends).to.have.length(2);
+    await bottle.advance(50);
+    expect(ends[2]).to.equal('due while away');
+  });
+
   it('5 · the liveness check FAILS on a planted defect and names its class', async () => {
     const table = bottleServer().bootNewGame(2, {}, `-s${suffix++}`);
     bottle = await bootBottle(table, {query: 'waitGraphControl=strand'});
