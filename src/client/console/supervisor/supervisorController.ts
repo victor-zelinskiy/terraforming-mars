@@ -532,7 +532,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     // paid on a screen with nothing to judge.
     const blockingHeld = blockingAnimationHoldCount() > 0;
     const pageMoving = !blockingHeld || transport?.requestInProgress === true || pageMoves();
-    const page = observeStillHold(pageStill, Date.now(), blockingHeld, pageMoving);
+    const page = observeStillHold(pageStill, Date.now(), blockingHeld, pageMoving, pageStarvedNow() !== undefined);
     pageStill = page.state;
     if (page.cross) {
       console.warn(`[liveness] still hold — ${activeAnimationHoldLabels().filter((l) => l.endsWith('[blocking]')).join(', ')} ` +

@@ -77,8 +77,17 @@ export const STILL_HOLD_SHADOW_MS = 6_000;
  */
 export type StillHoldState = {since: number, named: boolean};
 
-export function observeStillHold(state: StillHoldState, now: number, blocking: boolean, moving: boolean): {state: StillHoldState, cross: boolean, stillMs: number} {
-  if (!blocking || moving) {
+/**
+ * `starved` — THE PAGE IS NOT PAINTING (`frameWitness.pageStarvedNow`): STILLNESS IS COUNTED ON THE PAINTED CLOCK, like
+ * every bound over a motion (FREEZE ZERO, stage 1). «Nothing moves» on a page behind another window says nothing of a
+ * hold: a wave of tokens waits there for frames that come once a second, between two births no tween exists at all,
+ * and the still spell it collected was held against the motion the moment the page was looked at again (CI's
+ * two-window pass, 2026-11-18, `fz3` · `duo` · `robotics-factory-one`: a long NATIVE frame every second up to 313.8 s,
+ * «still hold … 6s» at 314.4 s, `dead-end hold:resource-transfer` at 317.4 s). A starved look restarts the spell: a
+ * hold that is truly stuck is named `STILL_HOLD_SHADOW_MS` of PAINTED stillness after the page returns.
+ */
+export function observeStillHold(state: StillHoldState, now: number, blocking: boolean, moving: boolean, starved = false): {state: StillHoldState, cross: boolean, stillMs: number} {
+  if (!blocking || moving || starved) {
     return {state: {since: 0, named: false}, cross: false, stillMs: 0};
   }
   const since = state.since === 0 ? now : state.since;

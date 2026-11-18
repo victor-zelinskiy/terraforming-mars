@@ -52,4 +52,26 @@ describe('motionWitness', () => {
     // No blocking hold: nothing to judge.
     expect(observeStillHold({since: 5, named: true}, 30_000, false, false).state).to.deep.equal({since: 0, named: false});
   });
+
+  it('STILLNESS IS COUNTED ON THE PAINTED CLOCK: a page that does not paint collects no still spell — and the spell starts when it paints again', () => {
+    // A minute behind another window: a blocking hold, nothing moving (a wave waits for its frames) — nothing is named.
+    let state: StillHoldState = {since: 0, named: false};
+    for (let t = 1000; t <= 61_000; t += 1000) {
+      const r = observeStillHold(state, t, true, false, true);
+      state = r.state;
+      expect(r.cross).to.equal(false);
+      expect(r.stillMs, 'the graph is fed no stillness from a page nobody is looking at').to.equal(0);
+    }
+    // The page is in front again: the hold has the whole of its still bound of PAINTED time…
+    let crossedAt = 0;
+    for (let t = 62_000; crossedAt === 0 && t < 80_000; t += 1000) {
+      const r = observeStillHold(state, t, true, false, false);
+      state = r.state;
+      if (r.cross) {
+        crossedAt = t;
+      }
+    }
+    // …and one that is truly stuck is named exactly that much later — never sooner, never not at all.
+    expect(crossedAt).to.equal(62_000 + STILL_HOLD_SHADOW_MS);
+  });
 });

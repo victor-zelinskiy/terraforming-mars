@@ -7,7 +7,8 @@ import type {UnwrapRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldLabels, blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
+import {conclusionRefusal} from '@/client/console/shell/shellFlowState';
 import ConsoleParliamentSection from '@/client/components/console/ConsoleParliamentSection.vue';
 import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
 import {neutralRallyFlow} from '@/client/console/parliament/neutralRally';
@@ -22,7 +23,7 @@ import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDef
 import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, releaseBoardExcursion} from '@/client/console/boardExcursion';
 import {bonusActionInStartFlow, bonusActionOnBoard} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
-import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {isInSurfaceResourceTransferActive, isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {ConsoleTask, taskFor, promptOutranksStartScene, SCENE_KINDS, corpFirstActionInStartFlow, startStepDiscardOf, startPlacementOrderOf, AGENDA_WALK_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
 import {ConsoleTaskSummary} from '@/client/console/consoleTaskSummary';
@@ -773,6 +774,15 @@ export function createStartController(shell: StartPort) {
         frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
         // (What the hosted step itself is doing — at rest, or on its own entry / leave.)
         hand: `${handRevealState.phase}/${consoleState.section}`,
+        // …and what is still IN FLIGHT on a hosted workspace: a strand is «at rest» only when nothing of the step's own
+        // is — its tokens (an in-surface wave holds the FEED only, so no blocking hold says it), any hold at all, and
+        // the conclusion the frame was last refused (which workspace, by which named hold, how long ago). Evidence:
+        // `fz3` · `duo` · `parliament`, 2026-11-18 — `start:committed` over `colonies:browse`, and nothing in the line
+        // to tell a colony grid still paying its build from one left standing.
+        transfers: `${isResourceTransferActive() ? 'wave' : ''}${isInSurfaceResourceTransferActive() ? ' in-surface' : ''}`.trim() || 'none',
+        holds: [...activeAnimationHoldLabels()],
+        refused: conclusionRefusal.last === undefined ? null :
+          `${conclusionRefusal.last.kind}:${conclusionRefusal.last.reason} ${Math.round((Date.now() - conclusionRefusal.last.at) / 100) / 10}s ago`,
         diag: diag ?? null,
       }));
     };
