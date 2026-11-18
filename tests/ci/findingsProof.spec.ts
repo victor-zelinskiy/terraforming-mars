@@ -22,6 +22,16 @@ function findingsOf(command: string, report: unknown, ...flags: Array<string>): 
   return JSON.parse(execFileSync(process.execPath, ['scripts/ci/findings.mjs', command, file, ...flags], {encoding: 'utf8'})).findings;
 }
 
+/** Several input files of one command (`from-sentry`: a file per environment). */
+function findingsOfFiles(command: string, reports: ReadonlyArray<unknown>, ...flags: Array<string>): Array<Finding> {
+  const files = reports.map((report, i) => {
+    const file = join(dir, `${command}-${i}.json`);
+    writeFileSync(file, JSON.stringify(report));
+    return file;
+  });
+  return JSON.parse(execFileSync(process.execPath, ['scripts/ci/findings.mjs', command, ...files, ...flags], {encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']})).findings;
+}
+
 describe('ci findings: a finding names its proof', function() {
   // Each case starts one node process — a budget for that, never a timing.
   // eslint-disable-next-line no-invalid-this
@@ -94,6 +104,9 @@ describe('ci findings: a finding names its proof', function() {
       .to.deep.eq(['sentry|issue|TERRAFORMING-MARS-T', 'sentry|issue|TERRAFORMING-MARS-V', 'sentry|issue|TERRAFORMING-MARS-R']);
     expect(findings[2].title).to.eq('[sentry] Отчёт игрока TM-K7QW3D · freeze — the player\'s words stay in Sentry');
     expect(findings[2].title + findings[2].body, 'a player\'s words never reach a public issue').not.to.contain('Васи');
+    // A FILE PER ENVIRONMENT (the box, the players'): an issue seen in both is one finding.
+    const two = findingsOfFiles('from-sentry', [[issue({}), issue({shortId: 'TERRAFORMING-MARS-B'})], [issue({}), issue({shortId: 'TERRAFORMING-MARS-C'})]], '--since', '26h');
+    expect(two.map((f) => f.key)).to.deep.eq(['sentry|issue|TERRAFORMING-MARS-T', 'sentry|issue|TERRAFORMING-MARS-B', 'sentry|issue|TERRAFORMING-MARS-C']);
     expect(findings.every((f) => f.kind === 'field' && f.proof === undefined), 'a field defect names no re-run').to.eq(true);
     expect(findings[0].title).to.eq('[sentry] [wait-graph] cycle (announce:parliament:genn · question:parliamentphase · surface:parliament)');
     expect(findings[0].body).to.contain('npm run diag -- issue TERRAFORMING-MARS-T');

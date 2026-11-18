@@ -40,6 +40,11 @@ and files through the ONE filer (`findings.mjs from-sentry`):
 - **One GitHub issue per Sentry issue**, keyed by its short id (`sentry|issue|TERRAFORMING-MARS-T` — one Sentry issue
   IS one cause class, the diagnostics' own grouping). It is touched every night it keeps happening («Seen N times»)
   and reopened as a `regression` when it returns.
+- **Only the sessions' environments — `box` and `production`, never `development`.** The diagnostics' own probe
+  (`scripts/diag-probe.mjs`, `npm run diag -- selftest`) sends SAMPLES of real stalls to `development` with
+  `head=probe`; their titles cannot be told from a player's. The first real filing (2026-11-18) opened six issues and
+  five were the probe's samples — the workflow now asks Sentry one environment at a time. The probe's connection
+  checks and a session's summary, which DO arrive from the box, are dropped by their own fixed words.
 - **Only `unresolved` ones.** A class closed with `npm run diag -- resolve <class>` (resolved in the release that
   carries the fix) is not filed again by events of OLDER builds still running on the box — Sentry reopens it only
   for an event of that release or a later one, and then it is a regression here too. **Closing a `src:sentry` issue

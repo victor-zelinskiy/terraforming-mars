@@ -11,7 +11,7 @@
  *   node scripts/ci/findings.mjs from-playwright <merged-report.json> --source e2e [--context "nightly"]
  *   node scripts/ci/findings.mjs broken --source <source> --context "seed fz1" --what "the gate died before its report"
  *   node scripts/ci/findings.mjs red-run --source ci|release --workflow "CI" --run-id <id>   (a red run of a push: one finding per failed job)
- *   node scripts/ci/findings.mjs from-sentry <issues.json> [--since 26h]       (what REAL sessions reported: `node scripts/diag.mjs issues --json`)
+ *   node scripts/ci/findings.mjs from-sentry <issues.json> [<issues.json> …] [--since 26h]   (what REAL sessions reported: `node scripts/diag.mjs issues --env box|production --json`, a file per environment)
  *   node scripts/ci/findings.mjs file <findings.json> [<findings.json> …]      (needs GH_TOKEN and GITHUB_REPOSITORY)
  *   node scripts/ci/findings.mjs file --dry <findings.json>                    (prints what it would do)
  *
@@ -261,10 +261,20 @@ const NOT_A_DEFECT = /\(probe\)\s*$|the probe's automatic error|TM_DIAG_PROBE|di
 const REPORT_HEAD = /^(Отчёт игрока TM-[A-Z0-9]+ · [\w-]+)/;
 
 function fromSentry() {
-  const issues = JSON.parse(fs.readFileSync(positional[0], 'utf8'));
+  // A FILE PER ENVIRONMENT, asked of Sentry by the caller — `box` and `production`, NEVER `development`: the probe
+  // sends SAMPLES of real stalls there (`head=probe`), with titles no rule can tell from a player's (the first real
+  // filing, 2026-11-18: five of six issues were the probe's samples). The same issue seen in two environments is one.
+  const byId = new Map();
+  for (const file of positional) {
+    const list = JSON.parse(fs.readFileSync(file, 'utf8'));
+    for (const issue of Array.isArray(list) ? list : []) {
+      byId.set(issue.shortId, issue);
+    }
+  }
+  const issues = [...byId.values()];
   const since = flag('since', '26h');
   const day = (iso) => String(iso ?? '').slice(0, 16).replace('T', ' ');
-  const unresolved = (Array.isArray(issues) ? issues : []).filter((issue) => issue.status === 'unresolved');
+  const unresolved = issues.filter((issue) => issue.status === 'unresolved');
   const real = unresolved.filter((issue) => !NOT_A_DEFECT.test(String(issue.title ?? '')));
   console.error(`[findings] sentry: ${unresolved.length} unresolved in the window — ${unresolved.length - real.length} of them the tool's own probes or a session's summary (not filed)`);
   const findings = real.map((issue) => {

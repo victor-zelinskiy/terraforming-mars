@@ -47,15 +47,19 @@ jobs:
           SINCE: ${{ inputs.since || '26h' }}
         run: |
           if [ -z "$SENTRY_AUTH_TOKEN" ]; then echo "::error::the secret SENTRY_READ_TOKEN is not set"; exit 1; fi
-          node scripts/diag.mjs issues --since "$SINCE" --limit 100 --json > sentry-issues.json
-          node -e "const l=JSON.parse(require('fs').readFileSync('sentry-issues.json','utf8'));console.log('issues seen in the window: '+l.length+' · unresolved: '+l.filter(i=>i.status==='unresolved').length)"
+          # THE SESSIONS' ENVIRONMENTS ONLY — the box and the players'. `development` is where the diagnostics' own
+          # probe sends SAMPLES of real stalls (`head=probe`): their titles read like a player's, and they are not.
+          for ENVIRONMENT in box production; do
+            node scripts/diag.mjs issues --since "$SINCE" --env "$ENVIRONMENT" --limit 100 --json > "sentry-$ENVIRONMENT.json"
+            node -e "const l=JSON.parse(require('fs').readFileSync('sentry-$ENVIRONMENT.json','utf8'));console.log('$ENVIRONMENT — issues seen in the window: '+l.length+' · unresolved: '+l.filter(i=>i.status==='unresolved').length)"
+          done
       - name: One issue per Sentry issue — opened, touched or reopened
         env:
           GH_TOKEN: ${{ github.token }}
           SINCE: ${{ inputs.since || '26h' }}
           DRY: ${{ inputs.dry && '--dry' || '' }}
         run: |
-          node scripts/ci/findings.mjs from-sentry sentry-issues.json --since "$SINCE" --out findings.json
+          node scripts/ci/findings.mjs from-sentry sentry-box.json sentry-production.json --since "$SINCE" --out findings.json
           node scripts/ci/findings.mjs file $DRY findings.json
       - name: The asking itself failed — said, never a quiet night
         if: ${{ failure() }}
