@@ -33,6 +33,7 @@
  * here is reachable from the desktop surfaces.
  */
 
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {reactive, nextTick} from 'vue';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -1132,7 +1133,8 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     // stage piece unmounted mid-wave) once left `runActive` stuck true and
     // leaked the animation hold — record it, clean up, and resolve honestly.
     trail(runId, 'run:threw', String(e));
-    console.error('[resource-transfer] wave threw — releasing gate', e);
+    // An exception the wave swallowed is an ERROR the developer receives (law 3 — one record, its own stack).
+    reportDiagnosticError(pageErrorLine('caught by the resource-transfer wave — releasing gate', e), e);
     entries.forEach((entry) => {
       noteCardResourceLanding(entry.spec);
       run.onArrive?.(entry.spec);

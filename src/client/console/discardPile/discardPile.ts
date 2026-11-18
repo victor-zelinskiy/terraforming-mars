@@ -184,7 +184,8 @@ export function releaseDiscardPile(owner: string): void {
   const target = expectations.get(owner);
   expectations.delete(owner);
   if (target !== undefined && target > discardPileState.count) {
-    console.warn(`[discard-pile] released under its count owner=${owner} expected=${target} count=${discardPileState.count}`);
+    // A tag of its own (an INTEGRITY family — `classify.ts`): a lost touchdown is a defect the developer receives.
+    console.warn(`[discard-count] released under its count owner=${owner} expected=${target} count=${discardPileState.count}`);
     discardPileState.count = target;
   }
   syncHolders();

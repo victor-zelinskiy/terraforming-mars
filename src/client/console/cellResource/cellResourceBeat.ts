@@ -28,7 +28,7 @@ import {Color} from '@/common/Color';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
-import {boardBeatBoardWatchable} from '@/client/console/boardBeatPark';
+import {boardBeatBoardWatchable, boardCoverReasonsNow} from '@/client/console/boardBeatPark';
 import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -207,7 +207,7 @@ function waitForStage(e: Entry): Promise<boolean> {
       due = true;
       cellResourceState.nudge++;
     },
-    diagnose: () => ({space: e.record.spaceId, watchable: boardBeatBoardWatchable()}),
+    diagnose: () => ({space: e.record.spaceId, watchable: boardBeatBoardWatchable(), coveredBy: boardCoverReasonsNow()}),
   });
   // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
   const wait = beginCeilingWait({id: 'cell-resource:stage', owner: 'cellResourceBeat', what: 'the stage of the cell resource', maxMs: STAGE_DUE_MS});

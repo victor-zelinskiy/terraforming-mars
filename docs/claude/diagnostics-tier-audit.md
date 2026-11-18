@@ -12,6 +12,21 @@ never from what held for the whole wait. «The board was covered», «the page p
 the player» are each true by coincidence often enough to swallow real freezes. The rule to write: **planned only on
 PROOF over the wait's whole span, and the line names the term that held** — otherwise a defect.
 
+## Status
+
+- **Row 1 — CLOSED in its tier (2026-11-18).** The park's degrade names WHO covered the board (`coveredBy` — the
+  false terms of `boardBeatsWatchable`, `placementController.boardCoverReasons`) and whether the board was watchable
+  at ANY look of the window (`watchableSeen`); the five other board stories report `coveredBy` too. `story-due` is
+  planned only when the board was never watchable AND every cover is the player's own (`section` · `sheet` ·
+  `workspace` · `placement` — `shapes.ts` `storyCoveredByPlayer`); `sitting-rise` · `planet-focus` · a board seen and
+  not told → a DEFECT that names the term. The root cause of the box's two occurrences is still OPEN: the next one
+  reaches Sentry with its `coveredBy` (no frame stood and the player was on the board, so it is one of the game's
+  own covers — most likely a `sitting-rise` that did not end after the sitting).
+- **Rows 7 · 8 · 9 (the discard pile) — CLOSED.** `[reaction-identity] foreign face` and `[discard-count] released
+  under its count` are integrity families with shape rows; the seven swallowed exceptions are
+  `reportDiagnosticError(pageErrorLine('caught by …', e), e)` — errors, grouped by their stack.
+- Still open: rows 2–6, the deck pick and the pad line of row 9, row 10.
+
 ## Worklist — WRONG / RISKY (fix in this order)
 
 | # | Row / site | Verdict | What hides | Fix |

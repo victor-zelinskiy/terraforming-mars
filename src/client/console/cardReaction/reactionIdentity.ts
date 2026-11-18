@@ -15,7 +15,7 @@
  *  - `warm-painted`         a WARM face (mounted ahead of its rise) painted.
  *
  * The verdicts are a READ — nothing here moves, waits or hides anything. The director asks after every step of a
- * chain (a rise, a settle) and the sentinel says it out loud in every build: `[reaction] foreign face …` — red on
+ * chain (a rise, a settle) and the sentinel says it out loud in every build: `[reaction-identity] foreign face …` — red on
  * every e2e spec (`tests/e2e/consoleTest.ts` `reactionFaceGuard`). The e2e witness (`tests/e2e/reactionWitness.ts`)
  * runs the same five checks page-side every 16 ms against `__conReady().reaction` — the declaration published here.
  */
@@ -206,7 +206,8 @@ export function checkReactionIdentity(step: string): Array<ReactionIdentityVerdi
     if (reported.size > 256) {
       reported.clear();
     }
-    console.warn(`[reaction] foreign face — ${v.kind}: ${v.card} at ${step} (${v.why})`);
+    // A tag of its own (an INTEGRITY family — `classify.ts`): the wrong card on screen is a defect the developer receives.
+    console.warn(`[reaction-identity] foreign face — ${v.kind}: ${v.card} at ${step} (${v.why})`);
   }
   return verdicts;
 }

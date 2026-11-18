@@ -385,13 +385,13 @@ const TRANSFER_TOLD_TWICE = '[transfer] told twice';
  * the server's discards it had declared (`discardPile.ts` — `expectDiscardPileCount` / `settleDiscardPile`): a lost
  * touchdown nobody settled. Healed on the spot by the product; red here, so the cause is never lost.
  */
-const DISCARD_PILE_UNDER = '[discard-pile] released under its count';
+const DISCARD_PILE_UNDER = '[discard-count] released under its count';
 /**
  * …and the REACTION IDENTITY sentinel's (P82 — «ПОДНИМАЕТСЯ ТОЛЬКО ТА КАРТА, ЧТО СРАБОТАЛА», `cardReaction/reactionIdentity.ts`):
  * after a rise or a settle of the card-reaction chain, a face the player can see moving that no rise declared (a foreign
  * group, a warm face painted, two faces stacked in one slot, a lift that carries another card, one card in two places).
  */
-const REACTION_FOREIGN_FACE = '[reaction] foreign face';
+const REACTION_FOREIGN_FACE = '[reaction-identity] foreign face';
 
 /**
  * THE REACTION FACE GUARD — every test, every page of its context: the sentinel's line above is red. With

@@ -56,6 +56,7 @@
  * surfaces fade in 120 ms, the scales snap, the title reads, the surfaces
  * return. A reload into a terraformed game seeds silently and plays nothing.
  */
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {reactive, shallowRef} from 'vue';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
@@ -409,7 +410,7 @@ async function play(nonce: number): Promise<void> {
     }
     endTerraformedScene('concluded');
   } catch (e) {
-    console.warn('[terraformed-scene] the phrase threw — ending honestly', e);
+    reportDiagnosticError(pageErrorLine('caught by the terraformed scene — ending honestly', e), e);
     endTerraformedScene('error');
   }
 }

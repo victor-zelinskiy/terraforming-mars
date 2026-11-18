@@ -554,7 +554,7 @@ second instance; the Power Plant standard project's answer lands after its price
     - **THE SENTINEL** (`reactionIdentity.ts`): the director DECLARES every reactor before its face moves
       (`noteReactorRising`) and lets it go after its settle; after every rise and every settle the live DOM is read
       against the declaration — `foreign-face` · `stacked-faces` (> 20 % of the smaller) · `lift-carries-another` ·
-      `two-instances` · `warm-painted` — and every verdict is said: `[reaction] foreign face — <kind>: <card> at <step>`,
+      `two-instances` · `warm-painted` — and every verdict is said: `[reaction-identity] foreign face — <kind>: <card> at <step>`,
       every build. The e2e harness turns it red on every spec (`consoleTest.ts`, `armReactionFaceGuard` inside
       `transferEndsGuard`); `TM_E2E_REACTION_WITNESS=1` arms the page-side WITNESS (`tests/e2e/reactionWitness.ts` —
       `MutationObserver` + a 16 ms sampler, the same five rules against `__conReady().reaction.declared`) on every page
@@ -685,7 +685,7 @@ trade registry (`tradeFlatBonuses`), paid by a bare `stock.add` outside any effe
 45. **A CUT IN THE RECEDE OWNS THE FACES** (PL-1839). A second press past the gesture window during the recede cuts the
     chain: the cut unseats every face and clears every declaration synchronously, and its `killReactorTweens` resolves the
     recede through `onInterrupt` — so the recede's continuation ran BEFORE Vue's flush and its settle check read the
-    chain's OWN face, still painted, as a foreign one (`[reaction] foreign face — foreign-face … at settle:…`, red on every
+    chain's OWN face, still painted, as a foreign one (`[reaction-identity] foreign face — foreign-face … at settle:…`, red on every
     spec). `recede` captures the epoch and leaves without the settle check when a cut took it. jsdom paints no face (zero
     rects), so the witness is the e2e (B / B2 / H red «before», green «after»).
 

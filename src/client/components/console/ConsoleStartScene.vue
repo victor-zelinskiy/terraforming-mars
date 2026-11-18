@@ -1357,6 +1357,7 @@
  * (This comment opened the template; the template starts with its root now.)
  */
 
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {RootElHolder} from '@/client/components/rootEl';
@@ -9065,7 +9066,7 @@ function seatQueue(op: () => Promise<void>): Promise<void> {
     try {
       await op();
     } catch (e) {
-      console.warn('[start-seat] a seat flight failed — the seat keeps its last consistent state', e);
+      reportDiagnosticError(pageErrorLine('caught by a start-seat flight — the seat keeps its last consistent state', e), e);
     }
   };
   const run = seatChain.value.then(guardedOp, guardedOp);

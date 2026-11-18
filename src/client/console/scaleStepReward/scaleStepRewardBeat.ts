@@ -47,7 +47,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
 import {
-  boardBeatBoardWatchable, boardBeatHoldsParam, boardBeatParkState, registerBoardBeatStoryMember,
+  boardBeatBoardWatchable, boardCoverReasonsNow, boardBeatHoldsParam, boardBeatParkState, registerBoardBeatStoryMember,
 } from '@/client/console/boardBeatPark';
 import {beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
@@ -273,7 +273,7 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
       scaleStepRewardState.due = true;
     },
     diagnose: () => ({
-      seq: entry.record.seq, watchable: boardBeatBoardWatchable(),
+      seq: entry.record.seq, watchable: boardBeatBoardWatchable(), coveredBy: boardCoverReasonsNow(),
       parked: boardBeatHoldsParam(scaleParamKeyOf(entry.record.parameter) ?? 'venusScaleLevel'),
       marker: scaleMarkerPoses[scaleAccentOf(entry.record.parameter) ?? 'venus'],
     }),

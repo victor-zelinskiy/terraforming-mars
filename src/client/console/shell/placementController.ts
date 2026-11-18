@@ -751,6 +751,35 @@ export function createPlacementController(shell: PlacementPort) {
       planetFocusStoryReady();
   });
 
+  /**
+   * WHO COVERS THE BOARD — the names of `boardBeatsWatchable`'s false terms, in its order (a plain read: only the
+   * park's degrade asks it, for its diagnose — `boardBeatPark.registerBoardCoverReasons`). The first four are what the
+   * PLAYER looks at (another screen, a sheet, a workspace, their own aim); `sitting-rise` and `planet-focus` are the
+   * game's own covers — a story degraded behind one of those is a defect, never an honest wait (`shapes.ts` story-due).
+   */
+  function boardCoverReasons(): ReadonlyArray<string> {
+    const reasons: Array<string> = [];
+    if (consoleState.section !== 'board') {
+      reasons.push('section');
+    }
+    if (consoleState.sheet !== undefined) {
+      reasons.push('sheet');
+    }
+    if (shell.workspaceScreenUp) {
+      reasons.push('workspace');
+    }
+    if (placementActive.value) {
+      reasons.push('placement');
+    }
+    if (sittingRiseOwed()) {
+      reasons.push('sitting-rise');
+    }
+    if (!planetFocusStoryReady()) {
+      reasons.push('planet-focus');
+    }
+    return reasons;
+  }
+
   // ── verbs ────────────────────────────────────────────────────────────────────────────────────────────────────────
   function onConvertPlantsSpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {
     const found = shell.convertPlantsPending;
@@ -1556,6 +1585,7 @@ export function createPlacementController(shell: PlacementPort) {
     inspectedCellSourceCard,
     placementWorldVersion,
     boardBeatsWatchable,
+    boardCoverReasons,
     onConvertPlantsSpacePicked,
     armBoardBonusIfCardCell,
     cancelPlacement: ownCancelPlacement,

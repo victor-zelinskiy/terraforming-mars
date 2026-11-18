@@ -157,7 +157,7 @@ describe('discardPile', () => {
       openDiscardPile('hand-discard');
       expectDiscardPileCount('hand-discard', 1);
       releaseDiscardPile('hand-discard');
-      expect(warns.some((w) => w.includes('[discard-pile] released under its count owner=hand-discard expected=1 count=0'))).is.true;
+      expect(warns.some((w) => w.includes('[discard-count] released under its count owner=hand-discard expected=1 count=0'))).is.true;
       expect(discardPileState.count, 'truth before story').eq(1);
     });
 

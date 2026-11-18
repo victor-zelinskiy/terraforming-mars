@@ -35,7 +35,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {scaleMarkerArrived, scaleMarkerPoses} from '@/client/components/board/scaleMarkerArrival';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
-import {boardBeatBoardWatchable, boardBeatHoldsParam, boardBeatParkState, registerBoardBeatStoryMember} from '@/client/console/boardBeatPark';
+import {boardBeatBoardWatchable, boardCoverReasonsNow, boardBeatHoldsParam, boardBeatParkState, registerBoardBeatStoryMember} from '@/client/console/boardBeatPark';
 import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -281,7 +281,7 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
     degrade: () => {
       venusBonusCellState.due = true;
     },
-    diagnose: () => ({to: e.to, watchable: boardBeatBoardWatchable(), parked: boardBeatHoldsParam('venusScaleLevel'), rating: scaleStepRatingBusy()}),
+    diagnose: () => ({to: e.to, watchable: boardBeatBoardWatchable(), coveredBy: boardCoverReasonsNow(), parked: boardBeatHoldsParam('venusScaleLevel'), rating: scaleStepRatingBusy()}),
   });
   // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
   const wait = beginCeilingWait({id: 'venus-bonus-cell:stage', owner: 'venusBonusCellBeat', what: 'the stage of the Venus bonus cell', maxMs: SCALE_STEP_STAGE_DUE_MS});

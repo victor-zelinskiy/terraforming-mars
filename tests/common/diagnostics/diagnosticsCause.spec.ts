@@ -81,6 +81,24 @@ describe('diagnostics cause — the class is the line\'s structure, never its wo
     expect(wedge, 'an open board and a drain that never ran: a defect').to.deep.include({tier: 'defect', cls: park?.cls});
   });
 
+  it('A COVERED BOARD IS AN HONEST WAIT ONLY WHEN THE PLAYER COVERED IT FOR THE WHOLE WINDOW (the tier audit, row 1)', () => {
+    const story = (diagnose: string) => causeOf(`[presentation-ledger] story «board-beat-park» degraded after 30s — the release edge never came — ${diagnose}`, 'warn')?.tier;
+    // The player sat in a workspace / a sheet / another section / their own aim the whole time: planned.
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["workspace"],"pending":true}')).to.eq('planned');
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["section","sheet"],"pending":true}')).to.eq('planned');
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["placement"],"pending":true}')).to.eq('planned');
+    // The box's field case (2026-11-18): the player ON the board, no frame — the game's own cover held it: a defect.
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["sitting-rise"],"pending":true}')).to.eq('defect');
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["workspace","planet-focus"],"pending":true}')).to.eq('defect');
+    // The board WAS watchable at some look of the window and the story still was not told: a defect.
+    expect(story('{"watchable":false,"watchableSeen":true,"coveredBy":["workspace"],"pending":true}')).to.eq('defect');
+    // Not watchable, yet no term names a cover (a probe that disagrees with its own verdict): a defect, never silence.
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":[],"pending":true}')).to.eq('defect');
+    // Another board story (a snapshot, no window) answers by its cover alone.
+    const cell = causeOf('[presentation-ledger] story «cell-resource:30» degraded after 12s — the release edge never came — {"space":"30","watchable":false,"coveredBy":["sitting-rise"]}', 'warn');
+    expect(cell?.tier).to.eq('defect');
+  });
+
   it('an exception, a note and a perf line have no cause class', () => {
     expect(causeOf('[vue-error] X · render: TypeError: y', 'error')).to.eq(undefined);
     expect(causeOf('[played-hero] the lift degraded', 'warn')).to.eq(undefined);

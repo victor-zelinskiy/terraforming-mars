@@ -59,6 +59,10 @@ const INTEGRITY: ReadonlyArray<string> = [
   // its own token (`resourceTransfer`), a cached predicate that latched (`reactivityWitness.ts`), a reading printed
   // with its placeholders (`readingText.ts`), a composer that re-asked what it had answered (`preselectWitness.ts`).
   'transfer', 'reactivity', 'reading', 'console-preselect',
+  // The wrong card on screen in a card's reaction (`reactionIdentity.ts`), and a discard pile let go under the count
+  // its owner declared — a lost touchdown (`discardPile.ts`). Both were NOTES of their scene's family until the tier
+  // audit of 2026-11-18 (`docs/claude/diagnostics-tier-audit.md` rows 7, 9): a defect never sent.
+  'reaction-identity', 'discard-count',
 ];
 
 const PERF: ReadonlyArray<string> = ['long-frame', 'perf', 'bot-turn', 'console-overflow'];

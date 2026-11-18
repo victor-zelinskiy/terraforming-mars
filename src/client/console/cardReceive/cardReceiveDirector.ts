@@ -36,6 +36,7 @@
  * whose scene owns the board keeps its OWN blocking hold (`city-data-payout`,
  * `played-hero`) — the director never replaces it.
  */
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {reactive} from 'vue';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -195,9 +196,8 @@ export async function runCardReceive(scene: CardReceiveScene): Promise<CardRecei
     await scene.ret();
     return epoch === myEpoch ? end('done') : 'aborted';
   } catch (e) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('[card-receive] a host move threw — the scene degrades', scene.host, scene.card, e);
-    }
+    // An exception of a host's move is an ERROR the developer receives — in every build (law 3).
+    reportDiagnosticError(pageErrorLine(`caught by the card-receive scene (${scene.host}) — the scene degrades`, e), e);
     return epoch === myEpoch ? end('degraded') : 'aborted';
   }
 }

@@ -75,6 +75,29 @@ function field(body: string, key: string): string {
   return m === null ? '' : m[1].trim();
 }
 
+/** What the PLAYER looks at instead of the board — the covers of `boardBeatsWatchable` that are the player's choice. */
+const PLAYER_BOARD_COVERS: ReadonlySet<string> = new Set(['section', 'sheet', 'workspace', 'placement']);
+
+/**
+ * A degraded board story's diagnose (`boardBeatPark` — `{"watchable":…, "watchableSeen":…, "coveredBy":[…]}`): was it
+ * the honest wait — the board never watchable in the whole window, and every cover the player's own? A line printed
+ * before `coveredBy` existed answers by `watchable` alone (its old reading).
+ */
+export function storyCoveredByPlayer(body: string): boolean {
+  if (!/"watchable":\s*false/.test(body)) {
+    return false;
+  }
+  const covered = /"coveredBy":\s*\[([^\]]*)\]/.exec(body);
+  if (covered === null) {
+    return true;
+  }
+  if (/"watchableSeen":\s*true/.test(body)) {
+    return false;
+  }
+  const names = covered[1].split(',').map((s) => s.trim().replace(/^"|"$/g, '')).filter((s) => s !== '');
+  return names.length > 0 && names.every((n) => PLAYER_BOARD_COVERS.has(n));
+}
+
 /** The node ids of a wait-graph finding's member list (`id (owner: detail) · id (owner)`), sorted — a cycle has no first member. */
 function waitMembers(list: string): Array<string> {
   return list.split(' · ').map((m) => m.trim().split(' ')[0]).filter((id) => id !== '').sort();
@@ -248,8 +271,11 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
   'presentation-ledger': [
     {
       name: 'story-due', re: /^story «([^»]*)» degraded after \S+ — the release edge never came/, tier: 'defect', parts: [1],
-      // A story that waited for a board the player kept covered degrades by design (the honest multiplayer wait).
-      read: (_m, body) => (/"watchable":\s*false/.test(body) ? {tier: 'planned'} : {}),
+      // A story that waited for a board the PLAYER kept covered degrades by design (the honest multiplayer wait) — and
+      // only that: the board never watchable in the whole window, covered only by what the player looks at. A board
+      // seen and not told, or covered by the game's own scene (a sitting on its way up, the camera), is a defect
+      // (the tier audit of 2026-11-18, row 1). A line from a build before `coveredBy` keeps the old reading.
+      read: (_m, body) => (storyCoveredByPlayer(body) ? {tier: 'planned'} : {}),
     },
     {name: 'story-degraded-by', re: /^story «([^»]*)» degraded by (.*?) after /, tier: 'info', parts: [1], dims: {by: 2}, why: 'the echo of a rung / a door — the episode or the finding is the defect', echoOf: ['liveness/stall', ...WAIT_GRAPH_FINDINGS]},
     {name: 'witness-heal', re: /^witness «([^»]*)» healing — the lie outlived its grace/, tier: 'defect', parts: [1]},
@@ -355,6 +381,12 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
   ],
   'reactivity': [
     {name: 'latch-healed', re: /^«([^»]*)» changed without a reactive edge/, tier: 'defect', parts: [1]},
+  ],
+  'reaction-identity': [
+    {name: 'foreign-face', re: /^foreign face — (\S+?): (.*?)(?: at \S+)? \(/, tier: 'defect', parts: [1], dims: {source: 2}},
+  ],
+  'discard-count': [
+    {name: 'released-under', re: /^released under its count owner=(\S+) /, tier: 'defect', parts: [1]},
   ],
   'reading': [
     {name: 'raw-template', re: /^RAW TEMPLATE on screen:.* — key «([^»]*)»/, tier: 'defect', parts: [1]},

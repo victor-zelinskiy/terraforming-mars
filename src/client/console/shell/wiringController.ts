@@ -59,7 +59,9 @@ import {isHydroMarkerActive, hydroRewardHoldOwed, hydroTraversalPending} from '@
 import {hydroCeremonyOwed, hydroFlowState, hydroFlowTrail, installHydroFlowWitnesses, isHydroCeremonyActive, registerHydroFlowProbe} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
 import {workspaceOutcomeBeatPending, workspaceOutcomeClaimed, lastOutcomeReleaseStack, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {boardBeatParkState, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe} from '@/client/console/boardBeatPark';
+import {
+  boardBeatParkState, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardCoverReasons, registerBoardWatchableProbe,
+} from '@/client/console/boardBeatPark';
 import {colonyBonusPayoutParksReveal} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {boardCardBonusState} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {planetFocusState, captureGlobalParams, isPlanetFocusEngaged} from '@/client/console/planetFocus';
@@ -116,6 +118,7 @@ export type WiringPort = {
   applyHandFilterChange: UnwrapRef<HandSelectController['applyHandFilterChange']>,
   armDiscardScene: UnwrapRef<HandSelectController['armDiscardScene']>,
   boardBeatsWatchable: UnwrapRef<PlacementController['boardBeatsWatchable']>,
+  boardCoverReasons: UnwrapRef<PlacementController['boardCoverReasons']>,
   cardArrivalBusy: UnwrapRef<HandController['cardArrivalBusy']>,
   cardStageExitBusy: UnwrapRef<HandController['cardStageExitBusy']>,
   clearDepartingPlayCard: UnwrapRef<PlayCardController['clearDepartingPlayCard']>,
@@ -766,6 +769,8 @@ export function createWiringController(shell: WiringPort) {
     // drains against the real screen; the mount-edge drain below covers the
     // watcher's blind spot (a watcher never fires on its initial truth).
     registerBoardWatchableProbe(() => shell.boardBeatsWatchable);
+    // …and WHO covers the board when it is not — read only by the park's degrade (the tier of its line: `shapes.ts`).
+    registerBoardCoverReasons(() => shell.boardCoverReasons());
     // THE GENERATION SCENE'S RISE waits for the screen handoff (state delivery, 2026-10-28): the scene holds the
     // foreground itself through the wait, so its own label is the one the director ignores.
     registerGenerationSceneHandoff((id, into) => waitScreenHandoff(id, {

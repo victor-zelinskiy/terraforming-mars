@@ -17,6 +17,7 @@
  * path. The scene NEVER draws a disposal the server did not perform.
  */
 
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -379,7 +380,7 @@ export async function runCardDiscard(): Promise<void> {
     setPhase('landing');
     await runDiscardPileSettle(t);
   } catch (err) {
-    console.warn('[card-discard] scene failed — degrading to a silent disposal', err);
+    reportDiagnosticError(pageErrorLine('caught by the card-discard scene — degrading to a silent disposal', err), err);
   } finally {
     if (cardDiscardTransaction.active) {
       cardDiscardState.trayArmed = false;

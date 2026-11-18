@@ -88,12 +88,13 @@ describe('cardReceiveDirector — one grammar of «a resource lands on a card»'
 
   it('a host move that THROWS degrades the scene — never a rejection, never a stranded hold', async () => {
     const log: Array<string> = [];
-    // The director WARNS with the Error in a dev build: printing its stack resolves the whole suite bundle's source
-    // map (seconds in the full `test:client` — the «warn-stack» trap), so the warn is caught and counted here.
-    const warn = console.warn;
-    let warned = 0;
-    console.warn = () => {
-      warned++;
+    // The director REPORTS the Error (`reportDiagnosticError` — an error the developer receives, in every build): with
+    // no interceptor installed it prints through the live `console.error`, and printing its stack resolves the whole
+    // suite bundle's source map (seconds in the full `test:client` — the «warn-stack» trap), so it is caught here.
+    const error = console.error;
+    const said: Array<string> = [];
+    console.error = (line: unknown) => {
+      said.push(String(line));
     };
     try {
       const outcome = await runCardReceive(scene({
@@ -103,9 +104,10 @@ describe('cardReceiveDirector — one grammar of «a resource lands on a card»'
       }, log));
       expect(outcome).eq('degraded');
       expect(log).deep.eq(['present', 'release']);
-      expect(warned, 'the degrade names itself').eq(1);
+      expect(said, 'the degrade names itself — as a page error, once').to.have.length(1);
+      expect(said[0]).to.match(/^\[page-error\] caught by the card-receive scene/);
     } finally {
-      console.warn = warn;
+      console.error = error;
     }
   });
 

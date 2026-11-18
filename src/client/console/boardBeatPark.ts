@@ -247,6 +247,26 @@ function boardWatchable(): boolean {
   return watchableProbeRef.value === undefined || watchableProbeRef.value();
 }
 
+/**
+ * WHAT COVERS THE BOARD right now — the names of the watchable verdict's terms that are false (the shell's own, beside
+ * the verdict: `placementController.boardCoverReasons`). Read only by the degrade's diagnose: «the board was covered»
+ * is a defect or an honest wait depending on WHO covered it (the tier audit of 2026-11-18, row 1 — the box's
+ * `watchable: false` with the player on the board and no frame standing was filed as an honest wait).
+ */
+let coverReasonsProbe: (() => ReadonlyArray<string>) | undefined;
+
+export function registerBoardCoverReasons(probe: (() => ReadonlyArray<string>) | undefined): void {
+  coverReasonsProbe = probe;
+}
+
+/** Who covers the board right now — for every board story's degrade diagnose (`coveredBy`; empty when watchable / no shell). */
+export function boardCoverReasonsNow(): Array<string> {
+  return [...(coverReasonsProbe?.() ?? [])];
+}
+
+/** Was the board watchable at ANY look of the owed story's window? (A degrade's verdict is the whole window's, never one snapshot's.) */
+let watchableSeen = false;
+
 /** Is the park LIVE — a shell registered its watchable verdict? Without one the module is inert (desktop / tests). */
 export function boardBeatParkLive(): boolean {
   return watchableProbeRef.value !== undefined;
@@ -321,6 +341,7 @@ let drainTimers: Array<() => void> = [];
 function clearSafety(): void {
   ledgerStory?.settle();
   ledgerStory = undefined;
+  watchableSeen = false;
 }
 
 function clearDrainTimers(): void {
@@ -342,9 +363,17 @@ function armSafety(): void {
   if (ledgerStory !== undefined) {
     return;
   }
+  watchableSeen = false;
   ledgerStory = owePresentation({
     id: 'board-beat-park',
-    ready: () => boardWatchable() && boardBeatParkPending() && !boardBeatParkState.draining && !boardBeatParkState.sceneHeld,
+    ready: () => {
+      // Every look of the ledger's heartbeat is a sample of the window — the degrade reports whether ANY saw the board.
+      const watchable = boardWatchable();
+      if (watchable) {
+        watchableSeen = true;
+      }
+      return watchable && boardBeatParkPending() && !boardBeatParkState.draining && !boardBeatParkState.sceneHeld;
+    },
     redrive: () => (redriveHook ?? drainBoardBeatsIfDue)(),
     dueMs: BOARD_BEAT_PARK_SAFETY_MS,
     degrade: () => releaseBoardBeatPark(),
@@ -354,8 +383,12 @@ function armSafety(): void {
     // design); `watchable: true` is the interesting case — the drain was
     // re-driven for 30 s over an open board and something in its own quiet
     // gate (scene settling / read admission) never let it run.
+    // `coveredBy` + `watchableSeen` decide the TIER (`shapes.ts` story-due): an honest wait only when the board was
+    // never watchable in the whole window AND only the player's own choices covered it; anything else is a defect.
     diagnose: () => ({
       watchable: boardWatchable(),
+      watchableSeen,
+      coveredBy: [...(coverReasonsProbe?.() ?? [])],
       pending: boardBeatParkPending(),
       draining: boardBeatParkState.draining,
       sceneHeld: boardBeatParkState.sceneHeld,
@@ -738,6 +771,8 @@ export function resetBoardBeatPark(): void {
   releaseBoardBeatPark();
   setBoardSwingDisplay(undefined);
   watchableProbeRef.value = undefined;
+  coverReasonsProbe = undefined;
+  watchableSeen = false;
   surfaceLeavingProbe = undefined;
   redriveHook = undefined;
   liveParamsSource = undefined;

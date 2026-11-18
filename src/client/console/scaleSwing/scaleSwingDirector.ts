@@ -52,7 +52,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
 import {captureGlobalParams, HeldGlobalParams} from '@/client/console/planetFocus';
 import {
-  boardBeatBoardWatchable, boardBeatHoldsParam, boardBeatParkState, setBoardSwingDisplay,
+  boardBeatBoardWatchable, boardCoverReasonsNow, boardBeatHoldsParam, boardBeatParkState, setBoardSwingDisplay,
 } from '@/client/console/boardBeatPark';
 import {registerBoardSceneMember} from '@/client/console/boardSceneMembers';
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
@@ -187,7 +187,7 @@ registerAnimationHoldSupplier(SCALE_SWING_KEY, scaleSwingPlaying, {
 // for a scene that waits for the workspace to leave.
 registerAnimationHoldSupplier(`${SCALE_SWING_KEY}-owed`, () => scaleSwingState.phase === 'waiting', {
   scope: 'notification-only',
-  diagnose: () => ({seq: scaleSwingState.seq, watchable: boardBeatBoardWatchable(), settling: boardSceneSettling()}),
+  diagnose: () => ({seq: scaleSwingState.seq, watchable: boardBeatBoardWatchable(), coveredBy: boardCoverReasonsNow(), settling: boardSceneSettling()}),
   expire: () => {
     if (scaleSwingState.phase !== 'waiting') {
       return;
@@ -337,7 +337,7 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
       scaleSwingState.due = true;
     },
     diagnose: () => ({
-      seq: e.plan.seq, watchable: boardBeatBoardWatchable(), draining: boardBeatParkState.draining, settling: boardSceneSettling(),
+      seq: e.plan.seq, watchable: boardBeatBoardWatchable(), coveredBy: boardCoverReasonsNow(), draining: boardBeatParkState.draining, settling: boardSceneSettling(),
       held: e.plan.legs.filter((leg) => boardBeatHoldsParam(leg.key)).map((leg) => leg.key),
     }),
   });

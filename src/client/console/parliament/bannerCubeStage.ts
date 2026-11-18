@@ -20,6 +20,7 @@
  * released where they stand (the same numbers, no flight). `abortBannerCubeStage` ends a run at once (the director's
  * kill, the section's unmount) — every cube of the run shown, the card gone.
  */
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
@@ -259,7 +260,7 @@ export function playBannerCubeStage(
       }
       finish('played');
     })().catch((e: unknown) => {
-      console.warn('[banner-stage] the phrase threw — the card goes, the cubes are shown', e);
+      reportDiagnosticError(pageErrorLine('caught by the banner stage — the card goes, the cubes are shown', e), e);
       if (current === run) {
         abortBannerCubeStage();
       } else {

@@ -24,6 +24,7 @@
  * element registry (v-for order is not guaranteed).
  */
 
+import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 
@@ -75,7 +76,7 @@ export function releaseInFlight(name: CardName): void {
     try {
       listener(name);
     } catch (e) {
-      console.warn('[hand-intake] a touchdown listener threw', e);
+      reportDiagnosticError(pageErrorLine('caught by the hand intake — a touchdown listener', e), e);
     }
   }
 }

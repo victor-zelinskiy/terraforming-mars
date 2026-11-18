@@ -94,6 +94,6 @@ describe('reactionIdentity — every face that moves is one the chain declared',
       console.warn = warn;
     }
     expect(said).to.have.lengthOf(1);
-    expect(said[0]).to.include('[reaction] foreign face — foreign-face: Tardigrades at rise:x');
+    expect(said[0]).to.include('[reaction-identity] foreign face — foreign-face: Tardigrades at rise:x');
   });
 });

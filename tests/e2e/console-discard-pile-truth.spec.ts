@@ -6,7 +6,7 @@ import {bootFixture, focusCard, press, settle} from './consoleStart';
  * where a touchdown did not happen (the carry's guard timer firing before the timeline's contact under a starved main
  * thread, an abort of the liveness arbiter, a degraded scene) left the pile reading «0» over a card the server
  * discarded. Now every owner DECLARES what it lays (`expectDiscardPileCount`) and SETTLES it at its read and at any
- * abort (`settleDiscardPile`); a release under the declaration is the sentinel `[discard-pile] released under its count`
+ * abort (`settleDiscardPile`); a release under the declaration is the sentinel `[discard-count] released under its count`
  * — red on EVERY e2e (`transferEndsGuard`), so this stand is red if a settle is ever skipped.
  *
  * The stand starves the renderer (CDP CPU throttling ×6) and plays the P86 discard out of the dock (the play's price),

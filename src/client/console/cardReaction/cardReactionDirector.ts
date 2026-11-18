@@ -718,7 +718,7 @@ async function settleStrandedLifts(card: CardName): Promise<void> {
   if (stranded.length === 0) {
     return;
   }
-  console.warn(`[reaction] foreign face — stranded-lift: ${card} (its place settled another face; the lifted one is settled now)`);
+  console.warn(`[reaction-identity] foreign face — stranded-lift: ${card} (its place settled another face; the lifted one is settled now)`);
   noteTransferTrail('reaction:stranded-lift', {card, n: stranded.length});
   await Promise.all(stranded.map((el) => settleInPlace(el)));
 }
@@ -747,7 +747,7 @@ async function recede(risen: Risen): Promise<void> {
   // A CUT IN THE RECEDE OWNS THE FACES (PC02 · GQ): it unseats every face and clears every declaration in its own
   // synchronous half, and its `killReactorTweens` resolves this recede through `onInterrupt` — so this continuation
   // runs BEFORE Vue's flush takes the faces out of the DOM, and a settle check there read the chain's OWN face, still
-  // painted, as a foreign one (`[reaction] foreign face` on every double press during a space event's answer).
+  // painted, as a foreign one (`[reaction-identity] foreign face` on every double press during a space event's answer).
   const mine = epoch;
   if (risen.via === 'place' && risen.emergence !== undefined) {
     await risen.emergence.settleTarget(risen.group.card);
