@@ -29,6 +29,8 @@ import {boardBeatParkState, registerBoardWatchableProbe, resetBoardBeatPark} fro
 import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {presentationLedgerSnapshot, resetPresentationLedger} from '@/client/console/presentationLedger';
+import {playerOwnedHolds} from '@/client/components/presentation/animationHold';
+import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Resource} from '@/common/Resource';
@@ -273,6 +275,34 @@ describe('scaleStepRatingBeat — cause before consequence', () => {
     await Promise.resolve();
     expect(scaleStepRatingState.phase, 'the marker has not arrived').eq('waiting');
     expect(heldStock(RATING_RAIL_KEY), 'still held').eq(1);
+  });
+
+  /*
+   * WHO IS WAITED FOR, AND AN ABORT THAT IS HEARD (freeze zero, stage 1 — the bottle's monkey, seed fz7 ·
+   * venus-bonus-inspection): the player sat in «Награды» over the board; the rating's hold was a «leaked hold?» at its
+   * ceiling, and after the beat ended its wait for the stage stood in the graph for the rest of the game.
+   */
+  it('a rating waiting under a board the PLAYER keeps covered is the player\'s wait — and a reset ends the stage wait, at once', async () => {
+    mountMarker();
+    watchable = false;
+    noteScaleMarkerSettled('venus', 6);
+    seedScaleStepRatingHold(view({}, {venusScaleLevel: 6}), view({terraformRating: 21, megacredits: 22}, {venusScaleLevel: 8}));
+    expect(scaleStepRatingState.phase).eq('waiting');
+    expect(playerOwnedHolds(), 'the hold says whom it waits for').to.contain('the player keeps the board covered');
+    const stageWaits = (): Array<string> => collectWaitNodes(Date.now()).map((n) => n.id).filter((id) => id.includes('scale-step-rating:stage'));
+    for (let i = 0; i < 5 && stageWaits().length === 0; i++) {
+      await Promise.resolve();
+    }
+    expect(stageWaits(), 'the wait for the stage is a node of the graph').to.have.length(1);
+    resetScaleStepRating();
+    for (let i = 0; i < 5; i++) {
+      await Promise.resolve();
+    }
+    expect(stageWaits(), 'the abort is heard: the node is gone with the beat').to.deep.eq([]);
+    // …and a board in plain view is nobody's to keep: the hold is a motion's again.
+    watchable = true;
+    seedScaleStepRatingHold(view({}, {venusScaleLevel: 8}), view({terraformRating: 22, megacredits: 24}, {venusScaleLevel: 10}));
+    expect(playerOwnedHolds() ?? '').to.not.contain('the player keeps the board covered');
   });
 
   // The map audit of 2026-11-05 (Arabia Terra's data cell with two holders): the «on which card» plate stands over

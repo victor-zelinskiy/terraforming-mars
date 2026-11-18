@@ -361,6 +361,12 @@ registerAnimationHoldSupplier(SCALE_STEP_RATING_KEY, scaleStepRatingBusy, {
   scope: 'notification-only',
   diagnose: () => ({phase: scaleStepRatingState.phase, tokens: scaleStepRatingState.tokens, due: scaleStepRatingState.due,
     owed: entry !== undefined, paying: paying !== undefined}),
+  // WHO IS WAITED FOR (freeze zero, stage 1 — the bottle's monkey, seed `fz7` · `venus-bonus-inspection`, 2026-11-18):
+  // a rating owed while the player sits in a workspace over the board waits for a stage only THEY can uncover. The
+  // hold's ceiling counts from the seed, the story's due from the moment the run reaches its stage wait — so the
+  // ceiling could come first, and read «leaked hold?» over a board the player kept covered.
+  heldForPlayer: () => (entry !== undefined && scaleStepRatingState.phase === 'waiting' && !boardBeatBoardWatchable() ?
+    'the player keeps the board covered — the rating waits for its stage' : undefined),
   // THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a flight that never reported its touchdowns ends by the abort of
   // the beat (`resetScaleStepRating`) — every held rating / answer released (the rows read the applied view), the quiet
   // resolved so the drain of the park goes on; the wedged run lets go of `running` so the next beat can play.
@@ -722,6 +728,11 @@ async function run(): Promise<void> {
 /** Abort / game switch: stop, release whatever the panel still holds for this beat (a hold never strands a counter). Idempotent. */
 export function resetScaleStepRating(): void {
   epoch++;
+  // THE ABORT IS A REACTIVE EDGE (CLAUDE.md invariant 17): `epoch` is a plain counter, and the stage wait's watcher
+  // reads it inside a reactive source — bumped alone it woke nobody, the watcher never said «abort», and the wait's
+  // node stood in the graph for the rest of the game (the same walk: «overdue ceiling:scale-step-rating:stage#2 —
+  // past its 32 s bound», a minute after the beat had ended). The nudge is the edge that watcher already rides.
+  scaleStepRatingState.nudge++;
   const e = entry;
   entry = undefined;
   debt?.settle();
