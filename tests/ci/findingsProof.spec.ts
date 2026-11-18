@@ -111,6 +111,12 @@ describe('ci findings: a finding names its proof', function() {
     expect(findings[0].title).to.eq('[sentry] [wait-graph] cycle (announce:parliament:genn · question:parliamentphase · surface:parliament)');
     expect(findings[0].body).to.contain('npm run diag -- issue TERRAFORMING-MARS-T');
     expect(findings[0].body).not.to.contain('came back');
+    expect(findings[0].body, 'no structure was attached: no block').not.to.contain('said of itself');
+    // THE EVENT'S STRUCTURAL TAGS ride the issue for a reader with no Sentry access.
+    const [told] = findingsOf('from-sentry', [issue({structure: {cause: 'wait-graph/cycle/x', release: 'terraforming-mars@1.2.3327', head: '6e0cab3', screen: 'player-home'}})], '--since', '26h');
+    expect(told.body).to.contain('- `cause`: `wait-graph/cycle/x`');
+    expect(told.body).to.contain('- `head`: `6e0cab3`');
+    expect(told.body, 'a white-listed tag is printed as it is — a release is not an address').to.contain('- `release`: `terraforming-mars@1.2.3327`');
     const leaked = findings[1].title + findings[1].body;
     expect(leaked, 'it came back after a resolve').to.contain('came back after being resolved');
     for (const secret of ['192.168.1.20', 'Somebody', 'c37200da3a391', '/home/deck', 'somebody', 'a@b.co']) {

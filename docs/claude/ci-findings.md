@@ -53,6 +53,12 @@ and files through the ONE filer (`findings.mjs from-sentry`):
 - **The repository is public, the sessions are not.** The finding carries the Sentry issue's title (a cause class is
   structure, and it is scrubbed all the same: addresses, e-mails, query values, home directories), its counts, its
   dates and the link into Sentry (a login is asked). Never an event, a breadcrumb, a save, a name.
+- **The evidence comes to the reader, scrubbed — the reader does not go to Sentry.** The triage agent writes public
+  comments and reads public issues; a Sentry token in its sandbox would put the sessions' data one quoted line away
+  from a public page, and something to steal within reach of whoever writes an issue (the owner asked on 2026-11-18;
+  this is the answer). So the filing step — the one place that holds the token — attaches the latest event's
+  STRUCTURAL tags to the issue (`diag.mjs issues --json --structure`: a white list — the cause class, the build and
+  its commit, the runtime, the screen and the section, the outcome and the cure; never `seat_ref`, `run`, a user).
 - **Triage (`src:sentry`):** the agent's sandbox has no Sentry access — it reads the class off the title
   (`[family] shape (structural words)` → the row of `src/common/diagnostics/shapes.ts` → the print site), the code
   there, and `docs/claude/console/freeze-zero/PLAN.md` § 4 (is the class known? was it «left to the net»?). A field

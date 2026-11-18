@@ -294,6 +294,14 @@ function fromSentry() {
         `- level: \`${issue.level ?? '?'}\` · events: ${issue.count ?? '?'} · sessions' users: ${issue.userCount ?? '?'}`,
         `- first seen: ${day(issue.firstSeen)} UTC · last seen: ${day(issue.lastSeen)} UTC`,
         ...(issue.permalink ? [`- in Sentry (a login is asked): ${issue.permalink}`] : []),
+        // WHAT THE EVENT SAID OF ITSELF — its structural tags only (`diag.mjs` STRUCTURAL_TAGS, a white list): the
+        // class, the build, the screen. The reader of this issue has no Sentry access; a session's identity has no
+        // tag in that list.
+        ...(issue.structure !== undefined && Object.keys(issue.structure).length > 0 ? [
+          '',
+          '**What its latest event said of itself** (structural tags — nothing of a session\'s identity):',
+          ...Object.entries(issue.structure).map(([key, value]) => `- \`${key}\`: \`${String(value).replace(/`/g, "'").slice(0, 160)}\``),
+        ] : []),
         '',
         '**Read it** (a machine with Sentry access — the laptop; the triage sandbox has none):',
         fence(`npm run diag -- issue ${issue.shortId}        # the newest case, laid out in reading order\nnpm run diag -- resolve ${issue.shortId}      # AFTER the fix is committed: closes the class in that release`),

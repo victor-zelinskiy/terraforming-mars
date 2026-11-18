@@ -50,7 +50,7 @@ jobs:
           # THE SESSIONS' ENVIRONMENTS ONLY — the box and the players'. `development` is where the diagnostics' own
           # probe sends SAMPLES of real stalls (`head=probe`): their titles read like a player's, and they are not.
           for ENVIRONMENT in box production; do
-            node scripts/diag.mjs issues --since "$SINCE" --env "$ENVIRONMENT" --limit 100 --json > "sentry-$ENVIRONMENT.json"
+            node scripts/diag.mjs issues --since "$SINCE" --env "$ENVIRONMENT" --limit 100 --json --structure > "sentry-$ENVIRONMENT.json"
             node -e "const l=JSON.parse(require('fs').readFileSync('sentry-$ENVIRONMENT.json','utf8'));console.log('$ENVIRONMENT — issues seen in the window: '+l.length+' · unresolved: '+l.filter(i=>i.status==='unresolved').length)"
           done
       - name: One issue per Sentry issue — opened, touched or reopened

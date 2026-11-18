@@ -84,7 +84,16 @@ const ENVIRONMENTS = ['box', 'production', 'development'];
 /** «All time» for the grouped endpoint: the collector keeps events 90 days at most. */
 const ALL_PERIOD = '90d';
 /** Flags that never take a value — `resolve --next <class>` must not read the class as the flag's. */
-const BOOLEAN_FLAGS = new Set(['json', 'regressed', 'next']);
+const BOOLEAN_FLAGS = new Set(['json', 'regressed', 'next', 'structure']);
+
+/**
+ * THE STRUCTURAL TAGS OF AN EVENT — what `issues --json --structure` attaches to each unresolved issue (its latest
+ * event's), for a reader that has no Sentry access (the CI filer → a PUBLIC GitHub issue → the triage agent). A
+ * WHITE list, on purpose: a tag of a session's identity (`seat_ref`, `run`, a user, an address) is never in it, and
+ * a tag added to the events tomorrow is not published until somebody names it here.
+ */
+const STRUCTURAL_TAGS = ['cause', 'shape', 'tier', 'kind', 'family', 'runtime', 'environment', 'release', 'head', 'outcome', 'cure',
+  'prompt_type', 'screen', 'section', 'profile', 'app_mode'];
 
 // ───────────────────────────── small helpers ─────────────────────────────
 
@@ -606,6 +615,17 @@ async function cmdIssues(args) {
   const limit = intArg('limit', f.limit, 25, 1, 100);
   const list = await searchIssues({query: terms.join(' '), environment: env, limit, sort: 'date'});
   if (f.json) {
+    if (f.structure && Array.isArray(list)) {
+      // (A request an issue — only the unresolved ones: the ones a reader will be told about.)
+      for (const issue of list.filter((i) => i.status === 'unresolved')) {
+        try {
+          const tags = tagsOf(await latestEvent(issue.id));
+          issue.structure = Object.fromEntries(STRUCTURAL_TAGS.filter((key) => tags[key] !== undefined).map((key) => [key, tags[key]]));
+        } catch (err) {
+          issue.structure = {};
+        }
+      }
+    }
     console.log(JSON.stringify(list, null, 2));
     return 0;
   }
@@ -1645,7 +1665,7 @@ const USAGE = `diag — the game's diagnostics, read from Sentry and from the bo
 usage: npm run diag -- <command> [args]
 
   report <TM-XXXXXX | latest>   download a player's report package + write SUMMARY.md (.diagnostics/reports/<code>/)
-  issues [--since 24h|all] [--env box|production|development] [--kind error|stall|integrity|report|session]
+  issues [--since 24h|all] [--env box|production|development] [--kind error|stall|integrity|report|session] [--json [--structure]]
          [--family <tag>] [--runtime page|main|server] [--regressed] [--limit 25] [--json]
                                 list the project's issues, newest first; --regressed: only those that CAME BACK
                                 after being resolved (a class closed in a release and seen in a later one)
