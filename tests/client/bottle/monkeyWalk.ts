@@ -65,7 +65,7 @@ export type MonkeyMode = 'plain' | 'guided';
  * other seats' moves, a reload. What `replaySteps` runs and `shrink.ts` cuts: a list of these IS a walk, whoever
  * produced it (the seeded stream, a guided pick, a hand).
  */
-export type MonkeyStep = {do: 'press', key: BottleKey, pauseMs: number} | {do: 'seats'} | {do: 'reload'};
+export type MonkeyStep = {do: 'press', key: BottleKey, pauseMs: number} | {do: 'seats'} | {do: 'reload'} | {do: 'away', ms: number, hidden: boolean};
 
 export type MonkeyWalkResult = {
   /** `key:echo`, `[seat n] move`, `[RELOAD]`. */
@@ -113,9 +113,14 @@ function guidedPick(bottle: ConsoleBottle, g: () => number, r: () => number): Bo
  * presses the page is RELOADED where the walk stands — its own seeded stream (`<seed>:reload`), so a walk's presses
  * are the same with it off. The restore road (a stage re-primed from the server, a flow's latch reset under a live
  * question) is then walked like any press; what the replaced page had named is carried.
+ *
+ * `awayEvery` — THE PAGE NOBODY LOOKS AT (the box monkey's `TM_E2E_MONKEY_HIDDEN`, here with a rate): on average once
+ * in that many presses the page is not painted for a seeded 3…20 s — half the spells a hidden tab (the document says
+ * so), half a window behind another (it does not) — and then the walk goes on. Its own seeded stream
+ * (`<seed>:hidden`): a walk's presses are the same with it off.
  */
 export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: string, presses: number,
-  opts: {reloadEvery?: number, mode?: MonkeyMode} = {}): Promise<MonkeyWalkResult> {
+  opts: {reloadEvery?: number, awayEvery?: number, mode?: MonkeyMode} = {}): Promise<MonkeyWalkResult> {
   let bottle = start;
   const r = monkeyRng(seed);
   const guided = opts.mode === 'guided' ? monkeyRng(`${seed}:guided`) : undefined;
@@ -123,6 +128,7 @@ export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: stri
   // (The box monkey's first number chooses its landing; the stream stays in step with it.)
   r();
   const reload = opts.reloadEvery !== undefined && opts.reloadEvery > 0 ? monkeyRng(`${seed}:reload`) : undefined;
+  const away = opts.awayEvery !== undefined && opts.awayEvery > 0 ? monkeyRng(`${seed}:hidden`) : undefined;
   const log: Array<string> = [];
   const steps: Array<MonkeyStep> = [];
   const carried: Array<MonkeyCarried> = [];
@@ -147,6 +153,14 @@ export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: stri
       steps.push({do: 'reload'});
       bottle = await bottle.reload();
       await bottle.advance(3_000);
+      continue;
+    }
+    if (away !== undefined && away() < 1 / (opts.awayEvery ?? 1)) {
+      const ms = 3_000 + Math.floor(away() * 17_000);
+      const hidden = away() < 0.5;
+      log.push(`[AWAY ${ms}ms ${hidden ? 'hidden' : 'behind'}]`);
+      steps.push({do: 'away', ms, hidden});
+      await bottle.away(ms, hidden);
       continue;
     }
     const key = guided === undefined ? monkeyPick(r) : guidedPick(bottle, guided, r);
@@ -176,6 +190,8 @@ export async function replaySteps(start: ConsoleBottle, seats: number, steps: Re
     } else if (step.do === 'reload') {
       bottle = await bottle.reload();
       await bottle.advance(3_000);
+    } else if (step.do === 'away') {
+      await bottle.away(step.ms, step.hidden);
     } else {
       await bottle.press(step.key);
       await bottle.advance(step.pauseMs);
@@ -186,5 +202,5 @@ export async function replaySteps(start: ConsoleBottle, seats: number, steps: Re
 
 /** A step as a line a human reads (and pastes into a replay): `Enter +420ms`, `[seats]`, `[reload]`. */
 export function stepLine(step: MonkeyStep): string {
-  return step.do === 'press' ? `${step.key} +${step.pauseMs}ms` : `[${step.do}]`;
+  return step.do === 'press' ? `${step.key} +${step.pauseMs}ms` : step.do === 'away' ? `[away ${step.ms}ms ${step.hidden ? 'hidden' : 'behind'}]` : `[${step.do}]`;
 }

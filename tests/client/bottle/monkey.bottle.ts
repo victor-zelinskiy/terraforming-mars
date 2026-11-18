@@ -46,6 +46,8 @@ const LAYOUT: 'none' | 'synthetic' = env.TM_BOTTLE_MONKEY_LAYOUT === 'synthetic'
 const SHRINK = env.TM_BOTTLE_MONKEY_SHRINK === undefined ? undefined : new RegExp(env.TM_BOTTLE_MONKEY_SHRINK);
 /** THE RELOAD: on average once in this many presses the page is reloaded where the walk stands (unset = never). */
 const RELOAD_EVERY = env.TM_BOTTLE_MONKEY_RELOAD === undefined ? undefined : Number(env.TM_BOTTLE_MONKEY_RELOAD);
+/** THE PAGE NOBODY LOOKS AT: on average once in this many presses the page is not painted for 3…20 s (unset = never). */
+const AWAY_EVERY = env.TM_BOTTLE_MONKEY_HIDDEN === undefined ? undefined : Number(env.TM_BOTTLE_MONKEY_HIDDEN);
 /** The untouched spell after a walk (`TM_BOTTLE_MONKEY_IDLE_MS`): past the arbiter's grace and the loop's twenty looks. */
 const IDLE_MS = Number(env.TM_BOTTLE_MONKEY_IDLE_MS ?? 25_000);
 
@@ -114,7 +116,7 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
         // (`coverage=1` — the page marks how much of the kernel's state space the walk went through.)
         bottle = await bootBottle(table, {query: 'coverage=1', layout: LAYOUT});
         await bottle.advance(3_000);
-        const walked = await monkeyWalk(bottle, table.seats.length, seed, PRESSES, {reloadEvery: RELOAD_EVERY, mode: MODE});
+        const walked = await monkeyWalk(bottle, table.seats.length, seed, PRESSES, {reloadEvery: RELOAD_EVERY, awayEvery: AWAY_EVERY, mode: MODE});
         bottle = walked.bottle;
         log = walked.log;
         steps = walked.steps;
@@ -147,7 +149,7 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
       fs.writeFileSync(path.join(outDir, `bottle-monkey--monkey-${fixture}-r0.json`), JSON.stringify({
         file: 'monkey.bottle.ts', title: `monkey · ${fixture}`, retry: 0, status, records,
         ...(coverage !== undefined ? {coverage} : {}),
-        monkey: {seed, fixture, mode: MODE, layout: LAYOUT, landing: 'boot', duo: false, reload: RELOAD_EVERY !== undefined, presses: log.filter((l) => !l.startsWith('[')).length, perturb: {netMs: 0, cpu: 0, motion: ''}, bottle: true, why},
+        monkey: {seed, fixture, mode: MODE, layout: LAYOUT, landing: 'boot', duo: false, reload: RELOAD_EVERY !== undefined, hidden: AWAY_EVERY !== undefined, presses: log.filter((l) => !l.startsWith('[')).length, perturb: {netMs: 0, cpu: 0, motion: ''}, bottle: true, why},
         walk: log.join(' '),
       }, null, 1));
       const defects = records.filter((record) => record.tier === 'defect');

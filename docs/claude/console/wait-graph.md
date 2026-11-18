@@ -145,6 +145,8 @@ other family's bound is its owner's ceiling, which acts at the same moment (`WAI
   ends; the walk's log carries what the page said of itself at the end of the spell — `visibilityState` and the
   product's own word on its paint (`__conWaitGraph().pageStarved`, the state the judges read:
   `kernel/frameWitness.pageStarvedNow`). A spell logged `PAINTING` was no perturbation at all.
+  In THE BOTTLE the same perturbation is `TM_BOTTLE_MONKEY_HIDDEN=<n>` (once in n presses; `BottleClock.advanceUnpainted`
+  — no frame, a timer a second; half the spells a hidden tab, half a window behind another): deterministic, on the laptop.
 - **The monkey reloads** (`TM_E2E_MONKEY_RELOAD=1` — ≈ 1 press in 120, its own seeded stream): the restore paths are
   walked like any press.
 

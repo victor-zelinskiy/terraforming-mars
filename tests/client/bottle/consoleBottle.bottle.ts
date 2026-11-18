@@ -177,6 +177,51 @@ describe('THE CONSOLE IN A BOTTLE — the real shell and the real server in one 
     expect(came.tweenValue).to.equal(100);
   });
 
+  /*
+   * THE PAGE NOBODY LOOKS AT (freeze zero, stage 1 - the monkey's `hidden` perturbation). What a browser does to a
+   * page that is not shown, on the bottle's clock: no frame, so GSAP stands still; a timer wakes on a whole second;
+   * the document says `hidden` when it is a hidden tab. And THE PAGE KNOWS: its own witness names the starvation -
+   * the state every judge of the screen reads.
+   */
+  it('4a · a page that is NOT PAINTED: no frame, GSAP stands still, a timer wakes on a whole second - and the page says so itself', async () => {
+    const table = await bottleServer().bootFixture(FIXTURE);
+    bottle = await bootBottle(table);
+    await bottle.advance(2_000);
+    const pageSays = (): string | null | undefined => (window as unknown as {__conWaitGraph?: () => {pageStarved?: string | null}}).__conWaitGraph?.().pageStarved;
+    expect(pageSays(), 'a page that paints').to.equal(null);
+    const read = bottle.timeProbe();
+    let seenHidden = '';
+    const onChange = (): void => {
+      seenHidden += document.visibilityState + ' ';
+    };
+    document.addEventListener('visibilitychange', onChange);
+    await bottle.away(5_000, true);
+    document.removeEventListener('visibilitychange', onChange);
+    const away = read();
+    say(`5 s away: ${JSON.stringify(away)} - the page: ${pageSays()}`);
+    expect(seenHidden, 'a hidden tab says so, there and back').to.equal('hidden visible ');
+    expect(away.tweenValue, 'a tween does not move on a page that is not painted').to.equal(0);
+    expect(away.gsapDelayedCall500, 'nor does a call on the motion clock').to.equal(-1);
+    expect(away.kernelAfter700, 'an owned timer wakes on the next whole second').to.equal(1000);
+    expect(away.painted2, 'two frames never came: the wait ended on its bound, on a whole second').to.equal(1000);
+    expect(pageSays(), 'the page names its own starvation').to.match(/^the page gave the motion \d+ of \d+ ms/);
+    // Back in front: the motion goes on from where it stood (the long gap is booked as one frame), and a look later
+    // the page paints again.
+    await bottle.advance(2_500);
+    const back = read();
+    expect(back.tweenValue, 'the tween ends').to.equal(100);
+    expect(back.gsapTween1000, 'a second of MOTION after the page came back').to.be.within(5_900, 6_100);
+    expect(back.gsapDelayedCall500).to.be.within(5_400, 5_600);
+    expect(pageSays(), 'a page that paints again').to.equal(null);
+    // A window BEHIND ANOTHER is the same starvation with no event at all.
+    document.addEventListener('visibilitychange', onChange);
+    seenHidden = '';
+    await bottle.away(3_000, false);
+    document.removeEventListener('visibilitychange', onChange);
+    expect(seenHidden, 'no event announces a window behind another').to.equal('');
+    expect(pageSays()).to.be.a('string');
+  });
+
   it('5 · the liveness check FAILS on a planted defect and names its class', async () => {
     const table = bottleServer().bootNewGame(2, {}, `-s${suffix++}`);
     bottle = await bootBottle(table, {query: 'waitGraphControl=strand'});

@@ -127,6 +127,13 @@ export type ConsoleBottle = {
   press(key: BottleKey): Promise<string>,
   /** The world moves by `ms` of the bottle's clock. */
   advance(ms: number): Promise<void>,
+  /**
+   * THE PAGE IS NOT LOOKED AT for `ms` (the monkey's `hidden` perturbation — freeze zero, stage 1): no frame is
+   * painted, timers wake once a second (`BottleClock.advanceUnpainted`). `hidden: true` is a HIDDEN TAB — the
+   * document says so (`visibilityState`, `visibilitychange` on the way out and on the way back); `false` is a window
+   * BEHIND ANOTHER, which no event announces. Nothing is pressed meanwhile.
+   */
+  away(ms: number, hidden: boolean): Promise<void>,
   /** Advance until `done()` holds (checked after every `stepMs`), at most `maxMs`. Returns whether it held. */
   until(done: () => boolean, maxMs?: number, stepMs?: number): Promise<boolean>,
   /** The view the page applied (the root's `playerView`). */
@@ -273,6 +280,23 @@ export async function bootBottle(table: BottleTable, options: BottleOptions = {}
       return down.seq === before || seen === undefined ? 'unseen' : `${seen.outcome}${seen.absorbedBy !== undefined && seen.absorbedBy.length > 0 ? ':' + seen.absorbedBy.join('+') : ''}`;
     },
     advance: (ms) => clock.advance(ms),
+    away: async (ms, hidden) => {
+      const say = (state: 'hidden' | 'visible'): void => {
+        Object.defineProperty(document, 'visibilityState', {value: state, configurable: true});
+        Object.defineProperty(document, 'hidden', {value: state === 'hidden', configurable: true});
+        // (The PAGE's own `Event` - the process has one of its own, and jsdom refuses it.)
+        const PageEvent = (window as unknown as {Event: new (type: string) => Event}).Event;
+        document.dispatchEvent(new PageEvent('visibilitychange'));
+      };
+      if (hidden) {
+        say('hidden');
+      }
+      await clock.advanceUnpainted(ms);
+      if (hidden) {
+        say('visible');
+      }
+      await clock.drain();
+    },
     until: async (done, maxMs = 30_000, stepMs = 100) => {
       for (let waited = 0; waited <= maxMs; waited += stepMs) {
         if (done()) {

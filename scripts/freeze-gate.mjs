@@ -150,6 +150,23 @@ ${tail(path.join(OUT, `shard-${i + 1}.log`), 12)}`));
     return 1;
   }
 
+  // A WALK THE BOTTLE COULD NOT MAKE (its own error — `status: 'harness'`) is a table nobody walked: the report files it
+  // as a note of the harness, never a class of the game, and a pass with such walks is not whole (2026-11-18: 14 of 20
+  // walks of a slice died on the harness's own line, and the gate said GREEN).
+  const unwalked = fs.readdirSync(path.join(OUT, 'cause-classes')).filter((name) => name.endsWith('.json')).map((name) => {
+    try {
+      const walk = JSON.parse(fs.readFileSync(path.join(OUT, 'cause-classes', name), 'utf8'));
+      return walk.status === 'harness' ? `${walk.monkey?.fixture ?? name}: ${String(walk.records?.[walk.records.length - 1]?.title ?? '').slice(0, 200)}` : undefined;
+    } catch {
+      return `${name}: not a readable walk file`;
+    }
+  }).filter((line) => line !== undefined);
+  if (unwalked.length > 0) {
+    unwalked.slice(0, 8).forEach((line) => console.error(`   ${line}`));
+    console.error(`[freeze-gate] RED — ${unwalked.length} table(s) were not walked (the bottle's own error): the pass is not whole`);
+    return 1;
+  }
+
   // 3. THE REPORT, as a gate.
   console.log(`[freeze-gate] 3/3 the report against ${path.relative(ROOT, BASELINE)} …`);
   const report = path.join(OUT, 'monkey-report.json');

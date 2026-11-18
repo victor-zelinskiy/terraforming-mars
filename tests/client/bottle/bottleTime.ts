@@ -43,6 +43,14 @@ type Timer = {at: number, fn: () => void, order: number, every?: number};
 export type BottleClock = FlowClock & {
   /** Move the world by `ms`: every task due inside the span runs in due order, the microtasks drained after each. */
   advance(ms: number): Promise<void>,
+  /**
+   * Move the world by `ms` ON A PAGE THAT DOES NOT PAINT — a window behind another, a hidden tab: NO FRAME runs (every
+   * queued `requestAnimationFrame` callback stays queued, as a browser keeps it), and a timer runs only on a whole
+   * second of the span (a browser clamps a page that is not shown to one wake-up a second); a timer due after the
+   * last whole second waits for the page to come back. The server's own timers ride the same clock — the bottle is
+   * one process — which makes the server a little slower than a real one would be here, never faster.
+   */
+  advanceUnpainted(ms: number): Promise<void>,
   /** Let every pending microtask run (no time passes). */
   drain(): Promise<void>,
   /** Timers armed + frame callbacks queued. */
@@ -159,6 +167,37 @@ export function takeTime(start: number): BottleClock {
         } else {
           break;
         }
+        await drain();
+      }
+      now = until;
+      await drain();
+    },
+    advanceUnpainted: async (ms) => {
+      const from = now;
+      const until = now + Math.max(0, ms);
+      const wake = (at: number): number => from + Math.ceil(Math.max(0, at - from) / 1000) * 1000;
+      await drain();
+      for (;;) {
+        // The earliest timer by the second it wakes on (ties by its own due time, then by arming order).
+        let timerId: number | undefined;
+        let timer: Timer | undefined;
+        for (const [id, t] of timers) {
+          if (timer === undefined || wake(t.at) < wake(timer.at) || (wake(t.at) === wake(timer.at) && (t.at < timer.at || (t.at === timer.at && t.order < timer.order)))) {
+            timer = t;
+            timerId = id;
+          }
+        }
+        if (timer === undefined || timerId === undefined || wake(timer.at) > until) {
+          break;
+        }
+        now = Math.max(now, wake(timer.at));
+        if (timer.every !== undefined) {
+          timer.at = now + timer.every;
+          timer.order = nextId++;
+        } else {
+          timers.delete(timerId);
+        }
+        run(timer.fn);
         await drain();
       }
       now = until;
