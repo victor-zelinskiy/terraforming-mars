@@ -37,6 +37,7 @@ import {
 import {loadDeliveryLedger, saveDeliveryLedger} from './notificationDeliveryLedger';
 import {reactionScenePlays, reactionTold} from '@/client/console/cardReaction/reactionToldOnStage';
 import {CardReactionRecord} from '@/common/models/CardReactionModel';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** The ring of the last pass — what a model released from PREPARING is judged against at its presentation. */
 let lastRing: ReadonlyArray<CardReactionRecord> | undefined;
@@ -125,13 +126,52 @@ let lastDiffSignature: string | undefined;
  *  the incomplete build the guard just parked. */
 let skewHeldIds = new Set<number>();
 
+/*
+ * A SKEW LASTS ONE PAIR OF READS — the guard's own book (freeze zero, 2026-11-18).
+ *
+ * The skew the guard exists for is a race INSIDE one pair: the events read was served before a server transaction, the
+ * logs read after it. The NEXT pair's events read is made after this pass — after the header was read — so it carries
+ * the chain's events if the chain has any. A chain still event-less in the reads that follow is not skewed: IT HAS NO
+ * EVENTS. Until this book the guard asked the same question of every later pass and got the same answer, so such a
+ * header stood in PREPARING for the whole ceiling (the bottle's monkey, seed `fz0` · `parliament-heat-enacted` and
+ * `parliament-biodome-recap`: a table restored with a journal and an empty event stream — «correlation 9 stayed open
+ * for over 90000ms … held by unknown»; in the field, a game loaded from its save) — and was then presented, a minute
+ * and a half late, as news.
+ *
+ * So a hold is CONFIRMED by reads, never by the ceiling: `SKEW_CONFIRM_READS` further reads without the chain's events
+ * settle it. A hold that began in a LIVE session then releases as the ceiling would have (the log group presents, with
+ * what it has); a hold that began AT THE SILENT SEED was old news all along and is dropped — unless the previous
+ * session's ledger says it never delivered that chain.
+ */
+export const SKEW_CONFIRM_READS = 2;
+type SkewHold = {reads: number, oldNews: boolean, settled: boolean};
+const skewBook = new Map<number, SkewHold>();
+
+/** One more read came back without the chain's events: is the hold still a possible skew? (Settles it when not.) */
+function skewStillPossible(corrId: number, onFirstSight: () => SkewHold): boolean {
+  let hold = skewBook.get(corrId);
+  if (hold === undefined) {
+    hold = onFirstSight();
+    skewBook.set(corrId, hold);
+    return true;
+  }
+  if (!hold.settled) {
+    hold.reads++;
+    hold.settled = hold.reads >= SKEW_CONFIRM_READS;
+  }
+  return !hold.settled;
+}
+
 /** New-game boundary (generation went backwards) — force a full re-diff. */
 export function resetNotificationIngest(): void {
   lastDiffSignature = undefined;
   skewHeldIds = new Set<number>();
+  skewBook.clear();
   ringGrace.clear();
   lastRing = undefined;
 }
+// (The ingest's books are the running game's: the session's end takes them down with the feed's own state.)
+sessionState('notification-ingest', resetNotificationIngest, 412);
 
 /**
  * Apply one fetched diff payload to the notification store — the single
@@ -164,7 +204,16 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
   // skipped.
   const signature = `${input.undoCount}:${generation}:${messages.length}:${events.length}`;
   if (notificationState.seeded && signature === lastDiffSignature) {
-    // Same payload ⇒ the same skew (if any): the guard's holds stay held.
+    // The same streams, READ AGAIN: a chain the guard holds is still event-less in a read made after its header was
+    // seen. Each such read confirms; a confirmed hold is no skew (`skewBook`) — old news is dropped, a live one released.
+    for (const corrId of [...skewHeldIds]) {
+      if (!skewStillPossible(corrId, () => ({reads: 0, oldNews: false, settled: false}))) {
+        skewHeldIds.delete(corrId);
+        if (skewBook.get(corrId)?.oldNews === true) {
+          dropPreparing(corrId);
+        }
+      }
+    }
     presentRootModels(takePreparedModels(new Set([...openCorrelations, ...skewHeldIds, ...graceHeld(now)]), now), input.journalOpen);
     persistLedger(input);
     return;
@@ -256,7 +305,21 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
     // existed: if none of the chain's events is in it, the chain has none to wait for — release, never hold to the
     // ceiling (field 2026-10-25: «correlation 1172 stayed open for over 90000ms … held by unknown» — a header whose
     // chain held no event at all). A payload older than the root still holds, as the guard always did.
-    const eventsMissing = corrId !== undefined && !maxEventIdByCorr.has(corrId) && corrId > maxEventIdInPayload;
+    const noEvents = corrId !== undefined && !maxEventIdByCorr.has(corrId) && corrId > maxEventIdInPayload;
+    if (corrId !== undefined && !noEvents) {
+      skewBook.delete(corrId);
+    }
+    // …AND A SKEW LASTS ONE PAIR OF READS (`skewBook`): the reads after the first sighting confirm it or settle it.
+    const eventsMissing = corrId !== undefined && noEvents && skewStillPossible(corrId, () => ({
+      reads: 0, settled: false,
+      // Found at the silent seed: old news unless the previous session provably never delivered it.
+      oldNews: firstSeed && !(ledger !== undefined && ledger.undelivered.includes(corrId) && (model.sign !== 'neutral' || model.kind !== 'normal')),
+    }));
+    if (corrId !== undefined && noEvents && !eventsMissing && skewBook.get(corrId)?.oldNews === true) {
+      // Settled, and it was never news: the journal keeps it, the feed does not replay it.
+      dropPreparing(corrId);
+      continue;
+    }
     if (corrId !== undefined && (openCorrelations.has(corrId) || eventsMissing)) {
       if (eventsMissing) {
         skewHeldIds.add(corrId);

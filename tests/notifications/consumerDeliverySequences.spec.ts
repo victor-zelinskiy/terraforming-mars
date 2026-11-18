@@ -14,6 +14,7 @@ import {TharsisRepublic} from '../../src/server/cards/corporation/TharsisRepubli
 import {replayBatch, drainBatchTail} from '../../src/server/inputs/deferredInputBatch';
 import {notificationState, PREPARING_MAX_MS} from '../../src/client/components/notifications/notificationState';
 import {resetDeliveryLedgersForTesting} from '../../src/client/components/notifications/notificationDeliveryLedger';
+import {SKEW_CONFIRM_READS} from '../../src/client/components/notifications/notificationIngest';
 
 /**
  * CONSUMER DELIVERY SEQUENCES — the other half of the cross-player delivery
@@ -355,6 +356,97 @@ describe('consumer delivery sequences (real ingest across real update boundaries
     expect(events.some((e) => e.id > root), 'the payload carries an event newer than the root of the header').to.eq(true);
     ingest(post.view, {messages: post.messages, events, openEventCorrelations: post.openEventCorrelations}, now += 1_000);
     expect(notificationState.preparing.has(root), 'not held as a skew — no event of this chain can still be on its way').to.eq(false);
+  });
+
+  /*
+   * …AND A SKEW LASTS ONE PAIR OF READS (freeze zero, 2026-11-18 — the bottle's monkey on `parliament-heat-enacted`:
+   * a table restored with a journal and an EMPTY event stream, «correlation 9 stayed open for over 90000ms … held by
+   * unknown»). G1b's limit needs a newer event in the payload; a payload with no event at all gave the guard the same
+   * answer on every pass, so the header stood for the whole ceiling and was then presented, a minute and a half late,
+   * as news. The reads that FOLLOW the first sighting were made after the header was read: a chain still event-less
+   * in them has no events.
+   */
+  const headerWithNoEvents = (): {game: ReturnType<typeof testGame>[0], viewer: ReturnType<typeof testGame>[1], root: number} => {
+    const [game, viewer, actor] = testGame(2);
+    game.events.beginAction(actor, {kind: 'card', card: CardName.RESEARCH_OUTPOST, owner: actor.color}, {category: 'card-play'});
+    game.log('${0} played ${1}', (b) => b.player(actor).cardName(CardName.RESEARCH_OUTPOST));
+    const root = game.events.captureContext()!.rootId!;
+    game.events.endScope();
+    return {game, viewer, root};
+  };
+  const eventless = (game: ReturnType<typeof testGame>[0], viewer: ReturnType<typeof testGame>[1], root: number) => {
+    const read = snapshot(game, viewer);
+    const events = read.events.filter((e) => e.correlationId !== root);
+    expect(events.every((e) => e.id < root), 'no event of the payload is newer than the header\'s root (G1b\'s limit does not apply)').to.eq(true);
+    return {view: read.view, streams: {messages: read.messages, events, openEventCorrelations: read.openEventCorrelations}};
+  };
+
+  it('G1c — a LIVE header whose chain has no event at all is held for the confirming reads, never for the ceiling', () => {
+    const [game, viewer, actor] = testGame(2);
+    freshConsumer();
+    const warned: Array<string> = [];
+    const realWarn = console.warn;
+    console.warn = (...args: Array<unknown>) => warned.push(args.map(String).join(' '));
+    try {
+      let now = 1_000;
+      const pre = snapshot(game, viewer);
+      ingest(pre.view, pre, now);
+      game.events.beginAction(actor, {kind: 'card', card: CardName.RESEARCH_OUTPOST, owner: actor.color}, {category: 'card-play'});
+      game.log('${0} played ${1}', (b) => b.player(actor).cardName(CardName.RESEARCH_OUTPOST));
+      const root = game.events.captureContext()!.rootId!;
+      game.events.endScope();
+      const {view, streams} = eventless(game, viewer, root);
+      ingest(view, streams, now += 2_200);
+      expect(notificationState.preparing.has(root), 'the first sighting may be a skewed pair: held').to.eq(true);
+      // The same streams, read again (the poller) — each read confirms; the last one settles.
+      for (let read = 1; read < SKEW_CONFIRM_READS; read++) {
+        ingest(view, streams, now += 2_200);
+        expect(notificationState.preparing.has(root), `confirming read ${read}: still held`).to.eq(true);
+      }
+      ingest(view, streams, now += 2_200);
+      expect(notificationState.preparing.has(root), 'settled: a chain event-less in the reads that followed has no events').to.eq(false);
+      expect(now, 'seconds, not the ceiling').to.be.lessThan(PREPARING_MAX_MS / 4);
+      ingest(view, streams, now += PREPARING_MAX_MS + 1_000);
+      expect(warned.filter((line) => line.includes('stayed open')), 'the ceiling never has to speak').to.deep.eq([]);
+    } finally {
+      console.warn = realWarn;
+    }
+  });
+
+  it('G1d — the same header found AT THE SILENT SEED is old news: settled by the reads that follow (the log growing between them), it is never presented', () => {
+    const {game, viewer, root} = headerWithNoEvents();
+    freshConsumer();
+    let now = 1_000;
+    const seed = eventless(game, viewer, root);
+    ingest(seed.view, seed.streams, now);
+    expect(notificationState.preparing.has(root), 'at the seed it may be a skewed pair of a live action: stashed').to.eq(true);
+    for (let read = 1; read <= SKEW_CONFIRM_READS; read++) {
+      // (Another line of the journal each time: every pass is a FULL one — the rebuild's road, not the equal-signature one.)
+      game.log('a line of the journal');
+      const next = eventless(game, viewer, root);
+      ingest(next.view, next.streams, now += 2_200);
+    }
+    expect(notificationState.preparing.has(root), 'settled').to.eq(false);
+    expect(presented().filter((m) => m.correlationId === root), 'the feed does not replay what the journal keeps').to.deep.eq([]);
+    // …and it stays settled: a later read does not take it up again.
+    game.log('one more line');
+    const later = eventless(game, viewer, root);
+    ingest(later.view, later.streams, now += 2_200);
+    expect(notificationState.preparing.has(root)).to.eq(false);
+    expect(presented().filter((m) => m.correlationId === root)).to.deep.eq([]);
+  });
+
+  it('G1e — a header skewed AT THE SEED whose events arrive with the next read is a live action: it presents, complete', () => {
+    const {game, viewer, root} = headerWithNoEvents();
+    freshConsumer();
+    let now = 1_000;
+    const seed = eventless(game, viewer, root);
+    ingest(seed.view, seed.streams, now);
+    expect(notificationState.preparing.has(root)).to.eq(true);
+    const whole = snapshot(game, viewer);
+    expect(whole.events.some((e) => e.correlationId === root), 'the chain has events of its own').to.eq(true);
+    ingest(whole.view, whole, now += 2_200);
+    expect(notificationState.preparing.has(root), 'the events caught up: released').to.eq(false);
   });
 
   it('G2 — a STALE view open-set with fresh streams must not bypass the atomic gate (the open-set rides the events read)', () => {

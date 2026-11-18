@@ -75,7 +75,6 @@
   "src/client/components/notifications/notificationDeliveryLedger.ts": 1,
   "src/client/components/notifications/notificationFeedMode.ts": 1,
   "src/client/components/notifications/notificationFeedPolicy.ts": 1,
-  "src/client/components/notifications/notificationIngest.ts": 4,
   "src/client/components/notifications/notificationState.ts": 7,
   "src/client/components/notifications/revealViewerState.ts": 1,
   "src/client/components/notifications/statusEventCounter.ts": 1,

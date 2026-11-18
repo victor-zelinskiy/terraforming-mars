@@ -372,6 +372,21 @@ export function takePreparedModels(openCorrelations: ReadonlySet<number>, now: n
     }
     if (overdue && openCorrelations.has(corrId)) {
       const holders = openCorrelationHolders.filter((h) => h.id === corrId).map((h) => h.holder);
+      // WHO HOLDS IT DECIDES (freeze zero, stage 1 — a line's tier is decided by who owns the wait, never by a
+      // duration). A chain the server names as held ONLY by a player's prompt is not leaked: a seat is being asked a
+      // question INSIDE the action (the action menu never carries a chain — `Player.takeAction`), and the answer is
+      // that player's time. Releasing its card now would present half a story and FREEZE it — what the answer pays
+      // afterwards has no channel left (the very loss the atomic gate exists against). So it stays held, said once
+      // per ceiling, by name (the bottle's monkey, 2026-11-18 · `field-start-sbp-triton`: Ecology Experts' own «play a
+      // card» step stood unanswered for a minute and a half, and its chain was called a leak). A chain held by
+      // anything else — a deferred action, nobody — is released as before.
+      if (holders.length > 0 && holders.every((holder) => holder.startsWith('prompt:'))) {
+        console.warn(
+          `[notifications] correlation ${corrId} has stood open for over ${PREPARING_MAX_MS}ms — still holding its prepared ` +
+          `notification (planned: the chain waits for a player's answer — ${holders.join(', ')})`);
+        notificationState.preparingSince.set(corrId, now);
+        continue;
+      }
       console.warn(
         `[notifications] correlation ${corrId} stayed open for over ${PREPARING_MAX_MS}ms — ` +
         'releasing its prepared notification anyway (leaked open chain?) — held by ' +
