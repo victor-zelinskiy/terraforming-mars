@@ -149,6 +149,17 @@ export function autoDecision(entry: DiagEntry, change: DiagChange, state: Policy
   return 'send';
 }
 
+/**
+ * A record the policy NEVER offers whatever the budgets say — a stall / mismatch that is not a defect (counted in the
+ * session's ledger), a delay or a note (the next event's trail). The connection check is sent by its own verb.
+ */
+export function neverSentByDesign(entry: DiagEntry): boolean {
+  if (entry.family === 'selftest') {
+    return false;
+  }
+  return entry.kind === 'perf' || entry.kind === 'note' || (entry.cause !== undefined && entry.cause.tier !== 'defect');
+}
+
 export function noteSent(entry: DiagEntry, state: PolicyState): void {
   state.sent.add(entry.id);
   state.total++;
@@ -465,6 +476,11 @@ export function createDiagnosticsHub(host: HubHost, deps: HubDeps = {}): Diagnos
     if (decision !== 'send') {
       if (entry.delivery === undefined && decision.skip === 'budget') {
         setDelivery(entry, {state: 'held', reason: 'budget'});
+      } else if (entry.delivery === undefined && change === 'new' && neverSentByDesign(entry)) {
+        // A record the policy never offers SAYS SO (the owner, 2026-11-18: a journal where «sent» and «never sent by
+        // design» look alike reads as a lost problem): the true reason first — a build with no destination, the
+        // player's choice — then the design's own.
+        setDelivery(entry, {state: 'held', reason: !sends ? 'disabled' : !consent ? 'consent' : 'policy'});
       }
       return;
     }

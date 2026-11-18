@@ -132,6 +132,18 @@ function stallEntry(): Record<string, unknown> {
   };
 }
 
+/** An honest wait that reached the ceiling it declared — INFORMATION: never a problem, never sent, hidden by default. */
+function plannedEntry(): Record<string, unknown> {
+  const at = Date.now();
+  const line = '[wait-graph] ceiling remote-placement:watchable-board (consoleRemotePlacement) — «a board free for the landing of another seat» did not come in 12000 ms — the wait ended on its ceiling (planned: the viewer keeps the board covered)';
+  return {
+    id: 'page-e2e-planned', at, lastAt: at, kind: 'stall', family: 'wait-graph', level: 'warn', runtime: 'page', count: 1, build: 'e2e',
+    title: line.slice('[wait-graph] '.length), text: line,
+    cause: {cls: 'wait-graph/ceiling/remote-placement:watchable-board', shape: 'wait-graph/ceiling', tier: 'planned', dims: {}},
+    delivery: {state: 'held', reason: 'policy'},
+  };
+}
+
 async function boxOf(page: Page, selector: string): Promise<Box> {
   const box = await page.locator(selector).first().boundingBox();
   expect(box, `${selector} has a box`).not.toBeNull();
@@ -225,7 +237,10 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     // A second record, from the hub: a stall of the screen, cured — the plate takes it.
     await page.evaluate((entry) => (window as unknown as {__diagStand: {push(p: unknown): void}}).__diagStand.push({kind: 'entry', entry}), stallEntry());
     await expect(notice).toHaveAttribute('data-dev-notice-kind', 'stall');
+    // …and an expected wait — INFORMATION: it raises no notice and stands only on the information tabs.
+    await page.evaluate((entry) => (window as unknown as {__diagStand: {push(p: unknown): void}}).__diagStand.push({kind: 'entry', entry}), plannedEntry());
     await cinematicBeat(page, 500, 'the plate\'s one-shot entry settles before its photograph');
+    await expect(notice, 'an information record never takes the plate').toHaveAttribute('data-dev-notice-kind', 'stall');
     await shoot(page, '02-notice-stall');
     // …and folds into the chip that keeps the count.
     await expect(notice).toHaveAttribute('data-dev-notice', 'chip', {timeout: 20_000});
@@ -267,6 +282,10 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     await expect(page.locator('[data-diag-row="liveness"]')).toHaveCount(1);
     await expect(page.locator('[data-diag-row="page-error"]')).toHaveCount(1);
     await expect(page.locator('.con-diag__row').first(), 'newest first').toHaveAttribute('data-diag-row', 'liveness');
+    // THE PROBLEMS are the default list: the expected wait is not in it — and the list SAYS what it leaves out.
+    await expect(page.locator('[data-diag-tab="problems"]')).toHaveClass(/con-set__tab--current/);
+    await expect(page.locator('[data-diag-row="wait-graph"]'), 'information is hidden by default').toHaveCount(0);
+    await expect(page.locator('[data-diag-hidden-info]')).toContainText('Здесь не показаны сведения');
     await sameFrame('entry → browse');
     await cinematicBeat(page, 500, 'the step\'s reveal ends');
     await shoot(page, '05-journal');
@@ -280,7 +299,29 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     await sameFrame('filter: errors');
     await page.locator('[data-diag-tab="stalls"]').click();
     await expect(page.locator('[data-diag-row="liveness"]')).toHaveCount(1);
+    await expect(page.locator('[data-diag-row="wait-graph"]'), 'an expected wait is not a stall').toHaveCount(0);
     await sameFrame('filter: stalls');
+    // THE INFORMATION: the expected wait stands here, in the neutral voice, and says why it is not a problem.
+    await page.locator('[data-diag-tab="info"]').click();
+    const expected = page.locator('[data-diag-row="wait-graph"]');
+    await expect(expected).toHaveAttribute('data-diag-weight', 'expected');
+    // The list's kind column takes the short word — whole in its own box, never under the title.
+    await expect(expected.locator('.con-diag__row-kind')).toHaveText('Ожидание');
+    await expect.poll(() => expected.locator('.con-diag__row-kind').evaluate((el) => el.scrollWidth <= el.clientWidth),
+      {message: 'the kind word fits its column'}).toBe(true);
+    await expect(page.locator('[data-diag-row="liveness"]')).toHaveCount(0);
+    await expect(page.locator('[data-diag-hidden-info]'), 'an information tab hides nothing').toHaveCount(0);
+    await sameFrame('filter: information');
+    await shoot(page, '06b-journal-information');
+    await expected.click();
+    await expect.poll(() => step(page)).toBe('entry');
+    await expect(page.locator('.con-diagentry__kind')).toHaveText('Плановое ожидание');
+    await expect(page.locator('[data-diag-not-defect]')).toContainText('Почему это не проблема');
+    await expect(page.locator('[data-diag-not-defect]')).toContainText('the viewer keeps the board covered');
+    await expect(page.locator('.con-diagentry__state')).toContainText('Не отправляется — ожидаемо');
+    await sameFrame('an information record');
+    await press(page, 'Escape');
+    await expect.poll(() => step(page)).toBe('browse');
     await page.locator('[data-diag-tab="system"]').click();
     await expect(page.locator('[data-diag-system]')).toBeVisible();
     await expect(page.locator('[data-diag-group="Reports"]')).toContainText('Машина разработчика');
@@ -306,7 +347,7 @@ test.describe('diagnostics — the journal, the report, the connection check, th
     // The check's own record was born INSIDE the bundle, so its frames are minified positions of `main.js` — and the
     // journal reads them back to the sources (the error thrown below comes out of this spec's `evaluate`: it has no
     // frame of the bundle to read).
-    await page.locator('[data-diag-tab="other"]').click();
+    await page.locator('[data-diag-tab="info"]').click();
     await page.locator('[data-diag-row="selftest"]').first().click();
     await expect.poll(() => step(page)).toBe('entry');
     await expect(page.locator('[data-diag-stack]')).toHaveAttribute('data-diag-resolved', 'yes', {timeout: 15_000});

@@ -27,7 +27,7 @@
         <GamepadGlyph control="bumperL" class="con-sys__tabs-chip" />
         <nav class="con-set__tabs" :aria-label="$t('Filter')">
           <template v-for="(tab, i) in tabs" :key="tab.id">
-            <span v-if="tab.minor" class="con-set__tabs-sep" aria-hidden="true"></span>
+            <span v-if="tab.seam" class="con-set__tabs-sep" aria-hidden="true"></span>
             <button
               type="button"
               class="con-set__tab"
@@ -37,7 +37,12 @@
             >
               <span class="con-set__tab-glyph" aria-hidden="true">{{ tab.glyph }}</span>
               <span class="con-set__tab-name">{{ $t(tab.label) }}</span>
-              <span v-if="!tab.minor" class="con-diag__tab-count" :class="{'con-diag__tab-count--none': counts[tab.id] === 0}">{{ counts[tab.id] }}</span>
+              <!-- A problem's count is a fact to notice; an information count only says how much there is (quiet). -->
+              <span
+                v-if="!tab.minor"
+                class="con-diag__tab-count"
+                :class="{'con-diag__tab-count--none': counts[tab.id] === 0, 'con-diag__tab-count--quiet': !problemTab(tab.id)}"
+              >{{ counts[tab.id] }}</span>
             </button>
           </template>
         </nav>
@@ -55,14 +60,15 @@
                     v-for="(row, i) in rows"
                     :key="row.id"
                     class="con-diag__row"
-                    :class="['con-diag__row--' + row.kind, {'con-diag__row--cursor': i === s.cursor}]"
+                    :class="['con-diag__row--' + row.kind, 'con-diag__row--' + weight(row), {'con-diag__row--cursor': i === s.cursor}]"
                     role="button"
                     :data-diag-row="row.family"
+                    :data-diag-weight="weight(row)"
                     @click="openRow(i)"
                     @mousemove="s.cursor = i"
                   >
                     <span class="con-diag__row-time">{{ clock(row.at) }}</span>
-                    <span class="con-diag__row-kind">{{ $t(kindLabel(row.kind)) }}</span>
+                    <span class="con-diag__row-kind">{{ $t(kindLabel(row)) }}</span>
                     <span class="con-diag__row-title">{{ $t(headline(row)) }}</span>
                     <span v-if="row.count > 1" class="con-diag__row-count">×{{ row.count }}</span>
                     <span class="con-diag__row-mark" :class="'con-diag__row-mark--' + deliveryTone(row)" aria-hidden="true"></span>
@@ -73,6 +79,8 @@
                     <span class="con-diag__empty-title">{{ $t(emptyTitle) }}</span>
                     <span class="con-diag__empty-body">{{ $t('If something went wrong and there is no record of it, send a report — it carries everything the developer needs.') }}</span>
                   </div>
+                  <!-- WHAT THIS TAB LEAVES OUT is said, never hidden in silence: the information records and where they are. -->
+                  <div v-if="hiddenInfo > 0" class="con-diag__hidden" data-diag-hidden-info>{{ hiddenInfoLine }}</div>
                 </ConsoleScrollArea>
                 <div class="con-set__detail con-diag__detail" aria-live="polite">
                   <div class="con-set__detail-head">
@@ -135,15 +143,16 @@ import ConsoleDiagReport from '@/client/components/console/diagnostics/ConsoleDi
 import ConsoleDiagSystem from '@/client/components/console/diagnostics/ConsoleDiagSystem.vue';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
-import {DiagEntry, DiagKind} from '@/common/diagnostics/DiagnosticModel';
+import {DiagEntry} from '@/common/diagnostics/DiagnosticModel';
 import {diagnosticsBuild} from '@/client/diagnostics/diagnosticsCapture';
 import {diagEntries} from '@/client/diagnostics/diagnosticsJournalState';
 import {acknowledgeDevNotice} from '@/client/diagnostics/diagnosticsNotice';
 import {
-  commitDiagnosticsComment, diagOnSystemTab, diagRows, diagSurfaceState, handleDiagnosticsIntent, lendDiagnosticsHands,
+  commitDiagnosticsComment, diagHiddenInfo, diagOnSystemTab, diagRows, diagSurfaceState, handleDiagnosticsIntent, lendDiagnosticsHands,
 } from '@/client/diagnostics/diagnosticsSurface';
 import {
-  DIAG_REPORT_PLATES, DIAG_TABS, diagClock, diagDelivery, diagHeadline, diagKindLabel, diagOutcome, diagRawLine, diagRuntimeLabel, diagTabCounts,
+  DIAG_REPORT_PLATES, DIAG_TABS, diagClock, diagDelivery, diagEntryKindLabel, diagHeadline, diagOutcome, diagRawLine, diagRuntimeLabel, diagTabCounts,
+  DiagTabId, diagWeight, DiagWeight,
 } from '@/client/diagnostics/diagnosticsView';
 import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -167,11 +176,15 @@ const counts = computed(() => diagTabCounts(diagEntries()));
 const onSystem = computed((): boolean => diagOnSystemTab());
 const reading = computed((): DiagEntry | undefined => diagEntries().find((e) => e.id === s.entryId));
 
+const hiddenInfo = computed((): number => diagHiddenInfo());
+const hiddenInfoLine = computed((): string => translateTextWithParams('Not shown here: ${0} information records — tab «${1}»', [String(hiddenInfo.value), translateText('Information records')]));
+
 const emptyTitle = computed((): string => {
   switch (tabs[s.tab]?.id) {
+  case 'problems': return 'No problems were recorded';
   case 'errors': return 'No errors were recorded';
   case 'stalls': return 'The screen never stalled';
-  case 'other': return 'Nothing else was noted';
+  case 'info': return 'No information records';
   default: return 'The journal is empty — nothing went wrong';
   }
 });
@@ -185,7 +198,7 @@ const detail = computed(() => {
   const outcome = diagOutcome(row);
   const delivery = diagDelivery(row);
   return {
-    title: `${translateText(diagKindLabel(row.kind))} · ${diagClock(row.at)}`,
+    title: `${translateText(diagEntryKindLabel(row))} · ${diagClock(row.at)}`,
     where: translateText(diagRuntimeLabel(row.runtime)),
     raw: diagRawLine(row),
     outcome: outcome === undefined ? '' : translateTextWithParams(outcome.key, [...outcome.params]),
@@ -256,8 +269,14 @@ const foot = computed((): ReadonlyArray<FootHint> => {
 function clock(at: number): string {
   return diagClock(at);
 }
-function kindLabel(kind: DiagKind): string {
-  return diagKindLabel(kind);
+function kindLabel(row: DiagEntry): string {
+  return diagEntryKindLabel(row, true);
+}
+function weight(row: DiagEntry): DiagWeight {
+  return diagWeight(row);
+}
+function problemTab(id: DiagTabId): boolean {
+  return id === 'problems' || id === 'errors' || id === 'stalls';
 }
 function headline(row: DiagEntry): string {
   return diagHeadline(row);

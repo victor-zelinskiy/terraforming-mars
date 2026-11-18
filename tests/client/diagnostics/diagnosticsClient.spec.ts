@@ -26,8 +26,9 @@ import {
 } from '@/client/diagnostics/diagnosticsSurface';
 import {__setDiagnosticsTransportForTesting, DiagnosticsTransport} from '@/client/diagnostics/diagnosticsTransport';
 import {
-  DIAG_TABS, diagDelivery, diagFrameRows, diagHeadline, diagOutcome, diagScreenFacts, diagTabCounts, filterDiagEntries, reportAttachRows,
-  reportDoneReading, reportSize, sendingReading, suggestedCategory,
+  DIAG_TABS, diagDelivery, diagEntryKindLabel, diagFrameRows, diagHeadline, diagHiddenInfoCount, diagNotADefect, diagOutcome, diagScreenFacts, diagTabCounts,
+  DiagTabId, diagWeight,
+  filterDiagEntries, reportAttachRows, reportDoneReading, reportSize, sendingReading, suggestedCategory,
 } from '@/client/diagnostics/diagnosticsView';
 
 /**
@@ -239,12 +240,18 @@ describe('diagnostics · how a record reads', () => {
 
   it('files a record under its tab and counts them', () => {
     const all = [...journal.entries()];
-    expect(DIAG_TABS.map((t) => t.id)).to.deep.eq(['all', 'errors', 'stalls', 'other', 'system']);
+    // The PROBLEMS first and by default; the information past a seam; the system readout past the minor one.
+    expect(DIAG_TABS.map((t) => t.id)).to.deep.eq(['problems', 'errors', 'stalls', 'info', 'all', 'system']);
+    expect(DIAG_TABS.filter((t) => t.seam).map((t) => t.id)).to.deep.eq(['info', 'system']);
+    expect(filterDiagEntries(all, 'problems')).to.deep.eq([error, stall]);
     expect(filterDiagEntries(all, 'errors')).to.deep.eq([error]);
     expect(filterDiagEntries(all, 'stalls')).to.deep.eq([stall]);
-    expect(filterDiagEntries(all, 'other')).to.deep.eq([note]);
+    expect(filterDiagEntries(all, 'info')).to.deep.eq([note]);
+    expect(filterDiagEntries(all, 'all')).to.deep.eq(all);
     expect(filterDiagEntries(all, 'system')).to.deep.eq([]);
-    expect(diagTabCounts(all)).to.deep.eq({all: 3, errors: 1, stalls: 1, other: 1, system: 0});
+    expect(diagTabCounts(all)).to.deep.eq({problems: 2, errors: 1, stalls: 1, info: 1, all: 3, system: 0});
+    // A problems tab SAYS what it leaves out; the information tabs leave nothing out.
+    expect(['problems', 'errors', 'stalls', 'info', 'all', 'system'].map((t) => diagHiddenInfoCount(all, t as DiagTabId))).to.deep.eq([1, 1, 1, 0, 0, 0]);
   });
 
   it('speaks to a person: a headline, how it ended, whether the developer has it', () => {
@@ -261,6 +268,37 @@ describe('diagnostics · how a record reads', () => {
     // A record that waits says what is true whether it waits for the network or for the collector's limit.
     expect(diagDelivery({...error, delivery: {state: 'queued', eventId: 'e'}})).to.deep.include({key: 'Kept on this device — will be sent later', tone: 'warn'});
     expect(diagDelivery({...error, delivery: {state: 'held', reason: 'policy'}})).to.eq(undefined);
+    expect(diagDelivery({...note, delivery: {state: 'held', reason: 'policy'}})?.key).to.eq('Not sent on its own — goes with the next report as context');
+  });
+
+  it('A RECORD THAT IS NOT A DEFECT NEVER READS AS ONE — not a «stall», not under «Зависания», and it says why it was not sent', () => {
+    const own = new DiagJournal({runtime: 'page', session: 'w', build: '1.2.9'});
+    const planned = own.ingest({at: 1000, level: 'warn',
+      text: '[wait-graph] ceiling remote-placement:watchable-board (consoleRemotePlacement) — «a board free for the landing of another seat» did not come in 12000 ms — the wait ended on its ceiling (planned: the viewer keeps the board covered)'}).entry;
+    const trace = own.ingest({at: 2000, level: 'warn',
+      text: '[liveness] still hold — parliament-reward-owed[blocking] stand 6s with nothing moving on the page — the wait graph judges them (dead end → hold-expire)'}).entry;
+    expect(planned.kind).to.eq('stall');
+    expect(trace.kind).to.eq('stall');
+    expect([diagWeight(stall), diagWeight(planned), diagWeight(trace)]).to.deep.eq(['defect', 'expected', 'trace']);
+    // The tab: only the defect is a stall — and a problem; the other two are information, hidden by default.
+    const all = [stall, planned, trace];
+    expect(filterDiagEntries(all, 'stalls')).to.deep.eq([stall]);
+    expect(filterDiagEntries(all, 'problems')).to.deep.eq([stall]);
+    expect(filterDiagEntries(all, 'info')).to.deep.eq([planned, trace]);
+    expect(diagTabCounts(all)).to.deep.include({problems: 1, stalls: 1, info: 2});
+    expect(diagHiddenInfoCount(all, 'problems')).to.eq(2);
+    // The kicker and the headline: never «Stall», never «The screen stopped responding».
+    expect([diagEntryKindLabel(stall), diagEntryKindLabel(planned), diagEntryKindLabel(trace)]).to.deep.eq(['Stall', 'Expected wait', 'Self-check']);
+    // …and the list's fixed kind column takes the short word.
+    expect([diagEntryKindLabel(stall, true), diagEntryKindLabel(planned, true), diagEntryKindLabel(trace, true)]).to.deep.eq(['Stall', 'Wait', 'Self-check']);
+    expect(diagHeadline(planned)).to.eq('A wait reached its planned limit — the game went on');
+    expect(diagHeadline(trace)).to.eq('A self-check note — not a problem by itself');
+    // Why — with the wait's own declared reason when the line carries one.
+    expect(diagNotADefect(stall)).to.eq(undefined);
+    expect(diagNotADefect(planned)?.declared).to.eq('the viewer keeps the board covered');
+    expect(diagNotADefect(trace)?.declared).to.eq('');
+    // …and the hub's «never offered by design» reads as such.
+    expect(diagDelivery({...planned, delivery: {state: 'held', reason: 'policy'}})).to.deep.include({key: 'Not sent — expected, counted in the session summary', tone: 'plain'});
   });
 
   it('the stack reads ours first-class and a library\'s stepped back; the screen is a short table', () => {
@@ -429,7 +467,7 @@ describe('diagnostics · the surface\'s controller', () => {
 
   it('the connection check: A on the system tab, one row per runtime', async () => {
     openDiagnostics('menu', {to: 'journal'});
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < DIAG_TABS.length - 1; i++) {
       handleDiagnosticsIntent(RB);
     }
     expect(DIAG_TABS[diagSurfaceState.tab].id).to.eq('system');
@@ -573,7 +611,9 @@ describe('diagnostics · the surface and the notice, mounted', () => {
     expect(rows.map((r) => r.attributes('data-diag-row'))).to.deep.eq(['liveness', 'vue-error']);
     expect(rows[0].classes()).to.include.members(['con-diag__row--stall', 'con-diag__row--cursor']);
     expect(wrapper.find('.con-diag__detail-raw').text()).to.contain('[liveness] stall (unserved)');
-    expect(wrapper.findAll('[data-diag-tab]').map((t) => t.attributes('data-diag-tab'))).to.deep.eq(['all', 'errors', 'stalls', 'other', 'system']);
+    expect(wrapper.findAll('[data-diag-tab]').map((t) => t.attributes('data-diag-tab'))).to.deep.eq(['problems', 'errors', 'stalls', 'info', 'all', 'system']);
+    // Both journal records are problems: nothing is left out, so nothing is said about it.
+    expect(wrapper.find('[data-diag-hidden-info]').exists()).to.eq(false);
     expect(wrapper.findAll('[data-diag-crumb]')).to.have.length(0);
     handleDiagnosticsIntent(DOWN);
     await nextTick();

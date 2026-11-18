@@ -74,6 +74,21 @@
         box-shadow: inset 0 0 0 .05rem fade(@con-text-dim, 26%);
         color: fade(@con-text-dim, 70%);
     }
+    /* Information: how much there is, never a fact to notice — a hairline, no fill. */
+    &--quiet {
+        background: transparent;
+        box-shadow: inset 0 0 0 .05rem fade(@con-text-dim, 40%);
+        color: @con-text-dim;
+    }
+}
+
+/* What a problems tab leaves out — one quiet line under its list (or its empty state), never a row of the cursor. */
+.con-diag__hidden {
+    flex: 0 0 auto;
+    padding: .5rem .9rem .2rem;
+    font-size: .76rem;
+    color: @con-text-dim;
+    text-align: center;
 }
 
 /* ── The body cell ─────────────────────────────────────────────────────── */
@@ -149,6 +164,8 @@
     &--error::before,
     &--integrity::before { background: @diag-error; }
     &--stall::before { background: @diag-stall; }
+    &--expected::before,
+    &--trace::before { background: @diag-other; }
 
     &--cursor {
         background: fade(@con-cyan, 10%);
@@ -170,11 +187,19 @@
     letter-spacing: .12rem;
     text-transform: uppercase;
     white-space: nowrap;
+    /* A word longer than the column ends in an ellipsis in its OWN box — it never runs under the title. */
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: @diag-other;
 }
 .con-diag__row--error .con-diag__row-kind,
 .con-diag__row--integrity .con-diag__row-kind { color: fade(@diag-error, 95%); }
 .con-diag__row--stall .con-diag__row-kind { color: fade(@diag-stall, 95%); }
+// Not a defect: the neutral voice of «Прочее», the title stepped back — the problems keep the bright rows.
+.con-diag__row--expected .con-diag__row-kind,
+.con-diag__row--trace .con-diag__row-kind { color: @diag-other; }
+.con-diag__row--expected .con-diag__row-title,
+.con-diag__row--trace .con-diag__row-title { font-weight: 600; color: @con-text-dim; }
 .con-diag__row-title {
     flex: 1 1 auto;
     min-width: 0;
@@ -287,6 +312,8 @@
         &--error::before,
         &--integrity::before { background: @diag-error; }
         &--stall::before { background: @diag-stall; }
+        &--expected::before,
+        &--trace::before { background: @diag-other; }
     }
     &__kicker {
         display: flex;
@@ -304,6 +331,9 @@
     &__head--error &__kind,
     &__head--integrity &__kind { color: fade(@diag-error, 95%); }
     &__head--stall &__kind { color: fade(@diag-stall, 95%); }
+    // A record that is NOT a defect (an expected wait, a self-check) never wears a problem's colour (diagnosticsView `diagWeight`).
+    &__head--expected &__kind,
+    &__head--trace &__kind { color: @diag-other; }
     &__meta {
         font-size: .7rem;
         color: @con-text-dim;
@@ -399,6 +429,13 @@
         padding: .1rem .6rem;
         border-radius: .3rem;
         background: rgba(12, 20, 30, 0.5);
+    }
+    &__fact--prose {
+        display: block;
+        padding: .35rem .6rem;
+        font-size: .8rem;
+        line-height: 1.4;
+        color: @con-text;
     }
     &__fact-key {
         flex: 0 0 11rem;
@@ -1025,6 +1062,7 @@ html.con-profile-tv {
     .con-diag__row-mark { width: .65rem; height: .65rem; }
     .con-diag__empty-title { font-size: var(--con-t-section); }
     .con-diag__empty-body { font-size: var(--con-t-secondary); max-width: 44rem; }
+    .con-diag__hidden { font-size: var(--con-t-caption); }
     .con-diagentry {
         &__head { min-height: 6.4rem; }
         &__kind { font-size: var(--con-t-floor); }

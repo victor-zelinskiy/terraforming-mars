@@ -19,43 +19,96 @@ export type DiagReading = {key: string, params: ReadonlyArray<string>};
 const reading = (key: string, ...params: Array<string | number>): DiagReading => ({key, params: params.map(String)});
 
 // ── The tabs: the journal's filters, then the system readout past the seam ───────────────────────────────────────────
+//
+// TWO GROUPS, the PROBLEMS first and by default (the owner, 2026-11-18: «по умолчанию все информационные вещи
+// фильтруются и не показываются»): «Проблемы» (every defect — what the developer receives), sliced by «Ошибки» and
+// «Зависания»; past a seam the INFORMATION — «Сведения» (an expected wait, a self-check, a delay, a note, the
+// connection check) and «Все записи» (the whole journal in its order, for the context around a problem); past the
+// minor seam the system readout. A problems tab never hides information silently: it SAYS how many records it leaves
+// out and where they are (`diagHiddenInfoCount`).
 
-export type DiagTabId = 'all' | 'errors' | 'stalls' | 'other' | 'system';
+export type DiagTabId = 'problems' | 'errors' | 'stalls' | 'info' | 'all' | 'system';
 
-export type DiagTab = {id: DiagTabId, label: string, glyph: string, minor: boolean};
+/** `seam` — a hairline before the tab (a new group); `minor` — past the seam, small and dim (the system readout). */
+export type DiagTab = {id: DiagTabId, label: string, glyph: string, minor: boolean, seam: boolean};
 
 export const DIAG_TABS: ReadonlyArray<DiagTab> = [
-  {id: 'all', label: 'All records', glyph: '≡', minor: false},
-  {id: 'errors', label: 'Errors', glyph: '✕', minor: false},
-  {id: 'stalls', label: 'Stalls', glyph: '◷', minor: false},
-  {id: 'other', label: 'Other', glyph: '·', minor: false},
-  {id: 'system', label: 'System', glyph: '⊙', minor: true},
+  {id: 'problems', label: 'Problems', glyph: '!', minor: false, seam: false},
+  {id: 'errors', label: 'Errors', glyph: '✕', minor: false, seam: false},
+  {id: 'stalls', label: 'Stalls', glyph: '◷', minor: false, seam: false},
+  {id: 'info', label: 'Information records', glyph: '·', minor: false, seam: true},
+  {id: 'all', label: 'All records', glyph: '≡', minor: false, seam: false},
+  {id: 'system', label: 'System', glyph: '⊙', minor: true, seam: true},
 ];
 
-/** Which tab a kind is filed under. */
-export function tabOfKind(kind: DiagKind): Exclude<DiagTabId, 'all' | 'system'> {
+/** The tabs of the PROBLEMS group — what they show is what the developer receives. */
+const PROBLEM_TABS: ReadonlySet<DiagTabId> = new Set(['problems', 'errors', 'stalls']);
+
+/** Which tab a kind is filed under — for a record that IS a defect of its kind (`tabOfEntry` asks the record). */
+export function tabOfKind(kind: DiagKind): 'errors' | 'stalls' | 'info' {
   if (kind === 'error' || kind === 'integrity') {
     return 'errors';
   }
-  return kind === 'stall' ? 'stalls' : 'other';
+  return kind === 'stall' ? 'stalls' : 'info';
+}
+
+/**
+ * WHAT A RECORD WEIGHS — the tier its cause class carries (`common/diagnostics/shapes.ts`), in the journal's words.
+ * `defect` is a problem and is what the developer receives; `expected` is an honest wait that reached the limit it
+ * DECLARED (tier `planned` — a wait for something only the player decides the time of); `trace` is a net's own note
+ * beside another record (tier `info`). The two that are not defects are COUNTED in the session's summary and never
+ * sent one by one — so the journal never calls them a stall and never files them under «Зависания»: the player would
+ * read a problem the developer, by design, never receives (the owner, 2026-11-18).
+ */
+export type DiagWeight = 'defect' | 'expected' | 'trace';
+
+export function diagWeight(entry: DiagEntry): DiagWeight {
+  switch (entry.cause?.tier) {
+  case 'planned': return 'expected';
+  case 'info': return 'trace';
+  default: return 'defect';
+  }
+}
+
+/** The narrowest tab a record is filed under: a stall / mismatch that is not a defect is information, never a problem. */
+export function tabOfEntry(entry: DiagEntry): 'errors' | 'stalls' | 'info' {
+  return diagWeight(entry) === 'defect' ? tabOfKind(entry.kind) : 'info';
+}
+
+/** Is it a PROBLEM — a record the developer receives (or would, budgets and consent aside)? */
+export function isDiagProblem(entry: DiagEntry): boolean {
+  return tabOfEntry(entry) !== 'info';
 }
 
 export function filterDiagEntries(entries: ReadonlyArray<DiagEntry>, tab: DiagTabId): ReadonlyArray<DiagEntry> {
-  if (tab === 'all') {
-    return entries;
+  switch (tab) {
+  case 'all': return entries;
+  case 'system': return [];
+  case 'problems': return entries.filter(isDiagProblem);
+  default: return entries.filter((e) => tabOfEntry(e) === tab);
   }
-  if (tab === 'system') {
-    return [];
-  }
-  return entries.filter((e) => tabOfKind(e.kind) === tab);
 }
 
 export function diagTabCounts(entries: ReadonlyArray<DiagEntry>): Record<DiagTabId, number> {
-  const counts: Record<DiagTabId, number> = {all: entries.length, errors: 0, stalls: 0, other: 0, system: 0};
+  const counts: Record<DiagTabId, number> = {problems: 0, errors: 0, stalls: 0, info: 0, all: entries.length, system: 0};
   for (const entry of entries) {
-    counts[tabOfKind(entry.kind)]++;
+    const tab = tabOfEntry(entry);
+    counts[tab]++;
+    if (tab !== 'info') {
+      counts.problems++;
+    }
   }
   return counts;
+}
+
+/** How many information records a PROBLEMS tab leaves out (0 on every other tab) — said under its list, never silent. */
+export function diagHiddenInfoCount(entries: ReadonlyArray<DiagEntry>, tab: DiagTabId): number {
+  return PROBLEM_TABS.has(tab) ? entries.filter((e) => !isDiagProblem(e)).length : 0;
+}
+
+/** The tab a record opened from outside stands in: a problem on the default tab, information on its own. */
+export function diagHomeTabIndex(entry: DiagEntry): number {
+  return Math.max(0, DIAG_TABS.findIndex((t) => t.id === (isDiagProblem(entry) ? 'problems' : 'info')));
 }
 
 // ── One record ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -70,6 +123,29 @@ const KIND_LABEL: Record<DiagKind, string> = {
 
 export function diagKindLabel(kind: DiagKind): string {
   return KIND_LABEL[kind];
+}
+
+const WEIGHT_LABEL: Record<Exclude<DiagWeight, 'defect'>, string> = {
+  expected: 'Expected wait',
+  trace: 'Self-check',
+};
+
+/** The list's kind column is as wide as its longest KIND word — a weight's label there is a short one. */
+const WEIGHT_SHORT_LABEL: Record<Exclude<DiagWeight, 'defect'>, string> = {
+  expected: 'Wait',
+  trace: 'Self-check',
+};
+
+/**
+ * The kicker of a RECORD: its kind — or, for a record that is not a defect, what it is instead (never «Stall»).
+ * `short` — for the list's fixed kind column (the record's head and the detail strip have room for the whole label).
+ */
+export function diagEntryKindLabel(entry: DiagEntry, short = false): string {
+  const weight = diagWeight(entry);
+  if (weight === 'defect') {
+    return KIND_LABEL[entry.kind];
+  }
+  return short ? WEIGHT_SHORT_LABEL[weight] : WEIGHT_LABEL[weight];
 }
 
 const RUNTIME_LABEL: Record<DiagRuntime, string> = {
@@ -106,8 +182,36 @@ const KIND_HEADLINE: Record<DiagKind, string> = {
   note: 'A note of the game',
 };
 
+/** What a record that is not a defect says first — its family's line («The screen stopped responding») would be a lie. */
+const WEIGHT_HEADLINE: Record<Exclude<DiagWeight, 'defect'>, string> = {
+  expected: 'A wait reached its planned limit — the game went on',
+  trace: 'A self-check note — not a problem by itself',
+};
+
 export function diagHeadline(entry: DiagEntry): string {
+  const weight = diagWeight(entry);
+  if (weight !== 'defect') {
+    return WEIGHT_HEADLINE[weight];
+  }
   return FAMILY_HEADLINE[entry.family] ?? KIND_HEADLINE[entry.kind];
+}
+
+/**
+ * WHY A RECORD THAT IS NOT A DEFECT IS NOT ONE — `undefined` for a defect: the sentence in the player's language, and
+ * the wait's own declared reason (`(planned: …)` — the line's words, shown as they are) when the line carries one.
+ */
+export function diagNotADefect(entry: DiagEntry): {reason: string, declared: string} | undefined {
+  const weight = diagWeight(entry);
+  if (weight === 'defect') {
+    return undefined;
+  }
+  const declared = /\(planned: ([^)]*)\)/.exec(entry.text)?.[1]?.trim() ?? '';
+  return {
+    reason: weight === 'expected' ?
+      'The game waited for something only the player decides the time of and went on by itself at the limit this wait declares. The developer receives the count of such waits in the session summary, not each one.' :
+      'One of the game\'s own safety checks noted this beside another record. On its own it is not a problem: the developer receives the count in the session summary.',
+    declared,
+  };
 }
 
 /** `14:07:31` in the device's own time. */
@@ -155,7 +259,13 @@ export function diagDelivery(entry: DiagEntry): (DiagReading & {tone: 'ok' | 'wa
   case 'consent': return {...reading('Not sent — automatic reports are off'), tone: 'plain'};
   case 'budget': return {...reading('Not sent — enough reports for this session'), tone: 'plain'};
   case 'disabled': return {...reading('Not sent — this build sends nothing'), tone: 'plain'};
-  default: return undefined;
+  // Never offered BY DESIGN (the hub says so for exactly these — `hub.ts` `accept`): a delay or a note rides the next
+  // event as its trail; a stall / mismatch that is not a defect is counted in the session's summary.
+  case 'policy':
+    if (entry.kind === 'perf' || entry.kind === 'note') {
+      return {...reading('Not sent on its own — goes with the next report as context'), tone: 'plain'};
+    }
+    return diagWeight(entry) === 'defect' ? undefined : {...reading('Not sent — expected, counted in the session summary'), tone: 'plain'};
   }
 }
 

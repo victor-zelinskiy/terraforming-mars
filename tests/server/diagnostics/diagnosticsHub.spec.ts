@@ -247,6 +247,42 @@ describe('diagnostics hub — what is sent by itself (the policy)', () => {
   });
 });
 
+describe('diagnostics hub — a record never offered by design SAYS SO', () => {
+  const plannedLine = '[wait-graph] ceiling remote-placement:watchable-board (consoleRemotePlacement) — «a board free for the landing of another seat» did not come in 12000 ms — the wait ended on its ceiling (planned: the viewer keeps the board covered)';
+
+  it('a planned wait and a delay are told «policy» (never left without a word); a defect is still sent', async () => {
+    const h = harness();
+    try {
+      const page = new DiagJournal({runtime: 'page', session: 's9', build: '1.2.9'});
+      const planned = page.ingest({at: 1_000, level: 'warn', text: plannedLine}).entry;
+      h.hub.line({kind: 'entry', entry: planned, change: 'new'});
+      h.hub.line({kind: 'entry', entry: entry({id: 'page-s9-perf', kind: 'perf', family: 'long-frame', level: 'warn', stack: undefined}), change: 'new'});
+      await h.settle();
+      expect(h.sent, 'nothing of it left').to.have.length(0);
+      const told = (id: string) => h.pushes.filter((p) => p.kind === 'delivery' && p.id === id).map((p) => p.delivery);
+      expect(told(planned.id)).to.deep.eq([{state: 'held', reason: 'policy'}]);
+      expect(told('page-s9-perf')).to.deep.eq([{state: 'held', reason: 'policy'}]);
+      h.hub.line({kind: 'entry', entry: entry({id: 'page-s9-err'}), change: 'new'});
+      await h.settle();
+      expect(told('page-s9-err')[0]?.state).to.eq('sent');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('…with the TRUE reason first: a build with no destination says so, not «by design»', async () => {
+    const h = harness({packaged: false});
+    try {
+      const planned = new DiagJournal({runtime: 'page', session: 's8', build: '1.2.9'}).ingest({at: 1_000, level: 'warn', text: plannedLine}).entry;
+      h.hub.line({kind: 'entry', entry: planned, change: 'new'});
+      await h.settle();
+      expect(h.pushes.filter((p) => p.kind === 'delivery' && p.id === planned.id).map((p) => p.delivery)).to.deep.eq([{state: 'held', reason: 'disabled'}]);
+    } finally {
+      h.cleanup();
+    }
+  });
+});
+
 describe('diagnostics hub — an automatic event', () => {
   it('leaves as one exception, with its tags, its frames and its debug ids — and with no key and no name', async () => {
     const h = harness({machine: 'box'});

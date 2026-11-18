@@ -32,7 +32,9 @@ import {currentDiagContext, publishDebugIds} from '@/client/diagnostics/diagnost
 import {refreshDiagnosticsHubStatus} from '@/client/diagnostics/diagnosticsHubState';
 import {diagEntries, diagEntry} from '@/client/diagnostics/diagnosticsJournalState';
 import {diagnosticsTransport} from '@/client/diagnostics/diagnosticsTransport';
-import {DIAG_REPORT_PLATES, DIAG_TABS, DiagResolvedFrame, filterDiagEntries, suggestedCategory} from '@/client/diagnostics/diagnosticsView';
+import {
+  DIAG_REPORT_PLATES, DIAG_TABS, diagHiddenInfoCount, diagHomeTabIndex, DiagResolvedFrame, filterDiagEntries, suggestedCategory,
+} from '@/client/diagnostics/diagnosticsView';
 import {resolveFrames} from '@/client/diagnostics/frameSymbols';
 import {parseStack} from '@/common/diagnostics/stackFrames';
 
@@ -127,7 +129,12 @@ export function lendDiagnosticsHands(next: SurfaceHands): void {
 
 /** The rows of the current tab (newest first). Reactive. */
 export function diagRows(): ReadonlyArray<DiagEntry> {
-  return filterDiagEntries(diagEntries(), DIAG_TABS[diagSurfaceState.tab]?.id ?? 'all');
+  return filterDiagEntries(diagEntries(), DIAG_TABS[diagSurfaceState.tab]?.id ?? 'problems');
+}
+
+/** How many information records the current tab leaves out — said under its list (0 off the problems group). */
+export function diagHiddenInfo(): number {
+  return diagHiddenInfoCount(diagEntries(), DIAG_TABS[diagSurfaceState.tab]?.id ?? 'problems');
 }
 
 export function diagOnSystemTab(): boolean {
@@ -167,10 +174,12 @@ export function openDiagnostics(origin: 'menu' | 'direct', target: DiagOpenTarge
     s.step = 'category';
     return;
   }
-  if (target.to === 'entry' && diagEntry(target.id) !== undefined) {
-    s.tab = 0;
-    s.cursor = Math.max(0, diagRows().findIndex((e) => e.id === target.id));
-    openEntry(target.id);
+  const opened = target.to === 'entry' ? diagEntry(target.id) : undefined;
+  if (opened !== undefined) {
+    // B returns to the list the record stands in: a problem on the default tab, information on its own.
+    s.tab = diagHomeTabIndex(opened);
+    s.cursor = Math.max(0, diagRows().findIndex((e) => e.id === opened.id));
+    openEntry(opened.id);
     return;
   }
   s.step = 'browse';

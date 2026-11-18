@@ -3,7 +3,7 @@
     <template v-if="entry !== undefined">
       <!-- The head: what kind of thing, in a person's words, and how it ended. Its lines are reserved, so two records
            of different shapes stand in the same frame. -->
-      <div class="con-diagentry__head" :class="'con-diagentry__head--' + entry.kind">
+      <div class="con-diagentry__head" :class="['con-diagentry__head--' + entry.kind, 'con-diagentry__head--' + weight]" :data-diag-weight="weight">
         <div class="con-diagentry__kicker">
           <span class="con-diagentry__kind">{{ $t(kindLabel) }}</span>
           <span class="con-diagentry__meta">{{ meta }}</span>
@@ -16,6 +16,16 @@
       </div>
 
       <ConsoleScrollArea ref="scroll" class="con-diagentry__scroll" contentClass="con-diagentry__body">
+        <!-- NOT A DEFECT — said first, in the player's words, with the wait's own declared reason when it has one. -->
+        <section v-if="notADefect !== undefined" class="con-diagentry__section" data-diag-not-defect>
+          <div class="con-diagentry__label">{{ $t('Why this is not a problem') }}</div>
+          <div class="con-diagentry__fact con-diagentry__fact--prose">{{ $t(notADefect.reason) }}</div>
+          <div v-if="notADefect.declared !== ''" class="con-diagentry__fact">
+            <span class="con-diagentry__fact-key">{{ $t('Declared reason') }}</span>
+            <span class="con-diagentry__fact-val con-diagentry__fact-val--mono">{{ notADefect.declared }}</span>
+          </div>
+        </section>
+
         <!-- THE STACK — the message first; our own frames read, a library's step back. -->
         <section v-if="stack.frames.length > 0" class="con-diagentry__section" data-diag-stack :data-diag-resolved="resolved.length > 0 ? 'yes' : 'no'">
           <div class="con-diagentry__label">{{ $t('Where it happened') }}</div>
@@ -76,7 +86,8 @@ import type {PropType} from 'vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {DiagEntry} from '@/common/diagnostics/DiagnosticModel';
 import {
-  diagClock, diagDelivery, diagEpisodeFacts, diagFrameRows, diagHeadline, diagKindLabel, diagOutcome, DiagResolvedFrame, diagRuntimeLabel, diagScreenFacts,
+  diagClock, diagDelivery, diagEntryKindLabel, diagEpisodeFacts, diagFrameRows, diagHeadline, diagNotADefect, diagOutcome, DiagResolvedFrame, diagRuntimeLabel,
+  diagScreenFacts, diagWeight, DiagWeight,
 } from '@/client/diagnostics/diagnosticsView';
 import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -89,8 +100,10 @@ const props = defineProps({
 
 const scroll = useTemplateRef<{scrollByPx?: (dy: number) => void}>('scroll');
 
-const kindLabel = computed((): string => (props.entry === undefined ? '' : diagKindLabel(props.entry.kind)));
+const weight = computed((): DiagWeight => (props.entry === undefined ? 'defect' : diagWeight(props.entry)));
+const kindLabel = computed((): string => (props.entry === undefined ? '' : diagEntryKindLabel(props.entry)));
 const headline = computed((): string => (props.entry === undefined ? '' : diagHeadline(props.entry)));
+const notADefect = computed(() => (props.entry === undefined ? undefined : diagNotADefect(props.entry)));
 /** `Экран игры · 14:07:31 · сборка 1.2.3240 · ×4`. */
 const meta = computed((): string => {
   const e = props.entry;

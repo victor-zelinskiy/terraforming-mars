@@ -118,6 +118,9 @@ worded (`docs/claude/console/freeze-zero/PLAN.md` § 2 is the design):
 lines), the e2e harvest (`tests/e2e/causeHarvest.ts`) and the monkey's report (`scripts/monkey-report.mjs`) compute
 ONE key: a field case finds its reproducing spec by it, and a red spec its field cases (`npm run diag -- class <key>`).
 
+**A tier is audited, not trusted** — the 2026-11-18 audit of every non-defect row, its findings and the worklist:
+`docs/claude/diagnostics-tier-audit.md`.
+
 **The arbiter names the holder.** Its line carries `task:` (the router's task kind), `top:` (the deepest frame on
 stage, `kind:phase`) and `holder:` — ONE word by ONE precedence (`supervisor/stallEvidence.ts` `stallHolder`):
 `stranded[+claim:<host>:<stage>]` → `dead-frame:<kind>` → `beat` → `awaiting:<from>` → `block:<name>` →
@@ -159,7 +162,7 @@ difference — the scopes that ended (by the run's own id), the holders that let
 | `integrity` · `defect` | when the record is born | a MESSAGE, fingerprint = its cause class |
 | `stall` · `defect` — an episode (the arbiter's, the renderer's stop) | `EPISODE_SETTLE_MS` after it ENDS (it is then known whether the page was reloaded or the app closed under it, and a stop's trace is written), or once it has stood 30 s | ONE message: its FIRST line is the class's — «the screen stood still (reason · asked … · where · held by …)» —, its second how THIS episode ended («cured after N s by … / NOT cured — …», also `extra.ending`); fingerprint = its cause class |
 | `stall` · `defect` — any other | `STALL_SETTLE_MS` after it is born (what its own tick still says of it is a line of the same event) | a message, fingerprint = its cause class |
-| `stall` / `integrity` · `planned` / `info` | never | COUNTED in the session's ledger (§ 3.3); the trail of the next event |
+| `stall` / `integrity` · `planned` / `info` | never | COUNTED in the session's ledger (§ 3.3); the trail of the next event. The record is told so — `delivery: held · policy` (after `disabled` / `consent`, the truer reasons) — and the journal reads it as NOT a defect (§ 5) |
 | `perf`, `note` | never | counted in the ledger; they ride the next event as its breadcrumbs (the journal's last 30 records) |
 
 **One cause — one issue.** The fingerprint of a stall is `['tm-cause', <cause class>]`: the same cause across
@@ -270,7 +273,7 @@ place there; it is flushed on the next delivery, every minute, and at the next l
 `docs/claude/console/system-surface.md` § 10). Its controller is `diagnosticsSurface.ts`; the component is a template.
 
 ```
-ДИАГНОСТИКА                              browse — the journal under its filters (ВСЕ · ОШИБКИ · ЗАВИСАНИЯ · ПРОЧЕЕ), СИСТЕМА past the seam
+ДИАГНОСТИКА                              browse — ПРОБЛЕМЫ (default) · ОШИБКИ · ЗАВИСАНИЯ ┊ СВЕДЕНИЯ · ВСЕ ┊ СИСТЕМА
 ДИАГНОСТИКА › ЗАПИСЬ                     one record: the message, our frames / a library's, the screen, the full text
 ДИАГНОСТИКА › ОТЧЁТ                      what happened (five fixed plates)
 ДИАГНОСТИКА › ОТЧЁТ › <КАТЕГОРИЯ>        what will be sent · a word from the player · the commit plate
@@ -278,6 +281,27 @@ place there; it is flushed on the next delivery, every minute, and at the next l
 ДИАГНОСТИКА › ОТЧЁТ › … › ГОТОВО         the code; a finished flow LEAVES (A / B close the overlay)
 ДИАГНОСТИКА › ПРОВЕРКА СВЯЗИ             one test event per runtime, each answered
 ```
+
+**A record that is not a defect never reads as one** (the owner, 2026-11-18: «я вообще не могу отличить дефект от
+info, и они помечены как "зависание"»). The journal reads the cause's TIER as the record's WEIGHT
+(`diagnosticsView.ts` `diagWeight`: `defect` · `expected` ← `planned` · `trace` ← `info`): an `expected` / `trace`
+record is kicked «Плановое ожидание» / «Самопроверка» (never «Зависание»; the list's fixed kind column takes the
+short «Ожидание», its word ending in an ellipsis in its own box, never under the title), titled by what it is (never its family's
+«Экран перестал отвечать»), filed under «Сведения» (the «Зависания» tab and its count are the defects alone), drawn in
+the neutral voice (`con-diag__row--expected|trace`, `data-diag-weight`), opens with «Почему это не проблема» (the
+sentence + the wait's own `(planned: …)` reason), and its delivery line says «Не отправляется — ожидаемо, учтено в
+сводке сессии» — the hub tells every record it never offers by design (`neverSentByDesign`). So the journal and
+Sentry agree by construction: what stands under «Зависания» is what the developer receives. Guards:
+`diagnosticsClient.spec` § A RECORD THAT IS NOT A DEFECT, `diagnosticsHub.spec` § never offered by design SAYS SO.
+
+**The PROBLEMS are the default; information is one group away, and never hidden in silence.** The tab band is two
+groups and the system readout (`DIAG_TABS`): «Проблемы» (the default — every defect, i.e. what the developer
+receives) · «Ошибки» · «Зависания» ┊ «Сведения» (expected waits, self-checks, delays, notes, the connection check) ·
+«Все» (the whole journal in its order — the context around a problem) ┊ «Система». An information count is a quiet
+hairline chip (`con-diag__tab-count--quiet`), a problem's count a filled one. A problems tab SAYS what it leaves out —
+one quiet line under its list or its empty state, never a row of the cursor: «Здесь не показаны сведения: N — вкладка
+«Сведения»» (`data-diag-hidden-info`, `diagHiddenInfoCount`). A record opened from outside (the notice, a report)
+stands in its own list (`diagHomeTabIndex`).
 
 Laws (each measured by `tests/e2e/console-diagnostics.spec.ts` on the TV profile):
 - **The card never moves.** `.con-diag` has a fixed height; every step is laid into the same cell; the tab band stays
