@@ -59,7 +59,9 @@ import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models
 import {StandardMoves} from '@/common/parliament/ParliamentTypes';
 import {RewardDelivery, rewardAddressOf} from '@/common/parliament/rewardAddress';
 import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {
+  beginPanelRewardHold, declareHeldAnswers, oweSurfaceTokens, releasePanelRewardHold, runResourceTransfers, settleSurfaceDebt,
+} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReactionDirector';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -572,6 +574,7 @@ export function flushParliamentRewards(why: RewardReleaseReason | string = 'flus
   const pending = [...parliamentRewardState.owed, ...parliamentRewardState.flying];
   parliamentRewardState.owed = [];
   parliamentRewardState.flying = [];
+  settleSurfaceDebt(REWARD_SURFACE_DEBT);
   if (pending.length > 0) {
     trail('flush', {why, keys: pending.map((r) => r.key)});
   }
@@ -715,12 +718,22 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
   seedTableReceipts(key, before, after, staged);
 }
 
-/** The director takes what is owed — the records are in the air from here (their holds still stand). */
-export function takeOwedRewards(): Array<OwedReward> {
+/** The host's name in the fold's book of debts (`oweSurfaceTokens`). */
+const REWARD_SURFACE_DEBT = 'parliament-reward';
+
+/**
+ * The director takes what is owed — the records are in the air from here (their holds still stand).
+ *
+ * `surface` — the band surface the waves leave (the Parliament's own): THE WHOLE TAKE IS ONE DEBT OF IT. The waves go
+ * one after another, a run each, and between two of them the surface carries no token — a fold owed since the first
+ * wave used to run in that gap, under the next chip's birth. The debt stands until the last record has landed.
+ */
+export function takeOwedRewards(surface?: Element | null): Array<OwedReward> {
   const taken = parliamentRewardState.owed.splice(0);
   parliamentRewardState.flying.push(...taken);
   if (taken.length > 0) {
     trail('take', taken.map((r) => r.key));
+    oweSurfaceTokens(REWARD_SURFACE_DEBT, surface);
   }
   return taken;
 }
@@ -751,6 +764,9 @@ export function markRewardLanded(reward: OwedReward): void {
   releasePanelRewardHold(reward.spec);
   parliamentRewardState.flying = parliamentRewardState.flying.filter((r) => r.key !== reward.key);
   noteLanded(reward.key);
+  if (parliamentRewardState.flying.length === 0) {
+    settleSurfaceDebt(REWARD_SURFACE_DEBT);
+  }
 }
 
 /** ONE step's chip touched the rail (or its cover may lift): that step's hold releases — the others keep standing. */

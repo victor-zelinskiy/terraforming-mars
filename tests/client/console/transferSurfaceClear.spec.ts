@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  dropTransferEnds, markTransferEndLeft, registerTransferEnds, resetTransferEnds, surfaceClear, surfaceHoldsTokens,
+  dropTransferEnds, markTransferEndLeft, oweSurfaceTokens, registerTransferEnds, resetTransferEnds, settleSurfaceDebt, surfaceClear, surfaceHoldsTokens,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -71,6 +71,36 @@ describe('surfaceClear — a surface never folds under its own token', () => {
     expect(await settled(clear), 'left the hero, still landing on the row').is.false;
     dropTransferEnds(3);
     expect(await settled(clear)).is.true;
+  });
+
+  /*
+   * A SERIES OF RUNS IS ONE DEBT (CI, `fz3` · CPU ×4 · `arwind-sitting-win-solo`, 2026-11-18): the Parliament pays the
+   * steel's wave, then the titanium's — one run each, and no token at all between them. The B owed since the steel left
+   * folded the surface in that gap, under the titanium's birth.
+   */
+  it('a host that pays IN TURN holds the surface between two of its runs — to the last wave, not to the first', async () => {
+    oweSurfaceTokens('parliament-reward', surface);
+    registerTransferEnds(5, gain, icon, rail);
+    const clear = surfaceClear(surface);
+    markTransferEndLeft(5);
+    dropTransferEnds(5);
+    expect(surfaceHoldsTokens(surface), 'the first wave landed, the second is not born yet: the surface is still owed').is.true;
+    expect(await settled(clear), 'a fold that waited for the first wave waits on').is.false;
+    registerTransferEnds(6, gain, icon, rail);
+    markTransferEndLeft(6);
+    dropTransferEnds(6);
+    expect(await settled(clear), 'the host has not said the series is over').is.false;
+    settleSurfaceDebt('parliament-reward');
+    expect(await settled(clear), 'the last wave landed: the surface is clear').is.true;
+    expect(surfaceHoldsTokens(surface)).is.false;
+    // A debt on ANOTHER surface holds nothing here; settling twice is nothing.
+    oweSurfaceTokens('parliament-reward', rail);
+    expect(surfaceHoldsTokens(surface)).is.false;
+    settleSurfaceDebt('parliament-reward');
+    settleSurfaceDebt('parliament-reward');
+    // No surface to owe (the carrier is not on screen): nothing is held.
+    oweSurfaceTokens('parliament-reward', null);
+    expect(surfaceHoldsTokens(surface)).is.false;
   });
 
   it('several tokens: the LAST one decides', async () => {

@@ -1022,7 +1022,8 @@ function launchWave(runState: StageRun, rewards: ReadonlyArray<OwedReward>, sour
  */
 function beatReward(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
   const root = ctx.root;
-  const owed = takeOwedRewards();
+  // (The take is ONE debt of the Parliament's surface: a fold waits for its last wave — `takeOwedRewards`.)
+  const owed = takeOwedRewards(root.closest('.con-ws'));
   if (owed.length === 0) {
     // NOTHING FLIES, SO THE BEAT IS A READ (v5). The reward's whole reading is the BAND's line — the payout
     // formula, the ruling party's answer, a skip with its reason — and the band brings it in by its own

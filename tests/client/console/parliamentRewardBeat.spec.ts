@@ -14,6 +14,7 @@ import {
   clearPanelRewardHold, heldProduction, heldStock, panelRewardHold, takeDeclaredAnswers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {activeAnimationHoldLabels, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
+import {surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {StandardMoves} from '@/common/parliament/ParliamentTypes';
 import {
@@ -246,6 +247,41 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     markRewardLanded(taken[1]);
     expect(parliamentRewardPending()).is.false;
     expect(panelRewardHold.active).is.false;
+  });
+
+  /*
+   * THE TAKE IS ONE DEBT OF THE PARLIAMENT'S SURFACE (CI, fz3 / CPU x4 / arwind-sitting-win-solo, 2026-11-18): the waves
+   * go one after another, a run each; between two of them the surface carries no token, and a B owed since the first
+   * wave folded it under the second chip's birth. The surface holds from the take to the LAST landing (or a flush).
+   */
+  it('the surface the waves leave is held from the take to the last landing - between two waves too; a flush settles it', () => {
+    const surface = document.createElement('section');
+    surface.className = 'con-parl con-ws';
+    document.body.appendChild(surface);
+    try {
+      const before = view({generation: 3, seq: 8});
+      const after = view({generation: 3, seq: 8, outcomes: [
+        outcome({kind: 'production', production: Resource.HEAT, amount: 2, step: 'a'}),
+        outcome({kind: 'reaction', party: PartyName.GREENS, production: Resource.MEGACREDITS, amount: 2, step: 'a', part: undefined}),
+      ]});
+      seedParliamentRewardHold(before, after);
+      expect(surfaceHoldsTokens(surface), 'owed, not taken: nothing flies yet').is.false;
+      const taken = takeOwedRewards(surface);
+      expect(surfaceHoldsTokens(surface), 'taken: the surface owes its waves').is.true;
+      markRewardLanded(taken[0]);
+      expect(surfaceHoldsTokens(surface), 'the first wave landed, the second is not born yet').is.true;
+      markRewardLanded(taken[1]);
+      expect(surfaceHoldsTokens(surface), 'the last one landed').is.false;
+      // ...and a take that is FLUSHED (the ceiling, a new sitting) lets the surface go at once.
+      const again = view({generation: 3, seq: 9, outcomes: [outcome({kind: 'production', production: Resource.HEAT, amount: 1, step: 'a'})]});
+      seedParliamentRewardHold(view({generation: 3, seq: 9}), again);
+      takeOwedRewards(surface);
+      expect(surfaceHoldsTokens(surface)).is.true;
+      flushParliamentRewards('ceiling');
+      expect(surfaceHoldsTokens(surface)).is.false;
+    } finally {
+      surface.remove();
+    }
   });
 
   it('SEED ON SCREEN DECLARES THE RULING PARTY\'S ANSWER (iteration 6 — a party is a reactor): the wave flies it itself off the plaque, so the reaction record attaches to the wave\'s row — a plain payout is held but not declared; off screen nothing is declared', () => {

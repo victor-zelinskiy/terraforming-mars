@@ -167,6 +167,36 @@ type LiveEnds = {
 const liveEnds = new Map<number, LiveEnds>();
 const clearWaiters: Array<{surface: Element, settle: () => void}> = [];
 
+/*
+ * A SERIES OF RUNS IS ONE DEBT OF ITS SURFACE (freeze zero, stage 1 — CI's `fz3` · CPU ×4 on `arwind-sitting-win-solo`,
+ * 2026-11-18: «surface folded under its token — the birth of stock:titanium off … (section.con-parl.con-ws faded)»).
+ *
+ * `surfaceClear` knows the tokens a run REGISTERED. A host that pays in turn — the Parliament's reward: the steel's
+ * wave, then the titanium's, one run each — holds no token at all between two of its runs, and a fold that waited for
+ * the first wave ran in that gap: the B owed since the steel left collapsed the Parliament fifty milliseconds before
+ * the titanium was born off its card. The host knows what it still has to fly; it says so ONCE, when it takes the
+ * series, and settles it when the last of it has landed (or was released) — the surface holds until then, whatever
+ * stands between two runs. Keyed by the host: the same key again replaces its debt.
+ */
+const surfaceDebts = new Map<string, Element>();
+
+/** `host` still owes `surface` tokens of a series it has taken — the surface holds until {@link settleSurfaceDebt}. */
+export function oweSurfaceTokens(host: string, surface: Element | null | undefined): void {
+  if (surface === null || surface === undefined) {
+    return;
+  }
+  surfaceDebts.set(host, surface);
+  trail(undefined, 'surface:owed', {host, surface: describeEl(surface)});
+}
+
+/** The series is over (landed, released, aborted): the debt is gone, and a fold waiting on it is told. Idempotent. */
+export function settleSurfaceDebt(host: string): void {
+  if (surfaceDebts.delete(host)) {
+    trail(undefined, 'surface:settled', {host});
+    wakeClearWaiters();
+  }
+}
+
 /** The surfaces a flight end may stand on and fold under it — a band surface, the play scene's receiving stage. */
 const FOLDING_SURFACE = '.con-ws, .con-recv';
 
@@ -177,6 +207,12 @@ export function surfaceHoldsTokens(surface: Element | null | undefined): boolean
   }
   for (const e of liveEnds.values()) {
     if ((!e.left && e.from !== undefined && surface.contains(e.from)) || (e.to !== undefined && surface.contains(e.to))) {
+      return true;
+    }
+  }
+  // …or a host still owes it the rest of a series (`oweSurfaceTokens`).
+  for (const owed of surfaceDebts.values()) {
+    if (owed === surface || surface.contains(owed)) {
       return true;
     }
   }
@@ -229,7 +265,8 @@ const SURFACE_CLEAR_CEILING_MS = 9000;
 function liveEndsOn(surface: Element): Array<string> {
   return [...liveEnds.values()]
     .filter((e) => (!e.left && e.from !== undefined && surface.contains(e.from)) || (e.to !== undefined && surface.contains(e.to)))
-    .map((e) => `${e.id}:${e.spec.channel}:${e.spec.resource}${!e.left && e.from !== undefined && surface.contains(e.from) ? ' born here' : ' lands here'}`);
+    .map((e) => `${e.id}:${e.spec.channel}:${e.spec.resource}${!e.left && e.from !== undefined && surface.contains(e.from) ? ' born here' : ' lands here'}`)
+    .concat([...surfaceDebts].filter(([, owed]) => owed === surface || surface.contains(owed)).map(([host]) => `owed by ${host}`));
 }
 
 function wakeClearWaiters(): void {
@@ -268,6 +305,7 @@ export function dropTransferEnds(id: number): void {
 /** Test-only: forget every registered end and settle every waiter. */
 export function resetTransferEnds(): void {
   liveEnds.clear();
+  surfaceDebts.clear();
   [...clearWaiters].forEach((w) => w.settle());
 }
 
@@ -1569,6 +1607,7 @@ export function abortResourceTransfers(): void {
   resourceTransferState.runActive = false;
   resourceTransferState.surfaceRuns = 0;
   liveEnds.clear();
+  surfaceDebts.clear();
   wakeClearWaiters();
 }
 
