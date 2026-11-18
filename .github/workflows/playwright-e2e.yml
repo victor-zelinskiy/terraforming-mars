@@ -4,7 +4,7 @@ on:
   # NIGHTLY (docs/claude/ci-findings.md): the whole suite once a day — 00:30 UTC, after the freeze gate, before the
   # monkey. A failed or a flaky test is FILED (scripts/ci/findings.mjs), one issue per test, for good.
   schedule:
-    - cron: '30 0 * * *'
+    - cron: '47 0 * * *'
   workflow_dispatch:
     inputs:
       shards:

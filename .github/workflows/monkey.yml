@@ -14,11 +14,11 @@ name: Monkey
 # run finds is FILED, one issue per cause class (scripts/ci/findings.mjs).
 on:
   schedule:
-    - cron: '0 3 * * *'    # every night — plain, the seed of the day
-    - cron: '0 7 * * 0'    # Sunday — cpu4
-    - cron: '0 10 * * 0'   # Sunday — net400
-    - cron: '0 13 * * 0'   # Sunday — reload
-    - cron: '0 16 * * 0'   # Sunday — duo
+    - cron: '13 3 * * *'   # every night — plain, the seed of the day (never on the hour: the scheduler is latest there)
+    - cron: '13 7 * * 0'   # Sunday — cpu4
+    - cron: '13 10 * * 0'  # Sunday — net400
+    - cron: '13 13 * * 0'  # Sunday — reload
+    - cron: '13 16 * * 0'  # Sunday — duo
   workflow_dispatch:
     inputs:
       seed:
@@ -80,10 +80,10 @@ jobs:
             # A scheduled pass leaves the runners to the day's pushes: half of its shards at a time.
             PARALLEL=8
             case "$CRON" in
-              '0 7 * * 0') PERTURB=cpu4; SEED=fz0;;
-              '0 10 * * 0') PERTURB=net400; SEED=fz0;;
-              '0 13 * * 0') PERTURB=reload; SEED=fz0;;
-              '0 16 * * 0') PERTURB=duo; SEED=fz0;;
+              '13 7 * * 0') PERTURB=cpu4; SEED=fz0;;
+              '13 10 * * 0') PERTURB=net400; SEED=fz0;;
+              '13 13 * * 0') PERTURB=reload; SEED=fz0;;
+              '13 16 * * 0') PERTURB=duo; SEED=fz0;;
               *) PERTURB=none; SEED="d$(date -u +%Y%m%d)";;
             esac
           fi

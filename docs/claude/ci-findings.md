@@ -16,11 +16,13 @@ a workflow run ──► findings (one JSON shape) ──► scripts/ci/findings
 
 | Workflow | When (UTC) | What it files |
 | --- | --- | --- |
-| `Freeze gate` (`freeze-gate.yml`) — the bottle | 23:30 nightly: seeds `fz0 fz1 fz3` + the seed of the day `d<date>` | a NEW cause class · a stall never cured · a run with no verdict |
-| `Playwright E2E` (`playwright-e2e.yml`) — the whole suite | 00:30 nightly | a FAILED test · a FLAKY test (one issue per test) |
-| `Monkey` (`monkey.yml`) — the real-browser monkey | 03:00 nightly (plain, the seed of the day) · Sunday 07 / 10 / 13 / 16: `cpu4` · `net400` · `reload` · `duo` | a NEW cause class · a stall never cured · a run with no verdict |
+| `Freeze gate` (`freeze-gate.yml`) — the bottle | 23:17 nightly: seeds `fz0 fz1 fz3` + the seed of the day `d<date>` | a NEW cause class · a stall never cured · a run with no verdict |
+| `Playwright E2E` (`playwright-e2e.yml`) — the whole suite | 00:47 nightly | a FAILED test · a FLAKY test (one issue per test) |
+| `Monkey` (`monkey.yml`) — the real-browser monkey | 03:13 nightly (plain, the seed of the day) · Sunday 07:13 / 10:13 / 13:13 / 16:13: `cpu4` · `net400` · `reload` · `duo` | a NEW cause class · a stall never cured · a run with no verdict |
 | `CI` (`main.yml`) · `Release Electron App` (`release.yml`) | every push — watched by `CI findings` (`ci-findings.yml`, a `workflow_run` AFTER the run ended; a cancelled run is not a finding) | a RED run: one issue per failed JOB |
 | `Land ci-fix` (`land-ci-fix.yml`) | when a pull request from a `claude/ci-fix-*` branch appears, when `CI` of its head commit ends, and every half hour (the sweep) | nothing — it starts the fix's proof, lands the fix or refuses it in writing (§ 3b) |
+
+**GITHUB'S SCHEDULER IS LATE, AND MAY SKIP** (the first night, 2026-11-17/18: a half-hourly sweep added at 15:55 UTC fired for the first time at 23:27 — once; the gate's 23:30 had not come by 00:15, and the night's set was started by hand). A cron is never on the hour or the half hour (the scheduler is at its latest there), and **a night whose runs did not start is a fact to CHECK, not to assume**: `gh run list --event schedule --limit 10`. A night that keeps being skipped is started by something that has a clock of its own.
 
 **The release is never stalled by them.** A scheduled run commits nothing (so it starts no release and cancels none),
 shares no concurrency group with `CI` / the release, and takes at most 8 – 10 runners at a time (`max-parallel`) — the
