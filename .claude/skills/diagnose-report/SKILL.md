@@ -112,6 +112,11 @@ one defect to fix. `npm run diag -- class <class>` lays each case out in the ord
 - **Fix the class, not the case** (`docs/claude/console/freeze-zero/PLAN.md` § 4): the wait gets an owner and a bound
   on the kernel, the fix carries a guard and a replay — never a new net, rung, door, flag or timer
   (`.claude/rules/console-flow.md`). A net that cured the stall is evidence of the defect upstream of it, not the fix.
+- **Who closes what in Sentry is a rule, not a memory** (`docs/claude/ci-findings.md` § 1b): closing a `src:sentry`
+  issue on GitHub as completed resolves its Sentry issue in `main`'s version (the workflow `Sentry housekeeping`),
+  the diagnostics' own probes are archived every night (`npm run diag -- tidy`), an issue nobody has reported for 14
+  days resolves itself (`npm run diag -- autoresolve`), and `npm run diag -- archive <short id>` is for a class
+  judged «not a defect». What follows is the same close, by hand:
 - **Close it — AFTER the fix is committed**: `npm run diag -- resolve <class>` (resolved in THIS checkout's version,
   the release that carries the fix; `--in <version>` names another. Not `--next`: «the next release» is the
   collector's notion and one stray release with a greater number makes the class never regress). After that release reaches

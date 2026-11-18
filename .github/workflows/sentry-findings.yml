@@ -53,6 +53,21 @@ jobs:
             node scripts/diag.mjs issues --since "$SINCE" --env "$ENVIRONMENT" --limit 100 --json --structure > "sentry-$ENVIRONMENT.json"
             node -e "const l=JSON.parse(require('fs').readFileSync('sentry-$ENVIRONMENT.json','utf8'));console.log('$ENVIRONMENT — issues seen in the window: '+l.length+' · unresolved: '+l.filter(i=>i.status==='unresolved').length)"
           done
+      # CLOSING GOES BOTH WAYS (§ 1b): an issue of this queue whose Sentry issue is resolved (a session's `diag resolve`,
+      # or the collector itself — nobody has reported it for the auto-resolve age), archived or gone is closed here.
+      # (`diag status --json` answers structure only — a short id, a state, a release: nothing of a session.)
+      - name: What Sentry no longer holds open is closed here too
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_READ_TOKEN }}
+          DRY: ${{ inputs.dry && '--dry' || '' }}
+        run: |
+          node scripts/ci/findings.mjs sentry-open > sentry-open.txt
+          echo "open issues of the Sentry source: $(wc -l < sentry-open.txt)"
+          if [ -s sentry-open.txt ]; then
+            node scripts/diag.mjs status $(cat sentry-open.txt) --json > sentry-status.json
+            node scripts/ci/findings.mjs sentry-settled sentry-status.json $DRY
+          fi
       - name: One issue per Sentry issue — opened, touched or reopened
         env:
           GH_TOKEN: ${{ github.token }}

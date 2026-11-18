@@ -48,8 +48,8 @@ and files through the ONE filer (`findings.mjs from-sentry`):
 - **Only `unresolved` ones.** A class closed with `npm run diag -- resolve <class>` (resolved in the release that
   carries the fix) is not filed again by events of OLDER builds still running on the box — Sentry reopens it only
   for an event of that release or a later one, and then it is a regression here too. **Closing a `src:sentry` issue
-  therefore has two halves: the fix in `main`, and `diag resolve` in the release that carries it** — an issue closed
-  on GitHub alone comes back the next night.
+  therefore has two halves: the fix in `main`, and `diag resolve` in the release that carries it** — and the second
+  half is the repository's own (§ 1b): whoever closes the issue here has closed it there.
 - **The repository is public, the sessions are not.** The finding carries the Sentry issue's title (a cause class is
   structure, and it is scrubbed all the same: addresses, e-mails, query values, home directories), its counts, its
   dates and the link into Sentry (a login is asked). Never an event, a breadcrumb, a save, a name.
@@ -68,6 +68,43 @@ and files through the ONE filer (`findings.mjs from-sentry`):
   (`npm run diag -- issue <short id>`, the skill `diagnose-report`).
 - **A flood is one finding**, as everywhere (`MASS`): a broken build on the box that files forty classes in a night
   opens one issue that lists them.
+
+### 1b. Who closes an issue in Sentry — nobody's memory
+
+On 2026-11-18 the project held 25 unresolved issues: 24 were the diagnostics' own probes, one had been fixed four days
+earlier. Nothing closed an issue there but a session remembering `diag resolve` (the owner: «продолжают висеть тикеты,
+которые уже не актуальны — тут бы тоже автоматизировать»). Three things close one now, and each is a rule:
+
+| What it is | Who closes it | How |
+| --- | --- | --- |
+| **The tool's own** — the probe's reports and its «must not arrive» error, the connection checks, the sessions' ledger (`tm-session`: a record, read by `diag trend`), a probe's SAMPLE of a real cause | `Sentry housekeeping` › `tidy`, every night at 04:17 UTC (before the filing reads the collector) — `npm run diag -- tidy [--dry]` | archived FOREVER: the probe lands in the same issues tomorrow and they stay out of the stream |
+| **A finding closed on GitHub** (by a session, by the triage agent, by the owner) | `Sentry housekeeping` › `closed` (on `issues: closed`) | `completed` → `diag resolve <short id>` in the version `main` carries — an event of that version or a later one reopens it as a regression; any other reason → `diag archive <short id>` (until it escalates). A comment on the issue says what Sentry was told |
+| **What no session reports any more** | the collector itself — the project's AUTO-RESOLVE age, **14 days** (`npm run diag -- autoresolve [<days> \| off]`; set 2026-11-18) | resolved by age; the next event reopens it as a regression |
+
+…and the other direction: **what Sentry no longer holds open is closed HERE** — `Sentry findings`, before it files,
+asks the state of every open `src:sentry` issue (`findings.mjs sentry-open` → `diag status <ids> --json` →
+`findings.mjs sentry-settled`): resolved by a session's `diag resolve` → closed as completed; resolved by age, archived
+or gone → closed as not planned, each with one comment that says which. Nothing is lost on either side: an event of a
+closed class reopens it in Sentry, the nightly filing reads it as unresolved again and reopens the issue as a
+`regression`.
+
+- **THE PROBE'S EVENTS ARE FILED APART.** An issue is its fingerprint, so a probe's sample of a class and a player's
+  stall of the SAME class were one issue: archive the sample and the player's stall is archived with it. A probe's
+  event (`head: 'probe'`) carries one more part in its fingerprint and the tag `probe_issue: own`
+  (`sentryEvent.ts` `probeApart`); `tidy` archives forever ONLY an issue no session's event can land in, and judges by
+  the `head` of EVERY event of an issue, never the latest. An issue of a session's class that holds nothing but
+  samples (sent before the probe was filed apart) is RESOLVED instead — a player's stall of that class brings it back.
+- **The two halves never chase each other:** an issue closed by this repository's own workflow (`sentry-settled`)
+  starts no workflow (GitHub's rule for its token), so only a close by a person or the agent tells Sentry.
+- **ONE holder of a write token.** `Sentry housekeeping` reads the secret `SENTRY_WRITE_TOKEN`; the filing keeps its
+  read-only `SENTRY_READ_TOKEN`. The workflow runs the repository's own tool on `main` and takes one thing from the
+  event — an issue's NUMBER; whose Sentry issue that is, is read from the issue itself and trusted only when the
+  Actions bot wrote it and it carries `src:sentry` (`findings.mjs sentry-id-of` — the repository is public: anybody
+  may open an issue with any marker in it). Its log is public too: the tool's output goes to a file and only its
+  structural lines are printed (a title of a player's report carries the player's words).
+- **Without the secret nothing breaks:** both jobs say «not set» as a notice and end green; the direction
+  Sentry → GitHub and the auto-resolve work on the read token alone. A night the housekeeping could not do its work
+  (a revoked token, the API) files a `broken-run` finding of its own.
 
 ## 2. A finding, and its issue
 
@@ -235,6 +272,10 @@ gate's own leavings are ignored by the repository; anything else untracked is ne
   Sentry internal integration (Issue & Event: Read · Project: Read · Organization: Read). `Sentry findings` is its
   only reader; nothing in the repository can write to Sentry with it. A night it cannot ask Sentry files a
   `broken-run` finding of its own — a revoked token never reads as a quiet night.
+- **Sentry, the write half (§ 1b):** the secret `SENTRY_WRITE_TOKEN` — a token of a Sentry internal integration with
+  Issue & Event: Read & Write · Release: Admin (`diag resolve` creates the release when the collector has not heard
+  of the version yet) · Project: Read · Organization: Read. `Sentry housekeeping` is its only reader. Until it exists
+  a closed finding is closed in Sentry by hand (`npm run diag -- resolve <short id>`), as before.
 - **A working session's first look:** `gh issue list --label ci-finding --label triage:real` — what is left for it —
   and `gh pr list --label ci-fix` (a pull request the landing refused twice is its to finish or to close).
 

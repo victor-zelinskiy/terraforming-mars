@@ -84,7 +84,54 @@ const ENVIRONMENTS = ['box', 'production', 'development'];
 /** «All time» for the grouped endpoint: the collector keeps events 90 days at most. */
 const ALL_PERIOD = '90d';
 /** Flags that never take a value — `resolve --next <class>` must not read the class as the flag's. */
-const BOOLEAN_FLAGS = new Set(['json', 'regressed', 'next', 'structure']);
+const BOOLEAN_FLAGS = new Set(['json', 'regressed', 'next', 'structure', 'dry', 'forever']);
+
+/*
+ * WHAT IN THE COLLECTOR IS THE TOOL'S OWN, never a defect of the game (`diag tidy`): the connection check of each
+ * runtime and the probe's reports (their titles are this tool's fixed words), the probe's SAMPLES of real stalls
+ * (`head=probe` — titles no rule can tell from a player's), and a session's summary (a record of a session, never a
+ * class). On 2026-11-18 they were 24 of the 25 unresolved issues of the project.
+ */
+const OWN_TITLE = /\(probe\)\s*$|the probe's automatic error|TM_DIAG_PROBE|diag-probe\.mjs/;
+/**
+ * What `tidy` does with an issue — or `undefined` (a session's: it stays as it is). `tags`: its latest event's;
+ * `heads`: the `head` of EVERY event of it (never the latest alone — a sample that arrived after a player's stall
+ * would hide the stall).
+ *
+ *   · `archive` (forever) — an issue no session's event can land in: the tool's fixed words, a connection check, the
+ *     session ledger's one issue (a record, read by `diag trend`), a probe's sample filed apart (`probe_issue: own`);
+ *   · `resolve` — nothing but the probe's samples so far, but filed under a SESSION's class (samples sent before the
+ *     probe was filed apart): archived, it would swallow a player's stall of that class; resolved, that stall brings
+ *     it back as a REGRESSION — and the nightly filing says so.
+ */
+function ownIssueVerdict(issue, tags, heads) {
+  const title = String(issue.title ?? '');
+  if (OWN_TITLE.test(title)) {
+    return {action: 'archive', why: 'a probe of the diagnostics (its title)'};
+  }
+  if (tags.selftest === 'true') {
+    return {action: 'archive', why: 'a connection check (selftest)'};
+  }
+  if (tags.kind === 'session' || /^session — /.test(title)) {
+    return {action: 'archive', why: 'the sessions\' ledger — a record, not a class'};
+  }
+  if (heads.length > 0 && heads.every((head) => head === 'probe')) {
+    return tags.probe_issue === 'own' ?
+      {action: 'archive', why: 'a sample of the probe, filed apart'} :
+      {action: 'resolve', why: 'only the probe\'s samples, under a session\'s class — a session\'s event reopens it'};
+  }
+  return undefined;
+}
+
+/** One tag's values over ALL the events of an issue. */
+async function tagValuesOf(issueId, key) {
+  try {
+    const got = await api(`organizations/${ORG}/issues/${issueId}/tags/${key}/`);
+    return (got?.topValues ?? []).map((row) => String(row.value));
+  } catch (err) {
+    return [];
+  }
+}
 
 /**
  * THE STRUCTURAL TAGS OF AN EVENT — what `issues --json --structure` attaches to each unresolved issue (its latest
@@ -1564,6 +1611,151 @@ async function ensureRelease(release) {
   }
 }
 
+/**
+ * ARCHIVE one issue — out of the stream, alerts paused. Default: UNTIL IT ESCALATES (the collector brings it back if
+ * it gets worse — for a class judged «not a defect» on the evidence so far); `--forever` for what is never a defect
+ * (the tool's own probes).
+ */
+async function archiveIssue(issue, forever) {
+  return apiWrite('PUT', `organizations/${ORG}/issues/${issue.id}/`, {status: 'ignored', substatus: forever ? 'archived_forever' : 'archived_until_escalating'});
+}
+
+async function cmdArchive(args) {
+  const ref = args.positional[0];
+  if (ref === undefined) {
+    throw new Failure('usage: diag archive <issue shortId> [--forever]   (default: until it escalates)', 2);
+  }
+  const issue = await issueById(ref);
+  const done = await archiveIssue(issue, args.flags.forever === true);
+  console.log(`${issue.shortId} — ${cut(issue.title, 110)}`);
+  console.log(`  was ${issue.status}${issue.substatus ? ` (${issue.substatus})` : ''} → ${done.status ?? 'ignored'}${done.substatus ? ` (${done.substatus})` : ''}`);
+  return 0;
+}
+
+/**
+ * TIDY — put away every issue that is the tool's own (`ownIssueVerdict`), so that what is left unresolved in the
+ * collector is what sessions reported. It judges the UNRESOLVED issues and the ARCHIVED ones alike (an archived issue
+ * that should have been resolved is put right — its own earlier verdict included); a resolved issue is never touched.
+ * The probe runs again tomorrow and lands in the same issues: archived forever, they stay out of the stream.
+ * `--dry` prints what it would do.
+ */
+async function cmdTidy(args) {
+  const dry = args.flags.dry === true;
+  const seen = new Map();
+  for (const query of ['is:unresolved', 'is:archived']) {
+    const found = await searchIssues({query, limit: 100, sort: 'date'});
+    for (const issue of Array.isArray(found) ? found : []) {
+      seen.set(issue.id, issue);
+    }
+  }
+  const count = {archive: 0, resolve: 0, kept: 0, sessions: 0};
+  for (const issue of seen.values()) {
+    let tags = {};
+    let heads = [];
+    if (!OWN_TITLE.test(String(issue.title ?? ''))) {
+      try {
+        tags = tagsOf(await latestEvent(issue.id));
+      } catch (err) {
+        tags = {};
+      }
+      heads = await tagValuesOf(issue.id, 'head');
+    }
+    const verdict = ownIssueVerdict(issue, tags, heads);
+    if (verdict === undefined) {
+      count.sessions += issue.status === 'unresolved' ? 1 : 0;
+      continue;
+    }
+    const already = verdict.action === 'archive' && issue.status === 'ignored' && issue.substatus === 'archived_forever';
+    if (already) {
+      count.kept++;
+      continue;
+    }
+    count[verdict.action]++;
+    if (!dry) {
+      if (verdict.action === 'archive') {
+        await archiveIssue(issue, true);
+      } else {
+        await apiWrite('PUT', `organizations/${ORG}/issues/${issue.id}/`, {status: 'resolved'});
+      }
+    }
+    const did = verdict.action === 'archive' ? 'archive forever' : 'resolve';
+    console.log(`  ${dry ? `would ${did}` : `${did}: done`} — ${issue.shortId} (was ${issue.status}${issue.substatus ? `/${issue.substatus}` : ''}) — ${verdict.why} — ${cut(issue.title, 70)}`);
+  }
+  console.log(`the tool's own: ${count.archive} archived forever, ${count.resolve} resolved${dry ? ' (nothing was changed — --dry)' : ''}, ${count.kept} already put away · the sessions': ${count.sessions} unresolved — left as they are.`);
+  return 0;
+}
+
+/**
+ * THE STATE OF NAMED ISSUES, as the collector holds it NOW (never the CLI's cached copy) — what the nightly filing
+ * asks before it closes its own tickets (`scripts/ci/findings.mjs sentry-settled`). `--json` prints structure only:
+ * no title, nothing of an event — the answer goes into a public log.
+ */
+async function cmdStatus(args) {
+  const refs = args.positional.map((ref) => String(ref).toUpperCase());
+  if (refs.length === 0) {
+    throw new Failure('usage: diag status <issue shortId> [<shortId> …] [--json]', 2);
+  }
+  const rows = [];
+  for (const ref of refs) {
+    if (!/^[A-Z][A-Z0-9]*(-[A-Z0-9]+)+$/.test(ref)) {
+      throw new Failure(`«${ref}» is not an issue's short id (TERRAFORMING-MARS-1A)`, 2);
+    }
+    let issue;
+    try {
+      const found = await apiFresh(`organizations/${ORG}/shortids/${encodeURIComponent(ref)}/`);
+      issue = found.group ?? found;
+    } catch (err) {
+      // (Gone = deleted, or merged into another issue. Any OTHER failure is a failure: «could not ask» never reads «gone».)
+      if (!/HTTP 404/.test(String(err.message))) {
+        throw err;
+      }
+      rows.push({shortId: ref, status: 'missing'});
+      continue;
+    }
+    const details = issue.statusDetails ?? {};
+    rows.push({
+      shortId: ref, status: issue.status, ...(issue.substatus ? {substatus: issue.substatus} : {}),
+      ...(details.autoResolved === true ? {auto: true} : {}),
+      ...(typeof details.inRelease === 'string' ? {inRelease: details.inRelease} : {}),
+      ...(details.inNextRelease === true ? {inNextRelease: true} : {}),
+      lastSeen: issue.lastSeen,
+    });
+  }
+  if (args.flags.json) {
+    console.log(JSON.stringify(rows, null, 2));
+    return 0;
+  }
+  console.log(table(rows.map((row) => [row.shortId, `${row.status}${row.substatus ? ` (${row.substatus})` : ''}`,
+    row.auto ? 'by age (auto-resolve)' : (row.inRelease ? `in ${shortRelease(row.inRelease)}` : (row.inNextRelease ? 'in the next release' : '')),
+    row.lastSeen ? localTime(row.lastSeen) : '']), ['ISSUE', 'STATE', 'HOW', 'LAST SEEN']));
+  return 0;
+}
+
+/**
+ * AUTO-RESOLVE — the collector's own rule for what nobody reports any more: an UNRESOLVED issue no session has sent
+ * an event of for N days is resolved by the collector itself (an archived one is left alone). Nothing is lost by it:
+ * the next event of that issue reopens it as a regression. `diag autoresolve` reads the rule, `diag autoresolve 14`
+ * sets it, `diag autoresolve off` removes it. (A project setting: it needs the project's write access.)
+ */
+async function cmdAutoresolve(args) {
+  const asked = args.positional[0];
+  const said = (hours) => (hours > 0 ? `an unresolved issue not seen for ${hours / 24} day(s) is resolved by the collector` : 'off — an issue stays unresolved until somebody resolves it');
+  const project = await apiFresh(`${projectPath}/`);
+  const now = Number(project.resolveAge ?? 0);
+  if (asked === undefined) {
+    console.log(`auto-resolve: ${said(now)}`);
+    return 0;
+  }
+  const days = asked === 'off' ? 0 : Number(asked);
+  if (!Number.isInteger(days) || days < 0 || days > 90) {
+    throw new Failure('usage: diag autoresolve [<days, 1…90> | off]', 2);
+  }
+  const done = await apiWrite('PUT', `${projectPath}/`, {resolveAge: days * 24});
+  console.log(`auto-resolve was: ${said(now)}`);
+  console.log(`auto-resolve  is: ${said(Number(done.resolveAge ?? days * 24))}`);
+  return 0;
+}
+
 async function cmdResolve(args) {
   const ref = args.positional[0];
   const f = args.flags;
@@ -1669,6 +1861,13 @@ usage: npm run diag -- <command> [args]
          [--family <tag>] [--runtime page|main|server] [--regressed] [--limit 25] [--json]
                                 list the project's issues, newest first; --regressed: only those that CAME BACK
                                 after being resolved (a class closed in a release and seen in a later one)
+  tidy [--dry]                  put away every issue that is the tool's own: archived FOREVER — a probe, a connection
+                                check, the sessions' ledger, a probe's sample filed apart; RESOLVED — an issue of a
+                                session's class that holds only the probe's samples; what stays is the sessions'
+  archive <shortId> [--forever] archive one issue (default: until it escalates) — a class judged «not a defect»
+  status <shortId…> [--json]    the state of named issues as the collector holds it now (structure only, no title)
+  autoresolve [<days> | off]    the collector's rule for what nobody reports any more: an unresolved issue not seen
+                                for N days resolves itself (its next event reopens it as a regression)
   issue <shortId | id> [--event <eventId>]
                                 one issue, its latest event (or the one named) in READING ORDER: tags → the CAUSE (class,
                                 shape, tier, dimensions) → what stood (question, holders) → the episode (outcome, who cured
@@ -1736,6 +1935,10 @@ async function main() {
   case 'trend': return cmdTrend(args);
   case 'save': return cmdSave(args);
   case 'resolve': return cmdResolve(args);
+  case 'archive': return cmdArchive(args);
+  case 'status': return cmdStatus(args);
+  case 'autoresolve': return cmdAutoresolve(args);
+  case 'tidy': return cmdTidy(args);
   case 'where': return cmdWhere(args);
   case 'selftest': return cmdSelftest(args);
   case 'box':

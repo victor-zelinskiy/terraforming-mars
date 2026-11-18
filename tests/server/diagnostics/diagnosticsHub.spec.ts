@@ -673,6 +673,24 @@ describe('diagnostics hub — a stall is filed under its CAUSE, with what stood'
     expect(other, '«unserved, asked card» held by something else is another issue').to.not.deep.eq(a);
   });
 
+  it('THE PROBE\'S SAMPLE of a cause is never the issue of a session\'s stall of that cause — and two samples are still one', () => {
+    const closedOf = (session: string) => {
+      const page = pageJournal(session);
+      page.ingest({at: 1_000, level: 'warn', text: stallText()});
+      return page.closeOpenEpisodes()[0];
+    };
+    const played = eventOf(closedOf('s1'), FACTS);
+    const sample = eventOf(closedOf('s2'), {...FACTS, head: 'probe'});
+    expect(sample.fingerprint, 'the class, and one more part').to.deep.eq([...(played.fingerprint as Array<string>), 'probe']);
+    expect(eventOf(closedOf('s3'), {...FACTS, head: 'probe'}).fingerprint, 'grouping is untouched').to.deep.eq(sample.fingerprint);
+    expect((sample.tags as Record<string, string>).probe_issue, 'what `diag tidy` archives forever').to.eq('own');
+    expect((played.tags as Record<string, string>).probe_issue, 'a session never carries it').to.eq(undefined);
+    // An error names no fingerprint (the collector groups it by its stack): the probe's keeps that grouping, apart.
+    const thrown = entry({stack: 'TypeError: x is not a function\n    at boom (file:///app/build/main.js:10:5)'});
+    expect(eventOf(thrown, FACTS).fingerprint).to.eq(undefined);
+    expect(eventOf(thrown, {...FACTS, head: 'probe'}).fingerprint).to.deep.eq(['{{ default }}', 'probe']);
+  });
+
   it('the event NAMES the cause: the holder and who cured it as tags, what stood and what changed as its body — scrubbed like the rest', async () => {
     const h = harness({machine: 'box'});
     try {

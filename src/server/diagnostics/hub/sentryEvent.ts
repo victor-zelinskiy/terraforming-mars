@@ -284,8 +284,33 @@ function episodeEnd(entry: DiagEntry): string {
     (outcome === 'quit' ? `NOT cured — the game was closed under it after ${seconds}s` : `NOT cured (stood ${seconds}s)`);
 }
 
+/** The `head` of the diagnostics' own probe (`scripts/diag-probe.mjs` — a host that is not a build of the game). */
+export const PROBE_HEAD = 'probe';
+
+/**
+ * THE PROBE'S EVENTS ARE FILED APART. The probe sends SAMPLES of real causes through the real road — and an issue is
+ * its fingerprint, so a sample of a class and a player's stall of the SAME class were one issue (2026-11-18: five
+ * issues held nothing but samples and read like a player's; archive one of them and a real session's stall of that
+ * class is archived with it). A probe's event therefore carries one more part in its fingerprint — no session's event
+ * can land in its issue — and says so by a tag (`probe_issue: own` — what `npm run diag -- tidy` archives forever).
+ * Grouping itself is untouched: two samples of one class are still one issue.
+ */
+function probeApart(event: SentryEvent, facts: EventFacts): SentryEvent {
+  if (facts.head !== PROBE_HEAD) {
+    return event;
+  }
+  // (`{{ default }}` = the collector's own grouping, for an event that named no fingerprint — an exception's stack.)
+  event.fingerprint = [...((event.fingerprint as Array<string> | undefined) ?? ['{{ default }}']), PROBE_HEAD];
+  (event.tags as Record<string, string>).probe_issue = 'own';
+  return event;
+}
+
 /** The record as the event the collector files. */
 export function eventOf(entry: DiagEntry, facts: EventFacts): SentryEvent {
+  return probeApart(classEventOf(entry, facts), facts);
+}
+
+function classEventOf(entry: DiagEntry, facts: EventFacts): SentryEvent {
   const event = baseEvent(entry, facts);
   const frames = parseStack(entry.stack);
   if (frames.length > 0) {
@@ -345,7 +370,7 @@ export function eventOf(entry: DiagEntry, facts: EventFacts): SentryEvent {
 export function sessionEventOf(ledger: SessionLedger, facts: EventFacts): SentryEvent {
   const minutes = Math.round(ledger.playMs / 60_000);
   const defects = Object.values(ledger.classes).filter((row) => row.tier === 'defect').reduce((sum, row) => sum + row.n, 0);
-  return {
+  return probeApart({
     event_id: facts.eventId,
     timestamp: ledger.lastAt / 1000,
     platform: 'node',
@@ -370,7 +395,7 @@ export function sessionEventOf(ledger: SessionLedger, facts: EventFacts): Sentry
     message: {formatted: `session — ${minutes} min of play, ${defects} defect(s), ${ledger.episodes.length} episode(s)`},
     fingerprint: ['tm-session'],
     ...NOWHERE,
-  };
+  }, facts);
 }
 
 export type ReportEventInput = {

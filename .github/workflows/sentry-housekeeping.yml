@@ -1,0 +1,126 @@
+name: Sentry housekeeping
+
+# WHO CLOSES AN ISSUE IN SENTRY (docs/claude/ci-findings.md § 1b). Nobody did: on 2026-11-18 the project held 25
+# unresolved issues — 24 of them the diagnostics' own probes, one fixed four days earlier. Three things close one, and
+# none of them is a person remembering to:
+#
+#   · THE TOOL'S OWN — the probe's reports, the connection checks, the sessions' ledger — are put away every night
+#     (`diag tidy`), before the filing reads the collector;
+#   · A FINDING CLOSED HERE IS CLOSED THERE: `completed` → resolved in the version `main` carries (an event of that
+#     version or a later one reopens it as a regression); anything else → archived until it escalates;
+#   · WHAT NOBODY REPORTS ANY MORE is resolved by the collector itself (the project's auto-resolve age —
+#     `npm run diag -- autoresolve`), and `Sentry findings` closes its issue here.
+#
+# THE ONE HOLDER OF A WRITE TOKEN (`SENTRY_WRITE_TOKEN`; the nightly filing keeps its read-only one). It runs the
+# repository's own tool on `main`, never a pull request's code, and takes ONE thing from the event — an issue's
+# number: whose Sentry issue that is, is read from the issue the Actions bot itself wrote (`findings.mjs sentry-id-of`).
+# Without the secret every job says so and ends green: the automation is switched on by creating the secret.
+#
+# THE REPOSITORY IS PUBLIC AND SO IS THIS LOG: the tool's output (it prints titles — a player's report carries the
+# player's words) goes to a file; only its structural lines are printed.
+on:
+  issues:
+    types: [closed]
+  schedule:
+    - cron: '17 4 * * *'   # before `Sentry findings` (04:41 UTC) reads the collector
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: 'Tidy: print what would be put away, change nothing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  closed:
+    name: A finding closed here is closed in Sentry
+    # (An issue the filer wrote, of the Sentry source. Closed by a person or by the triage agent: an issue this
+    # repository's own workflows close — `sentry-settled` — starts no workflow, so the two halves never chase each other.)
+    if: ${{ github.event_name == 'issues' && github.event.issue.user.login == 'github-actions[bot]' && contains(github.event.issue.labels.*.name, 'src:sentry') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: sentry-closed-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - name: Resolve it — or archive it — in Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_WRITE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          REASON: ${{ github.event.issue.state_reason }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::notice::the secret SENTRY_WRITE_TOKEN is not set — Sentry was not told that #$NUMBER is closed (docs/claude/ci-findings.md § 1b)"
+            exit 0
+          fi
+          SHORT=$(node scripts/ci/findings.mjs sentry-id-of "$NUMBER")
+          if [ -z "$SHORT" ]; then
+            echo "#$NUMBER is not an issue of a Sentry issue (a broken-run, a flood) — nothing to close there"
+            exit 0
+          fi
+          if [ "$REASON" = "completed" ]; then
+            # (Resolved in THIS checkout's version — `main`'s: the fix is in it, or the issue would not be closed as done.)
+            node scripts/diag.mjs resolve "$SHORT" > done.txt 2> err.txt || CODE=$?
+          else
+            node scripts/diag.mjs archive "$SHORT" > done.txt 2> err.txt || CODE=$?
+          fi
+          if [ -n "${CODE:-}" ]; then
+            echo "::error::Sentry was not updated for $SHORT (the tool exited $CODE) — by hand: npm run diag -- $([ "$REASON" = "completed" ] && echo resolve || echo archive) $SHORT"
+            exit 1
+          fi
+          WAS=$(grep -m1 -E '^  was ' done.txt | sed 's/^  //')
+          echo "$SHORT — $WAS"
+          gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "Sentry was told: \`$SHORT\` — $WAS. If a session meets it again, Sentry reopens it and the nightly filing reopens this issue."
+      - name: The telling itself failed — said, never a quiet close
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/ci/findings.mjs broken --source sentry --context "housekeeping — a closed finding" --what "Sentry could not be told that a finding was closed (the token, the API, the tool)" --out broken.json
+          node scripts/ci/findings.mjs file broken.json
+
+  tidy:
+    name: The tool's own issues are put away
+    if: ${{ github.event_name != 'issues' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: sentry-tidy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - name: Tidy
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_WRITE_TOKEN }}
+          DRY: ${{ inputs.dry && '--dry' || '' }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::notice::the secret SENTRY_WRITE_TOKEN is not set — nothing was put away (docs/claude/ci-findings.md § 1b)"
+            exit 0
+          fi
+          node scripts/diag.mjs tidy $DRY > tidy.txt 2> err.txt || CODE=$?
+          # (Counts and short ids only: a line of the list carries a title.)
+          grep -E "^the tool's own: " tidy.txt || true
+          grep -oE "(archive forever|resolve)[^—]*— TERRAFORMING-MARS-[A-Z0-9]+" tidy.txt || true
+          if [ -n "${CODE:-}" ]; then
+            echo "::error::the tidy did not finish (the tool exited $CODE)"
+            exit 1
+          fi
+      - name: The tidy itself failed — said, never a quiet night
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/ci/findings.mjs broken --source sentry --context "housekeeping — the nightly tidy" --what "Sentry's own issues could not be put away (the token, the API, the tool)" --out broken.json
+          node scripts/ci/findings.mjs file broken.json

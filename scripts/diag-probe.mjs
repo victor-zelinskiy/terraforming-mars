@@ -32,8 +32,9 @@
  *     npm run diag -- trend --env development          the session ledger, by release
  *     npm run diag -- report <the printed code>
  *
- * Every event it sends is tagged environment `development` (or TM_DIAG_ENV), so it never mixes with players' or the
- * box's. The stacks are of this local, unstamped bundle — they are NOT resolved to sources (only a release is stamped).
+ * Every event it sends is tagged environment `development` (or TM_DIAG_ENV) and — by its `head: 'probe'` — FILED APART
+ * (`sentryEvent.ts` `probeApart`: one more part in the fingerprint), so it never mixes with players' or the box's: not
+ * in a query, and not in an ISSUE either. `npm run diag -- tidy` archives its issues forever. The stacks are of this local, unstamped bundle — they are NOT resolved to sources (only a release is stamped).
  * It takes about half a minute: the hub sends a stall when its tick has finished speaking (`STALL_SETTLE_MS`), an
  * episode when it is known how it ended (`EPISODE_SETTLE_MS`), an earlier run's ledger 12 s after the start.
  */

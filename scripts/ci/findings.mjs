@@ -12,6 +12,9 @@
  *   node scripts/ci/findings.mjs broken --source <source> --context "seed fz1" --what "the gate died before its report"
  *   node scripts/ci/findings.mjs red-run --source ci|release --workflow "CI" --run-id <id>   (a red run of a push: one finding per failed job)
  *   node scripts/ci/findings.mjs from-sentry <issues.json> [<issues.json> …] [--since 26h]   (what REAL sessions reported: `node scripts/diag.mjs issues --env box|production --json`, a file per environment)
+ *   node scripts/ci/findings.mjs sentry-open                                   (the Sentry short ids of the OPEN `src:sentry` issues, a line each)
+ *   node scripts/ci/findings.mjs sentry-settled <statuses.json> [--dry]        (closes the ones Sentry no longer holds open: `node scripts/diag.mjs status <ids> --json`)
+ *   node scripts/ci/findings.mjs sentry-id-of <issue number>                   (the Sentry short id a finding's issue is of — or nothing)
  *   node scripts/ci/findings.mjs file <findings.json> [<findings.json> …]      (needs GH_TOKEN and GITHUB_REPOSITORY)
  *   node scripts/ci/findings.mjs file --dry <findings.json>                    (prints what it would do)
  *
@@ -436,7 +439,98 @@ function file() {
   console.log(`[findings] opened ${opened} · seen again ${touched} · reopened ${reopened}`);
 }
 
-if (command === 'broken') {
+/*
+ * SENTRY ⇄ THE QUEUE — CLOSING GOES BOTH WAYS (docs/claude/ci-findings.md § 1b). An issue of this queue whose Sentry
+ * issue is no longer held open there — resolved by a session's `diag resolve`, resolved by the collector itself
+ * because nobody has reported it for the project's auto-resolve age, archived, gone — is closed here too
+ * (`sentry-settled`); and one closed HERE is closed there by the `Sentry housekeeping` workflow, which asks
+ * `sentry-id-of` whose it is. If it happens again the collector reopens it and `from-sentry` reopens the issue.
+ *
+ * ONLY WHAT THE FILER WROTE IS TRUSTED: the repository is public — anybody may open an issue with any marker in its
+ * body. A Sentry short id is read from an issue only when the Actions bot opened it AND it carries `src:sentry` (a
+ * label is a maintainer's to set), and only in a short id's own shape: it becomes an argument of a command.
+ */
+const SENTRY_KEY = /^sentry\|issue\|([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)$/;
+const MARKED = /<!-- ci-finding:([A-Za-z0-9+/=]+) -->/;
+const THE_FILER = new Set(['app/github-actions', 'github-actions[bot]', 'github-actions']);
+
+function sentryIdOf(issue) {
+  const labels = (issue.labels ?? []).map((label) => (typeof label === 'string' ? label : label.name));
+  if (!THE_FILER.has(issue.author?.login ?? '') || !labels.includes('src:sentry')) {
+    return undefined;
+  }
+  const mark = MARKED.exec(issue.body ?? '');
+  const key = mark === null ? '' : Buffer.from(mark[1], 'base64').toString('utf8');
+  return SENTRY_KEY.exec(key)?.[1];
+}
+
+/** The queue's Sentry issues (`--issues <file>`: the list as `gh` prints it — a spec's, a dry run's). */
+function sentryIssues(extra) {
+  const given = flag('issues', undefined);
+  if (given !== undefined) {
+    return JSON.parse(fs.readFileSync(given, 'utf8'));
+  }
+  const repo = process.env.GITHUB_REPOSITORY ?? flag('repo', '');
+  return JSON.parse(gh(['issue', 'list', '--repo', repo, '--label', 'src:sentry', '--limit', '500', '--json', 'number,state,body,labels,author', ...extra]));
+}
+
+/** What the queue does with an issue whose Sentry issue reads `row` (`diag status --json`) — `undefined` = it stays open. */
+function settledVerdict(row) {
+  const back = 'If a session meets it again, Sentry reopens it there and the nightly filing reopens this issue as a regression.';
+  if (row.status === 'resolved' && row.auto === true) {
+    return {reason: 'not planned', how: 'unseen — resolved by the collector',
+      comment: `**No session has reported it for the project's auto-resolve age — Sentry closed it by itself** (\`npm run diag -- autoresolve\`). Nothing here proves a fix; nothing has met it either. ${back}`};
+  }
+  if (row.status === 'resolved') {
+    // (A release is printed only in a release's own shape — the scrub reads `name@1.2.3` as an e-mail, and anything
+    // else in that field is not for a public page.)
+    const release = typeof row.inRelease === 'string' && /^[\w.-]+@\d+\.\d+\.\d+$/.test(row.inRelease) ? row.inRelease : undefined;
+    const where = release !== undefined ? ` in \`${release}\`` : (row.inNextRelease === true ? ' in the next release' : '');
+    return {reason: 'completed', how: `resolved${where}`,
+      comment: `**Resolved in Sentry${where}** (\`npm run diag -- resolve\` — the half of a fix that is said to the collector). An event of it from that version or a later one reopens it there. ${back}`};
+  }
+  if (row.status === 'ignored') {
+    return {reason: 'not planned', how: 'archived',
+      comment: `**Archived in Sentry** (\`npm run diag -- archive\` / \`tidy\`: judged not a defect of the game, or the diagnostics' own). ${row.substatus === 'archived_forever' ? 'It is archived for good: it will not come back to this queue.' : back}`};
+  }
+  if (row.status === 'missing') {
+    return {reason: 'not planned', how: 'gone', comment: '**The Sentry issue no longer exists** (deleted, or merged into another one — which has its own issue here if it is still open).'};
+  }
+  return undefined;
+}
+
+function sentrySettled() {
+  const dry = rest.includes('--dry');
+  const statuses = new Map(JSON.parse(fs.readFileSync(positional[0], 'utf8')).map((row) => [row.shortId, row]));
+  const repo = process.env.GITHUB_REPOSITORY ?? flag('repo', '');
+  let closed = 0;
+  for (const issue of sentryIssues(['--state', 'open']).filter((candidate) => (candidate.state ?? 'OPEN') === 'OPEN')) {
+    const id = sentryIdOf(issue);
+    const verdict = id === undefined || !statuses.has(id) ? undefined : settledVerdict(statuses.get(id));
+    if (verdict === undefined) {
+      continue;
+    }
+    closed++;
+    if (!dry) {
+      gh(['issue', 'close', String(issue.number), '--repo', repo, '--reason', verdict.reason, '--comment', verdict.comment]);
+    }
+    console.log(`  ${dry ? 'CLOSE ' : 'closed'} #${issue.number} as ${verdict.reason} — ${id}: ${verdict.how}`);
+  }
+  console.log(`[findings] sentry: ${closed} open issue(s) the collector no longer holds open${dry ? ' (--dry: nothing was closed)' : ' — closed here too'}`);
+}
+
+if (command === 'sentry-open') {
+  const ids = sentryIssues(['--state', 'open']).filter((issue) => (issue.state ?? 'OPEN') === 'OPEN').map(sentryIdOf).filter((id) => id !== undefined);
+  process.stdout.write([...new Set(ids)].map((id) => `${id}\n`).join(''));
+} else if (command === 'sentry-settled') {
+  sentrySettled();
+} else if (command === 'sentry-id-of') {
+  const number = Number(positional[0]);
+  const list = flag('issues', undefined) !== undefined ? sentryIssues([]) :
+    [JSON.parse(gh(['issue', 'view', String(number), '--repo', process.env.GITHUB_REPOSITORY ?? flag('repo', ''), '--json', 'number,state,body,labels,author']))];
+  const id = sentryIdOf(list.find((issue) => issue.number === number) ?? {});
+  process.stdout.write(id === undefined ? '' : `${id}\n`);
+} else if (command === 'broken') {
   // THE RUN ITSELF PRODUCED NO VERDICT (a build that failed, a shard that died): said as a finding of its own —
   // a red night with nothing filed would read as a quiet one.
   const source = flag('source', 'ci');
@@ -480,6 +574,6 @@ if (command === 'broken') {
 } else if (command === 'file') {
   file();
 } else {
-  console.error('usage: node scripts/ci/findings.mjs from-monkey|from-playwright|from-sentry|broken|red-run|file … (see the header)');
+  console.error('usage: node scripts/ci/findings.mjs from-monkey|from-playwright|from-sentry|sentry-open|sentry-settled|sentry-id-of|broken|red-run|file … (see the header)');
   process.exit(2);
 }

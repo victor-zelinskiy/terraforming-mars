@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {execFileSync} from 'node:child_process';
-import {mkdtempSync, writeFileSync} from 'node:fs';
+import {mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
@@ -122,5 +122,82 @@ describe('ci findings: a finding names its proof', function() {
     for (const secret of ['192.168.1.20', 'Somebody', 'c37200da3a391', '/home/deck', 'somebody', 'a@b.co']) {
       expect(leaked, `«${secret}» must not reach a public issue`).not.to.contain(secret);
     }
+  });
+
+  /*
+   * CLOSING GOES BOTH WAYS (docs/claude/ci-findings.md § 1b). Nobody closed an issue in Sentry, and nobody closed here
+   * what Sentry had let go of: both are the repository's own now — and the repository is public, so whose Sentry issue
+   * a GitHub issue is, is read only from what the filer itself wrote.
+   */
+  const marked = (key: string) => `the body\n\n<!-- ci-finding:${Buffer.from(key).toString('base64')} -->`;
+  const ghIssue = (number: number, key: string, over: Record<string, unknown> = {}) => ({
+    number, state: 'OPEN', body: marked(key), author: {login: 'app/github-actions', is_bot: true},
+    labels: [{name: 'ci-finding'}, {name: 'src:sentry'}, {name: 'kind:field'}], ...over,
+  });
+  const queue = [
+    ghIssue(1, 'sentry|issue|TERRAFORMING-MARS-A'),
+    ghIssue(2, 'sentry|issue|TERRAFORMING-MARS-B'),
+    ghIssue(3, 'sentry|issue|TERRAFORMING-MARS-C'),
+    ghIssue(4, 'sentry|issue|TERRAFORMING-MARS-D'),
+    ghIssue(5, 'sentry|issue|TERRAFORMING-MARS-E'),
+    // A broken night of the source itself is not an issue of a Sentry issue…
+    ghIssue(6, 'sentry|broken-run|the nightly asking'),
+    // …a stranger's issue with the filer's marker in it is nobody's (anybody may write an issue here)…
+    ghIssue(7, 'sentry|issue|TERRAFORMING-MARS-F', {author: {login: 'somebody', is_bot: false}}),
+    // …nor is one without the source's label, or with a «short id» that is not one (it becomes an argument).
+    ghIssue(8, 'sentry|issue|TERRAFORMING-MARS-G', {labels: [{name: 'ci-finding'}]}),
+    ghIssue(9, 'sentry|issue|X; rm -rf .'),
+    ghIssue(10, 'sentry|issue|TERRAFORMING-MARS-H', {state: 'CLOSED'}),
+  ];
+  const run = (...args: Array<string>): string => {
+    const issues = join(dir, 'gh-issues.json');
+    writeFileSync(issues, JSON.stringify(queue));
+    return execFileSync(process.execPath, ['scripts/ci/findings.mjs', ...args, '--issues', issues], {encoding: 'utf8'});
+  };
+
+  it('whose Sentry issue an issue is, is read only from what the filer wrote', () => {
+    expect(run('sentry-open').trim().split('\n'), 'the open ones the Actions bot filed under src:sentry — a line each')
+      .to.deep.eq(['TERRAFORMING-MARS-A', 'TERRAFORMING-MARS-B', 'TERRAFORMING-MARS-C', 'TERRAFORMING-MARS-D', 'TERRAFORMING-MARS-E']);
+    expect(run('sentry-id-of', '2').trim()).to.eq('TERRAFORMING-MARS-B');
+    expect(run('sentry-id-of', '10').trim(), 'a closed one is still whose it is — the workflow asks AFTER the close').to.eq('TERRAFORMING-MARS-H');
+    for (const number of ['6', '7', '8', '9', '404']) {
+      expect(run('sentry-id-of', number), `#${number} names no Sentry issue`).to.eq('');
+    }
+  });
+
+  it('what Sentry no longer holds open is closed here — by how it was let go; what it still holds stays', () => {
+    const statuses = join(dir, 'sentry-status.json');
+    writeFileSync(statuses, JSON.stringify([
+      {shortId: 'TERRAFORMING-MARS-A', status: 'unresolved', substatus: 'ongoing'},
+      {shortId: 'TERRAFORMING-MARS-B', status: 'resolved', inRelease: 'terraforming-mars@1.2.3341'},
+      {shortId: 'TERRAFORMING-MARS-C', status: 'resolved', auto: true},
+      {shortId: 'TERRAFORMING-MARS-D', status: 'ignored', substatus: 'archived_until_escalating'},
+      {shortId: 'TERRAFORMING-MARS-E', status: 'missing'},
+      // (Statuses nobody here has an open issue for change nothing.)
+      {shortId: 'TERRAFORMING-MARS-F', status: 'resolved'},
+      {shortId: 'TERRAFORMING-MARS-H', status: 'resolved'},
+    ]));
+    const said = run('sentry-settled', statuses, '--dry').trim().split('\n').map((line) => line.trim());
+    expect(said).to.deep.eq([
+      'CLOSE  #2 as completed — TERRAFORMING-MARS-B: resolved in `terraforming-mars@1.2.3341`',
+      'CLOSE  #3 as not planned — TERRAFORMING-MARS-C: unseen — resolved by the collector',
+      'CLOSE  #4 as not planned — TERRAFORMING-MARS-D: archived',
+      'CLOSE  #5 as not planned — TERRAFORMING-MARS-E: gone',
+      '[findings] sentry: 4 open issue(s) the collector no longer holds open (--dry: nothing was closed)',
+    ]);
+  });
+
+  it('the one workflow that may write to Sentry prints none of the tool\'s own words — the log is public', () => {
+    const workflow = readFileSync('.github/workflows/sentry-housekeeping.yml', 'utf8');
+    const writes = workflow.split('\n').filter((line) => /node scripts\/diag\.mjs (resolve|archive|tidy)\b/.test(line));
+    expect(writes.length, 'the resolve, the archive and the tidy').to.eq(3);
+    for (const line of writes) {
+      expect(line, 'its output goes to a file (a title is in it — a player\'s report carries the player\'s words)').to.match(/ > \w+\.txt 2> err\.txt /);
+    }
+    expect(workflow, 'and the file is never printed whole').not.to.match(/\bcat\s+(done|err|tidy)\.txt/);
+    // Nothing of the event reaches a command but a number: the short id is the filer's own, asked by that number.
+    expect(workflow).not.to.match(/\$\{\{\s*github\.event\.issue\.(title|body)/);
+    expect(workflow, 'the write token has ONE holder').to.contain('secrets.SENTRY_WRITE_TOKEN');
+    expect(readFileSync('.github/workflows/sentry-findings.yml', 'utf8'), 'the filing reads, and only reads').not.to.contain('SENTRY_WRITE_TOKEN');
   });
 });
