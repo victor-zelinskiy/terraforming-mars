@@ -21,7 +21,7 @@ import {Phase} from '@/common/Phase';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {
-  resetScaleStepRating, scaleStepRatingBusy, scaleStepRatingPlan, scaleStepRatingRefusal, scaleStepRatingState, seedScaleStepRatingHold,
+  resetScaleStepRating, scaleStepRatingBusy, scaleStepRatingHeldForPlayer, scaleStepRatingPlan, scaleStepRatingRefusal, scaleStepRatingState, seedScaleStepRatingHold,
 } from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {commitRailPlan, playRailReward, withoutAgendaWalkAnswers, withoutScaleStepAnswers} from '@/client/console/consoleActionCommit';
 import {noteScaleMarkerMoving, noteScaleMarkerSettled, resetScaleMarkerPoses} from '@/client/components/board/scaleMarkerArrival';
@@ -29,7 +29,6 @@ import {boardBeatParkState, registerBoardWatchableProbe, resetBoardBeatPark} fro
 import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {presentationLedgerSnapshot, resetPresentationLedger} from '@/client/console/presentationLedger';
-import {playerOwnedHolds} from '@/client/components/presentation/animationHold';
 import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
@@ -288,7 +287,7 @@ describe('scaleStepRatingBeat — cause before consequence', () => {
     noteScaleMarkerSettled('venus', 6);
     seedScaleStepRatingHold(view({}, {venusScaleLevel: 6}), view({terraformRating: 21, megacredits: 22}, {venusScaleLevel: 8}));
     expect(scaleStepRatingState.phase).eq('waiting');
-    expect(playerOwnedHolds(), 'the hold says whom it waits for').to.contain('the player keeps the board covered');
+    expect(scaleStepRatingHeldForPlayer(), 'the hold says whom it waits for').to.contain('the player keeps the board covered');
     const stageWaits = (): Array<string> => collectWaitNodes(Date.now()).map((n) => n.id).filter((id) => id.includes('scale-step-rating:stage'));
     for (let i = 0; i < 5 && stageWaits().length === 0; i++) {
       await Promise.resolve();
@@ -302,7 +301,7 @@ describe('scaleStepRatingBeat — cause before consequence', () => {
     // …and a board in plain view is nobody's to keep: the hold is a motion's again.
     watchable = true;
     seedScaleStepRatingHold(view({}, {venusScaleLevel: 8}), view({terraformRating: 22, megacredits: 24}, {venusScaleLevel: 10}));
-    expect(playerOwnedHolds() ?? '').to.not.contain('the player keeps the board covered');
+    expect(scaleStepRatingHeldForPlayer(), 'a board in plain view is nobody\'s to keep').to.eq(undefined);
   });
 
   // The map audit of 2026-11-05 (Arabia Terra's data cell with two holders): the «on which card» plate stands over

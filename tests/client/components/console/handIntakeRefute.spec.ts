@@ -143,11 +143,13 @@ describe('handDeliveryState — the touchdown bus', () => {
     const offThrowing = onIntakeTouchdown(() => {
       throw new Error('a listener that misbehaves');
     });
-    // The warn is captured, never printed: formatting the Error's stack resolves it through the WHOLE suite
-    // bundle's source map — seconds on the first trace, past this test's timeout in the full client run.
+    // The intake REPORTS the Error (`reportDiagnosticError` — 87ff231861: an error the developer receives, in every
+    // build): with no interceptor installed it prints through the live `console.error`. Captured, never printed:
+    // formatting the Error's stack resolves it through the WHOLE suite bundle's source map — seconds on the first
+    // trace, past this test's timeout in the full client run.
     const warned: Array<unknown> = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: Array<unknown>) => {
+    const originalError = console.error;
+    console.error = (...args: Array<unknown>) => {
       warned.push(args[0]);
     };
     try {
@@ -160,12 +162,13 @@ describe('handDeliveryState — the touchdown bus', () => {
       releaseInFlight(CardName.BIRDS);
       expect(landed).to.deep.eq([CardName.FISH, CardName.BIRDS, CardName.BIRDS]);
       expect(warned, 'the misbehaving listener is named on every touchdown it threw on').to.have.lengthOf(3);
+      expect(String(warned[0])).to.match(/^\[page-error\] caught by the hand intake/);
       off();
       off();
       offThrowing();
       releaseInFlight(CardName.FISH);
     } finally {
-      console.warn = originalWarn;
+      console.error = originalError;
     }
     expect(landed, 'unsubscribed — nothing more').to.have.lengthOf(3);
     expect(warned, 'unsubscribed — the thrower is not asked again').to.have.lengthOf(3);
