@@ -340,8 +340,25 @@ export function generationIncomeReward(record: ProductionIncomeModel): RailRewar
  * payment out until its token's touchdown (the standard income ticks with the
  * commit). Returns whether anything is held (reduced motion holds nothing).
  */
-export function seedGenerationIncomeHold(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): boolean {
+/**
+ * THE SCENE BELONGS TO THE RESPONSE THAT DETECTED IT — `event` is what the response that COMMITS HERE detected
+ * (`detectGenerationScene`'s own answer; `undefined` when it detected none). The seed used to ask only «is a scene
+ * armed?» — and a scene armed by ONE response (staged behind the bot's turns and overtaken, or ended at a gate before
+ * its commit) was seeded by the commit of ANOTHER: the phase went to `income`, the scene's blocking hold stood up, and
+ * the flights that end it belonged to a response that was not coming — nobody's wait, the next prompt and the feed
+ * behind it, until the registry's ceiling thirty-five seconds later (the gate's seed of the day, 2026-11-18:
+ * `animation-hold/ceiling/generation-scene` on `palladin-short`, read by tracing the scene's steps — «seed … phase was
+ * idle», and never «flights»). A commit by another response is the truth now: a scene that never began is OVER
+ * (`superseded` — nothing held, no foreground claimed); a scene in the middle of its own phrase is left alone.
+ */
+export function seedGenerationIncomeHold(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined, event: GenerationSceneEvent | undefined): boolean {
   if (armed === undefined) {
+    return false;
+  }
+  if (event !== armed) {
+    if (generationSceneState.phase === 'idle') {
+      endGenerationScene('superseded');
+    }
     return false;
   }
   generationSceneState.phase = 'income';

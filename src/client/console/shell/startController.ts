@@ -327,7 +327,14 @@ export function createStartController(shell: StartPort) {
       // empty start of 2026-10-31.
       servedElsewhere: !startSceneVisible.value || startPromptSurfaceStands.value || shell.placementActive ||
         isConsoleHandPickActive() || consoleState.task.deferred || blockingAnimationHoldCount() > 0 ||
-        isMandatoryGateHeld(),
+        isMandatoryGateHeld() ||
+        // THE TABLE IS ANSWERING: a card's reaction to what the start just did is on stage (or waits for the same
+        // scenes a decision waits for), and the server's next question is held behind it BY DESIGN (the admission's
+        // `table-answer`) — a beat in flight with its own bound (the chain's hold and its ceiling), not a start that
+        // serves nothing. The gate's seed of the day, 2026-11-18 · `hydro-floodgates-mix`: Poseidon's first action
+        // placed its colony, the corporation answered, and at 2.5 s the watchdog named «the start serves nothing
+        // while the server asks «space»» over a reaction that was still being told.
+        shell.admissionSignals.tableAnswer,
     });
   });
 

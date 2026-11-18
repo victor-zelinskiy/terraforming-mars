@@ -111,11 +111,12 @@ describe('the generation scene — the pure half (TR61)', () => {
   });
 
   it('a scene with no hook holds nothing — the counters tick with the commit, the scene still runs', () => {
-    expect(seedGenerationIncomeHold(view({}), view({})), 'nothing armed').is.false;
+    expect(seedGenerationIncomeHold(view({}), view({}), undefined), 'nothing armed').is.false;
     const before = view({generation: 1, phase: Phase.ACTION, stock: {megacredits: 10, steel: 0, plants: 0, energy: 4, heat: 2}});
     const after = view({generation: 2, income: record(), stock: {megacredits: 10 + 21 + 5, steel: 2, plants: 1, energy: 3, heat: 2 + 4}});
-    expect(detectGenerationScene(before, after)).is.not.undefined;
-    expect(seedGenerationIncomeHold(before, after)).is.false;
+    const event = detectGenerationScene(before, after);
+    expect(event).is.not.undefined;
+    expect(seedGenerationIncomeHold(before, after, event)).is.false;
     expect(railRewardPending(GENERATION_INCOME_KEY)).is.false;
     expect(generationSceneState.phase).eq('income');
     endGenerationScene('test');
@@ -176,9 +177,10 @@ describe('the generation scene — the pure half (TR61)', () => {
     const verdict = verifyRailReward(generationIncomeReward(income), before, after);
     expect(verdict.mismatches).deep.eq([]);
     expect(verdict.cause.map((s) => `${s.resource}:${s.amount}`)).deep.eq(['megacredits:6']);
-    expect(detectGenerationScene(before, after)).is.not.undefined;
+    const event = detectGenerationScene(before, after);
+    expect(event).is.not.undefined;
     // Under the server runner there is no DOM, but the seed is pure: it either holds (reduced motion off) or refuses.
-    const held = seedGenerationIncomeHold(before, after);
+    const held = seedGenerationIncomeHold(before, after, event);
     expect(held).eq(railRewardPending(GENERATION_INCOME_KEY));
     endGenerationScene('test');
     expect(railRewardPending(GENERATION_INCOME_KEY), 'an interrupt releases every held row').is.false;
@@ -188,10 +190,46 @@ describe('the generation scene — the pure half (TR61)', () => {
     const income = record({hooks: [{card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6}}]});
     const before = view({generation: 1, phase: Phase.ACTION, stock: {megacredits: 10}});
     const after = view({generation: 2, income, stock: {megacredits: 99}});
-    expect(detectGenerationScene(before, after)).is.not.undefined;
-    expect(seedGenerationIncomeHold(before, after)).is.false;
+    const event = detectGenerationScene(before, after);
+    expect(event).is.not.undefined;
+    expect(seedGenerationIncomeHold(before, after, event)).is.false;
     expect(railRewardPending(GENERATION_INCOME_KEY)).is.false;
     expect(generationSceneState.phase).eq('income');
+    endGenerationScene('test');
+  });
+
+  /*
+   * THE SCENE BELONGS TO THE RESPONSE THAT DETECTED IT (FREEZE ZERO, stage 1 — the gate's seed of the day, 2026-11-18,
+   * `palladin-short`: `animation-hold/ceiling/generation-scene`). One response armed the scene and never committed
+   * (staged behind the bot's turns and overtaken); another response's commit seeded it — the phase went to `income`,
+   * the blocking hold stood up, and the flights that end it belonged to a response that was not coming: thirty-five
+   * seconds of nobody's wait in front of the next prompt.
+   */
+  it('ANOTHER response\'s commit never starts the scene: an arm that never began is superseded — no phase, no hold; a scene mid-phrase is left alone', () => {
+    const before = view({generation: 1, phase: Phase.ACTION, stock: {megacredits: 10, steel: 0, plants: 0, energy: 4, heat: 2}});
+    const after = view({generation: 2, income: record(), stock: {megacredits: 10 + 21 + 5, steel: 2, plants: 1, energy: 3, heat: 2 + 4}});
+    const event = detectGenerationScene(before, after);
+    expect(event, 'one response arms the scene…').is.not.undefined;
+    // …and another one commits (it detected nothing: the record is claimed, the scene is armed).
+    expect(detectGenerationScene(before, after), 'claimed once').is.undefined;
+    expect(seedGenerationIncomeHold(before, after, undefined)).is.false;
+    expect(generationSceneState.phase, 'no phase — so no hold').eq('idle');
+    expect(generationSceneState.lastEnd, 'and it is said how the scene ended').eq('superseded');
+    expect(railRewardPending(GENERATION_INCOME_KEY)).is.false;
+    // (The response that armed it, coming late, starts nothing either: its event is no longer the armed one.)
+    expect(seedGenerationIncomeHold(before, after, event)).is.false;
+    expect(generationSceneState.phase).eq('idle');
+  });
+
+  it('…and the response that armed it, committing itself, plays it as it always did — whoever else commits in the middle changes nothing', () => {
+    const before = view({generation: 3, phase: Phase.ACTION, stock: {megacredits: 10, steel: 0, plants: 0, energy: 4, heat: 2}});
+    const after = view({generation: 4, income: record({generation: 3}), stock: {megacredits: 10 + 21 + 5, steel: 2, plants: 1, energy: 3, heat: 2 + 4}});
+    const event = detectGenerationScene(before, after);
+    expect(event).is.not.undefined;
+    seedGenerationIncomeHold(before, after, event);
+    expect(generationSceneState.phase).eq('income');
+    seedGenerationIncomeHold(before, after, undefined);
+    expect(generationSceneState.phase, 'a scene in the middle of its phrase is its own response\'s').eq('income');
     endGenerationScene('test');
   });
 

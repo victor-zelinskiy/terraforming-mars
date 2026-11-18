@@ -84,7 +84,8 @@ import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {checkPostCommitChoice, checkPreselectReask, notePreselectBatch} from '@/client/console/preselectWitness';
 import {notePromptSubmit, notePromptView} from '@/client/console/promptSequence';
 import {
-  detectDeferredGenerationFlip, detectGenerationScene, markGenerationConversion, runGenerationFlip, runGenerationIncomeFlights, seedGenerationIncomeHold,
+  detectDeferredGenerationFlip, detectGenerationScene, GenerationSceneEvent, markGenerationConversion, runGenerationFlip, runGenerationIncomeFlights,
+  seedGenerationIncomeHold,
 } from '@/client/console/generationScene/generationScene';
 import {seedTerraformedScene} from '@/client/console/terraformedScene/terraformedScene';
 import {
@@ -776,7 +777,7 @@ function applyGlobalParamPreview(newView: PlayerViewModel): void {
  *
  * All calls are no-ops unless their transaction armed rewards.
  */
-function seedRewardHolds(newView?: PlayerViewModel): void {
+function seedRewardHolds(newView?: PlayerViewModel, generationScene?: GenerationSceneEvent): void {
   // The rating held BEFORE this block — what this response's own owners hold is measured against it (PL-330).
   const ratingHeldBefore = heldRailStock(RATING_RAIL_KEY);
   // …and EVERY rail row held before it («СРАБАТЫВАНИЕ КАРТЫ»): the card-reaction seeder, run after every host, tells a
@@ -786,7 +787,8 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   openReactionSeedBlock();
   // THE GENERATION SCENE's income (TR61): the rows the seat's own production record names keep their pre-income
   // values until each token's touchdown — a no-op unless a scene is armed (the detect claimed the record).
-  seedGenerationIncomeHold(currentView(), newView);
+  // (…of THIS response: the scene another response armed is never seeded by this commit — `seedGenerationIncomeHold`.)
+  seedGenerationIncomeHold(currentView(), newView, generationScene);
   // The DECK COUNTER (PL-088): a new batch of cards off the project deck stays on the counter until the flight that
   // deals it — the same block as the commit, or the HUD paints the smaller count and the flight's hold flips it back up.
   seedDeckDrawHold(currentView(), newView);
@@ -1211,7 +1213,7 @@ async function presentAnswer(submit: LiveSubmit, newView: PlayerViewModel, wgtSu
       if (shouldHoldForTilePlacement(currentView().game.spaces, newView.game.spaces)) {
         armPlacementAnimations();
       }
-      seedRewardHolds(newView);
+      seedRewardHolds(newView, generationScene);
       applyPlayerView(newView);
       if (generationScene !== undefined) {
         // The staged path has no pre-commit beat: the strip flips off the commit, the income flies after it.
@@ -1524,7 +1526,7 @@ async function presentAnswer(submit: LiveSubmit, newView: PlayerViewModel, wgtSu
       return 'over';
     }
   }
-  seedRewardHolds(newView);
+  seedRewardHolds(newView, generationScene);
   applyPlayerView(newView);
   if (resolutionPayoutEvent !== undefined) {
     // Post-commit: the committed view carries the paid count (and has
