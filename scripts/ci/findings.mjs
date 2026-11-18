@@ -250,12 +250,26 @@ const scrubbed = (text) => String(text ?? '')
   .replace(/\/(?:home|Users)\/[^/\s]+/g, '/<home>')
   .replace(/[A-Za-z]:\\Users\\[^\\\s]+/g, '<home>');
 
+/*
+ * WHAT IS NOT A DEFECT OF THE GAME among Sentry's issues (the first dry run, 2026-11-18: 25 unresolved issues of a
+ * week, 19 of them these): the diagnostics' own PROBES — the connection check of each runtime, the probe's report and
+ * its «must NOT arrive» error (`scripts/diag-probe.mjs`, `npm run diag -- selftest`) — and a SESSION's summary (a
+ * record of a session, never a class). Their titles are the tool's own fixed words.
+ */
+const NOT_A_DEFECT = /\(probe\)\s*$|the probe's automatic error|TM_DIAG_PROBE|diag-probe\.mjs|^session — /;
+/** A PLAYER's REPORT: its code and its category are structure; the words after them are the player's and stay in Sentry. */
+const REPORT_HEAD = /^(Отчёт игрока TM-[A-Z0-9]+ · [\w-]+)/;
+
 function fromSentry() {
   const issues = JSON.parse(fs.readFileSync(positional[0], 'utf8'));
   const since = flag('since', '26h');
   const day = (iso) => String(iso ?? '').slice(0, 16).replace('T', ' ');
-  const findings = (Array.isArray(issues) ? issues : []).filter((issue) => issue.status === 'unresolved').map((issue) => {
-    const title = scrubbed(issue.title).slice(0, 200);
+  const unresolved = (Array.isArray(issues) ? issues : []).filter((issue) => issue.status === 'unresolved');
+  const real = unresolved.filter((issue) => !NOT_A_DEFECT.test(String(issue.title ?? '')));
+  console.error(`[findings] sentry: ${unresolved.length} unresolved in the window — ${unresolved.length - real.length} of them the tool's own probes or a session's summary (not filed)`);
+  const findings = real.map((issue) => {
+    const report = REPORT_HEAD.exec(String(issue.title ?? ''));
+    const title = report !== null ? `${report[1]} — the player's words stay in Sentry` : scrubbed(issue.title).slice(0, 200);
     const returned = issue.substatus === 'regressed';
     return {
       // (One Sentry issue is one cause class — the diagnostics' own grouping; the short id is its name for good.)

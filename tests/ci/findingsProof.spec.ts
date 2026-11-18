@@ -83,8 +83,17 @@ describe('ci findings: a finding names its proof', function() {
       issue({shortId: 'TERRAFORMING-MARS-U', status: 'resolved'}),
       issue({shortId: 'TERRAFORMING-MARS-V', substatus: 'regressed',
         title: 'HTTP 404 — GET http://192.168.1.20:17325/api/campaign?id=c37200da3a391&name=Somebody from /home/deck/x and C:\\Users\\somebody\\y by a@b.co'}),
+      // The diagnostics' own probes and a session's summary are not defects of the game…
+      issue({shortId: 'TERRAFORMING-MARS-P1', title: 'Error: the connection check — a test error of the game server (probe)'}),
+      issue({shortId: 'TERRAFORMING-MARS-P2', title: 'Отчёт игрока TM-R7C4ND · other — TM_DIAG_PROBE — a probe report, not a player'}),
+      issue({shortId: 'TERRAFORMING-MARS-P3', title: 'session — 4 min of play, 1 defect(s), 0 episode(s)'}),
+      // …and a real player's report keeps its code and category: the words are the player's.
+      issue({shortId: 'TERRAFORMING-MARS-R', title: 'Отчёт игрока TM-K7QW3D · freeze — завис экран после хода Васи'}),
     ], '--since', '26h');
-    expect(findings.map((f) => f.key), 'a resolved issue is not a finding').to.deep.eq(['sentry|issue|TERRAFORMING-MARS-T', 'sentry|issue|TERRAFORMING-MARS-V']);
+    expect(findings.map((f) => f.key), 'a resolved issue, a probe and a session summary are not findings')
+      .to.deep.eq(['sentry|issue|TERRAFORMING-MARS-T', 'sentry|issue|TERRAFORMING-MARS-V', 'sentry|issue|TERRAFORMING-MARS-R']);
+    expect(findings[2].title).to.eq('[sentry] Отчёт игрока TM-K7QW3D · freeze — the player\'s words stay in Sentry');
+    expect(findings[2].title + findings[2].body, 'a player\'s words never reach a public issue').not.to.contain('Васи');
     expect(findings.every((f) => f.kind === 'field' && f.proof === undefined), 'a field defect names no re-run').to.eq(true);
     expect(findings[0].title).to.eq('[sentry] [wait-graph] cycle (announce:parliament:genn · question:parliamentphase · surface:parliament)');
     expect(findings[0].body).to.contain('npm run diag -- issue TERRAFORMING-MARS-T');
