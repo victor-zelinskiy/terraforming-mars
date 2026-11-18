@@ -19,6 +19,7 @@ on:
     - cron: '13 10 * * 0'  # Sunday — net400
     - cron: '13 13 * * 0'  # Sunday — reload
     - cron: '13 16 * * 0'  # Sunday — duo
+    - cron: '13 19 * * 0'  # Sunday — hidden
   workflow_dispatch:
     inputs:
       seed:
@@ -26,11 +27,11 @@ on:
         required: false
         default: 'fz0'
       perturb:
-        description: 'Perturbation: none · cpu4 · cpu6 (CPU throttle) · net400 · net1500 (a delay on every answer, ms) · reload (the page reloaded at random presses) · duo (the second human seat walks its own page)'
+        description: 'Perturbation: none · cpu4 · cpu6 (CPU throttle) · net400 · net1500 (a delay on every answer, ms) · reload (the page reloaded at random presses) · duo (the second human seat walks its own page) · hidden (the page goes behind another for 3…20 s at random presses)'
         required: false
         default: 'none'
         type: choice
-        options: [none, cpu4, cpu6, net400, net1500, reload, duo]
+        options: [none, cpu4, cpu6, net400, net1500, reload, duo, hidden]
       shards:
         description: 'How many shards'
         required: false
@@ -84,6 +85,7 @@ jobs:
               '13 10 * * 0') PERTURB=net400; SEED=fz0;;
               '13 13 * * 0') PERTURB=reload; SEED=fz0;;
               '13 16 * * 0') PERTURB=duo; SEED=fz0;;
+              '13 19 * * 0') PERTURB=hidden; SEED=fz0;;
               *) PERTURB=none; SEED="d$(date -u +%Y%m%d)";;
             esac
           fi
@@ -144,6 +146,7 @@ jobs:
             net1500) export TM_E2E_MONKEY_NET_MS=1500;;
             reload) export TM_E2E_MONKEY_RELOAD=1;;
             duo) export TM_E2E_MONKEY_DUO=1;;
+            hidden) export TM_E2E_MONKEY_HIDDEN=1;;
           esac
           if [ -z "$TM_E2E_MONKEY_ONLY" ]; then unset TM_E2E_MONKEY_ONLY; fi
           REPEAT='${{ inputs.repeat || '1' }}'

@@ -1591,6 +1591,33 @@ export async function reloadConsole(page: Page): Promise<void> {
 }
 
 /**
+ * THE PAGE GOES BEHIND ANOTHER, and comes back — the player's window under another one, a tab left for a while (the
+ * monkey's `hidden` perturbation; freeze zero, stage 1: «a hidden / starved page is a state the judges know»). A
+ * blank page of the same context is brought to the front for `ms`; the game page is then brought back. Nothing is
+ * pressed meanwhile — nobody presses a page they are not looking at.
+ *
+ * Returns WHAT THE PAGE SAID OF ITSELF at the end of the spell — its `visibilityState`, and THE PRODUCT'S OWN WORD on
+ * its paint (`__conWaitGraph().pageStarved` — `kernel/frameWitness.pageStarvedNow`, the state its judges read): a
+ * walk's log shows both that the perturbation happened and that the page knew.
+ */
+export async function awayFromConsole(page: Page, ms: number, why: string): Promise<{visibility: string, starved: string | undefined}> {
+  const cover = await page.context().newPage();
+  try {
+    await cover.bringToFront();
+    await cinematicBeat(cover, ms, why);
+    return await page.evaluate(() => {
+      const graph = (window as unknown as {__conWaitGraph?: () => {pageStarved?: string | null}}).__conWaitGraph?.();
+      return {visibility: document.visibilityState, starved: graph?.pageStarved ?? undefined};
+    });
+  } finally {
+    if (!page.isClosed()) {
+      await page.bringToFront();
+    }
+    await cover.close().catch(() => undefined);
+  }
+}
+
+/**
  * …AND THE SAME FOR A PAGE THAT IS NOT AN IN-GAME CONSOLE: the MAIN MENU
  * (`.cm-menu`) and the CAMPAIGN MAP (`.cmap`).
  *

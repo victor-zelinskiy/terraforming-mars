@@ -140,6 +140,11 @@ other family's bound is its owner's ceiling, which acts at the same moment (`WAI
 - **An exception in an async beat reaches the field log** — `[page-error] uncaught | unhandled rejection: … @ <frames>`
   (`fieldRecorder.pageErrorLine`; the ResizeObserver notice excluded), harvested per e2e test into
   `test-results/page-errors/` and a monkey net.
+- **The monkey looks away** (`TM_E2E_MONKEY_HIDDEN=1` — ≈ 1 press in 30, its own seeded stream): the page goes behind
+  another for a seeded 3…20 s and comes back (`consoleStart.awayFromConsole`). No frame is painted there and no motion
+  ends; the walk's log carries what the page said of itself at the end of the spell — `visibilityState` and the
+  product's own word on its paint (`__conWaitGraph().pageStarved`, the state the judges read:
+  `kernel/frameWitness.pageStarvedNow`). A spell logged `PAINTING` was no perturbation at all.
 - **The monkey reloads** (`TM_E2E_MONKEY_RELOAD=1` — ≈ 1 press in 120, its own seeded stream): the restore paths are
   walked like any press.
 

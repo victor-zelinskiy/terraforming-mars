@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, openConsole, reloadConsole, sendPlayerInput} from './consoleStart';
+import {awayFromConsole, bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, openConsole, reloadConsole, sendPlayerInput} from './consoleStart';
 
 /**
  * THE MONKEY — freezes are found by US, never by the field (the owner, 2026-11-08: «делаем глубоко и основательно,
@@ -20,7 +20,7 @@ import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, openCons
  *
  * OPT-IN (it is hours of box time): `TM_E2E_MONKEY=1 npm run e2e:remote -- <task> console-monkey.spec.ts --shard=k/n`.
  * `TM_E2E_MONKEY_SEED` (default: the date) · `TM_E2E_MONKEY_PRESSES` (default 120) · `TM_E2E_MONKEY_ONLY` (a regex
- * over fixture names). A red names its seed and the whole press log — the walk replays exactly.
+ * over fixture names) · the perturbations below (`…_DUO` · `…_RELOAD` · `…_HIDDEN` · `…_NET_MS`). A red names its seed and the whole press log — the walk replays exactly.
  */
 const ENABLED = process.env.TM_E2E_MONKEY === '1';
 // A WALK SAYS HOW MUCH OF THE KERNEL'S STATE SPACE IT WENT THROUGH (the harness's `causeHarvest` reads the page's
@@ -43,6 +43,13 @@ const DUO = process.env.TM_E2E_MONKEY_DUO === '1';
  * (a stage re-primed from the server, a flow's latch reset under a live question) are walked like any press.
  */
 const RELOAD = process.env.TM_E2E_MONKEY_RELOAD === '1';
+/**
+ * THE PAGE NOBODY LOOKS AT (`TM_E2E_MONKEY_HIDDEN=1`): now and then (≈ 1 press in 30, its own seeded stream) the page
+ * goes BEHIND ANOTHER for a seeded 3…20 s and comes back, wherever the walk stands — a motion in flight, a hold over a
+ * landing, a scene mid-rise. No frame is painted there and no motion ends; every bound that ran on the wall clock
+ * meanwhile has to know it (freeze zero, stage 1). The walk's log says what the page said of itself while away.
+ */
+const HIDDEN = process.env.TM_E2E_MONKEY_HIDDEN === '1';
 /**
  * TIME IS PERTURBED ON PURPOSE (docs/claude/console/freeze-zero/PLAN.md §3.2) — a race a quiet box never loses must
  * lose here. Three knobs, all recorded beside the walk's cause classes (`cause-classes/…json` → `monkey.perturb`):
@@ -142,13 +149,19 @@ async function moveOthers(request: APIRequestContext, seats: ReadonlyArray<strin
 }
 
 async function walk(page: Page, request: APIRequestContext, others: ReadonlyArray<string>, r: () => number, log: Array<string>,
-  reload?: () => number): Promise<void> {
+  reload?: () => number, away?: () => number): Promise<void> {
   for (let i = 0; i < PRESSES; i++) {
     if (page.isClosed()) {
       return;
     }
     if (i % 12 === 11) {
       await moveOthers(request, others, log);
+    }
+    if (away !== undefined && away() < 1 / 30) {
+      const ms = 3_000 + Math.floor(away() * 17_000);
+      const seen = await awayFromConsole(page, ms, 'the monkey\'s hidden spell — the page stands behind another, by design');
+      log.push(`${Date.now() % 1_000_000}:AWAY(${ms}ms·${seen.visibility}·${seen.starved === undefined ? 'PAINTING' : 'starved'})`);
+      continue;
     }
     if (reload !== undefined && reload() < 1 / 120) {
       log.push(`${Date.now() % 1_000_000}:RELOAD`);
@@ -243,7 +256,7 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
       try {
         const apiSeats = seats.slice(second === undefined ? 1 : 2);
         await Promise.all([
-          walk(page, request, apiSeats, r, log, RELOAD ? rng(`${seed}:reload`) : undefined),
+          walk(page, request, apiSeats, r, log, RELOAD ? rng(`${seed}:reload`) : undefined, HIDDEN ? rng(`${seed}:hidden`) : undefined),
           ...(page2 === undefined ? [] : [walk(page2, request, [], rng(`${seed}:duo`), log2, RELOAD ? rng(`${seed}:duo:reload`) : undefined)]),
         ]);
         // THE LAST WORD: a quiet spell longer than the arbiter's grace AND than the loop's whole road (ten untouched looks
@@ -255,7 +268,7 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
         // `scripts/monkey-report.mjs` sums): «fires per 1000 presses» needs the presses.
         causeHarvest.note({
           monkey: {
-            seed, fixture, landing, duo: second !== undefined, reload: RELOAD, presses: log.filter((l) => !l.startsWith('[')).length + log2.length,
+            seed, fixture, landing, duo: second !== undefined, reload: RELOAD, hidden: HIDDEN, presses: log.filter((l) => !l.startsWith('[')).length + log2.length,
             perturb: {netMs: NET_MS, cpu: Number(process.env.TM_E2E_CPU_THROTTLE ?? 0), motion: process.env.TM_E2E_MOTION ?? ''},
           },
         });

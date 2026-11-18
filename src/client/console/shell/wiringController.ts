@@ -18,6 +18,7 @@ import {acquireForegroundLease, registerRevealParkSupplier} from '@/client/compo
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {waitGraphSnapshot} from '@/client/console/waitGraph/waitGraph';
 import {ceilingStats} from '@/client/console/waitGraph/ceilingWait';
+import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {registerNotificationCornerProbe} from '@/client/components/notifications/notificationState';
 import {cancelNotifHold, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
@@ -698,7 +699,11 @@ export function createWiringController(shell: WiringPort) {
       };
     });
     // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.
-    (window as unknown as {__conWaitGraph?: () => unknown}).__conWaitGraph = () => JSON.parse(JSON.stringify({...waitGraphSnapshot(), ceilings: ceilingStats})) as unknown;
+    (window as unknown as {__conWaitGraph?: () => unknown}).__conWaitGraph = () => JSON.parse(JSON.stringify({
+      ...waitGraphSnapshot(), ceilings: ceilingStats,
+      // The page's own word on its paint, as its judges read it (`null` — it paints).
+      pageStarved: pageStarvedNow() ?? null,
+    })) as unknown;
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
       stats: JSON.parse(JSON.stringify(screenShadowLog.stats)) as unknown,
