@@ -757,6 +757,22 @@ export function createStartController(shell: StartPort) {
    * HEALED by the scene's own phrases (`healStrand`); a strand that outlives the heal's grace hands the question to
    * the shell's surfaces (`startStrandYield`) — the player is never left in front of an empty start.
    */
+  /** What is painted ON TOP at five points of the screen — the nearest console surface of each (diagnosis only). */
+  function paintedSurfaces(): Array<string> {
+    if (typeof document === 'undefined' || typeof document.elementFromPoint !== 'function') {
+      return [];
+    }
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const points: ReadonlyArray<readonly [number, number]> = [[0.5, 0.5], [0.25, 0.3], [0.75, 0.3], [0.25, 0.7], [0.75, 0.7]];
+    return points.map(([x, y]) => {
+      const el = document.elementFromPoint(Math.round(w * x), Math.round(h * y));
+      const surface = el?.closest('.con-start, .con-ws, .con-colonies, .con-hand, .con-board, .con-root');
+      const own = (surface ?? el)?.classList;
+      return own === undefined || own.length === 0 ? (el?.tagName.toLowerCase() ?? 'nothing') : `.${own[0]}`;
+    });
+  }
+
   function whenStartStrandedNowChanges(now: boolean): void {
     cancelStartStrand();
     if (!now) {
@@ -774,6 +790,16 @@ export function createStartController(shell: StartPort) {
         frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
         // (What the hosted step itself is doing — at rest, or on its own entry / leave.)
         hand: `${handRevealState.phase}/${consoleState.section}`,
+        // WHOSE the frames above the start are, and WHAT THE PLAYER ACTUALLY SEES. `kind@anchor/standing`: `always` is
+        // a layer the player walked into («the player goes to a screen» — it stands OVER the start, `overlay`),
+        // `prompt` a step a flow opened for a question (`embed`). `painted`: the surface on top at the middle of the
+        // screen and at its four quarters, read off the page. `fz3` · `duo` · `parliament` (8 walks of 8, 2026-11-18):
+        // `start:committed` under `colonies:browse` with nothing in flight — and nothing in the line to tell the
+        // player's own colony rail standing over a finished start (their wait) from a start painting over it (a dead
+        // screen with the pad somewhere else).
+        above: workspaceStackState.frames.slice(1).map((f) => `${f.kind}@${f.anchor.type}/${f.overlay ? 'overlay' : 'embed'}`),
+        visible: startSceneVisible.value,
+        painted: paintedSurfaces(),
         // …and what is still IN FLIGHT on a hosted workspace: a strand is «at rest» only when nothing of the step's own
         // is — its tokens (an in-surface wave holds the FEED only, so no blocking hold says it), any hold at all, and
         // the conclusion the frame was last refused (which workspace, by which named hold, how long ago). Evidence:
