@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {awayFromConsole, bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, openConsole, reloadConsole, sendPlayerInput} from './consoleStart';
+import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, openConsole, reloadConsole, sendPlayerInput} from './consoleStart';
+import {awayFromConsole, installPageAway} from './pageAway';
 
 /**
  * THE MONKEY — freezes are found by US, never by the field (the owner, 2026-11-08: «делаем глубоко и основательно,
@@ -44,10 +45,12 @@ const DUO = process.env.TM_E2E_MONKEY_DUO === '1';
  */
 const RELOAD = process.env.TM_E2E_MONKEY_RELOAD === '1';
 /**
- * THE PAGE NOBODY LOOKS AT (`TM_E2E_MONKEY_HIDDEN=1`): now and then (≈ 1 press in 30, its own seeded stream) the page
- * goes BEHIND ANOTHER for a seeded 3…20 s and comes back, wherever the walk stands — a motion in flight, a hold over a
- * landing, a scene mid-rise. No frame is painted there and no motion ends; every bound that ran on the wall clock
- * meanwhile has to know it (freeze zero, stage 1). The walk's log says what the page said of itself while away.
+ * THE PAGE NOBODY LOOKS AT (`TM_E2E_MONKEY_HIDDEN=1`): now and then (≈ 1 press in 30, its own seeded stream — the
+ * bottle's `awayEvery`, number for number) the page is NOT PAINTED for a seeded 3…20 s and comes back, wherever the
+ * walk stands — a motion in flight, a hold over a landing, a scene mid-rise. Half the spells are a hidden tab (the
+ * document says so), half a window behind another (it does not) — `pageAway.ts`. No motion ends there; every bound
+ * that ran on the wall clock meanwhile has to know it (freeze zero, stage 1). The walk's log says what the page said
+ * of itself while away.
  */
 const HIDDEN = process.env.TM_E2E_MONKEY_HIDDEN === '1';
 /**
@@ -159,8 +162,9 @@ async function walk(page: Page, request: APIRequestContext, others: ReadonlyArra
     }
     if (away !== undefined && away() < 1 / 30) {
       const ms = 3_000 + Math.floor(away() * 17_000);
-      const seen = await awayFromConsole(page, ms, 'the monkey\'s hidden spell — the page stands behind another, by design');
-      log.push(`${Date.now() % 1_000_000}:AWAY(${ms}ms·${seen.visibility}·${seen.starved === undefined ? 'PAINTING' : 'starved'})`);
+      const hidden = away() < 0.5;
+      const seen = await awayFromConsole(page, ms, hidden, 'the monkey\'s hidden spell — the page is not painted, by design');
+      log.push(`${Date.now() % 1_000_000}:AWAY(${ms}ms·${hidden ? 'hidden' : 'behind'}·${seen.visibility}·${seen.starved === undefined ? 'PAINTING' : 'starved'})`);
       continue;
     }
     if (reload !== undefined && reload() < 1 / 120) {
@@ -192,6 +196,10 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
       // A third of the walks start IN the opening (the start's own flows); the rest on the board.
       const landing = r() < 0.34 ? 'prompt' : 'board';
       let seats: Array<string> | undefined;
+      // (The gate of the `hidden` perturbation stands before the page loads — GSAP takes the frame clock at its start.)
+      if (HIDDEN) {
+        await installPageAway(page);
+      }
       // A table whose standing question the API cannot answer for a board landing (a sitting's close, an enactment)
       // is walked from its PROMPT instead — a skip is coverage lost, so it is the last resort, never the first.
       for (const how of landing === 'board' ? ['board', 'prompt'] as const : ['prompt'] as const) {

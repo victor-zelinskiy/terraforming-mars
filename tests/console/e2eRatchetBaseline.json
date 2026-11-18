@@ -2,7 +2,7 @@
   "//": "Frozen per-file counts of e2e flake classes (FLAKE ZERO — tests/console/e2eFlakeScan.ts). Counts may only FALL; the target in every *.spec.ts is ZERO. Regenerate with: npm run e2e:baseline",
   "totals": {
     "waitForTimeout": 3,
-    "requestAnimationFrame": 4,
+    "requestAnimationFrame": 6,
     "setInterval": 1,
     "oneShotRead": 0,
     "driverClock": 0,
@@ -12,6 +12,9 @@
   "files": {
     "consoleStart.ts": {
       "waitForTimeout": 3
+    },
+    "pageAway.ts": {
+      "requestAnimationFrame": 2
     },
     "settledRead.ts": {
       "requestAnimationFrame": 2

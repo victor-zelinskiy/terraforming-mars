@@ -260,6 +260,7 @@ describe('e2e driver guard', function() {
       'transientRecorder.ts': 'the recorder: a frame tick beside the MutationObserver catches what only a computed style moves; ' +
         'an opt-in TIMER tick (`tickMs`) lets a TIMING witness tell a still screen from a stalled main thread',
       'settledRead.ts': 'readSettled: the gap between two reads is two frames (or 100 ms of a still page)',
+      'pageAway.ts': 'awayFromConsole: the monkey\'s `hidden` perturbation HOLDS the page\'s frame queue (it is the perturbation — never a sampler, never a wait)',
       // (FLAKE ZERO, 2026-11-16: the WORKLIST is EMPTY — the campaign / trade-door / endgame / parliament-v2 helpers
       // and the beat / focus / reaction witnesses all record on the replace-proof recorder now. A new row here is a
       // PRIMITIVE with its reason, never a worklist.)

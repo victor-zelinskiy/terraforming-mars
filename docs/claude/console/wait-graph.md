@@ -140,11 +140,14 @@ other family's bound is its owner's ceiling, which acts at the same moment (`WAI
 - **An exception in an async beat reaches the field log** — `[page-error] uncaught | unhandled rejection: … @ <frames>`
   (`fieldRecorder.pageErrorLine`; the ResizeObserver notice excluded), harvested per e2e test into
   `test-results/page-errors/` and a monkey net.
-- **The monkey looks away** (`TM_E2E_MONKEY_HIDDEN=1` — ≈ 1 press in 30, its own seeded stream): the page goes behind
-  another for a seeded 3…20 s and comes back (`consoleStart.awayFromConsole`). No frame is painted there and no motion
-  ends; the walk's log carries what the page said of itself at the end of the spell — `visibilityState` and the
+- **The monkey looks away** (`TM_E2E_MONKEY_HIDDEN=1` — ≈ 1 press in 30, its own seeded stream): the page is NOT
+  PAINTED for a seeded 3…20 s and comes back (`tests/e2e/pageAway.ts` — the page's frame queue is held from inside;
+  half the spells a hidden tab that says so through the document, half a window behind another). No motion ends
+  there; the walk's log carries what the page said of itself at the end of the spell — `visibilityState` and the
   product's own word on its paint (`__conWaitGraph().pageStarved`, the state the judges read:
-  `kernel/frameWitness.pageStarvedNow`). A spell logged `PAINTING` was no perturbation at all.
+  `kernel/frameWitness.pageStarvedNow`). A spell logged `PAINTING` was no perturbation at all — which is how the first
+  form of it (a blank page brought to the front) was found out: on CI's headless browser 60 spells of 101 went on
+  painting (run 44240483948).
   In THE BOTTLE the same perturbation is `TM_BOTTLE_MONKEY_HIDDEN=<n>` (once in n presses; `BottleClock.advanceUnpainted`
   — no frame, a timer a second; half the spells a hidden tab, half a window behind another): deterministic, on the laptop.
 - **The monkey reloads** (`TM_E2E_MONKEY_RELOAD=1` — ≈ 1 press in 120, its own seeded stream): the restore paths are
