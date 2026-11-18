@@ -384,4 +384,31 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
       restoreRandom();
     }
   });
+
+  /*
+   * THE START'S SHADOW ON A PAGE NOBODY LOOKS AT (PLAN § 4 — the bottle's `hidden` pass, 2026-11-18). A card's play
+   * scene holds the action menu («held by played-hero») and the page goes behind another window for twelve seconds:
+   * the scene cannot end there, the shadow's ten seconds ran on the wall, and the finding it confirmed is CURED — a
+   * healthy scene taken down for the player to come back to. The same on `venus-trade`: a step still leaving, read as
+   * a disagreement three seconds into a hidden spell. The confirm runs on the painted clock.
+   */
+  for (const fixture of ['field-start-deploy-param', 'venus-trade']) {
+    it(`the start's shadow does not judge a span the page did not paint through — ${fixture}, walked with the page away`, async () => {
+      const seed = `fz0:${fixture}`;
+      const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+      try {
+        const table = await bottleServer().bootFixture(fixture);
+        bottle = await bootBottle(table, {query: 'coverage=1'});
+        await bottle.advance(3_000);
+        const walked = await monkeyWalk(bottle, table.seats.length, seed, 60, {mode: 'plain', awayEvery: 30});
+        bottle = walked.bottle;
+        expect(walked.steps.some((step) => step.do === 'away'), 'the walk does leave the page').to.equal(true);
+        await bottle.advance(25_000);
+        expect(classes().filter((cls) => cls.startsWith('start-shadow')), 'the shadow names nothing').to.deep.equal([]);
+        expect(classes().filter((cls) => cls.startsWith('start-stranded')), 'and nothing of the start is taken down').to.deep.equal([]);
+      } finally {
+        restoreRandom();
+      }
+    });
+  }
 });

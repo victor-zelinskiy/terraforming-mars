@@ -39,6 +39,7 @@ import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {hostedStepServes, START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
+import {watchFrames} from '@/client/console/kernel/frameWitness';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
@@ -814,8 +815,23 @@ export function createStartController(shell: StartPort) {
       return;
     }
     const held = verdict === 'held';
-    cancelStartShadow = flow.after(held ? START_SHADOW_HELD_MS : START_SHADOW_CONFIRM_MS, 'the start shadow\'s confirm', () => {
+    // THE CONFIRM RUNS ON THE PAINTED CLOCK (freeze zero, stage 1 — a bound on the clock of the thing it bounds). What
+    // the shadow times is a MOTION: a beat that holds the prompt, a step still leaving. On a page that is not painting
+    // — behind another window, a hidden tab — neither can end, and ten seconds of the wall are no seconds of theirs:
+    // the bottle's `hidden` pass (2026-11-18) named `held-long … played-hero` on `field-start-deploy-param` and
+    // `disagree queue/step` on `venus-trade`, both judged in the middle of a spell away — and a confirmed finding is
+    // CURED, so a healthy scene would have been taken down for the player to come back to. A span the page did not
+    // paint through is no evidence: the confirm starts again, and judges the screen the player is looking at.
+    const painted = watchFrames();
+    const disarm = flow.after(held ? START_SHADOW_HELD_MS : START_SHADOW_CONFIRM_MS, 'the start shadow\'s confirm', () => {
+      const starved = painted.starved();
+      painted.stop();
       if (startShadowSig.value !== sig) {
+        return;
+      }
+      if (starved !== undefined) {
+        startShadowLog.unpainted++;
+        whenStartShadowSigChanges(sig);
         return;
       }
       const finding: StartShadowFinding = {
@@ -837,6 +853,10 @@ export function createStartController(shell: StartPort) {
       // PHASE 1 — THE SHADOW ACTS: a confirmed finding is cured through the existing doors (`startDirectorCure`).
       shell.runStartDirectorCure(finding, 'shadow');
     });
+    cancelStartShadow = () => {
+      painted.stop();
+      disarm();
+    };
   }
 
   /** The question the strand was yielded for is answered (or replaced): the start takes its screen back. */

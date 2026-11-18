@@ -254,7 +254,8 @@ export type StartShadowFinding = {
 };
 
 /** The findings of this session (bounded) — read by `window.__conStartShadow()` and the field export. */
-export const startShadowLog: {findings: Array<StartShadowFinding>, judged: number} = {findings: [], judged: 0};
+/** `unpainted`: confirms that came due over a span the page did not paint through — no evidence, judged again. */
+export const startShadowLog: {findings: Array<StartShadowFinding>, judged: number, unpainted: number} = {findings: [], judged: 0, unpainted: 0};
 const MAX_FINDINGS = 50;
 
 /** The stable key of one finding — logged once per prompt, never once per frame. */
@@ -277,4 +278,5 @@ export function recordStartShadowFinding(f: StartShadowFinding): boolean {
 export function resetStartShadowLog(): void {
   startShadowLog.findings.length = 0;
   startShadowLog.judged = 0;
+  startShadowLog.unpainted = 0;
 }
