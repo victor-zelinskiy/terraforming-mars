@@ -89,6 +89,37 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * ...AND THE OTHER ORDER - the road the row above left to the net, found by a game of the owner's (the box,
+   * 2026-11-18, generations 1 and 3): the Parliament is ALREADY OPEN, from the wheel, when the last pass of the
+   * generation begins the political phase. The sitting's beat is born held inside its own workspace: nothing to open,
+   * nowhere to show a plate - plate, surface, question, plate, until the graph's door acknowledged it seconds later.
+   * The law: a flow's beat born while the flow's own workspace stands on stage is acknowledged at that edge
+   * (`consoleMandatoryGate.flowBeatServedInPlace`).
+   */
+  it('the Parliament is ALREADY OPEN when the sitting begins: the beat is served in place at its birth - no plate, no cycle for a net to cure', async () => {
+    const table = await bottleServer().bootFixture('eden-alliance-enact-remote');
+    bottle = await bootBottle(table);
+    await bottle.advance(3_000);
+    // RT (the quick wheel), then down: the Parliament, as a view - the political phase has not begun.
+    await bottle.press('Period');
+    await bottle.advance(600);
+    await bottle.press('ArrowDown');
+    const opened = await bottle.until(() => bottle?.frames().some((f) => f.startsWith('parliament:')) === true, 20_000);
+    expect(opened, `the Parliament opened as a view (frames: ${bottle.frames().join(' ')})`).to.equal(true);
+    expect(document.querySelectorAll('.con-parl[data-sitting-stage]').length, 'no sitting yet').to.equal(0);
+    await bottle.advance(1_500);
+    expect(await bottle.otherSeatMoves(1), 'the other seat passes - the last pass of the generation').to.equal('pass');
+    const sitting = await bottle.until(() => document.querySelectorAll('.con-parl[data-sitting-stage]').length === 1, 60_000);
+    expect(sitting, `the Parliament that stands becomes the sitting (frames: ${bottle.frames().join(' ')})`).to.equal(true);
+    // Past the graph's confirmation of a cycle and the arbiter's grace: whatever would have judged the screen has.
+    await bottle.advance(20_000);
+    expect(document.querySelectorAll('.con-mandatory').length, 'no plate was ever owed to a player who stands inside').to.equal(0);
+    expect(bottle.lines().filter((line) => /\[wait-graph\] (cycle|cure)/.test(line)), 'the net had nothing to break').to.deep.equal([]);
+    expect(classes().filter((cls) => !cls.startsWith('wait-graph/ceiling/') && !cls.startsWith('animation-hold/ceiling/')),
+      'no cycle, no stranded question, no stall').to.deep.equal([]);
+  });
+
+  /*
    * `animation-hold/ceiling/parliament-chairman-quest` — the monkey's baseline, seed `fz0` ·
    * `parliament-chairman-quest-last-action`. The plate's A opens the Parliament on the chairman's quest and the answer
    * rides that press; the walk pressed A AGAIN 0.9 s later — «дожать» with the answer still on the wire. The hurry

@@ -123,6 +123,7 @@ export function installShellReactions(shell: Shell): void {
   watch(() => shell.mandatoryGateHeld, (held) => shell.whenMandatoryGateHeldChanges(held), {immediate: true});
   watch(() => shell.deferredWhileOnOwnSurface, (on) => shell.whenDeferredWhileOnOwnSurfaceChanges(on));
   watch(() => shell.mandatoryBeatKey, (key) => shell.whenMandatoryBeatKeyChanges(key), {immediate: true});
+  watch(() => shell.flowBeatInPlace, (key) => shell.whenFlowBeatInPlaceChanges(key), {immediate: true});
   watch(() => shell.mandatoryPresentationReady, (ready) => shell.whenMandatoryPresentationReadyChanges(ready), {immediate: true});
   watch(() => shell.rawAdmissionSignals, (raw) => shell.whenRawAdmissionSignalsChanges(raw), {immediate: true, deep: true});
   watch(() => shell.boardHomeIdle, (idle) => shell.whenBoardHomeIdleChanges(idle), {immediate: true});

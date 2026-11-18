@@ -123,6 +123,25 @@ export function heldFlowWorkspaceOf(beat: MandatoryBeat | undefined): (typeof FL
   return beat?.flow !== undefined && isMandatoryBeatHeld(beat) ? FLOW_BEAT_WORKSPACE[beat.flow] : undefined;
 }
 
+/**
+ * A FLOW'S BEAT HELD WHILE THE FLOW'S OWN WORKSPACE STANDS ON STAGE — its key, or `undefined`. PURE.
+ *
+ * The plate of a flow has one verb, «open the flow's workspace». A player ALREADY STANDING in that workspace — they
+ * opened the Parliament from the wheel a moment before the political phase began — has nothing to open, and the plate
+ * has nowhere to show (it lives on the board, under the workspace): the beat stood held, the question behind its
+ * gate, the frame waiting for its question — plate → surface → question → plate — until the wait graph confirmed the
+ * cycle and acknowledged the beat seconds later. Named by the net in the field, twice in one game (the box,
+ * 2026-11-18, generations 1 and 3: `wait-graph/cycle/announce:parliament:genN/question:parliamentphase/
+ * surface:parliament` — the road the row of 2026-11-14 left to the net «if it ever fires»). The law written there: a
+ * flow's beat born while the flow's own workspace stands on stage is ACKNOWLEDGED AT BIRTH — an edge of the beat and
+ * the stage, never a net's timer. Only FLOW beats: an interruptive task beat over a frame that is concluding keeps
+ * its plate (the frame leaves within a second and the plate rises on the board).
+ */
+export function flowBeatServedInPlace(beat: MandatoryBeat | undefined, standsOnStage: (workspace: (typeof FLOW_BEAT_WORKSPACE)[MandatoryFlowKind]) => boolean): string | undefined {
+  const workspace = heldFlowWorkspaceOf(beat);
+  return beat !== undefined && workspace !== undefined && standsOnStage(workspace) ? beat.key : undefined;
+}
+
 /** One interruptive mandatory DECISION beat — a stable identity + its task kind. */
 export type MandatoryBeat = {
   /** Stable key for the beat (advances when the pending decision changes). */

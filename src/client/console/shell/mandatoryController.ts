@@ -49,7 +49,7 @@ import {promptIdentityKey} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {journalState} from '@/client/components/journal/journalState';
-import {MandatoryBeat, MandatoryFlowBeat, mandatoryBeatFor, heldFlowWorkspaceOf, isMandatoryBeatHeld, isMandatoryBeatPresented, forceMandatoryBeacon, isMandatoryBeaconForced, acknowledgeMandatoryBeat, markMandatoryBeatPresented, noteMandatoryBeatIdentity, isResolutionAsk} from '@/client/console/consoleMandatoryGate';
+import {MandatoryBeat, MandatoryFlowBeat, mandatoryBeatFor, flowBeatServedInPlace, heldFlowWorkspaceOf, isMandatoryBeatHeld, isMandatoryBeatPresented, forceMandatoryBeacon, isMandatoryBeaconForced, acknowledgeMandatoryBeat, markMandatoryBeatPresented, noteMandatoryBeatIdentity, isResolutionAsk} from '@/client/console/consoleMandatoryGate';
 import type {ColonyController} from '@/client/console/shell/colonyController';
 import type {FinaleController} from '@/client/console/shell/finaleController';
 import type {ParliamentController} from '@/client/console/shell/parliamentController';
@@ -275,6 +275,15 @@ export function createMandatoryController(shell: MandatoryPort) {
    */
   const heldFlowWorkspace = computed((): WorkspaceFrameKind | undefined => {
     return heldFlowWorkspaceOf(mandatoryBeat.value);
+  });
+
+  /**
+   * THE HELD FLOW BEAT WHOSE WORKSPACE ALREADY STANDS ON STAGE (`flowBeatServedInPlace` — the law and its field case
+   * are told there): its key, `undefined` otherwise. On stage = a live frame of the stack whose scene is the one
+   * showing; a PARKED workspace is not (the player went back to the board — the plate is how they return).
+   */
+  const flowBeatInPlace = computed((): string | undefined => {
+    return flowBeatServedInPlace(mandatoryBeat.value, (kind) => workspaceFrameIndex(kind) !== -1 && workspaceSceneOnStage(kind));
   });
 
   /**
@@ -889,6 +898,14 @@ export function createMandatoryController(shell: MandatoryPort) {
     }
   }
 
+  // A FLOW'S BEAT BORN INSIDE ITS OWN WORKSPACE is acknowledged at that edge: the workspace serves it in place — what
+  // the wait graph's door did seconds later (`yieldAnnounceInCycle`), now by construction.
+  function whenFlowBeatInPlaceChanges(key: string | undefined): void {
+    if (key !== undefined) {
+      acknowledgeMandatoryBeat(key);
+    }
+  }
+
   // The pending → presented transition. A WATCHER, not a computed side
   // effect: presentation is a one-way latch keyed by the beat, and this is
   // its single writer. Firing on the rising edge only — once latched, the
@@ -908,6 +925,7 @@ export function createMandatoryController(shell: MandatoryPort) {
     mandatoryGateHeld,
     taskGateHeld,
     heldFlowWorkspace,
+    flowBeatInPlace,
     minimizableTaskLive,
     mandatoryDeferredActive,
     boardHomeIdle,
@@ -932,6 +950,7 @@ export function createMandatoryController(shell: MandatoryPort) {
     whenConsoleStateTaskDeferredChanges,
     whenDeferredWhileOnOwnSurfaceChanges,
     whenMandatoryBeatKeyChanges,
+    whenFlowBeatInPlaceChanges,
     whenMandatoryPresentationReadyChanges,
   };
 }

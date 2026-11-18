@@ -17,6 +17,7 @@ import {
   setMandatoryGateHeld,
   isMandatoryGateHeld,
   heldFlowWorkspaceOf,
+  flowBeatServedInPlace,
   FLOW_BEAT_WORKSPACE,
   MandatoryFlowBeat,
 } from '@/client/console/consoleMandatoryGate';
@@ -253,6 +254,26 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
     it('a TASK beat is never a flow\'s: its plate keeps its own A (an interruptive ask over a frame that is leaving)', () => {
       expect(heldFlowWorkspaceOf({key: 'task:card|x', taskKind: 'handSelect'})).to.eq(undefined);
       expect(heldFlowWorkspaceOf(undefined)).to.eq(undefined);
+    });
+
+    /*
+     * A FLOW'S BEAT BORN INSIDE ITS OWN WORKSPACE (the box, 2026-11-18 - a game of the owner's, generations 1 and 3:
+     * the Parliament opened from the wheel a moment before the political phase began; the plate had nothing to open and
+     * nowhere to show, and the wait graph's door acknowledged it seconds later - plate, surface, question, plate).
+     * Acknowledged at that edge, by construction.
+     */
+    it('a held flow beat whose workspace ALREADY STANDS on stage is served in place - its key is the edge the shell acknowledges', () => {
+      const onStage = (standing: string) => (workspace: string) => workspace === standing;
+      expect(flowBeatServedInPlace(sitting, onStage('parliament')), 'the player stands in the Parliament: nothing to open').to.eq(sitting.key);
+      expect(flowBeatServedInPlace(sitting, onStage('hand')), 'another workspace: the plate keeps its door').to.eq(undefined);
+      expect(flowBeatServedInPlace(sitting, () => false), 'the board (or a parked Parliament): the plate is how they return').to.eq(undefined);
+      expect(flowBeatServedInPlace(draft, onStage('draft'))).to.eq(draft.key);
+      // Once acknowledged it is no beat to serve: the edge does not fire again.
+      acknowledgeMandatoryBeat(sitting.key);
+      expect(flowBeatServedInPlace(sitting, onStage('parliament'))).to.eq(undefined);
+      // A TASK beat over a frame that stands keeps its plate - only a flow's beat is served in place.
+      expect(flowBeatServedInPlace({key: 'task:card|x', taskKind: 'handSelect'}, () => true)).to.eq(undefined);
+      expect(flowBeatServedInPlace(undefined, () => true)).to.eq(undefined);
     });
   });
 
