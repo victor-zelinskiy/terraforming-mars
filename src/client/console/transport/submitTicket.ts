@@ -7,8 +7,13 @@
  */
 import type {SubmitStatus} from '@/client/console/transport/submitMachine';
 
-/** How a submit ended — `rejected`: it was never taken (the funnel was busy). */
-export type SubmitSettle = {id: string, status: SubmitStatus | 'rejected'};
+/**
+ * How a submit ended — `rejected`: it was never taken (the funnel was busy). `why` — WHY THE SERVER REFUSED IT, when it
+ * did: the server's own error id (`#stale-prompt` — the question had moved on while the page still showed the old one;
+ * `#unanswerable-question`; …), `no-id` for a refusal the server did not name, `http-<status>` for an answer that was
+ * not a refusal at all. A line that says only «refused» cannot tell the designed recovery from a defect.
+ */
+export type SubmitSettle = {id: string, status: SubmitStatus | 'rejected', why?: string};
 
 /**
  * WHAT A PRESS GETS BACK. `accepted: false` — the funnel could not take it: nothing was sent, nothing will come, and

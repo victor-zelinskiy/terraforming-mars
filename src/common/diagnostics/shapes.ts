@@ -162,7 +162,13 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
   'workspace': [
     {name: 'beat-expired', re: /^«([^»]*)» stood in «([^»]*)» on stage past its bound/, tier: 'defect', parts: [1, 2]},
     {name: 'beat-handler-threw', re: /^the beat-expired handler threw/, tier: 'defect'},
-    {name: 'beat-rollback', re: /^«([^»]*)» goes back (\S+) → (\S+) — /, tier: 'defect', parts: [1, 2, 3]},
+    {
+      name: 'beat-rollback', re: /^«([^»]*)» goes back (\S+) → (\S+) — /, tier: 'defect', parts: [1, 2, 3],
+      // THE QUESTION HAD MOVED ON (`#stale-prompt` — another seat acted while this page still showed the old question:
+      // the server did not apply the answer, the page refetches and puts its frame back): the designed recovery,
+      // counted. Every other refusal of an answer the page offered is a defect upstream.
+      read: (_m, body) => (/\(refused: #stale-prompt\)$/.test(body) ? {tier: 'planned'} : {}),
+    },
   ],
   'ws-stack': [
     {name: 'verb-trace', re: / depth=/, tier: 'info', why: 'an opt-in trace of the stack\'s verbs (`window.__wsTrace`)'},

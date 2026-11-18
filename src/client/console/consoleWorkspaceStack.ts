@@ -2158,7 +2158,7 @@ function leaseBeat(runtime: FrameRuntime, ticket: SubmitTicket): void {
   runtime.flow.send({type: 'LEASED'});
   void ticket.settled.then((settle) => {
     if (submitDidNotLand(settle.status)) {
-      rollBackBeat(runtime, beat, `its answer did not land (${settle.status})`);
+      rollBackBeat(runtime, beat, `its answer did not land (${settle.status}${settle.why !== undefined ? `: ${settle.why}` : ''})`);
     }
   });
 }

@@ -1677,6 +1677,8 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
   });
   // THE FUNNEL REOPENS — once, on every way a submit ends: the scope's end is the old `.finally`, and it can no longer
   // be skipped by a chain that never comes back.
+  /** Why the server refused this submit (its error id) — read before the refusal is declared, carried by the settle. */
+  let refusedWhy: string | undefined;
   scope.defer(() => {
     if (liveSubmit.value === submit) {
       liveSubmit.value = undefined;
@@ -1684,7 +1686,8 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
     r.isServerSideRequestInProgress = false;
     transportState.requestInProgress = false;
     transportState.phase = 'idle';
-    const result: SubmitSettle = {id: scope.id, status: submitStatusOf(flow)};
+    const status = submitStatusOf(flow);
+    const result: SubmitSettle = {id: scope.id, status, ...(status === 'refused' && refusedWhy !== undefined ? {why: refusedWhy} : {})};
     settle(result);
     for (const listener of [...settleListeners]) {
       try {
@@ -1753,14 +1756,29 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
         return;
       }
 
+      // WHY THE SERVER REFUSED is read BEFORE the submit is declared refused — the settle carries it to whoever leased
+      // a beat to this press (`SubmitSettle.why`): «the question had moved on» is the designed recovery, an unnamed
+      // refusal is not, and a line that says only «refused» cannot tell them apart.
+      let refusal: AppErrorResponse | undefined;
+      if (response.status === statusCode.badRequest) {
+        try {
+          refusal = await response.json() as AppErrorResponse;
+        } catch {
+          refusal = {id: undefined, message: 'Unexpected response from server. Please try again.'};
+        }
+        if (scope.ended !== undefined) {
+          return;
+        }
+      }
+      refusedWhy = refusal === undefined ? `http-${response.status}` : refusal.id ?? 'no-id';
       flow.send({type: 'REFUSED'});
       // A rejected submit (bad request / unexpected) must RECALL every armed
       // console transaction immediately (else it hovers until the safety) —
       // the action did not happen. No-op when none armed.
       abortAllConsoleTransactions();
       const showAlert = r.showAlert.bind(r);
-      if (response.status === statusCode.badRequest) {
-        const resp = await response.json() as AppErrorResponse;
+      if (refusal !== undefined) {
+        const resp = refusal;
         let cb = () => {};
         if (resp.id === INVALID_RUN_ID) {
           // The page REPLACES itself — said out loud first (the e2e harness's `productReloadGuard` names a reload the

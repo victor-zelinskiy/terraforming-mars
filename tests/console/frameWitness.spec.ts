@@ -154,4 +154,18 @@ describe('frameWitness — a motion\'s bound is judged against the motion time t
     expect(causeOf(leaked, 'warn')).to.deep.include({cls: 'animation-hold/ceiling/parliament-vote-landing', tier: 'defect'});
     expect(causeOf(starved, 'warn')).to.deep.include({cls: 'animation-hold/ceiling/parliament-vote-landing', tier: 'planned'});
   });
+
+  /*
+   * WHO OWNS THE REFUSAL DECIDES THE TIER (stage 1 — CI's net 1500 ms pass, `parliament-climate-enact`): another seat
+   * acted, this page still showed the old question for a second and a half, its answer was refused and the frame put
+   * back. «The question had moved on» is the designed recovery; any other refusal of an answer the page offered is not.
+   */
+  it('a frame put back because THE QUESTION HAD MOVED ON is planned; put back by any other refusal it is the defect it was', () => {
+    const moved = '[workspace] «parliament» goes back executing → committed — its answer did not land (refused: #stale-prompt)';
+    const unnamed = '[workspace] «parliament» goes back executing → committed — its answer did not land (refused: no-id)';
+    const bare = '[workspace] «parliament» goes back executing → committed — its answer did not land (refused)';
+    expect(causeOf(moved, 'warn')).to.deep.include({cls: 'workspace/beat-rollback/parliament/executing/committed', tier: 'planned'});
+    expect(causeOf(unnamed, 'warn')).to.deep.include({cls: 'workspace/beat-rollback/parliament/executing/committed', tier: 'defect'});
+    expect(causeOf(bare, 'warn')).to.deep.include({tier: 'defect'});
+  });
 });

@@ -157,6 +157,18 @@ describe('the submit funnel', () => {
     expect(transportRequestInProgress()).to.eq(false);
   });
 
+  it('…and the settle says WHY the server refused — its own error id, `no-id` when it named none, the status when it was no refusal at all', async () => {
+    const stale = submitInput({type: 'option'});
+    fetches[fetches.length - 1].resolve({ok: false, status: 400, json: () => Promise.resolve({id: '#stale-prompt', message: 'The game moved on'})});
+    expect(await stale.settled, 'the question had moved on — the designed recovery, by name').to.deep.include({status: 'refused', why: '#stale-prompt'});
+    const unnamed = submitInput({type: 'option'});
+    fetches[fetches.length - 1].resolve({ok: false, status: 400, json: () => Promise.resolve({id: undefined, message: 'Not waiting for anything'})});
+    expect(await unnamed.settled).to.deep.include({status: 'refused', why: 'no-id'});
+    const broken = submitInput({type: 'option'});
+    fetches[fetches.length - 1].resolve({ok: false, status: 500, statusText: 'Internal Server Error', json: () => Promise.resolve({})});
+    expect(await broken.settled).to.deep.include({status: 'refused', why: 'http-500'});
+  });
+
   it('THE SERVER REFUSED TO ASK A QUESTION WITH NO ANSWER: said by a fixed i18n key — never the English line of the server — and the truth is re-fetched', async () => {
     const ticket = submitInput({type: 'option'});
     fetches[0].resolve({ok: false, status: 400, json: () => Promise.resolve({
