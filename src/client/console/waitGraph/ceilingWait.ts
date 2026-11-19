@@ -88,7 +88,10 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
       if (!open) {
         return;
       }
-      const planned = plannedNow ?? spec.planned ?? painted?.starved();
+      // (No parenthesis may stand INSIDE the reason: the line prints it as `(planned: …)` and its reader takes the
+      // first closing one for the end — a reason with a bracket of its own read as a DEFECT: two false finds of CI's
+      // `fz1` · `net1500`, 2026-11-19. Taken out here, so that no caller can write one.)
+      const planned = (plannedNow ?? spec.planned ?? painted?.starved())?.replace(/[()]/g, '');
       painted?.stop();
       open = false;
       node.end();

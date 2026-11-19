@@ -67,7 +67,7 @@ export function watchBoardCover(): BoardCoverWitness {
         };
       }
       const by = [...playerTerms].join(' + ') || last.join(' + ');
-      return {planned: `the viewer kept the board covered (${by})`, detail: `covered by ${last.join(' + ') || 'nothing'}`};
+      return {planned: `the viewer kept the board covered by ${by}`, detail: `covered by ${last.join(' + ') || 'nothing'}`};
     },
   };
 }

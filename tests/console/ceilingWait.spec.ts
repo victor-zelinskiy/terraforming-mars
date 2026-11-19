@@ -83,6 +83,12 @@ describe('ceilingWait — a ceiling is a node, and a ceiling hit is said', () =>
     const byNature = beginCeilingWait({id: 'remote-placement:watchable-board', owner: 'consoleRemotePlacement', what: 'a board', maxMs: 12_000, planned: 'the viewer keeps the board covered'});
     byNature.ceiling();
     expect(warns[2]).to.match(/\(planned: the viewer keeps the board covered\)$/);
+    // A REASON WITH A BRACKET OF ITS OWN still reads as planned: the line's reader takes the first closing parenthesis
+    // for the end, so none may stand inside (two false defects of CI's `fz1` · `net1500`, 2026-11-19).
+    const bracketed = beginCeilingWait({id: 'remote-placement:watchable-board', owner: 'consoleRemotePlacement', what: 'a board', maxMs: 12_000});
+    bracketed.ceiling('the viewer kept the board covered (workspace) — the tile is revealed without its flight');
+    expect(warns[3]).to.match(/\(planned: the viewer kept the board covered workspace — the tile is revealed without its flight\)$/);
+    expect(causeOf(warns[3], 'warn')).to.deep.include({tier: 'planned'});
   });
 
   it('an abandoned wait ends silently and counts nothing', () => {

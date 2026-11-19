@@ -13,7 +13,7 @@ describe('boardCoverWitness — whose time a covered board was', () => {
       witness.look(['workspace'], t);
     }
     const verdict = witness.verdict(20_000);
-    expect(verdict.planned).to.eq('the viewer kept the board covered (workspace)');
+    expect(verdict.planned).to.eq('the viewer kept the board covered by workspace');
   });
 
   it('a wave that never ends kept another seat\'s tile off the board — a defect that names it', () => {
@@ -31,7 +31,7 @@ describe('boardCoverWitness — whose time a covered board was', () => {
     for (let t = 0; t <= 20_000; t += 140) {
       witness.look(['workspace', 'transfer', 'hand-delivery'], t);
     }
-    expect(witness.verdict(20_000).planned).to.eq('the viewer kept the board covered (workspace)');
+    expect(witness.verdict(20_000).planned).to.eq('the viewer kept the board covered by workspace');
   });
 
   it('the viewer\'s own story first, then their workspace to the ceiling — their time', () => {
@@ -45,7 +45,7 @@ describe('boardCoverWitness — whose time a covered board was', () => {
     for (; t <= 20_000; t += 140) {
       witness.look(['reveal'], t);
     }
-    expect(witness.verdict(t).planned).to.eq('the viewer kept the board covered (reveal)');
+    expect(witness.verdict(t).planned).to.eq('the viewer kept the board covered by reveal');
   });
 
   it('the viewer left, and the game\'s own scenes alone held the board past the tail — a defect; a hand-off of a moment is not', () => {
@@ -69,6 +69,6 @@ describe('boardCoverWitness — whose time a covered board was', () => {
     for (; t <= 20_000; t += 140) {
       handoff.look(['transfer'], t);
     }
-    expect(handoff.verdict(t).planned, 'a second of the game\'s own after nineteen of the viewer\'s').to.eq('the viewer kept the board covered (workspace)');
+    expect(handoff.verdict(t).planned, 'a second of the game\'s own after nineteen of the viewer\'s').to.eq('the viewer kept the board covered by workspace');
   });
 });
