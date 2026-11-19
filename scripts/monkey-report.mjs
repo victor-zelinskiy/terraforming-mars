@@ -231,6 +231,13 @@ export function renderOwner(owner) {
   L.push(`── THE ONE FUNCTION AGAINST THE SCREEN (stage 2) — ${owner.walks} walk(s), ${owner.looks} look(s), ${judged} judged ──`);
   L.push(`agrees ${v.agree ?? 0} (${pct(v.agree)}) · held as said ${v.held ?? 0} (${pct(v.held)}) · MISS ${v.MISS ?? 0} (${pct(v.MISS)}) · EXTRA ${v.EXTRA ?? 0} (${pct(v.EXTRA)})` +
     ((v.unsettled ?? 0) > 0 ? ` · unsettled ${v.unsettled} (the first look of a disagreement — not judged)` : ''));
+  // THE PAD's half (stage 2 ②): which rung of the ladder took each press, against the function's owner.
+  const presses = (v['pad-agree'] ?? 0) + (v['pad-held'] ?? 0) + (v['pad-MISS'] ?? 0) + (v['pad-free'] ?? 0) + (v['pad-look'] ?? 0) + (v['pad-beat'] ?? 0);
+  if (presses > 0) {
+    const asked = presses - (v['pad-free'] ?? 0);
+    const share = (n) => (asked === 0 ? '—' : `${Math.round((n ?? 0) / asked * 1000) / 10} %`);
+    L.push(`THE PAD — ${presses} press(es), ${asked} under a question: the owner's rung ${v['pad-agree'] ?? 0} (${share(v['pad-agree'])}) · under a hold ${v['pad-held'] ?? 0} (${share(v['pad-held'])}) · the player's own look ${v['pad-look'] ?? 0} (${share(v['pad-look'])}) · a beat ${v['pad-beat'] ?? 0} (${share(v['pad-beat'])}) · ANOTHER RUNG ${v['pad-MISS'] ?? 0} (${share(v['pad-MISS'])})`);
+  }
   for (const d of owner.disagreements.slice(0, 40)) {
     L.push(`${String(d.walks).padStart(5)} walk(s)  ${d.what}   [${d.tables.join(', ')}]`);
     if (d.facts) {

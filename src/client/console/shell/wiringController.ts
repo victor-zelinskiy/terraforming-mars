@@ -52,8 +52,9 @@ import {currentRevealEvent, drawnCardsState, registerRevealQueuePark, revealPres
 import {generationSceneState, registerGenerationSceneHandoff} from '@/client/console/generationScene/generationScene';
 import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
-import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenShadowLog} from '@/client/console/screenDirector';
-import {servingOwnerLog} from '@/client/console/servingOwnerMeasure';
+import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
+import {registerOwnerNowProbe, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
+import {QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
 import {isHydroMarkerActive, hydroRewardHoldOwed, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
@@ -623,6 +624,24 @@ export function createWiringController(shell: WiringPort) {
   }
 
   /** THE SHELL IS MOUNTED — its wiring: the probes, suppliers, hooks and leases other modules read while it stands. */
+  /** THE PLAYER'S OWN WORKSPACE OVER A LIVE PLACEMENT — reversible (`browse`), so B is one press back to the cells. */
+  function lateralLook(): string {
+    return shell.placementActive && consoleState.section !== 'board' && workspaceStackTop()?.phase === 'browse' ?
+      workspaceStackTop()?.kind ?? '' : '';
+  }
+
+  /**
+   * The facts of the question as the ONE function reads them — assembled once, for the look's measure and the pad's.
+   * (Its `lateral` is wider than the shadow's: a SHEET the player opened over a live placement — the awards, read
+   * before choosing a cell — takes the pad exactly as a section does; the pad's first measure named it.)
+   */
+  function ownerFacts(): Omit<QuestionFacts, 'task'> {
+    const top = workspaceStackTop();
+    const lateral = shell.placementActive && top !== undefined && top.phase === 'browse' && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ?
+      top.kind : '';
+    return {...shell.questionFacts(), startFlow: shell.startSceneMounted, lateral};
+  }
+
   function shellMounted(): void {
     // THE CURSOR ARRIVES (TR58): a step or a press during an arrival releases it — input never waits for a ring.
     installCursorArrivalInput();
@@ -699,14 +718,9 @@ export function createWiringController(shell: WiringPort) {
         // (The same two facts the wait graph's question node reads — one table: a question the claim holds waits on the claim.)
         claimHeld: shell.taskHeldForWorkspace && workspaceOutcomeClaimed(),
         // THE PLAYER'S OWN WORKSPACE OVER A LIVE PLACEMENT — reversible (`browse`), so B is one press back to the cells.
-        lateral: shell.placementActive && consoleState.section !== 'board' && workspaceStackTop()?.phase === 'browse' ?
-          workspaceStackTop()?.kind ?? '' : '',
+        lateral: lateralLook(),
         // (The facts of the question for the ONE function's measure — stage 2; read by nothing else yet.)
-        facts: {
-          ...shell.questionFacts(), startFlow: shell.startSceneMounted,
-          lateral: shell.placementActive && consoleState.section !== 'board' && workspaceStackTop()?.phase === 'browse' ?
-            workspaceStackTop()?.kind ?? '' : '',
-        },
+        facts: ownerFacts(),
       };
     });
     // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.
@@ -717,6 +731,12 @@ export function createWiringController(shell: WiringPort) {
     })) as unknown;
     // THE ONE FUNCTION's measure (stage 2): how often `servingOwnerOf` agrees with what paints — stats only.
     (window as unknown as {__conServingOwner?: () => unknown}).__conServingOwner = () => JSON.parse(JSON.stringify(servingOwnerLog)) as unknown;
+    // …and the PAD's half of the same measure asks the function on the same facts, before each press (stage 2 ②).
+    registerOwnerNowProbe(() => {
+      const task = taskFor(shell.playerView);
+      const facts = {task, ...ownerFacts()};
+      return {shape: task === undefined ? 'none' : screenPromptShape(task), ownership: servingOwnerOf(facts), facts: () => questionFactsDigest(facts)};
+    });
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
       stats: JSON.parse(JSON.stringify(screenShadowLog.stats)) as unknown,
@@ -1167,6 +1187,7 @@ export function createWiringController(shell: WiringPort) {
     registerReadinessDecisionDiag(undefined);
     delete (window as unknown as {__conScreenShadow?: unknown}).__conScreenShadow;
     delete (window as unknown as {__conServingOwner?: unknown}).__conServingOwner;
+    registerOwnerNowProbe(undefined);
     delete (window as unknown as {__conWaitGraph?: unknown}).__conWaitGraph;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);

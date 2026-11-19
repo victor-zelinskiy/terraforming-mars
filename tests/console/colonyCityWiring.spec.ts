@@ -83,7 +83,7 @@ describe('a city on a colony tile — the wiring', () => {
       expect(commands).to.match(/if \(this\.colonyActAnswered\) \{\s*return \[\{control: 'confirm', label: 'Performing…', enabled: false\}\];/);
       expect(commands).to.match(/if \(consoleColoniesUi\.receipt\) \{\s*return \[\{control: 'confirm', label: 'Completed', enabled: false\}\];/);
       // The INPUT stays the scene's.
-      expect(shell).to.match(/if \(isColonyCityInputLocked\(\)\) \{\s*if \(intent\.kind === 'press' && action === 'primary'\) \{\s*hurryColonyCity\(\);\s*\}\s*return true;\s*\}/);
+      expect(shell).to.match(/if \(isColonyCityInputLocked\(\)\) \{\s*(?:notePadRung\('cinematic'\);\s*)?if \(intent\.kind === 'press' && action === 'primary'\) \{\s*hurryColonyCity\(\);\s*\}\s*return true;\s*\}/);
     });
   });
 

@@ -140,6 +140,7 @@ import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {StartController} from '@/client/console/shell/startController';
 import type {OutcomeController} from '@/client/console/shell/outcomeController';
 import {noteUnreceivedPress} from '@/client/console/inputEcho';
+import {measurePadPress, notePadRung} from '@/client/console/servingOwnerMeasure';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 
 /** PC04 · GS — the ledger's name of the series' visit standing between two questions (`seriesHeld`). */
@@ -361,7 +362,15 @@ export function createPadRouterController(shell: PadRouterPort) {
   }
 
   // ── input ────────────────────────────────────────────────────────────
+  /**
+   * THE PAD'S DOOR. A press is MEASURED on its way through the ladder (stage 2 ② — `servingOwnerMeasure.measurePadPress`:
+   * which rung took it, against who the ONE function says serves; stats only). Everything else goes straight in.
+   */
   function handleIntent(intent: GamepadIntent): boolean {
+    return intent.kind === 'press' ? measurePadPress(() => routeIntent(intent)) : routeIntent(intent);
+  }
+
+  function routeIntent(intent: GamepadIntent): boolean {
     // Foundation: presses resolve to SEMANTIC actions (consoleActionOf) —
     // the shell compares `action`, never raw button names (undefined for
     // nav/scroll/release and the screen-specific STICKS, which stay raw).
@@ -397,6 +406,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // dismisses it (running its callback + advancing the queue); every
     // other intent is swallowed so nothing acts under it.
     if (isConsoleAlertActive()) {
+      notePadRung('alert');
       if (intent.kind === 'press' && (action === 'primary' || action === 'back')) {
         dismissConsoleAlert();
       }
@@ -410,9 +420,11 @@ export function createPadRouterController(shell: PadRouterPort) {
     // playerView watcher), so the pad can never stick. Sits BELOW the
     // system alert (a rejected input stays acknowledgeable above).
     if (shell.stagedBackOwedNow(intent, action)) {
+      notePadRung('stagedBack');
       return true;
     }
     if (isSurfaceAwaitingHandoff()) {
+      notePadRung('handoff');
       return true;
     }
     // TRADE-FLEET LAUNCH / HYDRO MARKER / BOARD CARD-BONUS / PATENT SALE /
@@ -424,6 +436,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // gate (nothing visual yet — mirrors the played hero's armed policy),
     // and the pick itself can't double-fire (the arm claims the moment).
     if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding() || nomadMoveHolding()) {
+      notePadRung('cinematic');
       return true;
     }
     // TRADE REWARDS: the chip waves / card covers / marker glide own the
@@ -431,12 +444,14 @@ export function createPadRouterController(shell: PadRouterPort) {
     // and for a mandatory prompt between two colony-bonus draws (Pluto's
     // draw→discard pairing), so the transaction can never wedge the pad.
     if (isColonyTradeInputLocked()) {
+      notePadRung('cinematic');
       return true;
     }
     // THE COLONY ROSTER CEREMONY (a tile replaced / added / removed): the planet is leaving or docking — the pad
     // is the ceremony's. A does not act: it PRESSES THE BEAT THROUGH (final poses at once), never a second
     // submit and never a skipped state. Bounded by the ceremony's own named hold.
     if (isColonyRosterInputLocked()) {
+      notePadRung('cinematic');
       if (intent.kind === 'press' && action === 'primary') {
         hurryColonyRoster();
       }
@@ -445,6 +460,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // A CITY LANDING ON A COLONY TILE (TR22): the piece is in the air, or the stage is folding home — the pad is
     // the scene's. A PRESSES IT THROUGH (final poses at once): never a second submit, never a skipped state.
     if (isColonyCityInputLocked()) {
+      notePadRung('cinematic');
       if (intent.kind === 'press' && action === 'primary') {
         hurryColonyCity();
       }
@@ -454,6 +470,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // after the camera has come in SKIPS it (one atomic finish: the scales let go, the title leaves, the
     // return plays once); every other intent is absorbed. Bounded by the scene's own named hold.
     if (terraformedSceneUp()) {
+      notePadRung('cinematic');
       if (intent.kind === 'press') {
         skipTerraformedScene();
       }
@@ -463,6 +480,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // scene the player only watches. The reveal it hands off to takes the
     // pad back the moment its cards are released.
     if (isDeckDrawActive()) {
+      notePadRung('cinematic');
       return true;
     }
     // PLAYED-CARD HERO owns the moment. While the submit is in flight
@@ -472,6 +490,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // first visual beat on, input is inert — except during the result
     // beat, where any press ACCELERATES the close (never a cancel).
     if (isPlayedHeroActive()) {
+      notePadRung('cinematic');
       if (playedHeroState.phase === 'armed') {
         if (action === 'back') {
           return true;
@@ -490,10 +509,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // inspects the played card, L3 shows the placed tile on the board, the
     // right stick scrolls; during a peek any press returns to the review.
     if (botTurnReviewState.open) {
+      notePadRung('botReview');
       // The fullscreen viewer opened via X owns the pad while it is up. It now
       // hosts BONUS cards too (the union CardZoomModal), so there is no
       // separate bonus-inspect surface to close first.
       if (consoleCardZoom.card !== undefined) {
+        notePadRung('zoom');
         return shell.handleZoomIntent(intent);
       }
       if (botTurnReviewState.peek) {
@@ -527,6 +548,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // while the board scale animates — swallow input so nothing fires under
     // the (about-to-open) next modal.
     if (govScaleFocusState.holding || govScaleFocusState.closing) {
+      notePadRung('govScaleFocus');
       return true;
     }
     // P15: OUR fullscreen card viewer owns the pad completely while open
@@ -536,12 +558,14 @@ export function createPadRouterController(shell: PadRouterPort) {
     // context don't exist). Other (fallback-owned) dialogs never set
     // consoleCardZoom, so they still route to the DOM engine below.
     if (consoleCardZoom.card !== undefined) {
+      notePadRung('zoom');
       return shell.handleZoomIntent(intent);
     }
     // THE FINALE ON THE BOARD (PL-296): while the finale's own board pick is out, RT is the FINISH — a HOLD (the
     // shared hold-to-confirm, «Пас»'s gesture), never the actions wheel (nothing else can be done at the end of the
     // game). Only at the cell-choice level: a LOCKED cell is a placement in progress — B steps back first.
     if (shell.finalGreeneryPickPending && shell.placementActive && intent.kind === 'press' && intent.button === 'triggerR') {
+      notePadRung('finalGreenery');
       if (placementFlowState.phase === 'navigate') {
         shell.beginFinalGreeneryFinish();
       }
@@ -554,6 +578,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // watching). Navigation / other presses pass through so the player can
     // keep inspecting the board. Takes A ahead of a transient toast.
     if (shell.mandatoryAnnounceVisible && intent.kind === 'press' && action === 'primary') {
+      notePadRung('announce');
       if (shell.mandatoryGateHeld) {
         shell.openMandatoryAnnounce();
       } else {
@@ -575,6 +600,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     //    (acknowledgeFlowHoldingCards in fetchPlayerInput).
     const topCard = topNotification.value;
     if (topCard !== undefined && consoleCardZoom.card === undefined) {
+      notePadRung('toast');
       // A visible toast OVERRIDES B everywhere — the press closes the card
       // and is consumed; only the NEXT B (no toast) is the screen's own
       // back/minimize. The other assignment shipped and was wrong within a
@@ -654,6 +680,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     consoleState.fallbackActive = fallback;
     consoleState.fallbackScopeId = scope?.def.id ?? '';
     if (fallback) {
+      notePadRung('toast');
       return false;
     }
     if (intent.kind === 'release' || intent.kind === 'navEnd' ||
@@ -672,6 +699,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       // the intent bus directly (`observeConsoleIntents`), above every
       // consuming branch including this one.
       if (consoleState.quick !== undefined) {
+        notePadRung('quick');
         shell.handleQuickIntent(intent);
       }
       return true;
@@ -709,12 +737,14 @@ export function createPadRouterController(shell: PadRouterPort) {
     // (`actionBlockedReason`). B at the board-home root brings the results
     // back (`handleSectionBack`).
     if (shell.endgameStageUp) {
+      notePadRung('endgame');
       // …except a LIVE drawn-cards reveal: a reload into an ended game can
       // still owe undelivered draws, and that overlay stands OVER the
       // settled result (its branch normally sits below this one, which
       // would strand the take press). The cards must be takeable — no
       // silent loss, even at the finish line.
       if (shell.consoleRevealMode !== undefined) {
+        notePadRung('reveal');
         const overlay = shell.surfaces.at<ExposedOf<typeof ConsoleRevealOverlay>>('revealOverlay');
         handedTo(overlay, 'revealOverlay', intent);
         return true;
@@ -724,6 +754,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     }
     // Information Mode owns everything while open (read-only).
     if (infoModeState.open) {
+      notePadRung('info');
       handleInfoIntent(intent);
       return true;
     }
@@ -736,10 +767,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // A READ-ONLY colony dossier opened from the journal (X on a colony row)
     // owns the pad ABOVE the journal — B/X closes it back to the journal.
     if (shell.journalColonyInspect !== undefined) {
+      notePadRung('journal');
       shell.handleColonyInspectIntent(intent);
       return true;
     }
     if (shell.journalPanelVisible) {
+      notePadRung('journal');
       const journalLocalBack = consoleJournalUi.filterOpen || consoleJournalUi.inspectOpen || consoleJournalUi.peekActive;
       if (action === 'reset' || (action === 'back' && !journalLocalBack)) {
         shell.closeJournal();
@@ -762,6 +795,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // (before the «Разыграно» browse below — a stale browse yields to it
     // via the hard-block watcher). Y keeps the global Info Mode meaning.
     if (shell.corpFirstActionOpen) {
+      notePadRung('corpFirst');
       if (action === 'fullscreen') {
         shell.toggleInfoMode();
         return true;
@@ -776,6 +810,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // the global Info Mode meaning. A mandatory surface closes it via the
     // journalHardBlocked watcher — same yield rule as the journal.
     if (shell.playedTableVisible) {
+      notePadRung('played');
       if (action === 'fullscreen') {
         shell.toggleInfoMode();
         return true;
@@ -790,6 +825,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // confirm dialogs keep the pad focused on the decision itself.
     if (action === 'fullscreen' &&
         consoleState.confirm === undefined && !consoleCardActionsUi.confirmOpen) {
+      notePadRung('info');
       shell.toggleInfoMode();
       return true;
     }
@@ -797,6 +833,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // already unmounted under it (the response was draftWait) — swallow
     // everything, a press skips to the final state. Bounded (<1s).
     if (draftPickBeatActive()) {
+      notePadRung('cinematic');
       if (intent.kind === 'press') {
         skipDraftPickBeat();
       }
@@ -809,12 +846,14 @@ export function createPadRouterController(shell: PadRouterPort) {
     // the next prompt over the carry, or deferring the surface the packet is
     // still standing on.
     if (shell.cardDiscardHolds) {
+      notePadRung('cinematic');
       return true;
     }
     // Draft re-pick WAITING: the pad is otherwise idle (the board stays
     // inspectable, Info Mode is handled above). X opens the read-only
     // drafted-cards viewer; every other button falls through to the board.
     if (shell.draftWaitActive && shell.draftTrayMounted && action === 'inspect' && shell.draftedCards.length > 0) {
+      notePadRung('draftTray');
       // The pre-game POPOVER path only (the workspace's wait offers the LT
       // sub-stage instead). Opened from the count chip → TEXTUAL. The
       // viewer's OWN mid-draft cards are still being evaluated for later
@@ -826,6 +865,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // CTS T6: a reveal overlay owns input while visible (drawn cards
     // must be taken; the result / viewer close on any confirm).
     if (shell.consoleRevealMode !== undefined) {
+      notePadRung('reveal');
       const overlay = shell.surfaces.at<ExposedOf<typeof ConsoleRevealOverlay>>('revealOverlay');
       handedTo(overlay, 'revealOverlay', intent);
       return true;
@@ -854,6 +894,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // deliberately swallows everything, so a committed move can never be
     // re-submitted by a stray press.
     if (shell.deckPickServing) {
+      notePadRung('deckPick');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleDeckPick>>('deckPick'), 'deckPick', intent);
       return true;
     }
@@ -861,6 +902,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // `hostTask === undefined` inside the predicate yields it to the
     // embedded payment / the Underworld research choice (host-served).
     if (shell.draftWorkspaceOwnsPad) {
+      notePadRung('draft');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleDraftWorkspace>>('draftWs'), 'draftWs', intent);
       return true;
     }
@@ -869,10 +911,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // NOTHING below it may see a press. Its own phases absorb input during
     // the deal and the take flights.
     if (shell.externalDrawOwnsPad) {
+      notePadRung('externalDraw');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleExternalDrawWorkspace>>('extDrawWs'), 'extDrawWs', intent);
       return true;
     }
     if (shell.startSceneOwnsPad) {
+      notePadRung('start');
       const scene = shell.surfaces.at<ExposedOf<typeof ConsoleStartScene>>('startScene');
       handedTo(scene, 'startScene', intent);
       return true;
@@ -885,11 +929,13 @@ export function createPadRouterController(shell: PadRouterPort) {
     // by the rhythm of the decision before it; navigation, B, Y and the
     // stick presses always pass, and the absorbed press pulses the tone tag.
     if (promptSettleAbsorbs(intent)) {
+      notePadRung('settle');
       return true;
     }
     // Government Support (WGT) — the dedicated briefing panel owns input
     // while it serves (before the generic host branch below).
     if (shell.govSupportActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
+      notePadRung('govSupport');
       const panel = shell.surfaces.at<ExposedOf<typeof ConsoleGovernmentSupport>>('govSupport');
       handedTo(panel, 'govSupport', intent);
       return true;
@@ -897,24 +943,29 @@ export function createPadRouterController(shell: PadRouterPort) {
     // Production loss (Ares hazard) — the dedicated surface owns input while
     // it serves (before the generic host branch below).
     if (shell.productionLossActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
+      notePadRung('prodLoss');
       const panel = shell.surfaces.at<ExposedOf<typeof ConsoleProductionLoss>>('prodLoss');
       handedTo(panel, 'prodLoss', intent);
       return true;
     }
     // The three dedicated COMPOSITE surfaces own the pad on the same terms.
     if (shell.spendHeatActive) {
+      notePadRung('spendHeat');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleSpendHeat>>('spendHeat'), 'spendHeat', intent);
       return true;
     }
     if (shell.venusBonusActive) {
+      notePadRung('venusBonus');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleVenusBonus>>('venusBonus'), 'venusBonus', intent);
       return true;
     }
     if (shell.aresGlobalsActive) {
+      notePadRung('ares');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleAresGlobals>>('aresGlobals'), 'aresGlobals', intent);
       return true;
     }
     if (shell.botAttackActive) {
+      notePadRung('botAttack');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleBotAttack>>('botAttack'), 'botAttack', intent);
       return true;
     }
@@ -922,12 +973,14 @@ export function createPadRouterController(shell: PadRouterPort) {
     // (same contract, same gate — kept next to it so the two can never both
     // claim the pad).
     if (shell.effectDecisionActive) {
+      notePadRung('effectDecision');
       const panel = shell.surfaces.at<ExposedOf<typeof ConsoleEffectDecision>>('effectDecision');
       handedTo(panel, 'effectDecision', intent);
       return true;
     }
     // THE FINALE between «open» and the board pick (one flush): A hands the pick over now, B minimizes, RT holds.
     if (shell.finalGreeneryActive) {
+      notePadRung('finalGreenery');
       if (intent.kind === 'press') {
         const act = consoleActionOf(intent);
         if (act === 'back') {
@@ -944,6 +997,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // RT names why the finish waits (nothing of ours to answer), A has nothing to open yet; everything else (the
     // hand, the quick wheel, the sticks, the log) passes through — the player may look around inside the context.
     if (shell.finaleSessionEngaged && !shell.placementActive && intent.kind === 'press') {
+      notePadRung('finale');
       const act = consoleActionOf(intent);
       if (act === 'back') {
         shell.deferFinalGreenery();
@@ -966,6 +1020,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // (ONE condition since stage 2 ②: this rung, the two command-bar branches and the template's `v-if` read
     // `routerController.taskHostOwnsInput` — nothing is left to keep in lock-step by hand.)
     if (shell.taskHostOwnsInput) {
+      notePadRung('taskHost');
       const host = shell.surfaces.at<ExposedOf<typeof ConsoleTaskHost>>('taskHost');
       // (The rung's terms are fewer than the host's own `v-if`: when the host is held, it is held BY NAME.)
       handedTo(host, 'taskHost', intent, shell.taskHostHeldBy);
@@ -974,6 +1029,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // …and while it stands between two questions of ONE series (PC04 · GS), the answered question is a picture: every
     // press is absorbed on the ledger until the next one arrives in place.
     if (shell.seriesHeld !== undefined) {
+      notePadRung('seriesHeld');
       noteInputAbsorbed(SERIES_VISIT_ABSORBER);
       return true;
     }
@@ -1005,6 +1061,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // surface owns the pad while it is out — the hidden source composers
     // (v-show) must not swallow input. Routed BEFORE every composer branch.
     if (shell.repeatPickActive) {
+      notePadRung('repeatPick');
       const panel = shell.surfaces.at<ExposedOf<typeof ConsoleCardActions>>('repeatPick');
       handedTo(panel, 'repeatPick', intent);
       return true;
@@ -1013,6 +1070,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // pad while the pick is out — the hidden composers (v-show) must not
     // swallow input. Routed BEFORE the composer branches below.
     if (shell.handPickActive) {
+      notePadRung('handPick');
       return handleSectionIntent(intent);
     }
     // THE DESCENT OWNS THE PAD WHILE IT MOVES. Between the press and the
@@ -1021,10 +1079,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // cannot see. On the way back the same gate stops a second A from
     // re-descending into a card that is still flying home to its slot.
     if (handStageTransitioning()) {
+      notePadRung('cinematic');
       return true;
     }
     // T8: the native play-card confirm owns input while open.
     if (shell.pendingPlayCard !== undefined) {
+      notePadRung('pendingPlay');
       const confirm = shell.surfaces.at<ExposedOf<typeof ConsolePlayCardConfirm>>('playConfirm');
       handedTo(confirm, 'playConfirm', intent);
       return true;
@@ -1032,6 +1092,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // T8: the COLONY FOCUS STAGE owns input while open (the section routes
     // the pad into the stage's own composer rows) — standalone AND embedded.
     if (shell.colonyFocusOpen) {
+      notePadRung('colonyFocus');
       // L3 = the source card, on the stage exactly as on the overview (the
       // viewer opens OVER it — selection and focus survive underneath).
       if (intent.kind === 'press' && intent.button === 'stickL' && shell.contextualSourceKnown) {
@@ -1049,6 +1110,7 @@ export function createPadRouterController(shell: PadRouterPort) {
        and B's verb comes from the frame's own phase. Forty lines of
        second-copy deleted, including the one that held the soft-lock.) */
     if (consoleState.confirm !== undefined) {
+      notePadRung('confirm');
       // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 on the plate opens it (PL-394) — both resolved BEFORE
       // the semantic map, the stages' order (no default R3).
       const confirm = shell.surfaces.at<ExposedOf<typeof ConsoleActionConfirm>>('actionConfirm');
@@ -1068,6 +1130,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       return true;
     }
     if (consoleState.quick !== undefined) {
+      notePadRung('quick');
       shell.handleQuickIntent(intent);
       return true;
     }
@@ -1078,14 +1141,17 @@ export function createPadRouterController(shell: PadRouterPort) {
     // demonstrably driving the colony grid on top of it. Depth breaks the
     // tie, the same rule presence already uses.
     if (consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
+      notePadRung('sheet:cardActions');
       const panel = shell.surfaces.at<ExposedOf<typeof ConsoleCardActions>>('cardActions');
       handedTo(panel, 'cardActions', intent);
       return true;
     }
     if (consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
+      notePadRung(`sheet:${consoleState.sheet}`);
       handleSheetIntent(intent);
       return true;
     }
+    notePadRung(`section:${consoleState.section}`);
     return handleSectionIntent(intent);
   }
 

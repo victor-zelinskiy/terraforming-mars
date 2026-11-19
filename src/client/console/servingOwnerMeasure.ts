@@ -44,12 +44,19 @@ export const servingOwnerLog: ServingOwnerLog = {looks: 0, rows: {}, disagreemen
 
 /** The disagreement the last look read (its picture) — a second look of the same picture in a row is SETTLED. */
 let unsettledPicture = '';
+/** The rung of the pad's ladder that took the press in flight (`notePadRung` — the pad's measure, below). */
+let padRung = '';
+/** WHO SERVES RIGHT NOW, as the function reads the shell's facts — supplied by the shell's wiring while it stands. */
+type OwnerNow = {shape: string, ownership: Ownership, facts: () => string};
+let ownerNowProbe: (() => OwnerNow) | undefined;
 
 export function resetServingOwnerLog(): void {
   servingOwnerLog.looks = 0;
   servingOwnerLog.rows = {};
   servingOwnerLog.disagreements = [];
   unsettledPicture = '';
+  padRung = '';
+  ownerNowProbe = undefined;
 }
 
 // (Evidence of ONE game screen: a new session starts its own count — the harvest reads it before the screen leaves.)
@@ -102,6 +109,138 @@ export function noteServingOwnerLook(shape: string, ownership: Ownership, presen
   };
   const key = JSON.stringify([entry.shape, entry.verdict, entry.owner, entry.host, entry.present]);
   if (servingOwnerLog.disagreements.some((d) => JSON.stringify([d.shape, d.verdict, d.owner, d.host, d.present]) === key)) {
+    return;
+  }
+  servingOwnerLog.disagreements.push(entry);
+  if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
+    servingOwnerLog.disagreements.shift();
+  }
+}
+
+/*
+ * ── THE PAD AGAINST THE FUNCTION (stage 2, step ② — measured before it is wired) ───────────────────────────────────
+ *
+ * The pad's ladder (`padRouterController.handleIntent` — thirty-odd ordered rungs) decides by itself whose press it
+ * is; the function says who SERVES the question. Before the ladder's prompt rungs read the function, every press
+ * says which rung took it, and that is compared with the function's owner on the facts as they stood BEFORE the
+ * press:
+ *   · `pad-agree`           — the function says X serves, and X's rung took the press;
+ *   · `pad-held:<kind>`     — the function names a hold (whoever took the press — not judged: a hold has its own rung
+ *                              or absorbs);
+ *   · `pad-MISS:<rung>`     — the function says X serves and ANOTHER rung took the press: a fact the ladder knows
+ *                              and the function does not (the player's own look, a scene) — or the ladder's own drift;
+ *   · `pad-look:<rung>`     — a view the PLAYER opened over the question took it (the inspection, a zoom, the wheel);
+ *   · `pad-beat:<rung>`     — a beat of the game absorbed it (a cinematic, the settle of a decision just shown);
+ *   · `pad-free`            — nothing is asked.
+ * Counted under the shape `pad:<question's shape>` in the same log (the walks carry it as they carry the looks); a
+ * disagreement is kept once per its picture, with the facts. STATS ONLY — nothing is said, nothing is routed by it.
+ */
+/** A rung of the pad's ladder took the press (named by the rung itself; the last word wins — the ladder returns there). */
+export function notePadRung(rung: string): void {
+  padRung = rung;
+}
+
+/** A press enters the ladder. */
+export function beginPadPress(): void {
+  padRung = '';
+}
+
+/** The owner's own rungs beyond the generic `section:<kind>` / `sheet:<kind>`. */
+const RUNGS_OF_OWNER: Readonly<Record<string, ReadonlyArray<string>>> = {
+  'task': ['taskHost'],
+  'decision': ['effectDecision'],
+  'deck-pick': ['deckPick'],
+  'gov-support': ['govSupport'],
+  'prod-loss': ['prodLoss'],
+  'lanes': ['spendHeat', 'venusBonus'],
+  'ares': ['ares'],
+  'bot-attack': ['botAttack'],
+  'corp-first': ['corpFirst'],
+  'draft': ['draft'],
+  'start': ['start'],
+  'external-draw': ['externalDraw'],
+  'endgame': ['endgame'],
+  'repeat-pick': ['repeatPick'],
+};
+
+/** A view the PLAYER opened over the question — B is one press back to it. */
+const LOOK_RUNGS: ReadonlySet<string> = new Set(['info', 'zoom', 'quick', 'journal', 'played', 'botReview', 'confirm', 'colonyFocus', 'toast', 'draftTray']);
+/** A beat of the game that owns the moment and absorbs the press (bounded by its own hold). */
+const BEAT_RUNGS: ReadonlySet<string> = new Set(['alert', 'handoff', 'cinematic', 'settle', 'stagedBack', 'reveal', 'govScaleFocus', 'announce']);
+
+function rungsOf(owner: string): ReadonlyArray<string> {
+  const camel = owner.replace(/-([a-z])/g, (_m, c: string) => c.toUpperCase());
+  return [...(RUNGS_OF_OWNER[owner] ?? []), `section:${owner}`, `sheet:${camel}`];
+}
+
+/** PURE: how the rung that took a press reads against the function's answer. */
+export function padRungVerdict(ownership: Ownership, rung: string): OwnerLookVerdict {
+  if (!ownership.asked) {
+    return 'pad-free';
+  }
+  if (ownership.hold !== undefined) {
+    return `pad-held:${ownership.hold.kind}`;
+  }
+  // (A step in a flow's zone is reached through its own rung — or through its host's, which hands it the press.)
+  const own = [...rungsOf(ownership.owner), ...(ownership.host !== undefined ? rungsOf(ownership.host) : [])];
+  if (own.includes(rung)) {
+    return 'pad-agree';
+  }
+  // THE LADDER'S UPPER HALF IS NOT THE QUESTION's: a view the player opened over it (the inspection, a card's zoom,
+  // the wheel, the journal) and a beat that absorbs every press (a cinematic, the settle of a decision just shown)
+  // take the pad ABOVE whoever serves — by design, and the function has no word for either. Counted apart: what is
+  // left under `pad-MISS` is a press the owner should have had.
+  if (LOOK_RUNGS.has(rung)) {
+    return `pad-look:${rung}`;
+  }
+  if (BEAT_RUNGS.has(rung)) {
+    return `pad-beat:${rung}`;
+  }
+  return `pad-MISS:${rung === '' ? 'unnamed' : rung}`;
+}
+
+export function registerOwnerNowProbe(probe: (() => OwnerNow) | undefined): void {
+  ownerNowProbe = probe;
+}
+
+/**
+ * ONE PRESS THROUGH THE PAD'S LADDER, MEASURED: the function is asked on the facts as they stand BEFORE the press
+ * (the press may answer the question), the ladder routes it, and the rung that took it is read against the answer.
+ * A measure never breaks the press it rides.
+ */
+export function measurePadPress<T>(route: () => T): T {
+  let before: OwnerNow | undefined;
+  try {
+    before = ownerNowProbe?.();
+  } catch {
+    before = undefined;
+  }
+  beginPadPress();
+  const taken = route();
+  if (before !== undefined) {
+    try {
+      endPadPress(before.shape, before.ownership, before.facts);
+    } catch {
+      // counted nowhere — the press went where it went
+    }
+  }
+  return taken;
+}
+
+/** The press left the ladder: counted; a disagreement is kept once per its picture. */
+export function endPadPress(shape: string, ownership: Ownership, facts: () => string = () => ''): void {
+  const verdict = padRungVerdict(ownership, padRung);
+  const key = `pad:${shape}`;
+  const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
+  row[verdict] = (row[verdict] ?? 0) + 1;
+  if (!ownership.asked || !verdict.startsWith('pad-MISS')) {
+    return;
+  }
+  const entry = {
+    shape: key, verdict, owner: ownership.owner, host: ownership.host ?? '', hold: '', present: [padRung === '' ? 'unnamed' : padRung], shadow: 'pad', facts: facts(),
+  };
+  const picture = JSON.stringify([entry.shape, entry.verdict, entry.owner, entry.host]);
+  if (servingOwnerLog.disagreements.some((d) => JSON.stringify([d.shape, d.verdict, d.owner, d.host]) === picture)) {
     return;
   }
   servingOwnerLog.disagreements.push(entry);
