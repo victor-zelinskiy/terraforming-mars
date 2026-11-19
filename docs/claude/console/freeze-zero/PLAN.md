@@ -545,6 +545,27 @@ The next reading is the matrix's own (the nightly runs on `main` carry round 4; 
 `fz/stage1-exit` and carries round 3). The wiring (②) does not
 start before the function reads 0 · 0 on a whole cell AND stage 1 has exited.
 
+**STAGE 2, STEP ② — STARTED 2026-11-19 night (the owner: «продвигаться по имплементации этапа 2»; the confirming pass
+of stage 1 stands on its own branch, so `main` may move).**
+
+- **②a — the first copies became ONE** (`94f1df12f2`): the task host's input condition stood written out in the
+  pad's ladder and twice in the command bar, «to be kept in lock-step» with the template's `v-if`.
+  `routerController.taskHostOwnsInput` is that condition, once; the template's `taskHostRendered` is it AND the holds.
+  No behaviour changes.
+- **The pad's own measure** (`5063e07bbb` — `servingOwnerMeasure.measurePadPress`; the ladder is `routeIntent`, each of
+  its ≈ 50 rungs names itself): at every press the function is asked on the facts as they stood BEFORE it, and the
+  rung that took the press is read against the answer — `pad-agree` · `pad-held` · `pad-look` · `pad-beat` · `pad-MISS`.
+  **Its first reading** (the bottle, 13 tables, 333 presses under a question): the owner's rung 25.5 % · under a hold
+  60.1 % · the player's own look 14.4 % · another rung **0**. What it taught before any rung was rewired:
+  **the ladder has two halves** — the views the PLAYER opened over the question (the inspection, a card's zoom, the
+  wheel, the journal, a sheet read before choosing a cell) and the game's absorbing beats stand ABOVE whoever serves,
+  by design; the function needs no word for them. So the wiring's shape is `looks → beats → the function's owner →
+  free navigation`, and only the third band is derived. (And one fact: a SHEET over a live placement is a `lateral`
+  look as a section is.)
+- **Next:** the pad's reading over all 606 tables (the nightly runs on `main` carry it); then the prompt rungs of the
+  third band — one `switch` on the function's owner in place of the fifteen ordered `if`s — behind the measure at
+  zero; the same measure for the command bar's two chains; then ③.
+
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
 the real-browser monkey (03:00 plain with the seed of the day; Sunday `cpu4` / `net400` / `reload` / `duo`), and a
