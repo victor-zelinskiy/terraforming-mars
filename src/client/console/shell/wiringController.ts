@@ -702,7 +702,11 @@ export function createWiringController(shell: WiringPort) {
         lateral: shell.placementActive && consoleState.section !== 'board' && workspaceStackTop()?.phase === 'browse' ?
           workspaceStackTop()?.kind ?? '' : '',
         // (The facts of the question for the ONE function's measure — stage 2; read by nothing else yet.)
-        facts: {...shell.questionFacts(), startFlow: shell.startSceneMounted},
+        facts: {
+          ...shell.questionFacts(), startFlow: shell.startSceneMounted,
+          lateral: shell.placementActive && consoleState.section !== 'board' && workspaceStackTop()?.phase === 'browse' ?
+            workspaceStackTop()?.kind ?? '' : '',
+        },
       };
     });
     // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.

@@ -498,6 +498,20 @@ stage 1 exits: the second changes what mounts, and the confirming pass must meas
   after stage 1's exit); ③ each surface's `v-if` becomes `owner === X && serves`; ④ the three nets are switched to
   observers, then retired (stage 7's rule: by evidence).
 
+**STAGE 2, STEP ① — THE MEASURE, as it reads 2026-11-19 02:10 UTC.** The counter rides the leak detector's pass
+(`servingOwnerMeasure.ts`; the walks carry it, `monkey-report.mjs` prints «THE ONE FUNCTION AGAINST THE SCREEN»).
+What each round of disagreements taught the function — every one a fact today's shell knows in some OTHER copy:
+
+| Round | Where | Looks | Read | What the function lacked |
+| --- | --- | --- | --- | --- |
+| 1 | the bottle, 4 tables | — | 1 EXTRA | admission is a DOOR, not a presence — a workspace whose frame stands is not held at it (`frames`) |
+| 2 | the bottle, tables a–h (174 walks) | 475 | 5 MISS, 2 pictures | the draft's door is the announce's (its admission is the section's); a screen being handed over to the owner is a hold of the owner (`handoff`); a phase root is never a step in somebody's zone; the park (a parked workspace that serves) and the yield to the board |
+| — | **CI, a real browser: `fz3` · `reload`, 606 walks** (run 44432972892, on round 1's code) | 3591 | agrees 28.1 % · held as said 66.5 % · MISS 3.7 % · EXTRA 1.7 % — 11 pictures | 6 of the 11 were round 2's; 3 were the MEASURE's own (a step in a flow's zone is seen by the probe as its HOST; the board always paints — a held board is held as said); 2 were new ↓ |
+| 3 | the bottle, the 13 tables of those pictures | 747 | **0 MISS · 0 EXTRA** (plain); 525 looks, 0 · 0 (with reloads) | THE PLAYER'S OWN LOOK OVER A LIVE PLACEMENT (`lateral` — the hand opened over the cells: the board waits for the player); a step the function holds for its host's own beat is held WHILE that host paints (the sitting's ask waiting for the field — the very state of issue #70: the pad's press goes to nobody there, by the beat's design) |
+
+The next reading is the matrix's own: every CI cell from `fz1` · `duo` on carries round 3. The wiring (②) does not
+start before the function reads 0 · 0 on a whole cell AND stage 1 has exited.
+
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
 the real-browser monkey (03:00 plain with the seed of the day; Sunday `cpu4` / `net400` / `reload` / `duo`), and a

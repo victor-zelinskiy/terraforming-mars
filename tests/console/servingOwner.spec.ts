@@ -57,7 +57,7 @@ const ALL_SHAPES: ReadonlyArray<ConsoleTask> = Object.values(SHAPES).flat();
 
 const QUIET: Omit<QuestionFacts, 'task'> = {
   startFlow: false, effectDecision: false, draftFrame: false, draftClaims: false, resolutionDraw: false,
-  servingFrame: undefined, host: undefined, frames: [], handoff: [], aside: false, boardBranch: false, scene: '', claimHeld: false, blocks: {},
+  servingFrame: undefined, host: undefined, frames: [], handoff: [], aside: false, lateral: '', boardBranch: false, scene: '', claimHeld: false, blocks: {},
 };
 
 const BOOLS = [false, true];
@@ -82,7 +82,7 @@ function* everyFacts(task: ConsoleTask | undefined): Generator<QuestionFacts> {
                           // (The stack that stands: nothing, or exactly the frames the facts name — both are walked.)
                           for (const standing of BOOLS) {
                             const frames = standing ? [...new Set([servingFrame, host].filter((k): k is WorkspaceFrameKind => k !== undefined))] : [];
-                            yield {task, startFlow, effectDecision, draftFrame, draftClaims, resolutionDraw, servingFrame, host, frames, handoff: [], aside, boardBranch, scene, claimHeld, blocks};
+                            yield {task, startFlow, effectDecision, draftFrame, draftClaims, resolutionDraw, servingFrame, host, frames, handoff: [], aside, lateral: '', boardBranch, scene, claimHeld, blocks};
                           }
                         }
                       }
@@ -227,6 +227,11 @@ describe('servingOwner — who serves the question: one total function', functio
     // THE SCREEN BEING HANDED OVER to the owner is a hold of the owner — the leaving surface is what stands.
     expect(servingOwnerOf({...QUIET, task: {kind: 'cardSelect', mode: 'buy'}, draftClaims: true, host: 'parliament', handoff: ['draft']}))
       .to.deep.include({owner: 'draft', hold: {kind: 'scene', by: 'handoff'}});
+    // THE PLAYER'S OWN LOOK OVER A LIVE PLACEMENT (the hand opened over the cells): the board is still the owner, and
+    // it waits for the player — whatever else would hold it.
+    expect(servingOwnerOf({...QUIET, task: {kind: 'space'}, boardBranch: true, lateral: 'hand', blocks: {placement: 'remote-landing'}}))
+      .to.deep.include({owner: 'board', basis: 'branch', hold: {kind: 'aside', by: 'lateral:hand'}});
+    expect(servingOwnerOf({...QUIET, task: {kind: 'space'}, lateral: 'hand'})).to.deep.include({hold: {kind: 'aside', by: 'lateral:hand'}});
     // A PHASE ROOT is never a step in somebody's zone.
     expect(owner({kind: 'cardSelect', mode: 'buy'}, {draftClaims: true, host: 'parliament'})).to.eq('draft');
     expect(owner({kind: 'cardSelect', mode: 'draft'}, {host: 'hand'})).to.eq('draft');

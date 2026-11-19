@@ -1001,7 +1001,7 @@ export function createRouterController(shell: RouterPort) {
    * the function's MEASURE reads them (`servingOwnerMeasure.ts`, the leak detector's pass): nothing mounts by them
    * yet. A plain function on purpose — asked once a second, never a cached computed of its own.
    */
-  function questionFacts(): Omit<QuestionFacts, 'task' | 'startFlow'> {
+  function questionFacts(): Omit<QuestionFacts, 'task' | 'startFlow' | 'lateral'> {
     const wf = shell.playerView.waitingFor;
     const task = taskFor(shell.playerView);
     const blocks: Partial<Record<PromptSurface, string>> = {};

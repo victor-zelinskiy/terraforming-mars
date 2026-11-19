@@ -59,6 +59,9 @@ export type QuestionFacts = {
   handoff: ReadonlyArray<WorkspaceFrameKind>;
   /** The player set the question aside («свернуть» — `consoleState.task.deferred`, a collapsed stack that serves it). */
   aside: boolean;
+  /** THE PLAYER'S OWN LOOK OVER A LIVE PLACEMENT — the reversible workspace they opened over the cells ('' — none):
+   *  one B back to the board, and until then the cells wait for the player (the shadow's `lateral`). */
+  lateral: string;
   /** The task's own nested placement stands on the board (`taskSpacePending` — the WGT ocean, the final greenery). */
   boardBranch: boolean;
   /** A bounded scene of the game holds the screen, by its name ('' — none): the final greenery, the scale focus, the
@@ -186,6 +189,10 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
 
   if (f.aside) {
     return {asked: true, ...owner, hold: {kind: 'aside', by: 'the player set it aside'}};
+  }
+  if (f.lateral !== '') {
+    const placed: ServingOwner = f.boardBranch ? {owner: 'board', basis: 'branch', admission: 'placement'} : owner;
+    return {asked: true, ...placed, hold: {kind: 'aside', by: `lateral:${f.lateral}`}};
   }
   if (f.boardBranch) {
     return {asked: true, owner: 'board', basis: 'branch', admission: 'placement', ...holdOf('placement', f)};

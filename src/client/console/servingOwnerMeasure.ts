@@ -53,9 +53,20 @@ export function ownerLookVerdict(ownership: Ownership, present: ReadonlyArray<Sc
   if (!ownership.asked) {
     return 'free';
   }
+  // A STEP IN A FLOW's ZONE is seen by the probe as its HOST (the step's own surface is teleported inside the host's
+  // root): where the shadow itself reads the look as served (`agree:…`), the host painting is the step served. (The
+  // first measure in a real browser, CI `fz3` · `reload`, 2026-11-19: «says draw@parliament, painted parliament» was
+  // no disagreement.) Under a beat or a hold of the shadow's the host standing proves nothing of the step — and
+  // under a hold of the FUNCTION's neither: a step held for its host's own beat is held while that host paints.
   const paints = present.includes(ownership.owner);
   if (ownership.hold === undefined) {
-    return paints ? 'agree' : `MISS:${shadow}`;
+    const hostServes = ownership.host !== undefined && shadow.startsWith('agree') && (present as ReadonlyArray<string>).includes(ownership.host);
+    return paints || hostServes ? 'agree' : `MISS:${shadow}`;
+  }
+  // THE BOARD IS ALWAYS THERE: that it paints says nothing of whether it SERVES (a placement the player set aside
+  // leaves them on that very board). A held board is held as said — the probe cannot tell otherwise.
+  if (ownership.owner === 'board') {
+    return `held:${ownership.hold.kind}`;
   }
   return paints ? `EXTRA:${ownership.hold.kind}` : `held:${ownership.hold.kind}`;
 }

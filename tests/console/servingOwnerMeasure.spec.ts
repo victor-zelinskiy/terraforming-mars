@@ -23,6 +23,13 @@ describe('servingOwnerMeasure — the function against the screen, counted', () 
     expect(ownerLookVerdict(serves('colonies'), [], 'unserved')).to.eq('MISS:unserved');
     // The function names a hold and the surface stands all the same.
     expect(ownerLookVerdict(held('decision', 'claim', 'hand'), ['decision'], 'agree')).to.eq('EXTRA:claim');
+    // A STEP IN A FLOW's ZONE is seen as its host: the host painting is the step served…
+    expect(ownerLookVerdict(serves('external-draw', 'parliament'), ['parliament'], 'agree:host')).to.eq('agree');
+    expect(ownerLookVerdict(serves('external-draw', 'parliament'), ['hand'], 'held:reveal')).to.eq('MISS:held:reveal');
+    // …but a step the FUNCTION holds is held while its host paints (the sitting's ask waiting for the field to open).
+    expect(ownerLookVerdict({...held('task', 'claim', 'parliament'), host: 'parliament'} as Ownership, ['parliament'], 'agree:host')).to.eq('held:claim');
+    // …and THE BOARD IS ALWAYS THERE — a held board is held as said, whatever paints.
+    expect(ownerLookVerdict(held('board', 'aside', 'the player set it aside'), ['board', 'awards'], 'agree:row')).to.eq('held:aside');
   });
 
   it('every look is counted by its shape; a disagreement is kept ONCE per its own picture', () => {
