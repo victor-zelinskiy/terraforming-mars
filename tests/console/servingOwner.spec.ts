@@ -57,7 +57,7 @@ const ALL_SHAPES: ReadonlyArray<ConsoleTask> = Object.values(SHAPES).flat();
 
 const QUIET: Omit<QuestionFacts, 'task'> = {
   startFlow: false, effectDecision: false, draftFrame: false, draftClaims: false, resolutionDraw: false,
-  servingFrame: undefined, host: undefined, aside: false, boardBranch: false, scene: '', claimHeld: false, blocks: {},
+  servingFrame: undefined, host: undefined, frames: [], aside: false, boardBranch: false, scene: '', claimHeld: false, blocks: {},
 };
 
 const BOOLS = [false, true];
@@ -79,7 +79,11 @@ function* everyFacts(task: ConsoleTask | undefined): Generator<QuestionFacts> {
                       for (const claimHeld of BOOLS) {
                         for (const blocked of BOOLS) {
                           const blocks = blocked ? Object.fromEntries(SURFACES.map((s) => [s, 'reveal'])) : {};
-                          yield {task, startFlow, effectDecision, draftFrame, draftClaims, resolutionDraw, servingFrame, host, aside, boardBranch, scene, claimHeld, blocks};
+                          // (The stack that stands: nothing, or exactly the frames the facts name — both are walked.)
+                          for (const standing of BOOLS) {
+                            const frames = standing ? [...new Set([servingFrame, host].filter((k): k is WorkspaceFrameKind => k !== undefined))] : [];
+                            yield {task, startFlow, effectDecision, draftFrame, draftClaims, resolutionDraw, servingFrame, host, frames, aside, boardBranch, scene, claimHeld, blocks};
+                          }
                         }
                       }
                     }
@@ -148,7 +152,9 @@ describe('servingOwner — who serves the question: one total function', functio
     for (const task of ALL_SHAPES.filter((t) => t.kind !== 'actionMenu')) {
       for (const facts of everyFacts(task)) {
         const o = servingOwnerOf(facts) as Extract<Ownership, {asked: true}>;
-        const admitted = o.admission === undefined || (facts.blocks[o.admission] ?? '') === '';
+        // (Admission is a door: an owner whose frame already stands is not held at it — the board's branch always enters.)
+        const inAlready = !facts.boardBranch && (facts.frames as ReadonlyArray<string>).includes(o.owner);
+        const admitted = o.admission === undefined || inAlready || (facts.blocks[o.admission] ?? '') === '';
         const expected =
           facts.aside ? 'aside' :
             facts.boardBranch ? (admitted ? undefined : 'admission') :
@@ -213,6 +219,11 @@ describe('servingOwner — who serves the question: one total function', functio
     expect(owner({kind: 'handSelect'}, {host: 'hand'})).to.eq('hand');
     // A frame that EARNED the kind answers before the kind's own row (the colony resolution's discard).
     expect(owner({kind: 'handSelect'}, {servingFrame: 'colonies'})).to.eq('colonies');
+    // ADMISSION IS A DOOR, NOT A PRESENCE: the Parliament already on the stack stands through a scene of its own sitting;
+    // one still to enter waits at the door.
+    const blocked = {blocks: {section: 'presentation'}};
+    expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, ...blocked, frames: ['parliament']})).to.not.have.property('hold');
+    expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, ...blocked})).to.deep.include({hold: {kind: 'admission', by: 'presentation'}});
     // A modal of its own is never a step of somebody's flow.
     expect(owner({kind: 'botAttack'}, {host: 'parliament'})).to.eq('bot-attack');
     expect(owner({kind: 'spendHeat'}, {host: 'card-actions'})).to.eq('lanes');

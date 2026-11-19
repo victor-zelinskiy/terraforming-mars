@@ -48,6 +48,8 @@ import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceHostForStep, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenCurePlan, ScreenOwner, ScreenShadowFinding, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, planScreenCure, recordScreenShadowFinding, screenCureArmed, screenShadowKey, screenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
 import {StartServes, startServesSomething} from '@/client/console/startServing';
+import {QuestionFacts, servingOwnerOf} from '@/client/console/servingOwner';
+import {noteServingOwnerLook} from '@/client/console/servingOwnerMeasure';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -521,6 +523,8 @@ function promptHeldReason(view: PlayerViewModel, task: ConsoleTask | undefined, 
 export type ScreenShadowContext = {
   startOwned: boolean,
   admission: string,
+  /** The facts of the question for the ONE function's measure (`servingOwnerMeasure.ts` — stage 2; stats only). */
+  facts?: Omit<QuestionFacts, 'task'>,
   /** The announce gate's beat: none · announced but not yet presented · PRESENTED (its plate / beacon owed on screen). */
   announce?: 'none' | 'pending' | 'presented',
   /**
@@ -746,6 +750,14 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
     beats,
   });
   noteScreenShadowPass(shape, verdict);
+  // THE ONE FUNCTION, MEASURED on the same look (stage 2 — counted, never judged, never said).
+  if (ctx.facts !== undefined) {
+    try {
+      noteServingOwnerLook(shape, servingOwnerOf({task, ...ctx.facts}), present, verdict.kind);
+    } catch {
+      // A measure never breaks the pass it rides.
+    }
+  }
   if (verdict.kind !== 'unserved' && verdict.kind !== 'misserved') {
     screenStreak = advanceScreenShadowStreak(screenStreak, '');
     clearScreenShadowStanding();

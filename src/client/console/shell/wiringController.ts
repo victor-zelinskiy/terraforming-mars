@@ -53,6 +53,7 @@ import {generationSceneState, registerGenerationSceneHandoff} from '@/client/con
 import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenShadowLog} from '@/client/console/screenDirector';
+import {servingOwnerLog} from '@/client/console/servingOwnerMeasure';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
 import {isHydroMarkerActive, hydroRewardHoldOwed, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
@@ -156,6 +157,7 @@ export type WiringPort = {
   handOffHandForDiscard: UnwrapRef<HandSelectController['handOffHandForDiscard']>,
   hostTask: UnwrapRef<RouterController['hostTask']>,
   taskHeldForWorkspace: UnwrapRef<RouterController['taskHeldForWorkspace']>,
+  questionFacts: RouterController['questionFacts'],
   hydroFollowUpLive: UnwrapRef<HydroController['hydroFollowUpLive']>,
   hydroResolutionBusy: UnwrapRef<HydroController['hydroResolutionBusy']>,
   hydroResultTimer: UnwrapRef<HydroController['hydroResultTimer']>,
@@ -699,6 +701,8 @@ export function createWiringController(shell: WiringPort) {
         // THE PLAYER'S OWN WORKSPACE OVER A LIVE PLACEMENT — reversible (`browse`), so B is one press back to the cells.
         lateral: shell.placementActive && consoleState.section !== 'board' && workspaceStackTop()?.phase === 'browse' ?
           workspaceStackTop()?.kind ?? '' : '',
+        // (The facts of the question for the ONE function's measure — stage 2; read by nothing else yet.)
+        facts: {...shell.questionFacts(), startFlow: shell.startSceneMounted},
       };
     });
     // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.
@@ -707,6 +711,8 @@ export function createWiringController(shell: WiringPort) {
       // The page's own word on its paint, as its judges read it (`null` — it paints).
       pageStarved: pageStarvedNow() ?? null,
     })) as unknown;
+    // THE ONE FUNCTION's measure (stage 2): how often `servingOwnerOf` agrees with what paints — stats only.
+    (window as unknown as {__conServingOwner?: () => unknown}).__conServingOwner = () => JSON.parse(JSON.stringify(servingOwnerLog)) as unknown;
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
       stats: JSON.parse(JSON.stringify(screenShadowLog.stats)) as unknown,
@@ -1146,6 +1152,7 @@ export function createWiringController(shell: WiringPort) {
     registerAnchorDropListener(undefined);
     registerReadinessDecisionDiag(undefined);
     delete (window as unknown as {__conScreenShadow?: unknown}).__conScreenShadow;
+    delete (window as unknown as {__conServingOwner?: unknown}).__conServingOwner;
     delete (window as unknown as {__conWaitGraph?: unknown}).__conWaitGraph;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);

@@ -174,6 +174,72 @@ function pct(a, b) {
 }
 
 /**
+ * THE ONE FUNCTION AGAINST THE SCREEN (FREEZE ZERO, stage 2 — `servingOwnerMeasure.ts`). `files` — the parsed
+ * `cause-classes` files (their `owner` is the page's `__conServingOwner()`): how often `servingOwnerOf` agreed with
+ * what painted, by verdict and by shape, and every DISTINCT disagreement with the tables that met it. `undefined`
+ * when no walk carried the measure.
+ */
+export function aggregateOwner(files) {
+  let walks = 0;
+  let looks = 0;
+  const verdicts = {};
+  const rows = {};
+  const disagreements = new Map();
+  for (const f of files) {
+    const o = f.owner;
+    if (o === undefined || o === null || typeof o.looks !== 'number') {
+      continue;
+    }
+    walks++;
+    looks += o.looks;
+    for (const [shape, row] of Object.entries(o.rows ?? {})) {
+      const into = rows[shape] ?? (rows[shape] = {});
+      for (const [verdict, n] of Object.entries(row)) {
+        into[verdict] = (into[verdict] ?? 0) + n;
+        const head = verdict.split(':')[0];
+        verdicts[head] = (verdicts[head] ?? 0) + n;
+      }
+    }
+    for (const d of o.disagreements ?? []) {
+      const key = `${d.shape} — ${d.verdict}: says «${d.owner}${d.host ? `@${d.host}` : ''}»${d.hold ? ` held by ${d.hold}` : ''}, painted «${(d.present ?? []).join('|') || 'nothing'}»`;
+      const known = disagreements.get(key) ?? {n: 0, tables: []};
+      known.n++;
+      if (known.tables.length < 4) {
+        known.tables.push(String(f.title ?? '').replace(/^monkey · /, ''));
+      }
+      disagreements.set(key, known);
+    }
+  }
+  if (walks === 0) {
+    return undefined;
+  }
+  return {
+    walks, looks, verdicts, rows,
+    disagreements: [...disagreements.entries()].sort((a, b) => b[1].n - a[1].n).map(([what, v]) => ({what, walks: v.n, tables: v.tables})),
+  };
+}
+
+export function renderOwner(owner) {
+  if (owner === undefined) {
+    return '';
+  }
+  const v = owner.verdicts;
+  const judged = (v.agree ?? 0) + (v.held ?? 0) + (v.MISS ?? 0) + (v.EXTRA ?? 0);
+  const pct = (n) => (judged === 0 ? '—' : `${Math.round((n ?? 0) / judged * 1000) / 10} %`);
+  const L = [];
+  L.push('');
+  L.push(`── THE ONE FUNCTION AGAINST THE SCREEN (stage 2) — ${owner.walks} walk(s), ${owner.looks} look(s), ${judged} judged ──`);
+  L.push(`agrees ${v.agree ?? 0} (${pct(v.agree)}) · held as said ${v.held ?? 0} (${pct(v.held)}) · MISS ${v.MISS ?? 0} (${pct(v.MISS)}) · EXTRA ${v.EXTRA ?? 0} (${pct(v.EXTRA)})`);
+  for (const d of owner.disagreements.slice(0, 40)) {
+    L.push(`${String(d.walks).padStart(5)} walk(s)  ${d.what}   [${d.tables.join(', ')}]`);
+  }
+  if (owner.disagreements.length > 40) {
+    L.push(`  … +${owner.disagreements.length - 40} (all of them are in the report's JSON)`);
+  }
+  return L.join('\n');
+}
+
+/**
  * HOW MUCH OF THE KERNEL'S STATE SPACE THE RUN WALKED. `files` — the parsed `cause-classes` files (their `coverage`
  * is the page's `__conCoverage()`: `{keys, machines, frames}`); `declared` — the flows the sources declare
  * (`flowUniverse().flows`: id → where). `undefined` when no walk carried coverage.
@@ -379,7 +445,8 @@ function main(argv) {
     }
   }).filter((f) => f !== undefined);
   const coverage = aggregateCoverage(files, flowUniverse().flows);
-  const report = {at: new Date().toISOString(), dir: path.resolve(dir), ...aggregateCauseFiles(files), ...(coverage !== undefined ? {coverage} : {})};
+  const owner = aggregateOwner(files);
+  const report = {at: new Date().toISOString(), dir: path.resolve(dir), ...aggregateCauseFiles(files), ...(coverage !== undefined ? {coverage} : {}), ...(owner !== undefined ? {owner} : {})};
   const against = flag('against');
   let diff;
   if (typeof against === 'string') {
@@ -394,6 +461,7 @@ function main(argv) {
   fs.writeFileSync(out, JSON.stringify({...report, ...(diff !== undefined ? {diff} : {})}, null, 1));
   console.log(renderReport(report, diff));
   console.log(renderCoverage(coverage));
+  console.log(renderOwner(owner));
   console.log(`\n→ ${out}`);
   if (flag('gate') === true) {
     const verdict = gateVerdict(report, diff);

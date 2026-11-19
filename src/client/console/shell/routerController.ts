@@ -23,7 +23,7 @@ import {startPreludeGrantOf} from '@/client/console/parliament/hostedParliamentS
 import {buildEffectDecision, declineModelOf, EffectDecisionAction, EffectDecisionSource, EffectDecisionViewModel, nextStageKeyOf} from '@/client/console/effectDecision/effectDecisionModel';
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import {decisionPromptStamp, effectDecisionState, markDecisionPickAnswered, resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
-import {stackYieldedToBoard, yieldedStackCards, enterWorkspace, frameServing, goBoardHome, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {stackYieldedToBoard, yieldedStackCards, enterWorkspace, frameServing, workspaceStackState, goBoardHome, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardTransaction} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyBonusCollectOf, colonyBonusDiscardOf} from '@/client/console/colonyTrade/colonyResolution';
@@ -52,7 +52,11 @@ import {consoleHandPickState, enterConsoleHandPick, handPickStageKey} from '@/cl
 import {tailAfterPickAnswer} from '@/client/console/pickTail';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {translateMessage, translateText} from '@/client/directives/i18n';
-import {AdmissionSignals, LATCHED_SURFACES, PromptSurface, isPromptAdmitted, isPromptPresent, latchPromptPresence, presenceOutlivesAnswer, promptPresenceState, releasePromptPresence} from '@/client/console/consolePromptAdmission';
+import {AdmissionSignals, LATCHED_SURFACES, PromptSurface, isPromptAdmitted, isPromptPresent, latchPromptPresence, presenceOutlivesAnswer, promptAdmissionBlock, promptPresenceState, releasePromptPresence} from '@/client/console/consolePromptAdmission';
+import type {QuestionFacts} from '@/client/console/servingOwner';
+
+/** The surfaces that can admit an owner of a question (`servingOwner.ts` — `ServingOwner.admission`). */
+const OWNER_ADMISSIONS: ReadonlyArray<PromptSurface> = ['host', 'scaleBonus', 'section', 'standaloneModal', 'scene', 'placement', 'followUp'];
 import {guardedAdmissionSignals, noteAdmissionSignals} from '@/client/console/consoleForegroundWatchdog';
 import {stagedPlayState, stagedPlacementOf} from '@/client/console/stagedPlay';
 import {SeriesVisit, PendingClientPayment, PendingClientPick, CLIENT_PAYMENT_TASK, CLIENT_PICK_TASK} from '@/client/console/shell/shellShared';
@@ -966,6 +970,38 @@ export function createRouterController(shell: RouterPort) {
    * through every later scene until the answer is sent; only a modal of its own, an answer in flight or a prompt not
    * of this stage withdraw it (`PRESENCE_WITHDRAWS`).
    */
+  /**
+   * THE FACTS OF THE QUESTION, gathered ONCE — everything `servingOwnerOf` reads (FREEZE ZERO, stage 2). Today only
+   * the function's MEASURE reads them (`servingOwnerMeasure.ts`, the leak detector's pass): nothing mounts by them
+   * yet. A plain function on purpose — asked once a second, never a cached computed of its own.
+   */
+  function questionFacts(): Omit<QuestionFacts, 'task' | 'startFlow'> {
+    const wf = shell.playerView.waitingFor;
+    const task = taskFor(shell.playerView);
+    const blocks: Partial<Record<PromptSurface, string>> = {};
+    for (const surface of OWNER_ADMISSIONS) {
+      // (Presence, not entry: a surface admitted for THIS prompt stands through later scenes — `admits`.)
+      blocks[surface] = admits(surface) ? '' : (promptAdmissionBlock(surface, admissionSignals.value) ?? 'withdrawn');
+    }
+    return {
+      effectDecision: rawEffectDecisionVm.value !== undefined,
+      draftFrame: workspaceFrameKnown('draft'),
+      draftClaims: shell.draftClaimsTask,
+      resolutionDraw: wf !== undefined && externalDrawResolutionOf(externalDrawTakeOf(wf)) !== undefined,
+      servingFrame: task === undefined ? undefined : frameServing(task.kind)?.kind,
+      host: workspaceHostForStep(),
+      frames: workspaceStackState.frames.map((frame) => frame.kind),
+      aside: consoleState.task.deferred,
+      boardBranch: shell.taskSpacePending !== undefined,
+      scene: shell.finalGreeneryActive ? 'final-greenery' : shell.finalePromptOwned ? 'finale' :
+        govScaleFocusState.holding ? 'gov-scale-focus' : energyConversionState.active ? 'energy-conversion' :
+          shell.handPickActive ? 'hand-pick' : '',
+      claimHeld: taskHeldForWorkspace.value || shell.deckPickHeldForWorkspace || venusBonusHeldForWorkspace.value ||
+        effectDecisionHeldForWorkspace.value,
+      blocks,
+    };
+  }
+
   function admits(surface: PromptSurface): boolean {
     const latched = promptPresenceState.latched[surface] === promptPresenceIdentity.value &&
       promptPresenceIdentity.value !== '' &&
@@ -1726,6 +1762,7 @@ export function createRouterController(shell: RouterPort) {
     shellTaskOnSurface: ownShellTaskOnSurface,
     taskAllSelected,
     admits,
+    questionFacts,
     onTaskSubmit,
     noteSeriesAnswer,
     onTaskSubmitBatch,

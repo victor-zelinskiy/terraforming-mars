@@ -162,6 +162,8 @@ export type ConsoleBottle = {
   offered(): Array<{key: BottleKey, hot: boolean, label: string}>,
   /** How much of the kernel's state space this page walked (`__conCoverage()` — only when booted with `coverage=1`). */
   coverage(): {keys: Array<string>, machines: Record<string, Array<string>>, frames: Array<string>} | undefined,
+  /** THE ONE FUNCTION's measure (`__conServingOwner()` — stage 2): how often `servingOwnerOf` agreed with what painted. */
+  servingOwner(): {looks: number, rows: Record<string, Record<string, number>>, disagreements: Array<Record<string, unknown>>} | undefined,
   /** One wait on each source of time the client has (GSAP, the kernel, the frames) — `BottlePageHandle.timeProbe`. */
   timeProbe(): ReturnType<BottlePageHandle['timeProbe']>,
   /** ANOTHER SEAT'S MOVE through the server's own door (its plainest: a pass, or the plainest legal answer). What it did, or `undefined` when that seat is asked nothing. */
@@ -369,6 +371,7 @@ export async function bootBottle(table: BottleTable, options: BottleOptions = {}
     bar,
     offered,
     coverage: () => (window as unknown as {__conCoverage?: () => {keys: Array<string>, machines: Record<string, Array<string>>, frames: Array<string>}}).__conCoverage?.(),
+    servingOwner: () => (window as unknown as {__conServingOwner?: () => {looks: number, rows: Record<string, Record<string, number>>, disagreements: Array<Record<string, unknown>>}}).__conServingOwner?.(),
     timeProbe: () => page.timeProbe(),
     otherSeatMoves: async (index) => {
       const moved = await server.otherSeatMoves(table.seats[index].id);

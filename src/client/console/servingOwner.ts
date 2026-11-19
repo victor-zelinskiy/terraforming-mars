@@ -52,6 +52,8 @@ export type QuestionFacts = {
   servingFrame: WorkspaceFrameKind | undefined;
   /** The flow's host for a step right now (`workspaceHostForStep()` — the top frame while it hosts). */
   host: WorkspaceFrameKind | undefined;
+  /** The workspaces whose frame STANDS on the live stack — admission is a door: one that is in is not held at it. */
+  frames: ReadonlyArray<WorkspaceFrameKind>;
   /** The player set the question aside («свернуть» — `consoleState.task.deferred`, a collapsed stack that serves it). */
   aside: boolean;
   /** The task's own nested placement stands on the board (`taskSpacePending` — the WGT ocean, the final greenery). */
@@ -153,7 +155,8 @@ function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, 
  *                  is an owner, not a hold);
  *   3. a SCENE   — a bounded scene of the game has the screen;
  *   4. a CLAIM   — a workspace owns the question and its zone does not stand yet;
- *   5. ADMISSION — the surface that admits the owner names a block.
+ *   5. ADMISSION — the surface that admits the owner names a block, and the owner is still to ENTER (a workspace
+ *                  whose frame already stands was let in: a block is a door, never a presence).
  */
 export function servingOwnerOf(f: QuestionFacts): Ownership {
   const task = f.task;
@@ -186,7 +189,13 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   if (f.claimHeld) {
     return {asked: true, ...owner, hold: {kind: 'claim', by: owner.host ?? 'the claiming workspace'}};
   }
-  return {asked: true, ...owner, ...(owner.admission !== undefined ? holdOf(owner.admission, f) : {})};
+  // ADMISSION IS A DOOR, NOT A PRESENCE: a workspace whose frame already stands on the stack was let in — a scene that
+  // begins beside it does not take it off the screen (the first disagreement the measure named, 2026-11-19: the
+  // Parliament standing under a `presentation` block of its own sitting). Only an owner still to ENTER is held.
+  if (owner.admission === undefined || f.frames.includes(owner.owner as WorkspaceFrameKind)) {
+    return {asked: true, ...owner};
+  }
+  return {asked: true, ...owner, ...holdOf(owner.admission, f)};
 }
 
 function holdOf(surface: PromptSurface, f: QuestionFacts): {hold?: {kind: OwnerHoldKind, by: string}} {

@@ -569,6 +569,36 @@ async function readCoverage(pages: ReadonlyArray<Page>): Promise<{keys: Array<st
   return machines === undefined ? undefined : {keys: [...keys].sort(), machines, frames: frames ?? []};
 }
 
+/**
+ * THE ONE FUNCTION's measure of the test's pages (`__conServingOwner()` — FREEZE ZERO, stage 2): how often
+ * `servingOwnerOf` agreed with what painted, summed over the pages that still answer. `undefined` — no page measured.
+ */
+type OwnerMeasure = {looks: number, rows: Record<string, Record<string, number>>, disagreements: Array<Record<string, unknown>>};
+async function readOwnerMeasure(pages: ReadonlyArray<Page>): Promise<OwnerMeasure | undefined> {
+  const sum: OwnerMeasure = {looks: 0, rows: {}, disagreements: []};
+  let measured = false;
+  for (const page of pages) {
+    if (page.isClosed()) {
+      continue;
+    }
+    const read = page.evaluate(() => (window as unknown as {__conServingOwner?: () => unknown}).__conServingOwner?.() ?? null).catch(() => null) as Promise<OwnerMeasure | null>;
+    const report = await Promise.race([read, new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000))]);
+    if (report === null || typeof report.looks !== 'number') {
+      continue;
+    }
+    measured = true;
+    sum.looks += report.looks;
+    for (const [shape, row] of Object.entries(report.rows ?? {})) {
+      const into = sum.rows[shape] ?? (sum.rows[shape] = {});
+      for (const [verdict, n] of Object.entries(row)) {
+        into[verdict] = (into[verdict] ?? 0) + n;
+      }
+    }
+    sum.disagreements.push(...(report.disagreements ?? []));
+  }
+  return measured ? sum : undefined;
+}
+
 /** The cause harvest as a spec sees it (`causeHarvest` fixture). */
 export type CauseHarvestHandle = {
   /** What the test's pages named so far. */
@@ -835,6 +865,11 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     await use({records: harvest.records, note: (facts) => Object.assign(extra, facts)});
     if (coverage) {
       extra.coverage = await readCoverage(context.pages());
+      // (Beside the coverage, on the same condition: the walks that count the state space count the function too.)
+      const owner = await readOwnerMeasure(context.pages());
+      if (owner !== undefined) {
+        extra.owner = owner;
+      }
     }
     fileCauseRecords(testInfo, harvest.close(), extra);
   }, {auto: true}],

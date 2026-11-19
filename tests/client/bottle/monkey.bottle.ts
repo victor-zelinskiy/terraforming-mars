@@ -108,6 +108,7 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
       let status = 'passed';
       let coverageKeys: Array<string> = [];
       let coverage: {keys: Array<string>, machines: Record<string, Array<string>>, frames: Array<string>} | undefined;
+      let owner: ReturnType<ConsoleBottle['servingOwner']>;
       let steps: Array<MonkeyStep> = [];
       let seats = 1;
       try {
@@ -135,6 +136,7 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
         if (covered !== undefined) {
           coverage = {keys: [...new Set([...coverageKeys, ...covered.keys])].sort(), machines: covered.machines, frames: covered.frames};
         }
+        owner = bottle.servingOwner();
         for (const defect of live.defects) {
           records.push(filed(defect.cls, 'defect', defect.count, defect.text));
         }
@@ -149,6 +151,7 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
       fs.writeFileSync(path.join(outDir, `bottle-monkey--monkey-${fixture}-r0.json`), JSON.stringify({
         file: 'monkey.bottle.ts', title: `monkey · ${fixture}`, retry: 0, status, records,
         ...(coverage !== undefined ? {coverage} : {}),
+        ...(owner !== undefined ? {owner} : {}),
         monkey: {seed, fixture, mode: MODE, layout: LAYOUT, landing: 'boot', duo: false, reload: RELOAD_EVERY !== undefined, hidden: AWAY_EVERY !== undefined, presses: log.filter((l) => !l.startsWith('[')).length, perturb: {netMs: 0, cpu: 0, motion: ''}, bottle: true, why},
         walk: log.join(' '),
       }, null, 1));
