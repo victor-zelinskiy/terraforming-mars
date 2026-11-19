@@ -53,6 +53,7 @@ import {
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {probeTick} from '@/client/console/probeTick';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {
   effectiveOpacity, firstVisibleEnd, fullscreenOverlayOf, TRANSFER_END_MIN_OPACITY, TransferEndOptions, TransferEndVerdict, transferEndVerdict,
 } from '@/client/console/resourceTransfer/transferEndVisible';
@@ -336,14 +337,23 @@ function foldSentinel(id: number, end: 'birth' | 'touchdown'): void {
  * the token's own (its debt settled by its ceiling), and the line cannot say WHICH verb took the surface away: the
  * collapse asks `surfaceClear` (R16), and a dozen other ways off the stack do not. This asks the question where the
  * fold happens: a workspace's frame left the live stack (popped, closed, parked, aside for the board) while its
- * surface still held a token's end or an owed series. COUNTED (tier `info`), never an event — until its walks are
- * read: then the verb that folds is given the collapse's own wait, and this becomes the sentinel.
+ * surface still held a token's end or an owed series — and names the verb that took it.
+ *
+ * WHAT ITS WALKS SAID (2026-11-19; issue #72): the verb is the conclusion itself (`closeWorkspaceRoot:parliament` —
+ * six walks of ten under the two-window pass), and ONLY on the page behind: 2424 walks on a page that paints (the
+ * three plain cells and CPU ×6 of the confirming pass) never printed it. There the token had not been BORN — a page
+ * that does not paint starts no flight — so nothing flew into a folding surface; the conclusion went on with the
+ * game, and the token was absorbed where it stood (the flight's own planned ceiling says so). THE VERDICT follows the
+ * page: on a page that does not paint the line is that page's honest end (`planned`); on a page that PAINTS a frame
+ * that leaves under its own token is the law broken — a defect, with the verb in the line.
  */
 export function witnessFrameLeft(kind: string, verb: string, surface: Element | null): void {
   if (surface === null || !surfaceHoldsTokens(surface)) {
     return;
   }
-  console.warn(`[transfer] a frame left with tokens on its surface — «${kind}» by ${verb === '' ? 'an unnamed verb' : verb}, holding ${liveEndsOn(surface).join(', ')}`);
+  const starved = pageStarvedNow()?.replace(/[()]/g, '');
+  console.warn(`[transfer] a frame left with tokens on its surface — «${kind}» by ${verb === '' ? 'an unnamed verb' : verb}, holding ${liveEndsOn(surface).join(', ')}` +
+    (starved !== undefined ? ` (planned: ${starved})` : ''));
 }
 
 function surfaceOpacity(el: Element): number {

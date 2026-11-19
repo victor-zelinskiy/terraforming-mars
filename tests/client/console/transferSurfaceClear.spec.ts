@@ -132,7 +132,7 @@ describe('surfaceClear — a surface never folds under its own token', () => {
    * the fold: a frame left the live stack while its surface held a token's end or an owed series. Counted, by the
    * workspace and with the verb in the line — never an event until its walks are read.
    */
-  it('THE FOLD IS WITNESSED WHERE IT HAPPENS: a frame that leaves holding a token is named with its verb — counted, not an event', () => {
+  it('THE FOLD IS WITNESSED WHERE IT HAPPENS: a frame that leaves holding a token is named with its verb — a defect on a page that paints, the honest end of one that does not', () => {
     const said: Array<string> = [];
     const warn = console.warn;
     console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
@@ -148,7 +148,11 @@ describe('surfaceClear — a surface never folds under its own token', () => {
       expect(said[0]).to.match(/^\[transfer\] a frame left with tokens on its surface — «card-actions» by closePhaseRoot:parliament, holding /);
       const cause = causeOf(said[0], 'warn');
       expect(cause?.cls).to.eq('transfer/frame-left-holding/card-actions');
-      expect(cause?.tier).to.eq('info');
+      // On a page that PAINTS a frame leaving under its own token is the law broken — a defect, with the verb…
+      expect(cause?.tier).to.eq('defect');
+      // …and on a page that does not paint (the line says so) no flight was ever started: that page's honest end.
+      expect(causeOf(`${said[0]} (planned: the page gave the motion 33 of 1780 ms — a motion cannot keep its bound on a page that does not paint)`, 'warn')?.tier)
+        .to.eq('planned');
       // …and a series the host still owes holds it as a token does.
       dropTransferEnds(8);
       oweSurfaceTokens('reward', surface);

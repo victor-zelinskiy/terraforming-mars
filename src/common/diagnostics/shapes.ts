@@ -415,7 +415,13 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'surface-folded', re: /^surface folded under its token — the (\S+) of ([^:\s]+):([^\s@]+)/, tier: 'defect', parts: [1, 2, 3]},
     {name: 'painted-under', re: /^token painted under (\S+) at the (\S+)/, tier: 'defect', parts: [1, 2]},
     {name: 'told-twice', re: /^told twice — .*?: (\S+) tells it; (\S+) reached for it too/, tier: 'defect', parts: [1, 2]},
-    {name: 'frame-left-holding', re: /^a frame left with tokens on its surface — «([^»]*)»/, tier: 'info', parts: [1], why: 'the fold\'s own witness in shadow (`witnessFrameLeft`): counted until its walks say which verb folds — then that verb waits as the collapse does, and this is the sentinel'},
+    {
+      name: 'frame-left-holding', re: /^a frame left with tokens on its surface — «([^»]*)»/, tier: 'defect', parts: [1],
+      // The fold witnessed where it happens (`witnessFrameLeft`): on a page that PAINTS — the law of the fold broken,
+      // with the verb in the line; on a page that does not paint (the line says so) no flight was ever started — that
+      // page's honest end.
+      read: (_m, body) => (/ \(planned: [^)]*\)$/.test(body) ? {tier: 'planned'} : {}),
+    },
     {name: 'no-visible-end', re: /^no visible (\S+) — /, tier: 'planned', parts: [1], why: 'the law of visible ends: a covered end is not flown, its counter ticks with its chip'},
   ],
   // ── «this cannot happen, and it did» (`client/diagnostics/invariant.ts`): one class per invariant id ──────────────
