@@ -57,6 +57,48 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * `start-shadow/finding/disagree/wizard/game` — THE FIELD's (a console export of 2026-11-14, release 1.2.3252; the
+   * collector's issue behind CI finding #62; PLAN § 4b — «its own replay is owed»). A Turmoil Redux opening: the
+   * player minimizes the start on its first question («B Свернуть»), opens the quick wheel and goes to the PARLIAMENT
+   * to read the table before choosing a corporation. The start's frame is off the stack and `parliament:browse` is on
+   * stage; the shadow of the start director read that as «the game on screen for the start's own question» and filed
+   * a defect over a screen the player had walked to. The law is the first replay's, one question earlier: a question
+   * the player set aside is `parked`, whatever screen they went to read meanwhile (`startDirector.actualStartOwner`).
+   */
+  it('the Parliament opened from the wheel over a minimized opening: the player went to read it — nothing is filed, and B, then A, bring the opening back', async () => {
+    const table = bottleServer().bootNewGame(2, {turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true, preludeExtension: true}, '-wizard-parliament');
+    bottle = await bootBottle(table);
+    await bottle.advance(4_000);
+    expect(bottle.liveness().asked, 'the opening\'s first question').to.equal('initialCards');
+    expect(bottle.frames()).to.deep.equal(['start:browse']);
+
+    expect(await bottle.press('Escape'), 'B minimizes the opening').to.equal('consumed');
+    await bottle.advance(700);
+    expect(bottle.frames()).to.deep.equal([]);
+    expect(await bottle.press('Period'), 'the quick wheel').to.equal('consumed');
+    await bottle.advance(700);
+    expect([...document.querySelectorAll('.con-quick, [class*="wheel"]')].some((el) => /Parliament/.test(el.textContent ?? '')), 'the wheel offers the Parliament').to.equal(true);
+    // (A direction of the wheel is its pick: ▼ opens the Parliament.)
+    await bottle.press('ArrowDown');
+    await bottle.advance(1_500);
+    expect(bottle.frames(), 'the Parliament stands, the opening does not').to.deep.equal(['parliament:browse']);
+    // Past the shadow's own confirmation (3 s), the start's stranded watch and the arbiter's grace (10 s).
+    await bottle.advance(15_000);
+    expect(bottle.frames()).to.deep.equal(['parliament:browse']);
+    expect(classes().filter((cls) => cls.startsWith('start-shadow') || cls.startsWith('start-stranded')), 'a screen the player walked to is nobody\'s finding').to.deep.equal([]);
+    expect(classes(), 'and nothing else is').to.deep.equal([]);
+
+    // The way back: B leaves the Parliament, the restore card brings the opening's question.
+    expect(await bottle.press('Escape')).to.equal('consumed');
+    await bottle.advance(1_500);
+    expect(bottle.bar(), 'the way back is on screen').to.match(/Return to selection/);
+    expect(await bottle.press('Enter')).to.equal('consumed');
+    await bottle.advance(3_000);
+    expect(bottle.frames(), 'A on the restore card brings the opening back').to.deep.equal(['start:browse']);
+    expect(classes()).to.deep.equal([]);
+  });
+
+  /*
    * `wait-graph/cycle/announce:parliament:genN/question:parliamentphase/surface:parliament` — the monkey's baseline,
    * seed `fz0` · `eden-alliance-enact-remote`. The other seat's pass is the last: the sitting reaches the viewer by
    * the poll and its PLATE «ПАРЛАМЕНТ · Заседание» is the door in. The walk did not press A on it — it opened the
