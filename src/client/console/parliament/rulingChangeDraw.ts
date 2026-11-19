@@ -283,7 +283,10 @@ function releaseUntoldPark(key: string, late: boolean): void {
   clearNet();
   if (rulingChangeDrawState.owedKey === key && !rulingChangeDrawState.delivering) {
     if (late) {
-      netEnded('ruling-change-draw:untold-enactment', `the sitting ${key} never told its enactment — the batch takes the ordinary road`);
+      // (WHERE THE SITTING STOOD decides whose thirty seconds these were — a sitting on screen is the player reading
+      // it; one that never rose is the plate nobody opened. Counted apart, so the matrix says which the net ends.)
+      netEnded('ruling-change-draw:untold-enactment',
+        `the sitting ${key} never told its enactment — the batch takes the ordinary road (the sitting ${consoleParliamentUi.stageStanding ? 'stands on screen' : 'is not on screen'})`);
     }
     rulingChangeDrawState.owedKey = undefined;
     // …and a rating owed to that same tail, with no stage to tell it, ticks with the batch.

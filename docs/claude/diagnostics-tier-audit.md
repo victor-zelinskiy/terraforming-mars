@@ -80,6 +80,13 @@ touched down» (`banner-stage:cube-touchdown`), the sitting that «never told it
 (`ruling-change-draw:untold-enactment` — seen in the monkey's walks under a reload) and the colony ledger's payout
 that «stalled with nothing owed» (`colony-ledger:payout-stalled`): a lost signal or a designed fallback? each is
 decided by the first walks that print it — a ceiling wait of the graph, or a fallback with its reason.
+**The first counts (2026-11-19, two CI cells of 606 walks each):** `ruling-change-draw:untold-enactment` — 10 tables
+under `hidden`, 4 under `duo`; the cube and the ledger — none. By the code the park waits for the sitting to tell its
+enactment, which the PLAYER walks: thirty seconds without their press and the «answer to a change of power» cards
+leave the sitting for the ordinary reveal. So it is no lost signal — it is a wait for the player with a wall bound
+on it, and whether that bound should stand while the sitting is on screen (a player reading a resolution for half a
+minute gets the cards outside the sitting) is the owner's to say: it changes what the player sees. The line now
+says where the sitting stood (`stands on screen` / `is not on screen`), so the next cells split the two.
 **Still open by reading alone:** the console export's failures (the device's disk or our gather); the pad line of row 9; row 10 (a server
 unreachable for minutes — a defect only where the server is OURS, the host's embedded one); and 60 silent catches
 around catalogue lookups (`getCard` on an unknown name) that fall back by design and say nothing.

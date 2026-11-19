@@ -528,6 +528,10 @@ for seconds over the surface that answers (the record is taken up «on-its-surfa
 workspace) — when surfaces are DERIVED from the function, «aside» has to be exact, so that take-up is the
 record's to make at the frame's entry.
 
+**The fourth — CI `fz0` · `hidden`, 606 walks** (run 44462057391, round 3's code; 0 defect records, the gate GREEN):
+**4248 looks — MISS 0 · EXTRA 0.** The first whole cell of a real browser on which the function and the screen agree
+at every look.
+
 The next reading is the matrix's own (the nightly runs on `main` carry round 4; the confirming pass stands on
 `fz/stage1-exit` and carries round 3). The wiring (②) does not
 start before the function reads 0 · 0 on a whole cell AND stage 1 has exited.
