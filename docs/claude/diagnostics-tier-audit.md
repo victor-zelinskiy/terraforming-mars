@@ -87,6 +87,12 @@ leave the sitting for the ordinary reveal. So it is no lost signal — it is a w
 on it, and whether that bound should stand while the sitting is on screen (a player reading a resolution for half a
 minute gets the cards outside the sitting) is the owner's to say: it changes what the player sees. The line now
 says where the sitting stood (`stands on screen` / `is not on screen`), so the next cells split the two.
+**DECIDED the same morning, by the player's experience** (the owner: such questions are read as a UI/UX architect
+reads them, not as code): no card leaves the ceremony for the player's time. The park's net counts only the
+sitting's OWN time — its stage on screen, the page painting, the walk playing by itself, on ONE page (a page turned
+starts the count again) — so what it ends is a walk that stood still on its own stage; a sitting that cannot rise
+is a stuck screen, the arbiter's. `rulingChangeDraw.ts` § PARK_NET_MS, `rulingChangePark.spec`. The line stays in
+the waiting room: with the player's time out of it, every count from here is a candidate lost signal.
 **Still open by reading alone:** the console export's failures (the device's disk or our gather); the pad line of row 9; row 10 (a server
 unreachable for minutes — a defect only where the server is OURS, the host's embedded one); and 60 silent catches
 around catalogue lookups (`getCard` on an unknown name) that fall back by design and say nothing.

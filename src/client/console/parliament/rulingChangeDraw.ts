@@ -5,14 +5,14 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentRulingAnswerModel} from '@/common/models/ParliamentModel';
 import {isReduxParty, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {drawnCardsState, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
-import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {playerOwnedHolds, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReactionDirector';
 import {rectOf} from './parliamentFlights';
 import {allianceImpulseState} from './allianceImpulse';
-import {consoleParliamentUi} from './consoleParliamentFlow';
+import {consoleParliamentUi, parliamentFlow} from './consoleParliamentFlow';
 import {generationSceneRisesIntoSitting} from '@/client/console/generationScene/generationScene';
 import {scheduleParliamentBeat} from './parliamentBeat';
 import {probeTick} from '@/client/console/probeTick';
@@ -22,6 +22,7 @@ import {sittingRiseOwed} from './sittingRise';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {netEnded} from '@/client/diagnostics/netEnded';
 import {flowClock} from '@/client/console/kernel/flowClock';
+import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
@@ -59,8 +60,29 @@ import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingW
  * on the touchdown. A card that answers with both rides one group (the rating first, then the production).
  */
 
-/** The park's safety: a sitting that never reaches its enactment tact lets the batch go to the ordinary road. */
+/**
+ * The park's safety: a sitting that never reaches its enactment tact lets the batch go to the ordinary road.
+ *
+ * WHOSE THIRTY SECONDS (the owner, 2026-11-19 — «смотри с точки зрения опыта игрока»). The sitting is a ceremony with
+ * a cause and an answer: the seals change places, THEN the alliance's card answers and a card leaves the deck inside
+ * the sitting. Counted on the wall from the server's response, this net ended on the PLAYER's time — a plate they had
+ * not opened yet, a board they were reading, cards they had not taken — and the answer was shown by the ordinary
+ * reveal on the board: the effect before its cause, outside the ceremony, a surface nobody pressed for (ten tables of
+ * 606 in one cell the night it was first counted). No card leaves the ceremony for the player's time.
+ *
+ * So the net counts ONLY THE SITTING'S OWN TIME: its stage stands on screen, the page paints, and something of the
+ * walk is playing — not every standing hold waiting for the player (a table's answer mid-chain is theirs too) — and
+ * it counts ON ONE PAGE: a page turned is the walk moving, and the count starts again (a slow device walks slowly; it
+ * is not a walk that stopped). What is left for it is a walk that stands still on its own stage for thirty seconds.
+ * A sitting that cannot rise at all is a STUCK SCREEN — the liveness arbiter's, which acts on a question nobody serves
+ * and presses that reach nothing, never on a player who is reading; past its ladder the last line rebuilds the page,
+ * and a rebuilt page opens no park (the batch takes the ordinary road, as after any reload past the enactment). No rung
+ * of its own: the ladder is being retired (the architecture's debt ledger), and the door into the Parliament already
+ * does not wait for a batch the sitting parked (`screenHandoff` — PARLIAMENT_DOOR).
+ */
 const PARK_NET_MS = 30_000;
+/** The park's clock looks this often (the kernel's tick, owned by the session). */
+const PARK_CLOCK_TICK_MS = 500;
 /**
  * The tail waits at most this long for the alliance's impulse (the seals' own answer to the change comes first) to
  * START. An impulse already IN THE AIR is waited for to its landing (FLAKE ZERO Ф4, class N): counted from the tail's
@@ -263,30 +285,57 @@ export function openRulingChangePark(key: string): void {
   }
   rulingChangeDrawState.owedKey = key;
   clearNet();
-  // The one wall clock here is a NET over a sitting that never tells its enactment (a bound, never a beat). It WARNS,
-  // so it is a pacing timer of the session — and a session that ends under the park lets it go SILENTLY (the park is
-  // module state: left standing, it would hold the next game's batch with no net at all).
+  // A NET over a sitting that never tells its enactment (a bound, never a beat), counted on THE SITTING'S OWN TIME
+  // (`PARK_NET_MS`). It is a tick of the session — and a session that ends under the park lets it go SILENTLY (the
+  // park is module state: left standing, it would hold the next game's batch with no net at all).
   const owner = consoleSessionScope();
-  const cancelNet = owner.after(PARK_NET_MS, 'a sitting\'s enactment (the park\'s net)', () => releaseUntoldPark(key, true));
-  const forget = owner.defer(() => releaseUntoldPark(key, false));
+  let stood = 0;
+  let last = flowClock().now();
+  let page = parliamentFlow.sittingPage;
+  const stopClock = owner.every(PARK_CLOCK_TICK_MS, 'a sitting\'s enactment (the park\'s clock)', () => {
+    const now = flowClock().now();
+    // (A tick that came late — a page that slept — is one tick's worth, never the whole sleep.)
+    const passed = Math.min(now - last, PARK_CLOCK_TICK_MS * 2);
+    last = now;
+    if (parliamentFlow.sittingPage !== page) {
+      page = parliamentFlow.sittingPage;
+      stood = 0;
+    }
+    if (sittingPlaysByItself()) {
+      stood += passed;
+    }
+    if (stood < PARK_NET_MS) {
+      return true;
+    }
+    releaseUntoldPark(key, 'the walk stood still on its own stage');
+    return false;
+  });
+  const forget = owner.defer(() => releaseUntoldPark(key, undefined));
   net = () => {
-    cancelNet();
+    stopClock();
     forget();
   };
 }
 
 /**
- * The net fired (`late`): the sitting never told its enactment — the batch takes the ordinary road, named. The session
- * ended under the park (not `late`): the same release, unsaid.
+ * IS THIS SECOND THE SITTING'S OWN — its stage on screen, the page painting, the walk playing by itself? Off screen
+ * (the plate not opened, the Parliament minimized, another surface in front), on a page that does not paint, and
+ * while everything that stands waits for the player (`playerOwnedHolds` — a table's answer, a take), it is not.
  */
-function releaseUntoldPark(key: string, late: boolean): void {
+function sittingPlaysByItself(): boolean {
+  return consoleParliamentUi.stageStanding && pageStarvedNow() === undefined && playerOwnedHolds() === undefined;
+}
+
+/**
+ * The park lets the batch go to the ordinary road with its enactment untold. `why` — said (the net: the walk stood
+ * still on its own stage); `undefined` — the session ended under the park: the same release, unsaid.
+ */
+function releaseUntoldPark(key: string, why: string | undefined): void {
   clearNet();
   if (rulingChangeDrawState.owedKey === key && !rulingChangeDrawState.delivering) {
-    if (late) {
-      // (WHERE THE SITTING STOOD decides whose thirty seconds these were — a sitting on screen is the player reading
-      // it; one that never rose is the plate nobody opened. Counted apart, so the matrix says which the net ends.)
+    if (why !== undefined) {
       netEnded('ruling-change-draw:untold-enactment',
-        `the sitting ${key} never told its enactment — the batch takes the ordinary road (the sitting ${consoleParliamentUi.stageStanding ? 'stands on screen' : 'is not on screen'})`);
+        `the sitting ${key} never told its enactment — the batch takes the ordinary road (${why}; the sitting ${consoleParliamentUi.stageStanding ? 'stands on screen' : 'is not on screen'})`);
     }
     rulingChangeDrawState.owedKey = undefined;
     // …and a rating owed to that same tail, with no stage to tell it, ticks with the batch.
