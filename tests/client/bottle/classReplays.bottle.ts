@@ -417,6 +417,44 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * `wait-graph/ceiling/deck-pick:deal` — the bottle's gate under the away perturbation, seed `fz5` ·
+   * `space-lanes-wg`, 2026-11-19 (the first night the deal's ceiling was a wait of the graph — the tier audit, row 9;
+   * until then its line was a note nobody read). «WG Project» played from the hand opens a pick of three preludes;
+   * the stage is not measurable (here: no layout; on a real page — a zone still folded, a workspace parked under the
+   * deal), so the batch arrival «hands over immediately instead of faking a flight» — and stood on its nine-second
+   * safety instead, because nobody calls `notifyPayload` for a batch whose payload is already there. The deal's own
+   * ceiling ended it at eight seconds: an empty row and a shut pad all that time. The law: with the payload here and
+   * no stage to fly on, NOTHING IS OWED — the hand-over is the next task (`consoleBatchArrivalMotion.runBatchArrival`).
+   * (The away spell of the shrunk walk is only the time the hand's own entry needs: plain time names the class too.)
+   */
+  it('a pick dealt onto a stage that cannot be measured is handed over at once — the pad opens, no ceiling ends the deal', async () => {
+    const fixture = 'space-lanes-wg';
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`fz5:${fixture}:world`)());
+    try {
+      const table = await bottleServer().bootFixture(fixture);
+      bottle = await bootBottle(table);
+      await bottle.advance(3_000);
+      const steps: ReadonlyArray<MonkeyStep> = [
+        {do: 'press', key: 'Period', pauseMs: 451}, {do: 'press', key: 'Enter', pauseMs: 308},
+        {do: 'away', ms: 11_357, hidden: true},
+        {do: 'press', key: 'ArrowRight', pauseMs: 1_438}, {do: 'press', key: 'Enter', pauseMs: 1_882},
+        {do: 'press', key: 'Enter', pauseMs: 249},
+      ];
+      bottle = await replaySteps(bottle, table.seats.length, steps);
+      expect(bottle.frames(), 'the card is played — the hand hosts its pick').to.deep.equal(['hand:executing']);
+      // The play's own beat, then the hand-over: three seconds are an order of magnitude under the deal's ceiling.
+      await bottle.advance(3_000);
+      expect(bottle.frames()).to.deep.equal(['hand:committed']);
+      expect(bottle.bar(), 'the pick takes the pad').to.match(/Select/);
+      // …and past the ceiling (8 s) and the arrival's safety (9 s) nothing was left to end on either.
+      await bottle.advance(10_000);
+      expect(classes(), 'no wait ended on a ceiling').to.deep.equal([]);
+    } finally {
+      restoreRandom();
+    }
+  });
+
+  /*
    * THE START'S SHADOW ON A PAGE NOBODY LOOKS AT (PLAN § 4 — the bottle's `hidden` pass, 2026-11-18). A card's play
    * scene holds the action menu («held by played-hero») and the page goes behind another window for twelve seconds:
    * the scene cannot end there, the shadow's ten seconds ran on the wall, and the finding it confirmed is CURED — a

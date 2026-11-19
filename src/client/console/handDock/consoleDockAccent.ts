@@ -36,7 +36,7 @@
  */
 
 import {reactive} from 'vue';
-import {invariantBroken} from '@/client/diagnostics/invariant';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /**
@@ -92,10 +92,17 @@ export function beginDockIntakeAccent(label: string): () => void {
     // PACING, not a guarantee (PLAN §10 · C1): the ceiling WARNS when it fires, so it must not come due when the game
     // screen leaves — there the lease is let go silently (the session's own cleanup).
     const owner = consoleSessionScope();
+    // THE CEILING IS A WAIT OF THE GRAPH: a lease is a wait for the presentation that took it, and the page's FRAMES
+    // are what that presentation runs on. As a bare timer its line was an invariant — and a page nobody looked at for
+    // six seconds (a hidden tab, a window behind another) «broke» it on every open of the hand: three classes of the
+    // bottle's first night under the away perturbation (2026-11-19). On a page that painted, the same line is the
+    // defect it always was (`ceilingWait.ts` reads the frames; a starved page's ceiling is its honest end).
+    const wait = beginCeilingWait({
+      id: `dock-accent:${label}`, owner: 'consoleDockAccent', what: 'the end of the presentation that holds the dock\'s full pose', maxMs: ACCENT_MAX_MS,
+    });
     const cancelCeiling = owner.after(ACCENT_MAX_MS, 'the dock accent\'s ceiling', () => {
       if (leases.some((l) => l.id === id)) {
-        invariantBroken(`dock-accent:leaked-lease:${label}`,
-          `the accent lease outlived ${ACCENT_MAX_MS}ms and was released — the compact pose must never be disabled by a leaked presentation`);
+        wait.ceiling();
       }
       drop(id);
     });
@@ -103,6 +110,8 @@ export function beginDockIntakeAccent(label: string): () => void {
     lease.cancel = () => {
       cancelCeiling();
       forgetRelease();
+      // (Released by its owner — the awaited thing came; after the ceiling's own word this is a no-op.)
+      wait.met();
     };
   }
   leases.push(lease);

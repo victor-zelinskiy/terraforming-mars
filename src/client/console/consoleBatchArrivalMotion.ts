@@ -198,7 +198,13 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
     // guessed landing is exactly the visible teleport this system exists to
     // remove. Hand over immediately instead of faking a flight.
     cards.slice(0, n).forEach(({proxy}) => gsap.set(proxy, {autoAlpha: 0}));
-    safety = consoleSessionScope().guarantee(SAFETY_MS, 'consoleBatchArrivalMotion: a beat\'s safety', fireSettled);
+    // «IMMEDIATELY» IS KEPT ONLY IF NOTHING IS OWED: a batch whose payload is HERE (`in-flight-reveal`) has nobody
+    // left to call `notifyPayload` — it stood on the nine-second safety with the proxies hidden and the real cards
+    // held, and the caller's own deal ceiling (8 s) ended it first: eight seconds of a shut pad over an empty row
+    // (named by the bottle the night the deal's ceiling became a wait of the graph — «WG Project» from the hand,
+    // 2026-11-19). It settles in the next task (the caller holds its handle first); only a batch still waiting for
+    // its DATA waits — for `notifyPayload`, bounded by the safety.
+    safety = consoleSessionScope().guarantee(payloadReady ? 0 : SAFETY_MS, 'consoleBatchArrivalMotion: a beat\'s safety', fireSettled);
     return {
       notifyPayload: () => fireSettled(),
       plan,

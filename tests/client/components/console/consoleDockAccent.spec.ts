@@ -1,5 +1,8 @@
 import {expect} from 'chai';
 import {createManualClock, setFlowClock} from '@/client/console/kernel/flowClock';
+import {__resetFrameWitnessForTesting} from '@/client/console/kernel/frameWitness';
+import {resetCeilingStats} from '@/client/console/waitGraph/ceilingWait';
+import {causeOf} from '@/common/diagnostics/cause';
 import {
   ACCENT_MAX_MS, beginDockIntakeAccent, dockIntakeAccentActive, dockIntakeAccentLabels,
   holdDockIntakeAccent, resetDockIntakeAccent,
@@ -67,7 +70,8 @@ describe('consoleDockAccent — the intake accent is a BOUNDED lease', () => {
     const clock = createManualClock(0);
     setFlowClock(clock);
     const warn = console.warn;
-    console.warn = () => {};
+    const said: Array<string> = [];
+    console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
     try {
       beginDockIntakeAccent('leaked'); // release deliberately dropped
       expect(dockIntakeAccentActive()).to.eq(true);
@@ -76,9 +80,42 @@ describe('consoleDockAccent — the intake accent is a BOUNDED lease', () => {
       clock.advance(1); // the ceiling elapses
       expect(dockIntakeAccentActive(), 'the leak released itself').to.eq(false);
       expect(clock.pending(), 'nothing of the lease is left on the clock').to.eq(0);
+      // THE LEAK IS A WAIT OF THE GRAPH THAT ENDED ON ITS CEILING — on a page that painted all six seconds, a defect.
+      expect(said).to.have.length(1);
+      expect(said[0]).to.match(/^\[wait-graph\] ceiling dock-accent:leaked \(consoleDockAccent\) — .* did not come in 6000 ms — the wait ended on its ceiling$/);
+      expect(causeOf(said[0], 'warn')?.tier).to.eq('defect');
     } finally {
       console.warn = warn;
       setFlowClock(undefined);
+      __resetFrameWitnessForTesting();
+      resetCeilingStats();
+    }
+  });
+
+  /*
+   * A PAGE NOBODY LOOKS AT (the bottle's first night under the away perturbation, 2026-11-19): the presentation that
+   * holds the lease runs on FRAMES, and a hidden tab paints none. The lease still expires (the pose is unbreakable) —
+   * and its ceiling is the wait's honest end, never an invariant «broken» by the player's alt-tab.
+   */
+  it('…and on a page that did not paint, the ceiling is its honest end — counted, never a defect', async () => {
+    const base = createManualClock(0);
+    // (Time runs and timers fire; a frame never comes.)
+    setFlowClock({...base, nextFrame: () => () => undefined});
+    const warn = console.warn;
+    const said: Array<string> = [];
+    console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
+    try {
+      beginDockIntakeAccent('hand-open');
+      base.advance(ACCENT_MAX_MS);
+      expect(dockIntakeAccentActive(), 'the pose is given back all the same').to.eq(false);
+      expect(said).to.have.length(1);
+      expect(said[0]).to.match(/ceiling dock-accent:hand-open .* \(planned: the page gave the motion \d+ of 6000 ms, 1 frame gap over 500 ms/);
+      expect(causeOf(said[0], 'warn')?.tier).to.not.eq('defect');
+    } finally {
+      console.warn = warn;
+      setFlowClock(undefined);
+      __resetFrameWitnessForTesting();
+      resetCeilingStats();
     }
   });
 

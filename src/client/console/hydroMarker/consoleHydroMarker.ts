@@ -30,7 +30,7 @@
  */
 
 import {reactive} from 'vue';
-import {invariantBroken} from '@/client/diagnostics/invariant';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {CardName} from '@/common/cards/CardName';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {Color} from '@/common/Color';
@@ -340,15 +340,29 @@ const CLAIM_PROGRESS_MAX_MS = 15_000;
 let cancelClaimNet: () => void = NO_TIMER;
 let claimNetArmed = false;
 
+/*
+ * THE NET IS A WAIT OF THE GRAPH (2026-11-19): the window it bounds holds the glide's LOCK — a motion — and a bound
+ * over a motion is judged against the frames the page painted (`ceilingWait.ts`). For one day its line was an
+ * invariant behind a bare timer on the wall: fifteen seconds behind another window «broke» it. A dead transaction on
+ * a page that painted is the defect it always was; the recall is the same either way.
+ */
 function armClaimNet(): void {
   clearClaimNet();
   claimNetArmed = true;
-  cancelClaimNet = markerRun().after(CLAIM_PROGRESS_MAX_MS, 'the claimed advance reaching its handoff', () => {
+  const wait = beginCeilingWait({
+    id: 'hydro-marker:claim', owner: 'consoleHydroMarker', what: 'the claimed advance reaching its handoff', maxMs: CLAIM_PROGRESS_MAX_MS,
+  });
+  const cancelTimer = markerRun().after(CLAIM_PROGRESS_MAX_MS, 'the claimed advance reaching its handoff', () => {
     claimNetArmed = false;
     recordHydroStepEvent('claim:stalled');
-    invariantBroken('hydro-marker:claim-never-handed-over', 'the claimed advance never reached its handoff — recalling the glide (the claim net: a dead transaction)');
+    wait.ceiling();
     abortHydroMarker();
   });
+  cancelClaimNet = () => {
+    cancelTimer();
+    // (The handoff came, or the run is gone — after the ceiling's own word this is a no-op.)
+    wait.end();
+  };
 }
 
 function clearClaimNet(): void {
