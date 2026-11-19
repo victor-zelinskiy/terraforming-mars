@@ -302,7 +302,9 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
       // only that: the board never watchable in the whole window, covered only by what the player looks at. A board
       // seen and not told, or covered by the game's own scene (a sitting on its way up, the camera), is a defect
       // (the tier audit of 2026-11-18, row 1). A line from a build before `coveredBy` keeps the old reading.
-      read: (_m, body) => (storyCoveredByPlayer(body) ? {tier: 'planned'} : {}),
+      // …and a story that came due on a page that did not PAINT (`presentationLedger` asks the frame witness over the
+      // story's own window — behind another window, a hidden tab): the scene that releases it runs on frames.
+      read: (_m, body) => (/ \(planned: [^)]*\)$/.test(body) || storyCoveredByPlayer(body) ? {tier: 'planned'} : {}),
     },
     {name: 'story-degraded-by', re: /^story «([^»]*)» degraded by (.*?) after /, tier: 'info', parts: [1], dims: {by: 2}, why: 'the echo of a rung / a door — the episode or the finding is the defect', echoOf: ['liveness/stall', ...WAIT_GRAPH_FINDINGS]},
     {name: 'witness-heal', re: /^witness «([^»]*)» healing — the lie outlived its grace/, tier: 'defect', parts: [1]},

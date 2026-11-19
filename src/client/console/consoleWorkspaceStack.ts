@@ -1238,7 +1238,7 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     live.serves = [...frame.serves];
     live.anchor = frame.anchor;
     live.overlay = frame.overlay === true || hostHandsOverTheScene(existing, frame.kind);
-    truncateWorkspaceStack(existing + 1);
+    truncateWorkspaceStack(existing + 1, 'enterWorkspace');
     return existing;
   }
   const isNestedInstrument = frame.nest === true && existing !== -1;
@@ -1390,7 +1390,7 @@ export function leaveWorkspace(): void {
 export function goBoardHome(): void {
   traceVerb('goBoardHome');
   const root = workspaceStackState.frames[0];
-  truncateWorkspaceStack(root !== undefined && root.anchor.type === 'phase' ? 1 : 0);
+  truncateWorkspaceStack(root !== undefined && root.anchor.type === 'phase' ? 1 : 0, 'goBoardHome');
   // The PARK is deliberately untouched: it is a different flow, set aside on
   // purpose, and finishing the one the player is looking at says nothing about
   // it. (Wiping it here is the same bug as wiping it on a lateral move.)
@@ -1472,7 +1472,7 @@ export function closeWorkspaceSheet(): void {
   while (keep > 0 && WORKSPACE_KINDS[workspaceStackState.frames[keep - 1].kind].sheet !== undefined) {
     keep--;
   }
-  truncateWorkspaceStack(keep);
+  truncateWorkspaceStack(keep, 'closeWorkspaceSheet');
 }
 
 /** Leave the top frame — one logical level. */
@@ -1496,7 +1496,7 @@ export function closeWorkspaceRoot(kind: WorkspaceFrameKind): void {
   traceVerb('closeWorkspaceRoot:' + kind);
   const depth = workspaceFrameIndex(kind);
   if (depth !== -1) {
-    truncateWorkspaceStack(depth);
+    truncateWorkspaceStack(depth, 'closeWorkspaceRoot:' + kind);
   }
 }
 
@@ -1507,12 +1507,13 @@ export function closeWorkspaceRoot(kind: WorkspaceFrameKind): void {
  * existing frame, by the anchor reconciler and by rehydration, so «a flow
  * degraded» always looks the same to every consumer.
  */
-export function truncateWorkspaceStack(depth: number): void {
+export function truncateWorkspaceStack(depth: number, by = ''): void {
   const keep = Math.max(0, Math.min(depth, workspaceStackState.frames.length));
   if (keep === workspaceStackState.frames.length) {
     return;
   }
-  traceVerb('truncate:' + keep + ' drops ' + workspaceStackState.frames.slice(keep).map((f) => f.kind + '/' + f.anchor.type).join(','));
+  // (`by` — the verb that asked: the fold's witness names it, `witnessFrameLeft`.)
+  traceVerb((by === '' ? '' : by + ' › ') + 'truncate:' + keep + ' drops ' + workspaceStackState.frames.slice(keep).map((f) => f.kind + '/' + f.anchor.type).join(','));
   workspaceStackState.frames.splice(keep);
   syncFrameLifetimes();
 }
@@ -2265,7 +2266,7 @@ export function reconcileWorkspaceStack(isAnchorLive: (anchor: FrameAnchor) => b
   const frames = workspaceStackState.frames;
   for (let depth = 0; depth < frames.length; depth++) {
     if (!isAnchorLive(frames[depth].anchor)) {
-      truncateWorkspaceStack(depth);
+      truncateWorkspaceStack(depth, 'anchor-dead');
       return depth;
     }
   }

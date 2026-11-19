@@ -31,6 +31,7 @@
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {FlowScope} from '@/client/console/kernel/flowScope';
+import {FrameWatch, watchFrames} from '@/client/console/kernel/frameWitness';
 
 /** The heartbeat cadence. A missed release edge costs at most one beat. */
 export const LEDGER_TICK_MS = 250;
@@ -88,10 +89,20 @@ export type TruthWitness = {
  * `dueMs`), and it ENDS WITH ITS SESSION — a debt of a game screen that left is not re-driven into the next one. The
  * book (`stories`) is that scope's mirror in the ledger's vocabulary: redrive, due, degrade.
  */
-type StoryEntry = OwedStory & {since: number, lastRedriveAt: number, owner: object, scope: FlowScope<'story'>};
+type StoryEntry = OwedStory & {since: number, lastRedriveAt: number, owner: object, scope: FlowScope<'story'>, painted: FrameWatch};
 
-function openStoryScope(id: string, dueMs: number): FlowScope<'story'> {
+/*
+ * A STORY's DUE IS JUDGED AGAINST THE FRAMES THE PAGE PAINTED (freeze zero, stage 1 — CI `fz1` · duo,
+ * `info-dossier-rich`, 2026-11-19: the page BEHIND, «the page gave the motion 3375 of 32138 ms», and beside it two
+ * defects — the board beat's drain and the scale step's rating, each «degraded after 30 s — the release edge never
+ * came» over a marker that was MOVING all that time at a frame a second). A story is released by a scene that plays on
+ * frames; thirty seconds of the wall on a page nobody looks at gave it three. Its watch stands from the story's first
+ * owe to its retirement (it rides the frame witness's one loop — a counter, never a second loop) and rides the scope.
+ */
+function openStoryScope(id: string, dueMs: number): {scope: FlowScope<'story'>, painted: FrameWatch} {
   const scope = consoleSessionScope().open('story', `owed:${id}`);
+  const painted = watchFrames();
+  scope.defer(() => painted.stop());
   scope.note('its release edge (re-driven by the ledger)', () => {}, dueMs);
   // The session ended under an owed story: it leaves the book (its owner's own reset lets its values go).
   scope.defer(() => {
@@ -101,7 +112,7 @@ function openStoryScope(id: string, dueMs: number): FlowScope<'story'> {
       stopHeartbeatIfIdle();
     }
   });
-  return scope;
+  return {scope, painted};
 }
 
 /** Take a story out of the book and end its scope (`how` — settled by its owner, or degraded at its due / by a rung). */
@@ -191,13 +202,16 @@ function stopHeartbeatIfIdle(): void {
 export function owePresentation(story: OwedStory): OwedStoryHandle {
   const existing = stories.get(story.id);
   const owner = {};
+  // A re-owe is the SAME story deferring again: it keeps its scope, as it keeps its clock — and the scope's own watch
+  // of the frames the page painted since.
+  const {scope, painted} = existing !== undefined && existing.scope.ended === undefined ? existing : openStoryScope(story.id, story.dueMs);
   stories.set(story.id, {
     ...story,
     since: existing?.since ?? now(),
     lastRedriveAt: existing?.lastRedriveAt ?? 0,
     owner,
-    // A re-owe is the SAME story deferring again: it keeps its scope, as it keeps its clock.
-    scope: existing !== undefined && existing.scope.ended === undefined ? existing.scope : openStoryScope(story.id, story.dueMs),
+    scope,
+    painted,
   });
   ensureHeartbeat();
   return {
@@ -236,9 +250,13 @@ export function settlePresentationDue(): void {
     if (t - story.since >= story.dueMs) {
       // PAST DUE — the honest degrade, NAMED. Never silent: this line is the
       // whole point («the safety fired» stops being invisible).
+      // (Read BEFORE the story is retired — its scope takes the watch with it. No parenthesis inside the reason: the
+      // line prints it as `(planned: …)`.)
+      const starved = story.painted.starved()?.replace(/[()]/g, '');
       retireStory(story, 'degraded');
       presentationLedgerStats.degrades++;
-      console.warn(`[presentation-ledger] story «${story.id}» degraded after ${Math.round((t - story.since) / 1000)}s — the release edge never came${storyDiagnose(story)}`);
+      console.warn(`[presentation-ledger] story «${story.id}» degraded after ${Math.round((t - story.since) / 1000)}s — the release edge never came${storyDiagnose(story)}` +
+        (starved !== undefined ? ` (planned: ${starved})` : ''));
       try {
         story.degrade?.();
       } catch (err) {

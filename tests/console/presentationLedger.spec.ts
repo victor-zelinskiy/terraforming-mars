@@ -20,6 +20,9 @@ import {
 } from '../../src/client/console/presentationLedger';
 import {dumpFlowTree} from '../../src/client/console/kernel/flowScope';
 import {beginConsoleSession, endConsoleSession} from '../../src/client/console/session/consoleSession';
+import {createManualClock, FlowClock, setFlowClock} from '../../src/client/console/kernel/flowClock';
+import {__resetFrameWitnessForTesting} from '../../src/client/console/kernel/frameWitness';
+import {causeOf} from '../../src/common/diagnostics/cause';
 
 function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -190,6 +193,49 @@ describe('presentationLedger', function() {
     await delay(LEDGER_TICK_MS * 3 + 80);
     expect(redriven).to.be.greaterThan(0);
   });
+
+  /*
+   * A STORY's DUE IS JUDGED AGAINST THE FRAMES THE PAGE PAINTED (freeze zero, stage 1 — CI `fz1` · duo,
+   * `info-dossier-rich`, 2026-11-19): the page behind another window, a marker moving at a frame a second, and two
+   * stories «degraded after 30 s — the release edge never came», each a defect, beside a ceiling of the same scene
+   * already read as «the page gave the motion 3375 of 32138 ms». Nothing is judged on a page that does not paint.
+   */
+  for (const page of ['behind another window', 'in front'] as const) {
+    it(`a story that comes due on a page ${page}: ${page === 'in front' ? 'the defect it always was' : 'its due is the honest end — said with what the page gave'}`, () => {
+      const base = createManualClock(1_000);
+      // (Behind: time runs and timers fire; a frame never comes.)
+      const clock: FlowClock = page === 'in front' ? base : {...base, nextFrame: () => () => undefined};
+      const realNow = Date.now;
+      const said: Array<string> = [];
+      const warn = console.warn;
+      console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
+      __resetFrameWitnessForTesting();
+      setFlowClock(clock);
+      try {
+        owePresentation({id: 'spec-behind', ready: () => false, redrive: () => {}, dueMs: 30_000, diagnose: () => ({watchable: true, coveredBy: []})});
+        base.advance(29_000);
+        expect(said, 'not due yet').to.deep.eq([]);
+        Date.now = () => realNow() + 30_000;
+        base.advance(LEDGER_TICK_MS);
+        expect(said).to.have.length(1);
+        expect(said[0]).to.match(/^\[presentation-ledger\] story «spec-behind» degraded after \d+s — the release edge never came — \{"watchable":true,"coveredBy":\[\]\}/);
+        if (page === 'in front') {
+          expect(said[0]).to.not.match(/planned:/);
+          expect(causeOf(said[0], 'warn')?.tier).to.eq('defect');
+        } else {
+          expect(said[0]).to.match(/ \(planned: the page gave the motion \d+ of \d+ ms, .* a motion cannot keep its bound on a page that does not paint\)$/);
+          expect(causeOf(said[0], 'warn')?.tier).to.eq('planned');
+        }
+        expect(presentationLedgerSnapshot().stories).to.deep.equal([]);
+      } finally {
+        Date.now = realNow;
+        console.warn = warn;
+        resetPresentationLedger();
+        setFlowClock(undefined);
+        __resetFrameWitnessForTesting();
+      }
+    });
+  }
 
   it('reset clears stories and witnesses', () => {
     owePresentation({id: 'story', ready: () => true, redrive: () => {}, dueMs: 60_000});
