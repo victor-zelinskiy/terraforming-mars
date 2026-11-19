@@ -1912,6 +1912,19 @@ export function workspaceSceneHidden(kind: WorkspaceFrameKind): boolean {
   return workspaceFrameOffStage(kind) || taskSetAside();
 }
 
+/**
+ * THE ROUTER's question — is the QUESTION of this kind set aside by the player's own word: the deferred plate, or the
+ * workspace that serves it PARKED (a fresh instance of the same workspace standing live is on screen — not aside)?
+ * The yield for the board is NOT this: the board took the screen, the player did not put anything away.
+ */
+export function questionSetAside(kind: TaskKind | undefined): boolean {
+  if (taskSetAside()) {
+    return true;
+  }
+  return kind !== undefined && workspaceStackState.parked.some((parked) =>
+    parked.serves.includes(kind) && !workspaceStackState.frames.some((live) => live.kind === parked.kind));
+}
+
 /** Its frame stands on the live stack and nothing hides it — the rising edge is the frame's RETURN. */
 export function workspaceSceneOnStage(kind: WorkspaceFrameKind): boolean {
   return workspaceFrameIndex(kind) !== -1 && !workspaceSceneHidden(kind);

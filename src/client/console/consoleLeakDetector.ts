@@ -753,7 +753,10 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
   // THE ONE FUNCTION, MEASURED on the same look (stage 2 — counted, never judged, never said).
   if (ctx.facts !== undefined) {
     try {
-      noteServingOwnerLook(shape, servingOwnerOf({task, ...ctx.facts}), present, verdict.kind);
+      // (What the shadow made of the same look, WITH its reason — a hold the function's facts do not know yet is named by it.)
+      const shadow = verdict.kind === 'held' ? `held:${verdict.reason}` : verdict.kind === 'beat' ? `beat:${verdict.beats.join('+')}` :
+        verdict.kind === 'agree' ? `agree:${verdict.basis}` : verdict.kind;
+      noteServingOwnerLook(shape, servingOwnerOf({task, ...ctx.facts}), present, shadow);
     } catch {
       // A measure never breaks the pass it rides.
     }

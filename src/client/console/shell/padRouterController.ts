@@ -223,6 +223,7 @@ export type PadRouterPort = {
   handSelectTaskActive: UnwrapRef<HandSelectController['handSelectTaskActive']>,
   handSelectUiActive: UnwrapRef<HandSelectController['handSelectUiActive']>,
   hostTask: UnwrapRef<RouterController['hostTask']>,
+  taskHostHeldBy: UnwrapRef<RouterController['taskHostHeldBy']>,
   infoBack: UnwrapRef<InfoController['infoBack']>,
   infoExtrasChipList: UnwrapRef<InfoController['infoExtrasChipList']>,
   infoGo: UnwrapRef<InfoController['infoGo']>,
@@ -330,13 +331,20 @@ export function createPadRouterController(shell: PadRouterPort) {
    * DROPPED (`inputEcho.noteUnreceivedPress`), and the surface is named once while it stays away.
    */
   const deafSurfaces = new Map<string, number>();
-  function handedTo(surface: {handleIntent(intent: GamepadIntent): unknown} | undefined | null, name: string, intent: GamepadIntent): void {
+  function handedTo(surface: {handleIntent(intent: GamepadIntent): unknown} | undefined | null, name: string, intent: GamepadIntent, heldBy = ''): void {
     if (surface === undefined || surface === null) {
       noteUnreceivedPress(name);
       if (intent.kind === 'press') {
         const presses = (deafSurfaces.get(name) ?? 0) + 1;
         deafSurfaces.set(name, presses);
-        if (presses === 1) {
+        if (heldBy !== '') {
+          // THE OWNER IS HELD, BY NAME (its own `v-if` says why it does not stand): the press is that hold's to absorb —
+          // counted as dropped all the same (the arbiter reads the count), said once, and never «not mounted»: the
+          // hold has its own owner and its own bound.
+          if (presses === 1) {
+            console.warn(`[pad] «${name}» owns the pad and is held (${heldBy}) — the press went to nobody (counted as dropped)`);
+          }
+        } else if (presses === 1) {
           console.warn(`[pad] «${name}» owns the pad and is not mounted — the press went to nobody (counted as dropped)`);
         } else if (presses === 2) {
           // ONE press into a mount's gap is a hand-off of a frame; a SECOND one in a row is a surface the state says
@@ -958,7 +966,8 @@ export function createPadRouterController(shell: PadRouterPort) {
     // LOCK-STEP — a mismatch silently swallows the pad.
     if (shell.hostTask !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive) {
       const host = shell.surfaces.at<ExposedOf<typeof ConsoleTaskHost>>('taskHost');
-      handedTo(host, 'taskHost', intent);
+      // (The rung's terms are fewer than the host's own `v-if`: when the host is held, it is held BY NAME.)
+      handedTo(host, 'taskHost', intent, shell.taskHostHeldBy);
       return true;
     }
     // …and while it stands between two questions of ONE series (PC04 · GS), the answered question is a picture: every

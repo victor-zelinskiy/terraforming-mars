@@ -23,7 +23,7 @@ import {startPreludeGrantOf} from '@/client/console/parliament/hostedParliamentS
 import {buildEffectDecision, declineModelOf, EffectDecisionAction, EffectDecisionSource, EffectDecisionViewModel, nextStageKeyOf} from '@/client/console/effectDecision/effectDecisionModel';
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import {decisionPromptStamp, effectDecisionState, markDecisionPickAnswered, resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
-import {stackYieldedToBoard, yieldedStackCards, enterWorkspace, frameServing, workspaceStackState, goBoardHome, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {stackYieldedToBoard, yieldedStackCards, enterWorkspace, frameServing, workspaceStackState, questionSetAside, yieldedStackServes, goBoardHome, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardTransaction} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyBonusCollectOf, colonyBonusDiscardOf} from '@/client/console/colonyTrade/colonyResolution';
@@ -54,6 +54,7 @@ import {promptIdentityKey} from '@/client/console/turnIntents';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {AdmissionSignals, LATCHED_SURFACES, PromptSurface, isPromptAdmitted, isPromptPresent, latchPromptPresence, presenceOutlivesAnswer, promptAdmissionBlock, promptPresenceState, releasePromptPresence} from '@/client/console/consolePromptAdmission';
 import type {QuestionFacts} from '@/client/console/servingOwner';
+import {handoffPendingEntries} from '@/client/console/shell/shellFlowState';
 
 /** The surfaces that can admit an owner of a question (`servingOwner.ts` — `ServingOwner.admission`). */
 const OWNER_ADMISSIONS: ReadonlyArray<PromptSurface> = ['host', 'scaleBonus', 'section', 'standaloneModal', 'scene', 'placement', 'followUp'];
@@ -639,6 +640,31 @@ export function createRouterController(shell: RouterPort) {
       shell.taskSpacePending === undefined && !shell.handPickActive;
   });
 
+  /**
+   * WHY THE TASK HOST DOES NOT STAND while a task of its own is asked — the FIRST term of `taskHostRendered` that holds
+   * it, by name ('' — it renders, or there is no task of the host's). The pad's ladder reaches the host's rung on
+   * fewer terms than the host's own `v-if` has (the map of stage 2, 2026-11-19 — the two were to be «in lock-step»
+   * and are not): a press that arrives there while the host is deliberately held is ABSORBED BY THAT HOLD, by name —
+   * never «an owner that is not mounted» (CI `fz3` · `cpu4` · `special-permit-locked`, the first night the invariant
+   * was audible).
+   */
+  const taskHostHeldBy = computed((): string => {
+    if (hostTask.value === undefined || taskHostRendered.value) {
+      return '';
+    }
+    return taskHeldForWorkspace.value ? 'held-for-workspace' :
+      effectDecisionOwnsPrompt.value ? 'decision-owns' :
+        shell.finalGreeneryActive ? 'final-greenery' :
+          shell.finalePromptOwned ? 'finale' :
+            shell.govSupportActive ? 'gov-support' :
+              productionLossActive.value ? 'production-loss' :
+                govScaleFocusState.holding ? 'gov-scale-focus' :
+                  energyConversionState.active ? 'energy-conversion' :
+                    consoleState.task.deferred ? 'aside' :
+                      shell.taskSpacePending !== undefined ? 'board-branch' :
+                        shell.handPickActive ? 'hand-pick' : '';
+  });
+
   /** The EFFECT DECISION screen is on screen — its template condition, once. */
   const effectDecisionRendered = computed((): boolean => {
     return effectDecisionActive.value && effectDecisionVm.value !== undefined &&
@@ -991,11 +1017,15 @@ export function createRouterController(shell: RouterPort) {
       servingFrame: task === undefined ? undefined : frameServing(task.kind)?.kind,
       host: workspaceHostForStep(),
       frames: workspaceStackState.frames.map((frame) => frame.kind),
-      aside: consoleState.task.deferred,
+      handoff: [...handoffPendingEntries],
+      // (Set aside by the player — the plate, or the workspace that serves the question parked: the stack's own answer.)
+      aside: questionSetAside(task?.kind),
       boardBranch: shell.taskSpacePending !== undefined,
       scene: shell.finalGreeneryActive ? 'final-greenery' : shell.finalePromptOwned ? 'finale' :
         govScaleFocusState.holding ? 'gov-scale-focus' : energyConversionState.active ? 'energy-conversion' :
-          shell.handPickActive ? 'hand-pick' : '',
+          shell.handPickActive ? 'hand-pick' :
+            // (A stack that stepped aside for the board keeps its questions: it comes back with the landing's end.)
+            (task !== undefined && yieldedStackServes(task.kind)) ? 'yielded-to-board' : '',
       claimHeld: taskHeldForWorkspace.value || shell.deckPickHeldForWorkspace || venusBonusHeldForWorkspace.value ||
         effectDecisionHeldForWorkspace.value,
       blocks,
@@ -1746,6 +1776,7 @@ export function createRouterController(shell: RouterPort) {
     botAttackVm,
     compositeSurfaceActive,
     taskHostRendered,
+    taskHostHeldBy,
     effectDecisionRendered,
     standalonePromptSurfaceStands,
     seriesHeld,

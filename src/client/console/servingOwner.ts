@@ -54,6 +54,9 @@ export type QuestionFacts = {
   host: WorkspaceFrameKind | undefined;
   /** The workspaces whose frame STANDS on the live stack — admission is a door: one that is in is not held at it. */
   frames: ReadonlyArray<WorkspaceFrameKind>;
+  /** The workspaces whose ENTRY waits for the screen's hand-over (`handoffPendingEntries` — the sitting handing the
+   *  screen to the draft): the surface on screen is the one that is leaving. */
+  handoff: ReadonlyArray<WorkspaceFrameKind>;
   /** The player set the question aside («свернуть» — `consoleState.task.deferred`, a collapsed stack that serves it). */
   aside: boolean;
   /** The task's own nested placement stands on the board (`taskSpacePending` — the WGT ocean, the final greenery). */
@@ -86,6 +89,9 @@ export type ServingOwner = {
 
 export type Ownership = {asked: false} | ({asked: true} & ServingOwner);
 
+/** The PHASE ROOTS — a screen of their own for a whole phase: never a step in somebody's zone, whatever stands on top. */
+const ROOT_OWNERS: ReadonlySet<ScreenOwner> = new Set<ScreenOwner>(['draft', 'start', 'endgame']);
+
 /** The owner of the kind — the table's row narrowed to ONE by the fact that chooses. */
 function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, basis: ServingOwner['basis'], admission?: PromptSurface} {
   switch (task.kind) {
@@ -110,12 +116,13 @@ function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, 
   case 'resource':
   case 'payment': return {owner: 'task', basis: 'row', admission: 'host'};
   case 'distribute': return {owner: task.mode === 'production' ? 'prod-loss' : 'task', basis: 'row', admission: 'host'};
-  case 'draftWait': return {owner: f.draftFrame ? 'draft' : 'draft-wait', basis: 'row'};
+  // (The draft workspace is entered through the announce's door — a flow beat: its admission is the section's.)
+  case 'draftWait': return f.draftFrame ? {owner: 'draft', basis: 'row', admission: 'section'} : {owner: 'draft-wait', basis: 'row'};
   case 'cardSelect':
     if (task.mode === 'draft') {
-      return {owner: 'draft', basis: 'row'};
+      return {owner: 'draft', basis: 'row', admission: 'section'};
     }
-    return task.mode === 'buy' && f.draftClaims ? {owner: 'draft', basis: 'row'} : {owner: 'task', basis: 'row', admission: 'host'};
+    return task.mode === 'buy' && f.draftClaims ? {owner: 'draft', basis: 'row', admission: 'section'} : {owner: 'task', basis: 'row', admission: 'host'};
   case 'deckSelect': return {owner: 'deck-pick', basis: 'row', admission: 'host'};
   case 'handSelect': return {owner: 'hand', basis: 'row', admission: 'section'};
   case 'projectCard':
@@ -174,7 +181,7 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   // or a screen of its own never is), never inside itself, never the opening's own surface. A resolution's draw is a
   // step of the SITTING whatever stands on top: the Parliament hosts it in its stage.
   const host = task.kind === 'externalDraw' && f.resolutionDraw ? 'parliament' : f.host;
-  const hosted = host !== undefined && host !== base.owner && base.basis !== 'start' && hostableStep(task.kind);
+  const hosted = host !== undefined && host !== base.owner && base.basis !== 'start' && !ROOT_OWNERS.has(base.owner) && hostableStep(task.kind);
   const owner: ServingOwner = hosted ? {...base, host} : base;
 
   if (f.aside) {
@@ -185,6 +192,11 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   }
   if (f.scene !== '') {
     return {asked: true, ...owner, hold: {kind: 'scene', by: f.scene}};
+  }
+  // THE SCREEN IS BEING HANDED OVER to this very owner: what stands is the surface that is leaving (the measure's
+  // second disagreement — the research buy the draft claims, with the sitting still on screen).
+  if (f.handoff.includes(owner.owner as WorkspaceFrameKind)) {
+    return {asked: true, ...owner, hold: {kind: 'scene', by: 'handoff'}};
   }
   if (f.claimHeld) {
     return {asked: true, ...owner, hold: {kind: 'claim', by: owner.host ?? 'the claiming workspace'}};
