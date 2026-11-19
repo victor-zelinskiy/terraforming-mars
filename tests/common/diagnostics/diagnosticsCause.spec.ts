@@ -111,6 +111,13 @@ describe('diagnostics cause — the class is the line\'s structure, never its wo
     // …the board stood open and no drain ever opened; a drain that neither released nor was covered again; a drain
     // covered again by the GAME's own scene — each is a defect.
     expect(seen('"drains":0,"coveredAgain":0,"coveredAgainBy":[]')).to.eq('defect');
+    // …BUT a drain that stood behind its OWN GATE at every look that saw the board (the box, 2026-11-19 — «looks 3/117 ·
+    // drains 0»: the board's scene still settling while the player crossed it) is the player's wait: the gate has its
+    // own bound and its own line. Fewer gated looks than seen ones, or a gate that names nothing, is still a defect.
+    expect(seen('"drains":0,"coveredAgain":0,"coveredAgainBy":[],"gated":2,"gatedBy":["scene-settling"]')).to.eq('planned');
+    expect(seen('"drains":0,"coveredAgain":0,"coveredAgainBy":[],"gated":3,"gatedBy":["reveal-open","card-arrival"]')).to.eq('planned');
+    expect(seen('"drains":0,"coveredAgain":0,"coveredAgainBy":[],"gated":1,"gatedBy":["scene-settling"]')).to.eq('defect');
+    expect(seen('"drains":0,"coveredAgain":0,"coveredAgainBy":[],"gated":2,"gatedBy":[]')).to.eq('defect');
     expect(seen('"drains":2,"coveredAgain":1,"coveredAgainBy":["workspace"]')).to.eq('defect');
     expect(seen('"drains":1,"coveredAgain":1,"coveredAgainBy":["sitting-rise"]')).to.eq('defect');
     expect(seen('"drains":1,"coveredAgain":1,"coveredAgainBy":["workspace","planet-focus"]')).to.eq('defect');

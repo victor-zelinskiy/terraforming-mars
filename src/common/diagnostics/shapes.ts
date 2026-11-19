@@ -107,6 +107,15 @@ export function storyCoveredByPlayer(body: string): boolean {
     return true;
   }
   const drains = Number(/"drains":\s*(\d+)/.exec(body)?.[1] ?? Number.NaN);
+  // SEEN, AND THE DRAIN STOOD BEHIND ITS OWN GATE AT EVERY LOOK THAT SAW THE BOARD (the board's scene settling, a
+  // reveal above it, cards in transit — `noteBoardBeatDrainGated`): the player CROSSED a board whose drain could not
+  // open yet, and covered it again. The gate has its own bound and its own line; the park's wait was the player's.
+  if (drains === 0) {
+    const seen = Number(/"looks":\s*"(\d+)\//.exec(body)?.[1] ?? Number.NaN);
+    const gated = Number(/"gated":\s*(\d+)/.exec(body)?.[1] ?? Number.NaN);
+    const gatedBy = /"gatedBy":\s*\[([^\]]*)\]/.exec(body);
+    return gated > 0 && gated >= seen && gatedBy !== null && namesOf(gatedBy[1]).length > 0;
+  }
   const again = Number(/"coveredAgain":\s*(\d+)/.exec(body)?.[1] ?? Number.NaN);
   const againBy = /"coveredAgainBy":\s*\[([^\]]*)\]/.exec(body);
   if (!(drains > 0) || again !== drains || againBy === null) {

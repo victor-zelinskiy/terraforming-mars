@@ -21,7 +21,7 @@ import {
   boardBeatDisplayClaims, boardBeatDisplayParams, boardBeatParkPending,
   boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending,
   changedGlobalParams, drainBoardBeatsIfDue,
-  noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatStoryMember,
+  noteBoardBeatDrainGated, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatStoryMember,
   registerBoardCoverReasons, registerBoardWatchableProbe, releaseBoardBeatPark,
   resetBoardBeatPark,
 } from '@/client/console/boardBeatPark';
@@ -442,11 +442,23 @@ describe('boardBeatPark', function() {
     expect(stood.why).to.deep.include({watchableSeen: true, looks: '1/1', drains: 0, coveredAgain: 0});
     expect(stood.tier).to.equal('defect');
 
+    // …BUT A DRAIN THAT STOOD BEHIND ITS OWN GATE at every look that saw the board (the shell's guarded drain says by
+    // what — the board's scene still settling) is a board the player CROSSED: the gate has its own bound and line.
+    releaseBoardBeatPark();
+    registerBoardBeatRedrive(() => noteBoardBeatDrainGated(['scene-settling']));
+    noteBoardScaleAdvance(gameWith({oceans: 1}), gameWith({oceans: 2}));
+    watchable = true;
+    settlePresentationDue();
+    watchable = false;
+    const gated = tierOfTheDegrade();
+    expect(gated.why).to.deep.include({watchableSeen: true, looks: '1/1', drains: 0, gated: 1, gatedBy: ['scene-settling']});
+    expect(gated.tier).to.equal('planned');
+
     // …and a drain covered again by the GAME's scene (a sitting on its way up) is not the player's wait.
     releaseBoardBeatPark();
     registerBoardBeatRedrive(undefined as never);
     registerBoardCoverReasons(() => (watchable ? [] : ['workspace', 'sitting-rise']));
-    noteBoardScaleAdvance(gameWith({oceans: 1}), gameWith({oceans: 2}));
+    noteBoardScaleAdvance(gameWith({oceans: 2}), gameWith({oceans: 3}));
     watchable = true;
     settlePresentationDue();
     watchable = false;

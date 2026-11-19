@@ -274,8 +274,22 @@ let watchableSeen = false;
  * design (the monkey under a reload, 2026-11-18: `watchableSeen: true` behind a section and a workspace, filed as a
  * defect with nothing in the line to say which). The drain itself is the witness: how many looks saw the board, how
  * many drains it opened, how many of them ended «covered again before anything released», and BY WHAT.
+ *
+ * …AND WHY A BOARD THAT WAS SEEN OPENED NO DRAIN (the box's plain pass, `fz0` · `parliament-bot-lobby`, 2026-11-19:
+ * «looks 3/117 · drains 0» — three looks of a board the player was crossing, and the line could not say whether the
+ * drain was refused by a wedge or stood behind its own lawful gate). The drain the shell registers is GATED — the
+ * board's own scene settling, a reveal above it, cards in transit — and each gated re-drive says by what
+ * (`noteBoardBeatDrainGated`): `gated` looks, `gatedBy` reasons. The gate has its own bound and its own line.
  */
-const parkWindow = {looks: 0, seen: 0, drains: 0, coveredAgain: 0, coveredAgainBy: new Set<string>()};
+const parkWindow = {looks: 0, seen: 0, drains: 0, coveredAgain: 0, coveredAgainBy: new Set<string>(), gated: 0, gatedBy: new Set<string>()};
+
+/** The shell's guarded drain found the board watchable and did NOT open — held by its own gate (`reasons`, never empty). */
+export function noteBoardBeatDrainGated(reasons: ReadonlyArray<string>): void {
+  parkWindow.gated++;
+  for (const reason of reasons) {
+    parkWindow.gatedBy.add(reason);
+  }
+}
 
 function resetParkWindow(): void {
   watchableSeen = false;
@@ -284,6 +298,8 @@ function resetParkWindow(): void {
   parkWindow.drains = 0;
   parkWindow.coveredAgain = 0;
   parkWindow.coveredAgainBy.clear();
+  parkWindow.gated = 0;
+  parkWindow.gatedBy.clear();
 }
 
 /** Is the park LIVE — a shell registered its watchable verdict? Without one the module is inert (desktop / tests). */
@@ -414,6 +430,8 @@ function armSafety(): void {
       drains: parkWindow.drains,
       coveredAgain: parkWindow.coveredAgain,
       coveredAgainBy: [...parkWindow.coveredAgainBy],
+      gated: parkWindow.gated,
+      gatedBy: [...parkWindow.gatedBy],
       coveredBy: [...(coverReasonsProbe?.() ?? [])],
       pending: boardBeatParkPending(),
       draining: boardBeatParkState.draining,

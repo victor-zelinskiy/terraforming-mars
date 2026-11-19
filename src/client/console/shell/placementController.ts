@@ -39,7 +39,7 @@ import {orOptionResponse, orWrappedResponse} from '@/client/console/taskResponse
 import {setConsoleTaskSpacePlacement} from '@/client/console/consoleLeakDetector';
 import {endPreludePlayChain, preludeChainOn, preludeChainOwesHand, preludeChainYieldsToBoard, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
 import {workspaceClaimsRevealSource, releaseWorkspaceOutcome} from '@/client/console/consoleWorkspaceOutcome';
-import {boardBeatParkPending, boardBeatParkState, drainBoardBeatsIfDue} from '@/client/console/boardBeatPark';
+import {boardBeatParkPending, boardBeatParkState, drainBoardBeatsIfDue, noteBoardBeatDrainGated} from '@/client/console/boardBeatPark';
 import {armBoardCardBonus, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {planetFocusState, enterPlanetFocus, beginPlanetFocusExit, qualifiesForPlanetFocus, isPlanetFocusEngaged, planetFocusStoryReady, snapPlanetFocusSettled} from '@/client/console/planetFocus';
 import {setPlacementPeek} from '@/client/components/board/placementRenderState';
@@ -891,6 +891,13 @@ export function createPlacementController(shell: PlacementPort) {
       drainBoardBeatsIfDue();
       return;
     }
+    // (THE GATE SAYS WHY to the park's window: a board that was seen and opened no drain is read by it — `shapes.ts`.)
+    const signals = shell.rawAdmissionSignals;
+    noteBoardBeatDrainGated([
+      ...(scaleStorySceneSettling() ? ['scene-settling'] : []), ...(signals.revealOpen ? ['reveal-open'] : []),
+      ...(signals.revealPending ? ['reveal-pending'] : []), ...(signals.cardArrival ? ['card-arrival'] : []),
+      ...(signals.cardDiscard ? ['card-discard'] : []),
+    ]);
     if (boardBeatDrainWaitArmed) {
       return;
     }
