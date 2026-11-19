@@ -75,6 +75,9 @@ import {
 import {buildWorkspaceHeader} from '@/client/console/consoleWorkspaceHeader';
 import {workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
 import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
+// (THE ROUTER hands the stack its «the player set the task aside» reader at import — `registerWorkspaceTaskSetAside`:
+// without it this spec passed only in the order of the whole bundle, where another spec had imported the router.)
+import '@/client/console/consoleRouter';
 
 const ALWAYS: FrameAnchor = {type: 'always'};
 

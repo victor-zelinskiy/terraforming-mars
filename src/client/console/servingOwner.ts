@@ -187,7 +187,12 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   const hosted = host !== undefined && host !== base.owner && base.basis !== 'start' && !ROOT_OWNERS.has(base.owner) && hostableStep(task.kind);
   const owner: ServingOwner = hosted ? {...base, host} : base;
 
-  if (f.aside) {
+  // SET ASIDE — unless the player STANDS ON THE SURFACE THAT ANSWERS IT (the record's own «on-its-surface»,
+  // `setAside.ts`): a workspace whose frame is on the live stack serves its question whatever the record still says —
+  // the third reading in a real browser (CI `fz3` · duo, 2026-11-19): the Parliament serving its sitting for eight
+  // looks under a record nobody had taken up yet. A parked or a yielded frame is not on the live stack; the board
+  // under the task's own placement is no frame at all — a placement set aside is aside.
+  if (f.aside && (f.boardBranch || !f.frames.includes(owner.owner as WorkspaceFrameKind))) {
     return {asked: true, ...owner, hold: {kind: 'aside', by: 'the player set it aside'}};
   }
   if (f.lateral !== '') {
