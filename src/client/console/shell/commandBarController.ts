@@ -147,6 +147,7 @@ export type CommandBarPort = {
   handStage: UnwrapRef<HandController['handStage']>,
   handTagFilterOptions: UnwrapRef<HandSelectController['handTagFilterOptions']>,
   hostTask: UnwrapRef<RouterController['hostTask']>,
+  taskHostOwnsInput: UnwrapRef<RouterController['taskHostOwnsInput']>,
   inspectedCellSourceCard: UnwrapRef<PlacementController['inspectedCellSourceCard']>,
   journalPanelVisible: UnwrapRef<JournalController['journalPanelVisible']>,
   liveGrantStepEntered: UnwrapRef<OutcomeController['liveGrantStepEntered']>,
@@ -408,7 +409,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       return followUpStepStage(shell.hostTask.kind, agendaReactionOf(wf) !== undefined ? wf : undefined) ??
         activeTaskSummary.value?.kickerKey ?? 'Awaiting decision';
     }
-    if (shell.hostTask !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive) {
+    if (shell.taskHostOwnsInput) {
       // The bar names the KIND of decision the host is serving ("ОПЛАТА" /
       // "ДРАФТ"), not a generic "awaiting" — the host's own header carries
       // the full ask right under it.
@@ -790,7 +791,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       // same flush): the finale's own verbs, never the host's.
       return [finalGreeneryFinishCommand(), {control: 'back', label: 'Minimize'}];
     }
-    if (shell.hostTask !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive) {
+    if (shell.taskHostOwnsInput) {
       // The task host publishes its live contract (browse / pick / lanes /
       // payment differ) — the bar renders it; no in-frame footer anymore.
       return [...(panelCommands('taskHost') ?? [

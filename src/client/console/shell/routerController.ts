@@ -629,15 +629,25 @@ export function createRouterController(shell: RouterPort) {
       aresGlobalsActive.value || shell.deckPickActive || botAttackActive.value;
   });
 
+  /**
+   * THE TASK HOST OWNS THE PAD AND THE BAR — ONE condition, read by all three (FREEZE ZERO, stage 2 ② — «the copies
+   * become one»). It stood written out in the pad's ladder and twice in the command bar, «to be kept in lock-step»
+   * by a comment; the host's own `v-if` is this AND the holds below it (`taskHostRendered`), so the pad, the bar and
+   * the template can no longer drift on these four terms: a task of the host's is asked, the player did not set it
+   * aside, it is not on the board, and it was not handed to the hand.
+   */
+  const taskHostOwnsInput = computed((): boolean => {
+    return hostTask.value !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive;
+  });
+
   /** The generic TASK HOST is on screen — its template condition, stated ONCE
    *  (the start scene's yield below must ask exactly what renders). The
    *  template's `hostTask !== undefined &&` before it is narrowing only — a
    *  computed does not narrow `:task` for vue-tsc (same for the decision). */
   const taskHostRendered = computed((): boolean => {
-    return hostTask.value !== undefined && !taskHeldForWorkspace.value && !effectDecisionOwnsPrompt.value &&
+    return taskHostOwnsInput.value && !taskHeldForWorkspace.value && !effectDecisionOwnsPrompt.value &&
       !shell.finalGreeneryActive && !shell.finalePromptOwned && !shell.govSupportActive && !productionLossActive.value &&
-      !govScaleFocusState.holding && !energyConversionState.active && !consoleState.task.deferred &&
-      shell.taskSpacePending === undefined && !shell.handPickActive;
+      !govScaleFocusState.holding && !energyConversionState.active;
   });
 
   /**
@@ -1775,6 +1785,7 @@ export function createRouterController(shell: RouterPort) {
     botCardContext,
     botAttackVm,
     compositeSurfaceActive,
+    taskHostOwnsInput,
     taskHostRendered,
     taskHostHeldBy,
     effectDecisionRendered,

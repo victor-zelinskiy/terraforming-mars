@@ -224,6 +224,7 @@ export type PadRouterPort = {
   handSelectUiActive: UnwrapRef<HandSelectController['handSelectUiActive']>,
   hostTask: UnwrapRef<RouterController['hostTask']>,
   taskHostHeldBy: UnwrapRef<RouterController['taskHostHeldBy']>,
+  taskHostOwnsInput: UnwrapRef<RouterController['taskHostOwnsInput']>,
   infoBack: UnwrapRef<InfoController['infoBack']>,
   infoExtrasChipList: UnwrapRef<InfoController['infoExtrasChipList']>,
   infoGo: UnwrapRef<InfoController['infoGo']>,
@@ -961,10 +962,10 @@ export function createPadRouterController(shell: PadRouterPort) {
     // host = defer-to-board / cancel, handled there). No View-peek.
     // …EXCEPT while it has handed a card pick to the hand overlay
     // (`handPickActive`): the host is UNMOUNTED then (same condition as its
-    // v-if), so routing here would drop every press into a dead ref. Keep
-    // this gate, the two command-bar gates and the template's v-if in
-    // LOCK-STEP — a mismatch silently swallows the pad.
-    if (shell.hostTask !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive) {
+    // v-if), so routing here would drop every press into a dead ref.
+    // (ONE condition since stage 2 ②: this rung, the two command-bar branches and the template's `v-if` read
+    // `routerController.taskHostOwnsInput` — nothing is left to keep in lock-step by hand.)
+    if (shell.taskHostOwnsInput) {
       const host = shell.surfaces.at<ExposedOf<typeof ConsoleTaskHost>>('taskHost');
       // (The rung's terms are fewer than the host's own `v-if`: when the host is held, it is held BY NAME.)
       handedTo(host, 'taskHost', intent, shell.taskHostHeldBy);
