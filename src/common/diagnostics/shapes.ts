@@ -404,11 +404,16 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'surface-folded', re: /^surface folded under its token — the (\S+) of ([^:\s]+):([^\s@]+)/, tier: 'defect', parts: [1, 2, 3]},
     {name: 'painted-under', re: /^token painted under (\S+) at the (\S+)/, tier: 'defect', parts: [1, 2]},
     {name: 'told-twice', re: /^told twice — .*?: (\S+) tells it; (\S+) reached for it too/, tier: 'defect', parts: [1, 2]},
+    {name: 'frame-left-holding', re: /^a frame left with tokens on its surface — «([^»]*)»/, tier: 'info', parts: [1], why: 'the fold\'s own witness in shadow (`witnessFrameLeft`): counted until its walks say which verb folds — then that verb waits as the collapse does, and this is the sentinel'},
     {name: 'no-visible-end', re: /^no visible (\S+) — /, tier: 'planned', parts: [1], why: 'the law of visible ends: a covered end is not flown, its counter ticks with its chip'},
   ],
   // ── «this cannot happen, and it did» (`client/diagnostics/invariant.ts`): one class per invariant id ──────────────
   'invariant': [
     {name: 'broken', re: /^(\S+) — /, tier: 'defect', parts: [1]},
+  ],
+  // ── a module's own net ended a wait (`client/diagnostics/netEnded.ts`): one class per net, counted until judged ───
+  'net-ended': [
+    {name: 'ended', re: /^(\S+) — /, tier: 'info', parts: [1], why: 'a waiting room: the matrix counts it and the walk is read — it leaves as a ceiling wait of the graph (a defect on a page that painted) or as a designed fallback with its reason'},
   ],
   'reactivity': [
     {name: 'latch-healed', re: /^«([^»]*)» changed without a reactive edge/, tier: 'defect', parts: [1]},

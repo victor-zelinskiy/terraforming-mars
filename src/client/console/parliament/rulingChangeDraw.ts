@@ -20,6 +20,7 @@ import {parliamentDrawTaken} from './parliamentDraw';
 import {sittingBaselineOf} from './sittingBaseline';
 import {sittingRiseOwed} from './sittingRise';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {netEnded} from '@/client/diagnostics/netEnded';
 import {flowClock} from '@/client/console/kernel/flowClock';
 import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
@@ -282,7 +283,7 @@ function releaseUntoldPark(key: string, late: boolean): void {
   clearNet();
   if (rulingChangeDrawState.owedKey === key && !rulingChangeDrawState.delivering) {
     if (late) {
-      console.warn(`[ruling-change-draw] the sitting ${key} never told its enactment — the batch takes the ordinary road`);
+      netEnded('ruling-change-draw:untold-enactment', `the sitting ${key} never told its enactment — the batch takes the ordinary road`);
     }
     rulingChangeDrawState.owedKey = undefined;
     // …and a rating owed to that same tail, with no stage to tell it, ticks with the batch.

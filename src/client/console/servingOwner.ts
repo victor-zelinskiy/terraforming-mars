@@ -222,6 +222,21 @@ function holdOf(surface: PromptSurface, f: QuestionFacts): {hold?: {kind: OwnerH
   return block === '' ? {} : {hold: {kind: 'admission', by: block}};
 }
 
+/** The facts of one look, in one line — the evidence a disagreement of the measure is read by (only what is set). */
+export function questionFactsDigest(f: QuestionFacts): string {
+  const blocks = Object.entries(f.blocks).filter(([, by]) => by !== undefined && by !== '').map(([surface, by]) => `${surface}:${by}`);
+  return [
+    `frames [${f.frames.join(',')}]`,
+    f.host !== undefined ? `host ${f.host}` : '',
+    f.servingFrame !== undefined ? `serving ${f.servingFrame}` : '',
+    f.handoff.length > 0 ? `handoff [${f.handoff.join(',')}]` : '',
+    blocks.length > 0 ? `blocks [${blocks.join(',')}]` : '',
+    f.scene !== '' ? `scene ${f.scene}` : '',
+    f.lateral !== '' ? `lateral ${f.lateral}` : '',
+    ...(['startFlow', 'effectDecision', 'draftFrame', 'draftClaims', 'resolutionDraw', 'aside', 'boardBranch', 'claimHeld'] as const).filter((k) => f[k]),
+  ].filter((part) => part !== '').join(' · ');
+}
+
 /** Does the question's owner SERVE right now (asked, and nothing holds it)? */
 export function ownerServes(o: Ownership): o is {asked: true} & ServingOwner {
   return o.asked && o.hold === undefined;

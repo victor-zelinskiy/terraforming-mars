@@ -1,7 +1,9 @@
 import {expect} from 'chai';
 import {
   dropTransferEnds, markTransferEndLeft, oweSurfaceTokens, registerTransferEnds, resetTransferEnds, settleSurfaceDebt, surfaceClear, surfaceHoldsTokens,
+  witnessFrameLeft,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {causeOf} from '@/common/diagnostics/cause';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /*
@@ -122,5 +124,39 @@ describe('surfaceClear — a surface never folds under its own token', () => {
     expect(await settled(surfaceClear(surface))).is.true;
     expect(await settled(surfaceClear(null))).is.true;
     expect(await settled(surfaceClear(undefined))).is.true;
+  });
+
+  /*
+   * THE FOLD's OWN WITNESS, IN SHADOW (freeze zero — CI `fz0` · duo, `arwind-chairman-quest-solo`, 2026-11-19): the
+   * sentinel judges a fold at the token's END and cannot say which verb took the surface away. This one is asked at
+   * the fold: a frame left the live stack while its surface held a token's end or an owed series. Counted, by the
+   * workspace and with the verb in the line — never an event until its walks are read.
+   */
+  it('THE FOLD IS WITNESSED WHERE IT HAPPENS: a frame that leaves holding a token is named with its verb — counted, not an event', () => {
+    const said: Array<string> = [];
+    const warn = console.warn;
+    console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
+    try {
+      // Nothing on the surface: a frame may leave.
+      witnessFrameLeft('card-actions', 'leaveWorkspace', surface);
+      witnessFrameLeft('card-actions', 'leaveWorkspace', null);
+      expect(said).to.deep.eq([]);
+      // A price still to be absorbed on it:
+      registerTransferEnds(8, price, rail, icon);
+      witnessFrameLeft('card-actions', 'closePhaseRoot:parliament', surface);
+      expect(said).to.have.length(1);
+      expect(said[0]).to.match(/^\[transfer\] a frame left with tokens on its surface — «card-actions» by closePhaseRoot:parliament, holding /);
+      const cause = causeOf(said[0], 'warn');
+      expect(cause?.cls).to.eq('transfer/frame-left-holding/card-actions');
+      expect(cause?.tier).to.eq('info');
+      // …and a series the host still owes holds it as a token does.
+      dropTransferEnds(8);
+      oweSurfaceTokens('reward', surface);
+      witnessFrameLeft('card-actions', '', surface);
+      expect(said[1]).to.match(/by an unnamed verb, holding owed by reward/);
+      settleSurfaceDebt('reward');
+    } finally {
+      console.warn = warn;
+    }
   });
 });

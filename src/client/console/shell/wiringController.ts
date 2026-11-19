@@ -28,7 +28,7 @@ import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection
 import ConsoleHandSection from '@/client/components/console/ConsoleHandSection.vue';
 import {endFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
-import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, workspaceFrameSelector, workspaceLastVerb, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
 import {installFlowCoverageProbe} from '@/client/console/flowCoverageProbe';
 import {resetStdProjectsFlow, stdProjectsFlow} from '@/client/console/consoleStdProjects';
@@ -46,7 +46,7 @@ import {colonyFocusState} from '@/client/console/consoleColoniesModel';
 import {consoleStartState, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, releaseBoardExcursion} from '@/client/console/boardExcursion';
 import {firstActionOwed} from '@/client/console/startFirstAction';
-import {isResourceTransferActive, resourceTransferDiagnostics} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {isResourceTransferActive, resourceTransferDiagnostics, witnessFrameLeft} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {currentRevealEvent, drawnCardsState, registerRevealQueuePark, revealPresented} from '@/client/components/drawnCards/drawnCardsState';
 import {generationSceneState, registerGenerationSceneHandoff} from '@/client/console/generationScene/generationScene';
@@ -1020,9 +1020,19 @@ export function createWiringController(shell: WiringPort) {
       () => (shell.conRootEl as HTMLElement | undefined)?.querySelector(':scope > .con-main'),
       () => `${consoleState.section}|${workspaceStackState.frames.map((frame) => frame.kind).join(',')}`,
     );
+    // THE FOLD's OWN WITNESS, IN SHADOW (`consoleResourceTransfer.witnessFrameLeft`): asked at the mutation itself
+    // (`sync` — the surface is still in the tree), whichever verb took the frame off the live stack. It only reads.
+    const offFoldWitness = watch(() => workspaceStackState.frames.map((frame) => frame.kind), (now, before) => {
+      for (const kind of before) {
+        if (!now.includes(kind)) {
+          witnessFrameLeft(kind, workspaceLastVerb(), document.querySelector(workspaceFrameSelector(kind)));
+        }
+      }
+    }, {flush: 'sync'});
     offWsPresence.value = () => {
       offPresence();
       offRowRects();
+      offFoldWitness();
     };
     // The console-mode <html> class is owned by GamepadLayer (it spans every
     // lifecycle screen); the shell only reports its own presence.

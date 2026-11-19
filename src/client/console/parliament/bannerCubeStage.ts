@@ -21,6 +21,7 @@
  * kill, the section's unmount) — every cube of the run shown, the card gone.
  */
 import {pageErrorLine, reportDiagnosticError} from '@/client/diagnostics/diagnosticsCapture';
+import {netEnded} from '@/client/diagnostics/netEnded';
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
@@ -138,7 +139,7 @@ function carry(run: StageRun, cube: BannerStageCube, origin: BannerStageOrigin, 
         run.beats.delete(h.net);
       }
       if (how === 'net') {
-        console.warn(`[banner-stage] the cube onto ${cube.party} never touched down — shown where it stands`);
+        netEnded('banner-stage:cube-touchdown', `the cube onto ${cube.party} never touched down — shown where it stands`);
         releaseBannerCube(cube.party, cube.color, true);
       }
       onLanded();

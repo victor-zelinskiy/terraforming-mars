@@ -128,6 +128,14 @@ a report or a Sentry issue is the skill `diagnose-report` (`npm run diag -- …`
 24. **A FINDING SAYS WHERE ITS CLASS LIVES IN THE CODE** (`scripts/ci/findings.mjs` `startHere` — the search of
     `npm run diag -- where`, run at filing time): keep a class's words NAMES OF THE CODE (a wait's `id`, a hold's
     label, an invariant's id as the literal first argument's module word) — a class built from prose points nowhere.
+25. **A BOUND OVER A MOTION IS A CEILING WAIT — never an `invariantBroken` behind a bare timer, never a silent
+    note.** A wall timer over something that runs on FRAMES fires on every page nobody is looking at (the dock
+    accent's lease, 2026-11-19: three false classes in one night); `beginCeilingWait` reads the frames — a defect on
+    a page that painted, the wait's honest end on one that did not. A module's net whose line reading cannot decide
+    (a lost signal, or a designed road?) goes through **`netEnded(id, what)`** (`client/diagnostics/netEnded.ts`):
+    COUNTED in every walk (`net-ended/ended/<id>`, tier `info`), never an event — a waiting room it leaves as a
+    ceiling wait or as a designed fallback with its reason. A line that stays there longer than a matrix is a
+    decision nobody made.
 
 ## Where a signal comes from (do not add a fourth road)
 | runtime | the road |

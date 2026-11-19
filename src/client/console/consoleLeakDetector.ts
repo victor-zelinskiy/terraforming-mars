@@ -48,7 +48,7 @@ import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceHostForStep, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenCurePlan, ScreenOwner, ScreenShadowFinding, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, planScreenCure, recordScreenShadowFinding, screenCureArmed, screenShadowKey, screenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
 import {StartServes, startServesSomething} from '@/client/console/startServing';
-import {QuestionFacts, servingOwnerOf} from '@/client/console/servingOwner';
+import {QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {noteServingOwnerLook} from '@/client/console/servingOwnerMeasure';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
@@ -756,7 +756,8 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
       // (What the shadow made of the same look, WITH its reason — a hold the function's facts do not know yet is named by it.)
       const shadow = verdict.kind === 'held' ? `held:${verdict.reason}` : verdict.kind === 'beat' ? `beat:${verdict.beats.join('+')}` :
         verdict.kind === 'agree' ? `agree:${verdict.basis}` : verdict.kind;
-      noteServingOwnerLook(shape, servingOwnerOf({task, ...ctx.facts}), present, shadow);
+      const facts = {task, ...ctx.facts};
+      noteServingOwnerLook(shape, servingOwnerOf(facts), present, shadow, () => questionFactsDigest(facts));
     } catch {
       // A measure never breaks the pass it rides.
     }

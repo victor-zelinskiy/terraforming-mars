@@ -329,6 +329,23 @@ function foldSentinel(id: number, end: 'birth' | 'touchdown'): void {
   }
 }
 
+/**
+ * THE FOLD's OWN WITNESS, IN SHADOW (freeze zero — CI `fz0` · duo, `arwind-chairman-quest-solo`, 2026-11-19).
+ *
+ * The sentinel above judges a fold at the TOKEN's end — by which time the surface may have left for a reason that is
+ * the token's own (its debt settled by its ceiling), and the line cannot say WHICH verb took the surface away: the
+ * collapse asks `surfaceClear` (R16), and a dozen other ways off the stack do not. This asks the question where the
+ * fold happens: a workspace's frame left the live stack (popped, closed, parked, aside for the board) while its
+ * surface still held a token's end or an owed series. COUNTED (tier `info`), never an event — until its walks are
+ * read: then the verb that folds is given the collapse's own wait, and this becomes the sentinel.
+ */
+export function witnessFrameLeft(kind: string, verb: string, surface: Element | null): void {
+  if (surface === null || !surfaceHoldsTokens(surface)) {
+    return;
+  }
+  console.warn(`[transfer] a frame left with tokens on its surface — «${kind}» by ${verb === '' ? 'an unnamed verb' : verb}, holding ${liveEndsOn(surface).join(', ')}`);
+}
+
 function surfaceOpacity(el: Element): number {
   if (typeof getComputedStyle !== 'function') {
     return 1;
@@ -1245,7 +1262,15 @@ function reportEnds(runId: number, run: ResourceTransferRun, e: {id: number, spe
   }
   if (report.end === 'lost' && !safetyFired) {
     run.onDegrade?.(e.spec, 'destination-gone');
-    foldSentinel(e.id, 'touchdown');
+    // A TOKEN THAT NEVER LEFT ITS SOURCE approached no destination: its `lost` is the catch-up's own bookkeeping (the
+    // flight's safety found a birth that starved — `caughtUp: 'unflown'`, absorbed where it stands), and the surface
+    // may have folded BECAUSE that end settled its debt. The flight's own ceiling line carries the verdict there
+    // (planned on a page that did not paint, a defect on one that did); the fold is asked where it happens
+    // (`witnessFrameLeft`). CI `fz0` · duo, 2026-11-19: the page behind, «the page gave the motion 33 of 1780 ms» —
+    // and three milliseconds later «surface folded under its token».
+    if (report.caughtUp !== 'unflown') {
+      foldSentinel(e.id, 'touchdown');
+    }
   }
   const bare = (ref: EndRef) => ref !== 'home' && !isTransferEnd(ref);
   if (bare(e.fromRef) && report.bornAt !== undefined) {

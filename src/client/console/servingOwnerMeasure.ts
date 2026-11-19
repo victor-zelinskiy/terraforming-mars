@@ -32,7 +32,7 @@ export type ServingOwnerLog = {
   /** shape → verdict → count. */
   rows: Record<string, Record<OwnerLookVerdict, number>>,
   /** The last disagreements, each ONCE per (shape, verdict, owner, what painted) — newest last. */
-  disagreements: Array<{shape: string, verdict: OwnerLookVerdict, owner: string, host: string, hold: string, present: ReadonlyArray<string>, shadow: string}>,
+  disagreements: Array<{shape: string, verdict: OwnerLookVerdict, owner: string, host: string, hold: string, present: ReadonlyArray<string>, shadow: string, facts: string}>,
 };
 
 const MAX_DISAGREEMENTS = 60;
@@ -72,7 +72,7 @@ export function ownerLookVerdict(ownership: Ownership, present: ReadonlyArray<Sc
 }
 
 /** One look of the leak detector's pass: counted; a disagreement is kept once per its own shape. */
-export function noteServingOwnerLook(shape: string, ownership: Ownership, present: ReadonlyArray<ScreenOwner>, shadow: string): void {
+export function noteServingOwnerLook(shape: string, ownership: Ownership, present: ReadonlyArray<ScreenOwner>, shadow: string, facts: () => string = () => ''): void {
   const verdict = ownerLookVerdict(ownership, present, shadow);
   servingOwnerLog.looks++;
   const row = servingOwnerLog.rows[shape] ?? (servingOwnerLog.rows[shape] = {});
@@ -83,6 +83,8 @@ export function noteServingOwnerLook(shape: string, ownership: Ownership, presen
   const entry = {
     shape, verdict, owner: ownership.owner, host: ownership.host ?? '', hold: ownership.hold === undefined ? '' : `${ownership.hold.kind}:${ownership.hold.by}`,
     present: [...present], shadow,
+    // (THE FACTS THE FUNCTION WAS GIVEN on that look — read only for a picture kept: a disagreement is read by them.)
+    facts: facts(),
   };
   const key = JSON.stringify([entry.shape, entry.verdict, entry.owner, entry.host, entry.present]);
   if (servingOwnerLog.disagreements.some((d) => JSON.stringify([d.shape, d.verdict, d.owner, d.host, d.present]) === key)) {

@@ -1354,7 +1354,14 @@ export function enterWorkspace(
  * reads the console): every verb that removes frames names itself with its
  * caller's stack — «who popped the parliament» is then a fact, never a guess.
  */
+let lastStackVerb = '';
+/** The last verb that took frames off the live stack — what the fold's witness names (`witnessFrameLeft`). */
+export function workspaceLastVerb(): string {
+  return lastStackVerb;
+}
+
 function traceVerb(verb: string): void {
+  lastStackVerb = verb;
   if (typeof window !== 'undefined' && (window as unknown as {__wsTrace?: boolean}).__wsTrace === true) {
     console.warn('[ws-stack] ' + verb + ' depth=' + workspaceStackState.frames.length, new Error().stack);
   }
@@ -1676,6 +1683,7 @@ export function yieldStackToBoard(): boolean {
   if (workspaceKindSpec(root.kind).yieldsToBoard !== true && workspaceKindSpec(top.kind).yieldsToBoard !== true) {
     return false;
   }
+  traceVerb('yieldStackToBoard');
   boardYielded.push(...frames.splice(0));
   syncFrameLifetimes();
   return true;
@@ -1702,6 +1710,7 @@ export function yieldStackForStagedPlay(): boolean {
   if (workspaceStackState.frames.length === 0) {
     return false;
   }
+  traceVerb('yieldStackForStagedPlay');
   boardYielded.push(...workspaceStackState.frames.splice(0));
   syncFrameLifetimes();
   return true;
@@ -2007,6 +2016,7 @@ export function resetWorkspaceStack(): void {
   boardYielded.splice(0);
   staleRefusalsInARow = 0;
   syncFrameLifetimes();
+  lastStackVerb = '';
 }
 
 // ── invariant 3: a frame is a scope, its phase a machine ─────────────────────

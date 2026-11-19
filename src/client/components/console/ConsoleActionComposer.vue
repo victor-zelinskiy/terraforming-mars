@@ -1238,6 +1238,7 @@ import {composerAssemblyInFlight, killComposerAssembly, playComposerAssembly} fr
 import {probeTick} from '@/client/console/probeTick';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {motionAfter} from '@/client/console/session/sessionWaits';
+import {netEnded} from '@/client/diagnostics/netEnded';
 import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
@@ -6426,7 +6427,7 @@ function armLedgerStall(): void {
       armLedgerStall();
       return;
     }
-    console.warn('[colony-ledger] the payout stalled with nothing owed — ended', JSON.stringify(colonyBonusPayout.rows.map((r) => `${r.colony}:${r.kind}:${r.state}`)));
+    netEnded('colony-ledger:payout-stalled', `the payout stalled with nothing owed — ended ${JSON.stringify(colonyBonusPayout.rows.map((r) => `${r.colony}:${r.kind}:${r.state}`))}`);
     finishColonyBonusPayout(true);
     emit('ledger-done');
   }, flow);

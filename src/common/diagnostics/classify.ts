@@ -51,6 +51,9 @@ const STALL: ReadonlyArray<string> = [
   'session-rebuild',
   // The main process's watch over a renderer that stopped answering (`electron/rendererHangWatch.ts`).
   'renderer-hang',
+  // A module's own net that ended a wait, COUNTED and not yet judged (`client/diagnostics/netEnded.ts`): a record of
+  // every walk, never an event — until the walk says whether it is a lost signal or a designed road.
+  'net-ended',
 ];
 
 /** The picture disagreed with the truth. */

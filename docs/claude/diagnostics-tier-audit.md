@@ -74,10 +74,13 @@ half reads the 34 sites that reach the collector as ERRORS (an untagged `console
 callbacks (echoes of a hold's own ceiling line, which is the event); `[selftest]` (the connection check — sent only
 when asked); the dev-only layout guards (`console-overflow`, an icon with no mapping) — coverage specs' business.
 
-**Open — not decided by reading:** the Parliament's cube that «never touched down» (`banner-stage`) and the sitting
-that «never told its enactment» (`ruling-change-draw` — seen in the monkey's walks under a reload): a lost touchdown
-or a designed fallback? each needs the walk that prints it; `[colony-ledger] the payout stalled with nothing owed`;
-the console export's failures (the device's disk or our gather); the pad line of row 9; row 10 (a server
+**Open — not decided by reading, and COUNTED since 2026-11-19** (`netEnded` — the waiting room, rule law 25; the
+matrix's reports list them as INFO classes `net-ended/ended/<id>` with the walks): the Parliament's cube that «never
+touched down» (`banner-stage:cube-touchdown`), the sitting that «never told its enactment»
+(`ruling-change-draw:untold-enactment` — seen in the monkey's walks under a reload) and the colony ledger's payout
+that «stalled with nothing owed» (`colony-ledger:payout-stalled`): a lost signal or a designed fallback? each is
+decided by the first walks that print it — a ceiling wait of the graph, or a fallback with its reason.
+**Still open by reading alone:** the console export's failures (the device's disk or our gather); the pad line of row 9; row 10 (a server
 unreachable for minutes — a defect only where the server is OURS, the host's embedded one); and 60 silent catches
 around catalogue lookups (`getCard` on an unknown name) that fall back by design and say nothing.
 

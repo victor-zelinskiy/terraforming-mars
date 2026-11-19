@@ -202,7 +202,7 @@ export function aggregateOwner(files) {
     }
     for (const d of o.disagreements ?? []) {
       const key = `${d.shape} — ${d.verdict}: says «${d.owner}${d.host ? `@${d.host}` : ''}»${d.hold ? ` held by ${d.hold}` : ''}, painted «${(d.present ?? []).join('|') || 'nothing'}»`;
-      const known = disagreements.get(key) ?? {n: 0, tables: []};
+      const known = disagreements.get(key) ?? {n: 0, tables: [], facts: typeof d.facts === 'string' ? d.facts : ''};
       known.n++;
       if (known.tables.length < 4) {
         known.tables.push(String(f.title ?? '').replace(/^monkey · /, ''));
@@ -215,7 +215,7 @@ export function aggregateOwner(files) {
   }
   return {
     walks, looks, verdicts, rows,
-    disagreements: [...disagreements.entries()].sort((a, b) => b[1].n - a[1].n).map(([what, v]) => ({what, walks: v.n, tables: v.tables})),
+    disagreements: [...disagreements.entries()].sort((a, b) => b[1].n - a[1].n).map(([what, v]) => ({what, walks: v.n, tables: v.tables, facts: v.facts})),
   };
 }
 
@@ -232,6 +232,9 @@ export function renderOwner(owner) {
   L.push(`agrees ${v.agree ?? 0} (${pct(v.agree)}) · held as said ${v.held ?? 0} (${pct(v.held)}) · MISS ${v.MISS ?? 0} (${pct(v.MISS)}) · EXTRA ${v.EXTRA ?? 0} (${pct(v.EXTRA)})`);
   for (const d of owner.disagreements.slice(0, 40)) {
     L.push(`${String(d.walks).padStart(5)} walk(s)  ${d.what}   [${d.tables.join(', ')}]`);
+    if (d.facts) {
+      L.push(`               facts: ${d.facts}`);
+    }
   }
   if (owner.disagreements.length > 40) {
     L.push(`  … +${owner.disagreements.length - 40} (all of them are in the report's JSON)`);
