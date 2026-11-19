@@ -1,0 +1,200 @@
+/*
+ * @console-shared LIVE — console native stands on this file.
+ *
+ * WHO SERVES THE QUESTION — ONE pure, TOTAL function (FREEZE ZERO, the second phase, stage 2 —
+ * docs/claude/console/freeze-zero/PLAN.md § 8: «one owner per question, by a total function»).
+ *
+ * The server asks a seat ONE question at a time. Who answers it on screen is decided today in about twenty-five
+ * computeds of the shell's controllers (each surface's own `v-if`), re-derived in the pad's ladder (33 ordered rungs)
+ * and twice more in the command bar (≈ 35 and ≈ 60 ordered branches) — and CHECKED from the outside by three nets that
+ * hold a second opinion: the screen shadow (`screenDirector.ts` — a table of the owners that MAY serve each kind),
+ * the start shadow, the leak detector's stranded check. Every disagreement between those copies is a freeze class
+ * («the pad goes to a surface that is not mounted», «the start serves nothing», «misserved»), and the map of
+ * 2026-11-19 found the copies already apart: the pad and the bar write the task host's condition with half of the
+ * terms its own `v-if` has; the bar and the pad order the composites differently.
+ *
+ * This function is the ONE opinion: for the facts of a question it names EXACTLY ONE owner — never «unknown», never
+ * a set — and, when that owner may not stand yet, the ONE reason it is held and by what. The surfaces, the pad and the
+ * bar are to be DERIVED from it (the wiring is the stage's second half; until then nothing reads this module but its
+ * spec and the shadow that measures it against the screen).
+ *
+ * WHAT IT IS MADE OF. The owner of a kind is the shadow's own table narrowed to a decision: where a row holds two
+ * owners, the fact that chooses between them is an input here (`effectDecision`, `draftFrame`, `startFlow`, …) — the
+ * spec proves the function never names an owner the table does not allow (`tests/console/servingOwner.spec.ts`). The
+ * holds are the shell's own, in ONE order: the player's park first (their choice outranks everything), then the
+ * task's own nested placement (the board answers a branch of the question), a bounded scene of the game, a claim
+ * whose zone is not standing, an admission block.
+ *
+ * Pure: no Vue, no DOM, no clock.
+ */
+import type {ConsoleTask} from '@/client/console/consoleTaskRouter';
+import type {PromptSurface} from '@/client/console/consolePromptAdmission';
+import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {hostableStep} from '@/client/console/screenDirector';
+import type {ScreenOwner} from '@/client/console/screenDirector';
+
+/** The facts of the question — everything the decision reads, as plain data (the shell gathers them once). */
+export type QuestionFacts = {
+  /** The server's one question as the router classifies it (`taskFor`) — `undefined`: nothing is asked of this seat, or only an optional input. */
+  task: ConsoleTask | undefined;
+  /** The opening owns the question: the start's frame is live and the question is one of its own (`startOwned`). */
+  startFlow: boolean;
+  /** `buildEffectDecision` builds a decision for this prompt (a contextual choice with its marker). */
+  effectDecision: boolean;
+  /** The draft workspace's frame is known to the stack. */
+  draftFrame: boolean;
+  /** The draft claims this task (`draftClaimsTask` — the research buy inside the draft workspace). */
+  draftClaims: boolean;
+  /** An external draw asked by a resolution of the Parliament (the sitting hosts it). */
+  resolutionDraw: boolean;
+  /** A live or parked frame that EARNED the task's kind at runtime (its `serves` — the Hydronetwork's bonus offer, the
+   *  colony resolution's discard, a party action's discard in the action centre) — `frameServing(kind)`. */
+  servingFrame: WorkspaceFrameKind | undefined;
+  /** The flow's host for a step right now (`workspaceHostForStep()` — the top frame while it hosts). */
+  host: WorkspaceFrameKind | undefined;
+  /** The player set the question aside («свернуть» — `consoleState.task.deferred`, a collapsed stack that serves it). */
+  aside: boolean;
+  /** The task's own nested placement stands on the board (`taskSpacePending` — the WGT ocean, the final greenery). */
+  boardBranch: boolean;
+  /** A bounded scene of the game holds the screen, by its name ('' — none): the final greenery, the scale focus, the
+   *  energy conversion, a client hand pick, the finale. */
+  scene: string;
+  /** The question is claimed by a workspace whose zone does not stand yet, or whose beat still plays (`…HeldForWorkspace`). */
+  claimHeld: boolean;
+  /** The admission block of each surface that could admit an owner ('' or absent — admitted). */
+  blocks: Partial<Record<PromptSurface, string>>;
+};
+
+/** Why the owner does not stand yet — ONE reason, the first of the order in `servingOwnerOf`. */
+export type OwnerHoldKind = 'aside' | 'scene' | 'claim' | 'admission';
+
+export type ServingOwner = {
+  /** The ONE surface that answers this question. */
+  owner: ScreenOwner;
+  /** The workspace whose zone hosts it as a step of its flow — absent: it stands on its own. */
+  host?: WorkspaceFrameKind;
+  /** Why this owner: the kind's row · a frame that earned the kind · the opening · the board under a nested placement · a
+   *  kind no surface was ever written for (the task host's native renderer takes it, never «nobody»). */
+  basis: 'row' | 'serves' | 'start' | 'branch' | 'fallback';
+  /** The admission surface that governs it (what `blocks` is read by) — absent: nothing admits it, it stands at once. */
+  admission?: PromptSurface;
+  /** Held — and by what. Absent: it SERVES. */
+  hold?: {kind: OwnerHoldKind, by: string};
+};
+
+export type Ownership = {asked: false} | ({asked: true} & ServingOwner);
+
+/** The owner of the kind — the table's row narrowed to ONE by the fact that chooses. */
+function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, basis: ServingOwner['basis'], admission?: PromptSurface} {
+  switch (task.kind) {
+  case 'actionMenu':
+    // (Never reached — the caller answers «not asked»: the player is free to stand anywhere.)
+    return {owner: 'board', basis: 'row'};
+  case 'space':
+    return {owner: 'board', basis: 'row', admission: 'placement'};
+  case 'choice':
+    switch (task.flavor) {
+    case 'wgt': return {owner: 'gov-support', basis: 'row', admission: 'host'};
+    case 'contextual': return {owner: f.effectDecision ? 'decision' : 'task', basis: 'row', admission: 'host'};
+    case 'deltaBonus':
+    case 'espionage': return {owner: 'hydro', basis: 'row', admission: 'followUp'};
+    // The start hosts it as its own step in the opening; past it, the task host (teleported into the chain's zone).
+    case 'placementOrder': return f.startFlow ? {owner: 'start', basis: 'start', admission: 'scene'} : {owner: 'task', basis: 'row', admission: 'host'};
+    default: return {owner: 'task', basis: 'row', admission: 'host'};
+    }
+  case 'awardFunding': return {owner: 'awards', basis: 'row', admission: 'section'};
+  case 'player':
+  case 'amount':
+  case 'resource':
+  case 'payment': return {owner: 'task', basis: 'row', admission: 'host'};
+  case 'distribute': return {owner: task.mode === 'production' ? 'prod-loss' : 'task', basis: 'row', admission: 'host'};
+  case 'draftWait': return {owner: f.draftFrame ? 'draft' : 'draft-wait', basis: 'row'};
+  case 'cardSelect':
+    if (task.mode === 'draft') {
+      return {owner: 'draft', basis: 'row'};
+    }
+    return task.mode === 'buy' && f.draftClaims ? {owner: 'draft', basis: 'row'} : {owner: 'task', basis: 'row', admission: 'host'};
+  case 'deckSelect': return {owner: 'deck-pick', basis: 'row', admission: 'host'};
+  case 'handSelect': return {owner: 'hand', basis: 'row', admission: 'section'};
+  case 'projectCard':
+    if (task.mode === 'playFromHand') {
+      return {owner: 'hand', basis: 'row', admission: 'section'};
+    }
+    return task.mode === 'standardProject' ? {owner: 'standard-projects', basis: 'row', admission: 'section'} : {owner: 'task', basis: 'row', admission: 'host'};
+  case 'colony':
+  case 'colonyBonus': return {owner: 'colonies', basis: 'row', admission: 'section'};
+  case 'party':
+  case 'parliamentPhase':
+  case 'chairmanQuest': return {owner: 'parliament', basis: 'row', admission: 'section'};
+  // (A resolution's draw is the SAME surface, standing in the sitting's stage — `servingOwnerOf` names that host.)
+  case 'externalDraw': return {owner: 'external-draw', basis: 'row', admission: 'section'};
+  case 'venusBonus': return {owner: 'lanes', basis: 'row', admission: 'scaleBonus'};
+  case 'spendHeat': return {owner: 'lanes', basis: 'row', admission: 'host'};
+  case 'botAttack': return {owner: 'bot-attack', basis: 'row', admission: 'host'};
+  case 'aresGlobal': return {owner: 'ares', basis: 'row', admission: 'host'};
+  case 'initialDraft':
+  case 'startSequence': return {owner: 'start', basis: 'start', admission: 'scene'};
+  // Inside the opening the start serves it; past it (a merger) — its own confirm.
+  case 'corpFirstAction': return f.startFlow ? {owner: 'start', basis: 'start', admission: 'scene'} : {owner: 'corp-first', basis: 'row', admission: 'standaloneModal'};
+  // A KIND NO SURFACE WAS WRITTEN FOR is never «nobody»: the task host's native renderer takes it (a bare AndOptions,
+  // a prompt type the router does not know) — the shell's own computeds answer `undefined` there today, which is a
+  // question standing with no owner by construction.
+  case 'composite':
+  case 'unknown': return {owner: 'task', basis: 'fallback', admission: 'host'};
+  }
+}
+
+/**
+ * WHO SERVES THE QUESTION. TOTAL: every input names one answer — «not asked», or ONE owner with at most ONE hold.
+ *
+ * The order of the holds is the shell's own, written once:
+ *   1. ASIDE     — the player parked the question: their choice outranks every scene and every block;
+ *   2. the BOARD — the task's own nested placement stands: a branch of the question is answered on the board (that
+ *                  is an owner, not a hold);
+ *   3. a SCENE   — a bounded scene of the game has the screen;
+ *   4. a CLAIM   — a workspace owns the question and its zone does not stand yet;
+ *   5. ADMISSION — the surface that admits the owner names a block.
+ */
+export function servingOwnerOf(f: QuestionFacts): Ownership {
+  const task = f.task;
+  if (task === undefined || task.kind === 'actionMenu') {
+    return {asked: false};
+  }
+  const row = ownerOfKind(task, f);
+  // A FRAME THAT EARNED THE KIND at runtime answers before the kind's own row (the Hydronetwork's bonus offer, the
+  // colony resolution's discard): the flow that asked is the flow that hears the answer. Never over the opening's own.
+  const earned = row.basis !== 'start' && f.servingFrame !== undefined && f.servingFrame !== row.owner;
+  const base: ServingOwner = earned ?
+    {owner: f.servingFrame as WorkspaceFrameKind, basis: 'serves', ...(row.admission !== undefined ? {admission: row.admission} : {})} :
+    {owner: row.owner, basis: row.basis, ...(row.admission !== undefined ? {admission: row.admission} : {})};
+  // A step of a flow stands in that flow's zone — for the kinds that CAN be a step (the shadow's `HOSTABLE`: a modal
+  // or a screen of its own never is), never inside itself, never the opening's own surface. A resolution's draw is a
+  // step of the SITTING whatever stands on top: the Parliament hosts it in its stage.
+  const host = task.kind === 'externalDraw' && f.resolutionDraw ? 'parliament' : f.host;
+  const hosted = host !== undefined && host !== base.owner && base.basis !== 'start' && hostableStep(task.kind);
+  const owner: ServingOwner = hosted ? {...base, host} : base;
+
+  if (f.aside) {
+    return {asked: true, ...owner, hold: {kind: 'aside', by: 'the player set it aside'}};
+  }
+  if (f.boardBranch) {
+    return {asked: true, owner: 'board', basis: 'branch', admission: 'placement', ...holdOf('placement', f)};
+  }
+  if (f.scene !== '') {
+    return {asked: true, ...owner, hold: {kind: 'scene', by: f.scene}};
+  }
+  if (f.claimHeld) {
+    return {asked: true, ...owner, hold: {kind: 'claim', by: owner.host ?? 'the claiming workspace'}};
+  }
+  return {asked: true, ...owner, ...(owner.admission !== undefined ? holdOf(owner.admission, f) : {})};
+}
+
+function holdOf(surface: PromptSurface, f: QuestionFacts): {hold?: {kind: OwnerHoldKind, by: string}} {
+  const block = f.blocks[surface] ?? '';
+  return block === '' ? {} : {hold: {kind: 'admission', by: block}};
+}
+
+/** Does the question's owner SERVE right now (asked, and nothing holds it)? */
+export function ownerServes(o: Ownership): o is {asked: true} & ServingOwner {
+  return o.asked && o.hold === undefined;
+}
