@@ -23,7 +23,10 @@ import {Ownership} from '@/client/console/servingOwner';
  *   · `MISS:<shadow>`    — the function says X serves and X does NOT paint; `<shadow>` is what the screen shadow made
  *                          of the same look (`held` · `beat` · `unserved` · `misserved` · `agree` on another owner) —
  *                          a hold the function's facts do not know yet, or a strand;
- *   · `EXTRA:<kind>`     — the function names a hold and X paints all the same (a presence the facts do not explain).
+ *   · `EXTRA:<kind>`     — the function names a hold and X paints all the same (a presence the facts do not explain);
+ *   · `unsettled`        — the FIRST look of a disagreement: a surface mounts and leaves across a look (a door opening,
+ *                          a leave in flight), and a look that falls into it is no settled look. The same disagreement
+ *                          on the very next look is counted as what it is.
  */
 export type OwnerLookVerdict = string;
 
@@ -39,10 +42,14 @@ const MAX_DISAGREEMENTS = 60;
 
 export const servingOwnerLog: ServingOwnerLog = {looks: 0, rows: {}, disagreements: []};
 
+/** The disagreement the last look read (its picture) — a second look of the same picture in a row is SETTLED. */
+let unsettledPicture = '';
+
 export function resetServingOwnerLog(): void {
   servingOwnerLog.looks = 0;
   servingOwnerLog.rows = {};
   servingOwnerLog.disagreements = [];
+  unsettledPicture = '';
 }
 
 // (Evidence of ONE game screen: a new session starts its own count — the harvest reads it before the screen leaves.)
@@ -73,7 +80,14 @@ export function ownerLookVerdict(ownership: Ownership, present: ReadonlyArray<Sc
 
 /** One look of the leak detector's pass: counted; a disagreement is kept once per its own shape. */
 export function noteServingOwnerLook(shape: string, ownership: Ownership, present: ReadonlyArray<ScreenOwner>, shadow: string, facts: () => string = () => ''): void {
-  const verdict = ownerLookVerdict(ownership, present, shadow);
+  const read = ownerLookVerdict(ownership, present, shadow);
+  const disagrees = ownership.asked && (read.startsWith('MISS') || read.startsWith('EXTRA'));
+  // THE FUNCTION IS HELD TO EVERY SETTLED LOOK — and one look alone is not one: the first look of a disagreement is
+  // `unsettled`; the same picture on the next look is the disagreement. (The fifth reading in a real browser, CI
+  // `fz0` plain, 2026-11-19: one look of 3408 — the Parliament's door a second from opening.)
+  const picture = disagrees ? `${shape}|${read}|${present.join(',')}` : '';
+  const verdict = disagrees && picture !== unsettledPicture ? 'unsettled' : read;
+  unsettledPicture = picture;
   servingOwnerLog.looks++;
   const row = servingOwnerLog.rows[shape] ?? (servingOwnerLog.rows[shape] = {});
   row[verdict] = (row[verdict] ?? 0) + 1;

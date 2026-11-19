@@ -229,7 +229,8 @@ export function renderOwner(owner) {
   const L = [];
   L.push('');
   L.push(`── THE ONE FUNCTION AGAINST THE SCREEN (stage 2) — ${owner.walks} walk(s), ${owner.looks} look(s), ${judged} judged ──`);
-  L.push(`agrees ${v.agree ?? 0} (${pct(v.agree)}) · held as said ${v.held ?? 0} (${pct(v.held)}) · MISS ${v.MISS ?? 0} (${pct(v.MISS)}) · EXTRA ${v.EXTRA ?? 0} (${pct(v.EXTRA)})`);
+  L.push(`agrees ${v.agree ?? 0} (${pct(v.agree)}) · held as said ${v.held ?? 0} (${pct(v.held)}) · MISS ${v.MISS ?? 0} (${pct(v.MISS)}) · EXTRA ${v.EXTRA ?? 0} (${pct(v.EXTRA)})` +
+    ((v.unsettled ?? 0) > 0 ? ` · unsettled ${v.unsettled} (the first look of a disagreement — not judged)` : ''));
   for (const d of owner.disagreements.slice(0, 40)) {
     L.push(`${String(d.walks).padStart(5)} walk(s)  ${d.what}   [${d.tables.join(', ')}]`);
     if (d.facts) {

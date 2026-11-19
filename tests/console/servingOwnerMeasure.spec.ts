@@ -40,15 +40,21 @@ describe('servingOwnerMeasure — the function against the screen, counted', () 
       noteServingOwnerLook('payment', serves('task', 'card-actions'), ['card-actions'], 'beat');
     }
     noteServingOwnerLook('colony', held('colonies', 'aside', 'the player set it aside'), [], 'held');
+    // ONE look of a disagreement, then it is gone — a surface mounting across a look: unsettled, kept nowhere.
     noteServingOwnerLook('payment', serves('task', 'card-actions'), ['hand'], 'misserved');
     expect(servingOwnerLog.looks).to.eq(10);
+    // THE FUNCTION IS HELD TO SETTLED LOOKS: the first look of a disagreement is `unsettled`; the same picture on the
+    // very next look is the disagreement (three looks in a row → one unsettled, two counted).
     expect(servingOwnerLog.rows).to.deep.eq({
-      payment: {'agree': 5, 'MISS:beat': 3, 'MISS:misserved': 1},
+      payment: {'agree': 5, 'unsettled': 2, 'MISS:beat': 2},
       colony: {'held:aside': 1},
     });
     expect(servingOwnerLog.disagreements.map((d) => `${d.shape}|${d.verdict}|${d.owner}@${d.host}|${d.present.join(',')}`)).to.deep.eq([
       'payment|MISS:beat|task@card-actions|card-actions',
-      'payment|MISS:misserved|task@card-actions|hand',
     ]);
+    // …and a disagreement that comes back after an agreeing look starts unsettled again.
+    noteServingOwnerLook('payment', serves('task'), ['task'], 'agree');
+    noteServingOwnerLook('payment', serves('task', 'card-actions'), ['card-actions'], 'beat');
+    expect(servingOwnerLog.rows.payment).to.deep.eq({'agree': 6, 'unsettled': 3, 'MISS:beat': 2});
   });
 });

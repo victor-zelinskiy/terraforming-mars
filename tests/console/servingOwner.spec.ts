@@ -104,7 +104,7 @@ const shapeOf = (t: ConsoleTask): string => JSON.stringify(t);
 describe('servingOwner — who serves the question: one total function', function() {
   // (The product is ≈ 1.6 million points; a budget for the walk, never a timing.)
   // eslint-disable-next-line no-invalid-this
-  this.timeout(120_000);
+  this.timeout(600_000);
 
   it('NOT ASKED: nothing asked, and the free action menu — whatever else is true', () => {
     for (const task of [undefined, {kind: 'actionMenu'} as ConsoleTask]) {

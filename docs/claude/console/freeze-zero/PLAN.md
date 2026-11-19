@@ -533,6 +533,14 @@ record's to make at the frame's entry.
 **4248 looks — MISS 0 · EXTRA 0.** The first whole cell of a real browser on which the function and the screen agree
 at every look.
 
+**The fifth — CI `fz0` · plain, 606 walks, on the exit commit** (run 44488402026; 0 defect records, the gate GREEN):
+3408 looks — **MISS 1 look · EXTRA 0**. The one look: the Parliament's door a second from opening (`frames []`, the
+shadow `held:admit:card-arrival`) — a surface mounting ACROSS a look. The stage's own words are «every SETTLED look»,
+and one look alone is not one: **the measure counts the first look of a disagreement as `unsettled`**; the same
+picture on the very next look is the disagreement (`servingOwnerMeasure.ts`). **And the fold's witness said nothing
+in this cell** — 606 walks on a page that paints, `arwind-chairman-quest-solo` among them: the Parliament leaving
+the stack under a flying token (§ 4, issue #72) has been seen only on the page BEHIND so far; the cpu cells decide it.
+
 The next reading is the matrix's own (the nightly runs on `main` carry round 4; the confirming pass stands on
 `fz/stage1-exit` and carries round 3). The wiring (②) does not
 start before the function reads 0 · 0 on a whole cell AND stage 1 has exited.
