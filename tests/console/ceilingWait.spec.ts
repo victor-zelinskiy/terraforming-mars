@@ -57,6 +57,28 @@ describe('ceilingWait — a ceiling is a node, and a ceiling hit is said', () =>
     expect(ceilingStats.hits).to.equal(0);
   });
 
+  /*
+   * THE NODE's BOUND IS THE WAIT's OWN (the freeze gate's seed of the day, 2026-11-19 — `wg-project-short-deck`): a
+   * foreign tile waits twenty seconds for a board — sixty while a sitting's promise to yield stands. The node stood
+   * at twenty, and the graph's judge named the kept wait «overdue — past its 20 s bound, standing 22 s».
+   */
+  it('a wait whose bound is KEPT LONGER says so: the node carries the bound the wait has now, and the line names the one it ended on', () => {
+    const w = beginCeilingWait({id: 'remote-placement:watchable-board', owner: 'consoleRemotePlacement', what: 'a board free for the landing', maxMs: 20_000}, 100);
+    const bound = (): number | undefined => collectWaitNodes(200).find((n) => n.id.startsWith('ceiling:remote-placement:watchable-board#'))?.boundMs;
+    expect(bound()).to.eq(20_000);
+    w.bound(60_000);
+    expect(bound(), 'the keeper holds').to.eq(60_000);
+    w.bound(20_000);
+    expect(bound(), 'the promise is gone — the short bound again').to.eq(20_000);
+    w.bound(60_000);
+    w.ceiling();
+    expect(warns).to.have.length(1);
+    expect(warns[0]).to.match(/did not come in 60000 ms — the wait ended on its ceiling$/);
+    // …and a bound moved after the end moves nothing.
+    w.bound(5_000);
+    expect(collectWaitNodes(300)).to.deep.eq([]);
+  });
+
   it('a ceiling hit is said ONCE with who waited and for what, counted, and the node is gone', () => {
     const w = beginCeilingWait({id: 'scale-swing:stage', owner: 'scaleSwing', what: 'a watchable stage', maxMs: 6_000, detail: 'temperature'});
     w.ceiling();

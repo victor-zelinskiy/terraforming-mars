@@ -455,6 +455,40 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * `wait-graph/overdue/ceiling:remote-placement:watchable-board` — the freeze gate's seed of the day, `d20261119` ·
+   * `wg-project-short-deck` (issue #76). The viewer stands on cards they have not taken yet; another seat's tile is
+   * owed to the board, and a sitting has promised to yield for it — so the landing's wait is KEPT (sixty seconds
+   * instead of twenty, `BOARD_WAIT_KEPT_MAX_MS`). Its node in the wait graph stood at twenty: the judge named a wait
+   * that was keeping its word «overdue — past its 20 s bound, standing 22 s». The law: the node's bound is the wait's
+   * own bound at every look (`CeilingWait.bound`).
+   */
+  it('the wait of a foreign tile, kept by the promise of a sitting, is not «overdue» at its short bound — the node carries the bound the wait keeps', async () => {
+    const fixture = 'wg-project-short-deck';
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`d20261119:${fixture}:world`)());
+    try {
+      const table = await bottleServer().bootFixture(fixture);
+      bottle = await bootBottle(table);
+      await bottle.advance(3_000);
+      const steps: ReadonlyArray<MonkeyStep> = [
+        {do: 'press', key: 'Comma', pauseMs: 491}, {do: 'press', key: 'ArrowDown', pauseMs: 1_779}, {do: 'press', key: 'Enter', pauseMs: 374},
+        {do: 'seats'},
+        {do: 'press', key: 'Enter', pauseMs: 471}, {do: 'press', key: 'Enter', pauseMs: 400}, {do: 'press', key: 'Enter', pauseMs: 398},
+        {do: 'press', key: 'Escape', pauseMs: 191}, {do: 'press', key: 'Enter', pauseMs: 475}, {do: 'press', key: 'Enter', pauseMs: 322},
+        {do: 'seats'},
+      ];
+      bottle = await replaySteps(bottle, table.seats.length, steps);
+      await bottle.advance(2_000);
+      expect(bottle.bar(), 'the viewer stands on the cards they drew').to.match(/Take card/);
+      // Past the short bound and the judge's own confirmation (it spoke at 22 s), with the cards still not taken.
+      await bottle.advance(28_000);
+      expect(classes().filter((cls) => cls.startsWith('wait-graph/overdue')), 'the kept wait is not overdue').to.deep.equal([]);
+      expect(classes(), 'and nothing else of the walk is a defect').to.deep.equal([]);
+    } finally {
+      restoreRandom();
+    }
+  });
+
+  /*
    * THE START'S SHADOW ON A PAGE NOBODY LOOKS AT (PLAN § 4 — the bottle's `hidden` pass, 2026-11-18). A card's play
    * scene holds the action menu («held by played-hero») and the page goes behind another window for twelve seconds:
    * the scene cannot end there, the shadow's ten seconds ran on the wall, and the finding it confirmed is CURED — a

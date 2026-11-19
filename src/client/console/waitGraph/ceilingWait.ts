@@ -52,6 +52,14 @@ export type CeilingWait = {
   end: () => void,
   /** What holds it right now — on the node, and named by the ceiling line if it comes. */
   update: (detail: string) => void,
+  /**
+   * THE WAIT's OWN BOUND MOVED — a ceiling that is kept longer while somebody holds it (the foreign tile's wait for a
+   * board a sitting has promised to yield: twenty seconds, sixty while the promise stands). The NODE's bound is the
+   * wait's bound at every moment: the graph's judge reads the node, and a node left at the short bound was named
+   * «overdue — past its 20 s bound, standing 22 s» over a wait that was keeping its word (the freeze gate's seed of
+   * the day, 2026-11-19 — `wg-project-short-deck`). The ceiling line names the bound the wait ended on.
+   */
+  bound: (maxMs: number) => void,
 };
 
 /** Evidence (`__conWaitGraph().ceilings`): how many waits met their thing, how many ended on the ceiling, the last ones. */
@@ -72,6 +80,7 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
   }, now);
   let open = true;
   let detail = spec.detail;
+  let boundMs = spec.maxMs;
   // A MOTION'S BOUND IS JUDGED AGAINST THE FRAMES THE PAGE PAINTED (`kernel/frameWitness.ts`): a page that does not
   // paint — hidden, behind another window, starved — cannot end a motion, and its ceiling is the wait's honest end.
   const painted = (spec.target ?? 'motion') === 'motion' ? watchFrames() : undefined;
@@ -96,12 +105,12 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
       open = false;
       node.end();
       ceilingStats.hits++;
-      ceilingStats.recent.push({at: Date.now(), id: spec.id, owner: spec.owner, what: spec.what, maxMs: spec.maxMs});
+      ceilingStats.recent.push({at: Date.now(), id: spec.id, owner: spec.owner, what: spec.what, maxMs: boundMs});
       if (ceilingStats.recent.length > 40) {
         ceilingStats.recent.shift();
       }
       console.warn(`[wait-graph] ceiling ${spec.id} (${spec.owner}${detail !== undefined && detail !== '' ? `: ${detail}` : ''}) — ` +
-        `«${spec.what}» did not come in ${spec.maxMs} ms — the wait ended on its ceiling${planned !== undefined ? ` (planned: ${planned})` : ''}`);
+        `«${spec.what}» did not come in ${boundMs} ms — the wait ended on its ceiling${planned !== undefined ? ` (planned: ${planned})` : ''}`);
     },
     end: () => {
       if (open) {
@@ -114,6 +123,12 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
       if (open && d !== detail) {
         detail = d;
         node.update({detail: d});
+      }
+    },
+    bound: (maxMs) => {
+      if (open && maxMs !== boundMs) {
+        boundMs = maxMs;
+        node.update({boundMs: maxMs});
       }
     },
   };

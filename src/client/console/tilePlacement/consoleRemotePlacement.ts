@@ -1764,6 +1764,8 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
       const busy = boardBusyForRemote();
       if (busy) {
         wait.update(cover.look([...boardCoverTerms(), ...ownPlacementStoryTerms()], Date.now()));
+        // (The node's bound is the wait's own at every look: kept while the keeper's promise stands — `expired`.)
+        wait.bound(boardWaitKeeper?.() === true ? BOARD_WAIT_KEPT_MAX_MS : BOARD_WAIT_MAX_MS);
       }
       if (epoch !== myEpoch || !busy || expired()) {
         if (epoch !== myEpoch) {
