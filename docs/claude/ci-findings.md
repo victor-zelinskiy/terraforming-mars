@@ -279,7 +279,7 @@ gate's own leavings are ignored by the repository; anything else untracked is ne
   Issue & Event: Read & Write · Release: Admin (`diag resolve` creates the release when the collector has not heard
   of the version yet) · Project: Read · Organization: Read. `Sentry housekeeping` is its only reader. Until it exists
   a closed finding is closed in Sentry by hand (`npm run diag -- resolve <short id>`), as before.
-- **A working session's first look:** `gh issue list --label ci-finding --label triage:real` — what is left for it —
+- **A working session's first look:** `gh issue list --label for:session --state open` — what is left for it (§ 5) —
   and `gh pr list --label ci-fix` (a pull request the landing refused twice is its to finish or to close).
 
 ## 5. A working session takes what the lane could not — its procedure, and the owner's template
@@ -295,38 +295,78 @@ closes them. **The first one closed this way: #21** (CI red on the Windows runne
 1. **The queue** (always `--repo victor-zelinskiy/terraforming-mars` — in this clone `gh` defaults to the upstream):
    `gh issue list --label for:session --state open --json number,title,labels` — THE queue of a session
    (`regression` first, then `triage:real`, then `triage:noise` / `triage:harness`). An issue without that label is
-   somebody else's move (§ 2) — take it only when asked.
+   somebody else's move (§ 2) — take it only when asked. Beside it: `gh pr list --label ci-fix --state open` — a pull
+   request the landing refused twice is a session's too.
 2. **Read** the issue body (the class or the test, the table and seed, the «Repeat it» command, the run) and the
    agent's comment (what it reproduced, the suspected cause with `file:line`, what it could NOT determine) — the
    comment is a lead, never a conclusion.
-3. **Reproduce** by the issue's own command; a finding of the monkey or the e2e suite — on CI
-   (`gh workflow run … -f only=…` / `-f grep=… -f shards=1`), the box only for a pointwise run.
-4. **Fix it at the root** — the program's law for the area (a freeze class: `docs/claude/console/freeze-zero/PLAN.md`
-   § 4 — the law, the guard, the replay; an e2e check: `.claude/rules/tests.md`), never a baseline row to make it
-   quiet. A baseline row (`monkeyBaseline.json`, `LAYOUT_BLIND`) is written only when a real browser said «not there»,
-   with the reason in the row.
-5. **Land it** by the project's own routine (`CLAUDE.md` § Pushing) with `Fixes #<issue>` in the commit message — the
-   issue closes itself; seen again, it reopens as a `regression`.
-6. **What does not close in one session** stays open: write on the issue what was established and what is next, and
+3. **Reproduce** by the issue's own command, on the machine it belongs to:
+   - the bottle — ONE table by its seed on the laptop (`TM_BOTTLE_MONKEY=1 TM_BOTTLE_MONKEY_SEED=… TM_BOTTLE_MONKEY_ONLY='^table$'
+     npm run test:client:one -- tests/client/bottle/monkey.bottle.ts`; add `TM_BOTTLE_MONKEY_SHRINK='<class regex>'`
+     to cut the walk down to the steps that make the class); a whole gate — only on CI (`gh workflow run "Freeze gate"
+     -f seeds=… -f only=…`);
+   - the monkey and the e2e suite — on CI (`gh workflow run Monkey … -f only=… -f shards=1 -f repeat=8`,
+     `gh workflow run "Playwright E2E" -f grep=… -f shards=…`), the box only for a pointwise run. The laptop runs no
+     Playwright browser and no whole suite.
+4. **EVIDENCE FIRST.** If the line cannot say WHOSE wait it was or WHICH verb did it, the first commit is the
+   evidence — the line carries the fact (who covered the board, which gate held the drain, which verb took the frame)
+   — and the same command is run again. A law written before the line can say it is a guess; three of the nine
+   findings of 2026-11-19 were closed by what the line said the second time, and one guess was withdrawn.
+5. **Fix it at the root** — the program's law for the area (a freeze class: `docs/claude/console/freeze-zero/PLAN.md`
+   § 4 — the law, the guard, the replay; an e2e check: `.claude/rules/tests.md`):
+   - `triage:noise` means THE NET is fixed — the judge's clock (a bound over a motion is read on the frames the page
+     painted), its bound (the node carries the bound the wait keeps), what it knows (a gate, a hold, the player's own
+     look) — never the game, and never a row to make it quiet;
+   - a baseline row (`monkeyBaseline.json`, `LAYOUT_BLIND`) is written only when a real browser said «not there»,
+     with the reason in the row; a ratchet (the architecture's debt ledger, module state, glow, the liveness rungs)
+     does not grow;
+   - **what the player SEES is decided as a UI/UX architect, from the player's experience** (the owner, 2026-11-19):
+     write the scene through the player's eyes — what they are doing, what they wait for, what appears and why — and
+     decide by the project's own principles (`CLAUDE.md`: a workspace is one flow, physical causality, nothing
+     happens on screen without the player's press or a visible cause while it is the player who is waited for). The
+     decision and its reason go into the commit. The owner is asked only about what costs money.
+6. **Land it** by the project's own routine (`CLAUDE.md` § Pushing) with `Fixes #<issue>` in the commit message — the
+   issue closes itself (a `src:sentry` finding closed this way is resolved in the collector by § 1b); seen again, it
+   reopens as a `regression`.
+7. **PROVE IT, and say so on the issue:** the issue's own command on the fixed commit, repeated (`-f repeat=8` for a
+   walk; the gate's own job for a bottle class; the spec for an e2e check) — a comment with the run and what it
+   read. A proof that is red reopens the issue. A fix whose class could be either a real defect or the net's false
+   alarm is not closed on the reading alone.
+8. **While a stage's confirming pass runs** (a branch `fz/stage<N>-exit` exists — `PLAN.md` § 4, the row «THE
+   MATRIX»): never push to that branch; a fix that changes what the monkey's cells NAME — a diagnostics line or its
+   tier, a judge, a net — is said in the summary, because the cells already run are queued again. A fix of the game
+   alone, of tests, of docs lands in `main` as usual.
+9. **What does not close in one session** stays open: write on the issue what was established and what is next, and
    keep its row in the area's worklist.
 
 **The owner's template** — paste into a new session (replace the first line's choice):
 
 ```
-Разбери очередь тикетов CI — по контракту docs/claude/ci-findings.md § 5.
+Разбери очередь тикетов CI — по контракту docs/claude/ci-findings.md § 5. Цель — чтобы каждый взятый тикет был
+починен в корне и закрыт с доказательством.
 
 Что брать: <все открытые с меткой for:session | тикет #N | только src:e2e из for:session>.
 
 Порядок:
-1. Покажи очередь: открытые тикеты с меткой for:session и их вердикты
-   (всегда --repo victor-zelinskiy/terraforming-mars). Тикеты без этой метки не трогай — их ведёт автоматика.
-2. По каждому взятому тикету: прочитай тело и комментарий агента, воспроизведи командой из тикета
-   (бутылка — локально по зерну; обезьяна и e2e — на CI, бокс только точечно), доведи до причины в коде.
-3. Чини в корне, по закону своей области (зависания — PLAN § 4: закон + гард + повтор; e2e — .claude/rules/tests.md).
-   Базовые линии не трогать, чтобы «стало тихо».
-4. Коммит с «Fixes #N», пуш по правилам проекта, после пуша — проверь CI этого коммита.
-5. Что не закрывается за сессию — допиши в тикет, что выяснено и что дальше, оставь открытым.
+1. Покажи очередь: открытые тикеты с меткой for:session с их вердиктами и открытые PR с меткой ci-fix
+   (всегда --repo victor-zelinskiy/terraforming-mars). Тикеты без метки for:session не трогай — их ведёт автоматика.
+2. По каждому взятому тикету: прочитай тело и комментарий агента (это наводка, не вывод), воспроизведи командой
+   из тикета. Бутылка — один стол по зерну локально, целый гейт — только на CI; обезьяна и e2e — на CI, бокс только
+   точечно; Playwright и полные наборы на ноуте не запускать.
+3. Сначала улика, потом закон: если строка не говорит, чьё это ожидание или какой глагол это сделал, — первым
+   коммитом добавь факт в строку и повтори прогон. Закон, написанный до этого, — догадка.
+4. Чини в корне, по закону своей области (зависания — PLAN § 4: закон + гард + повтор; e2e — .claude/rules/tests.md).
+   Вердикт triage:noise = чинится СЕТЬ (её часы, граница, знание), а не игра. Базовые линии и храповики не трогать,
+   чтобы «стало тихо».
+5. Коммит с «Fixes #N», пуш по правилам проекта, проверь CI этого коммита. Затем ДОКАЗАТЕЛЬСТВО: команда из тикета
+   на исправленном коммите с повтором (обезьяна — repeat=8) — и комментарий в тикет со ссылкой на прогон и тем, что
+   он показал. Красное доказательство — тикет открыть снова.
+6. Если существует ветка fz/stage<N>-exit — идёт подтверждающий проход этапа: в неё не пушить; про правку, которая
+   меняет то, что называют ячейки обезьяны (строка диагностики, её уровень, судья, сеть), — скажи в сводке.
+7. Что не закрывается за сессию — допиши в тикет, что выяснено и что дальше, оставь открытым.
 
-В конце — короткая сводка: что закрыто (тикет → коммит), что осталось и почему, что требует моего решения.
-Меня спрашивай только о том, что стоит денег или меняет то, что видит игрок.
+То, что меняет видимое игроку, решай сам — как UI/UX-архитектор, глазами игрока, по принципам CLAUDE.md, — и объясни
+решение в коммите. Меня спрашивай только о том, что стоит денег.
+
+В конце — короткая сводка: что закрыто (тикет → коммит → доказательный прогон), что осталось и почему.
 ```
