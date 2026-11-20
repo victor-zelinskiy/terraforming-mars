@@ -257,6 +257,17 @@ export function renderOwner(owner) {
     const total = Object.values(who).reduce((a, b) => a + b, 0);
     L.push(`  under ${kind.padEnd(9)} ${String(total).padStart(6)} — ${Object.entries(who).sort((a, b) => b[1] - a[1]).map(([w, n]) => `${w} ${n}`).join(' · ')}`);
   }
+  // THE ANSWER AT ITS LAST REACTIVE EDGE (stage 2 ③): would a cache derived from the function hold the truth?
+  const edgeN = {agree: 0, latch: 0};
+  for (const [shape, row] of Object.entries(owner.rows ?? {})) {
+    if (shape.startsWith('edge:')) {
+      edgeN.agree += row['edge-agree'] ?? 0;
+      edgeN.latch += row['edge-LATCH'] ?? 0;
+    }
+  }
+  if (edgeN.agree + edgeN.latch > 0) {
+    L.push(`THE EDGE — ${edgeN.agree + edgeN.latch} look(s): the answer stood as at its last reactive edge ${edgeN.agree} · LATCH (moved with no edge) ${edgeN.latch}`);
+  }
   // THE BAND, DERIVED: the ONE rung the switch would name, against the rung the ladder took — the last measure before the swap.
   const bandN = {agree: 0, above: 0, apart: 0};
   const bandPairs = {};

@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
-  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
+  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
   promptFlagsVerdict, registerOwnerNowProbe, resetServingOwnerLog, servingOwnerLog,
 } from '../../src/client/console/servingOwnerMeasure';
 
@@ -234,6 +234,19 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(servingOwnerLog.rows['band:payment']).to.deep.eq({'band-agree': 1, 'band-APART:own:taskHost>section:board': 1, 'band-above': 1});
     expect(servingOwnerLog.disagreements.filter((d) => d.shadow === 'band').map((d) => `${d.shape}|${d.verdict}|${d.facts}`)).to.deep.eq([
       'band:payment|band-APART:own:taskHost>section:board|frames []',
+    ]);
+  });
+
+  it('THE ANSWER AT ITS LAST REACTIVE EDGE: the same answer is a cache that holds the truth; another is a latch, kept once with the facts that moved', () => {
+    const edge = (answer: string, facts: string) => ({answer, facts});
+    noteOwnerEdgeLook('payment', edge('task', 'frames [] · host hand'), edge('task', 'frames [] · host hand'));
+    // The facts may move with no edge — only the ANSWER is a cache's truth.
+    noteOwnerEdgeLook('payment', edge('task', 'frames [] · host hand'), edge('task', 'frames [hand] · host hand'));
+    noteOwnerEdgeLook('payment', edge('task', 'frames [] · host hand'), edge('task held scene:handoff', 'frames [] · host hand · handoff [draft]'));
+    noteOwnerEdgeLook('payment', edge('task', 'frames [] · host hand'), edge('task held scene:handoff', 'frames [] · host hand · handoff [draft]'));
+    expect(servingOwnerLog.rows['edge:payment']).to.deep.eq({'edge-agree': 2, 'edge-LATCH': 2});
+    expect(servingOwnerLog.disagreements.map((d) => `${d.shape}|${d.present[0]} → ${d.owner}|${d.facts}`)).to.deep.eq([
+      'edge:payment|task → task held scene:handoff|+ handoff [draft]',
     ]);
   });
 });

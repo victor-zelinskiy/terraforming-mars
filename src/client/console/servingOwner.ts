@@ -251,6 +251,14 @@ export function questionFactsDigest(f: QuestionFacts): string {
   ].filter((part) => part !== '').join(' · ');
 }
 
+/** The function's ANSWER in one line — who, in whose zone, held by what (the measure's key of «the same answer»). */
+export function ownershipDigest(o: Ownership): string {
+  if (!o.asked) {
+    return 'free';
+  }
+  return `${o.owner}${o.host !== undefined ? `@${o.host}` : ''}${o.hold !== undefined ? ` held ${o.hold.kind}:${o.hold.by}` : ''}`;
+}
+
 /** Does the question's owner SERVE right now (asked, and nothing holds it)? */
 export function ownerServes(o: Ownership): o is {asked: true} & ServingOwner {
   return o.asked && o.hold === undefined;

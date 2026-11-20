@@ -48,8 +48,8 @@ import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceHostForStep, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenCurePlan, ScreenOwner, ScreenShadowFinding, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, planScreenCure, recordScreenShadowFinding, screenCureArmed, screenShadowKey, screenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
 import {StartServes, startServesSomething} from '@/client/console/startServing';
-import {QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
-import {notePromptFlagsLook, noteServingOwnerLook} from '@/client/console/servingOwnerMeasure';
+import {ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
+import {noteOwnerEdgeLook, notePromptFlagsLook, noteServingOwnerLook} from '@/client/console/servingOwnerMeasure';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -527,6 +527,8 @@ export type ScreenShadowContext = {
   facts?: Omit<QuestionFacts, 'task'>,
   /** The prompt surfaces' own conditions that hold right now, by the pad's names (stage 2 ③ — the measure's, read by nothing else). */
   flags?: ReadonlyArray<string>,
+  /** The function's answer and its facts as they stood at the LAST reactive edge of those facts (stage 2 ③ — the measure's). */
+  edge?: {answer: string, facts: string},
   /** The announce gate's beat: none · announced but not yet presented · PRESENTED (its plate / beacon owed on screen). */
   announce?: 'none' | 'pending' | 'presented',
   /**
@@ -761,6 +763,9 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
       const facts = {task, ...ctx.facts};
       const ownership = servingOwnerOf(facts);
       noteServingOwnerLook(shape, ownership, present, shadow, () => questionFactsDigest(facts));
+      if (ctx.edge !== undefined) {
+        noteOwnerEdgeLook(shape, ctx.edge, {answer: ownershipDigest(ownership), facts: questionFactsDigest(facts)});
+      }
       if (ctx.flags !== undefined) {
         // (The frames standing above the owner's own — the steps of its flow.)
         const depth = ownership.asked ? facts.frames.indexOf(ownership.owner as WorkspaceFrameKind) : -1;

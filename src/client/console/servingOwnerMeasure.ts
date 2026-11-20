@@ -463,3 +463,41 @@ export function endBandPress(shape: string, ownership: Ownership, steps: Readonl
     servingOwnerLog.disagreements.shift();
   }
 }
+
+/*
+ * ── THE ANSWER AT ITS LAST REACTIVE EDGE (stage 2 ③ — measured before a cache reads the function) ─────────────────
+ *
+ * A `v-if` and the command bar are CACHES: derived from the function, they re-evaluate only when a reactive
+ * dependency of its facts moves. A fact read from a plain `let` / Set / Map moves the answer with no edge — and the
+ * cache keeps the old owner for good (invariant 17: the dead board of 2026-10-30 was exactly this). So before
+ * anything is derived, the shell keeps the function's answer as it stood at the LAST reactive edge of its facts (a
+ * watcher of its own, flushed with the render), and every look reads a fresh answer beside it:
+ *   · `edge-agree`  — the same answer: a cache evaluated since holds the truth;
+ *   · `edge-LATCH`  — the answer moved with NO reactive edge; kept once per (shape, was → now), with the facts that
+ *                     differ — each names a fact to make reactive before step ③ may read it.
+ * Counted under `edge:<question's shape>`. STATS ONLY — nothing is healed and nothing is said.
+ */
+export function noteOwnerEdgeLook(shape: string, atEdge: {answer: string, facts: string}, now: {answer: string, facts: string}): void {
+  const latched = atEdge.answer !== now.answer;
+  const key = `edge:${shape}`;
+  const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
+  const verdict = latched ? 'edge-LATCH' : 'edge-agree';
+  row[verdict] = (row[verdict] ?? 0) + 1;
+  if (!latched) {
+    return;
+  }
+  if (servingOwnerLog.disagreements.some((d) => d.shadow === 'edge' && d.shape === key && d.owner === now.answer && d.present[0] === atEdge.answer)) {
+    return;
+  }
+  // (Only the facts that differ: `a · b · c` against `a · b' · c` → «b → b'».)
+  const was = atEdge.facts.split(' · ');
+  const is = now.facts.split(' · ');
+  const moved = [...was.filter((part) => !is.includes(part)).map((part) => `− ${part}`), ...is.filter((part) => !was.includes(part)).map((part) => `+ ${part}`)];
+  servingOwnerLog.disagreements.push({
+    shape: key, verdict, owner: now.answer, host: '', hold: '', present: [atEdge.answer], shadow: 'edge',
+    facts: moved.length > 0 ? moved.join(' · ') : 'the facts read the same — the answer moved inside one of them',
+  });
+  if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
+    servingOwnerLog.disagreements.shift();
+  }
+}

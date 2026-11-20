@@ -54,7 +54,7 @@ import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} f
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
 import {barRungNow, registerOwnerNowProbe, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
-import {QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
+import {ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
 import {isHydroMarkerActive, hydroRewardHoldOwed, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
@@ -648,6 +648,9 @@ export function createWiringController(shell: WiringPort) {
    * of the pad reads today. Stage 2 ③ is to derive them from the ONE function; until then they are MEASURED against it
    * on every look (`servingOwnerMeasure.notePromptFlagsLook` — stats only).
    */
+  const ownerEdge = {answer: '', facts: ''};
+  const offOwnerEdge: {value: (() => void) | undefined} = {value: undefined};
+
   function promptFlags(): ReadonlyArray<string> {
     const free = !consoleState.task.deferred && shell.taskSpacePending === undefined;
     const flags: ReadonlyArray<[string, boolean]> = [
@@ -755,6 +758,7 @@ export function createWiringController(shell: WiringPort) {
         // (The facts of the question for the ONE function's measure — stage 2; read by nothing else yet.)
         facts: ownerFacts(),
         flags: promptFlags(),
+        edge: {...ownerEdge},
       };
     });
     // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.
@@ -765,6 +769,16 @@ export function createWiringController(shell: WiringPort) {
     })) as unknown;
     // THE ONE FUNCTION's measure (stage 2): how often `servingOwnerOf` agrees with what paints — stats only.
     (window as unknown as {__conServingOwner?: () => unknown}).__conServingOwner = () => JSON.parse(JSON.stringify(servingOwnerLog)) as unknown;
+    // …and THE ANSWER AT ITS LAST REACTIVE EDGE (stage 2 ③ — `noteOwnerEdgeLook`): a watcher of the function's own
+    // answer, flushed with the render like the caches that are to read it. It only remembers.
+    offOwnerEdge.value = watch(() => {
+      const facts = {task: taskFor(shell.playerView), ...ownerFacts()};
+      return `${ownershipDigest(servingOwnerOf(facts))}\n${questionFactsDigest(facts)}`;
+    }, (line) => {
+      const cut = line.indexOf('\n');
+      ownerEdge.answer = line.slice(0, cut);
+      ownerEdge.facts = line.slice(cut + 1);
+    }, {immediate: true});
     // …and the PAD's half of the same measure asks the function on the same facts, before each press (stage 2 ②).
     registerOwnerNowProbe(() => {
       const task = taskFor(shell.playerView);
@@ -1231,6 +1245,8 @@ export function createWiringController(shell: WiringPort) {
     delete (window as unknown as {__conScreenShadow?: unknown}).__conScreenShadow;
     delete (window as unknown as {__conServingOwner?: unknown}).__conServingOwner;
     registerOwnerNowProbe(undefined);
+    offOwnerEdge.value?.();
+    offOwnerEdge.value = undefined;
     delete (window as unknown as {__conWaitGraph?: unknown}).__conWaitGraph;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);
