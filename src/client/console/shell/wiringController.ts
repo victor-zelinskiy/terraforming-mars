@@ -28,7 +28,7 @@ import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection
 import ConsoleHandSection from '@/client/components/console/ConsoleHandSection.vue';
 import {endFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
-import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, workspaceFrameSelector, workspaceLastVerb, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, hostCarriesPlayersLook, workspaceFrameSelector, workspaceLastVerb, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
 import {installFlowCoverageProbe} from '@/client/console/flowCoverageProbe';
 import {resetStdProjectsFlow, stdProjectsFlow} from '@/client/console/consoleStdProjects';
@@ -637,8 +637,11 @@ export function createWiringController(shell: WiringPort) {
    */
   function ownerFacts(): Omit<QuestionFacts, 'task'> {
     const top = workspaceStackTop();
-    const lateral = shell.placementActive && top !== undefined && top.phase === 'browse' && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ?
-      top.kind : '';
+    // …and THE PLAYER'S OWN LOOK OVER THE OPENING (a screen they walked to over the start — `hostCarriesPlayersLook`,
+    // the law of the start's strand): the start waits for the player, the pad is their screen's.
+    const lateral = top === undefined ? '' :
+      shell.placementActive && top.phase === 'browse' && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ? top.kind :
+        shell.startSceneMounted && top.kind !== 'start' && hostCarriesPlayersLook('start') ? top.kind : '';
     return {...shell.questionFacts(), startFlow: shell.startSceneMounted, lateral};
   }
 
@@ -735,7 +738,13 @@ export function createWiringController(shell: WiringPort) {
     registerOwnerNowProbe(() => {
       const task = taskFor(shell.playerView);
       const facts = {task, ...ownerFacts()};
-      return {shape: task === undefined ? 'none' : screenPromptShape(task), ownership: servingOwnerOf(facts), facts: () => questionFactsDigest(facts)};
+      const ownership = servingOwnerOf(facts);
+      // (The frames standing ABOVE the owner's own on the live stack — the steps of its flow, which take the pad.)
+      const depth = ownership.asked ? facts.frames.indexOf(ownership.owner as WorkspaceFrameKind) : -1;
+      return {
+        shape: task === undefined ? 'none' : screenPromptShape(task), ownership, facts: () => questionFactsDigest(facts),
+        steps: depth === -1 ? [] : facts.frames.slice(depth + 1),
+      };
     });
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,

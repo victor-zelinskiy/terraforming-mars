@@ -47,7 +47,7 @@ let unsettledPicture = '';
 /** The rung of the pad's ladder that took the press in flight (`notePadRung` — the pad's measure, below). */
 let padRung = '';
 /** WHO SERVES RIGHT NOW, as the function reads the shell's facts — supplied by the shell's wiring while it stands. */
-type OwnerNow = {shape: string, ownership: Ownership, facts: () => string};
+type OwnerNow = {shape: string, ownership: Ownership, facts: () => string, steps?: ReadonlyArray<string>};
 let ownerNowProbe: (() => OwnerNow) | undefined;
 
 export function resetServingOwnerLog(): void {
@@ -174,15 +174,17 @@ function rungsOf(owner: string): ReadonlyArray<string> {
 }
 
 /** PURE: how the rung that took a press reads against the function's answer. */
-export function padRungVerdict(ownership: Ownership, rung: string): OwnerLookVerdict {
+export function padRungVerdict(ownership: Ownership, rung: string, steps: ReadonlyArray<string> = []): OwnerLookVerdict {
   if (!ownership.asked) {
     return 'pad-free';
   }
   if (ownership.hold !== undefined) {
     return `pad-held:${ownership.hold.kind}`;
   }
-  // (A step in a flow's zone is reached through its own rung — or through its host's, which hands it the press.)
-  const own = [...rungsOf(ownership.owner), ...(ownership.host !== undefined ? rungsOf(ownership.host) : [])];
+  // (A step in a flow's zone is reached through its own rung — or through its host's, which hands it the press. And a
+  // workspace that owns the question hands the pad to the STEPS of its own flow standing above it on the stack: a
+  // prelude's colony pick inside the opening is the opening's question, answered on the colonies' screen.)
+  const own = [...rungsOf(ownership.owner), ...(ownership.host !== undefined ? rungsOf(ownership.host) : []), ...steps.flatMap((step) => rungsOf(step))];
   if (own.includes(rung)) {
     return 'pad-agree';
   }
@@ -219,7 +221,7 @@ export function measurePadPress<T>(route: () => T): T {
   const taken = route();
   if (before !== undefined) {
     try {
-      endPadPress(before.shape, before.ownership, before.facts);
+      endPadPress(before.shape, before.ownership, before.facts, before.steps);
     } catch {
       // counted nowhere — the press went where it went
     }
@@ -228,8 +230,8 @@ export function measurePadPress<T>(route: () => T): T {
 }
 
 /** The press left the ladder: counted; a disagreement is kept once per its picture. */
-export function endPadPress(shape: string, ownership: Ownership, facts: () => string = () => ''): void {
-  const verdict = padRungVerdict(ownership, padRung);
+export function endPadPress(shape: string, ownership: Ownership, facts: () => string = () => '', steps: ReadonlyArray<string> = []): void {
+  const verdict = padRungVerdict(ownership, padRung, steps);
   const key = `pad:${shape}`;
   const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
   row[verdict] = (row[verdict] ?? 0) + 1;

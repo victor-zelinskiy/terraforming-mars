@@ -154,7 +154,8 @@ describe('servingOwner — who serves the question: one total function', functio
         const o = servingOwnerOf(facts) as Extract<Ownership, {asked: true}>;
         // (Admission is a door: an owner whose frame already stands is not held at it — the board's branch always enters.)
         const inAlready = !facts.boardBranch && (facts.frames as ReadonlyArray<string>).includes(o.owner);
-        const admitted = o.admission === undefined || inAlready || (facts.blocks[o.admission] ?? '') === '';
+        const admitted = o.admission === undefined || inAlready ||
+          ((facts.blocks[o.admission] ?? '') === '' && (o.door === undefined || (facts.blocks[o.door] ?? '') === ''));
         // (…and so is «set aside»: the player standing on the surface that answers is not away from it.)
         const onItsSurface = (facts.frames as ReadonlyArray<string>).includes(o.owner);
         const expected =
@@ -237,6 +238,16 @@ describe('servingOwner — who serves the question: one total function', functio
     // SET ASIDE holds an owner the player is AWAY from — never the workspace they stand on.
     expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, aside: true})).to.deep.include({owner: 'parliament', hold: {kind: 'aside', by: 'the player set it aside'}});
     expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, aside: true, frames: ['parliament']})).to.not.have.property('hold');
+    // THE ROUTER's DOOR: a workspace the router opens enters through the arrival chain's admission too — and a
+    // workspace that already stands is past both.
+    expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, blocks: {followUp: 'card-arrival'}}))
+      .to.deep.include({owner: 'parliament', hold: {kind: 'admission', by: 'card-arrival'}});
+    expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, blocks: {followUp: 'card-arrival'}, frames: ['parliament']})).to.not.have.property('hold');
+    expect(servingOwnerOf({...QUIET, task: {kind: 'colony'}, blocks: {section: 'reveal', followUp: 'card-arrival'}}))
+      .to.deep.include({hold: {kind: 'admission', by: 'reveal'}});
+    // THE PLAYER'S OWN LOOK OVER THE OPENING: the start is still the owner, and it waits for the player.
+    expect(servingOwnerOf({...QUIET, task: ALL_SHAPES.find((t) => t.kind === 'startSequence'), startFlow: true, frames: ['start', 'colonies'], lateral: 'colonies'}))
+      .to.deep.include({owner: 'start', hold: {kind: 'aside', by: 'lateral:colonies'}});
     // A PHASE ROOT is never a step in somebody's zone.
     expect(owner({kind: 'cardSelect', mode: 'buy'}, {draftClaims: true, host: 'parliament'})).to.eq('draft');
     expect(owner({kind: 'cardSelect', mode: 'draft'}, {host: 'hand'})).to.eq('draft');

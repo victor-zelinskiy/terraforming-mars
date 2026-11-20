@@ -86,6 +86,13 @@ export type ServingOwner = {
   basis: 'row' | 'serves' | 'start' | 'branch' | 'fallback';
   /** The admission surface that governs it (what `blocks` is read by) — absent: nothing admits it, it stands at once. */
   admission?: PromptSurface;
+  /**
+   * THE ROUTER's DOOR — a workspace the router OPENS for the question (`openShellTaskSurface`) enters through the
+   * arrival chain's admission too (`followUp`: what came with the question plays first), beside its own. The pad's
+   * first whole reading named it (the bottle, 606 tables, 2026-11-20 — «says parliament, the pad gave the board»: the
+   * sitting's door behind a card still arriving); the look's measure had met the same picture a second at a time.
+   */
+  door?: PromptSurface;
   /** Held — and by what. Absent: it SERVES. */
   hold?: {kind: OwnerHoldKind, by: string};
 };
@@ -96,7 +103,7 @@ export type Ownership = {asked: false} | ({asked: true} & ServingOwner);
 const ROOT_OWNERS: ReadonlySet<ScreenOwner> = new Set<ScreenOwner>(['draft', 'start', 'endgame']);
 
 /** The owner of the kind — the table's row narrowed to ONE by the fact that chooses. */
-function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, basis: ServingOwner['basis'], admission?: PromptSurface} {
+function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, basis: ServingOwner['basis'], admission?: PromptSurface, door?: PromptSurface} {
   switch (task.kind) {
   case 'actionMenu':
     // (Never reached — the caller answers «not asked»: the player is free to stand anywhere.)
@@ -113,7 +120,7 @@ function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, 
     case 'placementOrder': return f.startFlow ? {owner: 'start', basis: 'start', admission: 'scene'} : {owner: 'task', basis: 'row', admission: 'host'};
     default: return {owner: 'task', basis: 'row', admission: 'host'};
     }
-  case 'awardFunding': return {owner: 'awards', basis: 'row', admission: 'section'};
+  case 'awardFunding': return {owner: 'awards', basis: 'row', admission: 'section', door: 'followUp'};
   case 'player':
   case 'amount':
   case 'resource':
@@ -127,19 +134,19 @@ function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, 
     }
     return task.mode === 'buy' && f.draftClaims ? {owner: 'draft', basis: 'row', admission: 'section'} : {owner: 'task', basis: 'row', admission: 'host'};
   case 'deckSelect': return {owner: 'deck-pick', basis: 'row', admission: 'host'};
-  case 'handSelect': return {owner: 'hand', basis: 'row', admission: 'section'};
+  case 'handSelect': return {owner: 'hand', basis: 'row', admission: 'section', door: 'followUp'};
   case 'projectCard':
     if (task.mode === 'playFromHand') {
-      return {owner: 'hand', basis: 'row', admission: 'section'};
+      return {owner: 'hand', basis: 'row', admission: 'section', door: 'followUp'};
     }
-    return task.mode === 'standardProject' ? {owner: 'standard-projects', basis: 'row', admission: 'section'} : {owner: 'task', basis: 'row', admission: 'host'};
+    return task.mode === 'standardProject' ? {owner: 'standard-projects', basis: 'row', admission: 'section', door: 'followUp'} : {owner: 'task', basis: 'row', admission: 'host'};
   case 'colony':
-  case 'colonyBonus': return {owner: 'colonies', basis: 'row', admission: 'section'};
+  case 'colonyBonus': return {owner: 'colonies', basis: 'row', admission: 'section', door: 'followUp'};
   case 'party':
   case 'parliamentPhase':
-  case 'chairmanQuest': return {owner: 'parliament', basis: 'row', admission: 'section'};
+  case 'chairmanQuest': return {owner: 'parliament', basis: 'row', admission: 'section', door: 'followUp'};
   // (A resolution's draw is the SAME surface, standing in the sitting's stage — `servingOwnerOf` names that host.)
-  case 'externalDraw': return {owner: 'external-draw', basis: 'row', admission: 'section'};
+  case 'externalDraw': return {owner: 'external-draw', basis: 'row', admission: 'section', door: 'followUp'};
   case 'venusBonus': return {owner: 'lanes', basis: 'row', admission: 'scaleBonus'};
   case 'spendHeat': return {owner: 'lanes', basis: 'row', admission: 'host'};
   case 'botAttack': return {owner: 'bot-attack', basis: 'row', admission: 'host'};
@@ -178,8 +185,8 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   // colony resolution's discard): the flow that asked is the flow that hears the answer. Never over the opening's own.
   const earned = row.basis !== 'start' && f.servingFrame !== undefined && f.servingFrame !== row.owner;
   const base: ServingOwner = earned ?
-    {owner: f.servingFrame as WorkspaceFrameKind, basis: 'serves', ...(row.admission !== undefined ? {admission: row.admission} : {})} :
-    {owner: row.owner, basis: row.basis, ...(row.admission !== undefined ? {admission: row.admission} : {})};
+    {owner: f.servingFrame as WorkspaceFrameKind, basis: 'serves', ...(row.admission !== undefined ? {admission: row.admission} : {}), ...(row.door !== undefined ? {door: row.door} : {})} :
+    {owner: row.owner, basis: row.basis, ...(row.admission !== undefined ? {admission: row.admission} : {}), ...(row.door !== undefined ? {door: row.door} : {})};
   // A step of a flow stands in that flow's zone — for the kinds that CAN be a step (the shadow's `HOSTABLE`: a modal
   // or a screen of its own never is), never inside itself, never the opening's own surface. A resolution's draw is a
   // step of the SITTING whatever stands on top: the Parliament hosts it in its stage.
@@ -219,7 +226,9 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   if (owner.admission === undefined || f.frames.includes(owner.owner as WorkspaceFrameKind)) {
     return {asked: true, ...owner};
   }
-  return {asked: true, ...owner, ...holdOf(owner.admission, f)};
+  const own = holdOf(owner.admission, f);
+  // (Its own admission first; then the door the router opens it through.)
+  return {asked: true, ...owner, ...(own.hold !== undefined || owner.door === undefined ? own : holdOf(owner.door, f))};
 }
 
 function holdOf(surface: PromptSurface, f: QuestionFacts): {hold?: {kind: OwnerHoldKind, by: string}} {

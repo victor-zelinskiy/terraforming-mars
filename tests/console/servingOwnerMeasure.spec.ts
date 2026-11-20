@@ -82,6 +82,9 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     // A step in a flow's zone: its own rung, or its host's (which hands it the press).
     expect(padRungVerdict(serves('task', 'hand'), 'taskHost')).to.eq('pad-agree');
     expect(padRungVerdict(serves('task', 'hand'), 'section:hand')).to.eq('pad-agree');
+    // …and a workspace that owns the question hands the pad to the steps of its flow standing above it.
+    expect(padRungVerdict(serves('start'), 'section:colonies')).to.eq('pad-MISS:section:colonies');
+    expect(padRungVerdict(serves('start'), 'section:colonies', ['colonies'])).to.eq('pad-agree');
     // A hold is not judged by the rung — it has its own, or the press is absorbed.
     expect(padRungVerdict(held('task', 'claim', 'parliament'), 'section:parliament')).to.eq('pad-held:claim');
     // The function says X serves and another rung took the press: a fact the ladder knows and the function does not.
