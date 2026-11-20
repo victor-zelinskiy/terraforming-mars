@@ -777,6 +777,7 @@ export function createWiringController(shell: WiringPort) {
         steps: depth === -1 ? [] : facts.frames.slice(depth + 1),
         // (The bar the player is looking at: read first, so the branch it names is the one that made it.)
         bar: shell.commands.length >= 0 ? barRungNow() : '',
+        kind: task?.kind ?? '',
       };
     });
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({

@@ -257,6 +257,31 @@ export function renderOwner(owner) {
     const total = Object.values(who).reduce((a, b) => a + b, 0);
     L.push(`  under ${kind.padEnd(9)} ${String(total).padStart(6)} — ${Object.entries(who).sort((a, b) => b[1] - a[1]).map(([w, n]) => `${w} ${n}`).join(' · ')}`);
   }
+  // THE BAND, DERIVED: the ONE rung the switch would name, against the rung the ladder took — the last measure before the swap.
+  const bandN = {agree: 0, above: 0, apart: 0};
+  const bandPairs = {};
+  for (const [shape, row] of Object.entries(owner.rows ?? {})) {
+    if (!shape.startsWith('band:')) {
+      continue;
+    }
+    for (const [verdict, n] of Object.entries(row)) {
+      if (verdict === 'band-agree') {
+        bandN.agree += n;
+      } else if (verdict === 'band-above') {
+        bandN.above += n;
+      } else if (verdict.startsWith('band-APART:')) {
+        bandN.apart += n;
+        const pair = verdict.slice('band-APART:'.length);
+        bandPairs[pair] = (bandPairs[pair] ?? 0) + n;
+      }
+    }
+  }
+  if (bandN.agree + bandN.above + bandN.apart > 0) {
+    L.push(`THE BAND, DERIVED — ${bandN.agree + bandN.above + bandN.apart} press(es): the ladder took the derived rung ${bandN.agree} · its upper half took it ${bandN.above} · APART ${bandN.apart}`);
+    if (bandN.apart > 0) {
+      L.push(`  APART: ${Object.entries(bandPairs).sort((x, y) => y[1] - x[1]).slice(0, 40).map(([pair, n]) => `«${pair.split('>')[0]}» → «${pair.split('>')[1]}» ${n}`).join(' · ')}`);
+    }
+  }
   // THE SURFACES' OWN CONDITIONS (stage 2 ③): every prompt condition that HOLDS on a look, against the function's answer.
   const flagN = {};
   const flagRows = {};

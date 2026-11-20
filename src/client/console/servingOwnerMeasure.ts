@@ -52,7 +52,7 @@ let barRung = '';
 let unsettledFlags = '';
 /** WHO SERVES RIGHT NOW, as the function reads the shell's facts — supplied by the shell's wiring while it stands.
  *  `bar` — the branch the command bar stands on as the press arrives (the shell reads its own bar first). */
-type OwnerNow = {shape: string, ownership: Ownership, facts: () => string, steps?: ReadonlyArray<string>, bar?: string};
+type OwnerNow = {shape: string, ownership: Ownership, facts: () => string, steps?: ReadonlyArray<string>, bar?: string, kind?: string};
 let ownerNowProbe: (() => OwnerNow) | undefined;
 
 export function resetServingOwnerLog(): void {
@@ -283,6 +283,7 @@ export function measurePadPress<T>(route: () => T): T {
       if (before.bar !== undefined) {
         endBarPress(before.shape, before.bar, before.ownership, before.facts);
       }
+      endBandPress(before.shape, before.ownership, before.steps ?? [], before.kind ?? '', before.facts);
     } catch {
       // counted nowhere — the press went where it went
     }
@@ -393,6 +394,70 @@ export function notePromptFlagsLook(shape: string, ownership: Ownership, flags: 
     shape: key, verdict, owner: ownership.asked ? ownership.owner : 'nobody', host: ownership.asked ? ownership.host ?? '' : '',
     hold: ownership.asked && ownership.hold !== undefined ? `${ownership.hold.kind}:${ownership.hold.by}` : '',
     present: flags.length === 0 ? ['no condition'] : [...flags], shadow: 'flag', facts: facts(),
+  });
+  if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
+    servingOwnerLog.disagreements.shift();
+  }
+}
+
+/*
+ * ── THE BAND, DERIVED — and held against the ladder before it replaces it (stage 2 ②, the last measure) ─────────────
+ *
+ * `pad-agree` is generous: it takes the owner's rung, its host's, a step's. The switch that is to REPLACE the fifteen
+ * ordered `if`s of the ladder's prompt band has to name ONE rung — so it is written here first, as a pure function of
+ * the function's answer, and at every press its word is read against the rung the ladder really took:
+ *   · `own:<rung>` — a surface with a rung of its own serves (the task host, a composite, a decision, the deck pick,
+ *                    the draft, the opening, an external draw): the press is its;
+ *   · `step`       — a workspace owns the question and a step of its flow stands above it: the press is that screen's;
+ *   · `ws`         — a workspace owns the question and stands itself: the press is its section's / its sheet's;
+ *   · `held:<kind>` · `free` — the owner waits, or nothing is asked: the press is the PLAYER's (where they stand).
+ * `band-agree` — the ladder took that very rung (for the last four: a section or a sheet); `band-above` — the
+ * ladder's upper half took it (a look, a beat — never the band's); `band-APART:<derived>><rung>` — the switch and
+ * the ladder would part on this press. STATS ONLY — the day this row is at zero everywhere, the switch goes in.
+ */
+/** PURE: the ONE rung the derived band names for the function's answer (`kind` — the task's kind: the lanes' two composites). */
+export function derivedBandRung(ownership: Ownership, steps: ReadonlyArray<string> = [], kind = ''): string {
+  if (!ownership.asked) {
+    return 'free';
+  }
+  if (ownership.hold !== undefined) {
+    return `held:${ownership.hold.kind}`;
+  }
+  if (steps.length > 0) {
+    return 'step';
+  }
+  if (ownership.owner === 'lanes') {
+    return kind === 'spendHeat' ? 'own:spendHeat' : 'own:venusBonus';
+  }
+  const own = RUNGS_OF_OWNER[ownership.owner];
+  return own !== undefined && own.length > 0 ? `own:${own[0]}` : 'ws';
+}
+
+/** PURE: how the rung the ladder took reads against the derived band's word. */
+export function bandRungVerdict(derived: string, rung: string): OwnerLookVerdict {
+  if (isLookRung(rung) || BEAT_RUNGS.has(rung)) {
+    return 'band-above';
+  }
+  const agrees = derived.startsWith('own:') ? derived === `own:${rung}` : rung.startsWith('section:') || rung.startsWith('sheet:');
+  return agrees ? 'band-agree' : `band-APART:${derived}>${rung === '' ? 'unnamed' : rung}`;
+}
+
+/** The same press, read against the derived band: counted; a pair that parts is kept once, with the facts. */
+export function endBandPress(shape: string, ownership: Ownership, steps: ReadonlyArray<string>, kind: string, facts: () => string = () => ''): void {
+  const verdict = bandRungVerdict(derivedBandRung(ownership, steps, kind), padRung);
+  const key = `band:${shape}`;
+  const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
+  row[verdict] = (row[verdict] ?? 0) + 1;
+  if (!verdict.startsWith('band-APART')) {
+    return;
+  }
+  if (servingOwnerLog.disagreements.some((d) => d.shadow === 'band' && d.shape === key && d.verdict === verdict)) {
+    return;
+  }
+  servingOwnerLog.disagreements.push({
+    shape: key, verdict, owner: ownership.asked ? ownership.owner : 'nobody', host: ownership.asked ? ownership.host ?? '' : '',
+    hold: ownership.asked && ownership.hold !== undefined ? `${ownership.hold.kind}:${ownership.hold.by}` : '',
+    present: [padRung === '' ? 'unnamed' : padRung], shadow: 'band', facts: facts(),
   });
   if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
     servingOwnerLog.disagreements.shift();

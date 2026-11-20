@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
-  barRungNow, barRungVerdict, measurePadPress, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
+  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
   promptFlagsVerdict, registerOwnerNowProbe, resetServingOwnerLog, servingOwnerLog,
 } from '../../src/client/console/servingOwnerMeasure';
 
@@ -121,7 +121,7 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     route('info');
     expect(asked).to.eq(5);
     expect(servingOwnerLog.rows['pad:payment']).to.deep.eq({'pad-agree': 2, 'pad-MISS:section:board': 2, 'pad-look:info': 1});
-    expect(servingOwnerLog.disagreements.map((d) => `${d.shape}|${d.verdict}|${d.owner}|${d.present.join(',')}|${d.facts}`)).to.deep.eq([
+    expect(servingOwnerLog.disagreements.filter((d) => d.shadow === 'pad').map((d) => `${d.shape}|${d.verdict}|${d.owner}|${d.present.join(',')}|${d.facts}`)).to.deep.eq([
       'pad:payment|pad-MISS:section:board|task|section:board|frames [] · host hand',
     ]);
     // No probe (no shell stands): the press is routed and nothing is counted.
@@ -200,6 +200,40 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(servingOwnerLog.rows['flag:payment']).to.deep.eq({'flag-agree': 1, 'flag-unsettled': 1, 'flag-MISS:task': 2});
     expect(servingOwnerLog.disagreements.map((d) => `${d.shape}|${d.verdict}|${d.owner}|${d.present.join(',')}|${d.facts}`)).to.deep.eq([
       'flag:payment|flag-MISS:task|task|no condition|frames []',
+    ]);
+  });
+
+  it('THE BAND, DERIVED: the one rung the switch would name, held against the rung the ladder took', () => {
+    expect(derivedBandRung({asked: false})).to.eq('free');
+    expect(derivedBandRung(held('task', 'admission', 'reveal'))).to.eq('held:admission');
+    expect(derivedBandRung(serves('task', 'hand'))).to.eq('own:taskHost');
+    expect(derivedBandRung(serves('decision'))).to.eq('own:effectDecision');
+    expect(derivedBandRung(serves('lanes'), [], 'spendHeat')).to.eq('own:spendHeat');
+    expect(derivedBandRung(serves('lanes'), [], 'venusBonus')).to.eq('own:venusBonus');
+    expect(derivedBandRung(serves('parliament'))).to.eq('ws');
+    // A step of the owner's flow stands above it: the press is that screen's, whoever the owner is.
+    expect(derivedBandRung(serves('start'), ['colonies'])).to.eq('step');
+
+    expect(bandRungVerdict('own:taskHost', 'taskHost')).to.eq('band-agree');
+    expect(bandRungVerdict('own:taskHost', 'section:hand')).to.eq('band-APART:own:taskHost>section:hand');
+    expect(bandRungVerdict('ws', 'section:parliament')).to.eq('band-agree');
+    expect(bandRungVerdict('step', 'section:colonies')).to.eq('band-agree');
+    expect(bandRungVerdict('held:admission', 'sheet:milestones')).to.eq('band-agree');
+    expect(bandRungVerdict('held:admission', 'taskHost')).to.eq('band-APART:held:admission>taskHost');
+    expect(bandRungVerdict('free', 'handPick')).to.eq('band-APART:free>handPick');
+    // The ladder's upper half is never the band's.
+    expect(bandRungVerdict('own:taskHost', 'zoom')).to.eq('band-above');
+    expect(bandRungVerdict('own:taskHost', 'info:open')).to.eq('band-above');
+    expect(bandRungVerdict('ws', 'cinematic')).to.eq('band-above');
+
+    registerOwnerNowProbe(() => ({shape: 'payment', ownership: serves('task'), facts: () => 'frames []', kind: 'payment'}));
+    const route = (rung: string) => measurePadPress(() => notePadRung(rung));
+    route('taskHost');
+    route('section:board');
+    route('zoom');
+    expect(servingOwnerLog.rows['band:payment']).to.deep.eq({'band-agree': 1, 'band-APART:own:taskHost>section:board': 1, 'band-above': 1});
+    expect(servingOwnerLog.disagreements.filter((d) => d.shadow === 'band').map((d) => `${d.shape}|${d.verdict}|${d.facts}`)).to.deep.eq([
+      'band:payment|band-APART:own:taskHost>section:board|frames []',
     ]);
   });
 });
