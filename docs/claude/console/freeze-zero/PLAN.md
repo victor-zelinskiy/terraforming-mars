@@ -580,8 +580,25 @@ of stage 1 stands on its own branch, so `main` may move).**
   the bar stood on is read against the rung that took the press — `bar-agree` · `bar-look` (a view the press opened,
   or one with a strip of its own) · `bar-beat` (a beat absorbed under a standing bar — read by its pairs) ·
   `bar-APART:<bar>><pad>` (the two copies apart). Stats only.
-- **Next:** both readings over all 606 tables (the freeze gate on `main`, then a real browser); every `bar-APART` pair
-  read to its cause; then the third band as ONE decision the pad and the bar both read; then ③.
+  (`74adbcd57c`: a press that OPENS a view — `info:open` — is told from a view that STANDS; a standing view the bar
+  does not stand on is `bar-APART`, never a `look`. Only a view with a strip of its own — the card viewer, a toast —
+  is excused.)
+- **THE SURFACES' OWN CONDITIONS against the function** (`c04e738e2a` — the measure step ③ needs): the thirteen
+  conditions the prompt band reads (`deckPickServing` … `taskHostOwnsInput`, `corpFirstActionOpen`) are read on every
+  look of the leak detector's pass, ALL that hold at once (the ladder stops at the first): `flag-agree` ·
+  `flag-held` · `flag-MISS:<owner>` · `flag-EXTRA:<why>:<flags>` (a condition that holds with no surface the function
+  gives it — two answers to one question). First reading: 146 looks, MISS 0 · EXTRA 0.
+- **THE BAND, DERIVED** (`eb06bcb112` — the last measure before the swap): `derivedBandRung` is the switch itself,
+  written as a pure function of the function's answer — `own:<rung>` · `step` · `ws` · `held:<kind>` · `free` — and at
+  every press its ONE word is read against the rung the ladder took: `band-agree` · `band-above` (a look, a beat) ·
+  `band-APART:<derived>><rung>`. First reading (five tables, 193 presses): APART 0.
+- **THE RULE OF THE SWAP:** the switch replaces the ladder's prompt band when `band-APART`, `pad-MISS`, `flag-MISS`,
+  `flag-EXTRA` and `bar-APART` are ZERO on the whole bottle (606 tables) AND in a real browser (the monkey on `main`,
+  one whole pass) — or every pair left is read to its cause and written here. The pad goes first (it asks the
+  function at the press — no cache); the bar and each `v-if` read it through a computed, so their facts must first be
+  REACTIVE (invariant 17) — that is ③'s own work.
+- **Next:** the four readings over all 606 tables (the freeze gate on `main`), then in a real browser; then the swap
+  of the pad's band; then ③.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
