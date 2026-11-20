@@ -269,8 +269,9 @@ export function renderOwner(owner) {
     L.push(`THE EDGE — ${edgeN.agree + edgeN.latch} look(s): the answer stood as at its last reactive edge ${edgeN.agree} · LATCH (moved with no edge) ${edgeN.latch}`);
   }
   // THE BAND, DERIVED: the ONE rung the switch would name, against the rung the ladder took — the last measure before the swap.
-  const bandN = {agree: 0, above: 0, apart: 0};
+  const bandN = {agree: 0, above: 0, apart: 0, fallback: 0};
   const bandPairs = {};
+  const bandFallbacks = {};
   for (const [shape, row] of Object.entries(owner.rows ?? {})) {
     if (!shape.startsWith('band:')) {
       continue;
@@ -284,11 +285,18 @@ export function renderOwner(owner) {
         bandN.apart += n;
         const pair = verdict.slice('band-APART:'.length);
         bandPairs[pair] = (bandPairs[pair] ?? 0) + n;
+      } else if (verdict.startsWith('band-fallback:')) {
+        bandN.fallback += n;
+        const pair = verdict.slice('band-fallback:'.length);
+        bandFallbacks[pair] = (bandFallbacks[pair] ?? 0) + n;
       }
     }
   }
-  if (bandN.agree + bandN.above + bandN.apart > 0) {
-    L.push(`THE BAND, DERIVED — ${bandN.agree + bandN.above + bandN.apart} press(es): the ladder took the derived rung ${bandN.agree} · its upper half took it ${bandN.above} · APART ${bandN.apart}`);
+  if (bandN.agree + bandN.above + bandN.apart + bandN.fallback > 0) {
+    L.push(`THE BAND, DERIVED — ${bandN.agree + bandN.above + bandN.apart + bandN.fallback} press(es): the ladder took the derived rung ${bandN.agree} · its upper half took it ${bandN.above} · APART ${bandN.apart} · the ladder's own order routed it (FALLBACK) ${bandN.fallback}`);
+    if (bandN.fallback > 0) {
+      L.push(`  FALLBACK: ${Object.entries(bandFallbacks).sort((x, y) => y[1] - x[1]).slice(0, 40).map(([pair, n]) => `«${pair.split('>')[0]}» → «${pair.split('>')[1]}» ${n}`).join(' · ')}`);
+    }
     if (bandN.apart > 0) {
       L.push(`  APART: ${Object.entries(bandPairs).sort((x, y) => y[1] - x[1]).slice(0, 40).map(([pair, n]) => `«${pair.split('>')[0]}» → «${pair.split('>')[1]}» ${n}`).join(' · ')}`);
     }

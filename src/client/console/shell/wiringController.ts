@@ -54,7 +54,7 @@ import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} f
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
 import {barRungNow, registerOwnerNowProbe, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
-import {ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
+import {bandRungOf, ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
 import {isHydroMarkerActive, hydroRewardHoldOwed, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
@@ -648,6 +648,18 @@ export function createWiringController(shell: WiringPort) {
    * of the pad reads today. Stage 2 ③ is to derive them from the ONE function; until then they are MEASURED against it
    * on every look (`servingOwnerMeasure.notePromptFlagsLook` — stats only).
    */
+  /**
+   * THE PAD's PROMPT BAND, RIGHT NOW (stage 2 ② — `servingOwner.bandRungOf`): asked by the pad's ladder at the press,
+   * on the facts as they stand — never cached (the facts are not all reactive yet: step ③).
+   */
+  function bandRungNow(): string {
+    const task = taskFor(shell.playerView);
+    const facts = {task, ...ownerFacts()};
+    const ownership = servingOwnerOf(facts);
+    const depth = ownership.asked ? facts.frames.indexOf(ownership.owner as WorkspaceFrameKind) : -1;
+    return bandRungOf(ownership, depth === -1 ? [] : facts.frames.slice(depth + 1), task?.kind ?? '');
+  }
+
   const ownerEdge = {answer: '', facts: ''};
   const offOwnerEdge: {value: (() => void) | undefined} = {value: undefined};
 
@@ -1295,6 +1307,7 @@ export function createWiringController(shell: WiringPort) {
   }
 
   return {
+    bandRungNow,
     offPlanetFocusParams,
     offWsPresence,
     releasePresentationLease,

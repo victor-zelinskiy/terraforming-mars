@@ -136,11 +136,13 @@ import type {ViewerController} from '@/client/console/shell/viewerController';
 import type {InfoController} from '@/client/console/shell/infoController';
 import type {CellController} from '@/client/console/shell/cellController';
 import type {CommandBarController} from '@/client/console/shell/commandBarController';
+import type {WiringController} from '@/client/console/shell/wiringController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {StartController} from '@/client/console/shell/startController';
 import type {OutcomeController} from '@/client/console/shell/outcomeController';
 import {noteUnreceivedPress} from '@/client/console/inputEcho';
-import {measurePadPress, notePadRung} from '@/client/console/servingOwnerMeasure';
+import {measurePadPress, noteBandFallback, notePadRung} from '@/client/console/servingOwnerMeasure';
+import {promptBandOf} from '@/client/console/promptBand';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 
 /** PC04 · GS — the ledger's name of the series' visit standing between two questions (`seriesHeld`). */
@@ -226,6 +228,7 @@ export type PadRouterPort = {
   hostTask: UnwrapRef<RouterController['hostTask']>,
   taskHostHeldBy: UnwrapRef<RouterController['taskHostHeldBy']>,
   taskHostOwnsInput: UnwrapRef<RouterController['taskHostOwnsInput']>,
+  bandRungNow: WiringController['bandRungNow'],
   infoBack: UnwrapRef<InfoController['infoBack']>,
   infoExtrasChipList: UnwrapRef<InfoController['infoExtrasChipList']>,
   infoGo: UnwrapRef<InfoController['infoGo']>,
@@ -332,6 +335,26 @@ export function createPadRouterController(shell: PadRouterPort) {
    * router vouched for it. The intent is still consumed (nothing may act under an owned pad); the verb is counted
    * DROPPED (`inputEcho.noteUnreceivedPress`), and the surface is named once while it stays away.
    */
+  /**
+   * THE PROMPT BAND's CONDITIONS — each surface's own «I stand and take the pad» (what its rung read alone until
+   * stage 2 ②; step ③ derives them from the function, and this table goes with the fallback). WHICH of the standing
+   * ones takes a press is `promptBand.promptBandOf` — the ONE function's word.
+   */
+  const BAND_STANDS: Readonly<Record<string, () => boolean>> = {
+    deckPick: () => shell.deckPickServing,
+    draft: () => shell.draftWorkspaceOwnsPad,
+    externalDraw: () => shell.externalDrawOwnsPad,
+    start: () => shell.startSceneOwnsPad,
+    govSupport: () => shell.govSupportActive && !consoleState.task.deferred && shell.taskSpacePending === undefined,
+    prodLoss: () => shell.productionLossActive && !consoleState.task.deferred && shell.taskSpacePending === undefined,
+    spendHeat: () => shell.spendHeatActive,
+    venusBonus: () => shell.venusBonusActive,
+    ares: () => shell.aresGlobalsActive,
+    botAttack: () => shell.botAttackActive,
+    effectDecision: () => shell.effectDecisionActive,
+    taskHost: () => shell.taskHostOwnsInput,
+  };
+
   const deafSurfaces = new Map<string, number>();
   function handedTo(surface: {handleIntent(intent: GamepadIntent): unknown} | undefined | null, name: string, intent: GamepadIntent, heldBy = ''): void {
     if (surface === undefined || surface === null) {
@@ -889,12 +912,15 @@ export function createPadRouterController(shell: PadRouterPort) {
     // BELOW this one, so yielding here is what lets the press reach them:
     // «Огромный астероид» paid with Helion's heat raised the payment INSIDE
     // this very workspace and the scene swallowed every press aimed at it.
+    // ── THE PROMPT BAND (stage 2 ②): the rungs from here to the task host answer the SERVER's question. WHICH of them
+    // takes the press is the ONE function's word (`promptBandOf`); the order they stand in below is only the fallback.
+    const band = promptBandOf(BAND_STANDS, shell.bandRungNow, noteBandFallback);
     // DRAW & SELECT owns the pad while it serves — BEFORE the start scene,
     // because the commonest host for it IS the start scene (a prelude that
     // looks at the top of the deck). Through its own outgoing beats it
     // deliberately swallows everything, so a committed move can never be
     // re-submitted by a stray press.
-    if (shell.deckPickServing) {
+    if (band.takes('deckPick')) {
       notePadRung('deckPick');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleDeckPick>>('deckPick'), 'deckPick', intent);
       return true;
@@ -902,7 +928,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // THE DRAFT WORKSPACE owns the pad while it is the serving surface.
     // `hostTask === undefined` inside the predicate yields it to the
     // embedded payment / the Underworld research choice (host-served).
-    if (shell.draftWorkspaceOwnsPad) {
+    if (band.takes('draft')) {
       notePadRung('draft');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleDraftWorkspace>>('draftWs'), 'draftWs', intent);
       return true;
@@ -911,12 +937,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // it is locked by construction (the take is the only way out), so
     // NOTHING below it may see a press. Its own phases absorb input during
     // the deal and the take flights.
-    if (shell.externalDrawOwnsPad) {
+    if (band.takes('externalDraw')) {
       notePadRung('externalDraw');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleExternalDrawWorkspace>>('extDrawWs'), 'extDrawWs', intent);
       return true;
     }
-    if (shell.startSceneOwnsPad) {
+    if (band.takes('start')) {
       notePadRung('start');
       const scene = shell.surfaces.at<ExposedOf<typeof ConsoleStartScene>>('startScene');
       handedTo(scene, 'startScene', intent);
@@ -935,7 +961,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     }
     // Government Support (WGT) — the dedicated briefing panel owns input
     // while it serves (before the generic host branch below).
-    if (shell.govSupportActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
+    if (band.takes('govSupport')) {
       notePadRung('govSupport');
       const panel = shell.surfaces.at<ExposedOf<typeof ConsoleGovernmentSupport>>('govSupport');
       handedTo(panel, 'govSupport', intent);
@@ -943,29 +969,29 @@ export function createPadRouterController(shell: PadRouterPort) {
     }
     // Production loss (Ares hazard) — the dedicated surface owns input while
     // it serves (before the generic host branch below).
-    if (shell.productionLossActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
+    if (band.takes('prodLoss')) {
       notePadRung('prodLoss');
       const panel = shell.surfaces.at<ExposedOf<typeof ConsoleProductionLoss>>('prodLoss');
       handedTo(panel, 'prodLoss', intent);
       return true;
     }
     // The three dedicated COMPOSITE surfaces own the pad on the same terms.
-    if (shell.spendHeatActive) {
+    if (band.takes('spendHeat')) {
       notePadRung('spendHeat');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleSpendHeat>>('spendHeat'), 'spendHeat', intent);
       return true;
     }
-    if (shell.venusBonusActive) {
+    if (band.takes('venusBonus')) {
       notePadRung('venusBonus');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleVenusBonus>>('venusBonus'), 'venusBonus', intent);
       return true;
     }
-    if (shell.aresGlobalsActive) {
+    if (band.takes('ares')) {
       notePadRung('ares');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleAresGlobals>>('aresGlobals'), 'aresGlobals', intent);
       return true;
     }
-    if (shell.botAttackActive) {
+    if (band.takes('botAttack')) {
       notePadRung('botAttack');
       handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleBotAttack>>('botAttack'), 'botAttack', intent);
       return true;
@@ -973,7 +999,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // The EFFECT DECISION screen owns input while it stands in for the host
     // (same contract, same gate — kept next to it so the two can never both
     // claim the pad).
-    if (shell.effectDecisionActive) {
+    if (band.takes('effectDecision')) {
       notePadRung('effectDecision');
       const panel = shell.surfaces.at<ExposedOf<typeof ConsoleEffectDecision>>('effectDecision');
       handedTo(panel, 'effectDecision', intent);
@@ -1020,7 +1046,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // v-if), so routing here would drop every press into a dead ref.
     // (ONE condition since stage 2 ②: this rung, the two command-bar branches and the template's `v-if` read
     // `routerController.taskHostOwnsInput` — nothing is left to keep in lock-step by hand.)
-    if (shell.taskHostOwnsInput) {
+    if (band.takes('taskHost')) {
       notePadRung('taskHost');
       const host = shell.surfaces.at<ExposedOf<typeof ConsoleTaskHost>>('taskHost');
       // (The rung's terms are fewer than the host's own `v-if`: when the host is held, it is held BY NAME.)

@@ -251,6 +251,42 @@ export function questionFactsDigest(f: QuestionFacts): string {
   ].filter((part) => part !== '').join(' · ');
 }
 
+/**
+ * THE RUNG OF THE PAD's PROMPT BAND each owner is reached through — the surfaces that take a press by a rung of
+ * their own (a workspace is reached through its section or its sheet, below the band). The lanes hold two composites.
+ */
+const BAND_RUNG_OF_OWNER: Readonly<Partial<Record<ScreenOwner, string>>> = {
+  'task': 'taskHost', 'decision': 'effectDecision', 'deck-pick': 'deckPick', 'gov-support': 'govSupport', 'prod-loss': 'prodLoss',
+  'ares': 'ares', 'bot-attack': 'botAttack', 'corp-first': 'corpFirst', 'draft': 'draft', 'start': 'start',
+  'external-draw': 'externalDraw', 'endgame': 'endgame', 'repeat-pick': 'repeatPick',
+};
+
+/**
+ * THE PAD's PROMPT BAND, AS ONE WORD (stage 2 ②) — whose press it is, by the function's answer:
+ *   · `own:<rung>` — a surface with a rung of its own serves (the task host, a composite, a decision, the deck pick,
+ *                    the draft, the opening, an external draw): the press is its;
+ *   · `step`       — a workspace owns the question and a step of its flow stands above it: the press is that screen's;
+ *   · `ws`         — a workspace owns the question and stands itself: the press is its section's / its sheet's;
+ *   · `held:<kind>` · `free` — the owner waits, or nothing is asked: the press is the PLAYER's (where they stand).
+ * `steps` — the frames standing above the owner's own on the live stack; `kind` — the task's kind (the lanes' two).
+ */
+export function bandRungOf(ownership: Ownership, steps: ReadonlyArray<string> = [], kind = ''): string {
+  if (!ownership.asked) {
+    return 'free';
+  }
+  if (ownership.hold !== undefined) {
+    return `held:${ownership.hold.kind}`;
+  }
+  if (steps.length > 0) {
+    return 'step';
+  }
+  if (ownership.owner === 'lanes') {
+    return kind === 'spendHeat' ? 'own:spendHeat' : 'own:venusBonus';
+  }
+  const rung = BAND_RUNG_OF_OWNER[ownership.owner];
+  return rung !== undefined ? `own:${rung}` : 'ws';
+}
+
 /** The function's ANSWER in one line — who, in whose zone, held by what (the measure's key of «the same answer»). */
 export function ownershipDigest(o: Ownership): string {
   if (!o.asked) {

@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
-  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
+  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
   promptFlagsVerdict, registerOwnerNowProbe, resetServingOwnerLog, servingOwnerLog,
 } from '../../src/client/console/servingOwnerMeasure';
 
@@ -235,6 +235,16 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(servingOwnerLog.disagreements.filter((d) => d.shadow === 'band').map((d) => `${d.shape}|${d.verdict}|${d.facts}`)).to.deep.eq([
       'band:payment|band-APART:own:taskHost>section:board|frames []',
     ]);
+    // SINCE THE SWAP the ladder says when its own order routed a press (the function named no standing surface) —
+    // counted for that press only, and kept once.
+    measurePadPress(() => {
+      noteBandFallback('held:admission', 'taskHost');
+      notePadRung('taskHost');
+    });
+    route('taskHost');
+    expect(servingOwnerLog.rows['band:payment']).to.deep.eq({
+      'band-agree': 2, 'band-APART:own:taskHost>section:board': 1, 'band-above': 1, 'band-fallback:held:admission>taskHost': 1,
+    });
   });
 
   it('THE ANSWER AT ITS LAST REACTIVE EDGE: the same answer is a cache that holds the truth; another is a latch, kept once with the facts that moved', () => {

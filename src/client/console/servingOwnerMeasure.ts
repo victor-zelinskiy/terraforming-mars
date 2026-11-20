@@ -14,7 +14,7 @@
  */
 import {sessionState} from '@/client/console/session/consoleSession';
 import type {ScreenOwner} from '@/client/console/screenDirector';
-import {Ownership} from '@/client/console/servingOwner';
+import {bandRungOf, Ownership} from '@/client/console/servingOwner';
 
 /**
  * How one look read:
@@ -62,6 +62,7 @@ export function resetServingOwnerLog(): void {
   unsettledPicture = '';
   padRung = '';
   barRung = '';
+  bandFallback = '';
   unsettledFlags = '';
   ownerNowProbe = undefined;
 }
@@ -152,6 +153,7 @@ export function notePadRung(rung: string): void {
 /** A press enters the ladder. */
 export function beginPadPress(): void {
   padRung = '';
+  bandFallback = '';
 }
 
 /** The owner's own rungs beyond the generic `section:<kind>` / `sheet:<kind>`. */
@@ -413,25 +415,22 @@ export function notePromptFlagsLook(shape: string, ownership: Ownership, flags: 
  *   · `held:<kind>` · `free` — the owner waits, or nothing is asked: the press is the PLAYER's (where they stand).
  * `band-agree` — the ladder took that very rung (for the last four: a section or a sheet); `band-above` — the
  * ladder's upper half took it (a look, a beat — never the band's); `band-APART:<derived>><rung>` — the switch and
- * the ladder would part on this press. STATS ONLY — the day this row is at zero everywhere, the switch goes in.
+ * the ladder would part on this press.
+ *
+ * SINCE THE SWAP (`padRouterController.promptBandOf`) the band's word CHOOSES the rung among the surfaces that stand;
+ * where it names none of them the ladder's old order still routes the press, and says so:
+ * `band-fallback:<word>><rung>` — the copy that is left, counted (at zero it is deleted with step ③).
  */
-/** PURE: the ONE rung the derived band names for the function's answer (`kind` — the task's kind: the lanes' two composites). */
-export function derivedBandRung(ownership: Ownership, steps: ReadonlyArray<string> = [], kind = ''): string {
-  if (!ownership.asked) {
-    return 'free';
-  }
-  if (ownership.hold !== undefined) {
-    return `held:${ownership.hold.kind}`;
-  }
-  if (steps.length > 0) {
-    return 'step';
-  }
-  if (ownership.owner === 'lanes') {
-    return kind === 'spendHeat' ? 'own:spendHeat' : 'own:venusBonus';
-  }
-  const own = RUNGS_OF_OWNER[ownership.owner];
-  return own !== undefined && own.length > 0 ? `own:${own[0]}` : 'ws';
+/** The band fell back to the ladder's own order on the press in flight (`noteBandFallback`). */
+let bandFallback = '';
+
+/** The band's word named no standing surface and a prompt condition held: the ladder's order routed the press. */
+export function noteBandFallback(word: string, rung: string): void {
+  bandFallback = `${word}>${rung}`;
 }
+
+/** The derived band's word (`servingOwner.bandRungOf` — since the swap it is the ladder's own choice; kept by this name for the readings). */
+export const derivedBandRung = bandRungOf;
 
 /** PURE: how the rung the ladder took reads against the derived band's word. */
 export function bandRungVerdict(derived: string, rung: string): OwnerLookVerdict {
@@ -444,11 +443,11 @@ export function bandRungVerdict(derived: string, rung: string): OwnerLookVerdict
 
 /** The same press, read against the derived band: counted; a pair that parts is kept once, with the facts. */
 export function endBandPress(shape: string, ownership: Ownership, steps: ReadonlyArray<string>, kind: string, facts: () => string = () => ''): void {
-  const verdict = bandRungVerdict(derivedBandRung(ownership, steps, kind), padRung);
+  const verdict = bandFallback !== '' ? `band-fallback:${bandFallback}` : bandRungVerdict(derivedBandRung(ownership, steps, kind), padRung);
   const key = `band:${shape}`;
   const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
   row[verdict] = (row[verdict] ?? 0) + 1;
-  if (!verdict.startsWith('band-APART')) {
+  if (!verdict.startsWith('band-APART') && !verdict.startsWith('band-fallback')) {
     return;
   }
   if (servingOwnerLog.disagreements.some((d) => d.shadow === 'band' && d.shape === key && d.verdict === verdict)) {
