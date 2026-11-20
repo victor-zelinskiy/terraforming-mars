@@ -238,6 +238,61 @@ export function renderOwner(owner) {
     const share = (n) => (asked === 0 ? '—' : `${Math.round((n ?? 0) / asked * 1000) / 10} %`);
     L.push(`THE PAD — ${presses} press(es), ${asked} under a question: the owner's rung ${v['pad-agree'] ?? 0} (${share(v['pad-agree'])}) · under a hold ${v['pad-held'] ?? 0} (${share(v['pad-held'])}) · the player's own look ${v['pad-look'] ?? 0} (${share(v['pad-look'])}) · a beat ${v['pad-beat'] ?? 0} (${share(v['pad-beat'])}) · ANOTHER RUNG ${v['pad-MISS'] ?? 0} (${share(v['pad-MISS'])})`);
   }
+  // …and THE MAP OF THE HOLDS: who took the press under a hold of each kind (`pad-held:<kind>:<who>` — `own` the held
+  // owner's rung, `look` / `beat` the ladder's upper half, else the rung by name). What the ladder is to be derived from.
+  const heldMap = {};
+  for (const [shape, row] of Object.entries(owner.rows ?? {})) {
+    if (!shape.startsWith('pad:')) {
+      continue;
+    }
+    for (const [verdict, n] of Object.entries(row)) {
+      const m = /^pad-held:([a-z]+):(.+)$/.exec(verdict);
+      if (m !== null) {
+        const into = heldMap[m[1]] ?? (heldMap[m[1]] = {});
+        into[m[2]] = (into[m[2]] ?? 0) + n;
+      }
+    }
+  }
+  for (const [kind, who] of Object.entries(heldMap).sort((a, b) => a[0].localeCompare(b[0]))) {
+    const total = Object.values(who).reduce((a, b) => a + b, 0);
+    L.push(`  under ${kind.padEnd(9)} ${String(total).padStart(6)} — ${Object.entries(who).sort((a, b) => b[1] - a[1]).map(([w, n]) => `${w} ${n}`).join(' · ')}`);
+  }
+  // THE BAR's half: the branch the command bar stood on against the rung that took the press — two copies of one decision.
+  const barPairs = {};
+  const barBeats = {};
+  const barN = {agree: 0, look: 0, beat: 0, apart: 0};
+  for (const [shape, row] of Object.entries(owner.rows ?? {})) {
+    if (!shape.startsWith('bar:')) {
+      continue;
+    }
+    for (const [verdict, n] of Object.entries(row)) {
+      if (verdict === 'bar-agree') {
+        barN.agree += n;
+      } else if (verdict.startsWith('bar-look:')) {
+        barN.look += n;
+      } else if (verdict.startsWith('bar-beat:')) {
+        barN.beat += n;
+        const pair = verdict.slice('bar-beat:'.length);
+        barBeats[pair] = (barBeats[pair] ?? 0) + n;
+      } else if (verdict.startsWith('bar-APART:')) {
+        barN.apart += n;
+        const pair = verdict.slice('bar-APART:'.length);
+        barPairs[pair] = (barPairs[pair] ?? 0) + n;
+      }
+    }
+  }
+  const barAll = barN.agree + barN.look + barN.beat + barN.apart;
+  if (barAll > 0) {
+    const of = (n) => `${Math.round(n / barAll * 1000) / 10} %`;
+    L.push(`THE BAR — ${barAll} press(es): the bar's branch took it ${barN.agree} (${of(barN.agree)}) · the player's own look ${barN.look} (${of(barN.look)}) · a beat under a standing bar ${barN.beat} (${of(barN.beat)}) · APART ${barN.apart} (${of(barN.apart)})`);
+    const pairs = (map) => Object.entries(map).sort((x, y) => y[1] - x[1]).slice(0, 30).map(([pair, n]) => `«${pair.split('>')[0]}» → «${pair.split('>')[1]}» ${n}`).join(' · ');
+    if (barN.beat > 0) {
+      L.push(`  a beat: ${pairs(barBeats)}`);
+    }
+    if (barN.apart > 0) {
+      L.push(`  APART: ${pairs(barPairs)}`);
+    }
+  }
   for (const d of owner.disagreements.slice(0, 40)) {
     L.push(`${String(d.walks).padStart(5)} walk(s)  ${d.what}   [${d.tables.join(', ')}]`);
     if (d.facts) {

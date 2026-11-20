@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
-  measurePadPress, notePadRung, noteServingOwnerLook, ownerLookVerdict, padRungVerdict, registerOwnerNowProbe, resetServingOwnerLog, servingOwnerLog,
+  barRungNow, barRungVerdict, measurePadPress, noteBarRung, notePadRung, noteServingOwnerLook, ownerLookVerdict, padRungVerdict, registerOwnerNowProbe,
+  resetServingOwnerLog, servingOwnerLog,
 } from '../../src/client/console/servingOwnerMeasure';
 
 /*
@@ -86,7 +87,12 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(padRungVerdict(serves('start'), 'section:colonies')).to.eq('pad-MISS:section:colonies');
     expect(padRungVerdict(serves('start'), 'section:colonies', ['colonies'])).to.eq('pad-agree');
     // A hold is not judged by the rung — it has its own, or the press is absorbed.
-    expect(padRungVerdict(held('task', 'claim', 'parliament'), 'section:parliament')).to.eq('pad-held:claim');
+    // …but WHO took the press under it is kept: the map the ladder is to be derived from.
+    expect(padRungVerdict(held('task', 'claim', 'parliament'), 'section:parliament')).to.eq('pad-held:claim:section:parliament');
+    expect(padRungVerdict(held('task', 'admission', 'reveal'), 'taskHost')).to.eq('pad-held:admission:own');
+    expect(padRungVerdict(held('task', 'admission', 'reveal'), 'reveal')).to.eq('pad-held:admission:beat');
+    expect(padRungVerdict(held('board', 'aside', 'lateral:hand'), 'zoom')).to.eq('pad-held:aside:look');
+    expect(padRungVerdict(held('start', 'aside', 'lateral:colonies'), '')).to.eq('pad-held:aside:unnamed');
     // The function says X serves and another rung took the press: a fact the ladder knows and the function does not.
     expect(padRungVerdict(serves('task'), 'section:board')).to.eq('pad-MISS:section:board');
     // …but the ladder's upper half is not the question's: a view the PLAYER opened over it, a beat that absorbs.
@@ -127,5 +133,40 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
       throw new Error('a fact that could not be read');
     });
     expect(measurePadPress(() => 'routed')).to.eq('routed');
+  });
+
+  it('THE BAR against the pad: the branch the bar stood on, read against the rung that took the press', () => {
+    expect(barRungVerdict('taskHost', 'taskHost')).to.eq('bar-agree');
+    // The announce's bar is the section's bar plus ONE command.
+    expect(barRungVerdict('announce', 'announce')).to.eq('bar-agree');
+    expect(barRungVerdict('announce', 'section:board')).to.eq('bar-agree');
+    // A view the press opened (or one with a strip of its own) · a beat that absorbed under a standing bar.
+    expect(barRungVerdict('section:hand', 'zoom')).to.eq('bar-look:zoom');
+    expect(barRungVerdict('colonyFocus', 'cinematic')).to.eq('bar-beat:colonyFocus>cinematic');
+    // The two copies apart: the bar showed one owner's commands and another rung took the press.
+    expect(barRungVerdict('taskHost', 'section:board')).to.eq('bar-APART:taskHost>section:board');
+    expect(barRungVerdict('', '')).to.eq('bar-agree');
+
+    // Counted with the press it rides, under `bar:<shape>`; a pair that parts is kept once with its facts.
+    noteBarRung('taskHost');
+    expect(barRungNow()).to.eq('taskHost');
+    registerOwnerNowProbe(() => ({shape: 'payment', ownership: serves('task'), facts: () => 'frames []', bar: barRungNow()}));
+    const route = (rung: string) => measurePadPress(() => notePadRung(rung));
+    route('taskHost');
+    route('section:board');
+    route('section:board');
+    route('zoom');
+    route('cinematic');
+    expect(servingOwnerLog.rows['bar:payment']).to.deep.eq({
+      'bar-agree': 1, 'bar-APART:taskHost>section:board': 2, 'bar-look:zoom': 1, 'bar-beat:taskHost>cinematic': 1,
+    });
+    expect(servingOwnerLog.disagreements.filter((d) => d.shadow === 'bar').map((d) => `${d.shape}|${d.verdict}|${d.owner}|${d.facts}`)).to.deep.eq([
+      'bar:payment|bar-APART:taskHost>section:board|task|frames []',
+    ]);
+    // A probe that does not read the bar counts no bar row.
+    resetServingOwnerLog();
+    registerOwnerNowProbe(() => ({shape: 'payment', ownership: serves('task'), facts: () => ''}));
+    route('taskHost');
+    expect(servingOwnerLog.rows['bar:payment']).to.eq(undefined);
   });
 });

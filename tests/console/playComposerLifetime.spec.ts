@@ -88,7 +88,8 @@ describe('playComposerLifetime — the composer answers ONE prompt', () => {
 
     it('a hydro frame over the hand owns the pad and the bar — never the covered composer', () => {
       expect(shell).to.match(/isBlockadeExecutionActive\(\) \|\| this\.handCoveredByHydro;/);
-      expect(shell).to.match(/if \(this\.handCoveredByHydro\) \{\s*return consoleHydroUi\.commands/);
+      // (The branch names itself for the bar's measure first — `noteBarRung`, stage 2 ②.)
+      expect(shell).to.match(/if \(this\.handCoveredByHydro\) \{\s*(?:noteBarRung\('handCovered'\);\s*)?return consoleHydroUi\.commands/);
     });
 
     it('the espionage play refuses a second confirm while its execution stands', () => {

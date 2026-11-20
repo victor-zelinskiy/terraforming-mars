@@ -51,6 +51,7 @@ import {PARLIAMENT_DRAW_ZONE} from '@/client/console/parliament/parliamentDraw';
 import {COLONY_LEDGER_STAGE, colonyBonusPayoutArmed} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
+import {noteBarRung} from '@/client/console/servingOwnerMeasure';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {placementFlowState} from '@/client/console/tilePlacement/placementFlow';
 import {MOVE_SOURCE_BANNER} from '@/client/console/tilePlacement/placementMove';
@@ -567,8 +568,12 @@ export function createCommandBarController(shell: CommandBarPort) {
   });
 
   const commands = computed((): Array<ConsoleCommand> => {
+    // (THE BAR SAYS WHICH BRANCH IT TOOK — the pad's own vocabulary, read against the pad's rung at every press:
+    // `servingOwnerMeasure`, stage 2 ②. The last word wins; nothing above took it — the section's own commands.)
+    noteBarRung(`section:${consoleState.section}`);
     // SYSTEM ALERT owns the pad — the bar advertises only the acknowledge.
     if (consoleSystemAlertState.current !== undefined) {
+      noteBarRung('alert');
       return [{control: 'confirm', label: 'OK'}];
     }
     // TRADE-FLEET LAUNCH / TRADE REWARDS / HYDRO MARKER / BOARD CARD-BONUS /
@@ -577,6 +582,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // itself out). The trade-reward gate is PHASE-aware: it frees the pad
     // for the reveal take and for a Pluto discard between bonus draws.
     if (isTradeFleetActive() || isColonyTradeInputLocked() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || shell.tilePlacementHolds || isDeckDrawActive()) {
+      noteBarRung('cinematic');
       return [];
     }
     // (A CITY LANDING ON A COLONY TILE (TR22) and its homing beat used to blank the bar here. The pad is still the
@@ -587,6 +593,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // and shown as the return once pressed. Above the played-hero quiet below: that quiet is for a play whose commit
     // is made; this one's is still ahead, and a bar with no verb is where the stand found the B being lost.
     if (shell.stagedLandingInFlight) {
+      noteBarRung('cinematic');
       return [
         {control: 'confirm', label: 'Going to the board…', enabled: false},
         shell.stagedBackOwed ? {control: 'back', label: STAGED_BACK_OWED, enabled: false} : {control: 'back', label: 'Back to the card'},
@@ -596,12 +603,14 @@ export function createCommandBarController(shell: CommandBarPort) {
     // whole story (a press during the result beat quietly skips ahead).
     // …except the STAGED hand-off's tail: the board already holds the staged pick, and its own verbs speak (T15 · CD).
     if (shell.playedHeroHolds && shell.placementStagedBar === undefined) {
+      noteBarRung('cinematic');
       return [];
     }
     // «Разбор хода» review: X inspect the played card, L3 show on map, B
     // close. While the fullscreen viewer is up its OWN footer carries the
     // contract; during a peek B returns to the review.
     if (botTurnReviewState.open && consoleCardZoom.card === undefined) {
+      noteBarRung('botReview');
       if (botTurnReviewState.peek) {
         return [{control: 'back', label: 'Back'}];
       }
@@ -621,10 +630,12 @@ export function createCommandBarController(shell: CommandBarPort) {
     // («зажать X Осмотреть ход» · «B Закрыть» in .con-notif__actions).
     // Scale-focus hold: an inert transition beat — no command hints.
     if (govScaleFocusState.holding || govScaleFocusState.closing) {
+      noteBarRung('govScaleFocus');
       return [];
     }
     // …and so is a series' visit between two questions (PC04 · GS): every press is absorbed, no verb is promised.
     if (shell.seriesHeld !== undefined) {
+      noteBarRung('seriesHeld');
       return [];
     }
     // THE EXTERNAL-DRAW WORKSPACE mirrors its live contract — ABOVE the
@@ -634,9 +645,11 @@ export function createCommandBarController(shell: CommandBarPort) {
     // the loading screen would dress a locked workspace's bar as a generic
     // «Выбрать/Назад» until the first in-workspace press.
     if (shell.externalDrawOwnsPad) {
+      noteBarRung('externalDraw');
       return [...(panelCommands('externalDraw') ?? [])];
     }
     if (consoleState.fallbackActive) {
+      noteBarRung('toast');
       return [
         {control: 'confirm', label: 'Select'},
         {control: 'back', label: 'Back'},
@@ -649,20 +662,24 @@ export function createCommandBarController(shell: CommandBarPort) {
     // the free roam is standing on, and the board home appends the one verb
     // that leads back (see the board `home` run below).
     if (shell.endgameStageUp) {
+      noteBarRung('endgame');
       return [...(panelCommands('endgame') ?? [])];
     }
     // LT INFORMATION MODE — the dashboard publishes its live contextual
     // contract (players / detail tabs / VP) through consolePanelUi; the
     // bar is its ONE hint surface (the old in-panel footer is gone).
     if (infoModeState.open) {
+      noteBarRung('info');
       return [...(panelCommands('infoMode') ?? [{control: 'inspect', label: 'Close'}])];
     }
     // A draft beat (hero landing / the research rise) owns the moment —
     // the bar advertises only the skip (any button skips).
     if (draftPickBeatActive() || riseSceneEngaged()) {
+      noteBarRung('cinematic');
       return [{control: 'confirm', label: 'Skip'}];
     }
     if (shell.draftWaitActive && shell.draftTrayMounted) {
+      noteBarRung('draftTray');
       // The pre-game POPOVER path only: nothing to decide — the board stays
       // inspectable while others pick. (The between-generations wait is the
       // WORKSPACE's own stage; its contract arrives via consoleDraftUi.)
@@ -674,6 +691,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       return cmds;
     }
     if (shell.consoleRevealMode !== undefined) {
+      noteBarRung('reveal');
       // The command bar is the SINGLE hint zone for the reveal (the overlay
       // has NO footer of its own — B never reads two conflicting labels).
       // Single-card drawn is fullscreen (the dialog covers the bar), so this
@@ -727,9 +745,11 @@ export function createCommandBarController(shell: CommandBarPort) {
     // verb the surface is swallowing while the cards fly to the dock. Ahead
     // of the start scene for the same reason the pad routing is.
     if (shell.deckPickServing) {
+      noteBarRung('deckPick');
       return [...(panelCommands('deckPick') ?? [])];
     }
     if (shell.draftWorkspaceOwnsPad) {
+      noteBarRung('draft');
       // The workspace publishes its live contract (consoleDraftUi); the bar
       // mirrors it verbatim so it can never diverge from the buttons.
       return consoleDraftUi.commands.length > 0 ?
@@ -737,6 +757,7 @@ export function createCommandBarController(shell: CommandBarPort) {
         [{control: 'back', label: 'Minimize'}];
     }
     if (shell.startSceneOwnsPad) {
+      noteBarRung('start');
       // The scene publishes its live contract (consoleStartUi — wizard step
       // vs. summary vs. ceremony: X inspects, RT continues / begins, etc.);
       // the bar mirrors it verbatim so it can never diverge from the buttons
@@ -754,6 +775,7 @@ export function createCommandBarController(shell: CommandBarPort) {
         ];
     }
     if (shell.govSupportActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
+      noteBarRung('govSupport');
       // The panel publishes its context-aware contract (consolePanelUi) —
       // the bar is the ONE hint surface (the in-panel footer is gone).
       return [...(panelCommands('govSupport') ?? [
@@ -762,6 +784,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       ])];
     }
     if (shell.productionLossActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
+      noteBarRung('prodLoss');
       return [...(panelCommands('productionLoss') ?? [
         {control: 'confirm', label: '−1'},
         {control: 'bumperL', label: '+1'},
@@ -772,26 +795,33 @@ export function createCommandBarController(shell: CommandBarPort) {
     // The dedicated composite surfaces publish their own contracts; the
     // fallbacks below only ever show for the frame before the watcher runs.
     if (shell.spendHeatActive) {
+      noteBarRung('spendHeat');
       return [...(panelCommands('spendHeat') ?? [{control: 'secondary', label: 'Pay'}, {control: 'back', label: 'Minimize'}])];
     }
     if (shell.botAttackActive) {
+      noteBarRung('botAttack');
       return [...(panelCommands('botAttack') ?? [{control: 'confirm', label: 'Choose the target'}, {control: 'back', label: 'Minimize'}])];
     }
     if (shell.venusBonusActive) {
+      noteBarRung('venusBonus');
       return [...(panelCommands('venusBonus') ?? [{control: 'secondary', label: 'Collect'}, {control: 'back', label: 'Minimize'}])];
     }
     if (shell.aresGlobalsActive) {
+      noteBarRung('ares');
       return [...(panelCommands('aresGlobals') ?? [{control: 'secondary', label: 'Apply'}, {control: 'back', label: 'Minimize'}])];
     }
     if (shell.effectDecisionActive) {
+      noteBarRung('effectDecision');
       return [...(panelCommands('effectDecision') ?? [])];
     }
     if (shell.finalGreeneryActive) {
+      noteBarRung('finalGreenery');
       // The beat between «the finale stands open» and the board taking the pick (the watcher hands it over in the
       // same flush): the finale's own verbs, never the host's.
       return [finalGreeneryFinishCommand(), {control: 'back', label: 'Minimize'}];
     }
     if (shell.taskHostOwnsInput) {
+      noteBarRung('taskHost');
       // The task host publishes its live contract (browse / pick / lanes /
       // payment differ) — the bar renders it; no in-frame footer anymore.
       return [...(panelCommands('taskHost') ?? [
@@ -807,6 +837,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     if (shell.repeatPickActive &&
         (isDeltaBlockadePickActive() || isDeltaEspionagePickActive()) &&
         workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick')) {
+      noteBarRung('repeatPick');
       return consoleHydroUi.commands.length > 0 ?
         [...consoleHydroUi.commands] :
         [{control: 'confirm', label: 'Select'}, {control: 'back', label: 'Back'}];
@@ -821,6 +852,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // the pad, so it owns the bar.
     if (isDeltaRewardPickActive() && (!shell.repeatPickActive ||
         workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick'))) {
+      noteBarRung('deltaReward');
       return consoleHydroUi.commands.length > 0 ?
         [...consoleHydroUi.commands] :
         [{control: 'confirm', label: 'Select'}, {control: 'back', label: 'Back'}];
@@ -830,6 +862,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // nested composer's own verbs) to its DEDICATED store — unstealable,
     // never the shared cardActions slot the outer Viron composer may own.
     if (shell.repeatPickActive) {
+      noteBarRung('repeatPick');
       return consoleRepeatPickUi.commands.length > 0 ?
         [...consoleRepeatPickUi.commands] :
         [{control: 'confirm', label: 'Select'}, {control: 'back', label: 'Cancel'}];
@@ -838,6 +871,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // the pick verbs mirror the mandatory hand-select grammar, with B as a
     // plain «Назад» to the composer (nothing is lost).
     if (shell.handPickActive) {
+      noteBarRung('handPick');
       const focusName = shell.handEntries[consoleState.handIndex]?.card.name;
       const canPick = focusName !== undefined && shell.handSelectSelectableNames.includes(focusName);
       const verb = shell.handSelectVerb;
@@ -896,6 +930,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // (`handCoveredByHydro` — the routing's own term), so it names the bar: the covered composer's verbs read over
     // the track's result while A on «Продолжить» went to that composer and posted the play again (2026-10-23).
     if (shell.handCoveredByHydro) {
+      noteBarRung('handCovered');
       return consoleHydroUi.commands.length > 0 ?
         [...consoleHydroUi.commands] :
         [{control: 'back', label: 'Back'}];
@@ -904,6 +939,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // fades, its frame already past the commit — the bar then reads the STEP's own contract below, never the
     // composer's verbs over a surface that accepts none of them.
     if (shell.pendingPlayCard !== undefined && !consolePlayCardUi.released) {
+      noteBarRung('pendingPlay');
       // The composer publishes its CONTEXTUAL controls (A plays / Y changes a
       // resolved choice / X inspects / LB·RB only where a value dials / LT
       // only when the payment is configurable) — the bar mirrors them
@@ -913,6 +949,7 @@ export function createCommandBarController(shell: CommandBarPort) {
         [{control: 'confirm', label: 'Play now'}, {control: 'back', label: 'Cancel'}];
     }
     if (shell.colonyFocusOpen && colonyFocusState.dock !== '') {
+      noteBarRung('colonyFocus');
       // THE FLEET-DOCK STAGE publishes its ONE primary verb (A selects a path,
       // opens the payment, or trades) — the bar reads it, never guesses.
       // PAST THE PRESS the stage is a beat in flight (the card answers, the reward lands, the workspace leaves):
@@ -963,6 +1000,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       ];
     }
     if (shell.colonyFocusOpen) {
+      noteBarRung('colonyFocus');
       // The COLONY FOCUS STAGE mirrors its live state (consoleColoniesUi) —
       // the bar is the ONLY hint surface (no inline duplicates). The verbs
       // follow the INTENT: trade = rows + the one X confirm; build / pick =
@@ -1121,10 +1159,12 @@ export function createCommandBarController(shell: CommandBarPort) {
       ];
     }
     if (shell.colonyInspectModel !== undefined) {
+      noteBarRung('journal');
       // The read-only JOURNAL colony dossier: B closes, nothing else.
       return [{control: 'back', label: 'Close'}];
     }
     if (consoleState.confirm !== undefined) {
+      noteBarRung('confirm');
       // The R3 «Эффекты» LAYER owns the bar while it is open — the explorer's own contract, verbatim (PL-394).
       if (effectForecastOpen('confirm')) {
         return [...(forecastExplorerUi('confirm').barCommands ?? [])];
@@ -1142,6 +1182,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       ];
     }
     if (shell.journalPanelVisible) {
+      noteBarRung('journal');
       // The journal's whole grammar, honest to the panel's live mirrors
       // (consoleJournalUi — the panel syncs, the bar never guesses).
       // The «Показать» map-peek holds the referenced cells lit until the
@@ -1175,6 +1216,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       return cmds;
     }
     if (shell.corpFirstActionOpen) {
+      noteBarRung('corpFirst');
       // The MANDATORY corp first-action modal: A takes the action, X
       // inspects the corporation, LB/RB switches corps (Merger), B only
       // DEFERS to the amber chip (never a dismissal).
@@ -1189,6 +1231,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       return cmds;
     }
     if (shell.playedTableVisible) {
+      noteBarRung('played');
       // «Разыграно»: the CATEGORY grammar, honest to the overlay's live
       // mirrors (consolePlayedUi). The table navigates zones and A opens
       // the focused one; inside the category view A/X inspect a card and
@@ -1217,6 +1260,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       return cmds;
     }
     if (consoleState.quick !== undefined) {
+      noteBarRung('quick');
       // The cross's slots carry their OWN glyphs + labels on screen — the
       // bar anchors the retreat plus the ONE affordance the wheel itself
       // cannot show: the opposite trigger switches wheels in place. In
@@ -1231,6 +1275,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       return [other, {control: 'back', label: 'Close'}];
     }
     if (consoleState.sheet === 'standardProjects' && workspaceStackTopAxis() !== 'section') {
+      noteBarRung('sheet:standardProjects');
       // A SECTION-projecting step standing inside (the sale's hand, the
       // colony pick) publishes its own contract — this branch yields to it
       // by DEPTH (the axis rule), exactly like the card-actions branch.
@@ -1262,6 +1307,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       ];
     }
     if (consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
+      noteBarRung('sheet:cardActions');
       // While the COMPOSER (setup / confirmation) is up, its dedicated
       // store is the authority — with an honest Confirm/Cancel fallback,
       // never the grid verbs (the shared-slot fallback once showed
@@ -1279,6 +1325,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       ])];
     }
     if (shell.maScreenKind !== undefined) {
+      noteBarRung(consoleState.sheet !== undefined ? `sheet:${consoleState.sheet}` : `section:${consoleState.section}`);
       // The MA WORKSPACE. Detail stage open: A carries the REAL verb
       // (enabled only when the live waitingFor offers it — the stage names
       // the concrete blocker), B is one logical level. During the commit /
@@ -1336,6 +1383,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       ];
     }
     if (consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
+      noteBarRung(`sheet:${consoleState.sheet}`);
       return [
         {control: 'confirm', label: 'Select'},
         {control: 'back', label: 'To the board'},
@@ -1344,9 +1392,11 @@ export function createCommandBarController(shell: CommandBarPort) {
     // THE FINALE CONTEXT WITHOUT A PICK (PL-303): the finish stands, disabled with its reason on the press (the
     // seat holds nothing to answer yet); B minimizes. The bar never flips to the board-home run mid-finale.
     if (shell.finaleSessionEngaged && !shell.placementActive) {
+      noteBarRung('finale');
       return [{...finalGreeneryFinishCommand(), enabled: false}, {control: 'back', label: 'Minimize'}];
     }
     if (placementOwnsBar.value) {
+      noteBarRung(`section:${consoleState.section}`);
       // P21: the placement footer is CONTEXT-ONLY and one-line by
       // contract — LT/RT keep working globally (Info / Actions) but
       // never occupy this bar. The bar is the ONE home of every placement
@@ -1368,6 +1418,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     }
     // THE CHIP ROW (FD) owns the bar while the cursor stands on it — in every album mode.
     if (consoleState.section === 'hand' && consoleState.filterFocus >= 0 && shell.handTagFilterOptions.length > 1) {
+      noteBarRung(`section:${consoleState.section}`);
       return [
         {control: 'dpadH', label: 'Navigate'},
         {control: 'confirm', label: 'Apply filter'},
@@ -1375,6 +1426,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       ];
     }
     if (consoleState.sale.active) {
+      noteBarRung(`section:${consoleState.section}`);
       const n = consoleState.sale.selected.length;
       return [
         {control: 'confirm', label: 'Select'},
@@ -1390,11 +1442,13 @@ export function createCommandBarController(shell: CommandBarPort) {
     // over a discard the player had just made (and the NEXT cycle's discard, raised by the same answer, must
     // not read as asked over the hand that is still leaving).
     if (consoleState.section === 'hand' && cardDiscardTransaction.active && cardDiscardTransaction.phase !== 'failed') {
+      noteBarRung(`section:${consoleState.section}`);
       return [{control: 'confirm', label: 'Performing…', enabled: false}];
     }
     // MANDATORY hand SELECT — the pick verbs (no tag filter; the "suitable
     // only" toggle takes LT), submit on A (single) / RT (multi), B minimizes.
     if (shell.handSelectTaskActive && consoleState.section === 'hand') {
+      noteBarRung(`section:${consoleState.section}`);
       const focusName = shell.handEntries[consoleState.handIndex]?.card.name;
       const canPick = focusName !== undefined && shell.handSelectSelectableNames.includes(focusName);
       const verb = shell.handSelectModel?.buttonLabel || 'Select';
@@ -1439,6 +1493,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // colony pick was the lie a hand-written `!colonyEmbedActive` term used
     // to have to prevent, at every section-keyed branch, one at a time.)
     if (consoleState.section === 'hand') {
+      noteBarRung(`section:${consoleState.section}`);
       const playable = shell.handEntries[consoleState.handIndex]?.playable === true;
       const cmds: Array<ConsoleCommand> = [
         {control: 'confirm', label: 'Play now', enabled: playable},
@@ -1459,6 +1514,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       return cmds;
     }
     if (consoleState.section === 'colonies') {
+      noteBarRung(`section:${consoleState.section}`);
       // T4 pick mode: A = the server verb; B = cancel (marker) / minimize.
       // Standalone section AND the embedded step publish the SAME contract
       // (one grid, one grammar — only B's label differs: an embedded step
@@ -1517,6 +1573,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       ];
     }
     if (consoleState.section === 'hydro') {
+      noteBarRung(`section:${consoleState.section}`);
       // The hydro WORKSPACE publishes its live command contract into its
       // dedicated store (per step / focus / phase) — the bar never guesses.
       return consoleHydroUi.commands.length > 0 ?
@@ -1524,6 +1581,7 @@ export function createCommandBarController(shell: CommandBarPort) {
         [{control: 'back', label: 'To the board'}];
     }
     if (consoleState.section === 'parliament') {
+      noteBarRung(`section:${consoleState.section}`);
       // Same contract for the Parliament workspace (Turmoil Redux).
       return consoleParliamentUi.commands.length > 0 ?
         [...consoleParliamentUi.commands] :
@@ -1531,6 +1589,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     }
     // P27b: SCALE INSPECTION MODE — the bonus ring, B/R3 exit.
     if (consoleState.scaleInspecting) {
+      noteBarRung(`section:${consoleState.section}`);
       return [
         {control: 'inspect', label: 'Information'},
         {control: 'back', label: 'To the board'},
@@ -1541,6 +1600,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // focused tile there (the grammar «X — the current object»: in the inspection the cell's object is its tile, and
     // a tile's face is its card); a cell with no such card keeps X in the bar, refused, its reason as the label.
     if (consoleState.inspecting) {
+      noteBarRung(`section:${consoleState.section}`);
       const source = shell.inspectedCellSourceCard;
       return [
         {control: 'secondary', label: source !== undefined ? 'Source card' : 'No source card', enabled: source !== undefined},
@@ -1577,6 +1637,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     // / returned-to with A (consoleMandatoryGate) — anchor its A verb in the
     // bar (A is otherwise free on the board home).
     if (shell.mandatoryAnnounceVisible) {
+      noteBarRung('announce');
       home.unshift({control: 'confirm', label: shell.mandatoryAnnounceView.openLabel});
     }
     // THE POST-GAME INSPECTION: the SAME home run — every view verb on it

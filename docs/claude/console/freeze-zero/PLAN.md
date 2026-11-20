@@ -562,9 +562,26 @@ of stage 1 stands on its own branch, so `main` may move).**
   by design; the function needs no word for them. So the wiring's shape is `looks → beats → the function's owner →
   free navigation`, and only the third band is derived. (And one fact: a SHEET over a live placement is a `lateral`
   look as a section is.)
-- **Next:** the pad's reading over all 606 tables (the nightly runs on `main` carry it); then the prompt rungs of the
-  third band — one `switch` on the function's owner in place of the fifteen ordered `if`s — behind the measure at
-  zero; the same measure for the command bar's two chains; then ③.
+- **The pad's first WHOLE reading** (the bottle on `main`, 606 tables, 2026-11-20: 22 995 presses, 2210 under a
+  question — the owner's rung 22.3 % · a hold 51.9 % · the player's look 19.7 % · a beat 6 % · **another rung 4**).
+  The four presses were two pictures, each a fact the function did not know — **round 5** (`3152f9de1e`):
+  **the router's door** (a workspace the router OPENS for a question enters through the arrival chain's `followUp`
+  admission beside its own — `ServingOwner.door`: «says parliament, the pad gave the board» was the sitting's door
+  behind a card still arriving) and **a flow's steps take the pad** (a workspace that owns the question hands the pad
+  to the frames standing above its own — a prelude's colony pick inside the opening: `OwnerNow.steps`). Re-walked on
+  the five tables that named them: another rung **0**.
+- **THE MAP OF THE HOLDS** (half of all presses under a question fall under a hold, and a `switch` on the owner says
+  nothing of them): the verdict keeps WHO took the press — `pad-held:<kind>:<who>`, `own` · `look` · `beat` · the rung
+  by name — and the report prints the map by kind. Its first reading (five tables): under a hold the pad is the
+  PLAYER's — their look, a beat, the section or the sheet they stand on; no prompt rung. If the whole reading says the
+  same, the derived ladder is `looks → beats → (the owner SERVES ? its rung : the player's own surface)`.
+- **THE BAR AGAINST THE PAD** — the second copy measured directly: each of the 57 branches of
+  `commandBarController.commands` names itself in the pad's vocabulary (`noteBarRung`), and at every press the branch
+  the bar stood on is read against the rung that took the press — `bar-agree` · `bar-look` (a view the press opened,
+  or one with a strip of its own) · `bar-beat` (a beat absorbed under a standing bar — read by its pairs) ·
+  `bar-APART:<bar>><pad>` (the two copies apart). Stats only.
+- **Next:** both readings over all 606 tables (the freeze gate on `main`, then a real browser); every `bar-APART` pair
+  read to its cause; then the third band as ONE decision the pad and the bar both read; then ③.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),

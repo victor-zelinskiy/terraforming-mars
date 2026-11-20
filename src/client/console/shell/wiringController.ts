@@ -53,7 +53,7 @@ import {generationSceneState, registerGenerationSceneHandoff} from '@/client/con
 import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
-import {registerOwnerNowProbe, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
+import {barRungNow, registerOwnerNowProbe, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
 import {QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
@@ -101,6 +101,7 @@ import type {HydroController} from '@/client/console/shell/hydroController';
 import type {FinaleController} from '@/client/console/shell/finaleController';
 import type {OutcomeController} from '@/client/console/shell/outcomeController';
 import type {PadRouterController} from '@/client/console/shell/padRouterController';
+import type {CommandBarController} from '@/client/console/shell/commandBarController';
 import type {ParliamentController} from '@/client/console/shell/parliamentController';
 import type {JournalController} from '@/client/console/shell/journalController';
 import type {MandatoryController} from '@/client/console/shell/mandatoryController';
@@ -159,6 +160,7 @@ export type WiringPort = {
   hostTask: UnwrapRef<RouterController['hostTask']>,
   taskHeldForWorkspace: UnwrapRef<RouterController['taskHeldForWorkspace']>,
   questionFacts: RouterController['questionFacts'],
+  commands: UnwrapRef<CommandBarController['commands']>,
   hydroFollowUpLive: UnwrapRef<HydroController['hydroFollowUpLive']>,
   hydroResolutionBusy: UnwrapRef<HydroController['hydroResolutionBusy']>,
   hydroResultTimer: UnwrapRef<HydroController['hydroResultTimer']>,
@@ -744,6 +746,8 @@ export function createWiringController(shell: WiringPort) {
       return {
         shape: task === undefined ? 'none' : screenPromptShape(task), ownership, facts: () => questionFactsDigest(facts),
         steps: depth === -1 ? [] : facts.frames.slice(depth + 1),
+        // (The bar the player is looking at: read first, so the branch it names is the one that made it.)
+        bar: shell.commands.length >= 0 ? barRungNow() : '',
       };
     });
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({

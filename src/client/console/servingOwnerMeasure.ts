@@ -46,8 +46,11 @@ export const servingOwnerLog: ServingOwnerLog = {looks: 0, rows: {}, disagreemen
 let unsettledPicture = '';
 /** The rung of the pad's ladder that took the press in flight (`notePadRung` — the pad's measure, below). */
 let padRung = '';
-/** WHO SERVES RIGHT NOW, as the function reads the shell's facts — supplied by the shell's wiring while it stands. */
-type OwnerNow = {shape: string, ownership: Ownership, facts: () => string, steps?: ReadonlyArray<string>};
+/** The branch of the command bar's chain that made the bar on screen (`noteBarRung` — the bar's half, below). */
+let barRung = '';
+/** WHO SERVES RIGHT NOW, as the function reads the shell's facts — supplied by the shell's wiring while it stands.
+ *  `bar` — the branch the command bar stands on as the press arrives (the shell reads its own bar first). */
+type OwnerNow = {shape: string, ownership: Ownership, facts: () => string, steps?: ReadonlyArray<string>, bar?: string};
 let ownerNowProbe: (() => OwnerNow) | undefined;
 
 export function resetServingOwnerLog(): void {
@@ -56,6 +59,7 @@ export function resetServingOwnerLog(): void {
   servingOwnerLog.disagreements = [];
   unsettledPicture = '';
   padRung = '';
+  barRung = '';
   ownerNowProbe = undefined;
 }
 
@@ -125,8 +129,10 @@ export function noteServingOwnerLook(shape: string, ownership: Ownership, presen
  * says which rung took it, and that is compared with the function's owner on the facts as they stood BEFORE the
  * press:
  *   · `pad-agree`           — the function says X serves, and X's rung took the press;
- *   · `pad-held:<kind>`     — the function names a hold (whoever took the press — not judged: a hold has its own rung
- *                              or absorbs);
+ *   · `pad-held:<kind>:<who>` — the function names a hold; `<who>` is who took the press under it — `own` (the held
+ *                              owner's rung all the same), `look` / `beat` (the ladder's upper half), or the rung by its
+ *                              name. Not judged: this is THE MAP the ladder is to be derived from — which rung a hold
+ *                              of each kind hands the pad to (a hold has its own rung, or absorbs);
  *   · `pad-MISS:<rung>`     — the function says X serves and ANOTHER rung took the press: a fact the ladder knows
  *                              and the function does not (the player's own look, a scene) — or the ladder's own drift;
  *   · `pad-look:<rung>`     — a view the PLAYER opened over the question took it (the inspection, a zoom, the wheel);
@@ -178,13 +184,14 @@ export function padRungVerdict(ownership: Ownership, rung: string, steps: Readon
   if (!ownership.asked) {
     return 'pad-free';
   }
-  if (ownership.hold !== undefined) {
-    return `pad-held:${ownership.hold.kind}`;
-  }
   // (A step in a flow's zone is reached through its own rung — or through its host's, which hands it the press. And a
   // workspace that owns the question hands the pad to the STEPS of its own flow standing above it on the stack: a
   // prelude's colony pick inside the opening is the opening's question, answered on the colonies' screen.)
   const own = [...rungsOf(ownership.owner), ...(ownership.host !== undefined ? rungsOf(ownership.host) : []), ...steps.flatMap((step) => rungsOf(step))];
+  if (ownership.hold !== undefined) {
+    const who = own.includes(rung) ? 'own' : LOOK_RUNGS.has(rung) ? 'look' : BEAT_RUNGS.has(rung) ? 'beat' : rung === '' ? 'unnamed' : rung;
+    return `pad-held:${ownership.hold.kind}:${who}`;
+  }
   if (own.includes(rung)) {
     return 'pad-agree';
   }
@@ -199,6 +206,47 @@ export function padRungVerdict(ownership: Ownership, rung: string, steps: Readon
     return `pad-beat:${rung}`;
   }
   return `pad-MISS:${rung === '' ? 'unnamed' : rung}`;
+}
+
+/*
+ * ── THE BAR AGAINST THE PAD (stage 2 ② — the second copy of the same decision) ─────────────────────────────────────
+ *
+ * The command bar's chain (`commandBarController.commands` — some sixty ordered branches) decides by itself whose
+ * commands the player is SHOWN; the pad's ladder decides whose press it IS. They are two copies of one decision in two
+ * orders, and where they part the bar promises a button the pad gives to somebody else. Each branch of the bar names
+ * itself in the pad's own vocabulary, and at every press the branch the bar stood on is read against the rung that
+ * took the press:
+ *   · `bar-agree`               — the bar showed X's commands and X's rung took the press;
+ *   · `bar-look:<pad>`          — a view of the PLAYER's took it that the bar does not stand on: the press OPENED it
+ *                                 (X on a card, the stick's inspection), or it carries a strip of its own (the zoom);
+ *   · `bar-beat:<bar>><pad>`    — a beat of the game absorbed the press while the bar still stood on X's commands (the
+ *                                 bar keeps still through a short beat; a LONG one is a promise the pad does not keep —
+ *                                 read by its pairs);
+ *   · `bar-APART:<bar>><pad>`   — the bar showed X's commands and ANOTHER rung took the press: the two copies apart.
+ * Counted under `bar:<question's shape>`; a pair that parts is kept once, with the facts. STATS ONLY.
+ */
+/** A branch of the command bar's chain made the bar (named by the branch itself; the last word wins). */
+export function noteBarRung(rung: string): void {
+  barRung = rung;
+}
+
+/** The branch the bar stands on (the shell reads its bar, then asks). */
+export function barRungNow(): string {
+  return barRung;
+}
+
+/** PURE: how the branch the bar stood on reads against the rung that took the press. */
+export function barRungVerdict(bar: string, pad: string): OwnerLookVerdict {
+  // (THE ANNOUNCE's bar is the section's own bar plus ONE command — A opens the announced question; every other press
+  // is the section's, as the bar says.)
+  if (bar === pad || (bar === 'announce' && pad.startsWith('section:'))) {
+    return 'bar-agree';
+  }
+  if (LOOK_RUNGS.has(pad)) {
+    return `bar-look:${pad}`;
+  }
+  const pair = `${bar === '' ? 'unnamed' : bar}>${pad === '' ? 'unnamed' : pad}`;
+  return BEAT_RUNGS.has(pad) ? `bar-beat:${pair}` : `bar-APART:${pair}`;
 }
 
 export function registerOwnerNowProbe(probe: (() => OwnerNow) | undefined): void {
@@ -222,6 +270,9 @@ export function measurePadPress<T>(route: () => T): T {
   if (before !== undefined) {
     try {
       endPadPress(before.shape, before.ownership, before.facts, before.steps);
+      if (before.bar !== undefined) {
+        endBarPress(before.shape, before.bar, before.ownership, before.facts);
+      }
     } catch {
       // counted nowhere — the press went where it went
     }
@@ -243,6 +294,29 @@ export function endPadPress(shape: string, ownership: Ownership, facts: () => st
   };
   const picture = JSON.stringify([entry.shape, entry.verdict, entry.owner, entry.host]);
   if (servingOwnerLog.disagreements.some((d) => JSON.stringify([d.shape, d.verdict, d.owner, d.host]) === picture)) {
+    return;
+  }
+  servingOwnerLog.disagreements.push(entry);
+  if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
+    servingOwnerLog.disagreements.shift();
+  }
+}
+
+/** The same press, read against the bar it was made under: counted; a pair that parts is kept once. */
+export function endBarPress(shape: string, bar: string, ownership: Ownership, facts: () => string = () => ''): void {
+  const verdict = barRungVerdict(bar, padRung);
+  const key = `bar:${shape}`;
+  const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
+  row[verdict] = (row[verdict] ?? 0) + 1;
+  if (!verdict.startsWith('bar-APART')) {
+    return;
+  }
+  const entry = {
+    shape: key, verdict, owner: ownership.asked ? ownership.owner : 'nobody', host: ownership.asked ? ownership.host ?? '' : '',
+    hold: ownership.asked && ownership.hold !== undefined ? `${ownership.hold.kind}:${ownership.hold.by}` : '',
+    present: [padRung === '' ? 'unnamed' : padRung], shadow: 'bar', facts: facts(),
+  };
+  if (servingOwnerLog.disagreements.some((d) => d.shadow === 'bar' && d.verdict === verdict)) {
     return;
   }
   servingOwnerLog.disagreements.push(entry);
