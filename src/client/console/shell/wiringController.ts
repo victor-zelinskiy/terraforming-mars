@@ -161,6 +161,17 @@ export type WiringPort = {
   taskHeldForWorkspace: UnwrapRef<RouterController['taskHeldForWorkspace']>,
   questionFacts: RouterController['questionFacts'],
   commands: UnwrapRef<CommandBarController['commands']>,
+  aresGlobalsActive: UnwrapRef<RouterController['aresGlobalsActive']>,
+  botAttackActive: UnwrapRef<RouterController['botAttackActive']>,
+  corpFirstActionOpen: UnwrapRef<PlayedController['corpFirstActionOpen']>,
+  draftWorkspaceOwnsPad: UnwrapRef<DraftController['draftWorkspaceOwnsPad']>,
+  externalDrawOwnsPad: UnwrapRef<RevealController['externalDrawOwnsPad']>,
+  govSupportActive: UnwrapRef<ParliamentController['govSupportActive']>,
+  productionLossActive: UnwrapRef<RouterController['productionLossActive']>,
+  spendHeatActive: UnwrapRef<RouterController['spendHeatActive']>,
+  taskHostOwnsInput: UnwrapRef<RouterController['taskHostOwnsInput']>,
+  taskSpacePending: UnwrapRef<PlacementController['taskSpacePending']>,
+  venusBonusActive: UnwrapRef<RouterController['venusBonusActive']>,
   hydroFollowUpLive: UnwrapRef<HydroController['hydroFollowUpLive']>,
   hydroResolutionBusy: UnwrapRef<HydroController['hydroResolutionBusy']>,
   hydroResultTimer: UnwrapRef<HydroController['hydroResultTimer']>,
@@ -633,6 +644,23 @@ export function createWiringController(shell: WiringPort) {
   }
 
   /**
+   * THE PROMPT SURFACES' OWN CONDITIONS that hold right now, by the pad's names for them — exactly what each one's rung
+   * of the pad reads today. Stage 2 ③ is to derive them from the ONE function; until then they are MEASURED against it
+   * on every look (`servingOwnerMeasure.notePromptFlagsLook` — stats only).
+   */
+  function promptFlags(): ReadonlyArray<string> {
+    const free = !consoleState.task.deferred && shell.taskSpacePending === undefined;
+    const flags: ReadonlyArray<[string, boolean]> = [
+      ['deckPick', shell.deckPickServing], ['draft', shell.draftWorkspaceOwnsPad], ['externalDraw', shell.externalDrawOwnsPad],
+      ['start', shell.startSceneOwnsPad], ['govSupport', shell.govSupportActive && free], ['prodLoss', shell.productionLossActive && free],
+      ['spendHeat', shell.spendHeatActive], ['venusBonus', shell.venusBonusActive], ['ares', shell.aresGlobalsActive],
+      ['botAttack', shell.botAttackActive], ['effectDecision', shell.effectDecisionActive], ['taskHost', shell.taskHostOwnsInput],
+      ['corpFirst', shell.corpFirstActionOpen],
+    ];
+    return flags.filter(([, holds]) => holds).map(([name]) => name);
+  }
+
+  /**
    * The facts of the question as the ONE function reads them — assembled once, for the look's measure and the pad's.
    * (Its `lateral` is wider than the shadow's: a SHEET the player opened over a live placement — the awards, read
    * before choosing a cell — takes the pad exactly as a section does; the pad's first measure named it.)
@@ -726,6 +754,7 @@ export function createWiringController(shell: WiringPort) {
         lateral: lateralLook(),
         // (The facts of the question for the ONE function's measure — stage 2; read by nothing else yet.)
         facts: ownerFacts(),
+        flags: promptFlags(),
       };
     });
     // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.

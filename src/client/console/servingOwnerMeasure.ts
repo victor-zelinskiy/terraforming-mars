@@ -48,6 +48,8 @@ let unsettledPicture = '';
 let padRung = '';
 /** The branch of the command bar's chain that made the bar on screen (`noteBarRung` — the bar's half, below). */
 let barRung = '';
+/** The disagreement of the surfaces' own conditions the last look read — the same rule of the settled look. */
+let unsettledFlags = '';
 /** WHO SERVES RIGHT NOW, as the function reads the shell's facts — supplied by the shell's wiring while it stands.
  *  `bar` — the branch the command bar stands on as the press arrives (the shell reads its own bar first). */
 type OwnerNow = {shape: string, ownership: Ownership, facts: () => string, steps?: ReadonlyArray<string>, bar?: string};
@@ -60,6 +62,7 @@ export function resetServingOwnerLog(): void {
   unsettledPicture = '';
   padRung = '';
   barRung = '';
+  unsettledFlags = '';
   ownerNowProbe = undefined;
 }
 
@@ -327,6 +330,70 @@ export function endBarPress(shape: string, bar: string, ownership: Ownership, fa
     return;
   }
   servingOwnerLog.disagreements.push(entry);
+  if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
+    servingOwnerLog.disagreements.shift();
+  }
+}
+
+/*
+ * ── THE SURFACES' OWN CONDITIONS AGAINST THE FUNCTION (stage 2 ③ — measured before a `v-if` is derived) ───────────
+ *
+ * Each prompt surface stands by a condition of its own (`govSupportActive`, `effectDecisionActive`, `deckPickServing`,
+ * `taskHostOwnsInput`, … — what its `v-if`, its rung of the pad and its branch of the bar read today). Step ③ is to
+ * DERIVE them: «the function says X serves» is to be X's whole condition. Before that, on every look, the conditions
+ * that are TRUE are read against the function's answer — all of them at once, which the pad's ladder cannot show (it
+ * stops at the first):
+ *   · `flag-agree`              — the function says X serves and X's condition (its host's, a step's above it) is the
+ *                                 one that holds; an owner that stands as a workspace has no such condition and none
+ *                                 holds. `flag-agree:two:<a+b>` — a host and its step both (the ladder orders them);
+ *   · `flag-held` · `flag-free` — the function names a hold / nothing is asked, and no prompt condition holds;
+ *   · `flag-MISS:<owner>`       — the function says X serves and X's condition does NOT hold;
+ *   · `flag-EXTRA:<why>:<flags>` — a condition holds that the function gives no surface for: under a hold (`<kind>`),
+ *                                 with nothing asked (`free`), or beside the owner (`serves`) — two answers to one
+ *                                 question, the class the function is there to end.
+ * Counted under `flag:<question's shape>`; the first look of a disagreement is `unsettled`. STATS ONLY.
+ */
+/** PURE: how the prompt conditions that hold read against the function's answer. */
+export function promptFlagsVerdict(ownership: Ownership, flags: ReadonlyArray<string>, steps: ReadonlyArray<string> = []): OwnerLookVerdict {
+  if (!ownership.asked) {
+    return flags.length === 0 ? 'flag-free' : `flag-EXTRA:free:${flags.join('+')}`;
+  }
+  if (ownership.hold !== undefined) {
+    return flags.length === 0 ? 'flag-held' : `flag-EXTRA:${ownership.hold.kind}:${flags.join('+')}`;
+  }
+  const own = [ownership.owner, ...(ownership.host !== undefined ? [ownership.host] : []), ...steps].flatMap((who) => RUNGS_OF_OWNER[who] ?? []);
+  const other = flags.filter((flag) => !own.includes(flag));
+  if (other.length > 0) {
+    return `flag-EXTRA:serves:${other.join('+')}`;
+  }
+  if (flags.length === 0) {
+    // (A workspace that owns the question stands by its frame — no prompt condition is its own.)
+    return (RUNGS_OF_OWNER[ownership.owner] ?? []).length === 0 ? 'flag-agree' : `flag-MISS:${ownership.owner}`;
+  }
+  return flags.length === 1 ? 'flag-agree' : `flag-agree:two:${flags.join('+')}`;
+}
+
+/** One look: the conditions that hold, counted against the function; a disagreement is kept once per its picture. */
+export function notePromptFlagsLook(shape: string, ownership: Ownership, flags: ReadonlyArray<string>, steps: ReadonlyArray<string> = [], facts: () => string = () => ''): void {
+  const read = promptFlagsVerdict(ownership, flags, steps);
+  const disagrees = read.startsWith('flag-MISS') || read.startsWith('flag-EXTRA');
+  const picture = disagrees ? `${shape}|${read}` : '';
+  const verdict = disagrees && picture !== unsettledFlags ? 'flag-unsettled' : read;
+  unsettledFlags = picture;
+  const key = `flag:${shape}`;
+  const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
+  row[verdict] = (row[verdict] ?? 0) + 1;
+  if (!verdict.startsWith('flag-MISS') && !verdict.startsWith('flag-EXTRA')) {
+    return;
+  }
+  if (servingOwnerLog.disagreements.some((d) => d.shadow === 'flag' && d.shape === key && d.verdict === verdict)) {
+    return;
+  }
+  servingOwnerLog.disagreements.push({
+    shape: key, verdict, owner: ownership.asked ? ownership.owner : 'nobody', host: ownership.asked ? ownership.host ?? '' : '',
+    hold: ownership.asked && ownership.hold !== undefined ? `${ownership.hold.kind}:${ownership.hold.by}` : '',
+    present: flags.length === 0 ? ['no condition'] : [...flags], shadow: 'flag', facts: facts(),
+  });
   if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
     servingOwnerLog.disagreements.shift();
   }

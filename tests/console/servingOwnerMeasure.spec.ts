@@ -1,8 +1,8 @@
 import {expect} from 'chai';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
-  barRungNow, barRungVerdict, measurePadPress, noteBarRung, notePadRung, noteServingOwnerLook, ownerLookVerdict, padRungVerdict, registerOwnerNowProbe,
-  resetServingOwnerLog, servingOwnerLog,
+  barRungNow, barRungVerdict, measurePadPress, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
+  promptFlagsVerdict, registerOwnerNowProbe, resetServingOwnerLog, servingOwnerLog,
 } from '../../src/client/console/servingOwnerMeasure';
 
 /*
@@ -172,5 +172,34 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     registerOwnerNowProbe(() => ({shape: 'payment', ownership: serves('task'), facts: () => ''}));
     route('taskHost');
     expect(servingOwnerLog.rows['bar:payment']).to.eq(undefined);
+  });
+
+  it('THE SURFACES\' OWN CONDITIONS against the function: every condition that holds, read at once', () => {
+    expect(promptFlagsVerdict({asked: false}, [])).to.eq('flag-free');
+    expect(promptFlagsVerdict({asked: false}, ['taskHost'])).to.eq('flag-EXTRA:free:taskHost');
+    expect(promptFlagsVerdict(serves('task'), ['taskHost'])).to.eq('flag-agree');
+    expect(promptFlagsVerdict(serves('lanes'), ['venusBonus'])).to.eq('flag-agree');
+    // A workspace that owns the question stands by its frame: no prompt condition is its own, and none holds.
+    expect(promptFlagsVerdict(serves('parliament'), [])).to.eq('flag-agree');
+    expect(promptFlagsVerdict(serves('parliament'), ['taskHost'])).to.eq('flag-EXTRA:serves:taskHost');
+    // The owner's condition does not hold · another one holds beside it (two answers to one question).
+    expect(promptFlagsVerdict(serves('task'), [])).to.eq('flag-MISS:task');
+    expect(promptFlagsVerdict(serves('task'), ['taskHost', 'effectDecision'])).to.eq('flag-EXTRA:serves:effectDecision');
+    // A host and its step both hold — the ladder orders them; a step above the owner's frame is the owner's too.
+    expect(promptFlagsVerdict(serves('task', 'start'), ['start', 'taskHost'])).to.eq('flag-agree:two:start+taskHost');
+    expect(promptFlagsVerdict(serves('start'), ['taskHost'], ['task'])).to.eq('flag-agree');
+    // Under a hold no prompt condition is to hold.
+    expect(promptFlagsVerdict(held('task', 'admission', 'reveal'), [])).to.eq('flag-held');
+    expect(promptFlagsVerdict(held('task', 'admission', 'reveal'), ['taskHost'])).to.eq('flag-EXTRA:admission:taskHost');
+
+    // Counted per look under `flag:<shape>`; the first look of a disagreement is unsettled, the next is kept once.
+    notePromptFlagsLook('payment', serves('task'), ['taskHost']);
+    notePromptFlagsLook('payment', serves('task'), []);
+    notePromptFlagsLook('payment', serves('task'), [], [], () => 'frames []');
+    notePromptFlagsLook('payment', serves('task'), []);
+    expect(servingOwnerLog.rows['flag:payment']).to.deep.eq({'flag-agree': 1, 'flag-unsettled': 1, 'flag-MISS:task': 2});
+    expect(servingOwnerLog.disagreements.map((d) => `${d.shape}|${d.verdict}|${d.owner}|${d.present.join(',')}|${d.facts}`)).to.deep.eq([
+      'flag:payment|flag-MISS:task|task|no condition|frames []',
+    ]);
   });
 });

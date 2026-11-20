@@ -257,6 +257,30 @@ export function renderOwner(owner) {
     const total = Object.values(who).reduce((a, b) => a + b, 0);
     L.push(`  under ${kind.padEnd(9)} ${String(total).padStart(6)} — ${Object.entries(who).sort((a, b) => b[1] - a[1]).map(([w, n]) => `${w} ${n}`).join(' · ')}`);
   }
+  // THE SURFACES' OWN CONDITIONS (stage 2 ③): every prompt condition that HOLDS on a look, against the function's answer.
+  const flagN = {};
+  const flagRows = {};
+  for (const [shape, row] of Object.entries(owner.rows ?? {})) {
+    if (!shape.startsWith('flag:')) {
+      continue;
+    }
+    for (const [verdict, n] of Object.entries(row)) {
+      const head = verdict.split(':')[0];
+      flagN[head] = (flagN[head] ?? 0) + n;
+      if (head === 'flag-MISS' || head === 'flag-EXTRA' || verdict.startsWith('flag-agree:two')) {
+        flagRows[verdict] = (flagRows[verdict] ?? 0) + n;
+      }
+    }
+  }
+  const flagAll = Object.values(flagN).reduce((x, y) => x + y, 0);
+  if (flagAll > 0) {
+    L.push(`THE CONDITIONS — ${flagAll} look(s): agree ${flagN['flag-agree'] ?? 0} · held ${flagN['flag-held'] ?? 0} · free ${flagN['flag-free'] ?? 0} · MISS ${flagN['flag-MISS'] ?? 0} · EXTRA ${flagN['flag-EXTRA'] ?? 0}` +
+      ((flagN['flag-unsettled'] ?? 0) > 0 ? ` · unsettled ${flagN['flag-unsettled']}` : ''));
+    const rows = Object.entries(flagRows).sort((x, y) => y[1] - x[1]).slice(0, 30);
+    if (rows.length > 0) {
+      L.push(`  ${rows.map(([verdict, n]) => `${verdict} ${n}`).join(' · ')}`);
+    }
+  }
   // THE BAR's half: the branch the command bar stood on against the rung that took the press — two copies of one decision.
   const barPairs = {};
   const barBeats = {};
