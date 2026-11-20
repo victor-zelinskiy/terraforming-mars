@@ -680,7 +680,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     consoleState.fallbackActive = fallback;
     consoleState.fallbackScopeId = scope?.def.id ?? '';
     if (fallback) {
-      notePadRung('toast');
+      notePadRung('fallback');
       return false;
     }
     if (intent.kind === 'release' || intent.kind === 'navEnd' ||
@@ -825,7 +825,8 @@ export function createPadRouterController(shell: PadRouterPort) {
     // confirm dialogs keep the pad focused on the decision itself.
     if (action === 'fullscreen' &&
         consoleState.confirm === undefined && !consoleCardActionsUi.confirmOpen) {
-      notePadRung('info');
+      // (`:open` — the press OPENS the view; the rung above, `info`, is the view standing.)
+      notePadRung('info:open');
       shell.toggleInfoMode();
       return true;
     }

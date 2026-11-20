@@ -169,8 +169,14 @@ const RUNGS_OF_OWNER: Readonly<Record<string, ReadonlyArray<string>>> = {
   'repeat-pick': ['repeatPick'],
 };
 
-/** A view the PLAYER opened over the question — B is one press back to it. */
-const LOOK_RUNGS: ReadonlySet<string> = new Set(['info', 'zoom', 'quick', 'journal', 'played', 'botReview', 'confirm', 'colonyFocus', 'toast', 'draftTray']);
+/** A view the PLAYER opened over the question — B is one press back to it. (`<view>:open` — the press that OPENS it.) */
+const LOOK_RUNGS: ReadonlySet<string> = new Set(['info', 'zoom', 'quick', 'journal', 'played', 'botReview', 'confirm', 'colonyFocus', 'toast', 'draftTray', 'fallback']);
+/** …and the views that carry a command strip of THEIR OWN: the bar never stands on them (the card viewer, a toast). */
+const OWN_STRIP_RUNGS: ReadonlySet<string> = new Set(['zoom', 'toast']);
+
+function isLookRung(rung: string): boolean {
+  return LOOK_RUNGS.has(rung.replace(/:open$/, ''));
+}
 /** A beat of the game that owns the moment and absorbs the press (bounded by its own hold). */
 const BEAT_RUNGS: ReadonlySet<string> = new Set(['alert', 'handoff', 'cinematic', 'settle', 'stagedBack', 'reveal', 'govScaleFocus', 'announce']);
 
@@ -189,7 +195,7 @@ export function padRungVerdict(ownership: Ownership, rung: string, steps: Readon
   // prelude's colony pick inside the opening is the opening's question, answered on the colonies' screen.)
   const own = [...rungsOf(ownership.owner), ...(ownership.host !== undefined ? rungsOf(ownership.host) : []), ...steps.flatMap((step) => rungsOf(step))];
   if (ownership.hold !== undefined) {
-    const who = own.includes(rung) ? 'own' : LOOK_RUNGS.has(rung) ? 'look' : BEAT_RUNGS.has(rung) ? 'beat' : rung === '' ? 'unnamed' : rung;
+    const who = own.includes(rung) ? 'own' : isLookRung(rung) ? 'look' : BEAT_RUNGS.has(rung) ? 'beat' : rung === '' ? 'unnamed' : rung;
     return `pad-held:${ownership.hold.kind}:${who}`;
   }
   if (own.includes(rung)) {
@@ -199,7 +205,7 @@ export function padRungVerdict(ownership: Ownership, rung: string, steps: Readon
   // the wheel, the journal) and a beat that absorbs every press (a cinematic, the settle of a decision just shown)
   // take the pad ABOVE whoever serves — by design, and the function has no word for either. Counted apart: what is
   // left under `pad-MISS` is a press the owner should have had.
-  if (LOOK_RUNGS.has(rung)) {
+  if (isLookRung(rung)) {
     return `pad-look:${rung}`;
   }
   if (BEAT_RUNGS.has(rung)) {
@@ -217,8 +223,9 @@ export function padRungVerdict(ownership: Ownership, rung: string, steps: Readon
  * itself in the pad's own vocabulary, and at every press the branch the bar stood on is read against the rung that
  * took the press:
  *   · `bar-agree`               — the bar showed X's commands and X's rung took the press;
- *   · `bar-look:<pad>`          — a view of the PLAYER's took it that the bar does not stand on: the press OPENED it
- *                                 (X on a card, the stick's inspection), or it carries a strip of its own (the zoom);
+ *   · `bar-look:<pad>`          — a view of the PLAYER's took it that the bar is not to stand on: the press OPENED it
+ *                                 (`<view>:open`), or it carries a strip of its own (the card viewer, a toast). A
+ *                                 view STANDING with the bar on somebody else's commands is APART, like any pair;
  *   · `bar-beat:<bar>><pad>`    — a beat of the game absorbed the press while the bar still stood on X's commands (the
  *                                 bar keeps still through a short beat; a LONG one is a promise the pad does not keep —
  *                                 read by its pairs);
@@ -242,7 +249,7 @@ export function barRungVerdict(bar: string, pad: string): OwnerLookVerdict {
   if (bar === pad || (bar === 'announce' && pad.startsWith('section:'))) {
     return 'bar-agree';
   }
-  if (LOOK_RUNGS.has(pad)) {
+  if (pad.endsWith(':open') || OWN_STRIP_RUNGS.has(pad)) {
     return `bar-look:${pad}`;
   }
   const pair = `${bar === '' ? 'unnamed' : bar}>${pad === '' ? 'unnamed' : pad}`;

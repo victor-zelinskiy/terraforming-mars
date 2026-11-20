@@ -649,7 +649,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       return [...(panelCommands('externalDraw') ?? [])];
     }
     if (consoleState.fallbackActive) {
-      noteBarRung('toast');
+      noteBarRung('fallback');
       return [
         {control: 'confirm', label: 'Select'},
         {control: 'back', label: 'Back'},
