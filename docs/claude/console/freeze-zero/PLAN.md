@@ -605,8 +605,76 @@ of stage 1 stands on its own branch, so `main` may move).**
   one whole pass) — or every pair left is read to its cause and written here. The pad goes first (it asks the
   function at the press — no cache); the bar and each `v-if` read it through a computed, so their facts must first be
   REACTIVE (invariant 17) — that is ③'s own work.
-- **Next:** the four readings over all 606 tables (the freeze gate on `main`), then in a real browser; then the swap
-  of the pad's band; then ③.
+- **② THE PAD — SWAPPED** (`5ef9fc0fe2`, on `main` with `d27953d3f7`): the ladder's prompt band reads
+  `servingOwner.bandRungOf` at the press (`promptBand.promptBandOf`) — the surface the function names takes it, the
+  others yield; where it names none that stands the ladder's old order routes the press and SAYS so
+  (`band-fallback`). Read whole: the bottle — 22 995 presses, fallback 40, every one a workspace root under «nothing
+  asked»; a real browser — 23 156 presses, fallback 13, the same.
+
+**STAGE 2, STEP ③ — THE PROMPT SURFACES ARE DERIVED (2026-11-21).** What had to be true first, and what the readings
+taught on the way:
+
+- **Round 6 of the function** (`d27953d3f7`, from the real browser's first reading of all five measures — the
+  nightly monkey, 606 tables: screen MISS 0 · EXTRA 0, LATCH 0): **the client's own question** (`client` — a standard
+  project's price, a law's «where»: the task host's, with no door) and **the opening that yielded its scene**
+  (`startYielded` — it still owns its question, and waits). The exhaustive spec walks both (≈ 4.7 million points).
+- **Three places the bar and the pad parted — each a promise the pad did not keep, each fixed in the product:**
+  Information Mode over an external draw (the bar showed the draw's verbs); a journal left open when the draft
+  arrived (it kept every press under the draft's bar — the draft and an external draw now close it); RT in the
+  finale under an open sheet or the inspection (it began the FINISH nobody was shown — the rung stands only where
+  the board's bar offers it).
+- **The answer lives in the router** (`dc51335ecf`): `questionNow` (the client's question, else the server's),
+  `questionFactsNow`, and the ONE answer in two layers of one function — `promptOwnership` (everything but the
+  opening's yield: what a prompt surface reads; the start's own visibility reads the prompt surfaces, so this layer
+  never reads it back) and `servingOwnership` (the whole). `ownerServes(owner)` is the word; asked while the answer is
+  being decided it names the cycle (`serving-owner:cycle`).
+- **THE SWAP** (`fz/derive` → `main`): the ten prompt surfaces — the task host, the decision, the WGT panel, the
+  production loss, the deck pick, the Venus bonus, the spend-heat lanes, the Ares thresholds, the bot's attack, a
+  corporation's first action — each is now «its prompt is CLASSIFIED (what would be drawn) ∧ `ownerServes(<owner>)`».
+  **The mount, the pad's rung and the bar's branch read the SAME computed** (`taskHostOwnsInput` IS
+  `taskHostRendered`). A surface can only stand where the function says its owner serves — never beside another.
+  The facts learned what the old conditions knew: the Venus bonus's own door; each row's own «is it the opening's?»
+  (`corpFirstActionInStartFlow`, `startPlacementOrderOf`); the WGT beat whole (`closing` as well as `holding`); **the
+  claim that holds is the owner's own** (one OR over four waits held a resolution's deck pick behind the HOST's wait
+  for the sitting's field — the derivation's witness named it on its first walk).
+- **Round 7 — a frame that EARNED a kind a prompt surface draws HOSTS that surface** (the swap's first e2e on the
+  box — ninety-six tests over the prompt surfaces, one red: Helion's heat payment after a research buy never rose).
+  «The frame that earned the kind answers before the kind's row» is true where the row is a WORKSPACE's (the colony
+  resolution's discard); a kind the task host or the deck pick draws is still drawn by it, in the earning frame's
+  zone — the draft's pay slot, the Hydronetwork's bonus pick — a phase root too, where the stack names no host.
+- **THE LAW IS LOUD — four doors:** a settled look where the function names an owner whose surface has nothing to
+  draw is `[invariant] serving-owner:unserved`; a prompt surface standing that it does not name is
+  `serving-owner:second-surface`; a fact that reads a condition derived from the answer is `serving-owner:cycle`;
+  and **the cache is AUDITED** — once a second a fresh answer is read beside the one that stood at the last reactive
+  edge, a move with no edge is `serving-owner:latch` (with the facts that moved) and an epoch re-asks the function.
+  ⚠ NOT `reactivePredicate`: its witness reads the predicate synchronously at every reactive edge, mid-write, and this
+  predicate reads half of the shell's computeds — the Pluto discard walked past its own reveal (eight specs red on the
+  branch, thirteen of thirteen green on `main`'s head: an A/B on the box; the lesson of 2026-11-03 paid twice).
+- **THE GATE HOLDS THE LAW** (`monkey-report --gate` — the nightly monkey, the freeze gate): `MISS` · `EXTRA` ·
+  `pad-MISS` · `band-APART` · `bar-APART` · `flag-MISS` · `flag-EXTRA` · `edge-LATCH` above zero fail the run by name.
+- **The swap's own witness:** the old conditions are kept ONE cycle, read by nothing but `noteDerivedRender` — every
+  span in which a surface stood by its old condition and not by the function's word (or the other way) is counted and
+  said into the waiting room (`[net-ended] derivation:<surface>:<side>`, tier info), so the whole e2e suite reads as
+  what the swap changed. Before the swap: the bottle 606 tables — 0 spans; a real browser — only the deck pick's
+  outgoing beat (which stands by its own hold, as designed).
+
+**STAGE 2, STEP ④ — THE NETS (the rule is stage 7's: 0 fires over the matrix AND a law that closes the class).**
+No line of `screen-shadow`, `start-shadow`, `console-leak-detector` or `start-stranded` — at any tier — stands in the
+matrix's cells, in the nightly's real browser, or in the bottle's whole passes.
+- **The screen shadow is an OBSERVER:** its one armed verb (`announce` — the blind announce) is closed by the announce
+  machine's own bound (architecture v2, L4: a beat pending 15 s runs the plate's door), so
+  `SCREEN_CURE_DEFAULT_ARMED` is empty — the shadow names what it finds, the arbiter's rung may still run its plan,
+  a stand arms a verb by the URL as before. The leak detector's `STRANDED` / `COVERED PROMPT` only ever spoke.
+- **The start shadow stays armed.** «Which STAGE of the opening» is not this function's question — the start is ONE
+  owner here, and inside it stands its own director (`startDirector.ts`: a dozen latches, a shadow that acts). No law
+  closes its class yet; deriving the opening's stage from its director is the stage's open tail — **2b**, below.
+
+**STAGE 2 — WHERE IT STANDS.** Done: the function total and exhaustive; the pad's band, the bar's prompt branches and
+the ten surfaces' mounts derived from ONE cached, witnessed answer; the screen shadow an observer. **Open — 2b: the
+opening's own stage** (`consoleStartState.serves` and the yields, by `expectedStartOwner`), after which the start
+shadow and `start-stranded` retire by the same rule. The workspace ROOTS (the draft, an external draw, the endgame,
+the start as a whole) stand by their FRAMES — the stack's law, not a `v-if` to derive; the band's fallback rows that
+are left are exactly those.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
