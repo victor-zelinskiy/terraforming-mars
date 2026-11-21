@@ -57,6 +57,100 @@ describe('flow run · a module flow\'s run is a scope of the session', () => {
     expect(fired).to.equal(0);
   });
 
+  it('THE FLAG IS THE RUN\'S LIFE: raised by begin, lowered by the scope\'s end — whichever path ends it', () => {
+    const session = beginConsoleSession();
+    const state = {active: false};
+    let orphaned = 0;
+    const run = createFlowRun('spec-flag', {flag: (up) => (state.active = up), orphaned: () => orphaned++});
+    expect(state.active).to.equal(false);
+
+    // The flow's own end.
+    run.begin();
+    expect(state.active).to.equal(true);
+    run.end();
+    expect(state.active, 'lowered by the run\'s end').to.equal(false);
+    expect(orphaned, 'the flow ended it itself: no recovery').to.equal(0);
+
+    // A new run over a standing one: the old one's flag falls, the new one's rises — never a gap, never two.
+    const first = run.begin();
+    const second = run.begin();
+    expect(first.ended?.how).to.equal('cancelled');
+    expect(second.ended).to.equal(undefined);
+    expect(state.active).to.equal(true);
+
+    // The session leaves under it: the module's recovery still reads the flag UP (it is how an abort knows there is
+    // something to bring to rest) — and the flag falls right after it, whatever the recovery did.
+    let flagAtRecovery: boolean | undefined;
+    const other = createFlowRun('spec-flag-2', {flag: (up) => (state.active = up), orphaned: () => (flagAtRecovery = state.active)});
+    run.end();
+    other.begin();
+    expect(state.active).to.equal(true);
+    endConsoleSession();
+    expect(state.active, 'the game screen left: the flag is down').to.equal(false);
+    expect(flagAtRecovery, 'up while the recovery ran').to.equal(true);
+    expect(session.ended).to.not.equal(undefined);
+  });
+
+  it('…and an exit path that THROWS before its own lowering line cannot leave the flag up: the run\'s ceiling ends it', () => {
+    beginConsoleSession();
+    const state = {active: false};
+    let recovered = 0;
+    const run = createFlowRun('spec-stuck', {flag: (up) => (state.active = up), ceilingMs: 70_000, orphaned: () => recovered++});
+    run.begin();
+    // The module's ending never happens (its `end` was skipped by an exception, its hold's `expire` threw first).
+    clock.advance(69_000);
+    expect(state.active, 'inside its ceiling the run stands').to.equal(true);
+    clock.advance(2_000);
+    expect(state.active, 'the kernel ended it: the flag fell with the scope').to.equal(false);
+    expect(run.live()).to.equal(false);
+    expect(recovered, 'and the module\'s own honest ending was run, once').to.equal(1);
+    // A run that ended in time takes its ceiling with it.
+    run.begin();
+    run.end();
+    expect(clock.pending(), 'no ceiling left behind').to.equal(0);
+    clock.advance(200_000);
+    expect(recovered).to.equal(1);
+  });
+
+  it('a recovery that THROWS leaves no flag behind either', () => {
+    beginConsoleSession();
+    const state = {active: false};
+    const run = createFlowRun('spec-bad-recovery', {flag: (up) => (state.active = up), orphaned: () => {
+      throw new Error('the abort threw before its lowering line');
+    }});
+    run.begin();
+    endConsoleSession();
+    expect(state.active).to.equal(false);
+  });
+
+  it('the flow\'s own end says «I am not playing» even with no run standing — a flag raised past the run does not outlive it', () => {
+    beginConsoleSession();
+    const state = {active: false};
+    const run = createFlowRun('spec-hand-raised', {flag: (up) => (state.active = up)});
+    // (A spec arranging a state by hand — or a writer the law has not reached yet.)
+    state.active = true;
+    expect(run.live()).to.equal(false);
+    run.end();
+    expect(state.active).to.equal(false);
+  });
+
+  it('a lowering that throws is said and never keeps the scope from ending', () => {
+    beginConsoleSession();
+    let up = false;
+    const run = createFlowRun('spec-throwing-flag', {flag: (v) => {
+      if (!v) {
+        up = false;
+        throw new Error('a watcher of the flag threw');
+      }
+      up = true;
+    }});
+    const scope = run.begin();
+    expect(up).to.equal(true);
+    run.end();
+    expect(scope.ended?.how).to.equal('done');
+    expect(up).to.equal(false);
+  });
+
   it('an owned timer fires at its time while the run stands; its cancel takes it back', () => {
     beginConsoleSession();
     const run = createFlowRun('spec-build');

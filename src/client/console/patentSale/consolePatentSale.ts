@@ -146,7 +146,13 @@ let claimed = false;
  * safety, the working beats and the frame polls: they are taken back when it ends, on every path; a newer arm ends the
  * older run first; and when the game screen leaves under it the sale is aborted (`orphaned`).
  */
-const run = createFlowRun('patent-sale', {orphaned: () => abortPatentSale()});
+const run = createFlowRun('patent-sale', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    patentSaleState.active = up;
+  },
+  orphaned: () => abortPatentSale(),
+});
 let cancelArmSafety: () => void = () => {};
 let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
@@ -189,7 +195,14 @@ export function patentSaleHolding(): boolean {
 // presentation (notifications queue, mandatory surfaces wait); releases the
 // instant the phase drops on end/abort (the scene's real completion signal).
 registerAnimationHoldSupplier('patent-sale', patentSaleHolding, {
-  expire: expirePatentSale,
+  // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+  expire: () => {
+    try {
+      expirePatentSale();
+    } finally {
+      run.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
+  },
   // Waits for the SERVER — never judged as a still motion (`motionWitness.ts`): `processing` hides the round-trip.
   waitsFor: 'server',
 });
@@ -241,7 +254,6 @@ export function armPatentSale(opts: {
   run.begin(); // a run still standing ends here — its timers with it
   claimed = false;
   capturedSources = captureSources(opts.cards);
-  patentSaleState.active = true;
   patentSaleState.phase = 'gathering';
   patentSaleState.nonce++;
   patentSaleState.cards = [...opts.cards];
@@ -380,7 +392,6 @@ export function abortPatentSale(): void {
   abortResourceTransfers(); // a mid-flight payout chip unmounts with zero trace
   releaseAnswerHolds(); // an answer held on the rail is never stranded
   restoreSources();
-  patentSaleState.active = false;
   patentSaleState.phase = 'failed';
   patentSaleState.flights = [];
   freeRunGate();
@@ -666,7 +677,6 @@ function finish(): void {
   clearTimers();
   releaseAnswerHolds();
   restoreSources();
-  patentSaleState.active = false;
   patentSaleState.phase = 'idle';
   patentSaleState.cards = [];
   patentSaleState.payout = 0;

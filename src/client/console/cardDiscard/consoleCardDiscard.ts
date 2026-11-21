@@ -90,7 +90,13 @@ let armed: CardDiscardArm | undefined;
  * disposal ends, on every path — and when the game screen leaves under it the disposal is aborted (`orphaned`). The
  * HOLD stays derived from the transaction's state.
  */
-const run = createFlowRun('card-discard', {orphaned: () => abortCardDiscard()});
+const run = createFlowRun('card-discard', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    cardDiscardTransaction.active = up;
+  },
+  orphaned: () => abortCardDiscard(),
+});
 let cancelArmTimer: () => void = () => {};
 let spawned: ReadonlyArray<SpawnedDiscard> = [];
 
@@ -113,7 +119,12 @@ registerAnimationHoldSupplier('card-discard', cardDiscardHolding, {
       return;
     }
     console.warn(`[consoleCardDiscard] card discard (${cardDiscardTransaction.phase}): outlived its ceiling — ended`);
-    abortCardDiscard();
+    // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+    try {
+      abortCardDiscard();
+    } finally {
+      run.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
   },
 });
 
@@ -204,13 +215,13 @@ export function armCardDiscard(arm: CardDiscardArm): void {
   // on a not-yet-decoded webp shows a BLACK body — glaring on the turn beat,
   // where the card holds still. The server round-trip pays for the decode.
   preloadPremiumCardArt(arm.names);
-  cardDiscardTransaction.active = true;
+  // (The run begins where the flag used to rise: the transaction is «playing» from here.)
+  run.begin(`${arm.names.length} card(s)`);
   cardDiscardTransaction.names = [...arm.names];
   setPhase('armed');
   // The answer may never come back (a dropped response, an error path that
   // does not reach abort). The ceiling is BELOW the animation-hold registry's
   // net, so this flow always cleans up its own visuals first.
-  run.begin(`${arm.names.length} card(s)`);
   cancelArmTimer = run.after(DISCARD_SAFETY_MS, 'the arm\'s safety (no answer carried the disposal)', () => {
     if (cardDiscardTransaction.phase === 'armed') {
       abortCardDiscard();
@@ -434,7 +445,6 @@ function finishCardDiscard(): void {
   disposeDiscardProxies(spawned);
   spawned = [];
   armed = undefined;
-  cardDiscardTransaction.active = false;
   cardDiscardTransaction.names = [];
   setPhase('idle');
   resetCardDiscardStage();

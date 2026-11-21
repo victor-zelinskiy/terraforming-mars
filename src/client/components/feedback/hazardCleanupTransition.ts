@@ -25,7 +25,7 @@ import {SpaceModel} from '@/common/models/SpaceModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {prefersReducedMotion} from './changeFeedbackManager';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
-import {createFlowRun} from '@/client/console/session/flowRun';
+import {createFlowRun, SCENE_RUN_CEILING_MS} from '@/client/console/session/flowRun';
 import {owedAnswer} from '@/client/console/session/owedAnswer';
 import {
   HazardCleanupEvent,
@@ -73,6 +73,11 @@ const seen = new Set<string>();
  * its own honest ending (`orphaned`: the swap, the gate, the overlay cleared).
  */
 const run = createFlowRun('hazard-cleanup', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else; a run that outlived every bound ends on its ceiling.
+  flag: (up) => {
+    hazardCleanupState.active = up;
+  },
+  ceilingMs: SCENE_RUN_CEILING_MS,
   orphaned: () => {
     finishActive?.();
     endHazardCleanup();
@@ -113,8 +118,16 @@ registerAnimationHoldSupplier('hazard-cleanup', isHazardCleanupActive, {
       return;
     }
     console.warn('[hazardCleanupTransition] hazard cleanup: outlived its ceiling — ended');
-    finishActive?.();
-    endHazardCleanup();
+    // (The ending is reached whatever the finish threw — and the run is over with it: the flag falls.)
+    try {
+      finishActive?.();
+    } finally {
+      try {
+        endHazardCleanup();
+      } finally {
+        run.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+      }
+    }
   },
 });
 
@@ -152,8 +165,6 @@ export function runHazardCleanup(
   cancelTimers();
   run.begin(`${events.length} cell(s)`); // a run still standing ends here — its timers with it
   const reduced = prefersReducedMotion();
-
-  hazardCleanupState.active = true;
   hazardCleanupState.events = events;
   hazardCleanupState.phase = 'focus';
   hazardCleanupState.progress = 0;
@@ -229,7 +240,6 @@ export function runHazardCleanup(
 export function endHazardCleanup(): void {
   cancelTimers();
   finishActive = undefined;
-  hazardCleanupState.active = false;
   hazardCleanupState.events = [];
   hazardCleanupState.phase = 'focus';
   hazardCleanupState.progress = 0;

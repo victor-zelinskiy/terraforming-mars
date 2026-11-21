@@ -50,7 +50,33 @@ export type FlowRunOptions = {
    * across game screens (the scene transition itself) names the page: `() => consoleAppScope()`.
    */
   owner?: () => FlowScope,
+  /**
+   * THE FLOW'S FLAG IS THE RUN'S LIFE (FREEZE ZERO, stage 3 — PLAN § 8: «a flag IS a scope's life»). Called with `true`
+   * when the run begins and with `false` when its scope ENDS — by any path there is: the flow's own `end`, a new run
+   * beginning over it, the session leaving under it, its ceiling (then AFTER `orphaned`, which reads it). The module
+   * writes its «I am playing» NOWHERE else.
+   *
+   * What it replaces: `state.active = true` after `run.begin()` and `state.active = false` in every exit path — where
+   * the path that throws before its lowering line (an end skipped by an exception, a recovery that threw first) leaves
+   * the flag up for good. A raised scene flag parks the view's commit, holds the foreground and locks the pad; the
+   * audit of 2026-11-15 found that every one of the nine view scenes could stick that way.
+   */
+  flag?: (up: boolean) => void,
+  /**
+   * THE RUN'S LAST BOUND. A run still standing `ceilingMs` after it began is ended `expired` by the KERNEL's own timer
+   * — nothing of the module's has to run for that — its flag falls with it, and `orphaned` brings the module to rest
+   * (the same honest ending as a session that left under it). It is said (`[flow] bound … — the run did not end …`).
+   * Set it PAST every lawful life of the scene (its hold's own ceiling ends a healthy wedge long before): this is the
+   * bound of «the module's own ending did not happen».
+   */
+  ceilingMs?: number,
 };
+
+/**
+ * The default last bound of a scene's run: twice the hold registry's ceiling (`animationHold.DEFAULT_MAX_HOLD_MS`,
+ * 35 s — «no scene lawfully outlives it»): by then the hold's own `expire` has run and failed to end the scene.
+ */
+export const SCENE_RUN_CEILING_MS = 70_000;
 
 export type FlowRun = {
   /** Open the run (a run still standing ends first). Returns its scope. */
@@ -81,11 +107,26 @@ export type FlowRun = {
 
 export function createFlowRun(label: string, options: FlowRunOptions = {}): FlowRun {
   const current = shallowRef<FlowScope<'scene'> | undefined>(undefined);
+  const lower = (who: string): void => {
+    if (options.flag === undefined) {
+      return;
+    }
+    try {
+      options.flag(false);
+    } catch (error) {
+      console.warn(`[flow] ${who} — its flag's lowering threw`, error);
+    }
+  };
   const end = (how: ScopeEnd = {how: 'done'}): void => {
     const scope = current.value;
     if (scope !== undefined) {
       current.value = undefined; // first: the scope's end listener then knows the flow ended it itself
       scope.end(how);
+    }
+    // (…and with NO run standing the flow's end still says «I am not playing»: a flag that somebody raised past the run
+    // — a spec arranging a state by hand — does not outlive the module's own ending.)
+    if (scope === undefined) {
+      lower(`scene:${label}`);
     }
   };
   return {
@@ -96,17 +137,33 @@ export function createFlowRun(label: string, options: FlowRunOptions = {}): Flow
         scope.detail = detail;
       }
       current.value = scope;
+      if (options.ceilingMs !== undefined) {
+        const ms = options.ceilingMs;
+        // (An owned timer of the run: taken back by its end — it fires only over a run that outlived every other bound.
+        // Ended through the SCOPE, never `end()`: the end listener below then reads «the flow did not end it» and runs
+        // the module's own recovery.)
+        scope.after(ms, 'the run\'s ceiling', () => {
+          console.warn(`[flow] bound ${scope.id} — the run did not end in ${ms} ms; ended on its ceiling`);
+          scope.end({how: 'expired', bound: `${label} ${ms}ms`});
+        });
+      }
       scope.onEnd(() => {
-        if (current.value !== scope) {
-          return; // the flow ended it (or began another)
+        // (`current` is this scope only when the flow did NOT end it itself — the session left, its ceiling came.)
+        if (current.value === scope) {
+          current.value = undefined;
+          try {
+            options.orphaned?.();
+          } catch (error) {
+            console.warn(`[flow] ${scope.id} — its «orphaned» recovery threw`, error);
+          }
         }
-        current.value = undefined;
-        try {
-          options.orphaned?.();
-        } catch (error) {
-          console.warn(`[flow] ${scope.id} — its «orphaned» recovery threw`, error);
-        }
+        // THE FLAG FALLS WITH THE SCOPE — LAST, and whatever happened above: the module's recovery reads «I am playing»
+        // to know there is something to bring to rest (every abort begins `if (!state.active …) return`), so it runs
+        // first; a recovery that threw, or one that never reached its own lowering line, leaves no flag behind.
+        lower(scope.id);
       });
+      // (Raised once the end listener stands: no path can end the run above a raised flag.)
+      options.flag?.(true);
       return scope;
     },
     get scope() {

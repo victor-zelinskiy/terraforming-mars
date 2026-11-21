@@ -106,7 +106,13 @@ let handle: TradeFleetDirectorHandle | undefined;
  * gate's window: they are taken back when it ends, on every path; a newer arm ends the older run first; and when the
  * game screen leaves under it the fleet is recalled (`orphaned`). The HOLD stays derived from `active`.
  */
-const run = createFlowRun('trade-fleet', {orphaned: () => abortTradeFleet()});
+const run = createFlowRun('trade-fleet', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    tradeFleetState.active = up;
+  },
+  orphaned: () => abortTradeFleet(),
+});
 
 /** The scope the flight's director waits in: the flight's run (the session's when no flight stands — a degenerate call). */
 export function tradeFleetOwner(): FlowScope {
@@ -178,7 +184,14 @@ export function isTradeFleetActive(): boolean {
 registerAnimationHoldSupplier('trade-fleet', isTradeFleetActive, {
   // Waits for the SERVER — never judged as a still motion (`motionWitness.ts`): the ship hovers at the berth while the server answers.
   waitsFor: 'server',
-  expire: () => abortTradeFleet(),
+  // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+  expire: () => {
+    try {
+      abortTradeFleet();
+    } finally {
+      run.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
+  },
 });
 
 /** The director registers its handle so the controller can drive dock/skip. */
@@ -214,7 +227,6 @@ export function armTradeFleet(destination: TradeFleetTarget | ColonyName, color:
   const target = normalizeTarget(destination);
   run.begin(); // a flight still standing ends here — its timers with it
   claimed = false;
-  tradeFleetState.active = true;
   tradeFleetState.phase = 'launch';
   tradeFleetState.target = target;
   tradeFleetState.colonyName = target.kind === 'colony' ? target.colonyName : '';
@@ -292,7 +304,6 @@ export function endTradeFleet(): void {
   const colony = tradeFleetState.colonyName;
   const card = tradeFleetState.card;
   const finalize = () => {
-    tradeFleetState.active = false;
     tradeFleetState.phase = 'idle';
     tradeFleetState.color = '';
     tradeFleetState.target = undefined;
@@ -340,7 +351,6 @@ export function abortTradeFleet(): void {
   launchPending = false;
   parkedDock = undefined;
   clearParkedDock();
-  tradeFleetState.active = false;
   tradeFleetState.phase = 'idle';
   tradeFleetState.color = '';
   tradeFleetState.target = undefined;
@@ -362,7 +372,6 @@ export function resetTradeFleet(): void {
   launchPending = false;
   parkedDock = undefined;
   clearParkedDock();
-  tradeFleetState.active = false;
   tradeFleetState.phase = 'idle';
   tradeFleetState.target = undefined;
   tradeFleetState.colonyName = '';

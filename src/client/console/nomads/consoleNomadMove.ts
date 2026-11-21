@@ -148,7 +148,13 @@ let claimed = false;
  * beat and the still beats of the hop; the scene's safety opens the transport's GATE, so it is a guaranteed release
  * of the run; and when the game screen leaves under it the move is aborted (`orphaned`). The HOLD stays derived.
  */
-const nomadRun = createFlowRun('nomad-move', {orphaned: () => abortNomadMove()});
+const nomadRun = createFlowRun('nomad-move', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    nomadMoveState.active = up;
+  },
+  orphaned: () => abortNomadMove(),
+});
 /**
  * THE REMOTE LEG'S RUN: `scene:nomad-move-remote#n`, from the first staged hop to the queue's end. It owns the leg's
  * safety (re-armed while a hop waits for a board the player can see); when the game screen leaves under it the leg is
@@ -256,7 +262,6 @@ export function armNomadMove(opts: {toSpaceId: string}): void {
   restoreHeldBonuses();
   bonusesHovering = false;
   bonusHoldSeeded = false;
-  nomadMoveState.active = true;
   nomadMoveState.phase = 'armed';
   nomadMoveState.nonce++;
   nomadMoveState.fromId = '';
@@ -609,7 +614,6 @@ export function abortNomadMove(): void {
   pendingOceanBonus = undefined;
   destHexRect = undefined;
   srcHexRect = undefined;
-  nomadMoveState.active = false;
   nomadMoveState.phase = 'failed';
   nomadMoveState.bonusProxies = [];
   freeRunGate();
@@ -635,7 +639,6 @@ function finish(): void {
   pendingOceanBonus = undefined;
   destHexRect = undefined;
   srcHexRect = undefined;
-  nomadMoveState.active = false;
   nomadMoveState.phase = 'done';
   nomadMoveState.bonusProxies = [];
   nomadRun.end();
@@ -1026,7 +1029,14 @@ registerAnimationHoldSupplier('nomad-move', nomadMoveHolding, {
     from: nomadMoveState.fromId,
     to: nomadMoveState.toId,
   }),
-  expire: () => abortNomadMove(),
+  // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+  expire: () => {
+    try {
+      abortNomadMove();
+    } finally {
+      nomadRun.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
+  },
 });
 registerAnimationHoldSupplier('nomad-move-remote', isRemoteNomadMoveActive, {
   diagnose: () => ({
