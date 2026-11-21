@@ -10,6 +10,7 @@
  * ⚠ If the box spec's generator changes, this changes with it in the same diff: two streams are two different walks.
  */
 import type {BottleKey, ConsoleBottle} from './consoleBottle';
+import {WIRE_FAULTS, WireFault} from './bottleNet';
 
 /** mulberry32 — the box monkey's generator (`console-monkey.spec.ts` `rng`). */
 export function monkeyRng(seed: string): () => number {
@@ -65,7 +66,36 @@ export type MonkeyMode = 'plain' | 'guided';
  * other seats' moves, a reload. What `replaySteps` runs and `shrink.ts` cuts: a list of these IS a walk, whoever
  * produced it (the seeded stream, a guided pick, a hand).
  */
-export type MonkeyStep = {do: 'press', key: BottleKey, pauseMs: number} | {do: 'seats'} | {do: 'reload'} | {do: 'away', ms: number, hidden: boolean};
+export type MonkeyStep = {do: 'press', key: BottleKey, pauseMs: number} | {do: 'seats'} | {do: 'reload'} | {do: 'away', ms: number, hidden: boolean} |
+  {do: 'fault', fault: WireFault, target: FaultTarget};
+
+/** WHICH request a fault waits for: the submit (the move), the poll («anything new?»), the view (the page's read of the game). */
+export type FaultTarget = 'submit' | 'poll' | 'view';
+
+const FAULT_MATCH: Readonly<Record<FaultTarget, (method: string, url: string) => boolean>> = {
+  submit: (method, url) => method === 'POST' && url.startsWith('/player/input'),
+  poll: (_method, url) => url.startsWith('/api/waitingfor'),
+  view: (method, url) => method === 'GET' && url.startsWith('/api/player'),
+};
+
+/** The server's silence is bounded by the submit's own minute (`submitMachine.SUBMIT_NO_RESPONSE_MS`) — a walk waits it out. */
+const SILENCE_MS = 61_000;
+
+/** Arm the fault on the bottle's wire. */
+export function armFault(bottle: ConsoleBottle, fault: WireFault, target: FaultTarget): void {
+  bottle.wire.faultNext(FAULT_MATCH[target], fault);
+}
+
+/**
+ * AFTER A PRESS: a fault the press's own request TOOK, and that no answer will ever end (`silent` · `lost`), is waited
+ * out — the minute after which the transport gives the request up. The same rule for a walk and for its replay.
+ */
+async function waitOutSilence(bottle: ConsoleBottle, takenBefore: number): Promise<void> {
+  const taken = bottle.wire.faulted.slice(takenBefore);
+  if (taken.some((f) => f.fault === 'silent' || f.fault === 'lost')) {
+    await bottle.advance(SILENCE_MS);
+  }
+}
 
 export type MonkeyWalkResult = {
   /** `key:echo`, `[seat n] move`, `[RELOAD]`. */
@@ -114,13 +144,18 @@ function guidedPick(bottle: ConsoleBottle, g: () => number, r: () => number): Bo
  * are the same with it off. The restore road (a stage re-primed from the server, a flow's latch reset under a live
  * question) is then walked like any press; what the replaced page had named is carried.
  *
+ * `faultEvery` — THE WIRE BREAKS (stage 4): on average once in that many presses the NEXT request of a seeded kind (the
+ * submit mostly, the poll, the view) breaks in a seeded way (`bottleNet.WireFault` — refused, a 5xx, the network, the
+ * server's silence, an answer lost or malformed AFTER the server made the move). Its own seeded stream
+ * (`<seed>:fault`): a walk's presses are the same with it off. A fault stays armed until a request takes it.
+ *
  * `awayEvery` — THE PAGE NOBODY LOOKS AT (the box monkey's `TM_E2E_MONKEY_HIDDEN`, here with a rate): on average once
  * in that many presses the page is not painted for a seeded 3…20 s — half the spells a hidden tab (the document says
  * so), half a window behind another (it does not) — and then the walk goes on. Its own seeded stream
  * (`<seed>:hidden`): a walk's presses are the same with it off.
  */
 export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: string, presses: number,
-  opts: {reloadEvery?: number, awayEvery?: number, mode?: MonkeyMode} = {}): Promise<MonkeyWalkResult> {
+  opts: {reloadEvery?: number, awayEvery?: number, faultEvery?: number, mode?: MonkeyMode} = {}): Promise<MonkeyWalkResult> {
   let bottle = start;
   const r = monkeyRng(seed);
   const guided = opts.mode === 'guided' ? monkeyRng(`${seed}:guided`) : undefined;
@@ -129,6 +164,7 @@ export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: stri
   r();
   const reload = opts.reloadEvery !== undefined && opts.reloadEvery > 0 ? monkeyRng(`${seed}:reload`) : undefined;
   const away = opts.awayEvery !== undefined && opts.awayEvery > 0 ? monkeyRng(`${seed}:hidden`) : undefined;
+  const faulty = opts.faultEvery !== undefined && opts.faultEvery > 0 ? monkeyRng(`${seed}:fault`) : undefined;
   const log: Array<string> = [];
   const steps: Array<MonkeyStep> = [];
   const carried: Array<MonkeyCarried> = [];
@@ -163,7 +199,16 @@ export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: stri
       await bottle.away(ms, hidden);
       continue;
     }
+    if (faulty !== undefined && faulty() < 1 / (opts.faultEvery ?? 1)) {
+      const fault = WIRE_FAULTS[Math.floor(faulty() * WIRE_FAULTS.length)];
+      const roll = faulty();
+      const target: FaultTarget = roll < 0.7 ? 'submit' : roll < 0.85 ? 'poll' : 'view';
+      log.push(`[FAULT ${fault}@${target}]`);
+      steps.push({do: 'fault', fault, target});
+      armFault(bottle, fault, target);
+    }
     const key = guided === undefined ? monkeyPick(r) : guidedPick(bottle, guided, r);
+    const takenBefore = bottle.wire.faulted.length;
     const echo = await bottle.press(key);
     log.push(`${key}:${echo}`);
     // A player's rhythm — the box monkey's own numbers.
@@ -171,6 +216,7 @@ export async function monkeyWalk(start: ConsoleBottle, seats: number, seed: stri
     const pause = roll < 0.7 ? 120 + r() * 380 : roll < 0.95 ? 600 + r() * 1400 : 3000 + r() * 5000;
     steps.push({do: 'press', key, pauseMs: Math.round(pause)});
     await bottle.advance(Math.round(pause));
+    await waitOutSilence(bottle, takenBefore);
   }
   return {log, steps, bottle, carried, carriedCoverage: [...carriedCoverage]};
 }
@@ -192,9 +238,13 @@ export async function replaySteps(start: ConsoleBottle, seats: number, steps: Re
       await bottle.advance(3_000);
     } else if (step.do === 'away') {
       await bottle.away(step.ms, step.hidden);
+    } else if (step.do === 'fault') {
+      armFault(bottle, step.fault, step.target);
     } else {
+      const takenBefore = bottle.wire.faulted.length;
       await bottle.press(step.key);
       await bottle.advance(step.pauseMs);
+      await waitOutSilence(bottle, takenBefore);
     }
   }
   return bottle;
@@ -202,5 +252,6 @@ export async function replaySteps(start: ConsoleBottle, seats: number, steps: Re
 
 /** A step as a line a human reads (and pastes into a replay): `Enter +420ms`, `[seats]`, `[reload]`. */
 export function stepLine(step: MonkeyStep): string {
-  return step.do === 'press' ? `${step.key} +${step.pauseMs}ms` : step.do === 'away' ? `[away ${step.ms}ms ${step.hidden ? 'hidden' : 'behind'}]` : `[${step.do}]`;
+  return step.do === 'press' ? `${step.key} +${step.pauseMs}ms` : step.do === 'away' ? `[away ${step.ms}ms ${step.hidden ? 'hidden' : 'behind'}]` :
+    step.do === 'fault' ? `[fault ${step.fault}@${step.target}]` : `[${step.do}]`;
 }

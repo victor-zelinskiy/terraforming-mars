@@ -104,6 +104,12 @@ export type BottleLiveness = {
   ok: boolean,
   /** Why not (empty when `ok`). */
   why: Array<string>,
+  /**
+   * THE SCREEN ITSELF, apart from what the journal named: the game screen is not there, the page shows another
+   * question than the server asks with nothing on the wire, no surface accepts and nothing is in flight, the question
+   * is stranded. Empty — the server's question is on screen before a surface that takes it (or something is on its way).
+   */
+  standing: Array<string>,
   /** The SERVER's truth for the seat. */
   asked: string | undefined,
   /** The page's applied view agrees with it (the same prompt serial). */
@@ -342,13 +348,14 @@ export async function bootBottle(table: BottleTable, options: BottleOptions = {}
           why.push(`the question is STRANDED: ${page.stranded()}`);
         }
       }
+      const standing = [...why];
       for (const defect of defects) {
         why.push(`${defect.cls} ×${defect.count}: ${defect.text.split('\n')[0]}`);
       }
       if (clock.errors.length > 0) {
         why.push(`${clock.errors.length} task(s) threw: ${String(clock.errors[0])}`);
       }
-      return {ok: why.length === 0, why, asked: truth.waitingFor, viewInSync, beat, defects, blind};
+      return {ok: why.length === 0, why, standing, asked: truth.waitingFor, viewInSync, beat, defects, blind};
     },
     flow: () => ({tree: page.tree(), waits: page.waits()}),
     rebuildsAsked: () => page.rebuildsAsked(),

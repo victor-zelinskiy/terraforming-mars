@@ -48,6 +48,24 @@ const SHRINK = env.TM_BOTTLE_MONKEY_SHRINK === undefined ? undefined : new RegEx
 const RELOAD_EVERY = env.TM_BOTTLE_MONKEY_RELOAD === undefined ? undefined : Number(env.TM_BOTTLE_MONKEY_RELOAD);
 /** THE PAGE NOBODY LOOKS AT: on average once in this many presses the page is not painted for 3…20 s (unset = never). */
 const AWAY_EVERY = env.TM_BOTTLE_MONKEY_HIDDEN === undefined ? undefined : Number(env.TM_BOTTLE_MONKEY_HIDDEN);
+/**
+ * THE WIRE BREAKS (stage 4): on average once in this many presses the next request breaks (`monkeyWalk` § faultEvery).
+ * A walk of this pass is JUDGED AT ITS END as well as by what it names: whatever broke, a minute and the last word
+ * later the page must show the server's question to a surface that takes it — a screen left standing is a class of its
+ * own (`fault/standing-screen/<the faults the walk took>`).
+ */
+const FAULT_EVERY = env.TM_BOTTLE_MONKEY_FAULT === undefined ? undefined : Number(env.TM_BOTTLE_MONKEY_FAULT);
+/**
+ * THE FAULT'S OWN WORD. A wire that broke is SAID by the product — that is its job, and in the field those lines are
+ * the evidence (a malformed answer is an error with its stack, the server's silence a named line). In a pass that
+ * breaks the wire on purpose they are the echo of the injection, never a finding: filed `info`, by the request that
+ * said it. What a walk names BESIDE them — a wait that stood to its ceiling, a dead end, a hold force-released — is the
+ * product not unwinding from the broken request, and that IS the finding.
+ */
+const FAULT_OWN_WORD: ReadonlyArray<{cls: RegExp, text: RegExp}> = [
+  {cls: /^error\/page-error$/, text: /caught by the (submit|poll's answer|view's fetch)/},
+  {cls: /^transport\/server-silent$/, text: /./},
+];
 /** The untouched spell after a walk (`TM_BOTTLE_MONKEY_IDLE_MS`): past the arbiter's grace and the loop's twenty looks. */
 const IDLE_MS = Number(env.TM_BOTTLE_MONKEY_IDLE_MS ?? 25_000);
 
@@ -111,13 +129,14 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
       let owner: ReturnType<ConsoleBottle['servingOwner']>;
       let steps: Array<MonkeyStep> = [];
       let seats = 1;
+      let faults: Array<string> = [];
       try {
         seedWorld(seed);
         const table = await bottleServer().bootFixture(fixture);
         // (`coverage=1` — the page marks how much of the kernel's state space the walk went through.)
         bottle = await bootBottle(table, {query: 'coverage=1', layout: LAYOUT});
         await bottle.advance(3_000);
-        const walked = await monkeyWalk(bottle, table.seats.length, seed, PRESSES, {reloadEvery: RELOAD_EVERY, awayEvery: AWAY_EVERY, mode: MODE});
+        const walked = await monkeyWalk(bottle, table.seats.length, seed, PRESSES, {reloadEvery: RELOAD_EVERY, awayEvery: AWAY_EVERY, faultEvery: FAULT_EVERY, mode: MODE});
         bottle = walked.bottle;
         log = walked.log;
         steps = walked.steps;
@@ -129,16 +148,26 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
         // THE LAST WORD: a quiet spell past the arbiter's grace AND past the loop's whole road (ten untouched looks to
         // be named, ten more to be due — `livenessOscillation.ts`): whatever the walk left on screen is judged, and a
         // healthy screen left alone must neither stall nor turn.
-        await bottle.advance(IDLE_MS);
+        // (A fault still armed at the walk's end waits for nobody: the last word is the page's own, on a healthy wire.)
+        // …and a silence the walk's last press took is waited out before the page is judged.
+        await bottle.advance(FAULT_EVERY === undefined ? IDLE_MS : IDLE_MS + 61_000);
         const live = bottle.liveness();
         why = live.why;
+        faults = bottle.wire.faulted.map((f) => `${f.fault}@${f.method === 'POST' ? 'submit' : f.url.startsWith('/api/waitingfor') ? 'poll' : 'view'}`);
+        if (FAULT_EVERY !== undefined && faults.length > 0 && live.standing.length > 0) {
+          // THE STAGE's OWN LAW: «each injected fault ends in served or rebuilt once, never a standing screen» — judged
+          // by what STANDS (`BottleLiveness.standing`), a minute and the last word after the walk's last press.
+          records.push(filed(`fault/standing-screen/${[...new Set(faults)].sort().join('+')}`, 'defect', 1, `after ${faults.join(', ')}: ${live.standing.join(' · ')}`));
+        }
         const covered = bottle.coverage();
         if (covered !== undefined) {
           coverage = {keys: [...new Set([...coverageKeys, ...covered.keys])].sort(), machines: covered.machines, frames: covered.frames};
         }
         owner = bottle.servingOwner();
+        const faultTaken = FAULT_EVERY !== undefined && bottle.wire.faulted.length > 0;
         for (const defect of live.defects) {
-          records.push(filed(defect.cls, 'defect', defect.count, defect.text));
+          const ownWord = faultTaken && FAULT_OWN_WORD.some((row) => row.cls.test(defect.cls) && row.text.test(defect.text));
+          records.push(filed(defect.cls, ownWord ? 'info' : 'defect', defect.count, ownWord ? `(the injected fault's own word) ${defect.text}` : defect.text));
         }
         for (const blind of live.blind) {
           records.push(filed(blind.cls, 'info', blind.count, `(the bottle is blind here) ${blind.text}`));
@@ -152,7 +181,7 @@ describe('THE MONKEY IN THE BOTTLE — the box monkey\'s walk, on the laptop, on
         file: 'monkey.bottle.ts', title: `monkey · ${fixture}`, retry: 0, status, records,
         ...(coverage !== undefined ? {coverage} : {}),
         ...(owner !== undefined ? {owner} : {}),
-        monkey: {seed, fixture, mode: MODE, layout: LAYOUT, landing: 'boot', duo: false, reload: RELOAD_EVERY !== undefined, hidden: AWAY_EVERY !== undefined, presses: log.filter((l) => !l.startsWith('[')).length, perturb: {netMs: 0, cpu: 0, motion: ''}, bottle: true, why},
+        monkey: {seed, fixture, mode: MODE, layout: LAYOUT, landing: 'boot', duo: false, reload: RELOAD_EVERY !== undefined, hidden: AWAY_EVERY !== undefined, faults, presses: log.filter((l) => !l.startsWith('[')).length, perturb: {netMs: 0, cpu: 0, motion: ''}, bottle: true, why},
         walk: log.join(' '),
       }, null, 1));
       const defects = records.filter((record) => record.tier === 'defect');

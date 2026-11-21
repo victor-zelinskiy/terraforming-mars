@@ -7,6 +7,10 @@
  *   npm run gate:freeze -- --shards 8 --parallel 3   the pass cut into 8 processes, 3 at a time (default: 6 and 2)
  *   npm run gate:freeze -- --only parliament  a regex over the table names (a slice — never a release's answer)
  *   npm run gate:freeze -- --skip-replays     the monkey's pass alone
+ *   npm run gate:freeze -- --guided           the walk presses what the command bar offers (far deeper into the flows)
+ *   npm run gate:freeze -- --fault 6          THE WIRE BREAKS: once in 6 presses the next request is refused, lost,
+ *                                             malformed, silent… (stage 4 — a pass of its own: its classes are the
+ *                                             product not unwinding from a broken request; never `--write-baseline`)
  *   npm run gate:freeze -- --write-baseline   accept what this pass named: the baseline is rewritten (the notes kept)
  *   npm run gate:freeze -- --report-only      judge the pass that is already in `.e2e-remote/bottle-gate` again
  *                                             (after a triage, a baseline edit) — nothing is run
@@ -56,6 +60,9 @@ const shards = Math.max(1, Number(value('shards', '6')) || 6);
 const parallel = Math.max(1, Math.min(shards, Number(value('parallel', '2')) || 2));
 const seed = value('seed', 'fz0');
 const only = value('only', undefined);
+// THE PASS'S PERTURBATIONS (each its own seeded stream — `tests/client/bottle/monkeyWalk.ts`).
+const fault = value('fault', undefined);
+const guided = flag('guided');
 
 /** Run one process to its end; its output goes to `log` (and its last lines to the console when it fails). */
 function run(label, command, commandArgs, env, log) {
@@ -120,6 +127,7 @@ async function main() {
           {
             ...bottleEnv, TM_BOTTLE_MONKEY: '1', TM_BOTTLE_MONKEY_SEED: seed, TM_BOTTLE_MONKEY_SHARD: `${i + 1}/${shards}`,
             TM_BOTTLE_MONKEY_OUT: path.relative(ROOT, OUT), ...(only === undefined ? {} : {TM_BOTTLE_MONKEY_ONLY: only}),
+            ...(fault === undefined ? {} : {TM_BOTTLE_MONKEY_FAULT: fault}), ...(guided ? {TM_BOTTLE_MONKEY_MODE: 'guided'} : {}),
           },
           path.join(OUT, `shard-${i + 1}.log`));
       }
@@ -175,6 +183,12 @@ ${tail(path.join(OUT, `shard-${i + 1}.log`), 12)}`));
   const verdict = await run('the report', node, reportArgs, {}, reportLog);
   console.log(fs.readFileSync(reportLog, 'utf8').split('\n').filter((line) => !line.startsWith('  ') || /NEW|never cured/i.test(line)).slice(0, 80).join('\n'));
 
+  if (flag('write-baseline') && fault !== undefined) {
+    // (A fault pass names what the product does under a wire broken ON PURPOSE — a finding to close, never a row the
+    // ordinary gate should learn to live with.)
+    console.error('[freeze-gate] --write-baseline is refused on a --fault pass: its classes are findings, not baseline rows');
+    process.exit(2);
+  }
   if (flag('write-baseline')) {
     const now = JSON.parse(fs.readFileSync(report, 'utf8'));
     const before = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : {classes: {}};

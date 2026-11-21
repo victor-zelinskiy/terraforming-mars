@@ -29,7 +29,8 @@ import {expect} from 'chai';
 import fc from 'fast-check';
 import {bootBottle, BOTTLE_KEYS, BottleKey, ConsoleBottle, seededRandom} from './consoleBottle';
 import {bottleServer, nodeProcess} from './bottleNode';
-import {MonkeyStep, replaySteps, stepLine} from './monkeyWalk';
+import {armFault, MonkeyStep, replaySteps, stepLine} from './monkeyWalk';
+import type {WireFault} from './bottleNet';
 import {shrinkSteps} from './shrink';
 
 const FIXTURE = 'aerial-mappers';
@@ -644,6 +645,51 @@ describe('THE CONSOLE IN A BOTTLE — the real shell and the real server in one 
     expect(bottle.rebuildsAsked()).to.equal(0);
     expect(bottle.liveness().why.filter((why) => !why.startsWith('liveness/oscillating')), 'the player can act — the loop that was is the only thing on record').to.deep.equal([]);
   });
+
+  /*
+   * 16 · THE WIRE BREAKS (FREEZE ZERO, stage 4 — «fault injection for every transport outcome never seen today»).
+   * Every way a submit breaks, on ONE press (the pass of a healthy table): the submit's machine ends in the state that
+   * names the fault, the page says its own word about it, and — the stage's law — the screen is SERVED afterwards:
+   * the server's question (the same one where the move was not made, the next one where it was) stands before a
+   * surface that takes a press. The monkey's fault pass walks the same faults over every table; this is each of them
+   * alone, by name.
+   */
+  const SUBMIT_FAULTS: ReadonlyArray<{fault: WireFault, ends: string, made: boolean}> = [
+    {fault: 'network', ends: 'sending → failed', made: false},
+    {fault: 'refused', ends: 'sending → refused', made: false},
+    {fault: 'stale', ends: 'sending → refused', made: false},
+    {fault: 'error500', ends: 'sending → refused', made: false},
+    {fault: 'silent', ends: 'sending → silent', made: false},
+    {fault: 'lost', ends: 'sending → silent', made: true},
+    {fault: 'malformed', ends: 'presenting → failed', made: true},
+  ];
+  for (const row of SUBMIT_FAULTS) {
+    it(`16 · THE WIRE BREAKS — a submit ${row.fault}: «${row.ends}», and the screen is served`, async () => {
+      const table = await bottleServer().bootFixture(FIXTURE);
+      bottle = await bootBottle(table, {query: 'coverage=1'});
+      await bottle.advance(2_000);
+      const age = bottle.view()?.game.gameAge ?? -1;
+      armFault(bottle, row.fault, 'submit');
+      // LT (the basic-actions wheel) → ▼ «Pass» → the confirmation → A: the submit that breaks.
+      await bottle.press('Comma');
+      await bottle.advance(400);
+      await bottle.press('ArrowDown');
+      await bottle.advance(400);
+      await bottle.press('Enter');
+      // The server's silence is the submit's own minute; then the nets' graces.
+      await bottle.advance(61_000);
+      await bottle.advance(25_000);
+      expect(bottle.wire.faulted.map((f) => f.fault), 'the submit took the fault').to.deep.equal([row.fault]);
+      const moves = (bottle.coverage()?.keys ?? []).filter((key) => /^state submit/.test(key));
+      say(`${row.fault}: ${moves.join(' | ')} · ${bottle.digest()}`);
+      const live = bottle.liveness();
+      say(`  standing=${JSON.stringify(live.standing)} asked=${live.asked} inSync=${live.viewInSync} accepting=${live.beat?.accepting} defects=${JSON.stringify(live.defects.map((d) => d.cls))} bar=«${bottle.bar().slice(0, 80)}»`);
+      expect(moves.some((key) => key.endsWith(row.ends)), `the machine's move «${row.ends}» (${moves.join(' | ')})`).to.equal(true);
+      expect(live.standing, 'the screen is served').to.deep.equal([]);
+      expect(live.viewInSync, 'the page shows the server\'s question').to.equal(true);
+      expect((bottle.view()?.game.gameAge ?? -1) > age, `the move was ${row.made ? '' : 'NOT '}made`).to.equal(row.made);
+    });
+  }
 
   it('12 · a bottle leaves nothing behind', async () => {
     const table = await bottleServer().bootFixture(FIXTURE);

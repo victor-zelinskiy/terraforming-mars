@@ -115,6 +115,11 @@ export function aggregateCauseFiles(files) {
     if (f.monkey !== undefined) {
       totals.walks++;
       totals.presses += Number(f.monkey.presses ?? 0);
+      // (THE WIRE'S FAULTS a walk TOOK — stage 4's pass: `<fault>@<submit | poll | view>`.)
+      for (const fault of f.monkey.faults ?? []) {
+        totals.faults ??= {};
+        totals.faults[fault] = (totals.faults[fault] ?? 0) + 1;
+      }
     }
     const seenClass = new Set();
     const seenShape = new Set();
@@ -592,6 +597,12 @@ export function renderReport(report, diff) {
   L.push(`MONKEY REPORT — ${t.tests} test(s) with a file${t.walks > 0 ? `, ${t.walks} walk(s), ${t.presses} presses` : ''}`);
   L.push(`records ${t.records} · of them defects ${t.defects} · episodes ${t.episodes}` +
     `${t.episodes > 0 ? ` (${Object.entries(t.outcomes).map(([k, v]) => `${k} ${v}`).join(', ')})` : ''} · NEVER CURED ${t.notCured}`);
+  if (t.faults !== undefined) {
+    // THE WIRE BROKE ON PURPOSE (stage 4): what the walks took. The fault's own word is filed `info`; a defect class
+    // of this pass is the product not unwinding from a broken request (`fault/standing-screen/…` — a screen left standing).
+    const taken = Object.entries(t.faults).sort((a, b) => b[1] - a[1]);
+    L.push(`THE WIRE'S FAULTS — ${taken.reduce((a, [, n]) => a + n, 0)} taken: ${taken.map(([k, n]) => `${k} ×${n}`).join(' · ')}`);
+  }
   const rows = Object.entries(report.classes).sort((a, b) => b[1].tests - a[1].tests || b[1].records - a[1].records || a[0].localeCompare(b[0]));
   for (const tier of ['defect', 'planned', 'info']) {
     const of = rows.filter(([, c]) => c.tier === tier);
