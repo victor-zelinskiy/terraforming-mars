@@ -34,6 +34,8 @@ type Mechanism = {
   within?: RegExp,
   /** The file that DEFINES the mechanism — its own body is not a use. */
   definedIn?: RegExp,
+  /** Counted only in a file whose code holds this (a mechanism that is a debt only beside what replaces it). */
+  inFilesWith?: RegExp,
   what: string,
   instead: string,
   plan: string,
@@ -63,6 +65,16 @@ export const FROZEN: Readonly<Record<string, Mechanism>> = {
     instead: 'what the rung releases has an owner with a bound: a hold is a `scene:hold` scope with its ceiling, a story a `story` scope ' +
       'with its due, a claim a machine with its backstops. A new mechanism is released by its owner\'s end, never by the arbiter',
     plan: '§6 · the arbiter keeps its rungs until the field shows them idle; none is added',
+  },
+  'flag-by-hand': {
+    pattern: /\b\w+\.(?:active|live) = (?:true|false)\b/g,
+    inFilesWith: /\bcreateFlowRun\(/,
+    what: 'a flow\'s «I am playing» flag WRITTEN BY HAND in a module that already owns a run — raised after `run.begin()`, lowered in every ' +
+      'exit path; the path that throws before its lowering line leaves it up for good (the nine view scenes, audited 2026-11-15: each could stick)',
+    instead: '`createFlowRun(label, {flag: (up) => { state.active = up; }})` — `begin` raises it, the run\'s END lowers it on every path ' +
+      '(after the module\'s recovery, which reads it); a flag that is not the run\'s whole life (a glide inside a traversal) is a run of its own. ' +
+      'The hold\'s `expire` ends the run in a `finally`',
+    plan: 'FREEZE ZERO · stage 3 — the nine view scenes are at zero and held there by `sceneFlagLaw.spec`; the rest module by module (each needs its lawful waits read first)',
   },
   'truth-witness': {
     pattern: /\bregisterTruthWitness\(/g,
@@ -150,7 +162,8 @@ function scan(): {files: number, uses: Record<string, Record<string, number>>, s
     files++;
     const body = code(fs.readFileSync(file, 'utf8'));
     for (const [name, mechanism] of Object.entries(FROZEN)) {
-      if ((mechanism.within !== undefined && !mechanism.within.test(rel)) || mechanism.definedIn?.test(rel) === true) {
+      if ((mechanism.within !== undefined && !mechanism.within.test(rel)) || mechanism.definedIn?.test(rel) === true ||
+          (mechanism.inFilesWith !== undefined && !mechanism.inFilesWith.test(body))) {
         continue;
       }
       const n = (body.match(mechanism.pattern) ?? []).length;
