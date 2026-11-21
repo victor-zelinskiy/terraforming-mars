@@ -99,6 +99,8 @@ import type {WheelController} from '@/client/console/shell/wheelController';
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type CommandBarPort = {
+  govSupportServes: UnwrapRef<RouterController['govSupportServes']>,
+  productionLossServes: UnwrapRef<RouterController['productionLossServes']>,
   aresGlobalsActive: UnwrapRef<RouterController['aresGlobalsActive']>,
   awardFundingActive: UnwrapRef<MaController['awardFundingActive']>,
   awardStepHosted: UnwrapRef<MaController['awardStepHosted']>,
@@ -386,7 +388,7 @@ export function createCommandBarController(shell: CommandBarPort) {
       // crumb already names the whole path and the step is not a new voice.
       return '';
     }
-    if (shell.govSupportActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
+    if (shell.govSupportServes) {
       return 'Government Support';
     }
     if (shell.effectDecisionActive) {
@@ -776,7 +778,7 @@ export function createCommandBarController(shell: CommandBarPort) {
           {control: 'back', label: 'Minimize'},
         ];
     }
-    if (shell.govSupportActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
+    if (shell.govSupportServes) {
       noteBarRung('govSupport');
       // The panel publishes its context-aware contract (consolePanelUi) —
       // the bar is the ONE hint surface (the in-panel footer is gone).
@@ -785,7 +787,7 @@ export function createCommandBarController(shell: CommandBarPort) {
         {control: 'back', label: 'Minimize'},
       ])];
     }
-    if (shell.productionLossActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
+    if (shell.productionLossServes) {
       noteBarRung('prodLoss');
       return [...(panelCommands('productionLoss') ?? [
         {control: 'confirm', label: '−1'},

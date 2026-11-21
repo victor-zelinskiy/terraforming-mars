@@ -3,6 +3,7 @@
  *
  * THE PLAYED CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
+import type {RouterController} from '@/client/console/shell/routerController';
 import type {UnwrapRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
@@ -34,6 +35,7 @@ import {takeUpQuestion} from '@/client/console/setAside';
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type PlayedPort = {
+  ownerServes: RouterController['ownerServes'],
   surfaces: SurfaceRegistry,
   clearDepartingPlayCard(): void,
   closeJournal: UnwrapRef<JournalController['closeJournal']>,
@@ -85,6 +87,13 @@ export function createPlayedController(shell: PlayedPort) {
    * foreground, so the modal simply appears when the beat completes.
    */
   const corpFirstActionOpen = computed((): boolean => {
+    // (The ONE function's word — stage 2 ③: `shellTask` classifies the prompt as the mid-game confirm; who stands is
+    // `servingOwnerOf`'s answer.)
+    return shell.shellTask?.kind === 'corpFirstAction' && shell.ownerServes('corp-first');
+  });
+
+  /** …as it was spelled out before the swap — the derivation's witness for ONE cycle, read by nothing else. */
+  const corpFirstActionOpenLegacy = computed((): boolean => {
     return shell.shellTask?.kind === 'corpFirstAction' && !consoleState.task.deferred;
   });
 
@@ -358,6 +367,7 @@ export function createPlayedController(shell: PlayedPort) {
     playedOpen,
     playedHeroHolds,
     corpFirstActionOpen,
+    corpFirstActionOpenLegacy,
     playedTableVisible,
     corpFirstActionNames,
     playedHeroIncoming,

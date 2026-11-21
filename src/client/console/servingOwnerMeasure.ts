@@ -374,7 +374,11 @@ export function endBarPress(shape: string, bar: string, ownership: Ownership, fa
  *   · `flag-EXTRA:<why>:<flags>` — a condition holds that the function gives no surface for: under a hold (`<kind>`),
  *                                 with nothing asked (`free`), or beside the owner (`serves`) — two answers to one
  *                                 question, the class the function is there to end.
- * Counted under `flag:<question's shape>`; the first look of a disagreement is `unsettled`. STATS ONLY.
+ * Counted under `flag:<question's shape>`; the first look of a disagreement is `unsettled`.
+ *
+ * SINCE THE SWAP (stage 2 ③ — each of these conditions IS «the function says its owner serves») a settled MISS or
+ * EXTRA is no statistic: it is the ONE-OWNER law broken, and the look says so (`consoleLeakDetector` —
+ * `[invariant] serving-owner:unserved` / `serving-owner:second-surface`).
  */
 /** PURE: how the prompt conditions that hold read against the function's answer. */
 export function promptFlagsVerdict(ownership: Ownership, flags: ReadonlyArray<string>, steps: ReadonlyArray<string> = []): OwnerLookVerdict {
@@ -403,7 +407,7 @@ export function promptFlagsVerdict(ownership: Ownership, flags: ReadonlyArray<st
 }
 
 /** One look: the conditions that hold, counted against the function; a disagreement is kept once per its picture. */
-export function notePromptFlagsLook(shape: string, ownership: Ownership, flags: ReadonlyArray<string>, steps: ReadonlyArray<string> = [], facts: () => string = () => ''): void {
+export function notePromptFlagsLook(shape: string, ownership: Ownership, flags: ReadonlyArray<string>, steps: ReadonlyArray<string> = [], facts: () => string = () => ''): OwnerLookVerdict {
   const read = promptFlagsVerdict(ownership, flags, steps);
   const disagrees = read.startsWith('flag-MISS') || read.startsWith('flag-EXTRA');
   const picture = disagrees ? `${shape}|${read}` : '';
@@ -413,10 +417,10 @@ export function notePromptFlagsLook(shape: string, ownership: Ownership, flags: 
   const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
   row[verdict] = (row[verdict] ?? 0) + 1;
   if (!verdict.startsWith('flag-MISS') && !verdict.startsWith('flag-EXTRA')) {
-    return;
+    return verdict;
   }
   if (servingOwnerLog.disagreements.some((d) => d.shadow === 'flag' && d.shape === key && d.verdict === verdict)) {
-    return;
+    return verdict;
   }
   servingOwnerLog.disagreements.push({
     shape: key, verdict, owner: ownership.asked ? ownership.owner : 'nobody', host: ownership.asked ? ownership.host ?? '' : '',
@@ -426,6 +430,7 @@ export function notePromptFlagsLook(shape: string, ownership: Ownership, flags: 
   if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
     servingOwnerLog.disagreements.shift();
   }
+  return verdict;
 }
 
 /*
@@ -550,7 +555,10 @@ export type DerivedPair = {surface: string, legacy: boolean, derived: boolean, w
 
 const openDiffs = new Map<string, {verdict: string, since: number}>();
 
-function closeDiff(surface: string, now: number): void {
+/** A span of the derivation that CLOSED — what the shell says of it (`noteDerivedRender`'s return). */
+export type DerivedSpan = {surface: string, verdict: string, ms: number};
+
+function closeDiff(surface: string, now: number, closed: Array<DerivedSpan>): void {
   const was = openDiffs.get(surface);
   if (was === undefined) {
     return;
@@ -561,15 +569,17 @@ function closeDiff(surface: string, now: number): void {
   const stood = Math.max(0, now - was.since);
   span.ms += stood;
   span.max = Math.max(span.max, stood);
+  closed.push({surface, verdict: was.verdict, ms: stood});
 }
 
 /** The pairs as one render left them. `now` — the page's clock (the bottle's is its own). */
-export function noteDerivedRender(shape: string, answer: string, pairs: ReadonlyArray<DerivedPair>, facts: string, now: number): void {
+export function noteDerivedRender(shape: string, answer: string, pairs: ReadonlyArray<DerivedPair>, facts: string, now: number): ReadonlyArray<DerivedSpan> {
+  const closed: Array<DerivedSpan> = [];
   for (const pair of pairs) {
     const key = `eq:${pair.surface}`;
     const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
     if (pair.legacy === pair.derived) {
-      closeDiff(pair.surface, now);
+      closeDiff(pair.surface, now, closed);
       continue;
     }
     const verdict = pair.legacy ? `eq-LEGACY:${answer}` : `eq-DERIVED:${pair.why === '' ? 'unnamed' : pair.why}`;
@@ -577,7 +587,7 @@ export function noteDerivedRender(shape: string, answer: string, pairs: Readonly
     if (was !== undefined && was.verdict === verdict) {
       continue;
     }
-    closeDiff(pair.surface, now);
+    closeDiff(pair.surface, now, closed);
     openDiffs.set(pair.surface, {verdict, since: now});
     row[verdict] = (row[verdict] ?? 0) + 1;
     const span = servingOwnerLog.spans[`${pair.surface}|${verdict}`] ?? (servingOwnerLog.spans[`${pair.surface}|${verdict}`] = {n: 0, ms: 0, max: 0});
@@ -597,6 +607,7 @@ export function noteDerivedRender(shape: string, answer: string, pairs: Readonly
     }
   }
   servingOwnerLog.open = [...openDiffs.entries()].map(([surface, d]) => ({surface, verdict: d.verdict, since: d.since}));
+  return closed;
 }
 
 /** A new game screen starts its own spans. */

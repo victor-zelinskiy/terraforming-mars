@@ -50,6 +50,7 @@ import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIR
 import {StartServes, startServesSomething} from '@/client/console/startServing';
 import {ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {noteOwnerEdgeLook, notePromptFlagsLook, noteServingOwnerLook} from '@/client/console/servingOwnerMeasure';
+import {invariantBroken} from '@/client/diagnostics/invariant';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -771,7 +772,15 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
       if (ctx.flags !== undefined) {
         // (The frames standing above the owner's own — the steps of its flow.)
         const depth = ownership.asked ? facts.frames.indexOf(ownership.owner as WorkspaceFrameKind) : -1;
-        notePromptFlagsLook(shape, ownership, ctx.flags, depth === -1 ? [] : facts.frames.slice(depth + 1), () => questionFactsDigest(facts));
+        const law = notePromptFlagsLook(shape, ownership, ctx.flags, depth === -1 ? [] : facts.frames.slice(depth + 1), () => questionFactsDigest(facts));
+        // THE ONE-OWNER LAW, LOUD (stage 2 ③ — the prompt surfaces are derived from the function): on a SETTLED look
+        // the function names an owner whose surface has nothing to draw, or a prompt surface stands that it does not
+        // name. Neither can happen by construction; if one does, somebody hears of it — once per look that stands so.
+        if (law.startsWith('flag-MISS')) {
+          invariantBroken('serving-owner:unserved', `the function says «${ownership.asked ? ownership.owner : 'nobody'}» serves «${shape}» and its surface does not stand — ${questionFactsDigest(facts)}`);
+        } else if (law.startsWith('flag-EXTRA')) {
+          invariantBroken('serving-owner:second-surface', `«${law.split(':').slice(2).join(':')}» stands for «${shape}» beside the function's answer «${ownershipDigest(ownership)}» — ${questionFactsDigest(facts)}`);
+        }
       }
     } catch {
       // A measure never breaks the pass it rides.

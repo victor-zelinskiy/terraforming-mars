@@ -788,7 +788,7 @@
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleGovernmentSupport v-if="govSupportActive && !govScaleFocusState.closing && !consoleState.task.deferred && taskSpacePending === undefined"
+      <ConsoleGovernmentSupport v-if="govSupportServes"
                                 :ref="surfaces.bind.govSupport"
                                 :playerView="playerView"
                                 @submit="onTaskSubmit"
@@ -809,7 +809,7 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleDeckPick v-if="deckPickActive && !deckPickHeldForWorkspace"
+        <ConsoleDeckPick v-if="deckPickServing"
                          :ref="surfaces.bind.deckPick"
                          :playerView="playerView"
                          :embedded="deckPickEmbedTarget !== undefined"
@@ -825,7 +825,7 @@
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleProductionLoss v-if="productionLossActive && !consoleState.task.deferred && taskSpacePending === undefined"
+      <ConsoleProductionLoss v-if="productionLossServes"
                              :ref="surfaces.bind.prodLoss"
                              :playerView="playerView"
                              @submit="onTaskSubmit"
@@ -1756,12 +1756,12 @@ const {
   colonyRailIsCatalog, colonySectionTarget, colonyTradeBlockReason, commandContext, commands, confirmBody,
   confirmEffects, confirmForecast, confirmQuiet, confirmWarnings, conMainClasses, conRootClasses, consoleCardZoom,
   consoleRevealMode, consoleState, consoleSystemAlertState, contextOverlayMode, convertHeatFutile, convertHeatReady,
-  convertPlantsPrompt, convertPlantsReady, corpFirstActionNames, corpFirstActionOpen, deckPickActive,
-  deckPickEmbedTarget, deckPickHeldForWorkspace, discardInOverlay, discardMeta, dockArmedEffects, dockBehindWorkspace,
+  convertPlantsPrompt, convertPlantsReady, corpFirstActionNames, corpFirstActionOpen,
+  deckPickEmbedTarget, deckPickServing, discardInOverlay, discardMeta, dockArmedEffects, dockBehindWorkspace,
   dockHeld, dockHover, dockInspection, dockIntakeAccent, draftTrayMounted, draftWaitActive, draftWorkspaceMounted,
   effectDecisionEmbedTarget, effectDecisionRendered, effectDecisionVm, endgameCollapsed, endgameWorkspaceMounted,
   externalDrawEmbedTarget, externalDrawWorkspaceMounted, finalePanel, finalGreeneryPickPending, finishHydroFlow,
-  footerUnderScene, footerVars, game, govScaleFocusState, govSupportActive, handActiveFilter, handBodyCards,
+  footerUnderScene, footerVars, game, govSupportServes, handActiveFilter, handBodyCards,
   handCardPayouts, handCoveredByHydro, handDockAlbum, handDockCards, handDockCompact, handDockInteractive,
   handDockVisible, handEmbedTarget, handEntries, handHiddenByFilter, handLeaveHook, handPacketExtras, handPackPose,
   handPickOverlays, handPickPhrased, handRevealState, handRevealTransit, handSelectProps, handSoftReason, handStage,
@@ -1790,7 +1790,7 @@ const {
   placementFlowState, placementKickerKey, placementMoveFrom, placementMoveLevelNow, placementShape,
   placementSourceView, placementSpaceModel, placementStaged, placementStagedPlate, placementTitle, plantConversion,
   plantExchangePrice, playedHeroComposerView, playedHeroHolds, playedHeroIncoming, playedHeroState,
-  playedTableVisible, playEmbedTarget, playHeldForWorkspace, productionLossActive, quickEntries, quickTitle,
+  playedTableVisible, playEmbedTarget, playHeldForWorkspace, productionLossServes, quickEntries, quickTitle,
   quickTrigger, railAutoma, railPlayer, railPristarMark, railRatingSkipMark, railShowsSelf, railTrVeto, railVpHidden,
   repeatPickHandoff, repeatPickSceneOut, revealEmbedTarget, revealOverlayMode, revealSourceSeatStands,
   salePatentModel, sceneOverHand, selectedCellIllegalReason, selectedCellInfo, selectedCellLegal, selectedCellLore,
@@ -1799,7 +1799,7 @@ const {
   stdBackLabel, stdpGhostParam, stdProjectItems, stdpStepUp, strategyRailCovered, strategyRailReplaced,
   submitHydroAdvance, submitHydroBonus, submitHydroCardAdvance, submitParliament, surfaceEnterCancelledHook,
   surfaceEnterHook, surfaceLeaveCancelledHook, surfaceLeaveHook, surfaces, surfaceShadeClear, surfaceShadeVeil,
-  surfaceShadeVisible, taskEmbedTarget, taskHostRendered, taskSpacePending, taskSpacePrompt, thisPlayer, trackInfo,
+  surfaceShadeVisible, taskEmbedTarget, taskHostRendered, taskSpacePrompt, thisPlayer, trackInfo,
   trackScaleOverview, tradeableColonyNames, tradeColonyContext, tradeFleetState, venusBonusActive,
   venusBonusEmbedTarget, wheelControl, wheelInput, workspaceCollapsed, workspaceFrameRenders, zoomActionLabel,
   zoomAvailabilityView, zoomBotCorpAnnotations, zoomBotCorpHolding, zoomBotDividendGroupId, zoomBotDividendReading,

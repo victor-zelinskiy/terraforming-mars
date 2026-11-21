@@ -54,6 +54,7 @@ import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} f
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
 import {barRungNow, DerivedPair, noteDerivedRender, registerOwnerNowProbe, resetDerivedSpans, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
+import {netEnded} from '@/client/diagnostics/netEnded';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {bandRungOf, ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
@@ -172,6 +173,13 @@ export type WiringPort = {
   spendHeatActive: UnwrapRef<RouterController['spendHeatActive']>,
   taskHostOwnsInput: UnwrapRef<RouterController['taskHostOwnsInput']>,
   taskHostRendered: UnwrapRef<RouterController['taskHostRendered']>,
+  taskHostRenderedLegacy: UnwrapRef<RouterController['taskHostRenderedLegacy']>,
+  effectDecisionActiveLegacy: UnwrapRef<RouterController['effectDecisionActiveLegacy']>,
+  compositeActiveLegacy: UnwrapRef<RouterController['compositeActiveLegacy']>,
+  govSupportServes: UnwrapRef<RouterController['govSupportServes']>,
+  productionLossServes: UnwrapRef<RouterController['productionLossServes']>,
+  deckPickServingLegacy: UnwrapRef<RevealController['deckPickServingLegacy']>,
+  corpFirstActionOpenLegacy: UnwrapRef<PlayedController['corpFirstActionOpenLegacy']>,
   taskHostHeldBy: UnwrapRef<RouterController['taskHostHeldBy']>,
   pendingClientPayment: UnwrapRef<PlayCardController['pendingClientPayment']>,
   taskSpacePending: UnwrapRef<PlacementController['taskSpacePending']>,
@@ -682,27 +690,25 @@ export function createWiringController(shell: WiringPort) {
   const offDerived: {value: (() => void) | undefined} = {value: undefined};
 
   /**
-   * EACH PROMPT SURFACE's CONDITION AS THE TEMPLATE READS IT TODAY, beside the one it is to become (stage 2 ③ —
-   * `servingOwnerMeasure.noteDerivedRender`). The left column is the template's own text; nothing reads the right one
-   * yet.
+   * EACH PROMPT SURFACE's CONDITION AS IT WAS SPELLED OUT, beside the one that MOUNTS it now (stage 2 ③ —
+   * `servingOwnerMeasure.noteDerivedRender`).
    */
-  function derivedPairs(facts: QuestionFacts, ownership: ReturnType<typeof servingOwnerOf>): ReadonlyArray<DerivedPair> {
-    const serves = (owner: string): boolean => ownership.asked && ownership.hold === undefined && ownership.owner === owner;
+  function derivedPairs(): ReadonlyArray<DerivedPair> {
+    // (SINCE THE SWAP the right column is what MOUNTS; the left is the condition as it was spelled out before it —
+    // kept one cycle as the witness of what the swap changed, to the render.)
     const free = !consoleState.task.deferred && shell.taskSpacePending === undefined;
-    const kind = facts.task?.kind;
+    const was = shell.compositeActiveLegacy;
     return [
-      {surface: 'taskHost', legacy: shell.hostTask !== undefined && shell.taskHostRendered, derived: serves('task'), why: shell.taskHostHeldBy},
-      {surface: 'effectDecision', legacy: shell.effectDecisionVm !== undefined && shell.effectDecisionRendered, derived: serves('decision'),
-        why: shell.effectDecisionVm?.directPick !== undefined ? 'direct-pick' : ''},
-      {surface: 'govSupport', legacy: shell.govSupportActive && !govScaleFocusState.closing && free, derived: serves('gov-support'),
-        why: govScaleFocusState.closing ? 'gov-scale-closing' : ''},
-      {surface: 'deckPick', legacy: shell.deckPickServing, derived: serves('deck-pick'), why: ''},
-      {surface: 'prodLoss', legacy: shell.productionLossActive && free, derived: serves('prod-loss'), why: ''},
-      {surface: 'spendHeat', legacy: shell.spendHeatActive, derived: serves('lanes') && kind === 'spendHeat', why: ''},
-      {surface: 'venusBonus', legacy: shell.venusBonusActive, derived: serves('lanes') && kind === 'venusBonus', why: ''},
-      {surface: 'ares', legacy: shell.aresGlobalsActive, derived: serves('ares'), why: ''},
-      {surface: 'botAttack', legacy: shell.botAttackActive, derived: serves('bot-attack'), why: ''},
-      {surface: 'corpFirst', legacy: shell.corpFirstActionOpen, derived: serves('corp-first'), why: ''},
+      {surface: 'taskHost', legacy: shell.taskHostRenderedLegacy, derived: shell.taskHostRendered, why: shell.taskHostHeldBy},
+      {surface: 'effectDecision', legacy: shell.effectDecisionActiveLegacy, derived: shell.effectDecisionActive, why: ''},
+      {surface: 'govSupport', legacy: shell.govSupportActive && !govScaleFocusState.closing && free, derived: shell.govSupportServes, why: ''},
+      {surface: 'deckPick', legacy: shell.deckPickServingLegacy, derived: shell.deckPickServing, why: ''},
+      {surface: 'prodLoss', legacy: shell.productionLossActive && free, derived: shell.productionLossServes, why: ''},
+      {surface: 'spendHeat', legacy: was.spendHeat, derived: shell.spendHeatActive, why: ''},
+      {surface: 'venusBonus', legacy: was.venusBonus, derived: shell.venusBonusActive, why: ''},
+      {surface: 'ares', legacy: was.ares, derived: shell.aresGlobalsActive, why: ''},
+      {surface: 'botAttack', legacy: was.botAttack, derived: shell.botAttackActive, why: ''},
+      {surface: 'corpFirst', legacy: shell.corpFirstActionOpenLegacy, derived: shell.corpFirstActionOpen, why: ''},
     ];
   }
 
@@ -710,10 +716,9 @@ export function createWiringController(shell: WiringPort) {
   const offOwnerEdge: {value: (() => void) | undefined} = {value: undefined};
 
   function promptFlags(): ReadonlyArray<string> {
-    const free = !consoleState.task.deferred && shell.taskSpacePending === undefined;
     const flags: ReadonlyArray<[string, boolean]> = [
       ['deckPick', shell.deckPickServing], ['draft', shell.draftWorkspaceOwnsPad], ['externalDraw', shell.externalDrawOwnsPad],
-      ['start', shell.startSceneOwnsPad], ['govSupport', shell.govSupportActive && free], ['prodLoss', shell.productionLossActive && free],
+      ['start', shell.startSceneOwnsPad], ['govSupport', shell.govSupportServes], ['prodLoss', shell.productionLossServes],
       ['spendHeat', shell.spendHeatActive], ['venusBonus', shell.venusBonusActive], ['ares', shell.aresGlobalsActive],
       ['botAttack', shell.botAttackActive], ['effectDecision', shell.effectDecisionActive], ['taskHost', shell.taskHostOwnsInput],
       ['corpFirst', shell.corpFirstActionOpen],
@@ -842,11 +847,19 @@ export function createWiringController(shell: WiringPort) {
     offDerived.value = watch(() => {
       const facts = factsNow();
       const ownership = servingOwnerOf(facts);
-      return JSON.stringify({shape: shapeNow(facts), answer: ownershipDigest(ownership), pairs: derivedPairs(facts, ownership), facts: questionFactsDigest(facts)});
+      return JSON.stringify({shape: shapeNow(facts), answer: ownershipDigest(ownership), pairs: derivedPairs(), facts: questionFactsDigest(facts)});
     }, (line) => {
       try {
         const read = JSON.parse(line) as {shape: string, answer: string, pairs: Array<DerivedPair>, facts: string};
-        noteDerivedRender(read.shape, read.answer, read.pairs, read.facts, Date.now());
+        // SINCE THE SWAP a span is «what the swap changed»: the surface stood by its old condition and does not stand
+        // by the function's word (or the other way). Said into the waiting room (`netEnded` — tier info, a class per
+        // surface and side), so EVERY e2e test files it and the whole suite reads as the swap's witness; it goes with
+        // the old conditions when they are deleted.
+        for (const span of noteDerivedRender(read.shape, read.answer, read.pairs, read.facts, Date.now())) {
+          const side = span.verdict.startsWith('eq-LEGACY') ? 'was-standing' : 'now-standing';
+          const told = side === 'was-standing' ? 'stood by its old condition and not by the word of the function' : 'stands by the word of the function and did not by its old condition';
+          netEnded(`derivation:${span.surface}:${side}`, `«${span.surface}» ${told} for ${Math.round(span.ms)} ms — ${span.verdict.replace(/^eq-(?:LEGACY|DERIVED):/, '')} · «${read.shape}»`);
+        }
       } catch {
         // a measure never breaks the render it precedes
       }
