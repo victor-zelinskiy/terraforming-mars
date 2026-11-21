@@ -46,7 +46,7 @@ import {colonyFocusState} from '@/client/console/consoleColoniesModel';
 import {consoleStartState, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, releaseBoardExcursion} from '@/client/console/boardExcursion';
 import {firstActionOwed} from '@/client/console/startFirstAction';
-import {isResourceTransferActive, resourceTransferDiagnostics, witnessFrameLeft} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {isResourceTransferActive, noteTransferTrail, resourceTransferDiagnostics, witnessFrameLeft} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {currentRevealEvent, drawnCardsState, registerRevealQueuePark, revealPresented} from '@/client/components/drawnCards/drawnCardsState';
 import {generationSceneState, registerGenerationSceneHandoff} from '@/client/console/generationScene/generationScene';
@@ -515,6 +515,7 @@ export function createWiringController(shell: WiringPort) {
       // The hand has physically given the cards away — the WHOLE flow closes
       // in one splice (std-projects host included: no flash of the parent
       // list between the sale and the payout chip landing on the rail).
+      noteTransferTrail('stdp:sale-given-away');
       resetStdProjectsFlow();
       closeConsoleLayers();
       goBoardHome();

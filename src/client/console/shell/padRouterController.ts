@@ -1724,7 +1724,7 @@ export function createPadRouterController(shell: PadRouterPort) {
           // otherwise B closes the browse layer, exactly as before.
           if (shell.pendingClientPayment !== undefined) {
             shell.pendingClientPayment = undefined;
-            shell.rollbackStdProjectFlow();
+            shell.rollbackStdProjectFlow('pad-back-payment');
             return;
           }
           if (shell.pendingClientPick?.host === 'standard-projects') {
@@ -2266,7 +2266,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       // (the legacy lateral entry) still closes to the board.
       if (workspaceFrameHost('hand') === 'standard-projects') {
         popWorkspaceFrame();
-        shell.rollbackStdProjectFlow();
+        shell.rollbackStdProjectFlow('pad-back-sale');
       } else {
         goBoardHome();
       }

@@ -1321,7 +1321,7 @@ export function createRouterController(shell: RouterPort) {
       // closed, so the row, focus and preview are exactly where they were).
       shell.pendingClientPayment = undefined;
       if (workspaceFrameMounted('standard-projects')) {
-        shell.rollbackStdProjectFlow();
+        shell.rollbackStdProjectFlow('host-defer-payment');
         return;
       }
       // Legacy fallback (no workspace standing): reopen the task surface.

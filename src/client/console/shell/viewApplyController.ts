@@ -175,7 +175,7 @@ export function createViewApplyController(shell: ViewApplyPort) {
       consoleState.sale.selected = [];
       if (workspaceFrameHost('hand') === 'standard-projects' && !isPatentSaleActive()) {
         popWorkspaceFrame();
-        shell.rollbackStdProjectFlow();
+        shell.rollbackStdProjectFlow('sale-closed');
       }
     }
     // THE STD-PROJECTS FLOW answers its own round trip BEFORE the generic

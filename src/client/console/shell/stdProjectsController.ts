@@ -285,7 +285,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
         },
         onCancel: () => {
           if (workspaceFrameMounted('standard-projects')) {
-            rollbackStdProjectFlow();
+            rollbackStdProjectFlow('pick-cancel');
           }
         },
       };
@@ -367,7 +367,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
       // …never while the response DID land and the project hosts its Venus bonus (P89 · EE): the player is reading
       // a live question, not waiting on a lost submit.
       if (stdProjectsFlow.state === 'submitting' && stdProjectsFlow.card === card && !stdpVenusStep.value) {
-        rollbackStdProjectFlow();
+        rollbackStdProjectFlow('safety');
         shell.showNotice('Unavailable right now');
       }
     });
@@ -380,7 +380,9 @@ export function createStdProjectsController(shell: StdProjectsPort) {
   }
 
   /** A refused/lost submit — the flow returns to its reversible browse layer. */
-  function rollbackStdProjectFlow(): void {
+  /** Back to browse, nothing committed — `why` names the caller in the flights' trail (the hunt's reset with no cause). */
+  function rollbackStdProjectFlow(why = 'unnamed'): void {
+    noteTransferTrail('stdp:rollback', {why, was: stdProjectsFlow.state});
     resetStdProjectsFlow();
     if (workspaceFrameMounted('standard-projects')) {
       setWorkspaceFrameSubject('standard-projects', '');
@@ -428,7 +430,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
       if (stdProjectsFlow.cancelRequested) {
         // Answered by a CANCEL (the player pressed B before the follow-up
         // stood up): nothing was spent — return to the browse layer.
-        rollbackStdProjectFlow();
+        rollbackStdProjectFlow('cancel-answered');
         return;
       }
       if (task?.kind === 'colony') {
@@ -492,7 +494,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
           popWorkspaceFrame();
         }
         if (workspaceFrameMounted('standard-projects')) {
-          rollbackStdProjectFlow();
+          rollbackStdProjectFlow('target-cancel');
           return;
         }
         // The PLACEMENT cancel leg: the workspace was folded for the board —
@@ -679,8 +681,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
    */
   function whenStdProjectCommitStateAbortNonceChanges(): void {
     if (stdProjectsFlowLive()) {
-      noteTransferTrail('stdp:abort-rollback', {was: stdProjectsFlow.state});
-      rollbackStdProjectFlow();
+      rollbackStdProjectFlow('commit-abort');
     }
   }
 
