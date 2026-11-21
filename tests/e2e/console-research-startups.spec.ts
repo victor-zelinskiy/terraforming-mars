@@ -378,12 +378,15 @@ for (const preset of PRESETS) {
         `one slot for a look of five — the stage is prepared for every card turned over (${JSON.stringify(timeline)})`).toEqual([]);
       expect(heads.filter((h) => /Получен[аы] карт|Берём карт/.test(h)), 'never the RECEIVE wording over a look').toEqual([]);
       // PL-207: the rest start leaving while the kept card is still in the air — never after it has landed.
-      // PL-212: the RESULT OUTLIVES ITS SURFACE — the workspace folds UNDER the kept card's flight into the dock (it used
-      // to wait for the whole intake: ≈ 1.3 s of one card in the air over an empty zone at 4K).
-      const underFlight = act.find((s) => s.carried >= 1 && s.ws === 0);
-      // A red names WHY the flight and the fold did not overlap (CI 44697711384: the kept card was «in the air» for two
-      // samples, ≈ 70 ms): every carried / workspace / rejects change with its time, and the flights' own trail — the
-      // intake's `hand-intake:*` (no pose · quiet-out · aborted · reset · landed) beside the tokens' `run:*`.
+      // PL-212: the RESULT OUTLIVES ITS SURFACE — the surface lets go on the kept card's LIFT and the rest leaving, never
+      // on the intake's end; the card flies on in the app-level delivery layer. That STRUCTURE is pinned at its source
+      // (`tests/console/deckPickFoldGuard.spec.ts`). Read here as an ORDER of two motions on two clocks — «the workspace
+      // was gone while the card was in the air» — it was the renderer's speed: the rest's CSS tumble ends on
+      // `animationend`, the card's arc on GSAP, and on CI's 300 ms frames the tumble's end came 1.25 s after the lift
+      // against the arc's 0.9 s (the hunt 44905308724, 3 of 30; nominally ≈ 0.3 s against ≈ 0.65 s). The journey stays:
+      // the card FLEW and LANDED in the hand (never a quiet fade, never cut), and the workspace let go after it took off.
+      // A red names its timeline: every carried / workspace / rejects change, and the flights' own trail on one clock —
+      // the intake's `hand-intake:*`, the pick's `deck-pick:*`, the tokens' `run:*`.
       const overlapEvidence = async (): Promise<string> => {
         const changes = act.filter((s, i) => i === 0 || s.carried !== act[i - 1].carried || s.ws !== act[i - 1].ws || s.rejects !== act[i - 1].rejects)
           .map((s) => `@${s.t} carried ${s.carried} ws ${s.ws} rejects ${s.rejects}`).join(' · ');
@@ -398,8 +401,16 @@ for (const preset of PRESETS) {
         const told = trail.map((e) => `@${Math.round(e.t + offset - t0)} ${e.ev}${e.detail === undefined ? '' : ` ${JSON.stringify(e.detail)}`}`);
         return `${changes}\ntrail:\n${told.join('\n')}`;
       };
-      if (underFlight === undefined) {
-        expect(underFlight, `the workspace left while the kept card was still in the air\n${await overlapEvidence()}`).toBeTruthy();
+      const trailEvents = async (): Promise<Array<string>> => page.evaluate(() =>
+        ((window as unknown as {__conReady?: () => {transfer?: {trail: ReadonlyArray<{ev: string}>}}}).__conReady?.()?.transfer?.trail ?? [])
+          .map((e) => e.ev));
+      const flewAt = act.findIndex((s) => s.carried >= 1);
+      expect(flewAt, 'the kept card flew (a proxy in the delivery layer)').toBeGreaterThanOrEqual(0);
+      const landed = (await trailEvents()).includes('hand-intake:landed');
+      const letGo = act.slice(flewAt).some((s) => s.ws === 0);
+      if (!landed || !letGo) {
+        expect(landed, `the kept card LANDED in the hand — never a quiet fade, never cut\n${await overlapEvidence()}`).toBe(true);
+        expect(letGo, `the workspace let go after the card took off\n${await overlapEvidence()}`).toBe(true);
       }
       const overlap = act.find((s) => s.rejects >= 4 && s.carried >= 1);
       expect(overlap, `the four left behind leave while the pick is carried (${JSON.stringify(act.filter((s) => s.rejects > 0 || s.carried > 0).slice(0, 6))})`).toBeTruthy();

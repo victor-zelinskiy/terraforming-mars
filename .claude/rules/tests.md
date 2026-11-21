@@ -127,7 +127,10 @@ traps below are `docs/claude/e2e-flake-history.md`.
     stands in the sequence; never «one contiguous run» (any length), never a ms bound (a 300 ms frame). Nor a claim
     that a frame landed INSIDE a motion shorter than a frame (a «mid-turn sample» of a 231 ms flip — CI 43998786293):
     the e2e reads the motion's STANDING ends, and «it is a tween through every angle» is a unit spec on the animation
-    clock (`cardDealTurn.spec` — `gsap.globalTimeline.time(…)`).
+    clock (`cardDealTurn.spec` — `gsap.globalTimeline.time(…)`). Nor an ORDER between two motions on two CLOCKS (a CSS
+    `animationend` against a GSAP timeline's end — CI's 300 ms frames delayed the first by a second, hunt 44905308724):
+    the order the product guarantees is its STRUCTURE (what awaits what — a source guard, `deckPickFoldGuard.spec`),
+    the e2e reads the journey.
 15. **A transient that comes and goes is never waited for AFTER a server poll** (a `waitFor(visible)` of a 340 ms
     receipt) — it is read from a recording armed before the press.
 16. **`toContainText` reads `textContent`** — a read of what the player SEES under `text-transform` is
