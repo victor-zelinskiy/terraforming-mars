@@ -1,4 +1,7 @@
 import {reactive, watch} from 'vue';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import type {GrantSeriesKey} from '@/client/console/parliament/grantSeries';
 import {Color} from '@/common/Color';
@@ -29,21 +32,54 @@ import {disarmAccessToldOnStage} from './accessToldOnStage';
  *    section only reads it — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3).
  */
 /**
- * RESOLVES ONCE THE PARLIAMENT'S SURFACE HAS LEFT THE SCREEN — at once when it is not leaving. The leave is the
- * section's own and bounded by the shell's leave net (`PARLIAMENT_LEAVE_NET_MS`, which lowers the mirror), so this is
- * the leave's END signal — never a duration of its own (the parliament tree keeps no wall clock).
+ * The longest the wait below keeps a deal behind a leaving sitting. The leave is the section's own and bounded by the
+ * shell's leave net (`PARLIAMENT_LEAVE_NET_MS` — it lowers the mirror), so in a healthy game this never runs out; it
+ * is the bound of «the mirror was never lowered» — a ceiling over a motion (`motionCeilingMs`: never shortened by a
+ * faster setting).
+ */
+const SURFACE_GONE_WAIT_MAX_MS = 6000;
+
+/**
+ * RESOLVES ONCE THE PARLIAMENT'S SURFACE HAS LEFT THE SCREEN — at once when it is not leaving. The leave's END signal,
+ * never a duration of its own.
+ *
+ * A WAIT ON A REACTIVE CONDITION IS A NODE OF THE WAIT GRAPH (FREEZE ZERO, stage 3 — `waitGraphLaw.spec`): it was a bare
+ * one-shot watcher, bounded only by another module's net. A mirror left raised (a leave that threw before its net was
+ * armed, a shell that re-mounted the section mid-leave) parked the draft's first deal behind it for good, and no judge
+ * could see the wait at all. Now it stands in the graph with a ceiling of its own: at the ceiling the deal goes — over
+ * a surface that should have left — and the line names it.
  */
 export function whenParliamentSurfaceGone(): Promise<void> {
   if (!consoleParliamentUi.surfaceLeaving) {
     return Promise.resolve();
   }
+  const maxMs = motionCeilingMs(SURFACE_GONE_WAIT_MAX_MS);
+  const wait = beginCeilingWait({
+    id: 'parliament:surface-gone', owner: 'consoleParliamentFlow', what: 'the leave of the Parliament\'s surface', maxMs,
+  });
   return new Promise((resolve) => {
-    const stop = watch(() => consoleParliamentUi.surfaceLeaving, (leaving) => {
+    const h: {stop?: () => void, disarm?: () => void, over?: boolean} = {};
+    const end = (met: boolean): void => {
+      if (h.over === true) {
+        return;
+      }
+      h.over = true;
+      h.stop?.();
+      h.disarm?.();
+      if (met) {
+        wait.met();
+      } else {
+        wait.ceiling();
+      }
+      resolve();
+    };
+    h.stop = watch(() => consoleParliamentUi.surfaceLeaving, (leaving) => {
       if (!leaving) {
-        stop();
-        resolve();
+        end(true);
       }
     });
+    // (A RELEASE: the session's end lets the waiter go as its ceiling would.)
+    h.disarm = consoleSessionScope().guarantee(maxMs, 'the Parliament\'s surface leave: the wait\'s ceiling', () => end(false));
   });
 }
 

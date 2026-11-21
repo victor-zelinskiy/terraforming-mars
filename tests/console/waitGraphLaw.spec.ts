@@ -88,3 +88,106 @@ describe('the wait graph law — a flow is in the graph by construction', () => 
     expect(supervisor).to.contain('...registerConstructionWaitSources()');
   });
 });
+
+/*
+ * A WAIT ON A REACTIVE CONDITION IS A NODE OF THE GRAPH (FREEZE ZERO, stage 3 — PLAN § 8: «the wait graph sees 100 % of
+ * waits — no reactive wait outside it»).
+ *
+ * A `watch` that STOPS ITSELF from inside its own callback is not a reaction — it is a WAIT: «go on when this becomes
+ * true». Nothing bounds it by itself (a condition that never comes true keeps the waiter for the scope's life) and no
+ * judge sees it (it is no hold, no timer, no row of the wait table). So every such watcher — and every `new Promise`
+ * whose executor arms a `watch` — stands in sight of its bound: a ceiling wait of the graph (`beginCeilingWait`), a
+ * kernel wait / guarantee of its scope, or the scene director's bounded reveal hold. The window is the code around it:
+ * a bound declared a screen away is a bound nobody reads together with the wait.
+ */
+const CLIENT = path.resolve(__dirname, '../../src/client');
+const FRAMEWORK = /\/console\/(?:kernel|session)\//;
+/** What counts as the wait's bound, declared beside it. */
+const WAIT_BOUND = /\bbeginCeilingWait\(|\.guarantee\(|\.wait\(|\bdeferSceneReveal\(/;
+/** How far around the watcher its bound may stand (lines above · lines below the end of the call). */
+const SIGHT_ABOVE = 45;
+const SIGHT_BELOW = 20;
+
+function* clientSources(dir: string): Generator<string> {
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      yield* clientSources(full);
+    } else if (/\.(?:ts|vue)$/.test(entry.name)) {
+      yield full;
+    }
+  }
+}
+
+/** The end of the call that opens at `open` (its matching parenthesis). */
+function callEnd(text: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === '(') {
+      depth++;
+    } else if (text[i] === ')') {
+      depth--;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+  return text.length;
+}
+
+type ReactiveWait = {rel: string, line: number, kind: 'one-shot watcher' | 'a promise over a watcher', bounded: boolean};
+
+function reactiveWaits(): Array<ReactiveWait> {
+  const out: Array<ReactiveWait> = [];
+  for (const file of clientSources(CLIENT)) {
+    const rel = path.relative(CLIENT, file).split(path.sep).join('/');
+    if (FRAMEWORK.test(`/${rel}`)) {
+      continue;
+    }
+    const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+    const lines = text.split('\n');
+    const sight = (from: number, to: number): string => {
+      const first = Math.max(0, text.slice(0, from).split('\n').length - 1 - SIGHT_ABOVE);
+      const last = Math.min(lines.length, text.slice(0, to).split('\n').length + SIGHT_BELOW);
+      return lines.slice(first, last).join('\n');
+    };
+    const seen = new Set<number>();
+    // ① a watcher that stops itself from inside its own callback.
+    for (const m of text.matchAll(/\b(?:const|let)\s+(\w+)(?::\s*WatchStopHandle)?\s*=\s*watch(?:Effect)?\(/g)) {
+      const open = m.index + m[0].length - 1;
+      const end = callEnd(text, open);
+      if (new RegExp(`\\b${m[1]}\\(\\)`).test(text.slice(open, end + 1))) {
+        seen.add(m.index);
+        out.push({rel, line: text.slice(0, m.index).split('\n').length, kind: 'one-shot watcher', bounded: WAIT_BOUND.test(sight(m.index, end))});
+      }
+    }
+    // ② a promise whose executor arms a watcher (the holder idiom: `h.stop = watch(…)`).
+    for (const m of text.matchAll(/new Promise(?:<[^>]*>)?\(/g)) {
+      const open = m.index + m[0].length - 1;
+      const end = callEnd(text, open);
+      const body = text.slice(open, end + 1);
+      const inner = /\bwatch(?:Effect)?\(/.exec(body);
+      if (inner === null || [...seen].some((at) => at > m.index && at < end)) {
+        continue;
+      }
+      out.push({rel, line: text.slice(0, m.index).split('\n').length, kind: 'a promise over a watcher', bounded: WAIT_BOUND.test(sight(m.index, end))});
+    }
+  }
+  return out;
+}
+
+describe('the wait graph law — a wait on a reactive condition is a node of the graph', () => {
+  it('every one-shot watcher and every promise over a watcher stands in sight of its bound', () => {
+    const outside = reactiveWaits().filter((w) => !w.bounded).map((w) => `${w.rel}:${w.line} — ${w.kind}`);
+    expect(outside, 'give the wait its bound beside it: `beginCeilingWait({id, owner, what, maxMs})` + the scope\'s `guarantee`, or a kernel `scope.wait(…, {bound})`').to.deep.eq([]);
+  });
+
+  it('reads a real corpus (anti-vacuous): the waits of the scale beats, the sitting\'s draw and the Parliament\'s leave are found', () => {
+    const found = reactiveWaits().map((w) => w.rel);
+    expect(found).to.include.members([
+      'console/parliament/consoleParliamentFlow.ts', 'console/parliament/parliamentDraw.ts', 'console/cellResource/cellResourceBeat.ts',
+      'console/scaleStepReward/scaleStepRewardBeat.ts', 'console/scaleSwing/scaleSwingDirector.ts',
+    ]);
+    expect(found.length).to.be.greaterThan(8);
+  });
+});
