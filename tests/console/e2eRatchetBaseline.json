@@ -7,7 +7,8 @@
     "oneShotRead": 0,
     "driverClock": 0,
     "looseGeometry": 0,
-    "goneAsDone": 0
+    "goneAsDone": 0,
+    "msOrder": 0
   },
   "files": {
     "consoleStart.ts": {

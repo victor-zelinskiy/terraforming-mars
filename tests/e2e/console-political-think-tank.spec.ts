@@ -264,9 +264,10 @@ for (const profile of PROFILES) {
       expect(flying, 'a delivery proxy carried the card').toBeTruthy();
       expect(chip, 'a transfer chip carried the M€').toBeTruthy();
       expect(ticked, 'the counter ticked').toBeTruthy();
-      expect(wsGone!.t, `the workspace left (${wsGone!.t}) BEFORE the card landed (${landed!.t})`).toBeLessThan(landed!.t);
-      expect(flying!.t, 'the card was in the air before it landed').toBeLessThan(landed!.t);
-      expect(chip!.t, 'the chip was in the air before the counter ticked').toBeLessThan(ticked!.t);
+      // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — tests.md law 14)
+      expect(after.indexOf(wsGone!), `the workspace left (${wsGone!.t}) BEFORE the card landed (${landed!.t})`).toBeLessThan(after.indexOf(landed!));
+      expect(after.indexOf(flying!), 'the card was in the air before it landed').toBeLessThan(after.indexOf(landed!));
+      expect(after.indexOf(chip!), 'the chip was in the air before the counter ticked').toBeLessThan(after.indexOf(ticked!));
       expect(samples.every((s) => s.degraded === ''), 'no degraded handoff').toBe(true);
 
       // ── 5. The board, the server, the hygiene. ──

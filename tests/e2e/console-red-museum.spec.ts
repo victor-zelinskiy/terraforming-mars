@@ -720,7 +720,8 @@ for (const preset of PRESETS) {
       const firstAnimal = blue.tokens.find((t) => t.kind === 'animal')!;
       expect(dataUp![0], 'the data cell ticks after its token was born').toBeGreaterThan(firstData.t);
       expect(animalUp![0], 'the animal cell ticks after its token was born').toBeGreaterThan(firstAnimal.t);
-      expect(firstData.t, 'the engine\'s order: the census\'s record, then Pets\'').toBeLessThan(firstAnimal.t);
+      // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — tests.md law 14)
+      expect(blue.tokens.indexOf(firstData), 'the engine\'s order: the census\'s record, then Pets\'').toBeLessThan(blue.tokens.indexOf(firstAnimal));
       test.info().annotations.push({type: 'tr30-rival', description: `${preset.id}: tile ${blue.tileAt}ms · tokens ${JSON.stringify(blue.tokens.map((t) => [t.kind, t.t]))} · data ${JSON.stringify(blue.aux_)} · animal ${JSON.stringify(blue.auxAnimal)}`});
       // RED: its own placement's hero plays BLUE's records — the tokens go to blue's chip.
       const red = await readProbe(redScene);

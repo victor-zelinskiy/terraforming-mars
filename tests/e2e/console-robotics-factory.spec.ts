@@ -316,7 +316,8 @@ for (const preset of PRESETS) {
       if (paid > 0) {
         const price = witness.births.find((b) => b.under.startsWith('payrow:'));
         expect(price, `the mechs paid leave their pay row\n${transferTrail(witness)}`).toBeDefined();
-        expect(price!.t, 'the price leaves BEFORE the gain is born').toBeLessThan(gain!.t);
+        // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — tests.md law 14)
+        expect(price!.id, 'the price leaves BEFORE the gain is born').toBeLessThan(gain!.id);
       }
       expect(endsOverGlass(witness), `every flight's ends were visible\n${transferTrail(witness)}`).toEqual([]);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
@@ -397,7 +398,7 @@ for (const preset of PRESETS) {
       const gain = witness.births.find((b) => b.value === '+3');
       expect(price, `the price is born on its pay row\n${transferTrail(witness)}`).toBeDefined();
       expect(gain, `the gain is born\n${transferTrail(witness)}`).toBeDefined();
-      expect(price!.t, 'the causes in their order: the price leaves first').toBeLessThan(gain!.t);
+      expect(price!.id, 'the causes in their order: the price leaves first').toBeLessThan(gain!.id);
       expect(endsOverGlass(witness), `every flight's ends were visible\n${transferTrail(witness)}`).toEqual([]);
       expect(seen.errors, 'no page errors').toEqual([]);
     });

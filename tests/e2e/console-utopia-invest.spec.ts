@@ -257,7 +257,8 @@ test.describe('Utopia Invest · the activation · tv', () => {
     expect(w.landings.find((l) => l.id === price?.id)?.under, `the price lands in the printed «?» — ${trail}`).toMatch(/^wild$|^hero$/);
     expect(result?.under, `the +4 is born on the printed «4 ?» — ${trail}`).toBe('wild');
     expect(w.landings.find((l) => l.id === result?.id)?.under, `the +4 lands on the steel row — ${trail}`).toBe('rail:steel');
-    expect(price!.t, 'the price is born before the result').toBeLessThan(result!.t);
+    // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — tests.md law 14)
+    expect(price!.id, 'the price is born before the result').toBeLessThan(result!.id);
     expect(endsOverGlass(w), 'no end over glass').toEqual([]);
 
     // The server: the action is used this generation; «Действия карт» says so.

@@ -185,6 +185,8 @@ describe('e2e driver guard', function() {
      *    is a sample of a motion in flight. → `readSettled(page, () => rect(page))`; two compared reads BOTH through it.
      *  · `goneAsDone` (E) — «the kicker left / the play sheet left» taken for «the server moved on». → the server's
      *    truth (`promptId`, `syncClient`, `wireOf`, `placementState`) beside the wait.
+     *  · `msOrder` (I) — a STRICT order of two `.t` stamps (`expect(a.t…).toBeGreaterThan(b.t)`): two callbacks of one
+     *    300 ms frame share a whole-millisecond `t` (the hunt 44905320939). → the record's INDEX / a witness's ids.
      *
      * GROWTH fails (new debt in an old file, any debt in a new file — a new spec starts at ZERO in every class). A
      * FALL fails too, with the friendlier message — lock the improvement in (`npm run e2e:baseline`) in the same diff.
@@ -198,6 +200,8 @@ describe('e2e driver guard', function() {
       driverClock: 'a functional spec asserts STATE; a duration is a timing spec\'s, on the page\'s clock',
       looseGeometry: 'read geometry through readSettled (settledRead.ts) or inside a recorder\'s reader',
       goneAsDone: 'a step is done when the SERVER moved on — promptId / syncClient / wireOf beside the wait',
+      msOrder: 'an order of two states of ONE record is its INDEX (samples.indexOf, a witness\'s ids), never a.t > b.t — ' +
+        'two callbacks of one frame share a whole-millisecond t (tests.md law 14)',
     };
 
     it('no file grows past its frozen count, and every fall is locked in', () => {

@@ -11,6 +11,7 @@
  *   driverClock            H  a value from the DRIVER's `Date.now()` asserted      (functional specs)
  *   looseGeometry          C  a geometry read outside `readSettled` / a recorder   (specs)
  *   goneAsDone             E  «X left the screen» as the end of a step, no server  (specs)
+ *   msOrder                I  a STRICT order of two `.t` stamps (`a.t > b.t`)        (specs)
  *
  * Usage (also `npm run e2e:baseline`):
  *   tsx tests/console/e2eFlakeScan.ts --write     — regenerate `e2eRatchetBaseline.json`
@@ -24,7 +25,7 @@ import {isTimingSpec} from '../e2e/timingSpecs';
 export const E2E_DIR = path.resolve(__dirname, '..', 'e2e');
 export const BASELINE_FILE = path.resolve(__dirname, 'e2eRatchetBaseline.json');
 
-export const SCAN_KEYS = ['waitForTimeout', 'requestAnimationFrame', 'setInterval', 'oneShotRead', 'driverClock', 'looseGeometry', 'goneAsDone'] as const;
+export const SCAN_KEYS = ['waitForTimeout', 'requestAnimationFrame', 'setInterval', 'oneShotRead', 'driverClock', 'looseGeometry', 'goneAsDone', 'msOrder'] as const;
 export type ScanKey = typeof SCAN_KEYS[number];
 export type ScanCounts = Partial<Record<ScanKey, number>>;
 export type Baseline = {totals: ScanCounts, files: Record<string, ScanCounts>};
@@ -291,6 +292,16 @@ function countDriverClock(text: string): number {
   return n;
 }
 
+/**
+ * A STRICT order of two whole-millisecond stamps — `expect(a.t, …).toBeGreaterThan(b.t)` / `toBeLessThan`. Two
+ * callbacks of one 300 ms frame share a `t` (the hunt 44905320939: «#1 +9 t=10661 · #2 ПО+2 t=10661»): an order of two
+ * states of ONE record is its INDEX (`samples.indexOf`, a witness's ids). A tolerance — `toBeGreaterThanOrEqual`,
+ * «no earlier than» — is not counted (tests.md law 14).
+ */
+function countMsOrder(text: string): number {
+  return (text.match(/expect\(\s*[\w$.!?[\]()]+?\.t\b[^;]*?\)\s*\.(?:toBeGreaterThan|toBeLessThan)\(\s*[\w$.!?[\]()]+?\.t\s*\)/g) ?? []).length;
+}
+
 function countGoneAsDone(text: string): number {
   // A DRIVER whose press loop ENDS when the surface itself is gone (its exact selector — a sub-element's absence is a
   // different question): `pressUntilGone(…, '<surface>')`, or `pressUntil(…)` whose witness is that surface's count
@@ -340,6 +351,7 @@ export function scanText(rel: string, raw: string): ScanCounts {
     put('oneShotRead', oneShotReads(text).length);
     put('looseGeometry', countLooseGeometry(text));
     put('goneAsDone', countGoneAsDone(text));
+    put('msOrder', countMsOrder(text));
     if (!isTimingSpec(rel) && DRIVER_CLOCK_IS_THE_SUBJECT[rel] === undefined) {
       put('driverClock', countDriverClock(text));
     }
