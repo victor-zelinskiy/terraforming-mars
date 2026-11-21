@@ -21,6 +21,7 @@ import {
   beginStdProjectSubmit, markStdProjectCommit, markStdProjectTarget, resetStdProjectsFlow, stdProjectAnswerArrived, stdProjectsFlow,
   stdProjectsFlowLive, stdProjectsFramePhase,
 } from '@/client/console/consoleStdProjects';
+import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {STDP_HOLD_MS, armStdProjectCommit, releaseStdProjectCommit} from '@/client/console/consoleStdProjectCommit';
 import {ConsoleTask, taskFor} from '@/client/console/consoleTaskRouter';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -412,8 +413,10 @@ export function createStdProjectsController(shell: StdProjectsPort) {
       // (`stdProjectAnswerArrived` — a socket frame or a poll applied mid-submit). Taken for the answer, it played the
       // terminal beat early and the real answer's Venus bonus found no host (the hunt 44905320939).
       if (!stdProjectAnswerArrived(shell.playerView.waitingFor?.promptId)) {
+        noteTransferTrail('stdp:view-ahead', {asked: stdProjectsFlow.askedPromptId ?? null});
         return;
       }
+      noteTransferTrail('stdp:answer', {prompt: shell.playerView.waitingFor?.promptId ?? null, task: task?.kind ?? null, mounted: workspaceFrameMounted('standard-projects')});
       // THE RESPONSE IS THE WATCHER'S OWN EXISTENCE. This runs from the
       // `playerView` watcher, which fires only when a NEW view arrives — so
       // being here at all, in `submitting`, IS the answer. A value gate
@@ -460,6 +463,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
       // the decision is live (B collapses, never a stalled «executing» beat); its answer's response ends the
       // project through the terminal beat above.
       if (task.kind === 'venusBonus' && workspaceFrameMounted('standard-projects')) {
+        noteTransferTrail('stdp:venus-step');
         stdpVenusStep.value = true;
         setWorkspaceFramePhase('standard-projects', 'committed');
         return;
@@ -555,7 +559,9 @@ export function createStdProjectsController(shell: StdProjectsPort) {
     // go, and that watcher reads `stdProjectsFlowLive()` first: a record
     // reset here left the flow idle, the re-ask returned early, and the
     // finished project stood in its browse list for good.
-    if (shell.concludeWorkspaceFlow('standard-projects')) {
+    const concluded = shell.concludeWorkspaceFlow('standard-projects');
+    noteTransferTrail('stdp:end', {concluded});
+    if (concluded) {
       resetStdProjectsFlow();
     }
   }

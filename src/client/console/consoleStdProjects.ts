@@ -30,6 +30,7 @@
 import {reactive} from 'vue';
 import {WorkspacePhase} from '@/client/console/consoleWorkspaceFlow';
 import {StdProjectItem} from '@/client/console/consoleQuickModel';
+import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 /**
  * Where the flow stands. Deliberately NOT the frame's `WorkspacePhase` —
@@ -130,6 +131,8 @@ export function beginStdProjectSubmit(
   stdProjectsFlow.card = card;
   stdProjectsFlow.submittedAt = fingerprint;
   stdProjectsFlow.askedPromptId = askedPromptId;
+  // The flow's steps ride the flights' trail (`__conReady().transfer`): a red names what the workspace did, in order.
+  noteTransferTrail('stdp:submit', {card, asked: askedPromptId ?? null});
   stdProjectsFlow.frozenItems = items.map((it) => ({...it}));
   stdProjectsFlow.boardExcursion = {card, sheetIndex};
   stdProjectsFlow.cancelRequested = false;
@@ -151,11 +154,13 @@ export function stdProjectAnswerArrived(viewPromptId: number | undefined): boole
 
 /** The server answered with the project's own follow-up prompt. */
 export function markStdProjectTarget(): void {
+  noteTransferTrail('stdp:target', {card: stdProjectsFlow.card});
   stdProjectsFlow.state = 'target';
 }
 
 /** A terminal project's answer arrived — the short committed beat begins. */
 export function markStdProjectCommit(): void {
+  noteTransferTrail('stdp:commit', {card: stdProjectsFlow.card});
   stdProjectsFlow.state = 'commit';
   stdProjectsFlow.boardExcursion = undefined;
 }
@@ -171,6 +176,9 @@ export function requestStdProjectCancel(): void {
  * server moved on to something that is not ours). Always safe to call.
  */
 export function resetStdProjectsFlow(): void {
+  if (stdProjectsFlow.state !== 'idle') {
+    noteTransferTrail('stdp:reset', {was: stdProjectsFlow.state, card: stdProjectsFlow.card});
+  }
   stdProjectsFlow.state = 'idle';
   stdProjectsFlow.card = '';
   stdProjectsFlow.submittedAt = '';
