@@ -135,6 +135,15 @@ export type WaitWorld = {
    * not a dead end — it is waiting to be looked at; it is judged again the moment the page paints.
    */
   pageStarved?: boolean;
+  /**
+   * A SUBMIT IS ON THE WIRE AND THE SERVER HAS NOT ANSWERED IT. Whatever stands meanwhile — a frame's `executing`
+   * beat, a hold over the answer's story, a step that waits for the prompt to move — stands behind that answer, and
+   * the answer's own bound is the transport's (its minute of silence — the node `transport:submit`, on the wall
+   * clock). That time is not a motion's and not a player's either: it is booked like the time a page did not paint
+   * (`WaitNode.unpaintedMs`), so a twelve-second bound over a beat is not spent by a server that is merely silent
+   * (FREEZE ZERO, stage 4 — the fault pass: `wait-graph/overdue/surface:parliament`, `…/admission:host:presentation`).
+   */
+  answerOnTheWire?: boolean;
 };
 
 /** How long a witnessed motion may stand with nothing moving before it is judged unable to come. */

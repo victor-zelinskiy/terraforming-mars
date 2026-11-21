@@ -698,6 +698,37 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   }
 
   /*
+   * `wait-graph/overdue/surface:parliament` · `animation-hold/ceiling/parliament-reward-owed` ·
+   * `wait-graph/ceiling/external-draw:prompt-moved` — THE FAULT PASS (stage 4): a sitting's answer the server is
+   * SILENT on for the transport's minute. Three registries each kept a clock of their own over that silence — the
+   * wait graph's twelve seconds over a frame's `executing` beat, the hold registry's thirty-five over the rewards
+   * the sitting owes, the external draw's grace of a second and a half for «the server moved off the prompt». The
+   * law: a bound over what stands behind an unanswered submit is the submit's own — the graph books that time as it
+   * books a page that does not paint, a hold's ceiling waits for the wire to go quiet and then gives the hold its
+   * own bound again, and a refusal is read off the transport's settle, never off a timer.
+   */
+  for (const fixture of ['parliament-climate-enact', 'parliament-biodome-enact', 'parliament-climate-big']) {
+    it(`a sitting's answer under a SILENT server — ${fixture}: no clock of its own runs out under the transport's minute, nothing is filed`, async () => {
+      const seed = `fz0:${fixture}`;
+      const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+      try {
+        const table = await bottleServer().bootFixture(fixture);
+        bottle = await bootBottle(table);
+        await bottle.advance(3_000);
+        const walked = await monkeyWalk(bottle, table.seats.length, seed, 60, {mode: 'guided', faultEvery: 6});
+        bottle = walked.bottle;
+        expect(bottle.wire.faulted.some((f) => f.method === 'POST' && (f.fault === 'silent' || f.fault === 'lost')), 'the walk does leave a submit unanswered').to.equal(true);
+        await bottle.advance(86_000);
+        const own = (cls: string): boolean => cls === 'transport/server-silent' || cls === 'error/page-error';
+        expect(classes().filter((cls) => !own(cls)), 'beside the faults\' own words nothing is filed').to.deep.equal([]);
+        expect(bottle.liveness().standing, 'and the screen is served').to.deep.equal([]);
+      } finally {
+        restoreRandom();
+      }
+    });
+  }
+
+  /*
    * `animation-hold/ceiling/parliament-chairman-quest` · `wait-graph/ceiling/parliament:submit` ·
    * `wait-graph/overdue/flow:chairman-quest` — THE FAULT PASS (stage 4), `fz0` · `arwind-chairman-quest(-solo)`: the
    * chairmanship's gate is answered and the answer is REFUSED (the solo table) or LOST (the two-seat one). The flow's

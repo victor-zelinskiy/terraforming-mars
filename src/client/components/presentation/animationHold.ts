@@ -325,18 +325,58 @@ function endSupplierRun(entry: SupplierEntry, end: ScopeEnd): void {
  * stands below the console and imports nothing of it. With no shell (the desktop tree, a unit test) nobody says
  * otherwise, and a hold's own word stands.
  */
-let playerCanAnswerProbe: (() => boolean) | undefined;
+let playerCanAnswerProbe: {canAnswer: () => boolean, answerOnTheWire?: () => boolean} | undefined;
 
-export function registerPlayerCanAnswerProbe(probe: (() => boolean) | undefined): void {
-  playerCanAnswerProbe = probe;
+/**
+ * `answerOnTheWire` — the SECOND fact the supervisor knows and this module cannot: a submit is on the wire and the
+ * server has not answered it. A hold that stands meanwhile stands behind that answer, and the answer's bound is the
+ * transport's own (its minute of silence): the hold's ceiling does not come due under it (`whenCeilingDue`).
+ */
+export function registerPlayerCanAnswerProbe(probe: (() => boolean) | undefined, answerOnTheWire?: () => boolean): void {
+  playerCanAnswerProbe = probe === undefined ? undefined : {canAnswer: probe, answerOnTheWire};
 }
 
 export function playerCanAnswerNow(): boolean {
   try {
-    return playerCanAnswerProbe?.() !== false;
+    return playerCanAnswerProbe?.canAnswer() !== false;
   } catch {
     return true;
   }
+}
+
+function answerOnTheWireNow(): boolean {
+  try {
+    return playerCanAnswerProbe?.answerOnTheWire?.() === true;
+  } catch {
+    return false;
+  }
+}
+
+/** How often a ceiling that came due under an unanswered submit looks again. */
+const CEILING_WIRE_RECHECK_MS = 1000;
+
+/**
+ * THE CEILING COMES DUE — but never under a submit the server has not answered, and never counting that silence. The
+ * silence is the transport's to bound; a hold that stood behind it has not had ITS time yet — what it waits for (the
+ * answer's story, the player's next press once the stage is handed back) starts when the wire goes quiet. So a
+ * ceiling that comes due under the silence waits for the quiet (looking once a second) and then gives the hold its
+ * own bound again, whole; a hold that outlives THAT is the leak it always was.
+ * (FREEZE ZERO, stage 4 — the fault pass: `animation-hold/ceiling/parliament-reward-owed`, thirty-five seconds into
+ * a server silent for the transport's sixty — and then a second after it, over a seat that had just been handed its
+ * answer back.)
+ */
+function whenCeilingDue(run: {after(ms: number, what: string, fn: () => void): unknown}, ms: number, due: () => void, silenced = false): void {
+  run.after(silenced ? CEILING_WIRE_RECHECK_MS : ms, CEILING, () => {
+    if (answerOnTheWireNow()) {
+      whenCeilingDue(run, ms, due, true);
+      return;
+    }
+    if (silenced) {
+      whenCeilingDue(run, ms, due);
+      return;
+    }
+    due();
+  });
 }
 
 /**
@@ -377,7 +417,7 @@ function armCeiling(label: string, entry: SupplierEntry): void {
   // (A hold claims a story is PLAYING: its ceiling on a page that painted nothing is the hold's honest end.)
   const painted = watchFrames();
   run.onEnd(() => painted.stop());
-  run.after(entry.maxHoldMs, CEILING, () => {
+  whenCeilingDue(run, entry.maxHoldMs, () => {
     if (entry.run !== run) {
       return;
     }
@@ -458,7 +498,7 @@ export function beginAnimationHold(label: string, options?: AnimationHoldOptions
   manualRuns.set(id, run);
   const painted = watchFrames();
   run.onEnd(() => painted.stop());
-  run.after(maxHoldMs, CEILING, () => {
+  whenCeilingDue(run, maxHoldMs, () => {
     const why = ceilingWhy(painted, options?.heldForPlayer);
     const dropped = dropManualHold(id, {how: 'expired', bound: `the ${maxHoldMs} ms ceiling`});
     if (dropped !== undefined) {

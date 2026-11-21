@@ -261,7 +261,8 @@ function stampUnpainted(nodes: ReadonlyArray<WaitNode>, world: WaitWorld): Array
       unpainted.delete(run);
     }
   }
-  if (world.pageStarved === true && span > 0) {
+  // (…and the time a submit stood on the wire unanswered — `WaitWorld.answerOnTheWire`: not a motion's time either.)
+  if ((world.pageStarved === true || world.answerOnTheWire === true) && span > 0) {
     for (const n of nodes) {
       // (Only the part of the span the wait itself stood through.)
       unpainted.set(runOf(n), (unpainted.get(runOf(n)) ?? 0) + Math.min(span, Math.max(0, world.now - n.since)));

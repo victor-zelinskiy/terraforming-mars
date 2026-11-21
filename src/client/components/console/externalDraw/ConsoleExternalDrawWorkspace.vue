@@ -177,6 +177,8 @@ import {
 } from '@/client/console/externalDraw/consoleExternalDraw';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {onSubmitSettled, transportState} from '@/client/console/transport/gameTransport';
+import {SUBMIT_NO_RESPONSE_MS} from '@/client/console/transport/submitMachine';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 // `console-source-dock` is the lazy binding of `asyncComponents.ts` (async on purpose: it renders the real premium card
@@ -802,10 +804,12 @@ function awaitPromptMoved(key: string): Promise<void> {
   if (unmounting.value || meta.value === undefined || promptKey.value !== key || typeof window === 'undefined') {
     return Promise.resolve();
   }
-  // The wait has to wait: a node of the wait graph, its grace ending it said (`ceilingWait.ts`).
+  // The wait has to wait: a node of the wait graph, its grace ending it said (`ceilingWait.ts`). WHAT IT WAITS FOR
+  // IS THE SERVER'S WORD ON THE ANSWER, so its bound is the answer's own: the transport's minute of silence, then the
+  // grace for an answer that came and left the prompt standing.
   const wait = beginCeilingWait({
     id: 'external-draw:prompt-moved', owner: 'ConsoleExternalDrawWorkspace', what: 'the server moving off the answered prompt',
-    maxMs: motionMs(REFUSAL_GRACE_MS), target: 'server',
+    maxMs: SUBMIT_NO_RESPONSE_MS + motionMs(REFUSAL_GRACE_MS), target: 'server',
   });
   return new Promise<void>((resolve) => {
     let done = false;
@@ -814,9 +818,20 @@ function awaitPromptMoved(key: string): Promise<void> {
         done = true;
         stop();
         cancelGrace();
+        offSettled();
         resolve();
       }
     };
+    // THE ANSWER'S OWN END SAYS A REFUSAL (ticket-first): a submit the server refused, the network lost or nobody
+    // answered did not move the prompt and will not — the wait is over at the transport's settle, with nothing to
+    // say (the transport said it). The grace below is for what is left: an answer that was TAKEN and a prompt that
+    // stands all the same.
+    const offSettled = onSubmitSettled((settle) => {
+      if (settle.status === 'refused' || settle.status === 'failed' || settle.status === 'silent') {
+        wait.end();
+        finish();
+      }
+    });
     const stop = watch(
       () => meta.value === undefined || promptKey.value !== key,
       (moved: boolean) => {
@@ -827,10 +842,22 @@ function awaitPromptMoved(key: string): Promise<void> {
       });
     // PACING: the grace's end is SAID (the ceiling line) — a surface that leaves lets the wait go silently
     // (`goneWaiters`, below), never through this timer.
-    const cancelGrace = flowScope.after(motionMs(REFUSAL_GRACE_MS), 'the server moving off the answered prompt', () => {
-      wait.ceiling();
-      finish();
-    });
+    // THE GRACE IS FOR A SERVER THAT ANSWERED AND STAYED ON THE PROMPT (a refusal). While the answer is still on the
+    // wire the server has said nothing yet — the silence is the transport's to bound (its minute), and the grace
+    // starts over when it ends (FREEZE ZERO, stage 4 — the fault pass: this wait ended on its 1.5 s under a request
+    // the server took a minute not to answer).
+    let cancelGrace = (): void => {};
+    const armGrace = (): void => {
+      cancelGrace = flowScope.after(motionMs(REFUSAL_GRACE_MS), 'the server moving off the answered prompt', () => {
+        if (transportState.requestInProgress && !transportState.responseArrived) {
+          armGrace();
+          return;
+        }
+        wait.ceiling();
+        finish();
+      });
+    };
+    armGrace();
     goneWaiters.push(() => {
       wait.end();
       finish();

@@ -351,7 +351,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     stopPagePaint?.();
     stopPagePaint = standPagePaintWitness();
     // (A hold's «I wait for the player» is believed only while the screen takes a press — the arbiter's own reading.)
-    registerPlayerCanAnswerProbe(() => lastLivenessAccepting.value);
+    registerPlayerCanAnswerProbe(() => lastLivenessAccepting.value, () => transportState.requestInProgress && !transportState.responseArrived);
     beatStallTimer.value = consoleSessionScope().every(1000, 'the supervisor\'s tick', () => {
       if (passBrokenOnPurpose) {
         throw new Error('the supervisor\'s pass is broken on purpose (the pulse\'s control)');
@@ -646,6 +646,8 @@ export function createSupervisorController(shell: SupervisorPort) {
       stillMs: page.stillMs,
       // …unless the page itself is not painting: nobody is looking at it, and nothing on it is dead.
       pageStarved: pageStarvedNow() !== undefined,
+      // …and a submit the server has not answered yet: what stands behind it is bounded by the transport's own minute.
+      answerOnTheWire: transportState.requestInProgress && !transportState.responseArrived,
     });
     const verdict = tickLiveness({
       now: Date.now(),
