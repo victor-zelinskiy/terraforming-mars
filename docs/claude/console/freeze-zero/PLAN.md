@@ -676,6 +676,38 @@ shadow and `start-stranded` retire by the same rule. The workspace ROOTS (the dr
 the start as a whole) stand by their FRAMES — the stack's law, not a `v-if` to derive; the band's fallback rows that
 are left are exactly those.
 
+**STAGE 3 — EVERY WAIT BOUNDED AND OWNED, STATICALLY (2026-11-21).** The stage's three numbers, and what holds each:
+
+- **`kernelCoverage` = 0** — raw timers / frames outside the kernel: at zero since architecture v2's perimeter, held by
+  its ratchet. Its list «not a flow» (a flag-carrying module with no run of its own, each row with its reason) is
+  four rows; a row whose module got a run leaves (`kernelCoverage.spec` ④).
+- **A wait on a reactive condition is a node of the wait graph** — `waitGraphLaw.spec`: a one-shot watcher, or a
+  promise over a watcher, stands in sight of `beginCeilingWait(` / `.guarantee(` / `.wait(` / `deferSceneReveal(`.
+  One wait stood outside it (`consoleParliamentFlow.whenParliamentSurfaceGone` — now the ceiling wait
+  `parliament:surface-gone`, 6 s on the motion's ceiling clock). At zero.
+- **A FLAG IS ITS RUN'S LIFE** — `createFlowRun(label, {flag})` (`session/flowRun.ts`): `begin` raises the flag, the
+  scope's END lowers it — the flow's own end, a new run over it, the game screen leaving, the run's ceiling — and
+  LAST, after the module's recovery (every abort begins `if (!state.active) return`). What it replaced: `state.active
+  = true` after `run.begin()` and `= false` in every exit path, where the path that throws before its lowering line
+  leaves the flag up for good (the audit of 2026-11-15: each of the nine view scenes could stick so). Two guards:
+  - `sceneFlagLaw.spec` — read off `components/viewScenes.ts`: no scene writes its flag by hand, the flag its
+    predicate reads is a run's, and the hold's `expire` ends the run in a `finally`. A scene added to the list is read
+    at once;
+  - the debt ledger's row **`flag-by-hand`** (`architectureDebt.spec`: `<x>.active|live = true|false` in a module that
+    owns a run) — frozen at 57 writes in 20 modules, **0 since 2026-11-21**, held there by the baseline.
+  What the conversions found on the way: three recoveries that could throw before the flag fell (the trade's abort
+  releasing held rows, the colony build's teardown, the played cards' return releasing the withhold) — each now ends
+  its run in a `finally`; a track move awaited bare; and four flags that are NOT their run's whole life (the
+  Hydronetwork's glide, the played cards' flights, the discard STAGE two drivers play on, a foreign tile's proxy) —
+  each a run of its own, so it is a scope the tree names and the session's end takes down. A scene that only moves
+  (the energy conversion, the hazard cleanup) also carries the kernel's own ceiling (`ceilingMs`, twice the hold
+  registry's); a scene that lawfully waits for the player carries none.
+- **What the law does NOT cover, said plainly:** the 31 runs DERIVED from a state record (`deriveFlowRun` — a phase
+  machine several writers move; the run follows the record, by design). Their end stands on two other laws: the
+  session's edge on the module-state guard (every record is a declared `sessionState`), a wedge inside a session on the
+  hold registry's `expire`. And structural item 4's second half — the start scene and the Parliament taken apart like
+  the shell — is the open redesign of architecture v2 (`../architecture-v2/PLAN.md` § 0), not this stage's number.
+
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
 the real-browser monkey (03:00 plain with the seed of the day; Sunday `cpu4` / `net400` / `reload` / `duo`), and a

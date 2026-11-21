@@ -191,7 +191,13 @@ function commitBeatBackstop(ms: number, what: string, release: () => void, owner
  * so it is a guaranteed release of the run — at its time, or when the run ends. When the game screen leaves under it
  * the commit is released (`orphaned`): no rail row stays held for a flight nobody will fly.
  */
-const run = createFlowRun('action-commit', {orphaned: () => releaseActionCommit('the game screen left')});
+const run = createFlowRun('action-commit', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    actionCommitState.active = up;
+  },
+  orphaned: () => releaseActionCommit('the game screen left'),
+});
 let disarmSettle: () => void = () => {};
 
 function clearSettleTimer(): void {
@@ -201,11 +207,12 @@ function clearSettleTimer(): void {
 
 /** Arm the commit at submit (synchronous — before the response can land). */
 export function armActionCommit(plan: ActionCommitPlan): void {
-  actionCommitState.active = true;
-  actionCommitState.settled = false;
-  actionCommitState.plan = plan;
+  // (The previous commit's settle is disarmed BEFORE its run ends — a guarantee comes due at its run's end; the new
+  // run then begins where the commit goes live, its flag with it.)
   clearSettleTimer();
   run.begin(plan.sourceCard);
+  actionCommitState.settled = false;
+  actionCommitState.plan = plan;
   disarmSettle = commitBeatBackstop(SETTLE_SAFETY_MS, 'the commit\'s minimum beat (the dismiss gate)', () => markActionCommitSettled(),
     run.scope ?? consoleSessionScope());
 }
@@ -257,10 +264,9 @@ export function onActionCommitRelease(listener: (why: string) => void): void {
 /** The action resolved (result handed off / dismissed) — release the beat. */
 export function releaseActionCommit(why = 'released'): void {
   clearSettleTimer();
-  actionCommitState.active = false;
+  run.end();
   actionCommitState.settled = true;
   actionCommitState.plan = undefined;
-  run.end();
   releaseListeners.forEach((listener) => listener(why));
 }
 
@@ -307,10 +313,23 @@ const impulseLatch = {
  *  clock as the impulse it waits for (`commitBeatBackstop`). */
 const IMPULSE_NET_MS = SETTLE_SAFETY_MS;
 
+/**
+ * THE IMPULSE'S RUN — `scene:commit-impulse#n` in the flow tree, from the motion's arm to the landing. The latch's
+ * «in flight» is its life: whoever waits behind the impulse waits behind a scope the tree can name, and when the game
+ * screen leaves under it the impulse LANDS (`orphaned`) — every waiter runs.
+ */
+const impulseRun = createFlowRun('commit-impulse', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    impulseLatch.live = up;
+  },
+  orphaned: () => landCommitImpulse(),
+});
+
 /** The commit's impulse starts (the motion episode begins) — waiters now wait for its landing. */
 export function armCommitImpulse(): void {
   landCommitImpulse();
-  impulseLatch.live = true;
+  impulseRun.begin();
   impulseLatch.net = commitBeatBackstop(IMPULSE_NET_MS, 'the commit impulse\'s landing', () => {
     impulseLatch.net = undefined;
     landCommitImpulse();
@@ -323,7 +342,7 @@ export function landCommitImpulse(): void {
     impulseLatch.net();
     impulseLatch.net = undefined;
   }
-  impulseLatch.live = false;
+  impulseRun.end();
   const waiters = impulseLatch.waiters.splice(0);
   waiters.forEach((run) => run());
 }

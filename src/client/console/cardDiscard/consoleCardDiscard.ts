@@ -41,6 +41,7 @@ import {
   HAND_DISCARD_PILE_LEASE,
   cardDiscardState,
   discardTrayEl,
+  openCardDiscardStage,
   resetCardDiscardStage,
 } from '@/client/console/cardDiscard/cardDiscardState';
 import {discardPileState, expectDiscardPileCount, settleDiscardPile} from '@/client/console/discardPile/discardPile';
@@ -309,7 +310,7 @@ export async function runCardDiscard(): Promise<void> {
   const gone = new Set(cardDiscardTransaction.names);
   const alive = () => cardDiscardTransaction.active;
   try {
-    cardDiscardState.live = true;
+    openCardDiscardStage();
     cardDiscardState.trayCount = 0;
 
     // ── A · FIXATE — the chosen cards come off the row, the rest recede. ────

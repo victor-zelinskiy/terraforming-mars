@@ -114,8 +114,6 @@ const ON_KERNEL = /\.open\('|\bcreateFlowRun\(|\bderiveFlowRun\(|\bsessionChild\
  * fails: the list states only what is true now.
  */
 const NOT_A_FLOW: Readonly<Record<string, string>> = {
-  'src/client/console/cardDiscard/cardDiscardState.ts':
-    'the STAGE registry of the discard: its `live` is written only by `consoleCardDiscard.ts`, whose run (`card-discard`) is the lifetime and whose every ending resets it (`resetCardDiscardStage`)',
   'src/client/console/consoleColoniesModel.ts':
     '`colonyDockCursor.active` is a cursor\'s on/off inside the colonies section (view state, set and cleared by the pad in one component) — nothing waits on it and nothing outlives the section',
   'src/client/components/mainMenu/lobbyState.ts':

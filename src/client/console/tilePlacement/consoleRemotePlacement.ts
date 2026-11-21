@@ -456,6 +456,24 @@ let epoch = 0;
  * derived from the stage's state.
  */
 const remoteRun = createFlowRun('tile-placement-remote', {orphaned: () => abortRemotePlacements()});
+/**
+ * A PROXY IS ON STAGE — `scene:tile-placement-remote:proxy#n`. Not the stage's whole life (the queue stands while it
+ * waits for a board in view, with nothing mounted), so it is a run of its own: `active` — what mounts the stage root —
+ * rises with the first proxy and falls where the stage comes down (`clearRemoteStage`), or with the game screen.
+ */
+const proxyRun = createFlowRun('tile-placement-remote:proxy', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    remotePlacementState.active = up;
+  },
+});
+
+/** The stage root mounts (idempotent: a landing after a landing on a board in view finds it standing). */
+function proxyOnStage(): void {
+  if (!proxyRun.live()) {
+    proxyRun.begin();
+  }
+}
 let cancelStageSafety: () => void = () => {};
 
 /**
@@ -879,7 +897,7 @@ export function abortRemotePlacements(): void {
  * still playing on these very elements while the next one takes its first look.
  */
 function clearRemoteStage(): void {
-  remotePlacementState.active = false;
+  proxyRun.end();
   remotePlacementState.tileType = undefined;
   remotePlacementState.beaconColor = undefined;
   remotePlacementState.departingTile = undefined;
@@ -1017,7 +1035,7 @@ async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): P
     return;
   }
   const ui = conUiScale();
-  remotePlacementState.active = true;
+  proxyOnStage();
   remotePlacementState.tileType = ev.tileType;
   remotePlacementState.departingTile = move.tileType;
   remotePlacementState.departingCube = departingCubePose(move.color, dest);
@@ -1104,7 +1122,7 @@ async function degradeMove(ev: RemoteEvent, myEpoch: number): Promise<void> {
   remotePlacementState.departingCube = undefined;
   remotePlacementState.stayingCover = undefined;
   remotePlacementState.move = false;
-  remotePlacementState.active = true; // the stage root mounts — the witness below is readable
+  proxyOnStage(); // the stage root mounts — the witness below is readable
   remotePlacementState.moveDegraded = true;
   await wait(60);
   if (epoch === myEpoch) {
@@ -1153,7 +1171,7 @@ async function liftRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
     degradeReveal(ev);
     return;
   }
-  remotePlacementState.active = true;
+  proxyOnStage();
   remotePlacementState.tileType = ev.tileType;
   remotePlacementState.departingTile = ev.tileType;
   remotePlacementState.aresExtension = ev.aresExtension;
@@ -1255,7 +1273,7 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   const iconCentres = !ev.own && (ev.cellPaid?.length ?? 0) > 0 ? bonusIconCentres(ev.spaceId) : [];
   // …and each printed PRODUCTION icon by its own sprite (`<resource>-production`), measured in the same frame.
   const productionCentres = ev.own ? [] : (ev.cellProduced ?? []).map((p) => bonusIconCentreOf(ev.spaceId, `${p.resource}-production`));
-  remotePlacementState.active = true;
+  proxyOnStage();
   remotePlacementState.tileType = ev.tileType;
   remotePlacementState.aresExtension = ev.aresExtension;
   remotePlacementState.beaconColor = ev.own ? undefined : actor;

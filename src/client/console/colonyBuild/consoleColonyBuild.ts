@@ -127,7 +127,13 @@ let claimed = false;
  * a safety of a build that is over can never abort the next one. When the game screen leaves under it the run is
  * cancelled and the build is aborted (`orphaned`) — no `reset…()` row is what keeps it out of the next game.
  */
-const run = createFlowRun('colony-build', {orphaned: () => abortColonyBuild()});
+const run = createFlowRun('colony-build', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    colonyBuildState.active = up;
+  },
+  orphaned: () => abortColonyBuild(),
+});
 let cancelArmSafety: () => void = () => {};
 let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
@@ -197,7 +203,7 @@ function expireColonyBuild(): void {
  *  (Titan's floaters) — the chip then flies onto that exact card instead of
  *  the bonus arriving as a detached prompt after the cube. */
 export function armColonyBuild(colonyName: string, slotIndex: number, color: Color, targetCard?: CardName, door: ColonyBuildDoor = 'live'): void {
-  run.begin(); // a run still standing ends here — its timers with it
+  run.begin(); // a run still standing ends here — its timers with it; the build is live from here (its flag)
   claimed = false;
   colonyBuildState.degraded = false;
   colonyBuildState.door = door;
@@ -208,7 +214,6 @@ export function armColonyBuild(colonyName: string, slotIndex: number, color: Col
   pendingSpecs = [];
   bonusFlight = undefined;
   restoreHeldGlyph();
-  colonyBuildState.active = true;
   colonyBuildState.phase = 'armed';
   colonyBuildState.nonce++;
   colonyBuildState.colonyName = colonyName;
@@ -408,24 +413,28 @@ export function abortColonyBuild(): void {
   if (!colonyBuildState.active && !runResolve.armed) {
     return;
   }
-  clearTimers();
-  const els = stage?.els();
-  if (els !== undefined) {
-    killColonyBuildTweens(els);
+  try {
+    clearTimers();
+    const els = stage?.els();
+    if (els !== undefined) {
+      killColonyBuildTweens(els);
+    }
+    abortResourceTransfers();
+    releaseOwnHolds(); // ⚠️ OUR specs only — a global clear would drop a sibling scene's
+    restoreHeldGlyph();
+    buildTargetCard = undefined;
+    if (colonyBuildState.mode === 'card') {
+      abortBoardCardBonus('return'); // the card never came — recall the cover
+    }
+    pendingSpecs = [];
+    bonusFlight = undefined;
+  } finally {
+    // (Whatever the teardown above threw, the build is over: its run ends — the flag with it — and the commit's gate
+    // opens. A build that stayed «active» behind a thrown recall held the view's commit for good.)
+    run.end({how: 'cancelled', reason: 'the build was aborted'});
+    colonyBuildState.phase = 'failed';
+    freeRunGate();
   }
-  abortResourceTransfers();
-  releaseOwnHolds(); // ⚠️ OUR specs only — a global clear would drop a sibling scene's
-  restoreHeldGlyph();
-  buildTargetCard = undefined;
-  if (colonyBuildState.mode === 'card') {
-    abortBoardCardBonus('return'); // the card never came — recall the cover
-  }
-  pendingSpecs = [];
-  bonusFlight = undefined;
-  colonyBuildState.active = false;
-  colonyBuildState.phase = 'failed';
-  freeRunGate();
-  run.end({how: 'cancelled', reason: 'the build was aborted'});
   void nextTick(() => {
     if (colonyBuildState.phase === 'failed') {
       resetTransient();
@@ -444,9 +453,8 @@ function finish(): void {
   if (colonyBuildState.door === 'staged' && colonyBuildState.colonyName !== '') {
     colonyBuildState.receipt = {colony: colonyBuildState.colonyName, slot: colonyBuildState.slotIndex};
   }
-  colonyBuildState.active = false;
-  colonyBuildState.phase = 'done';
   run.end();
+  colonyBuildState.phase = 'done';
   void nextTick(() => {
     if (colonyBuildState.phase === 'done') {
       resetTransient();
@@ -495,7 +503,6 @@ export function resetColonyBuild(): void {
   bonusFlight = undefined;
   claimed = false;
   runResolve.drop();
-  colonyBuildState.active = false;
   run.end({how: 'cancelled', reason: 'reset'});
   resetTransient();
 }

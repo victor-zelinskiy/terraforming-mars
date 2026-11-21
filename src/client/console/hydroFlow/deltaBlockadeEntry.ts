@@ -66,7 +66,14 @@ export type DeltaBlockadePickRequest = {
  * when the game screen leaves under it the module is brought to rest through `resetDeltaBlockadePick` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const deltaBlockadePickRun = createFlowRun('delta-blockade-pick', {kind: 'surface', orphaned: () => resetDeltaBlockadePick()});
+const deltaBlockadePickRun = createFlowRun('delta-blockade-pick', {
+  kind: 'surface',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    deltaBlockadePickState.active = up;
+  },
+  orphaned: () => resetDeltaBlockadePick(),
+});
 
 export const deltaBlockadePickState = reactive({
   active: false,
@@ -105,7 +112,6 @@ export function enterDeltaBlockadePick(
   deltaBlockadePickState.request = request;
   resolveCb.arm(onResolve);
   cancelCb = onCancel;
-  deltaBlockadePickState.active = true;
   deltaBlockadePickRun.begin();
   pushWorkspaceFrame({
     kind: 'hydro',
@@ -155,7 +161,6 @@ export function resetDeltaBlockadePick(): void {
   if (deltaBlockadePickState.active) {
     popBlockadePickFrame();
   }
-  deltaBlockadePickState.active = false;
   deltaBlockadePickRun.end();
   deltaBlockadePickState.request = undefined;
   resolveCb.drop();
@@ -186,7 +191,14 @@ export function resetDeltaBlockadePick(): void {
  * when the game screen leaves under it the module is brought to rest through `resetBlockadeExecution` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const blockadeExecutionRun = createFlowRun('blockade-execution', {kind: 'scene', orphaned: () => resetBlockadeExecution()});
+const blockadeExecutionRun = createFlowRun('blockade-execution', {
+  kind: 'scene',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    blockadeExecutionState.active = up;
+  },
+  orphaned: () => resetBlockadeExecution(),
+});
 
 export const blockadeExecutionState = reactive({
   active: false,
@@ -220,7 +232,6 @@ export function isBlockadeExecutionActive(): boolean {
 export function beginBlockadeExecution(target: Color, source: CardName): void {
   blockadeExecutionState.target = target;
   blockadeExecutionState.source = source;
-  blockadeExecutionState.active = true;
   blockadeExecutionRun.begin();
   pushWorkspaceFrame({
     kind: 'hydro',
@@ -242,7 +253,6 @@ export function endBlockadeExecution(): void {
   if (workspaceStackTop()?.kind === 'hydro') {
     popWorkspaceFrame();
   }
-  blockadeExecutionState.active = false;
   blockadeExecutionRun.end();
   blockadeExecutionState.target = undefined;
   blockadeExecutionState.source = undefined;
@@ -251,7 +261,6 @@ export function endBlockadeExecution(): void {
 /** Hard reset (game switch / shell unmount) — fires no navigation. */
 export function resetBlockadeExecution(): void {
   pendingExecution = undefined;
-  blockadeExecutionState.active = false;
   blockadeExecutionRun.end();
   blockadeExecutionState.target = undefined;
   blockadeExecutionState.source = undefined;
