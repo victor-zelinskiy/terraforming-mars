@@ -1,11 +1,47 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Dependabot — version updates for this fork.
+#
+# The stack's held-back versions are DECISIONS, written in docs/claude/stack.md (§ 4 «Deliberately NOT updated»,
+# S8/S9 for Node and Electron, § 5 for TypeScript 7.1). Every `ignore` below mirrors one of them; when a decision is
+# lifted there, its row here goes in the same diff — otherwise Dependabot keeps proposing what we already refused,
+# or stays silent about what we now want.
+#
+# Options: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
 updates:
-  - package-ecosystem: "npm" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  - package-ecosystem: "npm"
+    directory: "/"
     schedule:
       interval: "monthly"
+    # Every minor/patch bump arrives as ONE pull request a month; a major arrives on its own (each needs reading).
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+        exclude-patterns:
+          # A Playwright bump changes the e2e browser (Chromium) and the box re-installs it — its own PR,
+          # read against the e2e run (stack.md § 4: 1.65.1 was taken only after its red was understood).
+          - "@playwright/test"
+    ignore:
+      # Electron is bumped by hand, never alone: its version decides the project's Node (S8/S9) — `ELECTRON_NODE`
+      # in tests/stack/nodeSync.spec.ts, `.nvmrc`, `engines.node`, the Dockerfile and `@types/node`'s major move
+      # with it. A bare `electron` bump fails that guard. Node 26 arrives WITH Electron 46, not before.
+      - dependency-name: "electron"
+      # The Node types follow the Node major we run (= Electron's). Patches/minors of 24.x are fine.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 7: 7.0 cannot check `.vue` at all (no content mappers) and typescript-eslint 8 needs TS's JS API.
+      # The switch goes straight to 7.1 + `@vue/content-mapper` stable + a typescript-eslint that supports 7, by
+      # stack.md § 5 («The switch, when they fall») — a manual move, not a Dependabot bump.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # vue-tsc is REMOVED by that switch (the content mapper replaces it); a vue-tsc 4 is not a step on the road.
+      - dependency-name: "vue-tsc"
+        update-types: ["version-update:semver-major"]
+      # Vue is an exact RC pin mirrored in `overrides` (12 lines); a bump of `vue` alone breaks the install
+      # (EOVERRIDE), and the next RC is re-read by docs/claude/vapor/ROADMAP.md § 3.8.
+      - dependency-name: "vue"
+      # jsdom 31's CSS engine changes getComputedStyle in the unit environment — a migration of its own.
+      - dependency-name: "jsdom"
+        update-types: ["version-update:semver-major"]
+      # velopack's `latest` is a nightly; the pin is moved by hand.
+      - dependency-name: "velopack"

@@ -136,7 +136,8 @@ build bundles is a devDependency.
 `electron-builder` 26.18, `tsx` 4.23.15, `chai` 6.3, `less` 4.9.1, `sharp` 0.35.5, … (`npm outdated` is empty but
 for the rows below).
 
-**Deliberately NOT updated**:
+**Deliberately NOT updated** (`.github/dependabot.yml` mirrors this list as `ignore` rows, plus `electron` itself — S8/S9;
+lifting a hold here removes its row there in the same diff):
 - `jsdom` 31 — its CSS engine changes `getComputedStyle`: 3 red specs and an unknown number of green ones quietly
   taking another code path (feature detection must keep seeing the same environment). A migration of its own.
 - `typescript` 7.x · `vue-tsc` → `@vue/content-mapper` — § 5.
