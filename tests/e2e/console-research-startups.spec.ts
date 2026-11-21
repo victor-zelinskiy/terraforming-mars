@@ -387,9 +387,16 @@ for (const preset of PRESETS) {
       const overlapEvidence = async (): Promise<string> => {
         const changes = act.filter((s, i) => i === 0 || s.carried !== act[i - 1].carried || s.ws !== act[i - 1].ws || s.rejects !== act[i - 1].rejects)
           .map((s) => `@${s.t} carried ${s.carried} ws ${s.ws} rejects ${s.rejects}`).join(' · ');
-        const trail = await page.evaluate(() =>
-          (window as unknown as {__conReady?: () => {transfer?: {trail: ReadonlyArray<unknown>}}}).__conReady?.()?.transfer?.trail ?? []);
-        return `${changes}\ntrail: ${JSON.stringify(trail)}`;
+        // The trail on the RECORDING's clock: its `t` is `performance.now()`, a sample's is the page's `Date.now()` — the
+        // page says the offset, the record its first sample's instant (both timelines then read «ms since the press»).
+        const t0 = (await actionProbe.samples())[0]?.t ?? 0;
+        const {offset, trail} = await page.evaluate(() => ({
+          offset: Date.now() - performance.now(),
+          trail: (window as unknown as {__conReady?: () => {transfer?: {trail: ReadonlyArray<{t: number, ev: string, detail?: unknown}>}}})
+            .__conReady?.()?.transfer?.trail ?? [],
+        }));
+        const told = trail.map((e) => `@${Math.round(e.t + offset - t0)} ${e.ev}${e.detail === undefined ? '' : ` ${JSON.stringify(e.detail)}`}`);
+        return `${changes}\ntrail:\n${told.join('\n')}`;
       };
       if (underFlight === undefined) {
         expect(underFlight, `the workspace left while the kept card was still in the air\n${await overlapEvidence()}`).toBeTruthy();

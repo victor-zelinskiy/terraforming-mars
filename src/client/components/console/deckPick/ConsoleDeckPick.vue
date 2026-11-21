@@ -272,6 +272,7 @@ import {paymentResponse} from '@/client/console/taskResponses';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import {initialVerdictFocus, preludePriceBill, preludeVerdictOf, PreludeVerdictChip, preludeVerdictRows, PreludeVerdictRow, stepVerdictFocus} from '@/client/console/deckPick/preludeVerdict';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceOutcomeArrivalFlown, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
@@ -1486,7 +1487,9 @@ async function runOutgoing(kept: ReadonlyArray<CardName>): Promise<void> {
     // Released by the lift — or by the intake's own end (its failure included) when nothing lifts.
     intake.then(() => markLifted(), (err: unknown) => failLifted(err));
     await lifted;
+    noteTransferTrail('deck-pick:lifted', {kept: kept.length});
     await startClearing(0);
+    noteTransferTrail('deck-pick:cleared');
   } finally {
     // A REFUSED submit must not leave the player inside a beat that will
     // never finish. The honest signal is the prompt itself: if the server
@@ -1495,6 +1498,8 @@ async function runOutgoing(kept: ReadonlyArray<CardName>): Promise<void> {
     // flow back to `choosing` (the surface is still mounted by the ordinary
     // gate) instead of unmounting a screen that is still owed an answer.
     await awaitPromptMoved(key);
+    // Named in the flights' trail: the surface lets go only once the server moved on (`__conReady().transfer`).
+    noteTransferTrail('deck-pick:prompt-moved');
     endOutgoing(key);
   }
 }
