@@ -53,7 +53,8 @@ import {tailAfterPickAnswer} from '@/client/console/pickTail';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {AdmissionSignals, LATCHED_SURFACES, PromptSurface, isPromptAdmitted, isPromptPresent, latchPromptPresence, presenceOutlivesAnswer, promptAdmissionBlock, promptPresenceState, releasePromptPresence} from '@/client/console/consolePromptAdmission';
-import {Ownership, QuestionFacts, servingOwnerOf} from '@/client/console/servingOwner';
+import {Ownership, ownershipDigest, QuestionFacts, servingOwnerOf} from '@/client/console/servingOwner';
+import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 import {handoffPendingEntries} from '@/client/console/shell/shellFlowState';
 
 /** The surfaces that can admit an owner of a question (`servingOwner.ts` — `ServingOwner.admission`). */
@@ -1095,8 +1096,16 @@ export function createRouterController(shell: RouterPort) {
           shell.handPickActive ? 'hand-pick' :
             // (A stack that stepped aside for the board keeps its questions: it comes back with the landing's end.)
             (task !== undefined && yieldedStackServes(task.kind)) ? 'yielded-to-board' : '',
-      claimHeld: taskHeldForWorkspace.value || shell.deckPickHeldForWorkspace || venusBonusHeldForWorkspace.value ||
-        effectDecisionHeldForWorkspace.value,
+      // THE CLAIM THAT HOLDS IS THE OWNER's OWN: each surface a workspace can claim waits for ITS zone and ITS beat —
+      // the deck pick for the pick's (`deckPickHeldForWorkspace`), the Venus bonus for its host's field, a decision for
+      // the play's commit, the task host for everything the host is teleported into (the sitting's field, a vote's
+      // bill, a table's answer). One OR over the four held a deck pick behind the HOST's wait for the sitting's field
+      // (the derivation's witness, the bottle — `soil-bacteria-wg`: the pick taken down for a flush). The CLIENT's
+      // own question is the host's (`questionFactsNow`).
+      claimHeld: task?.kind === 'deckSelect' ? shell.deckPickHeldForWorkspace :
+        task?.kind === 'venusBonus' ? venusBonusHeldForWorkspace.value :
+          rawEffectDecisionVm.value !== undefined ? effectDecisionHeldForWorkspace.value :
+            taskHeldForWorkspace.value,
       blocks,
     };
   }
@@ -1131,7 +1140,7 @@ export function createRouterController(shell: RouterPort) {
       shell.placementActive && top.phase === 'browse' && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ? top.kind :
         shell.startSceneMounted && top.kind !== 'start' && hostCarriesPlayersLook('start') ? top.kind : '';
     return {
-      task: question.task, client: question.client, ...questionFacts(), lateral,
+      task: question.task, client: question.client, ...questionFacts(), ...(question.client ? {claimHeld: taskHeldForWorkspace.value} : {}), lateral,
       // «IS IT THE OPENING's?» — each row by the product's own rule for it: a corporation's first action belongs to the
       // start while the start flow is live (`corpFirstActionInStartFlow` — generation 1, no action taken), a placement
       // order while the opening holds one (`startPlacementOrderOf`); for every other kind — the start's frame stands.
@@ -1152,10 +1161,20 @@ export function createRouterController(shell: RouterPort) {
    *     owner IS the start.
    */
   let decidingOwner = false;
+  /**
+   * THE ANSWER IS WITNESSED (invariant 17 — `reactivityWitness.ts`). Ten `v-if`s, the pad's band and the bar now stand
+   * on a CACHE of this function, and a cache re-evaluates only at a reactive edge: one fact read from a plain `let` /
+   * Set / Map would move the answer with no edge and leave a surface mounted (or a question unserved) for good — the
+   * dead board of 2026-10-30, over the whole prompt band. So the answer is a declared predicate: a move with no
+   * reactive edge is NAMED (`[reactivity] «serving-owner» …`), healed within the 1 s tick (the computed below reads the
+   * predicate's own epoch) and red after every client unit test and on every e2e spec.
+   */
+  const witnessedOwnership = reactivePredicate<Ownership>('serving-owner', () => servingOwnerOf(questionFactsNow(false)),
+    {equals: (a, b) => ownershipDigest(a) === ownershipDigest(b)});
   const promptOwnership = computed((): Ownership => {
     decidingOwner = true;
     try {
-      return servingOwnerOf(questionFactsNow(false));
+      return witnessedOwnership();
     } finally {
       decidingOwner = false;
     }
@@ -1950,6 +1969,8 @@ export function createRouterController(shell: RouterPort) {
     promptOwnership,
     servingOwnership,
     ownerServes,
+    /** The shell left: its answer is nobody's to witness (a dead shell's facts must not be audited as the next game's). */
+    disposeOwnershipWitness: () => witnessedOwnership.dispose(),
     govSupportServes,
     productionLossServes,
     taskHostRenderedLegacy,
