@@ -114,7 +114,12 @@ export function seedColonyTrackRaise(raise: ColonyTrackRaise | undefined): boole
  * taken to play until its wave has been told. Its wait for a free stage is the run's; when the game screen leaves under
  * it the wait is over and the raise unwinds through its own `finally` (every hold released).
  */
-const raiseRun = createFlowRun('colony-track-raise');
+const raiseRun = createFlowRun('colony-track-raise', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    colonyTrackRaiseFlow.live = up;
+  },
+});
 
 /**
  * Resolve once no other wave stands on stage (or the bound passes, or the run is over). The wait has to wait: a row of
@@ -135,7 +140,6 @@ export async function playOwedColonyTrackRaise(): Promise<boolean> {
   if (raise === undefined || colonyTrackRaiseFlow.live) {
     return false;
   }
-  colonyTrackRaiseFlow.live = true;
   raiseRun.begin(raise.key);
   try {
     await waitWaveIdle();
@@ -155,7 +159,6 @@ export async function playOwedColonyTrackRaise(): Promise<boolean> {
     if (colonyTrackRaiseFlow.owed === raise) {
       colonyTrackRaiseFlow.owed = undefined;
     }
-    colonyTrackRaiseFlow.live = false;
     raiseRun.end();
   }
   return true;

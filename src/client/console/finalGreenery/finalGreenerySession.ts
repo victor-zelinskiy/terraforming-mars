@@ -34,7 +34,14 @@ import {sessionState} from '@/client/console/session/consoleSession';
  * when the game screen leaves under it the module is brought to rest through `endFinaleSession` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const run = createFlowRun('finale-session', {kind: 'surface', orphaned: () => endFinaleSession()});
+const run = createFlowRun('finale-session', {
+  kind: 'surface',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    finaleSessionState.active = up;
+  },
+  orphaned: () => endFinaleSession(),
+});
 
 export const finaleSessionState = reactive({
   /** The player entered the finale context — from the announce's A to the seat's end of the phase. */
@@ -45,7 +52,6 @@ export const finaleSessionState = reactive({
 
 /** The player opened the finale (the announce's A / the way back): the context stands. */
 export function enterFinaleSession(): void {
-  finaleSessionState.active = true;
   run.begin();
   finaleSessionState.collapsed = false;
 }
@@ -66,7 +72,6 @@ export function restoreFinaleSession(): void {
 
 /** The seat is done with the finale (the server's fact) or the game ended: the context leaves. */
 export function endFinaleSession(): void {
-  finaleSessionState.active = false;
   run.end();
   finaleSessionState.collapsed = false;
 }

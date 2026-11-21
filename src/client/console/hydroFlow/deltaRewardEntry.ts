@@ -77,7 +77,14 @@ export type DeltaRewardPickRequest = {
  * when the game screen leaves under it the module is brought to rest through `resetDeltaRewardPick` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const run = createFlowRun('delta-reward-pick', {kind: 'surface', orphaned: () => resetDeltaRewardPick()});
+const run = createFlowRun('delta-reward-pick', {
+  kind: 'surface',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    deltaRewardPickState.active = up;
+  },
+  orphaned: () => resetDeltaRewardPick(),
+});
 
 export const deltaRewardPickState = reactive({
   active: false,
@@ -120,7 +127,6 @@ export function enterDeltaRewardPick(
   deltaRewardPickState.request = request;
   resolveCb.arm(onResolve);
   cancelCb = onCancel;
-  deltaRewardPickState.active = true;
   run.begin();
   pushWorkspaceFrame({
     kind: 'hydro',
@@ -172,7 +178,6 @@ export function resetDeltaRewardPick(): void {
   if (deltaRewardPickState.active) {
     popRewardPickFrame();
   }
-  deltaRewardPickState.active = false;
   run.end();
   deltaRewardPickState.request = undefined;
   resolveCb.drop();

@@ -113,7 +113,14 @@ export type ConsoleHandPickRequest = {
  * when the game screen leaves under it the module is brought to rest through `resetConsoleHandPick` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const run = createFlowRun('hand-pick', {kind: 'surface', orphaned: () => resetConsoleHandPick()});
+const run = createFlowRun('hand-pick', {
+  kind: 'surface',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    consoleHandPickState.active = up;
+  },
+  orphaned: () => resetConsoleHandPick(),
+});
 
 export const consoleHandPickState = reactive({
   active: false,
@@ -167,7 +174,6 @@ export function enterConsoleHandPick(
   cancelCb = onCancel;
   declineCb = request.decline !== undefined ? onDecline : undefined;
   deferCb = request.defer !== undefined ? onDefer : undefined;
-  consoleHandPickState.active = true;
   run.begin();
 }
 
@@ -214,7 +220,6 @@ export function cancelConsoleHandPick(): void {
 
 /** Hard reset (game switch / shell unmount) — fires NO callbacks. */
 export function resetConsoleHandPick(): void {
-  consoleHandPickState.active = false;
   run.end();
   consoleHandPickState.request = undefined;
   consoleHandPickState.selected = [];
