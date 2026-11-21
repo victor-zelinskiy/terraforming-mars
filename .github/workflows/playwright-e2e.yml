@@ -247,7 +247,12 @@ jobs:
           path: all-blobs
           merge-multiple: true
 
+      # The merge holds every result in memory: a HUNT (the suite three times) ran past Node's default heap — the run of
+      # 2026-11-21 died «heap out of memory» here, and every step after it (the JSON, the findings) was skipped. The runner
+      # has 16 GB; the merges take 12.
       - name: Merge into one HTML report
+        env:
+          NODE_OPTIONS: --max-old-space-size=12288
         run: npx playwright merge-reports --reporter=html,list ./all-blobs
 
       # ── THE FLAKE LEDGER (docs/E2E_ARCHITECTURE_REWORK.md phase 0). ──
@@ -267,7 +272,11 @@ jobs:
       # ── THE FIX BRIEF: every failed / flaky test with its error, location, code frame, stdout tail and seed, as ONE
       # copyable block on this run's summary page — what a fix needs, without downloading the HTML report. Runs
       # BEFORE the ledger (which may exit 1 on a repeat offender) and never fails the job itself.
+      # …and the JSON merge never waits on the HTML one: the brief and the findings read THIS report.
       - name: Merge JSON report
+        if: ${{ !cancelled() }}
+        env:
+          NODE_OPTIONS: --max-old-space-size=12288
         run: npx playwright merge-reports --reporter=json ./all-blobs > merged-report.json
 
       # WHAT THE SUITE FOUND, in the one shape every workflow speaks — and filed: one issue per failed or flaky test
