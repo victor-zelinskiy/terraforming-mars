@@ -555,7 +555,7 @@ export function noteOwnerEdgeLook(shape: string, atEdge: {answer: string, facts:
  */
 export type DerivedPair = {surface: string, legacy: boolean, derived: boolean, why: string};
 
-const openDiffs = new Map<string, {verdict: string, since: number}>();
+const openDiffs = new Map<string, {verdict: string, since: number, told?: boolean}>();
 
 /** A span of the derivation that CLOSED — what the shell says of it (`noteDerivedRender`'s return). */
 export type DerivedSpan = {surface: string, verdict: string, ms: number};
@@ -610,6 +610,22 @@ export function noteDerivedRender(shape: string, answer: string, pairs: Readonly
   }
   servingOwnerLog.open = [...openDiffs.entries()].map(([surface, d]) => ({surface, verdict: d.verdict, since: d.since}));
   return closed;
+}
+
+/**
+ * THE SPANS THAT STAND — open for `minMs` or longer and not told yet (each is told ONCE). A span that never closes
+ * has no closing render to say it: the surface simply is not there (the swap's first e2e — a payment stage that
+ * never rose, and not a line about it).
+ */
+export function standingDerivedSpans(now: number, minMs: number): ReadonlyArray<DerivedSpan> {
+  const out: Array<DerivedSpan> = [];
+  for (const [surface, d] of openDiffs) {
+    if (d.told !== true && now - d.since >= minMs) {
+      d.told = true;
+      out.push({surface, verdict: d.verdict, ms: now - d.since});
+    }
+  }
+  return out;
 }
 
 /** A new game screen starts its own spans. */

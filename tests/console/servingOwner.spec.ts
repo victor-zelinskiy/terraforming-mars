@@ -240,6 +240,12 @@ describe('servingOwner — who serves the question: one total function', functio
     expect(owner({kind: 'handSelect'}, {host: 'hand'})).to.eq('hand');
     // A frame that EARNED the kind answers before the kind's own row (the colony resolution's discard).
     expect(owner({kind: 'handSelect'}, {servingFrame: 'colonies'})).to.eq('colonies');
+    // …but a kind a PROMPT SURFACE draws is drawn by that surface, hosted by the frame that earned it — a phase root too.
+    expect(owner({kind: 'payment'}, {servingFrame: 'draft', draftFrame: true, frames: ['draft']}), 'the draft\'s post-buy payment').to.eq('task@draft');
+    expect(owner({kind: 'deckSelect'}, {servingFrame: 'hydro', host: 'card-actions'}), 'the Hydronetwork\'s bonus pick').to.eq('deck-pick@hydro');
+    expect(owner({kind: 'cardSelect', mode: 'target'}, {servingFrame: 'hydro'})).to.eq('task@hydro');
+    // (A modal of its own is never a step, whoever earned its kind.)
+    expect(owner({kind: 'botAttack'}, {servingFrame: 'parliament'})).to.eq('bot-attack');
     // ADMISSION IS A DOOR, NOT A PRESENCE: the Parliament already on the stack stands through a scene of its own sitting;
     // one still to enter waits at the door.
     const blocked = {blocks: {section: 'presentation'}};
