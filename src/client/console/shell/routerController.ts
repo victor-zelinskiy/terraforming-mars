@@ -5,7 +5,7 @@
  */
 import type {UnwrapRef} from 'vue';
 import {addressed} from '@/common/inputs/preselectAddress';
-import {computed, ref} from 'vue';
+import {computed, ref, shallowRef} from 'vue';
 import {promptReceiveArmed, promptReceiveState} from '@/client/console/cardReceive/promptReceive';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {isReduxParty, ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -53,8 +53,7 @@ import {tailAfterPickAnswer} from '@/client/console/pickTail';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {AdmissionSignals, LATCHED_SURFACES, PromptSurface, isPromptAdmitted, isPromptPresent, latchPromptPresence, presenceOutlivesAnswer, promptAdmissionBlock, promptPresenceState, releasePromptPresence} from '@/client/console/consolePromptAdmission';
-import {Ownership, ownershipDigest, QuestionFacts, servingOwnerOf} from '@/client/console/servingOwner';
-import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
+import {Ownership, QuestionFacts, servingOwnerOf} from '@/client/console/servingOwner';
 import {handoffPendingEntries} from '@/client/console/shell/shellFlowState';
 
 /** The surfaces that can admit an owner of a question (`servingOwner.ts` — `ServingOwner.admission`). */
@@ -1162,23 +1161,34 @@ export function createRouterController(shell: RouterPort) {
    */
   let decidingOwner = false;
   /**
-   * THE ANSWER IS WITNESSED (invariant 17 — `reactivityWitness.ts`). Ten `v-if`s, the pad's band and the bar now stand
-   * on a CACHE of this function, and a cache re-evaluates only at a reactive edge: one fact read from a plain `let` /
-   * Set / Map would move the answer with no edge and leave a surface mounted (or a question unserved) for good — the
-   * dead board of 2026-10-30, over the whole prompt band. So the answer is a declared predicate: a move with no
-   * reactive edge is NAMED (`[reactivity] «serving-owner» …`), healed within the 1 s tick (the computed below reads the
-   * predicate's own epoch) and red after every client unit test and on every e2e spec.
+   * THE ANSWER IS A CACHE — AND A CACHE IS CHECKED (invariant 17). Ten `v-if`s, the pad's band and the bar stand on
+   * this computed, and it re-evaluates only at a reactive edge: one fact read from a plain `let` / Set / Map would move
+   * the answer with no edge and leave a surface mounted (or a question unserved) for good — the dead board of
+   * 2026-10-30, over the whole prompt band. So once a second the shell reads a FRESH answer beside the one that stood
+   * at the last reactive edge (`wiringController` — `serving-owner:latch`); a move with no edge is NAMED there and
+   * HEALED here: the epoch is a reactive dependency of the cache, and bumping it re-asks the function.
+   *
+   * NOT the witness's synchronous watcher (`reactivePredicate`): it re-reads its predicate at EVERY reactive edge, in
+   * the middle of whatever sequence of writes is running — and this predicate reads half of the shell's computeds. A
+   * computed read there, between a reactive write and the plain write that follows it, caches the half-written state
+   * for everyone (the lesson of 2026-11-03, paid again on this swap's first box run: the Pluto discard walked past
+   * its own reveal, eight specs). The answer is read where a render reads it — after the writes — and audited there.
    */
-  const witnessedOwnership = reactivePredicate<Ownership>('serving-owner', () => servingOwnerOf(questionFactsNow(false)),
-    {equals: (a, b) => ownershipDigest(a) === ownershipDigest(b)});
+  const ownershipEpoch = shallowRef(0);
   const promptOwnership = computed((): Ownership => {
+    void ownershipEpoch.value;
     decidingOwner = true;
     try {
-      return witnessedOwnership();
+      return servingOwnerOf(questionFactsNow(false));
     } finally {
       decidingOwner = false;
     }
   });
+
+  /** The answer moved with no reactive edge (the shell's audit): every cache of it re-asks the function. */
+  function healOwnership(): void {
+    ownershipEpoch.value++;
+  }
 
   const servingOwnership = computed((): Ownership => {
     const base = promptOwnership.value;
@@ -1969,8 +1979,7 @@ export function createRouterController(shell: RouterPort) {
     promptOwnership,
     servingOwnership,
     ownerServes,
-    /** The shell left: its answer is nobody's to witness (a dead shell's facts must not be audited as the next game's). */
-    disposeOwnershipWitness: () => witnessedOwnership.dispose(),
+    healOwnership,
     govSupportServes,
     productionLossServes,
     taskHostRenderedLegacy,

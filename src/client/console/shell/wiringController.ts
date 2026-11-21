@@ -55,6 +55,7 @@ import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowSta
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
 import {barRungNow, DerivedPair, noteDerivedRender, registerOwnerNowProbe, resetDerivedSpans, servingOwnerLog, standingDerivedSpans} from '@/client/console/servingOwnerMeasure';
 import {netEnded} from '@/client/diagnostics/netEnded';
+import {invariantBroken} from '@/client/diagnostics/invariant';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {bandRungOf, ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
@@ -162,7 +163,7 @@ export type WiringPort = {
   hostTask: UnwrapRef<RouterController['hostTask']>,
   taskHeldForWorkspace: UnwrapRef<RouterController['taskHeldForWorkspace']>,
   questionFactsNow: RouterController['questionFactsNow'],
-  disposeOwnershipWitness: RouterController['disposeOwnershipWitness'],
+  healOwnership: RouterController['healOwnership'],
   commands: UnwrapRef<CommandBarController['commands']>,
   aresGlobalsActive: UnwrapRef<RouterController['aresGlobalsActive']>,
   botAttackActive: UnwrapRef<RouterController['botAttackActive']>,
@@ -689,6 +690,7 @@ export function createWiringController(shell: WiringPort) {
   }
 
   const offDerived: {value: (() => void) | undefined} = {value: undefined};
+  const offOwnerAudit: {value: (() => void) | undefined} = {value: undefined};
 
   /**
    * EACH PROMPT SURFACE's CONDITION AS IT WAS SPELLED OUT, beside the one that MOUNTS it now (stage 2 ③ —
@@ -836,6 +838,26 @@ export function createWiringController(shell: WiringPort) {
       ownerEdge.answer = line.slice(0, cut);
       ownerEdge.facts = line.slice(cut + 1);
     }, {immediate: true});
+    // THE CACHE IS CHECKED (invariant 17 — `routerController.promptOwnership`): once a second a FRESH answer is read
+    // beside the one that stood at the last reactive edge (the watcher above — flushed with the render, never
+    // synchronous). A move with no edge is a fact of the question that is not reactive: named, and healed.
+    offOwnerAudit.value = consoleSessionScope().every(1000, 'the one answer against its last reactive edge', () => {
+      if (ownerEdge.answer === '') {
+        return;
+      }
+      const facts = factsNow();
+      const now = ownershipDigest(servingOwnerOf(facts));
+      if (now === ownerEdge.answer) {
+        return;
+      }
+      const was = ownerEdge.facts.split(' · ');
+      const is = questionFactsDigest(facts).split(' · ');
+      const moved = [...was.filter((part) => !is.includes(part)).map((part) => `− ${part}`), ...is.filter((part) => !was.includes(part)).map((part) => `+ ${part}`)];
+      invariantBroken('serving-owner:latch', `the answer moved with no reactive edge: «${ownerEdge.answer}» → «${now}» — ${moved.length > 0 ? moved.join(' · ') : 'the facts read the same'}`);
+      ownerEdge.answer = now;
+      ownerEdge.facts = questionFactsDigest(facts);
+      shell.healOwnership();
+    });
     // …and the PAD's half of the same measure asks the function on the same facts, before each press (stage 2 ②).
     registerOwnerNowProbe(() => {
       const facts = factsNow();
@@ -1332,7 +1354,8 @@ export function createWiringController(shell: WiringPort) {
     offOwnerEdge.value = undefined;
     offDerived.value?.();
     offDerived.value = undefined;
-    shell.disposeOwnershipWitness();
+    offOwnerAudit.value?.();
+    offOwnerAudit.value = undefined;
     delete (window as unknown as {__conWaitGraph?: unknown}).__conWaitGraph;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);
