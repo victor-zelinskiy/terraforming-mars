@@ -288,7 +288,20 @@ for (const profile of PROFILES) {
         await runStandardProject(page, /очистк|scrapping/i, async () => (await wireOf(request, id)).game.venusScaleLevel === level);
         // The bonus is a STEP of the standard projects' workspace (P89 · EE): «Шкала Венеры 30 % → 31 %».
         await expect(page.locator('.con-stdp .con-venus[data-venus-bonus-embedded]'), `Venus ${level} % asks its bonus inside the workspace`)
-          .toBeVisible({timeout: 45_000});
+          .toBeVisible({timeout: 45_000})
+          .catch(async (error: Error) => {
+            // A red names WHERE the bonus stood (the hunt 44905320939: not in the workspace at 33 %) — embedded elsewhere,
+            // the standalone band, nowhere — beside the workspace's own state and the server's question.
+            const where = await page.evaluate(() => ({
+              venus: Array.from(document.querySelectorAll('.con-venus')).map((el) =>
+                `${el.hasAttribute('data-venus-bonus-embedded') ? 'embedded' : 'band'}@${el.closest('.con-stdp') !== null ? 'stdp' : el.parentElement?.className ?? '?'}`),
+              stdp: Array.from(document.querySelectorAll('.con-stdp')).map((el) => `${el.className} ${Array.from(el.attributes).filter((a) => a.name.startsWith('data-')).map((a) => `${a.name}=${a.value}`).join(' ')}`),
+              crumb: document.querySelector('.con-wshead__subject')?.textContent?.trim() ?? '',
+              ready: (window as unknown as {__conReady?: () => {holds?: unknown, transport?: unknown}}).__conReady?.(),
+            }));
+            const wf = (await wireOf(request, id)).waitingFor;
+            throw new Error(`${error.message}\n${JSON.stringify({where, waitingFor: wf?.type, venusBonusPrompt: wf?.venusBonusPrompt !== undefined})}`);
+          });
         await expect(page.locator('[data-venus-step]'), 'the step that earned it is read').toContainText(`${level}`);
         await shoot(page, `20-venus-${level}-bonus`);
         if (level === 33) {
