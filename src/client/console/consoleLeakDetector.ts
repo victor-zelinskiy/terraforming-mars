@@ -525,6 +525,8 @@ export type ScreenShadowContext = {
   admission: string,
   /** The facts of the question for the ONE function's measure (`servingOwnerMeasure.ts` — stage 2; stats only). */
   facts?: Omit<QuestionFacts, 'task'>,
+  /** THE CLIENT's OWN QUESTION, when one stands (a payment / a pick the player's composer raised) — the function's task then. */
+  question?: ConsoleTask,
   /** The prompt surfaces' own conditions that hold right now, by the pad's names (stage 2 ③ — the measure's, read by nothing else). */
   flags?: ReadonlyArray<string>,
   /** The function's answer and its facts as they stood at the LAST reactive edge of those facts (stage 2 ③ — the measure's). */
@@ -760,7 +762,7 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
       // (What the shadow made of the same look, WITH its reason — a hold the function's facts do not know yet is named by it.)
       const shadow = verdict.kind === 'held' ? `held:${verdict.reason}` : verdict.kind === 'beat' ? `beat:${verdict.beats.join('+')}` :
         verdict.kind === 'agree' ? `agree:${verdict.basis}` : verdict.kind;
-      const facts = {task, ...ctx.facts};
+      const facts = {task: ctx.question ?? task, ...ctx.facts};
       const ownership = servingOwnerOf(facts);
       noteServingOwnerLook(shape, ownership, present, shadow, () => questionFactsDigest(facts));
       if (ctx.edge !== undefined) {

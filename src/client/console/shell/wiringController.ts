@@ -53,7 +53,9 @@ import {generationSceneState, registerGenerationSceneHandoff} from '@/client/con
 import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
-import {barRungNow, registerOwnerNowProbe, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
+import {barRungNow, DerivedPair, noteDerivedRender, registerOwnerNowProbe, resetDerivedSpans, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
+import {CLIENT_PAYMENT_TASK, CLIENT_PICK_TASK} from '@/client/console/shell/shellShared';
+import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {bandRungOf, ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
@@ -170,6 +172,9 @@ export type WiringPort = {
   productionLossActive: UnwrapRef<RouterController['productionLossActive']>,
   spendHeatActive: UnwrapRef<RouterController['spendHeatActive']>,
   taskHostOwnsInput: UnwrapRef<RouterController['taskHostOwnsInput']>,
+  taskHostRendered: UnwrapRef<RouterController['taskHostRendered']>,
+  taskHostHeldBy: UnwrapRef<RouterController['taskHostHeldBy']>,
+  pendingClientPayment: UnwrapRef<PlayCardController['pendingClientPayment']>,
   taskSpacePending: UnwrapRef<PlacementController['taskSpacePending']>,
   venusBonusActive: UnwrapRef<RouterController['venusBonusActive']>,
   hydroFollowUpLive: UnwrapRef<HydroController['hydroFollowUpLive']>,
@@ -653,11 +658,63 @@ export function createWiringController(shell: WiringPort) {
    * on the facts as they stand — never cached (the facts are not all reactive yet: step ③).
    */
   function bandRungNow(): string {
-    const task = taskFor(shell.playerView);
-    const facts = {task, ...ownerFacts()};
+    const facts = factsNow();
     const ownership = servingOwnerOf(facts);
     const depth = ownership.asked ? facts.frames.indexOf(ownership.owner as WorkspaceFrameKind) : -1;
-    return bandRungOf(ownership, depth === -1 ? [] : facts.frames.slice(depth + 1), task?.kind ?? '');
+    return bandRungOf(ownership, depth === -1 ? [] : facts.frames.slice(depth + 1), facts.task?.kind ?? '');
+  }
+
+  /**
+   * THE QUESTION IN FRONT OF THE PLAYER — the client's own while one stands (a standard project's price, a law's
+   * «where»: the player's composer raised it, and the task host answers it whatever the server asks meanwhile), else
+   * the server's.
+   */
+  function questionNow(): {task: ConsoleTask | undefined, client: boolean} {
+    if (shell.pendingClientPayment !== undefined) {
+      return {task: CLIENT_PAYMENT_TASK, client: true};
+    }
+    if (shell.pendingClientPick !== undefined) {
+      return {task: CLIENT_PICK_TASK, client: true};
+    }
+    return {task: taskFor(shell.playerView), client: false};
+  }
+
+  /** The facts of the question, whole — what `servingOwnerOf` is asked with. */
+  function factsNow(): QuestionFacts {
+    const question = questionNow();
+    return {task: question.task, ...ownerFacts(), client: question.client};
+  }
+
+  /** The shape a measure's row is filed under (`client:` — the client's own question). */
+  function shapeNow(facts: QuestionFacts): string {
+    return facts.task === undefined ? 'none' : `${facts.client ? 'client:' : ''}${screenPromptShape(facts.task)}`;
+  }
+
+  const offDerived: {value: (() => void) | undefined} = {value: undefined};
+
+  /**
+   * EACH PROMPT SURFACE's CONDITION AS THE TEMPLATE READS IT TODAY, beside the one it is to become (stage 2 ③ —
+   * `servingOwnerMeasure.noteDerivedRender`). The left column is the template's own text; nothing reads the right one
+   * yet.
+   */
+  function derivedPairs(facts: QuestionFacts, ownership: ReturnType<typeof servingOwnerOf>): ReadonlyArray<DerivedPair> {
+    const serves = (owner: string): boolean => ownership.asked && ownership.hold === undefined && ownership.owner === owner;
+    const free = !consoleState.task.deferred && shell.taskSpacePending === undefined;
+    const kind = facts.task?.kind;
+    return [
+      {surface: 'taskHost', legacy: shell.hostTask !== undefined && shell.taskHostRendered, derived: serves('task'), why: shell.taskHostHeldBy},
+      {surface: 'effectDecision', legacy: shell.effectDecisionVm !== undefined && shell.effectDecisionRendered, derived: serves('decision'),
+        why: shell.effectDecisionVm?.directPick !== undefined ? 'direct-pick' : ''},
+      {surface: 'govSupport', legacy: shell.govSupportActive && !govScaleFocusState.closing && free, derived: serves('gov-support'),
+        why: govScaleFocusState.closing ? 'gov-scale-closing' : ''},
+      {surface: 'deckPick', legacy: shell.deckPickServing, derived: serves('deck-pick'), why: ''},
+      {surface: 'prodLoss', legacy: shell.productionLossActive && free, derived: serves('prod-loss'), why: ''},
+      {surface: 'spendHeat', legacy: shell.spendHeatActive, derived: serves('lanes') && kind === 'spendHeat', why: ''},
+      {surface: 'venusBonus', legacy: shell.venusBonusActive, derived: serves('lanes') && kind === 'venusBonus', why: ''},
+      {surface: 'ares', legacy: shell.aresGlobalsActive, derived: serves('ares'), why: ''},
+      {surface: 'botAttack', legacy: shell.botAttackActive, derived: serves('bot-attack'), why: ''},
+      {surface: 'corpFirst', legacy: shell.corpFirstActionOpen, derived: serves('corp-first'), why: ''},
+    ];
   }
 
   const ownerEdge = {answer: '', facts: ''};
@@ -687,7 +744,11 @@ export function createWiringController(shell: WiringPort) {
     const lateral = top === undefined ? '' :
       shell.placementActive && top.phase === 'browse' && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ? top.kind :
         shell.startSceneMounted && top.kind !== 'start' && hostCarriesPlayersLook('start') ? top.kind : '';
-    return {...shell.questionFacts(), startFlow: shell.startSceneMounted, lateral};
+    return {
+      ...shell.questionFacts(), client: false, startFlow: shell.startSceneMounted, lateral,
+      // THE OPENING YIELDED ITS SCENE (`startSceneVisible`): its frame stands, the screen is somebody else's.
+      startYielded: shell.startSceneMounted && !shell.startSceneVisible,
+    };
   }
 
   function shellMounted(): void {
@@ -769,6 +830,7 @@ export function createWiringController(shell: WiringPort) {
         lateral: lateralLook(),
         // (The facts of the question for the ONE function's measure — stage 2; read by nothing else yet.)
         facts: ownerFacts(),
+        question: questionNow().client ? questionNow().task : undefined,
         flags: promptFlags(),
         edge: {...ownerEdge},
       };
@@ -784,7 +846,7 @@ export function createWiringController(shell: WiringPort) {
     // …and THE ANSWER AT ITS LAST REACTIVE EDGE (stage 2 ③ — `noteOwnerEdgeLook`): a watcher of the function's own
     // answer, flushed with the render like the caches that are to read it. It only remembers.
     offOwnerEdge.value = watch(() => {
-      const facts = {task: taskFor(shell.playerView), ...ownerFacts()};
+      const facts = factsNow();
       return `${ownershipDigest(servingOwnerOf(facts))}\n${questionFactsDigest(facts)}`;
     }, (line) => {
       const cut = line.indexOf('\n');
@@ -793,19 +855,34 @@ export function createWiringController(shell: WiringPort) {
     }, {immediate: true});
     // …and the PAD's half of the same measure asks the function on the same facts, before each press (stage 2 ②).
     registerOwnerNowProbe(() => {
-      const task = taskFor(shell.playerView);
-      const facts = {task, ...ownerFacts()};
+      const facts = factsNow();
       const ownership = servingOwnerOf(facts);
       // (The frames standing ABOVE the owner's own on the live stack — the steps of its flow, which take the pad.)
       const depth = ownership.asked ? facts.frames.indexOf(ownership.owner as WorkspaceFrameKind) : -1;
       return {
-        shape: task === undefined ? 'none' : screenPromptShape(task), ownership, facts: () => questionFactsDigest(facts),
+        shape: shapeNow(facts), ownership, facts: () => questionFactsDigest(facts),
         steps: depth === -1 ? [] : facts.frames.slice(depth + 1),
         // (The bar the player is looking at: read first, so the branch it names is the one that made it.)
         bar: shell.commands.length >= 0 ? barRungNow() : '',
-        kind: task?.kind ?? '',
+        kind: facts.task?.kind ?? '',
       };
     });
+    // …and THE DERIVATION, HELD AGAINST EVERY RENDER (stage 2 ③): after each render in which a pair or the answer
+    // moved, every prompt surface's condition of today beside the one it is to become. It only counts.
+    resetDerivedSpans();
+    offDerived.value = watch(() => {
+      const facts = factsNow();
+      const ownership = servingOwnerOf(facts);
+      return JSON.stringify({shape: shapeNow(facts), answer: ownershipDigest(ownership), pairs: derivedPairs(facts, ownership), facts: questionFactsDigest(facts)});
+    }, (line) => {
+      try {
+        const read = JSON.parse(line) as {shape: string, answer: string, pairs: Array<DerivedPair>, facts: string};
+        noteDerivedRender(read.shape, read.answer, read.pairs, read.facts, Date.now());
+      } catch {
+        // a measure never breaks the render it precedes
+      }
+      // (The default flush: the watcher runs in the same tick as the render, on the state that render reads.)
+    }, {immediate: true});
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
       stats: JSON.parse(JSON.stringify(screenShadowLog.stats)) as unknown,
@@ -1259,6 +1336,8 @@ export function createWiringController(shell: WiringPort) {
     registerOwnerNowProbe(undefined);
     offOwnerEdge.value?.();
     offOwnerEdge.value = undefined;
+    offDerived.value?.();
+    offDerived.value = undefined;
     delete (window as unknown as {__conWaitGraph?: unknown}).__conWaitGraph;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);

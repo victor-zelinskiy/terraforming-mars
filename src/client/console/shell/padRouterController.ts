@@ -587,7 +587,9 @@ export function createPadRouterController(shell: PadRouterPort) {
     // THE FINALE ON THE BOARD (PL-296): while the finale's own board pick is out, RT is the FINISH — a HOLD (the
     // shared hold-to-confirm, «Пас»'s gesture), never the actions wheel (nothing else can be done at the end of the
     // game). Only at the cell-choice level: a LOCKED cell is a placement in progress — B steps back first.
-    if (shell.finalGreeneryPickPending && shell.placementActive && intent.kind === 'press' && intent.button === 'triggerR') {
+    // (Never under Information Mode: it owns every press while open, and its bar promises no finish — the bar's
+    // measure against the pad met this rung taking RT off an open inspection.)
+    if (shell.finalGreeneryPickPending && shell.placementActive && !infoModeState.open && intent.kind === 'press' && intent.button === 'triggerR') {
       notePadRung('finalGreenery');
       if (placementFlowState.phase === 'navigate') {
         shell.beginFinalGreeneryFinish();

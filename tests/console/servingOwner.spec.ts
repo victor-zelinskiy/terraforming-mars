@@ -56,7 +56,7 @@ const SHAPES: {[K in TaskKind]: ReadonlyArray<Extract<ConsoleTask, {kind: K}>>} 
 const ALL_SHAPES: ReadonlyArray<ConsoleTask> = Object.values(SHAPES).flat();
 
 const QUIET: Omit<QuestionFacts, 'task'> = {
-  startFlow: false, effectDecision: false, draftFrame: false, draftClaims: false, resolutionDraw: false,
+  client: false, startYielded: false, startFlow: false, effectDecision: false, draftFrame: false, draftClaims: false, resolutionDraw: false,
   servingFrame: undefined, host: undefined, frames: [], handoff: [], aside: false, lateral: '', boardBranch: false, scene: '', claimHeld: false, blocks: {},
 };
 
@@ -64,8 +64,19 @@ const BOOLS = [false, true];
 const FRAMES: ReadonlyArray<WorkspaceFrameKind | undefined> = [undefined, 'hand', 'card-actions', 'parliament', 'hydro', 'colonies', 'start'];
 const SURFACES: ReadonlyArray<PromptSurface> = ['host', 'scaleBonus', 'section', 'standaloneModal', 'scene', 'placement', 'followUp'];
 
+/** The two facts that stand apart from the rest of the product: the client's own question · the opening's yielded scene. */
+const APART: ReadonlyArray<{client: boolean, startYielded: boolean}> = [
+  {client: false, startYielded: false}, {client: true, startYielded: false}, {client: false, startYielded: true},
+];
+
 /** The whole product of the facts (the holds are walked one at a time and all together). */
 function* everyFacts(task: ConsoleTask | undefined): Generator<QuestionFacts> {
+  for (const apart of APART) {
+    yield* everyFactsOf(task, apart);
+  }
+}
+
+function* everyFactsOf(task: ConsoleTask | undefined, apart: {client: boolean, startYielded: boolean}): Generator<QuestionFacts> {
   for (const startFlow of BOOLS) {
     for (const effectDecision of BOOLS) {
       for (const draftFrame of BOOLS) {
@@ -82,7 +93,7 @@ function* everyFacts(task: ConsoleTask | undefined): Generator<QuestionFacts> {
                           // (The stack that stands: nothing, or exactly the frames the facts name — both are walked.)
                           for (const standing of BOOLS) {
                             const frames = standing ? [...new Set([servingFrame, host].filter((k): k is WorkspaceFrameKind => k !== undefined))] : [];
-                            yield {task, startFlow, effectDecision, draftFrame, draftClaims, resolutionDraw, servingFrame, host, frames, handoff: [], aside, lateral: '', boardBranch, scene, claimHeld, blocks};
+                            yield {task, ...apart, startFlow, effectDecision, draftFrame, draftClaims, resolutionDraw, servingFrame, host, frames, handoff: [], aside, lateral: '', boardBranch, scene, claimHeld, blocks};
                           }
                         }
                       }
@@ -102,7 +113,7 @@ const EVERY_OWNER: ReadonlySet<string> = new Set<string>([...ALL_WORKSPACE_KINDS
 const shapeOf = (t: ConsoleTask): string => JSON.stringify(t);
 
 describe('servingOwner — who serves the question: one total function', function() {
-  // (The product is ≈ 1.6 million points; a budget for the walk, never a timing.)
+  // (The product is ≈ 4.7 million points; a budget for the walk, never a timing.)
   // eslint-disable-next-line no-invalid-this
   this.timeout(600_000);
 
@@ -140,7 +151,9 @@ describe('servingOwner — who serves the question: one total function', functio
           // The table scopes the opening's own questions OUT (`'start'`) — the function names the start for them.
           (o.basis === 'start' && o.owner === 'start') ||
           // …and the kinds it calls `unknown` have the task host here: nobody is never the answer.
-          (o.basis === 'fallback' && o.owner === 'task');
+          (o.basis === 'fallback' && o.owner === 'task') ||
+          // THE CLIENT's OWN QUESTION is the task host's (or a frame's that hosts it), whatever shape it borrows.
+          (facts.client && o.owner === 'task');
         if (!allowed) {
           expect.fail(`${shapeOf(task)}: «${o.owner}» (${o.basis}) is not in the row ${JSON.stringify(row)} — facts ${JSON.stringify({...facts, task: undefined})}`);
         }
@@ -156,12 +169,17 @@ describe('servingOwner — who serves the question: one total function', functio
         const inAlready = !facts.boardBranch && (facts.frames as ReadonlyArray<string>).includes(o.owner);
         const admitted = o.admission === undefined || inAlready ||
           ((facts.blocks[o.admission] ?? '') === '' && (o.door === undefined || (facts.blocks[o.door] ?? '') === ''));
+        // (…the board under the question's own placement is an owner of its own, with the board's door.)
+        if (facts.client && o.owner !== 'board') {
+          expect(o.admission, 'nothing admits the client\'s own question').to.eq(undefined);
+        }
+        const yielded = facts.startYielded && o.owner === 'start';
         // (…and so is «set aside»: the player standing on the surface that answers is not away from it.)
         const onItsSurface = (facts.frames as ReadonlyArray<string>).includes(o.owner);
         const expected =
           facts.aside && (facts.boardBranch || !onItsSurface) ? 'aside' :
             facts.boardBranch ? (admitted ? undefined : 'admission') :
-              facts.scene !== '' ? 'scene' :
+              facts.scene !== '' || yielded ? 'scene' :
                 facts.claimHeld ? 'claim' :
                   admitted ? undefined : 'admission';
         if (o.hold?.kind !== expected) {
@@ -248,6 +266,15 @@ describe('servingOwner — who serves the question: one total function', functio
     // THE PLAYER'S OWN LOOK OVER THE OPENING: the start is still the owner, and it waits for the player.
     expect(servingOwnerOf({...QUIET, task: ALL_SHAPES.find((t) => t.kind === 'startSequence'), startFlow: true, frames: ['start', 'colonies'], lateral: 'colonies'}))
       .to.deep.include({owner: 'start', hold: {kind: 'aside', by: 'lateral:colonies'}});
+    // THE CLIENT's OWN QUESTION: the task host's, in the flow's zone, with no door — and the player may still set it aside.
+    expect(servingOwnerOf({...QUIET, task: {kind: 'payment'}, client: true, blocks: {host: 'card-arrival'}})).to.deep.eq({asked: true, owner: 'task', basis: 'row'});
+    expect(servingOwnerOf({...QUIET, task: {kind: 'payment'}, client: true, host: 'standard-projects', frames: ['standard-projects']}))
+      .to.deep.eq({asked: true, owner: 'task', basis: 'row', host: 'standard-projects'});
+    expect(servingOwnerOf({...QUIET, task: {kind: 'cardSelect', mode: 'target'}, client: true, aside: true})).to.deep.include({hold: {kind: 'aside', by: 'the player set it aside'}});
+    // THE OPENING THAT YIELDED ITS SCENE still owns its question, and waits; nobody else is touched by it.
+    expect(servingOwnerOf({...QUIET, task: ALL_SHAPES.find((t) => t.kind === 'startSequence'), startFlow: true, startYielded: true, frames: ['start']}))
+      .to.deep.include({owner: 'start', hold: {kind: 'scene', by: 'start-yielded'}});
+    expect(servingOwnerOf({...QUIET, task: {kind: 'payment'}, startFlow: true, startYielded: true, host: 'start', frames: ['start']})).to.not.have.property('hold');
     // A PHASE ROOT is never a step in somebody's zone.
     expect(owner({kind: 'cardSelect', mode: 'buy'}, {draftClaims: true, host: 'parliament'})).to.eq('draft');
     expect(owner({kind: 'cardSelect', mode: 'draft'}, {host: 'hand'})).to.eq('draft');

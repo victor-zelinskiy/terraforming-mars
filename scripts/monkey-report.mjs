@@ -185,6 +185,8 @@ export function aggregateOwner(files) {
   const verdicts = {};
   const rows = {};
   const disagreements = new Map();
+  const spans = {};
+  const open = {};
   for (const f of files) {
     const o = f.owner;
     if (o === undefined || o === null || typeof o.looks !== 'number') {
@@ -200,6 +202,19 @@ export function aggregateOwner(files) {
         verdicts[head] = (verdicts[head] ?? 0) + n;
       }
     }
+    for (const [key, span] of Object.entries(o.spans ?? {})) {
+      const into = spans[key] ?? (spans[key] = {n: 0, ms: 0, max: 0, tables: []});
+      into.n += span.n ?? 0;
+      into.ms += span.ms ?? 0;
+      into.max = Math.max(into.max, span.max ?? 0);
+      if (into.tables.length < 4) {
+        into.tables.push(String(f.title ?? '').replace(/^monkey · /, ''));
+      }
+    }
+    for (const d of o.open ?? []) {
+      const key = `${d.surface}|${d.verdict}`;
+      open[key] = (open[key] ?? 0) + 1;
+    }
     for (const d of o.disagreements ?? []) {
       const key = `${d.shape} — ${d.verdict}: says «${d.owner}${d.host ? `@${d.host}` : ''}»${d.hold ? ` held by ${d.hold}` : ''}, painted «${(d.present ?? []).join('|') || 'nothing'}»`;
       const known = disagreements.get(key) ?? {n: 0, tables: [], facts: typeof d.facts === 'string' ? d.facts : ''};
@@ -214,7 +229,7 @@ export function aggregateOwner(files) {
     return undefined;
   }
   return {
-    walks, looks, verdicts, rows,
+    walks, looks, verdicts, rows, spans, open,
     disagreements: [...disagreements.entries()].sort((a, b) => b[1].n - a[1].n).map(([what, v]) => ({what, walks: v.n, tables: v.tables, facts: v.facts})),
   };
 }
@@ -256,6 +271,20 @@ export function renderOwner(owner) {
   for (const [kind, who] of Object.entries(heldMap).sort((a, b) => a[0].localeCompare(b[0]))) {
     const total = Object.values(who).reduce((a, b) => a + b, 0);
     L.push(`  under ${kind.padEnd(9)} ${String(total).padStart(6)} — ${Object.entries(who).sort((a, b) => b[1] - a[1]).map(([w, n]) => `${w} ${n}`).join(' · ')}`);
+  }
+  // THE DERIVATION, HELD AGAINST EVERY RENDER (stage 2 ③): each prompt surface's condition of today beside «the function
+  // says this owner serves» — the differences as spans (how often, how long), by surface.
+  const eqSurfaces = Object.keys(owner.rows ?? {}).filter((shape) => shape.startsWith('eq:')).map((shape) => shape.slice(3)).sort();
+  if (eqSurfaces.length > 0) {
+    const spanRows = Object.entries(owner.spans ?? {}).sort((x, y) => y[1].ms - x[1].ms || y[1].n - x[1].n);
+    const total = spanRows.reduce((a, [, v]) => a + v.n, 0);
+    const both = eqSurfaces.reduce((a, surface) => a + (owner.rows[`eq:${surface}`]['eq-both'] ?? 0), 0);
+    L.push(`THE DERIVATION — ${eqSurfaces.length} surface(s), ${both} render(s) standing by both: ${total} difference span(s)` +
+      (Object.keys(owner.open ?? {}).length > 0 ? ` · STILL OPEN at the walk's end: ${Object.entries(owner.open).map(([k, n]) => `${k} ×${n}`).join(' · ')}` : ''));
+    for (const [key, v] of spanRows.slice(0, 60)) {
+      const [surface, ...rest] = key.split('|');
+      L.push(`  ${surface.padEnd(14)} ${String(v.n).padStart(5)}×  ${String(Math.round(v.ms)).padStart(7)} ms in all · longest ${String(Math.round(v.max)).padStart(6)} ms  ${rest.join('|')}   [${v.tables.join(', ')}]`);
+    }
   }
   // THE ANSWER AT ITS LAST REACTIVE EDGE (stage 2 ③): would a cache derived from the function hold the truth?
   const edgeN = {agree: 0, latch: 0};
@@ -361,14 +390,14 @@ export function renderOwner(owner) {
       L.push(`  APART: ${pairs(barPairs)}`);
     }
   }
-  for (const d of owner.disagreements.slice(0, 40)) {
+  for (const d of owner.disagreements.slice(0, 60)) {
     L.push(`${String(d.walks).padStart(5)} walk(s)  ${d.what}   [${d.tables.join(', ')}]`);
     if (d.facts) {
       L.push(`               facts: ${d.facts}`);
     }
   }
-  if (owner.disagreements.length > 40) {
-    L.push(`  … +${owner.disagreements.length - 40} (all of them are in the report's JSON)`);
+  if (owner.disagreements.length > 60) {
+    L.push(`  … +${owner.disagreements.length - 60} (all of them are in the report's JSON)`);
   }
   return L.join('\n');
 }

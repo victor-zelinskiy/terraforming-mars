@@ -14,7 +14,7 @@
  */
 import {sessionState} from '@/client/console/session/consoleSession';
 import type {ScreenOwner} from '@/client/console/screenDirector';
-import {bandRungOf, Ownership} from '@/client/console/servingOwner';
+import {bandRungOf, bandRungsOfOwner, Ownership} from '@/client/console/servingOwner';
 
 /**
  * How one look read:
@@ -36,11 +36,15 @@ export type ServingOwnerLog = {
   rows: Record<string, Record<OwnerLookVerdict, number>>,
   /** The last disagreements, each ONCE per (shape, verdict, owner, what painted) — newest last. */
   disagreements: Array<{shape: string, verdict: OwnerLookVerdict, owner: string, host: string, hold: string, present: ReadonlyArray<string>, shadow: string, facts: string}>,
+  /** THE DERIVATION's spans (`noteDerivedRender`): `<surface>|<verdict>` → how many times it opened, for how long in all, the longest. */
+  spans: Record<string, {n: number, ms: number, max: number}>,
+  /** …and the differences still standing when the log was read (a difference that never closed is the worst kind). */
+  open: Array<{surface: string, verdict: string, since: number}>,
 };
 
 const MAX_DISAGREEMENTS = 60;
 
-export const servingOwnerLog: ServingOwnerLog = {looks: 0, rows: {}, disagreements: []};
+export const servingOwnerLog: ServingOwnerLog = {looks: 0, rows: {}, disagreements: [], spans: {}, open: []};
 
 /** The disagreement the last look read (its picture) — a second look of the same picture in a row is SETTLED. */
 let unsettledPicture = '';
@@ -59,10 +63,13 @@ export function resetServingOwnerLog(): void {
   servingOwnerLog.looks = 0;
   servingOwnerLog.rows = {};
   servingOwnerLog.disagreements = [];
+  servingOwnerLog.spans = {};
+  servingOwnerLog.open = [];
   unsettledPicture = '';
   padRung = '';
   barRung = '';
   bandFallback = '';
+  openDiffs.clear();
   unsettledFlags = '';
   ownerNowProbe = undefined;
 }
@@ -172,7 +179,20 @@ const RUNGS_OF_OWNER: Readonly<Record<string, ReadonlyArray<string>>> = {
   'external-draw': ['externalDraw'],
   'endgame': ['endgame'],
   'repeat-pick': ['repeatPick'],
+  // (The hand's own flows: the play composer of a card taken from it, a pick its album hosts.)
+  'hand': ['pendingPlay', 'handPick'],
 };
+
+/**
+ * THE RUNGS OF THE PROMPT SURFACES — the ones that exist ONLY to answer a question (the task host, a decision, a
+ * composite, the deck pick, a corporation's first action). Every other rung below the ladder's upper half is a place
+ * the PLAYER stands: a section, a sheet, a workspace with a rung of its own (the draft, the opening, an external
+ * draw, the endgame), a flow of the client's (a play from the hand, a repeat, the finale). A question that waits, a
+ * workspace that serves and «nothing asked» all leave the press to such a place — never to a prompt surface.
+ */
+const PROMPT_RUNGS: ReadonlySet<string> = new Set([
+  'taskHost', 'effectDecision', 'govSupport', 'prodLoss', 'spendHeat', 'venusBonus', 'ares', 'botAttack', 'deckPick', 'corpFirst',
+]);
 
 /** A view the PLAYER opened over the question — B is one press back to it. (`<view>:open` — the press that OPENS it.) */
 const LOOK_RUNGS: ReadonlySet<string> = new Set(['info', 'zoom', 'quick', 'journal', 'played', 'botReview', 'confirm', 'colonyFocus', 'toast', 'draftTray', 'fallback']);
@@ -358,22 +378,28 @@ export function endBarPress(shape: string, bar: string, ownership: Ownership, fa
  */
 /** PURE: how the prompt conditions that hold read against the function's answer. */
 export function promptFlagsVerdict(ownership: Ownership, flags: ReadonlyArray<string>, steps: ReadonlyArray<string> = []): OwnerLookVerdict {
+  // (A WORKSPACE WITH A RUNG OF ITS OWN — the draft, the opening, an external draw — stands by its FRAME, whatever is
+  // asked: the real browser's first reading met the draft still on screen under a question that waited at its gate.
+  // Only the prompt surfaces are judged.)
+  const prompt = flags.filter((flag) => PROMPT_RUNGS.has(flag));
   if (!ownership.asked) {
-    return flags.length === 0 ? 'flag-free' : `flag-EXTRA:free:${flags.join('+')}`;
+    return prompt.length === 0 ? 'flag-free' : `flag-EXTRA:free:${prompt.join('+')}`;
   }
   if (ownership.hold !== undefined) {
-    return flags.length === 0 ? 'flag-held' : `flag-EXTRA:${ownership.hold.kind}:${flags.join('+')}`;
+    return prompt.length === 0 ? 'flag-held' : `flag-EXTRA:${ownership.hold.kind}:${prompt.join('+')}`;
   }
-  const own = [ownership.owner, ...(ownership.host !== undefined ? [ownership.host] : []), ...steps].flatMap((who) => RUNGS_OF_OWNER[who] ?? []);
-  const other = flags.filter((flag) => !own.includes(flag));
+  const own = [ownership.owner, ...(ownership.host !== undefined ? [ownership.host] : []), ...steps].flatMap((who) => bandRungsOfOwner(who));
+  const other = prompt.filter((flag) => !own.includes(flag));
   if (other.length > 0) {
     return `flag-EXTRA:serves:${other.join('+')}`;
   }
-  if (flags.length === 0) {
-    // (A workspace that owns the question stands by its frame — no prompt condition is its own.)
-    return (RUNGS_OF_OWNER[ownership.owner] ?? []).length === 0 ? 'flag-agree' : `flag-MISS:${ownership.owner}`;
+  // (A workspace that owns the question stands by its frame — no prompt condition is its own; and an owner whose step
+  // stands above it has handed the screen to that step.)
+  const mine = bandRungsOfOwner(ownership.owner).filter((rung) => PROMPT_RUNGS.has(rung));
+  if (mine.length > 0 && steps.length === 0 && !mine.some((rung) => prompt.includes(rung))) {
+    return `flag-MISS:${ownership.owner}`;
   }
-  return flags.length === 1 ? 'flag-agree' : `flag-agree:two:${flags.join('+')}`;
+  return prompt.length <= 1 ? 'flag-agree' : `flag-agree:two:${prompt.join('+')}`;
 }
 
 /** One look: the conditions that hold, counted against the function; a disagreement is kept once per its picture. */
@@ -437,7 +463,9 @@ export function bandRungVerdict(derived: string, rung: string): OwnerLookVerdict
   if (isLookRung(rung) || BEAT_RUNGS.has(rung)) {
     return 'band-above';
   }
-  const agrees = derived.startsWith('own:') ? derived === `own:${rung}` : rung.startsWith('section:') || rung.startsWith('sheet:');
+  // (A surface with a rung of its own: that very rung. Otherwise — the owner waits, a workspace serves, nothing is
+  // asked — the press is the PLAYER's, wherever they stand: any rung but a prompt surface's.)
+  const agrees = derived.startsWith('own:') ? derived === `own:${rung}` : rung !== '' && !PROMPT_RUNGS.has(rung);
   return agrees ? 'band-agree' : `band-APART:${derived}>${rung === '' ? 'unnamed' : rung}`;
 }
 
@@ -499,4 +527,79 @@ export function noteOwnerEdgeLook(shape: string, atEdge: {answer: string, facts:
   if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
     servingOwnerLog.disagreements.shift();
   }
+}
+
+/*
+ * ── THE DERIVATION, HELD AGAINST EVERY RENDER (stage 2 ③ — the last measure before a `v-if` is derived) ───────────
+ *
+ * The looks above read the screen once a second. A `v-if` is read at every RENDER — and a surface that the function
+ * would take down for three frames in the middle of a beat is a blink (its state lost with it) that no look ever
+ * meets. So before a single condition is swapped, the shell hands in, after every render in which anything moved,
+ * each prompt surface's condition as the template reads it TODAY (`legacy`) beside the one it is to become
+ * (`derived` — «the function says this owner serves»):
+ *   · `eq-both`                — both stand;
+ *   · `eq-LEGACY:<answer>`     — today's condition stands and the function names somebody else (or a hold): after
+ *                                the swap the surface would NOT be there;
+ *   · `eq-DERIVED:<why>`       — the function says it serves and today's condition holds it down (`why` — the
+ *                                condition's own named reason where it has one): after the swap it WOULD be there.
+ * A difference is a SPAN: it opens at one render and closes at a later one — counted once per opening, with how long
+ * it stood (`spans`: n · total · the longest), and kept once per picture with the facts. A span still open when the
+ * log is read is listed apart (`open`). Counted under `eq:<surface>`. STATS ONLY.
+ */
+export type DerivedPair = {surface: string, legacy: boolean, derived: boolean, why: string};
+
+const openDiffs = new Map<string, {verdict: string, since: number}>();
+
+function closeDiff(surface: string, now: number): void {
+  const was = openDiffs.get(surface);
+  if (was === undefined) {
+    return;
+  }
+  openDiffs.delete(surface);
+  const key = `${surface}|${was.verdict}`;
+  const span = servingOwnerLog.spans[key] ?? (servingOwnerLog.spans[key] = {n: 0, ms: 0, max: 0});
+  const stood = Math.max(0, now - was.since);
+  span.ms += stood;
+  span.max = Math.max(span.max, stood);
+}
+
+/** The pairs as one render left them. `now` — the page's clock (the bottle's is its own). */
+export function noteDerivedRender(shape: string, answer: string, pairs: ReadonlyArray<DerivedPair>, facts: string, now: number): void {
+  for (const pair of pairs) {
+    const key = `eq:${pair.surface}`;
+    const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
+    if (pair.legacy === pair.derived) {
+      closeDiff(pair.surface, now);
+      continue;
+    }
+    const verdict = pair.legacy ? `eq-LEGACY:${answer}` : `eq-DERIVED:${pair.why === '' ? 'unnamed' : pair.why}`;
+    const was = openDiffs.get(pair.surface);
+    if (was !== undefined && was.verdict === verdict) {
+      continue;
+    }
+    closeDiff(pair.surface, now);
+    openDiffs.set(pair.surface, {verdict, since: now});
+    row[verdict] = (row[verdict] ?? 0) + 1;
+    const span = servingOwnerLog.spans[`${pair.surface}|${verdict}`] ?? (servingOwnerLog.spans[`${pair.surface}|${verdict}`] = {n: 0, ms: 0, max: 0});
+    span.n++;
+    if (!servingOwnerLog.disagreements.some((d) => d.shadow === 'eq' && d.shape === key && d.verdict === verdict)) {
+      servingOwnerLog.disagreements.push({shape: key, verdict, owner: answer, host: '', hold: '', present: [shape], shadow: 'eq', facts});
+      if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
+        servingOwnerLog.disagreements.shift();
+      }
+    }
+  }
+  // (How many renders left a surface standing by BOTH — the denominator of the spans.)
+  for (const pair of pairs) {
+    if (pair.legacy && pair.derived) {
+      const row = servingOwnerLog.rows[`eq:${pair.surface}`] ?? (servingOwnerLog.rows[`eq:${pair.surface}`] = {});
+      row['eq-both'] = (row['eq-both'] ?? 0) + 1;
+    }
+  }
+  servingOwnerLog.open = [...openDiffs.entries()].map(([surface, d]) => ({surface, verdict: d.verdict, since: d.since}));
+}
+
+/** A new game screen starts its own spans. */
+export function resetDerivedSpans(): void {
+  openDiffs.clear();
 }

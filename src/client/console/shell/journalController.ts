@@ -29,6 +29,8 @@ export type JournalPort = {
   closeColonyInspect(): void,
   readonly compositeSurfaceActive: boolean,
   readonly consoleRevealMode: ConsoleRevealMode | undefined,
+  readonly draftWorkspaceOwnsPad: boolean,
+  readonly externalDrawOwnsPad: boolean,
   readonly hostTask: ConsoleTask | undefined,
   readonly placementActive: boolean,
   readonly shellTaskActive: boolean,
@@ -64,7 +66,11 @@ export function createJournalController(shell: JournalPort) {
       // (their branches sit ABOVE it in the routing chain). Left out, the
       // journal stayed open over «Разместите бонус шкалы Венеры» and kept the
       // pad it needs.
-      shell.compositeSurfaceActive;
+      shell.compositeSurfaceActive ||
+      // …and the WORKSPACES THAT TAKE THE PAD BY A RUNG OF THEIR OWN — the draft, an external draw. The journal's rung
+      // stands above theirs, so a journal left open when the draft arrived kept every press while the bar showed the
+      // draft's verbs (the real browser's first reading of the bar against the pad, 2026-11-20: seven presses).
+      shell.draftWorkspaceOwnsPad || shell.externalDrawOwnsPad;
   });
 
   // ── verbs ────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -37,8 +37,21 @@ import type {ScreenOwner} from '@/client/console/screenDirector';
 export type QuestionFacts = {
   /** The server's one question as the router classifies it (`taskFor`) — `undefined`: nothing is asked of this seat, or only an optional input. */
   task: ConsoleTask | undefined;
+  /**
+   * THE QUESTION IS THE CLIENT's OWN — a payment or a pick the player's own composer raised (a standard project's
+   * price, a law's «where»: `pendingClientPayment` / `pendingClientPick`). `task` is then that question, the task host
+   * answers it, and NOTHING ADMITS IT: it is the next step of a press the player has just made, never an arrival.
+   * (The real browser's first whole reading, 2026-11-20: «nothing is asked, and the task host took the press».)
+   */
+  client: boolean;
   /** The opening owns the question: the start's frame is live and the question is one of its own (`startOwned`). */
   startFlow: boolean;
+  /**
+   * THE OPENING HAS YIELDED ITS SCENE — its frame stands and its scene is hidden for a screen it cannot host (the
+   * board's story of a placement it made, a band that stands on its own — `startSceneVisible`). The start still owns
+   * its question, and it waits. (The same reading: «says start, the pad gave the board».)
+   */
+  startYielded: boolean;
   /** `buildEffectDecision` builds a decision for this prompt (a contextual choice with its marker). */
   effectDecision: boolean;
   /** The draft workspace's frame is known to the stack. */
@@ -170,7 +183,7 @@ function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, 
  *   1. ASIDE     — the player parked the question: their choice outranks every scene and every block;
  *   2. the BOARD — the task's own nested placement stands: a branch of the question is answered on the board (that
  *                  is an owner, not a hold);
- *   3. a SCENE   — a bounded scene of the game has the screen;
+ *   3. a SCENE   — a bounded scene of the game has the screen (for the opening: it has yielded its own);
  *   4. a CLAIM   — a workspace owns the question and its zone does not stand yet;
  *   5. ADMISSION — the surface that admits the owner names a block, and the owner is still to ENTER (a workspace
  *                  whose frame already stands was let in: a block is a door, never a presence).
@@ -180,10 +193,11 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   if (task === undefined || task.kind === 'actionMenu') {
     return {asked: false};
   }
-  const row = ownerOfKind(task, f);
+  // (The client's own question is the task host's, with no door — whatever the server's kind of the same shape has.)
+  const row: ReturnType<typeof ownerOfKind> = f.client ? {owner: 'task', basis: 'row'} : ownerOfKind(task, f);
   // A FRAME THAT EARNED THE KIND at runtime answers before the kind's own row (the Hydronetwork's bonus offer, the
   // colony resolution's discard): the flow that asked is the flow that hears the answer. Never over the opening's own.
-  const earned = row.basis !== 'start' && f.servingFrame !== undefined && f.servingFrame !== row.owner;
+  const earned = !f.client && row.basis !== 'start' && f.servingFrame !== undefined && f.servingFrame !== row.owner;
   const base: ServingOwner = earned ?
     {owner: f.servingFrame as WorkspaceFrameKind, basis: 'serves', ...(row.admission !== undefined ? {admission: row.admission} : {}), ...(row.door !== undefined ? {door: row.door} : {})} :
     {owner: row.owner, basis: row.basis, ...(row.admission !== undefined ? {admission: row.admission} : {}), ...(row.door !== undefined ? {door: row.door} : {})};
@@ -211,6 +225,9 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   }
   if (f.scene !== '') {
     return {asked: true, ...owner, hold: {kind: 'scene', by: f.scene}};
+  }
+  if (f.startYielded && owner.owner === 'start') {
+    return {asked: true, ...owner, hold: {kind: 'scene', by: 'start-yielded'}};
   }
   // THE SCREEN IS BEING HANDED OVER to this very owner: what stands is the surface that is leaving (the measure's
   // second disagreement — the research buy the draft claims, with the sitting still on screen).
@@ -247,7 +264,7 @@ export function questionFactsDigest(f: QuestionFacts): string {
     blocks.length > 0 ? `blocks [${blocks.join(',')}]` : '',
     f.scene !== '' ? `scene ${f.scene}` : '',
     f.lateral !== '' ? `lateral ${f.lateral}` : '',
-    ...(['startFlow', 'effectDecision', 'draftFrame', 'draftClaims', 'resolutionDraw', 'aside', 'boardBranch', 'claimHeld'] as const).filter((k) => f[k]),
+    ...(['client', 'startFlow', 'startYielded', 'effectDecision', 'draftFrame', 'draftClaims', 'resolutionDraw', 'aside', 'boardBranch', 'claimHeld'] as const).filter((k) => f[k]),
   ].filter((part) => part !== '').join(' · ');
 }
 
@@ -260,6 +277,15 @@ const BAND_RUNG_OF_OWNER: Readonly<Partial<Record<ScreenOwner, string>>> = {
   'ares': 'ares', 'bot-attack': 'botAttack', 'corp-first': 'corpFirst', 'draft': 'draft', 'start': 'start',
   'external-draw': 'externalDraw', 'endgame': 'endgame', 'repeat-pick': 'repeatPick',
 };
+
+/** The rungs of the pad's prompt band the owner is reached through (the lanes: both composites; a workspace: none). */
+export function bandRungsOfOwner(owner: string): ReadonlyArray<string> {
+  if (owner === 'lanes') {
+    return ['spendHeat', 'venusBonus'];
+  }
+  const rung = BAND_RUNG_OF_OWNER[owner as ScreenOwner];
+  return rung !== undefined ? [rung] : [];
+}
 
 /**
  * THE PAD's PROMPT BAND, AS ONE WORD (stage 2 ②) — whose press it is, by the function's answer:

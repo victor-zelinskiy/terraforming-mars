@@ -644,7 +644,9 @@ export function createCommandBarController(shell: CommandBarPort) {
     // plate's A is consumed before that line), so a stale `true` latched on
     // the loading screen would dress a locked workspace's bar as a generic
     // «Выбрать/Назад» until the first in-workspace press.
-    if (shell.externalDrawOwnsPad) {
+    // …and BELOW the inspection, as the pad has it: with Information Mode open over the draw every press is the
+    // inspection's, and the bar promised the draw's verbs (the bar's first measure against the pad — 11 presses).
+    if (shell.externalDrawOwnsPad && !infoModeState.open) {
       noteBarRung('externalDraw');
       return [...(panelCommands('externalDraw') ?? [])];
     }

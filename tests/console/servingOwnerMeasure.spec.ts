@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
-  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
+  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteDerivedRender, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
   promptFlagsVerdict, registerOwnerNowProbe, resetServingOwnerLog, servingOwnerLog,
 } from '../../src/client/console/servingOwnerMeasure';
 
@@ -83,6 +83,8 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     // A step in a flow's zone: its own rung, or its host's (which hands it the press).
     expect(padRungVerdict(serves('task', 'hand'), 'taskHost')).to.eq('pad-agree');
     expect(padRungVerdict(serves('task', 'hand'), 'section:hand')).to.eq('pad-agree');
+    // The hand's own flows are the hand's: the play composer of a card taken from it, a pick its album hosts.
+    expect(padRungVerdict(serves('hand'), 'pendingPlay')).to.eq('pad-agree');
     // …and a workspace that owns the question hands the pad to the steps of its flow standing above it.
     expect(padRungVerdict(serves('start'), 'section:colonies')).to.eq('pad-MISS:section:colonies');
     expect(padRungVerdict(serves('start'), 'section:colonies', ['colonies'])).to.eq('pad-agree');
@@ -186,7 +188,12 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(promptFlagsVerdict(serves('task'), [])).to.eq('flag-MISS:task');
     expect(promptFlagsVerdict(serves('task'), ['taskHost', 'effectDecision'])).to.eq('flag-EXTRA:serves:effectDecision');
     // A host and its step both hold — the ladder orders them; a step above the owner's frame is the owner's too.
-    expect(promptFlagsVerdict(serves('task', 'start'), ['start', 'taskHost'])).to.eq('flag-agree:two:start+taskHost');
+    // A WORKSPACE WITH A RUNG OF ITS OWN (the opening, the draft, an external draw) stands by its frame — never judged:
+    // a host beside its step, the draft still on screen under a question that waits at its gate.
+    expect(promptFlagsVerdict(serves('task', 'start'), ['start', 'taskHost'])).to.eq('flag-agree');
+    expect(promptFlagsVerdict(held('corp-first', 'admission', 'announce-gate'), ['draft'])).to.eq('flag-held');
+    expect(promptFlagsVerdict({asked: false}, ['start'])).to.eq('flag-free');
+    expect(promptFlagsVerdict(serves('gov-support'), ['govSupport', 'taskHost'], ['task'])).to.eq('flag-agree:two:govSupport+taskHost');
     expect(promptFlagsVerdict(serves('start'), ['taskHost'], ['task'])).to.eq('flag-agree');
     // Under a hold no prompt condition is to hold.
     expect(promptFlagsVerdict(held('task', 'admission', 'reveal'), [])).to.eq('flag-held');
@@ -220,7 +227,14 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(bandRungVerdict('step', 'section:colonies')).to.eq('band-agree');
     expect(bandRungVerdict('held:admission', 'sheet:milestones')).to.eq('band-agree');
     expect(bandRungVerdict('held:admission', 'taskHost')).to.eq('band-APART:held:admission>taskHost');
-    expect(bandRungVerdict('free', 'handPick')).to.eq('band-APART:free>handPick');
+    // …the press is the PLAYER's wherever they stand — a workspace with a rung of its own, a flow of the client's:
+    // any rung but a prompt surface's.
+    expect(bandRungVerdict('free', 'handPick')).to.eq('band-agree');
+    expect(bandRungVerdict('free', 'pendingPlay')).to.eq('band-agree');
+    expect(bandRungVerdict('held:admission', 'draft')).to.eq('band-agree');
+    expect(bandRungVerdict('ws', 'pendingPlay')).to.eq('band-agree');
+    expect(bandRungVerdict('free', 'taskHost')).to.eq('band-APART:free>taskHost');
+    expect(bandRungVerdict('free', '')).to.eq('band-APART:free>unnamed');
     // The ladder's upper half is never the band's.
     expect(bandRungVerdict('own:taskHost', 'zoom')).to.eq('band-above');
     expect(bandRungVerdict('own:taskHost', 'info:open')).to.eq('band-above');
@@ -258,5 +272,34 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(servingOwnerLog.disagreements.map((d) => `${d.shape}|${d.present[0]} → ${d.owner}|${d.facts}`)).to.deep.eq([
       'edge:payment|task → task held scene:handoff|+ handoff [draft]',
     ]);
+  });
+
+  it('THE DERIVATION, HELD AGAINST EVERY RENDER: a difference is a span — opened once, closed with how long it stood, kept once with the facts', () => {
+    const pair = (surface: string, legacy: boolean, derived: boolean, why = '') => ({surface, legacy, derived, why});
+    // Both stand · neither stands: nothing to say but the denominator.
+    noteDerivedRender('payment', 'task', [pair('taskHost', true, true), pair('ares', false, false)], 'frames []', 1_000);
+    // The function names a hold and today's condition still stands — for three renders, 240 ms in all.
+    noteDerivedRender('payment', 'task held admission:reveal', [pair('taskHost', true, false)], 'frames [] · blocks [host:reveal]', 1_100);
+    noteDerivedRender('payment', 'task held admission:reveal', [pair('taskHost', true, false)], 'frames [] · blocks [host:reveal]', 1_200);
+    noteDerivedRender('payment', 'task', [pair('taskHost', true, true)], 'frames []', 1_340);
+    // The function says it serves and today's condition holds it down, by its own named reason — and it never closes.
+    noteDerivedRender('payment', 'task', [pair('taskHost', false, true, 'decision-owns')], 'frames []', 2_000);
+    // The same picture again is the same span; another picture closes it and opens its own.
+    noteDerivedRender('payment', 'task', [pair('taskHost', false, true, 'decision-owns')], 'frames []', 2_050);
+    expect(servingOwnerLog.rows['eq:taskHost']).to.deep.eq({'eq-both': 2, 'eq-LEGACY:task held admission:reveal': 1, 'eq-DERIVED:decision-owns': 1});
+    expect(servingOwnerLog.spans).to.deep.eq({
+      'taskHost|eq-LEGACY:task held admission:reveal': {n: 1, ms: 240, max: 240},
+      'taskHost|eq-DERIVED:decision-owns': {n: 1, ms: 0, max: 0},
+    });
+    expect(servingOwnerLog.open).to.deep.eq([{surface: 'taskHost', verdict: 'eq-DERIVED:decision-owns', since: 2_000}]);
+    expect(servingOwnerLog.disagreements.map((d) => `${d.shape}|${d.verdict}|${d.present[0]}|${d.facts}`)).to.deep.eq([
+      'eq:taskHost|eq-LEGACY:task held admission:reveal|payment|frames [] · blocks [host:reveal]',
+      'eq:taskHost|eq-DERIVED:decision-owns|payment|frames []',
+    ]);
+    // A new game screen starts its own spans.
+    resetServingOwnerLog();
+    expect(servingOwnerLog.open).to.deep.eq([]);
+    noteDerivedRender('payment', 'task', [pair('taskHost', true, true)], '', 3_000);
+    expect(servingOwnerLog.spans).to.deep.eq({});
   });
 });
