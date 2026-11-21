@@ -235,6 +235,9 @@ export class Game implements IGame, Logger {
   private finalGreeneryStarted = false;
   private passedPlayers = new Set<PlayerId>();
   private researchedPlayers = new Set<PlayerId>();
+  /** The seats whose way out of the research phase is still RUNNING (`playerIsFinishedWithResearchPhase`) — the
+   *  phase turns only when nobody's is. Never serialized: the deferred queue it waits on is not either. */
+  private researchDraining = new Set<PlayerId>();
   /** The first player of this generation. */
   public first: IPlayer;
 
@@ -1681,9 +1684,14 @@ export class Game implements IGame, Logger {
   }
 
   public playerIsFinishedWithResearchPhase(player: IPlayer): void {
+    this.researchDraining.add(player.id);
     this.deferredActions.runAllFor(player, () => {
       this.researchedPlayers.add(player.id);
-      if (this.researchedPlayers.size === this.players.length) {
+      this.drainResearchedSeats(() => {
+        this.researchDraining.delete(player.id);
+        if (this.researchDraining.size > 0 || this.researchedPlayers.size !== this.players.length) {
+          return;
+        }
         this.researchedPlayers.clear();
         this.phase = Phase.ACTION;
         this.passedPlayers.clear();
@@ -1696,8 +1704,30 @@ export class Game implements IGame, Logger {
           AutomaCorporations.onActionPhaseStart(this);
         }
         this.startActionsForPlayer(this.first);
-      }
+      });
     });
+  }
+
+  /**
+   * A SEAT THAT IS DONE STILL GETS WHAT IT IS OWED. The research phase drains the queue PER SEAT (`runAllFor` above —
+   * the seats answer side by side), so a reaction raised for a seat by ANOTHER seat's answer waits for that seat's
+   * own way out. A seat that already left has none: its reaction stood queued until the action phase began — late
+   * for everything that read the seat meanwhile, and LOST by a reload (the queue is never serialized). The engine
+   * fuzz, FREEZE ZERO stage 5 — seed 50072: Pharmacy Union had played and paid; another seat's Recyclon (a microbe
+   * tag) owed it a disease and 4 M€.
+   *
+   * So each way out also runs what stands queued for the human seats that are already done — and the phase turns
+   * only when no way out is still running (`researchDraining`): a reaction that ASKS its seat is answered before the
+   * first action, never under it. MarsBot's own queue keeps its place (after its Before-Action-Phase box).
+   */
+  private drainResearchedSeats(cb: () => void): void {
+    const owed = this.players.find((seat) =>
+      !seat.isMarsBot && this.researchedPlayers.has(seat.id) && this.deferredActions.queuedFor(seat).length > 0);
+    if (owed === undefined) {
+      cb();
+      return;
+    }
+    this.deferredActions.runAllFor(owed, () => this.drainResearchedSeats(cb));
   }
 
   public getPlayerBefore(player: IPlayer): IPlayer {

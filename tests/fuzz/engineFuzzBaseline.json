@@ -1,9 +1,4 @@
 {
   "what": "the violation classes the engine fuzz is KNOWN to name (tests/fuzz/engineFuzz.spec.ts) — each with why it may stand and the first seed that named it; a class that is not here fails the spec",
-  "classes": {
-    "I3|initialCards|start:initialCards|RemoveColonyFromGame@seat|setup": {
-      "why": "BY DESIGN (upstream) — not a defect of this step. A solo game with Colonies defers the colony-tile removal at SETUP (`Game.gotoInitialResearchPhase` → `RemoveColonyFromGame`), outside any drain: it stands queued under the opening's own questions (the initial selection, «Play your corporation») and is asked by the first question whose answer drains the queue. The deferred queue is never serialized, so whether a reload inside that window loses the removal is the RELOAD-EQUIVALENCE step's question (the next step of stage 5).",
-      "firstSeed": 6
-    }
-  }
+  "classes": {}
 }

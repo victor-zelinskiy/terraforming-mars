@@ -45,6 +45,7 @@ import {Phase} from '../../src/common/Phase';
 import {SeededRandom} from '../../src/common/utils/Random';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
+import {IPlayer} from '../../src/server/IPlayer';
 import {PlayerInput} from '../../src/server/PlayerInput';
 import {isIProjectCard} from '../../src/server/cards/IProjectCard';
 import {IDeferredAction} from '../../src/server/deferredActions/DeferredAction';
@@ -720,9 +721,15 @@ export function runFuzzGame(config: FuzzConfig, hooks: FuzzHooks = {}): FuzzResu
         }
       }
       // I3 — nothing is queued unless a standing question is the queue's own (its answer resumes the drain).
-      const queued = table.deferredActions.length;
+      // (THE RESEARCH PHASE DRAINS PER SEAT — `Game.playerIsFinishedWithResearchPhase` → `runAllFor`: a seat still
+      // IN that phase runs its own queue on its way out of it, whatever it is asked meanwhile. Work queued for such a
+      // seat — the setup's colony removal, MarsBot's research step waking its Arctic Algae — is OWED, not left; work
+      // queued for a seat that is done, or for the bot, has nobody to run it.)
+      const owedOnTheWayOut = (seat: IPlayer) => !over && table.phase === Phase.RESEARCH && !seat.isMarsBot && !table.hasResearched(seat);
+      const left = table.players.flatMap((seat) => owedOnTheWayOut(seat) ? [] : table.deferredActions.queuedFor(seat));
+      const queued = left.length;
       if (queued > 0 && (over || !seats.some((seat) => raisedByQueue.has(seat.getWaitingFor() as PlayerInput)))) {
-        const next = table.deferredActions.peek();
+        const next = left[0];
         // WHAT is left: the action, whose it is, and who deferred it (a `SimpleDeferredAction` alone names nothing).
         const by = deferredBy(next) ?? 'setup';
         const what = `${next?.constructor.name}@${next?.player.isMarsBot === true ? 'MarsBot' : 'seat'}`;

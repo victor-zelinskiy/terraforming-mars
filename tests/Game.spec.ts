@@ -896,7 +896,7 @@ describe('Game', () => {
 
     // 'marsIsTerraformedAnnounced' is private, so it is not in keyof Game, but it
     // is still an enumerable runtime property that must be accounted for here.
-    const unserializedFieldsInGame: Array<keyof Game | 'marsIsTerraformedAnnounced' | 'finalGreeneryStarted'> = [
+    const unserializedFieldsInGame: Array<keyof Game | 'marsIsTerraformedAnnounced' | 'finalGreeneryStarted' | 'researchDraining'> = [
       // The Ares adjacency presentation manifest — a bounded transient ring
       // (a restart loses only the animation, never the money).
       'aresAdjacencyGrants',
@@ -922,6 +922,9 @@ describe('Game', () => {
       'inTurmoil',
       'playersInGenerationOrder',
       'marsIsTerraformedAnnounced',
+      // The ways out of the research phase still RUNNING — each waits on the deferred queue, which is never
+      // serialized either: a loaded game has none in flight (the barrier is re-derived from `researchedPlayers`).
+      'researchDraining',
       'monsInsuranceOwner',
       'resettable',
       'rng',

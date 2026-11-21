@@ -152,11 +152,15 @@ describe('engineFuzz — random legal games on the real engine', () => {
     });
 
     it('I3 — work left queued under a question that does not continue it', () => {
-      const {invariants} = invariantsOf((game, step) => {
-        if (step < 10) {
+      // (Planted in the ACTION phase: in the research phase a seat's own queue is OWED on its way out, not left.)
+      let planted = 0;
+      const {invariants} = invariantsOf((game) => {
+        if (game.phase === Phase.ACTION && planted < 3) {
+          planted++;
           game.defer(new SimpleDeferredAction(game.players[0], () => undefined));
         }
       });
+      expect(planted, 'the control reached the action phase').to.be.greaterThan(0);
       expect(invariants).to.include('I3');
     });
 
@@ -225,10 +229,15 @@ describe('engineFuzz — random legal games on the real engine', () => {
    *    (`HeadStart.spec` holds the card itself);
    *  · 50926 — MarsBot's three polders and a seat's Mohole Area took the ninth ocean's cell: a paid Lake Marineris was
    *    refused half-played, and the table could not end. The sea keeps room for its oceans, and the two floors under
-   *    that law hold a board that got there another way (`SeaKeepsItsCells.spec`).
+   *    that law hold a board that got there another way (`SeaKeepsItsCells.spec`);
+   *  · 50072 — Pharmacy Union had played and paid; another seat's Recyclon owed it a disease, queued for a seat that
+   *    had already left the research phase — nobody ran it until the action phase, a reload lost it. Each way out of
+   *    the phase runs what the seats that are done are owed (`ResearchBarrier.spec`);
+   *  · 51755 — MarsBot's research step woke a seat's Arctic Algae while the seat still held its research question:
+   *    OWED on that seat's way out, not left — the judge's own law (the research phase drains per seat), no defect.
    */
-  it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take) · 50926 (an ocean with no cell)', () => {
-    for (const seed of [55496, 50337, 51456, 50926]) {
+  it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take) · 50926 (an ocean with no cell) · 50072 · 51755 (the research phase drains per seat)', () => {
+    for (const seed of [55496, 50337, 51456, 50926, 50072, 51755]) {
       const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}));
       expect(result.end, `seed ${seed}`).to.eq('ended');
       expect(result.violations.map((violation) => violation.key), `seed ${seed}`).to.deep.eq([]);
