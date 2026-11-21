@@ -112,6 +112,15 @@ export type ServingOwner = {
 
 export type Ownership = {asked: false} | ({asked: true} & ServingOwner);
 
+/**
+ * THE PROMPT SURFACES — the owners that exist only to DRAW a question (the task host, a decision, the deck pick, the
+ * dedicated panels). Never a frame of the stack: when a workspace serves a question through one of them, the surface
+ * is a step in that workspace's zone.
+ */
+const PROMPT_OWNERS: ReadonlySet<ScreenOwner> = new Set<ScreenOwner>([
+  'task', 'decision', 'deck-pick', 'gov-support', 'prod-loss', 'lanes', 'ares', 'bot-attack', 'corp-first',
+]);
+
 /** The PHASE ROOTS — a screen of their own for a whole phase: never a step in somebody's zone, whatever stands on top. */
 const ROOT_OWNERS: ReadonlySet<ScreenOwner> = new Set<ScreenOwner>(['draft', 'start', 'endgame']);
 
@@ -197,14 +206,22 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   const row: ReturnType<typeof ownerOfKind> = f.client ? {owner: 'task', basis: 'row'} : ownerOfKind(task, f);
   // A FRAME THAT EARNED THE KIND at runtime answers before the kind's own row (the Hydronetwork's bonus offer, the
   // colony resolution's discard): the flow that asked is the flow that hears the answer. Never over the opening's own.
-  const earned = !f.client && row.basis !== 'start' && f.servingFrame !== undefined && f.servingFrame !== row.owner;
+  // …WHERE THE ROW IS A WORKSPACE's. A kind a PROMPT SURFACE draws is still drawn by that surface — the frame that
+  // earned it is its HOST (the draft's post-buy payment is the task host in the draft's pay slot; the Hydronetwork's
+  // bonus pick is the deck pick in its zone). Naming the frame the owner there took the surface down under the very
+  // flow that embeds it (the swap's first e2e on the box, 2026-11-21: Helion's heat payment after a research buy).
+  const promptRow = PROMPT_OWNERS.has(row.owner);
+  const earned = !f.client && !promptRow && row.basis !== 'start' && f.servingFrame !== undefined && f.servingFrame !== row.owner;
   const base: ServingOwner = earned ?
     {owner: f.servingFrame as WorkspaceFrameKind, basis: 'serves', ...(row.admission !== undefined ? {admission: row.admission} : {}), ...(row.door !== undefined ? {door: row.door} : {})} :
     {owner: row.owner, basis: row.basis, ...(row.admission !== undefined ? {admission: row.admission} : {}), ...(row.door !== undefined ? {door: row.door} : {})};
   // A step of a flow stands in that flow's zone — for the kinds that CAN be a step (the shadow's `HOSTABLE`: a modal
   // or a screen of its own never is), never inside itself, never the opening's own surface. A resolution's draw is a
   // step of the SITTING whatever stands on top: the Parliament hosts it in its stage.
-  const host = task.kind === 'externalDraw' && f.resolutionDraw ? 'parliament' : f.host;
+  // (…and the frame that EARNED a prompt surface's kind hosts it, even where the stack names no host: a phase root
+  // hosts no step by the stack's rule, and embeds the task host all the same.)
+  const host = task.kind === 'externalDraw' && f.resolutionDraw ? 'parliament' :
+    promptRow && !f.client && f.servingFrame !== undefined ? f.servingFrame : f.host;
   const hosted = host !== undefined && host !== base.owner && base.basis !== 'start' && !ROOT_OWNERS.has(base.owner) && hostableStep(task.kind);
   const owner: ServingOwner = hosted ? {...base, host} : base;
 

@@ -53,7 +53,7 @@ import {generationSceneState, registerGenerationSceneHandoff} from '@/client/con
 import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
-import {barRungNow, DerivedPair, noteDerivedRender, registerOwnerNowProbe, resetDerivedSpans, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
+import {barRungNow, DerivedPair, noteDerivedRender, registerOwnerNowProbe, resetDerivedSpans, servingOwnerLog, standingDerivedSpans} from '@/client/console/servingOwnerMeasure';
 import {netEnded} from '@/client/diagnostics/netEnded';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {bandRungOf, ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
@@ -756,9 +756,12 @@ export function createWiringController(shell: WiringPort) {
         host2: shell.hostTask === undefined ? '' : `${shell.hostTask.kind}${'flavor' in shell.hostTask ? ':' + String(shell.hostTask.flavor) : ''}`,
         embed: shell.taskEmbedTarget ?? ''},
     }));
-    // STEP 4 — the owner's armed classes (`SCREEN_CURE_DEFAULT_ARMED`: the blind announce); a stand names its own set
-    // (`?screenCure=open,restore,yield,announce` / `all` / `none`).
-    screenCureArming.armed = screenCureArmingFor(new URLSearchParams(window.location.search).get('screenCure'));
+    // STEP 4 — the owner's armed classes (`SCREEN_CURE_DEFAULT_ARMED`: the blind announce) are the ARBITER's to execute
+    // (the shadow observes — `screenCureArming.shadowActs`); a stand names its own set by the URL
+    // (`?screenCure=open,restore,yield,announce` / `all` / `none`), and there the shadow acts in its own pass.
+    const screenCureQuery = new URLSearchParams(window.location.search).get('screenCure');
+    screenCureArming.armed = screenCureArmingFor(screenCureQuery);
+    screenCureArming.shadowActs = screenCureQuery !== null;
     registerScreenCureExecutor((plan) => shell.runScreenDirectorCure(plan));
     // THE ANCHOR RULE: the stack's return doors and prunes ask the shell which phases are over, and name what they drop.
     registerFrameAnchorDead((anchor) => shell.frameAnchorIsDead(anchor));
@@ -792,6 +795,11 @@ export function createWiringController(shell: WiringPort) {
       };
     }
     registerScreenShadowContext(() => {
+      // (The look's own second: a span of the derivation that STANDS is told once — it has no closing render to say it.)
+      for (const span of standingDerivedSpans(Date.now(), 1000)) {
+        const side = span.verdict.startsWith('eq-LEGACY') ? 'was-standing' : 'now-standing';
+        netEnded(`derivation:${span.surface}:${side}`, `«${span.surface}» ${side === 'was-standing' ? 'stands by its old condition and not by the word of the function' : 'stands by the word of the function and not by its old condition'} — STANDING ${Math.round(span.ms)} ms — ${span.verdict.replace(/^eq-(?:LEGACY|DERIVED):/, '')}`);
+      }
       const wf = shell.playerView.waitingFor;
       const block = wf === undefined ? undefined : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', shell.admissionSignals);
       return {
@@ -857,6 +865,9 @@ export function createWiringController(shell: WiringPort) {
         // surface and side), so EVERY e2e test files it and the whole suite reads as the swap's witness; it goes with
         // the old conditions when they are deleted.
         for (const span of noteDerivedRender(read.shape, read.answer, read.pairs, read.facts, Date.now())) {
+          if (span.ms === 0) {
+            continue; // (opened and closed inside one flush — nothing was painted in it)
+          }
           const side = span.verdict.startsWith('eq-LEGACY') ? 'was-standing' : 'now-standing';
           const told = side === 'was-standing' ? 'stood by its old condition and not by the word of the function' : 'stands by the word of the function and did not by its old condition';
           netEnded(`derivation:${span.surface}:${side}`, `«${span.surface}» ${told} for ${Math.round(span.ms)} ms — ${span.verdict.replace(/^eq-(?:LEGACY|DERIVED):/, '')} · «${read.shape}»`);
