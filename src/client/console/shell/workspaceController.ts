@@ -16,7 +16,7 @@ import {resetStdProjectsFlow} from '@/client/console/consoleStdProjects';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {isHandRevealEpisodeRunning} from '@/client/console/handDock/handRevealDirector';
 import {conWsPresence} from '@/client/console/conWsPresenceBridge';
-import {surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {noteTransferTrail, surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
 import {boardPeekState} from '@/client/console/boardPeek';
@@ -371,6 +371,7 @@ export function createWorkspaceController(shell: WorkspacePort) {
     // outlives the frame by design — the board excursion needs it — but a
     // deliberate re-entry through the wheel starts at browse).
     if (sheet === 'standard-projects') {
+      noteTransferTrail('stdp:fresh-open');
       resetStdProjectsFlow();
     }
     // …and a fresh ДЕЙСТВИЯ КАРТ open starts at the DEFAULT facets («Все» +

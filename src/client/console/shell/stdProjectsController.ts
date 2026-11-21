@@ -679,6 +679,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
    */
   function whenStdProjectCommitStateAbortNonceChanges(): void {
     if (stdProjectsFlowLive()) {
+      noteTransferTrail('stdp:abort-rollback', {was: stdProjectsFlow.state});
       rollbackStdProjectFlow();
     }
   }

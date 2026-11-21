@@ -116,7 +116,7 @@ import {seedScaleStepRatingHold} from '@/client/console/scaleStepReward/scaleSte
 import {seedVenusBonusCellHold} from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {seedCellResourceHolds} from '@/client/console/cellResource/cellResourceBeat';
 import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
-import {heldStock as heldRailStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {heldStock as heldRailStock, noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {seedDeckDrawHold} from '@/client/console/deckDraw/consoleDeckDraw';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
@@ -1779,6 +1779,8 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
       // A rejected submit (bad request / unexpected) must RECALL every armed
       // console transaction immediately (else it hovers until the safety) —
       // the action did not happen. No-op when none armed.
+      // Named in the flights' trail (`__conReady().transfer`): every module that unwinds after it says what it lost to.
+      noteTransferTrail('transport:unwind', {why: `refused ${refusedWhy}: ${refusal?.message ?? ''}`.slice(0, 200)});
       abortAllConsoleTransactions();
       const showAlert = r.showAlert.bind(r);
       if (refusal !== undefined) {
@@ -1833,6 +1835,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
       flow.send({type: 'FAILED'});
       // Network failure — same full unwind as a refusal: no ghost card, no
       // ghost cube, no gold, no credit; every composer CTA re-arms.
+      noteTransferTrail('transport:unwind', {why: `failed: ${String(e).slice(0, 160)}`});
       abortAllConsoleTransactions();
       if (silent) {
         // THE SERVER NEVER ANSWERED: say exactly that, and let the next view tell whether the move landed anyway.
