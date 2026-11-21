@@ -12,6 +12,7 @@ type Rec = {cls: string, shape: string, tier: string, family: string, page: numb
 type File = {file: string, title: string, retry: number, status?: string, monkey?: {seed: string, presses: number}, records: Array<Rec>};
 type ClassRow = {tier: string, shape: string, tests: number, records: number, lines: number, outcomes: Record<string, number>, worstStoodS: number, first?: {file: string, title: string, seed?: string}};
 type Report = {
+  owner?: {verdicts: Record<string, number>},
   totals: {tests: number, walks: number, presses: number, records: number, defects: number, episodes: number, notCured: number, outcomes: Record<string, number>},
   classes: Record<string, ClassRow>,
   nets: Record<string, {tier: string, records: number, lines: number, tests: number, per1000Presses: number | null}>,
@@ -116,5 +117,19 @@ describe('the monkey\'s report — a run summed by cause class', () => {
     expect(text).to.contain('NEVER CURED 1');
     expect(text).to.contain(STALL);
     expect(text).to.contain('seed s:a');
+  });
+
+  it('THE GATE holds the ONE-OWNER LAW at zero: a press on another rung, a surface beside the answer, a latch — each fails it by name', async () => {
+    const {aggregateCauseFiles, gateVerdict} = await load();
+    const clean = aggregateCauseFiles([walk('a', [])]);
+    // (No walk carried the measure: nothing to hold.)
+    expect(gateVerdict(clean).pass).to.eq(true);
+    // The measure at zero where it counts — agreement, holds, the player's own looks and beats are no breach.
+    expect(gateVerdict({...clean, owner: {verdicts: {'agree': 40, 'held': 60, 'pad-agree': 9, 'pad-held': 30, 'pad-look': 4, 'band-agree': 9, 'band-above': 5, 'band-fallback': 2, 'bar-agree': 40, 'bar-look': 3, 'bar-beat': 1, 'flag-agree': 40, 'edge-agree': 100, 'unsettled': 1}}}).pass).to.eq(true);
+    const broken = gateVerdict({...clean, owner: {verdicts: {'agree': 40, 'bar-APART': 3, 'flag-EXTRA': 1, 'edge-LATCH': 2}}});
+    expect(broken.pass).to.eq(false);
+    expect(broken.reasons.map((r) => r.split(':')[0])).to.deep.eq([
+      'the one-owner law — bar-APART ×3', 'the one-owner law — flag-EXTRA ×1', 'the one-owner law — edge-LATCH ×2',
+    ]);
   });
 });
