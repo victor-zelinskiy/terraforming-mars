@@ -5,6 +5,7 @@ import {
   markStdProjectTarget,
   requestStdProjectCancel,
   resetStdProjectsFlow,
+  stdProjectAnswerArrived,
   stdProjectsFlow,
   stdProjectsFlowLive,
   stdProjectsFramePhase,
@@ -79,5 +80,20 @@ describe('consoleStdProjects (the flow model)', () => {
     expect(stdProjectsFlow.frozenItems).to.eq(undefined);
     expect(stdProjectsFlow.boardExcursion).to.eq(undefined);
     expect(stdProjectsFlow.cancelRequested).to.eq(false);
+    expect(stdProjectsFlow.askedPromptId).to.eq(undefined);
+  });
+
+  it('a view still asking the prompt the project was submitted against is NOT its answer (a frame ahead of it)', () => {
+    // The hunt 44905320939: a socket frame / a poll applied mid-submit still asked the old action menu; taken for the
+    // answer it played the terminal beat, and the real answer's Venus bonus found no host.
+    beginStdProjectSubmit('Air Scrapping:SP', [ROW], 0, '5|0', 41);
+    expect(stdProjectAnswerArrived(41), 'the same prompt: a view ahead of the answer').to.eq(false);
+    expect(stdProjectAnswerArrived(42), 'a new prompt (every prompt takes a new serial): the answer').to.eq(true);
+    expect(stdProjectAnswerArrived(undefined), 'no question at all (the turn passed): the answer').to.eq(true);
+    markStdProjectCommit();
+    expect(stdProjectAnswerArrived(41), 'past the submit the question is not asked').to.eq(true);
+    resetStdProjectsFlow();
+    beginStdProjectSubmit('Air Scrapping:SP', [ROW], 0, '5|0');
+    expect(stdProjectAnswerArrived(41), 'a submit with no known prompt takes any new view, as before').to.eq(true);
   });
 });

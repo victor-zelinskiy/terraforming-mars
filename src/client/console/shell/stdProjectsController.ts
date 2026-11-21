@@ -17,7 +17,10 @@ import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProj
 import {buildStdProjectItems, StdProjectItem} from '@/client/console/consoleQuickModel';
 import {ConsoleHandEntry} from '@/client/components/console/consoleHandSectionTypes';
 import {enterWorkspace, goBoardHome, popWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameMounted, workspaceFramePhase, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
-import {beginStdProjectSubmit, markStdProjectCommit, markStdProjectTarget, resetStdProjectsFlow, stdProjectsFlow, stdProjectsFlowLive, stdProjectsFramePhase} from '@/client/console/consoleStdProjects';
+import {
+  beginStdProjectSubmit, markStdProjectCommit, markStdProjectTarget, resetStdProjectsFlow, stdProjectAnswerArrived, stdProjectsFlow,
+  stdProjectsFlowLive, stdProjectsFramePhase,
+} from '@/client/console/consoleStdProjects';
 import {STDP_HOLD_MS, armStdProjectCommit, releaseStdProjectCommit} from '@/client/console/consoleStdProjectCommit';
 import {ConsoleTask, taskFor} from '@/client/console/consoleTaskRouter';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -324,7 +327,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
     }
     if (workspaceFrameMounted('standard-projects')) {
       beginStdProjectSubmit(cardName, stdProjectItems.value, consoleState.sheetIndex,
-        `${shell.game.gameAge}|${shell.game.undoCount}`);
+        `${shell.game.gameAge}|${shell.game.undoCount}`, shell.playerView.waitingFor?.promptId);
       // THE COMMIT PHRASE STARTS ON THE PRESS, not on the answer: the row's
       // tactile response owes nothing to the network, and arming here (in
       // the same synchronous turn as the submit) is what lets a fast
@@ -405,6 +408,12 @@ export function createStdProjectsController(shell: StdProjectsPort) {
     }
     const task = taskFor(shell.playerView);
     if (stdProjectsFlow.state === 'submitting') {
+      // A VIEW AHEAD OF THE ANSWER IS NOT THE ANSWER: it still asks the prompt the project was submitted against
+      // (`stdProjectAnswerArrived` — a socket frame or a poll applied mid-submit). Taken for the answer, it played the
+      // terminal beat early and the real answer's Venus bonus found no host (the hunt 44905320939).
+      if (!stdProjectAnswerArrived(shell.playerView.waitingFor?.promptId)) {
+        return;
+      }
       // THE RESPONSE IS THE WATCHER'S OWN EXISTENCE. This runs from the
       // `playerView` watcher, which fires only when a NEW view arrives — so
       // being here at all, in `submitting`, IS the answer. A value gate

@@ -66,9 +66,16 @@ export const stdProjectsFlow = reactive({
    * counters do not have to move for a standard project, so the gate swallowed
    * the colony answer, the flow stayed `submitting`, and the player's later
    * CANCEL was then celebrated as a terminal commit. The honest detector is
-   * the `playerView` watcher's own existence — it fires only on a new view.
+   * a new view that no longer asks the prompt the project was submitted
+   * against (`askedPromptId` — `stdProjectAnswerArrived`).
    */
   submittedAt: '' as string,
+  /**
+   * The server's prompt the project was SUBMITTED AGAINST (`waitingFor.promptId` at the press). Every new prompt takes
+   * a new serial (`Player.setWaitingFor`), so a view still asking THIS one is a view AHEAD of the answer — a socket
+   * frame or a poll applied while the submit was on the wire — never the answer.
+   */
+  askedPromptId: undefined as number | undefined,
   /**
    * FROZEN row snapshot for the span of a submit. The live rows derive from
    * `waitingFor`, which moves on with the response — without the freeze the
@@ -117,13 +124,29 @@ export function beginStdProjectSubmit(
   items: ReadonlyArray<StdProjectItem>,
   sheetIndex: number,
   fingerprint: string,
+  askedPromptId?: number,
 ): void {
   stdProjectsFlow.state = 'submitting';
   stdProjectsFlow.card = card;
   stdProjectsFlow.submittedAt = fingerprint;
+  stdProjectsFlow.askedPromptId = askedPromptId;
   stdProjectsFlow.frozenItems = items.map((it) => ({...it}));
   stdProjectsFlow.boardExcursion = {card, sheetIndex};
   stdProjectsFlow.cancelRequested = false;
+}
+
+/**
+ * IS THIS VIEW THE PROJECT'S ANSWER? Only a view that no longer asks the prompt the project was submitted against (a
+ * new serial — or no question at all). A view AHEAD of the answer (a socket frame, a poll applied mid-submit — the
+ * transport admits them) still asks the old action menu: taken for the answer, it played the project's TERMINAL beat
+ * before the real answer came, and the Venus bonus that answer asked found no host — it stood on its own band beside
+ * the workspace's browse list (the hunt 44905320939, `console-amazonis-planitia` «the finish», 33 %).
+ */
+export function stdProjectAnswerArrived(viewPromptId: number | undefined): boolean {
+  if (stdProjectsFlow.state !== 'submitting' || stdProjectsFlow.askedPromptId === undefined) {
+    return true;
+  }
+  return viewPromptId !== stdProjectsFlow.askedPromptId;
 }
 
 /** The server answered with the project's own follow-up prompt. */
@@ -151,6 +174,7 @@ export function resetStdProjectsFlow(): void {
   stdProjectsFlow.state = 'idle';
   stdProjectsFlow.card = '';
   stdProjectsFlow.submittedAt = '';
+  stdProjectsFlow.askedPromptId = undefined;
   stdProjectsFlow.frozenItems = undefined;
   stdProjectsFlow.boardExcursion = undefined;
   stdProjectsFlow.cancelRequested = false;
