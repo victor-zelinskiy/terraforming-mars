@@ -162,6 +162,7 @@ export type WiringPort = {
   hostTask: UnwrapRef<RouterController['hostTask']>,
   taskHeldForWorkspace: UnwrapRef<RouterController['taskHeldForWorkspace']>,
   questionFactsNow: RouterController['questionFactsNow'],
+  disposeOwnershipWitness: RouterController['disposeOwnershipWitness'],
   commands: UnwrapRef<CommandBarController['commands']>,
   aresGlobalsActive: UnwrapRef<RouterController['aresGlobalsActive']>,
   botAttackActive: UnwrapRef<RouterController['botAttackActive']>,
@@ -1320,6 +1321,7 @@ export function createWiringController(shell: WiringPort) {
     offOwnerEdge.value = undefined;
     offDerived.value?.();
     offDerived.value = undefined;
+    shell.disposeOwnershipWitness();
     delete (window as unknown as {__conWaitGraph?: unknown}).__conWaitGraph;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);
