@@ -213,6 +213,22 @@ describe('engineFuzz — random legal games on the real engine', () => {
     }
   }).timeout(60_000);
 
+  /*
+   * THE SECOND RUN's FINDS, HELD (2026-11-22, 5 648 whole games) — each by the seed that named it, replayed whole:
+   *  · 55496 — Neptunian Power Consultants: two oceans of one chain, one purse of five; the second bill came due on an
+   *    emptied purse — a payment nobody could make (`NeptunianPowerConsultants.spec` holds the card itself);
+   *  · 50337 — the World Government's ocean woke a card's question for a seat that still held the sitting's
+   *    confirmation: the engine threw «Overwriting waitingFor option with or», and the same answer threw for ever. A
+   *    question the deferred queue raises takes the slot; the confirmation is asked again when the slot is free.
+   */
+  it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation)', () => {
+    for (const seed of [55496, 50337]) {
+      const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}));
+      expect(result.end, `seed ${seed}`).to.eq('ended');
+      expect(result.violations.map((violation) => violation.key), `seed ${seed}`).to.deep.eq([]);
+    }
+  }).timeout(60_000);
+
   it('every baseline row says why it may stand', () => {
     for (const [key, row] of Object.entries(BASELINE.classes)) {
       expect(row.why, key).to.be.a('string').and.not.eq('');

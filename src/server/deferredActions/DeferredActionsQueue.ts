@@ -1,6 +1,7 @@
 import {IDeferredAction} from './DeferredAction';
 import {GiveColonyBonus} from './GiveColonyBonus';
 import {IPlayer} from '../IPlayer';
+import {isSittingAckPrompt} from '../parliament/SittingAcks';
 
 export class DeferredActionsQueue {
   private insertId: number = 0;
@@ -145,6 +146,17 @@ export class DeferredActionsQueue {
     const waiting = runWith(() => {
       const input = action.execute();
       if (input !== undefined) {
+        // A QUESTION THE QUEUE RAISES TAKES THE SLOT FROM THE SITTING'S CONFIRMATION (Turmoil Redux — the soft gates).
+        // The confirmation is a prompt of the SEAT, and the phases that follow a sitting publish around it
+        // (`Parliament.holdsSittingAck`); a card's REACTION cannot — it is raised here, in another seat's chain (the
+        // World Government's ocean waking Neptunian Power Consultants for a seat that has not closed its sitting
+        // yet). The record is the server's (`sittingAcks.pending`): the confirmation is asked again the moment the
+        // slot is free (`SittingAcks.offer`, from `Player.process`). Written over it instead, the engine warned of a
+        // desync — and threw in strict mode, where the same answer then threw for ever (the engine fuzz, FREEZE ZERO
+        // stage 5 — seed 50337).
+        if (isSittingAckPrompt(action.player.getWaitingFor()) && !isSittingAckPrompt(input)) {
+          action.player.clearWaitingFor();
+        }
         action.player.setWaitingFor(input, cb);
         return true;
       }
