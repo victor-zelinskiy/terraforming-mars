@@ -201,6 +201,8 @@ jobs:
       # without opening it. Traces are EXCLUDED here on purpose: they already
       # travel inside the blob report and land in the merged HTML report —
       # uploading them again doubled the run's storage.
+      # A HUNT (repeats) keeps the diagnostics without the specs' own storyboard stills: three passes of every spec's
+      # `screenshots/` came to ~2 GB a shard (40 GB a hunt) — the red's page snapshot rides the blob report anyway.
       - name: Upload shard diagnostics
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v5
@@ -209,7 +211,7 @@ jobs:
           path: |
             test-results/
             !test-results/**/trace.zip
-            screenshots/
+            ${{ (github.event.schedule == '17 6 * * 6' || (inputs.repeat_each != '' && inputs.repeat_each != '1')) && '!screenshots/' || 'screenshots/' }}
           if-no-files-found: ignore
           retention-days: 14
 
