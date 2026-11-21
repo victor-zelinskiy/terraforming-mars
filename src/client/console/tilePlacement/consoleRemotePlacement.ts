@@ -200,8 +200,22 @@ const BOARD_SETTLE_MS = 320;
 const SURFACE_LEAVE_WAIT_MAX_MS = 1200;
 const SURFACE_LEAVE_POLL_MS = 40;
 
+function leavingSurface(): Element | null {
+  return typeof document === 'undefined' ? null : document.querySelector('[data-motion-leaving]');
+}
+
 function surfaceStillLeaving(): boolean {
-  return typeof document !== 'undefined' && document.querySelector('[data-motion-leaving]') !== null;
+  return leavingSurface() !== null;
+}
+
+/** WHO is still leaving — the wait's detail, named by its ceiling line (a leave that never ends is a stuck surface: say which). */
+function leavingSurfaceName(): string {
+  const el = leavingSurface();
+  if (el === null) {
+    return '';
+  }
+  const hidden = el instanceof HTMLElement && el.style.display === 'none';
+  return `${el.tagName.toLowerCase()}.${String(el.getAttribute('class') ?? '').split(/\s+/)[0]}${hidden ? ' hidden' : ''}`;
 }
 
 export const remotePlacementState = reactive({
@@ -1822,6 +1836,7 @@ function awaitSurfacesLeft(myEpoch: number): Promise<void> {
       } else if (!surfaceStillLeaving()) {
         wait.met();
       } else if (flowClock().now() >= deadline) {
+        wait.update(leavingSurfaceName());
         wait.ceiling();
       } else {
         // A link of the landing's await — a RELEASE (the stage's end lets it go through the epoch above).

@@ -79,6 +79,24 @@ describe('surface motion · a hook\'s net catches a STALL, never a slow motion',
     expect(panel.style.opacity, 'caught up to its end — never resolved half-faded').to.eq('0');
   });
 
+  it('THE LEAVE\'S MARK LIVES EXACTLY AS LONG AS THE LEAVE — a surface that leaves by `v-show` stays in the tree, and is no leaver once its leave ended', () => {
+    // (CI finding #80: `section.con-parl` stood hidden — then shown again — with `data-motion-leaving` for good; every
+    // foreign landing after it waited its whole ceiling for a surface that had left long ago.)
+    const {el} = bandSurface();
+    let done = 0;
+    surfaceLeaveHook(el, () => done++);
+    expect(el.dataset.motionLeaving, 'marked for the whole leave').to.eq('1');
+    gsap.ticker.sleep();
+    slowFrames(900);
+    expect(el.dataset.motionLeaving, 'still leaving').to.eq('1');
+    clock.advance(2000);
+    expect(done).to.eq(1);
+    // The node is still in the document (a `v-show` leaver is hidden, never removed) — and it is no leaver.
+    expect(el.isConnected).to.eq(true);
+    expect(el.dataset.motionLeaving, 'the mark went with the leave').to.eq(undefined);
+    expect(document.querySelector('[data-motion-leaving]')).to.eq(null);
+  });
+
   it('…and the hard ceiling bounds an episode that is driven for ever', () => {
     const {el} = bandSurface();
     let done = 0;

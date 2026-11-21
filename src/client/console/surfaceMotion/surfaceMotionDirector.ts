@@ -1012,7 +1012,28 @@ export function pinQuickWheelBox(): void {
  * releases IMMEDIATELY (the shade's own CSS fade runs in parallel — or holds,
  * when the next owner registered in the same flush).
  */
+/**
+ * THE LEAVE OF A BAND SURFACE (Vue `@leave`).
+ *
+ * THE LEAVE'S MARK LIVES EXACTLY AS LONG AS THE LEAVE (`data-motion-leaving` — «answers no pointer», and what a
+ * foreign landing waits out: `consoleRemotePlacement.awaitSurfacesLeft`). It was written «the node is gone with the
+ * leave, so the mark never needs clearing» — true of a `v-if`, false of every surface that leaves by `v-show` (a
+ * collapsed workspace, a section that steps aside): the node STAYS, hidden, and kept the mark for good. Every landing
+ * after it then waited its whole ceiling for a surface that had left long ago, and said so (CI finding #80 — the
+ * freeze gate's seed of the day, 2026-11-21: `wait-graph/ceiling/remote-placement:surface-leave`); and a surface
+ * shown again without a leave-cancel came back deaf to the pointer. So the mark is taken off where the leave ENDS —
+ * whichever way it ends, each of them is this `done` — and the cancel hook keeps its own.
+ */
 export function surfaceLeaveHook(el: Element, done: () => void): void {
+  playSurfaceLeave(el, () => {
+    if (el instanceof HTMLElement) {
+      delete el.dataset.motionLeaving;
+    }
+    done();
+  });
+}
+
+function playSurfaceLeave(el: Element, done: () => void): void {
   const id = surfaceIdOf(el);
   if (id === undefined || typeof window === 'undefined') {
     done();
@@ -1038,8 +1059,8 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
     done();
     return;
   }
-  // A LEAVING SURFACE ANSWERS NO POINTER for its whole leave (console.less § `data-motion-leaving`): the node is gone
-  // with the leave, so the mark never needs clearing — the pick-bridge re-show above returns BEFORE it is set.
+  // A LEAVING SURFACE ANSWERS NO POINTER for its whole leave (console.less § `data-motion-leaving`) — taken off where
+  // the leave ends (`surfaceLeaveHook`); the pick-bridge re-show above returns BEFORE it is set.
   if (el instanceof HTMLElement) {
     el.dataset.motionLeaving = '1';
   }
