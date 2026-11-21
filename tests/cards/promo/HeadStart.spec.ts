@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {HeadStart, HEAD_START_BONUS_ACTIONS} from '../../../src/server/cards/promo/HeadStart';
 import {TestPlayer} from '../../TestPlayer';
-import {fakeCard, runAllActions} from '../../TestingUtils';
+import {fakeCard, formatMessage, runAllActions} from '../../TestingUtils';
 import {cast} from '../../../src/common/utils/utils';
 import {testGame} from '../../TestGame';
 import {IGame} from '../../../src/server/IGame';
@@ -175,6 +175,67 @@ describe('HeadStart', () => {
     expect(player.steel).eq(2);
     expect(player.pendingBonusGains).deep.eq([]);
     expect(player.bonusActions).eq(0);
+  });
+
+  it('A BONUS ACTION NOBODY CAN TAKE IS LOST, AND SAID — never a menu in which every row is refused', () => {
+    // (The engine fuzz, FREEZE ZERO stage 5 — seed 51456: the first bonus spent the purse, both gains were claimed,
+    // no card in hand — and the second bonus asked a menu with no «Pass», no «End turn» and no project the seat
+    // could pay for. The game stood in the prelude phase for ever.)
+    seat([headStart, new Loan()]);
+    player.cardsInHand = [];
+    player.megaCredits = 0;
+    player.takeAction();
+
+    const [prelude, preludeCb] = player.popWaitingFor2();
+    cast(prelude, SelectCard).cb([headStart]);
+    preludeCb?.();
+    runAllActions(game);
+
+    // While a gain is still to claim the menu STANDS — the claim is a live answer (and its M€ may open an action).
+    game.gameLog.length = 0;
+    for (const resource of ['steel', 'megacredits'] as const) {
+      const [menu, menuCb] = player.popWaitingFor2();
+      const or = cast(menu, OrOptions);
+      const gain = (or.bonusActionPrompt?.gains ?? []).find((g) => g.resource === resource);
+      expect(gain, `${resource} is still to claim`).not.eq(undefined);
+      expect(player.bonusActions, 'nothing is forfeited while a gain stands').eq(2);
+      or.options[gain!.index].cb(undefined);
+      menuCb?.();
+      runAllActions(game);
+    }
+
+    // Nothing left to claim, nothing the seat can do: BOTH bonus actions are lost, each said, and the turn goes on
+    // to the next prelude — the seat is never asked the dead menu.
+    expect(player.bonusActions).eq(0);
+    expect(player.steel).eq(2);
+    const lines = game.gameLog.map(formatMessage).filter((line) => line.includes('has no action to take'));
+    expect(lines, 'each lost action is named').to.have.length(2);
+    expect(lines[0]).to.include('Head Start');
+    const next = cast(player.getWaitingFor(), SelectCard);
+    expect(String(next.title)).eq('Select prelude card to play');
+  });
+
+  it('…and an action the seat CAN take is never forfeited — one live row keeps the menu', () => {
+    seat([headStart, new Loan()]);
+    player.megaCredits = 0;
+    player.takeAction();
+
+    const [prelude, preludeCb] = player.popWaitingFor2();
+    cast(prelude, SelectCard).cb([headStart]);
+    preludeCb?.();
+    runAllActions(game);
+    for (const resource of ['steel', 'megacredits'] as const) {
+      const [menu, menuCb] = player.popWaitingFor2();
+      const or = cast(menu, OrOptions);
+      or.options[(or.bonusActionPrompt?.gains ?? []).find((g) => g.resource === resource)!.index].cb(undefined);
+      menuCb?.();
+      runAllActions(game);
+    }
+
+    // Two cards in hand: «Sell patents» is an action — the menu stands, both bonuses still owed.
+    expect(player.bonusActions).eq(2);
+    const menu = cast(player.getWaitingFor(), OrOptions);
+    expect(findOption(menu, 'Sell patents')).not.eq(undefined);
   });
 
   it('THE CORP\'S MANDATORY FIRST ACTION NESTS AS BONUS ACTION 1 — and the gains ride its prompt too', () => {

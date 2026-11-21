@@ -15,6 +15,7 @@ import {AndOptions} from '../../src/server/inputs/AndOptions';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
 import {SelectAmount} from '../../src/server/inputs/SelectAmount';
 import {SelectPlayer} from '../../src/server/inputs/SelectPlayer';
+import {SelectStandardProjectToPlay} from '../../src/server/inputs/SelectStandardProjectToPlay';
 import {Server} from '../../src/server/models/ServerModel';
 import {TestPlayer} from '../TestPlayer';
 import {testAutomaGame} from '../automa/AutomaTestGame';
@@ -204,6 +205,11 @@ describe('TableLiveness — a table that asks nobody', () => {
       expect(unanswerableInput(new SelectPlayer([human], 't', 'b'))).eq(undefined);
       expect(unanswerableInput(new SelectAmount('t', 'b', 2, 1))).eq('an amount asked between 2 and 1');
       expect(unanswerableInput(new SelectAmount('t', 'b', 0, 0)), '«zero» is an answer').eq(undefined);
+      // A list of cards to PLAY in which every card is refused (the standard projects of a seat that can pay for
+      // none) is dead with rows on it; one enabled row is an answer.
+      const projects = human.game.getStandardProjects();
+      expect(unanswerableInput(new SelectStandardProjectToPlay(human, projects, {enabled: projects.map(() => false)}))).eq('a card to play asked of a list with none enabled');
+      expect(unanswerableInput(new SelectStandardProjectToPlay(human, projects, {enabled: projects.map((_p, i) => i === 0)}))).eq(undefined);
       // An OR is dead only when EVERY branch is; an AND when ANY part is; an optional question is never judged.
       expect(unanswerableInput(new OrOptions())).eq('an OR with no branch');
       expect(unanswerableInput(new OrOptions(new SelectCard('t', 'b', []), option()))).eq(undefined);

@@ -219,10 +219,13 @@ describe('engineFuzz — random legal games on the real engine', () => {
    *    emptied purse — a payment nobody could make (`NeptunianPowerConsultants.spec` holds the card itself);
    *  · 50337 — the World Government's ocean woke a card's question for a seat that still held the sitting's
    *    confirmation: the engine threw «Overwriting waitingFor option with or», and the same answer threw for ever. A
-   *    question the deferred queue raises takes the slot; the confirmation is asked again when the slot is free.
+   *    question the deferred queue raises takes the slot; the confirmation is asked again when the slot is free;
+   *  · 51456 — Head Start: «both actions must be taken», on a menu with no «Pass» — and a seat with no action left
+   *    was asked a menu in which every row was refused. A bonus action nobody can take is lost, and said
+   *    (`HeadStart.spec` holds the card itself).
    */
-  it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation)', () => {
-    for (const seed of [55496, 50337]) {
+  it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take)', () => {
+    for (const seed of [55496, 50337, 51456]) {
       const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}));
       expect(result.end, `seed ${seed}`).to.eq('ended');
       expect(result.violations.map((violation) => violation.key), `seed ${seed}`).to.deep.eq([]);

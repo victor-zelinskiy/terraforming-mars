@@ -48,7 +48,7 @@ type Shape = {
   optional?: boolean,
   options?: ReadonlyArray<PlayerInput>,
   cards?: ReadonlyArray<unknown>,
-  config?: {min?: number},
+  config?: {min?: number, enabled?: ReadonlyArray<boolean>},
   players?: ReadonlyArray<unknown>,
   parties?: ReadonlyArray<unknown>,
   min?: number,
@@ -89,8 +89,15 @@ export function unanswerableInput(input: PlayerInput | undefined): string | unde
     const have = shape.cards?.length ?? 0;
     return have < min ? `${min} card(s) asked of ${have}` : undefined;
   }
-  case 'projectCard':
-    return (shape.cards?.length ?? 0) === 0 ? 'a card to play asked of an empty list' : undefined;
+  case 'projectCard': {
+    if ((shape.cards?.length ?? 0) === 0) {
+      return 'a card to play asked of an empty list';
+    }
+    // (Every card refused — `enabled` all false: the same dead question with rows on it.)
+    const enabled = shape.config?.enabled;
+    return enabled !== undefined && enabled.length > 0 && enabled.every((on) => on === false) ?
+      'a card to play asked of a list with none enabled' : undefined;
+  }
   case 'player':
     return (shape.players?.length ?? 0) === 0 ? 'a player asked with nobody to choose' : undefined;
   case 'delegate':

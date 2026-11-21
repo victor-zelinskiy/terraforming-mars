@@ -43,7 +43,12 @@ export function unanswerableReason(model: PlayerInputModel | undefined): string 
   case 'card':
     return model.cards.length < model.min ? `${model.min} card(s) asked of ${model.cards.length}` : undefined;
   case 'projectCard':
-    return model.cards.length === 0 ? 'a card to play asked of an empty list' : undefined;
+    if (model.cards.length === 0) {
+      return 'a card to play asked of an empty list';
+    }
+    // A list in which EVERY card is refused (the standard projects of a seat that can pay for none) is the same
+    // dead question with rows on it — the engine fuzz, FREEZE ZERO stage 5 (seed 51456).
+    return model.cards.every((card) => card.isDisabled === true) ? 'a card to play asked of a list with none enabled' : undefined;
   case 'space':
     // (A placement the player may cancel still has an answer — the cancel.)
     return model.spaces.length === 0 && model.placementContext?.cancellable !== true ? 'a cell asked with no legal cell' : undefined;

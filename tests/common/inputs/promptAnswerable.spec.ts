@@ -29,6 +29,11 @@ describe('promptAnswerable — a question nobody can answer', () => {
     expect(unanswerableReason(card(1, 2))).to.eq('2 card(s) asked of 1');
     expect(unanswerableReason(card(0, 0)), 'min 0: «none» is an answer').to.eq(undefined);
     expect(unanswerableReason({...base, type: 'projectCard', cards: []} as unknown as PlayerInputModel)).to.match(/empty list/);
+    // A list in which EVERY card is refused is the same dead question with rows on it (the standard projects of a
+    // seat that can pay for none); one enabled row is an answer.
+    expect(unanswerableReason({...base, type: 'projectCard', cards: [{name: 'a', isDisabled: true}, {name: 'b', isDisabled: true}]} as unknown as PlayerInputModel))
+      .to.match(/none enabled/);
+    expect(unanswerableReason({...base, type: 'projectCard', cards: [{name: 'a', isDisabled: true}, {name: 'b'}]} as unknown as PlayerInputModel)).to.eq(undefined);
   });
 
   it('a cell with no legal cell — unless the placement may be cancelled', () => {

@@ -111,7 +111,7 @@ import {From} from './logs/From';
 import type {CardResourceBasis} from '../common/events/EventImpact';
 import {SelectStandardProjectToPlay} from './inputs/SelectStandardProjectToPlay';
 import {ResolutionId} from '../common/parliament/ParliamentTypes';
-import {refuseUnanswerableInput} from './liveness/UnanswerablePrompt';
+import {refuseUnanswerableInput, unanswerableInput} from './liveness/UnanswerablePrompt';
 
 const THROW_STATE_ERRORS = Boolean(process.env.THROW_STATE_ERRORS);
 
@@ -3307,6 +3307,22 @@ export class Player implements IPlayer {
       // router, the quick wheel, the status label) must keep classifying it as
       // one. What is a bonus action rides the structured marker instead.
       const menu = this.getActions({bonusAction: true});
+      // A BONUS ACTION NOBODY CAN TAKE IS LOST, AND SAID. «Both actions must be taken» — and the menu has neither
+      // «Pass» nor «End turn» to answer with, so a seat with no action left (the first bonus spent the purse, the
+      // gains already claimed, no card to play, no project it can pay for) was asked a menu in which every row is
+      // refused: a question with no answer, in the prelude phase, for ever (the engine fuzz, FREEZE ZERO stage 5 —
+      // seed 51456). The rule cannot be kept, so the action is forfeited — by the ENGINE, named in the journal,
+      // never picked for the seat. While a gain is still to claim the menu stands: the claim is a live answer, and
+      // the M€ it brings may be exactly what opens an action.
+      if (this.pendingBonusGains.length === 0 && unanswerableInput(menu) !== undefined) {
+        const source = this.bonusActionSource;
+        if (source !== undefined) {
+          game.log('${0} has no action to take — an extra action of ${1} is lost', (b) => b.player(this).cardName(source));
+        }
+        this.spendBonusAction();
+        this.takeAction();
+        return;
+      }
       const gains = this.appendBonusGainOptions(menu);
       const meta = this.bonusActionMeta();
       if (meta !== undefined) {
