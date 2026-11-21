@@ -29,7 +29,7 @@ import {
   runDiscardGather, runDiscardHold, runDiscardPileSettle, runDiscardTrayWithdraw, spawnDiscardProxies,
 } from './discardDirector';
 import {discardTimings} from './discardModel';
-import {HAND_DISCARD_PILE_LEASE, cardDiscardState, resetCardDiscardStage} from './cardDiscardState';
+import {HAND_DISCARD_PILE_LEASE, cardDiscardState, closeCardDiscardStage, openCardDiscardStage, resetCardDiscardStage} from './cardDiscardState';
 import {discardPileState, expectDiscardPileCount, settleDiscardPile} from '@/client/console/discardPile/discardPile';
 
 /** One open card being thrown away, with its live slot (or a snapshot rect). */
@@ -56,7 +56,7 @@ export async function discardOpenCards(sources: ReadonlyArray<OpenDiscardSource>
   }
   const reduced = consoleReducedMotionActive();
   const t = discardTimings(reduced);
-  cardDiscardState.live = true;
+  openCardDiscardStage();
   cardDiscardState.phase = 'fixating';
   const spawned = await spawnDiscardProxies(sources);
   if (spawned.length === 0) {
@@ -67,7 +67,7 @@ export async function discardOpenCards(sources: ReadonlyArray<OpenDiscardSource>
       expectDiscardPileCount(HAND_DISCARD_PILE_LEASE, sources.length);
       settleDiscardPile(HAND_DISCARD_PILE_LEASE);
     }
-    cardDiscardState.live = false;
+    closeCardDiscardStage();
     cardDiscardState.phase = 'idle';
     return;
   }

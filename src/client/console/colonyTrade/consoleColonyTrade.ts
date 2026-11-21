@@ -298,7 +298,13 @@ export function colonyTradeReceiptBase(colony: string): TradeReceiptBase | undef
  * than firing and asking `isLiveRun`); the reward run's pauses are spans of it; and when the game screen leaves under
  * it the transaction is aborted (`orphaned`).
  */
-const tradeFlow = createFlowRun('colony-trade', {orphaned: () => abortColonyTrade()});
+const tradeFlow = createFlowRun('colony-trade', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    colonyTradeState.active = up;
+  },
+  orphaned: () => abortColonyTrade(),
+});
 const NO_TIMER = (): void => {};
 let cancelArmSafety: () => void = NO_TIMER;
 let cancelCeiling: () => void = NO_TIMER;
@@ -766,7 +772,6 @@ export function armColonyTrade(
   ctx.revealSeen = false;
   ctx.stageYielded = false;
   ctx.answerBlock = 0;
-  colonyTradeState.active = true;
   colonyTradeState.phase = 'armed';
   colonyTradeState.cardScene = 'idle';
   colonyTradeState.beat = '';
@@ -1352,7 +1357,7 @@ function finishTrade(): void {
   clearParkedNet();
   clearSettleTimer();
   clearAdvanceSafety();
-  colonyTradeState.active = false;
+  tradeFlow.end(); // the transaction is over — its flag falls with its run
   colonyTradeState.phase = 'idle';
   colonyTradeState.cardScene = 'idle';
   colonyTradeState.beat = '';
@@ -1364,7 +1369,6 @@ function finishTrade(): void {
   ctx.targets = undefined;
   receiptBase = undefined;
   tradeLog('transaction finished');
-  tradeFlow.end();
 }
 
 // THE LIVENESS ARBITER'S RUNG (rank 20): a transaction standing while the player cannot act (a cover scene whose
@@ -1432,24 +1436,28 @@ export function abortColonyTrade(): void {
   if (!colonyTradeState.active) {
     return;
   }
-  tradeLog('aborted');
-  if (ctx.seeded && ctx.manifest !== undefined && colonyTradeState.color !== '') {
-    // Release exactly what we held — never a shared clear that could drop
-    // another scene's pending holds.
-    for (const spec of colonyTradeHeldSpecs(ctx.manifest, colonyTradeState.color, ctx.targets)) {
-      releasePanelRewardHold(spec);
+  try {
+    tradeLog('aborted');
+    if (ctx.seeded && ctx.manifest !== undefined && colonyTradeState.color !== '') {
+      // Release exactly what we held — never a shared clear that could drop
+      // another scene's pending holds.
+      for (const spec of colonyTradeHeldSpecs(ctx.manifest, colonyTradeState.color, ctx.targets)) {
+        releasePanelRewardHold(spec);
+      }
+      heldReleasedRun = tradeRun;
     }
-    heldReleasedRun = tradeRun;
+    const r = glideResolver.take();
+    r?.();
+    // …and the ADVANCE leg's own gate: an abort mid-advance must free the
+    // payout's await, or `runColonyTradeRewards` would sit on a promise whose
+    // transaction no longer exists.
+    const a = ctx.advanceResolve;
+    ctx.advanceResolve = undefined;
+    a?.();
+  } finally {
+    // (Whatever the release above threw, the transaction is over: the run ends here — its flag with it.)
+    tradeFlow.end({how: 'cancelled', reason: 'the trade was aborted'});
   }
-  const r = glideResolver.take();
-  r?.();
-  // …and the ADVANCE leg's own gate: an abort mid-advance must free the
-  // payout's await, or `runColonyTradeRewards` would sit on a promise whose
-  // transaction no longer exists.
-  const a = ctx.advanceResolve;
-  ctx.advanceResolve = undefined;
-  a?.();
-  colonyTradeState.active = false;
   colonyTradeState.phase = 'idle';
   colonyTradeState.cardScene = 'idle';
   colonyTradeState.beat = '';
@@ -1472,7 +1480,6 @@ export function abortColonyTrade(): void {
   ctx.revealSeen = false;
   ctx.stageYielded = false;
   ctx.answerBlock = 0;
-  tradeFlow.end({how: 'cancelled', reason: 'the trade was aborted'});
 }
 
 /** Test-only full reset (including the session memories). */
@@ -1587,7 +1594,13 @@ const waveResolver = owedAnswer('colony-trade:wave', {orphaned: () => []});
  * net; when the game screen leaves under it the wave is finished (`orphaned` — every hold released, the request
  * resolved).
  */
-const waveFlow = createFlowRun('colony-track-wave', {orphaned: () => finishColonyTrackWave('session')});
+const waveFlow = createFlowRun('colony-track-wave', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    colonyTrackWaveState.active = up;
+  },
+  orphaned: () => finishColonyTrackWave('session'),
+});
 /** The landed cells' one-shot glow outlives the wave by design: which wave's glow stands (a newer wave supersedes it). */
 let waveGlowSeq = 0;
 
@@ -1639,7 +1652,6 @@ export function requestColonyTrackWave(
   colonyTrackWaveState.gliding = {};
   colonyTrackWaveState.settled = {};
   colonyTrackWaveState.touched = {};
-  colonyTrackWaveState.active = true;
   colonyTrackWaveState.nonce++;
   tradeLog('track wave', moves.length, 'tiles', reduced ? '(short form)' : '');
   return new Promise<void>((resolve) => {
@@ -1688,15 +1700,16 @@ export function noteColonyTrackWaveLanded(colony: ColonyName, cell: number, move
  * clears, the request resolves. Idempotent.
  */
 export function finishColonyTrackWave(why = 'landed'): void {
-  waveFlow.end(); // its net goes with it
-  if (!colonyTrackWaveState.active) {
+  // (Read BEFORE the run ends: the flag is the run's life — it falls with it, whatever the release below throws.)
+  const onStage = colonyTrackWaveState.active;
+  waveFlow.end(); // its net goes with it — and its flag
+  if (!onStage) {
     // No wave on stage: the holds are somebody else's (the beat's, placed BEFORE its request) — never released here.
     return;
   }
   releaseColonyTracks();
   tradeLog('track wave finished:', why);
   colonyTrackWaveState.lastFinish = why;
-  colonyTrackWaveState.active = false;
   colonyTrackWaveState.gliding = {};
   colonyTrackWaveState.moves = [];
   // The last landing's glow finishes on its own; the one-shots are cleared after it (cosmetic, never a gate).

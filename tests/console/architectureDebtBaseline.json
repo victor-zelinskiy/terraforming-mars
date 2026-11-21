@@ -21,15 +21,7 @@
       "src/client/console/supervisor/supervisorController.ts": 5,
       "src/client/console/transport/gameTransport.ts": 1
     },
-    "flag-by-hand": {
-      "src/client/console/cardDiscard/consoleCardDiscard.ts": 1,
-      "src/client/console/colonyBuild/consoleColonyBuild.ts": 4,
-      "src/client/console/colonyTrade/consoleColonyTrade.ts": 5,
-      "src/client/console/consoleActionCommit.ts": 4,
-      "src/client/console/hydroFlow/deltaBlockadeEntry.ts": 5,
-      "src/client/console/played/playedCardReturn.ts": 2,
-      "src/client/console/tilePlacement/consoleRemotePlacement.ts": 5
-    },
+    "flag-by-hand": {},
     "truth-witness": {
       "src/client/console/hydroFlow/consoleHydroFlow.ts": 2,
       "src/client/console/transport/gameTransport.ts": 1

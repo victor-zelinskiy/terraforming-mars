@@ -74,6 +74,18 @@ export type ReturnFlight = {
  * instead of standing withheld into the next game.
  */
 const run = createFlowRun('played-card-return', {orphaned: () => abortPlayedCardReturns()});
+/**
+ * THE FLIGHTS ARE ON STAGE — a span INSIDE the beat (the cards are withheld from the arm; the proxies stand only from
+ * the measured departure to the delivery). Not the beat's whole life, so it is a run of its own, owned by the beat's:
+ * it ends where the beat does, on every path, and its flag — what mounts the layer — falls with it.
+ */
+const flightsOnStage = createFlowRun('played-card-return:flights', {
+  owner: () => run.scope ?? consoleSessionScope(),
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    playedReturnState.active = up;
+  },
+});
 
 export const playedReturnState = reactive({
   /** TRUE while the rise/turn/pose beat owns its proxies. */
@@ -208,7 +220,7 @@ async function deliver(cards: ReadonlyArray<ReturnedCard>): Promise<void> {
 
   playedReturnState.nonce++;
   playedReturnState.flights = cards.map((c) => ({id: ++flightId, name: c.name, faceDown: c.faceDown}));
-  playedReturnState.active = true;
+  flightsOnStage.begin(`${cards.length} card(s)`);
   await nextTick(); // the layer mounts the proxies + registers their chassis
 
   const stage = playedReturnState.flights.map((f) => els.get(f.id));
@@ -316,14 +328,19 @@ export function resetPlayedCardReturns(): void {
 // ── internals ───────────────────────────────────────────────────────────────
 
 function finishBeat(): void {
-  releaseWithhold(withheld);
-  pileRect = undefined;
-  sources.clear();
-  playedReturnState.active = false;
-  playedReturnState.flights = [];
-  els.clear();
-  scene = undefined;
-  run.end();
+  try {
+    releaseWithhold(withheld);
+    pileRect = undefined;
+    sources.clear();
+  } finally {
+    // (Whatever the release above threw, the beat is over: the flights leave the stage — their flag with their span —
+    // and the run ends.)
+    flightsOnStage.end();
+    playedReturnState.flights = [];
+    els.clear();
+    scene = undefined;
+    run.end();
+  }
 }
 
 function releaseWithhold(names: ReadonlyArray<CardName>): void {

@@ -10,6 +10,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {DiscardPhase} from '@/client/console/cardDiscard/discardModel';
+import {createFlowRun} from '@/client/console/session/flowRun';
 
 export type DiscardFlight = {
   id: number,
@@ -38,6 +39,31 @@ export const cardDiscardState = reactive({
 });
 
 const els = new Map<number, HTMLElement>();
+
+/**
+ * THE STAGE'S RUN — `scene:card-discard:stage#n`: the layer stands from a driver's opening (the hand discard's run,
+ * the open cards' refusal) to the stage's reset. `live` is its life: a stage nobody reset — a driver that threw past
+ * its `finally`, the game screen leaving under a flight — does not stay mounted; the session's end resets it.
+ */
+const stageRun = createFlowRun('card-discard:stage', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    cardDiscardState.live = up;
+  },
+  orphaned: () => resetCardDiscardStage(),
+});
+
+/** A driver opens the stage (idempotent while it stands). */
+export function openCardDiscardStage(): void {
+  if (!stageRun.live()) {
+    stageRun.begin();
+  }
+}
+
+/** The stage closes with NOTHING else touched (a driver that found nothing to fly leaves it as it found it). */
+export function closeCardDiscardStage(): void {
+  stageRun.end();
+}
 let seq = 0;
 let trayEl: HTMLElement | undefined;
 
@@ -80,7 +106,7 @@ export function noticeDiscardLanding(): void {
 }
 
 export function resetCardDiscardStage(): void {
-  cardDiscardState.live = false;
+  stageRun.end();
   cardDiscardState.phase = 'idle';
   cardDiscardState.flights = [];
   cardDiscardState.trayVisible = false;
