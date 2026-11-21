@@ -5,7 +5,8 @@ import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {armChairmanQuestFlow, chairmanQuestFlow, resetChairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {
   CHAIRMAN_QUEST_REACTION_UNSERVED_MS, chairmanQuestAwaitsReaction, chairmanQuestRunLive, ChairmanQuestDirectorContext, finishChairmanQuestBeats,
-  hurryChairmanQuestReaction, killChairmanQuestBeats, noteChairmanQuestAnswer, probeChairmanQuestReaction, startChairmanQuestBeats,
+  hurryChairmanQuestReaction, killChairmanQuestBeats, noteChairmanQuestAnswer, noteChairmanQuestHandedBack, probeChairmanQuestReaction,
+  startChairmanQuestBeats,
 } from '@/client/console/parliament/chairmanQuestDirector';
 import {resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {resetParliamentRewards} from '@/client/console/parliament/parliamentRewardBeat';
@@ -180,6 +181,36 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — wait graph R3: the hold for t
     finishChairmanQuestBeats();
     expect(chairmanQuestFlow.beat).eq('done');
     expect(table.done).eq(1);
+  });
+
+  it('THE HOLD STANDS OVER WHAT THE FLOW PLAYS — never over a wait for the player (an answer handed back) ', () => {
+    // (FREEZE ZERO, stage 4 — the fault pass: the gate's submit refused; the hold stood to its 20 s ceiling over a
+    // player reading the alert: `animation-hold/ceiling/parliament-chairman-quest`.)
+    const table: Table = {question: undefined, served: false, done: 0};
+    armChairmanQuestFlow(model(), BLUE);
+    startChairmanQuestBeats({
+      root: document.createElement('div'), viewer: BLUE, generation: 3,
+      playAgendaWalk: (_record, hooks) => hooks.onLanded(), onStage: () => undefined,
+      owesSeatPick: () => false, owesReaction: () => table.question, reactionServed: () => table.served,
+      onDone: () => {
+        table.done++;
+      },
+    });
+    const holds = () => activeAnimationHoldLabels().filter((l) => l.startsWith('parliament-chairman-quest')).length;
+    expect(holds(), 'the reading plays — the flow holds').eq(1);
+    noteChairmanQuestHandedBack();
+    expect(holds(), 'the server did not take the answer: what stands is the press of the player — nothing is held').eq(0);
+    expect(chairmanQuestFlow.handedBack, 'the wait graph reads «the player»').is.true;
+    expect(chairmanQuestRunLive(), 'the run stands: A sends the answer again').is.true;
+    noteChairmanQuestHandedBack();
+    expect(holds()).eq(0);
+    // THE ANSWER brings the hold back — the beats may start, and their twenty seconds are counted from here.
+    noteChairmanQuestAnswer();
+    expect(holds(), 'the beats play under the hold').eq(1);
+    expect(chairmanQuestFlow.handedBack).is.false;
+    // …and an ANSWERED flow is past it: a hand-back that comes late lets nothing go.
+    noteChairmanQuestHandedBack();
+    expect(holds()).eq(1);
   });
 
   it('a killed run ends the probe with it (nothing reads a flow that is gone)', () => {

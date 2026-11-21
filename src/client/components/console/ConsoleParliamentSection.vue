@@ -346,10 +346,10 @@ import {
 } from '@/client/console/parliament/consoleChairmanQuest';
 import {registerFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {
-  chairmanQuestBeatActive, finishChairmanQuestBeats, killChairmanQuestBeats, noteChairmanQuestAnswer, playChairHandover, startChairmanQuestBeats, CHAIRMAN_QUEST_BUDGET,
+  chairmanQuestBeatActive, finishChairmanQuestBeats, killChairmanQuestBeats, noteChairmanQuestAnswer, noteChairmanQuestHandedBack, playChairHandover, startChairmanQuestBeats, CHAIRMAN_QUEST_BUDGET,
   chairmanQuestAwaitsReaction, noteChairmanQuestReactionAnswered, chairmanQuestStalled, settleChairmanQuestBeats, hurryChairmanQuestReaction,
 } from '@/client/console/parliament/chairmanQuestDirector';
-import {transportRequestInProgress} from '@/client/console/transport/gameTransport';
+import {onSubmitSettled, transportRequestInProgress, transportState} from '@/client/console/transport/gameTransport';
 import {SittingBeat, sittingBeats} from '@/client/console/parliament/sittingBeats';
 import {
   finishSittingMotion, killSittingMotion, playSittingStage, resetSittingDirector, sittingMotion, sittingMotionActive, SittingDirectorContext,
@@ -2215,8 +2215,9 @@ function handleQuestIntent(intent: GamepadIntent): void {
   }
   if (!chairmanQuestFlow.answered && !chairmanQuestFlow.sent && questGate.value !== undefined) {
     // A refused or silenced submit gave the stage back: the gate still
-    // stands, so A means what it meant — send it again.
+    // stands, so A means what it meant — send it again (the flow holds again when the answer is in).
     chairmanQuestFlow.sent = true;
+    chairmanQuestFlow.handedBack = false;
     send({type: 'option'}, 'quest');
     return;
   }
@@ -3279,7 +3280,17 @@ function armSubmitSafety(): void {
 function onSubmitSafety(): void {
   cancelSubmitSafety = undefined;
   if (parliamentFlow.stage === 'submitting' && (transportRequestInProgress() || parkedSubmit.value !== undefined)) {
-    if (Date.now() - submitSafetySince.value < SUBMIT_SAFETY_MAX_MS) {
+    // THE SERVER'S SILENCE IS THE TRANSPORT'S TO BOUND (its own minute — `submitMachine.SUBMIT_NO_RESPONSE_MS`). While
+    // OUR answer is on the wire and unanswered no gate of the funnel runs, so there is no mutual wait to cut (P4's
+    // reason) — and a stage given back under a request still in flight is the very thing this safety exists to
+    // prevent. The thirty seconds are counted where the wait CAN be mutual: the answer is in (its presentation's
+    // gates) or parked behind the funnel. (FREEZE ZERO, stage 4 — the fault pass: an answer lost on the network gave
+    // the stage back at 30 s, half a minute before the transport said «the server did not answer».)
+    const onTheWire = parkedSubmit.value === undefined && transportState.phase === 'sending';
+    if (onTheWire) {
+      submitSafetySince.value = Date.now();
+    }
+    if (onTheWire || Date.now() - submitSafetySince.value < SUBMIT_SAFETY_MAX_MS) {
       armSubmitSafety();
       return;
     }
@@ -3290,6 +3301,20 @@ function onSubmitSafety(): void {
   }
   resetSubmitting();
 }
+/**
+ * THE ANSWER'S OWN END HANDS THE STAGE BACK (ticket-first — the press unwind's law, for a stage a COMPONENT owns): a
+ * submit that did not land — refused, failed on the network, never answered — is over the moment the transport
+ * settles it, and so is the stage's wait for it. It used to be noticed by the safety's next tick, up to six seconds
+ * later: the stage read «submitting», the chairmanship's flow «the answer is on the wire», over a wire with nothing
+ * on it (FREEZE ZERO, stage 4 — the fault pass: `wait-graph/dead-end/flow:chairman-quest … server: the answer … cannot
+ * come`). An answer that ARRIVED (applied, staged, or abandoned mid-presentation) is the view's to tell — not this.
+ */
+const offSubmitSettled = onSubmitSettled((settle) => {
+  if (parliamentFlow.stage === 'submitting' && parkedSubmit.value === undefined &&
+      (settle.status === 'refused' || settle.status === 'failed' || settle.status === 'silent')) {
+    resetSubmitting();
+  }
+});
 /** A REFUSED submit gives the stage back (the shell calls it on a transport error too). */
 function resetSubmitting(): void {
   clearSubmitTimer();
@@ -3310,6 +3335,8 @@ function resetSubmitting(): void {
       // The chairmanship's answer never left (or was refused): A means what it meant — send it again. Kept
       // `sent`, the re-send branch could never run and the flow stood on its reading for good.
       chairmanQuestFlow.sent = false;
+      // …and what stands now is the PLAYER's press: the flow's blocking hold lets go until the answer leaves again.
+      noteChairmanQuestHandedBack();
     }
     setWorkspaceFramePhase('parliament', phaseAfterRefusal(f.stage));
   }
@@ -3895,6 +3922,7 @@ onMounted(() => {
   }
 });
 onBeforeUnmount(() => {
+  offSubmitSettled();
   stopFitObs?.();
   stopQuestionDoor?.();
   parkedSubmit.value = undefined;

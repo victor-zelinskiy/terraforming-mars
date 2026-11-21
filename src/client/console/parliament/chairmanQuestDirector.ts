@@ -178,23 +178,38 @@ function sourceRect(root: HTMLElement, color: Color, source: 'reserve' | 'lobby'
  * the reading plays while the answer is in flight, and everything past it
  * waits for the server (`noteChairmanQuestAnswer`).
  */
+/**
+ * THE FLOW'S BLOCKING HOLD — over what the flow itself PLAYS: the reading, then (once the answer is in) the office and
+ * the step. It does not stand over a wait for somebody else:
+ *   · THE SERVER — the reading is played and the answer has not come: that wait is the transport's own (the submit on
+ *     the wire, bounded by its minute — `submitMachine`), and the hold lets go (`the reading's end`, below);
+ *   · THE PLAYER — the answer was handed back («send it again»): `noteChairmanQuestHandedBack`.
+ * It comes back with the answer (`noteChairmanQuestAnswer`), so the beats' twenty seconds bound the beats. A hold
+ * that stood through either wait ended on its ceiling FIRST — force-released under a request still in flight, the
+ * flow «settled without its beats» (FREEZE ZERO, stage 4 — the fault pass: a submit refused, stale, lost).
+ *
+ * THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT (animations.md § the ceiling MASKS the hold — the field lock of
+ * 2026-11-07 01:20: a beat that never landed held this past 20 s, the ceiling dropped the count, and the run stood
+ * «in a beat» — B absorbed, A «дожать» with nothing left to drive — over the next action menu, `accepting` and
+ * quiet). The flow's own honest end runs instead: every beat cut, every flight landed, `done` — A / B close it.
+ */
+function beginQuestHold(): AnimationHold {
+  return beginAnimationHold('parliament-chairman-quest', {
+    // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): the seat pick and the reading are the player's; the answer the server's.
+    waitsFor: 'player',
+    maxHoldMs: 20000,
+    diagnose: () => ({beat: chairmanQuestFlow.beat, answered: chairmanQuestFlow.answered,
+      seatPick: run?.awaitingSeatPick ?? false, reaction: run?.awaitingReaction ?? false,
+      chairAwaits: parliamentHolds.chairAwaits !== undefined, agendaAwaits: parliamentHolds.agendaAwaits !== undefined}),
+    expire: () => settleChairmanQuestBeats('the beats outlived their 20 s ceiling'),
+  });
+}
+
 export function startChairmanQuestBeats(ctx: ChairmanQuestDirectorContext): void {
   killChairmanQuestBeats();
   run = {
     ctx,
-    // THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT (animations.md § the ceiling MASKS the hold — the field lock of
-    // 2026-11-07 01:20: a beat that never landed held this past 20 s, the ceiling dropped the count, and the run stood
-    // «in a beat» — B absorbed, A «дожать» with nothing left to drive — over the next action menu, `accepting` and
-    // quiet). The flow's own honest end runs instead: every beat cut, every flight landed, `done` — A / B close it.
-    hold: beginAnimationHold('parliament-chairman-quest', {
-      // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): the seat pick and the reading are the player's; the answer the server's.
-      waitsFor: 'player',
-      maxHoldMs: 20000,
-      diagnose: () => ({beat: chairmanQuestFlow.beat, answered: chairmanQuestFlow.answered,
-        seatPick: run?.awaitingSeatPick ?? false, reaction: run?.awaitingReaction ?? false,
-        chairAwaits: parliamentHolds.chairAwaits !== undefined, agendaAwaits: parliamentHolds.agendaAwaits !== undefined}),
-      expire: () => settleChairmanQuestBeats('the beats outlived their 20 s ceiling'),
-    }),
+    hold: beginQuestHold(),
     beats: [],
     readDone: false,
     seatStarted: false,
@@ -217,15 +232,44 @@ export function startChairmanQuestBeats(ctx: ChairmanQuestDirectorContext): void
       return;
     }
     state.readDone = true;
+    if (!chairmanQuestFlow.answered) {
+      // THE READING IS PLAYED AND THE ANSWER HAS NOT COME: what stands is the server's — the transport's own wait.
+      releaseQuestHold(state);
+    }
     maybeStartSeat();
   });
 }
 
+function releaseQuestHold(state: Run): void {
+  state.hold?.release();
+  state.hold = undefined;
+}
+
+/**
+ * THE ANSWER WAS HANDED BACK — refused, lost on the network, never answered (the section's `resetSubmitting`). What
+ * stands is the PLAYER's press («send it again» — the bar says so), and a wait for the player holds nothing: the
+ * blocking hold lets go, and the wait graph's node reads «the player» (`chairmanQuestFlow.handedBack`).
+ */
+export function noteChairmanQuestHandedBack(): void {
+  const state = run;
+  if (state === undefined || state.killed || chairmanQuestFlow.answered) {
+    return;
+  }
+  chairmanQuestFlow.handedBack = true;
+  releaseQuestHold(state);
+}
+
 /** The server answered: the beats past the reading may run (they wait for whichever comes last). */
 export function noteChairmanQuestAnswer(): void {
+  const first = !chairmanQuestFlow.answered;
   chairmanQuestFlow.answered = true;
   chairmanQuestFlow.sent = false;
+  chairmanQuestFlow.handedBack = false;
   const state = run;
+  if (first && state !== undefined && !state.killed && state.hold === undefined) {
+    // THE BEATS MAY START: the flow holds again — their twenty seconds counted from here, where they can begin.
+    state.hold = beginQuestHold();
+  }
   if (state !== undefined && state.awaitingSeatPick) {
     // The delegate pick is answered: the office can change hands now.
     state.awaitingSeatPick = false;

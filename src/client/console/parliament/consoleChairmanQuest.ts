@@ -38,6 +38,7 @@ import {agendaStepAnswerSpecs, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL
 import {StandardMoves} from '@/common/parliament/ParliamentTypes';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
+import {SUBMIT_NO_RESPONSE_MS} from '@/client/console/transport/submitMachine';
 
 /**
  * THE FLOW'S STAGES — the crumb's tail, one word each
@@ -95,6 +96,8 @@ export const chairmanQuestFlow = reactive({
    * «overdue flow:chairman-quest — past its 30 s bound» over a pick the player had not made yet).
    */
   awaitsPlayer: false,
+  /** The answer was HANDED BACK (refused, lost, never answered) and has not left again: A sends it — the player's wait. */
+  handedBack: false,
 });
 
 function freshFlow() {
@@ -102,6 +105,7 @@ function freshFlow() {
     live: false, stage: 'task' as ChairmanQuestStage, beat: '' as ChairmanQuestBeat, sent: false, answered: false,
     player: undefined, seatWas: undefined, seatSource: 'reserve' as const, move: undefined, bonus: undefined, reactionKey: '',
     awaitsPlayer: false,
+    handedBack: false,
   };
 }
 
@@ -272,12 +276,18 @@ registerWaitSource('flow:chairman-quest', () => {
   // WHO IS WAITED FOR decides the wait: a decision of the player's (the seat, the table's question) and the closing A
   // are the player's time — honest, unbounded, a dead end only when nothing on screen accepts the press; the beats in
   // between are the flow's own motion, bounded.
-  const players = flow.beat === 'done' ? 'A closes the chairmanship' : flow.awaitsPlayer ? `the player's decision (${flow.beat})` : undefined;
+  // …and BEFORE the answer the flow waits for whoever has it: the SERVER while it is on the wire (the transport's own
+  // minute bounds that — its submit is a node of this graph too), the PLAYER once it was handed back («send it again»).
+  // A motion's thirty seconds over either was the fault pass's `wait-graph/overdue/flow:chairman-quest`.
+  const players = flow.beat === 'done' ? 'A closes the chairmanship' : flow.awaitsPlayer ? `the player's decision (${flow.beat})` :
+    flow.handedBack && !flow.answered && !flow.sent ? 'A sends the answer again (it was handed back)' : undefined;
+  const server = players === undefined && !flow.answered && flow.sent;
   return [{
     id: 'flow:chairman-quest', family: 'flow', owner: 'chairmanQuest',
     // (The beat it stands on — an overdue line that names only the flow sends its reader to reproduce it.)
     detail: flow.beat,
-    targets: [players !== undefined ? {kind: 'player', what: players} : {kind: 'motion', what: `the beats (${flow.beat})`}],
-    ...(players !== undefined ? {} : {boundMs: 30_000}),
+    targets: [players !== undefined ? {kind: 'player', what: players} :
+      server ? {kind: 'server', what: 'the answer to the gate of the chairmanship'} : {kind: 'motion', what: `the beats (${flow.beat})`}],
+    ...(players !== undefined ? {} : {boundMs: server ? SUBMIT_NO_RESPONSE_MS + 12_000 : 30_000}),
   }];
 });
