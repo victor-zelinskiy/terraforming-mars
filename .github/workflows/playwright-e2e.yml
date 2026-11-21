@@ -75,7 +75,8 @@ jobs:
       # learn the state of the WHOLE suite in one run.
       fail-fast: false
       # A scheduled run leaves runners to the day's pushes — the release of a push must never queue behind the suite.
-      max-parallel: ${{ github.event_name == 'schedule' && 10 || 20 }}
+      # …and a HUNT (repeats) never takes more than eight: the day's pushes, their CI and their release go on beside it.
+      max-parallel: ${{ github.event_name == 'schedule' && 10 || ((inputs.repeat_each != '' && inputs.repeat_each != '1') && 8 || 20) }}
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.list) }}
 
