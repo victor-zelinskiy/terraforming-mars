@@ -533,7 +533,32 @@ export function compareReports(now, before) {
   };
 }
 
-/** Does the run pass the bar's gate: no episode left uncured, no defect class the earlier run did not have. */
+/**
+ * THE ONE-OWNER LAW's NUMBERS (FREEZE ZERO, stage 2 — `servingOwnerMeasure.ts`): what must read ZERO on every walk since
+ * the prompt surfaces, the pad's band and the bar are derived from one answer. Each is a way the copies could part
+ * again — and a gate that only LISTED them would be read by nobody.
+ */
+export const OWNER_LAW = {
+  'MISS': 'the function says an owner serves and it does not paint',
+  'EXTRA': 'the function names a hold and the surface paints',
+  'pad-MISS': 'the pad gave the press to another rung than the owner\'s',
+  'band-APART': 'the ladder took another rung than the function\'s word',
+  'bar-APART': 'the bar showed one owner\'s commands and another rung took the press',
+  'flag-MISS': 'the function says an owner serves and its surface has nothing to draw',
+  'flag-EXTRA': 'a prompt surface stands that the function does not name',
+  'edge-LATCH': 'the answer moved with no reactive edge',
+};
+
+/** The law's rows of a report that are not at zero — `[verdict, count, what]`. */
+export function ownerLawBroken(report) {
+  const verdicts = report.owner?.verdicts ?? {};
+  return Object.entries(OWNER_LAW).filter(([verdict]) => (verdicts[verdict] ?? 0) > 0).map(([verdict, what]) => [verdict, verdicts[verdict], what]);
+}
+
+/**
+ * Does the run pass the bar's gate: no episode left uncured, no defect class the earlier run did not have — and the
+ * one-owner law at zero (where the walks carried its measure).
+ */
 export function gateVerdict(report, diff) {
   const reasons = [];
   if (report.totals.notCured > 0) {
@@ -541,6 +566,9 @@ export function gateVerdict(report, diff) {
   }
   if (diff !== undefined && diff.newClasses.length > 0) {
     reasons.push(`${diff.newClasses.length} NEW defect class(es): ${diff.newClasses.join(', ')}`);
+  }
+  for (const [verdict, n, what] of ownerLawBroken(report)) {
+    reasons.push(`the one-owner law — ${verdict} ×${n}: ${what} (the report's «THE ONE FUNCTION» section names the tables)`);
   }
   return {pass: reasons.length === 0, reasons};
 }
