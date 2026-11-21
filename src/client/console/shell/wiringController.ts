@@ -28,7 +28,7 @@ import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection
 import ConsoleHandSection from '@/client/components/console/ConsoleHandSection.vue';
 import {endFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
-import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, hostCarriesPlayersLook, workspaceFrameSelector, workspaceLastVerb, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, workspaceFrameSelector, workspaceLastVerb, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
 import {installFlowCoverageProbe} from '@/client/console/flowCoverageProbe';
 import {resetStdProjectsFlow, stdProjectsFlow} from '@/client/console/consoleStdProjects';
@@ -54,7 +54,6 @@ import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} f
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
 import {barRungNow, DerivedPair, noteDerivedRender, registerOwnerNowProbe, resetDerivedSpans, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
-import {CLIENT_PAYMENT_TASK, CLIENT_PICK_TASK} from '@/client/console/shell/shellShared';
 import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {bandRungOf, ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
@@ -161,7 +160,7 @@ export type WiringPort = {
   handOffHandForDiscard: UnwrapRef<HandSelectController['handOffHandForDiscard']>,
   hostTask: UnwrapRef<RouterController['hostTask']>,
   taskHeldForWorkspace: UnwrapRef<RouterController['taskHeldForWorkspace']>,
-  questionFacts: RouterController['questionFacts'],
+  questionFactsNow: RouterController['questionFactsNow'],
   commands: UnwrapRef<CommandBarController['commands']>,
   aresGlobalsActive: UnwrapRef<RouterController['aresGlobalsActive']>,
   botAttackActive: UnwrapRef<RouterController['botAttackActive']>,
@@ -664,30 +663,20 @@ export function createWiringController(shell: WiringPort) {
     return bandRungOf(ownership, depth === -1 ? [] : facts.frames.slice(depth + 1), facts.task?.kind ?? '');
   }
 
-  /**
-   * THE QUESTION IN FRONT OF THE PLAYER — the client's own while one stands (a standard project's price, a law's
-   * «where»: the player's composer raised it, and the task host answers it whatever the server asks meanwhile), else
-   * the server's.
-   */
-  function questionNow(): {task: ConsoleTask | undefined, client: boolean} {
-    if (shell.pendingClientPayment !== undefined) {
-      return {task: CLIENT_PAYMENT_TASK, client: true};
-    }
-    if (shell.pendingClientPick !== undefined) {
-      return {task: CLIENT_PICK_TASK, client: true};
-    }
-    return {task: taskFor(shell.playerView), client: false};
-  }
-
-  /** The facts of the question, whole — what `servingOwnerOf` is asked with. */
+  /** The facts of the question, whole — the router's (`questionFactsNow`): ONE assembly for the function and its measures. */
   function factsNow(): QuestionFacts {
-    const question = questionNow();
-    return {task: question.task, ...ownerFacts(), client: question.client};
+    return shell.questionFactsNow();
   }
 
   /** The shape a measure's row is filed under (`client:` — the client's own question). */
   function shapeNow(facts: QuestionFacts): string {
     return facts.task === undefined ? 'none' : `${facts.client ? 'client:' : ''}${screenPromptShape(facts.task)}`;
+  }
+
+  /** The same facts as the leak detector's look takes them: apart from the task, with the client's own question named. */
+  function shadowFacts(): {facts: Omit<QuestionFacts, 'task'>, question: ConsoleTask | undefined} {
+    const {task, ...facts} = factsNow();
+    return {facts, question: facts.client ? task : undefined};
   }
 
   const offDerived: {value: (() => void) | undefined} = {value: undefined};
@@ -730,25 +719,6 @@ export function createWiringController(shell: WiringPort) {
       ['corpFirst', shell.corpFirstActionOpen],
     ];
     return flags.filter(([, holds]) => holds).map(([name]) => name);
-  }
-
-  /**
-   * The facts of the question as the ONE function reads them — assembled once, for the look's measure and the pad's.
-   * (Its `lateral` is wider than the shadow's: a SHEET the player opened over a live placement — the awards, read
-   * before choosing a cell — takes the pad exactly as a section does; the pad's first measure named it.)
-   */
-  function ownerFacts(): Omit<QuestionFacts, 'task'> {
-    const top = workspaceStackTop();
-    // …and THE PLAYER'S OWN LOOK OVER THE OPENING (a screen they walked to over the start — `hostCarriesPlayersLook`,
-    // the law of the start's strand): the start waits for the player, the pad is their screen's.
-    const lateral = top === undefined ? '' :
-      shell.placementActive && top.phase === 'browse' && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ? top.kind :
-        shell.startSceneMounted && top.kind !== 'start' && hostCarriesPlayersLook('start') ? top.kind : '';
-    return {
-      ...shell.questionFacts(), client: false, startFlow: shell.startSceneMounted, lateral,
-      // THE OPENING YIELDED ITS SCENE (`startSceneVisible`): its frame stands, the screen is somebody else's.
-      startYielded: shell.startSceneMounted && !shell.startSceneVisible,
-    };
   }
 
   function shellMounted(): void {
@@ -829,8 +799,7 @@ export function createWiringController(shell: WiringPort) {
         // THE PLAYER'S OWN WORKSPACE OVER A LIVE PLACEMENT — reversible (`browse`), so B is one press back to the cells.
         lateral: lateralLook(),
         // (The facts of the question for the ONE function's measure — stage 2; read by nothing else yet.)
-        facts: ownerFacts(),
-        question: questionNow().client ? questionNow().task : undefined,
+        ...shadowFacts(),
         flags: promptFlags(),
         edge: {...ownerEdge},
       };

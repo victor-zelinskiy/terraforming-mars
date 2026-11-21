@@ -23,7 +23,7 @@ import {startPreludeGrantOf} from '@/client/console/parliament/hostedParliamentS
 import {buildEffectDecision, declineModelOf, EffectDecisionAction, EffectDecisionSource, EffectDecisionViewModel, nextStageKeyOf} from '@/client/console/effectDecision/effectDecisionModel';
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import {decisionPromptStamp, effectDecisionState, markDecisionPickAnswered, resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
-import {stackYieldedToBoard, yieldedStackCards, enterWorkspace, frameServing, workspaceStackState, questionSetAside, yieldedStackServes, goBoardHome, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {enterWorkspace, FrameAnchor, frameServing, goBoardHome, hostCarriesPlayersLook, pushWorkspaceFrame, questionSetAside, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, stackYieldedToBoard, workspaceFrameHost, WorkspaceFrameKind, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceHostForStep, workspaceStackState, workspaceStackTop, yieldedStackCards, yieldedStackServes} from '@/client/console/consoleWorkspaceStack';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardTransaction} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyBonusCollectOf, colonyBonusDiscardOf} from '@/client/console/colonyTrade/colonyResolution';
@@ -53,13 +53,15 @@ import {tailAfterPickAnswer} from '@/client/console/pickTail';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {AdmissionSignals, LATCHED_SURFACES, PromptSurface, isPromptAdmitted, isPromptPresent, latchPromptPresence, presenceOutlivesAnswer, promptAdmissionBlock, promptPresenceState, releasePromptPresence} from '@/client/console/consolePromptAdmission';
-import type {QuestionFacts} from '@/client/console/servingOwner';
+import {Ownership, QuestionFacts, servingOwnerOf} from '@/client/console/servingOwner';
 import {handoffPendingEntries} from '@/client/console/shell/shellFlowState';
 
 /** The surfaces that can admit an owner of a question (`servingOwner.ts` — `ServingOwner.admission`). */
 const OWNER_ADMISSIONS: ReadonlyArray<PromptSurface> = ['host', 'scaleBonus', 'section', 'standaloneModal', 'scene', 'placement', 'followUp'];
 import {guardedAdmissionSignals, noteAdmissionSignals} from '@/client/console/consoleForegroundWatchdog';
 import {stagedPlayState, stagedPlacementOf} from '@/client/console/stagedPlay';
+import {invariantBroken} from '@/client/diagnostics/invariant';
+import type {ScreenOwner} from '@/client/console/screenDirector';
 import {SeriesVisit, PendingClientPayment, PendingClientPick, CLIENT_PAYMENT_TASK, CLIENT_PICK_TASK} from '@/client/console/shell/shellShared';
 import type {PlacementController} from '@/client/console/shell/placementController';
 import type {RevealController} from '@/client/console/shell/revealController';
@@ -136,6 +138,9 @@ export type RouterPort = {
   parliamentStageTask: UnwrapRef<ParliamentController['parliamentStageTask']>,
   partyDiscardStepOwed: UnwrapRef<ParliamentController['partyDiscardStepOwed']>,
   /** WRITTEN here. */ pendingClientPayment: PendingClientPayment | undefined,
+  readonly placementActive: boolean,
+  readonly startSceneMounted: boolean,
+  readonly startSceneVisible: boolean,
   /** WRITTEN here. */ pendingClientPick: PendingClientPick | undefined,
   playedHeroHolds: UnwrapRef<PlayedController['playedHeroHolds']>,
   readonly playerView: PlayerViewModel,
@@ -1032,7 +1037,9 @@ export function createRouterController(shell: RouterPort) {
       aside: questionSetAside(task?.kind),
       boardBranch: shell.taskSpacePending !== undefined,
       scene: shell.finalGreeneryActive ? 'final-greenery' : shell.finalePromptOwned ? 'finale' :
-        govScaleFocusState.holding ? 'gov-scale-focus' : energyConversionState.active ? 'energy-conversion' :
+        // (The WGT beat whole: `closing` — the panel leaves BEFORE its answer is sent, the question still the server's;
+        // `holding` — the scale glides, and the next question waits for it.)
+        govScaleFocusState.holding || govScaleFocusState.closing ? 'gov-scale-focus' : energyConversionState.active ? 'energy-conversion' :
           shell.handPickActive ? 'hand-pick' :
             // (A stack that stepped aside for the board keeps its questions: it comes back with the landing's end.)
             (task !== undefined && yieldedStackServes(task.kind)) ? 'yielded-to-board' : '',
@@ -1040,6 +1047,81 @@ export function createRouterController(shell: RouterPort) {
         effectDecisionHeldForWorkspace.value,
       blocks,
     };
+  }
+
+  /**
+   * THE QUESTION IN FRONT OF THE PLAYER — the client's own while one stands (a standard project's price, a law's
+   * «where»: the player's composer raised it, and the task host answers it whatever the server asks meanwhile), else
+   * the server's.
+   */
+  const questionNow = computed((): {task: ConsoleTask | undefined, client: boolean} => {
+    if (shell.pendingClientPayment !== undefined) {
+      return {task: CLIENT_PAYMENT_TASK, client: true};
+    }
+    if (shell.pendingClientPick !== undefined) {
+      return {task: CLIENT_PICK_TASK, client: true};
+    }
+    return {task: taskFor(shell.playerView), client: false};
+  });
+
+  /**
+   * THE FACTS OF THE QUESTION, WHOLE — what `servingOwnerOf` is asked with. `yielded` — the opening's yielded scene, when
+   * the caller must not read it (`promptOwnership`: the prompt surfaces' answer never depends on it, and the start's
+   * own visibility reads THEM — the one edge that would close a cycle).
+   * (Its `lateral` is wider than the shadow's: a SHEET the player opened over a live placement — the awards, read
+   * before choosing a cell — takes the pad exactly as a section does; and a screen they walked to over the OPENING
+   * (`hostCarriesPlayersLook`): the start waits for the player, the pad is their screen's.)
+   */
+  function questionFactsNow(yielded?: boolean): QuestionFacts {
+    const question = questionNow.value;
+    const top = workspaceStackTop();
+    const lateral = top === undefined ? '' :
+      shell.placementActive && top.phase === 'browse' && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ? top.kind :
+        shell.startSceneMounted && top.kind !== 'start' && hostCarriesPlayersLook('start') ? top.kind : '';
+    return {
+      task: question.task, client: question.client, ...questionFacts(), startFlow: shell.startSceneMounted, lateral,
+      // THE OPENING YIELDED ITS SCENE (`startSceneVisible`): its frame stands, the screen is somebody else's.
+      startYielded: yielded ?? (shell.startSceneMounted && !shell.startSceneVisible),
+    };
+  }
+
+  /**
+   * WHO SERVES THE QUESTION — THE ONE ANSWER, cached (FREEZE ZERO, stage 2 ③). Two layers of ONE function:
+   *   · `promptOwnership` — everything but the opening's yielded scene. A PROMPT SURFACE's condition reads this one
+   *     (`ownerServes`): the yield is the start's own hold and never concerns a prompt surface — and the start's
+   *     visibility itself reads the prompt surfaces (`standalonePromptSurfaceStands`), so this layer must not read it;
+   *   · `servingOwnership` — the whole answer (the pad, the bar, the measures): the same, with the yield read when the
+   *     owner IS the start.
+   */
+  let decidingOwner = false;
+  const promptOwnership = computed((): Ownership => {
+    decidingOwner = true;
+    try {
+      return servingOwnerOf(questionFactsNow(false));
+    } finally {
+      decidingOwner = false;
+    }
+  });
+
+  const servingOwnership = computed((): Ownership => {
+    const base = promptOwnership.value;
+    return !base.asked || base.owner !== 'start' ? base : servingOwnerOf(questionFactsNow());
+  });
+
+  /**
+   * DOES THIS PROMPT SURFACE SERVE THE QUESTION — the function's word (asked, this owner, nothing holds it).
+   *
+   * A CYCLE IS LOUD: a fact of the question that reads a condition derived from the answer would ask this while the
+   * answer is being decided — Vue hands such a read the previous value in silence, which is a latch of the worst kind.
+   * It is named here instead (`serving-owner:cycle`), and answered «no».
+   */
+  function ownerServes(owner: ScreenOwner): boolean {
+    if (decidingOwner) {
+      invariantBroken('serving-owner:cycle', `«${owner}» was asked while the owner was being decided — a fact of the question reads a condition derived from its answer`);
+      return false;
+    }
+    const o = promptOwnership.value;
+    return o.asked && o.hold === undefined && o.owner === owner;
   }
 
   function admits(surface: PromptSurface): boolean {
@@ -1805,6 +1887,11 @@ export function createRouterController(shell: RouterPort) {
     taskAllSelected,
     admits,
     questionFacts,
+    questionNow,
+    questionFactsNow,
+    promptOwnership,
+    servingOwnership,
+    ownerServes,
     onTaskSubmit,
     noteSeriesAnswer,
     onTaskSubmitBatch,
