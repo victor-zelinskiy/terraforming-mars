@@ -5,6 +5,10 @@ on:
   # monkey. A failed or a flaky test is FILED (scripts/ci/findings.mjs), one issue per test, for good.
   schedule:
     - cron: '47 0 * * *'
+  # THE WEEKLY HUNT (docs/claude/e2e-flake-zero.md § 6): the whole suite three times with no retry, Saturday morning — the
+  # long tail of 1–3 % flakes is found in one run and FILED (a test red in some repeats is `kind:flaky`), before a night
+  # meets it one at a time. Twenty shards, ten at once (the day's pushes keep the other runners).
+    - cron: '17 6 * * 6'
   workflow_dispatch:
     inputs:
       shards:
@@ -49,7 +53,7 @@ jobs:
     steps:
       - id: m
         run: |
-          N='${{ inputs.shards || '12' }}'
+          N='${{ github.event.schedule == '17 6 * * 6' && '20' || inputs.shards || '12' }}'
           case "$N" in ''|*[!0-9]*) echo "shards must be a positive integer, got '$N'"; exit 1;; esac
           echo "shards=$N" >> "$GITHUB_OUTPUT"
           echo "list=[$(seq -s, 1 "$N")]" >> "$GITHUB_OUTPUT"
@@ -68,7 +72,7 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     # A hunt repeats its tests: give it the hosted runner's whole six hours.
-    timeout-minutes: ${{ (inputs.repeat_each != '' && inputs.repeat_each != '1') && 350 || 150 }}
+    timeout-minutes: ${{ (github.event.schedule == '17 6 * * 6' || (inputs.repeat_each != '' && inputs.repeat_each != '1')) && 350 || 150 }}
 
     strategy:
       # One shard failing must never cancel the others — the whole point is to
@@ -162,8 +166,8 @@ jobs:
       # otherwise the positional --shard fallback keeps the run whole.
       - name: Run Playwright E2E (shard ${{ matrix.shard }})
         env:
-          HUNT_REPEAT: ${{ inputs.repeat_each || '1' }}
-          HUNT_RETRIES: ${{ inputs.retries }}
+          HUNT_REPEAT: ${{ github.event.schedule == '17 6 * * 6' && '3' || inputs.repeat_each || '1' }}
+          HUNT_RETRIES: ${{ github.event.schedule == '17 6 * * 6' && '0' || inputs.retries }}
         run: |
           # THE HUNT: the repeats are spread over the shards by Playwright's own positional split (a time-balanced
           # bucket would keep every repeat of a spec on one runner).
@@ -272,7 +276,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          node scripts/ci/findings.mjs from-playwright merged-report.json --source e2e --context "${{ github.event_name == 'schedule' && 'nightly' || 'dispatched' }}" --out ci-findings.json
+          node scripts/ci/findings.mjs from-playwright merged-report.json --source e2e --context "${{ github.event.schedule == '17 6 * * 6' && 'weekly hunt' || (github.event_name == 'schedule' && 'nightly' || 'dispatched') }}" --out ci-findings.json
           node scripts/ci/findings.mjs file ci-findings.json
 
       - name: Fix brief (copyable, on the summary page)
@@ -281,7 +285,7 @@ jobs:
 
       # A hunt (repeats / a retries override) is an experiment: it never enters the ledger of the nightly runs.
       - name: Update flake ledger
-        if: ${{ (inputs.repeat_each == '' || inputs.repeat_each == '1') && inputs.retries == '' }}
+        if: ${{ (inputs.repeat_each == '' || inputs.repeat_each == '1') && inputs.retries == '' && !(github.event.schedule == '17 6 * * 6') }}
         run: node scripts/e2e-flake-ledger.mjs merged-report.json --run-id "${{ github.run_id }}.${{ github.run_attempt }}"
 
       - name: Save flake ledger

@@ -18,6 +18,7 @@ a workflow run ──► findings (one JSON shape) ──► scripts/ci/findings
 | --- | --- | --- |
 | `Freeze gate` (`freeze-gate.yml`) — the bottle | 23:17 nightly: seeds `fz0 fz1 fz3` + the seed of the day `d<date>` | a NEW cause class · a stall never cured · a run with no verdict |
 | `Playwright E2E` (`playwright-e2e.yml`) — the whole suite | 00:47 nightly | a FAILED test · a FLAKY test (one issue per test) |
+| `Playwright E2E` — THE WEEKLY HUNT (`tests.md` law 10) | Saturday 06:17: the whole suite ×3, no retry, 20 shards (10 at once) | a test red in SOME repeats: a FLAKY test with its rate («2 of 3 repeats red»), proven by the hunt (`repeat_each=20`); red in every repeat: a FAILED test |
 | `Monkey` (`monkey.yml`) — the real-browser monkey | 03:13 nightly (plain, the seed of the day) · Sunday 07:13 / 10:13 / 13:13 / 16:13 / 19:13: `cpu4` · `net400` · `reload` · `duo` · `hidden` | a NEW cause class · a stall never cured · a run with no verdict |
 | `CI` (`main.yml`) · `Release Electron App` (`release.yml`) | every push — watched by `CI findings` (`ci-findings.yml`, a `workflow_run` AFTER the run ended; a cancelled run is not a finding) | a RED run: one issue per failed JOB |
 | `Sentry findings` (`sentry-findings.yml`) — what REAL sessions reported (the box, a player's machine) | 04:41 nightly, before the morning triage | one issue per unresolved Sentry issue seen in the last 26 h (= one cause class): kind `field`, source `sentry` |

@@ -305,6 +305,8 @@ function fromPlaywright() {
     return p === '' || p.startsWith('tests/') ? p : `tests/e2e/${p}`;
   };
   const findings = [];
+  /** Per test (its finding key): how many of its repeats passed, how many were red (a hunt runs each one N times). */
+  const repeats = new Map();
   const walk = (suite, file, path) => {
     const ownFile = suite.file ?? file;
     const ownPath = suite.title && suite.title !== ownFile && !/\.spec\.ts$/.test(suite.title) ? [...path, suite.title] : path;
@@ -313,17 +315,29 @@ function fromPlaywright() {
     }
     for (const spec of suite.specs ?? []) {
       for (const test of spec.tests ?? []) {
+        const where = rel(spec.file ?? ownFile);
+        const name = [...ownPath, spec.title].join(' › ');
+        // THE HUNT (`repeat_each` > 1, no retry): every repeat is a spec of its own, under ONE key — a test is filed ONCE,
+        // and it is a FLAKE when any repeat of it passed (tests.md law 10).
+        const testKey = `${source}|test|${where}|${name}|${test.projectName ?? ''}`;
+        const tally = repeats.get(testKey) ?? {passed: 0, red: 0};
+        repeats.set(testKey, tally);
         if (test.status !== 'unexpected' && test.status !== 'flaky') {
+          if (test.status === 'expected') {
+            tally.passed++;
+          }
+          continue;
+        }
+        tally.red++;
+        if (findings.some((f) => f.key === testKey)) {
           continue;
         }
         const kind = test.status === 'flaky' ? 'flaky' : 'failed';
-        const where = rel(spec.file ?? ownFile);
-        const name = [...ownPath, spec.title].join(' › ');
         const failedAttempt = (test.results ?? []).find((r) => r.status !== 'passed' && r.status !== 'skipped');
         const error = strip(failedAttempt?.error?.message ?? failedAttempt?.errors?.[0]?.message ?? '').split('\n').slice(0, 30).join('\n');
         findings.push({
           // (One key for a test whether it failed or flaked: a flake that hardens into a failure is the same story.)
-          key: `${source}|test|${where}|${name}|${test.projectName ?? ''}`,
+          key: testKey,
           kind,
           // ONE shard: a grep that matches nothing is then red («No tests found»), so a green proof is a test that RAN.
           // A FLAKE is proven by RATE (tests.md law 10 — THE HUNT): one green run proves nothing of a 1–3 % flake, twenty
@@ -348,6 +362,21 @@ function fromPlaywright() {
   };
   for (const suite of report.suites ?? []) {
     walk(suite, undefined, []);
+  }
+  // A test red in SOME repeats and green in others is a FLAKE — proven by rate, said with its rate.
+  for (const finding of findings) {
+    const tally = repeats.get(finding.key) ?? {passed: 0, red: 0};
+    if (tally.passed + tally.red > 1) {
+      if (finding.kind === 'failed' && tally.passed > 0) {
+        finding.kind = 'flaky';
+        finding.title = finding.title.replace('] failed: ', '] flaky: ');
+        finding.body = finding.body.replace('FAILED on every attempt', 'FLAKED (red in some repeats, green in others)');
+        finding.proof = {...finding.proof, inputs: {...finding.proof.inputs, repeat_each: '20', retries: '0'}};
+      }
+      finding.body = `**In a hunt: ${tally.red} of ${tally.passed + tally.red} repeats red.**
+
+${finding.body}`;
+    }
   }
   emit({source, context, run: runInfo(), findings});
 }

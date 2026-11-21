@@ -108,6 +108,27 @@ describe('ci findings: a finding names its proof', function() {
     expect(new RegExp(grep).test(title)).to.eq(true);
   });
 
+  it('a HUNT (each test N times, no retry) files a test ONCE — a FLAKE when any repeat passed, said with its rate', () => {
+    // The JSON reporter writes every repeat as a spec of its own, under the same title and file.
+    const repeat = (status: string) => ({
+      title: 'the deal turns', file: 'console-x.spec.ts', line: 7,
+      tests: [{status, projectName: 'chromium', results: [{status: status === 'expected' ? 'passed' : 'failed', error: {message: 'boom'}}]}],
+    });
+    const flaky = findingsOf('from-playwright', {suites: [{title: 'console-x.spec.ts', file: 'console-x.spec.ts',
+      specs: [repeat('expected'), repeat('unexpected'), repeat('expected'), repeat('unexpected')]}]}, '--source', 'e2e');
+    expect(flaky.length, 'one finding for the test, however many repeats were red').to.eq(1);
+    expect(flaky[0].kind).to.eq('flaky');
+    expect(flaky[0].title).to.match(/\] flaky: /);
+    expect(flaky[0].body).to.contain('2 of 4 repeats red');
+    expect(flaky[0].proof?.inputs.repeat_each, 'a flake is proven by rate').to.eq('20');
+    // …and a test red in EVERY repeat is a failure, as before.
+    const failed = findingsOf('from-playwright', {suites: [{title: 'console-x.spec.ts', file: 'console-x.spec.ts',
+      specs: [repeat('unexpected'), repeat('unexpected')]}]}, '--source', 'e2e');
+    expect(failed.length).to.eq(1);
+    expect(failed[0].kind).to.eq('failed');
+    expect(failed[0].proof?.inputs.repeat_each, 'a failure is proven by one green run').to.eq(undefined);
+  });
+
   /*
    * WHAT A REAL SESSION REPORTED (docs/claude/ci-findings.md § 1a): Sentry's unresolved issues enter the same queue.
    * The repository is public and the sessions are not — a finding carries structure, never a session's data.
