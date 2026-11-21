@@ -149,6 +149,8 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(barRungVerdict('externalDraw', 'info')).to.eq('bar-APART:externalDraw>info');
     expect(padRungVerdict(serves('task'), 'info:open')).to.eq('pad-look:info:open');
     expect(barRungVerdict('colonyFocus', 'cinematic')).to.eq('bar-beat:colonyFocus>cinematic');
+    // …and a beat the BAR shows (the research rise's «skip») whose press the surface under it handles.
+    expect(barRungVerdict('cinematic', 'draft')).to.eq('bar-beat:cinematic>draft');
     // The two copies apart: the bar showed one owner's commands and another rung took the press.
     expect(barRungVerdict('taskHost', 'section:board')).to.eq('bar-APART:taskHost>section:board');
     expect(barRungVerdict('', '')).to.eq('bar-agree');

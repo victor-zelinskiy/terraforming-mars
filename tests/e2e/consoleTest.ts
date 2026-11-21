@@ -573,9 +573,13 @@ async function readCoverage(pages: ReadonlyArray<Page>): Promise<{keys: Array<st
  * THE ONE FUNCTION's measure of the test's pages (`__conServingOwner()` — FREEZE ZERO, stage 2): how often
  * `servingOwnerOf` agreed with what painted, summed over the pages that still answer. `undefined` — no page measured.
  */
-type OwnerMeasure = {looks: number, rows: Record<string, Record<string, number>>, disagreements: Array<Record<string, unknown>>};
+type OwnerMeasure = {
+  looks: number, rows: Record<string, Record<string, number>>, disagreements: Array<Record<string, unknown>>,
+  /** THE DERIVATION's spans (`noteDerivedRender`) and the ones still open when the page was read. */
+  spans: Record<string, {n: number, ms: number, max: number}>, open: Array<Record<string, unknown>>,
+};
 async function readOwnerMeasure(pages: ReadonlyArray<Page>): Promise<OwnerMeasure | undefined> {
-  const sum: OwnerMeasure = {looks: 0, rows: {}, disagreements: []};
+  const sum: OwnerMeasure = {looks: 0, rows: {}, disagreements: [], spans: {}, open: []};
   let measured = false;
   for (const page of pages) {
     if (page.isClosed()) {
@@ -595,6 +599,13 @@ async function readOwnerMeasure(pages: ReadonlyArray<Page>): Promise<OwnerMeasur
       }
     }
     sum.disagreements.push(...(report.disagreements ?? []));
+    for (const [key, span] of Object.entries(report.spans ?? {})) {
+      const into = sum.spans[key] ?? (sum.spans[key] = {n: 0, ms: 0, max: 0});
+      into.n += span.n;
+      into.ms += span.ms;
+      into.max = Math.max(into.max, span.max);
+    }
+    sum.open.push(...(report.open ?? []));
   }
   return measured ? sum : undefined;
 }

@@ -278,7 +278,9 @@ export function barRungVerdict(bar: string, pad: string): OwnerLookVerdict {
     return `bar-look:${pad}`;
   }
   const pair = `${bar === '' ? 'unnamed' : bar}>${pad === '' ? 'unnamed' : pad}`;
-  return BEAT_RUNGS.has(pad) ? `bar-beat:${pair}` : `bar-APART:${pair}`;
+  // (A beat on EITHER side: the pad's rung absorbed under a standing bar — or the bar shows a beat's own strip («any
+  // button skips» over the research rise) and the surface under it handles the skip itself.)
+  return BEAT_RUNGS.has(pad) || BEAT_RUNGS.has(bar) ? `bar-beat:${pair}` : `bar-APART:${pair}`;
 }
 
 export function registerOwnerNowProbe(probe: (() => OwnerNow) | undefined): void {
