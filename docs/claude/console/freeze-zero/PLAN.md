@@ -675,6 +675,17 @@ opening's own stage** (`consoleStartState.serves` and the yields, by `expectedSt
 shadow and `start-stranded` retire by the same rule. The workspace ROOTS (the draft, an external draw, the endgame,
 the start as a whole) stand by their FRAMES — the stack's law, not a `v-if` to derive; the band's fallback rows that
 are left are exactly those.
+**LANDED 2026-11-21 — `main` `4c8d713f58` (v1.2.3394), and CI's verdict on it:** the whole e2e suite green (15 / 15
+jobs — run 44934062542), the freeze gate green (44934065452), the real-browser monkey green on `fz1` (44934068038);
+before the landing, on the branch: the gate's law at zero over 606 walks in the bottle and in the real browser (MISS 0
+· EXTRA 0 · the pad on another rung 0 · derivation spans 0 · LATCH 0 · band APART 0 · bar APART 0). The legacy
+conditions kept as witnesses (`*Legacy`, `noteDerivedRender`, the `derivation:` lines) go at the next cycle.
+**What is still open of the stage's literal exit, said plainly:** *2b* — measured in the real browser too (the CI
+monkey, 606 walks: 1512 judged states of the start, agree 231 · apart 35 · held 75; every disagreement the director
+would act on is closed by the latches within 37 ms, one hosted step's leave at 154 ms; none reaches a net) — the swap
+of the start's nets onto the motion's clock waits for the same spans read over the whole e2e suite (the fixture files
+them on CI now); and *S5-rest* — owed steps as children of their frame (the ghost test, the forced teardown and the
+stale free-turn reaper retire with it), a redesign slice of architecture v2 that this program has not started.
 
 **STAGE 3 — EVERY WAIT BOUNDED AND OWNED, STATICALLY (2026-11-21).** The stage's three numbers, and what holds each:
 
@@ -751,9 +762,59 @@ its law and a replay —
 | `wait-graph/ceiling/parliament:submit` · `wait-graph/dead-end/flow:chairman-quest` | the section's submit safety counted the server's silence into its 30 s; a submit that did not land was noticed by the safety's next tick, up to 6 s later | the thirty seconds are counted where the wait CAN be mutual (the answer is in, or parked); the section hands the stage back at the transport's own settle (`onSubmitSettled`) |
 | `wait-graph/dead-end/question:actionmenu` · `…/surface:card-actions` | a card action's submit lost on the network: the AWAITING HAND-OFF the press had armed stood six seconds over an inert pad, the graph's door re-opened the question by closing the workspace — the configured action gone under the error alert | a press that did not land unwinds what was armed for it AT ONCE — the hand-off's wait declares its unwind beside its arm (`onPressUnlanded('awaiting-handoff', …)`) |
 
-One family: *a wait armed for a press, bounded by a clock of its own instead of the press's own end.* The whole pass
-(606 tables) is the stage's worklist; the model-based walks of the machines, the socket's faults and the steering by
-coverage are its next steps.
+One family: *a wait armed for a press, bounded by a clock of its own instead of the press's own end.*
+
+*THE WHOLE PASS* (`gate:freeze -- --guided --fault 6`, 606 tables, 1375 faults taken, 42 min at five shards): **no
+screen left standing** (`fault/standing-screen` 0, no episode never cured) and eleven classes the baseline does not
+hold. Nine are that family again, in what WAITS FOR THE ANSWER — closed in one commit, with replays:
+
+| class | what stood | the law |
+| --- | --- | --- |
+| `wait-graph/dead-end/claim:hand` ×12 · `claim:start` ×6 · `claim:card-actions` | an outcome's claim is placed at the submit and waits for the answer's artifact; a press that did not land left it `awaiting` to its 20 s safety, and its fall then read as a FINISHED flow — the workspace folded under a player re-doing their move | the press's own unwind releases the claim at once (`unwindUnlandedClaim`) and the release says why (`workspaceOutcomeState.lastRelease` = `press-unlanded`): the one fall no host concludes on |
+| `workspace-outcome/host-gone/card-actions/draw-pick` ×4 · `…/draw` | under a request the server never answers, the hand-off's private six seconds CLOSED THE LAYERS (the player on the board with a submit in flight, the claim orphaned); the claim's own twenty would have let it go under the same silence | the server's silence is the transport's to bound: the hand-off's expiry, the claim's safety and the claim's node of the graph stand down while the request is on the wire unanswered |
+| `wait-graph/dead-end/question:actionmenu` · `…/surface:card-actions` ×5 | an answer that ARRIVED and would not parse: the move was MADE, but everything was unwound as «did not land» — the stage stood «Выполнение» with nobody left to fold it | the pass says which way the press did not land (`UnlandedPress.answered`); what waits for the answer declares itself (`onPressUnanswered`) and is unwound only when no answer is coming — the re-fetched view is the answer by another road |
+
+*Open rows of the pass* (five tables, all under a server silent for the transport's minute — the same law, three more
+registries): `wait-graph/overdue/surface:parliament` (a frame's `executing` beat keeps the graph's 12 s over a submit
+on the wire) · `animation-hold/ceiling/parliament-reward-owed` and `wait-graph/overdue/admission:host:presentation`
+(a hold's 35 s ceiling over the same silence) · `wait-graph/ceiling/external-draw:prompt-moved` (a 1.5 s grace for
+«the server moved off the prompt»). The rule to carry there: *a bound over a wait for the server is the submit's own
+settle — the graph's overdue judge, the hold registry's ceiling and a ceiling wait whose target is the server do not
+run their clocks while the request is on the wire unanswered.*
+
+**STAGE 4, STEP 2 — WALKED OR DECLARED, the instrument (2026-11-21).** The stage's number is «machine moves 100 %
+walked-or-declared; flows 100 %». What it needed before it could be read:
+- *a move is a REGION's move* (`monkey-report.regionMoves`): for a machine of orthogonal regions (the claim: stage ×
+  beat × arrival × host) the explorer's universe was their PRODUCT — 242 «moves», nine walked, a number nobody could
+  read. By region the claim has 17 moves and the four machines 83.
+- *the union of the passes* (`scripts/kernel-walked.mjs`): every pass's directory at once — plain, guided, reload,
+  the hidden page, the broken wire, each seed, the real browser's — against a ledger of declared reasons
+  (`tests/client/bottle/kernelUnwalked.json`, `--write`; `--gate`). Over every bottle pass on disk: moves 33 of 83
+  (submit 7 of 8 since the fault pass — the eighth, `presenting → abandoned`, needs a presentation that never ends),
+  flows 158 of 285, frames 11 of 13.
+- *the suite is the corpus:* a blind walk's sixty presses open half the declared flows — in the real browser exactly
+  as in the bottle (the CI monkey's 606 walks: the same fifty scenes never opened). On CI every e2e test now marks
+  the kernel's coverage and files it beside its cause classes; the ledger is written from the suite's run.
+- *what the unwalked moves are:* the claim's are its own BOUNDS (`live → released` by its safety, `host: bound →
+  orphaned`, `stage: awaiting → held`) — failure paths only a fault walks, and the fault pass now does; the frame's
+  are pairs of an any-to-any machine the product never makes. The frame machine's protocol is to be written down as
+  the set the product walks (an off-protocol move is then a line, not a silent permission) — the next step.
+
+**STAGE 5, STEP 1 — THE ENGINE FUZZ (2026-11-21, branch `fz/s5`).** `tests/fuzz/`: random LEGAL games on the real
+engine, in process, seeded — a random legal combination of the in-scope expansions, all twelve boards, 1 – 3 human
+seats with or without MarsBot — and after EVERY answered question: I1 the table is alive (`tableStandsDead`), I2 no
+seat holds a question nobody can answer (the engine's judge, and the generator over the WIRE model), I3 the deferred
+queue is drained between answers, I4 an answer is taken or refused — never a crash; S nothing was said to the server's
+error sink. `randomAnswer.ts` answers every prompt model type (a compile-time exhaustive switch). A smoke rides the
+server suite (24 short games, a determinism test, five controls that plant a defect for each judge, a baseline of
+known classes); `npm run fuzz:engine` is the long run (`TM_FUZZ_GAMES` · `_SEED` · `_STEPS` · `_MINUTES` · `_OUT`;
+`TM_FUZZ_REPLAY=<seed>` stands one game up again).
+*The first run:* 2 652 whole games, 685 084 answered questions (742 steps / s) — no crash, no dead table, no
+unanswerable question — and ONE real defect, in two forms: **the effects of MarsBot's final greeneries were never
+played out** (`Game.takeNextFinalGreeneryAction` went on to the end of the game with whatever the bot's placements
+deferred still queued — the neighbour's Philares never asked which resources to take, a placement bonus counted and
+never paid). Fixed in the engine (the queue runs out before the loop goes on), held by the two seeds replayed whole.
+Next: reload equivalence (save → load → the SAME question), the batch route, shrinking, the nightly run.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
