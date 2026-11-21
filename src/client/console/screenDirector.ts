@@ -514,7 +514,15 @@ export function screenCurePlanText(plan: ScreenCurePlan): string {
  * (`all` = every verb, `none` = nothing).
  */
 export const SCREEN_CURE_DEFAULT_ARMED: ReadonlyArray<ScreenCureVerb> = ['announce'];
-export const screenCureArming: {armed: Set<ScreenCureVerb>} = {armed: new Set<ScreenCureVerb>(SCREEN_CURE_DEFAULT_ARMED)};
+/**
+ * `shadowActs` — WHO may execute an armed plan. THE SHADOW IS AN OBSERVER (FREEZE ZERO, stage 2 ④): it names what it
+ * finds and files its plan; the ONE arbiter executes it, as a rung of its ladder (`runScreenCure('liveness')`), with
+ * the episode's accounting. A net that also cured was a second judge of «is the player stuck» — and since the prompt
+ * surfaces are derived from one answer its findings are, by construction, the rare thing an arbiter should hear of
+ * (no line of the shadow stands anywhere in the matrix). Only a STAND that arms a verb by the URL lets the shadow act
+ * in the very pass that confirms the finding — the live control's contract (`console-screen-director-cure`).
+ */
+export const screenCureArming: {armed: Set<ScreenCureVerb>, shadowActs: boolean} = {armed: new Set<ScreenCureVerb>(SCREEN_CURE_DEFAULT_ARMED), shadowActs: false};
 
 /** The armed set for a URL's `screenCure` parameter: absent → the default; present → exactly what it names. */
 export function screenCureArmingFor(query: string | null | undefined): Set<ScreenCureVerb> {

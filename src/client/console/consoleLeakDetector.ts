@@ -46,7 +46,7 @@ import {sittingTailVenusBonusOf} from '@/client/console/parliament/consoleSittin
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
 import {pageStarvedNow} from '@/client/console/kernel/frameWitness';
 import {stackServes, workspaceFrameKnown, workspaceFrameRenders, workspaceHostForStep, workspaceFrameSelector, workspaceKindSpec, workspaceStackCollapsed, workspaceStackState, workspaceSurfacesFor, yieldedStackServes, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
-import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenCurePlan, ScreenOwner, ScreenShadowFinding, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, planScreenCure, recordScreenShadowFinding, screenCureArmed, screenShadowKey, screenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowVerdict} from '@/client/console/screenDirector';
+import {ALL_WORKSPACE_KINDS, BEAT_SURFACES, OWNER_SURFACES, SCREEN_SHADOW_CONFIRM_TICKS, ScreenCurePlan, ScreenOwner, ScreenShadowFinding, ScreenShadowStreak, advanceScreenShadowStreak, expectedScreenOwners, noteScreenShadowPass, planScreenCure, recordScreenShadowFinding, screenCureArmed, screenShadowKey, screenShadowLog, screenCurePlanText, screenPromptShape, screenPromptToken, screenShadowVerdict, screenCureArming} from '@/client/console/screenDirector';
 import {StartServes, startServesSomething} from '@/client/console/startServing';
 import {ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {noteOwnerEdgeLook, notePromptFlagsLook, noteServingOwnerLook} from '@/client/console/servingOwnerMeasure';
@@ -698,11 +698,14 @@ export function runScreenCure(by: 'shadow' | 'liveness'): string {
     return '';
   }
   const name = screenCurePlanText(plan);
-  if (!screenCureArmed(plan) || screenCureExecutor === undefined) {
+  // (THE SHADOW OBSERVES — `screenCureArming.shadowActs`: an armed plan is the arbiter's to execute, unless a stand
+  // armed it by the URL.)
+  const observes = by === 'shadow' && !screenCureArming.shadowActs;
+  if (observes || !screenCureArmed(plan) || screenCureExecutor === undefined) {
     const key = `${by}|${screenShadowStanding.signature}`;
     if (!plannedOnce.has(key)) {
       plannedOnce.add(key);
-      console.warn(`[screen-shadow] cure-plan «${name}» by ${by} (dry run — not armed) for «${finding.prompt}» — ` +
+      console.warn(`[screen-shadow] cure-plan «${name}» by ${by} (dry run — ${observes && screenCureArmed(plan) ? 'the shadow observes: the plan is the arbiter\'s' : 'not armed'}) for «${finding.prompt}» — ` +
         `${finding.kind}, expected «${finding.expected.join('|')}», on screen «${finding.present.join('|') || 'nothing'}»`);
     }
     return '';
