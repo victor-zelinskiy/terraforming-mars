@@ -1088,6 +1088,14 @@ export function createPadRouterController(shell: PadRouterPort) {
         isDeltaBlockadePickActive() || isBlockadeExecutionActive() || shell.handCoveredByHydro;
       const hydroDeeper = workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick');
       if (deltaInstrumentUp && (!shell.repeatPickActive || hydroDeeper)) {
+        // THE RUNG SAYS ITS NAME — the bar's own, case for case and in the bar's own order (`commandBarController`:
+        // the nested pick over the repeat browser, the stage reward, the hydro frame over the hand, else the track's
+        // section). It stood UNNAMED: the one rung of the ladder the function's measure could not read — over the
+        // whole e2e suite (2026-11-22, 8 345 presses) every one of its 42 «APART» was this branch, and nothing else.
+        notePadRung(
+          shell.repeatPickActive && (isDeltaBlockadePickActive() || isDeltaEspionagePickActive()) ? 'deltaPick' :
+            isDeltaRewardPickActive() ? 'deltaReward' :
+              shell.handCoveredByHydro ? 'handCovered' : 'section:hydro');
         const section = shell.surfaces.at<ExposedOf<typeof ConsoleHydroSection>>('hydroSection');
         handedTo(section, 'hydroSection', intent);
         return true;

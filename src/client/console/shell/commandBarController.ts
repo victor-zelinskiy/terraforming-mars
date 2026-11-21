@@ -841,7 +841,9 @@ export function createCommandBarController(shell: CommandBarPort) {
     if (shell.repeatPickActive &&
         (isDeltaBlockadePickActive() || isDeltaEspionagePickActive()) &&
         workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick')) {
-      noteBarRung('repeatPick');
+      // (Its own name — the pad's rung for the same case, `padRouterController`: it is the TRACK's verbs that stand
+      // here, not the browser's.)
+      noteBarRung('deltaPick');
       return consoleHydroUi.commands.length > 0 ?
         [...consoleHydroUi.commands] :
         [{control: 'confirm', label: 'Select'}, {control: 'back', label: 'Back'}];
