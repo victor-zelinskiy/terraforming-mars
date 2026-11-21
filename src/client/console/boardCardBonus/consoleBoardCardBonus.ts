@@ -189,7 +189,13 @@ let zoomOriginResolver: (() => HTMLElement | null) | undefined;
  * scene's end (clean, aborted, reset). It owns the arm's safety — taken back when the scene ends, on every path — and
  * when the game screen leaves under it the scene is aborted (`orphaned`). The HOLD stays derived from `active`.
  */
-const run = createFlowRun('board-card-bonus', {orphaned: () => abortBoardCardBonus('instant', 'the game screen left')});
+const run = createFlowRun('board-card-bonus', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    boardCardBonusState.active = up;
+  },
+  orphaned: () => abortBoardCardBonus('instant', 'the game screen left'),
+});
 
 /**
  * The whole-scene safety backstop: arm → the server must stage a reveal
@@ -235,7 +241,12 @@ registerAnimationHoldSupplier('board-card-bonus', isBoardCardBonusActive, {
       return;
     }
     console.warn('[consoleBoardCardBonus] board card-bonus scene: outlived its ceiling — ended');
-    abortBoardCardBonus('instant', 'hold ceiling');
+    // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+    try {
+      abortBoardCardBonus('instant', 'hold ceiling');
+    } finally {
+      run.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
   },
 });
 
@@ -270,9 +281,9 @@ export function armBoardCardBonus(source: BonusCoverSource): void {
   boardCardBonusState.zoomEntryReady = false;
   boardCardBonusState.source = source;
   boardCardBonusState.phase = 'lift';
-  boardCardBonusState.active = true;
-  boardCardBonusState.nonce++;
+  // (The run begins where the scene goes live — its flag with it.)
   run.begin(source.kind);
+  boardCardBonusState.nonce++;
   run.after(ARM_SAFETY_MS, 'the arm\'s safety (no reveal was staged, or the scene never finished)', () => abortBoardCardBonus('instant'));
 }
 
@@ -332,7 +343,6 @@ export function endBoardCardBonus(): void {
     return;
   }
   run.end();
-  boardCardBonusState.active = false;
   boardCardBonusState.phase = 'done';
   handle = undefined;
   zoomOriginResolver = undefined;
@@ -367,7 +377,6 @@ export function abortBoardCardBonus(mode: BoardCardBonusAbortMode = 'instant', w
   const h = handle;
   handle = undefined;
   zoomOriginResolver = undefined;
-  boardCardBonusState.active = false;
   boardCardBonusState.phase = 'idle';
   boardCardBonusState.stagedEventId = undefined;
   boardCardBonusState.stagedCount = 0;
@@ -380,7 +389,6 @@ export function resetBoardCardBonus(): void {
   run.end({how: 'cancelled', reason: 'reset'});
   handle = undefined;
   zoomOriginResolver = undefined;
-  boardCardBonusState.active = false;
   boardCardBonusState.phase = 'idle';
   boardCardBonusState.source = {kind: 'board-cell', spaceId: ''};
   boardCardBonusState.stagedEventId = undefined;

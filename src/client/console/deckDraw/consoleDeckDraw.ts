@@ -166,7 +166,13 @@ let zoomOriginResolver: (() => HTMLElement | null) | undefined;
  * start — taken back when the scene ends, on every path; when the game screen leaves under it the scene is aborted
  * (`orphaned`). The HOLD stays derived from `active`.
  */
-const run = createFlowRun('deck-draw', {orphaned: () => abortDeckDraw()});
+const run = createFlowRun('deck-draw', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    deckDrawState.active = up;
+  },
+  orphaned: () => abortDeckDraw(),
+});
 
 /**
  * The whole-scene safety backstop. A stall (lost element, stuck timeline,
@@ -298,7 +304,12 @@ registerAnimationHoldSupplier('deck-draw', isDeckDrawActive, {
       return;
     }
     console.warn(`[deck-draw] scene for batch ${String(deckDrawState.stagedEventId)} (${deckDrawState.phase}): outlived its ceiling — ended`);
-    abortDeckDraw();
+    // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+    try {
+      abortDeckDraw();
+    } finally {
+      run.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
   },
 });
 
@@ -353,7 +364,8 @@ export function armDeckDraw(eventId: number, opts: {hasDiscards: boolean, preDra
   if (deckDrawState.active) {
     return false;
   }
-  deckDrawState.active = true;
+  // (The run begins where the scene goes live — its flag with it.)
+  run.begin(`batch ${eventId}`);
   deckDrawState.phase = 'search';
   deckDrawState.dealing = false;
   deckDrawState.stagedEventId = eventId;
@@ -367,7 +379,6 @@ export function armDeckDraw(eventId: number, opts: {hasDiscards: boolean, preDra
   // answered). Hold the pre-draw number so the counter ticks down with the
   // cards physically leaving, then release to the server's truth at the end.
   holdDeckDisplay(opts.preDrawSize);
-  run.begin(`batch ${eventId}`);
   run.after(SCENE_SAFETY_MS, 'the scene\'s safety', () => abortDeckDraw());
   // The deal's start window opens when the stage is ours (`markDeckDrawStageReady`); until then only the «never
   // happened» net stands — the stage wait's own ceiling plus the window.
@@ -509,7 +520,6 @@ export function endDeckDraw(): void {
   }
   run.end();
   releaseDeckDisplay();
-  deckDrawState.active = false;
   deckDrawState.dealing = false;
   deckDrawState.phase = 'done';
   handle = undefined;
@@ -536,7 +546,6 @@ export function abortDeckDraw(): void {
     deckDrawState.gaveUp.push(givenUp);
     deckDrawState.gaveUp.splice(0, Math.max(0, deckDrawState.gaveUp.length - FOREIGN_MEMORY));
   }
-  deckDrawState.active = false;
   deckDrawState.dealing = false;
   deckDrawState.phase = 'idle';
   deckDrawState.stagedEventId = undefined;
@@ -594,7 +603,6 @@ export function resetDeckDraw(): void {
   releaseDeckDisplay();
   handle = undefined;
   zoomOriginResolver = undefined;
-  deckDrawState.active = false;
   deckDrawState.dealing = false;
   deckDrawState.phase = 'idle';
   deckDrawState.stagedEventId = undefined;
