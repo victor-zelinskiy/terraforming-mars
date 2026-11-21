@@ -11,7 +11,7 @@
 import {expect} from 'chai';
 import {bootBottle, ConsoleBottle} from './consoleBottle';
 import {bottleServer} from './bottleNode';
-import {MonkeyStep, monkeyRng, monkeyWalk, replaySteps} from './monkeyWalk';
+import {armFault, MonkeyStep, monkeyRng, monkeyWalk, replaySteps} from './monkeyWalk';
 import {watchSurfaceEdges} from '@/client/console/supervisor/surfaceEdges';
 
 describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bottle', function() {
@@ -551,6 +551,78 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
         await bottle.advance(25_000);
         expect(classes().filter((cls) => cls.startsWith('start-shadow')), 'the shadow names nothing').to.deep.equal([]);
         expect(classes().filter((cls) => cls.startsWith('start-stranded')), 'and nothing of the start is taken down').to.deep.equal([]);
+      } finally {
+        restoreRandom();
+      }
+    });
+  }
+
+  /*
+   * `wait-graph/dead-end/question:actionmenu` · `…/surface:card-actions` — THE FAULT PASS (stage 4), `fz0` ·
+   * `arwind-sitting-win-solo`, shrunk to seven steps: a card's action is set up in «Действия карт» and its submit is
+   * LOST ON THE NETWORK. The composer rolls back to its setup (its own design), the system alert stands — and the
+   * AWAITING HAND-OFF the press had armed («the stage holds until the answer picks the next scene») was not unwound:
+   * six seconds of an inert pad under the alert, the screen reading «no surface accepts», so the wait graph's door
+   * re-opened the action menu by CLOSING the workspace — the player's configured action gone while they read the
+   * error. The law: a press that did not land unwinds what was armed for it AT ONCE (`pressUnwind` — the hand-off's
+   * wait declares its unwind beside its arm).
+   */
+  it('a card action whose submit the NETWORK lost: the workspace keeps its setup under the alert — nothing is closed, nothing is filed', async () => {
+    const seed = 'fz0:arwind-sitting-win-solo';
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+    try {
+      const table = await bottleServer().bootFixture('arwind-sitting-win-solo');
+      bottle = await bootBottle(table);
+      await bottle.advance(3_000);
+      const steps: Array<MonkeyStep> = [
+        {do: 'press', key: 'Period', pauseMs: 354}, {do: 'press', key: 'ArrowUp', pauseMs: 1637},
+        {do: 'fault', fault: 'network', target: 'submit'},
+        {do: 'press', key: 'KeyX', pauseMs: 214}, {do: 'press', key: 'KeyX', pauseMs: 435},
+        {do: 'press', key: 'Enter', pauseMs: 1711}, {do: 'press', key: 'Enter', pauseMs: 372},
+      ];
+      bottle = await replaySteps(bottle, table.seats.length, steps);
+      expect(bottle.wire.faulted.map((f) => f.fault), 'the action\'s submit took the fault').to.deep.equal(['network']);
+      // The player READS the alert — far longer than the hand-off's old private safety and the graph's confirm.
+      await bottle.advance(30_000);
+      expect(bottle.frames(), 'the workspace stands under the alert').to.deep.equal(['card-actions:browse']);
+      expect(bottle.bar(), 'the alert is what the pad answers').to.match(/OK/);
+      expect(bottle.liveness().beat?.accepting, 'the screen accepts — the wait for the lost answer is over').to.equal(true);
+      expect(classes(), 'nothing is filed').to.deep.equal([]);
+      // A dismisses the alert: the setup the player made is still theirs to confirm.
+      await bottle.press('Enter');
+      await bottle.advance(1_000);
+      expect(bottle.frames()).to.deep.equal(['card-actions:browse']);
+      expect(bottle.bar(), 'the composer is back, editable').to.match(/Confirm action/);
+    } finally {
+      restoreRandom();
+    }
+  });
+
+  /*
+   * `animation-hold/ceiling/parliament-chairman-quest` · `wait-graph/ceiling/parliament:submit` ·
+   * `wait-graph/overdue/flow:chairman-quest` — THE FAULT PASS (stage 4), `fz0` · `arwind-chairman-quest(-solo)`: the
+   * chairmanship's gate is answered and the answer is REFUSED (the solo table) or LOST (the two-seat one). The flow's
+   * blocking hold, its node of the wait graph and the section's submit safety each bounded the wait for the SERVER on
+   * a clock of their own — twenty, thirty and thirty seconds under the transport's sixty. The law: a hold stands over
+   * what the flow PLAYS; the wait for the server is the transport's, and a submit that did not land hands the stage
+   * back at its settle.
+   */
+  for (const fixture of ['arwind-chairman-quest', 'arwind-chairman-quest-solo']) {
+    it(`the chairmanship's answer refused, stale or lost — ${fixture}: no private bound ends the wait for the server, nothing is filed`, async () => {
+      const seed = `fz0:${fixture}`;
+      const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+      try {
+        const table = await bottleServer().bootFixture(fixture);
+        bottle = await bootBottle(table);
+        await bottle.advance(3_000);
+        const walked = await monkeyWalk(bottle, table.seats.length, seed, 60, {mode: 'guided', faultEvery: 6});
+        bottle = walked.bottle;
+        expect(bottle.wire.faulted.filter((f) => f.method === 'POST').length, 'the walk does break a submit').to.be.greaterThan(0);
+        // (The last word: the nets' graces and the server's own minute.)
+        await bottle.advance(86_000);
+        const own = (cls: string): boolean => cls === 'transport/server-silent' || cls === 'error/page-error';
+        expect(classes().filter((cls) => !own(cls)), 'beside the faults\' own words nothing is filed').to.deep.equal([]);
+        expect(bottle.liveness().standing, 'and the screen is served').to.deep.equal([]);
       } finally {
         restoreRandom();
       }

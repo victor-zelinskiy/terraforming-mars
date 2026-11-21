@@ -27,6 +27,7 @@
 
 import {reactive} from 'vue';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 import {
   AwaitingHandoff,
   CapturedRect,
@@ -293,6 +294,15 @@ export function beginAwaitingHandoff(from: SurfaceMotionId, fingerprint: {gameAg
 export function clearAwaitingHandoff(): void {
   surfaceMotionState.awaiting = undefined;
 }
+
+// THE AWAITING HAND-OFF IS ARMED FOR A PRESS (the composer's commit: «the stage holds until the answer picks the next
+// scene» — and the pad is inert under it). A press that did not land has no answer to wait for: the wait ends with it,
+// and the surface that armed it stands as it stood — the composer's own rollback gives the player their setup back.
+// It used to stand on to its private safety: six seconds of an inert pad under the error alert, then the layers
+// CLOSED — the configured action gone with them; and for those seconds the screen read «no surface accepts», so the
+// wait graph's door re-opened the question by closing the workspace first (FREEZE ZERO, stage 4 — the fault pass:
+// `wait-graph/dead-end/question:actionmenu` · `…/surface:card-actions` after a submit the network lost).
+onPressUnlanded('awaiting-handoff', clearAwaitingHandoff, 215);
 
 /** The shell's input gate: while a committed submit is in flight the pad is
  *  inert (B can't cancel an applied action, A can't double-fire). */
