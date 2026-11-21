@@ -46,7 +46,14 @@ export type ColonyTrackMovePromise = {colony: ColonyName, card?: CardName, befor
  * when the game screen leaves under it the module is brought to rest through `clearColonyTrackMove` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const run = createFlowRun('colony-track-move', {kind: 'scene', orphaned: () => clearColonyTrackMove()});
+const run = createFlowRun('colony-track-move', {
+  kind: 'scene',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    colonyTrackMoveFlow.live = up;
+  },
+  orphaned: () => clearColonyTrackMove(),
+});
 
 export const colonyTrackMoveFlow = reactive({
   /** The pick the player CONFIRMED, awaiting its answer. */
@@ -118,12 +125,14 @@ export async function playOwedColonyTrackMove(): Promise<boolean> {
     return false;
   }
   colonyTrackMoveFlow.owed = undefined;
-  colonyTrackMoveFlow.live = true;
   run.begin();
   colonyTrackMoveFlow.degraded = '';
-  await requestColonyTrackWave([move], {anchors: 'stage', rhythm: 'rail'});
-  colonyTrackMoveFlow.live = false;
-  run.end();
+  // (The run ends whatever the wave does: a wave that throws leaves no live flow behind.)
+  try {
+    await requestColonyTrackWave([move], {anchors: 'stage', rhythm: 'rail'});
+  } finally {
+    run.end();
+  }
   const finish = colonyTrackWaveState.lastFinish;
   if (finish !== 'landed') {
     colonyTrackMoveFlow.degraded = `${move.colony}: ${finish}`;
@@ -147,7 +156,6 @@ export function clearColonyTrackMove(): void {
   }
   if (colonyTrackMoveFlow.live) {
     finishColonyTrackWave('abort');
-    colonyTrackMoveFlow.live = false;
     run.end();
   }
   colonyTrackMoveFlow.promised = undefined;

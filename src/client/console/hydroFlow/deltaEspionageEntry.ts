@@ -67,7 +67,14 @@ export type DeltaEspionagePickRequest = {
  * when the game screen leaves under it the module is brought to rest through `resetDeltaEspionagePick` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const run = createFlowRun('delta-espionage-pick', {kind: 'surface', orphaned: () => resetDeltaEspionagePick()});
+const run = createFlowRun('delta-espionage-pick', {
+  kind: 'surface',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    deltaEspionagePickState.active = up;
+  },
+  orphaned: () => resetDeltaEspionagePick(),
+});
 
 export const deltaEspionagePickState = reactive({
   active: false,
@@ -104,7 +111,6 @@ export function enterDeltaEspionagePick(
   deltaEspionagePickState.request = request;
   resolveCb.arm(onResolve);
   cancelCb = onCancel;
-  deltaEspionagePickState.active = true;
   run.begin();
   pushWorkspaceFrame({
     kind: 'hydro',
@@ -154,7 +160,6 @@ export function resetDeltaEspionagePick(): void {
   if (deltaEspionagePickState.active) {
     popEspionagePickFrame();
   }
-  deltaEspionagePickState.active = false;
   run.end();
   deltaEspionagePickState.request = undefined;
   resolveCb.drop();

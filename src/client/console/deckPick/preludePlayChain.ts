@@ -39,7 +39,14 @@ export type PreludeChainHost = 'hand' | 'card-actions';
  * when the game screen leaves under it the module is brought to rest through `endPreludePlayChain` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const run = createFlowRun('prelude-play-chain', {kind: 'surface', orphaned: () => endPreludePlayChain()});
+const run = createFlowRun('prelude-play-chain', {
+  kind: 'surface',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    preludePlayChainState.live = up;
+  },
+  orphaned: () => endPreludePlayChain(),
+});
 
 export const preludePlayChainState = reactive({
   live: false,
@@ -49,14 +56,12 @@ export const preludePlayChainState = reactive({
 
 /** The pick played `card` (not a burn): its follow-ups are this chain's until its HOST's flow is over. */
 export function beginPreludePlayChain(card: CardName, host: PreludeChainHost = 'hand'): void {
-  preludePlayChainState.live = true;
   run.begin();
   preludePlayChainState.card = card;
   preludePlayChainState.host = host;
 }
 
 export function endPreludePlayChain(): void {
-  preludePlayChainState.live = false;
   run.end();
   preludePlayChainState.card = '';
   preludePlayChainState.host = 'hand';

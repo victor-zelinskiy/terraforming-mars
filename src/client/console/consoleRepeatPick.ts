@@ -87,7 +87,14 @@ export type ConsoleRepeatPickResult = {
  * when the game screen leaves under it the module is brought to rest through `resetConsoleRepeatPick` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const run = createFlowRun('repeat-pick', {kind: 'surface', orphaned: () => resetConsoleRepeatPick()});
+const run = createFlowRun('repeat-pick', {
+  kind: 'surface',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    consoleRepeatPickState.active = up;
+  },
+  orphaned: () => resetConsoleRepeatPick(),
+});
 
 export const consoleRepeatPickState = reactive({
   active: false,
@@ -118,7 +125,6 @@ export function enterConsoleRepeatPick(
   consoleRepeatPickState.request = request;
   resolveCb.arm(onResolve);
   cancelCb = onCancel;
-  consoleRepeatPickState.active = true;
   run.begin();
   // …AND IT IS A STEP OF THE FLOW THAT ASKED, so it stands in the STACK.
   // `overlay` is the sanctioned exception the contract already names (this
@@ -176,7 +182,6 @@ export function cancelConsoleRepeatPick(): void {
 /** Hard reset (game switch / shell unmount) — fires NO callbacks. */
 export function resetConsoleRepeatPick(): void {
   popRepeatPickFrame();
-  consoleRepeatPickState.active = false;
   run.end();
   consoleRepeatPickState.request = undefined;
   resolveCb.drop();

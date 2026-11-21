@@ -154,7 +154,14 @@ export function lawPlayStagedDoor(result: ConsolePlayPickResult | undefined): 'c
  * when the game screen leaves under it the module is brought to rest through `resetConsolePlayPick` — no row of the shell's
  * teardown is what keeps it out of the next game.
  */
-const run = createFlowRun('play-pick', {kind: 'surface', orphaned: () => resetConsolePlayPick()});
+const run = createFlowRun('play-pick', {
+  kind: 'surface',
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    consolePlayPickState.active = up;
+  },
+  orphaned: () => resetConsolePlayPick(),
+});
 
 export const consolePlayPickState = reactive({
   active: false,
@@ -191,7 +198,6 @@ export function enterConsolePlayPick(
   consolePlayPickState.request = request;
   resolveCb.arm(onResolve);
   cancelCb = onCancel;
-  consolePlayPickState.active = true;
   run.begin();
 }
 
@@ -217,7 +223,6 @@ export function cancelConsolePlayPick(): void {
 
 /** Hard reset (game switch / shell unmount) — fires NO callbacks. */
 export function resetConsolePlayPick(): void {
-  consolePlayPickState.active = false;
   run.end();
   consolePlayPickState.request = undefined;
   resolveCb.drop();
