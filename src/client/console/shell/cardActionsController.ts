@@ -8,7 +8,7 @@ import {computed} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
-import {SubmitTicket} from '@/client/console/transport/gameTransport';
+import {SubmitTicket, transportState} from '@/client/console/transport/gameTransport';
 import {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {closeConsoleLayers} from '@/client/console/consoleRouter';
 import {beginAwaitingHandoff, clearAwaitingHandoff, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
@@ -91,6 +91,15 @@ export function createCardActionsController(shell: CardActionsPort) {
     const startedAt = surfaceMotionState.awaiting?.startedAt;
     const expire = (ceiling: boolean): void => {
       if (surfaceMotionState.awaiting === undefined || surfaceMotionState.awaiting.startedAt !== startedAt) {
+        return;
+      }
+      // THE SERVER'S SILENCE IS THE TRANSPORT'S TO BOUND (its own minute — `submitMachine`): while the request is on
+      // the wire and unanswered, the answer may still come, and closing the layers under it left the player on the
+      // board with a submit in flight and the outcome's claim orphaned (`workspace-outcome/host-gone/…` — FREEZE
+      // ZERO, stage 4, a submit the server never answered). When the transport gives the request up, the press's
+      // own unwind ends this wait (`pressUnwind` — `awaiting-handoff`).
+      if (!ceiling && transportState.requestInProgress && !transportState.responseArrived) {
+        flow.after(AWAITING_SAFETY_MS, 'the awaiting handoff\'s expiry (the answer still on the wire)', () => expire(false));
         return;
       }
       // …A LOST RESPONSE, never an ANSWERED one (FLAKE ZERO · class N): this clock counts from the SUBMIT, and an answer

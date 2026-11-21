@@ -1049,12 +1049,17 @@ export function createSupervisorController(shell: SupervisorPort) {
       const answered = awaiting && workspaceOutcomeState.answerIn;
       // A claim whose HOST is gone waits on a surface that is not there — dangling (the Hi-Tech Lab field freeze).
       const hostGone = workspaceOutcomeState.host !== undefined && !workspaceFrameAnywhere(workspaceOutcomeState.host);
+      // …and an answer still ON THE WIRE is the SUBMIT's to wait for: the claim waits on the funnel's own node, whose
+      // bound is the transport's (its minute of silence) — a private twenty seconds over it read `overdue` under a
+      // server that was merely slow to the transport's own measure (FREEZE ZERO, stage 4 — the fault pass).
+      const onTheWire = awaiting && !answered && transportState.requestInProgress && !transportState.responseArrived;
       out.push({
         id: `claim:${workspaceOutcomeState.host}`, family: 'claim', owner: 'consoleWorkspaceOutcome',
         targets: hostGone ? [{kind: 'node', id: `surface:${workspaceOutcomeState.host}`}] :
           answered ? [{kind: 'motion', what: 'the claimed outcome presents (or the reconciler lets it go)'}] :
-            awaiting ? [{kind: 'server', what: 'the claimed answer'}] : [{kind: 'player', what: 'take the claimed outcome'}],
-        ...(awaiting ? {boundMs: 20_000} : {}), recovery: 'workspace-outcome',
+            onTheWire ? [{kind: 'node', id: 'transport:submit'}] :
+              awaiting ? [{kind: 'server', what: 'the claimed answer'}] : [{kind: 'player', what: 'take the claimed outcome'}],
+        ...(awaiting && !onTheWire ? {boundMs: 20_000} : {}), recovery: 'workspace-outcome',
         detail: `${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}`,
       });
     }

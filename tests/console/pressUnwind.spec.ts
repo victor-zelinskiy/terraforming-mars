@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
-import {declaredPressUnwinds, onPressUnlanded, unwindUnlandedPress} from '@/client/console/transport/pressUnwind';
+import {declaredPressUnwinds, onPressUnanswered, onPressUnlanded, unwindUnlandedPress} from '@/client/console/transport/pressUnwind';
 
 /**
  * A PRESS THAT DID NOT LAND UNWINDS WHAT WAS ARMED FOR IT (architecture v2 — PLAN §5 · L1;
@@ -43,13 +43,36 @@ describe('press unwind — what was armed for a press that did not land', () => 
     }
   });
 
+  it('WHAT WAITS FOR THE ANSWER is unwound only when no answer is coming — an answer that arrived unreadable is still an answer', () => {
+    // (FREEZE ZERO, stage 4 — the fault pass: a response that would not parse. The move was MADE; the re-fetched view
+    // resolves an awaiting hand-off and an outcome's claim as any answer does — cleared here, the stage stood
+    // «Выполнение» with nobody left to fold it.)
+    const ran: Array<string> = [];
+    try {
+      onPressUnlanded('spec:scene', () => ran.push('scene'), 9_100_010);
+      onPressUnanswered('spec:claim', () => ran.push('claim'), 9_100_020);
+      unwindUnlandedPress({answered: false});
+      expect(ran, 'refused, lost, never answered: everything armed for the press unwinds').to.deep.equal(['scene', 'claim']);
+      ran.length = 0;
+      unwindUnlandedPress({answered: true});
+      expect(ran, 'answered unreadably: the scene\'s arm unwinds, what waits for the answer stands').to.deep.equal(['scene']);
+      ran.length = 0;
+      unwindUnlandedPress();
+      expect(ran, 'the default is «no answer»').to.deep.equal(['scene', 'claim']);
+    } finally {
+      for (const label of ['spec:scene', 'spec:claim']) {
+        onPressUnlanded(label, () => {}, 9_100_000);
+      }
+    }
+  });
+
   it('the transport keeps NO list of modules: its refusal path lowers its own holds and runs the pass', () => {
     const transport = fs.readFileSync(path.join(ROOT, 'src/client/console/transport/gameTransport.ts'), 'utf8');
-    const from = transport.indexOf('function abortAllConsoleTransactions(): void {');
+    const from = transport.indexOf('function abortAllConsoleTransactions(answered: boolean): void {');
     const body = transport.slice(from, transport.indexOf('\n}\n', from)).split('\n').slice(1).map((line) => line.trim()).filter((line) => line !== '');
     expect(body.length, 'the body is read').to.be.greaterThan(5);
     expect(body.filter((line) => !/^transportHolds\.\w+ = false;$/.test(line)), 'a module that arms for a press declares its unwind beside the arm ' +
-      '(`onPressUnlanded(label, unwind, at)`) — never a call here').to.deep.equal(['unwindUnlandedPress();']);
+      '(`onPressUnlanded(label, unwind, at)`) — never a call here').to.deep.equal(['unwindUnlandedPress({answered});']);
   });
 
   it('the pass is a TOTAL ORDER: no two declared unwinds share a label or a place (read off the source)', () => {
@@ -62,7 +85,7 @@ describe('press unwind — what was armed for a press that did not land', () => 
         if (e.isDirectory()) {
           walk(p);
         } else if (e.name.endsWith('.ts')) {
-          for (const m of fs.readFileSync(p, 'utf8').matchAll(/^onPressUnlanded\('([^']+)',[^\n]*?, (\d+)\);/gm)) {
+          for (const m of fs.readFileSync(p, 'utf8').matchAll(/^onPress(?:Unlanded|Unanswered)\('([^']+)',[^\n]*?, (\d+)\);/gm)) {
             declared++;
             for (const key of [`label «${m[1]}»`, `place ${m[2]}`]) {
               const other = seen.get(key);

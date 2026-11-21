@@ -104,8 +104,8 @@ describe('a city on a colony tile — the wiring', () => {
     it('a refused answer drops the hold and the arm (the abort battery)', () => {
       // The transport lowers its own hold and runs ONE pass over the unwinds the modules declare (architecture v2 —
       // `transport/pressUnwind.ts`); the city declares its own, beside its arm.
-      const battery = transport.slice(transport.indexOf('function abortAllConsoleTransactions(): void {'));
-      expect(battery.slice(0, battery.indexOf('\n}\n'))).to.match(/transportHolds\.colonyCity = false;[\s\S]*unwindUnlandedPress\(\);/);
+      const battery = transport.slice(transport.indexOf('function abortAllConsoleTransactions(answered: boolean): void {'));
+      expect(battery.slice(0, battery.indexOf('\n}\n'))).to.match(/transportHolds\.colonyCity = false;[\s\S]*unwindUnlandedPress\(\{answered\}\);/);
       const director = read('src', 'client', 'console', 'colonyCity', 'consoleColonyCity.ts');
       expect(director).to.match(/^onPressUnlanded\('colony-city', disarmColonyCity, \d+\);$/m);
     });

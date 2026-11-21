@@ -27,7 +27,7 @@
 
 import {reactive} from 'vue';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
-import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {onPressUnanswered} from '@/client/console/transport/pressUnwind';
 import {
   AwaitingHandoff,
   CapturedRect,
@@ -302,7 +302,10 @@ export function clearAwaitingHandoff(): void {
 // CLOSED — the configured action gone with them; and for those seconds the screen read «no surface accepts», so the
 // wait graph's door re-opened the question by closing the workspace first (FREEZE ZERO, stage 4 — the fault pass:
 // `wait-graph/dead-end/question:actionmenu` · `…/surface:card-actions` after a submit the network lost).
-onPressUnlanded('awaiting-handoff', clearAwaitingHandoff, 215);
+// …NEVER when the answer arrived and could not be read (`answered`): the move was made, the re-fetched view is the
+// answer by another road, and it resolves the hand-off as any answer does — cleared here, the stage stood «Выполнение»
+// with nobody left to fold it.
+onPressUnanswered('awaiting-handoff', clearAwaitingHandoff, 215);
 
 /** The shell's input gate: while a committed submit is in flight the pad is
  *  inert (B can't cancel an applied action, A can't double-fire). */

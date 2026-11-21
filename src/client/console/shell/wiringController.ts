@@ -10,7 +10,7 @@ import {installCursorArrivalInput} from '@/client/console/cursorArrivalInput';
 import {computed, ref, watch} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SpaceId} from '@/common/Types';
-import {submitInput, submitBatch as transportSubmitBatch, SubmitTicket} from '@/client/console/transport/gameTransport';
+import {submitInput, submitBatch as transportSubmitBatch, SubmitTicket, transportState} from '@/client/console/transport/gameTransport';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {registerTerraformedSceneProbes, terraformedSceneState, terraformedSceneUp} from '@/client/console/terraformedScene/terraformedScene';
 import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
@@ -936,7 +936,11 @@ export function createWiringController(shell: WiringPort) {
     // from under the player. The evidence lives in the shell (the raw
     // `waitingFor`, the server's unconsumed reveals), so the shell registers
     // the one probe; the module refuses on its own.
-    setWorkspaceOutcomeServingProbe(() => shell.workspaceOutcomeServingNow);
+    // …and a claim whose ANSWER IS STILL ON THE WIRE answers for something live too: the request. Its own twenty-second
+    // safety must not let it go under a server that is silent for the transport's sixty (the transport's settle ends
+    // it — `unwindUnlandedClaim`, forced — or the answer does).
+    setWorkspaceOutcomeServingProbe(() => shell.workspaceOutcomeServingNow ||
+      (workspaceOutcomeState.stage === 'awaiting' && !workspaceOutcomeState.answerIn && transportState.requestInProgress && !transportState.responseArrived));
     // THE HYDRO FLOW-CLOSE WITNESSES (consoleHydroFlow → presentationLedger):
     // the committed flow's close chain is edge-driven, and a missed edge used
     // to wedge the workspace until some unrelated 20–30 s safety shook it.

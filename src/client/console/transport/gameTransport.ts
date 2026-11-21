@@ -1781,7 +1781,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
       // the action did not happen. No-op when none armed.
       // Named in the flights' trail (`__conReady().transfer`): every module that unwinds after it says what it lost to.
       noteTransferTrail('transport:unwind', {why: `refused ${refusedWhy}: ${refusal?.message ?? ''}`.slice(0, 200)});
-      abortAllConsoleTransactions();
+      abortAllConsoleTransactions(false);
       const showAlert = r.showAlert.bind(r);
       if (refusal !== undefined) {
         const resp = refusal;
@@ -1832,11 +1832,14 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
         return;
       }
       const silent = flow.snapshot.value.value === 'silent';
+      // (Read before the machine moves: an OK answer whose headers arrived is a move the server MADE — what threw is
+      // its reading. `pressUnwind.UnlandedPress`.)
+      const answered = flow.snapshot.value.value === 'presenting';
       flow.send({type: 'FAILED'});
       // Network failure — same full unwind as a refusal: no ghost card, no
       // ghost cube, no gold, no credit; every composer CTA re-arms.
       noteTransferTrail('transport:unwind', {why: `failed: ${String(e).slice(0, 160)}`});
-      abortAllConsoleTransactions();
+      abortAllConsoleTransactions(answered);
       if (silent) {
         // THE SERVER NEVER ANSWERED: say exactly that, and let the next view tell whether the move landed anyway.
         r.showAlert(SERVER_NOT_RESPONDING_TITLE, SERVER_NOT_RESPONDING, () => waitForUpdate(true));
@@ -1867,7 +1870,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
  * here; a scene module that was not on the list kept its arm after a refusal (architecture v2 — PLAN §5 · L1).
  * The transport's own holds fall first: an unwind never runs under a gate the funnel still holds.
  */
-function abortAllConsoleTransactions(): void {
+function abortAllConsoleTransactions(answered: boolean): void {
   transportHolds.tradeFleet = false;
   transportHolds.hydroMarker = false;
   transportHolds.playedHero = false;
@@ -1882,7 +1885,7 @@ function abortAllConsoleTransactions(): void {
   transportHolds.colonyCity = false;
   transportHolds.nomadMove = false;
   transportHolds.colonyBuild = false;
-  unwindUnlandedPress();
+  unwindUnlandedPress({answered});
 }
 
 /** Apply a fresh view: structural sharing + the transient-UI reset epoch. */

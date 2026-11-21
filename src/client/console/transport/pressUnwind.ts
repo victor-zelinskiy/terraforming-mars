@@ -25,23 +25,48 @@
  *
  * No imports of the console on purpose: every scene module imports this file, and the transport imports them.
  */
-type PressUnwind = {label: string, unwind: () => void, at: number};
+/**
+ * HOW the press did not land. `answered: false` — the move was NOT made as far as the page can know: the server
+ * refused it, the network lost the request, or no answer came at all. `answered: true` — the server's answer ARRIVED
+ * and could not be applied (it would not parse, the presenter threw): THE MOVE WAS MADE, and the truth is being
+ * fetched again. A scene's arm unwinds either way (nothing of this press will play it); but what WAITS FOR THE ANSWER
+ * — an awaiting hand-off, an outcome's claim — is rolled back only in the first case: in the second the answer is
+ * still coming, by the re-fetch's road, and resolves them as any answer does.
+ */
+export type UnlandedPress = {answered: boolean};
+
+type PressUnwind = {label: string, unwind: () => void, at: number, answerWaits: boolean};
 const unwinds: Array<PressUnwind> = [];
 
 /** Declare what a module unwinds when a press does not land (module scope, once). */
 export function onPressUnlanded(label: string, unwind: () => void, at: number): void {
+  declare({label, unwind, at, answerWaits: false});
+}
+
+/**
+ * …and what WAITS FOR THE ANSWER (an awaiting hand-off, an outcome's claim): unwound only when no answer is coming
+ * (`UnlandedPress.answered === false`). The same pass, the same order, the same rule of one label and one place.
+ */
+export function onPressUnanswered(label: string, unwind: () => void, at: number): void {
+  declare({label, unwind, at, answerWaits: true});
+}
+
+function declare(entry: PressUnwind): void {
   // A module evaluated again (HMR, a spec's fresh bundle): its newest declaration stands.
-  const standing = unwinds.findIndex((entry) => entry.label === label);
+  const standing = unwinds.findIndex((other) => other.label === entry.label);
   if (standing >= 0) {
     unwinds.splice(standing, 1);
   }
-  unwinds.push({label, unwind, at});
+  unwinds.push(entry);
   unwinds.sort((a, b) => a.at - b.at);
 }
 
-/** The press did not land (refused, failed, lost): every declared unwind runs, in order, each on its own. */
-export function unwindUnlandedPress(): void {
+/** The press did not land (refused, failed, lost — or answered unreadably): every declared unwind runs, in order, each on its own. */
+export function unwindUnlandedPress(press: UnlandedPress = {answered: false}): void {
   for (const entry of [...unwinds]) {
+    if (entry.answerWaits && press.answered) {
+      continue;
+    }
     try {
       entry.unwind();
     } catch (error) {

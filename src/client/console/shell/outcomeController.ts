@@ -29,7 +29,7 @@ import {cardGrantOwedTo} from '@/client/console/cardGrantHost';
 import {isHydroMarkerActive, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {questionKeepsFrame} from '@/client/console/shellTaskSurface';
 import {endPreludePlayChain, preludeChainHoldsClaim, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
-import {workspaceClaimsColonyRevealBatch, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsPick, workspaceOutcomeClaimed, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {PRESS_UNLANDED, workspaceClaimsColonyRevealBatch, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsPick, workspaceOutcomeClaimed, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending} from '@/client/console/boardBeatPark';
 import {PARLIAMENT_DRAW_ZONE} from '@/client/console/parliament/parliamentDraw';
 import {colonyBonusPayoutLive, colonyBonusPayoutArmed} from '@/client/console/colonyLedger/colonyBonusPayout';
@@ -1357,6 +1357,11 @@ export function createOutcomeController(shell: OutcomePort) {
    */
   function whenHandOutcomeLiveChanges(live: boolean, was: boolean): void {
     if (live || !was || isPlayedHeroActive()) {
+      return;
+    }
+    // THE PLAY DID NOT LAND (`unwindUnlandedClaim`): nothing was played, so there is no ending to run — the composer
+    // was handed back by the play scene's own `failed` phase (`playedController`), and the player re-does the move.
+    if (workspaceOutcomeState.lastRelease === PRESS_UNLANDED) {
       return;
     }
     void shell.$nextTick(() => {

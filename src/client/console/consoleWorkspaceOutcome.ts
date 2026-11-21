@@ -43,6 +43,7 @@ import {CLAIM_HOST_GONE_GRACE_MS, claimMachine} from '@/client/console/consoleWo
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {embedZoneMounted} from '@/client/console/embedZoneRegistry';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
+import {onPressUnanswered} from '@/client/console/transport/pressUnwind';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 
 /**
@@ -212,6 +213,13 @@ export const workspaceOutcomeState = reactive({
    * to turn the card over.
    */
   answerIn: false,
+  /**
+   * WHY THE LAST CLAIM WAS RELEASED ('' while a claim stands, or none ever did). A host reads the claim's FALL as «the
+   * outcome is over — conclude the flow» (one watcher for every flavour); the one fall that is NOT an ending is
+   * `press-unlanded` — the press the claim was placed for never reached the game, so there was no outcome at all and
+   * the host stands as it stood (`PRESS_UNLANDED`, below).
+   */
+  lastRelease: '' as string,
   /**
    * WHO FLIES the claimed batch's arrival: the HOST's own prepared beat (the card-actions composer's `beatstage` +
    * `runBatchArrival`) or the deck-draw SCENE, into the embedded reveal's slots. Derived from the host by default;
@@ -604,6 +612,7 @@ export function claimWorkspaceOutcome(
   workspaceOutcomeState.arrivalFlown = false;
   workspaceOutcomeState.arrivalBy = 'host';
   workspaceOutcomeState.answerIn = false;
+  workspaceOutcomeState.lastRelease = '';
   // A new claim is a new RUN (`startClaim`): its execution beat starts owing its minimum time from the confirm — not
   // from when the answer happens to land, or a fast server would shorten the very beat that explains what the action
   // is doing; its «claimed and nothing came» safety starts now; and its input gate starts shut only for a CARD
@@ -803,6 +812,8 @@ export function releaseWorkspaceOutcome(reason = 'unspecified', opts?: {force?: 
 /** THE RELEASE — the claim's run ends (its scope, its machine, its bounds) and the record is clean. */
 function performRelease(reason: string): void {
   lastOutcomeReleaseStack = `${reason} @${typeof performance !== 'undefined' ? Math.round(performance.now()) : 0}`;
+  // (Written BEFORE the claim falls: the hosts' reactions to the fall read it.)
+  workspaceOutcomeState.lastRelease = reason;
   endClaim(`released: ${reason}`);
   workspaceOutcomeState.answerIn = false;
   workspaceOutcomeState.beatDone = false;
@@ -819,6 +830,33 @@ function performRelease(reason: string): void {
   workspaceOutcomeState.embedSlot = '';
   workspaceOutcomeState.phaseKey = '';
 }
+
+/** The reason of the one release that is not an ending (`workspaceOutcomeState.lastRelease`). */
+export const PRESS_UNLANDED = 'press-unlanded';
+
+/**
+ * THE PRESS THE CLAIM WAS PLACED FOR DID NOT LAND — refused, lost on the network, never answered. A claim is placed
+ * synchronously at the submit, «before the response can land», and waits for the answer's artifact; with no answer
+ * there is nothing to wait for. It used to stand `awaiting` to its twenty-second safety — a dead end the wait graph
+ * named (`wait-graph/dead-end/claim:hand` · `claim:start` — «server: the claimed answer cannot come») — and its fall
+ * then read as a FINISHED flow: the workspace the player was re-doing their move in folded under them, or its host
+ * had gone meanwhile (`workspace-outcome/host-gone/…`). FREEZE ZERO, stage 4 — the fault pass.
+ *
+ * Only the claim that waits for THAT answer: still `awaiting`, the answer not in. A claim whose artifact exists (an
+ * earlier press's batch still arriving, an outcome on stage) is another press's and is not touched — while a submit
+ * is on the wire no other can be (the funnel refuses it without ever reaching this pass).
+ */
+export function unwindUnlandedClaim(): boolean {
+  if (workspaceOutcomeState.sourceCard === '' || workspaceOutcomeState.stage !== 'awaiting' || workspaceOutcomeState.answerIn) {
+    return false;
+  }
+  // FORCED: the serving probe guards a claim that answers for something LIVE — this one answers for a press that never was.
+  return releaseWorkspaceOutcome(PRESS_UNLANDED, {force: true});
+}
+// (After the commit's own rollback and the hand-off's wait — `consoleActionCommit` 210, `awaiting-handoff` 215: the
+// composer is editable again by the time the claim's fall reaches its host. And never for an answer that arrived
+// unreadable — the move was made, the re-fetched view brings the claimed artifact by its own road.)
+onPressUnanswered('workspace-outcome-claim', unwindUnlandedClaim, 216);
 
 /** The kinds a claim holds for a QUESTION the press's chain may still ask — never an artifact already on its way. */
 const CHAIN_QUESTION_KINDS: ReadonlySet<WorkspaceOutcomeKind> = new Set<WorkspaceOutcomeKind>(['pick', 'effect', 'venus-bonus']);

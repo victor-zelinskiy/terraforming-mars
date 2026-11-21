@@ -599,6 +599,105 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * `workspace-outcome/host-gone/card-actions/draw-pick` · `wait-graph/dead-end/claim:card-actions` — THE FAULT PASS
+   * (stage 4), `fz0` · `corridors-futile`, shrunk to six steps: a card's action that DRAWS is confirmed and the server
+   * NEVER ANSWERS. The hand-off's private six seconds closed the layers under a request still on the wire (the player
+   * on the board, a submit in flight), the outcome's claim — orphaned — was released «host-gone», and its own twenty
+   * seconds would have let it go under the same silence. The law: the server's silence is the transport's to bound
+   * (its minute); the stage holds for it, and when the transport gives the request up the press's own unwind hands
+   * the player their setup back — the claim falls as `press-unlanded`, which no host reads as a finished flow.
+   */
+  it('a drawing card action the server NEVER ANSWERS: the stage holds the transport\'s minute, then the setup is back — nothing closed, nothing filed', async () => {
+    const seed = 'fz0:corridors-futile';
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+    try {
+      const table = await bottleServer().bootFixture('corridors-futile');
+      bottle = await bootBottle(table);
+      await bottle.advance(3_000);
+      const steps: Array<MonkeyStep> = [
+        {do: 'press', key: 'Period', pauseMs: 1053}, {do: 'press', key: 'ArrowUp', pauseMs: 1566},
+        {do: 'press', key: 'Enter', pauseMs: 185}, {do: 'press', key: 'ArrowUp', pauseMs: 4084},
+        {do: 'fault', fault: 'silent', target: 'submit'},
+      ];
+      bottle = await replaySteps(bottle, table.seats.length, steps);
+      await bottle.press('Enter');
+      // Half a minute into the silence — far past the hand-off's six seconds and the claim's twenty.
+      await bottle.advance(30_000);
+      expect(bottle.wire.faulted.map((f) => f.fault)).to.deep.equal(['silent']);
+      expect(bottle.frames(), 'the workspace holds its stage while the request is on the wire').to.deep.equal(['card-actions:browse']);
+      expect(classes(), 'and nothing is filed for the server\'s silence').to.deep.equal([]);
+      // The transport gives the request up at its minute: the alert, and under it the setup the player made.
+      await bottle.advance(40_000);
+      expect(bottle.frames()).to.deep.equal(['card-actions:browse']);
+      expect(bottle.liveness().beat?.accepting, 'the screen accepts').to.equal(true);
+      expect(classes().filter((cls) => cls !== 'transport/server-silent'), 'beside the transport\'s own word nothing is filed').to.deep.equal([]);
+      await bottle.press('Enter');
+      await bottle.advance(1_000);
+      expect(bottle.bar(), 'A dismissed the alert: the composer is there, editable').to.match(/Confirm action/);
+    } finally {
+      restoreRandom();
+    }
+  });
+
+  /*
+   * `wait-graph/dead-end/question:actionmenu` · `…/surface:card-actions`, the OTHER road — `fz0` ·
+   * `arwind-sitting-win-solo`, shrunk to five steps: the answer ARRIVES and does not parse. The move was MADE; the
+   * truth is fetched again. Unwound as a press that never landed, the hand-off's wait was cleared and the stage
+   * stood «Выполнение» with nobody left to fold it. The law: an answer that could not be read is still an answer —
+   * what waits for it (`pressUnwind.unlandedPress().answered`) is resolved by the re-fetched view, as by any answer.
+   */
+  it('a card action whose answer ARRIVES UNREADABLE: the move was made — the flow folds on the re-fetched truth, nothing is filed', async () => {
+    const seed = 'fz0:arwind-sitting-win-solo';
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+    try {
+      const table = await bottleServer().bootFixture('arwind-sitting-win-solo');
+      bottle = await bootBottle(table);
+      await bottle.advance(3_000);
+      const age = bottle.view()?.game.gameAge ?? -1;
+      const steps: Array<MonkeyStep> = [
+        {do: 'press', key: 'Period', pauseMs: 354}, {do: 'press', key: 'ArrowUp', pauseMs: 1637},
+        {do: 'fault', fault: 'malformed', target: 'submit'},
+        {do: 'press', key: 'Enter', pauseMs: 349}, {do: 'press', key: 'Enter', pauseMs: 677},
+      ];
+      bottle = await replaySteps(bottle, table.seats.length, steps);
+      await bottle.advance(30_000);
+      expect(bottle.wire.faulted.map((f) => f.fault)).to.deep.equal(['malformed']);
+      expect((bottle.view()?.game.gameAge ?? -1) > age, 'the move was made, and the page knows').to.equal(true);
+      expect(bottle.frames(), 'the finished flow left').to.deep.equal([]);
+      expect(bottle.liveness().standing, 'the screen is served').to.deep.equal([]);
+      expect(classes().filter((cls) => cls !== 'error/page-error'), 'beside the page\'s own word about the answer nothing is filed').to.deep.equal([]);
+    } finally {
+      restoreRandom();
+    }
+  });
+
+  /*
+   * `wait-graph/dead-end/claim:hand` · `claim:start` — THE FAULT PASS (stage 4): a card PLAYED from the hand, or in
+   * the opening, whose submit did not land. The play's claim stood `awaiting` an answer that could not come, to its
+   * twenty-second safety — and its fall then ended the play's flow under a player re-doing their move.
+   */
+  for (const fixture of ['ecology-experts-wg', 'field-start-deploy-leave']) {
+    it(`a play whose submit did not land — ${fixture}: its claim is released with the press, nothing is filed`, async () => {
+      const seed = `fz0:${fixture}`;
+      const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+      try {
+        const table = await bottleServer().bootFixture(fixture);
+        bottle = await bootBottle(table);
+        await bottle.advance(3_000);
+        const walked = await monkeyWalk(bottle, table.seats.length, seed, 60, {mode: 'guided', faultEvery: 6});
+        bottle = walked.bottle;
+        expect(bottle.wire.faulted.filter((f) => f.method === 'POST').length, 'the walk does break a submit').to.be.greaterThan(0);
+        await bottle.advance(86_000);
+        const own = (cls: string): boolean => cls === 'transport/server-silent' || cls === 'error/page-error';
+        expect(classes().filter((cls) => !own(cls)), 'beside the faults\' own words nothing is filed').to.deep.equal([]);
+        expect(bottle.liveness().standing, 'and the screen is served').to.deep.equal([]);
+      } finally {
+        restoreRandom();
+      }
+    });
+  }
+
+  /*
    * `animation-hold/ceiling/parliament-chairman-quest` · `wait-graph/ceiling/parliament:submit` ·
    * `wait-graph/overdue/flow:chairman-quest` — THE FAULT PASS (stage 4), `fz0` · `arwind-chairman-quest(-solo)`: the
    * chairmanship's gate is answered and the answer is REFUSED (the solo table) or LOST (the two-seat one). The flow's

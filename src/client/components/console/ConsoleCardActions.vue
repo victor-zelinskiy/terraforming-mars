@@ -492,6 +492,7 @@ import {
   workspaceOutcomeAdmits,
   workspaceOutcomeClaimed,
   workspaceOutcomeState,
+  PRESS_UNLANDED,
   WorkspaceOutcomeKind,
   WorkspaceOutcomeScope,
 } from '@/client/console/consoleWorkspaceOutcome';
@@ -2739,6 +2740,16 @@ watch(() => props.playerView.game.gameAge, (age: number): void => {
 // What it triggers is the flow's CONCLUSION (`concludeFlow`), never a bare
 // fold: a completed activation does not belong back on the browse grid.
 watch(() => outcomeClaimLive.value, (live: boolean, was: boolean) => {
+  if (was && !live && workspaceOutcomeState.lastRelease === PRESS_UNLANDED) {
+    // THE PRESS DID NOT LAND (refused, lost, never answered): there was no outcome and nothing ended. The stage
+    // goes back to the setup the player made — the composer's own rollback has re-armed its CTA — instead of
+    // concluding a flow that never ran.
+    outcomeFlow.value = undefined;
+    pendingAfterRail.value = undefined;
+    sentPromptId.value = undefined;
+    composerExecuting.value = false;
+    return;
+  }
   if (was && !live && outcomeFlow.value !== undefined) {
     // A LAW'S PLAY whose card is still landing here: the scene's closing concludes it (`lawPlayHeroPhase`).
     if (outcomeFlow.value.kind === 'law-play') {
