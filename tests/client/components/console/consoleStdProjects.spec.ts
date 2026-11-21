@@ -6,6 +6,7 @@ import {
   requestStdProjectCancel,
   resetStdProjectsFlow,
   stdProjectAnswerArrived,
+  stdProjectSubmitLive,
   stdProjectsFlow,
   stdProjectsFlowLive,
   stdProjectsFramePhase,
@@ -95,5 +96,20 @@ describe('consoleStdProjects (the flow model)', () => {
     resetStdProjectsFlow();
     beginStdProjectSubmit('Air Scrapping:SP', [ROW], 0, '5|0');
     expect(stdProjectAnswerArrived(41), 'a submit with no known prompt takes any new view, as before').to.eq(true);
+  });
+
+  it('every submit has its OWN identity — a later submit of the same project is not the earlier one', () => {
+    // The hunt 44954735303: the first submit's safety, keyed by the card, rolled back the second submit of that card.
+    beginStdProjectSubmit('Air Scrapping:SP', [ROW], 0, '5|0', 1);
+    const first = stdProjectsFlow.submitSeq;
+    expect(stdProjectSubmitLive(first)).to.eq(true);
+    markStdProjectCommit();
+    expect(stdProjectSubmitLive(first), 'answered: off the wire').to.eq(false);
+    resetStdProjectsFlow();
+    beginStdProjectSubmit('Air Scrapping:SP', [ROW], 0, '5|0', 3);
+    const second = stdProjectsFlow.submitSeq;
+    expect(second).to.not.eq(first);
+    expect(stdProjectSubmitLive(first), 'the same card, the same state — still not the first submit').to.eq(false);
+    expect(stdProjectSubmitLive(second)).to.eq(true);
   });
 });

@@ -19,7 +19,7 @@ import {ConsoleHandEntry} from '@/client/components/console/consoleHandSectionTy
 import {enterWorkspace, goBoardHome, popWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameMounted, workspaceFramePhase, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {
   beginStdProjectSubmit, markStdProjectCommit, markStdProjectTarget, resetStdProjectsFlow, stdProjectAnswerArrived, stdProjectsFlow,
-  stdProjectsFlowLive, stdProjectsFramePhase,
+  stdProjectsFlowLive, stdProjectsFramePhase, stdProjectSubmitLive,
 } from '@/client/console/consoleStdProjects';
 import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {STDP_HOLD_MS, armStdProjectCommit, releaseStdProjectCommit} from '@/client/console/consoleStdProjectCommit';
@@ -358,15 +358,16 @@ export function createStdProjectsController(shell: StdProjectsPort) {
   /**
    * A submit whose response never lands must not strand the player inside a
    * sealed `executing` beat: roll the flow back to browse and say so. The
-   * fingerprint (flow still submitting for the SAME card) keeps a late
-   * response from being clobbered — mirrors `armMaFocusSafety`.
+   * safety belongs to ONE submit — its `submitSeq`, never its card: the same
+   * project submitted again inside the 12 s was rolled back by the FIRST
+   * submit's safety, mid-flight (the hunt 44954735303).
    */
   function armStdProjectSafety(): void {
-    const card = stdProjectsFlow.card;
+    const seq = stdProjectsFlow.submitSeq;
     flow.after(12_000, 'a standard project\'s answer (safety)', () => {
       // …never while the response DID land and the project hosts its Venus bonus (P89 · EE): the player is reading
       // a live question, not waiting on a lost submit.
-      if (stdProjectsFlow.state === 'submitting' && stdProjectsFlow.card === card && !stdpVenusStep.value) {
+      if (stdProjectSubmitLive(seq) && !stdpVenusStep.value) {
         rollbackStdProjectFlow('safety');
         shell.showNotice('Unavailable right now');
       }
@@ -379,8 +380,10 @@ export function createStdProjectsController(shell: StdProjectsPort) {
     (shell.surfaces.at<ExposedOf<typeof ConsoleStdProjectsScreen>>('stdpScreen'))?.armStepOrigin();
   }
 
-  /** A refused/lost submit — the flow returns to its reversible browse layer. */
-  /** Back to browse, nothing committed — `why` names the caller in the flights' trail (the hunt's reset with no cause). */
+  /**
+   * A refused / lost / cancelled submit — the flow returns to its reversible browse layer, nothing committed. `why`
+   * names the caller in the flights' trail (the hunt's reset with no named cause).
+   */
   function rollbackStdProjectFlow(why = 'unnamed'): void {
     noteTransferTrail('stdp:rollback', {why, was: stdProjectsFlow.state});
     resetStdProjectsFlow();

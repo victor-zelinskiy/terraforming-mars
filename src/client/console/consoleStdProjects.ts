@@ -78,6 +78,13 @@ export const stdProjectsFlow = reactive({
    */
   askedPromptId: undefined as number | undefined,
   /**
+   * THE SUBMIT'S OWN IDENTITY — bumped by every `beginStdProjectSubmit`, never reset. What ONE submit arms (its lost
+   * answer's safety) acts only on THAT submit (`stdProjectSubmitLive`). A card name is no identity: the same project
+   * submitted twice inside the safety's span was rolled back by the FIRST submit's safety, 12 s after it and 110 ms
+   * into the second — its Venus bonus then stood on its own band beside the browse list (the hunt 44954735303, 2 / 120).
+   */
+  submitSeq: 0,
+  /**
    * FROZEN row snapshot for the span of a submit. The live rows derive from
    * `waitingFor`, which moves on with the response — without the freeze the
    * browse grid re-renders EMPTY between the submit and the flow's next
@@ -128,11 +135,12 @@ export function beginStdProjectSubmit(
   askedPromptId?: number,
 ): void {
   stdProjectsFlow.state = 'submitting';
+  stdProjectsFlow.submitSeq += 1;
   stdProjectsFlow.card = card;
   stdProjectsFlow.submittedAt = fingerprint;
   stdProjectsFlow.askedPromptId = askedPromptId;
   // The flow's steps ride the flights' trail (`__conReady().transfer`): a red names what the workspace did, in order.
-  noteTransferTrail('stdp:submit', {card, asked: askedPromptId ?? null});
+  noteTransferTrail('stdp:submit', {card, asked: askedPromptId ?? null, seq: stdProjectsFlow.submitSeq});
   stdProjectsFlow.frozenItems = items.map((it) => ({...it}));
   stdProjectsFlow.boardExcursion = {card, sheetIndex};
   stdProjectsFlow.cancelRequested = false;
@@ -150,6 +158,14 @@ export function stdProjectAnswerArrived(viewPromptId: number | undefined): boole
     return true;
   }
   return viewPromptId !== stdProjectsFlow.askedPromptId;
+}
+
+/**
+ * IS THIS SUBMIT STILL ON THE WIRE? Only while the flow is `submitting` for the very submit `seq` names — never for a
+ * LATER submit (the same project again) that happens to stand in the same state.
+ */
+export function stdProjectSubmitLive(seq: number): boolean {
+  return stdProjectsFlow.state === 'submitting' && stdProjectsFlow.submitSeq === seq;
 }
 
 /** The server answered with the project's own follow-up prompt. */
