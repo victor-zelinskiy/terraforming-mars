@@ -800,6 +800,12 @@ walked-or-declared; flows 100 %». What it needed before it could be read:
   are pairs of an any-to-any machine the product never makes. The frame machine's protocol is to be written down as
   the set the product walks (an off-protocol move is then a line, not a silent permission) — the next step.
 
+**STAGES 3 · 2b ① · 4 ①② — LANDED 2026-11-22 with CI's verdict on the branch** (`fz/s4` @ `5aff076067`): the whole
+e2e suite green — 12 of 12 shards + the burn-in of the changed specs (run 44954171031), the freeze gate green
+(44954173712), the units green (44954176303). The e2e run carried the kernel's coverage for the first time
+(`e2e-cause-classes-*`): the ledger of declared moves and the reading of THE OPENING over the whole suite are read
+from that run's artifacts — the next step of stage 4 and of 2b.
+
 **STAGE 5, STEP 1 — THE ENGINE FUZZ (2026-11-21, branch `fz/s5`).** `tests/fuzz/`: random LEGAL games on the real
 engine, in process, seeded — a random legal combination of the in-scope expansions, all twelve boards, 1 – 3 human
 seats with or without MarsBot — and after EVERY answered question: I1 the table is alive (`tableStandsDead`), I2 no
@@ -815,6 +821,24 @@ played out** (`Game.takeNextFinalGreeneryAction` went on to the end of the game 
 deferred still queued — the neighbour's Philares never asked which resources to take, a placement bonus counted and
 never paid). Fixed in the engine (the queue runs out before the loop goes on), held by the two seeds replayed whole.
 Next: reload equivalence (save → load → the SAME question), the batch route, shrinking, the nightly run.
+*The second run* (fresh seeds 50000+, thirty minutes: 5 648 whole games, 1 452 618 answered questions, 817 steps a
+second) named six classes, each in one or two games. **All six are closed** — five in the engine, one in the judge —
+and each is held by its seed replayed whole (`engineFuzz.spec` «the second run's finds stay closed») beside a spec of
+the defect itself; `TM_FUZZ_REPLAY=<seed> npm run fuzz:engine` replays any of them. **The baseline is EMPTY.**
+
+| class (seed · step) | what happened | how it is closed |
+| --- | --- | --- |
+| `I2-none\|payment\|Neptunian Power Consultants` (55496 · 70) | two oceans of one chain are OFFERED while the purse holds the five; the second bill comes due on an emptied purse — a payment nobody can make | the bill is an offer (`skipIfUnaffordable`), judged by its own purse (steel counts) — `NeptunianPowerConsultants.spec` |
+| `I4\|or\|world-government:solar-phase\|Overwriting waitingFor option with or` (50337 · 200) | the World Government's ocean wakes a card's question for a seat that still holds the sitting's soft confirmation: the engine throws, and the same answer throws for ever | `DeferredActionsQueue` — a question the queue raises takes the slot from the confirmation; the record is the server's, it is asked again when the slot is free |
+| `I2-none\|or\|Head Start` (51456 · 7) | «both actions must be taken» on a menu with no «Pass»: a seat with no action left is asked a menu in which every row is refused | `Player.takeAction` — a bonus action nobody can take is FORFEITED by the engine and named in the journal; both judges of the unanswerable question learn «a list of cards to play with none enabled» — `HeadStart.spec` |
+| `I3-refusal\|or\|Lake Marineris\|No available spaces` (50926 · 187) | MarsBot's three polders and a seat's Mohole Area took the ninth ocean's cell: `canAddOcean` said yes with nowhere to put one — a paid card refused half-played, and a table that could not END | THE SEA KEEPS ROOM FOR ITS OCEANS (`MarsBoard.seaKeepsItsCells` — a tile that is no ocean may not take a cell owed to an ocean; gate, named reason and grid read one set) + two floors: an ocean with no cell is skipped and said, a full sea is a finished sea — `SeaKeepsItsCells.spec` |
+| `I3\|option\|start:corporationPay\|…PharmacyUnion.onCardPlayedByAnyPlayer` (50072 · 6) | a reaction queued for a seat that had ALREADY left the research phase: nobody ran it until the action phase, a reload lost it | `Game.playerIsFinishedWithResearchPhase` — each way out runs what the seats that are done are owed, and the phase turns only when no way out is still running — `ResearchBarrier.spec` |
+| `I3\|card\|draft:standard\|…ArcticAlgae.onTilePlaced` (51755 · 102) | MarsBot's research step woke a seat's card while the seat still held its research question | NO DEFECT — the judge's law: the research phase drains per seat, work queued for a seat still in it is OWED on its way out (this also explains the first run's by-design row, which left the baseline) |
+
+What the second run taught the instrument: a class whose key carries a CARD is a law the judge does not know yet —
+it is written as the law (one line in the judge), never as a baseline row per card. Next: the third run on fresh
+seeds over the fixed engine; reload equivalence (save → load → the SAME question — the research barrier's lost
+reaction is exactly the class it will name); the batch route; shrinking; the nightly run.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
