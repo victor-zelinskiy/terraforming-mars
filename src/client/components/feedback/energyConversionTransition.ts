@@ -27,7 +27,7 @@ import {ViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {changeFeedbackManager, prefersReducedMotion} from './changeFeedbackManager';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
-import {createFlowRun} from '@/client/console/session/flowRun';
+import {createFlowRun, SCENE_RUN_CEILING_MS} from '@/client/console/session/flowRun';
 import {owedAnswer} from '@/client/console/session/owedAnswer';
 import {
   EnergyConversionEvent,
@@ -96,6 +96,11 @@ const seen = new Set<string>();
  * under it the run takes its own honest ending (`orphaned`: the counters snap, the gate resolves, the override drops).
  */
 const run = createFlowRun('energy-conversion', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else; a run that outlived every bound ends on its ceiling.
+  flag: (up) => {
+    energyConversionState.active = up;
+  },
+  ceilingMs: SCENE_RUN_CEILING_MS,
   orphaned: () => {
     finishActive?.();
     endEnergyConversion();
@@ -143,8 +148,16 @@ registerAnimationHoldSupplier('energy-conversion', isEnergyConversionActive, {
       return;
     }
     console.warn('[energyConversionTransition] energy → heat conversion: outlived its ceiling — ended');
-    finishActive?.();
-    endEnergyConversion();
+    // (The ending is reached whatever the finish threw — and the run is over with it: the flag falls.)
+    try {
+      finishActive?.();
+    } finally {
+      try {
+        endEnergyConversion();
+      } finally {
+        run.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+      }
+    }
   },
 });
 
@@ -193,8 +206,6 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
   run.begin(`${event.amount}`); // a run still standing ends here — its timers with it
   const reduced = prefersReducedMotion();
   const leadInMs = Math.max(0, opts?.leadInMs ?? 0);
-
-  energyConversionState.active = true;
   energyConversionState.color = event.color;
   energyConversionState.amount = event.amount;
   energyConversionState.energyAfter = event.source.after;
@@ -287,7 +298,6 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
 export function endEnergyConversion(): void {
   cancelTimers();
   finishActive = undefined;
-  energyConversionState.active = false;
   energyConversionState.showChips = false;
   energyConversionState.leadIn = false;
   energyConversionState.color = '';
@@ -301,7 +311,6 @@ export function resetEnergyConversion(): void {
   resolveActive.drop();
   finishActive = undefined;
   seen.clear();
-  energyConversionState.active = false;
   energyConversionState.color = '';
   energyConversionState.amount = 0;
   energyConversionState.displayEnergy = 0;

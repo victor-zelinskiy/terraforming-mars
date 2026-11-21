@@ -219,6 +219,19 @@ let settleSeq = 0;
  */
 const markerFlow = createFlowRun('hydro-marker', {orphaned: () => abortHydroMarker()});
 
+/**
+ * «THE MARKER IS GLIDING» — the module's `active` flag, as a RUN of its own (`flowRun.ts` § THE FLAG IS THE RUN'S LIFE).
+ * It is not the traversal's life: a plan parked on a cell waits for the PLAYER with the flag down and its run standing,
+ * and rises again with the next leg. So each glide opens this run and each stop ends it; the flag is written nowhere
+ * else, and whichever way a glide ends — its lock, a pause, a recall, the game screen leaving — it falls with it.
+ */
+const glide = createFlowRun('hydro-marker:glide', {
+  flag: (up) => {
+    hydroMarkerState.active = up;
+  },
+  orphaned: () => abortHydroMarker(),
+});
+
 /** The run that stands — opened when nothing stands yet (a net is never armed into nothing). */
 function markerRun(): FlowScope<'scene'> {
   return markerFlow.scope ?? markerFlow.begin();
@@ -471,7 +484,14 @@ registerAnimationHoldSupplier('hydro-marker', isHydroMarkerActive, {
     claimed,
     nets: hydroMarkerNetsArmed(),
   }),
-  expire: () => abortHydroMarker(),
+  // (Whatever the recall throws, the glide is over with it: the flag falls in the `finally`.)
+  expire: () => {
+    try {
+      abortHydroMarker();
+    } finally {
+      glide.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
+  },
 });
 
 /** The director registers its handle so the controller can drive lock/skip. */
@@ -519,7 +539,7 @@ export function armHydroMarker(
   pendingAnswers = answers;
   rewardHoldSeeded = false;
   hydroMarkerState.rewardHoldOwed = false;
-  hydroMarkerState.active = true;
+  glide.begin();
   hydroMarkerState.phase = 'charge';
   hydroMarkerState.fromPosition = fromPosition;
   hydroMarkerState.toPosition = toPosition;
@@ -570,7 +590,7 @@ export function armHydroMarkerTraversal(
   planSeedFrom = range.nextFrom;
   rewardHoldSeeded = false;
   hydroMarkerState.rewardHoldOwed = false;
-  hydroMarkerState.active = true;
+  glide.begin();
   hydroMarkerState.phase = 'charge';
   hydroMarkerState.fromPosition = firstFrom;
   hydroMarkerState.toPosition = legs[0].position;
@@ -732,7 +752,7 @@ export function endHydroMarker(): void {
   pendingRewards = [];
   pendingAnswers = [];
   const finalize = () => {
-    hydroMarkerState.active = false;
+    glide.end();
     hydroMarkerState.phase = 'idle';
     hydroMarkerState.color = '';
     handle = undefined;
@@ -883,7 +903,7 @@ function pauseTraversal(position: number): void {
   // The parked cell is what the STOP owns: its own surfaces are admitted, and
   // its source card is the one the workspace stands beside them.
   hydroMarkerState.parkedAt = position;
-  hydroMarkerState.active = false;
+  glide.end();
   hydroMarkerState.phase = 'idle';
   // A parked plan is waiting on the PLAYER — and a player may take as long as
   // they like. The net covers the sequence's own motion, never a decision.
@@ -926,13 +946,13 @@ export function resumeHydroMarkerTraversal(): void {
       finalizeTraversal();
       return;
     }
-    hydroMarkerState.active = true;
+    glide.begin();
     await startNextLeg();
   })();
 }
 
 function finalizeTraversal(): void {
-  hydroMarkerState.active = false;
+  glide.end();
   hydroMarkerState.phase = 'idle';
   hydroMarkerState.color = '';
   handle = undefined;
@@ -1130,7 +1150,7 @@ export function abortHydroMarker(): void {
   handle?.skip();
   handle = undefined;
   claimed = false;
-  hydroMarkerState.active = false;
+  glide.end();
   hydroMarkerState.phase = 'idle';
   hydroMarkerState.color = '';
   // A traversal plan dies with the abort: the loop's epoch invalidates any
@@ -1187,7 +1207,7 @@ export function resetHydroMarker(): void {
   planBaseColor = '';
   planSeedFrom = 0;
   pendingResumeWave = undefined;
-  hydroMarkerState.active = false;
+  glide.end();
   hydroMarkerState.phase = 'idle';
   hydroMarkerState.fromPosition = 0;
   hydroMarkerState.toPosition = 0;

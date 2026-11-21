@@ -288,7 +288,13 @@ let claimed = false;
  * ceremony's aborts, so it is a pacing timer — and when the game screen leaves under it the play is aborted
  * (`orphaned`). The HOLD stays derived from the transaction's state.
  */
-const heroRun = createFlowRun('played-hero', {orphaned: () => abortPlayedHero()});
+const heroRun = createFlowRun('played-hero', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    playedHeroState.active = up;
+  },
+  orphaned: () => abortPlayedHero(),
+});
 let cancelArmSafety: () => void = () => {};
 let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
@@ -863,7 +869,12 @@ registerAnimationHoldSupplier('played-hero', playedHeroHolding, {
       return;
     }
     console.warn(`[consolePlayedHero] played-card hero (${playedHeroState.phase}): outlived its ceiling — ended`);
-    abortPlayedHero();
+    // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+    try {
+      abortPlayedHero();
+    } finally {
+      heroRun.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
   },
 });
 
@@ -948,7 +959,6 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   sourceFace = opts.sourceFace ?? {lightweight: false};
   landingFaceSpec = opts.landingFace ?? {lightweight: true, model: 'tableau'};
   landingView = undefined;
-  playedHeroState.active = true;
   playedHeroState.phase = 'armed';
   playedHeroState.nonce++;
   playedHeroState.card = card;
@@ -2345,7 +2355,6 @@ export function abortPlayedHero(): void {
   flightDone = undefined;
   playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
-  playedHeroState.active = false;
   playedHeroState.phase = 'failed';
   pauseResolve.settle();
   freeRunGate();
@@ -2386,7 +2395,6 @@ function finish(): void {
   targetSelectorOverride = undefined;
   prewarmedTarget = undefined;
   landingView = undefined;
-  playedHeroState.active = false;
   playedHeroState.phase = 'idle';
   heroRun.end();
   playedHeroState.card = undefined;

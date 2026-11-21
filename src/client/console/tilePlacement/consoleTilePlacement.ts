@@ -298,7 +298,13 @@ let claimed = false;
  * placement that is over can never abort the next one; and when the game screen leaves under it the placement is
  * aborted (`orphaned`). The HOLD stays derived from the transaction's state.
  */
-const placementRun = createFlowRun('tile-placement', {orphaned: () => abortTilePlacement()});
+const placementRun = createFlowRun('tile-placement', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    tilePlacementState.active = up;
+  },
+  orphaned: () => abortTilePlacement(),
+});
 let cancelArmSafety: () => void = () => {};
 let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
@@ -465,7 +471,12 @@ registerAnimationHoldSupplier('tile-placement', tilePlacementHolding, {
       return;
     }
     console.warn(`[consoleTilePlacement] tile placement (${tilePlacementState.phase}): outlived its ceiling — ended`);
-    abortTilePlacement();
+    // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+    try {
+      abortTilePlacement();
+    } finally {
+      placementRun.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
   },
 });
 
@@ -557,7 +568,6 @@ export function armTilePlacement(opts: {
   clearMoveScene();
   armedMovedFrom = opts.movedFrom;
   clearStackScene();
-  tilePlacementState.active = true;
   tilePlacementState.phase = 'armed';
   tilePlacementState.nonce++;
   tilePlacementState.spaceId = opts.spaceId;
@@ -1927,7 +1937,6 @@ export function abortTilePlacement(): void {
   // …and a move caught mid-carry leaves no state of its own behind (the source's release, its surfacing icons).
   clearMoveScene();
   tilePlacementState.stack = undefined;
-  tilePlacementState.active = false;
   tilePlacementState.phase = 'failed';
   tilePlacementState.bonusProxies = [];
   tilePlacementState.aresSources = [];
@@ -1981,7 +1990,6 @@ function finish(): void {
   // …and so has a move's source (the counter's tick down, the base's return, the surfaced icons).
   clearMoveScene();
   tilePlacementState.stack = undefined;
-  tilePlacementState.active = false;
   tilePlacementState.phase = 'done';
   tilePlacementState.bonusProxies = [];
   tilePlacementState.aresSources = [];
