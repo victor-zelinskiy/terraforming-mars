@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.3398",
+  "version": "1.2.3399",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": "24.22.3"
@@ -108,6 +108,7 @@
     "test:client:one": "cross-env NODE_ENV=development node scripts/client-tests.mts",
     "test:bottle": "cross-env NODE_ENV=development node scripts/client-tests.mts tests/client/bottle/*.bottle.ts",
     "gate:freeze": "node scripts/freeze-gate.mjs",
+    "fuzz:engine": "cross-env TM_FUZZ=1 node ./node_modules/mocha/bin/mocha.js --import=tsx --require tests/testing/setup.ts --no-timeouts tests/fuzz/engineFuzz.spec.ts",
     "test:e2e": "playwright test",
     "test:e2e:all": "npm run build:test && playwright test tests/e2e --workers=1 --reporter=list,html --trace=retain-on-failure",
     "test:e2e:failed": "playwright test --last-failed --workers=1 --reporter=list,html --trace=retain-on-failure",

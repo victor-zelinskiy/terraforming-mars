@@ -1810,6 +1810,15 @@ export class Game implements IGame, Logger {
       if (player.isMarsBot) {
         AutomaGameEnd.placeFinalGreeneries(this);
         this.donePlayers.add(player.id);
+        // WHAT ITS TILES SET OFF IS PLAYED OUT BEFORE THE LOOP GOES ON. A human's final greenery drains the queue
+        // (`Player.takeActionForFinalGreenery`); the bot's used to go straight on — to the end of the game — with
+        // whatever its placements deferred still queued: the neighbour's Philares never asked which resources to
+        // take, a placement bonus counted and never paid (the engine fuzz, FREEZE ZERO stage 5 — seeds 10659 · 1007).
+        // The loop is re-entered when the queue has run out (a question it asks is answered first); the bot is done.
+        if (this.deferredActions.length > 0) {
+          this.deferredActions.runAll(() => this.takeNextFinalGreeneryAction());
+          return;
+        }
         continue;
       }
 
