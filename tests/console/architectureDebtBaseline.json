@@ -22,11 +22,8 @@
       "src/client/console/transport/gameTransport.ts": 1
     },
     "flag-by-hand": {
-      "src/client/console/boardCardBonus/consoleBoardCardBonus.ts": 4,
       "src/client/console/cardDiscard/consoleCardDiscard.ts": 1,
       "src/client/console/colonyBuild/consoleColonyBuild.ts": 4,
-      "src/client/console/colonyCity/consoleColonyCity.ts": 2,
-      "src/client/console/colonyRoster/consoleColonyRoster.ts": 2,
       "src/client/console/colonyTrade/colonyTrackMove.ts": 3,
       "src/client/console/colonyTrade/colonyTrackRaise.ts": 2,
       "src/client/console/colonyTrade/consoleColonyTrade.ts": 5,
@@ -34,7 +31,6 @@
       "src/client/console/consoleHandPick.ts": 2,
       "src/client/console/consolePlayPick.ts": 2,
       "src/client/console/consoleRepeatPick.ts": 2,
-      "src/client/console/deckDraw/consoleDeckDraw.ts": 4,
       "src/client/console/deckPick/preludePlayChain.ts": 2,
       "src/client/console/finalGreenery/finalGreenerySession.ts": 2,
       "src/client/console/hydroFlow/deltaBlockadeEntry.ts": 5,

@@ -105,7 +105,13 @@ export const colonyRosterDraft = reactive({
 let handle: RosterMotionHandle | undefined;
 const runResolve = owedAnswer('colony-roster:gate', {orphaned: () => []});
 /** THE CEREMONY'S RUN — it owns the ceremony's timers and ends with it (or with the game screen: the abort). */
-const run = createFlowRun('colony-roster', {orphaned: () => abortColonyRoster()});
+const run = createFlowRun('colony-roster', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    colonyRosterState.live = up;
+  },
+  orphaned: () => abortColonyRoster(),
+});
 /** The change the player's OWN gate just played — the apply block that follows it must not seed it again for the grid. */
 let ownPlayed: string | undefined;
 
@@ -122,7 +128,14 @@ export function registerColonyRosterHost(probe: (() => boolean) | undefined): vo
 
 registerAnimationHoldSupplier('colony-roster', () => colonyRosterState.live, {
   diagnose: () => ({beat: colonyRosterState.beat, scale: colonyRosterState.scale, change: colonyRosterState.change}),
-  expire: () => abortColonyRoster('expired'),
+  // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+  expire: () => {
+    try {
+      abortColonyRoster('expired');
+    } finally {
+      run.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
+  },
 });
 
 /** The pad is the ceremony's: every verb is `none` (A hurries it through). */
@@ -202,16 +215,15 @@ async function reducedBeat(): Promise<void> {
 function begin(change: ColonyRosterChange, scale: 'stage' | 'tile'): void {
   colonyRosterState.change = change;
   colonyRosterState.scale = scale;
-  colonyRosterState.live = true;
+  // THE RUN OPENS where the ceremony goes live — its flag with it; its SAFETY is the run's own timer: a ceremony
+  // that ended took it back, nothing to clear.
+  run.begin(`${change.kind} on the ${scale}`);
   colonyRosterState.beat = '';
   colonyRosterState.degraded = '';
-  // THE RUN OPENS — and its SAFETY is the run's own timer: a ceremony that ended took it back, nothing to clear.
-  run.begin(`${change.kind} on the ${scale}`);
   run.after(motionMs(rosterCeremonyMs(change)) + 4000, 'the ceremony\'s safety', () => abortColonyRoster('safety'));
 }
 
 function end(): void {
-  colonyRosterState.live = false;
   colonyRosterState.beat = '';
   colonyRosterState.change = undefined;
   colonyRosterState.orbit = '';

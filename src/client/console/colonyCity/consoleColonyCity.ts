@@ -150,7 +150,13 @@ let scenePromise: Promise<void> | undefined;
  * scene ends, on every path, and when the game screen leaves under it the scene is aborted (`orphaned`). The HOLD
  * stays derived from `live` by the registry.
  */
-const run = createFlowRun('colony-city', {orphaned: () => abortColonyCity()});
+const run = createFlowRun('colony-city', {
+  // THE FLAG IS THE RUN'S LIFE (`flowRun.ts`) — written nowhere else: it falls with the run, on every path.
+  flag: (up) => {
+    colonyCityState.live = up;
+  },
+  orphaned: () => abortColonyCity(),
+});
 /** The landing the player's OWN gate just played — the apply block that follows it must not seed it again. */
 let ownPlayed: string | undefined;
 /** «Дожать» was pressed: every remaining beat of this scene ends at once. */
@@ -164,7 +170,14 @@ registerAnimationHoldSupplier('colony-city', () => colonyCityState.live, {
     armed: colonyCityState.armed?.colony,
     degraded: colonyCityState.degraded,
   }),
-  expire: () => abortColonyCity('expired'),
+  // (Whatever the recovery throws, the run is over with it: the flag falls in the `finally`.)
+  expire: () => {
+    try {
+      abortColonyCity('expired');
+    } finally {
+      run.end({how: 'expired', bound: 'its hold outlived the ceiling'});
+    }
+  },
 });
 
 // ── predicates ──────────────────────────────────────────────────────────────
@@ -320,7 +333,8 @@ function begin(landing: ColonyCityLanding, scale: 'stage' | 'tile', profile: Col
   colonyCityState.holds[landing.colony] = 'tile';
   colonyCityState.landing = landing;
   colonyCityState.scale = scale;
-  colonyCityState.live = true;
+  // THE RUN OPENS where the scene goes live — its flag with it; its SAFETY is the run's own timer (below).
+  run.begin(`${landing.colony} on the ${scale}`);
   colonyCityState.beat = 'handover';
   colonyCityState.degraded = '';
   colonyCityState.counted = false;
@@ -329,8 +343,7 @@ function begin(landing: ColonyCityLanding, scale: 'stage' | 'tile', profile: Col
   scenePromise = new Promise<void>((resolve) => {
     sceneResolve.arm(resolve);
   });
-  // THE RUN OPENS — and its SAFETY is the run's own timer: a scene that ended took it back, nothing to clear.
-  run.begin(`${landing.colony} on the ${scale}`);
+  // (The SAFETY is the run's own timer: a scene that ended took it back, nothing to clear.)
   run.after(motionMs(colonyCityTimeline(profile).totalMs) + 4000, 'the scene\'s safety', () => abortColonyCity('safety'));
 }
 
@@ -344,7 +357,6 @@ function end(): void {
   if (landing !== undefined) {
     delete colonyCityState.holds[landing.colony];
   }
-  colonyCityState.live = false;
   colonyCityState.beat = '';
   colonyCityState.landing = undefined;
   colonyCityState.seatRect = undefined;
