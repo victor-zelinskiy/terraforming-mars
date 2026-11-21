@@ -28,6 +28,7 @@ function clearForeground(): void {
   registerScreenShadowContext(undefined);
   registerScreenCureExecutor(undefined);
   screenCureArming.armed = new Set();
+  screenCureArming.shadowActs = false;
   setConsoleTaskDeferred(false);
   resetScreenShadowLog();
 }
@@ -267,8 +268,23 @@ describe('screen shadow — positive controls through the leak detector', () => 
       expect(calls).deep.eq([]);
     });
 
-    it('ARMED: the door is called once, the cure named and written on the finding, the standing finding cleared', () => {
+    it('ARMED, AND THE SHADOW OBSERVES (stage 2 ④ — the default): the plan is filed by the shadow and EXECUTED by the arbiter\'s rung, once', () => {
       screenCureArming.armed = new Set(['open']);
+      passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS);
+      expect(calls, 'the shadow called no door').deep.eq([]);
+      expect(screenShadowLog.findings[0]?.cure).eq('plan:open:openShellTaskSurface');
+      expect(cureLines()[0]).match(/^\[screen-shadow\] cure-plan «open:openShellTaskSurface» by shadow \(dry run — the shadow observes: the plan is the arbiter's\) for «handSelect#7»/);
+      expect(screenShadowStanding.plan?.verb, 'the finding stands for the rung').eq('open');
+      expect(runScreenCure('liveness')).eq('open:openShellTaskSurface: door called');
+      expect(calls.map((p) => p.verb)).deep.eq(['open']);
+      expect(screenShadowLog.findings[0]?.cure).eq('cure:open:openShellTaskSurface');
+      expect(cureLines().some((l) => /^\[screen-shadow\] cure «open:openShellTaskSurface» by liveness for «handSelect#7»: door called/.test(l))).eq(true);
+      expect(runScreenCure('liveness'), 'cured once — nothing left standing').eq('');
+    });
+
+    it('ARMED ON A STAND (the URL names the set — the shadow acts in its own pass): the door is called once, the cure named and written on the finding, the standing finding cleared', () => {
+      screenCureArming.armed = new Set(['open']);
+      screenCureArming.shadowActs = true;
       passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS);
       expect(calls.map((p) => p.verb)).deep.eq(['open']);
       expect(screenShadowLog.findings[0]?.cure).eq('cure:open:openShellTaskSurface');
@@ -309,6 +325,9 @@ describe('screen shadow — positive controls through the leak detector', () => 
       announce = 'presented';
       passes(handSelectView(), SCREEN_SHADOW_CONFIRM_TICKS);
       expect(screenShadowLog.findings[0]).deep.include({kind: 'misserved', present: ['card-actions'], blind: 'announce-gate'});
+      // (The shadow names it and files the plan; the ARBITER's rung lights the beacon — stage 2 ④.)
+      expect(calls, 'the shadow observes').deep.eq([]);
+      expect(runScreenCure('liveness')).eq('announce:forceMandatoryBeacon: door called');
       expect(calls.map((p) => p.verb), 'the beacon, never the plate\'s A').deep.eq(['announce']);
       expect(screenShadowLog.findings[0]?.cure).eq('cure:announce:forceMandatoryBeacon');
     });
