@@ -203,6 +203,19 @@ jobs:
       # uploading them again doubled the run's storage.
       # A HUNT (repeats) keeps the diagnostics without the specs' own storyboard stills: three passes of every spec's
       # `screenshots/` came to ~2 GB a shard (40 GB a hunt) — the red's page snapshot rides the blob report anyway.
+      # THE CAUSE CLASSES ALONE (FREEZE ZERO, stage 4): what every test's pages named, with the kernel's coverage and
+      # the one function's measure beside it — a few megabytes, where the diagnostics below are a gigabyte a shard.
+      # `node scripts/kernel-walked.mjs <dirs…>` unions them with the monkey's passes («walked or declared»), and
+      # `node scripts/monkey-report.mjs <dir>` reads the measures over the whole suite.
+      - name: Upload the cause classes
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-cause-classes-${{ github.run_id }}-${{ github.run_attempt }}-shard${{ matrix.shard }}
+          path: test-results/cause-classes/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Upload shard diagnostics
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v5
