@@ -58,6 +58,41 @@ describe('NeptunianPowerConsultants', () => {
     expect(player.megaCredits).eq(0);
   });
 
+  it('TWO OCEANS OF ONE CHAIN, one purse of five: both are offered while it holds — the second bill is SKIPPED, never asked of a seat that cannot pay it', () => {
+    // (The engine fuzz, FREEZE ZERO stage 5 — seed 55496: the second payment came due on a purse the first had
+    // emptied — a question with no answer.)
+    player.megaCredits = 5;
+    addOcean(player2);
+    addOcean(player2);
+    runAllActions(game);
+    // Both offers stand before either bill is taken.
+    cast(player.popWaitingFor(), OrOptions).options[0].cb(undefined);
+    runAllActions(game);
+    cast(player.popWaitingFor(), OrOptions).options[0].cb(undefined);
+    runAllActions(game);
+
+    cast(player.popWaitingFor(), undefined);
+    expect(game.deferredActions.length).eq(0);
+    expect(card.resourceCount, 'paid once').eq(1);
+    expect(player.production.energy).eq(1);
+    expect(player.megaCredits).eq(0);
+  });
+
+  it('…and a bill that STEEL may pay is unaffordable only when the steel cannot pay it either', () => {
+    player.megaCredits = 1;
+    player.steel = 2;
+    addOcean(player2);
+    runAllActions(game);
+    cast(player.popWaitingFor(), OrOptions).options[0].cb(undefined);
+    runAllActions(game);
+    const payment = cast(player.popWaitingFor(), SelectPayment);
+    payment.cb(Payment.of({megacredits: 1, steel: 2}));
+    runAllActions(game);
+
+    expect(card.resourceCount).eq(1);
+    expect(player.production.energy).eq(1);
+  });
+
   it('play - can afford, using steel', () => {
     player.megaCredits = 3;
     player.steel = 1;

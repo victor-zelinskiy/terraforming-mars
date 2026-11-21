@@ -179,7 +179,10 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
       this.cb(Payment.of({}));
       return undefined;
     }
-    if (this.options.skipIfUnaffordable !== undefined && !this.player.canAfford(amount)) {
+    // (Judged by the bill's OWN purse — the steel / titanium it may be paid with: a seat one M€ and two steel deep
+    // can pay a five that takes steel.)
+    if (this.options.skipIfUnaffordable !== undefined &&
+        !this.player.canAfford({cost: amount, steel: this.options.canUseSteel === true, titanium: this.options.canUseTitanium === true})) {
       this.player.game.log(this.options.skipIfUnaffordable, (b) => b.player(this.player).number(amount));
       return undefined;
     }

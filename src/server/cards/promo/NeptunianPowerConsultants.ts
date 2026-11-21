@@ -84,10 +84,15 @@ export class NeptunianPowerConsultants extends Card implements IProjectCard {
             ],
           }))
           .andThen(() => {
+            // AFFORDED WHEN IT WAS OFFERED, PAID LATER: two oceans of one chain are offered one after the other, both
+            // while the purse still holds the five — and the second bill then came due on a purse the first had
+            // emptied: a payment nobody could make, a question with no answer (the engine fuzz, FREEZE ZERO stage 5 —
+            // seed 55496). An OFFER the seat can no longer pay is skipped, and said.
             cardOwner.game.defer(new SelectPaymentDeferred(cardOwner, 5, {
               canUseSteel: true,
               title: 'Spend 5 M€ for one energy production and hydroelectric resource',
               cause: cardSource(this),
+              skipIfUnaffordable: 'The Neptunian Power Consultants effect is skipped — ${0} cannot pay ${1} M€',
             })).andThen(() => {
               cardOwner.production.add(Resource.ENERGY, 1, {log: true});
               cardOwner.addResourceTo(this, {qty: 1, log: true});
