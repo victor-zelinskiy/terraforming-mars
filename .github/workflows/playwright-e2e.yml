@@ -19,6 +19,17 @@ on:
         description: 'Burn-in: run e2e specs touched in the last N commits with --repeat-each=3 (0 = skip)'
         required: false
         default: '15'
+      # THE HUNT (docs/claude/e2e-flake-zero.md § the hunt): CI is the only faithful reproduction of a CI-only flake (the
+      # box's CI-like profile passed every one of the late flakes), so a flake is reproduced HERE — the selected tests,
+      # many times, every failed attempt kept with its own diagnostics. A hunt run files nothing and touches no ledger.
+      repeat_each:
+        description: 'THE HUNT: run every selected test this many times (--repeat-each; > 1 = a hunt: positional shards, no findings, no ledger)'
+        required: false
+        default: '1'
+      retries:
+        description: 'Override the config retries (empty = the config: 2 on CI). A hunt runs 0 — every flaky attempt is a FAILED test with its own diagnostics'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -56,7 +67,8 @@ jobs:
     name: E2E shard ${{ matrix.shard }}/${{ needs.plan.outputs.shards }}
     needs: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    # A hunt repeats its tests: give it the hosted runner's whole six hours.
+    timeout-minutes: ${{ (inputs.repeat_each != '' && inputs.repeat_each != '1') && 350 || 150 }}
 
     strategy:
       # One shard failing must never cancel the others — the whole point is to
@@ -121,6 +133,7 @@ jobs:
             echo "run:           ${{ github.run_id }} attempt ${{ github.run_attempt }}"
             echo "shard:         ${{ matrix.shard }}/${{ needs.plan.outputs.shards }}"
             echo "grep:          ${{ inputs.grep }}"
+            echo "repeat_each:   ${{ inputs.repeat_each || '1' }}  retries: ${{ inputs.retries || '(config)' }}"
             echo "node:          $(node --version)"
             echo "playwright:    $(npx playwright --version)"
             echo "command:       npx playwright test tests/e2e --shard=${{ matrix.shard }}/${{ needs.plan.outputs.shards }} --workers=1"
@@ -147,8 +160,20 @@ jobs:
       # specs are round-robined in by the script, deleted ones skipped);
       # otherwise the positional --shard fallback keeps the run whole.
       - name: Run Playwright E2E (shard ${{ matrix.shard }})
+        env:
+          HUNT_REPEAT: ${{ inputs.repeat_each || '1' }}
+          HUNT_RETRIES: ${{ inputs.retries }}
         run: |
-          if FILES=$(node scripts/e2e-shard-files.mjs ${{ matrix.shard }} ${{ needs.plan.outputs.shards }}); then
+          # THE HUNT: the repeats are spread over the shards by Playwright's own positional split (a time-balanced
+          # bucket would keep every repeat of a spec on one runner).
+          if [ "$HUNT_REPEAT" != "1" ]; then
+            RETRY_FLAG=""
+            if [ -n "$HUNT_RETRIES" ]; then RETRY_FLAG="--retries=$HUNT_RETRIES"; fi
+            echo "THE HUNT: --repeat-each=$HUNT_REPEAT $RETRY_FLAG"
+            npx playwright test tests/e2e --shard=${{ matrix.shard }}/${{ needs.plan.outputs.shards }} --workers=1 --repeat-each="$HUNT_REPEAT" $RETRY_FLAG --reporter=list,github,blob ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
+          elif [ -n "$HUNT_RETRIES" ]; then
+            npx playwright test tests/e2e --shard=${{ matrix.shard }}/${{ needs.plan.outputs.shards }} --workers=1 --retries="$HUNT_RETRIES" --reporter=list,github,blob ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
+          elif FILES=$(node scripts/e2e-shard-files.mjs ${{ matrix.shard }} ${{ needs.plan.outputs.shards }}); then
             echo "time-balanced bucket: $FILES"
             npx playwright test $FILES --workers=1 --reporter=list,github,blob ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
           else
@@ -242,7 +267,7 @@ jobs:
       # (scripts/ci/findings.mjs; a test that failed once and is seen again touches its issue, a closed one reopens).
       # Only for the WHOLE suite: a run narrowed by `grep` is somebody's experiment, not the night's verdict.
       - name: File the findings
-        if: ${{ !cancelled() && inputs.grep == '' }}
+        if: ${{ !cancelled() && inputs.grep == '' && (inputs.repeat_each == '' || inputs.repeat_each == '1') && inputs.retries == '' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -253,7 +278,9 @@ jobs:
         if: ${{ !cancelled() }}
         run: node scripts/e2e-fix-brief.mjs merged-report.json --run "${{ github.run_id }}.${{ github.run_attempt }}" --commit "${{ github.sha }}"
 
+      # A hunt (repeats / a retries override) is an experiment: it never enters the ledger of the nightly runs.
       - name: Update flake ledger
+        if: ${{ (inputs.repeat_each == '' || inputs.repeat_each == '1') && inputs.retries == '' }}
         run: node scripts/e2e-flake-ledger.mjs merged-report.json --run-id "${{ github.run_id }}.${{ github.run_attempt }}"
 
       - name: Save flake ledger

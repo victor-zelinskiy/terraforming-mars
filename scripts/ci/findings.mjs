@@ -326,7 +326,10 @@ function fromPlaywright() {
           key: `${source}|test|${where}|${name}|${test.projectName ?? ''}`,
           kind,
           // ONE shard: a grep that matches nothing is then red («No tests found»), so a green proof is a test that RAN.
-          proof: {workflow: 'Playwright E2E', inputs: {grep: grepFor(spec.title), shards: '1', burnin_depth: '0'}},
+          // A FLAKE is proven by RATE (tests.md law 10 — THE HUNT): one green run proves nothing of a 1–3 % flake, twenty
+          // with no retry do.
+          proof: {workflow: 'Playwright E2E', inputs: {grep: grepFor(spec.title), shards: '1', burnin_depth: '0',
+            ...(kind === 'flaky' ? {repeat_each: '20', retries: '0'} : {})}},
           title: `[${source}] ${kind}: ${where.replace(/^tests\/e2e\//, '')} › ${spec.title}`.slice(0, 240),
           body: [
             `**An e2e test ${kind === 'flaky' ? 'FLAKED (red, then green on a retry)' : 'FAILED on every attempt'}**${context === '' ? '' : ` (${context})`}.`,

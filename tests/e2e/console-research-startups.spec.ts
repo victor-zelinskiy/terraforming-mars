@@ -381,7 +381,19 @@ for (const preset of PRESETS) {
       // PL-212: the RESULT OUTLIVES ITS SURFACE — the workspace folds UNDER the kept card's flight into the dock (it used
       // to wait for the whole intake: ≈ 1.3 s of one card in the air over an empty zone at 4K).
       const underFlight = act.find((s) => s.carried >= 1 && s.ws === 0);
-      expect(underFlight, `the workspace left while the kept card was still in the air (${JSON.stringify(act.filter((s) => s.carried > 0).slice(-4))})`).toBeTruthy();
+      // A red names WHY the flight and the fold did not overlap (CI 44697711384: the kept card was «in the air» for two
+      // samples, ≈ 70 ms): every carried / workspace / rejects change with its time, and the flights' own trail — the
+      // intake's `hand-intake:*` (no pose · quiet-out · aborted · reset · landed) beside the tokens' `run:*`.
+      const overlapEvidence = async (): Promise<string> => {
+        const changes = act.filter((s, i) => i === 0 || s.carried !== act[i - 1].carried || s.ws !== act[i - 1].ws || s.rejects !== act[i - 1].rejects)
+          .map((s) => `@${s.t} carried ${s.carried} ws ${s.ws} rejects ${s.rejects}`).join(' · ');
+        const trail = await page.evaluate(() =>
+          (window as unknown as {__conReady?: () => {transfer?: {trail: ReadonlyArray<unknown>}}}).__conReady?.()?.transfer?.trail ?? []);
+        return `${changes}\ntrail: ${JSON.stringify(trail)}`;
+      };
+      if (underFlight === undefined) {
+        expect(underFlight, `the workspace left while the kept card was still in the air\n${await overlapEvidence()}`).toBeTruthy();
+      }
       const overlap = act.find((s) => s.rejects >= 4 && s.carried >= 1);
       expect(overlap, `the four left behind leave while the pick is carried (${JSON.stringify(act.filter((s) => s.rejects > 0 || s.carried > 0).slice(0, 6))})`).toBeTruthy();
       const witness = await transferWitness(page);

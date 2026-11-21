@@ -107,9 +107,14 @@ traps below are `docs/claude/e2e-flake-history.md`.
 8. **A duration is a TIMING spec's, on the PAGE's clock** — a witness's `t`, the product's `data-*-at`; a functional
    spec never asserts a value of the driver's `Date.now()`.
 9. **A judge never calls «lost» what the product still OWES** — read its announcement («Возвращаемся…», `data-*-owed`).
-10. **A CI-only red is REPRODUCED before it is fixed** — `TM_E2E_CI_LIKE=2 npm run e2e:remote -- <task> <spec>
-    --workers=1 --retries=0 [--repeat-each=N]` — and the fix is proven by RATE there. A race of the product is fixed
-    in the product (with a unit spec); a wait of the product is bound to its EVENT, never to the wall clock.
+10. **A CI-only red is REPRODUCED before it is fixed — ON CI, by THE HUNT** (the box's CI-like profile passed every
+    one of the late CI flakes, 2026-11-16…21): `gh workflow run "Playwright E2E" --repo victor-zelinskiy/terraforming-mars
+    -f grep="<the test titles>" -f repeat_each=<N> -f retries=0 -f burnin_depth=0 -f shards=<K>` — every failed
+    attempt is a FAILED test with its own diagnostics on the run's brief; a hunt files nothing and touches no ledger.
+    The fix is proven by RATE there (the same hunt, green). The box (`TM_E2E_CI_LIKE=2 npm run e2e:remote -- …`) is the
+    quick first look. A race of the product is fixed in the product (with a unit spec); a wait of the product is bound
+    to its EVENT, never to the wall clock; a red that does not name its cause gets the diagnostics FIRST (the product's
+    trail — `__conReady().transfer.trail` — in the assertion's message).
 11. **A record keeps the state it was ARMED in** — a claim about a window starts at the window's first state (the new
     surface standing, a `pageNow` mark at the press), never at the arm.
 12. **`settled` is the end of a CALLBACK, not of a frame** — a state between two frame callbacks of one rendering step

@@ -291,14 +291,6 @@ async function seatCoverage(page: Page) {
   });
 }
 
-/** The count's reading — every seat's coverage and the faces' tops (rounded) — taken AT REST by `readSettled`. */
-async function countReading(page: Page) {
-  return {
-    rows: await seatCoverage(page),
-    faceTops: await page.locator('.con-eg__face .pcard').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top))),
-  };
-}
-
 /** The champion plate's clearance over the winner's deepest nameplate (-1: no plate; 0: no nameplate to clear). */
 async function championPlateGap(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -373,6 +365,19 @@ test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
       ids.push(pid!);
     }
     await journeyToEndgame(page, request, ids);
+    // THE COUNT, RECORDED (law 3): «the faces stand level while the count runs» is a claim about a PHASE, so it is read
+    // off every state the count left — never one read that a motion-aware settle may push past the count's end (CI
+    // 44881678765: the read waited out the count's own motion, the ranking FLIP stood the seats on their podium levels,
+    // 697 / 919 / 1012, and «level» was judged on the podium). The faces do not move in the count (only the entrance and
+    // the ranking's FLIP move a seat), so every count state with the lineage standing must have them level.
+    const countWitness = await armWitness(page, 'eg-count-faces', () => {
+      const phase = [...(document.querySelector('.con-endgame')?.classList ?? [])]
+        .find((c) => /^con-endgame--(idle|entering|scoring|settling|ranking|tiebreak|winner|champion|actions)$/.test(c))?.slice(13) ?? '';
+      const charters = [...document.querySelectorAll('.con-eg__charter')];
+      const standing = charters.length > 0 && charters.every((el) => el.getAnimations().every((a) => a.playState !== 'running' && !a.pending));
+      const faceTops = [...document.querySelectorAll('.con-eg__face .pcard')].map((el) => Math.round(el.getBoundingClientRect().top));
+      return {phase, standing, faceTops: faceTops.join(',')};
+    }, {settled: true});
     await waitWithFrames(page, async () => (await page.locator('.con-eg__lchip').count()) > 0, 60_000, 'the count');
     // The lineage RISES from behind the face as the scene enters — read it once every charter stands.
     await waitWithFrames(page, async () => page.evaluate(() =>
@@ -380,11 +385,20 @@ test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
       [...document.querySelectorAll('.con-eg__charter')].every((el) => el.getAnimations().every((a) => a.playState !== 'running'))),
     20_000, 'the lineage standing');
 
-    // The count: four EQUAL seats — the deepest lineage's rise reserved on every one, the faces standing level. Read at
-    // rest WITHOUT a settle: the count holds `endgame-ceremony` for its whole length, so «quiet» would be its end.
-    const {rows: count, faceTops} = await readSettled(page, () => countReading(page), {settle: false, message: 'the seats while the count runs'});
+    // The seats: four EQUAL seats — the deepest lineage's rise reserved on every one. Read at rest WITHOUT a settle:
+    // the count holds `endgame-ceremony` for its whole length, so «quiet» would be its end.
+    const count = await readSettled(page, () => seatCoverage(page), {settle: false, message: 'the seats while the count runs'});
     expectHonoursClear(count);
-    expect(Math.max(...faceTops) - Math.min(...faceTops), `the faces stand level while the count runs (${faceTops.join(', ')})`).toBeLessThanOrEqual(1);
+    // …and the faces LEVEL in every count state the recording kept with the lineage standing (the count outlives the
+    // lineage's rise by seconds: a recording that kept none of them is a count that never stood).
+    await countWitness.waitFor((v) => ['settling', 'ranking', 'tiebreak', 'winner', 'champion', 'actions'].includes(v.phase),
+      {timeoutMs: 240_000, message: 'the count ended (the ranking or later)'});
+    const countStates = (await countWitness.stop()).map((s) => s.v).filter((v) => v.phase === 'scoring' && v.standing);
+    expect(countStates.length, 'the count was recorded with the lineage standing').toBeGreaterThan(0);
+    for (const state of countStates) {
+      const tops = state.faceTops.split(',').map(Number);
+      expect(Math.max(...tops) - Math.min(...tops), `the faces stand level while the count runs (${state.faceTops})`).toBeLessThanOrEqual(1);
+    }
     // Deepest first in paint order: the corporation acquired right after the base is the nearest charter.
     expect(Object.fromEntries(count.map((r) => [r.color, r.plates.map((p) => p.name)]))).toEqual({
       blue: ['CrediCor', 'Tharsis Republic', 'Mining Guild'],

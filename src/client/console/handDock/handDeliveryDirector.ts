@@ -70,6 +70,7 @@ import {
 } from '@/client/console/handDock/handDeliveryState';
 import {span} from '@/client/console/session/sessionWaits';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 export type HandIntakeRect = {left: number, top: number, width: number, height: number};
 
@@ -453,6 +454,8 @@ function stableTargetPose(name: CardName, seqFromEnd: number, isAborted: () => b
       if (tries < POLL_FRAMES) {
         probeTick(poll);
       } else {
+        // Named in the flights' trail: a card that never stood still in the hand flies no arc (`__conReady().transfer`).
+        noteTransferTrail('hand-intake:no-pose', {name, seqFromEnd, oracle: handBodiesOracle() !== undefined, lastSig});
         done(undefined);
       }
     };
@@ -601,6 +604,7 @@ async function runHandIntakeInner(entries: ReadonlyArray<HandIntakeEntry>, opts?
   const releaseRemaining = () => entries.forEach((_e, i) => land(i));
 
   const dock = document.querySelector<HTMLElement>('.con-handdock');
+  noteTransferTrail('hand-intake:run', {names, dock: dock !== null, reduced: consoleReducedMotionActive()});
   if (consoleReducedMotionActive() || dock === null) {
     releaseRemaining();
     runCommit();
@@ -695,6 +699,9 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   let aborted = false;
   const isAborted = () => aborted || gen !== ctx.myGen;
   const finish = () => {
+    if (!aborted && gen !== ctx.myGen) {
+      noteTransferTrail('hand-intake:aborted', {why: 'reset (a new generation)'});
+    }
     aborted = true;
     if (safety !== undefined) {
       safety();
@@ -884,12 +891,14 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     // second, drifting copy over an already-released card (that fade was the
     // visible «дрожь» at every landing).
     ctx.land(f.entryIdx);
+    noteTransferTrail('hand-intake:landed', {name: f.name});
     await new Promise((r) => probeTick(() => r(undefined)));
     gsap.set(f.el, {autoAlpha: 0});
   };
   const quietOut = async (f: Live) => {
     // No believable slot (the card never reached the hand / unmeasurable):
     // release honestly + a quiet dip-fade — never a stuck hold or proxy.
+    noteTransferTrail('hand-intake:quiet-out', {name: f.name});
     ctx.land(f.entryIdx);
     await tween(f.el, {y: `+=${30 * ui}`, scale: '*=0.9', autoAlpha: 0, duration: s(240), ease: 'power2.in'});
   };
@@ -1289,6 +1298,9 @@ export function releaseDockCards(names: ReadonlyArray<CardName>): void {
 
 /** A game switch / error / stall: reconcile so the dock never sticks empty. */
 export function resetHandDelivery(): void {
+  if (runs.active > 0) {
+    noteTransferTrail('hand-intake:reset', {runs: runs.active, inFlight: [...handDeliveryState.inFlight]});
+  }
   gen++;
   // A teardown ends every run by definition. The `finally` of an in-flight run
   // still decrements (clamped, so it cannot go negative) — but this is what

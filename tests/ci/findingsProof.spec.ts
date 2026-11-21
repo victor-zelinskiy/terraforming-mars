@@ -97,6 +97,9 @@ describe('ci findings: a finding names its proof', function() {
     expect(finding.kind).to.eq('flaky');
     expect(finding.proof?.workflow).to.eq('Playwright E2E');
     expect(finding.proof?.inputs.shards).to.eq('1');
+    // A flake is proven by RATE — the hunt: twenty runs, no retry (tests.md law 10).
+    expect(finding.proof?.inputs.repeat_each).to.eq('20');
+    expect(finding.proof?.inputs.retries).to.eq('0');
     const grep = finding.proof?.inputs.grep ?? '';
     // Nothing a double-quoted shell word would read…
     expect(grep).not.to.match(/["`$]/);
