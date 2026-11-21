@@ -225,7 +225,7 @@ export class Executor implements BehaviorExecutor {
 
     // …and the greenery needs no cell under the replacing law (the tile is never seated).
     if (behavior.greenery !== undefined && !divertedGate.divertsTerraforming(player)) {
-      const spaces = game.board.getAvailableSpacesForType(player, behavior.greenery.on ?? 'greenery', canAffordOptions);
+      const spaces = game.board.getAvailableSpacesForTile(player, behavior.greenery.on ?? 'greenery', canAffordOptions);
       const filtered = game.board.filterSpacesAroundRedCity(spaces);
       if (filtered.length === 0) {
         return false;
@@ -233,7 +233,7 @@ export class Executor implements BehaviorExecutor {
     }
 
     if (behavior.tile !== undefined) {
-      if (game.board.getAvailableSpacesForType(player, behavior.tile.on, canAffordOptions).length === 0) {
+      if (game.board.getAvailableSpacesForTile(player, behavior.tile.on, canAffordOptions).length === 0) {
         return false;
       }
     }

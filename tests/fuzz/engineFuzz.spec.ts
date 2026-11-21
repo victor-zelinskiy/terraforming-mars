@@ -222,10 +222,13 @@ describe('engineFuzz — random legal games on the real engine', () => {
    *    question the deferred queue raises takes the slot; the confirmation is asked again when the slot is free;
    *  · 51456 — Head Start: «both actions must be taken», on a menu with no «Pass» — and a seat with no action left
    *    was asked a menu in which every row was refused. A bonus action nobody can take is lost, and said
-   *    (`HeadStart.spec` holds the card itself).
+   *    (`HeadStart.spec` holds the card itself);
+   *  · 50926 — MarsBot's three polders and a seat's Mohole Area took the ninth ocean's cell: a paid Lake Marineris was
+   *    refused half-played, and the table could not end. The sea keeps room for its oceans, and the two floors under
+   *    that law hold a board that got there another way (`SeaKeepsItsCells.spec`).
    */
-  it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take)', () => {
-    for (const seed of [55496, 50337, 51456]) {
+  it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take) · 50926 (an ocean with no cell)', () => {
+    for (const seed of [55496, 50337, 51456, 50926]) {
       const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}));
       expect(result.end, `seed ${seed}`).to.eq('ended');
       expect(result.violations.map((violation) => violation.key), `seed ${seed}`).to.deep.eq([]);

@@ -2,6 +2,7 @@ import {IPlayer} from '../IPlayer';
 import {ICard, IActionCard} from '../cards/ICard';
 import {Behavior, drawCardsOf} from '../behavior/Behavior';
 import {Counter} from '../behavior/Counter';
+import type {PlacementType} from '../boards/PlacementType';
 import {Resource} from '../../common/Resource';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {addToAnyCardTarget} from '../behavior/addToAnyCardTarget';
@@ -52,6 +53,13 @@ export function actionUnavailableReasons(player: IPlayer, card: ICard & IActionC
 }
 
 const PLACEMENT: UnplayableReason = {type: 'placement', message: 'No space available for the tile'};
+/** The sea's own law (`MarsBoard.seaKeepsItsCells`): free ocean cells stand, and every one is owed to an ocean. */
+export const SEA_KEEPS_ITS_CELLS: UnplayableReason = {type: 'placement', message: 'The free ocean spaces are kept for the oceans still to be placed'};
+
+/** WHY a tile has no cell: `fallback` («no space»), or the sea's law when THAT is what empties the set. */
+export function noCellReason(player: IPlayer, on: PlacementType, fallback: UnplayableReason): UnplayableReason {
+  return on === 'ocean' && player.game.board.seaKeepsItsCells(player) ? SEA_KEEPS_ITS_CELLS : fallback;
+}
 
 /**
  * Mirror the action-relevant checks from `Executor.canExecute`, emitting a
@@ -134,14 +142,14 @@ export function collectActionBehaviorReasons(
     }
   }
   if (behavior.greenery !== undefined) {
-    const spaces = game.board.getAvailableSpacesForType(player, behavior.greenery.on ?? 'greenery');
+    const spaces = game.board.getAvailableSpacesForTile(player, behavior.greenery.on ?? 'greenery');
     if (game.board.filterSpacesAroundRedCity(spaces).length === 0) {
-      out.push(PLACEMENT);
+      out.push(noCellReason(player, behavior.greenery.on ?? 'greenery', PLACEMENT));
     }
   }
   if (behavior.tile !== undefined) {
-    if (game.board.getAvailableSpacesForType(player, behavior.tile.on).length === 0) {
-      out.push(PLACEMENT);
+    if (game.board.getAvailableSpacesForTile(player, behavior.tile.on).length === 0) {
+      out.push(noCellReason(player, behavior.tile.on, PLACEMENT));
     }
   }
 

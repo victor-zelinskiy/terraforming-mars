@@ -110,6 +110,20 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
       return undefined;
     }
 
+    // AN OCEAN THE BOARD HAS NO CELL FOR IS SKIPPED, AND SAID — never a refusal. `SelectSpace` throws when it is built
+    // over nothing, and this ocean is asked AFTER its card was paid and played: the answer was refused with the card
+    // gone from the hand, its price taken and the rest of its chain left queued behind the restored question (the
+    // engine fuzz, FREEZE ZERO stage 5 — seed 50926: Lake Marineris on a sea with no free cell and eight oceans of
+    // nine). The chain continues as for «no ocean». A placement the seat may still CANCEL keeps the refusal: nothing
+    // was paid yet (the Aquifer standard project pays on commit).
+    if (availableSpaces.length === 0 && this.options.placementContext?.cancellable !== true) {
+      if (this.options.sourceCard !== undefined) {
+        recordSkippedEffect(this.creditedPlayer, SKIP_REASON.noOceanSpace, skippedOcean(1));
+      }
+      this.player.defer(this.cb(undefined));
+      return undefined;
+    }
+
     return createMarsSelectSpace(this.player, title, availableSpaces, {
       placementType,
       liveSpaces: derive,

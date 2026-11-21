@@ -20,7 +20,7 @@ import {Counter} from '../behavior/Counter';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {MoonExpansion} from '../moon/MoonExpansion';
 import type {PlacementType} from '../boards/PlacementType';
-import {delegateReserveReason, spendStockReasons} from './actionUnavailableReasons';
+import {delegateReserveReason, noCellReason, spendStockReasons} from './actionUnavailableReasons';
 
 /**
  * Authoritative, structured explanation of why `card` (a project card in the
@@ -485,14 +485,14 @@ function collectBehaviorReasons(player: IPlayer, card: IProjectCard, out: Array<
     }
   }
   if (b.greenery !== undefined) {
-    const spaces = game.board.getAvailableSpacesForType(player, b.greenery.on ?? 'greenery', opts);
+    const spaces = game.board.getAvailableSpacesForTile(player, b.greenery.on ?? 'greenery', opts);
     if (game.board.filterSpacesAroundRedCity(spaces).length === 0) {
-      out.push(PLACEMENT);
+      out.push(noCellReason(player, b.greenery.on ?? 'greenery', PLACEMENT));
     }
   }
   if (b.tile !== undefined) {
-    if (game.board.getAvailableSpacesForType(player, b.tile.on, opts).length === 0) {
-      out.push(PLACEMENT_BY_KIND[b.tile.on] ?? PLACEMENT);
+    if (game.board.getAvailableSpacesForTile(player, b.tile.on, opts).length === 0) {
+      out.push(noCellReason(player, b.tile.on, PLACEMENT_BY_KIND[b.tile.on] ?? PLACEMENT));
     }
   }
 

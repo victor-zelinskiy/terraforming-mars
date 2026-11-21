@@ -837,7 +837,10 @@ export class Game implements IGame, Logger {
   public marsIsTerraformed(): boolean {
     const oxygenMaxed = this.oxygenLevel >= this.max.oxygen;
     const temperatureMaxed = this.temperature >= this.max.temperature;
-    const oceansMaxed = !this.canAddOcean();
+    // (…or the sea is FULL: no seat has a cell an ocean could go to. The ceiling can then never be reached, and a
+    // table that ends when Mars is terraformed would never end — the floor under `MarsBoard.seaKeepsItsCells`, for a
+    // board that got there before the law stood or by a road the law does not judge.)
+    const oceansMaxed = !this.canAddOcean() || this.players.every((player) => this.board.getAvailableSpacesForOcean(player).length === 0);
     let globalParametersMaxed = oxygenMaxed && temperatureMaxed && oceansMaxed;
     const venusMaxed = this.getVenusScaleLevel() >= this.max.venus;
 

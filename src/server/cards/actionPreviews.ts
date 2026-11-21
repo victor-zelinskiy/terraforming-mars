@@ -999,6 +999,8 @@ export const SKIP_REASON = {
   noRequirementCard: 'No card with a requirement in hand',
   // Nine oceans stand: a card's ocean is skipped (`PlaceOceanTile` at the ceiling, P58 Project Eden's own step).
   oceansMaxed: 'All oceans are on the board',
+  // The ceiling is not reached and no cell is free (`PlaceOceanTile` — the floor under `MarsBoard.seaKeepsItsCells`).
+  noOceanSpace: 'No free ocean space on the board',
 } as const;
 
 /**

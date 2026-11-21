@@ -31,8 +31,9 @@ export class PlaceTile extends DeferredAction<Space> {
     const on = this.options.on;
     // ONE derivation, called at the prompt's creation and again on every read of the standing prompt
     // (`SelectSpace.liveSpaces`) — a card's own `on()` is a derivation too, and is asked again the same way.
+    // (A tile that is no ocean reads the board under the sea's law — `MarsBoard.getAvailableSpacesForTile`.)
     const derive = () => typeof on === 'string' ?
-      game.board.getAvailableSpacesForType(this.player, on) :
+      game.board.getAvailableSpacesForTile(this.player, on) :
       on();
     const availableSpaces = derive();
     const title = this.options?.title;

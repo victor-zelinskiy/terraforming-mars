@@ -342,6 +342,36 @@ export class MarsBoard extends Board {
   }
 
   /**
+   * THE SEA KEEPS ROOM FOR ITS OCEANS — true while every free ocean-reserved cell is owed to an ocean still to be
+   * placed (free cells ≤ oceans left), so a tile that is NO ocean may not take one.
+   *
+   * The printed game never meets it: twelve cells, nine oceans, three cards that build on the sea (Mohole Area,
+   * Mangrove, Protected Valley). This fork's MarsBot wins up to three polders from the sea too (PolderTECH Dutch —
+   * which keeps this very law for itself: `MarsBotPolderTechDutch.drainableSpaces`), and a seat's Mohole Area then
+   * took the ninth ocean's cell: `canAddOcean` said yes for the rest of the game with nowhere to put it — a paid
+   * Lake Marineris was refused half-played («No available spaces»), and a table that ends when Mars is terraformed
+   * could not end (the engine fuzz, FREEZE ZERO stage 5 — seed 50926).
+   */
+  public seaKeepsItsCells(player: IPlayer): boolean {
+    const free = this.getSpaces(SpaceType.OCEAN).filter((space) => space.tile === undefined).length;
+    const oceansLeft = Math.max(0, player.game.max.oceans - this.getOceanSpaces().length);
+    return free > 0 && free <= oceansLeft;
+  }
+
+  /**
+   * THE CELLS A TILE THAT IS NO OCEAN MAY TAKE for `type` — `getAvailableSpacesForType` under the sea's law above.
+   * Asked by everything that judges or offers such a tile (`Executor.canExecute`, the two reason engines, the
+   * greenery's and the special tile's prompts), so the card's gate, its named reason and its grid read ONE set.
+   * (An OCEAN asks `getAvailableSpacesForType` / `getAvailableSpacesForOcean` — the cells are kept for it.)
+   */
+  public getAvailableSpacesForTile(player: IPlayer, type: PlacementType, canAffordOptions?: CanAffordOptions | undefined): ReadonlyArray<Space> {
+    if (type === 'ocean' && this.seaKeepsItsCells(player)) {
+      return [];
+    }
+    return this.getAvailableSpacesForType(player, type, canAffordOptions);
+  }
+
+  /**
    * Pure, read-only: the M€ a player would gain from oceans ADJACENT to `space`
    * (NOT applied). The single source of truth for the ocean-adjacency rule —
    * called by BOTH the live grant path (`Game.grantPlacementBonuses`) and the

@@ -19,7 +19,7 @@ import {TerraformingOrigin} from '../parliament/resolutions/IResolution';
  */
 export function greeneryTargets(player: IPlayer, on: PlacementType = 'greenery', canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
   const board = player.game.board;
-  return board.filterSpacesAroundRedCity(board.getAvailableSpacesForType(player, on, canAffordOptions));
+  return board.filterSpacesAroundRedCity(board.getAvailableSpacesForTile(player, on, canAffordOptions));
 }
 
 export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
