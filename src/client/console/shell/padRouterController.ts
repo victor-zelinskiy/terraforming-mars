@@ -591,8 +591,13 @@ export function createPadRouterController(shell: PadRouterPort) {
     // game). Only at the cell-choice level: a LOCKED cell is a placement in progress — B steps back first.
     // (Never under Information Mode: it owns every press while open, and its bar promises no finish — the bar's
     // measure against the pad met this rung taking RT off an open inspection.)
-    if (shell.finalGreeneryPickPending && shell.placementActive && !infoModeState.open && intent.kind === 'press' && intent.button === 'triggerR') {
-      notePadRung('finalGreenery');
+    // …and only where the BOARD's bar offers it: with the awards (or the hand) opened over the cells the bar is that
+    // screen's, and RT was the finish all the same — a verb nobody was shown (the real browser's reading of the bar
+    // against the pad, 2026-11-21: three presses under an open sheet). It is the board section's own verb, standing
+    // high in the ladder only to precede the wheel.
+    if (shell.finalGreeneryPickPending && shell.placementActive && !infoModeState.open &&
+        consoleState.section === 'board' && consoleState.sheet === undefined && intent.kind === 'press' && intent.button === 'triggerR') {
+      notePadRung('section:board');
       if (placementFlowState.phase === 'navigate') {
         shell.beginFinalGreeneryFinish();
       }
