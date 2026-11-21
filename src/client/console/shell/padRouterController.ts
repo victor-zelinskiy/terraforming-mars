@@ -153,6 +153,8 @@ const SERIES_VISIT_ABSORBER = 'series-visit';
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type PadRouterPort = {
+  govSupportServes: UnwrapRef<RouterController['govSupportServes']>,
+  productionLossServes: UnwrapRef<RouterController['productionLossServes']>,
   surfaces: SurfaceRegistry,
   acceptConfirm: UnwrapRef<PlayCardController['acceptConfirm']>,
   actionBlockedReason: UnwrapRef<SeatController['actionBlockedReason']>,
@@ -345,8 +347,8 @@ export function createPadRouterController(shell: PadRouterPort) {
     draft: () => shell.draftWorkspaceOwnsPad,
     externalDraw: () => shell.externalDrawOwnsPad,
     start: () => shell.startSceneOwnsPad,
-    govSupport: () => shell.govSupportActive && !consoleState.task.deferred && shell.taskSpacePending === undefined,
-    prodLoss: () => shell.productionLossActive && !consoleState.task.deferred && shell.taskSpacePending === undefined,
+    govSupport: () => shell.govSupportServes,
+    prodLoss: () => shell.productionLossServes,
     spendHeat: () => shell.spendHeatActive,
     venusBonus: () => shell.venusBonusActive,
     ares: () => shell.aresGlobalsActive,

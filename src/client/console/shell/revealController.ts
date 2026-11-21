@@ -3,6 +3,7 @@
  *
  * THE REVEAL CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
+import type {RouterController} from '@/client/console/shell/routerController';
 import type {UnwrapRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
@@ -65,6 +66,7 @@ const REVEAL_EXIT_BARRIER_NET_MS = 4000;
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type RevealPort = {
+  ownerServes: RouterController['ownerServes'],
   $nextTick(fn?: () => void): Promise<void>,
   surfaces: SurfaceRegistry,
   armPartyDiscardStep: UnwrapRef<ParliamentController['armPartyDiscardStep']>,
@@ -201,6 +203,14 @@ export function createRevealController(shell: RevealPort) {
   /** ON STAGE and owning its screen — the ONE predicate the pad routing, the
    *  command bar and the start scene's own ownership all read. */
   const deckPickServing = computed((): boolean => {
+    // THE ONE FUNCTION's WORD while the question is LIVE (stage 2 ③): the deck pick stands when `servingOwnerOf`
+    // names it with nothing holding it. Past the answer the surface is its own outgoing beat (`deckPickHolding` —
+    // the picks flying into the dock, the rest tumbling away): no question is served then, a presence finishes.
+    return deckPickServingLegacy.value && (deckPickHolding() || shell.ownerServes('deck-pick'));
+  });
+
+  /** …as it was spelled out before the swap — the derivation's witness for ONE cycle; and what the outgoing beat stands by. */
+  const deckPickServingLegacy = computed((): boolean => {
     return deckPickActive.value && !deckPickHeldForWorkspace.value;
   });
 
@@ -1041,6 +1051,7 @@ export function createRevealController(shell: RevealPort) {
     deckPickHeldForWorkspace,
     deckPickEmbedTarget,
     deckPickServing,
+    deckPickServingLegacy,
     revealSourceSeatStands,
     externalDrawEmbedTarget,
     externalDrawWorkspaceMounted,

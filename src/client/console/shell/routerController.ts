@@ -34,7 +34,7 @@ import {Phase} from '@/common/Phase';
 import {colonyFocusState} from '@/client/console/consoleColoniesModel';
 import {consoleStartState} from '@/client/console/consoleStartState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
-import {ConsoleTask, taskFor, taskServedByHost, shellTaskOnSurface, followUpStepStage, NATIVE_COMPOSITE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, startStepDiscardOf, DELEGATE_GRANT_STEP_STAGE, partyStepStageOf, firstActionPartyStep} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, taskFor, taskServedByHost, shellTaskOnSurface, followUpStepStage, NATIVE_COMPOSITE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, startStepDiscardOf, DELEGATE_GRANT_STEP_STAGE, partyStepStageOf, firstActionPartyStep, startPlacementOrderOf} from '@/client/console/consoleTaskRouter';
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {buildBotAttackView, BotAttackViewModel} from '@/client/console/botAttack/botAttackModel';
 import {cardGrantOwedTo} from '@/client/console/cardGrantHost';
@@ -139,6 +139,7 @@ export type RouterPort = {
   partyDiscardStepOwed: UnwrapRef<ParliamentController['partyDiscardStepOwed']>,
   /** WRITTEN here. */ pendingClientPayment: PendingClientPayment | undefined,
   readonly placementActive: boolean,
+  readonly deckPickServing: boolean,
   readonly startSceneMounted: boolean,
   readonly startSceneVisible: boolean,
   /** WRITTEN here. */ pendingClientPick: PendingClientPick | undefined,
@@ -255,7 +256,17 @@ export function createRouterController(shell: RouterPort) {
     return vm === undefined ? '' : `${vm.eyebrowKey}|${vm.headlineKey}|${vm.actions.length}|${vm.source?.card ?? ''}`;
   });
 
+  /**
+   * THE DECISION SCREEN SERVES — the ONE function's word (stage 2 ③): a decision can be built for the prompt, and
+   * `servingOwnerOf` names the decision, with nothing holding it. The holds it used to spell out here (set aside, the
+   * board's branch, a hand pick, a claim whose zone is not standing) are the function's, in the function's ONE order.
+   */
   const effectDecisionActive = computed((): boolean => {
+    return effectDecisionVm.value !== undefined && ownerServes('decision');
+  });
+
+  /** …as it was spelled out before the swap — kept ONE cycle as the derivation's witness (`noteDerivedRender`), read by nothing else. */
+  const effectDecisionActiveLegacy = computed((): boolean => {
     return effectDecisionVm.value !== undefined &&
       !shell.govSupportActive && !productionLossActive.value &&
       !consoleState.task.deferred && shell.taskSpacePending === undefined &&
@@ -350,7 +361,7 @@ export function createRouterController(shell: RouterPort) {
    * removes.
    */
   const effectDecisionOwnsPrompt = computed((): boolean => {
-    return effectDecisionActive.value || effectDecisionHeldForWorkspace.value;
+    return effectDecisionActiveLegacy.value || effectDecisionHeldForWorkspace.value;
   });
 
   /**
@@ -585,20 +596,35 @@ export function createRouterController(shell: RouterPort) {
     return task !== undefined && NATIVE_COMPOSITE_KINDS.has(task.kind) ? task : undefined;
   });
 
+  /*
+   * THE DEDICATED COMPOSITES SERVE — each is «a composite task of its kind is classified, and the ONE function names
+   * its owner with nothing holding it» (stage 2 ③). `nativeCompositeTask` is the CLASSIFICATION (what would be drawn);
+   * who stands is the function's word.
+   */
   const venusBonusActive = computed((): boolean => {
-    return nativeCompositeTask.value?.kind === 'venusBonus' && !consoleState.task.deferred && !venusBonusHeldForWorkspace.value;
+    return nativeCompositeTask.value?.kind === 'venusBonus' && ownerServes('lanes');
   });
 
   const spendHeatActive = computed((): boolean => {
-    return nativeCompositeTask.value?.kind === 'spendHeat' && !consoleState.task.deferred;
+    return nativeCompositeTask.value?.kind === 'spendHeat' && ownerServes('lanes');
   });
 
   const aresGlobalsActive = computed((): boolean => {
-    return nativeCompositeTask.value?.kind === 'aresGlobal' && !consoleState.task.deferred;
+    return nativeCompositeTask.value?.kind === 'aresGlobal' && ownerServes('ares');
   });
 
   const botAttackActive = computed((): boolean => {
-    return nativeCompositeTask.value?.kind === 'botAttack' && !consoleState.task.deferred;
+    return nativeCompositeTask.value?.kind === 'botAttack' && ownerServes('bot-attack');
+  });
+
+  /** …as they were spelled out before the swap — the derivation's witnesses for ONE cycle, read by nothing else. */
+  const compositeActiveLegacy = computed((): {venusBonus: boolean, spendHeat: boolean, ares: boolean, botAttack: boolean} => {
+    const kind = nativeCompositeTask.value?.kind;
+    const free = !consoleState.task.deferred;
+    return {
+      venusBonus: kind === 'venusBonus' && free && !venusBonusHeldForWorkspace.value,
+      spendHeat: kind === 'spendHeat' && free, ares: kind === 'aresGlobal' && free, botAttack: kind === 'botAttack' && free,
+    };
   });
 
   /**
@@ -641,18 +667,41 @@ export function createRouterController(shell: RouterPort) {
    * the template can no longer drift on these four terms: a task of the host's is asked, the player did not set it
    * aside, it is not on the board, and it was not handed to the hand.
    */
-  const taskHostOwnsInput = computed((): boolean => {
-    return hostTask.value !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive;
+  /**
+   * THE GENERIC TASK HOST IS ON SCREEN — the ONE function's word (stage 2 ③): a task of the host's is there to draw
+   * (`hostTask` — the client's own, or the server's the host is classified for), and `servingOwnerOf` names the task
+   * host with nothing holding it. Its nine hand-written terms (set aside, the board's branch, the hand pick, the claim,
+   * the decision, the finale, the WGT panel, the production loss, two scenes) are the function's rows and holds.
+   * The template's `hostTask !== undefined &&` before it is narrowing only — a computed does not narrow `:task` for
+   * vue-tsc (same for the decision).
+   */
+  const taskHostRendered = computed((): boolean => {
+    return hostTask.value !== undefined && ownerServes('task');
   });
 
-  /** The generic TASK HOST is on screen — its template condition, stated ONCE
-   *  (the start scene's yield below must ask exactly what renders). The
-   *  template's `hostTask !== undefined &&` before it is narrowing only — a
-   *  computed does not narrow `:task` for vue-tsc (same for the decision). */
-  const taskHostRendered = computed((): boolean => {
-    return taskHostOwnsInput.value && !taskHeldForWorkspace.value && !effectDecisionOwnsPrompt.value &&
+  /**
+   * THE TASK HOST OWNS THE PAD AND THE BAR — the SAME condition as its mount, by construction: the pad's rung, the
+   * bar's two branches and the template read one computed. (Before the swap the pad reached the host's rung on four
+   * terms of its `v-if`'s thirteen and absorbed the press «by the hold's name» when the host was not there.)
+   */
+  const taskHostOwnsInput = taskHostRendered;
+
+  /** …as the two were spelled out before the swap — the derivation's witness for ONE cycle, read by nothing else. */
+  const taskHostRenderedLegacy = computed((): boolean => {
+    return hostTask.value !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive &&
+      !taskHeldForWorkspace.value && !effectDecisionOwnsPrompt.value &&
       !shell.finalGreeneryActive && !shell.finalePromptOwned && !shell.govSupportActive && !productionLossActive.value &&
       !govScaleFocusState.holding && !energyConversionState.active;
+  });
+
+  /** THE WGT PANEL SERVES — the host's task is the WGT choice, and the function names its panel with nothing holding it. */
+  const govSupportServes = computed((): boolean => {
+    return shell.govSupportActive && ownerServes('gov-support');
+  });
+
+  /** THE PRODUCTION-LOSS SURFACE SERVES — the same, for the Ares hazard's distribute. */
+  const productionLossServes = computed((): boolean => {
+    return productionLossActive.value && ownerServes('prod-loss');
   });
 
   /**
@@ -667,17 +716,9 @@ export function createRouterController(shell: RouterPort) {
     if (hostTask.value === undefined || taskHostRendered.value) {
       return '';
     }
-    return taskHeldForWorkspace.value ? 'held-for-workspace' :
-      effectDecisionOwnsPrompt.value ? 'decision-owns' :
-        shell.finalGreeneryActive ? 'final-greenery' :
-          shell.finalePromptOwned ? 'finale' :
-            shell.govSupportActive ? 'gov-support' :
-              productionLossActive.value ? 'production-loss' :
-                govScaleFocusState.holding ? 'gov-scale-focus' :
-                  energyConversionState.active ? 'energy-conversion' :
-                    consoleState.task.deferred ? 'aside' :
-                      shell.taskSpacePending !== undefined ? 'board-branch' :
-                        shell.handPickActive ? 'hand-pick' : '';
+    // (The function's own word: the hold, or the owner it names instead of the host.)
+    const o = promptOwnership.value;
+    return !o.asked ? 'not-asked' : o.hold !== undefined ? `${o.hold.kind}:${o.hold.by}` : `owner:${o.owner}`;
   });
 
   /** The EFFECT DECISION screen is on screen — its template condition, once. */
@@ -702,14 +743,12 @@ export function createRouterController(shell: RouterPort) {
    * only a live question makes a scene step aside.
    */
   const standalonePromptSurfaceStands = computed((): boolean => {
-    return (nativeCompositeTask.value?.kind === 'deckSelect' && shell.deckPickActive &&
-        !shell.deckPickHeldForWorkspace && shell.deckPickEmbedTarget === undefined) ||
+    return (nativeCompositeTask.value?.kind === 'deckSelect' && shell.deckPickServing && shell.deckPickEmbedTarget === undefined) ||
       (taskHostRendered.value && taskEmbedTarget.value === undefined) ||
       (effectDecisionRendered.value && effectDecisionEmbedTarget.value === undefined) ||
       (venusBonusActive.value && venusBonusEmbedTarget.value === undefined) || spendHeatActive.value || aresGlobalsActive.value ||
       (botAttackActive.value && botAttackVm.value !== undefined) ||
-      (shell.govSupportActive && !consoleState.task.deferred) ||
-      (productionLossActive.value && !consoleState.task.deferred);
+      govSupportServes.value || productionLossServes.value;
   });
 
   /** What the ConsoleTaskHost renders: a server task OR the client payment. */
@@ -1024,6 +1063,19 @@ export function createRouterController(shell: RouterPort) {
       // (Presence, not entry: a surface admitted for THIS prompt stands through later scenes — `admits`.)
       blocks[surface] = admits(surface) ? '' : (promptAdmissionBlock(surface, admissionSignals.value) ?? 'withdrawn');
     }
+    // THE VENUS BONUS's DOOR (P89 · DZ / EE / EJ — what `nativeCompositeTask` spells out): answered INSIDE a workspace
+    // or the sitting, it enters by its host and never waits for the board's story; on its own band it waits for the
+    // scale's admission AND for the story of the step that earned it — and, like every composite, for the host's door.
+    if (task?.kind === 'venusBonus') {
+      if (venusBonusBelongsToWorkspace.value || shell.sittingHostsVenusBonus) {
+        blocks.scaleBonus = '';
+      } else if (blocks.scaleBonus === '' && shell.scaleBonusOwesStory) {
+        blocks.scaleBonus = 'board-story';
+      }
+      if (blocks.scaleBonus === '' && (blocks.host ?? '') !== '') {
+        blocks.scaleBonus = blocks.host;
+      }
+    }
     return {
       effectDecision: rawEffectDecisionVm.value !== undefined,
       draftFrame: workspaceFrameKnown('draft'),
@@ -1079,7 +1131,13 @@ export function createRouterController(shell: RouterPort) {
       shell.placementActive && top.phase === 'browse' && (consoleState.section !== 'board' || consoleState.sheet !== undefined) ? top.kind :
         shell.startSceneMounted && top.kind !== 'start' && hostCarriesPlayersLook('start') ? top.kind : '';
     return {
-      task: question.task, client: question.client, ...questionFacts(), startFlow: shell.startSceneMounted, lateral,
+      task: question.task, client: question.client, ...questionFacts(), lateral,
+      // «IS IT THE OPENING's?» — each row by the product's own rule for it: a corporation's first action belongs to the
+      // start while the start flow is live (`corpFirstActionInStartFlow` — generation 1, no action taken), a placement
+      // order while the opening holds one (`startPlacementOrderOf`); for every other kind — the start's frame stands.
+      startFlow: question.task?.kind === 'corpFirstAction' ? corpFirstActionInStartFlow(shell.playerView) :
+        question.task?.kind === 'choice' && question.task.flavor === 'placementOrder' ? startPlacementOrderOf(shell.playerView) !== undefined :
+          shell.startSceneMounted,
       // THE OPENING YIELDED ITS SCENE (`startSceneVisible`): its frame stands, the screen is somebody else's.
       startYielded: yielded ?? (shell.startSceneMounted && !shell.startSceneVisible),
     };
@@ -1892,6 +1950,11 @@ export function createRouterController(shell: RouterPort) {
     promptOwnership,
     servingOwnership,
     ownerServes,
+    govSupportServes,
+    productionLossServes,
+    taskHostRenderedLegacy,
+    effectDecisionActiveLegacy,
+    compositeActiveLegacy,
     onTaskSubmit,
     noteSeriesAnswer,
     onTaskSubmitBatch,
