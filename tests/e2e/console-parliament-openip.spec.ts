@@ -250,7 +250,8 @@ test.describe(`Open IP Trade · ${PRESET.id}`, () => {
     const chipSamples = samples.filter((s) => s.chips.some((c) => c.res === 'megacredits'));
     expect(chipSamples.length, 'the M€ token was sampled in flight').toBeGreaterThan(0);
     const born = chipSamples[0];
-    expect(born.t, 'the commit came after the pick').toBeGreaterThan(firstAlbum!.t);
+    // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — CI 44905320939)
+    expect(samples.indexOf(born), 'the commit came after the pick').toBeGreaterThan(samples.indexOf(firstAlbum!));
     expect(born.heroVisible, 'the token was born over a VISIBLE law face').toBe(true);
     const bornChip = born.chips.find((c) => c.res === 'megacredits')!;
     expect(bornChip.amt, 'the token carries the law\'s payout').toContain('6');
@@ -265,7 +266,7 @@ test.describe(`Open IP Trade · ${PRESET.id}`, () => {
     expect(early, 'the counter never shows +6 while the token is still flying').toEqual([]);
     expect(samples.some((s) => s.stock === target), 'the counter reads the paid number').toBe(true);
     const firstReveal = samples.find((s) => s.reveal)!;
-    expect(firstReveal.t, 'the draw presented after the token was born').toBeGreaterThan(born.t);
+    expect(samples.indexOf(firstReveal), 'the draw presented after the token was born').toBeGreaterThan(samples.indexOf(born));
     test.info().annotations.push({type: 'timing', description:
       `album ${firstAlbum!.t} · token born ${born.t} · landed ${landed.t} · reveal ${firstReveal.t}`});
 

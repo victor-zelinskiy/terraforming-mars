@@ -170,7 +170,12 @@ for (const preset of PROFILES) {
       // What the card GAVE comes first, what it IS follows as the NEXT token of the same wave (decision 4).
       const energyBirth = witness.births.find((b) => b.value.replace(/\s+/g, '') === '+9');
       expect(energyBirth, `A: the +9 energy token was born — ${transferTrail(witness)}`).toBeDefined();
-      expect(vpBirth?.t ?? -1, `A: the VP token is born after the energy token — ${transferTrail(witness)}`).toBeGreaterThan(energyBirth!.t);
+      // ORDER of the record, never its millisecond: a birth is the first PAINTED sample of a chip, and on a 300 ms frame the
+      // energy token's short pop and the VP token's birth fell into ONE sample, stamped the same `t` (the hunt 44905320939:
+      // «#1 +9 t=10661 · #2 ПО+2 t=10661»). The record numbers chips by their first painted sample, then by DOM order —
+      // the order they were mounted in. That the next token of a wave is born a FRAME later is the director's law,
+      // pinned on its clock (tests/console/transferFlightClock.spec.ts § a WAVE's births are a phrase of EVENTS).
+      expect(vpBirth?.id ?? -1, `A: the VP token is born after the energy token — ${transferTrail(witness)}`).toBeGreaterThan(energyBirth!.id);
       expect(vpBirth?.under, `A: the VP token is born on the card's printed badge — ${transferTrail(witness)}`).toBe('vp-badge');
       const vpLanding = witness.landings.find((l) => l.id === vpBirth!.id);
       expect(vpLanding?.under, `A: the VP token lands on the score cell — ${transferTrail(witness)}`).toBe('rail:vp');

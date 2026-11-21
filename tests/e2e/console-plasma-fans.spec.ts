@@ -724,7 +724,8 @@ for (const preset of PRESETS) {
       const mcChips = samples.filter((s) => s.chips.some((c) => c.v.startsWith('prod:megacredits')));
       expect(mcChips.length, 'the Greens\' answer flies as the charter\'s own tokens').toBeGreaterThan(0);
       expect(mcChips[0].t - lastLanding, `the first M€ production token is born a beat AFTER the last touchdown (gap ${mcChips[0].t - lastLanding} ms, law ${TOUCHDOWN_TICK_GAP_MS})`).toBeGreaterThanOrEqual(TOUCHDOWN_TICK_GAP_MS - 30);
-      expect(mcProdThree!.t, `the plate reads +3 (${mcProdThree!.t}) only after the first token was born (${mcChips[0].t})`).toBeGreaterThan(mcChips[0].t);
+      // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — CI 44905320939)
+      expect(samples.indexOf(mcProdThree!), `the plate reads +3 (${mcProdThree!.t}) only after the first token was born (${mcChips[0].t})`).toBeGreaterThan(samples.indexOf(mcChips[0]));
       const mcProdEarly = samples.filter((s) => s.t < mcChips[0].t - 60 && s.mcProd !== '' && s.mcProd !== '0' && s.mcProd !== '+0').map((s) => `${s.t}:${s.mcProd}`);
       expect(mcProdEarly, 'the M€ plate read 0 on every sample until the first token').toEqual([]);
 

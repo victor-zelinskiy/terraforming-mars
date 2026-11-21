@@ -552,11 +552,12 @@ for (const preset of PRESETS) {
           const openAt = series.find((s) => s.paint === 'open');
           expect(sealedAt, `place ${place} lay sealed under its lock`).toBeDefined();
           expect(openAt, `place ${place} opened`).toBeDefined();
-          const lastSealBeforeOpen = series.filter((s) => openAt !== undefined && s.t < openAt.t && s.seal === '#').pop();
+          // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — CI 44905320939)
+          const lastSealBeforeOpen = openAt === undefined ? undefined : series.slice(0, series.indexOf(openAt)).filter((s) => s.seal === '#').pop();
           const turnedAt = series.find((s) => s.paint === 'turning' && s.seal === '');
           expect(turnedAt, `place ${place}'s card turned in place once its seal was gone`).toBeDefined();
           if (lastSealBeforeOpen !== undefined && turnedAt !== undefined) {
-            expect(turnedAt.t, `place ${place}: the seal stood until the discard before it touched down`).toBeGreaterThan(lastSealBeforeOpen.t);
+            expect(series.indexOf(turnedAt), `place ${place}: the seal stood until the discard before it touched down`).toBeGreaterThan(series.indexOf(lastSealBeforeOpen));
           }
         }
 

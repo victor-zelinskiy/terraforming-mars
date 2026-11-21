@@ -222,8 +222,12 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
       expect(first.x >= first.hero.x - 40 && first.x <= first.hero.x + first.hero.w + 40 && first.y >= first.hero.y - 40 && first.y <= first.hero.y + first.hero.h + 40,
         `the first chip is born on the hero card (chip ${first.x.toFixed(0)},${first.y.toFixed(0)} vs card ${JSON.stringify(first.hero)})`).toBe(true);
     }
-    const tick = probe.samples.find((s) => s.ti === '2');
-    expect(tick!.t, 'the tick came with the touchdown, never before the chip was in the air').toBeGreaterThan(first.t);
+    // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — CI 44905320939) — and «never before»: a short flight on a 300 ms frame can be first PAINTED in the very sample it lands in.
+    const tickAt = probe.samples.findIndex((s) => s.ti === '2');
+    const firstChipAt = probe.samples.findIndex((s) => s.chips.some((c) => c.res === 'titanium'));
+    expect(tickAt, 'the tick came').toBeGreaterThanOrEqual(0);
+    const tick = probe.samples[tickAt];
+    expect(tickAt, 'the tick came with the touchdown, never before the chip was in the air').toBeGreaterThanOrEqual(firstChipAt);
 
     // ── ② THE COLONIES GRID stands INSIDE the sitting's zone — after the wave, never beside it.
     await expect(page.locator(GRID), 'the colonies stand in the Parliament\'s stage zone').toBeVisible({timeout: 60_000});

@@ -230,7 +230,8 @@ for (const preset of PROFILES) {
       const gain = birthOf(w, '+3');
       expect(gain, `the plants token was born — ${transferTrail(w)}`).toBeDefined();
       expect(gain!.under, `the chosen resource is born on the printed «?» — ${transferTrail(w)}`).toBe('wild');
-      expect(gain!.t, 'the price leaves before the gain is born').toBeGreaterThan(price!.t);
+      // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — CI 44905320939)
+      expect(gain!.id, 'the price leaves before the gain is born').toBeGreaterThan(price!.id);
       expect(landingOf(w, gain!.id)?.under, `the plants token lands on its rail row — ${transferTrail(w)}`).toBe('rail:plants');
       expect(endsOverGlass(w), transferTrail(w)).toEqual([]);
     });
@@ -262,7 +263,7 @@ for (const preset of PROFILES) {
       const gain = birthOf(w, '+1');
       expect(price?.under, `the price is born on the energy row — ${transferTrail(w)}`).toBe('rail:energy');
       expect(gain?.under, `the +1 is born on the printed «?» — ${transferTrail(w)}`).toBe('wild');
-      expect(gain!.t, 'the gain is born after the price').toBeGreaterThan(price!.t);
+      expect(gain!.id, 'the gain is born after the price').toBeGreaterThan(price!.id);
       expect(landingOf(w, gain!.id)?.under, `the +1 lands on the energy row — ${transferTrail(w)}`).toBe('rail:energy');
       expect(endsOverGlass(w), transferTrail(w)).toEqual([]);
     });

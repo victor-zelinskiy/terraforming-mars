@@ -130,7 +130,9 @@ traps below are `docs/claude/e2e-flake-history.md`.
     clock (`cardDealTurn.spec` — `gsap.globalTimeline.time(…)`). Nor an ORDER between two motions on two CLOCKS (a CSS
     `animationend` against a GSAP timeline's end — CI's 300 ms frames delayed the first by a second, hunt 44905308724):
     the order the product guarantees is its STRUCTURE (what awaits what — a source guard, `deckPickFoldGuard.spec`),
-    the e2e reads the journey.
+    the e2e reads the journey. And an order of two states of ONE record is the record's INDEX (`samples.indexOf`, a
+    witness's ids), never `a.t > b.t`: two callbacks of one 300 ms frame share a whole-millisecond `t` (the hunt
+    44905320939: «#1 +9 t=10661 · #2 ПО+2 t=10661»).
 15. **A transient that comes and goes is never waited for AFTER a server poll** (a `waitFor(visible)` of a 340 ms
     receipt) — it is read from a recording armed before the press.
 16. **`toContainText` reads `textContent`** — a read of what the player SEES under `text-transform` is

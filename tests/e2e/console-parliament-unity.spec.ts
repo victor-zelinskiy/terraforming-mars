@@ -284,9 +284,10 @@ test.describe(`Unity Budget · ${PRESET.id}`, () => {
     // (judged on the RECORD's order — two painted states, never one — so a whole-millisecond page clock cannot tie them)
     expect(inGrid.indexOf(ceresStart!), `the wave is not one volley — Ceres's leg starts after Luna's (${(ceresStart!.t - lunaStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThan(inGrid.indexOf(lunaStart!));
     // …and every marker lands AFTER its own leg started — the value moves only through the glide.
-    expect(luna!.t).toBeGreaterThan(lunaStart!.t);
-    expect(callisto!.t).toBeGreaterThan(callistoStart!.t);
-    expect(ceres!.t).toBeGreaterThan(ceresStart!.t);
+    // (the RECORD's order, never its millisecond: two states of one frame share a whole-millisecond `t` — CI 44905320939)
+    expect(inGrid.indexOf(luna!)).toBeGreaterThan(inGrid.indexOf(lunaStart!));
+    expect(inGrid.indexOf(callisto!)).toBeGreaterThan(inGrid.indexOf(callistoStart!));
+    expect(inGrid.indexOf(ceres!)).toBeGreaterThan(inGrid.indexOf(ceresStart!));
     // Two COUNTABLE steps: Luna's middle cell answers with its impulse BEFORE its last cell does, and the marker
     // lands only after the last cell was passed — a step, a beat, a step; never one jump.
     const sweptAt = (cell: string): Sample | undefined => inGrid.find((s) => s.swept.includes(cell));
