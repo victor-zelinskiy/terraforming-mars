@@ -421,6 +421,61 @@ export function renderOwner(owner) {
 }
 
 /**
+ * A MACHINE'S MOVE, BY REGION. The trace prints a transition by the machine's whole state VALUE, and for a machine of
+ * ORTHOGONAL regions (the claim: stage × beat × arrival × host) the explorer's universe is their PRODUCT — 242 «moves»
+ * of which a table walks nine, and a number nobody can read: the same `beat: pending → over` is counted once per
+ * combination of the three regions it does not touch. A move of such a machine is a REGION's move:
+ *
+ *   {"live":{"stage":"awaiting","beat":"pending",…}} → {"live":{"stage":"awaiting","beat":"over",…}}   live/beat: pending → over
+ *   {"live":{…}} → released                                                                            live → released
+ *   browse → {"executing":"away"}                                                                      browse → executing.away
+ *
+ * (a compound state's one child is part of the state's name; a value of several keys is orthogonal regions; an event
+ * that moves two regions at once is each region's move). A machine with no orthogonal region reads as before.
+ */
+export function regionMoves(edge) {
+  const parse = (side) => {
+    try {
+      return JSON.parse(side);
+    } catch {
+      return side;
+    }
+  };
+  const regionsOf = (value) => {
+    const out = {};
+    const walk = (v, region, prefix) => {
+      if (typeof v !== 'object' || v === null) {
+        out[region] = prefix === '' ? String(v) : `${prefix}.${v}`;
+        return;
+      }
+      const keys = Object.keys(v);
+      if (keys.length === 1) {
+        walk(v[keys[0]], region, prefix === '' ? keys[0] : `${prefix}.${keys[0]}`);
+        return;
+      }
+      for (const key of keys) {
+        walk(v[key], [region, prefix, key].filter((part) => part !== '').join('/'), '');
+      }
+    };
+    walk(value, '', '');
+    return out;
+  };
+  const sides = edge.split(' → ');
+  if (sides.length !== 2) {
+    return [edge];
+  }
+  const [from, to] = sides.map((side) => regionsOf(parse(side)));
+  const rootOf = (regions) => {
+    const keys = Object.keys(regions);
+    return keys.length === 1 && keys[0] === '' ? regions[''] : keys[0].split('/')[0];
+  };
+  if (Object.keys(from).sort().join('|') !== Object.keys(to).sort().join('|')) {
+    return [`${rootOf(from)} → ${rootOf(to)}`];
+  }
+  return Object.keys(from).filter((region) => from[region] !== to[region]).map((region) => `${region === '' ? '' : `${region}: `}${from[region]} → ${to[region]}`);
+}
+
+/**
  * HOW MUCH OF THE KERNEL'S STATE SPACE THE RUN WALKED. `files` — the parsed `cause-classes` files (their `coverage`
  * is the page's `__conCoverage()`: `{keys, machines, frames}`); `declared` — the flows the sources declare
  * (`flowUniverse().flows`: id → where). `undefined` when no walk carried coverage.
@@ -476,12 +531,18 @@ export function aggregateCoverage(files, declared) {
   }
   // THE MACHINES — by the scope kind each runs in: the moves made (the label does not matter) against the moves possible.
   const machineRows = {};
-  for (const [kind, universe] of Object.entries(machines)) {
+  for (const [kind, edges] of Object.entries(machines)) {
+    // (By REGION — `regionMoves`: the universe the explorer lists, and the moves the trace made.)
+    const universe = new Set([...edges].flatMap(regionMoves));
     const made = new Set();
     for (const key of keys) {
-      const m = new RegExp(`^state ${kind}(?::[^ ]*)? (.+ → .+)$`).exec(key);
+      // (The move is the key's LAST `<from> → <to>` — a state value carries no space, a label may: an announce's is its
+      // question's title.)
+      const m = new RegExp(`^state ${kind}(?::.*)? (\\S+ → \\S+)$`).exec(key);
       if (m !== null) {
-        made.add(m[1]);
+        for (const move of regionMoves(m[1])) {
+          made.add(move);
+        }
       }
     }
     const all = [...universe].sort();

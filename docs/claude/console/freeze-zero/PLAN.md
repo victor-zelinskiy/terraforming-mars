@@ -708,6 +708,53 @@ are left are exactly those.
   hold registry's `expire`. And structural item 4's second half — the start scene and the Parliament taken apart like
   the shell — is the open redesign of architecture v2 (`../architecture-v2/PLAN.md` § 0), not this stage's number.
 
+**STAGE 2b, STEP ① — THE OPENING, MEASURED (2026-11-21).** The start is ONE owner of the function; which STAGE of it
+stands is the start director's word (`startDirector.expectedStartOwner` — pure, of the server's one question) and a
+dozen latches' answer (`actualStartOwner`). Two nets stand over the pair, each behind a confirm of seconds — the start
+shadow (3 s, then `heal` / `yield` / `release`) and the start watchdog (2.5 s, then `healStrand`). Before a latch is
+derived from the director, what the confirms HIDE is read: `servingOwnerMeasure.noteOpeningLook` / `noteOpeningSpan`
+— every judged state of the start, and every disagreement and every strand as a SPAN (who was expected, who stood,
+what the director would have done AT ONCE, how long, what ended it; the strand with the doors its heal would open —
+`ConsoleStartScene.strandPlan`, read through the scene's own diagnostic probe). `monkey-report`: «THE OPENING».
+*The first reading* (the bottle, 96 tables of the opening, `fz0`): 356 judged states — agree 166 · apart 23 · held 62
+· out of scope 105. Every REAL disagreement the latches close by themselves: 0 – 16 ms for most (the same flush — an
+edge-triggered entry that fires a tick after the question), 300 ms for a hosted step's leave under the game's menu,
+1.4 s for the corporation's payment under a leaving step; the `held` spans are beats behind their own admission
+block (a hero landing, a card arriving, the table answering) — the function's «held», not a disagreement. No span
+reached a net. *What it says about the derivation:* the director's word is right at once in every span read; what
+differs is the latches' LATENCY (a hand-off the scene plays) — so the derivation is of the scene's DOORS, level-
+triggered on the director's word and gated on «nothing of the start is in flight», never of its choreography. The
+real browser's reading (the monkey on CI) is the next number; the swap of the three decisions (the paint / yield, the
+release, the heal's doors by level) follows it. Until then the start shadow and the watchdog stay armed.
+
+**STAGE 4, STEP 1 — THE WIRE BREAKS (2026-11-21).** «Fault injection for every transport outcome never seen today»
+— the submit machine's moves no pass had walked (`sending → failed · refused · silent`, `presenting → failed`; whole
+passes stood at 3 of 8):
+- `bottleNet.faultNext(match, fault)`: the next matching request breaks as a wire breaks — `network` · `refused` ·
+  `stale` (`STALE_PROMPT`) · `error500` · `silent` (lost before the server), and the two a page recovers from only by
+  asking again: `lost` (the server MAKES the move, its answer never comes) and `malformed` (it makes the move, the
+  answer does not parse).
+- the monkey's walk takes a fault as a STEP (`faultEvery`, its own seeded stream; the submit mostly, the poll, the
+  view) — recorded, replayed and shrunk like a press; a silence the walk took is waited out. `npm run gate:freeze --
+  --guided --fault 6` (a pass of its own: `--write-baseline` is refused — its classes are findings).
+- the judgement: the FAULT'S OWN WORD (the page's error line, «the server did not answer») is `info`; the screen is
+  judged by what STANDS a minute and the last word after the walk (`BottleLiveness.standing` →
+  `fault/standing-screen/<faults>`); what a walk names BESIDE them is the product not unwinding from a broken request.
+- `consoleBottle.bottle.ts` § 16: each fault of a submit alone — the machine ends in the state that names it, the
+  screen is served, the move was / was not made.
+*The first reading* (guided, 54 tables, 114 faults taken): no screen left standing; three classes, each closed with
+its law and a replay —
+
+| class | what stood | the law |
+| --- | --- | --- |
+| `animation-hold/ceiling/parliament-chairman-quest` · `wait-graph/overdue/flow:chairman-quest` | the chairmanship's blocking hold and its node of the graph bounded the wait for the SERVER on clocks of their own (20 s · 30 s under the transport's 60) — a refused / stale / lost answer force-released the flow «without its beats» | a hold stands over what the flow PLAYS (the reading; the office and the step once the answer is in); a wait for the server is the transport's, a wait for the player (the answer handed back) holds nothing — `chairmanQuestDirector`, `chairmanQuestFlow.handedBack` |
+| `wait-graph/ceiling/parliament:submit` · `wait-graph/dead-end/flow:chairman-quest` | the section's submit safety counted the server's silence into its 30 s; a submit that did not land was noticed by the safety's next tick, up to 6 s later | the thirty seconds are counted where the wait CAN be mutual (the answer is in, or parked); the section hands the stage back at the transport's own settle (`onSubmitSettled`) |
+| `wait-graph/dead-end/question:actionmenu` · `…/surface:card-actions` | a card action's submit lost on the network: the AWAITING HAND-OFF the press had armed stood six seconds over an inert pad, the graph's door re-opened the question by closing the workspace — the configured action gone under the error alert | a press that did not land unwinds what was armed for it AT ONCE — the hand-off's wait declares its unwind beside its arm (`onPressUnlanded('awaiting-handoff', …)`) |
+
+One family: *a wait armed for a press, bounded by a clock of its own instead of the press's own end.* The whole pass
+(606 tables) is the stage's worklist; the model-based walks of the machines, the socket's faults and the steering by
+coverage are its next steps.
+
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
 the real-browser monkey (03:00 plain with the seed of the day; Sunday `cpu4` / `net400` / `reload` / `duo`), and a

@@ -863,7 +863,11 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     // HOW MUCH OF THE KERNEL'S STATE SPACE THE TEST WALKED (`TM_E2E_COVERAGE=1` — the monkey sets it): every page of the
     // context is told to mark its coverage (`src/client/console/flowCoverageProbe.ts`), and what it marked is read when
     // the test is over and filed beside the cause classes — `scripts/monkey-report.mjs` sums it into «N % walked».
-    const coverage = process.env.TM_E2E_COVERAGE === '1';
+    // ON CI EVERY TEST COUNTS IT (FREEZE ZERO, stage 4 — «walked or declared»): the suite's scripted flows go where no
+    // blind walk does — a monkey's sixty presses open half the declared flows, in a real browser as in the bottle — so
+    // the suite IS the corpus (`scripts/kernel-walked.mjs` unions its files with the passes'). `TM_E2E_COVERAGE=0`
+    // switches it off there; off CI it stays opt-in.
+    const coverage = process.env.TM_E2E_COVERAGE === '1' || (process.env.TM_E2E_COVERAGE !== '0' && process.env.CI !== undefined && process.env.CI !== '');
     if (coverage) {
       await context.addInitScript(() => {
         try {
