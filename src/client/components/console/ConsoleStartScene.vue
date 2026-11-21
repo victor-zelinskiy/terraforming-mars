@@ -9455,6 +9455,29 @@ async function settleFlight(): Promise<void> {
  *  ③ a stage stuck in `staging` (its seat flight never settled — `seatTake` awaits a chain that a torn-down flight
  *    left unresolved) — the corporation is seated in place and the stage stands.
  */
+/**
+ * WHAT THE HEAL WOULD DO NOW — the heal's own conditions, read without acting (the opening's measure, FREEZE ZERO
+ * stage 2b: a strand is named with the doors that would end it). Kept beside `healStrand`, branch for branch.
+ */
+function strandPlan(): Array<string> {
+  const plan: Array<string> = [];
+  const hosting = workspaceFrameHasNested('start') || embedPresenting.value || firstActionPanelShown.value || bonusActionPanelShown.value;
+  if (!hosting && queueReleased.value) {
+    plan.push('queue-returned');
+  }
+  if (!hosting && playedDockReleased.value) {
+    plan.push('shelf-returned');
+  }
+  if (state.firstAct.stage === 'staging' && state.firstAct.corp !== undefined && !heroState.active) {
+    plan.push('first-action-seated');
+  } else if (state.firstAct.stage === 'idle' && firstActionOwedNow.value && firstActionCorpNow.value !== undefined &&
+      !firstActionNested.value && !startFlowOtherPromptStands(props.playerView) && mode.value === 'ceremony') {
+    plan.push('first-action-entered');
+  } else if (bonusActionEntryDue.value) {
+    plan.push('bonus-action-entered');
+  }
+  return plan;
+}
 function healStrand(): string {
   const did: Array<string> = [];
   const hosting = workspaceFrameHasNested('start') || embedPresenting.value || firstActionPanelShown.value || bonusActionPanelShown.value;
@@ -11287,6 +11310,8 @@ onMounted(() => {
   // by product code.
   (window as unknown as Record<string, unknown>).__conStartDiag = () => ({
     mode: mode.value,
+    // (What the strand's heal would do now — the opening's measure names a strand with it.)
+    strandPlan: strandPlan(),
     flow: state.flow,
     ceremonyRevealed: ceremonyRevealed.value,
     firstAct: {

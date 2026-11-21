@@ -70,6 +70,7 @@ export function resetServingOwnerLog(): void {
   barRung = '';
   bandFallback = '';
   openDiffs.clear();
+  openingSpans.clear();
   unsettledFlags = '';
   ownerNowProbe = undefined;
 }
@@ -608,8 +609,16 @@ export function noteDerivedRender(shape: string, answer: string, pairs: Readonly
       row['eq-both'] = (row['eq-both'] ?? 0) + 1;
     }
   }
-  servingOwnerLog.open = [...openDiffs.entries()].map(([surface, d]) => ({surface, verdict: d.verdict, since: d.since}));
+  refreshOpenSpans();
   return closed;
+}
+
+/** What still stands when the log is read: the derivation's open differences and the opening's open spans. */
+function refreshOpenSpans(): void {
+  servingOwnerLog.open = [...openDiffs.entries()].map(([surface, d]) => ({surface, verdict: d.verdict, since: d.since}));
+  for (const span of openingSpans.values()) {
+    servingOwnerLog.open.push({surface: 'opening', verdict: span.key, since: span.since});
+  }
 }
 
 /**
@@ -631,4 +640,72 @@ export function standingDerivedSpans(now: number, minMs: number): ReadonlyArray<
 /** A new game screen starts its own spans. */
 export function resetDerivedSpans(): void {
   openDiffs.clear();
+  openingSpans.clear();
+}
+
+// ── THE OPENING's OWN STAGE (stage 2b) ───────────────────────────────────────────────────────────────────────────────
+/**
+ * THE OPENING, MEASURED (FREEZE ZERO, stage 2b). The function above knows the start as ONE owner; which STAGE of it
+ * stands is the start director's question (`startDirector.expectedStartOwner` — pure, of the server's one question)
+ * and a dozen latches' answer (`actualStartOwner`). Two nets stand over the pair, each behind a confirm of seconds:
+ * the start shadow (a disagreement that stood 3 s is cured) and the start watchdog (a scene that served nothing for
+ * 2.5 s is healed). This measure reads what the confirms hide — every disagreement and every strand as a SPAN:
+ *
+ *   `opening|<question> · <expected>><actual> · <cure> → <what ended it>`      (the STAGE track)
+ *   `opening|STRAND <question> · plan <the heal's doors> → <what ended it>`    (the STRAND track)
+ *
+ * who the director expected, who the latches had on screen, what the director would have done about it AT ONCE
+ * (`heal` · `yield` · `release` · `none`; `held:<block>` for a prompt behind an admission block), for how long it
+ * stood, and what ended it (the latches catching up by themselves, the question moving on, the scene leaving, the
+ * net itself). That table is what a derivation has to be right about: a span the latches close by themselves in a
+ * few hundred milliseconds is a hand-off the director's word would cut short — or a beat the director does not know.
+ * Counted under `opening`: one row per judged state (`opening-agree` · `-disagree` · `-held` · `-out`). STATS ONLY.
+ */
+export type OpeningLook = {
+  /** The server's question without its id (`or:corporationInitialAction`, `space:`, `—` for none). */
+  question: string,
+  expected: string,
+  actual: string,
+  /** The start shadow's verdict of this state; `out` — not the start's business (out of scope, behind the curtain). */
+  verdict: 'agree' | 'disagree' | 'held' | 'out',
+  /** What the director would do about a disagreement (`startDirectorCure`); the block's name for a held prompt. */
+  cure: string,
+};
+
+const openingSpans = new Map<string, {key: string, since: number}>();
+
+/**
+ * One track of the opening's spans: `key` is what stands apart on it NOW (`''` — nothing does), `ended` what to call
+ * the end of the span that stood before. The same key twice in a row is one span. `now` — the page's clock.
+ */
+export function noteOpeningSpan(track: 'stage' | 'strand', key: string, ended: string, now: number): void {
+  const open = openingSpans.get(track);
+  if (open !== undefined && open.key === key) {
+    return;
+  }
+  if (open !== undefined) {
+    const spanKey = `opening|${open.key} → ${ended}`;
+    const span = servingOwnerLog.spans[spanKey] ?? (servingOwnerLog.spans[spanKey] = {n: 0, ms: 0, max: 0});
+    const stood = Math.max(0, now - open.since);
+    span.n++;
+    span.ms += stood;
+    span.max = Math.max(span.max, stood);
+    openingSpans.delete(track);
+  }
+  if (key !== '') {
+    openingSpans.set(track, {key, since: now});
+  }
+  refreshOpenSpans();
+}
+
+/** One judged state of the opening (the STAGE track). */
+export function noteOpeningLook(look: OpeningLook, now: number): void {
+  const row = servingOwnerLog.rows['opening'] ?? (servingOwnerLog.rows['opening'] = {});
+  const state = `${look.expected}>${look.actual}`;
+  const apart = look.verdict === 'disagree' || look.verdict === 'held';
+  const key = apart ? `${look.question} · ${state} · ${look.verdict === 'held' ? `held:${look.cure}` : look.cure}` : '';
+  if (openingSpans.get('stage')?.key !== key || !apart) {
+    row[`opening-${look.verdict}`] = (row[`opening-${look.verdict}`] ?? 0) + 1;
+  }
+  noteOpeningSpan('stage', key, look.verdict === 'out' ? 'out' : `${look.verdict}:${state}`, now);
 }

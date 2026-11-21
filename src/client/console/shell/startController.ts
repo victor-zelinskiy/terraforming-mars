@@ -39,7 +39,8 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {hostedStepServes, START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
-import {ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
+import {ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
+import {noteOpeningLook, noteOpeningSpan} from '@/client/console/servingOwnerMeasure';
 import {watchFrames} from '@/client/console/kernel/frameWitness';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
@@ -776,8 +777,19 @@ export function createStartController(shell: StartPort) {
     });
   }
 
+  /** The strand as the opening's measure names it: the question, and the doors the heal would open now. */
+  function strandKey(): string {
+    const wf = shell.playerView.waitingFor;
+    // (Read off the scene's own diagnostic probe — the measure adds no reach of its own into the scene.)
+    const plan = (window as unknown as {__conStartDiag?: () => {strandPlan?: Array<string>}}).__conStartDiag?.().strandPlan ?? [];
+    return `STRAND ${wf?.type ?? ''}:${wf?.startGamePrompt?.kind ?? taskFor(shell.playerView)?.kind ?? ''} · plan ${plan.join('+') || 'nothing'}`;
+  }
+
   function whenStartStrandedNowChanges(now: boolean): void {
     cancelStartStrand();
+    // THE OPENING's MEASURE (stage 2b): a strand is a SPAN from its rise — the 2.5 s confirm below hides the ones that
+    // end by themselves. Stats only.
+    noteOpeningSpan('strand', now ? strandKey() : '', 'cleared', Date.now());
     if (!now) {
       return;
     }
@@ -820,15 +832,18 @@ export function createStartController(shell: StartPort) {
         return;
       }
       const scene = shell.surfaces.at<{healStrand?: () => string}>('startScene');
+      const stood = strandKey();
       const sceneHeal = scene?.healStrand?.() ?? 'no-scene';
       // …and a step of the start that nothing hosts any more is re-opened through the router's own door (R15).
       const healed = sceneHeal === 'nothing-to-heal' || sceneHeal === 'no-scene' ? shell.reopenStartStep() || sceneHeal : sceneHeal;
       report('confirmed', {heal: healed});
+      noteOpeningSpan('strand', `${stood} · HEALED ${healed}`, 'confirmed', Date.now());
       cancelStartStrand = flow.after(START_STRAND_YIELD_MS, 'the strand heal\'s grace', () => {
         if (!startStrandedNow.value) {
           return;
         }
         report('yielded to the shell (the heal did not end it)', {heal: healed});
+        noteOpeningSpan('strand', `${stood} · YIELDED`, 'the heal did not end it', Date.now());
         startStrandPrompt.value = shell.playerView.waitingFor?.promptId;
         startStrandYield.value = true;
       });
@@ -845,11 +860,19 @@ export function createStartController(shell: StartPort) {
     const s = startShadowNow.value;
     // The boot curtain is not the start: nothing is mounted under it yet (the field's «wizard → game» 5.5 s after
     // the page loaded, 2026-10-31 22:14).
+    const question = s.prompt.replace(/#.*$/, '');
     if (!startShadowInScope(s.expected, s.actual) || sceneTransitionInputLocked()) {
+      noteOpeningLook({question, expected: s.expected, actual: s.actual, verdict: 'out', cure: ''}, Date.now());
       return;
     }
     startShadowLog.judged++;
     const verdict = startShadowVerdict(s.expected, s.actual, s.held);
+    // THE OPENING's MEASURE (stage 2b — `servingOwnerMeasure.noteOpeningLook`): every judged state, and what the
+    // director would do about a disagreement AT ONCE — the spans the three-second confirm below hides. Stats only.
+    noteOpeningLook({
+      question, expected: s.expected, actual: s.actual, verdict,
+      cure: verdict === 'held' ? s.held ?? '' : verdict === 'disagree' ? startDirectorCure({kind: 'disagree', expected: s.expected, actual: s.actual}) : '',
+    }, Date.now());
     if (verdict === 'agree') {
       return;
     }

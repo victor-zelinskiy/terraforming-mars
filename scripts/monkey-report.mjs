@@ -276,14 +276,27 @@ export function renderOwner(owner) {
   // says this owner serves» — the differences as spans (how often, how long), by surface.
   const eqSurfaces = Object.keys(owner.rows ?? {}).filter((shape) => shape.startsWith('eq:')).map((shape) => shape.slice(3)).sort();
   if (eqSurfaces.length > 0) {
-    const spanRows = Object.entries(owner.spans ?? {}).sort((x, y) => y[1].ms - x[1].ms || y[1].n - x[1].n);
+    const spanRows = Object.entries(owner.spans ?? {}).filter(([key]) => !key.startsWith('opening|')).sort((x, y) => y[1].ms - x[1].ms || y[1].n - x[1].n);
     const total = spanRows.reduce((a, [, v]) => a + v.n, 0);
     const both = eqSurfaces.reduce((a, surface) => a + (owner.rows[`eq:${surface}`]['eq-both'] ?? 0), 0);
     L.push(`THE DERIVATION — ${eqSurfaces.length} surface(s), ${both} render(s) standing by both: ${total} difference span(s)` +
-      (Object.keys(owner.open ?? {}).length > 0 ? ` · STILL OPEN at the walk's end: ${Object.entries(owner.open).map(([k, n]) => `${k} ×${n}`).join(' · ')}` : ''));
+      (Object.keys(owner.open ?? {}).some((k) => !k.startsWith('opening|')) ? ` · STILL OPEN at the walk's end: ${Object.entries(owner.open).filter(([k]) => !k.startsWith('opening|')).map(([k, n]) => `${k} ×${n}`).join(' · ')}` : ''));
     for (const [key, v] of spanRows.slice(0, 60)) {
       const [surface, ...rest] = key.split('|');
       L.push(`  ${surface.padEnd(14)} ${String(v.n).padStart(5)}×  ${String(Math.round(v.ms)).padStart(7)} ms in all · longest ${String(Math.round(v.max)).padStart(6)} ms  ${rest.join('|')}   [${v.tables.join(', ')}]`);
+    }
+  }
+  // THE OPENING's OWN STAGE (stage 2b): the start director's word beside the latches', every disagreement and every
+  // strand as a span — who was expected, who stood, what would have been done at once, how long, what ended it.
+  const opening = owner.rows?.opening;
+  const openingRows = Object.entries(owner.spans ?? {}).filter(([key]) => key.startsWith('opening|')).sort((x, y) => y[1].max - x[1].max || y[1].n - x[1].n);
+  if (opening !== undefined || openingRows.length > 0) {
+    const n = (verdict) => opening?.[`opening-${verdict}`] ?? 0;
+    const stillOpen = Object.entries(owner.open ?? {}).filter(([k]) => k.startsWith('opening|'));
+    L.push(`THE OPENING — ${n('agree') + n('disagree') + n('held') + n('out')} judged state(s) of the start: agree ${n('agree')} · APART ${n('disagree')} · held ${n('held')} · out of scope ${n('out')}` +
+      (stillOpen.length > 0 ? ` · STILL APART at the walk's end: ${stillOpen.map(([k, c]) => `${k.slice(8)} ×${c}`).join(' · ')}` : ''));
+    for (const [key, v] of openingRows.slice(0, 80)) {
+      L.push(`  ${String(v.n).padStart(5)}×  longest ${String(Math.round(v.max)).padStart(6)} ms · ${String(Math.round(v.ms)).padStart(7)} ms in all  ${key.slice(8)}   [${v.tables.join(', ')}]`);
     }
   }
   // THE ANSWER AT ITS LAST REACTIVE EDGE (stage 2 ③): would a cache derived from the function hold the truth?

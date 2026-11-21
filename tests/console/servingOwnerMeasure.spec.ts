@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
-  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteDerivedRender, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
+  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteDerivedRender, noteOpeningLook, noteOpeningSpan, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
   promptFlagsVerdict, registerOwnerNowProbe, resetServingOwnerLog, servingOwnerLog,
 } from '../../src/client/console/servingOwnerMeasure';
 
@@ -274,6 +274,31 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(servingOwnerLog.disagreements.map((d) => `${d.shape}|${d.present[0]} → ${d.owner}|${d.facts}`)).to.deep.eq([
       'edge:payment|task → task held scene:handoff|+ handoff [draft]',
     ]);
+  });
+
+  it('THE OPENING: a disagreement of the start director and the latches is a span — who was expected, who stood, the cure, how long, what ended it', () => {
+    resetServingOwnerLog();
+    const look = (expected: string, actual: string, verdict: 'agree' | 'disagree' | 'held' | 'out', cure = '', question = 'space:') => ({question, expected, actual, verdict, cure});
+    noteOpeningLook(look('queue', 'queue', 'agree', '', 'or:preludes'), 1000);
+    // The server asks a cell and the queue still stands: the director would yield — the latches do it 400 ms later.
+    noteOpeningLook(look('board', 'queue', 'disagree', 'yield'), 2000);
+    noteOpeningLook(look('board', 'queue', 'disagree', 'yield'), 2100); // (the same disagreement under a new prompt id)
+    expect(servingOwnerLog.open).to.deep.eq([{surface: 'opening', verdict: 'space: · board>queue · yield', since: 2000}]);
+    noteOpeningLook(look('board', 'board', 'agree'), 2400);
+    expect(servingOwnerLog.spans['opening|space: · board>queue · yield → agree:board>board']).to.deep.eq({n: 1, ms: 400, max: 400});
+    expect(servingOwnerLog.open).to.deep.eq([]);
+    // A held prompt is a span of its own, named by its block; the scene leaving ends it `out`.
+    noteOpeningLook(look('board', 'none', 'held', 'remote-landing'), 3000);
+    noteOpeningLook(look('game', 'game', 'out'), 3900);
+    expect(servingOwnerLog.spans['opening|space: · board>none · held:remote-landing → out']).to.deep.eq({n: 1, ms: 900, max: 900});
+    expect(servingOwnerLog.rows['opening']).to.deep.eq({'opening-agree': 2, 'opening-disagree': 1, 'opening-held': 1, 'opening-out': 1});
+    // THE STRAND is a track of its own: it rises, the net confirms it (a span ends, the healed one begins), it clears.
+    noteOpeningSpan('strand', 'STRAND space: · plan queue-returned', 'cleared', 5000);
+    noteOpeningSpan('strand', 'STRAND space: · plan queue-returned · HEALED queue-returned', 'confirmed', 7500);
+    noteOpeningSpan('strand', '', 'cleared', 7600);
+    expect(servingOwnerLog.spans['opening|STRAND space: · plan queue-returned → confirmed']).to.deep.eq({n: 1, ms: 2500, max: 2500});
+    expect(servingOwnerLog.spans['opening|STRAND space: · plan queue-returned · HEALED queue-returned → cleared']).to.deep.eq({n: 1, ms: 100, max: 100});
+    expect(servingOwnerLog.open).to.deep.eq([]);
   });
 
   it('THE DERIVATION, HELD AGAINST EVERY RENDER: a difference is a span — opened once, closed with how long it stood, kept once with the facts', () => {
