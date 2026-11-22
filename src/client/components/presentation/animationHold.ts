@@ -124,6 +124,18 @@ export type AnimationHoldOptions = {
    * asks `playerOwnedHolds()` first.
    */
   heldForPlayer?: () => string | undefined,
+  /**
+   * THE HOLD IS A DOOR HELD SHUT, NOT A SCENE PLAYING — its owner has played and now stands in the screen's handoff
+   * (`console/screenHandoff.ts`), keeping the foreground while what the screen still OWES the player finishes under
+   * it. An owed story never waits FOR such a hold: the hold waits for the story. Asked through
+   * `blockingHoldsPlaying()` by whoever «waits out every scene that owns the screen».
+   * WHY: the generation scene's rise waits for every hold but its own (the handoff's `animation` reason), and the card
+   * reaction's chain — whose hold stands while it WAITS — waited for every blocking hold, the scene's included: a
+   * mutual wait, ended only by the reaction's 12 s ceiling (`wait-graph/ceiling/card-reaction:blocking-quiet`,
+   * `console-terraforming-deal` (D) on CI — 8 repeats of 78 once a seat's reaction and the generation's change could
+   * arrive in ONE view; never in 30 before).
+   */
+  handsOver?: () => boolean,
 };
 
 /**
@@ -144,6 +156,7 @@ type SupplierEntry = {
   supplier: ReactivePredicate<boolean>,
   diagnose: (() => unknown) | undefined,
   heldForPlayer: (() => string | undefined) | undefined,
+  handsOver: (() => boolean) | undefined,
   expire: (() => void) | undefined,
   stop: () => void,
   /** The hold's run while it stands and is bounded (the ceiling is a timer owned by it). `undefined` = not holding,
@@ -290,6 +303,7 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
     supplier: reactivePredicate(`hold:${label}`, supplier),
     diagnose: options?.diagnose,
     heldForPlayer: options?.heldForPlayer,
+    handsOver: options?.handsOver,
     expire: options?.expire,
     stop: () => {},
     run: undefined,
@@ -708,6 +722,28 @@ export function activeAnimationHoldLabels(): Array<string> {
   for (const hold of store.manual.values()) {
     if (!store.quarantined.has(hold.label)) {
       labels.push(`${hold.label}[${hold.scope}]`);
+    }
+  }
+  return labels;
+}
+
+/**
+ * THE BLOCKING HOLDS THAT ARE SCENES PLAYING — every live blocking hold but the ones that only hold the door through
+ * the screen's handoff (`AnimationHoldOptions.handsOver`). What a story owed to the player waits out before it rises:
+ * it never cuts into a scene that owns the screen, and it never waits for a scene that is waiting for IT.
+ */
+export function blockingHoldsPlaying(): Array<string> {
+  void store.version;
+  const labels: Array<string> = [];
+  for (const [label, entry] of suppliers) {
+    if (entry.scope === 'blocking' && !store.expired.has(label) && !store.quarantined.has(label) && safeRead(label, entry.supplier) &&
+        !(entry.handsOver !== undefined && safeRead(label, entry.handsOver))) {
+      labels.push(label);
+    }
+  }
+  for (const hold of store.manual.values()) {
+    if (hold.scope === 'blocking' && !store.quarantined.has(hold.label)) {
+      labels.push(hold.label);
     }
   }
   return labels;

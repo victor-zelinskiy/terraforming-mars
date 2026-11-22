@@ -55,7 +55,7 @@ import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardReactionRecord} from '@/common/models/CardReactionModel';
-import {activeAnimationHoldLabels, blockingAnimationHoldCount, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldLabels, blockingHoldsPlaying, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -1302,11 +1302,15 @@ async function waitBoardScenesOwedQuiet(myEpoch: number): Promise<void> {
   closeReactionWait(wait, myEpoch);
 }
 
-/** Wait out every BLOCKING animation hold (bounded) — the chain never cuts into a scene that owns the screen. */
+/**
+ * Wait out every BLOCKING animation hold that is a scene PLAYING (bounded) — the chain never cuts into a scene that owns
+ * the screen. A hold that only keeps the door through the screen's handoff is not one (`blockingHoldsPlaying`): its
+ * owner is waiting for THIS chain's story to be told — waited for, the two stood in each other's way to the ceiling.
+ */
 async function waitBlockingQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
   let wait: CeilingWait | undefined;
-  while (epoch === myEpoch && blockingAnimationHoldCount() > 0) {
+  while (epoch === myEpoch && blockingHoldsPlaying().length > 0) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
       wait?.ceiling();
       return;
@@ -1314,7 +1318,7 @@ async function waitBlockingQuiet(myEpoch: number): Promise<void> {
     // (The line names what it waited for — a ceiling that says only «every hold» sends its reader to reproduce it.)
     wait ??= beginCeilingWait({
       id: 'card-reaction:blocking-quiet', owner: 'cardReactionDirector', what: 'every blocking animation hold released', maxMs: BLOCKING_QUIET_MAX_MS,
-      detail: activeAnimationHoldLabels().filter((label) => label.endsWith('[blocking]')).join('+'),
+      detail: blockingHoldsPlaying().join('+'),
     });
     await nextPaintedFrame();
   }

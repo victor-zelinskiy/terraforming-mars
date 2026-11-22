@@ -126,6 +126,9 @@ let flipNet: (() => void) | undefined;
 registerAnimationHoldSupplier('generation-scene', () => generationSceneState.phase !== 'idle', {
   // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): the rise waits for the player's take of a reveal (`waitScreenHandoff`).
   waitsFor: 'player',
+  // …and in `rise` the scene has PLAYED: it stands in the screen's handoff, holding the door while what this screen
+  // still owes the player finishes under it — an owed story plays under this hold, never waits for it.
+  handsOver: () => generationSceneState.phase === 'rise',
   diagnose: () => ({phase: generationSceneState.phase, generation: generationSceneState.generation, pending: railRewardPending(GENERATION_INCOME_KEY)}),
   expire: () => endGenerationScene('expired'),
 });

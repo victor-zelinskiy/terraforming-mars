@@ -6,6 +6,7 @@ import {
   animationHoldCount,
   beginAnimationHold,
   blockingAnimationHoldCount,
+  blockingHoldsPlaying,
   holdAnimationWhile,
   holdForGsapAnimation,
   isAnimationHoldActive,
@@ -95,6 +96,31 @@ describe('animationHold (the critical-animation registry)', function() {
     flow.active = false;
     expect(animationHoldCount()).eq(0);
     expect(currentBlockReason()).eq(undefined);
+  });
+
+  /*
+   * A DOOR HELD SHUT IS NOT A SCENE PLAYING (`console-terraforming-deal` (D) on CI — `wait-graph/ceiling/
+   * card-reaction:blocking-quiet`, the held label `generation-scene[blocking]`): the generation scene's rise stood in the
+   * screen's handoff waiting for the card reaction's hold, and the reaction waited for every blocking hold — the scene's
+   * included. Twelve seconds, to the reaction's ceiling.
+   */
+  it('a blocking hold that only HANDS THE SCREEN OVER is no scene to wait out — it still blocks everything it blocked', () => {
+    const scene = reactive({phase: 'idle'});
+    registerAnimationHoldSupplier('spec-supplier', () => scene.phase !== 'idle', {handsOver: () => scene.phase === 'rise'});
+    registerAnimationHoldSupplier('spec-supplier-soft', () => scene.phase !== 'idle', {scope: 'notification-only'});
+    expect(blockingHoldsPlaying()).deep.eq([]);
+    scene.phase = 'income';
+    expect(blockingHoldsPlaying(), 'the scene plays — an owed story waits it out').deep.eq(['spec-supplier']);
+    expect(blockingAnimationHoldCount()).eq(1);
+    scene.phase = 'rise';
+    expect(blockingHoldsPlaying(), 'it has played and holds the door through the handoff: nothing to wait out').deep.eq([]);
+    expect(blockingAnimationHoldCount(), '…and the door is still shut for everything else (the next prompt, the feed)').eq(1);
+    expect(activeAnimationHoldLabels()).to.include('spec-supplier[blocking]');
+    const manual = beginAnimationHold('spec-manual');
+    expect(blockingHoldsPlaying(), 'a manual blocking hold is a scene').deep.eq(['spec-manual']);
+    manual.release();
+    scene.phase = 'idle';
+    expect(blockingHoldsPlaying()).deep.eq([]);
   });
 
   it('re-registering the same label replaces the previous supplier; unregister removes it', () => {
