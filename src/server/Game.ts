@@ -1212,11 +1212,13 @@ export class Game implements IGame, Logger {
         player.drawResearch();
       }
     }
-    for (const player of humans) {
-      if (this.parliament?.holdsSittingAck(player.id) !== true) {
-        player.askResearch();
+    const ask = () => {
+      for (const player of humans) {
+        if (this.parliament?.holdsSittingAck(player.id) !== true) {
+          player.askResearch();
+        }
       }
-    }
+    };
     if (this.automa !== undefined && !this.researchedPlayers.has(marsBotOf(this).id)) {
       // In the draft variant AutomaDraft already built the action deck from the
       // bot's drafted cards before entering this phase.
@@ -1224,7 +1226,13 @@ export class Game implements IGame, Logger {
         AutomaResearch.buildActionDeck(this);
       }
       this.researchedPlayers.add(marsBotOf(this).id);
+      // …and what the bot's step set off for a seat (its floaters → the temperature → an ocean → a seat's card) is
+      // run BEFORE the seats are asked: queued under their research questions it waited for each seat's way out — and
+      // held every save of the phase (`save` — work no save can keep).
+      this.deferredActions.runAll(ask);
+      return;
     }
+    ask();
   }
 
   public admitToGeneration(player: IPlayer): void {

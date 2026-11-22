@@ -67,9 +67,13 @@ export class AutomaDraft extends Draft {
     const drafted = [...bot.draftedCards] as Array<IProjectCard>;
     bot.draftedCards = [];
     AutomaResearch.finishDraftedActionDeck(this.game, drafted);
-    // The human proceeds to the buy step (their drafted cards ride
-    // player.draftedCards through runResearchPhase, as in the standard draft).
-    this.game.gotoResearchPhase();
+    // WHAT THE BOT'S RESEARCH STEP SET OFF FOR A SEAT IS RUN NOW — before the seats are asked to buy. Stormcraft's
+    // floaters raise the temperature, the temperature's ocean wakes a seat's Arctic Algae: the gain stood queued
+    // through the whole research phase (a per-seat phase drains a seat's queue on its way out) — late for everything
+    // that read the seat meanwhile, and work no save can keep (`Game.save`): every save of the phase was held by it.
+    // The human then proceeds to the buy step (their drafted cards ride player.draftedCards through
+    // runResearchPhase, as in the standard draft).
+    this.game.deferredActions.runAll(() => this.game.gotoResearchPhase());
   }
 }
 
