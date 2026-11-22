@@ -132,6 +132,18 @@ export type LivenessSample = {
   beatOwed?: boolean;
   /** The leak detector names the live question STRANDED (no surface serves it) — judged at `LIVENESS_STRANDED_GRACE_MS`. */
   stranded?: boolean;
+  /**
+   * A LOOK THE PLAYER OPENED OWNS THE PAD (`PLAYER_LOOK_SELECTOR` — the information screen, the card viewer, the
+   * journal, the system menu, the turn review): the screen is the PLAYER's, and whatever waits under it — the question,
+   * a beat that owes its end, a reveal held back so as not to pop over what they are reading — waits by the player's
+   * own hand. THE PLAYER'S TIME IS NOBODY'S STALL: under a look the screen is judged as an ACCEPTING one (only a press
+   * NOBODY took counts — a deaf look is still a deaf screen), never as an unserved question.
+   * The monkey's seed of the day, 2026-11-22 (`d20261122:red-lawyers`, issues #88 / #89 / #91 / #92): «Юристы Красных»
+   * played, the Parliament's walk standing on its card step, the player reading «ИНФОРМАЦИЯ › соперник» over it — the
+   * arbiter called ten seconds of reading «stall (unserved) … holder: beat», expired the reveal's claims, tore the
+   * walk's beat down under the screen, and the hand's frame was then concluded as stale.
+   */
+  playerLook?: boolean;
   /** An OBSERVABLE-STATE signature: the prompt's identity, the stack, the surfaces, the bar, the focus. A press that
    *  changes nothing leaves it equal; anything the player would SEE change moves it. */
   signature: string;
@@ -184,10 +196,12 @@ export type LivenessVerdict =
 export function observeLiveness(state: LivenessState, sample: LivenessSample): {state: LivenessState, verdict: LivenessVerdict} {
   const next: LivenessState = {...state, lastInFlight: sample.inFlight.length > 0 ? [...sample.inFlight] : state.lastInFlight};
   const dropped = sample.dropped ?? 0;
+  // A look the player opened accepts by the player's own hand, whatever stands under it (see `playerLook`).
+  const accepting = sample.accepting || sample.playerLook === true;
   // An ACCEPTING screen is judged by the presses nobody took; an absorbed one by every A / B (see `LivenessSample`).
   // …and, on a frame past its commit, every B a handler took (it must have collapsed something — see `backJudged`).
   const backTaken = sample.backTaken ?? 0;
-  const newPresses = sample.accepting ?
+  const newPresses = accepting ?
     Math.max(0, dropped - state.lastDropped) + (sample.backJudged === true ? Math.max(0, backTaken - state.lastBackTaken) : 0) :
     Math.max(0, sample.presses - state.lastPresses);
   next.lastPresses = sample.presses;
@@ -196,8 +210,11 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
   const moved = sample.signature !== state.signature;
   next.signature = sample.signature;
   next.pressesSinceProgress = state.pressesSinceProgress + newPresses;
-  if (moved || sample.inFlight.length > 0 || (sample.accepting && !sample.promptLive && next.pressesSinceProgress === 0)) {
-    // Progress — or an idle, accepting screen with nobody asked and nobody pressing: nothing to judge.
+  if (moved || sample.inFlight.length > 0 || (sample.accepting && !sample.promptLive && next.pressesSinceProgress === 0) ||
+      (sample.playerLook === true && next.pressesSinceProgress === 0)) {
+    // Progress — or an idle, accepting screen with nobody asked and nobody pressing: nothing to judge. A look the
+    // player reads is that screen whatever is asked under it: the time under it is not the stall's (the clock starts
+    // when the look closes, never «ten seconds already» on the tick it does).
     next.progressAt = sample.now;
     next.pressesSinceProgress = 0;
     next.rung = 0;
@@ -208,7 +225,7 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
   }
   const quietMs = sample.now - next.progressAt;
   const pressed = next.pressesSinceProgress >= LIVENESS_PRESSES_NO_EFFECT && quietMs >= LIVENESS_PRESSED_GRACE_MS;
-  const unserved = (sample.promptLive || sample.beatOwed === true) && !sample.accepting &&
+  const unserved = (sample.promptLive || sample.beatOwed === true) && !accepting &&
     quietMs >= (sample.stranded === true ? LIVENESS_STRANDED_GRACE_MS : LIVENESS_GRACE_MS);
   if (!pressed && !unserved) {
     return {state: next, verdict: {stalled: false}};
@@ -250,20 +267,28 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
  * progress, 4 presses … holder: deaf», and the ladder then took the Parliament down under them (`stack-home`,
  * `phase-root-park`). A view the player opened is the player's time; its B is its own.
  */
-export const PAD_OWNING_OVERLAYS: ReadonlyArray<{selector: string, why: string}> = [
+export const PAD_OWNING_OVERLAYS: ReadonlyArray<{selector: string, why: string, /** a view the PLAYER opened to read */ look?: true}> = [
   {selector: '.con-reveal', why: 'a reveal is taken with A — B may honestly do nothing'},
   {selector: '.con-mandatory', why: 'the announce plate is answered, never backed out of'},
-  {selector: '.con-zoom', why: 'the fullscreen card viewer: B closes the viewer'},
-  {selector: '.con-journal', why: 'the journal: B closes it (or its inspected entry)'},
-  {selector: '.con-sys', why: 'the system menu, the settings, the diagnostics: B is theirs'},
+  {selector: '.con-zoom', why: 'the fullscreen card viewer: B closes the viewer', look: true},
+  {selector: '.con-journal', why: 'the journal: B closes it (or its inspected entry)', look: true},
+  {selector: '.con-sys', why: 'the system menu, the settings, the diagnostics: B is theirs', look: true},
   {selector: '.con-task', why: 'the task host serves the question itself'},
   {selector: '.con-stranded', why: 'the stranded-prompt plate owns the way back'},
-  {selector: '.con-info', why: 'the information screen (a seat\'s dossier, read-only): B walks back through it and closes it'},
-  {selector: '.con-bot-review', why: 'the turn review the player opened: B closes it'},
+  {selector: '.con-info', why: 'the information screen (a seat\'s dossier, read-only): B walks back through it and closes it', look: true},
+  {selector: '.con-bot-review', why: 'the turn review the player opened: B closes it', look: true},
 ];
 
 /** One selector for `document.querySelector` — any of {@link PAD_OWNING_OVERLAYS}. */
 export const PAD_OWNING_OVERLAY_SELECTOR = PAD_OWNING_OVERLAYS.map((overlay) => overlay.selector).join(', ');
+
+/**
+ * …and the LOOKS among them — the views only the PLAYER opens, to read: while one stands the screen is the player's
+ * (`LivenessSample.playerLook`), and neither the arbiter nor the reaper of finished frames judges what waits under it.
+ * The other rows are the GAME's surfaces (a reveal, the announce plate, the task host, the stranded plate): they own the
+ * pad, and they are the game's own to answer for.
+ */
+export const PLAYER_LOOK_SELECTOR = PAD_OWNING_OVERLAYS.filter((overlay) => overlay.look === true).map((overlay) => overlay.selector).join(', ');
 
 // ── THE LADDER — releases registered by their owners, in the order they are run ───────────────────────────────
 

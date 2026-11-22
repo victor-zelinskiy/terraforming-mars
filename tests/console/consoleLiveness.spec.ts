@@ -16,6 +16,7 @@ import {
   observeLiveness,
   PAD_OWNING_OVERLAY_SELECTOR,
   PAD_OWNING_OVERLAYS,
+  PLAYER_LOOK_SELECTOR,
   registerLivenessRelease,
   resetLiveness,
   restoreLivenessLadderForTest,
@@ -134,6 +135,61 @@ describe('consoleLiveness', () => {
       return {promptLive: true, accepting: true, presses: n, backTaken: n, backJudged: true, signature: `s${n}`};
     }));
     expect(moving.some((x) => x.stalled), 'a B that collapsed something').is.false;
+  });
+
+  /*
+   * THE PLAYER'S TIME IS NOBODY'S STALL (the monkey's seed of the day on CI, 2026-11-22 - `d20261122:red-lawyers`,
+   * issues #88 / #89 / #91 / #92): the Parliament's walk stood on its card step, the player read the information screen
+   * over it, and ten seconds of reading were «stall (unserved) ... holder: beat» - the reveal's claims expired, the
+   * walk's beat torn down under the screen.
+   */
+  describe('a look the player opened', () => {
+    it('is never an unserved question, however long it is read - not with a question under it, not with a beat that owes its end', () => {
+      const asked = walk(seconds(60, () => ({playerLook: true})));
+      expect(asked.some((x) => x.stalled), 'a question under the look').is.false;
+      const beat = walk(seconds(60, () => ({promptLive: false, beatOwed: true, playerLook: true})));
+      expect(beat.some((x) => x.stalled), 'a beat under the look').is.false;
+      const stranded = walk(seconds(60, () => ({stranded: true, playerLook: true})));
+      expect(stranded.some((x) => x.stalled), 'a stranded question under the look').is.false;
+    });
+
+    it('A / B the look TOOK are the look working - the absorbed pad under it is not what the presses are judged by', () => {
+      // Every press is taken by the look (none dropped) and the picture stands (a B on the look's root, an A on a row with nothing to open).
+      const v = walk(seconds(30, (t) => ({playerLook: true, presses: t / 1000, dropped: 0})));
+      expect(v.some((x) => x.stalled)).is.false;
+    });
+
+    it('...but a DEAF look is a deaf screen: presses NOBODY took are judged as on any accepting surface', () => {
+      const v = walk(seconds(LIVENESS_PRESSED_GRACE_MS / 1000 + 2, (t) => ({playerLook: true, presses: t / 1000, dropped: t / 1000})));
+      const stalled = v.find((x) => x.stalled);
+      expect(stalled !== undefined && stalled.stalled && stalled.reason).to.eq('presses-no-effect');
+    });
+
+    it('the time under the look is not the stall\'s: the clock starts when the look closes, never «ten seconds already»', () => {
+      const under = seconds(30, () => ({playerLook: true}));
+      // The look closes and the picture does not move (the worst case - a close the signature did not see).
+      // (The clock stands at the last look of the arbiter that saw the view open - one tick before the first without it.)
+      const after = Array.from({length: LIVENESS_GRACE_MS / 1000}, (_, i) => sample(31_000 + i * 1000));
+      const v = walk([...under, ...after]);
+      expect(v.slice(0, -1).some((x) => x.stalled), 'no stall before a whole grace has passed WITHOUT the look').is.false;
+      expect(v[v.length - 1].stalled, 'what still stands a grace after the look closed is judged as ever').is.true;
+    });
+
+    it('the looks are the views only the PLAYER opens - never a surface of the game', () => {
+      const looks = PAD_OWNING_OVERLAYS.filter((overlay) => overlay.look === true).map((overlay) => overlay.selector);
+      expect(looks).to.have.members(['.con-info', '.con-zoom', '.con-journal', '.con-sys', '.con-bot-review']);
+      expect(PLAYER_LOOK_SELECTOR.split(', ')).to.deep.eq(looks);
+      for (const game of ['.con-reveal', '.con-mandatory', '.con-task', '.con-stranded']) {
+        expect(looks, `${game} is the game's own surface - it answers for itself`).to.not.include(game);
+      }
+    });
+
+    it('the arbiter\'s sample and the reaper of finished frames both read it (the supervisor\'s wiring)', () => {
+      const supervisor = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/supervisor/supervisorController.ts'), 'utf8');
+      expect(supervisor, 'the sample carries the look').to.match(/playerLook: playerLookStands\(\)/);
+      expect(supervisor, 'the reaper does not conclude a frame under a look').to.match(/!shell\.placementActive && !playerLookStands\(\)/);
+      expect(supervisor).to.match(/document\.querySelector\(PLAYER_LOOK_SELECTOR\) !== null/);
+    });
   });
 
   it('an idle accepting screen with no question and no presses is not judged at all', () => {

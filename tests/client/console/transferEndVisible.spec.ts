@@ -67,6 +67,29 @@ describe('transferEndVerdict — a place a token may be born on or land on', () 
     expect(transferEndVerdict(el)).to.deep.eq({visible: false, why: 'off-screen'});
   });
 
+  /*
+   * A LEAVE DECIDED IS A SURFACE GONE (the monkey's seed of the day on CI, 2026-11-22 — `d20261122:colony-trade-hub-bot`,
+   * issues #90 / #93): B closed «Разыграно», and in the first half of its dissolve — opacity still above the half —
+   * a card's M€ took its printed icon there as its source; by the token's pop the table was gone.
+   */
+  it('an end on a surface whose leave is decided is refused by name — at any opacity, for exactly as long as the leave lasts', () => {
+    const surface = document.createElement('div');
+    surface.className = 'con-played con-ws';
+    const icon = document.createElement('span');
+    surface.appendChild(icon);
+    root.appendChild(surface);
+    box(icon, {left: 100, top: 100, width: 40, height: 40});
+    stack(icon);
+    expect(transferEndVerdict(icon), 'the table stands — its icon is a place').to.deep.eq({visible: true});
+    surface.dataset.motionLeaving = '1';
+    surface.style.opacity = '0.9';
+    expect(transferEndVerdict(icon), 'the leave is decided: no place, though the fade has hardly begun').to.deep.eq({visible: false, why: 'leaving', by: 'con-played'});
+    expect(transferEndVerdict(icon, {lenient: true}), 'a flight already in the air keeps its object through the leave').to.deep.eq({visible: true});
+    delete surface.dataset.motionLeaving;
+    surface.style.opacity = '';
+    expect(transferEndVerdict(icon), 'a leave cancelled (the surface shown again) gives the place back').to.deep.eq({visible: true});
+  });
+
   it('LENIENT (the final approach, T06): a faded or covered object is still there — only a gone one fails', () => {
     const section = document.createElement('section');
     const el = document.createElement('div');

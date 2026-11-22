@@ -29,7 +29,7 @@ import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
 import {observeStillHold, pageMoves, StillHoldState} from '@/client/console/waitGraph/motionWitness';
-import {advanceLivenessRung, LAST_LINE_REST, LastLineState, lastLineStep, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, PAD_OWNING_OVERLAY_SELECTOR, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
+import {advanceLivenessRung, LAST_LINE_REST, LastLineState, lastLineStep, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, PAD_OWNING_OVERLAY_SELECTOR, PLAYER_LOOK_SELECTOR, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {rebuildConsoleSession} from '@/client/console/session/sessionRebuild';
 import {noteSupervisorPass, noteSupervisorStarted, noteSupervisorStopped} from '@/client/console/session/supervisorPulse';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
@@ -254,9 +254,10 @@ export function createSupervisorController(shell: SupervisorPort) {
   function reapStaleFreeTurnFrame(inFlight: ReadonlyArray<string>): void {
     const wf = shell.playerView.waitingFor;
     const top = workspaceStackTop();
+    // (…and never under a look the player reads: the frame's time under it is the player's — `LivenessSample.playerLook`.)
     const candidate = wf !== undefined && top !== undefined && taskFor(shell.playerView)?.kind === 'actionMenu' &&
       top.phase === 'committed' && top.anchor.type !== 'phase' && !top.serves.includes('actionMenu') &&
-      !workspaceStackCollapsed() && !stackYieldedToBoard() && !shell.placementActive;
+      !workspaceStackCollapsed() && !stackYieldedToBoard() && !shell.placementActive && !playerLookStands();
     // THE QUIET IS THE REAPER'S OWN CLOCK (`staleFreeTurnClock.ts`): a new question restarts it in this very tick (the
     // arbiter's progress stamp is one tick old here), anything in flight restarts it, and a HELD conclusion waits a
     // whole quiet span again — never «9 s quiet» on the tick the player's take asked the next prompt.
@@ -668,6 +669,8 @@ export function createSupervisorController(shell: SupervisorPort) {
       // …and a transient beat owes its end even when nobody is asked (the two-campaign rally, ledger HC).
       beatOwed: beat !== undefined,
       stranded: leakDetectorState.stranded !== undefined,
+      // …and a look the player opened is the player's time, whatever waits under it (`LivenessSample.playerLook`).
+      playerLook: playerLookStands(),
       signature,
     });
     if (!verdict.stalled) {
@@ -741,6 +744,11 @@ export function createSupervisorController(shell: SupervisorPort) {
    * `backVerbFor`), on screen (no park, no yield, no placement owning the pad), and the server asks the player a
    * question. A `verdict` (B = none) and a transient beat (the pad absorbed by contract) are not judged here.
    */
+  /** A view the PLAYER opened to read owns the pad (`consoleLiveness.PLAYER_LOOK_SELECTOR`) — the screen is theirs. */
+  function playerLookStands(): boolean {
+    return document.querySelector(PLAYER_LOOK_SELECTOR) !== null;
+  }
+
   function backOwedOnStandingFrame(): boolean {
     const wf = shell.playerView.waitingFor;
     if (wf === undefined || wf.optional === true || workspaceStackCollapsed() || stackYieldedToBoard() || shell.placementActive) {

@@ -1684,10 +1684,10 @@ function measureRestingRect(selector: string, skipped?: Array<SkippedEnd>, opts:
 /** The element the last successful resting measure read — the home ladder's rung, for the receiver's ring. */
 let lastRestingEl: Element | undefined;
 
-/** The ladder's skipped ends that were COVERED or FADED — the ones a player would have seen a token come from nowhere for. */
+/** The ladder's skipped ends that were COVERED, FADED or LEAVING — the ones a player would have seen a token come from nowhere for. */
 function coveredEnds(skipped: ReadonlyArray<SkippedEnd>): Array<string> {
   return skipped
-    .filter((s) => !s.verdict.visible && (s.verdict.why === 'covered' || s.verdict.why === 'faded'))
+    .filter((s) => !s.verdict.visible && (s.verdict.why === 'covered' || s.verdict.why === 'faded' || s.verdict.why === 'leaving'))
     .map((s) => `${s.selector} (${s.verdict.visible ? '' : s.verdict.why}${!s.verdict.visible && s.verdict.by !== undefined ? ` by ${s.verdict.by}` : ''})`);
 }
 

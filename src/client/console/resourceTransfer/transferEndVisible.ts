@@ -34,7 +34,7 @@
 
 export type TransferEndVerdict =
   | {visible: true}
-  | {visible: false, why: 'unmounted' | 'empty' | 'hidden' | 'faded' | 'off-screen' | 'covered', by?: string};
+  | {visible: false, why: 'unmounted' | 'empty' | 'hidden' | 'faded' | 'leaving' | 'off-screen' | 'covered', by?: string};
 
 /** The opacity below which an end is a ghost, not a place (a leaving surface mid-fade). */
 export const TRANSFER_END_MIN_OPACITY = 0.5;
@@ -138,6 +138,20 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
   }
   if (opts.lenient === true) {
     return {visible: true};
+  }
+  // AN END ON A SURFACE WHOSE LEAVE IS DECIDED is not a flight end — whatever its fade still paints. The opacity's half
+  // judges a ghost by what the eye has left of it; a band surface the player has just closed is GONE by decision, and
+  // for the first half of its dissolve it still measures and still reads «visible»: a token that takes it then is born
+  // off a place that is no longer there by its own pop. The monkey's seed of the day, 2026-11-22
+  // (`d20261122:colony-trade-hub-bot`, issues #90 / #93): B closed «Разыграно», and 336 ms later a card's M€ took its
+  // printed icon on the leaving table as its source — «surface folded under its token — the birth of
+  // stock:megacredits off span.pcard-mi.pcard-mi--mc (div.con-played.con-ws gone)». The fold's law (`surfaceClear`)
+  // could not have helped: the frame left BEFORE the token existed. The leave's own mark says it for as long as the
+  // leave lasts (`surfaceMotionDirector.surfaceLeaveHook` — `data-motion-leaving`); the ladder goes on to the next
+  // place. (LENIENT — a flight already in the air keeps its object through a leave's last frames — returned above.)
+  const leaver = el.closest('[data-motion-leaving]');
+  if (leaver !== null) {
+    return {visible: false, why: 'leaving', by: surfaceName(leaver)};
   }
   if (opacity < TRANSFER_END_MIN_OPACITY) {
     return {visible: false, why: 'faded'};
