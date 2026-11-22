@@ -31,7 +31,10 @@
  *
  * KINDS: `new-class` (a cause class no baseline holds) · `never-cured` (a stall nobody ended) · `failed` (a test red on
  * every attempt) · `flaky` (red, then green on a retry) · `broken-run` (the run itself did not produce a verdict) ·
- * `field` (a defect a real session reported to Sentry — the box, a player's machine).
+ * `field` (a defect a real session reported to Sentry — the box, a player's machine) · `owner-law` (the gate red by
+ * the ONE-OWNER LAW: a press, a surface or the bar parted from the function's word — named by its verdict, with the
+ * tables that walked it; it is no cause class, and until it had a kind of its own it was filed as «red with nothing
+ * named» — issue #84).
  *
  * A FLOOD IS ONE FINDING: a run that names more than MASS findings (a broken build reads as 571 red tests) files ONE
  * issue that lists them — never a hundred issues a night.
@@ -44,6 +47,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {findReproductions, whereSearch} from '../diag-lib.mjs';
+import {ownerLawBroken} from '../monkey-report.mjs';
 
 const [command, ...rest] = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -259,6 +263,34 @@ function fromMonkey() {
         ].join('\n'),
       });
     }
+  }
+  // THE ONE-OWNER LAW, BROKEN, IS A FINDING BY NAME (`monkey-report.ownerLawBroken` — the gate's own judge): one per
+  // verdict, with the tables that walked it and the facts the function was asked with. It is no cause class, so the
+  // report's `newClasses` never held it — and the gate's red was filed as «nothing named».
+  for (const [verdict, count, what] of ownerLawBroken(report)) {
+    const rows = (report.owner?.disagreements ?? []).filter((row) => String(row.what).includes(`— ${verdict}`));
+    const tables = [...new Set(rows.flatMap((row) => row.tables ?? []))];
+    const seed = /^seed ([A-Za-z0-9_-]+)$/.exec(context)?.[1] ?? '';
+    const table = tables.find((name) => /^[A-Za-z0-9_-]+$/.test(name)) ?? '';
+    const named = table !== '' && seed !== '';
+    findings.push({
+      key: `${source}|owner-law|${verdict}`,
+      kind: 'owner-law',
+      ...(named ? {proof: source === 'freeze-gate' ?
+        {workflow: 'Freeze gate', inputs: {seeds: seed, only: `^${table}$`}} :
+        {workflow: 'Monkey', inputs: {seed, only: `^${table}$`, shards: '1', perturb: flag('perturb', 'none')}}} : {}),
+      title: `[${source}] the one-owner law: ${verdict}${table === '' ? '' : ` (${table}${tables.length > 1 ? ` +${tables.length - 1}` : ''})`}`,
+      body: [
+        `**The one-owner law is not at zero** — named by \`${source}\`${context === '' ? '' : ` (${context})`}.`,
+        '',
+        `- verdict: \`${verdict}\` ×${count} — ${what}`,
+        `- tables: ${tables.slice(0, 12).map((name) => `\`${name}\``).join(' · ') || '?'}${tables.length > 12 ? ` · +${tables.length - 12}` : ''}`,
+        ...rows.slice(0, 8).flatMap((row) => [`- ${row.walks} walk(s) · ${row.what}`, ...(row.facts ? [`  - facts: ${row.facts}`] : [])]),
+        '',
+        'The function (`src/client/console/servingOwner.ts`) says who serves the question; the pad\'s ladder, the bar and the surfaces are derived from it. Decide which side is wrong — the function\'s facts, or the copy that parted — never a baseline row.',
+        ...(repro === '' || !named ? [] : ['', '**Repeat it:**', fence(repro.replace(/<table>/g, table).replace(/<seed>/g, seed))]),
+      ].join('\n'),
+    });
   }
   // RED, AND NOTHING NAMED: a shard that died, a replay of a closed class that failed — a red night with nothing
   // filed would read as a quiet one.

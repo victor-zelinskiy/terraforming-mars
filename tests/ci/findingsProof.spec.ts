@@ -49,6 +49,39 @@ describe('ci findings: a finding names its proof', function() {
     expect(finding.proof).to.deep.eq({workflow: 'Freeze gate', inputs: {seeds: 'fz0', only: '^hydro-terminal-surge$'}});
   });
 
+  /*
+   * THE ONE-OWNER LAW, BROKEN, IS NAMED (issue #84): the gate's red by the law carried no cause class, so the night
+   * it first failed was filed as «red with nothing named». The finding is the verdict, its tables and its proof.
+   */
+  it('the gate red by the one-owner law files the verdict with its tables — never «nothing named»', () => {
+    const lawReport = {
+      totals: {notCured: 0},
+      classes: {},
+      diff: {newClasses: []},
+      owner: {
+        verdicts: {'pad-MISS': 1, 'band-APART': 1, 'pad-agree': 40},
+        disagreements: [
+          {what: 'pad:startSequence — pad-MISS:section:board: says «start», painted «section:board»', walks: 1, tables: ['venus-l1-shade-start'], facts: 'frames [start] · host start'},
+          {what: 'band:startSequence — band-APART:own:start>section:board: says «start», painted «section:board»', walks: 1, tables: ['venus-l1-shade-start'], facts: ''},
+        ],
+      },
+    };
+    const findings = findingsOf('from-monkey', lawReport, '--source', 'freeze-gate', '--context', 'seed fz1', '--gate-red',
+      '--repro', 'npm run gate:freeze -- --seed <seed> --only \'^<table>$\' --skip-replays');
+    expect(findings.map((finding) => finding.key)).to.deep.eq(['freeze-gate|owner-law|pad-MISS', 'freeze-gate|owner-law|band-APART']);
+    expect(findings.every((finding) => finding.kind === 'owner-law'), 'never a broken run').to.eq(true);
+    expect(findings[0].title).to.eq('[freeze-gate] the one-owner law: pad-MISS (venus-l1-shade-start)');
+    expect(findings[0].proof).to.deep.eq({workflow: 'Freeze gate', inputs: {seeds: 'fz1', only: '^venus-l1-shade-start$'}});
+    expect(findings[0].body).to.include('frames [start] · host start');
+    expect(findings[0].body).to.include('npm run gate:freeze -- --seed fz1 --only \'^venus-l1-shade-start$\' --skip-replays');
+  });
+
+  it('…and a law at zero adds nothing: a red with no class and no law is still «nothing named»', () => {
+    const quiet = {totals: {notCured: 0}, classes: {}, diff: {newClasses: []}, owner: {verdicts: {'pad-agree': 12, 'pad-MISS': 0}, disagreements: []}};
+    const findings = findingsOf('from-monkey', quiet, '--source', 'freeze-gate', '--context', 'seed fz1', '--gate-red');
+    expect(findings.map((finding) => finding.kind)).to.deep.eq(['broken-run']);
+  });
+
   it('a class of the monkey is proven by the monkey on its table, seed and perturbation', () => {
     const [finding] = findingsOf('from-monkey', monkeyReport, '--source', 'monkey', '--context', 'seed fz0', '--perturb', 'cpu4');
     expect(finding.proof).to.deep.eq({workflow: 'Monkey', inputs: {seed: 'fz0', only: '^hydro-terminal-surge$', shards: '1', perturb: 'cpu4'}});

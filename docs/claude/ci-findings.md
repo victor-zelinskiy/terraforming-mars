@@ -125,7 +125,12 @@ issues (needs `GH_TOKEN`, `issues: write`).
   suite with no merged report — a red night with nothing filed would read as a quiet one.
 - **Seen again → the same issue is TOUCHED** — a counter and «last seen» in its body, never a comment a night.
 - **Closed and seen again → REOPENED**, labelled `regression`, back to `triage:needed`.
-- **Labels:** `ci-finding` · `src:<source>` · `kind:new-class | never-cured | failed | flaky | broken-run` ·
+- **THE ONE-OWNER LAW HAS A KIND OF ITS OWN** (`owner-law`, key `<source>|owner-law|<verdict>`): the gate is red by
+  it when a press, a surface or the bar parts from the function's word (`monkey-report.ownerLawBroken`). It is no
+  cause class — the report's «new classes» never hold it — and its first red was filed as «nothing named» (#84). The
+  finding names the verdict, the tables that walked it and the facts the function was asked with, and proves by the
+  gate on the first table and the run's seed.
+- **Labels:** `ci-finding` · `src:<source>` · `kind:new-class | never-cured | failed | flaky | broken-run | owner-law` ·
   `triage:needed` (no verdict yet).
 - **WHOSE MOVE IT IS, read from the labels of an OPEN issue** — never guessed:
 
