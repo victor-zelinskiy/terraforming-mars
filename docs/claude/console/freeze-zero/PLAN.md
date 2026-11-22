@@ -1020,7 +1020,19 @@ has played (the day's number × 100 000), the reload check on every second savin
 not hold is FILED by its seed (`scripts/ci/findings.mjs from-fuzz` — `engine-fuzz|class|<class>`: what the judge
 said, the seed and the answer, the command that replays the whole game on a laptop, and its proof — that seed played
 again). The same filer now names the one-owner law's red by its verdict and tables (kind `owner-law`): the night #84
-was found it was filed as «red with nothing named». Next: the batch route, shrinking.
+was found it was filed as «red with nothing named».
+*Its first run on CI* (a five-minute trial, 107 games on the day's range) named a class nobody had seen and filed it
+by itself (#85, #86 — seed 2077900043): the chairmanship SAVED the moment its quest was answered, with the trade's
+colony bonus still waiting in the queue behind it — loaded, a settler's «Collect N cards» was never asked. **The save
+law, whole:** no save is taken while a question only the queue could ask stands OR the queue still holds work a load
+would not queue again (`DeferredActionsQueue.holdsWorkNoSaveKeeps`; the one exception is declared on the action —
+`requeuedOnLoad`, the opening's colony removal); the colony bonus, which asks every settler around the queue's one
+door, says its questions to the queue (`noteAsked`). The same range of seeds played again on CI: no class.
+*What the law costs, said plainly:* a reaction left queued for a seat through a per-seat phase (the research buy —
+MarsBot's research step waking a seat's card) now holds every save until that seat's way out; a server restarted in
+that window comes back at the save before the phase. It trades a silently wrong table for a few answers to give
+again — and it is the reason to drain such a reaction at once (the open half of «the research phase drains per
+seat»). Next: that drain, the batch route, shrinking.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
