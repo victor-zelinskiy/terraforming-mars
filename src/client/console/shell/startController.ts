@@ -43,6 +43,7 @@ import {ActualStartOwner, START_LEVEL_DOOR_QUIET_FRAMES, START_SHADOW_CONFIRM_MS
 import {noteOpeningLook, noteOpeningSpan} from '@/client/console/servingOwnerMeasure';
 import {transportState} from '@/client/console/transport/gameTransport';
 import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
+import {flowTreeDigest} from '@/client/console/kernel/flowScope';
 import {watchFrames} from '@/client/console/kernel/frameWitness';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
@@ -892,6 +893,12 @@ export function createStartController(shell: StartPort) {
     return [...new Set(names)].sort().slice(0, 5).join('+');
   }
 
+  /** What stands, for the door's measure: the stack's frames and the kernel's tree, ids folded (`#N`), bounded. */
+  function standingDigest(): string {
+    const frames = workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`).join(',') || 'no frame';
+    return `${frames} · ${flowTreeDigest(6).replace(/[0-9]+/g, 'N')}`.slice(0, 220);
+  }
+
   /**
    * THE DOORS BY LEVEL, MEASURED (stage 2b ② — `servingOwnerMeasure`, the DOOR track): while the director would ACT
    * on what stands (`heal` · `yield` · `release`), what is in flight is read every frame. Stats only — nothing here
@@ -911,7 +918,12 @@ export function createStartController(shell: StartPort) {
     let opened = false;
     const look = (): void => {
       const flight = flightNow();
-      noteOpeningSpan('door', `DOOR ${question} · ${state} · ${cure} · ${flight === '' ? 'QUIET' : `busy[${flight}]`}`, 'moved', Date.now());
+      // THE ONE STATE THE DOOR STAYS SHUT IN (`startLevelDoorMay` — a step standing on the start under the game's
+      // menu) says WHAT STANDS while it is quiet: the stack's frames and the kernel's own tree. Whose time it is — a
+      // result being read, a dwell nobody declared to the wait graph, a strand — is read off this, over the suite,
+      // before `release` becomes a level there too.
+      const quietWord = flight !== '' ? '' : door === undefined ? `QUIET{${standingDigest()}}` : 'QUIET';
+      noteOpeningSpan('door', `DOOR ${question} · ${state} · ${cure} · ${flight === '' ? quietWord : `busy[${flight}]`}`, 'moved', Date.now());
       quiet = flight === '' ? quiet + 1 : 0;
       if (!opened && door !== undefined && quiet >= START_LEVEL_DOOR_QUIET_FRAMES) {
         opened = true;
