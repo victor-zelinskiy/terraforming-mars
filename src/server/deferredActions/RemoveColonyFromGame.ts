@@ -6,6 +6,10 @@ import {systemChoice} from '../inputs/choiceContext';
 import {ColoniesHandler} from '../colonies/ColoniesHandler';
 
 export class RemoveColonyFromGame extends DeferredAction {
+  // The opening queues it at SETUP and a load of an unplayed opening queues it again (`Game.gotoInitialResearchPhase`):
+  // the opening's saves are taken with it waiting.
+  public readonly requeuedOnLoad = true;
+
   constructor(player: IPlayer) {
     super(player, Priority.DEFAULT);
   }

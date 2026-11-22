@@ -281,8 +281,9 @@ describe('engineFuzz — random legal games on the real engine', () => {
    * the step was never asked again (90013). A load re-asks it, as it does a draft's pick (`ReloadSolarPhase.spec`).
    */
   it('a save, loaded, asks every seat the live question — seeds 113 · 118 · 177 (a queue\'s question under the sitting\'s save)', () => {
-    // (…and 90013 — the Solar phase.)
-    for (const seed of [113, 118, 177, 90013]) {
+    // (…90013 — the Solar phase; 2077900043, the first night on CI — the chairmanship's save over a trade's colony
+    // bonus still QUEUED: the law holds a save while the chain has work left, asked or not.)
+    for (const seed of [113, 118, 177, 90013, 2077900043]) {
       const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}), {reload: {every: 1}});
       expect(result.end, `seed ${seed}`).to.eq('ended');
       expect(result.reload?.judged, `seed ${seed}: saves were judged`).to.be.greaterThan(50);

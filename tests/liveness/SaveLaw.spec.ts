@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {IGame} from '../../src/server/IGame';
 import {GameLoader} from '../../src/server/database/GameLoader';
 import {SimpleDeferredAction} from '../../src/server/deferredActions/DeferredAction';
+import {RemoveColonyFromGame} from '../../src/server/deferredActions/RemoveColonyFromGame';
 import {SelectOption} from '../../src/server/inputs/SelectOption';
 import {LakeMarineris} from '../../src/server/cards/base/LakeMarineris';
 import {TestPlayer} from '../TestPlayer';
@@ -92,6 +93,33 @@ describe('the save law — no save while a question only the queue can ask stand
     runAllActions(game);
     // The question is taken away without an answer (a reset, a replaced prompt).
     player.popWaitingFor();
+    game.save();
+    expect(saves).eq(1);
+  });
+
+  it('work still QUEUED holds a save too — a chain is unfinished from its first action to its last, asked or not', () => {
+    // (The fuzz's first night on CI — seed 2077900043: the chairmanship saved the moment its quest was answered, with
+    // the trade's colony bonus still waiting in the queue; loaded, a settler's «Collect N cards» was never asked.)
+    let ran = 0;
+    game.defer(new SimpleDeferredAction(other, () => {
+      ran++;
+      return undefined;
+    }));
+    expect(game.deferredActions.holdsWorkNoSaveKeeps()).eq(true);
+    game.save();
+    expect(saves, 'no save is taken over queued work').eq(0);
+
+    runAllActions(game);
+    expect(ran).eq(1);
+    expect(game.deferredActions.holdsWorkNoSaveKeeps()).eq(false);
+    game.save();
+    expect(saves).eq(1);
+  });
+
+  it('…but work a LOAD queues again by itself waits under a save (the opening\'s colony removal)', () => {
+    game.defer(new RemoveColonyFromGame(player));
+    expect(game.deferredActions.length).eq(1);
+    expect(game.deferredActions.holdsWorkNoSaveKeeps()).eq(false);
     game.save();
     expect(saves).eq(1);
   });

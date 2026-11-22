@@ -27,6 +27,24 @@ export class DeferredActionsQueue {
    * serialized: a game loaded from a save taken NOW asks something else, and what the answer would have done is
    * gone (`Game.save` reads this — the law is written there).
    */
+  /**
+   * A QUESTION ASKED FROM INSIDE AN ACTION OF THIS QUEUE, by the action itself — the colony bonus pays every settler
+   * at once and asks each of them its own question (`GiveColonyBonus`), around `run`'s one door. It is the queue's
+   * question all the same: its continuation is the action's closure, and no save holds it.
+   */
+  public noteAsked(input: object): void {
+    this.asked.add(input);
+  }
+
+  /**
+   * DOES THE QUEUE HOLD WORK NO SAVE CAN KEEP — an action still waiting that a load would not queue again? (The
+   * other half of the save law: a chain is unfinished from the answer that started it to its last action, whether
+   * or not anything is being asked at this moment.)
+   */
+  public holdsWorkNoSaveKeeps(): boolean {
+    return this.queue.some((action) => action.requeuedOnLoad !== true);
+  }
+
   public asksAnyOf(players: ReadonlyArray<IPlayer>): boolean {
     return players.some((player) => {
       const standing = player.getWaitingFor();

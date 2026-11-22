@@ -96,6 +96,11 @@ export class GiveColonyBonus extends DeferredAction {
             this.giveColonyBonus(player);
           }
         });
+        // THE QUEUE's QUESTION, asked around the queue's one door (every settler at once): said to the queue, so no
+        // save is taken under it (`Game.save` — the save law). A trade's bonus «Collect N cards», still standing for
+        // a settler when the table saved, came back from the save GONE — and the next seat's turn asked over it (the
+        // engine fuzz's first night on CI, the reload check on — seed 2077900043).
+        player.game.deferredActions.noteAsked(input);
         // The drain is pausing on this recipient's prompt — the same realtime
         // blind spot as DeferredActionsQueue.run: without an invalidation an
         // off-turn recipient learns about the prompt only on the long poll.

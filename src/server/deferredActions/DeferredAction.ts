@@ -19,6 +19,11 @@ export interface IDeferredAction <T = undefined> extends AndThen<T> {
    * stakes read it to tell a passed seat that still owes such a move (D15, `automa/BotVoteStakes.ts`).
    */
   readonly changesVotes?: boolean;
+  /**
+   * A LOAD QUEUES THIS ACTION AGAIN by itself (`Game.deserialize`'s phase resolvers) — so a save may be taken while it
+   * waits in the queue. Every other queued action is work no save holds (`Game.save` — the save law).
+   */
+  readonly requeuedOnLoad?: boolean;
   execute(): PlayerInput | undefined;
 }
 

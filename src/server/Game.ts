@@ -710,13 +710,19 @@ export class Game implements IGame, Logger {
    * asked, another seat offered its early close and the sitting saved: the reload adjourned the Parliament with the
    * ocean never placed (the engine fuzz's reload check — seeds 113 · 118 · 177).
    *
+   * …AND THE SAME WHILE THE CHAIN STILL HAS WORK QUEUED, asked or not: the chairmanship saved the moment its quest was
+   * answered — with the trade's colony bonus still waiting in the queue behind it; loaded, a settler's «Collect N
+   * cards» was never asked and the next seat's turn stood in its place (the fuzz's first night on CI — seed
+   * 2077900043). The one kind of queued work a save may hold is what a load queues again by itself
+   * (`IDeferredAction.requeuedOnLoad` — the opening's colony removal).
+   *
    * So the save is NOT TAKEN while such a question stands: the last save before it holds (a consistent point by
    * construction — a reload goes back to the answer that led here, and nothing is paid twice or lost), and the next
    * save point after the answer persists what happened. The table is told all the same (the realtime invalidation a
    * save would have sent).
    */
   public save(): void {
-    if (this.deferredActions.asksAnyOf(this.players)) {
+    if (this.deferredActions.asksAnyOf(this.players) || this.deferredActions.holdsWorkNoSaveKeeps()) {
       this.notifyStateChange();
       return;
     }
