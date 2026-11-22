@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
-import {observeStaleFreeTurn, staleFreeTurnClockInit, staleFreeTurnHeld} from '@/client/console/supervisor/staleFreeTurnClock';
+import {freeTurnConclusionCandidate, observeStaleFreeTurn, staleFreeTurnClockInit, staleFreeTurnHeld} from '@/client/console/supervisor/staleFreeTurnClock';
 import {workingAreaSettled} from '@/client/console/colonyTrade/workingAreaBack';
 
 /*
@@ -106,5 +106,58 @@ describe('the working area is back when its own transitions ran out', () => {
     expect(body).to.contain('workingAreaSettled(');
     expect(body.indexOf('workingAreaSettled('), 'the settle is asked before the release').to.be.lessThan(body.lastIndexOf('setColonyStageYielded(false)'));
     expect(body, 'a pose re-raised meanwhile owns the stage again').to.contain('back === stageBackToken.value');
+  });
+});
+
+/*
+ * THE CONCLUSION's CANDIDATE IS ONE PREDICATE (FREEZE ZERO, stage 2 - S5-rest): the reaper acts on it once a second, the
+ * conclusion door's measure reads it every frame - beside the decision, in the outcome controller, never as one more
+ * fact of the supervisor's port.
+ */
+describe('the conclusion\'s candidate - a committed frame over the free turn', () => {
+  const frame = (over: Partial<{phase: string, anchor: {type: string}, serves: ReadonlyArray<string>}> = {}) =>
+    ({phase: 'committed', anchor: {type: 'always'}, serves: [] as ReadonlyArray<string>, ...over});
+  const table = (over: Partial<{asksFreeTurn: boolean, collapsed: boolean, yieldedToBoard: boolean, placement: boolean}> = {}) =>
+    () => ({asksFreeTurn: true, collapsed: false, yieldedToBoard: false, placement: false, ...over});
+
+  it('stands for a frame past its commit that does not serve the free turn the server asks', () => {
+    expect(freeTurnConclusionCandidate(frame(), table())).is.true;
+  });
+
+  it('never for a frame still before its commit, a frame of a phase, or one that serves the turn itself', () => {
+    expect(freeTurnConclusionCandidate(undefined, table()), 'no frame').is.false;
+    for (const phase of ['browse', 'configure', 'executing', 'completing', 'verdict']) {
+      expect(freeTurnConclusionCandidate(frame({phase}), table()), phase).is.false;
+    }
+    expect(freeTurnConclusionCandidate(frame({anchor: {type: 'phase'}}), table()), 'a frame of a phase: its life is the anchor rule\'s').is.false;
+    expect(freeTurnConclusionCandidate(frame({serves: ['actionMenu']}), table()), 'the turn\'s own surface').is.false;
+  });
+
+  it('never when another question is asked, the stack is set aside or aside for the board, or a placement is live', () => {
+    expect(freeTurnConclusionCandidate(frame(), table({asksFreeTurn: false}))).is.false;
+    expect(freeTurnConclusionCandidate(frame(), table({collapsed: true}))).is.false;
+    expect(freeTurnConclusionCandidate(frame(), table({yieldedToBoard: true}))).is.false;
+    expect(freeTurnConclusionCandidate(frame(), table({placement: true}))).is.false;
+  });
+
+  it('the table is not even read when the frame says no (the measure asks every frame)', () => {
+    let read = 0;
+    freeTurnConclusionCandidate(frame({phase: 'browse'}), () => {
+      read++;
+      return {asksFreeTurn: true, collapsed: false, yieldedToBoard: false, placement: false};
+    });
+    expect(read).eq(0);
+  });
+
+  it('the reaper and the measure read the SAME predicate - and the measure lives with the conclusion\'s owner', () => {
+    const supervisor = source('console', 'supervisor', 'supervisorController.ts');
+    const outcome = source('console', 'shell', 'outcomeController.ts');
+    expect(supervisor).to.contain('return freeTurnConclusionCandidate(workspaceStackTop(), ');
+    expect(outcome).to.contain('const candidate = freeTurnConclusionCandidate(top, ');
+    expect(outcome).to.contain('flow.everyFrame(\'the conclusion\\\'s door, measured\', measureConcludeDoor);');
+    expect(supervisor, 'the supervisor\'s port takes no verdict of the conclusion').to.not.contain('conclusionVerdictNow');
+    // Stats only: the measure concludes nothing.
+    const body = outcome.slice(outcome.indexOf('function measureConcludeDoor('), outcome.indexOf('/** The ghost test\'s read of the table'));
+    expect(body).to.not.match(/concludeWorkspaceFlow|closeWorkspaceRoot|goBoardHome|popWorkspaceFrame/);
   });
 });

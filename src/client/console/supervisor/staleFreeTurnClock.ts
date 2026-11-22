@@ -18,6 +18,24 @@
  *      the holder ends with its own edge, and the flow that owns the ending gets the time to end itself.
  */
 
+/**
+ * THE CONCLUSION's CANDIDATE — ONE predicate for the reaper and for the conclusion door's measure
+ * (`outcomeController.measureConcludeDoor`): the server asks the FREE TURN and the stack's top is a frame PAST ITS
+ * COMMIT that does not serve it — never a frame of a phase (its life is the anchor rule's), never a stack set aside or
+ * standing aside for the board, never under a placement. Pure; the frame's half comes first (the measure asks every
+ * frame, and a table with no committed frame on top answers in three reads).
+ */
+export function freeTurnConclusionCandidate(
+  top: {phase: string, anchor: {type: string}, serves: ReadonlyArray<string>} | undefined,
+  table: () => {asksFreeTurn: boolean, collapsed: boolean, yieldedToBoard: boolean, placement: boolean},
+): boolean {
+  if (top === undefined || top.phase !== 'committed' || top.anchor.type === 'phase' || top.serves.includes('actionMenu')) {
+    return false;
+  }
+  const t = table();
+  return t.asksFreeTurn && !t.collapsed && !t.yieldedToBoard && !t.placement;
+}
+
 export type StaleFreeTurnClock = {
   /** `<kind>|<promptId>` of the candidate frame being timed ('' = no candidate). */
   readonly key: string;

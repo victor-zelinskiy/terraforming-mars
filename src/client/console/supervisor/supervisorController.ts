@@ -41,7 +41,7 @@ import {unanswerableReason} from '@/common/inputs/promptAnswerable';
 import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
 import {buildStallEvidence, stallHolder, StallHolderFacts} from '@/client/console/supervisor/stallEvidence';
-import {observeStaleFreeTurn, StaleFreeTurnClock, staleFreeTurnClockInit, staleFreeTurnHeld} from '@/client/console/supervisor/staleFreeTurnClock';
+import {freeTurnConclusionCandidate, observeStaleFreeTurn, StaleFreeTurnClock, staleFreeTurnClockInit, staleFreeTurnHeld} from '@/client/console/supervisor/staleFreeTurnClock';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
@@ -251,13 +251,21 @@ export function createSupervisorController(shell: SupervisorPort) {
    * same tick, a hold waits a whole span again). A conclusion here means a flow did not end itself — named
    * (`[workspace-stale] concluded`, red in every e2e spec); a hold is named once too, as evidence.
    */
+  /** The reaper's candidate, by the ONE predicate the conclusion door's measure reads too (`freeTurnConclusionCandidate`). */
+  function staleFreeTurnCandidate(): boolean {
+    return freeTurnConclusionCandidate(workspaceStackTop(), () => ({
+      asksFreeTurn: shell.playerView.waitingFor !== undefined && taskFor(shell.playerView)?.kind === 'actionMenu',
+      collapsed: workspaceStackCollapsed(),
+      yieldedToBoard: stackYieldedToBoard(),
+      placement: shell.placementActive,
+    }));
+  }
+
   function reapStaleFreeTurnFrame(inFlight: ReadonlyArray<string>): void {
     const wf = shell.playerView.waitingFor;
     const top = workspaceStackTop();
     // (…and never under a look the player reads: the frame's time under it is the player's — `LivenessSample.playerLook`.)
-    const candidate = wf !== undefined && top !== undefined && taskFor(shell.playerView)?.kind === 'actionMenu' &&
-      top.phase === 'committed' && top.anchor.type !== 'phase' && !top.serves.includes('actionMenu') &&
-      !workspaceStackCollapsed() && !stackYieldedToBoard() && !shell.placementActive && !playerLookStands();
+    const candidate = staleFreeTurnCandidate() && !playerLookStands();
     // THE QUIET IS THE REAPER'S OWN CLOCK (`staleFreeTurnClock.ts`): a new question restarts it in this very tick (the
     // arbiter's progress stamp is one tick old here), anything in flight restarts it, and a HELD conclusion waits a
     // whole quiet span again — never «9 s quiet» on the tick the player's take asked the next prompt.

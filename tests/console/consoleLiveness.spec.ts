@@ -187,7 +187,7 @@ describe('consoleLiveness', () => {
     it('the arbiter\'s sample and the reaper of finished frames both read it (the supervisor\'s wiring)', () => {
       const supervisor = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/supervisor/supervisorController.ts'), 'utf8');
       expect(supervisor, 'the sample carries the look').to.match(/playerLook: playerLookStands\(\)/);
-      expect(supervisor, 'the reaper does not conclude a frame under a look').to.match(/!shell\.placementActive && !playerLookStands\(\)/);
+      expect(supervisor, 'the reaper does not conclude a frame under a look').to.match(/const candidate = staleFreeTurnCandidate\(\) && !playerLookStands\(\);/);
       expect(supervisor).to.match(/document\.querySelector\(PLAYER_LOOK_SELECTOR\) !== null/);
     });
   });

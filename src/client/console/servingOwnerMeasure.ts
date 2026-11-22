@@ -574,7 +574,7 @@ const openingSpans = new Map<string, {key: string, since: number}>();
 
 /** What still stands when the log is read: the opening's open spans. */
 function refreshOpenSpans(): void {
-  servingOwnerLog.open = [...openingSpans.values()].map((span) => ({surface: 'opening', verdict: span.key, since: span.since}));
+  servingOwnerLog.open = [...openingSpans.entries()].map(([track, span]) => ({surface: track === 'conclude' ? 'conclude' : 'opening', verdict: span.key, since: span.since}));
 }
 
 /**
@@ -597,6 +597,32 @@ export function noteOpeningSpan(track: 'stage' | 'strand' | 'door', key: string,
   }
   if (key !== '') {
     openingSpans.set(track, {key, since: now});
+  }
+  refreshOpenSpans();
+}
+
+/**
+ * THE CONCLUSION's DOOR, MEASURED (stage 2 — S5-rest; `supervisorController.measureConcludeDoor`): while the reaper's
+ * candidate stands — the free turn is asked and a committed frame that does not serve it is on top — one span per
+ * state of `<kind> · <the guarded conclusion's verdict> · <what is in flight>`. `key` `''` — no candidate. Stats only:
+ * how long a candidate stands, behind which hold, and how many frames of quiet a level door would have to wait.
+ */
+export function noteConcludeSpan(key: string, ended: string, now: number): void {
+  const open = openingSpans.get('conclude');
+  if (open !== undefined && open.key === key) {
+    return;
+  }
+  if (open !== undefined) {
+    const spanKey = `conclude|${open.key} → ${ended}`;
+    const span = servingOwnerLog.spans[spanKey] ?? (servingOwnerLog.spans[spanKey] = {n: 0, ms: 0, max: 0});
+    const stood = Math.max(0, now - open.since);
+    span.n++;
+    span.ms += stood;
+    span.max = Math.max(span.max, stood);
+    openingSpans.delete('conclude');
+  }
+  if (key !== '') {
+    openingSpans.set('conclude', {key, since: now});
   }
   refreshOpenSpans();
 }

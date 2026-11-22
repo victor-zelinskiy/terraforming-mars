@@ -41,8 +41,7 @@ import {hostedStepServes, START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startS
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {ActualStartOwner, START_LEVEL_DOOR_QUIET_FRAMES, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, startLevelDoorMay, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
 import {noteOpeningLook, noteOpeningSpan} from '@/client/console/servingOwnerMeasure';
-import {transportState} from '@/client/console/transport/gameTransport';
-import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
+import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
 import {flowTreeDigest, waitTable} from '@/client/console/kernel/flowScope';
 import {watchFrames} from '@/client/console/kernel/frameWitness';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
@@ -880,20 +879,6 @@ export function createStartController(shell: StartPort) {
    * admission block for `START_SHADOW_HELD_MS` is one too. Logged once per (kind, owners, prompt) — never acted on.
    */
   /**
-   * WHAT IS IN FLIGHT, as the wait graph knows it: every wait that stands for a MOTION or for the SERVER (a wait for
-   * the player is the player's time, never a flight) — plus the wire itself. `''` — nothing is.
-   */
-  function flightNow(): string {
-    const names = collectWaitNodes(Date.now())
-      .filter((node) => node.targets.some((target) => target.kind === 'motion' || target.kind === 'server'))
-      .map((node) => `${node.family}:${node.id.replace(/[0-9]+/g, 'N')}`);
-    if (transportState.requestInProgress) {
-      names.push('transport:request');
-    }
-    return [...new Set(names)].sort().slice(0, 5).join('+');
-  }
-
-  /**
    * What stands, for the door's measure: the stack's frames, the kernel's own MOTION waits (a director's beat of
    * stillness — `span` — and the frames of a paint: waits the legacy graph holds no node for) and the kernel's tree,
    * ids folded (`#N`), bounded.
@@ -922,7 +907,7 @@ export function createStartController(shell: StartPort) {
     let quiet = 0;
     let opened = false;
     const look = (): void => {
-      const flight = flightNow();
+      const flight = flightsInTheAir();
       // THE ONE STATE THE DOOR STAYS SHUT IN (`startLevelDoorMay` — a step standing on the start under the game's
       // menu) says WHAT STANDS while it is quiet: the stack's frames and the kernel's own tree. Whose time it is — a
       // result being read, a dwell nobody declared to the wait graph, a strand — is read off this, over the suite,
