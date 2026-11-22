@@ -147,6 +147,12 @@ traps below are `docs/claude/e2e-flake-history.md`.
     support places / card-exit rejects of 2026-11-16; `data-peek` keeps the same law for the board cell.
 20. **Product side: a «never happened» ceiling over a motion is `motionCeilingMs`** (scales UP with a slower motion, never
     down — the functional e2e runs at `?motion=0.5`); a duration is `motionMs` (`.claude/rules/animations.md`).
+21. **A press that must land INSIDE a window the product opens is SENT BY THE PAGE** — `armPressInWindow(page, key,
+    code, reader)` (`tests/e2e/pressInWindow.ts`) armed BEFORE the action that opens the window: the page dispatches
+    the key in the task that sees it open and keeps what stood there; the spec asserts THE STAND («it was in the air»)
+    and the product's answer as two sentences. A driver's poll → focus read → hop → key between «the window is open»
+    and the press is the machine's speed: the press arrives after the window shut and the product honours it,
+    correctly (issue #87 — the start's «Наследие» pressed «while the bought cards fly», 2 red of 40 by the hunt).
 Never: weaken an assertion, raise a timeout as a fix, add a retry / `test.retry` / `if (CI)` / `test.skip`.
 
 ## Traps that have bitten before

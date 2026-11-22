@@ -223,6 +223,8 @@ if (typeof window !== 'undefined') {
       ({role, phase: ep.phase, signature: ep.signature, held: [...ep.held]})),
     held: [...handDeliveryState.held],
     inFlight: [...handDeliveryState.inFlight],
+    // What the start's press gate and the admission's `card-arrival` block read: the flights still in the air.
+    flights: handDeliveryState.flights.length,
     refuted: [...refutedTargets],
     gen,
   });

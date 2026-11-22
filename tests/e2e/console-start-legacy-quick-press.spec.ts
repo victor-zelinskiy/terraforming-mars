@@ -4,6 +4,7 @@ import {
   submitSummary, waitForBoardHome, waitQueueIdle, walkToSummary,
 } from './consoleStart';
 import {campaignModelAs, createCampaign, devCommit, launchMission} from './campaignFixtures';
+import {armPressInWindow} from './pressInWindow';
 
 /**
  * THE START'S «НАСЛЕДИЕ» ROW PRESSED TOO EARLY (PL-1106, the owner's QA report 2026-10-27): right after the bought
@@ -15,7 +16,10 @@ import {campaignModelAs, createCampaign, devCommit, launchMission} from './campa
  *  1. the pay press → the bought cards fly; while they are in the air the «Наследие» row is already the ring's item;
  *  2. A at once → the press is REFUSED and NAMED (`data-start-press-refused` = `request` | `delivery`), no legacy
  *     delivery episode opens, the server was never asked (the carried cards are not in the hand), the bar reads the
- *     wait (A dim);
+ *     wait (A dim). «AT ONCE» IS THE PAGE'S: the early press is armed BEFORE the pay press and sent by the page in the
+ *     task that gives the row the ring (`armPressInWindow`, the writing law 21). Sent by the driver — a poll, a focus
+ *     read, a hop, the key — it reached the row AFTER the 0.8 s cascade had landed one run in twenty on CI's frames,
+ *     and the product honoured it, correctly (issue #87, the hunt 45036059639);
  *  3. the cascade lands, the bar offers «Получить» again → A → the carried cards fly ONCE and land: the server grants
  *     them, the dock holds bought + carried, nothing is withheld or in flight, no refuted landing.
  */
@@ -23,7 +27,9 @@ const CARRIED = ['Ants', 'Algae'];
 const LINEAGE = 'Teractor';
 
 type Wire = {cardsInHand?: Array<{name: string}>, waitingFor?: {type: string, startGamePrompt?: {kind: string}}};
-type IntakeDiag = {activeRuns: number, episodes: Array<{role: string, phase: string}>, held: Array<string>, inFlight: Array<string>, refuted: Array<string>};
+type IntakeDiag = {
+  activeRuns: number, episodes: Array<{role: string, phase: string}>, held: Array<string>, inFlight: Array<string>, flights: number, refuted: Array<string>,
+};
 
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 const intakeDiag = (page: Page): Promise<IntakeDiag> => page.evaluate(() => (window as unknown as {__conIntakeDiag: () => IntakeDiag}).__conIntakeDiag());
@@ -123,15 +129,22 @@ test.describe('the start · «Наследие» pressed while the bought cards 
     const dockBefore = await handCount(page);
 
     // 1. THE PAY PRESS — the bought cards leave the grid for the dock; the legacy row is the ring's next item.
+    //    The EARLY press is armed first: the page sends it in the task that gives the «Наследие» row the ring, and
+    //    keeps what stood in that task — the flights the press's gate reads.
+    await expect.poll(() => legacyRowUp(page), {timeout: 20_000, message: 'the carried cards\' row is pre-laid under the purchase'}).toBe(true);
+    const early = await armPressInWindow(page, 'legacy-early', 'Enter', () => {
+      if (document.querySelector('.con-start__legacy.con-start__buy--focused') === null) {
+        return undefined;
+      }
+      const diag = (window as unknown as {__conIntakeDiag: () => {flights: number, inFlight: Array<string>, held: Array<string>}}).__conIntakeDiag();
+      return {flights: diag.flights, inFlight: diag.inFlight.length, held: diag.held.length};
+    });
     await page.keyboard.press('Enter');
-    await expect.poll(() => legacyRowUp(page), {timeout: 20_000, message: 'the carried cards\' row stands after the payment'}).toBe(true);
-    for (let hop = 0; hop < 6 && !await legacyFocused(page); hop++) {
-      await press(page, 'ArrowRight', 60);
-    }
-    expect(await legacyFocused(page), 'the «Наследие» row owns the ring').toBe(true);
 
     // 2. THE EARLY PRESS — refused and named; no legacy episode opens; the server was never asked.
-    await page.keyboard.press('Enter');
+    const met = await early.sent({timeoutMs: 20_000, message: 'the «Наследие» row never took the ring after the payment'});
+    expect(met.flights + met.inFlight + met.held, `THE STAND: the bought cards are still on their way in the task of the early press (${JSON.stringify(met)})`).toBeGreaterThan(0);
+    await expect.poll(() => legacyFocused(page), {timeout: 5_000, message: 'the «Наследие» row owns the ring'}).toBe(true);
     await expect.poll(() => refusal(page), {timeout: 5_000, message: 'the early press is REFUSED and named'}).toMatch(/^(request|delivery)$/);
     console.log('[legacy-stand] after the early press:', await sceneDiag(page));
     const diagEarly = await intakeDiag(page);
