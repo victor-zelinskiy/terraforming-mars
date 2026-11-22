@@ -962,6 +962,31 @@ the flake journal: a red that does not name its cause gets its picture read BEFO
   (`data-motion-leaving`) is refused by name (`leaving`) at any opacity, for exactly as long as the leave lasts — the
   ladder goes on; a flight already in the air keeps its object (LENIENT).
 
+**THE WHOLE SUITE ON `1dd900fbde` (run 45041230685), AND WHAT ITS CORPUS FOUND (2026-11-22 evening).**
+- *One red, and it was mine* (#95 — `console-card-reaction` HYDRO, 3 / 3): the clause «a leaving surface is no
+  birthplace» answered a second question it was never meant for. The same verdict tells the reaction stage what to
+  stand CLEAR of (a workspace's hero column), and a column on its leave still paints through the dissolve — the
+  Greens' charter rose on top of it. Two questions, said apart: `TransferEndOptions.painted` — occupancy is judged by
+  what still paints; every chooser of an END keeps the clause (`a834cd7eff`; the spec file twice on CI — 18 / 18).
+  *The lesson:* a clause added to a verdict that several callers read is checked against EVERY caller's question,
+  not only the one it was written for — the suite did that for me, an hour later.
+- *One defect class in a test that PASSED* — `wait-graph/ceiling/card-reaction:blocking-quiet` in
+  `console-terraforming-deal` (D): found only because the corpus of a green test is read too. By rate on CI: 0 of 30
+  on `901180a597`, 8 of 78 after it; the line said «every blocking hold», so it was first made to NAME its holds
+  (`8be5224e14` → `generation-scene[blocking]`). **A mutual wait ended only by a ceiling:** the generation scene keeps
+  its blocking hold through the screen's handoff and waits there for every hold but its own — the card reaction's
+  among them (its hold stands while the chain waits); the chain's first wait was «every blocking hold released», the
+  scene's included. Twelve seconds, then the chain's ceiling. It needed a seat's reaction and the generation's change
+  in ONE view — which stage 5's engine order (a reaction drained before the seats are asked) made possible: a server
+  fix surfaced a client cycle that had always been there.
+  **The law, in the registry** (`d81fa65e2a`): `AnimationHoldOptions.handsOver` — a hold whose owner has played and
+  only holds the door through the handoff says so; `blockingHoldsPlaying()` is what a story owed to the player waits
+  out — it never cuts into a scene that owns the screen, and it never waits for a scene that is waiting for IT. The
+  proving hunt: **40 / 40, no record**.
+  *Why the wait graph's cycle finder did not see it:* neither wait named the other as a NODE — one waited for «a
+  count of holds», the other for «the reason `animation`». A wait on a count is an edge the graph cannot draw; that
+  is a class to look for (the other `wait…Quiet` loops of the reaction's chain, the handoff's `animation` reason).
+
 **STAGE 2 — WHAT IS OPEN AFTER 2026-11-22, AND HOW EACH IS TO BE TAKEN (the hand-over).**
 - *2b, the door's one shut state* («the game asks and a STEP still stands on the start»): it is the solo colony step
   after its last answer (`console-colony-entry-probe` · `console-colony-roster` · `console-pristar` — QUIET 774 ms,
@@ -975,16 +1000,19 @@ the flake journal: a red that does not name its cause gets its picture read BEFO
   `startLevelDoorMay` loses its exception.
 - *2b, the two start nets* (`start-shadow`, `start-stranded`): counters since the door stood; deleted at the next
   whole-suite reading with no line of either (stage 7's rule — the reading of `901180a597` was the first zero).
-- *S5-rest, the conclusion's level door.* Its MEASURE is the next step, and it has one constraint found today: the
-  candidate («the free turn is asked and a committed frame that does not serve it stands» — the reaper's predicate,
-  to be factored out of `reapStaleFreeTurnFrame`) has to be looked at BY FRAME while it stands — a candidate that
-  lives 200–900 ms is exactly what a level door of eight frames would act on, and the supervisor's 1 Hz tick never
-  sees it. The shell's reaction table takes no new row (`.claude/rules/console-flow.md`), so the look is armed from
-  the candidate's own computed inside the supervisor's scope, and each look writes one span: the frame's kind, the
-  guarded conclusion's verdict read purely (`workspaceConclusionFor(conclusionFacts(kind))` — `dismiss` or the hold's
-  name), and the flight (the start door's `flightNow`, to move beside the wait graph). Read over the suite it says
-  how many frames of quiet the door waits and which holds a candidate stands behind; then the door, then the three
-  nets (the ghost test, the forced teardown, the reaper) as counters for one cycle.
+- *S5-rest, the conclusion's level door.* **Its MEASURE stands (`ee14aa2a67`).** The candidate is ONE pure predicate
+  (`staleFreeTurnClock.freeTurnConclusionCandidate` — the free turn is asked and the stack's top is a frame past its
+  commit that does not serve it); the reaper reads it once a second, and the measure reads it BY FRAME — a candidate
+  that lives 200–900 ms is exactly what a level door of a few frames would act on, and a 1 Hz look never sees it.
+  The look lives with the conclusion's OWNER (`outcomeController.measureConcludeDoor`, the controller's own scope):
+  the first draft put it in the supervisor and the debt ledger refused it («the supervisor's PORT does not grow — a
+  new net is a bound on its owner»), rightly. Each state is one span — `conclude|<kind> · dismiss|hold:<reason>[ ·
+  look] · QUIET|busy[…]`, the verdict read purely. «What is in flight» is one reader for both doors now
+  (`waitGraph/flightsInTheAir.ts`). First reading, the bottle (31 walks): `colonies · dismiss · busy[…]` up to 2.0 s,
+  none QUIET. **Next:** the whole suite's reading (`node C:/Projects/Mods/tm-fz-tools/read_suite.mjs <corpus>`) →
+  how many frames of quiet the door waits and which holds a candidate stands behind → the door in the outcome
+  controller (candidate ∧ `dismiss` ∧ no look ∧ quiet K frames → the ONE guarded conclusion) → the three nets (the
+  ghost test, the forced teardown, the reaper) as counters for one cycle.
 - *The measure's residue:* `flag-EXTRA` — the deck pick standing by its own hold through the play that follows it
   (`deckPickHolding`), a hand-off the function does not name; FALLBACK — an external draw at the Parliament held
   behind the admission.
