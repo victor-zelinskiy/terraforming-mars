@@ -222,6 +222,10 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'beat-expired', re: /^«([^»]*)» stood in «([^»]*)» on stage past its bound/, tier: 'defect', parts: [1, 2]},
     {name: 'beat-handler-threw', re: /^the beat-expired handler threw/, tier: 'defect'},
     {
+      name: 'off-protocol', re: /^«([^»]*)» moved (\S+) → (\S+) off the frame's protocol/, tier: 'info', parts: [1, 2, 3],
+      why: 'the move is made all the same (the record\'s one writer never refuses); the line is the trail, and the walks\' report holds it as `unlisted` — a decision for the protocol, not an incident',
+    },
+    {
       name: 'beat-rollback', re: /^«([^»]*)» goes back (\S+) → (\S+) — /, tier: 'defect', parts: [1, 2, 3],
       // THE QUESTION HAD MOVED ON (`#stale-prompt` — another seat acted while this page still showed the old question:
       // the server did not apply the answer, the page refetches and puts its frame back): the designed recovery,

@@ -9,7 +9,7 @@
 import {AnyStateMachine, EventObject} from 'xstate';
 import {ANNOUNCE_SAMPLE_EVENTS, announceMachine} from '@/client/console/consoleMandatoryAnnounce';
 import {CLAIM_SAMPLE_EVENTS, claimMachine, claimMachineServing} from '@/client/console/consoleWorkspaceClaim';
-import {FRAME_SAMPLE_EVENTS, frameMachine, frameSnapshotKey} from '@/client/console/consoleWorkspaceFrame';
+import {FRAME_SAMPLE_EVENTS, frameEdgeOnProtocol, frameMachine, frameSnapshotKey} from '@/client/console/consoleWorkspaceFrame';
 import {SUBMIT_SAMPLE_EVENTS, submitMachine} from '@/client/console/transport/submitMachine';
 
 export type FlowMachineEntry = {
@@ -24,13 +24,20 @@ export type FlowMachineEntry = {
   key?: (snapshot: {value: unknown, context: unknown}) => string,
   /** The module that defines it, relative to `src/client` (the register spec reads the files). */
   file: string,
+  /**
+   * THE MACHINE'S PROTOCOL, for a machine that takes more than the product gives it (the frame: any phase from any
+   * phase): of the moves the explorer reaches, the ones the product makes (`from` / `to` — state values as the trace
+   * prints them). The coverage's universe is these (`flowCoverageProbe.machineUniverse`); the law still judges
+   * everything the machine CAN do.
+   */
+  protocol?: (from: string, to: string) => boolean,
 };
 
 export const FLOW_MACHINES: ReadonlyArray<FlowMachineEntry> = [
   {name: 'submit', file: 'console/transport/submitMachine.ts', machine: submitMachine, events: SUBMIT_SAMPLE_EVENTS},
   {
     name: 'frame', file: 'console/consoleWorkspaceFrame.ts', machine: frameMachine, events: FRAME_SAMPLE_EVENTS,
-    input: {kind: 'hand', phase: 'browse', away: false}, key: frameSnapshotKey,
+    input: {kind: 'hand', phase: 'browse', away: false}, key: frameSnapshotKey, protocol: frameEdgeOnProtocol,
   },
   // The claim in its four worlds: a card outcome (its input gate shut) or not, hosted or orphaned at birth — and the
   // one whose release funnel always refuses (it serves for ever: the safety must lead to the player's time, not a loop).

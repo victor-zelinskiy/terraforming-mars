@@ -87,7 +87,7 @@ import type {ConsoleSection, ConsoleSheetId} from '@/client/console/consoleRoute
 import {FlowScope} from '@/client/console/kernel/flowScope';
 import {sessionChild, sessionState} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
-import {frameMachine, isBeatPhase} from '@/client/console/consoleWorkspaceFrame';
+import {frameMachine, frameMoveOnProtocol, isBeatPhase} from '@/client/console/consoleWorkspaceFrame';
 import {onSubmitTicket, submitDidNotLand, SubmitTicket} from '@/client/console/transport/submitTicket';
 
 /**
@@ -2127,6 +2127,11 @@ function writeFramePhase(frame: WorkspaceFrame, phase: WorkspacePhase): void {
     return;
   }
   const before = runtime.flow.snapshot.value.context;
+  // A MOVE OFF THE FRAME'S PROTOCOL IS SAID (`consoleWorkspaceFrame.FRAME_PROTOCOL`) — and made all the same: the
+  // record's one writer never refuses (a mirror that parted from its record is the worse defect).
+  if (!frameMoveOnProtocol(before.phase, phase)) {
+    console.warn(`[workspace] «${frame.kind}» moved ${before.phase} → ${phase} off the frame's protocol — a move no walk of the product makes`);
+  }
   runtime.flow.send({type: 'PHASE', phase});
   const after = runtime.flow.snapshot.value.context;
   if (after.beat !== before.beat) {

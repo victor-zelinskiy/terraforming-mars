@@ -86,7 +86,12 @@ export function machineUniverse(): Record<string, Array<string>> {
     const kind = kindOfMachine(entry.name);
     const set = out[kind] ?? (out[kind] = new Set<string>());
     for (const edge of machineEdges(entry.machine, entry.events, entry.input, entry.key)) {
-      set.add(edge);
+      // (A machine with a PROTOCOL: the universe is the moves the product makes — one off it that a walk does make
+      // is the report's `unlisted`, said, never a hole in the number.)
+      const [from, to] = edge.split(' → ');
+      if (entry.protocol === undefined || entry.protocol(from, to)) {
+        set.add(edge);
+      }
     }
   }
   return Object.fromEntries(Object.entries(out).map(([kind, set]) => [kind, [...set].sort()]));

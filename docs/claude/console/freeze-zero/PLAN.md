@@ -806,6 +806,65 @@ e2e suite green — 12 of 12 shards + the burn-in of the changed specs (run 4495
 (`e2e-cause-classes-*`): the ledger of declared moves and the reading of THE OPENING over the whole suite are read
 from that run's artifacts — the next step of stage 4 and of 2b.
 
+**STAGE 2 — THE WHOLE SUITE'S READING (2026-11-22; e2e run 44954171031 — 1 502 tests, 8 345 presses, 4 253 looks).**
+The monkey presses at random; the suite walks what a monkey never reaches (the Hydronetwork's picks, the campaign,
+every start). What the function's measure says there:
+- *the conditions:* agree 3 010 · held 1 197 · **MISS 0** · EXTRA 13 (the legacy witness of the deck pick against a
+  mount the function now holds behind `admission:played-hero` — the derived answer is the stricter one; the witnesses
+  go at the next cycle);
+- *the band, derived:* the ladder took the derived rung 6 090 · its upper half 2 196 · FALLBACK 38 (the workspace
+  ROOTS — the start, the draft, an external draw: they stand by their frames, as §«where it stands» says) ·
+  **APART 21**, and the bar **APART 21** — every one of the 42 ONE branch of the ladder: the Delta instruments' (the
+  stage-reward pick, the espionage / blockade pick, the blockade's execution, a hydro frame over the hand) handed the
+  press to the track's section and never NAMED its rung. Named by the bar's own cases (`deltaPick` · `deltaReward` ·
+  `handCovered` · `section:hydro`), main `bfc748ac35`; the night's e2e reads it at zero or says what is left;
+- *the edge:* LATCH 4 of 4 253 looks, all `choice:contextual` with «+ scene hand-pick» — a look taken inside the tick
+  in which a client pick opens (its flag is reactive; the once-a-second invariant `serving-owner:latch`, which reads
+  after the flush, never fired: e2e would be red);
+- *the opening (2b):* 7 016 judged states — agree 1 221 · apart 208 · held 561 · out of scope 5 026. **The start's
+  two nets: 0 fires in 1 502 tests** (and 0 in the CI monkey's 606 walks). Of the director's three cures, `heal` and
+  `yield` were never the answer to a span at all; `release` 45 times — ≤ 72 ms for forty (the same flush), 307 / 919
+  / 1 262 ms for five (a hosted step still leaving under the game's menu); the longest disagreement with no cure and
+  no hold was 2 939 ms, 61 ms under the shadow's confirm — **the bonus action's trip to the board** («Фора»), which
+  the table read as «expected the bonus stage, on screen the game»: a finding three seconds into every trip a PERSON
+  makes. It is `trip` now — the start's own hand-over, never judged (`startDirector.actualStartOwner`). A strand rose
+  and cleared by itself 58 times, the longest 1 261 ms (the watchdog confirms at 2 500).
+*What the reading settles:* the director's word and the latches part only for the length of a hand-off the scene
+plays, and every such span is short of the nets by a factor of two or more on CI's machines. *What it does not:* the
+three doors (the paint / yield, the release, the heal) are still opened by latches on an EDGE, with the nets behind
+them — «impossible by construction» needs them level-triggered on the director's word and gated on «nothing of the
+start is in flight», and a hosted step that STANDS (not leaves) under the game's menu is the case to design first
+(today the shadow would end the start under it after three painted seconds). That, and S5-rest, are the stage's
+open exit.
+
+**STAGE 4, STEP 3 — WALKED OR DECLARED: 100 % OVER THE UNION (2026-11-22).** The corpus is the union of every pass
+there is: the whole e2e suite on CI (1 502 tests — the fixture files the kernel's coverage since step 2), the monkey
+in the bottle in every mode (plain, guided, reload, the hidden page, the broken wire, the shrink), the monkey in the
+real browser — **3 421 walks**. Flows 247 of 285 opened, frame kinds 13 of 13, machine moves 43 of 83.
+- *The frame's protocol* (`consoleWorkspaceFrame.FRAME_PROTOCOL`). The frame machine takes any phase from any phase,
+  so its universe was every pair — 52 moves, 20 walked. The other 32 were never «unwalked»: 18 of them nothing in the
+  product makes. The set it does make is written down (nineteen moves by phase, each read off the walks); a write
+  outside it is still made (the record's one writer never refuses) and SAID — `[workspace] … off the frame's
+  protocol` (shape `off-protocol`, info: a decision for the protocol, not an incident), and the coverage's universe
+  is the protocol (`flowMachines.protocol` → `machineUniverse`), so such a move reads as `unlisted` in the walks'
+  report and fails `kernel-walked --gate`.
+- *The ledger* (`tests/client/bottle/kernelUnwalked.json`): every one of the 38 flows and 40 moves no pass walks,
+  each with its reason — **debt 0**. By kind: 12 flows are DEAD declarations (the desktop endgame tree, which mounts
+  only under `!consoleNative`; `start-setup-reveal`, `played-cards-pick`, the colony trade's `glide` answer — nothing
+  arms them; a hold whose supplier no flush can see true), 9 stand outside a game or in a dev playground, 3 are
+  failure paths, 14 are rare product paths with what a walk must do to reach them. A lazy component scope
+  (`useFlowScope`) opens at its first WAIT, so «never opened» reads «its waits were never armed», not «never
+  mounted» — the reading that makes the list short and true.
+- *The guard* (`tests/scripts/kernelWalked.spec.ts`): no row without a reason; no row for a flow the sources no
+  longer declare or a move its machine no longer has.
+- *What the ledger names as work:* **the remote colony bonus** (`surface:colony-controller` — another seat trades
+  where the viewer is settled and the bonus asks: a real product path no spec walks); the overlay-hosted played-card
+  hero (`played-controller` / `played-overlay` — 3 421 walks never made it: reachable?); `presenting → abandoned` and
+  the completing beat's bound (a story that hangs — the synthetic-layout pass); the claim's exits from `held` (a
+  late answer behind a broken wire). The dead declarations are deletion candidates, the desktop ones with their wave.
+Next: `kernel-walked --gate` on CI over the suite's corpus joined with the bottle gate's; the synthetic-layout pass;
+socket faults; a spec for the remote colony bonus.
+
 **STAGE 5, STEP 1 — THE ENGINE FUZZ (2026-11-21, branch `fz/s5`).** `tests/fuzz/`: random LEGAL games on the real
 engine, in process, seeded — a random legal combination of the in-scope expansions, all twelve boards, 1 – 3 human
 seats with or without MarsBot — and after EVERY answered question: I1 the table is alive (`tableStandsDead`), I2 no

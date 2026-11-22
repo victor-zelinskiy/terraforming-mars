@@ -62,6 +62,61 @@ export function isBeatPhase(phase: WorkspacePhase): boolean {
   return phase === 'executing' || phase === 'completing';
 }
 
+/**
+ * THE FRAME'S PROTOCOL — the moves between phases the product makes (FREEZE ZERO, stage 4: «machine moves 100 %
+ * walked-or-declared»).
+ *
+ * The machine takes ANY phase from any phase (`PHASE` — the record's one writer is a mirror, and a mirror that
+ * refused a write would part from its record). So its state space was every pair: 52 moves by region — of which
+ * 3 421 walks (the whole e2e suite, the monkey in the bottle in every mode, the monkey in the real browser) made 20.
+ * The other 32 were never «unwalked»: nothing in the product makes them, and nothing said so — an any-to-any machine
+ * permits a wrong move silently. This is the set the product makes, each row read off those walks:
+ *
+ *   browse     → configure · executing · committed · verdict        (a step opens; a press commits; a result or a
+ *                                                                    verdict arrives where the player stood)
+ *   configure  → browse · executing · committed                     (B; the confirm; an answer with no beat)
+ *   executing  → browse · configure · committed · verdict · completing
+ *                                                                   (the press did not land — back where it came
+ *                                                                    from; the answer's stage; the result leaving)
+ *   committed  → browse · configure · executing · verdict · completing
+ *                                                                   (a reversible fold; the next stage of ONE flow;
+ *                                                                    the next commit; the result leaving)
+ *   verdict    → executing                                          (its «ОК» — the verdict has one door)
+ *   completing → committed                                          (NO move of its own: a completing frame LEAVES
+ *                                                                    — the conclusion pops it. The one exit that is
+ *                                                                    a move is its bound's, and the recovery's)
+ *
+ * A move outside the set is still MADE — and SAID (`consoleWorkspaceStack.writeFramePhase`: «[workspace] … off the
+ * frame's protocol»): a line for the trail, a row of `unlisted` in the walks' report — never a silent permission.
+ * The coverage's universe is the protocol (`flowMachines` → `flowCoverageProbe.machineUniverse`). Widening it is a
+ * decision written here, with the walk that makes the move.
+ */
+export const FRAME_PROTOCOL: Readonly<Record<WorkspacePhase, ReadonlyArray<WorkspacePhase>>> = {
+  browse: ['configure', 'executing', 'committed', 'verdict'],
+  configure: ['browse', 'executing', 'committed'],
+  executing: ['browse', 'configure', 'committed', 'verdict', 'completing'],
+  committed: ['browse', 'configure', 'executing', 'verdict', 'completing'],
+  verdict: ['executing'],
+  completing: ['committed'],
+};
+
+/** Is `from → to` a move of the protocol? (A phase written again is no move.) */
+export function frameMoveOnProtocol(from: WorkspacePhase, to: WorkspacePhase): boolean {
+  return from === to || FRAME_PROTOCOL[from].includes(to);
+}
+
+/** The same law over the machine's state VALUES as the trace prints them (`browse`, `{"executing":"onStage"}`). */
+export function frameEdgeOnProtocol(from: string, to: string): boolean {
+  const phaseOf = (value: string): WorkspacePhase | undefined => {
+    const name = /^\{"(\w+)":/.exec(value)?.[1] ?? value;
+    return Object.prototype.hasOwnProperty.call(FRAME_PROTOCOL, name) ? name as WorkspacePhase : undefined;
+  };
+  const a = phaseOf(from);
+  const b = phaseOf(to);
+  // (A value that is no phase — the machine's own seating — is not the protocol's to judge.)
+  return a === undefined || b === undefined || frameMoveOnProtocol(a, b);
+}
+
 const to = (phase: WorkspacePhase) => ({event}: {event: FrameEvent}) => event.type === 'PHASE' && event.phase === phase;
 
 export const frameMachine = setup({

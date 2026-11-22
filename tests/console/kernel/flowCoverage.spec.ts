@@ -1,4 +1,6 @@
 import {expect} from 'chai';
+import {FRAME_PROTOCOL, frameEdgeOnProtocol, frameMoveOnProtocol} from '../../../src/client/console/consoleWorkspaceFrame';
+import {WorkspacePhase} from '../../../src/client/console/consoleWorkspaceFlow';
 import {machineEdges, machineUniverse} from '../../../src/client/console/flowCoverageProbe';
 import {createManualClock, setFlowClock} from '../../../src/client/console/kernel/flowClock';
 import {coverageKeyOf, coverageScope, flowCoverage, installFlowCoverage, resetFlowCoverage, seedFlowCoverage} from '../../../src/client/console/kernel/flowCoverage';
@@ -85,5 +87,62 @@ describe('flow coverage — what the registered machines can do', () => {
     expect(Object.keys(universe).sort()).to.deep.eq(['announce', 'claim', 'frame', 'submit']);
     expect(universe.frame, 'a frame crosses its commit').to.include('browse → committed');
     expect(universe.submit.some((edge) => edge.startsWith('sending → ')), 'a submit leaves the wire').to.eq(true);
+  });
+
+  /*
+   * THE FRAME'S PROTOCOL (`consoleWorkspaceFrame.FRAME_PROTOCOL` — FREEZE ZERO, stage 4). The machine takes any phase
+   * from any phase; the universe of the coverage is the moves the PRODUCT makes — read off 3 421 walks (the whole e2e
+   * suite, the monkey in the bottle, the monkey in the real browser), written down, and held here.
+   */
+  describe('the frame — its universe is its protocol, not every pair', () => {
+    const PHASES: ReadonlyArray<WorkspacePhase> = ['browse', 'configure', 'executing', 'committed', 'verdict', 'completing'];
+
+    it('the protocol by phase: what the walks made, and nothing a walk never made', () => {
+      // (Each a move the walks made hundreds of times.)
+      expect(frameMoveOnProtocol('browse', 'configure')).to.eq(true);
+      expect(frameMoveOnProtocol('configure', 'executing')).to.eq(true);
+      expect(frameMoveOnProtocol('executing', 'committed')).to.eq(true);
+      expect(frameMoveOnProtocol('executing', 'configure'), 'a press that did not land goes back where it came from').to.eq(true);
+      expect(frameMoveOnProtocol('committed', 'completing')).to.eq(true);
+      expect(frameMoveOnProtocol('verdict', 'executing'), 'the verdict has one door — its «ОК»').to.eq(true);
+      // (A phase written again is no move.)
+      for (const phase of PHASES) {
+        expect(frameMoveOnProtocol(phase, phase), phase).to.eq(true);
+      }
+      // (…and what no walk of the product makes.)
+      expect(frameMoveOnProtocol('verdict', 'browse')).to.eq(false);
+      expect(frameMoveOnProtocol('configure', 'verdict')).to.eq(false);
+      expect(frameMoveOnProtocol('browse', 'completing')).to.eq(false);
+      expect(frameMoveOnProtocol('completing', 'browse'), 'a completing frame LEAVES — it never folds back by a move').to.eq(false);
+      expect(frameMoveOnProtocol('completing', 'committed'), 'its bound, and the recovery that follows').to.eq(true);
+      // (Nineteen moves by phase, of thirty pairs.)
+      expect(PHASES.reduce((sum, phase) => sum + FRAME_PROTOCOL[phase].length, 0)).to.eq(19);
+    });
+
+    it('the same law over the machine\'s state values, as the trace prints them', () => {
+      expect(frameEdgeOnProtocol('browse', '{"executing":"onStage"}')).to.eq(true);
+      expect(frameEdgeOnProtocol('{"executing":"onStage"}', '{"executing":"away"}'), 'a beat set aside is the same phase').to.eq(true);
+      expect(frameEdgeOnProtocol('{"completing":"onStage"}', 'committed')).to.eq(true);
+      expect(frameEdgeOnProtocol('verdict', 'configure')).to.eq(false);
+      expect(frameEdgeOnProtocol('{"completing":"away"}', 'browse')).to.eq(false);
+    });
+
+    it('the universe holds the protocol only — and the machine still CAN do the rest (the law judges that)', () => {
+      const frame = FLOW_MACHINES.find((entry) => entry.name === 'frame')!;
+      const all = machineEdges(frame.machine, frame.events, frame.input, frame.key);
+      const universe = machineUniverse().frame;
+      expect(universe.length, 'the protocol is a part of what the machine takes').to.be.lessThan(all.length);
+      for (const edge of universe) {
+        const [from, to] = edge.split(' → ');
+        expect(frameEdgeOnProtocol(from, to), edge).to.eq(true);
+      }
+      // (Every edge left out is a move off the protocol — none dropped by accident.)
+      for (const edge of all.filter((e) => !universe.includes(e))) {
+        const [from, to] = edge.split(' → ');
+        expect(frameEdgeOnProtocol(from, to), edge).to.eq(false);
+      }
+      expect(universe).to.include('{"completing":"onStage"} → committed');
+      expect(universe).not.to.include('verdict → browse');
+    });
   });
 });

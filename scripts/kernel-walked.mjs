@@ -55,6 +55,11 @@ export function unwalkedOf(coverage) {
   };
 }
 
+/** The moves the passes MADE that their machine's universe does not hold: `move <machine> · <edge>`. */
+export function unlistedOf(coverage) {
+  return Object.entries(coverage.machines).flatMap(([machine, row]) => (row.unlisted ?? []).map((edge) => `move ${machine} · ${edge}`)).sort();
+}
+
 /** The ledger as `{flows: {id: why}, frames: {id: why}, moves: {machine: {edge: why}}}` (empty when there is none). */
 export function readLedger(file = LEDGER) {
   if (!fs.existsSync(file)) {
@@ -138,8 +143,19 @@ function main() {
   for (const line of verdict.missing.slice(0, 40)) {
     console.log(`  NOT ON THE LEDGER  ${line}`);
   }
-  if (args.includes('--gate') && verdict.missing.length > 0) {
-    console.error(`[kernel-walked] ${verdict.missing.length} key(s) neither walked by these passes nor declared — walk them, or run with every pass the ledger was written from`);
+  // A MOVE A WALK MADE THAT THE UNIVERSE DOES NOT HOLD — off a machine's protocol (the frame's: `consoleWorkspaceFrame.
+  // FRAME_PROTOCOL`), or a hole in its sample events. Either is a decision somebody owes, never a number that passed.
+  const unlisted = unlistedOf(coverage);
+  for (const line of unlisted) {
+    console.log(`  WALKED OFF THE UNIVERSE  ${line}`);
+  }
+  if (args.includes('--gate') && (verdict.missing.length > 0 || unlisted.length > 0)) {
+    if (verdict.missing.length > 0) {
+      console.error(`[kernel-walked] ${verdict.missing.length} key(s) neither walked by these passes nor declared — walk them, or run with every pass the ledger was written from`);
+    }
+    if (unlisted.length > 0) {
+      console.error(`[kernel-walked] ${unlisted.length} move(s) walked that no machine's universe holds — widen the protocol with the walk that makes the move, or fix the product`);
+    }
     process.exit(3);
   }
 }
