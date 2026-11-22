@@ -5,6 +5,7 @@ import {
   resetAnimationHoldsForTest, unregisterAnimationHoldSupplier,
 } from '@/client/components/presentation/animationHold';
 import {causeOf} from '@/common/diagnostics/cause';
+import {QUEUE_STARVATION_MS, starvationHolds} from '@/client/components/notifications/notificationState';
 
 /**
  * WHO OWNS THE WAIT DECIDES WHAT THE LINE IS (docs/claude/console/freeze-zero/PLAN.md § 8, stage 1 —
@@ -150,5 +151,33 @@ describe('playerOwnedHolds — a hold that waits on the player says so', () => {
     expect(causeOf(owned, 'warn')).to.deep.include({cls: 'notifications/starvation-owned/vp-shares', tier: 'planned'});
     expect(causeOf(leaked, 'warn')).to.deep.include({tier: 'defect'});
     expect(causeOf(leaked, 'warn')?.cls).to.match(/^notifications\/starvation\//);
+  });
+
+  /*
+   * A SUCCESSION OF SCENES IS NOT ONE LEAKED HOLD (`notifications/starvation/hand-delivery` under a green
+   * `console-re-settlement`, the whole suite on CI 2026-11-22): the escape's clock runs for as long as SOME animation
+   * blocks the queue, and the line called whichever hold stood at the twelfth second «leaked».
+   */
+  it('the queue starved behind a CHAIN of scenes is PLANNED — «leaked» is said only of a hold that itself stood the bound', () => {
+    const now = 100_000;
+    // The city was carried for eleven seconds of scenes; the card's flight into the hand is 0.8 s old at the bound.
+    const chain = starvationHolds([{label: 'hand-delivery', scope: 'notification-only', since: now - 800}], now);
+    expect(chain).to.deep.eq({ages: 'hand-delivery[notification-only] 0.8s', succession: true});
+    // ONE hold that stood the whole bound is the leak it always was — whatever younger ones stand beside it.
+    const leak = starvationHolds([
+      {label: 'hand-delivery', scope: 'notification-only', since: now - QUEUE_STARVATION_MS - 1},
+      {label: 'tile-flight', scope: 'blocking', since: now - 300},
+    ], now);
+    expect(leak.succession).is.false;
+    expect(leak.ages).to.eq('hand-delivery[notification-only] 12.0s, tile-flight[blocking] 0.3s');
+    // No hold named at all (the block is somebody else's «animation»): never a succession — the old line.
+    expect(starvationHolds([], now)).to.deep.eq({ages: '', succession: false});
+    // …and the two lines, as the classifier reads them.
+    const head = '[notifications] 1 queued event(s) held behind an ANIMATION hold for over 12000ms — delivering anyway';
+    const said = `${head} — hand-delivery: 1 run · carries Re-Settlement (planned: a succession of scenes — no standing hold is itself older than the bound; ${chain.ages})`;
+    expect(causeOf(said, 'warn')).to.deep.include({cls: 'notifications/starvation-succession', tier: 'planned'});
+    const leaked = `${head} — standing ${leak.ages} (leaked hold: hand-delivery[notification-only], tile-flight[blocking])`;
+    expect(causeOf(leaked, 'warn')).to.deep.include({tier: 'defect'});
+    expect(causeOf(leaked, 'warn')?.cls).to.match(/^notifications\/starvation\/hand-delivery/);
   });
 });

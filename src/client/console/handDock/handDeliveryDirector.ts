@@ -70,7 +70,7 @@ import {
 } from '@/client/console/handDock/handDeliveryState';
 import {span} from '@/client/console/session/sessionWaits';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
-import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {noteTransferTrail, transferTrailTail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 export type HandIntakeRect = {left: number, top: number, width: number, height: number};
 
@@ -266,7 +266,22 @@ export function handDockReachable(): boolean {
 // land in the always-on-top footer dock) — a blocking hold would withhold
 // surfaces the player continues into. Like deck-draw: hold NOTIFICATIONS
 // behind the beat only.
-registerAnimationHoldSupplier('hand-delivery', isHandDeliveryActive, {scope: 'notification-only', expire: expireHandDelivery});
+registerAnimationHoldSupplier('hand-delivery', isHandDeliveryActive, {scope: 'notification-only', expire: expireHandDelivery, diagnose: handDeliveryStanding});
+
+/**
+ * WHAT THE HOLD STANDS ON, IN ITS OWN WORD (the hold's `diagnose` — read by every line that names a standing hold:
+ * its own ceiling and the notification queue's starvation). «leaked hold: hand-delivery» under a green
+ * `console-re-settlement` named nothing a reader could act on (FREEZE ZERO, the suite's worklist, 2026-11-22): the
+ * runs counted, the cards they still carry, the proxies on the layer, and the runs' own last steps with their ages.
+ */
+function handDeliveryStanding(): unknown {
+  const now = typeof performance !== 'undefined' ? Math.round(performance.now()) : 0;
+  // (One compact line, the newest step first: the readers of a hold's word keep its first 200 characters.)
+  const steps = transferTrailTail(60).filter((e) => e.ev.startsWith('hand-intake:')).slice(-3).reverse()
+    .map((e) => `${((now - e.t) / 1000).toFixed(1)}s ago ${e.ev.slice('hand-intake:'.length)}`);
+  return `${runs.active} run · carries ${handDeliveryState.inFlight.join(',') || 'nothing'} · ${handDeliveryState.flights.length} proxy · ` +
+    `last: ${steps.join(' ← ') || 'no step'} · episodes ${[...episodes.entries()].map(([role, ep]) => `${role}:${ep.phase}`).join(',') || 'none'}`;
+}
 
 /**
  * THE LIVE RUNS' OWN ENDINGS — one per intake run, registered while it counts toward `runs.active`. The hold's

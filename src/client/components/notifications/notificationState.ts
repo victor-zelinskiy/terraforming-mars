@@ -18,7 +18,7 @@ import {
   onForegroundFreed,
   registerFlowHoldSupplier,
 } from '@/client/components/presentation/presentationFlow';
-import {activeAnimationHoldDetails, activeAnimationHoldLabels, playerOwnedHolds} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldDetails, activeAnimationHoldLabels, activeAnimationHoldWaits, playerOwnedHolds} from '@/client/components/presentation/animationHold';
 import {FrameWatch, watchFrames} from '@/client/console/kernel/frameWitness';
 import {PendingQueueSummary, pendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {ackBotTurn} from '@/client/components/marsbot/botTurnAck';
@@ -231,6 +231,19 @@ function clearQueueBlocked(): void {
   queueBlocked = undefined;
 }
 
+/**
+ * WHO STANDS BEHIND A STARVED QUEUE, WITH THEIR AGES (pure) — and whether it is a SUCCESSION: some hold stands, and
+ * none of them has itself stood the escape's bound. The bound is one animation's lifetime; a chain of scenes each
+ * within its own is no leak of the one that happens to stand at the twelfth second.
+ */
+export function starvationHolds(waits: ReadonlyArray<{label: string, scope: string, since: number}>, now: number): {ages: string, succession: boolean} {
+  const oldest = waits.reduce((most, w) => Math.max(most, now - w.since), 0);
+  return {
+    ages: waits.map((w) => `${w.label}[${w.scope}] ${(Math.max(0, now - w.since) / 1000).toFixed(1)}s`).join(', '),
+    succession: waits.length > 0 && oldest < QUEUE_STARVATION_MS,
+  };
+}
+
 /** Said once per starvation — and armed again the moment the queue FLOWS (it was armed again only at the endgame, so
  *  after one line every later leak of the same game printed nothing: the same audit row). */
 let starvationWarned = false;
@@ -298,10 +311,25 @@ export function promoteFromQueue(): void {
           `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
           `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} (planned: ${starved})`);
       } else {
-        console.warn(
-          `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
-          `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} (leaked hold: ` +
-          `${activeAnimationHoldLabels().join(', ') || 'none named'})`);
+        // …and A SUCCESSION OF SCENES IS NOT ONE LEAKED HOLD. The escape's clock runs for as long as SOME animation
+        // blocks the queue — a city carried across the board, its landing, the card that then flies into the hand —
+        // and the line named whichever hold happened to stand at the twelfth second as «leaked» (`hand-delivery`, under
+        // a green `console-re-settlement`, the whole suite on CI 2026-11-22: a flight under a second old). «Past a
+        // bounded lifetime it is always a leak» is a statement about ONE animation's lifetime: when no standing hold
+        // has itself stood the bound, nothing leaked — the delivery at the bound is the designed mode over a long
+        // chain of honest scenes, and each hold keeps its OWN ceiling as its leak line. Every hold says its age.
+        const {ages, succession} = starvationHolds(activeAnimationHoldWaits(), now);
+        if (succession) {
+          console.warn(
+            `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
+            `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} (planned: a succession of scenes — ` +
+            `no standing hold is itself older than the bound; ${ages})`);
+        } else {
+          console.warn(
+            `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
+            `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} — standing ${ages || 'none'} (leaked hold: ` +
+            `${activeAnimationHoldLabels().join(', ') || 'none named'})`);
+        }
       }
     }
   } else {

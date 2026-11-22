@@ -333,7 +333,7 @@ export function settleOpenTransferGuards(): void {
   }
 }
 
-function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: () => boolean, wave?: TransferWaveSlot): Promise<void> {
+function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: () => boolean, wave?: TransferWaveSlot, standing?: () => string): Promise<void> {
   return new Promise<void>((resolve) => {
     let settled = false;
     let waiter: (() => void) | undefined;
@@ -393,7 +393,13 @@ function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: ()
       } else {
         // The token never touched down inside its budget and nothing could catch it up — the safety ends its beat (said on
         // the wait graph's worklist; a flight CAUGHT UP on a starved renderer is the designed road, never a line).
-        beginCeilingWait({id: 'transfer:touchdown', owner: 'resourceTransferDirector', what: 'the touchdown of a token in flight', maxMs: budgetMs + 1200}).ceiling(painted.starved());
+        // (WHAT THE BEAT STOOD ON is said with it — which token, where its timeline was, its place in the wave: the bare
+        // line under a green `console-blue-action-receive`, CI 2026-11-22, named a flight and nothing to read it by.)
+        const slot = wave === undefined ? '' : ` · wave slot ${wave.index} (born up to ${wave.gate.next}, landed up to ${wave.gate.landNext})`;
+        beginCeilingWait({
+          id: 'transfer:touchdown', owner: 'resourceTransferDirector', what: 'the touchdown of a token in flight', maxMs: budgetMs + 1200,
+          detail: `${standing?.() ?? 'a beat'}${slot}${waiter !== undefined ? ' · touched down, waiting for its landing slot' : ''}`,
+        }).ceiling(painted.starved());
         finish();
       }
     });
@@ -656,7 +662,8 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
       report.restAt = restingAt;
     }
     return false;
-  }, opts.wave);
+  }, opts.wave, () => `the flight of «${(chip.textContent ?? '').trim().slice(0, 16)}» · ` +
+    (flight === undefined ? 'its timeline never started (the birth is waited)' : `its timeline at ${Math.round(flight.progress() * 100)}%`));
 
   /** The final approach's read: the live end, else its stand-in, else undefined (lost). Fills the report. */
   function finalApproach(): TransferPoint | undefined {

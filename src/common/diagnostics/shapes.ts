@@ -341,6 +341,10 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
   'notifications': [
     {name: 'starvation', re: /queued event\(s\) held behind an ANIMATION hold .*\(leaked hold: (.*)\)$/, tier: 'defect', parts: [1]},
     {
+      name: 'starvation-succession', re: /queued event\(s\) held behind an ANIMATION hold .*\(planned: a succession of scenes[^)]*\)$/, tier: 'planned',
+      why: 'the queue stood its bound behind a CHAIN of scenes, and no standing hold has itself stood that long (each says its age): nothing leaked — every hold keeps its own ceiling as its leak line',
+    },
+    {
       name: 'starvation-page', re: /queued event\(s\) held behind an ANIMATION hold .*\(planned: [^)]*\)$/, tier: 'planned',
       why: 'the page is not painting (`frameWitness.pageStarvedNow` — behind another window, a hidden tab): no animation ends there, so the delivery at the bound is the designed mode and no hold leaked',
     },

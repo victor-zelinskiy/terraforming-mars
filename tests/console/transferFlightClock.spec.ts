@@ -78,7 +78,9 @@ describe('a resource chip is born at its source — the flight starts on the ani
     const ready = raw.slice(raw.indexOf('function landingSlotReady('), raw.indexOf('function waveSlotReady('));
     expect(ready, 'only after every predecessor touched down (or never will)').to.include('gate.landNext >= slot.index');
     expect(ready, 'in a LATER frame').to.include('gsap.ticker.frame > gate.landFrame');
-    expect(body('runTransferFlight'), 'the flight hands its slot to the guard').to.include('}, opts.wave);');
+    // (…and, after the slot, what its beat stands on — the word the safety's ceiling line says: `standing`.)
+    expect(body('runTransferFlight'), 'the flight hands its slot to the guard').to.include('}, opts.wave, () => `the flight of «');
+    expect(guard, 'the ceiling line says which token, where its timeline was and its place in the wave').to.match(/detail: `\$\{standing\?\.\(\) \?\? 'a beat'\}\$\{slot\}/);
     // A detached token waits seconds for its surface to leave: it keeps no place in the order past its pop.
     expect(body('runDetachedTransferFlight'), 'a detached token leaves the order at its pop').to.include('void launchedAt.then(leaveLandingOrder);');
     const run = fs.readFileSync(path.resolve(path.dirname(DIRECTOR), 'consoleResourceTransfer.ts'), 'utf8');

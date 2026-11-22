@@ -2956,11 +2956,17 @@ function peekTargetRect(): HeroRect | undefined {
 
 /** `measureTargetRect` on the wait graph: a landing slot that never became measurable within the budget is said once. */
 async function awaitTargetRect(budgetMs = TARGET_WAIT_BUDGET_MS): Promise<HeroRect | undefined> {
-  const node = beginCeilingWait({id: 'played-hero:target', owner: 'playedHero', what: 'a measurable landing slot for the card', maxMs: budgetMs, detail: playedHeroState.card ?? ''});
+  // (The line says what it stood on — WHICH place was asked, and whether one was there to ask: «did not come in 200 ms»
+  // under a green `console-sponsor-colony` named the card and nothing a reader could act on.)
+  const standing = (): string => `${playedHeroState.card ?? ''} · ${playedHeroState.host}:${playedHeroState.phase} · ` +
+    (targetSelectorOverride !== undefined ? `the arm's own seat «${targetSelectorOverride}» (${document.querySelectorAll(targetSelectorOverride).length} in the DOM)` :
+      targetMeasure === undefined ? 'no landing place registered' : `a registered place${targetPeek === undefined ? '' : ' with a peek'}`);
+  const node = beginCeilingWait({id: 'played-hero:target', owner: 'playedHero', what: 'a measurable landing slot for the card', maxMs: budgetMs, detail: standing()});
   const rect = await measureTargetRect(budgetMs);
   if (rect !== undefined) {
     node.met();
   } else if (playedHeroState.active) {
+    node.update(standing());
     node.ceiling();
   } else {
     node.end();

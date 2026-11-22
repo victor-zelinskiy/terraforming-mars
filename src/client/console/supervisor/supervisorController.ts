@@ -1009,30 +1009,37 @@ export function createSupervisorController(shell: SupervisorPort) {
     // waits for «the frame to leave» points at a frame that IS there (the field export of 2026-11-08 read five false
     // `dangling … surface:card-actions — not there` while the player browsed «Действия карт» over a pending plate).
     if (top !== undefined) {
-      const reversible = !isTransientBeat(top.phase) && top.phase !== 'committed';
+      // THE FRAME'S PHASE AS THE ARBITER JUDGES IT (`judgedTransientBeat`): a surface that derives its phase inside the
+      // component (card-actions) reports its beat and writes nothing to its frame — the node read the frame's `browse`
+      // and said «the player browses — B leaves» of a composer paying a ledger, its pad absorbed by the beat: a dead
+      // end that named a wait nobody had (`wait-graph/dead-end/surface:card-actions — held by beat` under a green
+      // `console-draw-one-batch-sealed-ledger`, CI 2026-11-22). One reading of «is this frame in a beat» for both.
+      const beatPhase = isTransientBeat(top.phase) ? top.phase : transientSurfaceBeats().find(([kind]) => kind === top.kind)?.[1];
+      const inBeat = beatPhase !== undefined;
+      const reversible = !inBeat && top.phase !== 'committed';
       // A BEAT WHOSE STAGE SHOWS A REVEAL waits for the player's take, not for a motion (freeze zero, stage 1 — CI,
       // the seed of the day · `red-lawyers-tr-first`, 6 of 6: «overdue surface:parliament (executing) — past its 12 s
       // bound» while «Получена карта» stood with «A Взять» on the bar). The reveal takes its own press; the beat ends
       // with it. A beat with no reveal over it is the bounded motion it always was.
-      const revealOverBeat = isTransientBeat(top.phase) && !owedNow.some((o) => o.kind === top.kind) && document.querySelector('.con-reveal') !== null;
+      const revealOverBeat = inBeat && !owedNow.some((o) => o.kind === top.kind) && document.querySelector('.con-reveal') !== null;
       const targets: Array<WaitTarget> = owedNow.some((o) => o.kind === top.kind) ? [{kind: 'node', id: `conclusion:${top.kind}`}] :
         revealOverBeat ? [{kind: 'player', what: 'take the revealed cards', accepts: true}] :
-          isTransientBeat(top.phase) ? [{kind: 'motion', what: `${top.kind}:${top.phase}`}] :
+          inBeat ? [{kind: 'motion', what: `${top.kind}:${beatPhase}`}] :
             questionId !== undefined && task !== undefined && frameServing(task.kind)?.kind === top.kind ? [{kind: 'node', id: questionId}] :
               reversible ? [{kind: 'player', what: 'the player browses — B leaves'}] :
                 [{kind: 'player', what: 'B collapses / A continues'}];
       // The node's age is the age of THIS PHASE of the frame, never of the frame (a hand that stood `committed` and then
       // `executing` read 47 s of a 12 s beat — the monkey's wg2 `stratospheric-expedition-sole`): its id stays the frame's
       // (the plate and the conclusion point at it), its `since` is re-stamped at every phase change.
-      const phaseKey = `${top.kind}:${top.phase}`;
+      const phaseKey = `${top.kind}:${beatPhase ?? top.phase}`;
       if (waitSurfacePhase.key !== phaseKey) {
         waitSurfacePhase.key = phaseKey;
         waitSurfacePhase.since = Date.now();
       }
       out.push({
         id: `surface:${top.kind}`, family: 'surface', owner: `workspace:${top.kind}`, targets, since: waitSurfacePhase.since,
-        ...(isTransientBeat(top.phase) && !owedNow.some((o) => o.kind === top.kind) && !revealOverBeat ? {boundMs: WORKSPACE_BEAT_STALL_MS} : {}),
-        detail: top.phase,
+        ...(inBeat && !owedNow.some((o) => o.kind === top.kind) && !revealOverBeat ? {boundMs: WORKSPACE_BEAT_STALL_MS} : {}),
+        detail: beatPhase ?? top.phase,
       });
     }
     // A HELD / OWED CONCLUSION — by the reason it held on. One node per frame that owes (a debt is the frame's own

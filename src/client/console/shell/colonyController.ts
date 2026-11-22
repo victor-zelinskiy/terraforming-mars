@@ -80,7 +80,6 @@ import type {NoticeController} from '@/client/console/shell/noticeController';
 import {span} from '@/client/console/session/sessionWaits';
 import {surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {whenPainted} from '@/client/console/session/sessionWaits';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {takeUpQuestion} from '@/client/console/setAside';
@@ -2202,9 +2201,10 @@ export function createColonyController(shell: ColonyPort) {
       });
     });
     const frames = () => whenPainted();
-    const dwell = (ms: number) => new Promise<void>((resolve) => {
-      consoleSessionScope().guarantee(motionMs(ms), 'colonyController: a release\'s bound', resolve);
-    });
+    // (A PAUSE OF THE FLOW IS A WAIT OF THE KERNEL — `span`: a row of the wait table every level door reads,
+    // `flightsInTheAir`. It was a `guarantee` — a NET's timer used as a beat: under it the finished colonies read
+    // «dismiss · QUIET» for half a second, and a door that acts on quiet would have closed the roster's read.)
+    const dwell = (ms: number) => span(motionMs(ms));
     // The ceremony and the build's own scene first (a staged door's version move can arrive a tick before the
     // cube's handoff ends).
     await settle(() => colonyRosterState.live || isColonyBuildActive());
@@ -2249,9 +2249,10 @@ export function createColonyController(shell: ColonyPort) {
     }
     setColonyCityHoming(true);
     const frames = () => whenPainted();
-    const dwell = (ms: number) => new Promise<void>((resolve) => {
-      consoleSessionScope().guarantee(motionMs(ms), 'colonyController: a release\'s bound', resolve);
-    });
+    // (A PAUSE OF THE FLOW IS A WAIT OF THE KERNEL — `span`: a row of the wait table every level door reads,
+    // `flightsInTheAir`. It was a `guarantee` — a NET's timer used as a beat: under it the finished colonies read
+    // «dismiss · QUIET» for half a second, and a door that acts on quiet would have closed the roster's read.)
+    const dwell = (ms: number) => span(motionMs(ms));
     // The scene first — through its read (resolved at once when none is playing; it never rejects).
     await colonyCitySceneDone();
     const receipt = colonyCityState.receipt;
@@ -2302,9 +2303,10 @@ export function createColonyController(shell: ColonyPort) {
       });
     });
     const frames = () => whenPainted();
-    const dwell = (ms: number) => new Promise<void>((resolve) => {
-      consoleSessionScope().guarantee(motionMs(ms), 'colonyController: a release\'s bound', resolve);
-    });
+    // (A PAUSE OF THE FLOW IS A WAIT OF THE KERNEL — `span`: a row of the wait table every level door reads,
+    // `flightsInTheAir`. It was a `guarantee` — a NET's timer used as a beat: under it the finished colonies read
+    // «dismiss · QUIET» for half a second, and a door that acts on quiet would have closed the roster's read.)
+    const dwell = (ms: number) => span(motionMs(ms));
     // The cube's own scene first (a version move can arrive a tick before its handoff ends)…
     await settle(() => isColonyBuildActive());
     // …one flush for the answer's own follow-up to surface (a claim, a prompt), then all of it.
