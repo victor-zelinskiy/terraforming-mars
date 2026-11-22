@@ -214,7 +214,7 @@ function waitQuiet(settling: () => boolean, what: string, opts?: QuietWaitOpts):
       }
       node ??= beginCeilingWait({id: `quiet:${opts?.who ?? 'unnamed'}`, owner: opts?.who ?? 'rewardPayoutQuiet', what, maxMs: hard - started});
       if (opts?.whyNot !== undefined) {
-        node.update(opts.whyNot().replace(/[()]/g, '').slice(0, 220));
+        node.update(opts.whyNot().replace(/[()]/g, '').slice(0, 320));
       }
       probeTick(poll);
     };

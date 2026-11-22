@@ -266,6 +266,18 @@ export function boardCoverReasonsNow(): Array<string> {
 }
 
 /**
+ * WHAT THE PARK IS DOING RIGHT NOW, in a phrase — for the node of whoever waits for the scales' story (a ceiling's
+ * line then names the gate that never opened instead of «the console quiet did not come»): what is held, whether a
+ * drain runs or a scene holds the values, what gated the drain at its last look, how many drains this window opened.
+ */
+export function boardBeatParkWhy(): string {
+  return `park held ${Object.keys(boardBeatParkState.heldParams ?? {}).join('+') || 'nothing'}` +
+    `${boardBeatParkState.heldClaims !== undefined ? ' +claims' : ''}${parkedBatchPending() ? ' +batch' : ''}` +
+    `${boardBeatParkState.draining ? ' · draining' : ''}${boardBeatParkState.sceneHeld ? ' · held for a scene' : ''}` +
+    ` · gated by [${[...parkWindow.gatedBy].join(', ')}] ×${parkWindow.gated} · drains ${parkWindow.drains} · looks ${parkWindow.seen}/${parkWindow.looks}`;
+}
+
+/**
  * THE BOARD's STORY WAITS FOR THE PLAYER — the board is covered right now, and only by what the PLAYER looks at
  * (`boardCoversAreThePlayers`: a section, a sheet, a workspace, a placement of theirs and the camera that serves it —
  * never the game's own scene, a sitting on its way up or the camera alone). A phrase for a wait's ceiling (`QuietWaitOpts.heldByPlayer`): whoever waits
