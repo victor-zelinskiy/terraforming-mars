@@ -1039,8 +1039,26 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
   `beats[…]` there, the door's «nothing in flight» reads the kernel's motion waits too (`flightNow` — only after the
   reading shows no motion wait that stands for good on a quiet table), the state reads `busy[…]`, and
   `startLevelDoorMay` loses its exception.
-- *2b, the two start nets* (`start-shadow`, `start-stranded`): counters since the door stood; deleted at the next
-  whole-suite reading with no line of either (stage 7's rule — the reading of `901180a597` was the first zero).
+- *2b, the door's shut state — the SECOND reading (run 45071347931):* it stood QUIET once, 548 ms, `beats[]` — the
+  colony ROSTER's read, written as a `guarantee` (a net's timer), not as a `span`; a span since `1c83620d96`, so the
+  state is expected to read `busy[…]` whenever it stands. The door's «nothing in flight» reads the kernel's motion
+  waits (`flightsInTheAir`). The exception itself is lifted only on a reading with NO quiet span of that state.
+- *2b, the two start nets* (`start-shadow`'s confirm, the `start-stranded` watchdog). **NOT deleted on the zero
+  reading (2026-11-23) — reading them against the level door first said no, in two places** (`02d556c48d`):
+  ① the watchdog is not the director's twin: it reads a hosted step that does not answer the asked question as
+  serving NOTHING (`hostedStepServes` — «a strand dressed as a step», the field hang of 2026-10-28 itself) and heals
+  it; the director reads `step` and has no cure for it — deleted, that case falls to the arbiter's ladder, ten
+  seconds in. ② the confirm is the only release of `game > shell` / `game > step`, the one state the door stays shut
+  in (a start left yielded under the game's menu covers the board — the field of 2026-10-31 22:15). «Zero lines over
+  three readings» proved the nets are SILENT on healthy tables, not that the door covers what they cure.
+  **How they go:** the watchdog's own cure executed BY LEVEL (a third door: `startStrandedNow` ∧ nothing in flight
+  for its frames → `healStrand` → `reopenStartStep` → the yield) and the shut state opened by what stands quiet —
+  each after its measure. The STRAND-DOOR track reads what is in flight under a strand by frame (`STRAND-DOOR
+  <question> · plan … · QUIET{…} | busy[…]`); the suite stands 52 strands of «the game asks» up to 1.26 s and 16 of
+  the first action up to 0.24 s, every one ending by itself — the reading says how many frames of them were quiet,
+  and so the door's number. Then both timers are deleted with every case they cured cured sooner, the e2e harness's
+  `startStrandGuard` moves to the director's cure line (`[start-shadow] cure` — «a heal that had to run» stays red),
+  and the bottle's four baselined rows of these nets (layout-less tables) are re-read on the same seeds.
 - *S5-rest, the conclusion's level door.* **BUILT 2026-11-23 (`6725ceeb31`).** The second whole-suite reading (run
   45071347931, on `4dbd84dd1d` — the reader counting the kernel's motion waits): a dismissible candidate stood QUIET
   exactly TWICE in 1 502 tests, 550 and 582 ms — the colony ROSTER's read, a pause written as `guarantee` (a net's
