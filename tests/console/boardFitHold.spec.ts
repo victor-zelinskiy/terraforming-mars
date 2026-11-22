@@ -42,3 +42,22 @@ describe('the board-fit hold of the boot curtain — every end of the convergenc
     expect(section).to.match(/releaseFitSettleHold\(\); \/\/ never strand the curtain on an unmounting stage/);
   });
 });
+
+/**
+ * …AND THE «START SCENE» HOLD OF THE SAME CURTAIN: `scene-transition/hold-bound/start-scene` — the 8 s bound — under a
+ * green `console-rise-to-power` C (a reload INSIDE a step the start hosts full-screen). The hold waited for the scene
+ * to be VISIBLE, and a scene standing aside for its own guest is not going to be.
+ */
+describe('the start-scene hold of the boot curtain — the opening\'s composition stands, visible or aside', () => {
+  const wiring = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/shell/wiringController.ts'), 'utf8').replace(/\r\n/g, '\n');
+
+  it('the hold is released by the scene on screen OR the scene mounted and standing aside — never by «visible» alone', () => {
+    const at = wiring.indexOf('const releaseStart = deferSceneReveal(\'start-scene\', 8000);');
+    expect(at, 'the hold is armed').to.be.greaterThan(0);
+    const body = wiring.slice(at, wiring.indexOf('armSceneDestination();', at));
+    expect(body).to.contain('const stands = (): boolean => shell.startSceneVisible || shell.startSceneMounted;');
+    expect(body).to.match(/if \(stands\(\)\) \{\s+settle\(\);/);
+    expect(body).to.match(/const stop = watch\(\s+stands,/);
+    expect(body, 'the old wait for the scene\'s own paint alone').to.not.match(/watch\(\s+\(\) => shell\.startSceneVisible,/);
+  });
+});

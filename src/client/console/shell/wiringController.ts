@@ -1253,13 +1253,21 @@ export function createWiringController(shell: WiringPort) {
       if (shell.startFrameLive) {
         const releaseStart = deferSceneReveal('start-scene', 8000);
         const settle = () => void shell.$nextTick(() => releaseStart());
-        if (shell.startSceneVisible) {
+        // THE OPENING's COMPOSITION STANDS — the scene on screen, or the scene MOUNTED and standing ASIDE by its own
+        // rule (`startSceneVisible`: a guest owns the pixels — a step it hosts full-screen, a question's own surface,
+        // the board for a placement it cannot host). Waiting for «visible» alone, a reload INSIDE such a step held the
+        // curtain for the whole 8 s bound: the scene was never going to be visible while the step stood
+        // (`scene-transition/hold-bound/start-scene` under a green `console-rise-to-power` C — the whole suite on CI,
+        // 2026-11-22). What the curtain must not reveal is a start whose frame is live and whose scene has not
+        // mounted yet; the guest's own paint is the reveal's settle.
+        const stands = (): boolean => shell.startSceneVisible || shell.startSceneMounted;
+        if (stands()) {
           settle();
         } else {
           const stop = watch(
-            () => shell.startSceneVisible,
-            (visible: boolean) => {
-              if (visible) {
+            stands,
+            (standing: boolean) => {
+              if (standing) {
                 settle();
                 stop();
               }
