@@ -209,6 +209,20 @@ export function createRevealController(shell: RevealPort) {
     return deckPickUnheld.value && (deckPickHolding() || shell.ownerServes('deck-pick'));
   });
 
+  /**
+   * THE SURFACE STANDS ONLY AS ITS OWN OUTGOING BEAT — the pick was answered (the picks flying into the dock, the rest
+   * tumbling away, the played card rising out of it) and the function does not name it for whatever is asked now. A
+   * PRESENCE FINISHING IS NOT A SECOND ANSWER: the one-owner law judges the surfaces that SERVE, and this one serves
+   * nothing — the next question (a colony, the play's own step) is the function's to name, held behind the play's
+   * landing. Read as a serving surface it was «`deckPick` stands for `colony` beside the function's answer
+   * `colonies@hand held admission:played-hero`» — `invariant/broken/serving-owner:second-surface` under nine green
+   * tests of the whole suite (CI, 2026-11-22: `console-board-of-directors` ×5, `-early-colonization` B, `-wg-project`
+   * D, `-rise-to-power` D), and the measure's standing `flag-EXTRA`.
+   */
+  const deckPickOutgoing = computed((): boolean => {
+    return deckPickUnheld.value && deckPickHolding() && !shell.ownerServes('deck-pick');
+  });
+
   /** The batch / pick stands by its own facts — a deck pick is active and no workspace holds it; what the outgoing beat stands by. */
   const deckPickUnheld = computed((): boolean => {
     return deckPickActive.value && !deckPickHeldForWorkspace.value;
@@ -1051,6 +1065,7 @@ export function createRevealController(shell: RevealPort) {
     deckPickHeldForWorkspace,
     deckPickEmbedTarget,
     deckPickServing,
+    deckPickOutgoing,
     revealSourceSeatStands,
     externalDrawEmbedTarget,
     externalDrawWorkspaceMounted,

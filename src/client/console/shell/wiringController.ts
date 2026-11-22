@@ -139,6 +139,7 @@ export type WiringPort = {
   readonly conRootEl: HTMLElement | undefined,
   consoleRevealMode: UnwrapRef<RevealController['consoleRevealMode']>,
   deckPickServing: UnwrapRef<RevealController['deckPickServing']>,
+  deckPickOutgoing: UnwrapRef<RevealController['deckPickOutgoing']>,
   declareScreenControlDefect: UnwrapRef<SupervisorController['declareScreenControlDefect']>,
   draftFrameLive: UnwrapRef<DraftController['draftFrameLive']>,
   drainBoardBeats: UnwrapRef<PlacementController['drainBoardBeats']>,
@@ -685,7 +686,8 @@ export function createWiringController(shell: WiringPort) {
 
   function promptFlags(): ReadonlyArray<string> {
     const flags: ReadonlyArray<[string, boolean]> = [
-      ['deckPick', shell.deckPickServing], ['draft', shell.draftWorkspaceOwnsPad], ['externalDraw', shell.externalDrawOwnsPad],
+      // (The deck pick's OUTGOING beat is a presence finishing, never a surface that serves — `deckPickOutgoing`.)
+      ['deckPick', shell.deckPickServing && !shell.deckPickOutgoing], ['draft', shell.draftWorkspaceOwnsPad], ['externalDraw', shell.externalDrawOwnsPad],
       ['start', shell.startSceneOwnsPad], ['govSupport', shell.govSupportServes], ['prodLoss', shell.productionLossServes],
       ['spendHeat', shell.spendHeatActive], ['venusBonus', shell.venusBonusActive], ['ares', shell.aresGlobalsActive],
       ['botAttack', shell.botAttackActive], ['effectDecision', shell.effectDecisionActive], ['taskHost', shell.taskHostOwnsInput],
