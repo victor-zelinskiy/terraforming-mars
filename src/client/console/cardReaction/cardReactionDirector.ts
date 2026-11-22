@@ -55,7 +55,7 @@ import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardReactionRecord} from '@/common/models/CardReactionModel';
-import {activeAnimationHoldLabels, blockingHoldsPlaying, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {DEFAULT_MAX_HOLD_MS, activeAnimationHoldLabels, blockingHoldsPlaying, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -296,8 +296,26 @@ export function rivalSpecsOf(group: CardReactionGroup): Array<ResourceTransferSp
   return out;
 }
 
+/**
+ * THE CEILING OF THE CHAIN's OWN HOLD stands ABOVE the chain's own bounded waits — the registry's law for every flow
+ * (`DEFAULT_MAX_HOLD_MS`: «above every per-flow safety timer»), which this hold did not keep: it took the default 35 s,
+ * while the waits it stands through are each bounded and together far longer — the board's scenes, the blocking
+ * scenes, a sitting's beats (40 s), the rating's own story on a stage the player keeps covered (its due, 32 s, and the
+ * touchdown after it), the Hydronetwork's story, the decision at the centre, an attached host. A chain that waited
+ * honestly was ended by its own hold's ceiling, as «a leaked hold?», and its `expire` ABORTED it — the table's answer
+ * never told (the whole suite on CI, 2026-11-22: `animation-hold/ceiling/card-reaction` under a green
+ * `console-atmospheric-enhancers` E — `phase: waiting`, the Greens, WG Project's prelude pick covering the rating's
+ * stage). The sum of the waits' bounds, and the default above it for the chain's own play.
+ */
+const CARD_REACTION_HOLD_MAX_MS = 4 * BLOCKING_QUIET_MAX_MS + SITTING_QUIET_MAX_MS + SCALE_STEP_STAGE_DUE_MS + BLOCKING_QUIET_MAX_MS +
+  DECISION_WAIT_MAX_MS + DEFAULT_MAX_HOLD_MS;
+
 registerAnimationHoldSupplier('card-reaction', () => cardReactionState.phase !== 'idle', {
   scope: 'notification-only',
+  maxHoldMs: CARD_REACTION_HOLD_MAX_MS,
+  // WHO OWNS THE WAIT (stage 1's law): while the chain waits on the PLAYER, the hold is theirs — said in the present
+  // tense, so a net that would call a long hold «leaked» (the feed's starvation, this ceiling) reads the reason.
+  heldForPlayer: () => (cardReactionState.phase === 'waiting' && cardReactionState.waitingOnPlayer !== '' ? cardReactionState.waitingOnPlayer : undefined),
   diagnose: () => ({phase: cardReactionState.phase, chain: cardReactionState.chain, hurried, faces: cardReactionState.faces.map((f) => f.name)}),
   expire: () => abortCardReactions(),
 });
@@ -1102,6 +1120,7 @@ async function runStandalone(): Promise<void> {
   try {
     cardReactionState.phase = 'waiting';
     cardReactionState.waitingOnOther = false;
+    cardReactionState.waitingOnPlayer = '';
     // The board's own story first (a tile's landing, its cell's payout) — a reaction never cuts into the cause's scene;
     // and every BLOCKING scene (a sitting's beats, a landing) plays out before the chain — bounded, never a session.
     await waitRewardPayoutQuiet({who: 'card-reaction:queue', alive: () => epoch === myEpoch && (standaloneQueue.length > 0 || rivalQueue.length > 0)});
@@ -1113,6 +1132,7 @@ async function runStandalone(): Promise<void> {
     await waitDecisionClear(myEpoch);
     await waitAttachedQuiet(myEpoch);
     cardReactionState.waitingOnOther = false;
+    cardReactionState.waitingOnPlayer = '';
     if (epoch !== myEpoch) {
       return;
     }
@@ -1405,11 +1425,13 @@ async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
     const step = ratingTouchdownStep(owedSince, {now: clock(), covered}, BLOCKING_QUIET_MAX_MS);
     owedSince = step.owedSince;
     if (step.overdue) {
+      cardReactionState.waitingOnPlayer = '';
       wait?.ceiling();
       withStory?.end();
       return;
     }
     cardReactionState.waitingOnOther = true;
+    cardReactionState.waitingOnPlayer = covered ? 'the rating\'s stage is covered — its story keeps its own due' : '';
     if (covered) {
       wait?.end();
       wait = undefined;
@@ -1424,6 +1446,7 @@ async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
     }
     await nextPaintedFrame();
   }
+  cardReactionState.waitingOnPlayer = '';
   closeReactionWait(wait, myEpoch);
   closeReactionWait(withStory, myEpoch);
 }
@@ -1556,10 +1579,12 @@ async function waitDecisionClear(myEpoch: number): Promise<void> {
   let wait: CeilingWait | undefined;
   while (epoch === myEpoch && decisionStands()) {
     if (typeof performance !== 'undefined' && performance.now() - started > DECISION_WAIT_MAX_MS) {
+      cardReactionState.waitingOnPlayer = '';
       wait?.ceiling();
       return;
     }
     cardReactionState.waitingOnOther = true;
+    cardReactionState.waitingOnPlayer = 'the decision at the centre';
     // (WHO IS WAITED FOR: the player, deciding over the card at the centre. The bound is this wait's honest end by its
     // nature — «past the bound it plays»: the chain goes on beside the decision. Said as such, never an event — the
     // seed of the day on CI, 2026-11-18 · `parliament-urban-enacted`, issue #55.)
@@ -1569,6 +1594,7 @@ async function waitDecisionClear(myEpoch: number): Promise<void> {
     });
     await nextPaintedFrame();
   }
+  cardReactionState.waitingOnPlayer = '';
   closeReactionWait(wait, myEpoch);
 }
 

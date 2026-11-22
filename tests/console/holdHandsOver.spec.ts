@@ -21,6 +21,33 @@ describe('a hold that hands the screen over is not waited out (the wiring)', () 
     expect(scene).to.match(/generationSceneState\.phase = 'rise';[\s\S]{0,900}await riseHandoff\('generation-rise', into\)/);
   });
 
+  /*
+   * THE CHAIN's OWN HOLD stands above the chain's own bounded waits, and says when it is the player's
+   * (`animation-hold/ceiling/card-reaction` under a green `console-atmospheric-enhancers` E — the default 35 s ceiling
+   * ended, as «a leaked hold?», a chain that was waiting out the rating's story on a stage the player kept covered,
+   * and its `expire` aborted it: the table's answer never told).
+   */
+  it('the reaction\'s hold keeps its ceiling above every wait it stands through, and names the player\'s time', () => {
+    const director = read('console/cardReaction/cardReactionDirector.ts');
+    const num = (name: string): number => Number((new RegExp(`const ${name} = ([0-9_]+);`).exec(director) ?? [])[1]?.replace(/_/g, ''));
+    const blocking = num('BLOCKING_QUIET_MAX_MS');
+    const sitting = num('SITTING_QUIET_MAX_MS');
+    const decision = num('DECISION_WAIT_MAX_MS');
+    const stageDue = Number((/export const SCALE_STEP_STAGE_DUE_MS = ([0-9_]+);/.exec(read('console/scaleStepReward/scaleStepRewardModel.ts')) ?? [])[1]?.replace(/_/g, ''));
+    const defaultMax = Number((/export const DEFAULT_MAX_HOLD_MS = ([0-9_]+);/.exec(read('components/presentation/animationHold.ts')) ?? [])[1]?.replace(/_/g, ''));
+    expect([blocking, sitting, decision, stageDue, defaultMax].every((n) => Number.isFinite(n) && n > 0), 'the bounds are read').is.true;
+    // The ceiling is written as the sum of the waits' bounds with the default above it — never a bare number.
+    expect(director).to.contain('const CARD_REACTION_HOLD_MAX_MS = 4 * BLOCKING_QUIET_MAX_MS + SITTING_QUIET_MAX_MS + SCALE_STEP_STAGE_DUE_MS + BLOCKING_QUIET_MAX_MS +');
+    expect(director).to.match(/registerAnimationHoldSupplier\('card-reaction'[\s\S]{0,200}maxHoldMs: CARD_REACTION_HOLD_MAX_MS,/);
+    // The longest single wait it stands through (the rating's story on a covered stage) is below the hold's ceiling.
+    expect(stageDue + blocking, 'the covered rating\'s wait').to.be.lessThan(4 * blocking + sitting + stageDue + blocking + decision + defaultMax);
+    expect(stageDue + blocking, '…which the DEFAULT ceiling did not clear — the class').to.be.greaterThan(defaultMax);
+    // …and the hold says whose time a wait on the player is.
+    expect(director).to.match(/heldForPlayer: \(\) => \(cardReactionState\.phase === 'waiting' && cardReactionState\.waitingOnPlayer !== ''/);
+    expect(director).to.contain('cardReactionState.waitingOnPlayer = covered ? ');
+    expect(director).to.contain('cardReactionState.waitingOnPlayer = \'the decision at the centre\';');
+  });
+
   it('the card reaction\'s chain waits out the scenes that PLAY — never a bare count of blocking holds', () => {
     const director = read('console/cardReaction/cardReactionDirector.ts');
     expect(director).to.match(/async function waitBlockingQuiet[\s\S]{0,400}blockingHoldsPlaying\(\)\.length > 0/);
