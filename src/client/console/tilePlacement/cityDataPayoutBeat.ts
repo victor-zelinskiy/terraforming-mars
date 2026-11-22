@@ -51,7 +51,7 @@ import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {boardStoryProgress, boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {registerBoardSceneMember, registerBoardSceneOwed} from '@/client/console/boardSceneMembers';
-import {boardBeatParkWhy, boardCoverReasonsNow, boardStoryHeldByPlayer} from '@/client/console/boardBeatPark';
+import {boardBeatParkWhy, boardCoverReasonsNow, boardStoryHeldByPlayer, boardStoryWaitsUnderACover} from '@/client/console/boardBeatPark';
 import {ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {CardReceiveOutcome, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
@@ -159,7 +159,13 @@ registerBoardSceneOwed(cityPayoutWaiting);
  * is owed.
  */
 function waitForTheScales(myEpoch: number): Promise<void> {
-  return waitConsoleQuiet(() => boardStorySettling(), {
+  // …EXCEPT A STORY THAT WAITS UNDER THIS PAYOUT's OWN PLATE (`boardBeatPark.boardStoryWaitsUnderACover`): a payout
+  // answered IN A PROMPT carries its card out of the plate that asked «on which card» — and that plate, standing over
+  // the board, is what keeps the scale step's rating from being told. The field cannot speak first there: its last
+  // word waits for the plate to leave, and the plate leaves with this scene. The marker has glided, the values are
+  // released; the payout plays, the plate goes, the rating is told on a dial the player can see.
+  const ownPlateHoldsTheStory = (): boolean => cityPayoutState.inPrompt && boardStoryWaitsUnderACover();
+  return waitConsoleQuiet(() => boardStorySettling() && !ownPlateHoldsTheStory(), {
     maxMs: CITY_PAYOUT_SCALES_WAIT_MS, alive: () => epoch === myEpoch, who: 'city-payout:scales',
     progress: boardStoryProgress, ceilingMs: CITY_PAYOUT_SCALES_CEILING_MS,
     // WHO KEEPS THE SCALES FROM SPEAKING: a board the player covers with a screen of their own (the plate that asks

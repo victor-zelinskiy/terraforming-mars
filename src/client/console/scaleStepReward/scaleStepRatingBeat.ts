@@ -362,8 +362,24 @@ export function scaleStepRatingQuiet(): Promise<void> {
   return scaleStepRatingState.phase === 'idle' ? Promise.resolve() : quietPromise;
 }
 
+/**
+ * THE RATING WAITS FOR A MARKER A SURFACE OVER THE BOARD COVERS — the board is in view (never the player's own
+ * screen: that is `scaleStepRatingStageCovered`) and the token's END is covered: `stageReady`'s last clause, a
+ * decision's plate standing over the dial. The park asks it for whoever waits for the scales and owns that plate.
+ */
+function scaleStepRatingMarkerCovered(): boolean {
+  const e = entry;
+  if (e === undefined || scaleStepRatingState.phase !== 'waiting' || !boardBeatBoardWatchable()) {
+    return false;
+  }
+  return e.plan.moves.some((move) => {
+    const end = transferEndVerdict(markerOf(move.accent));
+    return !end.visible && end.why === 'covered';
+  });
+}
+
 // A MEMBER of the park's drain: the cover lifts only once the rating has landed.
-registerBoardBeatStoryMember(SCALE_STEP_RATING_KEY, {busy: scaleStepRatingBusy, quiet: scaleStepRatingQuiet});
+registerBoardBeatStoryMember(SCALE_STEP_RATING_KEY, {busy: scaleStepRatingBusy, quiet: scaleStepRatingQuiet, endCovered: scaleStepRatingMarkerCovered});
 
 // NOTIFICATION-ONLY (a reaction never delays a decision the player owes, and a blocking hold here would wait on the
 // very workspace that waits on it): the feed waits for the rating's story, nothing else does.

@@ -64,6 +64,22 @@ describe('a hold that hands the screen over is not waited out (the wiring)', () 
     expect(body).to.match(/if \(players\) \{\s+wait\?\.end\(\);\s+withPlayer\?\.ceiling\(\);/);
   });
 
+  /*
+   * THE PAYOUT ANSWERED IN A PROMPT DOES NOT WAIT FOR A STORY ITS OWN PLATE HOLDS (`console-arabia-terra` — the ring of
+   * three: payout → the scales' drain → the rating → the plate over its marker → the payout).
+   */
+  it('a payout carried out of a plate never waits for the scales\' story that plate keeps from being told', () => {
+    const payout = read('console/tilePlacement/cityDataPayoutBeat.ts');
+    expect(payout).to.contain('const ownPlateHoldsTheStory = (): boolean => cityPayoutState.inPrompt && boardStoryWaitsUnderACover();');
+    expect(payout).to.contain('return waitConsoleQuiet(() => boardStorySettling() && !ownPlateHoldsTheStory(), {');
+    // The rating says when its END is covered with the board in view — and the park asks only a busy member, while it drains.
+    const rating = read('console/scaleStepReward/scaleStepRatingBeat.ts');
+    expect(rating).to.match(/function scaleStepRatingMarkerCovered\(\): boolean \{[\s\S]{0,260}scaleStepRatingState\.phase !== 'waiting' \|\| !boardBeatBoardWatchable\(\)/);
+    expect(rating).to.contain('endCovered: scaleStepRatingMarkerCovered});');
+    const park = read('console/boardBeatPark.ts');
+    expect(park).to.contain('return boardBeatParkState.draining && [...storyMembers.values()].some((member) => member.busy() && member.endCovered?.() === true);');
+  });
+
   it('the card reaction\'s chain waits out the scenes that PLAY — never a bare count of blocking holds', () => {
     const director = read('console/cardReaction/cardReactionDirector.ts');
     expect(director).to.match(/async function waitBlockingQuiet[\s\S]{0,400}blockingHoldsPlaying\(\)\.length > 0/);

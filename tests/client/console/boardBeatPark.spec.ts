@@ -19,7 +19,7 @@ import {Color} from '@/common/Color';
 import {
   BOARD_BEAT_SCALE_MS, BOARD_BEAT_SETTLE_MS,
   boardBeatDisplayClaims, boardBeatDisplayParams, boardBeatParkPending,
-  boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending, boardStoryHeldByPlayer,
+  boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending, boardStoryHeldByPlayer, boardStoryWaitsUnderACover,
   changedGlobalParams, drainBoardBeatsIfDue,
   noteBoardBeatDrainGated, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatStoryMember,
   registerBoardCoverReasons, registerBoardWatchableProbe, releaseBoardBeatPark,
@@ -474,6 +474,47 @@ describe('boardBeatPark', function() {
    * the scales' story while the player answered «on which card» in a workspace of their own — and the line had no
    * shape at all (its owner carries a colon).
    */
+  /*
+   * THREE WAITS IN A RING (`console-arabia-terra`, «printed DATA, two holders» — fifteen seconds of a frozen plate after
+   * the player's answer, every run): the payout waits for the scales' story, the scales' drain waits for the rating,
+   * the rating waits for a marker the decision's plate covers, and the plate leaves only with the payout.
+   */
+  describe('the scales\' story standing under a cover of its own end', () => {
+    it('is said only while the drain runs AND a busy member names its end covered', () => {
+      let busy = false;
+      let covered = false;
+      const off = registerBoardBeatStoryMember('spec-covered-member', {busy: () => busy, quiet: () => Promise.resolve(), endCovered: () => covered});
+      try {
+        expect(boardStoryWaitsUnderACover(), 'no drain').is.false;
+        boardBeatParkState.draining = true;
+        expect(boardStoryWaitsUnderACover(), 'a drain with no member waiting').is.false;
+        busy = true;
+        expect(boardStoryWaitsUnderACover(), 'a member busy on its own motion — the field is speaking').is.false;
+        covered = true;
+        expect(boardStoryWaitsUnderACover(), 'the member waits under a cover of its end').is.true;
+        busy = false;
+        expect(boardStoryWaitsUnderACover(), 'a member that is not waiting names nothing').is.false;
+        busy = true;
+        boardBeatParkState.draining = false;
+        expect(boardStoryWaitsUnderACover(), 'the story is not being told').is.false;
+      } finally {
+        boardBeatParkState.draining = false;
+        off();
+      }
+    });
+
+    it('a member that says nothing about its end is never a cover\'s reason (the other members)', () => {
+      const off = registerBoardBeatStoryMember('spec-plain-member', {busy: () => true, quiet: () => Promise.resolve()});
+      try {
+        boardBeatParkState.draining = true;
+        expect(boardStoryWaitsUnderACover()).is.false;
+      } finally {
+        boardBeatParkState.draining = false;
+        off();
+      }
+    });
+  });
+
   describe('the board\'s story held by the player\'s own cover — a wait\'s ceiling says whose time it was', () => {
     it('a board covered only by what the PLAYER looks at is the player\'s; the game\'s own cover, or a board in view, is not', () => {
       registerBoardCoverReasons(() => []);

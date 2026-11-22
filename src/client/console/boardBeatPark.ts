@@ -266,6 +266,23 @@ export function boardCoverReasonsNow(): Array<string> {
 }
 
 /**
+ * THE SCALES' STORY IS BEING TOLD AND STANDS UNDER A COVER OF ITS OWN END: the drain runs, and a member it waits for
+ * says the place of its story is covered (`BoardBeatStoryMember.endCovered` — the rating's marker under a decision's
+ * plate). Whoever must wait for the scales AND owns that cover cannot wait: it waits for itself.
+ *
+ * THE CYCLE THIS NAMES (the whole suite on CI, 2026-11-22 — `console-arabia-terra`, «printed DATA, two holders»;
+ * fifteen seconds of a frozen plate after the player's answer, every time): the landing raises «on which card» in
+ * the same response as its oxygen step; the plate stands over the board while the step is told, so the rating's token
+ * waits for a marker the player can see; the answer starts the payout, which waits for the scales' story (the field
+ * speaks first); the scales' drain waits for its member, the rating; and the plate — the cover — does not leave
+ * until the payout has carried its card out of it. Three waits in a ring, each right alone, broken only by the
+ * payout's ceiling. None of them named another as a node — a count of members, a cover read off the DOM.
+ */
+export function boardStoryWaitsUnderACover(): boolean {
+  return boardBeatParkState.draining && [...storyMembers.values()].some((member) => member.busy() && member.endCovered?.() === true);
+}
+
+/**
  * WHAT THE PARK IS DOING RIGHT NOW, in a phrase — for the node of whoever waits for the scales' story (a ceiling's
  * line then names the gate that never opened instead of «the console quiet did not come»): what is held, whether a
  * drain runs or a scene holds the values, what gated the drain at its last look, how many drains this window opened.
@@ -361,7 +378,16 @@ export function boardBeatHoldsParam(key: keyof HeldGlobalParams): boolean {
  * after the last token has landed. Bounded (`BOARD_BEAT_MEMBER_WAIT_MAX_MS`):
  * a member that never settles cannot wedge the drain.
  */
-export type BoardBeatStoryMember = {busy: () => boolean, quiet: () => Promise<void>};
+export type BoardBeatStoryMember = {
+  busy: () => boolean,
+  quiet: () => Promise<void>,
+  /**
+   * THE MEMBER WAITS UNDER A COVER OF ITS OWN END — it is busy because the place its story is told on (a scale's
+   * marker) is covered by a surface standing over the board in view: a decision's plate, by the law that a decision
+   * never waits on a story. Said by the member, asked through `boardStoryWaitsUnderACover`.
+   */
+  endCovered?: () => boolean,
+};
 const storyMembers = new Map<string, BoardBeatStoryMember>();
 
 export function registerBoardBeatStoryMember(id: string, member: BoardBeatStoryMember): () => void {
