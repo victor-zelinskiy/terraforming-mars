@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {startPressRefusal, startSceneCommands, StartPressSignals, StartSceneCommandState} from '@/client/console/consoleStartUi';
+import {startDeliveryInTheAir, startPressRefusal, startSceneCommands, StartPressSignals, StartSceneCommandState} from '@/client/console/consoleStartUi';
 
 /**
  * The initial-setup command contract (the 2026-07 polish pass): the bottom
@@ -370,6 +370,29 @@ describe('consoleStartUi (initial-setup command contract)', () => {
  * THE ONE GATE OF A DEPLOYMENT PRESS (`startPressRefusal`): a press is honoured only when what it would start can
  * happen — never a hero lift or a delivery cascade for a submit the transport is going to drop.
  */
+/*
+ * «DELIVERED» IS ONE ANSWER FOR THE GATE AND THE ADMISSION (issue #87). The gate read the delivery ledger by NAME; the
+ * admission's `card-arrival` block reads the flights. A name leaves the ledger at its touchdown, the flight lives
+ * through the landing's tail — and in that tail the next question was still held while the gate said «delivered».
+ */
+describe('startDeliveryInTheAir — nothing is delivered while anything is in the air', () => {
+  it('the episode pending, or any flight in the air — either holds the legacy press', () => {
+    expect(startDeliveryInTheAir(true, 0)).to.eq(true);
+    expect(startDeliveryInTheAir(false, 2), 'the tail of a landing: the names are released, the flights are not').to.eq(true);
+    expect(startDeliveryInTheAir(false, 0)).to.eq(false);
+  });
+
+  it('…and through the gate: a press on «Наследие» in a landing\'s tail is refused as «delivery»', () => {
+    const open: StartPressSignals = {
+      heroActive: false, ceremony: true, shellRevealed: true, embedPresenting: false, queueArriving: false,
+      requestInProgress: false, deliveryPending: startDeliveryInTheAir(false, 1),
+    };
+    expect(startPressRefusal('legacy', open)).to.eq('delivery');
+    expect(startPressRefusal('prelude', open), 'another row\'s press does not wait for the dock').to.be.undefined;
+    expect(startPressRefusal('legacy', {...open, deliveryPending: startDeliveryInTheAir(false, 0)})).to.be.undefined;
+  });
+});
+
 describe('startPressRefusal — why a deployment press is refused', () => {
   const open: StartPressSignals = {
     heroActive: false, ceremony: true, shellRevealed: true, embedPresenting: false, queueArriving: false,

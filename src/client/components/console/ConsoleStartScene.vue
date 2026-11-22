@@ -1545,7 +1545,7 @@ import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {fetchPreview} from '@/client/utils/previewFetch';
 import {cardsResponse} from '@/client/console/taskResponses';
-import {setConsoleStartCommands, resetConsoleStartUi, startSceneCommands, startPressRefusal, StartCommand} from '@/client/console/consoleStartUi';
+import {setConsoleStartCommands, resetConsoleStartUi, startDeliveryInTheAir, startSceneCommands, startPressRefusal, StartCommand} from '@/client/console/consoleStartUi';
 import {startServesOf, StartServes} from '@/client/console/startServing';
 import {transportRequestInProgress} from '@/client/console/transport/gameTransport';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -5248,7 +5248,7 @@ const pressBlockedNow = computed((): ReturnType<typeof startPressRefusal> => {
     embedPresenting: embedPresenting.value,
     queueArriving: queueArriving.value.size > 0,
     requestInProgress: transportRequestInProgress(),
-    deliveryPending: projectDeliveryPending.value,
+    deliveryPending: startDeliveryInTheAir(projectDeliveryPending.value, handDeliveryState.flights.length),
   });
 });
 /** The first-action stage as the command contract sees it (see
@@ -8771,7 +8771,7 @@ function actByName(name: CardName): void {
     embedPresenting: embedPresenting.value,
     queueArriving: queueArriving.value.size > 0,
     requestInProgress: transportRequestInProgress(),
-    deliveryPending: projectDeliveryPending.value,
+    deliveryPending: startDeliveryInTheAir(projectDeliveryPending.value, handDeliveryState.flights.length),
   });
   pressRefusal.value = refusal ?? '';
   if (refusal !== undefined) {

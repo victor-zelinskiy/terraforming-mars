@@ -434,6 +434,20 @@ export type StartPressSignals = {
   /** The bought cards' delivery (or the payment itself) is still pending. */
   deliveryPending: boolean,
 };
+/**
+ * ARE CARDS STILL ON THEIR WAY INTO THE DOCK — as the PRESS's gate reads it. Two facts, and the wider one is the
+ * admission's: the start's own delivery episode (its payment standing, its cards held or in flight by NAME), and ANY
+ * flight still in the air (`handDeliveryState.flights` — what the admission's `card-arrival` block reads). A card's
+ * name leaves the ledger at its touchdown; its flight object lives through the tail of the landing — and for that
+ * tail the server's next question was still HELD behind the arrival while the gate already said «delivered»: a press
+ * on «Наследие» there was honoured, and the carried cards lifted off under a cascade that had not finished (issue
+ * #87 — one repeat in twenty on CI's frames; the spec named it as «the early press is REFUSED»).
+ * ONE answer for the gate and the admission: nothing is delivered while anything is in the air.
+ */
+export function startDeliveryInTheAir(episodePending: boolean, flightsInTheAir: number): boolean {
+  return episodePending || flightsInTheAir > 0;
+}
+
 export function startPressRefusal(kind: string, s: StartPressSignals): StartPressRefusal | undefined {
   if (s.heroActive) {
     return 'hero';
