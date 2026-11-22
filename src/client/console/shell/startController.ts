@@ -43,7 +43,7 @@ import {ActualStartOwner, START_LEVEL_DOOR_QUIET_FRAMES, START_SHADOW_CONFIRM_MS
 import {noteOpeningLook, noteOpeningSpan} from '@/client/console/servingOwnerMeasure';
 import {transportState} from '@/client/console/transport/gameTransport';
 import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
-import {flowTreeDigest} from '@/client/console/kernel/flowScope';
+import {flowTreeDigest, waitTable} from '@/client/console/kernel/flowScope';
 import {watchFrames} from '@/client/console/kernel/frameWitness';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
@@ -893,10 +893,15 @@ export function createStartController(shell: StartPort) {
     return [...new Set(names)].sort().slice(0, 5).join('+');
   }
 
-  /** What stands, for the door's measure: the stack's frames and the kernel's tree, ids folded (`#N`), bounded. */
+  /**
+   * What stands, for the door's measure: the stack's frames, the kernel's own MOTION waits (a director's beat of
+   * stillness — `span` — and the frames of a paint: waits the legacy graph holds no node for) and the kernel's tree,
+   * ids folded (`#N`), bounded.
+   */
   function standingDigest(): string {
     const frames = workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`).join(',') || 'no frame';
-    return `${frames} · ${flowTreeDigest(6).replace(/[0-9]+/g, 'N')}`.slice(0, 220);
+    const beats = [...new Set(waitTable().filter((row) => row.family === 'motion').map((row) => `${row.owner}:${row.what}`.replace(/[0-9]+/g, 'N')))];
+    return `${frames} · beats[${beats.slice(0, 4).join('+')}] · ${flowTreeDigest(6).replace(/[0-9]+/g, 'N')}`.slice(0, 260);
   }
 
   /**

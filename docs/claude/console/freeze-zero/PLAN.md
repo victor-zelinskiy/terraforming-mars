@@ -947,6 +947,13 @@ the flake journal: a red that does not name its cause gets its picture read BEFO
   fact. *What it costs, said plainly:* a flow wedged for a reason of its own is not cured while the player keeps a
   look open over it — the judgment begins at the close. *Not replayed in the bottle:* without layout the walk
   collapses before its card step and the reveal keeps the pad; its proof is the same seed in a real browser.
+  *The repeat on CI (run 45041099603) and the next net:* both walks passed — no stall, no teardown, no fold — and the
+  wait graph spoke over the same state: «overdue flow:walk#1 — past its 40 s bound» (#94). The walk's node called a
+  card standing before the player «the walk's motion, forty seconds»; the ledger had known better since TR37
+  (`parliamentAgendaBonusHeld`). The node now names whom it waits for (`agendaCardInPlayersHands` → the PLAYER,
+  unbounded, `accepts`) — `a54fa2e7bf`. *What the pair teaches:* one honest state is watched by several nets, each
+  with its own reading of «whose time»; the law lands in the STATE's own word (the node, the sample), and the
+  repeat of the seed is run until no net is left to speak.
 - *`colony-trade-hub-bot` (#90 · #93) — a leave decided is a surface gone.* B closed «Разыграно»; 336 ms later a
   card's M€ took its printed icon on the LEAVING table as its source — the first half of a dissolve still reads
   «visible» — and by the token's pop the table was gone («surface folded under its token — the birth …»). The fold's
@@ -954,6 +961,33 @@ the flake journal: a red that does not name its cause gets its picture read BEFO
   line). The law of visible ends gains its clause: an end inside a surface carrying the leave's own mark
   (`data-motion-leaving`) is refused by name (`leaving`) at any opacity, for exactly as long as the leave lasts — the
   ladder goes on; a flight already in the air keeps its object (LENIENT).
+
+**STAGE 2 — WHAT IS OPEN AFTER 2026-11-22, AND HOW EACH IS TO BE TAKEN (the hand-over).**
+- *2b, the door's one shut state* («the game asks and a STEP still stands on the start»): it is the solo colony step
+  after its last answer (`console-colony-entry-probe` · `console-colony-roster` · `console-pristar` — QUIET 774 ms,
+  then the step leaves; 1 239 ms, then the player's look). The DOOR track now writes WHAT STANDS there
+  (`QUIET{frames · beats[the kernel's motion waits] · the kernel's tree}` — `startController.standingDigest`); the
+  next whole-suite reading names whose time it is. Expected: a dwell the legacy graph holds no node for — the
+  roster's landing and `colonyController.dwellColonyFollowUp` (the hand-off's wait, then `span`: one read on the
+  motion clock). A `span` IS a wait of the kernel's own table (`delay` — family `motion`), so if the reading says
+  `beats[…]` there, the door's «nothing in flight» reads the kernel's motion waits too (`flightNow` — only after the
+  reading shows no motion wait that stands for good on a quiet table), the state reads `busy[…]`, and
+  `startLevelDoorMay` loses its exception.
+- *2b, the two start nets* (`start-shadow`, `start-stranded`): counters since the door stood; deleted at the next
+  whole-suite reading with no line of either (stage 7's rule — the reading of `901180a597` was the first zero).
+- *S5-rest, the conclusion's level door.* Its MEASURE is the next step, and it has one constraint found today: the
+  candidate («the free turn is asked and a committed frame that does not serve it stands» — the reaper's predicate,
+  to be factored out of `reapStaleFreeTurnFrame`) has to be looked at BY FRAME while it stands — a candidate that
+  lives 200–900 ms is exactly what a level door of eight frames would act on, and the supervisor's 1 Hz tick never
+  sees it. The shell's reaction table takes no new row (`.claude/rules/console-flow.md`), so the look is armed from
+  the candidate's own computed inside the supervisor's scope, and each look writes one span: the frame's kind, the
+  guarded conclusion's verdict read purely (`workspaceConclusionFor(conclusionFacts(kind))` — `dismiss` or the hold's
+  name), and the flight (the start door's `flightNow`, to move beside the wait graph). Read over the suite it says
+  how many frames of quiet the door waits and which holds a candidate stands behind; then the door, then the three
+  nets (the ghost test, the forced teardown, the reaper) as counters for one cycle.
+- *The measure's residue:* `flag-EXTRA` — the deck pick standing by its own hold through the play that follows it
+  (`deckPickHolding`), a hand-off the function does not name; FALLBACK — an external draw at the Parliament held
+  behind the admission.
 
 **STAGE 4, STEP 3 — WALKED OR DECLARED: 100 % OVER THE UNION (2026-11-22).** The corpus is the union of every pass
 there is: the whole e2e suite on CI (1 502 tests — the fixture files the kernel's coverage since step 2), the monkey
