@@ -51,7 +51,7 @@ import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {boardStoryProgress, boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {registerBoardSceneMember, registerBoardSceneOwed} from '@/client/console/boardSceneMembers';
-import {boardStoryHeldByPlayer} from '@/client/console/boardBeatPark';
+import {boardCoverReasonsNow, boardStoryHeldByPlayer} from '@/client/console/boardBeatPark';
 import {ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {CardReceiveOutcome, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
@@ -166,6 +166,8 @@ function waitForTheScales(myEpoch: number): Promise<void> {
     // «on which card» is answered in a workspace — Arabia Terra's printed data, two holders) holds the park, and the
     // cities' answer reaches its bound over the player's own decision — this wait's honest end, said as such.
     heldByPlayer: boardStoryHeldByPlayer,
+    // (What the scales' story is doing and who covers the board — on the node, for the ceiling's line.)
+    whyNot: () => `story ${boardStoryProgress()} · covered by [${boardCoverReasonsNow().join(', ')}]`,
   });
 }
 

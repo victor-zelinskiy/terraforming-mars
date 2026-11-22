@@ -157,6 +157,11 @@ export type QuietWaitOpts = {
    * `undefined` when it is a story that never ended (the defect the ceiling exists to name).
    */
   heldByPlayer?: () => string | undefined,
+  /**
+   * WHAT STANDS IN THE WAY RIGHT NOW, in the caller's own words — kept on the wait's node, so a ceiling line names it
+   * (a line that says only «the console quiet did not come» sends its reader to reproduce it).
+   */
+  whyNot?: () => string,
 };
 
 /**
@@ -208,6 +213,9 @@ function waitQuiet(settling: () => boolean, what: string, opts?: QuietWaitOpts):
         return;
       }
       node ??= beginCeilingWait({id: `quiet:${opts?.who ?? 'unnamed'}`, owner: opts?.who ?? 'rewardPayoutQuiet', what, maxMs: hard - started});
+      if (opts?.whyNot !== undefined) {
+        node.update(opts.whyNot().replace(/[()]/g, '').slice(0, 220));
+      }
       probeTick(poll);
     };
     poll();
