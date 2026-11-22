@@ -780,6 +780,14 @@ export function installHydroFlowWitnesses(): () => void {
     lying: hydroFlowStuckLying,
     graceMs: HYDRO_WITNESS_GRACE_MS,
     heal: healHydroFlowStuck,
+    // WHAT the lie is made of (a heal that only says «healing» names the net and hides the hole): the commit's phase,
+    // what the flow's own gates say, and the last steps of its trail.
+    diagnose: () => ({
+      phase: hydroFlowState.commit?.phase, kind: hydroFlowState.commit?.kind,
+      marker: isHydroMarkerActive(), traversal: hydroTraversalPending(),
+      busy: flowProbe?.busy(), resultHold: flowProbe?.resultHoldArmed(), atDestination: flowProbe?.serverAtDestination(),
+      trail: hydroFlowTrail().slice(-10),
+    }),
   });
   return () => {
     offCeremony();
