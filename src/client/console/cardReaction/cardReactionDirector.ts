@@ -1311,7 +1311,11 @@ async function waitBlockingQuiet(myEpoch: number): Promise<void> {
       wait?.ceiling();
       return;
     }
-    wait ??= beginCeilingWait({id: 'card-reaction:blocking-quiet', owner: 'cardReactionDirector', what: 'every blocking animation hold released', maxMs: BLOCKING_QUIET_MAX_MS});
+    // (The line names what it waited for — a ceiling that says only «every hold» sends its reader to reproduce it.)
+    wait ??= beginCeilingWait({
+      id: 'card-reaction:blocking-quiet', owner: 'cardReactionDirector', what: 'every blocking animation hold released', maxMs: BLOCKING_QUIET_MAX_MS,
+      detail: activeAnimationHoldLabels().filter((label) => label.endsWith('[blocking]')).join('+'),
+    });
     await nextPaintedFrame();
   }
   closeReactionWait(wait, myEpoch);
