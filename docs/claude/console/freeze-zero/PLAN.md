@@ -923,6 +923,37 @@ by its own hold through the beat of the play that follows it (`deckPickHolding`)
 name yet. One test FLAKED in that run (#87 — `console-start-legacy-quick-press`: its «early» press came after the
 window it means to press in had closed — the spec races a motion; hunted on CI on this commit and on the one before
 the door to learn whose it is).
+*#87, read right (2026-11-22).* The hunt said the door was not it (base 20 / 20, main 19 / 20). I then read the red as
+a window of the PRODUCT — the gate naming «delivered» by the ledger's names while the admission reads the flights —
+and widened the gate (`startDeliveryInTheAir`, `06423816f7`). The proving hunt answered 38 / 40, the same signature:
+wrong. The red repeat's SCREENSHOT told the truth the spans could not (they were identical in the red and the green
+repeat): the start finished, four cards in the hand — the press was honoured, rightly, after the cascade had landed.
+The cascade stands 0.8 s at the functional motion; the driver spent a poll, a focus read, a hop and the key between
+the pay press and the «early» one. The fix is the spec's: the press is armed before the pay press and SENT BY THE
+PAGE in the task that gives the row the ring (`tests/e2e/pressInWindow.ts`, the writing law 21) — the hunt on it:
+**40 / 40**. The gate's widening stays (one fact for the gate and the admission is right by itself). The lesson is in
+the flake journal: a red that does not name its cause gets its picture read BEFORE a hypothesis about the product.
+
+**THE MONKEY'S SEED OF THE DAY, 2026-11-22 (run 45016321151 on `6af64736d8`) — two walks red, six findings, two laws.**
+- *`red-lawyers` (#88 · #89 · #91 · #92) — the player's look is the player's time.* «Юристы Красных» played, the
+  Parliament's walk on its card step, the player reading «ИНФОРМАЦИЯ › соперник» over it (the reveal held back so as
+  not to pop over a screen they opened). The arbiter: «stall (unserved): 10s without progress, 0 presses … top:
+  parliament:executing; holder: beat» — its ladder expired the reveal's claims, tore the walk's beat down under the
+  screen, and the hand's frame was concluded as stale. Stage 1 had given such a view its B (`backJudged`); the
+  unserved half still counted the player's reading as nobody's time. The law is in the pure core
+  (`LivenessSample.playerLook`, `PLAYER_LOOK_SELECTOR` — the views only the player opens): under a look the screen is
+  judged as an ACCEPTING one — never an unserved question or an owed beat, only a press nobody took (a deaf look is
+  still a deaf screen) — and the clock starts when the look closes; the reaper of finished frames reads the same
+  fact. *What it costs, said plainly:* a flow wedged for a reason of its own is not cured while the player keeps a
+  look open over it — the judgment begins at the close. *Not replayed in the bottle:* without layout the walk
+  collapses before its card step and the reveal keeps the pad; its proof is the same seed in a real browser.
+- *`colony-trade-hub-bot` (#90 · #93) — a leave decided is a surface gone.* B closed «Разыграно»; 336 ms later a
+  card's M€ took its printed icon on the LEAVING table as its source — the first half of a dissolve still reads
+  «visible» — and by the token's pop the table was gone («surface folded under its token — the birth …»). The fold's
+  law (`surfaceClear`) could not help: the frame left BEFORE the token existed (the walk has no `frame-left-holding`
+  line). The law of visible ends gains its clause: an end inside a surface carrying the leave's own mark
+  (`data-motion-leaving`) is refused by name (`leaving`) at any opacity, for exactly as long as the leave lasts — the
+  ladder goes on; a flight already in the air keeps its object (LENIENT).
 
 **STAGE 4, STEP 3 — WALKED OR DECLARED: 100 % OVER THE UNION (2026-11-22).** The corpus is the union of every pass
 there is: the whole e2e suite on CI (1 502 tests — the fixture files the kernel's coverage since step 2), the monkey
