@@ -383,7 +383,14 @@ const fitRaf = ref<(() => void) | undefined>(undefined);
 /** SCENE TRANSITION: the boot curtain's «board geometry converged»
  *  hold — released at the FIRST settled calibration pass (or when the
  *  stage is hidden behind a start scene), so the board is never
- *  revealed mid-convergence («планета сдвигается» after the reveal). */
+ *  revealed mid-convergence («планета сдвигается» after the reveal).
+ *
+ *  EVERY WAY THE CONVERGENCE ENDS RELEASES IT — not only «the calibration found no drift». The curtain waited the
+ *  whole 6 s bound (`scene-transition/hold-bound/board-fit` — six green tests of the whole suite on CI, 2026-11-22)
+ *  whenever the calibration was never going to run: a framing REPLAYED from memory (a reload — already converged),
+ *  a board that went HIDDEN a frame after its mount (a boot into a workspace: a hand album, a discard, an offer),
+ *  a boot into a live placement (the focus fit is deterministic). Six seconds of curtain for a player who reloaded
+ *  into a pending decision. */
 let fitSettleRelease: (() => void) | undefined;
 /** The stage's calibrated centring vars, saved at focus enter so the
  *  exit restores the exact pre-focus framing (calibration folds its
@@ -1125,6 +1132,9 @@ function scheduleFit(): void {
     // in particular do NOT re-open the calibration budget, or the board's
     // return becomes the moment an unfinished convergence plays out.
     if (key === undefined) {
+      // …and a board that went hidden has no geometry to converge: the boot curtain does not wait for it (see
+      // `releaseFitSettleHold`).
+      releaseFitSettleHold();
       return;
     }
     // The SAME frame it was already fitted for (a v-show round trip):
@@ -1217,10 +1227,16 @@ function calibrate(): void {
   // frame. It resumes a beat later (the arcsReturning watcher re-arms it).
   if (planetFocusState.phase !== 'idle' || planetFocusState.arcsReturning ||
       boardTweening.value) {
+    // The FOCUS fit is deterministic — there is nothing for the boot curtain to wait a convergence of (a boot INTO a
+    // live placement). The two transient bans (the arcs condensing, a tween) resume by themselves and keep the hold.
+    if (planetFocusState.phase !== 'idle') {
+      releaseFitSettleHold();
+    }
     return;
   }
   if (calibrateLock.value !== undefined) {
     if (calibrateLock.value.w === window.innerWidth && calibrateLock.value.h === window.innerHeight) {
+      releaseFitSettleHold(); // …and that is «converged» for the boot curtain too
       return; // a replayed framing is already converged — leave it alone
     }
     calibrateLock.value = undefined; // the viewport really moved: re-converge
