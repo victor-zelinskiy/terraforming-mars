@@ -987,6 +987,35 @@ the flake journal: a red that does not name its cause gets its picture read BEFO
   count of holds», the other for «the reason `animation`». A wait on a count is an edge the graph cannot draw; that
   is a class to look for (the other `wait…Quiet` loops of the reaction's chain, the handoff's `animation` reason).
 
+**THE SUITE's OWN CORPUS IS A WORKLIST — NETS THAT FIRE UNDER GREEN TESTS (found 2026-11-22; the reading of run
+45041230685, `1dd900fbde`).** The e2e harness fails a test on its own markers; a defect-tier line of another net under
+a test that passes went unread — the readings of this stage looked at the owner function's measure. Read by class
+(`node C:/Projects/Mods/tm-fz-tools/read_suite.mjs <corpus> [<before>]`; the controls — `console-stall-cause`,
+`-view-delivery`, `-wait-graph-control`, `-wait-graph-dead-end`, `-screen-shadow-control`, `-screen-director-cure` —
+plant theirs on purpose and are left out), the suite holds thirteen classes in tests that PASS. Each is a wait that
+ended on its BOUND in a scripted flow — seconds of a stuck story for a player, reproducible by its spec, proven by
+rate on CI. Longest first:
+
+| class | under (green) | what the line says |
+| --- | --- | --- |
+| `animation-hold/ceiling/card-reaction` | `console-atmospheric-enhancers` E | the reaction's chain stood `waiting` **35 s** (Greens) — force-released |
+| `presentation-ledger/story-due/board-beat-park` | `console-start-held-placement` | the park's release edge never came — degraded at **30 s** (covered by workspace · placement · planet-focus) |
+| `wait-graph/unshaped` (`quiet:city-payout:scales`) | `console-arabia-terra` | «the console quiet» did not come in **15 s**; the line has no shape of its own |
+| `wait-graph/ceiling/card-reaction:hydro-story-quiet` | `console-hydro-copied-colony` · `-hydro-stage-bound-repeat` | the reaction waited for the Hydronetwork's story to its **12 s** ceiling |
+| ~~`wait-graph/ceiling/card-reaction:blocking-quiet`~~ | `console-terraforming-deal` (D) | **closed** — the mutual wait with the generation scene (`d81fa65e2a`) |
+| `scene-transition/hold-bound/start-scene` | `console-rise-to-power` C | the hold hit its **8 s** bound |
+| `scene-transition/hold-bound/board-fit` | six tests (`effect-decision`, `card-discard` ×3, `hydro-bonus-order`, `rail-value-badges`) | the hold hit its **6 s** bound |
+| `wait-graph/dead-end/surface:card-actions` | `console-draw-one-batch-sealed-ledger` | «the player browses — B leaves» cannot come — 4 s |
+| `wait-graph/ceiling/reveal:seal-gone` | `console-effect-decision-embed` · `-draw-one-batch-sealed-question` | the seal's break did not come in 3.3 s |
+| `presentation-ledger/witness-heal/hydro-flow-stuck` + `wait-graph/dead-end/question:actionmenu` | `console-hydro-terminal-landing` · `-social-heating` · `-corporate-espionage` ×2 | a lie of 3 s healed by its witness; the free turn's question a dead end for 3 s |
+| `invariant/broken/serving-owner:second-surface` | nine tests (`board-of-directors` ×5, `early-colonization` B, `wg-project` D, `rise-to-power` D) | «deckPick» stands beside the function's answer (a play hosted in a step, held behind `played-hero`) — **stage 2's own law** |
+| `transfer/frame-left-holding/colonies` | `console-parliament-colony` | a frame popped with a floater landing on its surface |
+| `wait-graph/ceiling/played-hero:target` | `console-sponsor-colony` | no measurable landing slot in 200 ms |
+
+*The rule from here:* a whole-suite reading names every defect class under a green test, against the reading before
+it; a class leaves this table with its law, its spec and its rate on CI — the table is to read EMPTY, and then the
+harness fails a test on any defect-tier line it did not expect (the gate the monkey already has).
+
 **STAGE 2 — WHAT IS OPEN AFTER 2026-11-22, AND HOW EACH IS TO BE TAKEN (the hand-over).**
 - *2b, the door's one shut state* («the game asks and a STEP still stands on the start»): it is the solo colony step
   after its last answer (`console-colony-entry-probe` · `console-colony-roster` · `console-pristar` — QUIET 774 ms,
