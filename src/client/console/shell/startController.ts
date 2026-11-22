@@ -94,6 +94,8 @@ export function createStartController(shell: StartPort) {
   let cancelStartShadow: () => void = () => {};
   /** The DOOR track's frame-by-frame look (the opening's measure — stats only). */
   let cancelDoorLook: () => void = () => {};
+  /** …and the STRAND-DOOR track's (what stands in flight under a strand — stats only). */
+  let cancelStrandLook: () => void = () => {};
   /** Stale-release token of the start excursion's quiet re-check (the
    *  release is confirmed one tick + one frame later, so a one-flush
    *  hand-off between two chain signals can never slip through). */
@@ -810,12 +812,28 @@ export function createStartController(shell: StartPort) {
 
   function whenStartStrandedNowChanges(now: boolean): void {
     cancelStartStrand();
+    cancelStrandLook();
+    cancelStrandLook = () => {};
     // THE OPENING's MEASURE (stage 2b): a strand is a SPAN from its rise — the 2.5 s confirm below hides the ones that
     // end by themselves. Stats only.
     noteOpeningSpan('strand', now ? strandKey() : '', 'cleared', Date.now());
     if (!now) {
+      noteOpeningSpan('strand-door', '', 'cleared', Date.now());
       return;
     }
+    // …AND WHAT IS IN FLIGHT UNDER IT, BY FRAME (the STRAND-DOOR track — what a level door of the watchdog's own cure
+    // would have to wait out). The watchdog is not the director's twin: it reads a hosted step that does not answer
+    // the asked question as serving NOTHING (`hostedStepServes` — «a strand dressed as a step»), where the director
+    // reads `step` and has no cure — so its retirement is its OWN door by level, and that door's «quiet» has to be
+    // read first: the suite stands 52 strands of «the game asks» up to 1.26 s, every one ending by itself (CI run
+    // 45071347931), and nothing yet says how many frames of them were quiet. Stats only — nothing here acts.
+    const stood = strandKey();
+    const look = (): void => {
+      const flight = flightsInTheAir();
+      noteOpeningSpan('strand-door', `${stood.replace(/^STRAND/, 'STRAND-DOOR')} · ${flight === '' ? `QUIET{${standingDigest()}}` : `busy[${flight}]`}`, 'moved', Date.now());
+    };
+    look();
+    cancelStrandLook = flow.everyFrame('the strand, measured by frame', look);
     const report = (stage: string, extra: Record<string, unknown> = {}): void => {
       const wf = shell.playerView.waitingFor;
       const diag = (window as unknown as {__conStartDiag?: () => unknown}).__conStartDiag?.();

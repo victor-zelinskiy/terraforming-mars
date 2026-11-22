@@ -581,7 +581,7 @@ function refreshOpenSpans(): void {
  * One track of the opening's spans: `key` is what stands apart on it NOW (`''` — nothing does), `ended` what to call
  * the end of the span that stood before. The same key twice in a row is one span. `now` — the page's clock.
  */
-export function noteOpeningSpan(track: 'stage' | 'strand' | 'door', key: string, ended: string, now: number): void {
+export function noteOpeningSpan(track: 'stage' | 'strand' | 'door' | 'strand-door', key: string, ended: string, now: number): void {
   const open = openingSpans.get(track);
   if (open !== undefined && open.key === key) {
     return;
