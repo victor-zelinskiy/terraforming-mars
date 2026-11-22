@@ -342,6 +342,22 @@ export function createPadRouterController(shell: PadRouterPort) {
    * stage 2 ②; step ③ derives them from the function, and this table goes with the fallback). WHICH of the standing
    * ones takes a press is `promptBand.promptBandOf` — the ONE function's word.
    */
+  /** The band's rung of each workspace ROOT that has one (`promptBand` — the stack's word where the function names nobody). */
+  const BAND_ROOT_RUNGS = [['start', 'start'], ['draft', 'draft'], ['external-draw', 'externalDraw']] as const;
+  /** The topmost such root on the live stack ('' — none stands there). */
+  function bandRootNow(): string {
+    let top = -1;
+    let rung = '';
+    for (const [kind, name] of BAND_ROOT_RUNGS) {
+      const at = workspaceFrameIndex(kind);
+      if (at > top) {
+        top = at;
+        rung = name;
+      }
+    }
+    return rung;
+  }
+
   const BAND_STANDS: Readonly<Record<string, () => boolean>> = {
     deckPick: () => shell.deckPickServing,
     draft: () => shell.draftWorkspaceOwnsPad,
@@ -923,7 +939,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // this very workspace and the scene swallowed every press aimed at it.
     // ── THE PROMPT BAND (stage 2 ②): the rungs from here to the task host answer the SERVER's question. WHICH of them
     // takes the press is the ONE function's word (`promptBandOf`); the order they stand in below is only the fallback.
-    const band = promptBandOf(BAND_STANDS, shell.bandRungNow, noteBandFallback);
+    const band = promptBandOf(BAND_STANDS, shell.bandRungNow, noteBandFallback, bandRootNow);
     // DRAW & SELECT owns the pad while it serves — BEFORE the start scene,
     // because the commonest host for it IS the start scene (a prelude that
     // looks at the top of the deck). Through its own outgoing beats it

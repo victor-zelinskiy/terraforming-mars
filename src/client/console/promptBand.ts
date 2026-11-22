@@ -12,11 +12,17 @@
  * intent, and only when some prompt surface stands at all): the surface it names takes the press, and every other
  * rung of the band YIELDS to it.
  *
- * THE FALLBACK IS THE LADDER ITSELF, COUNTED. Where the function names no rung of the band (the owner waits, a
- * workspace serves, nothing is asked), names a surface that does not stand, or throws — a prompt surface that stands
- * takes the press in the ladder's old order, exactly as before the swap, and the press says so (`fellBack`: the row
- * `band-fallback` of `servingOwnerMeasure`). The pad can therefore never do worse than the ladder did; what the row
- * counts is the copy still to be derived in step ③ — at zero it is deleted together with the `stands` table.
+ * WHERE THE FUNCTION NAMES NO SURFACE OF THE BAND — the owner waits, a workspace serves, nothing is asked — the press
+ * is the PLAYER's, where they stand: and of the band's rungs the only ones that stand then are the workspace ROOTS
+ * (the opening, the draft, an external draw), which stand by their FRAMES. Whose press it is among them is the
+ * STACK's word (`rootNow` — the topmost root on the live stack: «the deepest frame owns the pad»), never the order
+ * the ladder was written in. (The whole e2e suite's reading, 2026-11-22: all 40 «fallback» presses of 8 354 were this
+ * — «free» → the opening, «free» → the draft.)
+ *
+ * THE FALLBACK IS THE LADDER ITSELF, COUNTED. Where neither names a rung that stands, or the function throws — a
+ * prompt surface that stands takes the press in the ladder's old order, exactly as before the swap, and the press
+ * says so (`fellBack`: the row `band-fallback` of `servingOwnerMeasure`). The pad can therefore never do worse than
+ * the ladder did; at zero the row is deleted together with the `stands` table.
  *
  * Pure: no Vue, no DOM, no clock — the shell hands in what it reads.
  */
@@ -31,11 +37,13 @@ export type PromptBand = {
  * @param stands   each band surface's own «I stand and take the pad», by its rung's name
  * @param wordNow  the function's word right now (`bandRungOf` — `own:<rung>` · `step` · `ws` · `held:<kind>` · `free`)
  * @param fellBack told when the ladder's order routed the press (the word the function gave, the rung that took it)
+ * @param rootNow  the rung of the topmost workspace ROOT on the live stack that has a rung in the band ('' — none)
  */
 export function promptBandOf(
   stands: Readonly<Record<string, () => boolean>>,
   wordNow: () => string,
   fellBack: (word: string, rung: string) => void,
+  rootNow: () => string = () => '',
 ): PromptBand {
   let word: string | undefined;
   let chosen = '';
@@ -52,6 +60,16 @@ export function promptBandOf(
         }
         const named = word.startsWith('own:') ? word.slice('own:'.length) : '';
         chosen = named !== '' && stands[named]?.() === true ? named : '';
+        if (chosen === '' && word !== 'error') {
+          // (The function names nobody that stands: the stack's topmost root, if it does.)
+          let root = '';
+          try {
+            root = rootNow();
+          } catch {
+            root = '';
+          }
+          chosen = root !== '' && stands[root]?.() === true ? root : '';
+        }
       }
       if (chosen === rung) {
         return true;

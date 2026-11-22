@@ -837,6 +837,57 @@ start is in flight», and a hosted step that STANDS (not leaves) under the game'
 (today the shadow would end the start under it after three painted seconds). That, and S5-rest, are the stage's
 open exit.
 
+**STAGE 2 — THE LAW'S FIRST RED, AND THE NIGHT's READING AT ZERO (2026-11-22).**
+- *The night's e2e on `main` `a85c1efa50` (run 44998610817, 1 502 tests, 8 354 presses):* band **APART 0**, bar
+  **APART 0** (were 21 + 21 — the one unnamed rung), conditions MISS 0, no move off the frame's protocol, no flaky
+  test. What the measure still counted: FALLBACK 40 and EXTRA 11 — both closed below.
+- *The one-owner law's first red — issue #84* (the nightly gate, seed `fz1` · `venus-l1-shade-start`:
+  `pad-MISS:section:board`). The function said «the start serves, no hold» and was right. An opening entered past
+  its summary has no lifetime hold (module state; a reload wipes it too): between a prelude's play and the next «pick
+  a prelude» the question is held behind the play's presentation, the admission-gated `startTask` is nothing, and the
+  scene — on screen over its own question — «served» nothing: RT opened the board's wheel under the queue.
+  `startController.startQuestionHeld`: a start whose FRAME STANDS keeps serving a start question that is merely held.
+  A replay of the gate's own walk holds it; the gate on `fz1` in the bottle: 606 walks, 23 119 presses — MISS 0 ·
+  APART 0 · LATCH 0 · EXTRA 0. *What the red teaches:* the law is alive — it named, by a measure nobody had to read, a
+  press that went to the wrong place for the length of one beat.
+- *FALLBACK → the stack's word.* All 40 «fallback» presses were ONE case: the function names nobody (nothing asked,
+  or the owner waits) and a workspace ROOT stands — the opening, the draft, an external draw. Whose press it is among
+  the roots is now the STACK's word (`promptBand` `rootNow` — the topmost root on the live stack), never the order
+  the ladder was written in; the ladder's order is left only where neither the function nor the stack names a rung
+  that stands (the row is to read 0 over the suite, and then the `stands` table goes).
+- *The swap's witnesses are deleted* (`*Legacy`, `noteDerivedRender`, the `derivation:` lines): one cycle of the
+  whole suite and of the gate at zero difference spans is what they were kept for.
+- *The doors, measured* (`servingOwnerMeasure` — the DOOR track): while the director would act (`heal` · `yield` ·
+  `release`), what is IN FLIGHT is read every frame off the wait graph — each wait that stands for a motion or for
+  the server, plus the wire. `…· busy[<waits>]` is a beat with an owner; `…· QUIET` for N ms is N ms by which a door
+  opened on the director's word would go before the latches do.
+
+**THE DESIGN OF THE LAST STEP — LEVEL DOORS, ONE CONSTRUCTION FOR BOTH OPEN ITEMS.** The start's nets (2b) and the
+conclusion's nets (S5-rest: the ghost test, the forced teardown, the stale free-turn reaper) are the same shape: a
+decision that is RIGHT as a pure function of the applied view and the stack («the game proper asks and the start
+stands alone» · «the free turn is asked and a committed frame that does not serve it holds nothing»), executed today
+by an EDGE somebody must remember to fire — and, behind it, a net on a clock of seconds that samples the same
+function and acts when the edge was missed. «Impossible by construction» is the decision executed by LEVEL:
+  1. the decision's function stays what it is (`startDirectorCure`; `conclusionFacts` → dismiss);
+  2. its door opens the moment the function says so AND nothing is in flight — and «nothing is in flight» is not a
+     list kept by hand: it is the wait graph (no node that waits for a motion or for the server), which stage 3 made
+     complete by law (every wait bounded and owned, `flag-by-hand` 0);
+  3. the net behind it keeps its clock for one cycle as a COUNTER («the net acted where the level door had not»), read
+     over the suite and the gate; at zero it is deleted — stage 7's rule, with the law in place.
+What has to be designed before the doors move, each from the DOOR track's reading over the whole suite (the e2e run
+on `6af64736d8` files it): (a) how many frames of QUIET a door waits (the latches' own doors act in the tick the
+state rises — the first reading, 16 opening tables: every `heal` span QUIET for 0 ms); (b) the one state where the
+function is right and the level door must NOT act: a hosted step that STANDS under the game's menu for the player to
+read (it is the player's time — the function must say so, as it does for a parked task and a player's own look, before
+`release` is a level); (c) for the conclusion: the same track over its candidates (`[workspace-stale]` is red in
+every e2e spec and `ghost-forced` is a defect class — both at 0 over the matrix today, which is the evidence half).
+*S5-rest, said plainly:* the conversion of the four owed steps into scope children was sized again — `followUpStepOwed`
+is already a pure derivation of the applied view (a child scope mirroring it would have to be opened synchronously
+with every dependency, or the conclusion reads the structure a flush before the mirror — the very gap the hold
+closes); the level door above reaches what the conversion was for (the three nets with nothing left to catch) without
+turning a derivation into a lifecycle. The structural mirror is therefore NOT planned; the item closes with the
+conclusion's level door.
+
 **STAGE 4, STEP 3 — WALKED OR DECLARED: 100 % OVER THE UNION (2026-11-22).** The corpus is the union of every pass
 there is: the whole e2e suite on CI (1 502 tests — the fixture files the kernel's coverage since step 2), the monkey
 in the bottle in every mode (plain, guided, reload, the hidden page, the broken wire, the shrink), the monkey in the
