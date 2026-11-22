@@ -648,6 +648,8 @@ export function createSupervisorController(shell: SupervisorPort) {
     lastLivenessAccepting.value = accepting;
     tickWaitGraph({
       now: Date.now(), accepting,
+      // (Who holds the pad when nothing accepts — a dead end of a wait for the player names it.)
+      ...(accepting ? {} : {notAccepting: stallHolder(holderFacts(beat, false, viewDebt.holder)).replace(/[()]/g, '')}),
       requestInFlight: transport?.requestInProgress === true,
       serverOwes: wf === undefined && shell.playerView.game.phase !== Phase.END,
       motionInFlight: inFlight.length > 0,

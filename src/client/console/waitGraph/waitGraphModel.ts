@@ -111,6 +111,12 @@ export type WaitWorld = {
   now: number;
   /** Some surface on screen ACCEPTS input for the live question (the liveness arbiter's `accepting`). */
   accepting: boolean;
+  /**
+   * WHO HOLDS THE PAD while nothing accepts (the arbiter's own holder word — a beat, a stranded question, a hand-over
+   * owed): a dead end of a wait for the PLAYER names it. «The player cannot answer» with no holder sends its reader to
+   * reproduce it (`wait-graph/dead-end/surface:card-actions` under a green test — the whole suite on CI, 2026-11-22).
+   */
+  notAccepting?: string;
   /** A request is on the wire (the transport funnel). */
   requestInFlight: boolean;
   /** The server owes the viewer something it has not delivered (a prompt is expected — another seat moves, etc.). */
@@ -281,7 +287,9 @@ export function judgeWaitGraph(nodes: ReadonlyArray<WaitNode>, world: WaitWorld)
     if (internals.length === 0 && externals.length > 0 && externals.every((t) => !externalCanCome(t, world, world.now - n.since))) {
       findings.push({
         kind: 'dead-end', members: [n.id], ageMs: age([n.id]),
-        why: externals.map((t) => `${t.kind}:${(t as {what: string}).what}`).join(', ') + ' cannot come',
+        why: externals.map((t) => `${t.kind}:${(t as {what: string}).what}`).join(', ') + ' cannot come' +
+          (!world.accepting && world.notAccepting !== undefined && world.notAccepting !== '' && externals.some((t) => t.kind === 'player') ?
+            ` — the screen takes no press: held by ${world.notAccepting}` : ''),
       });
       continue;
     }
