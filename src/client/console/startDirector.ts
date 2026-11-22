@@ -37,8 +37,13 @@ export type StartOwner =
   /** The game proper has begun — the start scene has no business on screen. */
   | 'game';
 
-/** What the latch machinery has on screen right now. `beat` / `parked` are never judged. */
-export type ActualStartOwner = StartOwner | 'none' | 'shell' | 'beat' | 'parked';
+/**
+ * What the latch machinery has on screen right now. `beat` / `parked` / `trip` are never judged.
+ * `trip` — THE BONUS ACTION TAKEN ON THE BOARD («Фора» — `startController.bonusTurnLive`): the player confirmed the
+ * trip and the start LET GO whole — no frame, no host, no deferred task; the game's own surfaces serve the action,
+ * its placements and its follow-ups, by the start's own decision, for as long as the player takes.
+ */
+export type ActualStartOwner = StartOwner | 'none' | 'shell' | 'beat' | 'parked' | 'trip';
 
 /** The ONE question, as plain facts (the shell reads them off the applied view). */
 export type StartTruth = {
@@ -109,9 +114,19 @@ export type ActualStartSignals = {
   stepInTransit?: boolean,
   /** What stands on the start is the player's own look (`hostCarriesPlayersLook`) — a browse layer they walked into. */
   playersLook?: boolean,
+  /** A bonus action is being taken on the board (`bonusTurnLive`) — the start let go for it. */
+  bonusTrip?: boolean,
 };
 
 export function actualStartOwner(s: ActualStartSignals): ActualStartOwner {
+  // THE BONUS ACTION'S TRIP TO THE BOARD is the start's own hand-over, and the player's time: read as `game` it was
+  // «expected the bonus stage, on screen the game» for as long as the action took — a finding filed three seconds
+  // into every trip a person makes (the whole e2e suite's reading of the opening, 2026-11-22: the one disagreement
+  // with no cure and no hold that came within 61 ms of the confirm — and only because a spec plays faster than a
+  // player).
+  if (s.bonusTrip === true) {
+    return 'trip';
+  }
   // The start frame is gone: whatever stands — a staged card's cell on the board, the finale's greenery, a card's
   // placement — is the GAME's, never the start's business (the shadow filed «game → board» on three ordinary tables).
   if (!s.mounted) {
@@ -165,7 +180,7 @@ export function actualStartOwner(s: ActualStartSignals): ActualStartOwner {
 
 /** Do the two agree? `beat` / `parked` are never judged; a step may be served by the start or by the shell. */
 export function startOwnersAgree(expected: StartOwner, actual: ActualStartOwner): boolean {
-  if (actual === 'beat' || actual === 'parked') {
+  if (actual === 'beat' || actual === 'parked' || actual === 'trip') {
     return true;
   }
   switch (expected) {

@@ -373,6 +373,7 @@ export function createStartController(shell: StartPort) {
       parked: consoleState.task.deferred,
       stepInTransit: handRevealState.phase === 'opening' || handRevealState.phase === 'closing',
       playersLook: hostCarriesPlayersLook('start'),
+      bonusTrip: bonusTurnLive.value,
     });
     const held = wf === undefined ? undefined :
       (wf.type === 'space' ? promptAdmissionBlock('placement', shell.admissionSignals) : promptAdmissionBlock('host', shell.admissionSignals));

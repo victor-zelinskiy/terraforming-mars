@@ -84,6 +84,22 @@ describe('startDirector — what the latches put on screen', () => {
     expect(actualStartOwner({...rest, playersLook: true, placementLive: true})).eq('board');
     expect(actualStartOwner({...rest, playersLook: true, mounted: false})).eq('game');
   });
+
+  it('THE BONUS ACTION\'S TRIP TO THE BOARD is the start\'s own hand-over — never judged, for as long as the player takes', () => {
+    // «Фора»: the player confirmed the trip, the start let go whole (no frame); the server still asks the bonus menu.
+    // Read as `game` it was «expected the bonus stage, on screen the game» three seconds into every trip a person makes.
+    const trip = actualStartOwner({...rest, mounted: false, visible: false, bonusTrip: true});
+    expect(trip).eq('trip');
+    expect(startShadowInScope('bonusAction', trip), 'the start flow is still in scope — and agreed').is.true;
+    expect(startShadowVerdict('bonusAction', trip, undefined)).eq('agree');
+    // …whatever the action it takes asks meanwhile — a cell, a follow-up — is the game's own surfaces' to serve.
+    expect(startShadowVerdict('board', actualStartOwner({...rest, mounted: false, placementLive: true, bonusTrip: true}), undefined)).eq('agree');
+    expect(startShadowVerdict('step', trip, undefined)).eq('agree');
+    // …and WITHOUT the trip the same screen is what it always was: the game standing where the bonus stage should be.
+    const game = actualStartOwner({...rest, mounted: false, visible: false});
+    expect(game).eq('game');
+    expect(startShadowVerdict('bonusAction', game, undefined)).eq('disagree');
+  });
 });
 
 describe('startDirector — agreement and scope', () => {
