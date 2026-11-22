@@ -888,6 +888,33 @@ closes); the level door above reaches what the conversion was for (the three net
 turning a derivation into a lifecycle. The structural mirror is therefore NOT planned; the item closes with the
 conclusion's level door.
 
+**STAGE 2b ② — THE OPENING's DOORS OPEN BY LEVEL (2026-11-22).** The DOOR track, read where it counts — the real
+browser, the e2e run on `6af64736d8` (1 376 tests of 11 shards; the twelfth lost its browser's download) — and the
+gate's 606 walks in the bottle:
+
+| the state the director would cure | QUIET (nothing in flight), the longest | what ended it |
+| --- | --- | --- |
+| the game asks, the start stands EMPTY (`release`) | 57 ms in the browser · 16 ms in the bottle | the scene's own release beat |
+| the start's own question, nobody serving it (`heal`) | 13 ms · 0 ms | the scene's own door |
+| the shell's step under a standing start (`yield`) | 31 ms · 0 ms | the scene yields by itself |
+| the game asks and a STEP still stands on the start (`release`) | **1 236 ms** | the player parks it / it leaves |
+
+So the latches' doors open in the tick the state rises, and the one state that stands quiet for a second is the one
+the design named: a step on the start under the game's menu — the player's look, or a hand-off the wait graph does
+not hold. **The door:** `startDirector.START_LEVEL_DOOR_QUIET_FRAMES` (8 painted frames — past every hand-off read
+above, counted on the clock of the thing it bounds) and `startLevelDoorMay` (every cure but that one state); the
+frame-by-frame look that measures the track opens it (`startController.measureDoor` → `runStartDirectorCure(…,
+'level')` — the doors that already exist, once per standing state). On a healthy table it never opens — the gate on
+`fz1` in the bottle: 606 walks, not one `cure … by level`, defects 0 — and the e2e specs that are red on any
+`[start-shadow] cure` line hold exactly that in the browser. On a strand it opens a hundred milliseconds in, where
+the shadow confirmed at three seconds and the watchdog at two and a half.
+*What stands of the two nets:* both keep their clocks for this cycle as COUNTERS — a `[start-shadow] disagree` or a
+`[start-stranded] confirmed` line now means «the level door did not end it», a defect with its evidence, and both
+were at 0 over the matrix before the door stood. *What is left of 2b:* the excluded state — the function has to say
+whose time a step standing under the game's menu is (the player's look is already `parked`; a hosted result being
+read is not named yet) before `release` is a level there; and the nets' deletion at the next reading (stage 7's
+rule).
+
 **STAGE 4, STEP 3 — WALKED OR DECLARED: 100 % OVER THE UNION (2026-11-22).** The corpus is the union of every pass
 there is: the whole e2e suite on CI (1 502 tests — the fixture files the kernel's coverage since step 2), the monkey
 in the bottle in every mode (plain, guided, reload, the hidden page, the broken wire, the shrink), the monkey in the
@@ -980,8 +1007,14 @@ same game with the check on. Every seat of the copy must stand on the question i
   is the same class and is still there: the check reads `warnings` apart, and the finding stands in this line.
 - One more thing the check named and that is no reload's defect: a forecast fact without a fixed id is numbered by a
   counter of the process (`effectForecastPreviews.baseFact`) — two builds of one model never agree on it.
-With the law and the fix the three seeds replay clean, and the smoke holds the check on every save. Next: the long
-run with the check on (`TM_FUZZ_RELOAD`), the batch route, shrinking, the nightly job.
+With the law and the fix the three seeds replay clean, and the smoke holds the check on every save.
+*The long run with the check on* (`TM_FUZZ_RELOAD=2`, fresh seeds 90000+: 381 whole games, 98 761 answers) named one
+more class, in one game (90013): **a save in the SOLAR phase loads without the World Government's step.** With the
+Parliament the sittings save inside that phase — a seat closing its sitting while the first player still chooses —
+and `Game.deserialize` knew the Solar phase only in its «owed» form (`sittingAcks.owedWorldStep`): the plain one fell
+through to «the action phase», so the first player was asked their ordinary turn in the Solar phase and the World
+Government never acted. A load now re-asks the step, as it does a draft's pick and the research buy
+(`tests/liveness/ReloadSolarPhase.spec.ts`). Next: the batch route, shrinking, the nightly job with the check on.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),

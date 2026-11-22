@@ -3681,6 +3681,18 @@ export class Game implements IGame, Logger {
     } else if (game.phase === Phase.SOLAR && game.parliament?.sittingAcks?.owedWorldStep === true) {
       // The World Government's step is owed to the first player's confirmation — or asked, if it already came.
       game.admitToGeneration(game.first);
+    } else if (game.phase === Phase.SOLAR) {
+      // THE WORLD GOVERNMENT'S STEP IS A QUESTION OF ITS PHASE — asked again by a load, like a draft's pick and the
+      // research buy. A save holds the Solar phase only while that step is asked (the phase is entered and left in
+      // one chain otherwise): the sittings save inside it — a seat closing its sitting while the first player still
+      // chooses — and a load fell through to «the action phase»: the first player was asked their ordinary turn in
+      // the Solar phase and the World Government never acted (the engine fuzz's reload check, FREEZE ZERO stage 5 —
+      // seed 90013).
+      if (game.gameOptions.solarPhaseOption && !game.marsIsTerraformed()) {
+        game.worldGovernmentTerraforming();
+      } else {
+        game.gotoEndGeneration();
+      }
     } else if (game.generation === 1 && players.some((p) => p.isMarsBot !== true &&
         (p.playedCards.filter(isICorporationCard).length < expectedCorporationCount(p) ||
          campaignSetupExtrasOwed(p)))) {

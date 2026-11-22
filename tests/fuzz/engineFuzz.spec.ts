@@ -276,9 +276,13 @@ describe('engineFuzz — random legal games on the real engine', () => {
    * deferred queue, which no save holds — and the sitting saved (another seat was offered its early close). Loaded,
    * the sitting adjourned with the ocean never placed (118); the same with a production to lose (113) and a resource
    * to choose (177). `Game.save` takes no save while a question only the queue can ask stands.
+   * …and the long run with the check on (381 games): a sitting saved in the SOLAR phase — a seat closing its sitting
+   * while the first player still chose the World Government's step — and the load fell through to «the action phase»:
+   * the step was never asked again (90013). A load re-asks it, as it does a draft's pick (`ReloadSolarPhase.spec`).
    */
   it('a save, loaded, asks every seat the live question — seeds 113 · 118 · 177 (a queue\'s question under the sitting\'s save)', () => {
-    for (const seed of [113, 118, 177]) {
+    // (…and 90013 — the Solar phase.)
+    for (const seed of [113, 118, 177, 90013]) {
       const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}), {reload: {every: 1}});
       expect(result.end, `seed ${seed}`).to.eq('ended');
       expect(result.reload?.judged, `seed ${seed}: saves were judged`).to.be.greaterThan(50);
