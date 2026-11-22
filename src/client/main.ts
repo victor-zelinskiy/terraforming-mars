@@ -18,6 +18,7 @@ import {warmDisplayFonts} from '@/client/utils/fontWarmup';
 import {installVueErrorReport} from '@/client/console/vueErrorReport';
 import {installDiagnosticsJournal} from '@/client/diagnostics/diagnosticsJournalState';
 import {installDiagnosticsProbe} from '@/client/diagnostics/diagnosticsSurface';
+import {registerOptionalServiceWorker, serviceWorkerSupported} from '@/client/optionalServiceWorker';
 
 declare global {
   interface Window {
@@ -96,17 +97,11 @@ async function bootstrap() {
   // `directives/vDirectives`, the three lazy tags from `components/asyncComponents`) — a Vapor component reads no
   // global, and the readiness ledger fails one that leans on any.
 
-  // Service workers are only supported on http/https origins. Under the Electron
-  // desktop shell's custom `app://` scheme (and file://) registration is
-  // unsupported and the SW is an empty no-op anyway, so skip it there — keeps the
-  // browser behavior identical while avoiding a rejected registration in Electron.
-  const swScheme = window.location.protocol;
-  if (window.isSecureContext && (swScheme === 'http:' || swScheme === 'https:') && 'serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('sw.js').then(function(registration) {
-        console.log('registered the service worker', registration);
-      });
-    });
+  // The service worker is OPTIONAL (background notifications only): where it is supported it is asked for once the
+  // page has loaded, and a browser that will not start it never fails the page (`optionalServiceWorker.ts`).
+  const workers = 'serviceWorker' in navigator ? navigator.serviceWorker : undefined;
+  if (serviceWorkerSupported(window, workers)) {
+    window.addEventListener('load', () => void registerOptionalServiceWorker(window, workers));
   }
 
   app.mount('#app');
