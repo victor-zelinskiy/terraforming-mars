@@ -244,8 +244,10 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
   'start-shadow': [
     {
       name: 'cure', re: /^cure «([^»]*)» by (\S+) — expected «([^»]*)», on screen «([^»]*)»/, tier: 'defect', parts: [1, 3, 4], dims: {by: 2},
-      // By the arbiter's rung it is that episode's echo; by the shadow's own confirmation it is the defect's only line.
-      read: (m) => (m[2] === 'liveness' ? {tier: 'info'} : {}), echoOf: ['liveness/stall', 'start-shadow/finding'],
+      // By the arbiter's rung it is that episode's echo; by the shadow's own confirmation it is the defect's only line;
+      // by LEVEL it is the door itself opening on a strand (`startDirector.START_LEVEL_DOOR_QUIET_FRAMES`) — the
+      // mechanism, said for the trail: what it cured is the cause to look for, the line is not the incident.
+      read: (m) => (m[2] === 'liveness' || m[2] === 'level' ? {tier: 'info'} : {}), echoOf: ['liveness/stall', 'start-shadow/finding'],
     },
     {name: 'finding', re: /^(disagree|held-long) — expected «([^»]*)», on screen «([^»]*)»(?: \(held by «([^»]*)»\))?/, tier: 'defect', parts: [1, 2, 3, 4]},
   ],

@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {
   ActualStartSignals, StartTruth, actualStartOwner, expectedStartOwner, recordStartShadowFinding, resetStartShadowLog,
-  startDirectorCure, startOwnersAgree, startShadowInScope, startShadowLog, startShadowVerdict,
+  START_LEVEL_DOOR_QUIET_FRAMES, START_SHADOW_CONFIRM_MS, startDirectorCure, startLevelDoorMay, startOwnersAgree, startShadowInScope, startShadowLog,
+  startShadowVerdict,
 } from '../../src/client/console/startDirector';
 
 /**
@@ -190,5 +191,30 @@ describe('startDirector — phase 1, the cure of a confirmed finding', () => {
     expect(cure('queue', 'shell'), 'the strand\'s yield already happened — not undone').to.eq('none');
     expect(cure('firstAction', 'board')).to.eq('none');
     expect(cure('step', 'shell')).to.eq('none');
+  });
+});
+
+describe('startDirector — the level door', () => {
+  it('opens for every cure the director has — heal, yield, release — and for nothing it would not cure', () => {
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'queue', actual: 'none'}), 'heal: the start\'s own question, nobody serving it').is.true;
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'step', actual: 'queue'}), 'yield: the shell\'s step under a standing start').is.true;
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'board', actual: 'none'}), 'yield: a placement under a standing start').is.true;
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'none'}), 'release: the game asks, the start stands empty').is.true;
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'queue'}), 'release: the game asks, the start stands in a pose of its own').is.true;
+    // (No cure — no door: the shell serving a start question is a deliberate fallback; a held prompt is its block's debt.)
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'queue', actual: 'shell'})).is.false;
+    expect(startLevelDoorMay({kind: 'held-long', expected: 'queue', actual: 'none'})).is.false;
+  });
+
+  it('stays shut where the function cannot yet tell a hand-off from the player\'s reading: a step standing under the game\'s menu', () => {
+    expect(startDirectorCure({kind: 'disagree', expected: 'game', actual: 'step'}), 'the shadow\'s confirm still ends it').eq('release');
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'step'})).is.false;
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'shell'})).is.false;
+  });
+
+  it('waits past every hand-off the scene plays — and not a second', () => {
+    // (The longest state the director would cure, over the whole e2e suite: 72 ms — five frames of a real browser.)
+    expect(START_LEVEL_DOOR_QUIET_FRAMES).to.be.greaterThan(5);
+    expect(START_LEVEL_DOOR_QUIET_FRAMES * 17, 'far short of the shadow\'s confirm it stands in front of').to.be.lessThan(START_SHADOW_CONFIRM_MS / 10);
   });
 });

@@ -262,6 +262,35 @@ export function startDirectorCure(f: Pick<StartShadowFinding, 'kind' | 'expected
   return 'none';
 }
 
+/**
+ * THE LEVEL DOOR (FREEZE ZERO, stage 2b — «start-shadow lines impossible by construction»). The director's cure is
+ * right as a pure function of the server's one question and of what stands; it was executed by latches on an EDGE,
+ * with the shadow behind them on a confirm of seconds. Now the door opens BY LEVEL: the moment the director would act
+ * and NOTHING IS IN FLIGHT — the wait graph holds no wait for a motion or for the server, and the wire is quiet — for
+ * this many painted frames in a row. Counted in FRAMES, the clock of the thing it bounds: a page that does not paint
+ * opens no door, a slow one waits as many frames as a fast one.
+ *
+ * WHY EIGHT: over every walk there is (the whole e2e suite, 1 502 tests; the gate's 606 walks in the bottle) a state
+ * the director would cure stands QUIET for one frame at the most — the latches' own doors open in the tick the state
+ * rises; the longest such state, quiet or not, stood 72 ms. Eight frames is past every hand-off the scene plays, so
+ * on a healthy table the door never opens (the specs that are red on a `[start-shadow] cure` line hold exactly that);
+ * it opens on a strand, a hundred milliseconds in instead of three seconds.
+ */
+export const START_LEVEL_DOOR_QUIET_FRAMES = 8;
+
+/**
+ * MAY THE LEVEL DOOR ACT on this disagreement? Every cure but ONE state: the game proper asks and a STEP still stands
+ * on the start (a surface over the scene, the shell's own). That is either a hosted step on its leave — a hand-off
+ * with an owner — or a result the player is reading, which is the player's time: the function does not tell the two
+ * apart yet, so the door stays shut there and the shadow's confirm is what judges it, as before.
+ */
+export function startLevelDoorMay(f: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>): boolean {
+  if (f.kind !== 'disagree' || startDirectorCure(f) === 'none') {
+    return false;
+  }
+  return !(f.expected === 'game' && (f.actual === 'step' || f.actual === 'shell'));
+}
+
 /** A disagreement is a finding only once it has stood this long, unchanged, with the prompt admitted. */
 export const START_SHADOW_CONFIRM_MS = 3000;
 /** A prompt held behind an admission block for longer than this is a finding of its own (`held-long`). */

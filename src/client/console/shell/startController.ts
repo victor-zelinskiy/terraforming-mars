@@ -39,7 +39,7 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {hostedStepServes, START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
-import {ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
+import {ActualStartOwner, START_LEVEL_DOOR_QUIET_FRAMES, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, startLevelDoorMay, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
 import {noteOpeningLook, noteOpeningSpan} from '@/client/console/servingOwnerMeasure';
 import {transportState} from '@/client/console/transport/gameTransport';
 import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
@@ -897,19 +897,29 @@ export function createStartController(shell: StartPort) {
    * on what stands (`heal` · `yield` · `release`), what is in flight is read every frame. Stats only — nothing here
    * opens a door.
    */
-  function measureDoor(question: string, state: string, cure: string, ended: string): void {
+  function measureDoor(question: string, state: string, cure: string, ended: string, door?: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>): void {
     cancelDoorLook();
     cancelDoorLook = () => {};
     if (cure === '' || cure === 'none') {
       noteOpeningSpan('door', '', ended, Date.now());
       return;
     }
+    // THE LEVEL DOOR (`startDirector.START_LEVEL_DOOR_QUIET_FRAMES`): the director would act, and nothing has been in
+    // flight for that many painted frames — the cure goes through the doors that already exist, ONCE per standing
+    // state (a door that changed nothing leaves the state to the shadow's confirm, which names it).
+    let quiet = 0;
+    let opened = false;
     const look = (): void => {
       const flight = flightNow();
       noteOpeningSpan('door', `DOOR ${question} · ${state} · ${cure} · ${flight === '' ? 'QUIET' : `busy[${flight}]`}`, 'moved', Date.now());
+      quiet = flight === '' ? quiet + 1 : 0;
+      if (!opened && door !== undefined && quiet >= START_LEVEL_DOOR_QUIET_FRAMES) {
+        opened = true;
+        shell.runStartDirectorCure(door, 'level');
+      }
     };
     look();
-    cancelDoorLook = flow.everyFrame('the opening\'s doors, measured', look);
+    cancelDoorLook = flow.everyFrame('the opening\'s doors, by level', look);
   }
 
   function whenStartShadowSigChanges(sig: string): void {
@@ -931,8 +941,9 @@ export function createStartController(shell: StartPort) {
       question, expected: s.expected, actual: s.actual, verdict,
       cure: verdict === 'held' ? s.held ?? '' : verdict === 'disagree' ? startDirectorCure({kind: 'disagree', expected: s.expected, actual: s.actual}) : '',
     }, Date.now());
-    measureDoor(question, `${s.expected}>${s.actual}`,
-      verdict === 'disagree' ? startDirectorCure({kind: 'disagree', expected: s.expected, actual: s.actual}) : '', `${verdict}:${s.expected}>${s.actual}`);
+    const disagreement = {kind: 'disagree' as const, expected: s.expected, actual: s.actual};
+    measureDoor(question, `${s.expected}>${s.actual}`, verdict === 'disagree' ? startDirectorCure(disagreement) : '', `${verdict}:${s.expected}>${s.actual}`,
+      verdict === 'disagree' && startLevelDoorMay(disagreement) ? disagreement : undefined);
     if (verdict === 'agree') {
       return;
     }
