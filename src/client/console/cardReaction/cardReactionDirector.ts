@@ -1364,7 +1364,10 @@ async function waitSittingQuiet(myEpoch: number): Promise<void> {
       return;
     }
     cardReactionState.waitingOnOther = true;
-    wait ??= beginCeilingWait({id: 'card-reaction:sitting-quiet', owner: 'cardReactionDirector', what: 'the beats of the sitting played', maxMs: SITTING_QUIET_MAX_MS});
+    wait ??= beginCeilingWait({
+      id: 'card-reaction:sitting-quiet', owner: 'cardReactionDirector', what: 'the beats of the sitting played', maxMs: SITTING_QUIET_MAX_MS,
+      detail: activeAnimationHoldLabels().filter((label) => label.startsWith('parliament-sitting:')).join('+'),
+    });
     await nextPaintedFrame();
   }
   closeReactionWait(wait, myEpoch);
@@ -1494,7 +1497,10 @@ async function waitAttachedQuiet(myEpoch: number): Promise<void> {
       return;
     }
     cardReactionState.waitingOnOther = true;
-    wait ??= beginCeilingWait({id: 'card-reaction:attached-quiet', owner: 'cardReactionDirector', what: 'the host flight letting the stage go', maxMs: BLOCKING_QUIET_MAX_MS});
+    wait ??= beginCeilingWait({
+      id: 'card-reaction:attached-quiet', owner: 'cardReactionDirector', what: 'the host flight letting the stage go', maxMs: BLOCKING_QUIET_MAX_MS,
+      detail: `${attachedLive} host flight(s) standing on the stage`,
+    });
     await nextPaintedFrame();
   }
   closeReactionWait(wait, myEpoch);
