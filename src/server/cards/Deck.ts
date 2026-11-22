@@ -186,6 +186,14 @@ export class Deck<T extends ICard> {
   }
 
   public discard(...cards: Array<T>): void {
+    // A DISCARDED CARD KEEPS NOTHING OF THE HAND IT LEFT. A card's `warnings` are the marks of its last PLAY
+    // evaluation («this would lower your own production»), written onto the card itself — and the discard pile is
+    // shuffled back into the deck when the deck runs out: the same object came back in another seat's draft, or in
+    // the research buy, still wearing a warning about a play nobody was weighing (the engine fuzz's reload check,
+    // FREEZE ZERO stage 5 — seeds 104 · 174: the live table showed it, the same table loaded from its save did not).
+    for (const card of cards) {
+      card.clearWarnings();
+    }
     this.discardPile.push(...cards);
   }
 

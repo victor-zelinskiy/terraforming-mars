@@ -27,6 +27,8 @@ import {addToReport, FuzzReport, fuzzConfig, newReport, replayFuzzGame, runFuzzG
  *   TM_FUZZ_STEPS    the step cap of one game (default 4000 answered questions)
  *   TM_FUZZ_MINUTES  stop starting new games after this many minutes (default: none)
  *   TM_FUZZ_VIEW_EVERY  build the seat's WHOLE view before every n-th answer only (default 5; the suite's smoke: 2)
+ *   TM_FUZZ_RELOAD   reload equivalence: load the save of one saving answer in n and hold the copy against the live
+ *                    table (default: off in the long run — it costs a second game; the smoke judges every one)
  *   TM_FUZZ_OUT      a JSON report: the totals, the coverage, every refusal class, every violation with its replay
  *
  * TO STAND ONE FINDING UP AGAIN: `TM_FUZZ_REPLAY=<seed> [TM_FUZZ_STEPS=…] [TM_FUZZ_TRACE=<steps shown>] npm run
@@ -71,7 +73,8 @@ describe('engineFuzz — random legal games on the real engine', () => {
     if (played === undefined) {
       played = newReport();
       for (let i = 0; i < SMOKE.games; i++) {
-        addToReport(played, runFuzzGame(fuzzConfig(SMOKE.firstSeed + i, {maxSteps: SMOKE.steps, viewEvery: SMOKE.viewEvery})));
+        // (With the reload check on every saving answer — `FuzzHooks.reload`: the classes it names are the smoke's.)
+        addToReport(played, runFuzzGame(fuzzConfig(SMOKE.firstSeed + i, {maxSteps: SMOKE.steps, viewEvery: SMOKE.viewEvery}), {reload: {every: 1}}));
       }
     }
     return played;
@@ -96,6 +99,10 @@ describe('engineFuzz — random legal games on the real engine', () => {
     expect(fuzzConfig(7, {maxSteps: 60})).to.deep.eq(config);
     // The seat's view is READ-ONLY: a game whose whole view is never built is the same game.
     expect(runFuzzGame({...config, viewEvery: 1_000_000}).digest).to.eq(first.digest);
+    // …and so is THE SAVE, LOADED: the copy the reload check builds never reaches the live game.
+    const checked = runFuzzGame(config, {reload: {every: 1}});
+    expect(checked.digest).to.eq(first.digest);
+    expect(checked.reload?.judged, 'saves were loaded and judged').to.be.greaterThan(0);
     // The replay stops where it is told to, with its whole trace.
     const replay = replayFuzzGame(config, 9);
     expect(replay.steps).to.eq(10);
@@ -162,6 +169,25 @@ describe('engineFuzz — random legal games on the real engine', () => {
       });
       expect(planted, 'the control reached the action phase').to.be.greaterThan(0);
       expect(invariants).to.include('I3');
+    });
+
+    it('R — a save that comes back asking something else (reload equivalence)', () => {
+      // A question nothing serializes and no phase re-derives, standing when the table saves: the loaded copy asks
+      // the seat what its phase knows — and the two part.
+      let planted = 0;
+      const result = runFuzzGame(config, {
+        reload: {every: 1},
+        afterAnswer: (game) => {
+          const seat = game.players.find((player) => !player.isMarsBot && player.getWaitingFor() !== undefined) as (TestPlayer & Seat) | undefined;
+          if (seat !== undefined && game.phase === Phase.ACTION && planted === 0) {
+            planted++;
+            seat.waitingFor = new SelectPlayer([seat], 'a question no save holds', 'Select').andThen(() => undefined);
+            game.save();
+          }
+        },
+      });
+      expect(planted, 'the control reached the action phase').to.eq(1);
+      expect(result.violations.map((violation) => violation.invariant)).to.include('R');
     });
 
     it('I4 — an answer that makes the engine throw, kept with its stack', () => {
@@ -244,6 +270,22 @@ describe('engineFuzz — random legal games on the real engine', () => {
     }
   }).timeout(60_000);
 
+  /*
+   * RELOAD EQUIVALENCE's FINDS, HELD (2026-11-22 — 120 whole games, 15 568 saves loaded and held against the live
+   * table): in the Parliament a law's free colony was built on Europa, the build's ocean was still ASKED — by the
+   * deferred queue, which no save holds — and the sitting saved (another seat was offered its early close). Loaded,
+   * the sitting adjourned with the ocean never placed (118); the same with a production to lose (113) and a resource
+   * to choose (177). `Game.save` takes no save while a question only the queue can ask stands.
+   */
+  it('a save, loaded, asks every seat the live question — seeds 113 · 118 · 177 (a queue\'s question under the sitting\'s save)', () => {
+    for (const seed of [113, 118, 177]) {
+      const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}), {reload: {every: 1}});
+      expect(result.end, `seed ${seed}`).to.eq('ended');
+      expect(result.reload?.judged, `seed ${seed}: saves were judged`).to.be.greaterThan(50);
+      expect(result.violations.map((violation) => violation.key), `seed ${seed}`).to.deep.eq([]);
+    }
+  }).timeout(120_000);
+
   it('every baseline row says why it may stand', () => {
     for (const [key, row] of Object.entries(BASELINE.classes)) {
       expect(row.why, key).to.be.a('string').and.not.eq('');
@@ -276,6 +318,7 @@ describe('engineFuzz — random legal games on the real engine', () => {
     const maxSteps = Number(process.env.TM_FUZZ_STEPS ?? 4000);
     const minutes = Number(process.env.TM_FUZZ_MINUTES ?? 0);
     const viewEvery = Number(process.env.TM_FUZZ_VIEW_EVERY ?? 5);
+    const reloadEvery = Number(process.env.TM_FUZZ_RELOAD ?? 0);
     const out = process.env.TM_FUZZ_OUT;
     const started = Date.now();
     const report = newReport();
@@ -289,7 +332,7 @@ describe('engineFuzz — random legal games on the real engine', () => {
       if (minutes > 0 && Date.now() - started > minutes * 60_000) {
         break;
       }
-      addToReport(report, runFuzzGame(fuzzConfig(firstSeed + i, {maxSteps, viewEvery})));
+      addToReport(report, runFuzzGame(fuzzConfig(firstSeed + i, {maxSteps, viewEvery}), reloadEvery > 0 ? {reload: {every: reloadEvery}} : {}));
       // (The engine's saves and broadcasts settle as promises: let them go between games, or they pile up.)
       await new Promise((resolve) => setImmediate(resolve));
       if ((i + 1) % 25 === 0) {
@@ -303,6 +346,6 @@ describe('engineFuzz — random legal games on the real engine', () => {
     expect(unknown, `the long run named ${unknown.length} class(es) that are not in engineFuzzBaseline.json:\n    ${unknown.join('\n    ')}\n`).to.deep.eq([]);
   };
   if (replaySeed === undefined && (process.env.TM_FUZZ_GAMES !== undefined || process.env.TM_FUZZ === '1')) {
-    it('THE LONG RUN (TM_FUZZ_GAMES / TM_FUZZ_SEED / TM_FUZZ_STEPS / TM_FUZZ_MINUTES / TM_FUZZ_VIEW_EVERY / TM_FUZZ_OUT)', theLongRun).timeout(0);
+    it('THE LONG RUN (TM_FUZZ_GAMES / TM_FUZZ_SEED / TM_FUZZ_STEPS / TM_FUZZ_MINUTES / TM_FUZZ_VIEW_EVERY / TM_FUZZ_RELOAD / TM_FUZZ_OUT)', theLongRun).timeout(0);
   }
 });

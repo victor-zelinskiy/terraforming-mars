@@ -698,7 +698,28 @@ export class Game implements IGame, Logger {
     }
   }
 
+  /**
+   * A SAVE NEVER HOLDS A QUESTION ONLY THE DEFERRED QUEUE CAN ASK (FREEZE ZERO, stage 5 — reload equivalence).
+   *
+   * The queue is not serialized, and a prompt is not either: a loaded game asks what its PHASE can re-derive (the
+   * action menu, a draft's pick, the research buy, a law's own step — `deserialize`). A question the queue raised is
+   * none of those — it is the middle of a chain (a colony's build bonus asking for its ocean, a production to lose, a
+   * resource to choose), and a save taken while it stands comes back WITHOUT it: the game goes on as if it had been
+   * answered, and what the answer would have given is lost. The action phase never saves there (`Player.takeAction`
+   * saves once its queue has drained); the Parliament did — a law's free colony on Europa, the build's ocean still
+   * asked, another seat offered its early close and the sitting saved: the reload adjourned the Parliament with the
+   * ocean never placed (the engine fuzz's reload check — seeds 113 · 118 · 177).
+   *
+   * So the save is NOT TAKEN while such a question stands: the last save before it holds (a consistent point by
+   * construction — a reload goes back to the answer that led here, and nothing is paid twice or lost), and the next
+   * save point after the answer persists what happened. The table is told all the same (the realtime invalidation a
+   * save would have sent).
+   */
   public save(): void {
+    if (this.deferredActions.asksAnyOf(this.players)) {
+      this.notifyStateChange();
+      return;
+    }
     GameLoader.getInstance().saveGame(this);
   }
 

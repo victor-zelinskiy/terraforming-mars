@@ -44,9 +44,11 @@ import {PlayerInputModel} from '../../src/common/models/PlayerInputModel';
 import {Phase} from '../../src/common/Phase';
 import {SeededRandom} from '../../src/common/utils/Random';
 import {Game} from '../../src/server/Game';
+import {GameLoader} from '../../src/server/database/GameLoader';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
 import {PlayerInput} from '../../src/server/PlayerInput';
+import {SerializedGame} from '../../src/server/SerializedGame';
 import {isIProjectCard} from '../../src/server/cards/IProjectCard';
 import {IDeferredAction} from '../../src/server/deferredActions/DeferredAction';
 import {GiveColonyBonus} from '../../src/server/deferredActions/GiveColonyBonus';
@@ -154,6 +156,8 @@ export type FuzzResult = {
   ms: number;
   /** The whole trace — only when asked for (`replayFuzzGame`). */
   trace?: Array<TraceStep>;
+  /** The reload check's own counts — only when it ran (`FuzzHooks.reload`). */
+  reload?: ReloadStats;
 };
 
 export type FuzzHooks = {
@@ -165,6 +169,23 @@ export type FuzzHooks = {
    * equivalence check of the next step joins the loop at this very point.
    */
   afterAnswer?: (game: IGame, step: number) => void;
+  /**
+   * RELOAD EQUIVALENCE (stage 5, step 2 — «save → load → the SAME question»). After an answer during which the table
+   * SAVED, and with nothing moved since that save, the save is loaded into a copy (`Game.deserialize` — the very
+   * road a restarted server takes) and every seat of the copy must stand on the question its seat of the live table
+   * stands on. `every`: judge one such answer in N (1 — every one).
+   */
+  reload?: {every: number};
+};
+
+/** What the reload check did in one game. */
+export type ReloadStats = {
+  /** Answers during which the table saved. */
+  saved: number;
+  /** …of them, the ones where the state moved AFTER the last save (an unsaved tail — a reload there goes back, by design). */
+  moved: number;
+  /** …and the ones a copy was loaded for and held against the live table. */
+  judged: number;
 };
 
 const TRACE_TAIL = 30;
@@ -447,6 +468,94 @@ function newGame(config: FuzzConfig): IGame {
 /**
  * ONE GAME of `config`, played to its end, its step cap, or a violation it cannot play past. Never throws.
  */
+/*
+ * ── RELOAD EQUIVALENCE ────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * The deferred queue is never serialized, and a prompt is not either: what a loaded game ASKS is re-derived from its
+ * phase by `Game.deserialize`'s own resolvers. So a save taken with work still queued, or in a state no resolver
+ * knows, comes back asking something else — or nobody. The player sees it as «I reloaded and the game is somewhere
+ * else»; the page as a question that is not the one it was serving.
+ *
+ * WHEN IT IS JUDGED: only at a SAVE (a reload restores the last save, never the live state — an action the engine
+ * does not persist, the first of a turn's two with undo off, is lost by design), and only when NOTHING MOVED since
+ * that save in the same answer (the save is then the live state, and its load must ask the live question).
+ */
+/** The state as a save holds it, without what moves with no rule behind it (the save's own number, a seat's clock). */
+function stateLine(saved: SerializedGame): string {
+  return JSON.stringify(saved, (key, value: unknown) => (key === 'lastSaveId' || key === 'timer' ? undefined : value));
+}
+
+/** One seat's standing question as a reload must give it back: the wire model, without the number a process deals. */
+function questionLine(player: IPlayer): string {
+  const input = player.getWaitingFor();
+  if (input === undefined) {
+    return '(nothing)';
+  }
+  return JSON.stringify(Server.getWaitingFor(player, input), (key, value: unknown) => {
+    // (`warnings` are the marks of a card's last PLAY evaluation, written onto the card object — and a seat's view
+    // makes hypothetical ones (a law's discount, a staged play). What a model carries of them is the HISTORY of the
+    // process's evaluations, which a loaded process does not share: read apart, never as a reload's defect. The one
+    // road by which they reached another QUESTION — a discarded card shuffled back — is closed in `Deck.discard`.)
+    if (key === 'promptId' || key === 'warnings') {
+      return undefined;
+    }
+    // (A forecast fact without a fixed id is numbered by a counter of the PROCESS — `effectForecastPreviews.baseFact`:
+    // two builds of one model never agree on it, loaded or not.)
+    return key === 'id' && typeof value === 'string' ? value.replace(/-[0-9]+(#once)?$/, '-N$1') : value;
+  });
+}
+
+/** `type «title»` of a question line (the class key). */
+function questionHead(line: string): string {
+  if (line === '(nothing)') {
+    return line;
+  }
+  const model = JSON.parse(line) as {type?: string, title?: string | {message?: string}};
+  return `${model.type ?? '?'} «${titleOf(model.title as never)}»`;
+}
+
+/** Where two question lines first part: a short path (the class key) and what each side holds there. */
+function firstDifference(a: unknown, b: unknown, at = ''): {path: string, live: string, loaded: string} | undefined {
+  if (a === b) {
+    return undefined;
+  }
+  const here = () => ({path: at === '' ? '(root)' : at, live: JSON.stringify(a)?.slice(0, 200) ?? 'undefined', loaded: JSON.stringify(b)?.slice(0, 200) ?? 'undefined'});
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) {
+    return here();
+  }
+  if (Array.isArray(a) && Array.isArray(b) && a.length !== b.length) {
+    return {...here(), path: `${at}.length`};
+  }
+  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    const found = firstDifference((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key], Array.isArray(a) ? `${at}[]` : `${at}.${key}`);
+    if (found !== undefined) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * THE SAVE, LOADED — a copy of the table built from `saved` the way a restarted server builds it. The copy must not
+ * reach the live game: it saves nowhere and announces nothing, and what its resolvers draw from `Math.random` is
+ * its own stream (the live game's stays where it was — the determinism of the run is held by the spec).
+ */
+function loadedCopy(saved: SerializedGame): Game {
+  const proto = Game.prototype as unknown as {save: () => void, notifyStateChange: () => void};
+  const real = {save: proto.save, notify: proto.notifyStateChange, random: Math.random};
+  const own = new SeededRandom(0.5);
+  proto.save = () => {};
+  proto.notifyStateChange = () => {};
+  Math.random = () => own.next();
+  try {
+    return Game.deserialize(saved);
+  } finally {
+    proto.save = real.save;
+    proto.notifyStateChange = real.notify;
+    Math.random = real.random;
+  }
+}
+
 export function runFuzzGame(config: FuzzConfig, hooks: FuzzHooks = {}): FuzzResult {
   const keepTrace = hooks.keepTrace === true;
   const started = Date.now();
@@ -458,6 +567,7 @@ export function runFuzzGame(config: FuzzConfig, hooks: FuzzHooks = {}): FuzzResu
     answered: {}, refusals: {}, cards: {}, violations: [], ms: 0, ...(keepTrace ? {trace: []} : {}),
   };
   const digest = createHash('sha1');
+  let unwatchSaves: () => void = () => {};
   const tail: Array<TraceStep> = [];
   const byKey = new Map<string, Violation>();
   let game: IGame | undefined;
@@ -521,6 +631,25 @@ export function runFuzzGame(config: FuzzConfig, hooks: FuzzHooks = {}): FuzzResu
     }
     const table = game;
     const {raisedByQueue, deferredBy} = watchQueue(table);
+    // THE TABLE'S SAVES (reload equivalence): the last save of the answer in flight, as the database got it.
+    let savedInAnswer: SerializedGame | undefined;
+    let savesJudged = 0;
+    const reload: ReloadStats | undefined = hooks.reload === undefined ? undefined : {saved: 0, moved: 0, judged: 0};
+    if (reload !== undefined) {
+      result.reload = reload;
+      // (Read where a save REACHES the database — `Game.save` may decline one, and a save not taken is not judged.)
+      const loader = GameLoader.getInstance();
+      const persist = loader.saveGame.bind(loader);
+      loader.saveGame = (saved: IGame) => {
+        if (saved === table) {
+          savedInAnswer = JSON.parse(JSON.stringify(table.serialize())) as SerializedGame;
+        }
+        return persist(saved);
+      };
+      unwatchSaves = () => {
+        loader.saveGame = persist;
+      };
+    }
     hearServer('setup', 'setup');
     const phases = new Set<Phase>();
     // (A function, so the compiler does not carry one look at the phase across an answer that moves it.)
@@ -692,6 +821,8 @@ export function runFuzzGame(config: FuzzConfig, hooks: FuzzHooks = {}): FuzzResu
       }
       hooks.afterAnswer?.(table, result.steps);
       result.steps++;
+      const saved = savedInAnswer;
+      savedInAnswer = undefined;
 
       // ── AFTER EVERY ANSWER: the invariants ──────────────────────────────────────────────────────────────────────
       hearServer(type, subject);
@@ -740,6 +871,41 @@ export function runFuzzGame(config: FuzzConfig, hooks: FuzzHooks = {}): FuzzResu
           `${queued} deferred action(s) stand queued (next: ${what}, deferred by ${by}) and ${over ? 'the game is over' : `no standing question is the queue's own — standing: ${standingNow}`}`,
           {seat: player.color, promptType: type, title, source: subject, answer});
       }
+      // R — RELOAD EQUIVALENCE: the save this answer made, loaded, asks every seat what the live table asks it.
+      if (reload !== undefined && saved !== undefined && !over) {
+        reload.saved++;
+        if (stateLine(saved) !== stateLine(JSON.parse(JSON.stringify(table.serialize())) as SerializedGame)) {
+          // (The engine went on after its last save — a reload goes back to the save, by design.)
+          reload.moved++;
+        } else if (savesJudged++ % Math.max(1, hooks.reload?.every ?? 1) === 0) {
+          reload.judged++;
+          let copy: Game | undefined;
+          try {
+            copy = loadedCopy(saved);
+          } catch (err) {
+            const error = err as Error;
+            violate('R-load', [table.phase, `${error.name}: ${normalize(error.message)}`, engineFrame(error.stack)],
+              `the save this answer made could not be loaded — ${error.name}: ${error.message}`,
+              {seat: player.color, promptType: type, title, source: subject, answer, error: error.message, stack: error.stack});
+          }
+          hearServer('reload', subject);
+          for (const seat of copy === undefined ? [] : table.players) {
+            const twin = copy?.players.find((candidate) => candidate.id === seat.id);
+            const live = questionLine(seat);
+            const loaded = twin === undefined ? '(no such seat)' : questionLine(twin);
+            if (live === loaded) {
+              continue;
+            }
+            const heads = [questionHead(live), loaded === '(no such seat)' ? loaded : questionHead(loaded)];
+            const where = heads[0] === heads[1] ? firstDifference(JSON.parse(live), JSON.parse(loaded)) : undefined;
+            violate(heads[0] === heads[1] ? 'R-model' : 'R', [table.phase, seat.isMarsBot ? 'MarsBot' : 'seat', heads[0], heads[0] === heads[1] ? where?.path : heads[1]],
+              heads[0] === heads[1] ?
+                `the save, loaded, asks the same question with another body — ${heads[0]} parts at «${where?.path}»: live ${where?.live}, loaded ${where?.loaded}` :
+                `the save, loaded, asks ${seat.isMarsBot ? 'MarsBot' : 'the seat'} ${heads[1]} where the live table asks ${heads[0]}`,
+              {seat: seat.color, promptType: type, title, source: subject, answer, model: `LIVE ${live.slice(0, 1800)}\nLOADED ${loaded.slice(0, 1800)}`});
+          }
+        }
+      }
     }
     if (isOver()) {
       result.end = 'ended';
@@ -755,6 +921,7 @@ export function runFuzzGame(config: FuzzConfig, hooks: FuzzHooks = {}): FuzzResu
     violate('HARNESS', [normalize(error.message)], `the fuzz loop itself threw — ${error.message}`, {error: error.message, stack: error.stack});
     result.end = 'stuck';
   } finally {
+    unwatchSaves();
     Math.random = real.random;
     console.log = real.log;
     console.info = real.info;

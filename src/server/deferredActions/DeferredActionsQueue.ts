@@ -6,6 +6,8 @@ import {isSittingAckPrompt} from '../parliament/SittingAcks';
 export class DeferredActionsQueue {
   private insertId: number = 0;
   private queue: Array<IDeferredAction<any>> = [];
+  /** The questions this queue asked (`run`) — the inputs themselves, weakly: one that no longer stands holds nothing. */
+  private asked = new WeakSet<object>();
 
   get length(): number {
     return this.queue.length;
@@ -17,6 +19,19 @@ export class DeferredActionsQueue {
     // links to the action/effect that queued it, even though it runs later.
     action.eventContext = action.player.game?.events?.captureContext();
     this.queue.push(action);
+  }
+
+  /**
+   * DOES A SEAT STAND ON A QUESTION ONLY THIS QUEUE COULD ASK? A question raised here is the middle of a chain whose
+   * rest lives in closures — the action that asked, the continuation behind the answer — and none of it is
+   * serialized: a game loaded from a save taken NOW asks something else, and what the answer would have done is
+   * gone (`Game.save` reads this — the law is written there).
+   */
+  public asksAnyOf(players: ReadonlyArray<IPlayer>): boolean {
+    return players.some((player) => {
+      const standing = player.getWaitingFor();
+      return standing !== undefined && this.asked.has(standing);
+    });
   }
 
   /** The actions still queued for `player` — read-only (MarsBot's vote stakes ask what a passed seat still owes, D15). */
@@ -158,6 +173,7 @@ export class DeferredActionsQueue {
           action.player.clearWaitingFor();
         }
         action.player.setWaitingFor(input, cb);
+        this.asked.add(input);
         return true;
       }
       return false;

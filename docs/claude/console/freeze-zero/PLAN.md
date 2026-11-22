@@ -898,6 +898,39 @@ What the second run taught the instrument: a class whose key carries a CARD is a
 it is written as the law (one line in the judge), never as a baseline row per card. Next: the third run on fresh
 seeds over the fixed engine; reload equivalence (save → load → the SAME question — the research barrier's lost
 reaction is exactly the class it will name); the batch route; shrinking; the nightly run.
+*The third run* (the fixed engine, fresh seeds 60000+ and 80000+, thirty minutes each in two processes: about 6 400
+whole games) named **no class at all**.
+
+**STAGE 5, STEP 2 — RELOAD EQUIVALENCE (2026-11-22).** «Save → load → the SAME question», as a check of the fuzz
+(`FuzzHooks.reload`, `TM_FUZZ_RELOAD=<n>`; the suite's smoke judges every save). The deferred queue is never
+serialized and a prompt is not either: what a loaded game ASKS is re-derived from its phase. So the check stands
+where a reload really lands — AT A SAVE, read where it reaches the database (`GameLoader.saveGame`), and only when
+nothing moved after that save in the same answer (the engine going on past its last save is the upstream design: a
+reload there goes back). The save is loaded into a copy by `Game.deserialize` — the very road a restarted server
+takes; the copy saves nowhere, draws from a random stream of its own, and the spec holds that the live game plays the
+same game with the check on. Every seat of the copy must stand on the question its seat of the live table stands on
+(`R` — another question; `R-model` — the same question with another body; `R-load` — the save does not load).
+*The first reading:* 120 whole games, 32 509 answers, **15 568 saves loaded** — and two families:
+- **A SAVE UNDER A QUESTION ONLY THE QUEUE CAN ASK — a real loss.** In the Parliament a law's free colony was built on
+  Europa; the build's ocean was still asked — by the queue — when another seat was offered its early close and the
+  sitting SAVED. Loaded, the sitting adjourned with the ocean never placed; the same with a production to lose and a
+  resource to choose (seeds 113 · 118 · 177). The Parliament's resumable driver covers a law's own STEPS; a
+  consequence of a step's answer is the queue's. **The law is the engine's, in `Game.save`: no save is taken while a
+  question the deferred queue raised stands** (`DeferredActionsQueue.asksAnyOf` — a weak set of the inputs it asked,
+  so one that no longer stands holds nothing). The last save before it holds — a consistent point by construction:
+  a reload goes back to the answer that led there, nothing is lost and nothing is paid twice — and the table is told
+  all the same. The action phase always lived by this (`takeAction` saves once its queue has drained); now it is
+  written where every save passes. `tests/liveness/SaveLaw.spec.ts`.
+- **A CARD's `warnings` ARE THE HISTORY OF A PROCESS, NOT STATE.** They are written onto the card object by its last
+  PLAY evaluation and read by every list that shows the card. A discarded card kept them; the discard pile is
+  shuffled back into the deck — and the card came back in another seat's draft, or in the research buy, wearing a
+  warning about a play nobody was weighing (the live table showed it, the same table loaded did not). `Deck.discard`
+  clears them. What a seat's view leaves on cards by its HYPOTHETICAL evaluations (a law's discount, a staged play)
+  is the same class and is still there: the check reads `warnings` apart, and the finding stands in this line.
+- One more thing the check named and that is no reload's defect: a forecast fact without a fixed id is numbered by a
+  counter of the process (`effectForecastPreviews.baseFact`) — two builds of one model never agree on it.
+With the law and the fix the three seeds replay clean, and the smoke holds the check on every save. Next: the long
+run with the check on (`TM_FUZZ_RELOAD`), the batch route, shrinking, the nightly job.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
