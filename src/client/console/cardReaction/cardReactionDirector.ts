@@ -83,7 +83,7 @@ import {boardSceneMemberBusy, boardSceneOwedBusy} from '@/client/console/boardSc
 import {scaleStepRatingBusy, scaleStepRatingStageCovered} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {SCALE_STEP_STAGE_DUE_MS} from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {hydroCeremonyOwed, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
-import {hydroTraversalPending, isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {hydroTraversalPaused, hydroTraversalPending, isHydroMarkerActive} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {RectLike} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {
   CardReactionGroup, REACTION_HURRY_PACE, REACTION_RIVAL_SCALE, ReactionTempo, freshCardReactions, groupCardReactions, planReactionChain, ratingTouchdownStep, reactionAnswerGroups,
@@ -1391,16 +1391,46 @@ async function waitHydroStoryQuiet(myEpoch: number): Promise<void> {
   const busy = (): boolean => hydroFlowState.commit !== undefined &&
     (hydroFlowState.commit.phase === 'moving' || hydroFlowState.commit.phase === 'result' || isHydroMarkerActive() ||
       hydroTraversalPending() || hydroFlowState.ceremonyActive || hydroCeremonyOwed());
+  // WHO IS WAITED FOR. A traversal PARKED on an interactive stop (`hydroTraversalPaused` — resumed only by the answer,
+  // never a timeout) is the player's time: the story is «busy» for as long as they think, and the chain's bound over
+  // it is its honest end by its nature — past it the chain plays beside the stop. Named so, like the decision at the
+  // centre; it was «the hydronetwork story did not come in 12 s», a defect, in every flow whose stage asks something
+  // (the whole suite on CI, 2026-11-22: `console-hydro-copied-colony`, `console-hydro-stage-bound-repeat`). A marker
+  // gliding, a ceremony, a result still opening are the story's own motion — their bound is a defect's, as before.
+  const parked = (): boolean => hydroTraversalPaused() && !isHydroMarkerActive();
+  let withPlayer: CeilingWait | undefined;
   while (epoch === myEpoch && busy()) {
+    const players = parked();
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
-      wait?.ceiling();
+      cardReactionState.waitingOnPlayer = '';
+      if (players) {
+        wait?.end();
+        withPlayer?.ceiling();
+      } else {
+        withPlayer?.end();
+        wait?.ceiling();
+      }
       return;
     }
     cardReactionState.waitingOnOther = true;
-    wait ??= beginCeilingWait({id: 'card-reaction:hydro-story-quiet', owner: 'cardReactionDirector', what: 'the hydronetwork story quiet', maxMs: BLOCKING_QUIET_MAX_MS});
+    cardReactionState.waitingOnPlayer = players ? 'the Hydronetwork\'s traversal is parked on a stop the player resolves' : '';
+    if (players) {
+      wait?.end();
+      wait = undefined;
+      withPlayer ??= beginCeilingWait({
+        id: 'card-reaction:hydro-stop-answered', owner: 'cardReactionDirector', what: 'the stop of the hydronetwork traversal answered', maxMs: BLOCKING_QUIET_MAX_MS,
+        target: 'player', planned: 'the player keeps the traversal parked on its stop — past its bound the chain plays beside it',
+      });
+    } else {
+      withPlayer?.met();
+      withPlayer = undefined;
+      wait ??= beginCeilingWait({id: 'card-reaction:hydro-story-quiet', owner: 'cardReactionDirector', what: 'the hydronetwork story quiet', maxMs: BLOCKING_QUIET_MAX_MS});
+    }
     await nextPaintedFrame();
   }
+  cardReactionState.waitingOnPlayer = '';
   closeReactionWait(wait, myEpoch);
+  closeReactionWait(withPlayer, myEpoch);
 }
 
 /**

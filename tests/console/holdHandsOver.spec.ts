@@ -48,6 +48,22 @@ describe('a hold that hands the screen over is not waited out (the wiring)', () 
     expect(director).to.contain('cardReactionState.waitingOnPlayer = \'the decision at the centre\';');
   });
 
+  /*
+   * A TRAVERSAL PARKED ON A STOP IS THE PLAYER'S TIME (`wait-graph/ceiling/card-reaction:hydro-story-quiet` under green
+   * `console-hydro-copied-colony` and `console-hydro-stage-bound-repeat`): the chain's wait for «the Hydronetwork's
+   * story» stood through the player's own thinking at an interactive stop and ended on its bound as a defect.
+   */
+  it('the chain\'s wait for the Hydronetwork names the PLAYER while the traversal is parked on a stop', () => {
+    const director = read('console/cardReaction/cardReactionDirector.ts');
+    const body = director.slice(director.indexOf('async function waitHydroStoryQuiet('), director.indexOf('async function waitRatingStoryQuiet('));
+    expect(body).to.contain('const parked = (): boolean => hydroTraversalPaused() && !isHydroMarkerActive();');
+    expect(body).to.match(/id: 'card-reaction:hydro-stop-answered'[\s\S]{0,260}target: 'player', planned: /);
+    // …and the story's own motion keeps its bound as a defect's: the motion node carries no `planned`.
+    expect(body).to.match(/beginCeilingWait\(\{id: 'card-reaction:hydro-story-quiet', owner: 'cardReactionDirector', what: 'the hydronetwork story quiet', maxMs: BLOCKING_QUIET_MAX_MS\}\)/);
+    // At the bound the node that stands is the one that ends on it — never the motion's ceiling over a parked stop.
+    expect(body).to.match(/if \(players\) \{\s+wait\?\.end\(\);\s+withPlayer\?\.ceiling\(\);/);
+  });
+
   it('the card reaction\'s chain waits out the scenes that PLAY — never a bare count of blocking holds', () => {
     const director = read('console/cardReaction/cardReactionDirector.ts');
     expect(director).to.match(/async function waitBlockingQuiet[\s\S]{0,400}blockingHoldsPlaying\(\)\.length > 0/);
