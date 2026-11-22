@@ -998,10 +998,10 @@ rate on CI. Longest first:
 
 | class | under (green) | what the line says |
 | --- | --- | --- |
-| `animation-hold/ceiling/card-reaction` | `console-atmospheric-enhancers` E | the reaction's chain stood `waiting` **35 s** (Greens) — force-released |
-| `presentation-ledger/story-due/board-beat-park` | `console-start-held-placement` | the park's release edge never came — degraded at **30 s** (covered by workspace · placement · planet-focus) |
-| `wait-graph/unshaped` (`quiet:city-payout:scales`) | `console-arabia-terra` | «the console quiet» did not come in **15 s**; the line has no shape of its own |
-| `wait-graph/ceiling/card-reaction:hydro-story-quiet` | `console-hydro-copied-colony` · `-hydro-stage-bound-repeat` | the reaction waited for the Hydronetwork's story to its **12 s** ceiling |
+| ~~`animation-hold/ceiling/card-reaction`~~ | `console-atmospheric-enhancers` E | **closed `774cc85e4c`** — nothing leaked: the chain's hold took the DEFAULT 35 s ceiling, shorter than a wait it stands through (the rating's story on a covered stage, 32 + 12 s), and its `expire` ABORTED a healthy chain — the table's answer never told. The ceiling is the sum of the chain's own bounds now; the hold names the player's time (`waitingOnPlayer`). CI ×10: no defect line |
+| ~~`presentation-ledger/story-due/board-beat-park`~~ | `console-start-held-placement` | **closed `7a2db1f733`** — the player was in their placement the whole 30 s; the camera of a LIVE placement is the player's cover (`boardCoversAreThePlayers`), the camera alone stays the game's. *Proof on CI: run 45064610096* |
+| ~~`wait-graph/unshaped` (`quiet:city-payout:scales`)~~ | `console-arabia-terra` | **closed `3803de2988`** — the ceiling's shape took the owner up to its first colon (this owner carries one); and the wait says when the PLAYER keeps the board covered (`boardStoryHeldByPlayer`). *Proof on CI: run 45063526759* |
+| ~~`wait-graph/ceiling/card-reaction:hydro-story-quiet`~~ | `console-hydro-copied-colony` · `-hydro-stage-bound-repeat` | **closed `a082066081`** — a traversal PARKED on an interactive stop is the player's time: its own node (`hydro-stop-answered`, planned), the glide and the ceremony keep theirs. CI ×10: planned in every repeat, no defect |
 | ~~`wait-graph/ceiling/card-reaction:blocking-quiet`~~ | `console-terraforming-deal` (D) | **closed** — the mutual wait with the generation scene (`d81fa65e2a`) |
 | `scene-transition/hold-bound/start-scene` | `console-rise-to-power` C | the hold hit its **8 s** bound |
 | `scene-transition/hold-bound/board-fit` | six tests (`effect-decision`, `card-discard` ×3, `hydro-bonus-order`, `rail-value-badges`) | the hold hit its **6 s** bound |
@@ -1012,6 +1012,11 @@ rate on CI. Longest first:
 | `transfer/frame-left-holding/colonies` | `console-parliament-colony` | a frame popped with a floater landing on its surface |
 | `wait-graph/ceiling/played-hero:target` | `console-sponsor-colony` | no measurable landing slot in 200 ms |
 
+*What the first four rows had in common:* not one was a motion that failed to come. Each was a wait whose TIME was the
+player's (a covered stage, a parked stop, a live placement, a decision in a workspace) carrying a bound and a word
+written for a motion — and one of them, behind that word, a real loss: a hold whose ceiling aborted the story it was
+holding. The question to ask of every bound is stage 1's, one level down: WHOSE time does this wait stand in right
+now — and is the bound of the thing that holds it above the bounds of what it holds?
 *The rule from here:* a whole-suite reading names every defect class under a green test, against the reading before
 it; a class leaves this table with its law, its spec and its rate on CI — the table is to read EMPTY, and then the
 harness fails a test on any defect-tier line it did not expect (the gate the monkey already has).
