@@ -80,6 +80,20 @@ describe('a hold that hands the screen over is not waited out (the wiring)', () 
     expect(park).to.contain('return boardBeatParkState.draining && [...storyMembers.values()].some((member) => member.busy() && member.endCovered?.() === true);');
   });
 
+  /*
+   * A STEP's POP IS A FOLD TOO (`transfer/frame-left-holding/colonies` under a green `console-parliament-colony`): the
+   * colony step inside a sitting popped with a token of its own build still landing on its surface — the one host
+   * whose step skipped the hand-over's wait.
+   */
+  it('the colony step inside a sitting owes its pop to the tokens on its surface', () => {
+    const colony = read('console/shell/colonyController.ts');
+    const body = colony.slice(colony.indexOf('function settleColonyFollowUp(): void {'), colony.indexOf('async function dwellColonyFollowUp('));
+    expect(body).to.match(/if \(host === 'parliament' && colonySettleDwell !== 'done'\) \{\s+const surface = [^\n]+workspaceFrameSelector\('colonies'\)\);\s+if \(surfaceHoldsTokens\(surface\)\) \{/);
+    expect(body).to.match(/void surfaceClear\(surface\)\.then\(\(\) => \{\s+if \(workspaceFrameAnchor\('colonies'\)\?\.type !== 'prompt' \|\| colonyFollowUpLive\.value\) \{/);
+    // …and the pop itself comes only past that wait.
+    expect(body.indexOf('surfaceHoldsTokens(surface)'), 'the wait stands before the pop').to.be.lessThan(body.indexOf('leaveWorkspace();'));
+  });
+
   it('the card reaction\'s chain waits out the scenes that PLAY — never a bare count of blocking holds', () => {
     const director = read('console/cardReaction/cardReactionDirector.ts');
     expect(director).to.match(/async function waitBlockingQuiet[\s\S]{0,400}blockingHoldsPlaying\(\)\.length > 0/);

@@ -18,7 +18,7 @@ import {displayNameForColor, participantDisplayName} from '@/client/components/m
 import ConsoleColoniesSection from '@/client/components/console/ConsoleColoniesSection.vue';
 import {ConsoleColonyPick} from '@/client/components/console/consoleColoniesSectionTypes';
 import {consoleParliamentUi, parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
-import {workspaceStackRootKind, resumeStackFromBoard, yieldedStackCards, enterWorkspace, goBoardHome, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameServes, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameIndex, workspaceFrameMounted, workspaceFramePhase, workspaceStackTop, workspaceFrameSubject, workspaceFrameAnchor, workspaceFrameHost, workspaceStepSourceCard, workspaceFrameKnown, workspaceFrameTarget, workspaceHostForStep, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {workspaceStackRootKind, resumeStackFromBoard, yieldedStackCards, enterWorkspace, goBoardHome, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameServes, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameIndex, workspaceFrameMounted, workspaceFramePhase, workspaceStackTop, workspaceFrameSubject, workspaceFrameAnchor, workspaceFrameHost, workspaceStepSourceCard, workspaceFrameKnown, workspaceFrameTarget, workspaceHostForStep, FrameAnchor, WorkspaceFrameKind, workspaceFrameSelector} from '@/client/console/consoleWorkspaceStack';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {COLONY_RESOLUTION_SERVES, COLONY_BONUS_ENTRY_WAIT_MS, ColonyResolutionSignals, armColonyBonusEntry, clearColonyBonusEntry, colonyBonusCollectOf, colonyBonusDiscardOf, colonyBonusCardPickOf, COLONY_BONUS_CYCLE_WAIT_MS, colonyBonusEntry, colonyBonusSequence, clearColonyBonusSequence, colonyResolutionColony, colonyRevealSourceOf, colonyResolutionEvidenceFor, colonyResolutionFocusIntent, colonyResolutionLiveFor, colonyResolutionUi, discardStageStrandedFor, noteColonyBonusCycleWaitOver, noteColonyBonusEntryWaitOver, noticeColonyBonusSequence, remoteColonyBonusPendingFor, resetColonyResolutionUi, setColonyDiscardStage} from '@/client/console/colonyTrade/colonyResolution';
@@ -78,6 +78,7 @@ import type {StagedController} from '@/client/console/shell/stagedController';
 import type {JournalController} from '@/client/console/shell/journalController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import {span} from '@/client/console/session/sessionWaits';
+import {surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {whenPainted} from '@/client/console/session/sessionWaits';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
@@ -994,6 +995,29 @@ export function createColonyController(shell: ColonyPort) {
     if (host !== undefined && host !== 'parliament' && colonySettleDwell !== 'done') {
       void dwellColonyFollowUp();
       return;
+    }
+    // …AND INSIDE THE SITTING THE POP IS STILL A FOLD: A SURFACE NEVER FOLDS UNDER ITS OWN TOKEN. The Parliament needs no
+    // read beat of its own (it walks on from the frame's departure) — but the build's tokens are this step's, and the
+    // frame used to pop with one still landing on its surface (`transfer/frame-left-holding/colonies` — «a frame left
+    // with tokens on its surface — «colonies» by popWorkspaceFrame, holding card-resource:floater lands here», a green
+    // `console-parliament-colony` of the whole suite on CI, 2026-11-22). The pop is OWED to the surface's tokens
+    // (`surfaceClear` — bounded), then asked again: a new demand that arrived meanwhile keeps the frame.
+    if (host === 'parliament' && colonySettleDwell !== 'done') {
+      const surface = typeof document === 'undefined' ? null : document.querySelector(workspaceFrameSelector('colonies'));
+      if (surfaceHoldsTokens(surface)) {
+        if (colonySettleDwell !== 'dwelling') {
+          colonySettleDwell = 'dwelling';
+          void surfaceClear(surface).then(() => {
+            if (workspaceFrameAnchor('colonies')?.type !== 'prompt' || colonyFollowUpLive.value) {
+              colonySettleDwell = 'idle';
+              return;
+            }
+            colonySettleDwell = 'done';
+            settleColonyFollowUp();
+          });
+        }
+        return;
+      }
     }
     colonySettleDwell = 'idle';
     // The focus stage (if the follow-up resolved on it) folds with the step —
