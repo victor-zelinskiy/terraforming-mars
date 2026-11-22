@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
-  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteDerivedRender, noteOpeningLook, noteOpeningSpan, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
+  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteOpeningLook, noteOpeningSpan, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
   promptFlagsVerdict, registerOwnerNowProbe, resetServingOwnerLog, servingOwnerLog,
 } from '../../src/client/console/servingOwnerMeasure';
 
@@ -299,34 +299,5 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(servingOwnerLog.spans['opening|STRAND space: · plan queue-returned → confirmed']).to.deep.eq({n: 1, ms: 2500, max: 2500});
     expect(servingOwnerLog.spans['opening|STRAND space: · plan queue-returned · HEALED queue-returned → cleared']).to.deep.eq({n: 1, ms: 100, max: 100});
     expect(servingOwnerLog.open).to.deep.eq([]);
-  });
-
-  it('THE DERIVATION, HELD AGAINST EVERY RENDER: a difference is a span — opened once, closed with how long it stood, kept once with the facts', () => {
-    const pair = (surface: string, legacy: boolean, derived: boolean, why = '') => ({surface, legacy, derived, why});
-    // Both stand · neither stands: nothing to say but the denominator.
-    noteDerivedRender('payment', 'task', [pair('taskHost', true, true), pair('ares', false, false)], 'frames []', 1_000);
-    // The function names a hold and today's condition still stands — for three renders, 240 ms in all.
-    noteDerivedRender('payment', 'task held admission:reveal', [pair('taskHost', true, false)], 'frames [] · blocks [host:reveal]', 1_100);
-    noteDerivedRender('payment', 'task held admission:reveal', [pair('taskHost', true, false)], 'frames [] · blocks [host:reveal]', 1_200);
-    noteDerivedRender('payment', 'task', [pair('taskHost', true, true)], 'frames []', 1_340);
-    // The function says it serves and today's condition holds it down, by its own named reason — and it never closes.
-    noteDerivedRender('payment', 'task', [pair('taskHost', false, true, 'decision-owns')], 'frames []', 2_000);
-    // The same picture again is the same span; another picture closes it and opens its own.
-    noteDerivedRender('payment', 'task', [pair('taskHost', false, true, 'decision-owns')], 'frames []', 2_050);
-    expect(servingOwnerLog.rows['eq:taskHost']).to.deep.eq({'eq-both': 2, 'eq-LEGACY:task held admission:reveal': 1, 'eq-DERIVED:decision-owns': 1});
-    expect(servingOwnerLog.spans).to.deep.eq({
-      'taskHost|eq-LEGACY:task held admission:reveal': {n: 1, ms: 240, max: 240},
-      'taskHost|eq-DERIVED:decision-owns': {n: 1, ms: 0, max: 0},
-    });
-    expect(servingOwnerLog.open).to.deep.eq([{surface: 'taskHost', verdict: 'eq-DERIVED:decision-owns', since: 2_000}]);
-    expect(servingOwnerLog.disagreements.map((d) => `${d.shape}|${d.verdict}|${d.present[0]}|${d.facts}`)).to.deep.eq([
-      'eq:taskHost|eq-LEGACY:task held admission:reveal|payment|frames [] · blocks [host:reveal]',
-      'eq:taskHost|eq-DERIVED:decision-owns|payment|frames []',
-    ]);
-    // A new game screen starts its own spans.
-    resetServingOwnerLog();
-    expect(servingOwnerLog.open).to.deep.eq([]);
-    noteDerivedRender('payment', 'task', [pair('taskHost', true, true)], '', 3_000);
-    expect(servingOwnerLog.spans).to.deep.eq({});
   });
 });

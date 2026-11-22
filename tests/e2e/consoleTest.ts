@@ -575,7 +575,7 @@ async function readCoverage(pages: ReadonlyArray<Page>): Promise<{keys: Array<st
  */
 type OwnerMeasure = {
   looks: number, rows: Record<string, Record<string, number>>, disagreements: Array<Record<string, unknown>>,
-  /** THE DERIVATION's spans (`noteDerivedRender`) and the ones still open when the page was read. */
+  /** THE OPENING's spans (`noteOpeningSpan`) and the ones still open when the page was read. */
   spans: Record<string, {n: number, ms: number, max: number}>, open: Array<Record<string, unknown>>,
 };
 async function readOwnerMeasure(pages: ReadonlyArray<Page>): Promise<OwnerMeasure | undefined> {

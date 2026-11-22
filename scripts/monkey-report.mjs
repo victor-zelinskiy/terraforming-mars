@@ -277,20 +277,6 @@ export function renderOwner(owner) {
     const total = Object.values(who).reduce((a, b) => a + b, 0);
     L.push(`  under ${kind.padEnd(9)} ${String(total).padStart(6)} — ${Object.entries(who).sort((a, b) => b[1] - a[1]).map(([w, n]) => `${w} ${n}`).join(' · ')}`);
   }
-  // THE DERIVATION, HELD AGAINST EVERY RENDER (stage 2 ③): each prompt surface's condition of today beside «the function
-  // says this owner serves» — the differences as spans (how often, how long), by surface.
-  const eqSurfaces = Object.keys(owner.rows ?? {}).filter((shape) => shape.startsWith('eq:')).map((shape) => shape.slice(3)).sort();
-  if (eqSurfaces.length > 0) {
-    const spanRows = Object.entries(owner.spans ?? {}).filter(([key]) => !key.startsWith('opening|')).sort((x, y) => y[1].ms - x[1].ms || y[1].n - x[1].n);
-    const total = spanRows.reduce((a, [, v]) => a + v.n, 0);
-    const both = eqSurfaces.reduce((a, surface) => a + (owner.rows[`eq:${surface}`]['eq-both'] ?? 0), 0);
-    L.push(`THE DERIVATION — ${eqSurfaces.length} surface(s), ${both} render(s) standing by both: ${total} difference span(s)` +
-      (Object.keys(owner.open ?? {}).some((k) => !k.startsWith('opening|')) ? ` · STILL OPEN at the walk's end: ${Object.entries(owner.open).filter(([k]) => !k.startsWith('opening|')).map(([k, n]) => `${k} ×${n}`).join(' · ')}` : ''));
-    for (const [key, v] of spanRows.slice(0, 60)) {
-      const [surface, ...rest] = key.split('|');
-      L.push(`  ${surface.padEnd(14)} ${String(v.n).padStart(5)}×  ${String(Math.round(v.ms)).padStart(7)} ms in all · longest ${String(Math.round(v.max)).padStart(6)} ms  ${rest.join('|')}   [${v.tables.join(', ')}]`);
-    }
-  }
   // THE OPENING's OWN STAGE (stage 2b): the start director's word beside the latches', every disagreement and every
   // strand as a span — who was expected, who stood, what would have been done at once, how long, what ended it.
   const opening = owner.rows?.opening;

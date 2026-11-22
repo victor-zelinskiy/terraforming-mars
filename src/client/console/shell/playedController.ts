@@ -21,7 +21,7 @@ import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {ShellTaskDestination} from '@/client/console/shellTaskSurface';
 import {workspaceOutcomeClaimed, markWorkspaceOutcomeBeatDone} from '@/client/console/consoleWorkspaceOutcome';
-import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
+import {closeConsoleLayers} from '@/client/console/consoleRouter';
 import {endLawPlayLanding, lawPlayLandingOf} from '@/client/console/consolePlayPick';
 import {journalState} from '@/client/components/journal/journalState';
 import {PendingPlayCard} from '@/client/console/shell/shellShared';
@@ -90,11 +90,6 @@ export function createPlayedController(shell: PlayedPort) {
     // (The ONE function's word — stage 2 ③: `shellTask` classifies the prompt as the mid-game confirm; who stands is
     // `servingOwnerOf`'s answer.)
     return shell.shellTask?.kind === 'corpFirstAction' && shell.ownerServes('corp-first');
-  });
-
-  /** …as it was spelled out before the swap — the derivation's witness for ONE cycle, read by nothing else. */
-  const corpFirstActionOpenLegacy = computed((): boolean => {
-    return shell.shellTask?.kind === 'corpFirstAction' && !consoleState.task.deferred;
   });
 
   /** The overlay is up — as a manual browse, the hero stage, or a
@@ -367,7 +362,6 @@ export function createPlayedController(shell: PlayedPort) {
     playedOpen,
     playedHeroHolds,
     corpFirstActionOpen,
-    corpFirstActionOpenLegacy,
     playedTableVisible,
     corpFirstActionNames,
     playedHeroIncoming,

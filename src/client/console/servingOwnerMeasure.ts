@@ -36,9 +36,9 @@ export type ServingOwnerLog = {
   rows: Record<string, Record<OwnerLookVerdict, number>>,
   /** The last disagreements, each ONCE per (shape, verdict, owner, what painted) — newest last. */
   disagreements: Array<{shape: string, verdict: OwnerLookVerdict, owner: string, host: string, hold: string, present: ReadonlyArray<string>, shadow: string, facts: string}>,
-  /** THE DERIVATION's spans (`noteDerivedRender`): `<surface>|<verdict>` → how many times it opened, for how long in all, the longest. */
+  /** THE OPENING's spans (`noteOpeningSpan`): `opening|<what stood> → <what ended it>` → how many times it opened, for how long in all, the longest. */
   spans: Record<string, {n: number, ms: number, max: number}>,
-  /** …and the differences still standing when the log was read (a difference that never closed is the worst kind). */
+  /** …and the spans still standing when the log was read (a span that never closed is the worst kind). */
   open: Array<{surface: string, verdict: string, since: number}>,
 };
 
@@ -69,7 +69,6 @@ export function resetServingOwnerLog(): void {
   padRung = '';
   barRung = '';
   bandFallback = '';
-  openDiffs.clear();
   openingSpans.clear();
   unsettledFlags = '';
   ownerNowProbe = undefined;
@@ -537,112 +536,6 @@ export function noteOwnerEdgeLook(shape: string, atEdge: {answer: string, facts:
   }
 }
 
-/*
- * ── THE DERIVATION, HELD AGAINST EVERY RENDER (stage 2 ③ — the last measure before a `v-if` is derived) ───────────
- *
- * The looks above read the screen once a second. A `v-if` is read at every RENDER — and a surface that the function
- * would take down for three frames in the middle of a beat is a blink (its state lost with it) that no look ever
- * meets. So before a single condition is swapped, the shell hands in, after every render in which anything moved,
- * each prompt surface's condition as the template reads it TODAY (`legacy`) beside the one it is to become
- * (`derived` — «the function says this owner serves»):
- *   · `eq-both`                — both stand;
- *   · `eq-LEGACY:<answer>`     — today's condition stands and the function names somebody else (or a hold): after
- *                                the swap the surface would NOT be there;
- *   · `eq-DERIVED:<why>`       — the function says it serves and today's condition holds it down (`why` — the
- *                                condition's own named reason where it has one): after the swap it WOULD be there.
- * A difference is a SPAN: it opens at one render and closes at a later one — counted once per opening, with how long
- * it stood (`spans`: n · total · the longest), and kept once per picture with the facts. A span still open when the
- * log is read is listed apart (`open`). Counted under `eq:<surface>`. STATS ONLY.
- */
-export type DerivedPair = {surface: string, legacy: boolean, derived: boolean, why: string};
-
-const openDiffs = new Map<string, {verdict: string, since: number, told?: boolean}>();
-
-/** A span of the derivation that CLOSED — what the shell says of it (`noteDerivedRender`'s return). */
-export type DerivedSpan = {surface: string, verdict: string, ms: number};
-
-function closeDiff(surface: string, now: number, closed: Array<DerivedSpan>): void {
-  const was = openDiffs.get(surface);
-  if (was === undefined) {
-    return;
-  }
-  openDiffs.delete(surface);
-  const key = `${surface}|${was.verdict}`;
-  const span = servingOwnerLog.spans[key] ?? (servingOwnerLog.spans[key] = {n: 0, ms: 0, max: 0});
-  const stood = Math.max(0, now - was.since);
-  span.ms += stood;
-  span.max = Math.max(span.max, stood);
-  closed.push({surface, verdict: was.verdict, ms: stood});
-}
-
-/** The pairs as one render left them. `now` — the page's clock (the bottle's is its own). */
-export function noteDerivedRender(shape: string, answer: string, pairs: ReadonlyArray<DerivedPair>, facts: string, now: number): ReadonlyArray<DerivedSpan> {
-  const closed: Array<DerivedSpan> = [];
-  for (const pair of pairs) {
-    const key = `eq:${pair.surface}`;
-    const row = servingOwnerLog.rows[key] ?? (servingOwnerLog.rows[key] = {});
-    if (pair.legacy === pair.derived) {
-      closeDiff(pair.surface, now, closed);
-      continue;
-    }
-    const verdict = pair.legacy ? `eq-LEGACY:${answer}` : `eq-DERIVED:${pair.why === '' ? 'unnamed' : pair.why}`;
-    const was = openDiffs.get(pair.surface);
-    if (was !== undefined && was.verdict === verdict) {
-      continue;
-    }
-    closeDiff(pair.surface, now, closed);
-    openDiffs.set(pair.surface, {verdict, since: now});
-    row[verdict] = (row[verdict] ?? 0) + 1;
-    const span = servingOwnerLog.spans[`${pair.surface}|${verdict}`] ?? (servingOwnerLog.spans[`${pair.surface}|${verdict}`] = {n: 0, ms: 0, max: 0});
-    span.n++;
-    if (!servingOwnerLog.disagreements.some((d) => d.shadow === 'eq' && d.shape === key && d.verdict === verdict)) {
-      servingOwnerLog.disagreements.push({shape: key, verdict, owner: answer, host: '', hold: '', present: [shape], shadow: 'eq', facts});
-      if (servingOwnerLog.disagreements.length > MAX_DISAGREEMENTS) {
-        servingOwnerLog.disagreements.shift();
-      }
-    }
-  }
-  // (How many renders left a surface standing by BOTH — the denominator of the spans.)
-  for (const pair of pairs) {
-    if (pair.legacy && pair.derived) {
-      const row = servingOwnerLog.rows[`eq:${pair.surface}`] ?? (servingOwnerLog.rows[`eq:${pair.surface}`] = {});
-      row['eq-both'] = (row['eq-both'] ?? 0) + 1;
-    }
-  }
-  refreshOpenSpans();
-  return closed;
-}
-
-/** What still stands when the log is read: the derivation's open differences and the opening's open spans. */
-function refreshOpenSpans(): void {
-  servingOwnerLog.open = [...openDiffs.entries()].map(([surface, d]) => ({surface, verdict: d.verdict, since: d.since}));
-  for (const span of openingSpans.values()) {
-    servingOwnerLog.open.push({surface: 'opening', verdict: span.key, since: span.since});
-  }
-}
-
-/**
- * THE SPANS THAT STAND — open for `minMs` or longer and not told yet (each is told ONCE). A span that never closes
- * has no closing render to say it: the surface simply is not there (the swap's first e2e — a payment stage that
- * never rose, and not a line about it).
- */
-export function standingDerivedSpans(now: number, minMs: number): ReadonlyArray<DerivedSpan> {
-  const out: Array<DerivedSpan> = [];
-  for (const [surface, d] of openDiffs) {
-    if (d.told !== true && now - d.since >= minMs) {
-      d.told = true;
-      out.push({surface, verdict: d.verdict, ms: now - d.since});
-    }
-  }
-  return out;
-}
-
-/** A new game screen starts its own spans. */
-export function resetDerivedSpans(): void {
-  openDiffs.clear();
-  openingSpans.clear();
-}
-
 // ── THE OPENING's OWN STAGE (stage 2b) ───────────────────────────────────────────────────────────────────────────────
 /**
  * THE OPENING, MEASURED (FREEZE ZERO, stage 2b). The function above knows the start as ONE owner; which STAGE of it
@@ -678,6 +571,11 @@ export type OpeningLook = {
 };
 
 const openingSpans = new Map<string, {key: string, since: number}>();
+
+/** What still stands when the log is read: the opening's open spans. */
+function refreshOpenSpans(): void {
+  servingOwnerLog.open = [...openingSpans.values()].map((span) => ({surface: 'opening', verdict: span.key, since: span.since}));
+}
 
 /**
  * One track of the opening's spans: `key` is what stands apart on it NOW (`''` — nothing does), `ended` what to call

@@ -206,11 +206,11 @@ export function createRevealController(shell: RevealPort) {
     // THE ONE FUNCTION's WORD while the question is LIVE (stage 2 ③): the deck pick stands when `servingOwnerOf`
     // names it with nothing holding it. Past the answer the surface is its own outgoing beat (`deckPickHolding` —
     // the picks flying into the dock, the rest tumbling away): no question is served then, a presence finishes.
-    return deckPickServingLegacy.value && (deckPickHolding() || shell.ownerServes('deck-pick'));
+    return deckPickUnheld.value && (deckPickHolding() || shell.ownerServes('deck-pick'));
   });
 
-  /** …as it was spelled out before the swap — the derivation's witness for ONE cycle; and what the outgoing beat stands by. */
-  const deckPickServingLegacy = computed((): boolean => {
+  /** The batch / pick stands by its own facts — a deck pick is active and no workspace holds it; what the outgoing beat stands by. */
+  const deckPickUnheld = computed((): boolean => {
     return deckPickActive.value && !deckPickHeldForWorkspace.value;
   });
 
@@ -1051,7 +1051,6 @@ export function createRevealController(shell: RevealPort) {
     deckPickHeldForWorkspace,
     deckPickEmbedTarget,
     deckPickServing,
-    deckPickServingLegacy,
     revealSourceSeatStands,
     externalDrawEmbedTarget,
     externalDrawWorkspaceMounted,

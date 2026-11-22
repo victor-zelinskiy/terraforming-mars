@@ -265,14 +265,6 @@ export function createRouterController(shell: RouterPort) {
     return effectDecisionVm.value !== undefined && ownerServes('decision');
   });
 
-  /** …as it was spelled out before the swap — kept ONE cycle as the derivation's witness (`noteDerivedRender`), read by nothing else. */
-  const effectDecisionActiveLegacy = computed((): boolean => {
-    return effectDecisionVm.value !== undefined &&
-      !shell.govSupportActive && !productionLossActive.value &&
-      !consoleState.task.deferred && shell.taskSpacePending === undefined &&
-      !shell.handPickActive && !effectDecisionHeldForWorkspace.value;
-  });
-
   /**
    * THE DECISION IS ITS PICK — an optional decision whose one answer is a card from the hand (Mars University's
    * discard) stands as the ALBUM, its decline inside it: the screen that asked «use the effect?» before the album was
@@ -348,20 +340,6 @@ export function createRouterController(shell: RouterPort) {
    */
   const playEffectOwed = computed((): boolean => {
     return isPlayOutcomeHost(workspaceOutcomeState.host) && effectDecisionBelongsToWorkspace.value;
-  });
-
-  /**
-   * THE DECISION SCREEN OWNS THIS PROMPT — it is on screen, OR briefly held
-   * while the workspace that will host it publishes its zone.
-   *
-   * The TASK HOST must stand down for both. `effectDecisionActive` alone
-   * suppresses it only for the first, so the hold would hand a marked
-   * decision to the generic band for the gap frame — a modal blinking between
-   * two stages of one flow, which is the whole class of break the embedding
-   * removes.
-   */
-  const effectDecisionOwnsPrompt = computed((): boolean => {
-    return effectDecisionActiveLegacy.value || effectDecisionHeldForWorkspace.value;
   });
 
   /**
@@ -617,16 +595,6 @@ export function createRouterController(shell: RouterPort) {
     return nativeCompositeTask.value?.kind === 'botAttack' && ownerServes('bot-attack');
   });
 
-  /** …as they were spelled out before the swap — the derivation's witnesses for ONE cycle, read by nothing else. */
-  const compositeActiveLegacy = computed((): {venusBonus: boolean, spendHeat: boolean, ares: boolean, botAttack: boolean} => {
-    const kind = nativeCompositeTask.value?.kind;
-    const free = !consoleState.task.deferred;
-    return {
-      venusBonus: kind === 'venusBonus' && free && !venusBonusHeldForWorkspace.value,
-      spendHeat: kind === 'spendHeat' && free, ares: kind === 'aresGlobal' && free, botAttack: kind === 'botAttack' && free,
-    };
-  });
-
   /**
    * The bot card's printed rules resolve differently per expansion set, and
    * the FACE must read as the player will experience it in THIS game — the
@@ -685,14 +653,6 @@ export function createRouterController(shell: RouterPort) {
    * terms of its `v-if`'s thirteen and absorbed the press «by the hold's name» when the host was not there.)
    */
   const taskHostOwnsInput = taskHostRendered;
-
-  /** …as the two were spelled out before the swap — the derivation's witness for ONE cycle, read by nothing else. */
-  const taskHostRenderedLegacy = computed((): boolean => {
-    return hostTask.value !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive &&
-      !taskHeldForWorkspace.value && !effectDecisionOwnsPrompt.value &&
-      !shell.finalGreeneryActive && !shell.finalePromptOwned && !shell.govSupportActive && !productionLossActive.value &&
-      !govScaleFocusState.holding && !energyConversionState.active;
-  });
 
   /** THE WGT PANEL SERVES — the host's task is the WGT choice, and the function names its panel with nothing holding it. */
   const govSupportServes = computed((): boolean => {
@@ -1931,7 +1891,6 @@ export function createRouterController(shell: RouterPort) {
     effectDecisionHeldForWorkspace,
     effectDecisionEmbedTarget,
     playEffectOwed,
-    effectDecisionOwnsPrompt,
     admissionSignals,
     rawAdmissionSignals,
     admissionSignalsBeforeStory,
@@ -1982,9 +1941,6 @@ export function createRouterController(shell: RouterPort) {
     healOwnership,
     govSupportServes,
     productionLossServes,
-    taskHostRenderedLegacy,
-    effectDecisionActiveLegacy,
-    compositeActiveLegacy,
     onTaskSubmit,
     noteSeriesAnswer,
     onTaskSubmitBatch,

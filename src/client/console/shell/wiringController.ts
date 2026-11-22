@@ -53,10 +53,8 @@ import {generationSceneState, registerGenerationSceneHandoff} from '@/client/con
 import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import {registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenPromptShape, screenShadowLog} from '@/client/console/screenDirector';
-import {barRungNow, DerivedPair, noteDerivedRender, registerOwnerNowProbe, resetDerivedSpans, servingOwnerLog, standingDerivedSpans} from '@/client/console/servingOwnerMeasure';
-import {netEnded} from '@/client/diagnostics/netEnded';
+import {barRungNow, registerOwnerNowProbe, servingOwnerLog} from '@/client/console/servingOwnerMeasure';
 import {invariantBroken} from '@/client/diagnostics/invariant';
-import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {bandRungOf, ownershipDigest, QuestionFacts, questionFactsDigest, servingOwnerOf} from '@/client/console/servingOwner';
 import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
@@ -170,21 +168,11 @@ export type WiringPort = {
   corpFirstActionOpen: UnwrapRef<PlayedController['corpFirstActionOpen']>,
   draftWorkspaceOwnsPad: UnwrapRef<DraftController['draftWorkspaceOwnsPad']>,
   externalDrawOwnsPad: UnwrapRef<RevealController['externalDrawOwnsPad']>,
-  govSupportActive: UnwrapRef<ParliamentController['govSupportActive']>,
-  productionLossActive: UnwrapRef<RouterController['productionLossActive']>,
   spendHeatActive: UnwrapRef<RouterController['spendHeatActive']>,
   taskHostOwnsInput: UnwrapRef<RouterController['taskHostOwnsInput']>,
-  taskHostRendered: UnwrapRef<RouterController['taskHostRendered']>,
-  taskHostRenderedLegacy: UnwrapRef<RouterController['taskHostRenderedLegacy']>,
-  effectDecisionActiveLegacy: UnwrapRef<RouterController['effectDecisionActiveLegacy']>,
-  compositeActiveLegacy: UnwrapRef<RouterController['compositeActiveLegacy']>,
   govSupportServes: UnwrapRef<RouterController['govSupportServes']>,
   productionLossServes: UnwrapRef<RouterController['productionLossServes']>,
-  deckPickServingLegacy: UnwrapRef<RevealController['deckPickServingLegacy']>,
-  corpFirstActionOpenLegacy: UnwrapRef<PlayedController['corpFirstActionOpenLegacy']>,
-  taskHostHeldBy: UnwrapRef<RouterController['taskHostHeldBy']>,
   pendingClientPayment: UnwrapRef<PlayCardController['pendingClientPayment']>,
-  taskSpacePending: UnwrapRef<PlacementController['taskSpacePending']>,
   venusBonusActive: UnwrapRef<RouterController['venusBonusActive']>,
   hydroFollowUpLive: UnwrapRef<HydroController['hydroFollowUpLive']>,
   hydroResolutionBusy: UnwrapRef<HydroController['hydroResolutionBusy']>,
@@ -690,31 +678,7 @@ export function createWiringController(shell: WiringPort) {
     return {facts, question: facts.client ? task : undefined};
   }
 
-  const offDerived: {value: (() => void) | undefined} = {value: undefined};
   const offOwnerAudit: {value: (() => void) | undefined} = {value: undefined};
-
-  /**
-   * EACH PROMPT SURFACE's CONDITION AS IT WAS SPELLED OUT, beside the one that MOUNTS it now (stage 2 ③ —
-   * `servingOwnerMeasure.noteDerivedRender`).
-   */
-  function derivedPairs(): ReadonlyArray<DerivedPair> {
-    // (SINCE THE SWAP the right column is what MOUNTS; the left is the condition as it was spelled out before it —
-    // kept one cycle as the witness of what the swap changed, to the render.)
-    const free = !consoleState.task.deferred && shell.taskSpacePending === undefined;
-    const was = shell.compositeActiveLegacy;
-    return [
-      {surface: 'taskHost', legacy: shell.taskHostRenderedLegacy, derived: shell.taskHostRendered, why: shell.taskHostHeldBy},
-      {surface: 'effectDecision', legacy: shell.effectDecisionActiveLegacy, derived: shell.effectDecisionActive, why: ''},
-      {surface: 'govSupport', legacy: shell.govSupportActive && !govScaleFocusState.closing && free, derived: shell.govSupportServes, why: ''},
-      {surface: 'deckPick', legacy: shell.deckPickServingLegacy, derived: shell.deckPickServing, why: ''},
-      {surface: 'prodLoss', legacy: shell.productionLossActive && free, derived: shell.productionLossServes, why: ''},
-      {surface: 'spendHeat', legacy: was.spendHeat, derived: shell.spendHeatActive, why: ''},
-      {surface: 'venusBonus', legacy: was.venusBonus, derived: shell.venusBonusActive, why: ''},
-      {surface: 'ares', legacy: was.ares, derived: shell.aresGlobalsActive, why: ''},
-      {surface: 'botAttack', legacy: was.botAttack, derived: shell.botAttackActive, why: ''},
-      {surface: 'corpFirst', legacy: shell.corpFirstActionOpenLegacy, derived: shell.corpFirstActionOpen, why: ''},
-    ];
-  }
 
   const ownerEdge = {answer: '', facts: ''};
   const offOwnerEdge: {value: (() => void) | undefined} = {value: undefined};
@@ -798,11 +762,6 @@ export function createWiringController(shell: WiringPort) {
       };
     }
     registerScreenShadowContext(() => {
-      // (The look's own second: a span of the derivation that STANDS is told once — it has no closing render to say it.)
-      for (const span of standingDerivedSpans(Date.now(), 1000)) {
-        const side = span.verdict.startsWith('eq-LEGACY') ? 'was-standing' : 'now-standing';
-        netEnded(`derivation:${span.surface}:${side}`, `«${span.surface}» ${side === 'was-standing' ? 'stands by its old condition and not by the word of the function' : 'stands by the word of the function and not by its old condition'} — STANDING ${Math.round(span.ms)} ms — ${span.verdict.replace(/^eq-(?:LEGACY|DERIVED):/, '')}`);
-      }
       const wf = shell.playerView.waitingFor;
       const block = wf === undefined ? undefined : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', shell.admissionSignals);
       return {
@@ -873,33 +832,6 @@ export function createWiringController(shell: WiringPort) {
         kind: facts.task?.kind ?? '',
       };
     });
-    // …and THE DERIVATION, HELD AGAINST EVERY RENDER (stage 2 ③): after each render in which a pair or the answer
-    // moved, every prompt surface's condition of today beside the one it is to become. It only counts.
-    resetDerivedSpans();
-    offDerived.value = watch(() => {
-      const facts = factsNow();
-      const ownership = servingOwnerOf(facts);
-      return JSON.stringify({shape: shapeNow(facts), answer: ownershipDigest(ownership), pairs: derivedPairs(), facts: questionFactsDigest(facts)});
-    }, (line) => {
-      try {
-        const read = JSON.parse(line) as {shape: string, answer: string, pairs: Array<DerivedPair>, facts: string};
-        // SINCE THE SWAP a span is «what the swap changed»: the surface stood by its old condition and does not stand
-        // by the function's word (or the other way). Said into the waiting room (`netEnded` — tier info, a class per
-        // surface and side), so EVERY e2e test files it and the whole suite reads as the swap's witness; it goes with
-        // the old conditions when they are deleted.
-        for (const span of noteDerivedRender(read.shape, read.answer, read.pairs, read.facts, Date.now())) {
-          if (span.ms === 0) {
-            continue; // (opened and closed inside one flush — nothing was painted in it)
-          }
-          const side = span.verdict.startsWith('eq-LEGACY') ? 'was-standing' : 'now-standing';
-          const told = side === 'was-standing' ? 'stood by its old condition and not by the word of the function' : 'stands by the word of the function and did not by its old condition';
-          netEnded(`derivation:${span.surface}:${side}`, `«${span.surface}» ${told} for ${Math.round(span.ms)} ms — ${span.verdict.replace(/^eq-(?:LEGACY|DERIVED):/, '')} · «${read.shape}»`);
-        }
-      } catch {
-        // a measure never breaks the render it precedes
-      }
-      // (The default flush: the watcher runs in the same tick as the render, on the state that render reads.)
-    }, {immediate: true});
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
       stats: JSON.parse(JSON.stringify(screenShadowLog.stats)) as unknown,
@@ -1357,8 +1289,6 @@ export function createWiringController(shell: WiringPort) {
     registerOwnerNowProbe(undefined);
     offOwnerEdge.value?.();
     offOwnerEdge.value = undefined;
-    offDerived.value?.();
-    offDerived.value = undefined;
     offOwnerAudit.value?.();
     offOwnerAudit.value = undefined;
     delete (window as unknown as {__conWaitGraph?: unknown}).__conWaitGraph;
