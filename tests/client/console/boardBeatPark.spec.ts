@@ -484,6 +484,9 @@ describe('boardBeatPark', function() {
       expect(boardStoryHeldByPlayer()).to.contain('workspace + placement');
       registerBoardCoverReasons(() => ['workspace', 'planet-focus']);
       expect(boardStoryHeldByPlayer(), 'the camera is the game\'s — a bound reached under it is a story that never ended').is.undefined;
+      // …except while it serves a placement the player keeps live: the focus IS that placement's view.
+      registerBoardCoverReasons(() => ['workspace', 'placement', 'planet-focus']);
+      expect(boardStoryHeldByPlayer(), 'the camera of the player\'s own placement').to.contain('workspace + placement + planet-focus');
       registerBoardCoverReasons(() => ['sitting-rise']);
       expect(boardStoryHeldByPlayer()).is.undefined;
       registerBoardCoverReasons(undefined);
@@ -497,6 +500,14 @@ describe('boardBeatPark', function() {
       const phrase = boardStoryHeldByPlayer();
       expect(phrase, 'no bracket of its own inside the reason').to.not.match(/[()]/);
       expect(causeOf(line(` (planned: ${phrase})`), 'warn')).to.deep.include({cls: 'wait-graph/ceiling/quiet:city-payout:scales', tier: 'planned'});
+      // THE PARK's OWN DEGRADE reads the same rule (`console-start-held-placement` on CI: an oxygen step parked thirty
+      // seconds behind the player's own placement and its camera — a defect by the old reading of «the camera»).
+      const degrade = (coveredBy: string) => '[presentation-ledger] story «board-beat-park» degraded after 30s — the release edge never came — ' +
+        `{"watchable":false,"watchableSeen":false,"looks":"0/118","drains":0,"coveredAgain":0,"coveredAgainBy":[],"gated":0,"gatedBy":[],"coveredBy":[${coveredBy}],"pending":true}`;
+      expect(causeOf(degrade('"workspace","placement","planet-focus"'), 'warn')?.tier, 'the player in their placement the whole time').to.equal('planned');
+      expect(causeOf(degrade('"workspace","planet-focus"'), 'warn')?.tier, 'the camera with no placement under it').to.equal('defect');
+      expect(causeOf(degrade('"planet-focus"'), 'warn')?.tier).to.equal('defect');
+      expect(causeOf(degrade('"sitting-rise","placement"'), 'warn')?.tier, 'a sitting on its way up is the game\'s').to.equal('defect');
       // …and an owner WITH a detail still reads as before.
       expect(causeOf('[wait-graph] ceiling played-hero:target (playedHero: Red Lawyers) — «a measurable landing slot for the card» did not come in 1600 ms — the wait ended on its ceiling', 'warn'))
         .to.deep.include({cls: 'wait-graph/ceiling/played-hero:target', tier: 'defect'});

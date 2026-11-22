@@ -79,6 +79,19 @@ function field(body: string, key: string): string {
 export const PLAYER_BOARD_COVERS: ReadonlySet<string> = new Set(['section', 'sheet', 'workspace', 'placement']);
 
 /**
+ * ARE THESE COVERS ALL THE PLAYER's? Every one a screen of their own — and the CAMERA with them only while it serves a
+ * PLACEMENT the player keeps live: the planet's focus during a placement IS that placement's view (the player is
+ * choosing a cell), so `planet-focus` beside `placement` is the player's time. The camera with no placement under it
+ * — its exit never finished, a story it holds — stays the game's own cover, and a bound reached under it a defect.
+ * (The whole suite on CI, 2026-11-22: `console-start-held-placement` — an oxygen step parked for thirty seconds
+ * behind `workspace · placement · planet-focus`, the player in their placement the whole time, filed as a defect.)
+ */
+export function boardCoversAreThePlayers(names: ReadonlyArray<string>): boolean {
+  const placing = names.includes('placement');
+  return names.length > 0 && names.every((name) => PLAYER_BOARD_COVERS.has(name) || (name === 'planet-focus' && placing));
+}
+
+/**
  * A degraded board story's diagnose (`boardBeatPark` — `{"watchable":…, "watchableSeen":…, "coveredBy":[…]}`): was it
  * the honest wait — every cover the player's own, and the board never open long enough to be told? A line printed
  * before `coveredBy` existed answers by `watchable` alone (its old reading).
@@ -100,7 +113,7 @@ export function storyCoveredByPlayer(body: string): boolean {
   }
   const namesOf = (list: string): Array<string> => list.split(',').map((s) => s.trim().replace(/^"|"$/g, '')).filter((s) => s !== '');
   const names = namesOf(covered[1]);
-  if (names.length === 0 || !names.every((n) => PLAYER_BOARD_COVERS.has(n))) {
+  if (!boardCoversAreThePlayers(names)) {
     return false;
   }
   if (!/"watchableSeen":\s*true/.test(body)) {
@@ -121,8 +134,7 @@ export function storyCoveredByPlayer(body: string): boolean {
   if (!(drains > 0) || again !== drains || againBy === null) {
     return false;
   }
-  const by = namesOf(againBy[1]);
-  return by.length > 0 && by.every((n) => PLAYER_BOARD_COVERS.has(n));
+  return boardCoversAreThePlayers(namesOf(againBy[1]));
 }
 
 /** The node ids of a wait-graph finding's member list (`id (owner: detail) · id (owner)`), sorted — a cycle has no first member. */

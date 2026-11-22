@@ -59,7 +59,7 @@ import {reactivePredicate} from '@/client/components/presentation/reactivityWitn
 import {Color} from '@/common/Color';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {GameModel} from '@/common/models/GameModel';
-import {PLAYER_BOARD_COVERS} from '@/common/diagnostics/shapes';
+import {boardCoversAreThePlayers} from '@/common/diagnostics/shapes';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionCeilingMs} from '@/client/components/motion/motionTokens';
@@ -267,14 +267,14 @@ export function boardCoverReasonsNow(): Array<string> {
 
 /**
  * THE BOARD's STORY WAITS FOR THE PLAYER — the board is covered right now, and only by what the PLAYER looks at
- * (`PLAYER_BOARD_COVERS`: a section, a sheet, a workspace, a placement of theirs — never the game's own scene, a
- * sitting on its way up or the camera). A phrase for a wait's ceiling (`QuietWaitOpts.heldByPlayer`): whoever waits
+ * (`boardCoversAreThePlayers`: a section, a sheet, a workspace, a placement of theirs and the camera that serves it —
+ * never the game's own scene, a sitting on its way up or the camera alone). A phrase for a wait's ceiling (`QuietWaitOpts.heldByPlayer`): whoever waits
  * for the scales' story then reached its bound over the player's own time; `undefined` — the board is in view, or
  * what covers it is the game's, and a bound reached there is a story that never ended.
  */
 export function boardStoryHeldByPlayer(): string | undefined {
   const covers = boardCoverReasonsNow();
-  if (covers.length === 0 || !covers.every((cover) => PLAYER_BOARD_COVERS.has(cover))) {
+  if (!boardCoversAreThePlayers(covers)) {
     return undefined;
   }
   return `the player keeps the board covered by ${covers.join(' + ')} — the scales' story waits for the board they uncover`;
