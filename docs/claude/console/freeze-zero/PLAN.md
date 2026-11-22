@@ -1014,7 +1014,13 @@ Parliament the sittings save inside that phase — a seat closing its sitting wh
 and `Game.deserialize` knew the Solar phase only in its «owed» form (`sittingAcks.owedWorldStep`): the plain one fell
 through to «the action phase», so the first player was asked their ordinary turn in the Solar phase and the World
 Government never acted. A load now re-asks the step, as it does a draft's pick and the research buy
-(`tests/liveness/ReloadSolarPhase.spec.ts`). Next: the batch route, shrinking, the nightly job with the check on.
+(`tests/liveness/ReloadSolarPhase.spec.ts`).
+*The night's job* (`.github/workflows/engine-fuzz.yml`, 22:43 UTC): forty minutes of games on a range of seeds nobody
+has played (the day's number × 100 000), the reload check on every second saving answer. A class the baseline does
+not hold is FILED by its seed (`scripts/ci/findings.mjs from-fuzz` — `engine-fuzz|class|<class>`: what the judge
+said, the seed and the answer, the command that replays the whole game on a laptop, and its proof — that seed played
+again). The same filer now names the one-owner law's red by its verdict and tables (kind `owner-law`): the night #84
+was found it was filed as «red with nothing named». Next: the batch route, shrinking.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),
