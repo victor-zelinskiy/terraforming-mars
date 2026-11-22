@@ -51,6 +51,7 @@ import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {boardStoryProgress, boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {registerBoardSceneMember, registerBoardSceneOwed} from '@/client/console/boardSceneMembers';
+import {boardStoryHeldByPlayer} from '@/client/console/boardBeatPark';
 import {ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {CardReceiveOutcome, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
@@ -161,6 +162,10 @@ function waitForTheScales(myEpoch: number): Promise<void> {
   return waitConsoleQuiet(() => boardStorySettling(), {
     maxMs: CITY_PAYOUT_SCALES_WAIT_MS, alive: () => epoch === myEpoch, who: 'city-payout:scales',
     progress: boardStoryProgress, ceilingMs: CITY_PAYOUT_SCALES_CEILING_MS,
+    // WHO KEEPS THE SCALES FROM SPEAKING: a board the player covers with a screen of their own (the plate that asks
+    // «on which card» is answered in a workspace — Arabia Terra's printed data, two holders) holds the park, and the
+    // cities' answer reaches its bound over the player's own decision — this wait's honest end, said as such.
+    heldByPlayer: boardStoryHeldByPlayer,
   });
 }
 

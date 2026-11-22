@@ -76,7 +76,7 @@ function field(body: string, key: string): string {
 }
 
 /** What the PLAYER looks at instead of the board — the covers of `boardBeatsWatchable` that are the player's choice. */
-const PLAYER_BOARD_COVERS: ReadonlySet<string> = new Set(['section', 'sheet', 'workspace', 'placement']);
+export const PLAYER_BOARD_COVERS: ReadonlySet<string> = new Set(['section', 'sheet', 'workspace', 'placement']);
 
 /**
  * A degraded board story's diagnose (`boardBeatPark` — `{"watchable":…, "watchableSeen":…, "coveredBy":[…]}`): was it
@@ -277,7 +277,7 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
   // ── the wait graph ──────────────────────────────────────────────────────────────────────────────────────────────
   'wait-graph': [
     {
-      name: 'ceiling', re: /^ceiling (\S+) \(([^:)]*)(?:: [^)]*)?\) — «(.*)» did not come in /, tier: 'defect', parts: [1], dims: {owner: 2},
+      name: 'ceiling', re: /^ceiling (\S+) \(((?:[^:)]|:(?! ))*)(?:: [^)]*)?\) — «(.*)» did not come in /, tier: 'defect', parts: [1], dims: {owner: 2},
       // A wait that DECLARES its ceiling as its honest end says so in its line (`CeilingWaitSpec.planned`).
       read: (_m, body) => (/ \(planned: [^)]*\)$/.test(body) ? {tier: 'planned'} : {}),
     },

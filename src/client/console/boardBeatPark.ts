@@ -59,6 +59,7 @@ import {reactivePredicate} from '@/client/components/presentation/reactivityWitn
 import {Color} from '@/common/Color';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {GameModel} from '@/common/models/GameModel';
+import {PLAYER_BOARD_COVERS} from '@/common/diagnostics/shapes';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionCeilingMs} from '@/client/components/motion/motionTokens';
@@ -262,6 +263,21 @@ export function registerBoardCoverReasons(probe: (() => ReadonlyArray<string>) |
 /** Who covers the board right now — for every board story's degrade diagnose (`coveredBy`; empty when watchable / no shell). */
 export function boardCoverReasonsNow(): Array<string> {
   return [...(coverReasonsProbe?.() ?? [])];
+}
+
+/**
+ * THE BOARD's STORY WAITS FOR THE PLAYER — the board is covered right now, and only by what the PLAYER looks at
+ * (`PLAYER_BOARD_COVERS`: a section, a sheet, a workspace, a placement of theirs — never the game's own scene, a
+ * sitting on its way up or the camera). A phrase for a wait's ceiling (`QuietWaitOpts.heldByPlayer`): whoever waits
+ * for the scales' story then reached its bound over the player's own time; `undefined` — the board is in view, or
+ * what covers it is the game's, and a bound reached there is a story that never ended.
+ */
+export function boardStoryHeldByPlayer(): string | undefined {
+  const covers = boardCoverReasonsNow();
+  if (covers.length === 0 || !covers.every((cover) => PLAYER_BOARD_COVERS.has(cover))) {
+    return undefined;
+  }
+  return `the player keeps the board covered by ${covers.join(' + ')} — the scales' story waits for the board they uncover`;
 }
 
 /** Was the board watchable at ANY look of the owed story's window? (A degrade's verdict is the whole window's, never one snapshot's.) */

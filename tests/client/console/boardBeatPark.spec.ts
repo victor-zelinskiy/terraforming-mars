@@ -19,7 +19,7 @@ import {Color} from '@/common/Color';
 import {
   BOARD_BEAT_SCALE_MS, BOARD_BEAT_SETTLE_MS,
   boardBeatDisplayClaims, boardBeatDisplayParams, boardBeatParkPending,
-  boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending,
+  boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending, boardStoryHeldByPlayer,
   changedGlobalParams, drainBoardBeatsIfDue,
   noteBoardBeatDrainGated, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatStoryMember,
   registerBoardCoverReasons, registerBoardWatchableProbe, releaseBoardBeatPark,
@@ -466,5 +466,40 @@ describe('boardBeatPark', function() {
     const scene = tierOfTheDegrade();
     expect(scene.why).to.deep.include({drains: 1, coveredAgain: 1});
     expect(scene.tier).to.equal('defect');
+  });
+
+  /*
+   * WHO KEEPS THE SCALES FROM SPEAKING, for a wait's ceiling (`wait-graph/unshaped` — `quiet:city-payout:scales` under
+   * a green `console-arabia-terra`, the whole suite on CI, 2026-11-22): the cities' answer waited fifteen seconds for
+   * the scales' story while the player answered «on which card» in a workspace of their own — and the line had no
+   * shape at all (its owner carries a colon).
+   */
+  describe('the board\'s story held by the player\'s own cover — a wait\'s ceiling says whose time it was', () => {
+    it('a board covered only by what the PLAYER looks at is the player\'s; the game\'s own cover, or a board in view, is not', () => {
+      registerBoardCoverReasons(() => []);
+      expect(boardStoryHeldByPlayer(), 'the board is in view').is.undefined;
+      registerBoardCoverReasons(() => ['workspace']);
+      expect(boardStoryHeldByPlayer()).to.match(/^the player keeps the board covered by workspace — /);
+      registerBoardCoverReasons(() => ['workspace', 'placement']);
+      expect(boardStoryHeldByPlayer()).to.contain('workspace + placement');
+      registerBoardCoverReasons(() => ['workspace', 'planet-focus']);
+      expect(boardStoryHeldByPlayer(), 'the camera is the game\'s — a bound reached under it is a story that never ended').is.undefined;
+      registerBoardCoverReasons(() => ['sitting-rise']);
+      expect(boardStoryHeldByPlayer()).is.undefined;
+      registerBoardCoverReasons(undefined);
+      expect(boardStoryHeldByPlayer(), 'no shell — nobody to ask').is.undefined;
+    });
+
+    it('the ceiling line of a quiet-wait whose owner carries a colon has its SHAPE — a defect bare, planned with the player\'s phrase', () => {
+      const line = (planned: string) => '[wait-graph] ceiling quiet:city-payout:scales (city-payout:scales) — «the console quiet» did not come in 15000 ms — the wait ended on its ceiling' + planned;
+      expect(causeOf(line(''), 'warn')).to.deep.include({cls: 'wait-graph/ceiling/quiet:city-payout:scales', tier: 'defect'});
+      registerBoardCoverReasons(() => ['workspace']);
+      const phrase = boardStoryHeldByPlayer();
+      expect(phrase, 'no bracket of its own inside the reason').to.not.match(/[()]/);
+      expect(causeOf(line(` (planned: ${phrase})`), 'warn')).to.deep.include({cls: 'wait-graph/ceiling/quiet:city-payout:scales', tier: 'planned'});
+      // …and an owner WITH a detail still reads as before.
+      expect(causeOf('[wait-graph] ceiling played-hero:target (playedHero: Red Lawyers) — «a measurable landing slot for the card» did not come in 1600 ms — the wait ended on its ceiling', 'warn'))
+        .to.deep.include({cls: 'wait-graph/ceiling/played-hero:target', tier: 'defect'});
+    });
   });
 });
