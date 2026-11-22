@@ -459,6 +459,34 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * THE ONE-OWNER LAW's FIRST RED — `pad-MISS:section:board` · `band-APART:own:start>section:board`, the nightly gate
+   * on seed `fz1` · `venus-l1-shade-start`, 2026-11-22 (issue #84). The opening entered past its summary holds no
+   * lifetime hold (module state — a reload wipes it too). Between a prelude's play and the next «pick a prelude» the
+   * question is held behind the play's presentation, `startTask` (admission-gated) is nothing — and the scene, ON
+   * SCREEN over its own question, «served» nothing: RT went to the board's section under the queue. The function
+   * says the start serves, with no hold, and it is right: a start whose frame stands keeps serving its own held
+   * question (`startController.startQuestionHeld`) and absorbs the press.
+   * (The whole walk of the gate, on the gate's seed: the press that parted is one of its sixty.)
+   */
+  it('the opening\'s own question held behind a play\'s presentation: the scene keeps the pad — no press falls to the board under it', async () => {
+    const fixture = 'venus-l1-shade-start';
+    const seed = `fz1:${fixture}`;
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+    try {
+      const table = await bottleServer().bootFixture(fixture);
+      bottle = await bootBottle(table, {query: 'coverage=1'});
+      await bottle.advance(3_000);
+      bottle = (await monkeyWalk(bottle, table.seats.length, seed, 60)).bottle;
+      const owner = bottle.servingOwner();
+      const parted = (owner?.disagreements ?? []).filter((row) => /^(pad-MISS|pad-EXTRA|band-APART|bar-APART)/.test(String(row.verdict)))
+        .map((row) => `${String(row.shape)} ${String(row.verdict)} — ${String(row.facts)}`);
+      expect(parted, 'the pad, the band and the bar took every press where the function said').to.deep.equal([]);
+    } finally {
+      restoreRandom();
+    }
+  });
+
+  /*
    * `wait-graph/ceiling/deck-pick:deal` — the bottle's gate under the away perturbation, seed `fz5` ·
    * `space-lanes-wg`, 2026-11-19 (the first night the deal's ceiling was a wait of the graph — the tier audit, row 9;
    * until then its line was a note nobody read). «WG Project» played from the hand opens a pick of three preludes;

@@ -172,6 +172,24 @@ export function createStartController(shell: StartPort) {
   });
 
   /**
+   * THE OPENING's OWN QUESTION, HELD BEHIND A BEAT. `startTask` is admission-gated — under a reveal or a presentation
+   * the scene takes no NEW question — and the lifetime hold is what was to span that gap. But the hold is module
+   * state: a reload wipes it, and a start entered past its summary never raised it. Then, between a prelude's play
+   * and the next «pick a prelude», the scene stood ON SCREEN with the server asking its own question and «served»
+   * nothing: the pad was not its, and RT opened the board's wheel under the queue (the freeze gate, seed fz1 ·
+   * `venus-l1-shade-start` — `pad-MISS:section:board`, the one-owner law's first red: issue #84). A start whose
+   * FRAME STANDS keeps serving a start question that is merely held — it absorbs the press, exactly as under its
+   * hold. Only while the frame stands: a held question never RAISES the scene (under a reveal it must not mount).
+   */
+  const startQuestionHeld = computed((): boolean => {
+    if (shell.admits('scene') || !workspaceFrameKnown('start') || shell.playerView.game.generation > 1) {
+      return false;
+    }
+    const task = taskFor(shell.playerView);
+    return task !== undefined && SCENE_KINDS.has(task.kind);
+  });
+
+  /**
    * The Game Start Workspace SERVES — a live start prompt OR the workspace
    * LIFETIME HOLD (consoleStartState.hold). The hold spans the summary
    * commit and every prompt gap of the deployment: one root workspace from
@@ -228,7 +246,7 @@ export function createStartController(shell: StartPort) {
     // withdraw the task, and after a reload no lifetime hold stands behind it.
     // …and its OWN step between a prelude's placements (P58 · FS — «which tile next»): after a reload nothing else
     // says the scene serves it (no lifetime hold, no scene kind), and the step painted under a board-home bar.
-    return startTask.value !== undefined || startSceneHeld() || startHeroPlaying() ||
+    return startTask.value !== undefined || startQuestionHeld.value || startSceneHeld() || startHeroPlaying() ||
       startPlacementOrderOf(shell.playerView) !== undefined ||
       (corpFirstActionInStartFlow(shell.playerView) && firstActionOwed(shell.playerView)) ||
       // …and the same for an owed BONUS ACTION the player has NOT yet been
