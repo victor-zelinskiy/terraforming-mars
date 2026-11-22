@@ -108,6 +108,15 @@ export type TransferEndOptions = {
    * object instead of being absorbed in the air. Only an element that is GONE (unmounted, hidden, boxless) fails.
    */
   lenient?: boolean;
+  /**
+   * OCCUPANCY, NOT AN END — «does it still PAINT there», asked by whoever must stand clear of it (the reaction stage
+   * past a workspace's hero column — `cardReactionDirector.stageAnchor`). A surface whose leave is decided is no place
+   * for a NEW flight's end, and it still paints through its whole dissolve: read as «gone» at the decision, the
+   * Greens' charter rose OVER the Hydronetwork's context column while the column was still on screen at 0.9
+   * (`console-card-reaction` HYDRO, the whole suite on `1dd900fbde`, 3 / 3). The opacity's half judges it, as it
+   * always did.
+   */
+  painted?: boolean;
 };
 
 export function transferEndVerdict(el: Element | null | undefined, opts: TransferEndOptions = {}): TransferEndVerdict {
@@ -148,8 +157,9 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
   // stock:megacredits off span.pcard-mi.pcard-mi--mc (div.con-played.con-ws gone)». The fold's law (`surfaceClear`)
   // could not have helped: the frame left BEFORE the token existed. The leave's own mark says it for as long as the
   // leave lasts (`surfaceMotionDirector.surfaceLeaveHook` — `data-motion-leaving`); the ladder goes on to the next
-  // place. (LENIENT — a flight already in the air keeps its object through a leave's last frames — returned above.)
-  const leaver = el.closest('[data-motion-leaving]');
+  // place. (LENIENT — a flight already in the air keeps its object through a leave's last frames — returned above;
+  // PAINTED — an occupancy question, not an end — is asked what still paints: see `TransferEndOptions.painted`.)
+  const leaver = opts.painted === true ? null : el.closest('[data-motion-leaving]');
   if (leaver !== null) {
     return {visible: false, why: 'leaving', by: surfaceName(leaver)};
   }

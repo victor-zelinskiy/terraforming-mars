@@ -85,6 +85,13 @@ describe('transferEndVerdict — a place a token may be born on or land on', () 
     surface.style.opacity = '0.9';
     expect(transferEndVerdict(icon), 'the leave is decided: no place, though the fade has hardly begun').to.deep.eq({visible: false, why: 'leaving', by: 'con-played'});
     expect(transferEndVerdict(icon, {lenient: true}), 'a flight already in the air keeps its object through the leave').to.deep.eq({visible: true});
+    // OCCUPANCY is another question: whoever must stand CLEAR of the surface asks what still paints — and through the
+    // first half of its dissolve it does (the reaction stage past the Hydronetwork's context column, the whole suite
+    // on CI: the charter rose over a column still on screen at 0.9).
+    expect(transferEndVerdict(icon, {painted: true}), 'still painted — still in the way').to.deep.eq({visible: true});
+    surface.style.opacity = '0.3';
+    expect(transferEndVerdict(icon, {painted: true}), '…until the fade has taken it, by the same half as ever').to.deep.eq({visible: false, why: 'faded'});
+    surface.style.opacity = '0.9';
     delete surface.dataset.motionLeaving;
     surface.style.opacity = '';
     expect(transferEndVerdict(icon), 'a leave cancelled (the surface shown again) gives the place back').to.deep.eq({visible: true});

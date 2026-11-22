@@ -540,7 +540,8 @@ function openingRect(): RectLike {
 /**
  * THE HERO COLUMNS a workspace stands at the band's left edge — the stage starts PAST them (the owner, 2026-10-27:
  * «сдвиг за героя» — one place by meaning: the free canvas's edge). Judged by the one visibility verdict: a hero
- * parked under a hosted step (faded) does not move the edge.
+ * parked under a hosted step (faded) does not move the edge. Asked as OCCUPANCY (`painted`): a column whose workspace
+ * is on its leave still paints through the dissolve, and the stage stands clear of it until it is gone.
  */
 const STAGE_EDGE_OCCUPANTS = ['.con-composer__actcardwrap', '.con-composer__actlaw', '.con-composer__actparty', '.con-composer__playcard', '.con-hydro__ctx'];
 
@@ -555,7 +556,7 @@ function stageAnchor(opening: RectLike): {left: number, centreY?: number} {
     return {left};
   }
   for (const selector of STAGE_EDGE_OCCUPANTS) {
-    const r = firstVisibleEnd(selector)?.getBoundingClientRect();
+    const r = firstVisibleEnd(selector, undefined, {painted: true})?.getBoundingClientRect();
     if (r !== undefined && r.width > 4 && r.left < opening.left + opening.width * 0.45 && r.right + pad > left) {
       left = r.right + pad;
     }
