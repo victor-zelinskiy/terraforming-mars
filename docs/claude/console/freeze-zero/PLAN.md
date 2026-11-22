@@ -914,6 +914,15 @@ were at 0 over the matrix before the door stood. *What is left of 2b:* the exclu
 whose time a step standing under the game's menu is (the player's look is already `parked`; a hosted result being
 read is not named yet) before `release` is a level there; and the nets' deletion at the next reading (stage 7's
 rule).
+**CI's VERDICT on `901180a597`** (the level door, the witnesses' deletion, the band's root, the Solar phase's load):
+the whole e2e suite green — 15 / 15 jobs, 1 822 tests (run 45023432455); the freeze gate green on `fz0` and `fz1`
+(45023435125); the real-browser monkey green on `fz1`, 18 / 18 (45023437738). The suite's own reading: the band
+**FALLBACK 0** (was 40), APART 0, the bar APART 0, MISS 0; **not one `cure … by level`, not one line of either start
+net** in 1 503 tests; no move off the frame's protocol. Left in the measure: `flag-EXTRA` 10 — the deck pick standing
+by its own hold through the beat of the play that follows it (`deckPickHolding`), a hand-off the function does not
+name yet. One test FLAKED in that run (#87 — `console-start-legacy-quick-press`: its «early» press came after the
+window it means to press in had closed — the spec races a motion; hunted on CI on this commit and on the one before
+the door to learn whose it is).
 
 **STAGE 4, STEP 3 — WALKED OR DECLARED: 100 % OVER THE UNION (2026-11-22).** The corpus is the union of every pass
 there is: the whole e2e suite on CI (1 502 tests — the fixture files the kernel's coverage since step 2), the monkey
