@@ -41,6 +41,8 @@ import {hostedStepServes, START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startS
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
 import {noteOpeningLook, noteOpeningSpan} from '@/client/console/servingOwnerMeasure';
+import {transportState} from '@/client/console/transport/gameTransport';
+import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
 import {watchFrames} from '@/client/console/kernel/frameWitness';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
@@ -90,6 +92,8 @@ export function createStartController(shell: StartPort) {
   /** THE START SHADOW (`startDirector.ts`, phase 0): the confirm timer of a disagreement / a long hold — a timer of
    *  `flow` (it dies with the shell). */
   let cancelStartShadow: () => void = () => {};
+  /** The DOOR track's frame-by-frame look (the opening's measure — stats only). */
+  let cancelDoorLook: () => void = () => {};
   /** Stale-release token of the start excursion's quiet re-check (the
    *  release is confirmed one tick + one frame later, so a one-flush
    *  hand-off between two chain signals can never slip through). */
@@ -874,6 +878,40 @@ export function createStartController(shell: StartPort) {
    * a FINDING once it has stood `START_SHADOW_CONFIRM_MS` unchanged with the prompt admitted; a prompt held behind an
    * admission block for `START_SHADOW_HELD_MS` is one too. Logged once per (kind, owners, prompt) — never acted on.
    */
+  /**
+   * WHAT IS IN FLIGHT, as the wait graph knows it: every wait that stands for a MOTION or for the SERVER (a wait for
+   * the player is the player's time, never a flight) — plus the wire itself. `''` — nothing is.
+   */
+  function flightNow(): string {
+    const names = collectWaitNodes(Date.now())
+      .filter((node) => node.targets.some((target) => target.kind === 'motion' || target.kind === 'server'))
+      .map((node) => `${node.family}:${node.id.replace(/[0-9]+/g, 'N')}`);
+    if (transportState.requestInProgress) {
+      names.push('transport:request');
+    }
+    return [...new Set(names)].sort().slice(0, 5).join('+');
+  }
+
+  /**
+   * THE DOORS BY LEVEL, MEASURED (stage 2b ② — `servingOwnerMeasure`, the DOOR track): while the director would ACT
+   * on what stands (`heal` · `yield` · `release`), what is in flight is read every frame. Stats only — nothing here
+   * opens a door.
+   */
+  function measureDoor(question: string, state: string, cure: string, ended: string): void {
+    cancelDoorLook();
+    cancelDoorLook = () => {};
+    if (cure === '' || cure === 'none') {
+      noteOpeningSpan('door', '', ended, Date.now());
+      return;
+    }
+    const look = (): void => {
+      const flight = flightNow();
+      noteOpeningSpan('door', `DOOR ${question} · ${state} · ${cure} · ${flight === '' ? 'QUIET' : `busy[${flight}]`}`, 'moved', Date.now());
+    };
+    look();
+    cancelDoorLook = flow.everyFrame('the opening\'s doors, measured', look);
+  }
+
   function whenStartShadowSigChanges(sig: string): void {
     cancelStartShadow();
     const s = startShadowNow.value;
@@ -882,6 +920,7 @@ export function createStartController(shell: StartPort) {
     const question = s.prompt.replace(/#.*$/, '');
     if (!startShadowInScope(s.expected, s.actual) || sceneTransitionInputLocked()) {
       noteOpeningLook({question, expected: s.expected, actual: s.actual, verdict: 'out', cure: ''}, Date.now());
+      measureDoor(question, '', '', 'out');
       return;
     }
     startShadowLog.judged++;
@@ -892,6 +931,8 @@ export function createStartController(shell: StartPort) {
       question, expected: s.expected, actual: s.actual, verdict,
       cure: verdict === 'held' ? s.held ?? '' : verdict === 'disagree' ? startDirectorCure({kind: 'disagree', expected: s.expected, actual: s.actual}) : '',
     }, Date.now());
+    measureDoor(question, `${s.expected}>${s.actual}`,
+      verdict === 'disagree' ? startDirectorCure({kind: 'disagree', expected: s.expected, actual: s.actual}) : '', `${verdict}:${s.expected}>${s.actual}`);
     if (verdict === 'agree') {
       return;
     }

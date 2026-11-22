@@ -653,6 +653,11 @@ export function resetDerivedSpans(): void {
  *
  *   `opening|<question> · <expected>><actual> · <cure> → <what ended it>`      (the STAGE track)
  *   `opening|STRAND <question> · plan <the heal's doors> → <what ended it>`    (the STRAND track)
+ *   `opening|DOOR <question> · <expected>><actual> · <cure> · busy[<waits in flight>] | QUIET → <what ended it>`
+ *                                                                              (the DOOR track — stage 2b ②: while
+ *     the director would act, WHAT IS IN FLIGHT, frame by frame — the wait graph's nodes that wait for a motion or
+ *     for the server. A span that ends `QUIET` for N ms is N ms by which a door opened on the director's word, gated
+ *     on «nothing is in flight», would have gone before the latches did; one that is never quiet is a hand-off.)
  *
  * who the director expected, who the latches had on screen, what the director would have done about it AT ONCE
  * (`heal` · `yield` · `release` · `none`; `held:<block>` for a prompt behind an admission block), for how long it
@@ -678,7 +683,7 @@ const openingSpans = new Map<string, {key: string, since: number}>();
  * One track of the opening's spans: `key` is what stands apart on it NOW (`''` — nothing does), `ended` what to call
  * the end of the span that stood before. The same key twice in a row is one span. `now` — the page's clock.
  */
-export function noteOpeningSpan(track: 'stage' | 'strand', key: string, ended: string, now: number): void {
+export function noteOpeningSpan(track: 'stage' | 'strand' | 'door', key: string, ended: string, now: number): void {
   const open = openingSpans.get(track);
   if (open !== undefined && open.key === key) {
     return;
