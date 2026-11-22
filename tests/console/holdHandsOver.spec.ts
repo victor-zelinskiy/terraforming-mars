@@ -94,6 +94,21 @@ describe('a hold that hands the screen over is not waited out (the wiring)', () 
     expect(body.indexOf('surfaceHoldsTokens(surface)'), 'the wait stands before the pop').to.be.lessThan(body.indexOf('leaveWorkspace();'));
   });
 
+  /*
+   * A DECISION THAT IS RIGHT AS A LEVEL IS NOT LEFT TO AN EDGE (`presentation-ledger/witness-heal/hydro-flow-stuck` under
+   * four green tests): the Hydronetwork reaches its result on the busy signal's FALLING edge, and a movement with
+   * nothing to resolve enters `resolving` with the signal already down — three seconds until the witness drove it.
+   */
+  it('the Hydronetwork asks its settle on the ENTRY of `resolving` — both ways into the phase go through one door', () => {
+    const hydro = read('console/shell/hydroController.ts');
+    expect(hydro).to.match(/function enterHydroResolving\(\): void \{\s+advanceHydroCommitPhase\('resolving'\);\s+void whenPainted\(2, 400, flow\)\.then\(\(\) => settleHydroResolution\(\)\);/);
+    expect((hydro.match(/enterHydroResolving\(\);/g) ?? []).length, 'the marker\'s lock and the committed position both enter through it').to.equal(2);
+    const bare = (hydro.match(/advanceHydroCommitPhase\('resolving'\)/g) ?? []).length;
+    expect(bare, 'no entry of the phase is left without its settle').to.equal(1);
+    // The settle re-checks everything itself — a flow set aside or still busy is not walked to its result.
+    expect(hydro).to.match(/function settleHydroResolution\(\): void \{[\s\S]{0,1400}if \(hydroFlowSetAside\(\) \|\| hydroResolutionBusy\.value\) \{\s+return;/);
+  });
+
   it('the card reaction\'s chain waits out the scenes that PLAY — never a bare count of blocking holds', () => {
     const director = read('console/cardReaction/cardReactionDirector.ts');
     expect(director).to.match(/async function waitBlockingQuiet[\s\S]{0,400}blockingHoldsPlaying\(\)\.length > 0/);

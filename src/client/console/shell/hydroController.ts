@@ -58,6 +58,7 @@ import {findHydroActionPath, optionResponseForPath, findPerformActionCard} from 
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {PromptSurface} from '@/client/console/consolePromptAdmission';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 import {PendingPlayCard} from '@/client/console/shell/shellShared';
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
@@ -1441,6 +1442,24 @@ export function createHydroController(shell: HydroPort) {
    * park is not completion, but it is also not a cancellation — the answer
    * is «ask again when the player is back», never «forget this one».
    */
+  /**
+   * THE FLOW ENTERS `resolving` — AND ASKS ITS OWN SETTLE (the FOURTH door, and the one that is a LEVEL).
+   *
+   * The result stage is reached on the busy signal's FALLING edge (`whenHydroResolutionBusyChanges`) — and a movement
+   * that leaves nothing to resolve (a plain stage, a named skip with no legal target, a reward already told by the
+   * walk) enters `resolving` with the signal already down: there is no edge to fall. Nobody moved the flow; three
+   * seconds later the stuck-flow witness drove it, with the free turn's question a dead end beside it
+   * (`presentation-ledger/witness-heal/hydro-flow-stuck` under four green tests of the whole suite, CI 2026-11-22 —
+   * the witness's own word: `{"phase":"resolving","busy":false,…,"trail":[…,"3.1s ago: phase:resolving"]}`).
+   * A decision right as a function of what stands is executed by level: the phase's entry asks, two painted frames
+   * later — past the flush in which this very response raises its own busy terms (the reward's holds, a follow-up's
+   * mount) — and the settle re-checks everything itself, as it does for every door.
+   */
+  function enterHydroResolving(): void {
+    advanceHydroCommitPhase('resolving');
+    void whenPainted(2, 400, flow).then(() => settleHydroResolution());
+  }
+
   function settleHydroResolution(): void {
     // …AND A FRAME STANDING ASIDE FOR THE BOARD is not on screen either (CI 2026-11-05, `console-hydro-copied-tile`):
     // the stage-7 copy's placement YIELDS the stack, the placement's answer drops the last busy term, and the yield's
@@ -1569,7 +1588,7 @@ export function createHydroController(shell: HydroPort) {
     const settled = hydroMarkerState.settledPosition === c.toPosition;
     const committed = (shell.thisPlayer.deltaProject?.position ?? -1) === c.toPosition;
     if (settled || committed) {
-      advanceHydroCommitPhase('resolving');
+      enterHydroResolving();
       // The glide WAS the execution beat: an embedded follow-up (the deck
       // pick) may mount now that the token has physically locked in.
       if (workspaceOutcomeClaimed() && workspaceOutcomeState.host === 'hydro') {
@@ -1683,7 +1702,7 @@ export function createHydroController(shell: HydroPort) {
     }
     if (c !== undefined && c.phase === 'moving' && pos === c.toPosition &&
         !isHydroMarkerActive() && !hydroTraversalPending()) {
-      advanceHydroCommitPhase('resolving');
+      enterHydroResolving();
       if (workspaceOutcomeClaimed() && workspaceOutcomeState.host === 'hydro') {
         markWorkspaceOutcomeBeatDone();
       }
