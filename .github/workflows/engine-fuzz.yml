@@ -1,0 +1,118 @@
+name: Engine fuzz
+
+# THE ENGINE FUZZ ON CI (docs/claude/console/freeze-zero/PLAN.md § 8, stage 5; tests/fuzz/): random LEGAL games on the
+# real engine — every in-scope expansion, every board, one to three seats, with and without MarsBot — each answer
+# judged by the server's own invariants (the table is alive, no question nobody can answer, nothing left queued, no
+# crash, the server says nothing), and every save LOADED and held against the live table (reload equivalence). No
+# browser and no client: deterministic by its seed, so a class named here replays whole on a laptop
+# (`TM_FUZZ_REPLAY=<seed> npm run fuzz:engine`).
+#
+# NIGHTLY (docs/claude/ci-findings.md): a range of seeds nobody has played — the day's own. A class the baseline
+# (tests/fuzz/engineFuzzBaseline.json) does not hold is FILED, one issue per class (scripts/ci/findings.mjs from-fuzz).
+on:
+  schedule:
+    # 22:43 UTC — before the freeze gate and the e2e suite take the runners; never on the hour or the half hour.
+    - cron: '43 22 * * *'
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'The first seed (game i plays seed + i). Empty — the day''s own range.'
+        required: false
+        default: ''
+      games:
+        description: 'How many games at the most'
+        required: false
+        default: '100000'
+      minutes:
+        description: 'Stop starting new games after this many minutes (0 — play every game asked for)'
+        required: false
+        default: '40'
+      reload:
+        description: 'Reload equivalence: load the save of one saving answer in N (0 — off)'
+        required: false
+        default: '2'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-fuzz-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    name: Fuzz
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      seed: ${{ steps.plan.outputs.seed }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run make:static
+      - id: plan
+        env:
+          GIVEN: ${{ inputs.seed }}
+        run: |
+          # The day's own range: the day number × 100 000 — a night's games never meet another night's.
+          SEED="${GIVEN:-$(( $(date -u +%s) / 86400 * 100000 ))}"
+          case "$SEED" in ''|*[!0-9]*) echo "the seed must be a number, got '$SEED'"; exit 1;; esac
+          echo "seed=$SEED" >> "$GITHUB_OUTPUT"
+      - name: The engine fuzz (seed ${{ steps.plan.outputs.seed }})
+        env:
+          TM_FUZZ_SEED: ${{ steps.plan.outputs.seed }}
+          TM_FUZZ_GAMES: ${{ inputs.games || '100000' }}
+          TM_FUZZ_MINUTES: ${{ inputs.minutes || '40' }}
+          TM_FUZZ_RELOAD: ${{ inputs.reload || '2' }}
+          TM_FUZZ_OUT: fuzz-report/engine-fuzz.json
+        run: npm run fuzz:engine
+      # WHAT THE RUN FOUND, in the one shape every workflow speaks (scripts/ci/findings.mjs): a class the baseline does
+      # not hold — or, when the fuzz died before its report, the run's own failure.
+      - name: Findings
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p ci-findings
+          node scripts/ci/findings.mjs from-fuzz fuzz-report/engine-fuzz.json --baseline tests/fuzz/engineFuzzBaseline.json \
+            --context "seed ${{ steps.plan.outputs.seed }}" --out ci-findings/engine-fuzz.json
+      - name: Upload the findings
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: ci-findings-${{ github.run_id }}-${{ github.run_attempt }}-fuzz
+          path: ci-findings/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload the fuzz's report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: engine-fuzz-${{ github.run_id }}-${{ github.run_attempt }}
+          path: fuzz-report/
+          if-no-files-found: warn
+          retention-days: 14
+
+  file:
+    name: File the findings
+    needs: fuzz
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: ci-findings-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: ci-findings
+          merge-multiple: true
+      - name: One issue per finding — opened, touched or reopened
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          node scripts/ci/findings.mjs file ci-findings/*.json

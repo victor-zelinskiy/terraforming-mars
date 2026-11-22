@@ -125,6 +125,12 @@ issues (needs `GH_TOKEN`, `issues: write`).
   suite with no merged report — a red night with nothing filed would read as a quiet one.
 - **Seen again → the same issue is TOUCHED** — a counter and «last seen» in its body, never a comment a night.
 - **Closed and seen again → REOPENED**, labelled `regression`, back to `triage:needed`.
+- **THE ENGINE FUZZ FILES BY SEED** (`src:engine-fuzz`, key `engine-fuzz|class|<class>`, `.github/workflows/engine-fuzz.yml`
+  — nightly, a fresh range of seeds every night, the reload check on): random legal games on the real engine, each
+  answer judged by the server's invariants and every save loaded and held against the live table
+  (`tests/fuzz/engineFuzz.ts`). A class `tests/fuzz/engineFuzzBaseline.json` does not hold is one finding, with the
+  seed that replays the whole game on a laptop (`TM_FUZZ_REPLAY=<seed> npm run fuzz:engine`); its proof is that seed
+  played again. No browser and no client: a finding here is the ENGINE's.
 - **THE ONE-OWNER LAW HAS A KIND OF ITS OWN** (`owner-law`, key `<source>|owner-law|<verdict>`): the gate is red by
   it when a press, a surface or the bar parts from the function's word (`monkey-report.ownerLawBroken`). It is no
   cause class — the report's «new classes» never hold it — and its first red was filed as «nothing named» (#84). The

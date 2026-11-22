@@ -302,7 +302,10 @@ describe('engineFuzz — random legal games on the real engine', () => {
   const replaySeed = process.env.TM_FUZZ_REPLAY;
   // (Both are DEFINED only when asked for: the suite's own run must not carry two tests that are pending for ever.)
   const replayOneSeed = () => {
-    const result = runFuzzGame(fuzzConfig(Number(replaySeed), {maxSteps: Number(process.env.TM_FUZZ_STEPS ?? 4000)}));
+    // (With `TM_FUZZ_RELOAD` the replay judges the saves too — a class of the reload check is named only with it on.)
+    const reloadEvery = Number(process.env.TM_FUZZ_RELOAD ?? 0);
+    const result = runFuzzGame(fuzzConfig(Number(replaySeed), {maxSteps: Number(process.env.TM_FUZZ_STEPS ?? 4000)}),
+      reloadEvery > 0 ? {reload: {every: reloadEvery}} : {});
     const {violations, config, ...rest} = result;
     console.log(JSON.stringify({config, ...rest, refusals: undefined}, null, 1));
     for (const violation of violations) {

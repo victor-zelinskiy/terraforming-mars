@@ -9,6 +9,8 @@
  *
  *   node scripts/ci/findings.mjs from-monkey <monkey-report.json> --source freeze-gate|monkey --context "seed fz1" [--repro "<command>"]
  *   node scripts/ci/findings.mjs from-playwright <merged-report.json> --source e2e [--context "nightly"]
+ *   node scripts/ci/findings.mjs from-fuzz <fuzz-report.json> --baseline tests/fuzz/engineFuzzBaseline.json [--context "seed 2046500000"]
+ *                                                                              (the engine fuzz: a class the baseline does not hold)
  *   node scripts/ci/findings.mjs broken --source <source> --context "seed fz1" --what "the gate died before its report"
  *   node scripts/ci/findings.mjs red-run --source ci|release --workflow "CI" --run-id <id>   (a red run of a push: one finding per failed job)
  *   node scripts/ci/findings.mjs from-sentry <issues.json> [<issues.json> …] [--since 26h]   (what REAL sessions reported: `node scripts/diag.mjs issues --env box|production --json`, a file per environment)
@@ -300,6 +302,57 @@ function fromMonkey() {
       kind: 'broken-run',
       title: `[${source}] red with nothing named${context === '' ? '' : ` (${context})`}`,
       body: '**The run was red and its report names no new class and no uncured stall** — a shard that died, a replay of a closed class that failed, or a walk that failed with no trace. Read the log of the run.',
+    });
+  }
+  emit({source, context, run: runInfo(), findings});
+}
+
+// ── from the engine fuzz's JSON report (`tests/fuzz/engineFuzz.spec.ts` — TM_FUZZ_OUT) ───────────────────────────
+/**
+ * THE ENGINE FUZZ (FREEZE ZERO, stage 5): random legal games on the real engine, each answer judged by the server's
+ * invariants — and, with the reload check on, every save loaded and held against the live table. A class the
+ * baseline does not hold is a finding BY ITS SEED: the game replays whole on a laptop
+ * (`TM_FUZZ_REPLAY=<seed> npm run fuzz:engine`), and its proof is that very seed played again.
+ */
+function fromFuzz() {
+  const source = flag('source', 'engine-fuzz');
+  const context = flag('context', '');
+  if (positional[0] === undefined || !fs.existsSync(positional[0]) || fs.statSync(positional[0]).size === 0) {
+    emit({source, context, run: runInfo(), findings: [{
+      key: `${source}|broken-run|${context}`, kind: 'broken-run', title: `[${source}] the run produced no verdict${context === '' ? '' : ` (${context})`}`,
+      body: '**The fuzz left no report** — it ended before its first game was judged. Read the log of the run; this is the failure of the run itself, not a finding of the engine.',
+    }]});
+    return;
+  }
+  const report = JSON.parse(fs.readFileSync(positional[0], 'utf8'));
+  const baselineFile = flag('baseline', '');
+  const known = baselineFile !== '' && fs.existsSync(baselineFile) ? (JSON.parse(fs.readFileSync(baselineFile, 'utf8')).classes ?? {}) : {};
+  const findings = [];
+  for (const entry of report.classes ?? []) {
+    if (known[entry.key] !== undefined) {
+      continue;
+    }
+    const seed = String(entry.firstSeed ?? '');
+    const reload = String(entry.invariant ?? '').startsWith('R');
+    const replay = `${reload ? 'TM_FUZZ_RELOAD=1 ' : ''}TM_FUZZ_REPLAY=${seed} npm run fuzz:engine`;
+    findings.push({
+      key: `${source}|class|${entry.key}`,
+      kind: 'new-class',
+      ...(/^[0-9]+$/.test(seed) ? {proof: {workflow: 'Engine fuzz', inputs: {seed, games: '1', minutes: '0', reload: reload ? '1' : '0'}}} : {}),
+      title: `[${source}] new class: ${entry.key}`.slice(0, 240),
+      body: [
+        `**A class of the engine fuzz no baseline holds**${context === '' ? '' : ` (${context})`} — \`tests/fuzz/engineFuzzBaseline.json\`.`,
+        '',
+        `- class: \`${entry.key}\` (invariant \`${entry.invariant ?? '?'}\`)`,
+        `- what: ${String(entry.first?.what ?? '?').slice(0, 600)}`,
+        `- first: seed \`${seed}\`, answer ${entry.first?.step ?? '?'} · ${entry.count ?? '?'}× in ${entry.games ?? '?'} game(s) of ${report.games ?? '?'}`,
+        ...(entry.first?.error === undefined ? [] : ['', fence(String(entry.first.error).slice(0, 800))]),
+        '',
+        '**Repeat it** (the whole game, deterministic by its seed — prints the violation with the answers before it):',
+        fence(replay),
+        '',
+        'A class is CLOSED in the engine (with a spec of the defect itself and the seed added to `engineFuzz.spec`), or it is a law the judge does not know yet — written as the law. A baseline row is the last resort, with its reason.',
+      ].join('\n'),
     });
   }
   emit({source, context, run: runInfo(), findings});
@@ -752,11 +805,13 @@ if (command === 'sentry-open') {
   fromMonkey();
 } else if (command === 'from-playwright') {
   fromPlaywright();
+} else if (command === 'from-fuzz') {
+  fromFuzz();
 } else if (command === 'from-sentry') {
   fromSentry();
 } else if (command === 'file') {
   file();
 } else {
-  console.error('usage: node scripts/ci/findings.mjs from-monkey|from-playwright|from-sentry|sentry-open|sentry-settled|sentry-id-of|broken|red-run|file … (see the header)');
+  console.error('usage: node scripts/ci/findings.mjs from-monkey|from-playwright|from-fuzz|from-sentry|sentry-open|sentry-settled|sentry-id-of|broken|red-run|file … (see the header)');
   process.exit(2);
 }

@@ -82,6 +82,31 @@ describe('ci findings: a finding names its proof', function() {
     expect(findings.map((finding) => finding.kind)).to.deep.eq(['broken-run']);
   });
 
+  /*
+   * THE ENGINE FUZZ FILES BY SEED (FREEZE ZERO, stage 5): a class the baseline does not hold is one finding, proven by
+   * that very seed played again — with the reload check on when it was the reload's.
+   */
+  it('a class of the engine fuzz is a finding by its seed — replayable, and proven by the same game', () => {
+    const fuzzReport = {
+      games: 381, firstSeed: 90000,
+      classes: [
+        {key: 'R|solar|seat|(nothing)|or «Take your first action»', invariant: 'R', count: 1, games: 1, firstSeed: 90013, first: {step: 309, what: 'the save, loaded, asks the seat something else'}},
+        {key: 'I3|known|row', invariant: 'I3', count: 2, games: 2, firstSeed: 90001, first: {step: 4, what: 'by design'}},
+        {key: 'I4|or|x|TypeError: boom', invariant: 'I4', count: 1, games: 1, firstSeed: 90077, first: {step: 12, what: 'an answer made the engine throw', error: 'TypeError: boom'}},
+      ],
+    };
+    const baseline = join(dir, 'fuzz-baseline.json');
+    writeFileSync(baseline, JSON.stringify({classes: {'I3|known|row': {why: 'by design', firstSeed: 6}}}));
+    const findings = findingsOf('from-fuzz', fuzzReport, '--baseline', baseline, '--context', 'seed 90000');
+    expect(findings.map((finding) => finding.key), 'the baseline\'s row is no finding').to.deep.eq([
+      'engine-fuzz|class|R|solar|seat|(nothing)|or «Take your first action»', 'engine-fuzz|class|I4|or|x|TypeError: boom']);
+    expect(findings[0].proof).to.deep.eq({workflow: 'Engine fuzz', inputs: {seed: '90013', games: '1', minutes: '0', reload: '1'}});
+    expect(findings[0].body).to.include('TM_FUZZ_RELOAD=1 TM_FUZZ_REPLAY=90013 npm run fuzz:engine');
+    expect(findings[1].proof?.inputs.reload).to.eq('0');
+    expect(findings[1].body).to.include('TM_FUZZ_REPLAY=90077 npm run fuzz:engine');
+    expect(findings[1].body).to.include('TypeError: boom');
+  });
+
   it('a class of the monkey is proven by the monkey on its table, seed and perturbation', () => {
     const [finding] = findingsOf('from-monkey', monkeyReport, '--source', 'monkey', '--context', 'seed fz0', '--perturb', 'cpu4');
     expect(finding.proof).to.deep.eq({workflow: 'Monkey', inputs: {seed: 'fz0', only: '^hydro-terminal-surge$', shards: '1', perturb: 'cpu4'}});
