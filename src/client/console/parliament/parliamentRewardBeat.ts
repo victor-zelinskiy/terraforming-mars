@@ -226,6 +226,14 @@ export function parliamentAgendaBonusHeld(): boolean {
 }
 
 /**
+ * A CARD STEP IS IN THE PLAYER'S HANDS RIGHT NOW — lifted, and its batch still standing for them: what waits for it
+ * waits for the PLAYER (the walk's own wait says so — `agendaWalk` `flow:walk`), never for a motion with a bound.
+ */
+export function agendaCardInPlayersHands(): boolean {
+  return parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind === 'card' && bonus.lifted === true && agendaCardBeforeThePlayer(bonus.step));
+}
+
+/**
  * A LIFTED card step is in the player's hands only while its batch still STANDS for them (the cover scene, the viewer
  * waiting for «Взять»). A lifted step with no batch of its own left standing is in nobody's hands — the card is flying
  * into the dock (a real motion, ended by its touchdown), or the batch went somewhere it can never be taken from — and

@@ -48,7 +48,7 @@ import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTr
 import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {buildParliamentView, ParliamentQuestVm} from './consoleParliamentModel';
-import {AgendaBonusOwed, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
+import {AgendaBonusOwed, agendaCardInPlayersHands, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
 import {detectChairmanChange} from './consoleChairmanQuest';
 import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
 
@@ -437,15 +437,26 @@ export function agendaWalkLiveIn(host: AgendaWalkHost): boolean {
 /**
  * THE WALK AS A WAIT (the wait graph, Э4): owed and not yet opened, the host owes it its pose (bounded); playing, it is
  * its own motion (its hold's ceiling).
+ *
+ * …EXCEPT ON A CARD STEP WHOSE CARD STANDS BEFORE THE PLAYER (the cover lifted, the batch waiting for «Взять»): the next
+ * leg waits for that card to land, the card waits for the player — and a player's reading has no bound. The ledger
+ * has said so since TR37 (`parliamentAgendaBonusHeld` stands down there: «a wall clock over a player's reading is not
+ * a wedge net»); this node went on calling the same wait «the walk's motion, forty seconds». The monkey's seed of the
+ * day on CI, 2026-11-22 (`d20261122:red-lawyers`, the repeat on the arbiter's look law — run 45041099603): the player
+ * read «ИНФОРМАЦИЯ» over the walk's card step, and at forty seconds the graph filed
+ * `wait-graph/overdue/flow:walk`. `accepts`: the batch that stands for the player is the press's own surface — the
+ * reveal presents it (over this walk's beat, which absorbs the pad), or holds it while a look of theirs is open.
  */
 registerWaitSource('flow:walk', () => {
   const flow = agendaWalkFlow;
   if (flow.owed === undefined || flow.beat === 'done') {
     return [];
   }
+  const take = flow.live && agendaCardInPlayersHands();
   return [{
     id: `flow:walk#${flow.owed.seq}`, family: 'flow', owner: `agendaWalk:${flow.owed.host}`,
-    targets: [{kind: 'motion', what: flow.live ? `the walk (${flow.beat})` : `the ${flow.owed.host} opens the walk`}],
-    boundMs: flow.live ? 40_000 : 12_000,
+    targets: [take ? {kind: 'player', what: 'the card of the walk\'s step is taken', accepts: true} :
+      {kind: 'motion', what: flow.live ? `the walk (${flow.beat})` : `the ${flow.owed.host} opens the walk`}],
+    ...(take ? {} : {boundMs: flow.live ? 40_000 : 12_000}),
   }];
 });

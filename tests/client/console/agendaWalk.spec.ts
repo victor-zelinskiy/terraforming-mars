@@ -18,8 +18,10 @@ import {
 import {finishParliamentFlights, scheduleHurriedParliamentBeat, setParliamentFlightsHurried} from '@/client/console/parliament/parliamentFlights';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {
-  agendaCardOwed, parliamentAgendaBonusHeld, parliamentParksReveal, parliamentRewardState, queueAgendaBonuses, RATING_RAIL_KEY, resetParliamentRewards,
+  agendaCardInPlayersHands, agendaCardOwed, markAgendaCardLifted, parliamentAgendaBonusHeld, parliamentParksReveal, parliamentRewardState, queueAgendaBonuses, RATING_RAIL_KEY,
+  resetParliamentRewards,
 } from '@/client/console/parliament/parliamentRewardBeat';
+import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
 import {agendaWalkMotion, deliverAgendaStepReward} from '@/client/console/parliament/agendaWalkDirector';
 import {abortBoardCardBonus, boardCardBonusState, resetBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {drawnCardsState, reconcileDrawnCards} from '@/client/components/drawnCards/drawnCardsState';
@@ -355,6 +357,46 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       promiseAgendaWalk(CARD, 'hand');
       dropAgendaWalkPromise();
       expect(agendaWalkOwedTo('hand')).is.false;
+    });
+
+    /*
+     * THE WALK AS A WAIT NAMES WHOM IT WAITS FOR (the monkey's seed of the day on CI, 2026-11-22 — `d20261122:red-lawyers`,
+     * the repeat on the arbiter's look law, run 45041099603): the player read the information screen over the walk's
+     * card step, and at forty seconds the graph filed `wait-graph/overdue/flow:walk` — a motion's bound over a
+     * player's reading.
+     */
+    it('the walk\'s wait is its own motion, bounded — and the PLAYER\'s, unbounded, while a card of its step stands before them', () => {
+      handDescended();
+      const {before, after} = pair();
+      seedAgendaWalkHolds(before, after);
+      const node = () => collectWaitNodes(Date.now()).find((n) => n.id.startsWith('flow:walk#'));
+      expect(node()?.targets.map((t) => t.kind), 'owed, the pose not opened: the host owes it — a motion').deep.eq(['motion']);
+      expect(node()?.boundMs).eq(12_000);
+      agendaWalkFlow.live = true;
+      agendaWalkFlow.beat = 'walk';
+      expect(node()?.targets.map((t) => t.kind), 'the marker moving').deep.eq(['motion']);
+      expect(node()?.boundMs).eq(40_000);
+
+      // The marker locked on a CARD step: owed, its cover not lifted — still the scene's motion.
+      resetParliamentRewards();
+      queueAgendaBonuses([{generation: 3, player: BLUE, step: 7, kind: 'card'}]);
+      agendaBatches([{step: 7, name: CardName.FISH, id: 71}]);
+      expect(agendaCardInPlayersHands(), 'the cover has not lifted').is.false;
+      expect(node()?.targets.map((t) => t.kind)).deep.eq(['motion']);
+
+      // The cover lifted and the batch stands for «Взять»: the next leg waits for the PLAYER — no bound over a reading.
+      markAgendaCardLifted(7);
+      expect(agendaCardInPlayersHands()).is.true;
+      expect(node()?.targets, 'the take is the player\'s, and the batch is its own surface').deep.eq([{kind: 'player', what: 'the card of the walk\'s step is taken', accepts: true}]);
+      expect(node()?.boundMs, 'a player\'s reading has no bound').is.undefined;
+
+      // The batch left the queue (taken — the card flies to the dock): a motion again, bounded.
+      reconcileDrawnCards([]);
+      expect(agendaCardInPlayersHands()).is.false;
+      expect(node()?.targets.map((t) => t.kind)).deep.eq(['motion']);
+      expect(node()?.boundMs).eq(40_000);
+      agendaWalkFlow.beat = 'done';
+      expect(node(), 'done — nothing waits').is.undefined;
     });
 
     describe('TR76 — the play took the CHAIR before its walk («КРЕСЛО» → «КАРЬЕРА»)', () => {
