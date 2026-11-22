@@ -274,6 +274,9 @@ export function boardBeatParkWhy(): string {
   return `park held ${Object.keys(boardBeatParkState.heldParams ?? {}).join('+') || 'nothing'}` +
     `${boardBeatParkState.heldClaims !== undefined ? ' +claims' : ''}${parkedBatchPending() ? ' +batch' : ''}` +
     `${boardBeatParkState.draining ? ' · draining' : ''}${boardBeatParkState.sceneHeld ? ' · held for a scene' : ''}` +
+    `${boardBeatParkState.scaleStory ? ' · scale story' : ''}${boardBeatParkState.batchHeldByDrain ? ' · batch held by the drain' : ''}` +
+    `${boardBeatParkState.draining ? ` · the drain stands ${Math.round((Date.now() - parkWindow.drainAt) / 100) / 10}s at «${parkWindow.drainStep}»` : ''}` +
+    ` · members busy [${[...storyMembers.entries()].filter(([, member]) => member.busy()).map(([key]) => key).join(', ')}]` +
     ` · gated by [${[...parkWindow.gatedBy].join(', ')}] ×${parkWindow.gated} · drains ${parkWindow.drains} · looks ${parkWindow.seen}/${parkWindow.looks}`;
 }
 
@@ -309,7 +312,11 @@ let watchableSeen = false;
  * board's own scene settling, a reveal above it, cards in transit — and each gated re-drive says by what
  * (`noteBoardBeatDrainGated`): `gated` looks, `gatedBy` reasons. The gate has its own bound and its own line.
  */
-const parkWindow = {looks: 0, seen: 0, drains: 0, coveredAgain: 0, coveredAgainBy: new Set<string>(), gated: 0, gatedBy: new Set<string>()};
+const parkWindow = {
+  looks: 0, seen: 0, drains: 0, coveredAgain: 0, coveredAgainBy: new Set<string>(), gated: 0, gatedBy: new Set<string>(),
+  /** When the drain that runs now began, and where it stands (its last step — for the line of whoever waits for it). */
+  drainAt: 0, drainStep: '',
+};
 
 /** The shell's guarded drain found the board watchable and did NOT open — held by its own gate (`reasons`, never empty). */
 export function noteBoardBeatDrainGated(reasons: ReadonlyArray<string>): void {
@@ -694,6 +701,8 @@ export function drainBoardBeatsIfDue(): void {
   boardBeatParkState.draining = true;
   boardBeatParkState.nonce++;
   parkWindow.drains++;
+  parkWindow.drainAt = Date.now();
+  parkWindow.drainStep = 'the settle';
   // The BLOCKING story window opens with the drain when values are owed —
   // a follow-up modal must not land during the settle gap either, or it
   // covers the very release it is about to explain.
@@ -730,6 +739,7 @@ export function drainBoardBeatsIfDue(): void {
     // chip plays its capture — plain reactivity from here.
     boardBeatParkState.heldParams = undefined;
     boardBeatParkState.heldClaims = undefined;
+    parkWindow.drainStep = 'the values released';
     // THE STORY IS BEING TOLD NOW: the park's whole-life bound (`BOARD_BEAT_PARK_SAFETY_MS`, counted from the SEED — a
     // board kept covered) bounds what is left of the story from HERE (FLAKE ZERO Ф4, class N). A board covered for most
     // of the bound (a Parliament sitting walking to its world trip at a slow renderer's pace) left a story released a
@@ -753,6 +763,7 @@ export function drainBoardBeatsIfDue(): void {
         run();
         return;
       }
+      parkWindow.drainStep = 'the members\' story';
       let done = false;
       let cancelNet: () => void = () => {};
       const finish = () => {
