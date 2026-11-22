@@ -311,11 +311,20 @@ export function noteSettlementDealt(places: ReadonlyArray<number>): void {
 }
 
 /**
- * THE DISCARD FOR `place − 1` TOUCHED DOWN — the seal on `place` starts to break (one short physical beat on the
+ * THE DISCARD THE PLACE WAITED FOR TOUCHED DOWN — the seal on `place` starts to break (one short physical beat on the
  * table: the shackle springs, the disc lets go). Only a place that lies sealed on this table has a seal to break.
+ *
+ * ANY SEALED PLACE — THE FIRST INCLUDED. A trade's table seals places 2…n (the discard for `place − 1` opens `place`),
+ * and this was written `place > 1` for it. A QUESTION's table (Mars University's «discard, then draw») seals its ONE
+ * place — the first — and its discard's touchdown called this with 1: nothing happened, the seal never broke by its
+ * event, and every question waited the overlay's whole net for a break that had not been started
+ * (`wait-graph/ceiling/reveal:seal-gone` under green `console-draw-one-batch-sealed-question` and
+ * `console-effect-decision-embed` — the whole suite on CI, 2026-11-22: 3.3 s between the discard's landing and the
+ * card's turn). A trade's first place is never dealt sealed (`settlementPlacesToDeal` starts at 2), so the guard that
+ * matters is the one that stays: the place lies sealed here.
  */
 export function startSettlementSealBreak(place: number): void {
-  if (place > 1 && settlementTable.dealt.includes(place) && !settlementTable.broken.includes(place)) {
+  if (place > 0 && settlementTable.dealt.includes(place) && !settlementTable.broken.includes(place)) {
     settlementTable.breakingSeal = place;
   }
 }

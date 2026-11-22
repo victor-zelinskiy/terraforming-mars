@@ -1,10 +1,11 @@
 import {expect} from 'chai';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {
-  armQuestionTable, armSettlementTable, clearSettlementTable, noteSettlementDealt, noteSettlementPresented, noteSettlementTaken,
+  armQuestionTable, armSettlementTable, breakSettlementSeal, clearSettlementTable, noteSettlementDealt, noteSettlementPresented, noteSettlementTaken,
   oweSettlementTurn, questionArrival, questionSealReading, questionZones, sealedPlaceReading, sealedPlacesOf, sealOpensAfter,
   settlementArrival, settlementClaimsBatch,
-  settlementOwnsBatch, settlementPairOf, settlementPlacePaint, settlementPlacesToDeal, settlementStageReading, settlementTable,
+  settlementOwnsBatch, settlementPairOf, settlementPlacePaint, settlementPlacesToDeal, settlementSealStands, settlementStageReading, settlementTable,
+  startSettlementSealBreak,
 } from '../../src/client/console/colonyTrade/settlementTable';
 import {resolveCardArrivalMode, sealedRevealPlan, cardArrivalTimings, reducedCardArrivalTimings} from '../../src/client/console/consoleCardArrival';
 import {bonusZones} from '../../src/client/console/colonyTrade/colonyBonusDiscardStep';
@@ -175,6 +176,42 @@ describe('settlementTable', () => {
 
   describe('«ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» Ф4 host 2 · a QUESTION\'s table (Mars University beside the play\'s own draw)', () => {
     const MU = 'Mars University';
+
+    /*
+     * THE QUESTION's ONE PLACE IS THE FIRST — AND ITS SEAL BREAKS ON ITS EVENT (`wait-graph/ceiling/reveal:seal-gone`
+     * under two green tests of the whole suite, CI 2026-11-22). The break's start was written for a trade's table
+     * (`place > 1`): the question's discard touched down, asked for place 1, and nothing happened — every question
+     * waited the overlay's whole net, 3.3 s, for a break nobody had started.
+     */
+    it('the seal of the question\'s first place starts to break when its discard touches down, and is gone when the break ends', () => {
+      armQuestionTable(7, MU, 41, 0);
+      noteSettlementDealt([1]);
+      expect(settlementSealStands(1), 'the place lies sealed').is.true;
+      startSettlementSealBreak(1);
+      expect(settlementTable.breakingSeal, 'the break of place 1 is started — it was a no-op').to.eq(1);
+      breakSettlementSeal(1);
+      expect(settlementSealStands(1)).is.false;
+      expect(settlementTable.breakingSeal).to.eq(0);
+      startSettlementSealBreak(1);
+      expect(settlementTable.breakingSeal, 'a broken seal does not break twice').to.eq(0);
+    });
+
+    it('…while a trade\'s first place has no seal to break: it is never dealt sealed', () => {
+      armSettlementTable(ColonyName.PLUTO, 3, 1);
+      expect(settlementPlacesToDeal(ColonyName.PLUTO), 'a trade deals its LATER places sealed — never the first').to.deep.eq([2, 3]);
+      noteSettlementDealt([2, 3]);
+      expect(settlementSealStands(1)).is.false;
+      startSettlementSealBreak(1);
+      expect(settlementTable.breakingSeal).to.eq(0);
+      startSettlementSealBreak(2);
+      expect(settlementTable.breakingSeal, 'the second place breaks as ever').to.eq(2);
+    });
+
+    it('a break with nothing to play is over at once — the overlay asks whether the seal is PAINTED (the wiring)', () => {
+      const overlay = require('fs').readFileSync(require('path').resolve(__dirname, '../../src/client/components/console/ConsoleRevealOverlay.vue'), 'utf8').replace(/\r\n/g, '\n') as string;
+      expect(overlay).to.match(/if \(settlementTable\.breakingSeal === place && !sealPainted\(place\)\) \{\s+wait\?\.met\(\);\s+breakSettlementSeal\(place\);/);
+      expect(overlay).to.contain('document.querySelector<HTMLElement>(`.con-reveal [data-settlement-seal="${place}"]`)');
+    });
 
     it('arms on the sealed batch at index 0 (the place lies sealed), advances to 1 with the answer\'s draw, keeps ONE instance per root', () => {
       armQuestionTable(7, MU, 41, 0);

@@ -1902,6 +1902,17 @@ function onSealBreakEnd(index: number, ev: AnimationEvent): void {
  * (`discardLandings`); a touchdown the table never saw (a scene that degraded, reduced motion with no landing)
  * breaks it here — honestly: the server has drawn the card, so the rule IS satisfied. Bounded.
  */
+/** The seal of `place` is PAINTED on this table — mounted, displayed, opaque: only then its break has an end to report. */
+function sealPainted(place: number): boolean {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+  const seal = document.querySelector<HTMLElement>(`.con-reveal [data-settlement-seal="${place}"]`);
+  if (seal === null) {
+    return false;
+  }
+  return typeof seal.checkVisibility !== 'function' || seal.checkVisibility({checkOpacity: true, checkVisibilityCSS: true});
+}
 function waitSealGone(place: number): Promise<void> {
   if (!settlementSealStands(place)) {
     return Promise.resolve();
@@ -1918,6 +1929,15 @@ function waitSealGone(place: number): Promise<void> {
       const waited = performance.now() - start;
       if (settlementTable.breakingSeal !== place && waited > motionCeilingMs(SEAL_TOUCHDOWN_WAIT_MS)) {
         startSettlementSealBreak(place);
+      }
+      // A BREAK WITH NOTHING TO PLAY IS OVER: the break's end is its seal's own `animationend`, and a seal that is not
+      // PAINTED (the table set aside, the place off screen, the node not mounted) plays no animation — its end would
+      // never be reported, only netted. The seal is gone at once; the card's turn waits for the room as it always did.
+      if (settlementTable.breakingSeal === place && !sealPainted(place)) {
+        wait?.met();
+        breakSettlementSeal(place);
+        done();
+        return;
       }
       if (consoleReducedMotionActive() || waited > motionCeilingMs(SEAL_TOUCHDOWN_WAIT_MS + SEAL_BREAK_NET_MS)) {
         if (consoleReducedMotionActive()) {
