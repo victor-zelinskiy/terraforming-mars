@@ -1,7 +1,11 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
-import {freeTurnConclusionCandidate, observeStaleFreeTurn, staleFreeTurnClockInit, staleFreeTurnHeld} from '@/client/console/supervisor/staleFreeTurnClock';
+import {
+  CONCLUSION_DOOR_QUIET_FRAMES, CONCLUSION_DOOR_QUIET_MS, conclusionDoorInit, freeTurnConclusionCandidate, observeConclusionDoor, observeStaleFreeTurn,
+  staleFreeTurnClockInit, staleFreeTurnHeld,
+} from '@/client/console/supervisor/staleFreeTurnClock';
+import {causeOf} from '@/common/diagnostics/cause';
 import {workingAreaSettled} from '@/client/console/colonyTrade/workingAreaBack';
 
 /*
@@ -154,10 +158,76 @@ describe('the conclusion\'s candidate - a committed frame over the free turn', (
     const outcome = source('console', 'shell', 'outcomeController.ts');
     expect(supervisor).to.contain('return freeTurnConclusionCandidate(workspaceStackTop(), ');
     expect(outcome).to.contain('const candidate = freeTurnConclusionCandidate(top, ');
-    expect(outcome).to.contain('flow.everyFrame(\'the conclusion\\\'s door, measured\', measureConcludeDoor);');
+    expect(outcome).to.contain('flow.everyFrame(\'the conclusion\\\'s door, by level\', lookAtConclusionDoor);');
     expect(supervisor, 'the supervisor\'s port takes no verdict of the conclusion').to.not.contain('conclusionVerdictNow');
     // Stats only: the measure concludes nothing.
-    const body = outcome.slice(outcome.indexOf('function measureConcludeDoor('), outcome.indexOf('/** The ghost test\'s read of the table'));
+    const body = outcome.slice(outcome.indexOf('function measureConcludeDoor('), outcome.indexOf('* THE CONCLUSION\'s LEVEL DOOR (`staleFreeTurnClock.observeConclusionDoor`'));
+    expect(body.length, 'the measure is read').to.be.greaterThan(400);
     expect(body).to.not.match(/concludeWorkspaceFlow|closeWorkspaceRoot|goBoardHome|popWorkspaceFrame/);
+    // …and the DOOR, beside it, ends a frame through the ONE guarded conclusion and nothing else.
+    const door = outcome.slice(outcome.indexOf('function lookAtConclusionDoor('), outcome.indexOf('/** The ghost test\'s read of the table'));
+    expect(door).to.contain('const door = observeConclusionDoor(before, {key: seen?.key, quiet: seen?.quiet === true, now});');
+    expect(door).to.contain('const left = concludeWorkspaceFlow(seen.kind);');
+    expect(door, 'never a bare close').to.not.match(/closeWorkspaceRoot|goBoardHome|popWorkspaceFrame|releaseWorkspaceOutcome/);
+    // The door's «quiet» is the measure's three terms: the guarded verdict, no look the player reads, nothing in flight.
+    expect(body).to.contain('quiet: conclusion.verdict === \'dismiss\' && look === \'\' && flight === \'\',');
+  });
+});
+
+/*
+ * THE CONCLUSION's LEVEL DOOR — the rule (pure). A finished frame over the free turn that stands dismissible, unread
+ * and with nothing in flight for the door's frames LEAVES; anything moving, held or read starts the quiet again; one
+ * opening per standing candidate.
+ */
+describe('the conclusion\'s level door — quiet for its frames, once per standing candidate', () => {
+  const walk = (looks: ReadonlyArray<{key: string | undefined, quiet: boolean, now: number}>) => {
+    let state = conclusionDoorInit();
+    const opened: Array<number> = [];
+    looks.forEach((look, i) => {
+      const seen = observeConclusionDoor(state, look);
+      state = seen.state;
+      if (seen.open) {
+        opened.push(i);
+      }
+    });
+    return {state, opened};
+  };
+  const frames = (n: number, from: number, over: Partial<{key: string | undefined, quiet: boolean}> = {}, step = 16) =>
+    Array.from({length: n}, (_v, i) => ({key: 'colonies|7' as string | undefined, quiet: true, now: from + i * step, ...over}));
+
+  it('opens after the door\'s frames of quiet — and not a frame sooner', () => {
+    expect(walk(frames(CONCLUSION_DOOR_QUIET_FRAMES - 1, 1_000, {}, 40)).opened, 'one frame short').to.deep.eq([]);
+    // At 60 Hz the frames come first; the door then waits for its wall-clock floor (250 ms ≈ the 17th frame).
+    const at60 = walk(frames(40, 1_000));
+    expect(at60.opened.length, 'ONCE').to.eq(1);
+    expect(at60.opened[0]).to.eq(Math.ceil(CONCLUSION_DOOR_QUIET_MS / 16));
+    // On a slow page (40 ms a frame) the floor is long past: the twelfth frame opens it.
+    expect(walk(frames(40, 1_000, {}, 40)).opened).to.deep.eq([CONCLUSION_DOOR_QUIET_FRAMES - 1]);
+    // A 120 Hz page does not halve the wait: the floor holds.
+    const at120 = walk(frames(80, 1_000, {}, 8));
+    expect(at120.opened[0] * 8, 'no sooner than the floor').to.be.at.least(CONCLUSION_DOOR_QUIET_MS);
+  });
+
+  it('anything in flight, a hold or a look starts the quiet again', () => {
+    const looks = [...frames(10, 1_000, {}, 40), ...frames(1, 1_400, {quiet: false}), ...frames(11, 1_440, {}, 40)];
+    expect(walk(looks).opened, 'ten quiet frames, one busy, eleven quiet: never twelve in a row').to.deep.eq([]);
+    expect(walk([...looks, ...frames(1, 1_880, {}, 40)]).opened, 'the twelfth after the break').to.deep.eq([looks.length]);
+  });
+
+  it('one opening per standing candidate; a NEW question on the same frame is a new candidate; no candidate forgets all', () => {
+    // The door opened and the frame still stands (the conclusion held): it does not open again every twelve frames.
+    expect(walk(frames(200, 1_000, {}, 40)).opened).to.deep.eq([CONCLUSION_DOOR_QUIET_FRAMES - 1]);
+    // …even across a busy spell of the same candidate.
+    expect(walk([...frames(20, 1_000, {}, 40), ...frames(3, 1_800, {quiet: false}, 40), ...frames(40, 1_920, {}, 40)]).opened.length).to.eq(1);
+    // A new prompt on the same frame restarts the count — and may open once more.
+    const again = walk([...frames(20, 1_000, {}, 40), ...frames(20, 1_800, {key: 'colonies|8'}, 40)]);
+    expect(again.opened).to.deep.eq([CONCLUSION_DOOR_QUIET_FRAMES - 1, 20 + CONCLUSION_DOOR_QUIET_FRAMES - 1]);
+    // The candidate gone: the state is the empty one (the next candidate starts from nothing).
+    expect(walk([...frames(20, 1_000, {}, 40), ...frames(1, 1_800, {key: undefined})]).state).to.deep.eq(conclusionDoorInit());
+  });
+
+  it('the door\'s line is the trail of which flow left its ending to the level — counted, never a defect', () => {
+    const line = '[workspace-conclusion] «colonies» left by the level door — finished over the free turn and quiet for 16 frames / 256 ms (frames: colonies:committed)';
+    expect(causeOf(line, 'warn')).to.deep.include({cls: 'workspace-conclusion/level-door/colonies', tier: 'info'});
   });
 });

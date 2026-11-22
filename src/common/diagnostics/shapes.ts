@@ -228,6 +228,10 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'claim-released-free-turn', re: /^the claim of «([^»]*)» answered for nothing over the free turn/, tier: 'defect', parts: [1]},
   ],
   'workspace-conclusion': [
+    {
+      name: 'level-door', re: /^«([^»]*)» left by the level door/, tier: 'info', parts: [1],
+      why: 'the conclusion\'s owner acting on its own decision (`staleFreeTurnClock.observeConclusionDoor`): a finished frame over the free turn, dismissible, unread, nothing in flight for the door\'s frames — the trail of which flow left its ending to the level, never an incident',
+    },
     {name: 'cadence', re: /^«([^»]*)» (.*?) on the re-ask cadence.*it last held on: (.*)$/, tier: 'defect', parts: [1, 3], dims: {how: 2}},
   ],
   'workspace': [

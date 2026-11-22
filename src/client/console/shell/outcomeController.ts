@@ -7,7 +7,7 @@ import type {UnwrapRef} from 'vue';
 import {computed, ref, onBeforeUnmount, onMounted} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
-import {freeTurnConclusionCandidate} from '@/client/console/supervisor/staleFreeTurnClock';
+import {conclusionDoorInit, freeTurnConclusionCandidate, observeConclusionDoor} from '@/client/console/supervisor/staleFreeTurnClock';
 import {noteConcludeSpan} from '@/client/console/servingOwnerMeasure';
 import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
 import {PLAYER_LOOK_SELECTOR} from '@/client/console/consoleLiveness';
@@ -16,7 +16,7 @@ import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {ConsoleHandEntry} from '@/client/components/console/consoleHandSectionTypes';
 import {ConsoleColonyPick} from '@/client/components/console/consoleColoniesSectionTypes';
 import {hostedStepLiveIn, hostedStepOwedTo} from '@/client/console/parliament/hostedParliamentStep';
-import {closeWorkspaceRoot, stackYieldedToBoard, workspaceStackCollapsed, handFrameToQuestion, frameServing, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameDescended, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameStage, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, workspaceHostForStep, workspaceFrameOffStage, workspaceSceneHidden, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, stackYieldedToBoard, workspaceStackCollapsed, handFrameToQuestion, frameServing, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameDescended, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameStage, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, workspaceHostForStep, workspaceFrameOffStage, workspaceSceneHidden, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
 import {workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
 import {openFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
@@ -534,7 +534,7 @@ export function createOutcomeController(shell: OutcomePort) {
    * flight under it. It stands HERE — beside the decision it measures and the door it prepares: the owner's, never one
    * more fact sampled in the supervisor. Stats only.
    */
-  function measureConcludeDoor(): void {
+  function measureConcludeDoor(): {kind: WorkspaceFrameKind, key: string, quiet: boolean} | undefined {
     const top = workspaceStackTop();
     const candidate = freeTurnConclusionCandidate(top, () => ({
       asksFreeTurn: shell.playerView.waitingFor !== undefined && taskFor(shell.playerView)?.kind === 'actionMenu',
@@ -544,13 +544,44 @@ export function createOutcomeController(shell: OutcomePort) {
     }));
     if (!candidate || top === undefined) {
       noteConcludeSpan('', 'gone', Date.now());
-      return;
+      return undefined;
     }
     const conclusion = workspaceConclusionFor(conclusionFacts(top.kind, true));
     const verdict = conclusion.verdict === 'dismiss' ? 'dismiss' : `hold:${conclusion.reason}`;
     const look = document.querySelector(PLAYER_LOOK_SELECTOR) !== null ? ' · look' : '';
     const flight = flightsInTheAir();
     noteConcludeSpan(`${top.kind} · ${verdict}${look} · ${flight === '' ? 'QUIET' : `busy[${flight}]`}`, 'moved', Date.now());
+    return {
+      kind: top.kind,
+      key: `${top.kind}|${shell.playerView.waitingFor?.promptId ?? ''}`,
+      quiet: conclusion.verdict === 'dismiss' && look === '' && flight === '',
+    };
+  }
+
+  /**
+   * THE CONCLUSION's LEVEL DOOR (`staleFreeTurnClock.observeConclusionDoor` — the rule, its reading and its numbers
+   * are written there). Every painted frame: the measure's own look, and when a finished frame has stood dismissible,
+   * unread and with nothing in flight for the door's frames — it LEAVES, through the one guarded conclusion every
+   * ending uses (which re-reads the same facts: a hold that rose in this very frame still holds). The door is the
+   * conclusion's owner acting on its own decision, never a net: a flow that ends itself first is the same ending a
+   * few frames sooner, and one that did not is no longer eight seconds of a dead screen. Said once per opening, as
+   * the trail of WHICH flow left its ending to the level (`workspace-conclusion/level-door`, counted, no defect).
+   */
+  const conclusionDoor = {state: conclusionDoorInit()};
+  function lookAtConclusionDoor(): void {
+    const seen = measureConcludeDoor();
+    const now = Date.now();
+    const before = conclusionDoor.state;
+    const door = observeConclusionDoor(before, {key: seen?.key, quiet: seen?.quiet === true, now});
+    conclusionDoor.state = door.state;
+    if (!door.open || seen === undefined) {
+      return;
+    }
+    const frames = workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`).join(';') || 'none';
+    const left = concludeWorkspaceFlow(seen.kind);
+    console.warn(`[workspace-conclusion] «${seen.kind}» left by the level door — finished over the free turn and quiet for ` +
+      `${door.state.frames} frames / ${now - door.state.since} ms (frames: ${frames})${left ? '' : ' — the conclusion held'}`);
+    noteConcludeSpan('', left ? 'door' : 'door-held', now);
   }
 
   /** The ghost test's read of the table: a hold that VOUCHES for the workspace stands — it is no phantom. */
@@ -1537,7 +1568,7 @@ export function createOutcomeController(shell: OutcomePort) {
   onBeforeUnmount(() => registerConclusionOwePort(undefined));
   // …and the conclusion door's measure looks by frame for the controller's whole life (its scope ends the look).
   onMounted(() => {
-    flow.everyFrame('the conclusion\'s door, measured', measureConcludeDoor);
+    flow.everyFrame('the conclusion\'s door, by level', lookAtConclusionDoor);
   });
   onBeforeUnmount(() => noteConcludeSpan('', 'out', Date.now()));
 

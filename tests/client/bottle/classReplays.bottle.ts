@@ -270,6 +270,53 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * `workspace-stale/concluded/<kind>` — THE REAPER's CLASS (the owner's field locks of 2026-11-07; the Parliament's
+   * of 11-06; the unexplained 01:06): a frame PAST ITS COMMIT left standing over the player's free turn — nothing owed
+   * inside it, nothing in flight, the flow that should have ended it gone. The player looked at a finished workspace
+   * for eight seconds, until the supervisor's reaper concluded it and named a defect. The law (stage 2 — the
+   * conclusion's level door, `staleFreeTurnClock.observeConclusionDoor`): that ending is its owner's decision BY
+   * LEVEL — the candidate, the guarded conclusion's `dismiss`, no look the player reads, nothing in flight, for the
+   * door's frames — so the frame leaves a quarter of a second in, through the one guarded conclusion, and the reaper
+   * has nothing left to say. (The class is planted the way it arises: a frame's phase written past its commit with no
+   * claim, no step and no question of its own — every flow that ever «forgot» its ending left exactly that.)
+   */
+  it('a finished frame left standing over the free turn leaves BY LEVEL — in frames, never at the reaper\'s eight seconds; nothing is filed', async () => {
+    const table = await bottleServer().bootFixture('aerial-mappers');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    await live.advance(3_000);
+    const stack = live.pageModules.consoleWorkspaceStack;
+    const doorLines = () => live.lines().filter((line) => line.includes('[workspace-conclusion]') && line.includes('left by the level door'));
+    // The quick wheel's «Рука» over the board: a workspace the player opened, standing in `browse`.
+    await live.press('Period');
+    await live.advance(250);
+    await live.press('Enter');
+    await live.advance(800);
+    expect(live.frames(), 'the hand is open').to.deep.equal(['hand:browse']);
+    // A REVERSIBLE frame is the player's own time: however long it stands, the door has nothing to decide.
+    await live.advance(3_000);
+    expect(live.frames(), 'a browse frame is never a candidate').to.deep.equal(['hand:browse']);
+    expect(doorLines()).to.deep.equal([]);
+    if (live.view()?.waitingFor?.type !== 'or') {
+      // (The fixture's own first question is not the free turn: the door's candidate needs it — said, never assumed.)
+      expect.fail(`the table does not stand on the free turn (asked: ${live.view()?.waitingFor?.type ?? 'nothing'})`);
+    }
+    // THE CLASS, PLANTED: the frame is past its commit and nobody is left to end it.
+    stack.setWorkspaceFramePhase('hand', 'committed');
+    await live.advance(100);
+    expect(live.frames(), 'inside the door\'s quiet the frame still stands').to.deep.equal(['hand:committed']);
+    await live.advance(900);
+    expect(live.frames(), 'the door\'s frames of quiet have passed: the frame left — a second in, not eight').to.deep.equal([]);
+    expect(doorLines().length, 'said once, as the trail of which flow left its ending to the level').to.equal(1);
+    expect(doorLines()[0]).to.match(/«hand» left by the level door — finished over the free turn and quiet for \d+ frames \/ \d+ ms \(frames: hand:committed\)$/);
+    // Past the reaper's eight seconds and the arbiter's grace: neither had anything to do.
+    await live.advance(12_000);
+    expect(live.lines().filter((line) => line.includes('[workspace-stale]')), 'the reaper is silent').to.deep.equal([]);
+    expect(live.liveness().why, 'the player can act').to.deep.equal([]);
+    expect(classes(), 'the door\'s act is no defect').to.deep.equal([]);
+  });
+
+  /*
    * `screen-shadow/finding/misserved/board/hand` — the monkey in the bottle's SECOND seed (`fz1` ·
    * `parliament-skyscrapers-enact`, `parliament-biodome-enact`), confirmed in a real browser by the box monkey's spec
    * with the same seed, and cut down by the shrink from 65 steps to three: A (the placement's plate) · RT (the wheel)

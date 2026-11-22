@@ -36,6 +36,63 @@ export function freeTurnConclusionCandidate(
   return t.asksFreeTurn && !t.collapsed && !t.yieldedToBoard && !t.placement;
 }
 
+/**
+ * THE CONCLUSION's LEVEL DOOR (FREEZE ZERO, stage 2 — S5-rest: «one owner per question by a total function»).
+ *
+ * A finished frame over the free turn used to leave in one of two ways: its flow's own ending (an EDGE — a take's
+ * last card, a flow-complete report, the owed run's re-ask) or, when no edge came, the reaper — eight seconds of a
+ * dead screen later, named as a defect. The decision itself was always right as a pure function of what stands: the
+ * candidate (`freeTurnConclusionCandidate`), the guarded conclusion's own verdict `dismiss` (nothing is owed inside
+ * the frame — every hold of `FRAME_HOLDS`, the claim, a nested step, a prompt it serves, a park), no look the player
+ * reads over it, and NOTHING IN FLIGHT (`flightsInTheAir` — the wait graph's motion and server waits, the wire, the
+ * kernel's own beats). So it is executed BY LEVEL: that state standing for this many painted frames, and this long,
+ * is the conclusion — through the ONE guarded door every ending uses.
+ *
+ * WHY TWELVE FRAMES AND A QUARTER OF A SECOND: over the whole e2e suite (1 502 tests, CI 2026-11-22, run 45071347931)
+ * a candidate with a `dismiss` verdict stood QUIET exactly twice, 550 and 582 ms — the colony roster's read, a pause
+ * written as a net's timer instead of a wait of the kernel (now a `span`, so it reads `busy`). Every other candidate
+ * the suite makes is busy until its flow ends it or held by a named reason. Twelve frames is past a hand-off between
+ * two flights (one ends, the next rises a tick later); the wall-clock floor keeps a 120 Hz page from halving it.
+ * Counted in FRAMES — a page that does not paint opens no door (the reaper, on the wall clock, stays behind it as a
+ * net that should never speak again).
+ */
+export const CONCLUSION_DOOR_QUIET_FRAMES = 12;
+export const CONCLUSION_DOOR_QUIET_MS = 250;
+
+export type ConclusionDoorState = {
+  /** `<kind>|<promptId>` of the candidate being watched ('' = none). */
+  readonly key: string;
+  /** Painted frames in a row the candidate stood dismissible, unread and with nothing in flight. */
+  readonly frames: number;
+  /** When that quiet run began. */
+  readonly since: number;
+  /** The door already opened for this standing candidate — ONCE (a door that changed nothing is the reaper's to name). */
+  readonly opened: boolean;
+};
+
+export function conclusionDoorInit(): ConclusionDoorState {
+  return {key: '', frames: 0, since: 0, opened: false};
+}
+
+/** One painted frame's look (pure): the next state, and whether the door opens NOW. */
+export function observeConclusionDoor(
+  state: ConclusionDoorState, look: {key: string | undefined, quiet: boolean, now: number},
+): {state: ConclusionDoorState, open: boolean} {
+  if (look.key === undefined) {
+    return {state: state.key === '' ? state : conclusionDoorInit(), open: false};
+  }
+  const same = look.key === state.key;
+  if (!look.quiet) {
+    // (Something moved, a hold stands, the player reads: the quiet starts again — the candidate keeps its `opened`.)
+    return {state: {key: look.key, frames: 0, since: 0, opened: same && state.opened}, open: false};
+  }
+  const frames = same ? state.frames + 1 : 1;
+  const since = same && state.frames > 0 ? state.since : look.now;
+  const opened = same && state.opened;
+  const open = !opened && frames >= CONCLUSION_DOOR_QUIET_FRAMES && look.now - since >= CONCLUSION_DOOR_QUIET_MS;
+  return {state: {key: look.key, frames, since, opened: opened || open}, open};
+}
+
 export type StaleFreeTurnClock = {
   /** `<kind>|<promptId>` of the candidate frame being timed ('' = no candidate). */
   readonly key: string;
