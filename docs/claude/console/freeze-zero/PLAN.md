@@ -1193,6 +1193,17 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
   and dissolved where it stood instead of flying onto the shelf: a defect the PLAYER saw, read off a net under a
   green test. **A stack** (`providePlayedHeroTarget` — a provider that leaves gives the front back to the one before
   it; the hero's spec holds it).
+- **THE CLASS, LOOKED FOR EVERYWHERE — «a registry of ONE slot with more than one provider» (the owner, 2026-11-23:
+  not only freezes — the plain UI/UX defects too, and the same class in other places).** Twenty-three registries of
+  that shape in the client (`if (slot === mine) slot = undefined`); all but two have one provider. The two:
+  - **THE PAD's OWN HANDLER (`consoleRouter.registerConsoleIntentHandler`) — a dead screen, by reading and by a red
+    spec.** The shell registers for the whole game; the campaign map standing INSIDE the endgame workspace installs
+    its own menu pad over it; leaving, it cleared the slot — «B returns to the results» returned the player to a
+    screen that heard NOTHING until a reload. No net could cure it (every rung of the arbiter «releases» surfaces; no
+    surface was wrong), and the one e2e that walks the scene reloaded right after B and never pressed. A stack
+    (`consoleIntentHandlers.spec` — red before, green after); `console-campaign-endgame` now walks the focus on the
+    results after the map has left.
+  - the receiving stage's effect hooks (`provideReceivingEffectHooks` — two composers mount the stage): a stack too.
   *`scene-transition/hold-bound/board-fit`* stood under three more green tests (`console-old-mining-colony` B,
   `console-medical-institute` A·B, `console-rail-value-badges`) and NOT ONCE in thirty on a repeat of two of them
   (45128453374) — a race, and its line named nothing. **The hold says what it was waiting for** (`d575cd2cd7` —

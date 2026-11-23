@@ -118,6 +118,15 @@ test.describe('campaign finale — the champion ceremony', () => {
     await waitWithFrames(page, async () =>
       (await page.locator('.con-eg-campaign-scene').count()) === 0,
     15_000, 'back to the settled results');
+    // …AND THE RESULTS HEAR THE PAD AGAIN. The map took the pad over the shell (its own menu pad), and in the router's
+    // one slot its leaving left NOBODY to take a press — a screen that heard nothing until a reload; this spec
+    // reloaded right here and never pressed. A focus walk: act → the focused action moved (`walkFocusUntil`).
+    const actionAfterMap = () => page.locator('.con-eg__action--focused').innerText().catch(() => '');
+    const moved = await walkFocusUntil(page, async () => {
+      const now = await actionAfterMap();
+      return now !== '' && !/Хроника кампании/i.test(now);
+    }, actionAfterMap, 6);
+    expect(moved, 'the pad moves the focus on the results after the campaign map has left').toBe(true);
 
     // ── reload lands SETTLED — the ceremony never replays uninvited ────────
     // «Never» is a RECORD of the reloaded document (the recorder is replace-proof: re-installed in every new

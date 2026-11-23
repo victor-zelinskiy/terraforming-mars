@@ -235,13 +235,24 @@ export function stepSelectable(
 
 type ConsoleIntentHandler = (intent: GamepadIntent) => boolean;
 
-let handler: ConsoleIntentHandler | undefined;
+/**
+ * WHO TAKES THE PAD — a STACK, the LAST to come in front; never one slot.
+ *
+ * Three owners register: the shell (for the whole game), a pre-game screen's menu pad, and a scene that takes the pad
+ * OVER the shell — the campaign map standing inside the endgame workspace installs its own menu pad. In one slot that
+ * scene wrote over the shell's handler, and LEAVING it cleared the slot: «B returns to the results» returned the
+ * player to a screen that heard nothing — every press dropped, until a reload (found 2026-11-23 by looking for the
+ * class the played hero's landing places had just shown; the one e2e that walks the scene reloads right after B).
+ * An owner that leaves gives the pad back to the one that stood before it.
+ */
+const handlers: Array<ConsoleIntentHandler> = [];
 
 export function registerConsoleIntentHandler(fn: ConsoleIntentHandler): () => void {
-  handler = fn;
+  handlers.push(fn);
   return () => {
-    if (handler === fn) {
-      handler = undefined;
+    const at = handlers.lastIndexOf(fn);
+    if (at !== -1) {
+      handlers.splice(at, 1);
     }
   };
 }
@@ -319,6 +330,7 @@ function dispatchConsoleIntentInner(intent: GamepadIntent): DispatchOutcome {
   for (const observe of observers) {
     observe(intent);
   }
+  const handler = handlers[handlers.length - 1];
   const taken = handler !== undefined ? handler(intent) : false;
   // …and a press the shell CONSUMED for a surface that was not mounted to receive it was taken by nobody.
   const received = taken && takeUnreceivedPress() === undefined;

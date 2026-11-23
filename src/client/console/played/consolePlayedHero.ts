@@ -592,7 +592,7 @@ async function answerHeroAfterWave(): Promise<void> {
   // «СРАБАТЫВАНИЕ КАРТЫ»: the REACTOR that paid rises first (out of its place on the receiving stage, or at a seat beside
   // the rail) and its share is born on its effect row; the printed tag that woke it is marked. What no reactor records
   // (a party's share) keeps the T06 birth on the tag; what no visible cause covers ticks at the beat.
-  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' && !payingFromStandingCard ? heroEmergence(effectHooks) : undefined});
+  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' && !payingFromStandingCard ? heroEmergence(frontEffectHooks()) : undefined});
   if (reaction !== undefined && playedHeroState.active) {
     await reaction.prepare?.();
   }
@@ -656,7 +656,7 @@ function heroAnswerFlight(card: string, tags: Readonly<Partial<Record<string, Re
   };
   // «СРАБАТЫВАНИЕ КАРТЫ» (the owner's decision 2): the token is born on the REACTOR that paid — risen out of its place
   // on the receiving stage, or at a seat beside the rail — and the printed tag that woke it is MARKED, not a birth place.
-  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' && !payingFromStandingCard ? heroEmergence(effectHooks) : undefined});
+  const reaction = cardReactionAnswerFlight({block: heroReactionBlock, emergence: playedHeroState.host === 'workspace' && !payingFromStandingCard ? heroEmergence(frontEffectHooks()) : undefined});
   if (reaction === undefined) {
     return tagFlight;
   }
@@ -770,13 +770,20 @@ function heroEmergence(hooks: ReceivingEffectHooks | undefined): ReactorEmergenc
     emergedFaceEl: (card) => faceOf(card),
   };
 }
-let effectHooks: ReceivingEffectHooks | undefined;
+/** The receiving stages that stand, in the order they came — the LAST in front (a stack, as the landing places are:
+ *  two composers mount the stage, and one that leaves must not take the other's hooks with it). */
+const effectHookStack: Array<ReceivingEffectHooks> = [];
+
+function frontEffectHooks(): ReceivingEffectHooks | undefined {
+  return effectHookStack[effectHookStack.length - 1];
+}
 
 export function provideReceivingEffectHooks(hooks: ReceivingEffectHooks): () => void {
-  effectHooks = hooks;
+  effectHookStack.push(hooks);
   return () => {
-    if (effectHooks === hooks) {
-      effectHooks = undefined;
+    const at = effectHookStack.lastIndexOf(hooks);
+    if (at !== -1) {
+      effectHookStack.splice(at, 1);
     }
   };
 }
@@ -1980,7 +1987,7 @@ export async function endPlayedHero(): Promise<void> {
       releaseHeroReward(spec);
       releaseFedVp(spec);
     };
-    const hooks = effectHooks;
+    const hooks = frontEffectHooks();
     if (playedHeroState.host === 'workspace' && hooks !== undefined) {
       // THE EFFECT RESOLUTION SEQUENCE (the receiving stage): card targets
       // first — each target physically EMERGES from its strip / its compact
