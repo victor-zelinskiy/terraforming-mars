@@ -10,6 +10,7 @@ import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {conclusionDoorInit, freeTurnConclusionCandidate, observeConclusionDoor} from '@/client/console/supervisor/staleFreeTurnClock';
 import {noteConcludeSpan} from '@/client/console/servingOwnerMeasure';
 import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
+import {flowTreeDigest} from '@/client/console/kernel/flowScope';
 import {PLAYER_LOOK_SELECTOR} from '@/client/console/consoleLiveness';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
@@ -550,7 +551,16 @@ export function createOutcomeController(shell: OutcomePort) {
     const verdict = conclusion.verdict === 'dismiss' ? 'dismiss' : `hold:${conclusion.reason}`;
     const look = document.querySelector(PLAYER_LOOK_SELECTOR) !== null ? ' · look' : '';
     const flight = flightsInTheAir();
-    noteConcludeSpan(`${top.kind} · ${verdict}${look} · ${flight === '' ? 'QUIET' : `busy[${flight}]`}`, 'moved', Date.now());
+    // A HELD candidate that stands QUIET says WHO holds it and what stands under it (the reaper's own case — a claim
+    // that answers for nothing, a hold whose run wedged — against the healthy one: the suite's only such spans are the
+    // Parliament's, 1.9 s, three times, `hold:live-outcome`, and nothing in the key to tell a beat nobody declared to
+    // the wait graph from a frame that is waiting for the player). Stats only.
+    const quietHeld = conclusion.verdict === 'hold' && flight === '';
+    const who = !quietHeld ? '' : ` by ${[
+      ...(workspaceOutcomeState.host === top.kind && workspaceOutcomeClaimed() ? [`claim:${workspaceOutcomeState.stage}`] : []),
+      ...FRAME_HOLDS.filter((hold) => hold.holds(top.kind)).map((hold) => hold.name),
+    ].join('+') || 'nobody named'} {${flowTreeDigest(6).replace(/[0-9]+/g, 'N').slice(0, 200)}}`;
+    noteConcludeSpan(`${top.kind} · ${verdict}${look} · ${flight === '' ? `QUIET${who}` : `busy[${flight}]`}`, 'moved', Date.now());
     return {
       kind: top.kind,
       key: `${top.kind}|${shell.playerView.waitingFor?.promptId ?? ''}`,
