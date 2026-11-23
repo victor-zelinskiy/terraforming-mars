@@ -543,6 +543,9 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   let unborn = false;
   // The flight's timeline, once it has started — what the safety catches up when the renderer starves (`guarded`).
   let flight: gsap.core.Timeline | undefined;
+  // …and where its touchdown stands — what the ceiling's word reads (`touchdownWord`): the stats of a line, never a decision.
+  let touchdownRan = false;
+  let settling: gsap.core.Timeline | undefined;
   const touched = guarded((done) => bornThenFlown(chip, opts.delayMs, () => {
     // (The wave's stagger was the birth's — the flight starts the moment it is called.)
     // The birth frame has been painted (in its layer) — the sentinel asks what stands over it.
@@ -663,7 +666,27 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     }
     return false;
   }, opts.wave, () => `the flight of «${(chip.textContent ?? '').trim().slice(0, 16)}» · ` +
-    (flight === undefined ? 'its timeline never started (the birth is waited)' : `its timeline at ${Math.round(flight.progress() * 100)}%`));
+    (flight === undefined ? 'its timeline never started (the birth is waited)' : `its timeline at ${Math.round(flight.progress() * 100)}%${touchdownWord()}`));
+
+  /**
+   * WHERE THE TOUCHDOWN STOOD when a flight whose arc is COMPLETE still ran out its ceiling (CI 2026-11-23, run
+   * 45220695930 — three green tests, «its timeline at 100%» and nothing to read the rest by: a price «−2» / «−12» on
+   * its destination, the beat held 1.2 s past its budget). The three states are three different defects: the arc's
+   * completion never ran the touchdown; the settle is still playing (or stands, not active — killed under the chip);
+   * the settle ended and the beat was not told.
+   */
+  function touchdownWord(): string {
+    if (flight === undefined || flight.progress() < 1) {
+      return '';
+    }
+    if (!touchdownRan) {
+      return ' · its touchdown never ran';
+    }
+    if (settling === undefined) {
+      return ' · touched down with no settle';
+    }
+    return ` · its settle at ${Math.round(settling.progress() * 100)}%${settling.isActive() ? '' : ' and not active'}`;
+  }
 
   /** The final approach's read: the live end, else its stand-in, else undefined (lost). Fills the report. */
   function finalApproach(): TransferPoint | undefined {
@@ -683,6 +706,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
    * absorb has no settle (the token is drawn in) and glides only when its end moved.
    */
   function touchdown(done: () => void): void {
+    touchdownRan = true;
     dropExpect(piece);
     // A turn still owed lands now at the latest (a dive into a covered cell); the touchdown is then asked about its paint.
     if (!turned && paint !== undefined && paint.plan.turn !== 'none') {
@@ -707,6 +731,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
       return;
     }
     const tl = gsap.timeline({onComplete: done});
+    settling = tl;
     if (glide) {
       tl.to(chip, {x: restingAt.x - w / 2, y: restingAt.y - h / 2, duration: Math.max(0.08, settleMs / 1000), ease: 'power2.out'});
     } else {
