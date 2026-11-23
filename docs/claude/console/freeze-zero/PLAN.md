@@ -1118,16 +1118,26 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
   the two nets on its one layout-less table are one row of the door that cures it. *Owed:* a replay of the strand's
   door on its OWN case (a hosted step left standing for a question it does not answer); the reading of run
   45101902265 and the gate 45101905535 on the retirement.
-- **THE CONCLUSION's THREE NETS — read against the doors FIRST (the lesson of the start's).** *The reaper:* its
-  `dismiss` case is the door's; its other cure — a claim that answers for nothing, released by force after eight
-  quiet seconds — needs its own level, and its healthy twin is named now: a held candidate that stands quiet says WHO
-  holds it (`7a87fe6d1c` — in the suite the only such spans are the Parliament's `the chairmanship is playing`, the
-  quest's result standing for the player's press: the player's time, no beat). *The beat stall guard* (twelve
-  seconds of a transient beat with nothing in flight → the frame torn down): the BEAT track measures every standing
-  beat by frame (`d27a47f87b`); in the bottle every beat reads busy. *The ghost test / the forced teardown:* an owed
-  conclusion refused by a hold that vouches for nothing — read with the owe's own escalation. **Next:** the readings
-  of run 45101902265 (`beat|… · QUIET`, `conclude|… · QUIET by claim:…`) → a door for each case that stands quiet
-  on no healthy table → the three go the way the start's two did.
+- **THE RETIREMENT, READ (2026-11-23).** The whole suite on `db69170c3e` (CI run 45101902265): 1 497 passed, all
+  twelve shards — with every test now red on a `[start-shadow] cure … by level`; the freeze gate (45101905535): both
+  seeds green; the box monkey in a real browser with a GPU (fz1 plain, 606 walks, the conclusion's door in the
+  build): 0 defects, MISS 0 · EXTRA 0 · LATCH 0, no door opened; the box's own run of the whole suite (1 413
+  functional tests): one red under a saturated box (`console-parliament-sitting-motion` — green 20 of 20 on the new
+  head, re-run beside the chains), two reds of the TIMING project that a shared box cannot judge.
+- **THE CONCLUSION's THREE NETS — read against the doors FIRST (the lesson of the start's).**
+  *The reaper* — BOTH its cures are doors now: `dismiss` (`6725ceeb31`) and **a claim that answers for nothing
+  (`713e8d0c30`)** — a frame held by its claim ALONE, no batch to take, no look, nothing in flight, for the same bar:
+  reconciled, let go, concluded; the line is the defect's own (`workspace-outcome/claim-released-free-turn`).
+  Built on the reading that there is no healthy twin: over the suite (45101902265) and the gate's 1 212 walks the
+  only held-and-quiet candidates are the chairmanship's result standing for the player's press (a row of
+  `FRAME_HOLDS` — named by the measure since `7a87fe6d1c`). Replayed in the bottle (released 256 ms in, the reaper
+  silent). The reaper itself stays one cycle as a net that should not speak, then goes by construction.
+  *The beat stall guard* (twelve seconds of a transient beat with nothing in flight → the frame torn down): the BEAT
+  track (`d27a47f87b`) read NOT ONE quiet beat — the suite, the gate, the bottle. Its door is next; its cure is a
+  teardown, so its bar is its own (longer than a conclusion's), and the reading to take first is the same track
+  under the perturbations (the box's `fzu-*` passes: cpu×4, reload, duo, net 400 — on the head with the doors).
+  *The ghost test / the forced teardown:* an owed conclusion refused by a hold that vouches for nothing — to be read
+  with the owe's own escalation (`workspaceConclusionOwe.ts`), after the beat's.
 - *THE GATE WENT RED ON MY OWN WORD (run 45083901169, `6725ceeb31`):* `wait-graph/unshaped`, eleven records — the
   detail the hero's target got that night carried brackets of its own, and the line's readers take the first `)` for
   the end of the owner's part. A wait's word is said without brackets now (`ceilingWait.ts`, `waitGraph.ts`), as a
