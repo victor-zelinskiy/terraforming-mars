@@ -8,7 +8,8 @@ import {computed, ref, onBeforeUnmount, onMounted} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {conclusionDoorInit, freeTurnConclusionCandidate, observeConclusionDoor} from '@/client/console/supervisor/staleFreeTurnClock';
-import {noteConcludeSpan} from '@/client/console/servingOwnerMeasure';
+import {noteBeatSpan, noteConcludeSpan} from '@/client/console/servingOwnerMeasure';
+import {isTransientBeat, transientSurfaceBeats} from '@/client/console/workspaceBeatStall';
 import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
 import {flowTreeDigest} from '@/client/console/kernel/flowScope';
 import {PLAYER_LOOK_SELECTOR} from '@/client/console/consoleLiveness';
@@ -577,8 +578,27 @@ export function createOutcomeController(shell: OutcomePort) {
    * few frames sooner, and one that did not is no longer eight seconds of a dead screen. Said once per opening, as
    * the trail of WHICH flow left its ending to the level (`workspace-conclusion/level-door`, counted, no defect).
    */
+  /**
+   * THE STANDING BEAT, MEASURED BY FRAME (`servingOwnerMeasure.noteBeatSpan`): the top frame in a transient beat — its
+   * own phase, or the one its surface reports (the arbiter's reading: `supervisorController.judgedTransientBeat`) —
+   * with what is in flight under it. Stats only: nothing here ends a beat.
+   */
+  function measureStandingBeat(): void {
+    const top = workspaceStackTop();
+    const beat = top === undefined || workspaceStackCollapsed() || stackYieldedToBoard() || shell.placementActive ? undefined :
+      isTransientBeat(top.phase) ? top.phase : transientSurfaceBeats().find(([kind]) => kind === top.kind)?.[1];
+    if (top === undefined || beat === undefined) {
+      noteBeatSpan('', 'gone', Date.now());
+      return;
+    }
+    const flight = flightsInTheAir();
+    const reveal = document.querySelector('.con-reveal') !== null ? ' · reveal' : '';
+    noteBeatSpan(`${top.kind}:${beat}${reveal} · ${flight === '' ? `QUIET{${flowTreeDigest(6).replace(/[0-9]+/g, 'N').slice(0, 200)}}` : `busy[${flight}]`}`, 'moved', Date.now());
+  }
+
   const conclusionDoor = {state: conclusionDoorInit()};
   function lookAtConclusionDoor(): void {
+    measureStandingBeat();
     const seen = measureConcludeDoor();
     const now = Date.now();
     const before = conclusionDoor.state;

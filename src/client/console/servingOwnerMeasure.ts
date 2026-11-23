@@ -574,7 +574,7 @@ const openingSpans = new Map<string, {key: string, since: number}>();
 
 /** What still stands when the log is read: the opening's open spans. */
 function refreshOpenSpans(): void {
-  servingOwnerLog.open = [...openingSpans.entries()].map(([track, span]) => ({surface: track === 'conclude' ? 'conclude' : 'opening', verdict: span.key, since: span.since}));
+  servingOwnerLog.open = [...openingSpans.entries()].map(([track, span]) => ({surface: track === 'conclude' || track === 'beat' ? track : 'opening', verdict: span.key, since: span.since}));
 }
 
 /**
@@ -623,6 +623,33 @@ export function noteConcludeSpan(key: string, ended: string, now: number): void 
   }
   if (key !== '') {
     openingSpans.set('conclude', {key, since: now});
+  }
+  refreshOpenSpans();
+}
+
+/**
+ * A STANDING BEAT, MEASURED (stage 2 — the next of the conclusion's nets to be read against a door: the beat stall
+ * guard, `workspaceBeatStall.ts`, tears a frame down after twelve seconds of a transient beat with nothing in
+ * flight). One span per state of `<kind>:<executing | completing> · QUIET{what stands} | busy[…]` while the top frame
+ * stands in a beat the arbiter judges. `key` `''` — no beat. Stats only: how long a healthy beat stands QUIET is what
+ * a level door of that guard would have to wait out.
+ */
+export function noteBeatSpan(key: string, ended: string, now: number): void {
+  const open = openingSpans.get('beat');
+  if (open !== undefined && open.key === key) {
+    return;
+  }
+  if (open !== undefined) {
+    const spanKey = `beat|${open.key} → ${ended}`;
+    const span = servingOwnerLog.spans[spanKey] ?? (servingOwnerLog.spans[spanKey] = {n: 0, ms: 0, max: 0});
+    const stood = Math.max(0, now - open.since);
+    span.n++;
+    span.ms += stood;
+    span.max = Math.max(span.max, stood);
+    openingSpans.delete('beat');
+  }
+  if (key !== '') {
+    openingSpans.set('beat', {key, since: now});
   }
   refreshOpenSpans();
 }
