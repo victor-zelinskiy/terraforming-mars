@@ -18,7 +18,7 @@ import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {ConsoleHandEntry} from '@/client/components/console/consoleHandSectionTypes';
 import {ConsoleColonyPick} from '@/client/components/console/consoleColoniesSectionTypes';
 import {hostedStepLiveIn, hostedStepOwedTo} from '@/client/console/parliament/hostedParliamentStep';
-import {closeWorkspaceRoot, stackYieldedToBoard, workspaceStackCollapsed, handFrameToQuestion, frameServing, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameDescended, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameStage, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, workspaceHostForStep, workspaceFrameOffStage, workspaceSceneHidden, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, workspaceFrameMounted, stackYieldedToBoard, workspaceStackCollapsed, handFrameToQuestion, frameServing, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameDescended, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameStage, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, workspaceHostForStep, workspaceFrameOffStage, workspaceSceneHidden, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
 import {workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
 import {openFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
@@ -34,7 +34,7 @@ import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQues
 import {cardGrantOwedTo} from '@/client/console/cardGrantHost';
 import {isHydroMarkerActive, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {questionKeepsFrame} from '@/client/console/shellTaskSurface';
-import {endPreludePlayChain, preludeChainHoldsClaim, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
+import {endPreludePlayChain, preludeChainHoldsClaim, preludeChainOn, PreludeChainHost, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
 import {PRESS_UNLANDED, workspaceClaimsColonyRevealBatch, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsPick, workspaceOutcomeClaimed, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending} from '@/client/console/boardBeatPark';
 import {PARLIAMENT_DRAW_ZONE} from '@/client/console/parliament/parliamentDraw';
@@ -262,6 +262,18 @@ export function createOutcomeController(shell: OutcomePort) {
     }
     // The optional effect the press woke up — structural on both sides.
     if (shell.effectDecisionBelongsToWorkspace) {
+      return true;
+    }
+    // …AND A PRELUDE CHAIN'S OWN STEP STANDING IN THE CLAIM HOST'S ZONE (P58 · FS — Project Eden played out of a
+    // mid-game pick: «which tile next» teleports into the hand, `routerController.taskEmbedTarget`). The player is
+    // LOOKING at a decision inside this workspace — and nothing said so: the claim read «serves nothing», so the owed
+    // conclusion's GHOST TEST read the hand a phantom for as long as the player thought (the OWED track's first
+    // reading in a real browser, CI run 45201555664 — `owed|hand · q:choice · held:live-outcome · ghost`, nothing in
+    // flight, 0.6 – 1.0 s: the time the spec took to press). Past the escalation's eight seconds a player who was
+    // still choosing had the workspace TORN DOWN under the step («reported finished but could not dismiss … with
+    // nothing served — forcing teardown»). The chain's step in its host's zone is the claim's served prompt.
+    const chainHost: PreludeChainHost | undefined = workspaceOutcomeState.host === 'hand' || workspaceOutcomeState.host === 'card-actions' ? workspaceOutcomeState.host : undefined;
+    if (task?.kind === 'choice' && task.flavor === 'placementOrder' && chainHost !== undefined && preludeChainOn(chainHost) && workspaceFrameMounted(chainHost)) {
       return true;
     }
     // …and the Venus bonus the press's step earned (P89 · EE): the server's marker on the raw prompt + the claim.

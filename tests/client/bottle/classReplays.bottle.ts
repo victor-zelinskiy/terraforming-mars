@@ -485,6 +485,65 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(said('[start-shadow]'), 'not the opening\'s door\'s state').to.deep.equal([]);
   });
 
+  /*
+   * `workspace-stall/ghost-forced` UNDER A DECISION THE PLAYER IS LOOKING AT — found by the OWED track's first reading
+   * in a real browser (CI run 45201555664: `owed|hand · q:choice · held:live-outcome · ghost`, nothing in flight, for
+   * exactly as long as the spec took to press). «WG Project» played from the hand deals three preludes; «Project
+   * Eden» is taken and played, and its «which tile next» teleports into the HAND's zone (P58 · FS). The hand's
+   * conclusion is owed, the claim holds it — and nothing said the claim was SERVING that step: the ghost test read
+   * the hand a phantom while the player thought, and the escalation tore the workspace down under the decision
+   * («reported finished but could not dismiss for 11s with nothing served — forcing teardown»); the step fell out of
+   * the hand into a band of its own. A player needs about three seconds of thought for it — every real play. The
+   * law: a prelude chain's step standing in the claim host's zone is the claim's served prompt
+   * (`outcomeController.workspaceOutcomePromptServed`).
+   */
+  it('a prelude\'s «which tile next» in the hand\'s zone: the player thinks as long as they like — the hand is no ghost, nothing is torn down', async () => {
+    const table = await bottleServer().bootFixture('project-eden-wg');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    const doc = (): Document => (globalThis as unknown as {window: {document: Document}}).window.document;
+    const attr = (sel: string, name: string): string => doc().querySelector(sel)?.getAttribute(name) ?? '';
+    const count = (sel: string): number => doc().querySelectorAll(sel).length;
+    await live.advance(4_000);
+    // The hand, from the quick wheel (its entry has no layout to ride here — it takes its bounded time).
+    await live.press('Period');
+    await live.advance(400);
+    await live.press('Enter');
+    await live.advance(12_000);
+    expect(live.frames()).to.deep.equal(['hand:browse']);
+    const focusedInHand = (): string => attr('.con-hand .con-hand__slot--selected[data-zoom-slot]', 'data-zoom-slot');
+    for (let i = 0; i < 14 && focusedInHand() !== 'WG Project'; i++) {
+      await live.press('ArrowRight');
+      await live.advance(300);
+    }
+    expect(focusedInHand(), 'the cursor is on the card').to.equal('WG Project');
+    await live.press('Enter');
+    await live.advance(1_500);
+    expect(count('.con-composer--play'), 'the play sheet').to.equal(1);
+    await live.press('Enter');
+    await live.advance(7_500);
+    expect(count('.con-deckpick'), 'the pick of three preludes stands in the hand').to.equal(1);
+    const focusedInPick = (): string => attr('.con-deckpick .con-cards__slot--focused', 'data-deckpick-slot');
+    for (let i = 0; i < 12 && focusedInPick() !== 'Project Eden'; i++) {
+      await live.press('ArrowRight');
+      await live.advance(300);
+    }
+    expect(focusedInPick()).to.equal('Project Eden');
+    await live.press('Enter');
+    await live.advance(600);
+    await live.press('Period');
+    await live.advance(8_000);
+    const stepInHand = '.con-hand [data-prelude-variant-kind="placement-order"]';
+    expect(count(stepInHand), 'the order step stands in the hand\'s zone').to.equal(1);
+    expect(live.frames()).to.deep.equal(['hand:committed']);
+    // THE PLAYER THINKS — well past the escalation (eight seconds owed, two and a half read a ghost).
+    await live.advance(20_000);
+    expect(live.lines().filter((line) => line.includes('[workspace-stall]')), 'nothing is torn down under the decision').to.deep.equal([]);
+    expect(live.frames(), 'the hand stands').to.deep.equal(['hand:committed']);
+    expect(count(stepInHand), '…and the step is where the player was reading it').to.equal(1);
+    expect(classes().filter((cls) => cls.startsWith('workspace-')), 'nothing is filed').to.deep.equal([]);
+  });
+
   it('the hand opened from the wheel over a live placement: the bar is the hand\'s, nothing is filed, B is back at the cells', async () => {
     const table = await bottleServer().bootFixture('parliament-skyscrapers-enact');
     bottle = await bootBottle(table);

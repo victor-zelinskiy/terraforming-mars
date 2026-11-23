@@ -464,6 +464,16 @@ test.describe('P58 — Project Eden: three placements in the player\'s order, th
     await expect(page.locator(inHand), 'the first order step stands in the HAND (never the effect-decision modal)').toBeVisible({timeout: 30_000});
     await expect.poll(() => page.locator('.con-decision').count(), {message: 'no effect decision took it'}).toBe(0);
     await shoot(page, 'C-01-order-in-hand');
+    // THE PLAYER THINKS. The hand's conclusion is owed while the step stands in its zone, and the owed conclusion's
+    // ghost test did not know the claim was SERVING that step: past the escalation (eight seconds owed, two and a
+    // half read a ghost) the workspace was torn down under the decision, the step fell into a band of its own — about
+    // three seconds of thought in a real play, and this spec pressed inside one. RECORDED over the page's own clock
+    // (`armWitness`), well past the escalation: the step never leaves the hand.
+    const stood = await armWitness(page, 'p58-order-stands', (sel) => document.querySelector(sel) !== null, {args: inHand});
+    const thoughtFrom = await pageNow(page);
+    await expect.poll(async () => await pageNow(page) - thoughtFrom, {timeout: 90_000, message: 'the page lived past the escalation'}).toBeGreaterThan(13_000);
+    expect((await stood.stop()).every((sample) => sample.v), 'the order step stood in the hand the whole time the player thought').toBe(true);
+    await expect(page.locator(inHand), '…and is still the hand\'s to answer').toBeVisible();
     await chooseTile(page, request, id, inHand, 'city');
     await placeOnBoard(page, request, id, 'the city');
     // ⚠ GAP (PL-1739): the hand does not survive the answer (its frame is dropped when the placement is asked — the
