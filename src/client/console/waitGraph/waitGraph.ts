@@ -291,7 +291,8 @@ export function tickWaitGraph(world: WaitWorld): Array<WaitFinding> {
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const members = f.members.map((m) => {
       const n = byId.get(m);
-      return n === undefined ? m : `${m} (${n.owner}${n.detail !== undefined ? `: ${n.detail}` : ''})`;
+      // (A member's word stands inside the line's own brackets — said without brackets of its own: `ceilingWait.ts`.)
+      return n === undefined ? m : `${m} (${n.owner}${n.detail !== undefined ? `: ${n.detail.replace(/[()]/g, '')}` : ''})`;
     });
     console.warn(`[wait-graph] ${f.kind} ${members.join(' · ')} — ${f.why}` +
       `${f.yields !== undefined ? ` — yields: ${f.yields}` : ''} — standing ${Math.round(f.ageMs / 1000)} s`);

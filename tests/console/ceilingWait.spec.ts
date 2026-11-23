@@ -113,6 +113,26 @@ describe('ceilingWait — a ceiling is a node, and a ceiling hit is said', () =>
     expect(causeOf(warns[3], 'warn')).to.deep.include({tier: 'planned'});
   });
 
+  /*
+   * THE OWNER's WORD NEVER BREAKS THE LINE (the freeze gate, CI run 45083901169 — eleven records of a class that did
+   * not exist: `wait-graph/unshaped`). A detail said what its wait stood on with brackets of its own — «the arm's own
+   * seat «[data-embed-source-slot]» (0 in the DOM)» — and the line's reader took the first `)` for the end of the
+   * owner's part: the ceiling stopped being a ceiling of anybody. The line says the detail without brackets, whatever
+   * the owner wrote; the node keeps the owner's own words.
+   */
+  it('a detail with brackets of its own is said without them — the line stays a ceiling of its class', () => {
+    const w = beginCeilingWait({
+      id: 'played-hero:target', owner: 'playedHero', what: 'a measurable landing slot for the card', maxMs: 200,
+      detail: 'Research (Standard) · workspace:showing-result · the arm\'s own seat «[data-embed-source-slot]» (0 in the DOM)',
+    }, 100);
+    w.update('Research (Standard) · workspace:showing-result · the arm\'s own seat «[data-embed-source-slot]» (2 in the DOM)');
+    w.ceiling();
+    expect(warns).to.have.length(1);
+    expect(warns[0]).to.eq('[wait-graph] ceiling played-hero:target (playedHero: Research Standard · workspace:showing-result · the arm\'s own seat «[data-embed-source-slot]» 2 in the DOM) — ' +
+      '«a measurable landing slot for the card» did not come in 200 ms — the wait ended on its ceiling');
+    expect(causeOf(warns[0], 'warn')).to.deep.include({cls: 'wait-graph/ceiling/played-hero:target', shape: 'wait-graph/ceiling'});
+  });
+
   it('an abandoned wait ends silently and counts nothing', () => {
     const w = beginCeilingWait({id: 'x', owner: 'o', what: 'w', maxMs: 10});
     w.end();
