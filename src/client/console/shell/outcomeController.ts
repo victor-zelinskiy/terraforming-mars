@@ -536,7 +536,7 @@ export function createOutcomeController(shell: OutcomePort) {
    * flight under it. It stands HERE — beside the decision it measures and the door it prepares: the owner's, never one
    * more fact sampled in the supervisor. Stats only.
    */
-  function measureConcludeDoor(): {kind: WorkspaceFrameKind, key: string, quiet: boolean} | undefined {
+  function measureConcludeDoor(): {kind: WorkspaceFrameKind, key: string, quiet: boolean, claimOnly: boolean} | undefined {
     const top = workspaceStackTop();
     const candidate = freeTurnConclusionCandidate(top, () => ({
       asksFreeTurn: shell.playerView.waitingFor !== undefined && taskFor(shell.playerView)?.kind === 'actionMenu',
@@ -557,15 +557,20 @@ export function createOutcomeController(shell: OutcomePort) {
     // Parliament's, 1.9 s, three times, `hold:live-outcome`, and nothing in the key to tell a beat nobody declared to
     // the wait graph from a frame that is waiting for the player). Stats only.
     const quietHeld = conclusion.verdict === 'hold' && flight === '';
-    const who = !quietHeld ? '' : ` by ${[
-      ...(workspaceOutcomeState.host === top.kind && workspaceOutcomeClaimed() ? [`claim:${workspaceOutcomeState.stage}`] : []),
-      ...FRAME_HOLDS.filter((hold) => hold.holds(top.kind)).map((hold) => hold.name),
-    ].join('+') || 'nobody named'} {${flowTreeDigest(6).replace(/[0-9]+/g, 'N').slice(0, 200)}}`;
+    const mine = workspaceOutcomeState.host === top.kind && workspaceOutcomeClaimed();
+    const rows = FRAME_HOLDS.filter((hold) => hold.holds(top.kind)).map((hold) => hold.name);
+    const who = !quietHeld ? '' : ` by ${[...(mine ? [`claim:${workspaceOutcomeState.stage}`] : []), ...rows].join('+') || 'nobody named'} ` +
+      `{${flowTreeDigest(6).replace(/[0-9]+/g, 'N').slice(0, 200)}}`;
     noteConcludeSpan(`${top.kind} · ${verdict}${look} · ${flight === '' ? `QUIET${who}` : `busy[${flight}]`}`, 'moved', Date.now());
     return {
       kind: top.kind,
       key: `${top.kind}|${shell.playerView.waitingFor?.promptId ?? ''}`,
       quiet: conclusion.verdict === 'dismiss' && look === '' && flight === '',
+      // A CLAIM THAT ANSWERS FOR NOTHING (the reaper's other cure, by level — `lookAtConclusionDoor`): the frame is held
+      // by its own claim ALONE (no row of `FRAME_HOLDS`), no batch waits to be taken, nobody reads a look over it, and
+      // nothing is in flight.
+      claimOnly: conclusion.verdict === 'hold' && conclusion.reason === 'live-outcome' && mine && rows.length === 0 &&
+        currentRevealEvent() === undefined && look === '' && flight === '',
     };
   }
 
@@ -597,6 +602,7 @@ export function createOutcomeController(shell: OutcomePort) {
   }
 
   const conclusionDoor = {state: conclusionDoorInit()};
+  const claimDoor = {state: conclusionDoorInit()};
   function lookAtConclusionDoor(): void {
     measureStandingBeat();
     const seen = measureConcludeDoor();
@@ -604,6 +610,26 @@ export function createOutcomeController(shell: OutcomePort) {
     const before = conclusionDoor.state;
     const door = observeConclusionDoor(before, {key: seen?.key, quiet: seen?.quiet === true, now});
     conclusionDoor.state = door.state;
+    // …AND THE CLAIM THAT ANSWERS FOR NOTHING, BY THE SAME RULE (the reaper's other cure — the field export of
+    // 2026-11-09: «hand» stood committed over the free turn, held by `live-outcome`, eight seconds before the reaper
+    // let its claim go). The server asks the action menu, the claim alone holds the frame, no batch waits, nothing
+    // moves: that claim answers for nothing on this screen. Quiet for the door's bar it is reconciled, let go if it
+    // still stands (forced — the funnel would call a claim on its own host serving), and the frame concludes through
+    // the one guarded conclusion. NO HEALTHY TABLE STANDS THERE: over the whole suite (CI run 45101902265) and the
+    // gate's 1 212 walks the only held-and-quiet candidates are the chairmanship's result standing for the player's
+    // press — a row of `FRAME_HOLDS`, never this door's.
+    const claim = observeConclusionDoor(claimDoor.state, {key: seen?.claimOnly === true ? `${seen.key}|claim` : undefined, quiet: true, now});
+    claimDoor.state = claim.state;
+    if (claim.open && seen !== undefined) {
+      reconcileWorkspaceOutcome();
+      if (workspaceOutcomeClaimed() && workspaceOutcomeState.host === seen.kind && releaseWorkspaceOutcome('stale-free-turn', {force: true})) {
+        console.warn(`[workspace-outcome] the claim of «${seen.kind}» answered for nothing over the free turn, quiet for ` +
+          `${claim.state.frames} frames / ${now - claim.state.since} ms — released by the level door`);
+      }
+      const done = concludeWorkspaceFlow(seen.kind);
+      noteConcludeSpan('', done ? 'claim-door' : 'claim-door-held', now);
+      return;
+    }
     if (!door.open || seen === undefined) {
       return;
     }

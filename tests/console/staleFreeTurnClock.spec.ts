@@ -168,9 +168,17 @@ describe('the conclusion\'s candidate - a committed frame over the free turn', (
     const door = outcome.slice(outcome.indexOf('function lookAtConclusionDoor('), outcome.indexOf('/** The ghost test\'s read of the table'));
     expect(door).to.contain('const door = observeConclusionDoor(before, {key: seen?.key, quiet: seen?.quiet === true, now});');
     expect(door).to.contain('const left = concludeWorkspaceFlow(seen.kind);');
-    expect(door, 'never a bare close').to.not.match(/closeWorkspaceRoot|goBoardHome|popWorkspaceFrame|releaseWorkspaceOutcome/);
+    expect(door, 'never a bare close').to.not.match(/closeWorkspaceRoot|goBoardHome|popWorkspaceFrame/);
     // The door's «quiet» is the measure's three terms: the guarded verdict, no look the player reads, nothing in flight.
     expect(body).to.contain('quiet: conclusion.verdict === \'dismiss\' && look === \'\' && flight === \'\',');
+    // THE CLAIM DOOR — the reaper's other cure, by the same rule: a frame held by its claim ALONE (no row of the holds'
+    // table), no batch to take, no look, nothing in flight. The ONE release this door may make is that claim's, and
+    // only after the reconcile had its say; the frame then ends through the same guarded conclusion.
+    expect(body).to.match(/claimOnly: conclusion\.verdict === 'hold' && conclusion\.reason === 'live-outcome' && mine && rows\.length === 0 &&\s+currentRevealEvent\(\) === undefined && look === '' && flight === '',/);
+    expect(door).to.contain('const claim = observeConclusionDoor(claimDoor.state, {key: seen?.claimOnly === true ? `${seen.key}|claim` : undefined, quiet: true, now});');
+    expect(door).to.match(/if \(claim\.open && seen !== undefined\) \{\s+reconcileWorkspaceOutcome\(\);\s+if \(workspaceOutcomeClaimed\(\) && workspaceOutcomeState\.host === seen\.kind && releaseWorkspaceOutcome\('stale-free-turn', \{force: true\}\)\) \{/);
+    expect((door.match(/releaseWorkspaceOutcome\(/g) ?? []).length, 'one release — the claim that answers for nothing').to.equal(1);
+    expect((door.match(/concludeWorkspaceFlow\(seen\.kind\)/g) ?? []).length, 'both doors end the frame through the ONE conclusion').to.equal(2);
   });
 });
 

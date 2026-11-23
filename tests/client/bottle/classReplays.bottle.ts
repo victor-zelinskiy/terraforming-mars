@@ -317,6 +317,48 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * `workspace-outcome/claim-released-free-turn/<kind>` — THE REAPER's OTHER CURE (the field export of 2026-11-09:
+   * «hand» stood committed over the free turn, held by `live-outcome`): a frame held by its own CLAIM alone, with no
+   * batch to take and nothing moving — a claim that answers for nothing. The reaper let it go after eight seconds of
+   * a dead screen. By level (`outcomeController.lookAtConclusionDoor` — the claim door): quiet for the door's bar,
+   * the claim is reconciled, let go if it still stands, and the frame concludes. (Planted the way it arises: a claim
+   * of the hand's past its answer, presenting, with no reveal behind it — a batch that never came.)
+   */
+  it('a frame held by a claim that answers for nothing is let go BY LEVEL — the claim released, the frame gone, a second in; the reaper silent', async () => {
+    const table = await bottleServer().bootFixture('aerial-mappers');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    await live.advance(3_000);
+    const stack = live.pageModules.consoleWorkspaceStack;
+    const outcome = live.pageModules.consoleWorkspaceOutcome;
+    await live.press('Period');
+    await live.advance(250);
+    await live.press('Enter');
+    await live.advance(800);
+    expect(live.frames(), 'the hand is open').to.deep.equal(['hand:browse']);
+    // THE CLASS, PLANTED: the hand's play claimed a drawn batch, the answer came, the stage «presents» — and no batch
+    // ever stood behind it. The frame is past its commit; the claim is all that holds it.
+    outcome.claimWorkspaceOutcome('hand', 'Research', ['draw']);
+    outcome.markWorkspaceOutcomeAnswerIn();
+    outcome.markWorkspaceOutcomePresenting();
+    stack.setWorkspaceFramePhase('hand', 'committed');
+    await live.advance(100);
+    expect(live.frames(), 'inside the door\'s quiet the frame still stands — held by its claim').to.deep.equal(['hand:committed']);
+    expect(outcome.workspaceOutcomeClaimed(), 'the claim stands').to.equal(true);
+    await live.advance(1_400);
+    expect(outcome.workspaceOutcomeClaimed(), 'the claim that answered for nothing is let go').to.equal(false);
+    expect(live.frames(), '…and the frame it held left — a second or so in, not eight').to.deep.equal([]);
+    // Past the reaper's eight seconds: it had nothing to do.
+    await live.advance(12_000);
+    expect(live.lines().filter((line) => line.includes('[workspace-stale]')), 'the reaper is silent').to.deep.equal([]);
+    // The planted defect has ONE line — the door's own, said once: which claim it let go, and how soon.
+    expect(classes(), 'the release is the planted defect — one class, its own').to.deep.equal(['workspace-outcome/claim-released-free-turn/hand']);
+    const released = live.lines().filter((line) => line.includes('answered for nothing over the free turn')).map((line) => line.replace(/^warn: /, ''));
+    expect(released, 'said once').to.have.length(1);
+    expect(released[0]).to.match(/^\[workspace-outcome\] the claim of «hand» answered for nothing over the free turn, quiet for \d+ frames \/ \d+ ms — released by the level door$/);
+  });
+
+  /*
    * `start-stranded/confirmed` · `start-stranded/yielded` — THE WATCHDOG's CLASS (the reliability iteration of
    * 2026-10-28: Strategic Base Planning → a colony on Triton → the scene stood blank while the server waited for the
    * prelude's city). A start scene that serves NOTHING under a live question was confirmed on a timer — 2.5 s, the
