@@ -694,8 +694,24 @@ type HeroTargetMeasure = () => Promise<HeroRect | undefined>;
 /** A SYNCHRONOUS read of the landing rect at REST (`restingRectOf`) — the
  *  final-approach retarget's one live look; `undefined` = not readable now. */
 type HeroTargetPeek = () => HeroRect | undefined;
-let targetMeasure: HeroTargetMeasure | undefined;
-let targetPeek: HeroTargetPeek | undefined;
+type HeroTargetProvider = {measure: HeroTargetMeasure, peek: HeroTargetPeek | undefined};
+/**
+ * EVERY LANDING PLACE THAT STANDS, in the order it came — the LAST is the one in front.
+ *
+ * A STACK, never one slot. Three surfaces provide a place: the start's «РАЗЫГРАНО» shelf (for its whole life), the
+ * table's overlay and a composer's receiving stage (each for one scene). In one slot the second provider wrote over
+ * the first, and LEAVING it took the slot with it: after a play from the hand hosted INSIDE the start (Eccentric
+ * Sponsor's project) the shelf's place was gone for the rest of the opening — the next prelude lifted, found «no
+ * landing place registered», hung for its whole budget and dissolved where it stood instead of flying onto the shelf
+ * (`wait-graph/ceiling/played-hero:target` under a green `console-sponsor-colony`, every run; the line's own word
+ * named it once the budget was one — CI run 45131828798). A provider that leaves gives the front back to the one
+ * that stood before it.
+ */
+const targetProviders: Array<HeroTargetProvider> = [];
+
+function frontTarget(): HeroTargetProvider | undefined {
+  return targetProviders[targetProviders.length - 1];
+}
 
 /**
  * The landing place registers its reserved-slot measurer here (the
@@ -703,14 +719,19 @@ let targetPeek: HeroTargetPeek | undefined;
  * synchronous peek the flight re-reads once on its final approach.
  */
 export function providePlayedHeroTarget(fn: HeroTargetMeasure, peek?: HeroTargetPeek): () => void {
-  targetMeasure = fn;
-  targetPeek = peek;
+  const provider: HeroTargetProvider = {measure: fn, peek};
+  targetProviders.push(provider);
   return () => {
-    if (targetMeasure === fn) {
-      targetMeasure = undefined;
-      targetPeek = undefined;
+    const at = targetProviders.indexOf(provider);
+    if (at !== -1) {
+      targetProviders.splice(at, 1);
     }
   };
+}
+
+/** How many landing places stand (a spec's read of the registry). */
+export function playedHeroTargetCount(): number {
+  return targetProviders.length;
 }
 
 /**
@@ -1026,7 +1047,7 @@ async function prewarmLook(deadline: number): Promise<HeroRect | undefined> {
   if (rect !== undefined) {
     return rect;
   }
-  while (playedHeroState.active && targetPeek === undefined && targetSelectorOverride === undefined && Date.now() < deadline) {
+  while (playedHeroState.active && frontTarget()?.peek === undefined && targetSelectorOverride === undefined && Date.now() < deadline) {
     await frame();
   }
   if (!playedHeroState.active) {
@@ -2969,7 +2990,7 @@ function peekTargetRect(): HeroRect | undefined {
     return undefined;
   }
   try {
-    return targetPeek?.();
+    return frontTarget()?.peek?.();
   } catch (e) {
     reportDiagnosticError(pageErrorLine('caught by the played hero\'s landing peek — no landing rect', e), e);
     return undefined;
@@ -2982,7 +3003,7 @@ async function awaitTargetRect(budgetMs = TARGET_WAIT_BUDGET_MS): Promise<HeroRe
   // under a green `console-sponsor-colony` named the card and nothing a reader could act on.)
   const standing = (): string => `${playedHeroState.card ?? ''} · ${playedHeroState.host}:${playedHeroState.phase} · ` +
     (targetSelectorOverride !== undefined ? `the arm's own seat «${targetSelectorOverride}» (${document.querySelectorAll(targetSelectorOverride).length} in the DOM)` :
-      targetMeasure === undefined ? 'no landing place registered' : `a registered place${targetPeek === undefined ? '' : ' with a peek'}`);
+      frontTarget() === undefined ? 'no landing place registered' : `a registered place${frontTarget()?.peek === undefined ? '' : ' with a peek'}`);
   const node = beginCeilingWait({id: 'played-hero:target', owner: 'playedHero', what: 'a measurable landing slot for the card', maxMs: budgetMs, detail: standing()});
   const rect = await measureTargetRect(budgetMs);
   if (rect !== undefined) {
@@ -3020,10 +3041,10 @@ async function measureTargetRect(budgetMs: number): Promise<HeroRect | undefined
     }
     return undefined;
   }
-  while (playedHeroState.active && targetMeasure === undefined && Date.now() < deadline) {
+  while (playedHeroState.active && frontTarget() === undefined && Date.now() < deadline) {
     await frame();
   }
-  const measure = targetMeasure;
+  const measure = frontTarget()?.measure;
   if (!playedHeroState.active || measure === undefined) {
     return undefined;
   }

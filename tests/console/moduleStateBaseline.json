@@ -201,7 +201,7 @@
   "src/client/console/parliament/tableAnswerBeat.ts": 1,
   "src/client/console/patentSale/consolePatentSale.ts": 7,
   "src/client/console/patentSale/patentSaleDirector.ts": 2,
-  "src/client/console/played/consolePlayedHero.ts": 18,
+  "src/client/console/played/consolePlayedHero.ts": 17,
   "src/client/console/played/consolePlayOutcomeClaim.ts": 3,
   "src/client/console/played/payloadCarry.ts": 1,
   "src/client/console/played/playedCardReturn.ts": 1,

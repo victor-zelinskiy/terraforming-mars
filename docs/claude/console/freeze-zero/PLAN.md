@@ -1184,11 +1184,25 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
   budget after the prewarm had spent one — a card hanging 3.4 s over a place that was never coming (a play hosted by
   a step whose shelf is away, `console-sponsor-colony`). **One budget, counted from the arm** (`41f16b29f5`): the
   prewarm hands its deadline over with its answer, the flight waits what is left (a 320 ms floor).
+  **…and with one budget the line named its CAUSE (the whole suite on `d575cd2cd7`, run 45131828798 — 1 316 of
+  1 316 passed in eleven shards read): «Orbital Construction Yard · workspace:lifting · no landing place registered»
+  — not the sponsor's project, the NEXT prelude.** The registry of landing places was ONE slot with three providers
+  (the start's «РАЗЫГРАНО» shelf for its whole life; the table's overlay and a composer's receiving stage for one
+  scene each): the second wrote over the first, and leaving it took the slot with it. After a play from the hand
+  hosted inside the start the shelf's place was gone for the rest of the opening — every later prelude lifted, hung
+  and dissolved where it stood instead of flying onto the shelf: a defect the PLAYER saw, read off a net under a
+  green test. **A stack** (`providePlayedHeroTarget` — a provider that leaves gives the front back to the one before
+  it; the hero's spec holds it).
   *`scene-transition/hold-bound/board-fit`* stood under three more green tests (`console-old-mining-colony` B,
   `console-medical-institute` A·B, `console-rail-value-badges`) and NOT ONCE in thirty on a repeat of two of them
   (45128453374) — a race, and its line named nothing. **The hold says what it was waiting for** (`d575cd2cd7` —
   `deferSceneReveal(name, maxMs, standing)`: the stage, the fit, the tween, what is owed, the passes spent and the
   trail of what each calibration pass found). A measure; the cure follows the next whole run's reading.
+  *Its first word (run 45131828798):* only the Moon's board spoke — `tween on, 0 stable · owed nothing · passes 1 of
+  6 · trail +87 drift size 116,-14 off 73,-21 > +143 banned by a tween`: one pass found a drift, armed the tween
+  guard, and the guard never read the transform at its target for the whole six seconds (the frontier's board —
+  the tween check's own early returns leave `boardTweening` standing). The three tests of the premium scope did not
+  fire in this run: the race is still unnamed, and the word is there for the run that catches it.
 - **THE ENGINE FUZZ's FIRST NIGHT ON CI — finding #99, closed (`ed96b620b9`).** Seed 2078000753: Project Inspection,
   the last card of a hand, offered Ceres Tech Market's action again — «discard 1 card of 0», refused by the engine.
   A copier played from the hand is still IN the hand while it is judged, previewed and played; an action that needs

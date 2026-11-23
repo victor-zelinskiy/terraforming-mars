@@ -16,6 +16,8 @@ import {
   playedHeroIncomingCard,
   playedHeroCardTargets,
   playedHeroState,
+  playedHeroTargetCount,
+  providePlayedHeroTarget,
   provideReceivingEffectHooks,
   seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
@@ -541,5 +543,41 @@ describe('consolePlayedHero (the animation transaction)', function() {
         unregister();
       }
     });
+  });
+});
+
+/*
+ * THE LANDING PLACES ARE A STACK (2026-11-23). Three surfaces provide the hero's landing place — the start's
+ * «РАЗЫГРАНО» shelf for its whole life, the table's overlay and a composer's receiving stage for one scene each. In
+ * ONE slot the second wrote over the first, and leaving it took the slot with it: after a play from the hand hosted
+ * inside the start (Eccentric Sponsor's project) the shelf's place was gone for the rest of the opening, and the next
+ * prelude had nowhere to land — it hung, then dissolved where it stood.
+ */
+describe('consolePlayedHero — the landing places are a stack', () => {
+  const place = () => Promise.resolve({x: 0, y: 0, w: 100, h: 140});
+
+  it('a provider that leaves gives the front back to the one that stood before it', () => {
+    const before = playedHeroTargetCount();
+    const shelf = providePlayedHeroTarget(place);
+    const stage = providePlayedHeroTarget(place);
+    expect(playedHeroTargetCount()).to.eq(before + 2);
+    // The scene's stage leaves: the shelf still stands (in one slot it was gone with the stage).
+    stage();
+    expect(playedHeroTargetCount()).to.eq(before + 1);
+    // …and leaving twice takes nobody else's place.
+    stage();
+    expect(playedHeroTargetCount()).to.eq(before + 1);
+    shelf();
+    expect(playedHeroTargetCount()).to.eq(before);
+  });
+
+  it('the FIRST may leave while the second stands — each takes only its own', () => {
+    const before = playedHeroTargetCount();
+    const shelf = providePlayedHeroTarget(place);
+    const stage = providePlayedHeroTarget(place);
+    shelf();
+    expect(playedHeroTargetCount()).to.eq(before + 1);
+    stage();
+    expect(playedHeroTargetCount()).to.eq(before);
   });
 });
