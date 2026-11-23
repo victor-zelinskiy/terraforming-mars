@@ -1030,7 +1030,14 @@ async function prewarmTargetRect(): Promise<HeroRect | undefined> {
   if (rect !== undefined) {
     return rect;
   }
-  return awaitTargetRect(Math.max(200, deadline - Date.now()));
+  // THE PREWARM IS A GUESS TAKEN EARLY — ITS MISS IS NOBODY's WAIT. Where no landing place has registered inside the
+  // round trip (a play whose shelf comes back only when the step that hosts it has left), the last short look used
+  // to be a judged wait of its own: «a measurable landing slot did not come in 200 ms», a ceiling line under a green
+  // `console-sponsor-colony` on every run — the line's own word, once it had one: `workspace:lifting · no landing
+  // place registered`. Nothing stands on that look: the flight asks for its place at its own time
+  // (`prewarmed.then((r) => r ?? awaitTargetRect())`), with the whole budget, and THAT wait is the one the graph
+  // judges. The look itself stays — measured, never said.
+  return measureTargetRect(Math.max(200, deadline - Date.now()));
 }
 
 /**
