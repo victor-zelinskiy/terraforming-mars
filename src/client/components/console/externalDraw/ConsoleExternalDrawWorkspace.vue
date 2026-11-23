@@ -810,6 +810,7 @@ function awaitPromptMoved(key: string): Promise<void> {
   const wait = beginCeilingWait({
     id: 'external-draw:prompt-moved', owner: 'ConsoleExternalDrawWorkspace', what: 'the server moving off the answered prompt',
     maxMs: SUBMIT_NO_RESPONSE_MS + motionMs(REFUSAL_GRACE_MS), target: 'server',
+    detail: `answered intake · ${remaining.value.length} cards still on it: ${remaining.value.slice(0, 3).join(', ')}`,
   });
   return new Promise<void>((resolve) => {
     let done = false;
@@ -853,6 +854,7 @@ function awaitPromptMoved(key: string): Promise<void> {
           armGrace();
           return;
         }
+        wait.update(`answered intake still standing · ${remaining.value.length} cards on it · response ${transportState.responseArrived ? 'arrived' : 'not arrived'}`);
         wait.ceiling();
         finish();
       });

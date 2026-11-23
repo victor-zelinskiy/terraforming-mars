@@ -109,7 +109,10 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
       if (ceilingStats.recent.length > 40) {
         ceilingStats.recent.shift();
       }
-      console.warn(`[wait-graph] ceiling ${spec.id} (${spec.owner}${detail !== undefined && detail !== '' ? `: ${detail}` : ''}) — ` +
+      // (The owner's word stands inside the line's own brackets: a bracket of its own — a card's name, a selector —
+      // would end them early for every reader of the line, so it is said without.)
+      const said = detail?.replace(/[()]/g, '');
+      console.warn(`[wait-graph] ceiling ${spec.id} (${spec.owner}${said !== undefined && said !== '' ? `: ${said}` : ''}) — ` +
         `«${spec.what}» did not come in ${boundMs} ms — the wait ended on its ceiling${planned !== undefined ? ` (planned: ${planned})` : ''}`);
     },
     end: () => {

@@ -1651,7 +1651,8 @@ async function runPreludeExit(chosen: CardName | undefined): Promise<void> {
     // PL-1469 — THE BURN PAYS FROM THE CARD: the answer's 15 M€ wait on the rail (seeded in the apply block); one
     // token is born on the burnt card's face where it stands, the row ticks on the touchdown; only then does the
     // card follow the others to the discard.
-    await until(() => preludeBurnOwed() || model.value === undefined || promptKey.value !== frozenKey.value, 4000, {id: 'deck-pick:prompt-left', what: 'the server moving off the pick'});
+    await until(() => preludeBurnOwed() || model.value === undefined || promptKey.value !== frozenKey.value, 4000, {id: 'deck-pick:prompt-left', what: 'the server moving off the pick',
+      standing: () => `burnt ${chosen} · burn reward ${preludeBurnOwed() ? 'owed' : 'not seeded'} · prompt ${model.value === undefined ? 'gone' : promptKey.value === frozenKey.value ? 'still the pick' : 'moved'}`});
     if (preludeBurnOwed()) {
       const face = slotEl(chosen)?.querySelector<HTMLElement>(':is(.pcard, .card-container)') ?? slotEl(chosen) ?? undefined;
       await flyPreludeBurn(face !== undefined ? {el: face, fx: 0.5, fy: 0.5} : undefined);
@@ -1664,12 +1665,14 @@ async function runPreludeExit(chosen: CardName | undefined): Promise<void> {
     // hero's own PROGRESS (FLAKE ZERO Ф4, class N): counted from here, a hero a slow frame stretched was still in the
     // air when six seconds ran out, and the seat painted the card under it.
     const heroMoves = () => `${String(playedHeroState.phase)}|${String(playedHeroState.revealed)}`;
+    const heroStanding = () => `chosen ${chosen} · hero ${isPlayedHeroActive() ? 'active' : 'idle'} on ${playedHeroState.card ?? 'no card'} · ` +
+      `${playedHeroState.host}:${playedHeroState.phase} · ${playedHeroState.revealed ? 'revealed' : 'not revealed'}`;
     await until(() => playedHeroState.card !== chosen || playedHeroState.revealed || !isPlayedHeroActive(), motionCeilingMs(6000),
-      {id: 'deck-pick:hero-revealed', what: 'the chosen card revealed by the play scene'}, {progress: heroMoves, ceilingMs: motionCeilingMs(15_000)});
+      {id: 'deck-pick:hero-revealed', what: 'the chosen card revealed by the play scene', standing: heroStanding}, {progress: heroMoves, ceilingMs: motionCeilingMs(15_000)});
     seatedPrelude.value = chosen;
     held.value.add(chosen);
     await until(() => !isPlayedHeroActive() || playedHeroState.card !== chosen, motionCeilingMs(12000),
-      {id: 'deck-pick:hero-done', what: 'the play scene of the chosen card done'}, {progress: heroMoves, ceilingMs: motionCeilingMs(20_000)});
+      {id: 'deck-pick:hero-done', what: 'the play scene of the chosen card done', standing: heroStanding}, {progress: heroMoves, ceilingMs: motionCeilingMs(20_000)});
   }
 }
 /** One prelude to the deck object's discard — from its slot, face up (the pile is public), the count on contact. */
@@ -1700,15 +1703,15 @@ async function discardPrelude(name: CardName, delayMs: number): Promise<void> {
  * budget counts from the awaited scene's last change (a phase it moved to), bounded by `ceilingMs` from the start: a
  * scene still moving is never cut short by a clock that started before it did.
  */
-function until(cond: () => boolean, maxMs: number, wait: {id: string, what: string},
+function until(cond: () => boolean, maxMs: number, wait: {id: string, what: string, standing: () => string},
   moving?: {progress: () => string, ceilingMs: number}): Promise<void> {
   if (cond() || typeof window === 'undefined') {
     return Promise.resolve();
   }
   const start = flowClock().now();
   const hard = start + Math.max(maxMs, moving?.ceilingMs ?? maxMs);
-  // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-  const node = beginCeilingWait({id: wait.id, owner: 'deckPick', what: wait.what, maxMs: hard - start});
+  // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`) — with what it stood on.
+  const node = beginCeilingWait({id: wait.id, owner: 'deckPick', what: wait.what, maxMs: hard - start, detail: wait.standing()});
   return new Promise<void>((resolve) => {
     let deadline = start + maxMs;
     let seen = moving?.progress();
@@ -1725,6 +1728,7 @@ function until(cond: () => boolean, maxMs: number, wait: {id: string, what: stri
         deadline = Math.min(hard, Math.max(deadline, now + maxMs));
       }
       if (now > deadline) {
+        node.update(wait.standing());
         node.ceiling();
         resolve();
         return;
@@ -1744,6 +1748,7 @@ function awaitPromptMoved(key: string): Promise<void> {
   // The wait has to wait: a node of the wait graph, its grace ending it said (`ceilingWait.ts`).
   const wait = beginCeilingWait({
     id: 'deck-pick:prompt-moved', owner: 'ConsoleDeckPick', what: 'the server moving off the answered prompt', maxMs: motionMs(REFUSAL_GRACE_MS), target: 'server',
+    detail: `answered ${key}`,
   });
   return new Promise<void>((resolve) => {
     let done = false;
@@ -1769,6 +1774,7 @@ function awaitPromptMoved(key: string): Promise<void> {
     // PACING, not a guarantee: the grace's end is SAID (the ceiling line), so it must not come due when the surface
     // leaves — there the wait is abandoned silently and whoever awaits it goes on (the scope's own cleanup).
     cancelGrace = flowScope.after(motionMs(REFUSAL_GRACE_MS), 'the server moving off the answered prompt', () => {
+      wait.update(`answered ${key} · the live prompt is still that key`);
       wait.ceiling();
       finish();
     });

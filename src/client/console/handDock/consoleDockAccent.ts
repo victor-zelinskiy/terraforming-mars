@@ -99,9 +99,11 @@ export function beginDockIntakeAccent(label: string): () => void {
     // defect it always was (`ceilingWait.ts` reads the frames; a starved page's ceiling is its honest end).
     const wait = beginCeilingWait({
       id: `dock-accent:${label}`, owner: 'consoleDockAccent', what: 'the end of the presentation that holds the dock\'s full pose', maxMs: ACCENT_MAX_MS,
+      detail: `lease ${id} · ${leases.length} other leases holding: ${leases.map((l) => l.label).join(', ') || 'none'}`,
     });
     const cancelCeiling = owner.after(ACCENT_MAX_MS, 'the dock accent\'s ceiling', () => {
       if (leases.some((l) => l.id === id)) {
+        wait.update(`lease ${id} never released · the dock held by: ${leases.map((l) => l.label).join(', ')}`);
         wait.ceiling();
       }
       drop(id);

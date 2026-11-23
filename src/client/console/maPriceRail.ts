@@ -131,7 +131,9 @@ function awaitPriceEnd(maxMs: number): Promise<TransferEnd | undefined> {
   }
   const started = Date.now();
   // The wait has to wait: a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`).
-  const wait = beginCeilingWait({id: 'ma-price:price-end', owner: 'maPriceRail', what: 'the printed price painted on the face', maxMs});
+  // Which printed price is awaited, and whether it is in the DOM at all — a missing face and an unpainted one are two causes.
+  const standing = (): string => `«.con-mafocus [data-ma-price-target]» · ${document.querySelectorAll('.con-mafocus [data-ma-price-target]').length} in the DOM, none painted`;
+  const wait = beginCeilingWait({id: 'ma-price:price-end', owner: 'maPriceRail', what: 'the printed price painted on the face', maxMs, detail: standing()});
   return new Promise((resolve) => {
     const tick = () => {
       const end = priceEnd();
@@ -139,6 +141,7 @@ function awaitPriceEnd(maxMs: number): Promise<TransferEnd | undefined> {
         if (end !== undefined) {
           wait.met();
         } else {
+          wait.update(standing());
           wait.ceiling();
         }
         resolve(end);

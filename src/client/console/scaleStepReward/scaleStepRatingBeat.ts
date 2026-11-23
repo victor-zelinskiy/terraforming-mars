@@ -586,7 +586,11 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
     }),
   });
   // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
-  const wait = beginCeilingWait({id: 'scale-step-rating:stage', owner: 'scaleStepRatingBeat', what: 'the stage of the scale step rating', maxMs: SCALE_STEP_STAGE_DUE_MS});
+  // What the stage stands on: the rating owed, each scale's move — parked or its marker not arrived — and the board's cover.
+  const standing = (): string => `TR +${e.plan.rating} · ` +
+    `${e.plan.moves.map((m) => `${m.accent} ${m.steps} steps to ${m.after}${boardBeatHoldsParam(m.key) ? ' parked' : ''}${scaleMarkerArrived(m.accent, m.after) ? '' : ' not arrived'}`).join(', ')} · ` +
+    `board ${boardBeatBoardWatchable() ? 'watchable' : 'covered'}`;
+  const wait = beginCeilingWait({id: 'scale-step-rating:stage', owner: 'scaleStepRatingBeat', what: 'the stage of the scale step rating', maxMs: SCALE_STEP_STAGE_DUE_MS, detail: standing()});
   return new Promise<boolean>((resolve) => {
     const stop: WatchStopHandle = watch(
       () => {
@@ -608,6 +612,7 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
             wait.met();
           } else if (verdict === 'due') {
             // (The debt is settled above — the fact is the board's own, asked directly: `scaleStepRatingStageCovered`'s reason.)
+            wait.update(standing());
             wait.ceiling(boardBeatBoardWatchable() ? undefined : 'the player keeps the board covered — the rating is applied at its due, untold');
           } else {
             wait.end();

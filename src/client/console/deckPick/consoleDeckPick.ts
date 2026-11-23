@@ -196,11 +196,16 @@ export function beginDeckPickDeal(handover?: () => void, ceilingMs: number = DEA
   // THE CEILING IS A WAIT OF THE GRAPH (the tier audit of 2026-11-18, row 9): it was a bare timer whose line is a note
   // of this module — eight seconds of a shut pad that no net reported. As a ceiling wait its line is the stall
   // family's (a defect; on a page that painted nothing, its honest end — `ceilingWait.ts` reads the frames).
+  // What the deal stands on: whether a surface waits to take the cards, and the flight's faces and their mounted bodies.
+  const standing = (): string => `deal ${seq} · ${dealHandover !== undefined ? 'a surface stands to take it' : 'no surface owns it'} · ` +
+    `${deckPickFlightState.cards.length} faces in flight, ${proxyEls.size} bodies mounted · phase ${deckPickState.phase}`;
   const wait = beginCeilingWait({
     id: 'deck-pick:deal', owner: 'consoleDeckPick', what: 'the landing of the dealt cards', maxMs: motionMs(ceilingMs),
+    detail: standing(),
   });
   const cancelTimer = owner.after(motionMs(ceilingMs), 'the deck pick\'s deal ceiling', () => {
     forgetRelease();
+    wait.update(standing());
     wait.ceiling();
     endDealAtCeiling(seq);
   });

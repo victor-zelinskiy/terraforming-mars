@@ -132,18 +132,26 @@ export function parliamentDrawStanding(): boolean {
     !parliamentParksReveal(e.source) && !rulingChangeParksReveal(e.source));
 }
 
+/** What a take's wait stands on — the Parliament's batches still standing, and the stage that would host them. */
+function takeStanding(): string {
+  const batches = pendingRevealEvents().filter((e) => isParliamentDrawSource(e.source));
+  return `${batches.map((e) => `batch ${e.id} ${e.source?.type ?? ''} ${e.cards.length} cards`).join(', ') || 'no Parliament batch'} · ` +
+    `hosts ${parliamentDrawState.hosts.length} · stage ${parliamentDrawState.paneIn ? 'in' : 'out'}`;
+}
+
 /** Resolve once `done()` holds — re-asked on every reactive change, bounded by the take's net (named). Never rejects. */
 function waitUntil(done: () => boolean, what: string, node: {id: string, what: string}): Promise<void> {
   if (done()) {
     return Promise.resolve();
   }
   // A wait that has to wait is a node of the wait graph; the net ending it is said (`ceilingWait.ts`).
-  const wait = beginCeilingWait({id: node.id, owner: 'parliamentDraw', what: node.what, maxMs: PARLIAMENT_DRAW_TAKE_NET_MS, target: 'player'});
+  const wait = beginCeilingWait({id: node.id, owner: 'parliamentDraw', what: node.what, maxMs: PARLIAMENT_DRAW_TAKE_NET_MS, target: 'player', detail: takeStanding()});
   return new Promise((resolve) => {
     const onNet = (): void => {
       stop();
       forget();
       console.warn(`[parliament-draw] ${what} — the net let the flow go on`);
+      wait.update(takeStanding());
       wait.ceiling();
       resolve();
     };
@@ -195,7 +203,10 @@ export function parliamentDrawReady(batch: {id: number, source?: CardDrawRevealS
     return Promise.resolve();
   }
   const started = Date.now();
-  const node = beginCeilingWait({id: 'parliament-draw:zone', owner: 'parliamentDraw', what: 'the draw stage zone of the Parliament', maxMs: PARLIAMENT_DRAW_READY_NET_MS});
+  // Which batch waits, and which half of the zone's readiness is missing — the stage's entrance or the zone's node.
+  const standing = (): string => `batch ${batch.id} ${batch.source?.type ?? ''} · hosts ${parliamentDrawState.hosts.length} · ` +
+    `stage ${parliamentDrawState.paneIn ? 'in' : 'not entered'} · zone ${embedZoneMounted(PARLIAMENT_DRAW_ZONE) ? 'mounted' : 'not mounted'}`;
+  const node = beginCeilingWait({id: 'parliament-draw:zone', owner: 'parliamentDraw', what: 'the draw stage zone of the Parliament', maxMs: PARLIAMENT_DRAW_READY_NET_MS, detail: standing()});
   return new Promise((resolve) => {
     const poll = (): void => {
       if (!parliamentOwnsRevealBatch(batch) || parliamentDrawZone() !== '') {
@@ -204,6 +215,7 @@ export function parliamentDrawReady(batch: {id: number, source?: CardDrawRevealS
         return;
       }
       if (Date.now() - started > PARLIAMENT_DRAW_READY_NET_MS) {
+        node.update(standing());
         node.ceiling();
         resolve();
         return;

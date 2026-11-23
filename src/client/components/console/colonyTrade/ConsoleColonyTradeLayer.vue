@@ -452,7 +452,9 @@ function waitForCause(): Promise<void> {
     let seen = progress();
     // The wait has to wait: a node of the wait graph, its net ending it said (`ceilingWait.ts`). A cover reset
     // drops the poll's timer — the node is abandoned with it (a killed handle of the cycle).
-    const wait = beginCeilingWait({id: 'colony-trade:cause', owner: 'ConsoleColonyTradeLayer', what: 'the end of the payout cause beats', maxMs: hard - started});
+    const standing = (): string => `${colonyTradeState.colonyName} · phase ${colonyTradeState.phase} · beat ${colonyTradeState.beat || 'none'} · ` +
+      `payout ${colonyPayoutPending() ? 'pending' : 'done'} · card scene ${colonyResolutionUi.cardSceneLive ? 'live' : 'quiet'}`;
+    const wait = beginCeilingWait({id: 'colony-trade:cause', owner: 'ConsoleColonyTradeLayer', what: 'the end of the payout cause beats', maxMs: hard - started, detail: standing()});
     ctx.handles.push({kill: () => wait.end()});
     const poll = () => {
       const now = flowClock().now();
@@ -467,6 +469,7 @@ function waitForCause(): Promise<void> {
         } else if (!busy()) {
           wait.met();
         } else {
+          wait.update(standing());
           wait.ceiling();
         }
         done();

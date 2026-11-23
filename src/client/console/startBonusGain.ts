@@ -349,7 +349,13 @@ export function awaitVisibleBonusGainSource(
       if (sourceArriving(ends)) {
         deadline = Math.min(hard, Math.max(deadline, now + budgetMs));
       }
+      // Which ends are still unseen — a selector's own brackets are taken out: the line's reader ends the detail at one.
+      const standing = (): string => {
+        const unseen = ends.filter((sel) => firstVisibleEnd(sel) === undefined);
+        return `${unseen.length}/${ends.length} ends unseen · ${unseen.slice(0, 2).join(' · ').replace(/[()]/g, '').slice(0, 90)}${sourceArriving(ends) ? ' · source still arriving' : ''}`;
+      };
       if (now >= deadline) {
+        wait?.update(standing());
         wait?.ceiling();
         noteTransferTrail('bonus-gain:ends', {
           seen: false, waitedMs: Math.round(now - start),
@@ -359,7 +365,8 @@ export function awaitVisibleBonusGainSource(
         return;
       }
       // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-      wait ??= beginCeilingWait({id: 'start-bonus:visible-source', owner: 'startBonusGain', what: 'the visible ends (source card · rail rows) of the bonus gain', maxMs: hard - start});
+      wait ??= beginCeilingWait({id: 'start-bonus:visible-source', owner: 'startBonusGain', what: 'the visible ends (source card · rail rows) of the bonus gain', maxMs: hard - start,
+        detail: standing()});
       probeTick(poll);
     };
     poll();

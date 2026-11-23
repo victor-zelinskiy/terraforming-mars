@@ -65,6 +65,7 @@ export function waitBoardGeometryStable(opts?: {maxMs?: number, alive?: () => bo
   const cap = opts?.maxMs ?? 4000;
   const alive = opts?.alive ?? (() => true);
   const started = Date.now();
+  const firstEpoch = state.epoch;
   let wait: CeilingWait | undefined;
   return new Promise((done) => {
     const poll = () => {
@@ -79,12 +80,15 @@ export function waitBoardGeometryStable(opts?: {maxMs?: number, alive?: () => bo
         return;
       }
       if (Date.now() - started >= cap) {
+        // The epoch's travel tells a frame that kept flipping from one that never settled at all.
+        wait?.update(`the board section's framing probe still unstable · space epoch ${firstEpoch} → ${state.epoch}`);
         wait?.ceiling();
         done();
         return;
       }
       // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-      wait ??= beginCeilingWait({id: 'board-geometry:stable', owner: 'boardSpaceGeometry', what: 'a stable board coordinate space', maxMs: cap});
+      wait ??= beginCeilingWait({id: 'board-geometry:stable', owner: 'boardSpaceGeometry', what: 'a stable board coordinate space', maxMs: cap,
+        detail: `the board section's framing probe reports a move · space epoch ${firstEpoch}`});
       probeTick(poll);
     };
     poll();

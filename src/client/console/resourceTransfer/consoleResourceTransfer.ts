@@ -1515,7 +1515,11 @@ function awaitVisibleDestination(spec: ResourceTransferSpec, budgetMs: number, a
       if (covers.some((el) => el.isConnected)) {
         deadline = Math.min(hard, Math.max(deadline, now + budgetMs));
       }
+      // Which token waits, whether its destination measures at all or only moves, and how many birth surfaces still stand.
+      const standing = (): string => `${spec.amount} ${spec.resource} via ${spec.channel}${spec.targetCard !== undefined ? ` onto ${spec.targetCard}` : ''} · destination ` +
+        `${point === undefined ? 'not measurable' : 'still moving'} · ${covers.filter((el) => el.isConnected).length}/${covers.length} covers standing`;
       if (now >= deadline) {
+        wait?.update(standing());
         wait?.ceiling();
         resolve(undefined);
         return;
@@ -1524,7 +1528,7 @@ function awaitVisibleDestination(spec: ResourceTransferSpec, budgetMs: number, a
       // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
       wait ??= beginCeilingWait({
         id: 'resource-transfer:visible-destination', owner: 'consoleResourceTransfer', what: 'a painted and settled destination of the token',
-        maxMs: hard - start,
+        maxMs: hard - start, detail: standing(),
       });
       probeTick(poll);
     };

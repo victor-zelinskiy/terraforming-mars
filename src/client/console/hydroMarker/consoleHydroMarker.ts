@@ -362,12 +362,17 @@ let claimNetArmed = false;
 function armClaimNet(): void {
   clearClaimNet();
   claimNetArmed = true;
+  // What the claimed advance stands on: whose marker, the glide's span and the module's own phase.
+  const standing = (): string => `${hydroMarkerState.color} marker ${hydroMarkerState.fromPosition} → ${hydroMarkerState.toPosition} · phase ${hydroMarkerState.phase} · ` +
+    `visual ${hydroMarkerState.visualPosition} · plan ${hydroMarkerState.planCursor}/${hydroMarkerState.planLength}${hydroMarkerState.planPaused ? ' paused' : ''}`;
   const wait = beginCeilingWait({
     id: 'hydro-marker:claim', owner: 'consoleHydroMarker', what: 'the claimed advance reaching its handoff', maxMs: CLAIM_PROGRESS_MAX_MS,
+    detail: standing(),
   });
   const cancelTimer = markerRun().after(CLAIM_PROGRESS_MAX_MS, 'the claimed advance reaching its handoff', () => {
     claimNetArmed = false;
     recordHydroStepEvent('claim:stalled');
+    wait.update(standing());
     wait.ceiling();
     abortHydroMarker();
   });

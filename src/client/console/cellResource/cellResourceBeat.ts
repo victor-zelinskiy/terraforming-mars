@@ -210,7 +210,10 @@ function waitForStage(e: Entry): Promise<boolean> {
     diagnose: () => ({space: e.record.spaceId, watchable: boardBeatBoardWatchable(), coveredBy: boardCoverReasonsNow()}),
   });
   // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
-  const wait = beginCeilingWait({id: 'cell-resource:stage', owner: 'cellResourceBeat', what: 'the stage of the cell resource', maxMs: STAGE_DUE_MS});
+  // What the stage stands on: the cell, the board's cover and whether the cell is measurable on screen.
+  const standing = (): string => `cell ${e.record.spaceId} · ${e.spec.amount} ${e.spec.resource} · board ` +
+    `${boardBeatBoardWatchable() ? 'watchable' : `covered: ${boardCoverReasonsNow().join('; ').replace(/[()]/g, '')}`} · cell ${cellPoint(e.record.spaceId) !== undefined ? 'on screen' : 'not measurable'}`;
+  const wait = beginCeilingWait({id: 'cell-resource:stage', owner: 'cellResourceBeat', what: 'the stage of the cell resource', maxMs: STAGE_DUE_MS, detail: standing()});
   debt = mine;
   const abort = () => {
     aborted = true;
@@ -242,6 +245,7 @@ function waitForStage(e: Entry): Promise<boolean> {
           } else if (aborted) {
             wait.end();
           } else {
+            wait.update(standing());
             wait.ceiling();
           }
           resolve(verdict === 'ready');

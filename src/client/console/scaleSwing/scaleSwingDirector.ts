@@ -56,7 +56,7 @@ import {
 } from '@/client/console/boardBeatPark';
 import {registerBoardSceneMember} from '@/client/console/boardSceneMembers';
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
-import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {scaleStepRatingBusy, scaleStepRatingStageCovered} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {scaleStepTokenOrigins} from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {
@@ -274,12 +274,12 @@ function stageReady(e: Entry): boolean {
 }
 
 /** A bounded wait on a reactive predicate — `true` when it held, `false` at the ceiling or an abort. */
-function waitUntil(predicate: () => boolean, maxMs: number, myEpoch: number, node: {id: string, what: string}): Promise<boolean> {
+function waitUntil(predicate: () => boolean, maxMs: number, myEpoch: number, node: {id: string, what: string, standing: () => string}): Promise<boolean> {
   if (predicate()) {
     return Promise.resolve(true);
   }
-  // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-  const wait = beginCeilingWait({id: node.id, owner: 'scaleSwingDirector', what: node.what, maxMs: Math.max(50, maxMs)});
+  // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`) — with what it stood on.
+  const wait = beginCeilingWait({id: node.id, owner: 'scaleSwingDirector', what: node.what, maxMs: Math.max(50, maxMs), detail: node.standing()});
   return new Promise<boolean>((resolve) => {
     let done = false;
     // Both handles are read only from callbacks that fire after this block (a non-immediate watch, a delayed call).
@@ -296,6 +296,7 @@ function waitUntil(predicate: () => boolean, maxMs: number, myEpoch: number, nod
     // game screen leaving first lets the wait go silently — its promise is resolved all the same.
     const owner = consoleSessionScope();
     const cancelCeiling = motionAfter(Math.max(50, maxMs), `scaleSwingDirector: ${node.what}`, () => {
+      wait.update(node.standing());
       wait.ceiling();
       finish(false);
     }, owner);
@@ -342,7 +343,13 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
     }),
   });
   // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
-  const wait = beginCeilingWait({id: 'scale-swing:stage', owner: 'scaleSwingDirector', what: 'the stage of the scale swing', maxMs: SWING_STAGE_DUE_MS});
+  // Which of the stage's conditions holds the swing: the board's cover, the park's drain, a board scene, the held scales.
+  const standing = (): string => {
+    const held = e.plan.legs.filter((leg) => boardBeatHoldsParam(leg.key)).map((leg) => leg.key);
+    return `swing ${e.plan.seq} · ${e.plan.legs.length} legs · board ${boardBeatBoardWatchable() ? 'watchable' : 'covered'}${boardBeatParkState.draining ? ' · park draining' : ''}` +
+      `${boardSceneSettling() ? ' · a board scene settling' : ''}${held.length > 0 ? ` · parked ${held.join(', ')}` : ''}`;
+  };
+  const wait = beginCeilingWait({id: 'scale-swing:stage', owner: 'scaleSwingDirector', what: 'the stage of the scale swing', maxMs: SWING_STAGE_DUE_MS, detail: standing()});
   return new Promise<boolean>((resolve) => {
     const stop: WatchStopHandle = watch(
       () => (epoch !== myEpoch ? 'abort' : scaleSwingState.due ? 'due' : stageReady(e) ? 'ready' : 'wait'),
@@ -354,6 +361,7 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
           if (verdict === 'ready') {
             wait.met();
           } else if (verdict === 'due') {
+            wait.update(standing());
             wait.ceiling();
           } else {
             wait.end();
@@ -424,7 +432,8 @@ async function arrival(leg: SwingLeg, value: number, myEpoch: number): Promise<v
   const arrived = await waitUntil(() => {
     void scaleMarkerPoses[accent];
     return scaleMarkerRestsOn(accent, value);
-  }, motionCeilingMs(SWING_ARRIVAL_MAX_MS), myEpoch, {id: 'scale-swing:arrival', what: 'the marker resting on its value'});
+  }, motionCeilingMs(SWING_ARRIVAL_MAX_MS), myEpoch, {id: 'scale-swing:arrival', what: 'the marker resting on its value',
+    standing: () => `${accent} marker to ${value} · pose ${scaleMarkerPoses[accent].moving ? `moving to ${scaleMarkerPoses[accent].target ?? ''}` : `resting on ${scaleMarkerPoses[accent].value ?? 'no value'}`}`});
   if (!arrived && epoch === myEpoch) {
     scaleSwingState.degraded = true;
   }
@@ -497,7 +506,9 @@ async function play(e: Entry, myEpoch: number): Promise<void> {
   }
   // The raise's story told by the ordinary scale beat (an earlier response's tokens, born at the peak) lands first.
   await waitUntil(() => !scaleStepRatingBusy(), motionCeilingMs(SWING_ARRIVAL_MAX_MS * 3), myEpoch,
-    {id: 'scale-swing:rating-landed', what: 'the landing of the scale rating tokens'});
+    {id: 'scale-swing:rating-landed', what: 'the landing of the scale rating tokens',
+      standing: () => `swing ${e.plan.seq} · the scale step rating beat ${scaleStepRatingBusy() ? 'still owed or flying' : 'quiet'} · ` +
+        `${scaleStepRatingStageCovered() || 'its stage in view'}`});
   if (epoch !== myEpoch) {
     return;
   }

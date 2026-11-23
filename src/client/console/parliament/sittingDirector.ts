@@ -1381,7 +1381,7 @@ function beatTableAnswer(tl: gsap.core.Timeline, runState: StageRun, cause: 'pha
  * Wait (on the probe clock, never a wall-clock timer) until `ready()` — or the bound, on the motion clock: `true` the
  * condition came, `false` the bound did. An abort of the run ends the wait at once (`false`).
  */
-function waitUntil(runState: StageRun, ready: () => boolean, maxMs: number, node: {id: string, what: string}): Promise<boolean> {
+function waitUntil(runState: StageRun, ready: () => boolean, maxMs: number, node: {id: string, what: string, standing: () => string}): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     let over = false;
     let wait: CeilingWait | undefined;
@@ -1397,6 +1397,7 @@ function waitUntil(runState: StageRun, ready: () => boolean, maxMs: number, node
     // cards reaching the hand, the receipt pane's entrance and leave) takes a machine's frames, not the setting's.
     // `motionCeilingMs` scales up with a slower setting and never down.
     const cancelBound = motionGuarantee(motionCeilingMs(maxMs), `the sitting's wait — ${node.what} (its ceiling)`, () => {
+      wait?.update(node.standing());
       wait?.ceiling();
       end(false);
     });
@@ -1419,7 +1420,7 @@ function waitUntil(runState: StageRun, ready: () => boolean, maxMs: number, node
         return;
       }
       // A wait that has to wait is a node of the wait graph; its bound ending it is said (`ceilingWait.ts`).
-      wait ??= beginCeilingWait({id: node.id, owner: 'sittingDirector', what: node.what, maxMs});
+      wait ??= beginCeilingWait({id: node.id, owner: 'sittingDirector', what: node.what, maxMs, detail: node.standing()});
       probeTick(probe);
     };
     probe();
@@ -1525,12 +1526,16 @@ function beatReceipt(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
     // The pane folds down (the zone's own phrase); the field folds back once the receipt is no longer owed.
     endTableReceipt();
     await waitUntil(runState, () => root.querySelector('[data-sit-receipt]') === null, RECEIPT_LEAVE_WAIT_MS,
-      {id: 'sitting:receipt-leave', what: 'the receipt pane leaving the table'});
+      {id: 'sitting:receipt-leave', what: 'the receipt pane leaving the table',
+        standing: () => `receipt pane ${root.querySelector('[data-sit-receipt]') !== null ? 'still in the DOM' : 'gone'} · phase ${tableReceiptState.phase || 'none'} · ` +
+          `${tableReceiptState.owed.length} receipts owed`});
   };
   const play = async (receipt: TableReceipt): Promise<void> => {
     // THE PANE STANDS (its entrance is the zone's layer phrase) — the wave measures capsules that have stopped moving.
     if (!await waitUntil(runState, () => tableReceiptState.paneIn, RECEIPT_PANE_WAIT_MS,
-      {id: 'sitting:receipt-pane', what: 'the entrance of the receipt pane'}) && runState.finished) {
+      {id: 'sitting:receipt-pane', what: 'the entrance of the receipt pane',
+        standing: () => `receipt ${receipt.key} of ${receipt.player} · ${receipt.cards.length} cards · pane node ` +
+          `${root.querySelector('[data-sit-receipt]') !== null ? 'in the DOM' : 'absent'}, entrance ${tableReceiptState.paneIn ? 'played' : 'not played'}`}) && runState.finished) {
       return;
     }
     const card = enactedCardEl();
@@ -1601,7 +1606,9 @@ function beatReceipt(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
       try {
         // THE TAKE GOES FIRST: the draw's surface leaves the zone and its cards reach the hand before the receipt stands.
         await waitUntil(runState, () => receiptStageClear(root), RECEIPT_READY_WAIT_MS,
-          {id: 'sitting:receipt-ready', what: 'the take of the draw leaving the stage'});
+          {id: 'sitting:receipt-ready', what: 'the take of the draw leaving the stage',
+            standing: () => `zone step ${root.querySelector('[data-sit-zone-step]') !== null ? 'still standing' : 'gone'} · external draw ` +
+              `${isExternalDrawBusy() ? 'busy' : 'idle'}${externalDrawState.committing ? ' committing' : ''} · hand delivery ${isHandDeliveryActive() ? 'flying' : 'idle'}`});
         while (!runState.finished && tableReceiptState.owed.length > 0) {
           const receipt = takeTableReceipt();
           if (receipt === undefined) {

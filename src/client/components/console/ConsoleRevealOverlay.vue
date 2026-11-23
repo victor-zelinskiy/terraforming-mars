@@ -702,7 +702,9 @@ const SEAL_BREAK_NET_MS = 900;
  * screen this waits on). Bounded: a place that never stands turns anyway (the turn is the card's only door).
  */
 function waitPlaceStanding(el: HTMLElement): Promise<void> {
-  const node = beginCeilingWait({id: 'reveal:place-standing', owner: 'revealOverlay', what: 'the place standing painted and still', maxMs: motionCeilingMs(PLACE_STANDING_WAIT_MS)});
+  const place = `place ${settlementTable.turnPlace ?? ''} · turn ${settlementTable.turnPhase}`;
+  const node = beginCeilingWait({id: 'reveal:place-standing', owner: 'revealOverlay', what: 'the place standing painted and still', maxMs: motionCeilingMs(PLACE_STANDING_WAIT_MS),
+    detail: `${place} · ${el.isConnected ? 'in the DOM' : 'detached'}`});
   return new Promise((done) => {
     const start = performance.now();
     let last = '';
@@ -721,6 +723,7 @@ function waitPlaceStanding(el: HTMLElement): Promise<void> {
         return;
       }
       if (performance.now() - start > motionCeilingMs(PLACE_STANDING_WAIT_MS)) {
+        node.update(`${place} · ${el.isConnected ? '' : 'detached · '}painted ${painted} · opaque ${opaque} · width ${Math.round(r.width)} · ${sig === last ? 'still' : 'moving'}`);
         node.ceiling();
         done();
         return;

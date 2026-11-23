@@ -600,7 +600,9 @@ function raiseReceivers(): void {
 /** The receivers' rise has landed: every receiver card painted at full opacity (bounded — a lost frame never wedges the payout). */
 async function receiversStanding(): Promise<void> {
   const deadline = Date.now() + motionCeilingMs(SALE_RECEIVERS_RISE_MS) + 400;
-  const node = beginCeilingWait({id: 'patent-sale:receivers-standing', owner: 'patentSale', what: 'the receivers strip risen and opaque', maxMs: motionCeilingMs(SALE_RECEIVERS_RISE_MS) + 400});
+  const receivers = `${patentSaleState.receivers.map((r) => r.card).join(', ')} · phase ${patentSaleState.phase} · ${patentSaleState.receiversUp ? 'raised' : 'not raised'}`;
+  const node = beginCeilingWait({id: 'patent-sale:receivers-standing', owner: 'patentSale', what: 'the receivers strip risen and opaque', maxMs: motionCeilingMs(SALE_RECEIVERS_RISE_MS) + 400,
+    detail: receivers});
   while (patentSaleState.active && Date.now() < deadline) {
     const strip = typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('.con-sale-hero__recvs--up');
     if (strip !== null && Number(getComputedStyle(strip).opacity) >= 0.98) {
@@ -610,6 +612,9 @@ async function receiversStanding(): Promise<void> {
     await frame();
   }
   if (patentSaleState.active) {
+    const strip = typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('.con-sale-hero__recvs--up');
+    node.update(`${patentSaleState.receivers.map((r) => r.card).join(', ')} · phase ${patentSaleState.phase} · ` +
+      `${strip === null ? 'no raised strip in the DOM' : `strip opacity ${getComputedStyle(strip).opacity}`}`);
     node.ceiling();
   } else {
     node.end();

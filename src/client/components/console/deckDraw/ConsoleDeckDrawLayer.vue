@@ -469,7 +469,15 @@ function waitForStage(): Promise<void> {
     let progress = earningSceneProgress();
     // The wait has to wait: a node of the wait graph, its bound ending it said (`ceilingWait.ts`). A teardown drops
     // the poll's timer — the node is abandoned with it (a killed handle of the scene).
-    const wait = beginCeilingWait({id: 'deck-draw:stage', owner: 'ConsoleDeckDrawLayer', what: 'the end of the scene that earned the draw', maxMs: hard - started});
+    // Which neighbour holds the screen, and where its own story stands.
+    const standing = (): string => [
+      isPlayedHeroActive() ? `played hero ${playedHeroState.card ?? ''} ${playedHeroState.phase}` : '',
+      isPatentSaleActive() ? `patent sale ${patentSaleState.phase}` : '',
+      tilePlacementHolding() ? `tile placement ${tilePlacementState.phase}` : '',
+      nomadMoveHolding() ? `nomad move ${nomadMoveState.phase}` : '',
+      isBoardCardBonusActive() ? `board card bonus ${boardCardBonusState.phase}` : '',
+    ].filter((s) => s !== '').join(' · ');
+    const wait = beginCeilingWait({id: 'deck-draw:stage', owner: 'ConsoleDeckDrawLayer', what: 'the end of the scene that earned the draw', maxMs: hard - started, detail: standing()});
     ctx.beatHandles.push({kill: () => wait.end()});
     const poll = () => {
       const now = flowClock().now();
@@ -485,6 +493,7 @@ function waitForStage(): Promise<void> {
         } else if (!otherSceneOwnsScreen.value) {
           wait.met();
         } else {
+          wait.update(standing());
           wait.ceiling();
         }
         done();

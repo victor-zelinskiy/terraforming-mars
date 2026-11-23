@@ -1468,10 +1468,14 @@ async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
     if (covered) {
       wait?.end();
       wait = undefined;
+      // What covers the rating's stage, and how many rating reactions stand behind its touchdown.
+      const standing = `${scaleStepRatingStageCovered()} · ${standaloneQueue.filter((s) => s.group.record.channel === 'tr-increase').length} tr-increase reactions owed`;
       withStory ??= beginCeilingWait({
         id: 'card-reaction:rating-story-covered', owner: 'cardReactionDirector', what: 'the due of the rating\'s own story (its stage is covered)',
         maxMs: SCALE_STEP_STAGE_DUE_MS + BLOCKING_QUIET_MAX_MS,
+        detail: standing,
       });
+      withStory.update(standing);
     } else {
       withStory?.met();
       withStory = undefined;

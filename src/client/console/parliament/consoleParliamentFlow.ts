@@ -54,8 +54,12 @@ export function whenParliamentSurfaceGone(): Promise<void> {
     return Promise.resolve();
   }
   const maxMs = motionCeilingMs(SURFACE_GONE_WAIT_MAX_MS);
+  // What the leave stands on: where the sitting's close leads, and whether the section still stands as the hall.
+  const standing = (): string => `the leave mirror still raised · closing into ${consoleParliamentUi.closeInto ?? 'the ordinary end'} · ` +
+    `hall ${consoleParliamentUi.hall ? 'standing' : 'gone'} · stage ${consoleParliamentUi.stageStanding ? 'standing' : 'gone'}`;
   const wait = beginCeilingWait({
     id: 'parliament:surface-gone', owner: 'consoleParliamentFlow', what: 'the leave of the Parliament\'s surface', maxMs,
+    detail: standing(),
   });
   return new Promise((resolve) => {
     const h: {stop?: () => void, disarm?: () => void, over?: boolean} = {};
@@ -69,6 +73,7 @@ export function whenParliamentSurfaceGone(): Promise<void> {
       if (met) {
         wait.met();
       } else {
+        wait.update(standing());
         wait.ceiling();
       }
       resolve();

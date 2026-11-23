@@ -412,15 +412,15 @@ export function endTableAnswerAsk(): void {
 
 // ── PLAY ────────────────────────────────────────────────────────────────────
 
-function waitUntil(pred: () => boolean, baseMs: number, node: {id: string, what: string, dead: () => boolean}): Promise<boolean> {
+function waitUntil(pred: () => boolean, baseMs: number, node: {id: string, what: string, dead: () => boolean, standing: () => string}): Promise<boolean> {
   return new Promise((resolve) => {
     if (pred()) {
       resolve(true);
       return;
     }
     let left = Math.max(1, Math.ceil(baseMs / 50));
-    // A wait that has to wait is a node of the wait graph; its bound ending it is said (`ceilingWait.ts`).
-    const wait = beginCeilingWait({id: node.id, owner: 'tableAnswerBeat', what: node.what, maxMs: left * 50});
+    // A wait that has to wait is a node of the wait graph; its bound ending it is said (`ceilingWait.ts`) — with what it stood on.
+    const wait = beginCeilingWait({id: node.id, owner: 'tableAnswerBeat', what: node.what, maxMs: left * 50, detail: node.standing()});
     const tick = (): void => {
       if (pred()) {
         if (node.dead()) {
@@ -432,6 +432,7 @@ function waitUntil(pred: () => boolean, baseMs: number, node: {id: string, what:
         return;
       }
       if (--left <= 0) {
+        wait.update(node.standing());
         wait.ceiling();
         resolve(false);
         return;
@@ -454,7 +455,9 @@ export async function playTableAnswer(answer: TableAnswer, opts: {alive: () => b
   }
   const alive = (): boolean => opts.alive() && tableAnswerState.showing?.key === answer.key;
   const entered = await waitUntil(() => tableAnswerState.paneIn || !alive(), ANSWER_PANE_WAIT_MS,
-    {id: 'table-answer:pane', what: 'the entrance of the answer stage', dead: () => !tableAnswerState.paneIn && !alive()});
+    {id: 'table-answer:pane', what: 'the entrance of the answer stage', dead: () => !tableAnswerState.paneIn && !alive(),
+      standing: () => `${answer.asker} of ${answer.player} · ${answer.amount} ${answer.resource} to ${answer.cards.length} cards · phase ${tableAnswerState.phase || 'none'} · ` +
+        `host ${alive() ? 'alive' : 'gone'}`});
   if (!alive() || !entered) {
     tableAnswerState.degraded = entered ? 'host-left' : 'stage-never-entered';
     endTableAnswer();

@@ -279,7 +279,15 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
     }),
   });
   // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
-  const wait = beginCeilingWait({id: 'scale-step-reward:stage', owner: 'scaleStepRewardBeat', what: 'the stage of the scale step reward', maxMs: SCALE_STEP_STAGE_DUE_MS});
+  // Which of the stage's four conditions holds the record: the step's own rating, the board's cover, the park, the marker.
+  const standing = (): string => {
+    const accent = scaleAccentOf(entry.record.parameter);
+    const key = scaleParamKeyOf(entry.record.parameter);
+    return `${accent ?? ''} step to ${entry.record.after} · record ${entry.record.seq} · rating ${scaleStepRatingBusy() ? 'still owed' : 'told'} · ` +
+      `board ${boardBeatBoardWatchable() ? 'watchable' : 'covered'}${key !== undefined && boardBeatHoldsParam(key) ? ' · parked' : ''} · ` +
+      `marker ${accent !== undefined && scaleMarkerArrived(accent, entry.record.after) ? 'arrived' : 'not arrived'}`;
+  };
+  const wait = beginCeilingWait({id: 'scale-step-reward:stage', owner: 'scaleStepRewardBeat', what: 'the stage of the scale step reward', maxMs: SCALE_STEP_STAGE_DUE_MS, detail: standing()});
   return new Promise<boolean>((resolve) => {
     // A non-immediate watcher: its callback runs only after `stop` is bound.
     const stop: WatchStopHandle = watch(
@@ -301,6 +309,7 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
           if (verdict === 'ready') {
             wait.met();
           } else if (verdict === 'due') {
+            wait.update(standing());
             wait.ceiling();
           } else {
             wait.end();

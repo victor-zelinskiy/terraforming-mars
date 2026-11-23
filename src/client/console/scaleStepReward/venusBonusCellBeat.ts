@@ -284,7 +284,11 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
     diagnose: () => ({to: e.to, watchable: boardBeatBoardWatchable(), coveredBy: boardCoverReasonsNow(), parked: boardBeatHoldsParam('venusScaleLevel'), rating: scaleStepRatingBusy()}),
   });
   // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
-  const wait = beginCeilingWait({id: 'venus-bonus-cell:stage', owner: 'venusBonusCellBeat', what: 'the stage of the Venus bonus cell', maxMs: SCALE_STEP_STAGE_DUE_MS});
+  // Which of the stage's conditions holds the cell: the board's cover, the park, the step's rating, the marker.
+  const standing = (): string => `Venus cell ${e.to} · ${e.plan.length} rewards held · board ${boardBeatBoardWatchable() ? 'watchable' : 'covered'}` +
+    `${boardBeatHoldsParam('venusScaleLevel') ? ' · parked' : ''} · rating ${scaleStepRatingBusy() ? 'still owed' : 'told'} · ` +
+    `marker ${document.querySelector('.scale-marker[data-scale-marker="venus"]') === null ? 'absent' : scaleMarkerArrived('venus', e.to) ? 'arrived' : 'not arrived'}`;
+  const wait = beginCeilingWait({id: 'venus-bonus-cell:stage', owner: 'venusBonusCellBeat', what: 'the stage of the Venus bonus cell', maxMs: SCALE_STEP_STAGE_DUE_MS, detail: standing()});
   return new Promise<boolean>((resolve) => {
     const stop: WatchStopHandle = watch(
       () => {
@@ -305,6 +309,7 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
           if (verdict === 'ready') {
             wait.met();
           } else if (verdict === 'due') {
+            wait.update(standing());
             wait.ceiling();
           } else {
             wait.end();

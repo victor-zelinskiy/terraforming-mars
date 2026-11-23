@@ -400,7 +400,8 @@ function waitAgendaSettled(): Promise<void> {
         return;
       }
       // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-      wait ??= beginCeilingWait({id: 'board-card-bonus:agenda-settled', owner: 'ConsoleBoardCardBonusLayer', what: 'the settle of the Parliament marker glide', maxMs: 3000});
+      wait ??= beginCeilingWait({id: 'board-card-bonus:agenda-settled', owner: 'ConsoleBoardCardBonusLayer', what: 'the settle of the Parliament marker glide', maxMs: 3000,
+        detail: `cover ${boardCardBonusState.source.kind === 'agenda-step' ? `on agenda step ${boardCardBonusState.source.step}` : boardCardBonusState.source.kind} · phase ${boardCardBonusState.phase}`});
       probeTick(poll);
     };
     poll();

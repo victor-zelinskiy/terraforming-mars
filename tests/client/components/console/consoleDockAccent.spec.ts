@@ -82,7 +82,8 @@ describe('consoleDockAccent — the intake accent is a BOUNDED lease', () => {
       expect(clock.pending(), 'nothing of the lease is left on the clock').to.eq(0);
       // THE LEAK IS A WAIT OF THE GRAPH THAT ENDED ON ITS CEILING — on a page that painted all six seconds, a defect.
       expect(said).to.have.length(1);
-      expect(said[0]).to.match(/^\[wait-graph\] ceiling dock-accent:leaked \(consoleDockAccent\) — .* did not come in 6000 ms — the wait ended on its ceiling$/);
+      // (…and the line says WHICH lease and who still holds the dock — never only «did not come».)
+      expect(said[0]).to.match(/^\[wait-graph\] ceiling dock-accent:leaked \(consoleDockAccent: lease \d+ never released · the dock held by: leaked\) — .* did not come in 6000 ms — the wait ended on its ceiling$/);
       expect(causeOf(said[0], 'warn')?.tier).to.eq('defect');
     } finally {
       console.warn = warn;
