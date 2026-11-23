@@ -216,11 +216,11 @@ describe('startDirector — the level door', () => {
   });
 
   it('waits past every hand-off the scene plays — on the bar of its sisters, frames AND a floor, and not a second', () => {
-    // (The longest healthy state the director would cure that stood QUIET: 105 ms in a real browser on the box —
-    // `fz3` · duo · `parliament`, 2026-11-23; six to seven frames at 60 Hz, and the eighth opened the door of eight.)
+    // (ONE bar for the three doors of one law. Frames alone move with the display — eight frames are 133 ms at 60 Hz
+    // and 55 ms at 144 Hz — so the floor in milliseconds is part of the bar, never an option of one door.)
     expect(START_LEVEL_DOOR_QUIET_FRAMES).to.eq(CONCLUSION_DOOR_QUIET_FRAMES).and.eq(START_STRAND_DOOR_QUIET_FRAMES);
     expect(START_LEVEL_DOOR_QUIET_MS).to.eq(CONCLUSION_DOOR_QUIET_MS).and.eq(START_STRAND_DOOR_QUIET_MS);
-    expect(START_LEVEL_DOOR_QUIET_MS, 'twice the longest healthy quiet state, whatever the display paints at').to.be.greaterThan(2 * 105);
+    expect(START_LEVEL_DOOR_QUIET_MS, 'a floor that a fast display cannot shorten').to.be.at.least(200);
     expect(START_LEVEL_DOOR_QUIET_MS, 'never seconds').to.be.lessThan(500);
     // …and the door is the family's module — the floor is not this door's to forget.
     const controller = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/shell/startController.ts'), 'utf8').replace(/\r\n/g, '\n');

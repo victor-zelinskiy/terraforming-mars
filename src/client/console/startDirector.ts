@@ -275,16 +275,19 @@ export function startDirectorCure(f: Pick<StartShadowFinding, 'kind' | 'expected
  * FRAMES, the clock of the thing it bounds: a page that does not paint opens no door, a slow one waits as many frames
  * as a fast one; the floor in milliseconds keeps a fast page from shortening the wait.
  *
- * WHY THE FAMILY's BAR, AND NOT EIGHT FRAMES ALONE (2026-11-23). The door was first built on the reading of CI and
- * of the bottle — «a state the director would cure stands quiet for one frame at the most, the longest 72 ms» — as
- * eight frames with no floor. A real browser on the box, two seats on one table (`fz3` · duo · `parliament`), read a
- * HEALTHY quiet state of 105 ms: the start past its commit, a hosted step gone, the game's menu asked, and the
- * scene's own release a beat away — six to seven frames at 60 Hz, twice ending by itself (`agree:game>beat`), and
- * once reaching the eighth: the door released a start that was releasing itself. Frames alone are a bar that moves
- * with the display (eight frames are 133 ms at 60 Hz and 55 ms at 144 Hz — on a fast panel that healthy beat would
- * open the door every time). The door now stands on the bar of its sisters: on a healthy table it never opens (EVERY
- * e2e test is red on a `[start-shadow] cure … by level` line — the harness's `startStrandGuard` holds exactly that);
- * it opens on a strand, a quarter of a second in.
+ * WHY THE FAMILY's BAR, AND NOT EIGHT FRAMES ALONE (2026-11-23). The door was first built as eight frames with no
+ * floor. Frames alone are a bar that moves with the display (eight frames are 133 ms at 60 Hz and 55 ms at 144 Hz),
+ * and the three doors of one law stood on two bars — kept apart, in fact, by nothing else. It stands on the bar of
+ * its sisters, through the same module. On a healthy table it never opens (EVERY e2e test is red on a
+ * `[start-shadow] cure … by level` line — the harness's `startStrandGuard` holds exactly that); it opens on a strand,
+ * a quarter of a second in.
+ *
+ * (A READING CORRECTED THE SAME DAY. The change was first argued from the box's duo pass — `fz3` · `parliament`, the
+ * second seat: «a healthy quiet state of 105 ms that ends by itself, and the eighth frame opened the door on it». It
+ * did not end by itself: 105 ms WAS eight frames of that display, and the «beat» that followed was the cure's own
+ * release. On the family's bar the same table stood quiet for 260 ms and was cured again. It is a strand — a start
+ * past its commit on a page with no lifetime hold, serving nothing under the game's menu — and the door is right to
+ * name it; what holds the start there is the strand's own word now, `startController.startStandsBy`.)
  */
 export const START_LEVEL_DOOR_QUIET_FRAMES = 12;
 export const START_LEVEL_DOOR_QUIET_MS = 250;

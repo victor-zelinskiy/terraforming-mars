@@ -277,6 +277,32 @@ export function createStartController(shell: StartPort) {
   });
 
   /**
+   * WHICH TERM KEEPS THE START STANDING — the same terms as `startSceneServes` / `startFrameLive`, by NAME, for the
+   * strand's measure only (it decides nothing). A start that serves nothing under the game's menu on a page with no
+   * lifetime hold (the second seat of the box's duo `parliament`, cured by the opening's door on two heads running —
+   * 2026-11-23) stood by ONE of these, and «settle: no hold» could not say which.
+   */
+  function startStandsBy(): string {
+    const terms = [
+      bonusTurnLive.value ? 'bonus turn — serves nothing' : '',
+      startTask.value !== undefined ? `task ${startTask.value.kind}` : '',
+      startQuestionHeld.value ? 'question held' : '',
+      startSceneHeld() ? 'hold' : '',
+      startHeroPlaying() ? 'hero playing' : '',
+      startPlacementOrderOf(shell.playerView) !== undefined ? 'placement order' : '',
+      corpFirstActionInStartFlow(shell.playerView) && firstActionOwed(shell.playerView) ? 'first action owed' : '',
+      bonusActionInStartFlow(shell.playerView) ? 'bonus action in the flow' : '',
+      consoleStartState.firstAct.stage !== 'idle' ? `first stage ${consoleStartState.firstAct.stage}` : '',
+      consoleStartState.bonusAct.stage !== 'idle' ? `bonus stage ${consoleStartState.bonusAct.stage}` : '',
+      workspaceOutcomeState.host === 'start' && workspaceOutcomeState.sourceCard !== '' ? `claim ${workspaceOutcomeState.stage}` : '',
+      workspaceFrameHasNested('start') ? 'a nested frame' : '',
+      hostedStepOwedTo('start') ? 'a step owed' : '',
+      hostedStepLiveIn('start') ? 'a step live' : '',
+    ].filter((term) => term !== '');
+    return terms.length === 0 ? 'nothing' : terms.join('+');
+  }
+
+  /**
    * The workspace is on SCREEN. It SERVES through the whole start (above),
    * but it steps aside for the one interaction it cannot host: a BOARD
    * PLACEMENT. A start prelude that places a tile («Great Aquifer» — two
@@ -826,7 +852,7 @@ export function createStartController(shell: StartPort) {
       return 'no scene';
     }
     // EVERY holder, not the first: «another prompt stands» is true of every strand under the game's menu, and as the
-    // first of the list it hid whichever term really kept the deployment from settling (the box's healthy 105 ms of
+    // first of the list it hid whichever term really kept the deployment from settling (the box's strand of
     // `game > none`, 2026-11-23 — named «blocked by otherPromptStands» and nothing else). The settle's own terms too.
     const blockers = Object.entries(diag.blockers ?? {})
       .filter(([, v]) => v === true || (typeof v === 'number' && v > 0) || (Array.isArray(v) && v.length > 0))
@@ -845,7 +871,8 @@ export function createStartController(shell: StartPort) {
     return `why ${diag.mode ?? ''}/${diag.flow ?? ''}/${diag.flowStage ?? ''}${diag.ceremonyRevealed === false ? ' unrevealed' : ''} · ` +
       `first ${diag.firstAct?.stage ?? ''}${diag.firstAct?.entryDue === true ? ' due' : ''}${diag.firstAct?.nested === true ? ' nested' : ''} · ` +
       `bonus ${diag.bonusAct?.stage ?? ''}${diag.bonusAct?.entryDue === true ? ' due' : ''} · seat ${String(diag.seat?.owner ?? 'free')}/${String(diag.seat?.flight ?? '')} · ` +
-      `blocked by ${blockers.length === 0 ? 'nothing' : blockers.join('+')} · settle ${unsettled.length === 0 ? 'open' : unsettled.join('+')}`;
+      `blocked by ${blockers.length === 0 ? 'nothing' : blockers.join('+')} · settle ${unsettled.length === 0 ? 'open' : unsettled.join('+')} · ` +
+      `stands by ${startStandsBy()}`;
   }
 
   function whenStartStrandedNowChanges(now: boolean): void {

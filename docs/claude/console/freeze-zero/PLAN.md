@@ -1142,6 +1142,15 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
 - **THE BOX's PERTURBED PASSES ON THE HEAD WITH THE DOORS, READ (2026-11-23 morning — `649e500d8d`, a real browser
   with a GPU, 606 walks each).** `fz1` · cpu×4: defects 0, no door opened. `fz3` · duo (two seats on one table,
   68 400 presses): **two defects, both closed the same morning** —
+  - **(CORRECTED the same day — the next reading, the same table on the new head: the state stood quiet 260 ms and
+    the door on the family's bar cured it again. It was never «a healthy pause of 105 ms that ends by itself»: 105 ms
+    WAS eight frames of that display, and the «beat» after it was the cure's own release. The table is NOT healthy —
+    a start past its commit on a page with no lifetime hold (the second seat's page is opened into a deployment
+    already begun), serving nothing under the game's menu after its first action's colony step has left; in the
+    bottle the same seat's start leaves by itself the frame its first-action stage goes idle. The door is right to
+    name it; the family's bar and «one state — one door» stand on their own reasons. What holds the start there is
+    the strand's own word now (`startStandsBy` — every term of `startSceneServes` / `startFrameLive` by name), and the
+    cure follows its reading. The paragraph below is kept as it was written.)**
   - *the opening's door opened on a HEALTHY table* (`parliament`, the second seat: `cure «release» by level —
     expected «game», on screen «none»: released`). The track named it: `game > none · release · QUIET` stands
     **105 ms** on that table by itself (the start past its commit, a hosted colony step gone, the game's menu asked,
