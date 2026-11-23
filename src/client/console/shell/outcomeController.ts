@@ -541,7 +541,7 @@ export function createOutcomeController(shell: OutcomePort) {
 
   /**
    * THE CONCLUSION's DOOR, MEASURED BY FRAME (FREEZE ZERO, stage 2 — S5-rest; `servingOwnerMeasure.noteConcludeSpan`).
-   * The supervisor's reaper looks once a second and acts at eight; a level door would act a few frames after its
+   * The supervisor's reaper looked once a second and acted at eight; a level door acts a few frames after its
    * candidate stands with a `dismiss` verdict and nothing in flight — so what has to be known first is what a 1 Hz
    * look never sees: EVERY candidate, however short, with the guarded conclusion's own verdict (read purely — nothing
    * is concluded, no refusal recorded, no door opened), whether the player reads a look over it, and what was in
@@ -576,13 +576,13 @@ export function createOutcomeController(shell: OutcomePort) {
     // …AND A CANDIDATE HELD BY A CLAIM WHOSE OWN NODE IS THE ONLY FLIGHT (the reaper's other case, read against the
     // claim's door): a claim that still «awaits its answer» is a node of the wait graph that waits for the server — so
     // the door's «nothing in flight» is never true of it, and the door stays shut until the claim's own twenty
-    // seconds; the reaper lets such a claim go at eight. Over the free turn with the wire quiet the server has
+    // seconds; the reaper let such a claim go at eight. Over the free turn with the wire quiet the server has
     // ANSWERED: what stands UNDER the claim is the question. Stats only — how long a healthy table stands so decides
     // whether the door may read the claim's node as the question it is.
     // …AND ITS DEBT. A conclusion that is OWED is a run with a cadence (`workspaceConclusionOwe.drive` — a `sleep`
     // every half second), and a sleep is a row of the kernel's motion waits: while a debt stands the door's «nothing
-    // in flight» is never true, whatever else stands — so UNDER A DEBT NO DOOR OPENS, and the frames the reaper and
-    // the escalation still cure are exactly the ones that owe (the gate's first reading of the OWED track, run
+    // in flight» is never true, whatever else stands — so UNDER A DEBT NO DOOR OPENED, and the frames the reaper and
+    // the escalation went on curing were exactly the ones that owe (the gate's first reading of the OWED track, run
     // 45201563602: every debt of 1 212 walks read `busy[kernel:task:conclusion owed…]`). What stands under the
     // frame's OWN waits — its claim, its debt — is named.
     const own = [`claim:${top.kind}`, `conclusion:${top.kind}`, OWED_CADENCE_FLIGHT];

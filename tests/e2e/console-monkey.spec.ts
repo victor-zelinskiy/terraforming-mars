@@ -15,7 +15,7 @@ import {awayFromConsole, installPageAway} from './pageAway';
  * X, Y, the bumpers and triggers, the stick presses — never the system menu, which leaves the game), with the pauses a
  * player makes, while the OTHER seats move over the API (they pass, they take the first card) so the game keeps
  * turning: rivals' scenes, generations, sittings, drafts, the finale. The harness's guards turn every net that had to
- * run red (`[liveness] stall`, `[workspace-stall] beat`, `[workspace-stale] concluded`, `[workspace-anchor] reaped`,
+ * run red (`[liveness] stall`, `[workspace-stall] beat`, `[workspace-anchor] reaped`,
  * `[start-stranded]`, a Vue error, a reload); the monkey adds the last word — after the walk, a quiet spell long
  * enough for the arbiter to judge the screen it left.
  *
@@ -220,7 +220,7 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
       const consoleTail: Array<string> = [];
       const evidence: Array<Promise<unknown>> = [];
       let shots = 0;
-      const NET = /\[(liveness\] (stall|still hold)|workspace-stall\]|workspace-stale\]|transfer] (token painted|end not painted|surface folded)|wait-graph\] (cycle|dangling|dead-end|ceiling)|animation-hold\] .*force-released|page-error\])/;
+      const NET = /\[(liveness\] (stall|still hold)|workspace-stall\]|transfer] (token painted|end not painted|surface folded)|wait-graph\] (cycle|dangling|dead-end|ceiling)|animation-hold\] .*force-released|page-error\])/;
       const watch = (p: Page, tag: string): void => {
         p.on('console', (message) => {
           const text = message.text();

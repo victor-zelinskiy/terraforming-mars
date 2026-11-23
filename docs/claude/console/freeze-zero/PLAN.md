@@ -1217,6 +1217,44 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
     the wait graph beside it now (`hydro-flow:result-read`). With the standard project's read and the action
     commit's minimum beat that is three, each a beat of stillness somebody wrote and nobody declared — and no quiet
     beat that is a stall.
+- **STAGE 2, THE TAIL — ⓐ ⓑ ⓒ ⓓ ARE DONE: NOTHING OF SECONDS STANDS BEHIND THE CONCLUSION's DOORS (2026-11-23, late
+  evening).** The four steps of the entry below, in the order they were taken:
+  - **ⓐ ⓑ (`f80f853c57`).** The ghost's teardown is the debt's own DOOR BY LEVEL (`workspaceConclusionOwe.drive`: owed
+    ∧ ghost ∧ quiet under the debt's own waits ∧ no look, sixty painted frames and 1 000 ms — a teardown's bar; the
+    two clocks, eight seconds and two and a half, are gone and `OWED_CONCLUSION_BOUND_MS` is only the graph's bound of
+    the node). The conclusion's and the claim's doors ask «nothing in flight» UNDER THE FRAME's OWN WAITS, and the
+    claim's door asks the funnel's own probe (`workspaceOutcomeServingNow`) — a claim that serves anything is never
+    let go by it.
+  - **ⓒ THE REAPER IS DELETED.** Read first, against the doors: the whole suite on `5306bfa1da` (45220695930), the
+    gate (45220700405, 1 212 walks), the box's two-seat pass on `35657c6593` (`fzy-fz3-duo`, 462 walks read, 0 defect
+    rows, no ghost and no `ONLY-ITS-OWN` span) — not one `[workspace-stale] concluded`. The only thing the reaper
+    still SAID on a healthy table was its `held` line (info — `parliament` held by `live-outcome`, once on the box):
+    a frame that waits for the player, which the conclude track of the measure reads by frame. Gone with it:
+    `reapStaleFreeTurnFrame`, its candidate, key and clock (`STALE_FREE_TURN_MS`), the clock's five cases, the
+    `workspace-stale` family of the diagnostics (shapes, the stall families, the journal's label, the RU line), the
+    harness's `[workspace-stale] concluded` guard and the monkey's NET term (dead hooks — invariant 14). **The
+    supervisor's port falls 29 → 27** (`concludeWorkspaceFlow`, `reconcileWorkspaceOutcome`): the supervisor concludes
+    no finished frame any more. Pinned: the look's wiring on the three doors that read it; «the supervisor names
+    neither the candidate nor the conclusion»; the bottle's two replays of the reaper's classes check the door opened
+    ONCE (their «the reaper is silent» could no longer fail).
+  - **ⓓ THE BEAT — decided: nothing is left to retire.** The beat stall guard's sampler went with `a244fdb717`; a
+    frame's bound is the wait's own (`workspace/beat-expired` — the kernel's bounded wait, not a net beside it); what
+    remains is rung 25 of the arbiter's ladder, and the arbiter stays by design (stage 7: «ONE arbiter»). No line of
+    stage 2 names a second judge of a beat.
+  - **WHAT STANDS BEHIND A FINISHED FRAME NOW:** its owner's doors (a quarter of a second; a second for a teardown) —
+    and the arbiter's ladder. The ghost TEST itself (`stuckWorkspaceIsGhost`) is still a sampled predicate, by the
+    decision of 2026-11-22 (the redesign «owed steps as children of their frame» is not planned): it is asked by ONE
+    door, under quiet.
+  - **THE VERDICT IS CI's** — the whole e2e suite and the gate on the head that carries this entry; the box's passes
+    on it after. The stage is CLOSED by the entry that reads them, not by this one.
+  - **Not of this stage, opened by reading a ceiling under green tests (the owner, 2026-11-23: «что видел игрок?»):**
+    `wait-graph/ceiling/transfer:touchdown` — «its timeline at 100 %» and no touchdown, three tests of run
+    45220695930 (`console-board-of-directors` B · F, the price «−12», 1 780 ms, planned — the page starved;
+    `console-palladin-shipping` E·2·C, the price «−2», 2 160 ms, DEFECT — the page gave the motion its time). An arc
+    that is complete and a beat held 1.2 s past its budget: the result is born only after its price lands (PL-099),
+    so the player waited for it. The line named a flight and nothing to read the rest by — it now says where the
+    touchdown stood (`touchdownWord`: never ran · the settle at N % [and not active] · touched down with no settle).
+    The next reading names the cause; no cure is written on a guess.
 - **STAGE 2, THE TAIL — WHAT IS LEFT, AND HOW IT IS BEING CLOSED (2026-11-23 evening; the owner: «сначала закроем
   этап 2 на 100 %»).** What the stage's exit still lacks is the retirement of the three nets behind the conclusion's
   door: the stale free-turn reaper (`supervisorController.reapStaleFreeTurnFrame`, eight seconds), the ghost test and

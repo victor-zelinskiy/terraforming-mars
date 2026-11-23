@@ -79,8 +79,9 @@ one defect to fix. `npm run diag -- class <class>` lays each case out in the ord
 
    Every other class is `<family>/<shape>/<structural words>` — `wait-graph/ceiling/<wait id>` (a wait that ended on
    its ceiling: a hidden mutual wait or a lost signal — `where <wait id>`), `wait-graph/<finding>/<members>` (a cycle,
-   a dead end, a dangling wait), `flow/bound-wait/<scope>/<what>` (a kernel wait cut by its bound), `workspace-stale/
-   concluded/<kind>` (a flow that did not end itself), `renderer-hang/unresponsive/<section>/<top>` (the page did not
+   a dead end, a dangling wait), `flow/bound-wait/<scope>/<what>` (a kernel wait cut by its bound), `workspace-stall/
+   ghost-forced/<kind>/<hold>` (a workspace that owed its ending and was torn down as a ghost; a release from before
+   2026-11-23 may still print `[workspace-stale] concluded` — the reaper, retired since), `renderer-hang/unresponsive/<section>/<top>` (the page did not
    run at all — § 3.4). The shape table with every row: `src/common/diagnostics/shapes.ts`.
 2. **`00-summary.md`** — the dimensions (the source card, the outcome, who cured it, how long it stood), the QUESTION
    (what was asked, who may serve it, who did), the HOLDERS with their ages (the first is the one the class names),

@@ -27,5 +27,5 @@
       "src/client/console/transport/gameTransport.ts": 1
     }
   },
-  "supervisorPort": 29
+  "supervisorPort": 27
 }

@@ -204,19 +204,6 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     {name: 'beat-arbiter', re: /^beat «([^»]*)» torn down by the liveness arbiter/, tier: 'info', parts: [1], why: 'the echo of an arbiter\'s rung — the episode is the defect', echoOf: ['liveness/stall']},
     {name: 'beat-bound', re: /^beat «([^»]*)» torn down at the frame's own bound/, tier: 'defect', parts: [1]},
   ],
-  'workspace-stale': [
-    {name: 'concluded', re: /^concluded «([^»]*)» — /, tier: 'defect', parts: [1]},
-    {
-      name: 'held', re: /^«([^»]*)» stands committed over the free turn .* — held: (.*)$/, tier: 'info', parts: [1, 2],
-      why: 'a hold named once as evidence — the frame is waiting for the player (a result of its own to take or to read, a step standing inside it)',
-      // …AND ONLY THEN. The reaper speaks over the FREE TURN alone — the server asks the action menu, the frame does not
-      // serve it, nothing is in flight — and there three of the conclusion's holds cannot be genuine: a step «owed» to
-      // a server that is asking something else, a prompt «owned» by a frame that does not serve the one question
-      // there is, and a refusal nobody named. The frame then stands dead till the player collapses it: a defect, said
-      // once (the tier audit of 2026-11-18, row 5 — it was evidence around nothing).
-      read: (m) => (/^(unknown|owed-step|owned-prompt)$/.test(m[2].trim()) ? {tier: 'defect'} : {}),
-    },
-  ],
   'workspace-anchor': [
     {name: 'reaped', re: /^reaped a live frame of a phase that is over: (.*?) — asked: ([^;]*);/, tier: 'defect', parts: [1], dims: {asked: 2}},
     {name: 'dropped', re: /^dropped (.*) \(([^)]*)\) — its phase is over/, tier: 'planned', parts: [1, 2], why: 'the anchor rule working: an off-stage frame of a finished phase does not come back'},

@@ -2,77 +2,21 @@ import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  CONCLUSION_DOOR_QUIET_FRAMES, CONCLUSION_DOOR_QUIET_MS, conclusionDoorInit, freeTurnConclusionCandidate, observeConclusionDoor, observeStaleFreeTurn,
-  staleFreeTurnClockInit, staleFreeTurnHeld,
+  CONCLUSION_DOOR_QUIET_FRAMES, CONCLUSION_DOOR_QUIET_MS, conclusionDoorInit, freeTurnConclusionCandidate, observeConclusionDoor,
 } from '@/client/console/supervisor/staleFreeTurnClock';
 import {causeOf} from '@/common/diagnostics/cause';
 import {workingAreaSettled} from '@/client/console/colonyTrade/workingAreaBack';
 
 /*
- * A FINISHED FRAME OVER THE FREE TURN IS REAPED ON ITS OWN QUIET — never on a progress stamp one tick old, never
- * through a hold, never on the tick a new question arrived (CI 2026-11-11, run 42998242617 — `console-colony-pluto-
- * embed` :329: the Pluto payout waited on the player's take, the reaper's conclusion was HELD on `live-outcome`, the
- * take asked a new free-turn prompt and on that very tick the reaper read «9 s quiet», released the claim and
- * concluded the colonies under the trade's own closing beat — the track reset glided over a dissolving stage).
+ * A FINISHED FRAME OVER THE FREE TURN LEAVES BY ITS OWNER's DOOR — the candidate, the level door and its wiring.
+ *
+ * (The file kept the reaper's clock too, until the reaper went — 2026-11-23, FREEZE ZERO, stage 2. What its cases
+ * pinned — a new question is a new candidate, anything in flight starts the quiet again, a hold is the frame's own
+ * time: CI 2026-11-11, run 42998242617, `console-colony-pluto-embed` :329, the colonies concluded under the trade's
+ * own closing beat — is the door's own terms now, pinned below and in `levelDoor.spec.ts`.)
  * And the closing beat's stage gate waits for the working area's OWN return transitions, not for a wall-clock dwell.
  */
-const STALE = 8_000;
 const source = (...p: string[]) => fs.readFileSync(path.resolve(__dirname, '..', '..', 'src', 'client', ...p), 'utf8').replace(/\r\n/g, '\n');
-
-describe('the stale free-turn clock', () => {
-  it('is due only after a whole quiet span on ONE key', () => {
-    let clock = staleFreeTurnClockInit(0);
-    let r = observeStaleFreeTurn(clock, {now: 1_000, key: 'colonies|p1', inFlight: false, progressAt: 0}, STALE);
-    expect(r.due, 'a key first seen starts the clock').to.equal(false);
-    clock = r.clock;
-    r = observeStaleFreeTurn(clock, {now: 8_500, key: 'colonies|p1', inFlight: false, progressAt: 0}, STALE);
-    expect(r.due).to.equal(false);
-    r = observeStaleFreeTurn(r.clock, {now: 9_100, key: 'colonies|p1', inFlight: false, progressAt: 0}, STALE);
-    expect(r.due, '8 s after the key was first seen').to.equal(true);
-  });
-
-  it('THE PLUTO TAKE: a held conclusion, then a NEW prompt with the arbiter\'s stamp one tick old — not due', () => {
-    let clock = staleFreeTurnClockInit(0);
-    clock = observeStaleFreeTurn(clock, {now: 0, key: 'colonies|p1', inFlight: false, progressAt: 0}, STALE).clock;
-    let r = observeStaleFreeTurn(clock, {now: 9_000, key: 'colonies|p1', inFlight: false, progressAt: 0}, STALE);
-    expect(r.due, 'quiet 9 s on the payout — the reaper asks').to.equal(true);
-    clock = staleFreeTurnHeld(r.clock, 9_000); // held: live-outcome (the take is owed)
-    // The player takes the card: the server asks a NEW free-turn prompt; the arbiter has not observed it yet.
-    r = observeStaleFreeTurn(clock, {now: 10_000, key: 'colonies|p2', inFlight: false, progressAt: 0}, STALE);
-    expect(r.due, 'a new question is progress — in this very tick').to.equal(false);
-    r = observeStaleFreeTurn(r.clock, {now: 14_000, key: 'colonies|p2', inFlight: false, progressAt: 0}, STALE);
-    expect(r.due, 'the flow owns its closing beat for a whole span').to.equal(false);
-  });
-
-  it('a hold waits a whole quiet span again — never re-asked on the next tick', () => {
-    let clock = staleFreeTurnClockInit(0);
-    clock = observeStaleFreeTurn(clock, {now: 0, key: 'hand|p1', inFlight: false, progressAt: 0}, STALE).clock;
-    clock = staleFreeTurnHeld(clock, 8_000);
-    expect(observeStaleFreeTurn(clock, {now: 9_000, key: 'hand|p1', inFlight: false, progressAt: 0}, STALE).due).to.equal(false);
-    expect(observeStaleFreeTurn(clock, {now: 16_000, key: 'hand|p1', inFlight: false, progressAt: 0}, STALE).due).to.equal(true);
-  });
-
-  it('anything in flight and a non-candidate restart the clock; the arbiter\'s later progress still counts', () => {
-    let clock = staleFreeTurnClockInit(0);
-    clock = observeStaleFreeTurn(clock, {now: 0, key: 'k', inFlight: false, progressAt: 0}, STALE).clock;
-    clock = observeStaleFreeTurn(clock, {now: 7_000, key: 'k', inFlight: true, progressAt: 0}, STALE).clock;
-    expect(observeStaleFreeTurn(clock, {now: 9_000, key: 'k', inFlight: false, progressAt: 0}, STALE).due).to.equal(false);
-    clock = observeStaleFreeTurn(clock, {now: 9_000, key: undefined, inFlight: false, progressAt: 0}, STALE).clock;
-    expect(clock.key).to.equal('');
-    clock = observeStaleFreeTurn(staleFreeTurnClockInit(0), {now: 0, key: 'k', inFlight: false, progressAt: 0}, STALE).clock;
-    expect(observeStaleFreeTurn(clock, {now: 9_000, key: 'k', inFlight: false, progressAt: 5_000}, STALE).due,
-      'the arbiter saw the picture move at 5 s').to.equal(false);
-  });
-
-  it('the reaper decides on the clock, never on the raw progress stamp', () => {
-    const src = source('console', 'supervisor', 'supervisorController.ts');
-    const start = src.indexOf('function reapStaleFreeTurnFrame(');
-    const body = src.slice(start, src.indexOf('\n  }\n', start));
-    expect(body).to.contain('observeStaleFreeTurn(');
-    expect(body, 'a held conclusion restarts the clock').to.contain('staleFreeTurnHeld(');
-    expect(body, 'no stale verdict off `progressAt` alone').to.not.match(/Date\.now\(\) - livenessStateSnapshot\(\)\.progressAt >= STALE_FREE_TURN_MS/);
-  });
-});
 
 describe('the working area is back when its own transitions ran out', () => {
   type Fake = {getAnimations?: () => Array<{transitionProperty?: string, finished: Promise<unknown>}>};
@@ -153,10 +97,10 @@ describe('the conclusion\'s candidate - a committed frame over the free turn', (
     expect(read).eq(0);
   });
 
-  it('the reaper and the measure read the SAME predicate - and the measure lives with the conclusion\'s owner', () => {
+  it('the measure and the door read ONE predicate - and both live with the conclusion\'s owner', () => {
     const supervisor = source('console', 'supervisor', 'supervisorController.ts');
     const outcome = source('console', 'shell', 'outcomeController.ts');
-    expect(supervisor).to.contain('return freeTurnConclusionCandidate(workspaceStackTop(), ');
+    expect(supervisor, 'the supervisor concludes no finished frame: the reaper is gone').to.not.match(/freeTurnConclusionCandidate|concludeWorkspaceFlow\(|reconcileWorkspaceOutcome\(/);
     expect(outcome).to.contain('const candidate = freeTurnConclusionCandidate(top, ');
     expect(outcome).to.contain('flow.everyFrame(\'the conclusion\\\'s door, by level\', lookAtConclusionDoor);');
     expect(supervisor, 'the supervisor\'s port takes no verdict of the conclusion').to.not.contain('conclusionVerdictNow');

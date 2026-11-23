@@ -1255,7 +1255,7 @@ export function shapeRowOf(shapesText, shape) {
 
 /**
  * FROM A WORD OF THE EVIDENCE TO ITS SOURCE. `files` = [{path, text}] (the client and the Electron lane), `word` = a
- * scope id or label as the evidence prints it, a tag (`[workspace-stale]`), a shape or a whole cause class
+ * scope id or label as the evidence prints it, a tag (`[workspace-stall]`), a shape or a whole cause class
  * (`wait-graph/ceiling/…`). The answer: what the word was read as, the name that was found, and the hits — the
  * declarations first.
  */

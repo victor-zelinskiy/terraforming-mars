@@ -270,17 +270,18 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
-   * `workspace-stale/concluded/<kind>` — THE REAPER's CLASS (the owner's field locks of 2026-11-07; the Parliament's
-   * of 11-06; the unexplained 01:06): a frame PAST ITS COMMIT left standing over the player's free turn — nothing owed
-   * inside it, nothing in flight, the flow that should have ended it gone. The player looked at a finished workspace
-   * for eight seconds, until the supervisor's reaper concluded it and named a defect. The law (stage 2 — the
-   * conclusion's level door, `staleFreeTurnClock.observeConclusionDoor`): that ending is its owner's decision BY
-   * LEVEL — the candidate, the guarded conclusion's `dismiss`, no look the player reads, nothing in flight, for the
-   * door's frames — so the frame leaves a quarter of a second in, through the one guarded conclusion, and the reaper
-   * has nothing left to say. (The class is planted the way it arises: a frame's phase written past its commit with no
-   * claim, no step and no question of its own — every flow that ever «forgot» its ending left exactly that.)
+   * A FINISHED FRAME OVER THE FREE TURN — what was the class `workspace-stale/concluded/<kind>` (the owner's field
+   * locks of 2026-11-07; the Parliament's of 11-06; the unexplained 01:06): a frame PAST ITS COMMIT left standing over
+   * the player's free turn — nothing owed inside it, nothing in flight, the flow that should have ended it gone. The
+   * player looked at a finished workspace for eight seconds, until the supervisor's reaper concluded it and named a
+   * defect. The law (stage 2 — the conclusion's level door, `staleFreeTurnClock.observeConclusionDoor`): that ending
+   * is its owner's decision BY LEVEL — the candidate, the guarded conclusion's `dismiss`, no look the player reads,
+   * nothing in flight, for the door's frames — so the frame leaves a quarter of a second in, through the one guarded
+   * conclusion. (The reaper itself is gone since 2026-11-23: this replay is what stands in its place. The class is
+   * planted the way it arises: a frame's phase written past its commit with no claim, no step and no question of its
+   * own — every flow that ever «forgot» its ending left exactly that.)
    */
-  it('a finished frame left standing over the free turn leaves BY LEVEL — in frames, never at the reaper\'s eight seconds; nothing is filed', async () => {
+  it('a finished frame left standing over the free turn leaves BY LEVEL — in frames, never after seconds of a dead screen; nothing is filed', async () => {
     const table = await bottleServer().bootFixture('aerial-mappers');
     bottle = await bootBottle(table);
     const live = bottle;
@@ -309,22 +310,23 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(live.frames(), 'the door\'s frames of quiet have passed: the frame left — a second in, not eight').to.deep.equal([]);
     expect(doorLines().length, 'said once, as the trail of which flow left its ending to the level').to.equal(1);
     expect(doorLines()[0]).to.match(/«hand» left by the level door — finished over the free turn and quiet for \d+ frames \/ \d+ ms \(frames: hand:committed\)$/);
-    // Past the reaper's eight seconds and the arbiter's grace: neither had anything to do.
+    // Past the arbiter's grace: it had nothing to do — and the door said its line ONCE.
     await live.advance(12_000);
-    expect(live.lines().filter((line) => line.includes('[workspace-stale]')), 'the reaper is silent').to.deep.equal([]);
+    expect(doorLines().length, 'the door does not open twice').to.equal(1);
     expect(live.liveness().why, 'the player can act').to.deep.equal([]);
     expect(classes(), 'the door\'s act is no defect').to.deep.equal([]);
   });
 
   /*
-   * `workspace-outcome/claim-released-free-turn/<kind>` — THE REAPER's OTHER CURE (the field export of 2026-11-09:
-   * «hand» stood committed over the free turn, held by `live-outcome`): a frame held by its own CLAIM alone, with no
-   * batch to take and nothing moving — a claim that answers for nothing. The reaper let it go after eight seconds of
-   * a dead screen. By level (`outcomeController.lookAtConclusionDoor` — the claim door): quiet for the door's bar,
+   * `workspace-outcome/claim-released-free-turn/<kind>` — what was THE REAPER's OTHER CURE (the field export of
+   * 2026-11-09: «hand» stood committed over the free turn, held by `live-outcome`): a frame held by its own CLAIM
+   * alone, with no batch to take and nothing moving — a claim that answers for nothing. The reaper (gone since
+   * 2026-11-23) let it go after eight seconds of a dead screen. By level (`outcomeController.lookAtConclusionDoor` —
+   * the claim door): quiet for the door's bar,
    * the claim is reconciled, let go if it still stands, and the frame concludes. (Planted the way it arises: a claim
    * of the hand's past its answer, presenting, with no reveal behind it — a batch that never came.)
    */
-  it('a frame held by a claim that answers for nothing is let go BY LEVEL — the claim released, the frame gone, a second in; the reaper silent', async () => {
+  it('a frame held by a claim that answers for nothing is let go BY LEVEL — the claim released, the frame gone, a second in', async () => {
     const table = await bottleServer().bootFixture('aerial-mappers');
     bottle = await bootBottle(table);
     const live = bottle;
@@ -348,9 +350,8 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     await live.advance(1_400);
     expect(outcome.workspaceOutcomeClaimed(), 'the claim that answered for nothing is let go').to.equal(false);
     expect(live.frames(), '…and the frame it held left — a second or so in, not eight').to.deep.equal([]);
-    // Past the reaper's eight seconds: it had nothing to do.
+    // Long past it: nothing else has anything to say.
     await live.advance(12_000);
-    expect(live.lines().filter((line) => line.includes('[workspace-stale]')), 'the reaper is silent').to.deep.equal([]);
     // The planted defect has ONE line — the door's own, said once: which claim it let go, and how soon.
     expect(classes(), 'the release is the planted defect — one class, its own').to.deep.equal(['workspace-outcome/claim-released-free-turn/hand']);
     const released = live.lines().filter((line) => line.includes('answered for nothing over the free turn')).map((line) => line.replace(/^warn: /, ''));

@@ -602,7 +602,7 @@ export function noteOpeningSpan(track: 'stage' | 'strand' | 'door' | 'strand-doo
 }
 
 /**
- * THE CONCLUSION's DOOR, MEASURED (stage 2 — S5-rest; `supervisorController.measureConcludeDoor`): while the reaper's
+ * THE CONCLUSION's DOOR, MEASURED (stage 2 — S5-rest; `outcomeController.measureConcludeDoor`): while the door's
  * candidate stands — the free turn is asked and a committed frame that does not serve it is on top — one span per
  * state of `<kind> · <the guarded conclusion's verdict> · <what is in flight>`. `key` `''` — no candidate. Stats only:
  * how long a candidate stands, behind which hold, and how many frames of quiet a level door would have to wait.

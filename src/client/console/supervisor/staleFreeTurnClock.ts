@@ -1,27 +1,18 @@
 /*
  * @console-shared LIVE — console native stands on this file.
  *
- * THE STALE FREE-TURN CLOCK — when a finished frame standing over the player's free turn has been QUIET long enough
- * for the supervisor's reaper (`supervisorController.reapStaleFreeTurnFrame`) to conclude it. Pure: the next clock and
- * whether the reaper is due.
+ * A FINISHED FRAME OVER THE FREE TURN — the conclusion's CANDIDATE and its DOOR BY LEVEL.
  *
- * Why it is its own clock, not the liveness arbiter's `progressAt` (CI 2026-11-11, run 42998242617 — `console-colony-
- * pluto-embed` :329): the reaper runs BEFORE the arbiter's observation inside the same 1 Hz tick, so it read a progress
- * stamp one tick old. The Pluto payout waited on the player's take (the reaper asked, the conclusion HELD on
- * `live-outcome` — right), the player took the card, the server asked a NEW free-turn prompt — and on that very tick
- * the reaper saw a new key with the old stamp («9 s quiet»), the claim with nothing left to present was let go and the
- * colonies were concluded under the trade's own closing beat: the working area still coming back, the track reset
- * gliding over a dissolving stage, «its flow did not end itself». Three laws:
- *   1. A NEW QUESTION IS PROGRESS — a changed frame / prompt key restarts the clock in the same observation.
- *   2. SOMETHING IN FLIGHT IS NOT QUIET — the clock restarts while anything is.
- *   3. A HOLD IS NOT QUIET — a conclusion the frame's own reason refused (`heldAt`) waits a whole quiet span again:
- *      the holder ends with its own edge, and the flow that owns the ending gets the time to end itself.
+ * (The file keeps the name of what it held first: the stale free-turn reaper's clock — eight seconds of quiet on the
+ * supervisor's 1 Hz tick, retired 2026-11-23 when both its cures became this door. Its three laws live on in the
+ * door's own terms: a new question is a new candidate, anything in flight starts the quiet again, a hold is the
+ * frame's own time.)
  */
 
 import {LevelDoorState, levelDoorInit, observeLevelDoor} from '@/client/console/levelDoor';
 
 /**
- * THE CONCLUSION's CANDIDATE — ONE predicate for the reaper and for the conclusion door's measure
+ * THE CONCLUSION's CANDIDATE — ONE predicate for the conclusion's door and for its measure
  * (`outcomeController.measureConcludeDoor`): the server asks the FREE TURN and the stack's top is a frame PAST ITS
  * COMMIT that does not serve it — never a frame of a phase (its life is the anchor rule's), never a stack set aside or
  * standing aside for the board, never under a placement. Pure; the frame's half comes first (the measure asks every
@@ -55,8 +46,8 @@ export function freeTurnConclusionCandidate(
  * written as a net's timer instead of a wait of the kernel (now a `span`, so it reads `busy`). Every other candidate
  * the suite makes is busy until its flow ends it or held by a named reason. Twelve frames is past a hand-off between
  * two flights (one ends, the next rises a tick later); the wall-clock floor keeps a 120 Hz page from halving it.
- * Counted in FRAMES — a page that does not paint opens no door (the reaper, on the wall clock, stays behind it as a
- * net that should never speak again).
+ * Counted in FRAMES — a page that does not paint opens no door. (The reaper stood behind it on the wall clock for a
+ * day, as a net that should never speak again; it did not, over the whole suite, the gate and the box — and went.)
  */
 export const CONCLUSION_DOOR_QUIET_FRAMES = 12;
 export const CONCLUSION_DOOR_QUIET_MS = 250;
@@ -73,42 +64,4 @@ export function observeConclusionDoor(
   state: ConclusionDoorState, look: {key: string | undefined, quiet: boolean, now: number},
 ): {state: ConclusionDoorState, open: boolean} {
   return observeLevelDoor(state, look, {frames: CONCLUSION_DOOR_QUIET_FRAMES, ms: CONCLUSION_DOOR_QUIET_MS});
-}
-
-export type StaleFreeTurnClock = {
-  /** `<kind>|<promptId>` of the candidate frame being timed ('' = no candidate). */
-  readonly key: string;
-  /** The clock's own start — the later of the arbiter's progress and this is the quiet's origin. */
-  readonly since: number;
-};
-
-export function staleFreeTurnClockInit(now: number): StaleFreeTurnClock {
-  return {key: '', since: now};
-}
-
-export type StaleFreeTurnObservation = {
-  readonly now: number;
-  /** The candidate's key, or undefined when the top frame is no candidate (not over the free turn, not committed …). */
-  readonly key: string | undefined;
-  readonly inFlight: boolean;
-  /** The liveness arbiter's last progress stamp (one tick old at the reaper's read — law 1 covers what it misses). */
-  readonly progressAt: number;
-};
-
-export function observeStaleFreeTurn(
-  clock: StaleFreeTurnClock, o: StaleFreeTurnObservation, staleMs: number,
-): {clock: StaleFreeTurnClock, due: boolean, quietMs: number} {
-  if (o.key === undefined) {
-    return {clock: {key: '', since: o.now}, due: false, quietMs: 0};
-  }
-  if (o.key !== clock.key || o.inFlight) {
-    return {clock: {key: o.key, since: o.now}, due: false, quietMs: 0};
-  }
-  const quietMs = o.now - Math.max(clock.since, o.progressAt);
-  return {clock, due: quietMs >= staleMs, quietMs};
-}
-
-/** The reaper asked and the frame's own reason HELD the conclusion — the next ask is a whole quiet span later (law 3). */
-export function staleFreeTurnHeld(clock: StaleFreeTurnClock, now: number): StaleFreeTurnClock {
-  return {key: clock.key, since: now};
 }

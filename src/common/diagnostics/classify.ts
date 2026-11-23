@@ -37,7 +37,7 @@ const ERROR: ReadonlyArray<string> = [
  * degraded at its safety, a question nobody served.
  */
 const STALL: ReadonlyArray<string> = [
-  'liveness', 'workspace-stall', 'workspace-stale', 'workspace-anchor', 'workspace-outcome', 'workspace-conclusion',
+  'liveness', 'workspace-stall', 'workspace-anchor', 'workspace-outcome', 'workspace-conclusion',
   'workspace', 'ws-stack',
   'start-stranded', 'start-shadow', 'start-director', 'screen-shadow', 'console-leak-detector',
   'console-foreground-watchdog', 'wait-graph', 'animation-hold', 'screen-handoff', 'presentation-ledger',

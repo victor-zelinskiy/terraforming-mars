@@ -1871,7 +1871,7 @@ function cmdWhere(args) {
     throw new Failure('usage: diag where <a word of the evidence>\n' +
       '  a scope / a hold / a wait / a block / a rung / a door as the evidence prints it:  frame:hand#3 · scene:hold:played-hero#12 ·\n' +
       '  step:commit-fold-owed · story:owed:board-beat-park · card-receive · played-hero:payback · block:reveal · workspace-outcome · question-open\n' +
-      '  a line\'s tag, a shape or a whole cause class:  [workspace-stale] · wait-graph/ceiling · liveness/stall/unserved/…', 2);
+      '  a line\'s tag, a shape or a whole cause class:  [workspace-stall] · wait-graph/ceiling · liveness/stall/unserved/…', 2);
   }
   const read = (p) => ({path: rel(p), text: fs.readFileSync(p, 'utf8')});
   // The client declares the names; the Electron lane prints tags of its own (`[renderer-hang]`).
@@ -1937,7 +1937,7 @@ usage: npm run diag -- <command> [args]
                                 close a class «fixed in release» (default: this checkout's version — run it after the
                                 fix is committed) — it REGRESSES if an event of that version or a later one returns
   where <word>                  from a word of the evidence — frame:hand#3 · scene:hold:played-hero#12 · step:commit-fold-owed ·
-                                card-receive · played-hero:payback · block:reveal · question-open · [workspace-stale] ·
+                                card-receive · played-hero:payback · block:reveal · question-open · [workspace-stall] ·
                                 wait-graph/ceiling — to the line of the source that DECLARES it (file:line)
 
   selftest [--since 30m]        did the connection check arrive from page · main · server? (exit 1 if one is missing)

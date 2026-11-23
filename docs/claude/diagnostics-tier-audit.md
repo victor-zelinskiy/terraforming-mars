@@ -41,7 +41,8 @@ PROOF over the wait's whole span, and the line names the term that held** — ot
   is a verdict over the WHOLE blocked span (a frame watch from the moment its clock starts), never the supervisor's
   last one-second look; (c) the feed's warn re-arms the moment the queue flows — it was once per game.
 - **Row 5 — CLOSED.** `workspace-stale/held` is evidence only for `live-outcome` / `nested-step`; held by
-  `owed-step` · `owned-prompt` · `unknown` over the free turn it is a defect (the row's `read`).
+  `owed-step` · `owned-prompt` · `unknown` over the free turn it is a defect (the row's `read`). (The whole family
+  left with the reaper, 2026-11-23: what holds a finished frame is read on the conclude track of the measure.)
 - **Row 6 — CLOSED.** `#stale-prompt` is honest ONCE: the second refusal in a row with no answer landed between says
   so after the reason and reads as a defect (`consoleWorkspaceStack.staleRefusalSaid`).
 - Still open: the deck pick and the pad line of row 9, row 10, the ruling-change impulse wait of row 3 — and the

@@ -300,15 +300,22 @@ line and no reload, so nothing named it; the next one will be named either way.
 The owner: «чтобы для пользователя выглядело как будто зависания нет». Two changes:
 - **The heal shows nothing.** The «Экран завис» notice is gone, both the arbiter's and the foreground watchdog's. The
   warn line stays: the field log and every e2e spec read it.
-- **A finished frame over the free turn leaves by itself** (`ConsoleShell.reapStaleFreeTurnFrame`), with no press
-  needed. It fires when the server asks the action menu and the deepest live frame meets all of these:
+- **A finished frame over the free turn leaves by itself**, with no press needed — **by its owner's DOOR BY LEVEL**
+  since 2026-11-23 (`outcomeController.lookAtConclusionDoor` on `levelDoor.ts`; it was the supervisor's reaper,
+  `reapStaleFreeTurnFrame` — eight seconds on the 1 Hz tick, `[workspace-stale]` — retired in FREEZE ZERO, stage 2).
+  The door opens when the server asks the action menu and the deepest live frame meets all of these for twelve
+  painted frames ∧ 250 ms:
   - it stands `committed`;
   - it is not phase-anchored (phases are the anchor rule's);
   - it does not serve the turn;
-  - nothing is in flight, and the picture has been still for `STALE_FREE_TURN_MS` (8 s).
+  - the guarded conclusion reads `dismiss`, no look of the player's stands over it, and nothing is in flight UNDER
+    the frame's own waits (its claim and its debt are the question the door answers, never a flight).
 
   Then it is concluded through the ONE guarded conclusion. That conclusion still holds for every named reason — cards
   to take, a verdict, a nested or owed step, an owned prompt, a park — so a frame genuinely waiting for the player stays.
-  A conclusion is `[workspace-stale] concluded`, red in every e2e spec, because a flow that did not end itself is a
-  defect upstream. A hold is named once, as evidence.
+  The door says `[workspace-conclusion] «<kind>» left by the level door` once (info — the trail of which flow left its
+  ending to the level). A frame held by a claim that SERVES nothing is let go by the same rule
+  (`workspace-outcome/claim-released-free-turn` — a defect, said once); a workspace that owes its ending and reads a
+  ghost is torn down by the debt's own door (`workspaceConclusionOwe.drive`, sixty frames ∧ 1 s — `[workspace-stall]
+  … forcing teardown`). No clock of seconds stands behind these doors — only this ladder.
 

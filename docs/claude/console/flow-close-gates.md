@@ -246,6 +246,13 @@ analogue of the foreground watchdog):
   (`[workspace-stall] «<kind>» … forcing teardown (signal: …)`), printing the
   conclusion signal so the exact hold is on record.
 
+**Since 2026-11-23 the FORCE phase is a DOOR BY LEVEL, not a clock** (FREEZE ZERO, stage 2 —
+`workspaceConclusionOwe.drive` on `levelDoor.ts`): owed ∧ `stuckWorkspaceIsGhost` ∧ nothing in flight under the debt's
+own waits ∧ no look of the player's, for sixty painted frames and 1 000 ms. `OWED_CONCLUSION_FORCE_MS` (8 s) and
+`OWED_CONCLUSION_GHOST_CONFIRM_MS` (2.5 s) are gone — a real ghost stood ten seconds, and what kept the test off a
+scene that was merely playing was only that no scene plays 2.5 s without a hold. The numbers below are the history of
+the net; the predicate is unchanged.
+
 The safety is airtight and is the whole point: `stuckWorkspaceIsGhost` is a
 conjunction of «the player has something genuine to do / see», so its being
 false for the full 8s continuous grace means the workspace holds on a phantom.

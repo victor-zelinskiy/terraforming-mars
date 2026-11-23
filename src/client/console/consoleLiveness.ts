@@ -284,7 +284,7 @@ export const PAD_OWNING_OVERLAY_SELECTOR = PAD_OWNING_OVERLAYS.map((overlay) => 
 
 /**
  * …and the LOOKS among them — the views only the PLAYER opens, to read: while one stands the screen is the player's
- * (`LivenessSample.playerLook`), and neither the arbiter nor the reaper of finished frames judges what waits under it.
+ * (`LivenessSample.playerLook`), and neither the arbiter nor a door of a finished frame judges what waits under it.
  * The other rows are the GAME's surfaces (a reveal, the announce plate, the task host, the stranded plate): they own the
  * pad, and they are the game's own to answer for.
  */

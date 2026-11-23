@@ -2,8 +2,8 @@
  * @console-shared LIVE — console native stands on this file.
  *
  * THE SUPERVISOR — the console's ONE sampler (1 Hz) and what hangs off it: the liveness arbiter's tick and the shell's
- * rungs of its ladder, the wait graph's shell source and its recovery doors, the reapers (a frame of a phase that is
- * over, a stale free-turn frame), the forced recovery of a stuck workspace and the two directors' cures.
+ * rungs of its ladder, the wait graph's shell source and its recovery doors, the reaper of a frame of a phase that is
+ * over, the forced recovery of a stuck workspace and the two directors' cures.
  *
  * Taken out of ConsoleShell.vue by scripts/shell-extract.mjs (architecture v2 — docs/claude/console/architecture-v2/
  * PLAN.md §5 · S1). THE PORT BELOW IS THE POINT OF THE SLICE: it is everything the supervisor reads of the shell, as a
@@ -41,7 +41,6 @@ import {unanswerableReason} from '@/common/inputs/promptAnswerable';
 import {captureDiagEvidence, setDiagEvidenceProvider, withDiagEvidence} from '@/client/diagnostics/diagnosticsCapture';
 import {DiagEvidence} from '@/common/diagnostics/DiagnosticModel';
 import {buildStallEvidence, stallHolder, StallHolderFacts} from '@/client/console/supervisor/stallEvidence';
-import {freeTurnConclusionCandidate, observeStaleFreeTurn, StaleFreeTurnClock, staleFreeTurnClockInit, staleFreeTurnHeld} from '@/client/console/supervisor/staleFreeTurnClock';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
@@ -91,13 +90,6 @@ let screenControlDefectUntil = 0;
 const SCREEN_CONTROL_DEFECT_MAX_MS = 15_000;
 
 /**
- * A FINISHED FRAME OVER THE FREE TURN LEAVES BY ITSELF after this long with nothing moving (`reapStaleFreeTurnFrame`).
- * Long enough that a player reading a result that asks nothing of them still has it; short enough that a wedged one is
- * a hiccup, not a freeze.
- */
-const STALE_FREE_TURN_MS = 8_000;
-
-/**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
@@ -107,7 +99,6 @@ export type SupervisorPort = {
   surfaces: SurfaceRegistry,
   readonly admissionSignals: AdmissionSignals,
   commitFoldOwed: boolean,
-  concludeWorkspaceFlow(kind: WorkspaceFrameKind, servedPromptHolds?: boolean): boolean,
   readonly consoleRevealMode: ConsoleRevealMode | undefined,
   readonly deckPickActive: boolean,
   drainBoardBeats(): void,
@@ -123,7 +114,6 @@ export type SupervisorPort = {
   parliamentLeaving: boolean,
   readonly placementActive: boolean,
   readonly playerView: PlayerViewModel,
-  reconcileWorkspaceOutcome(): void,
   restoreDeferredTask(): void,
   readonly startSceneMounted: boolean,
   readonly startShadowNow: {expected: StartOwner, actual: ActualStartOwner, held: string | undefined, prompt: string},
@@ -142,10 +132,6 @@ export function createSupervisorController(shell: SupervisorPort) {
   const beatStallTimer = ref(undefined as (() => void) | undefined);
   /** The shell's own rungs of the liveness ladder — unregistered with the shell. */
   const livenessRungStops = ref([] as Array<() => void>);
-  /** The stale frame over the free turn whose HOLD was already named (`<kind>|<promptId>`) — one line per standing. */
-  const staleFreeTurnKey = ref('');
-  /** The reaper's own quiet clock (`staleFreeTurnClock.ts`) — never the arbiter's one-tick-old progress stamp alone. */
-  let staleFreeTurnClock: StaleFreeTurnClock = staleFreeTurnClockInit(Date.now());
   /** The last line's own clock (`consoleLiveness.lastLineStep`): at rest while the ladder still acts or nothing stalls. */
   let lastLine: LastLineState = LAST_LINE_REST;
   /** THE PULSE's CONTROL (`?waitGraphControl=strand` only — `__conBreakSupervisorPass()`): the pass throws from then on. */
@@ -204,7 +190,8 @@ export function createSupervisorController(shell: SupervisorPort) {
    * and NAMES everything it tore down (the leak-detector discipline: a
    * recovery that heals invisibly would have hidden this bug). This is a NET,
    * not a mechanism — every ordinary ending still routes through
-   * `concludeWorkspaceFlow`; this only ever runs after the escalation grace.
+   * `concludeWorkspaceFlow`; this runs only through the ghost's own door by level
+   * (`workspaceConclusionOwe.drive`) and the arbiter's rung.
    */
   function forceRecoverStuckWorkspace(kind: WorkspaceFrameKind, why?: string, owedForMs = 0): void {
     const refused = conclusionRefusal.last?.kind === kind ? conclusionRefusal.last.reason : 'unknown';
@@ -237,83 +224,14 @@ export function createSupervisorController(shell: SupervisorPort) {
    * is provably in flight. Every term is the console's own fact; the beat stall guard's verdict is one of the «not
    * accepting» witnesses, the leak detector's stranded verdict another.
    */
-  /**
-   * A FINISHED FRAME OVER THE FREE TURN LEAVES BY ITSELF — the automatic, silent half of «the player can always act»
-   * (the owner, 2026-11-07: «чтобы для пользователя выглядело как будто зависания нет»). Every field lock of that week
-   * had ONE shape: the server asked the player's ordinary turn (the action menu) while the screen stood on a frame PAST
-   * its commit that does not serve that turn, with nothing in flight — the sitting's frame returned after its phase,
-   * the chairman quest's run wedged in a beat, the unexplained 01:06. Such a frame owes the player nothing the stack
-   * can name, so after `STALE_FREE_TURN_MS` with nothing moving it is concluded through the ONE guarded conclusion —
-   * which still HOLDS for every named reason (a nested step, a step owed, a live outcome of its own: cards to take, a
-   * verdict to read; a prompt it owns; a park; off stage), so a frame that is genuinely waiting for the player stays.
-   * Never a frame of a phase (their life is the anchor rule's), never a question other than the free turn (the screen
-   * director judges those); the quiet is the reaper's OWN clock (`staleFreeTurnClock.ts` — a new prompt restarts it in the
-   * same tick, a hold waits a whole span again). A conclusion here means a flow did not end itself — named
-   * (`[workspace-stale] concluded`, red in every e2e spec); a hold is named once too, as evidence.
+  /*
+   * (THE STALE FREE-TURN REAPER stood here until 2026-11-23 — FREEZE ZERO, stage 2: a finished frame over the free
+   * turn was concluded after eight seconds with nothing moving, and a claim that answered for nothing let go. Both its
+   * cures are the conclusion's own DOORS BY LEVEL now — `outcomeController.lookAtConclusionDoor`: a quarter of a
+   * second of painted quiet, read under the frame's own waits — and a workspace that owes its ending and reads a
+   * ghost is the debt's own door (`workspaceConclusionOwe.drive`). What it named of a HELD frame is the conclude
+   * track's (`servingOwnerMeasure`). The arbiter's ladder stands behind them, as behind everything.)
    */
-  /** The reaper's candidate, by the ONE predicate the conclusion door's measure reads too (`freeTurnConclusionCandidate`). */
-  function staleFreeTurnCandidate(): boolean {
-    return freeTurnConclusionCandidate(workspaceStackTop(), () => ({
-      asksFreeTurn: shell.playerView.waitingFor !== undefined && taskFor(shell.playerView)?.kind === 'actionMenu',
-      collapsed: workspaceStackCollapsed(),
-      yieldedToBoard: stackYieldedToBoard(),
-      placement: shell.placementActive,
-    }));
-  }
-
-  function reapStaleFreeTurnFrame(inFlight: ReadonlyArray<string>): void {
-    const wf = shell.playerView.waitingFor;
-    const top = workspaceStackTop();
-    // (…and never under a look the player reads: the frame's time under it is the player's — `LivenessSample.playerLook`.)
-    const candidate = staleFreeTurnCandidate() && !playerLookStands();
-    // THE QUIET IS THE REAPER'S OWN CLOCK (`staleFreeTurnClock.ts`): a new question restarts it in this very tick (the
-    // arbiter's progress stamp is one tick old here), anything in flight restarts it, and a HELD conclusion waits a
-    // whole quiet span again — never «9 s quiet» on the tick the player's take asked the next prompt.
-    const now = Date.now();
-    const observed = observeStaleFreeTurn(staleFreeTurnClock, {
-      now,
-      key: candidate && top !== undefined && wf !== undefined ? `${top.kind}|${wf.promptId ?? ''}` : undefined,
-      inFlight: inFlight.length > 0,
-      progressAt: livenessStateSnapshot().progressAt,
-    }, STALE_FREE_TURN_MS);
-    staleFreeTurnClock = observed.clock;
-    if (!candidate || !observed.due || top === undefined) {
-      if (!candidate) {
-        staleFreeTurnKey.value = '';
-      }
-      return;
-    }
-    const key = observed.clock.key;
-    const quiet = Math.round(observed.quietMs / 1000);
-    // A CLAIM WITH NOTHING TO PRESENT holds no conclusion (the field export of 2026-11-09: «hand» stood committed over the
-    // free turn, held by `live-outcome`): the server asks the action menu, no drawn batch waits, nothing moves — the claim
-    // answers for nothing on this screen. It is let go (forced — the funnel would call a claim on its own host serving),
-    // and the ONE guarded conclusion is asked again below; a claim with a batch still to take is never touched here.
-    if (workspaceOutcomeClaimed() && workspaceOutcomeState.host === top.kind && currentRevealEvent() === undefined) {
-      shell.reconcileWorkspaceOutcome();
-      if (workspaceOutcomeClaimed() && releaseWorkspaceOutcome('stale-free-turn', {force: true})) {
-        console.warn(`[workspace-outcome] the claim of «${top.kind}» answered for nothing over the free turn ${quiet}s — released`);
-      }
-    }
-    // (What stood is read BEFORE the conclusion: after it the evidence would describe the cure.)
-    const stood = captureDiagEvidence();
-    const frames = workspaceStackState.frames.map((f) => f.kind + ':' + f.phase).join(';') || 'none';
-    if (shell.concludeWorkspaceFlow(top.kind)) {
-      withDiagEvidence(stood, () => console.warn(`[workspace-stale] concluded «${top.kind}» — it stood committed over the free turn ${quiet}s with ` +
-        `nothing in flight (frames: ${frames}); ` +
-        'its flow did not end itself'));
-    } else {
-      // HELD by the frame's own reason: the holder ends with its own edge — the next ask is a whole quiet span later
-      // (law 3), and the hold is named ONCE per standing (`staleFreeTurnKey`), as evidence.
-      staleFreeTurnClock = staleFreeTurnHeld(staleFreeTurnClock, now);
-      if (staleFreeTurnKey.value !== key) {
-        staleFreeTurnKey.value = key;
-        console.warn(`[workspace-stale] «${top.kind}» stands committed over the free turn ${quiet}s with nothing in flight — ` +
-          `held: ${conclusionRefusal.last?.kind === top.kind ? conclusionRefusal.last.reason : 'unknown'}`);
-      }
-    }
-  }
-
   /**
    * THE ANCHOR RULE'S BACKSTOP (1 Hz, beside the arbiter): the off-stage homes are pruned again (a level, never an
    * edge), and a LIVE phase root whose phase is over — past its own leave — is closed by its phase's verb. A phase's
@@ -569,7 +487,6 @@ export function createSupervisorController(shell: SupervisorPort) {
     if (viewDebt.inFlight !== '') {
       inFlight.push(viewDebt.inFlight);
     }
-    reapStaleFreeTurnFrame(inFlight);
     const dom = (s: string) => document.querySelectorAll(s).length;
     const focused = document.querySelector('[class*="--focused"]');
     const signature = [
@@ -1312,13 +1229,11 @@ export function createSupervisorController(shell: SupervisorPort) {
   return {
     beatStallTimer,
     livenessRungStops,
-    staleFreeTurnKey,
     lastLivenessAccepting,
     deadLiveFramePasses,
     commitFoldOwedSince,
     stuckWorkspaceIsGhost,
     forceRecoverStuckWorkspace,
-    reapStaleFreeTurnFrame,
     reapDeadPhaseFrames,
     startSupervisor,
     stopSupervisor,

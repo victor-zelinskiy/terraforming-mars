@@ -47,6 +47,7 @@ Status: `open` · `fixed <commit>`.
 - W11 `open` — the release funnel refuses indefinitely while serving (each refusal re-arms the 20 s safety); with an
   optional prompt liveness does not act.
 - W12 `open` — the free-turn reaper and B-judging look at `committed` only (`verdict`, optional-prompt `executing`).
+  (2026-11-23: the reaper is gone — the conclusion's door by level reads the same candidate, `committed` only.)
 
 ## Flow-internal
 - R1 `fixed (wait-graph Э1)` — = W2 from the section side: support / delegate / banner end with their stage standing and beat `done`.
@@ -104,7 +105,8 @@ Status: `open` · `fixed <commit>`.
   § orphaned claim (`__conOrphanClaim()`).
 - C2 `fixed` — a claim with NOTHING TO PRESENT held its frame over the free turn (`[workspace-stale] «hand» … held:
   live-outcome`): the free-turn reaper reconciles it and lets it go (forced) when the server asks the action menu and no
-  drawn batch waits, then asks the one conclusion again.
+  drawn batch waits, then asks the one conclusion again. (Since 2026-11-23 that is the CLAIM's door by level —
+  `outcomeController.lookAtConclusionDoor`, a claim that serves nothing; the reaper is retired.)
 - C3 `fixed` — the played hero's pay-back node targeted the SERVER; the wire flag drops before the transport applies the
   answer, so every ordinary pay-back read as a dead end. Its target is the transport's apply (a motion); a pay-back that
   never comes is still said by its ceiling line.

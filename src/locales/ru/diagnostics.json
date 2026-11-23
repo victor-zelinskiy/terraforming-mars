@@ -39,7 +39,6 @@
   "The game window stopped answering": "Окно игры не отвечает",
   "A process of the application ended unexpectedly": "Процесс приложения завершился",
   "A screen did not finish by itself": "Экран не завершился сам",
-  "A finished screen was closed for the player": "Завершённый экран закрыт за игрока",
   "An exchange with the server went wrong": "Сбой обмена с сервером",
   "A message of the game": "Сообщение игры",
   "An error in the game": "Ошибка в игре",

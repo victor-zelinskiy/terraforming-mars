@@ -169,7 +169,6 @@ const FAMILY_HEADLINE: Readonly<Record<string, string>> = {
   'process-gone': 'A process of the application ended unexpectedly',
   'selftest': 'Connection check',
   'workspace-stall': 'A screen did not finish by itself',
-  'workspace-stale': 'A finished screen was closed for the player',
   'transport': 'An exchange with the server went wrong',
   'console': 'A message of the game',
 };

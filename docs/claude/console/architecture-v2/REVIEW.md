@@ -176,8 +176,9 @@ transport's gate then waits out its own maximum»). A finding with no concrete p
   `workspaceConclusionOwe.spec.ts` (a debt as a run in a frame's scope), `submitMachine.spec.ts` +
   `tests/client/console/gameTransportFunnel.spec.ts` (the funnel), `tests/client/console/useFlowScope.spec.ts` (a
   component's owner).
-- **e2e**: the harness harvests `[flow]`, `[wait-graph]`, `[liveness]`, `[workspace-stale]` lines per test; a
-  `[flow] … threw` or a `[workspace-stale] concluded` in a green run is a defect upstream — report it, do not ignore it.
+- **e2e**: the harness harvests `[flow]`, `[wait-graph]`, `[liveness]`, `[workspace-stall]`, `[workspace-conclusion]`
+  lines per test; a `[flow] … threw` or a `[workspace-stall] … forcing teardown` in a green run is a defect upstream —
+  report it, do not ignore it.
 
 ---
 
