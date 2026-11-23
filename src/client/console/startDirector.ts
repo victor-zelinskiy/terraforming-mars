@@ -280,15 +280,23 @@ export const START_LEVEL_DOOR_QUIET_FRAMES = 8;
 
 /**
  * MAY THE LEVEL DOOR ACT on this disagreement? Every cure but ONE state: the game proper asks and a STEP still stands
- * on the start (a surface over the scene, the shell's own). That is either a hosted step on its leave — a hand-off
- * with an owner — or a result the player is reading, which is the player's time: the function does not tell the two
- * apart yet, so the door stays shut there and the shadow's confirm is what judges it, as before.
+ * on the start (a surface over the scene). That state is not this door's — and no gap either: a step that is
+ * FINISHED leaves by the conclusion's own door (`staleFreeTurnClock.observeConclusionDoor` — a frame past its commit
+ * with nothing owed inside, over the free turn), one the player still reads or answers HOLDS that door by a named
+ * reason and is the player's time, and one left standing for a question it does not answer is a strand
+ * (`startServing.hostedStepServes`) — healed, then yielded, by the strand's door. Whichever it was, what it leaves is
+ * `game > none | queue | shell`, and those this door releases. Releasing the start from under a standing step here
+ * would decide a second owner's question.
+ *
+ * (`game > shell` — a yield already happened and the start's frame still covers the board under the game's menu, the
+ * field of 2026-10-31 22:15 — was shut too until 2026-11-23: no healthy table makes it (not one span of it over the
+ * whole e2e suite, CI run 45083892683), so the door opens on it as on every other strand.)
  */
 export function startLevelDoorMay(f: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>): boolean {
   if (f.kind !== 'disagree' || startDirectorCure(f) === 'none') {
     return false;
   }
-  return !(f.expected === 'game' && (f.actual === 'step' || f.actual === 'shell'));
+  return !(f.expected === 'game' && f.actual === 'step');
 }
 
 /** A disagreement is a finding only once it has stood this long, unchanged, with the prompt admitted. */

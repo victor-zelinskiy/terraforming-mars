@@ -18,6 +18,8 @@
  *      the holder ends with its own edge, and the flow that owns the ending gets the time to end itself.
  */
 
+import {LevelDoorState, levelDoorInit, observeLevelDoor} from '@/client/console/levelDoor';
+
 /**
  * THE CONCLUSION's CANDIDATE — ONE predicate for the reaper and for the conclusion door's measure
  * (`outcomeController.measureConcludeDoor`): the server asks the FREE TURN and the stack's top is a frame PAST ITS
@@ -59,38 +61,18 @@ export function freeTurnConclusionCandidate(
 export const CONCLUSION_DOOR_QUIET_FRAMES = 12;
 export const CONCLUSION_DOOR_QUIET_MS = 250;
 
-export type ConclusionDoorState = {
-  /** `<kind>|<promptId>` of the candidate being watched ('' = none). */
-  readonly key: string;
-  /** Painted frames in a row the candidate stood dismissible, unread and with nothing in flight. */
-  readonly frames: number;
-  /** When that quiet run began. */
-  readonly since: number;
-  /** The door already opened for this standing candidate — ONCE (a door that changed nothing is the reaper's to name). */
-  readonly opened: boolean;
-};
+/** (The rule itself is the console's ONE door by level — `levelDoor.ts`; this is its bar for the conclusion.) */
+export type ConclusionDoorState = LevelDoorState;
 
 export function conclusionDoorInit(): ConclusionDoorState {
-  return {key: '', frames: 0, since: 0, opened: false};
+  return levelDoorInit();
 }
 
 /** One painted frame's look (pure): the next state, and whether the door opens NOW. */
 export function observeConclusionDoor(
   state: ConclusionDoorState, look: {key: string | undefined, quiet: boolean, now: number},
 ): {state: ConclusionDoorState, open: boolean} {
-  if (look.key === undefined) {
-    return {state: state.key === '' ? state : conclusionDoorInit(), open: false};
-  }
-  const same = look.key === state.key;
-  if (!look.quiet) {
-    // (Something moved, a hold stands, the player reads: the quiet starts again — the candidate keeps its `opened`.)
-    return {state: {key: look.key, frames: 0, since: 0, opened: same && state.opened}, open: false};
-  }
-  const frames = same ? state.frames + 1 : 1;
-  const since = same && state.frames > 0 ? state.since : look.now;
-  const opened = same && state.opened;
-  const open = !opened && frames >= CONCLUSION_DOOR_QUIET_FRAMES && look.now - since >= CONCLUSION_DOOR_QUIET_MS;
-  return {state: {key: look.key, frames, since, opened: opened || open}, open};
+  return observeLevelDoor(state, look, {frames: CONCLUSION_DOOR_QUIET_FRAMES, ms: CONCLUSION_DOOR_QUIET_MS});
 }
 
 export type StaleFreeTurnClock = {

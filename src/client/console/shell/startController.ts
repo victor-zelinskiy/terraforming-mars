@@ -37,7 +37,8 @@ import {consoleState} from '@/client/console/consoleRouter';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
-import {hostedStepServes, START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
+import {hostedStepServes, START_STRAND_CONFIRM_MS, START_STRAND_DOOR_QUIET_FRAMES, START_STRAND_DOOR_QUIET_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
+import {levelDoorInit, observeLevelDoor} from '@/client/console/levelDoor';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {ActualStartOwner, START_LEVEL_DOOR_QUIET_FRAMES, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, startLevelDoorMay, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
 import {noteOpeningLook, noteOpeningSpan} from '@/client/console/servingOwnerMeasure';
@@ -98,6 +99,9 @@ export function createStartController(shell: StartPort) {
   let cancelStrandLook: () => void = () => {};
   /** The standing strand's run of quiet frames (the STRAND-FRAMES count — stats only). */
   const strandQuiet = {key: '', frames: 0, max: 0};
+  /** The standing strand's cure (its two verbs, set while a strand stands — the door's look reads them here). */
+  const strandCure: {heal: (by: 'level' | 'watchdog') => void, yieldToShell: (by: 'level' | 'watchdog') => void, healed: () => boolean} =
+    {heal: () => {}, yieldToShell: () => {}, healed: () => false};
   /** Stale-release token of the start excursion's quiet re-check (the
    *  release is confirmed one tick + one frame later, so a one-flush
    *  hand-off between two chain signals can never slip through). */
@@ -836,6 +840,9 @@ export function createStartController(shell: StartPort) {
     cancelStartStrand();
     cancelStrandLook();
     cancelStrandLook = () => {};
+    strandCure.heal = () => {};
+    strandCure.yieldToShell = () => {};
+    strandCure.healed = () => false;
     // THE OPENING's MEASURE (stage 2b): a strand is a SPAN from its rise — the 2.5 s confirm below hides the ones that
     // end by themselves. Stats only.
     noteOpeningSpan('strand', now ? strandKey() : '', 'cleared', Date.now());
@@ -860,10 +867,23 @@ export function createStartController(shell: StartPort) {
     strandQuiet.key = stood.replace(/^STRAND /, '');
     strandQuiet.frames = 0;
     strandQuiet.max = 0;
+    let door = levelDoorInit();
     const look = (): void => {
       const flight = flightsInTheAir();
       strandQuiet.frames = flight === '' ? strandQuiet.frames + 1 : 0;
       strandQuiet.max = Math.max(strandQuiet.max, strandQuiet.frames);
+      // THE STRAND's DOOR BY LEVEL: quiet for its bar → the heal; STILL a strand and quiet for the bar again → the
+      // yield (a second state of the same strand, with its own one opening).
+      const seen = observeLevelDoor(door, {key: strandCure.healed() ? `${stood} · healed` : stood, quiet: flight === '', now: Date.now()},
+        {frames: START_STRAND_DOOR_QUIET_FRAMES, ms: START_STRAND_DOOR_QUIET_MS});
+      door = seen.state;
+      if (seen.open) {
+        if (strandCure.healed()) {
+          strandCure.yieldToShell('level');
+        } else {
+          strandCure.heal('level');
+        }
+      }
       // (A QUIET strand says WHY the scene serves nothing, in the scene's own words — its probe: the stage machines and
       // the first of the entry's blockers that holds. «Quiet for 184 ms under the first action's question, in nine
       // tests» named a wait nobody declared and nothing to find it by.)
@@ -905,26 +925,39 @@ export function createStartController(shell: StartPort) {
         diag: diag ?? null,
       }));
     };
-    cancelStartStrand = flow.after(START_STRAND_CONFIRM_MS, 'the start strand\'s confirm', () => {
-      if (!startStrandedNow.value) {
+    // THE CURE, IN ITS TWO VERBS — the scene's own doors (and the router's for a step nothing hosts any more: R15), then
+    // the yield. Each runs once per strand, by whoever comes first: the LEVEL DOOR (`startServing.START_STRAND_DOOR_*` —
+    // the strand quiet for its bar) or the net behind it (the watchdog's two timers, as before).
+    let healedBy: string | undefined;
+    let healed = '';
+    let yielded = false;
+    const heal = (by: 'level' | 'watchdog'): void => {
+      if (healedBy !== undefined || !startStrandedNow.value) {
         return;
       }
+      healedBy = by;
       const scene = shell.surfaces.at<{healStrand?: () => string}>('startScene');
-      const stood = strandKey();
       const sceneHeal = scene?.healStrand?.() ?? 'no-scene';
-      // …and a step of the start that nothing hosts any more is re-opened through the router's own door (R15).
-      const healed = sceneHeal === 'nothing-to-heal' || sceneHeal === 'no-scene' ? shell.reopenStartStep() || sceneHeal : sceneHeal;
-      report('confirmed', {heal: healed});
+      healed = sceneHeal === 'nothing-to-heal' || sceneHeal === 'no-scene' ? shell.reopenStartStep() || sceneHeal : sceneHeal;
+      report('confirmed', {heal: healed, by});
       noteOpeningSpan('strand', `${stood} · HEALED ${healed}`, 'confirmed', Date.now());
-      cancelStartStrand = flow.after(START_STRAND_YIELD_MS, 'the strand heal\'s grace', () => {
-        if (!startStrandedNow.value) {
-          return;
-        }
-        report('yielded to the shell (the heal did not end it)', {heal: healed});
-        noteOpeningSpan('strand', `${stood} · YIELDED`, 'the heal did not end it', Date.now());
-        startStrandPrompt.value = shell.playerView.waitingFor?.promptId;
-        startStrandYield.value = true;
-      });
+    };
+    const yieldToShell = (by: 'level' | 'watchdog'): void => {
+      if (yielded || healedBy === undefined || !startStrandedNow.value) {
+        return;
+      }
+      yielded = true;
+      report('yielded to the shell (the heal did not end it)', {heal: healed, by});
+      noteOpeningSpan('strand', `${stood} · YIELDED`, 'the heal did not end it', Date.now());
+      startStrandPrompt.value = shell.playerView.waitingFor?.promptId;
+      startStrandYield.value = true;
+    };
+    strandCure.heal = heal;
+    strandCure.yieldToShell = yieldToShell;
+    strandCure.healed = () => healedBy !== undefined;
+    cancelStartStrand = flow.after(START_STRAND_CONFIRM_MS, 'the start strand\'s confirm', () => {
+      heal('watchdog');
+      cancelStartStrand = flow.after(START_STRAND_YIELD_MS, 'the strand heal\'s grace', () => yieldToShell('watchdog'));
     });
   }
 

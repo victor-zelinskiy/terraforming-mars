@@ -317,6 +317,45 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * `start-stranded/confirmed` · `start-stranded/yielded` — THE WATCHDOG's CLASS (the reliability iteration of
+   * 2026-10-28: Strategic Base Planning → a colony on Triton → the scene stood blank while the server waited for the
+   * prelude's city). A start scene that serves NOTHING under a live question was confirmed on a timer — 2.5 s, the
+   * heal, another 2.5 s, the yield: five seconds of an empty opening before the question reached a surface. The law
+   * (stage 2b — the doors by level, `levelDoor.ts`): the cure is executed the moment the state stands quiet. For a
+   * scene that plainly serves nothing the OPENING's door is the first — the start director reads «the first action,
+   * nobody serving it» and heals; the scene's doors open nothing, so it yields, in the same opening — and the
+   * STRAND's door (the watchdog's own predicate, a few frames behind it: it also reads a step left standing for a
+   * question it does not answer, which the director does not) finds the strand already cured, as the two timers
+   * behind both do. (The class is planted the way it arises: the scene's own answer reads `none` — its mirror,
+   * written by hand, with the stage the scene really has still standing under it.)
+   */
+  it('a start scene that serves nothing hands its question over BY LEVEL — a fraction of a second, never the watchdog\'s five; each net behind the door adds nothing', async () => {
+    const table = await bottleServer().bootFixture('hydro-terminal-surge');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    await live.advance(4_000);
+    expect(live.frames(), 'the start workspace stands on the first action').to.deep.equal(['start:browse']);
+    const said = (marker: string) => live.lines().filter((line) => line.includes(marker));
+    expect([...said('[start-stranded]'), ...said('[start-shadow]')], 'a healthy opening: nothing is cured').to.deep.equal([]);
+    // THE CLASS, PLANTED: the scene answers «I serve nothing» while the server asks the first action.
+    const start = live.pageModules.consoleStartState.consoleStartState;
+    start.serves = 'none';
+    await live.advance(50);
+    expect(said('[start-shadow] cure'), 'inside the door\'s quiet nothing acts').to.deep.equal([]);
+    await live.advance(450);
+    // Half a second in: the director's cure, by level — the heal found no door of the scene's to open, and yielded.
+    expect(said('[start-shadow] cure').length, 'ONE cure').to.equal(1);
+    expect(said('[start-shadow] cure')[0]).to.match(/\[start-shadow\] cure «heal» by level — expected «firstAction», on screen «none»: nothing-to-heal → yielded$/);
+    // Past the strand's own door (twelve quiet frames, twice) and both of the watchdog's timers (2.5 s + 2.5 s): the
+    // strand they watch was over before either came — neither says a word, and the director does not cure twice.
+    // (What the plant leaves behind — a scene whose mirror lies about a stage that really stands — is the arbiter's
+    // to judge; this replay holds the DOORS: who acts first, how soon, and that the nets behind add nothing.)
+    await live.advance(6_000);
+    expect(said('[start-shadow] cure').length, 'no second cure').to.equal(1);
+    expect(said('[start-stranded]'), 'the strand was over before its door or its timers came').to.deep.equal([]);
+  });
+
+  /*
    * `screen-shadow/finding/misserved/board/hand` — the monkey in the bottle's SECOND seed (`fz1` ·
    * `parliament-skyscrapers-enact`, `parliament-biodome-enact`), confirmed in a real browser by the box monkey's spec
    * with the same seed, and cut down by the shrink from 65 steps to three: A (the placement's plate) · RT (the wheel)

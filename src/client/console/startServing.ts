@@ -159,6 +159,22 @@ export function hostedStepServes(s: {
   return s.inTransit ? 'beat' : 'none';
 }
 
+/**
+ * THE STRAND's LEVEL DOOR (FREEZE ZERO, stage 2b — `levelDoor.ts`). The watchdog's cure — the scene's own doors
+ * (`healStrand`), then the router's (`reopenStartStep`), then the yield — is right as a function of what stands: a
+ * strand (`startStranded`) with nothing in flight. It was executed on two timers, 2.5 s each, so a player sat five
+ * seconds in front of an empty opening before the question reached a surface. By level it is two openings of one
+ * door: the heal when the strand has stood quiet for the bar, the yield when it STILL stands quiet for the bar again.
+ *
+ * WHY TWELVE FRAMES AND A QUARTER OF A SECOND — the STRAND-DOOR track's readings (CI, 2026-11-23: the 81 specs that
+ * walk the opening — run 45085737951 in milliseconds, 45088611068 in frames): every long strand of a healthy table is
+ * BUSY (1.25 s under the owed conclusion's beat, 0.79 s, 0.31 s behind the stage gate); a healthy strand stands
+ * quiet for ONE painted frame at the most — the 184 – 207 ms ones were the scene's own mount, a single long frame,
+ * and are a beat now (`ConsoleStartScene.sceneUp`). Twelve frames is twelve times the longest healthy quiet.
+ */
+export const START_STRAND_DOOR_QUIET_FRAMES = 12;
+export const START_STRAND_DOOR_QUIET_MS = 250;
+
 /** How long a strand must STAND before the watchdog names and heals it (a hand-off frame is never one). */
 export const START_STRAND_CONFIRM_MS = 2500;
 /** …and how long a heal gets before the watchdog hands the question to the shell's own surfaces (the yield). */

@@ -206,10 +206,12 @@ describe('startDirector — the level door', () => {
     expect(startLevelDoorMay({kind: 'held-long', expected: 'queue', actual: 'none'})).is.false;
   });
 
-  it('stays shut where the function cannot yet tell a hand-off from the player\'s reading: a step standing under the game\'s menu', () => {
-    expect(startDirectorCure({kind: 'disagree', expected: 'game', actual: 'step'}), 'the shadow\'s confirm still ends it').eq('release');
-    expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'step'})).is.false;
-    expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'shell'})).is.false;
+  it('stays shut in ONE state — a step standing under the menu of the game is another door\'s question; a yielded start is this one\'s', () => {
+    expect(startDirectorCure({kind: 'disagree', expected: 'game', actual: 'step'})).eq('release');
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'step'}), 'the conclusion\'s door, the player\'s hold, or the strand\'s — never a release under it').is.false;
+    // A yield already happened and the frame still covers the board (the field of 2026-10-31 22:15): released by level.
+    expect(startDirectorCure({kind: 'disagree', expected: 'game', actual: 'shell'})).eq('release');
+    expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'shell'})).is.true;
   });
 
   it('waits past every hand-off the scene plays — and not a second', () => {
