@@ -19,6 +19,17 @@
  *      at each other terminate;
  *   4. its action was ALREADY USED this generation (that is the whole point —
  *      this is a SECOND use, never a first) AND it can act right now.
+ *
+ * …AND «RIGHT NOW» IS THE HAND THE ACTION WILL HAVE (the engine fuzz, seed
+ * 2078000753 — CI finding #99). A copier played FROM THE HAND (Project
+ * Inspection) is still in `cardsInHand` while it is judged playable, while its
+ * preview is built and while its own `play()` runs — `Player.playCard` takes
+ * it out of the hand only after. An action that needs a card in hand (Ceres
+ * Tech Market's discard, Focused Organization, Political Think Tank) then read
+ * the copier itself as that card: the list offered an action whose question
+ * — «discard 1 card of 0» — nobody can answer, and the engine refused it
+ * (`UnanswerableInputError`); with no other candidate the event was playable
+ * into a pick with nothing to pick. The hand is judged WITHOUT the copier.
  */
 import {IPlayer} from '../IPlayer';
 import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from './ICard';
@@ -31,18 +42,28 @@ import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from './ICard';
  */
 export function repeatableActionCards(player: IPlayer, copier?: ICard): Array<IActionCard & ICard> {
   const result: Array<IActionCard & ICard> = [];
-  for (const playedCard of player.tableau) {
-    if (playedCard === copier) {
-      continue;
+  // (The copier on its way out of the hand is set aside for the judgement and put back in its own place — `canAct`
+  // takes the player and nothing else, and every reader of this list, the play itself included, sees the same hand.)
+  const inHand = copier === undefined ? -1 : player.cardsInHand.findIndex((card) => card === copier);
+  const held = inHand === -1 ? [] : player.cardsInHand.splice(inHand, 1);
+  try {
+    for (const playedCard of player.tableau) {
+      if (playedCard === copier) {
+        continue;
+      }
+      if (!isIActionCard(playedCard)) {
+        continue;
+      }
+      if (isIHasCheckLoops(playedCard) && playedCard.getCheckLoops() >= 2) {
+        continue;
+      }
+      if (player.actionsThisGeneration.has(playedCard.name) && playedCard.canAct(player)) {
+        result.push(playedCard);
+      }
     }
-    if (!isIActionCard(playedCard)) {
-      continue;
-    }
-    if (isIHasCheckLoops(playedCard) && playedCard.getCheckLoops() >= 2) {
-      continue;
-    }
-    if (player.actionsThisGeneration.has(playedCard.name) && playedCard.canAct(player)) {
-      result.push(playedCard);
+  } finally {
+    if (inHand !== -1) {
+      player.cardsInHand.splice(inHand, 0, ...held);
     }
   }
   return result;

@@ -261,9 +261,14 @@ describe('engineFuzz — random legal games on the real engine', () => {
    *    the phase runs what the seats that are done are owed (`ResearchBarrier.spec`);
    *  · 51755 — MarsBot's research step woke a seat's Arctic Algae while the seat still held its research question:
    *    OWED on that seat's way out, not left — the judge's own law (the research phase drains per seat), no defect.
+   * …and THE FIRST NIGHTS ON CI:
+   *  · 2078000753 (finding #99) — Project Inspection, the last card of a hand, offered Ceres Tech Market's action
+   *    again: «discard 1 card of 0» — a question nobody could answer, refused by the engine. The inspection was
+   *    still in the hand while the action was judged; a copier on its way out of the hand is not a card the action
+   *    will find (`ProjectInspection.spec` holds the card itself).
    */
-  it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take) · 50926 (an ocean with no cell) · 50072 · 51755 (the research phase drains per seat)', () => {
-    for (const seed of [55496, 50337, 51456, 50926, 50072, 51755]) {
+  it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take) · 50926 (an ocean with no cell) · 50072 · 51755 (the research phase drains per seat) · 2078000753 (an action judged on a hand it will not have)', () => {
+    for (const seed of [55496, 50337, 51456, 50926, 50072, 51755, 2078000753]) {
       const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}));
       expect(result.end, `seed ${seed}`).to.eq('ended');
       expect(result.violations.map((violation) => violation.key), `seed ${seed}`).to.deep.eq([]);

@@ -3,6 +3,7 @@ import {RestrictedArea} from '../../../src/server/cards/base/RestrictedArea';
 import {ProjectInspection} from '../../../src/server/cards/promo/ProjectInspection';
 import {IndenturedWorkers} from '../../../src/server/cards/base/IndenturedWorkers';
 import {Playwrights} from '../../../src/server/cards/community/Playwrights';
+import {CeresTechMarket} from '../../../src/server/cards/prelude2/CeresTechMarket';
 import {RegolithEaters} from '../../../src/server/cards/base/RegolithEaters';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
@@ -48,6 +49,48 @@ describe('ProjectInspection', () => {
 
     // returns SelectCard.
     cast(card.play(player), SelectCard);
+  });
+
+  /*
+   * THE ENGINE FUZZ, SEED 2078000753 (CI finding #99). The inspection is played FROM THE HAND and is still in it while
+   * it is judged, previewed and played — `Player.playCard` takes it out only after `play()`. Ceres Tech Market's
+   * action («discard cards from your hand») read the inspection itself as the card to discard: the market was offered
+   * with a hand of nothing else, picked, and its question — «1 card asked of 0» — was one nobody could answer (the
+   * engine refused it: `UnanswerableInputError`). An action that needs the hand is judged on the hand it will HAVE.
+   */
+  it('an action that needs a card in hand is judged WITHOUT the inspection itself (the fuzz, seed 2078000753)', () => {
+    const market = new CeresTechMarket();
+    player.playedCards.push(market);
+    player.actionsThisGeneration.add(market.name);
+    player.cardsInHand = [card];
+
+    // The hand as it stands holds a card — the inspection; the hand the market's action will find holds none.
+    expect(market.canAct(player)).is.true;
+    expect(card.canPlay(player)).is.false;
+    expect(card.unplayableReason(player)).is.not.undefined;
+    expect(card.cardPlayPreview(player).branches[0].steps).has.lengthOf(0);
+    expect(card.play(player)).is.undefined;
+    expect(player.cardsInHand, 'the hand is as it was').deep.eq([card]);
+  });
+
+  it('…and with another card in hand the market IS offered — the discard asks of that card alone, the hand keeps its order', () => {
+    const market = new CeresTechMarket();
+    const first = new IndenturedWorkers();
+    const last = new RegolithEaters();
+    player.playedCards.push(market);
+    player.actionsThisGeneration.add(market.name);
+    player.cardsInHand = [first, card, last];
+
+    expect(card.canPlay(player)).is.true;
+    expect(player.cardsInHand, 'the inspection is put back in its own place').deep.eq([first, card, last]);
+
+    player.playCard(card);
+    runAllActions(player.game);
+    const pick = cast(player.popWaitingFor(), SelectCard<ICard>);
+    expect(pick.cards.map((c) => c.name)).deep.eq([market.name]);
+    const discard = cast(churn(pick.cb([market]), player), SelectCard<IProjectCard>);
+    expect(discard.cards, 'the inspection has left the hand before the market asks').deep.eq([first, last]);
+    expect(discard.config.max).eq(2);
   });
 
   it('cardPlayPreview: a repeatAction card-pick step over the already-used actions', () => {
