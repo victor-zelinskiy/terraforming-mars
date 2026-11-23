@@ -157,11 +157,12 @@ describe('frameWitness — a motion\'s bound is judged against the motion time t
     expect(watch.stalls()).to.eq(2);
     expect(watch.motionMs()).to.eq(2 * 1_000 + 2 * LAG_BOOKED_MS);
     expect(watch.starved()).to.eq('the page gave the motion 2066 of 4000 ms, 2 frame gaps over 500 ms — a motion cannot keep its bound on a page that does not paint');
-    // …and a page that never paints again is ONE long stall, booked while it is still open.
+    // …and a page that never paints again is ONE long stall, counted while it is still open — and it has given the
+    // motion nothing: a gap is booked when its frame comes.
     const hidden = watchFrames();
     clock.advance(LAG_THRESHOLD_MS + 1_300);
     expect(hidden.stalls()).to.eq(1);
-    expect(hidden.motionMs()).to.eq(LAG_BOOKED_MS);
+    expect(hidden.motionMs()).to.eq(0);
     watch.stop();
     hidden.stop();
   });
@@ -181,8 +182,36 @@ describe('frameWitness — a motion\'s bound is judged against the motion time t
     const wait = beginCeilingWait({id: 'hand:landing', owner: 'handDock', what: 'the landing of a card', maxMs: 1_780});
     clock.advance(1_780);
     wait.ceiling();
-    expect(warns[0]).to.match(/the wait ended on its ceiling \(planned: the page gave the motion 33 of 1780 ms, 1 frame gap over 500 ms — a motion cannot keep its bound on a page that does not paint\)$/);
+    expect(warns[0]).to.match(/the wait ended on its ceiling \(planned: the page gave the motion 0 of 1780 ms, 1 frame gap over 500 ms — a motion cannot keep its bound on a page that does not paint\)$/);
     expect(causeOf(warns[0], 'warn')).to.deep.include({cls: 'wait-graph/ceiling/hand:landing', tier: 'planned'});
+  });
+
+  /*
+   * A SHORT BOUND THAT RUNS OUT INSIDE A FRAME GAP (the box's duo pass, 2026-11-23 — `played-hero:ship-absorb`, 560 ms,
+   * on a page whose last frame was 400 ms old when the bound came). A motion says it ended on a FRAME: the open gap
+   * was booked in full (it is under GSAP's threshold), the page read «painting», and the line was a defect.
+   */
+  it('…and a bound that ran out INSIDE A FRAME GAP: the time since the last frame is not time the page gave', () => {
+    const page = stalledPage(clock);
+    setFlowClock(page.clock);
+    const wait = beginCeilingWait({id: 'played-hero:ship-absorb', owner: 'playedHero', what: 'every shipped token absorbed into the card', maxMs: 560});
+    clock.advance(160);
+    page.paint();
+    clock.advance(400);
+    wait.ceiling();
+    expect(warns[0]).to.match(/did not come in 560 ms — the wait ended on its ceiling \(planned: the page gave the motion 160 of 560 ms, 0 frame gaps over 500 ms — a motion cannot keep its bound on a page that does not paint\)$/);
+    expect(causeOf(warns[0], 'warn')).to.deep.include({tier: 'planned'});
+    // …and the same bound on a page that paints — four frames a second is a page that paints — is the defect it was.
+    warns.length = 0;
+    const slow = beginCeilingWait({id: 'played-hero:ship-absorb', owner: 'playedHero', what: 'every shipped token absorbed into the card', maxMs: 560});
+    clock.advance(250);
+    page.paint();
+    clock.advance(250);
+    page.paint();
+    clock.advance(60);
+    slow.ceiling();
+    expect(warns[0]).to.match(/the wait ended on its ceiling$/);
+    expect(causeOf(warns[0], 'warn')).to.deep.include({tier: 'defect'});
   });
 
   it('only a MOTION is excused by frames — a wait for the SERVER on a stalled page is still a defect; and a wait\'s own reason comes first', () => {

@@ -1,7 +1,11 @@
 import {expect} from 'chai';
+import * as fs from 'fs';
+import * as path from 'path';
+import {START_STRAND_DOOR_QUIET_FRAMES, START_STRAND_DOOR_QUIET_MS} from '../../src/client/console/startServing';
+import {CONCLUSION_DOOR_QUIET_FRAMES, CONCLUSION_DOOR_QUIET_MS} from '../../src/client/console/supervisor/staleFreeTurnClock';
 import {
   ActualStartSignals, StartTruth, actualStartOwner, expectedStartOwner, resetStartShadowLog,
-  START_LEVEL_DOOR_QUIET_FRAMES, startDirectorCure, startLevelDoorMay, startOwnersAgree, startShadowInScope, startShadowLog,
+  START_LEVEL_DOOR_QUIET_FRAMES, START_LEVEL_DOOR_QUIET_MS, startDirectorCure, startLevelDoorMay, startOwnersAgree, startShadowInScope, startShadowLog,
   startShadowVerdict,
 } from '../../src/client/console/startDirector';
 
@@ -211,9 +215,15 @@ describe('startDirector — the level door', () => {
     expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'shell'})).is.true;
   });
 
-  it('waits past every hand-off the scene plays — and not a second', () => {
-    // (The longest state the director would cure, over the whole e2e suite: 72 ms — five frames of a real browser.)
-    expect(START_LEVEL_DOOR_QUIET_FRAMES).to.be.greaterThan(5);
-    expect(START_LEVEL_DOOR_QUIET_FRAMES * 17, 'a hundred and some milliseconds on a healthy page — never seconds').to.be.lessThan(300);
+  it('waits past every hand-off the scene plays — on the bar of its sisters, frames AND a floor, and not a second', () => {
+    // (The longest healthy state the director would cure that stood QUIET: 105 ms in a real browser on the box —
+    // `fz3` · duo · `parliament`, 2026-11-23; six to seven frames at 60 Hz, and the eighth opened the door of eight.)
+    expect(START_LEVEL_DOOR_QUIET_FRAMES).to.eq(CONCLUSION_DOOR_QUIET_FRAMES).and.eq(START_STRAND_DOOR_QUIET_FRAMES);
+    expect(START_LEVEL_DOOR_QUIET_MS).to.eq(CONCLUSION_DOOR_QUIET_MS).and.eq(START_STRAND_DOOR_QUIET_MS);
+    expect(START_LEVEL_DOOR_QUIET_MS, 'twice the longest healthy quiet state, whatever the display paints at').to.be.greaterThan(2 * 105);
+    expect(START_LEVEL_DOOR_QUIET_MS, 'never seconds').to.be.lessThan(500);
+    // …and the door is the family's module — the floor is not this door's to forget.
+    const controller = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/shell/startController.ts'), 'utf8').replace(/\r\n/g, '\n');
+    expect(controller).to.match(/observeLevelDoor\(level, \{key: standing, quiet: flight === '', now: Date\.now\(\)\},\s+\{frames: START_LEVEL_DOOR_QUIET_FRAMES, ms: START_LEVEL_DOOR_QUIET_MS\}\);/);
   });
 });

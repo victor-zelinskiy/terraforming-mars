@@ -76,7 +76,11 @@ describe('the strand\'s level door — the watchdog\'s cure, by level (the wirin
 
   it('the door reads the strand by frame: quiet for the bar → the heal; healed and still quiet for the bar → the yield', () => {
     expect(body.length, 'the function is read').to.be.greaterThan(2_000);
-    expect(body).to.contain('const seen = observeLevelDoor(door, {key: strandCure.healed() ? `${stood} · healed` : stood, quiet: flight === \'\', now: Date.now()},');
+    // ONE STATE — ONE DOOR: a strand the director's door owns (a disagreement it may cure — the same pure functions
+    // that arm it) is not this door's standing state at all; both stand on one bar, so nothing else keeps them apart.
+    expect(body).to.contain('const mine = !directorDoorOwnsNow();');
+    expect(body).to.contain('const seen = observeLevelDoor(door, {key: !mine ? undefined : strandCure.healed() ? `${stood} · healed` : stood, quiet: flight === \'\', now: Date.now()},');
+    expect(start).to.match(/function directorDoorOwnsNow\(\): boolean \{\s+const s = startShadowNow\.value;\s+if \(!startShadowInScope\(s\.expected, s\.actual\) \|\| sceneTransitionInputLocked\(\)\) \{\s+return false;\s+\}\s+return startShadowVerdict\(s\.expected, s\.actual, s\.held\) === 'disagree' &&\s+startLevelDoorMay\(\{kind: 'disagree', expected: s\.expected, actual: s\.actual\}\);/);
     expect(body).to.contain('{frames: START_STRAND_DOOR_QUIET_FRAMES, ms: START_STRAND_DOOR_QUIET_MS});');
     expect(body).to.match(/if \(seen\.open\) \{\s+if \(strandCure\.healed\(\)\) \{\s+strandCure\.yieldToShell\('level'\);\s+\} else \{\s+strandCure\.heal\('level'\);/);
     // «Quiet» is the one reader of what is in flight — the same as the other two doors'.

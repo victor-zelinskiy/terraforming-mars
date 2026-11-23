@@ -1431,7 +1431,8 @@ async function shipPrice(mine: () => boolean): Promise<void> {
     // reports, but the lift must never wait on a run that lost its callback.
     const absorbed = raceCeiling({
       id: 'played-hero:ship-absorb', owner: 'playedHero', what: 'every shipped token absorbed into the card',
-      maxMs: motionMs(TRANSFER_BEAT_MS) + SHIP_ABSORB_GRACE_MS, detail: playedHeroState.card ?? '',
+      // (A CEILING, never a duration: it does not shorten with a faster motion setting — `motionCeilingMs`.)
+      maxMs: motionCeilingMs(TRANSFER_BEAT_MS) + SHIP_ABSORB_GRACE_MS, detail: playedHeroState.card ?? '',
     }, Promise.all(shipAbsorbs.splice(0)));
     await Promise.all([beat, absorbed]);
   }

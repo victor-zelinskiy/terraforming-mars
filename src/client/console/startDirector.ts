@@ -271,16 +271,23 @@ export function startDirectorCure(f: Pick<StartShadowFinding, 'kind' | 'expected
  * right as a pure function of the server's one question and of what stands; it was executed by latches on an EDGE,
  * with the shadow behind them on a confirm of seconds. Now the door opens BY LEVEL: the moment the director would act
  * and NOTHING IS IN FLIGHT — the wait graph holds no wait for a motion or for the server, and the wire is quiet — for
- * this many painted frames in a row. Counted in FRAMES, the clock of the thing it bounds: a page that does not paint
- * opens no door, a slow one waits as many frames as a fast one.
+ * this many painted frames in a row AND this long (`levelDoor.ts` — the one bar of the three doors). Counted in
+ * FRAMES, the clock of the thing it bounds: a page that does not paint opens no door, a slow one waits as many frames
+ * as a fast one; the floor in milliseconds keeps a fast page from shortening the wait.
  *
- * WHY EIGHT: over every walk there is (the whole e2e suite, 1 502 tests; the gate's 606 walks in the bottle) a state
- * the director would cure stands QUIET for one frame at the most — the latches' own doors open in the tick the state
- * rises; the longest such state, quiet or not, stood 72 ms. Eight frames is past every hand-off the scene plays, so
- * on a healthy table the door never opens (EVERY e2e test is red on a `[start-shadow] cure … by level` line — the
- * harness's `startStrandGuard` holds exactly that); it opens on a strand, a hundred milliseconds in.
+ * WHY THE FAMILY's BAR, AND NOT EIGHT FRAMES ALONE (2026-11-23). The door was first built on the reading of CI and
+ * of the bottle — «a state the director would cure stands quiet for one frame at the most, the longest 72 ms» — as
+ * eight frames with no floor. A real browser on the box, two seats on one table (`fz3` · duo · `parliament`), read a
+ * HEALTHY quiet state of 105 ms: the start past its commit, a hosted step gone, the game's menu asked, and the
+ * scene's own release a beat away — six to seven frames at 60 Hz, twice ending by itself (`agree:game>beat`), and
+ * once reaching the eighth: the door released a start that was releasing itself. Frames alone are a bar that moves
+ * with the display (eight frames are 133 ms at 60 Hz and 55 ms at 144 Hz — on a fast panel that healthy beat would
+ * open the door every time). The door now stands on the bar of its sisters: on a healthy table it never opens (EVERY
+ * e2e test is red on a `[start-shadow] cure … by level` line — the harness's `startStrandGuard` holds exactly that);
+ * it opens on a strand, a quarter of a second in.
  */
-export const START_LEVEL_DOOR_QUIET_FRAMES = 8;
+export const START_LEVEL_DOOR_QUIET_FRAMES = 12;
+export const START_LEVEL_DOOR_QUIET_MS = 250;
 
 /**
  * MAY THE LEVEL DOOR ACT on this disagreement? Every cure but ONE state: the game proper asks and a STEP still stands

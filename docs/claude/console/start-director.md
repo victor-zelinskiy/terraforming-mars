@@ -24,8 +24,9 @@ feel).
 
 `startController.startShadowNow` / `startShadowSig` + the `startShadowSig` watcher: every judged state is measured
 (`servingOwnerMeasure` — the opening's STAGE / DOOR / STRAND tracks) and handed to the LEVEL DOOR
-(`START_LEVEL_DOOR_QUIET_FRAMES` — a disagreement the director would cure, standing with nothing in flight for eight
-painted frames, is cured: `[start-shadow] cure «…» by level`, the defect's own line). `window.__conStartShadow()`
+(`START_LEVEL_DOOR_QUIET_FRAMES` ∧ `START_LEVEL_DOOR_QUIET_MS` — the one bar of the three doors, `levelDoor.ts`: a
+disagreement the director would cure, standing with nothing in flight for twelve painted frames and a quarter of a
+second, is cured; the strand's door does not stand for a state this door owns — one state, one door: `[start-shadow] cure «…» by level`, the defect's own line). `window.__conStartShadow()`
 reads how many states were judged and the one judged now.
 
 **RETIRED 2026-11-23 (FREEZE ZERO, stage 2b → 7):** the shadow's own confirm (a disagreement standing 3 s, a held

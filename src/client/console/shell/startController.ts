@@ -40,7 +40,7 @@ import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {hostedStepServes, START_STRAND_DOOR_QUIET_FRAMES, START_STRAND_DOOR_QUIET_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
 import {levelDoorInit, observeLevelDoor} from '@/client/console/levelDoor';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
-import {ActualStartOwner, START_LEVEL_DOOR_QUIET_FRAMES, StartOwner, StartShadowFinding, startLevelDoorMay, actualStartOwner, expectedStartOwner, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
+import {ActualStartOwner, START_LEVEL_DOOR_QUIET_FRAMES, START_LEVEL_DOOR_QUIET_MS, StartOwner, StartShadowFinding, startLevelDoorMay, actualStartOwner, expectedStartOwner, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
 import {noteOpeningLook, noteOpeningSpan} from '@/client/console/servingOwnerMeasure';
 import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
 import {flowTreeDigest, waitTable} from '@/client/console/kernel/flowScope';
@@ -819,16 +819,33 @@ export function createStartController(shell: StartPort) {
       bonusAct?: {stage?: string, entryDue?: boolean},
       seat?: {flight?: unknown, owner?: unknown},
       blockers?: Record<string, unknown>,
+      settle?: {settled?: boolean, hold?: boolean, reaction?: string, embed?: string, firstOwed?: boolean, bonusOwed?: boolean, legacy?: boolean, deliveryHeld?: number},
     };
     const diag = (window as unknown as {__conStartDiag?: () => Diag}).__conStartDiag?.();
     if (diag === undefined) {
       return 'no scene';
     }
-    const blocker = Object.entries(diag.blockers ?? {}).find(([, v]) => v === true || (typeof v === 'number' && v > 0) || (Array.isArray(v) && v.length > 0));
+    // EVERY holder, not the first: «another prompt stands» is true of every strand under the game's menu, and as the
+    // first of the list it hid whichever term really kept the deployment from settling (the box's healthy 105 ms of
+    // `game > none`, 2026-11-23 — named «blocked by otherPromptStands» and nothing else). The settle's own terms too.
+    const blockers = Object.entries(diag.blockers ?? {})
+      .filter(([, v]) => v === true || (typeof v === 'number' && v > 0) || (Array.isArray(v) && v.length > 0))
+      .map(([name]) => name);
+    const settle = diag.settle ?? {};
+    const unsettled = [
+      settle.settled === true ? 'settled' : '',
+      settle.hold === false ? 'no hold' : '',
+      settle.reaction !== undefined && settle.reaction !== 'idle' ? `reaction ${settle.reaction}` : '',
+      settle.embed !== undefined && settle.embed !== '' ? 'embed' : '',
+      settle.firstOwed === true ? 'first owed' : '',
+      settle.bonusOwed === true ? 'bonus owed' : '',
+      settle.legacy === true ? 'legacy' : '',
+      (settle.deliveryHeld ?? 0) > 0 ? 'delivery held' : '',
+    ].filter((term) => term !== '');
     return `why ${diag.mode ?? ''}/${diag.flow ?? ''}/${diag.flowStage ?? ''}${diag.ceremonyRevealed === false ? ' unrevealed' : ''} · ` +
       `first ${diag.firstAct?.stage ?? ''}${diag.firstAct?.entryDue === true ? ' due' : ''}${diag.firstAct?.nested === true ? ' nested' : ''} · ` +
       `bonus ${diag.bonusAct?.stage ?? ''}${diag.bonusAct?.entryDue === true ? ' due' : ''} · seat ${String(diag.seat?.owner ?? 'free')}/${String(diag.seat?.flight ?? '')} · ` +
-      `blocked by ${blocker === undefined ? 'nothing' : blocker[0]}`;
+      `blocked by ${blockers.length === 0 ? 'nothing' : blockers.join('+')} · settle ${unsettled.length === 0 ? 'open' : unsettled.join('+')}`;
   }
 
   function whenStartStrandedNowChanges(now: boolean): void {
@@ -867,7 +884,13 @@ export function createStartController(shell: StartPort) {
       strandQuiet.max = Math.max(strandQuiet.max, strandQuiet.frames);
       // THE STRAND's DOOR BY LEVEL: quiet for its bar → the heal; STILL a strand and quiet for the bar again → the
       // yield (a second state of the same strand, with its own one opening).
-      const seen = observeLevelDoor(door, {key: strandCure.healed() ? `${stood} · healed` : stood, quiet: flight === '', now: Date.now()},
+      // ONE STATE — ONE DOOR. A strand the DIRECTOR would cure (it reads the same screen as a disagreement its level
+      // door may act on) is the opening's door's, on the same bar: this one does not stand for it at all. Its own
+      // case is the one the director has no cure for — a hosted step that does not answer the asked question, read
+      // `step` there and «nothing» here. (Until 2026-11-23 the two were kept apart by their bars alone — eight frames
+      // against twelve — and on one bar both healed one strand in one frame.)
+      const mine = !directorDoorOwnsNow();
+      const seen = observeLevelDoor(door, {key: !mine ? undefined : strandCure.healed() ? `${stood} · healed` : stood, quiet: flight === '', now: Date.now()},
         {frames: START_STRAND_DOOR_QUIET_FRAMES, ms: START_STRAND_DOOR_QUIET_MS});
       door = seen.state;
       if (seen.open) {
@@ -977,6 +1000,17 @@ export function createStartController(shell: StartPort) {
    * on what stands (`heal` · `yield` · `release`), what is in flight is read every frame. Stats only — nothing here
    * opens a door.
    */
+  /** Does the DIRECTOR's level door own what stands right now — a judged disagreement it may act on? (A live read of
+   *  the same pure functions the door is armed by: `whenStartShadowSigChanges`.) */
+  function directorDoorOwnsNow(): boolean {
+    const s = startShadowNow.value;
+    if (!startShadowInScope(s.expected, s.actual) || sceneTransitionInputLocked()) {
+      return false;
+    }
+    return startShadowVerdict(s.expected, s.actual, s.held) === 'disagree' &&
+      startLevelDoorMay({kind: 'disagree', expected: s.expected, actual: s.actual});
+  }
+
   function measureDoor(question: string, state: string, cure: string, ended: string, door?: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>): void {
     cancelDoorLook();
     cancelDoorLook = () => {};
@@ -984,11 +1018,12 @@ export function createStartController(shell: StartPort) {
       noteOpeningSpan('door', '', ended, Date.now());
       return;
     }
-    // THE LEVEL DOOR (`startDirector.START_LEVEL_DOOR_QUIET_FRAMES`): the director would act, and nothing has been in
-    // flight for that many painted frames — the cure goes through the doors that already exist, ONCE per standing
-    // state (a door that changed nothing leaves the state to the shadow's confirm, which names it).
-    let quiet = 0;
-    let opened = false;
+    // THE LEVEL DOOR (`startDirector.START_LEVEL_DOOR_QUIET_FRAMES` ∧ `…_MS` — the family's bar, `levelDoor.ts`): the
+    // director would act, and nothing has been in flight for that many painted frames and that long — the cure goes
+    // through the doors that already exist, ONCE per standing state (a door that changed nothing leaves the state to
+    // the liveness arbiter's rung, which names it).
+    let level = levelDoorInit();
+    const standing = `${question}|${state}|${cure}`;
     const look = (): void => {
       const flight = flightsInTheAir();
       // THE ONE STATE THE DOOR STAYS SHUT IN (`startLevelDoorMay` — a step standing on the start under the game's
@@ -997,9 +1032,10 @@ export function createStartController(shell: StartPort) {
       // before `release` becomes a level there too.
       const quietWord = flight !== '' ? '' : door === undefined ? `QUIET{${standingDigest()}}` : 'QUIET';
       noteOpeningSpan('door', `DOOR ${question} · ${state} · ${cure} · ${flight === '' ? quietWord : `busy[${flight}]`}`, 'moved', Date.now());
-      quiet = flight === '' ? quiet + 1 : 0;
-      if (!opened && door !== undefined && quiet >= START_LEVEL_DOOR_QUIET_FRAMES) {
-        opened = true;
+      const seen = observeLevelDoor(level, {key: standing, quiet: flight === '', now: Date.now()},
+        {frames: START_LEVEL_DOOR_QUIET_FRAMES, ms: START_LEVEL_DOOR_QUIET_MS});
+      level = seen.state;
+      if (seen.open && door !== undefined) {
         shell.runStartDirectorCure(door, 'level');
       }
     };

@@ -111,10 +111,14 @@ export function watchFrames(): FrameWatch {
   const baseFrameAt = lastFrameAt;
   let open = true;
   const elapsedMs = (): number => flowClock().now() - since;
-  // The gap still OPEN (no frame since `lastFrameAt`) is booked as it stands — a page that never paints again is one
-  // long stall; and the part of the first gap that came BEFORE the watch is not the watch's.
+  // The gap still OPEN (no frame since `lastFrameAt`) has given the motion NOTHING YET — GSAP books a gap when its
+  // frame comes, and a motion says it ended on a frame: until one is painted, the time since the last is not time the
+  // page gave. (It was booked as it stood — up to 500 ms in full — and a short bound that ran out INSIDE a frame gap
+  // read «the page painted»: the hero's absorb, 560 ms, with no frame for the last 400 of them, named a defect on the
+  // box's duo pass, 2026-11-23.) A page that never paints again is one long stall; and the part of the first gap
+  // that came BEFORE the watch is not the watch's.
   const openGap = (): number => flowClock().now() - lastFrameAt;
-  const motionMs = (): number => Math.max(0, motion - baseMotion - Math.min(booked(since - baseFrameAt), motion - baseMotion) + booked(openGap()));
+  const motionMs = (): number => Math.max(0, motion - baseMotion - Math.min(booked(since - baseFrameAt), motion - baseMotion));
   const stalls = (): number => stalled - baseStalls + (openGap() > LAG_THRESHOLD_MS ? 1 : 0);
   return {
     motionMs,

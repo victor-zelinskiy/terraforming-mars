@@ -901,8 +901,9 @@ gate's 606 walks in the bottle:
 
 So the latches' doors open in the tick the state rises, and the one state that stands quiet for a second is the one
 the design named: a step on the start under the game's menu — the player's look, or a hand-off the wait graph does
-not hold. **The door:** `startDirector.START_LEVEL_DOOR_QUIET_FRAMES` (8 painted frames — past every hand-off read
-above, counted on the clock of the thing it bounds) and `startLevelDoorMay` (every cure but that one state); the
+not hold. **The door:** `startDirector.START_LEVEL_DOOR_QUIET_FRAMES` ∧ `…_MS` (the family's bar since 2026-11-23 —
+twelve painted frames and a quarter of a second; first built as eight frames alone, which a real 60 Hz browser's
+healthy 105 ms of `game > none` reached — the journal below) and `startLevelDoorMay` (every cure but that one state); the
 frame-by-frame look that measures the track opens it (`startController.measureDoor` → `runStartDirectorCure(…,
 'level')` — the doors that already exist, once per standing state). On a healthy table it never opens — the gate on
 `fz1` in the bottle: 606 walks, not one `cure … by level`, defects 0 — and the e2e specs that are red on any
@@ -1138,6 +1139,45 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
   under the perturbations (the box's `fzu-*` passes: cpu×4, reload, duo, net 400 — on the head with the doors).
   *The ghost test / the forced teardown:* an owed conclusion refused by a hold that vouches for nothing — to be read
   with the owe's own escalation (`workspaceConclusionOwe.ts`), after the beat's.
+- **THE BOX's PERTURBED PASSES ON THE HEAD WITH THE DOORS, READ (2026-11-23 morning — `649e500d8d`, a real browser
+  with a GPU, 606 walks each).** `fz1` · cpu×4: defects 0, no door opened. `fz3` · duo (two seats on one table,
+  68 400 presses): **two defects, both closed the same morning** —
+  - *the opening's door opened on a HEALTHY table* (`parliament`, the second seat: `cure «release» by level —
+    expected «game», on screen «none»: released`). The track named it: `game > none · release · QUIET` stands
+    **105 ms** on that table by itself (the start past its commit, a hosted colony step gone, the game's menu asked,
+    the scene's own release a beat away — twice `→ agree:game>beat`), six to seven frames at 60 Hz — and once the
+    eighth. The door was the one door of the three built on frames ALONE (eight, «a state stands quiet one frame at
+    the most» — true of CI and of the bottle, not of a real 60 Hz browser), and a bar in frames alone moves with the
+    display: on a 144 Hz panel that healthy beat would open it every time. **The door stands on the family's bar now
+    — twelve frames ∧ 250 ms, through `levelDoor.observeLevelDoor` like its sisters** — and, both doors being on one
+    bar, **ONE STATE — ONE DOOR is by construction**: the strand's door does not stand for a state the director's
+    door owns (`startController.directorDoorOwnsNow` — the same pure functions the door is armed by); until now the
+    two were kept apart by eight frames against twelve, and on one bar both healed one strand in one frame (the
+    bottle's replay named it at once). What the 105 ms ARE is still to be named: the strand's «why» printed the
+    FIRST holder only, and «another prompt stands» is true of every strand under the game's menu — it names every
+    holder and the settle's own terms now (the next duo pass reads it; a pause nobody declared is a `span` to add).
+  - *`wait-graph/ceiling/played-hero:ship-absorb`* (560 ms, `parliament-diverted-enacted`): the bound ran out
+    INSIDE a frame gap. The frame witness booked the gap still open as time the page gave (it is under GSAP's 500 ms
+    threshold) — but a gap is booked when its frame comes, and a motion says it ended on a frame: **the time since
+    the last painted frame is not time the page gave** (`frameWitness.watchFrames`; a short bound inside a gap is
+    the wait's honest end, said `planned`; four frames a second is still a page that paints — the defect it was).
+    And the bound itself was a duration (`motionMs`) where the law asks a ceiling: `motionCeilingMs`.
+  The other two passes of the chain (`fz1` · reload, `fz3` · net 400) are still walking.
+- **THE NETS UNDER GREEN TESTS, AGAIN (the whole suite on `713e8d0c30`, CI run 45110190541 — 1 497 passed).**
+  *`played-hero:target`* was not closed by taking the prewarm's word away: the FLIGHT's own wait then ran its whole
+  budget after the prewarm had spent one — a card hanging 3.4 s over a place that was never coming (a play hosted by
+  a step whose shelf is away, `console-sponsor-colony`). **One budget, counted from the arm** (`41f16b29f5`): the
+  prewarm hands its deadline over with its answer, the flight waits what is left (a 320 ms floor).
+  *`scene-transition/hold-bound/board-fit`* stood under three more green tests (`console-old-mining-colony` B,
+  `console-medical-institute` A·B, `console-rail-value-badges`) and NOT ONCE in thirty on a repeat of two of them
+  (45128453374) — a race, and its line named nothing. **The hold says what it was waiting for** (`d575cd2cd7` —
+  `deferSceneReveal(name, maxMs, standing)`: the stage, the fit, the tween, what is owed, the passes spent and the
+  trail of what each calibration pass found). A measure; the cure follows the next whole run's reading.
+- **THE ENGINE FUZZ's FIRST NIGHT ON CI — finding #99, closed (`ed96b620b9`).** Seed 2078000753: Project Inspection,
+  the last card of a hand, offered Ceres Tech Market's action again — «discard 1 card of 0», refused by the engine.
+  A copier played from the hand is still IN the hand while it is judged, previewed and played; an action that needs
+  a card in hand read the copier as that card. `repeatableActionCards` judges the hand the action will HAVE
+  (`ProjectInspection.spec`; the seed in `engineFuzz.spec`; the CI proof run 45131833031).
 - *THE GATE WENT RED ON MY OWN WORD (run 45083901169, `6725ceeb31`):* `wait-graph/unshaped`, eleven records — the
   detail the hero's target got that night carried brackets of its own, and the line's readers take the first `)` for
   the end of the owner's part. A wait's word is said without brackets now (`ceilingWait.ts`, `waitGraph.ts`), as a
