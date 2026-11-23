@@ -156,7 +156,10 @@ function ownerOfKind(task: ConsoleTask, f: QuestionFacts): {owner: ScreenOwner, 
   case 'payment': return {owner: 'task', basis: 'row', admission: 'host'};
   case 'distribute': return {owner: task.mode === 'production' ? 'prod-loss' : 'task', basis: 'row', admission: 'host'};
   // (The draft workspace is entered through the announce's door — a flow beat: its admission is the section's.)
-  case 'draftWait': return f.draftFrame ? {owner: 'draft', basis: 'row', admission: 'section'} : {owner: 'draft-wait', basis: 'row'};
+  // (…and with no draft frame the tray's banner is a surface of the HOST's family: under the announce's gate it waits
+  // as every such surface does — the suite's one `MISS:held:optional`, `console-draft-workspace`: the function said
+  // the banner serves at once where the shadow, rightly, read the question held.)
+  case 'draftWait': return f.draftFrame ? {owner: 'draft', basis: 'row', admission: 'section'} : {owner: 'draft-wait', basis: 'row', admission: 'host'};
   case 'cardSelect':
     if (task.mode === 'draft') {
       return {owner: 'draft', basis: 'row', admission: 'section'};

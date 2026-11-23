@@ -280,6 +280,9 @@ describe('servingOwner — who serves the question: one total function', functio
     // (…and only for the owner it names.)
     expect(servingOwnerOf({...QUIET, task: {kind: 'colony'}, blocks: {section: 'reveal'}, standing: ['external-draw']})).to.deep.include({hold: {kind: 'admission', by: 'reveal'}});
     expect(questionFactsDigest({...sittingDraw, standing: ['external-draw']}), 'the fact is in the evidence a disagreement is read by').to.contain('standing [external-draw]');
+    // THE DRAFT's WAITING BANNER (no draft frame) is a surface of the host's family: under the announce's gate it waits.
+    expect(servingOwnerOf({...QUIET, task: {kind: 'draftWait'}})).to.deep.include({owner: 'draft-wait'}).and.not.have.property('hold');
+    expect(servingOwnerOf({...QUIET, task: {kind: 'draftWait'}, blocks: {host: 'announce-gate'}})).to.deep.include({owner: 'draft-wait', hold: {kind: 'admission', by: 'announce-gate'}});
     // THE PLAYER'S OWN LOOK OVER THE OPENING: the start is still the owner, and it waits for the player.
     expect(servingOwnerOf({...QUIET, task: ALL_SHAPES.find((t) => t.kind === 'startSequence'), startFlow: true, frames: ['start', 'colonies'], lateral: 'colonies'}))
       .to.deep.include({owner: 'start', hold: {kind: 'aside', by: 'lateral:colonies'}});

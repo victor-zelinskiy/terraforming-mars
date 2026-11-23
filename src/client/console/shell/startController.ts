@@ -96,6 +96,8 @@ export function createStartController(shell: StartPort) {
   let cancelDoorLook: () => void = () => {};
   /** …and the STRAND-DOOR track's (what stands in flight under a strand — stats only). */
   let cancelStrandLook: () => void = () => {};
+  /** The standing strand's run of quiet frames (the STRAND-FRAMES count — stats only). */
+  const strandQuiet = {key: '', frames: 0, max: 0};
   /** Stale-release token of the start excursion's quiet re-check (the
    *  release is confirmed one tick + one frame later, so a one-flush
    *  hand-off between two chain signals can never slip through). */
@@ -819,6 +821,13 @@ export function createStartController(shell: StartPort) {
     noteOpeningSpan('strand', now ? strandKey() : '', 'cleared', Date.now());
     if (!now) {
       noteOpeningSpan('strand-door', '', 'cleared', Date.now());
+      // …AND HOW MANY PAINTED FRAMES IN A ROW IT STOOD QUIET — the door's own unit (a door counts frames: a machine
+      // four times slower makes a mount's 200 ms into 800, and the same three frames). One count per strand.
+      if (strandQuiet.key !== '') {
+        noteOpeningSpan('strand-frames', `STRAND-FRAMES ${strandQuiet.key} · quiet ${Math.min(strandQuiet.max, 60)} frame(s) in a row`, 'cleared', Date.now());
+        noteOpeningSpan('strand-frames', '', 'counted', Date.now());
+        strandQuiet.key = '';
+      }
       return;
     }
     // …AND WHAT IS IN FLIGHT UNDER IT, BY FRAME (the STRAND-DOOR track — what a level door of the watchdog's own cure
@@ -828,8 +837,13 @@ export function createStartController(shell: StartPort) {
     // read first: the suite stands 52 strands of «the game asks» up to 1.26 s, every one ending by itself (CI run
     // 45071347931), and nothing yet says how many frames of them were quiet. Stats only — nothing here acts.
     const stood = strandKey();
+    strandQuiet.key = stood.replace(/^STRAND /, '');
+    strandQuiet.frames = 0;
+    strandQuiet.max = 0;
     const look = (): void => {
       const flight = flightsInTheAir();
+      strandQuiet.frames = flight === '' ? strandQuiet.frames + 1 : 0;
+      strandQuiet.max = Math.max(strandQuiet.max, strandQuiet.frames);
       noteOpeningSpan('strand-door', `${stood.replace(/^STRAND/, 'STRAND-DOOR')} · ${flight === '' ? `QUIET{${standingDigest()}}` : `busy[${flight}]`}`, 'moved', Date.now());
     };
     look();
