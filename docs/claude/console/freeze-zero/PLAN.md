@@ -719,6 +719,34 @@ stale free-turn reaper retire with it), a redesign slice of architecture v2 that
   hold registry's `expire`. And structural item 4's second half — the start scene and the Parliament taken apart like
   the shell — is the open redesign of architecture v2 (`../architecture-v2/PLAN.md` § 0), not this stage's number.
 
+**STAGE 3, EXTENDED — THE BEAT LAW: A PAUSE INSIDE A BEAT IS A DECLARED WAIT (2026-11-23).** The stage's three
+numbers are STATIC, and one kind of wait passed all three: a pause a flow gives the player inside a transient beat —
+written as a net's timer (`guarantee`) or a controller's own clock. It is «inside the kernel» (the coverage ratchet is
+content) and it is no reactive wait (the wait-graph law is content), yet nothing that asks «is anybody working?» can
+see it: `flightsInTheAir` reads the wait graph and the kernel's MOTION waits, and a guarantee is neither. Three stood
+on healthy tables when the BEAT track first read honestly — the standard project's read of its terminal commit
+(304 ms), the action commit's minimum beat, the Hydronetwork's result read (1.07 – 1.23 s) — each cured as it was
+found (a `span`, two ceiling waits: `0be1b6082f`, `b8be73721f`, `43dc5a3260`). Every door by level stands on that
+reading, so the class is closed by a LAW, not by the next accident:
+- **The form is decided: a law of the GATE, not a grep.** A static guard cannot tell a pause from a net's safety —
+  both are `guarantee(ms, what, fn)`; what differs is whether `fn` advances a flow, which is the callee's business
+  three calls away. What CAN be read exactly is the thing itself: every transient beat, by painted frame, with what
+  is in flight under its own frame (`outcomeController.measureStandingBeat`). So `monkey-report.beatLawBroken`: a span
+  `beat|<kind>:<beat> · QUIET{…}` whose longest standing reaches the doors' own bar (250 ms — past a hand-off between
+  two flights) fails `--gate`, by name, with its tables; `scripts/ci/findings.mjs` files it under a kind of its own
+  (`beat-law` — it is no cause class, and a red gate with nothing named would be read as a dead shard). The bottle's
+  gate (606 tables per seed, a manual clock: a frame is 16 ms exactly) and the real-browser monkey's both run it.
+- **It stands at zero where it is turned on:** the gate's corpora of run 45220700405 — `fz0` 230 spans of a
+  transient beat, `fz1` 227: QUIET 0, the gate passes; the box's two-seat pass on `35657c6593` (456 walks) — 213
+  spans, QUIET 0; the whole e2e suite of run 45220695930 (1 320 files) — not one quiet beat at ANY duration. The
+  positive control is the track's own first reading (the three above) and the spec, which plants their keys.
+- **The rule** is in `.claude/rules/console-flow.md` (the frame's section): a read is `await span(ms, flow)` or a
+  ceiling wait met on its event — never a guarantee whose callback advances the flow.
+- **What the law does NOT see, said plainly:** a pause inside a beat that is ALSO covered by something else in
+  flight (a hold of the same scene, the wire) reads `busy` — it cannot be cut by a door either, so it is not this
+  class; and the e2e suite's own tests are READ on this track, not gated by it (a span bracketing one long frame of a
+  starved runner would read «quiet» in milliseconds — the suite is held by the doors' numbers in frames instead).
+
 **STAGE 2b, STEP ① — THE OPENING, MEASURED (2026-11-21).** The start is ONE owner of the function; which STAGE of it
 stands is the start director's word (`startDirector.expectedStartOwner` — pure, of the server's one question) and a
 dozen latches' answer (`actualStartOwner`). Two nets stand over the pair, each behind a confirm of seconds — the start

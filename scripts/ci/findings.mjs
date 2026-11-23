@@ -36,7 +36,8 @@
  * `field` (a defect a real session reported to Sentry — the box, a player's machine) · `owner-law` (the gate red by
  * the ONE-OWNER LAW: a press, a surface or the bar parted from the function's word — named by its verdict, with the
  * tables that walked it; it is no cause class, and until it had a kind of its own it was filed as «red with nothing
- * named» — issue #84).
+ * named» — issue #84) · `beat-law` (the gate red by the BEAT LAW: a frame in a transient beat stood with nothing in
+ * flight under it past the doors' bar — a stall, or a pause nobody declared; named by the beat).
  *
  * A FLOOD IS ONE FINDING: a run that names more than MASS findings (a broken build reads as 571 red tests) files ONE
  * issue that lists them — never a hundred issues a night.
@@ -49,7 +50,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {findReproductions, whereSearch} from '../diag-lib.mjs';
-import {ownerLawBroken} from '../monkey-report.mjs';
+import {BEAT_LAW_QUIET_MS, beatLawBroken, ownerLawBroken} from '../monkey-report.mjs';
 
 const [command, ...rest] = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -290,6 +291,32 @@ function fromMonkey() {
         ...rows.slice(0, 8).flatMap((row) => [`- ${row.walks} walk(s) · ${row.what}`, ...(row.facts ? [`  - facts: ${row.facts}`] : [])]),
         '',
         'The function (`src/client/console/servingOwner.ts`) says who serves the question; the pad\'s ladder, the bar and the surfaces are derived from it. Decide which side is wrong — the function\'s facts, or the copy that parted — never a baseline row.',
+        ...(repro === '' || !named ? [] : ['', '**Repeat it:**', fence(repro.replace(/<table>/g, table).replace(/<seed>/g, seed))]),
+      ].join('\n'),
+    });
+  }
+  // THE BEAT LAW, BROKEN, IS A FINDING BY NAME TOO (`monkey-report.beatLawBroken`): one per beat — the frame and the
+  // beat that stood with nothing in flight under it, how long, and the tables that walked it.
+  for (const [beat, count, max, tables] of beatLawBroken(report)) {
+    const seed = /^seed ([A-Za-z0-9_-]+)$/.exec(context)?.[1] ?? '';
+    const table = tables.find((name) => /^[A-Za-z0-9_-]+$/.test(name)) ?? '';
+    const named = table !== '' && seed !== '';
+    findings.push({
+      key: `${source}|beat-law|${beat}`,
+      kind: 'beat-law',
+      ...(named ? {proof: source === 'freeze-gate' ?
+        {workflow: 'Freeze gate', inputs: {seeds: seed, only: `^${table}$`}} :
+        {workflow: 'Monkey', inputs: {seed, only: `^${table}$`, shards: '1', perturb: flag('perturb', 'none')}}} : {}),
+      title: `[${source}] the beat law: «${beat}» stood quiet ${max} ms${table === '' ? '' : ` (${table}${tables.length > 1 ? ` +${tables.length - 1}` : ''})`}`,
+      body: [
+        `**The beat law is not at zero** — named by \`${source}\`${context === '' ? '' : ` (${context})`}.`,
+        '',
+        `- beat: \`${beat}\` — ${count} span(s), the longest ${max} ms with NOTHING IN FLIGHT under the frame (the bar is ${BEAT_LAW_QUIET_MS} ms)`,
+        `- tables: ${tables.map((name) => `\`${name}\``).join(' · ') || '?'}`,
+        '',
+        'A frame in a transient beat with nothing in flight is a stall, or a pause somebody wrote and nobody declared (a net\'s timer, a controller\'s own clock). ' +
+          'Write the pause as a `span(ms, flow)` of the kernel or a ceiling wait of the wait graph — every door by level reads «nothing in flight» as «nobody is working». ' +
+          'The spans of the walk: the report\'s «THE BEAT LAW» section, and `owner.spans` of the walk\'s own file (`beat|<kind>:<beat> · QUIET{what stood}`).',
         ...(repro === '' || !named ? [] : ['', '**Repeat it:**', fence(repro.replace(/<table>/g, table).replace(/<seed>/g, seed))]),
       ].join('\n'),
     });

@@ -228,6 +228,16 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
   stretch: a press that did not land puts the frame back. Cross the commit boundary and submit in ONE stretch — a
   frame put in `executing` for a submit that is sent after an `await` is not leased (roll it back yourself on
   `ticket.settled`).
+- **A PAUSE INSIDE A BEAT IS A DECLARED WAIT — the BEAT LAW** (FREEZE ZERO, stage 3; `scripts/monkey-report.mjs`
+  `beatLawBroken`). A «read» the frame gives the player before it moves on — a result's read, a commit's minimum
+  beat, a dwell — is `await span(ms, flow)` (a wait of the kernel's own table, family `motion`) or a ceiling wait of
+  the wait graph (`beginCeilingWait({id, owner, what, maxMs, detail})`, met on its event). NEVER an
+  `owner.guarantee(ms, …)` whose callback ADVANCES the flow (a guarantee is a RELEASE — a net's timer, which
+  `flightsInTheAir` does not read), never a controller's own clock. Every door by level reads «nothing in flight» as
+  «nobody is working» — an undeclared pause is exactly what a door would cut. The track reads every transient beat by
+  painted frame (`outcomeController.measureStandingBeat` → `beat|<kind>:<beat> · QUIET{…} | busy[…]`), and the gate —
+  the bottle's (`gate:freeze`) and the real-browser monkey's — FAILS on a beat that stood QUIET for the doors' bar
+  (250 ms), naming the beat and its tables (CI finding kind `beat-law`).
 - **A claim is bound to its host frame's scope** (`consoleWorkspaceOutcome.bindClaimHost`): never sample «is the host
   still somewhere». Its timers are `claimMachine` states — a new backstop is a state with an `after`, never a module
   `setTimeout`. `stage` / `beatDone` / `arrivalDone` of `workspaceOutcomeState` are mirrors: write them through the

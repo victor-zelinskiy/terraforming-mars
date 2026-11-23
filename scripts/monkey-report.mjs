@@ -290,6 +290,17 @@ export function renderOwner(owner) {
       L.push(`  ${String(v.n).padStart(5)}×  longest ${String(Math.round(v.max)).padStart(6)} ms · ${String(Math.round(v.ms)).padStart(7)} ms in all  ${key.slice(8)}   [${v.tables.join(', ')}]`);
     }
   }
+  // THE BEAT LAW (stage 3): every transient beat is read by frame — how many stood with nothing in flight, and how long.
+  const beatRows = Object.entries(owner.spans ?? {}).filter(([key]) => key.startsWith('beat|'));
+  if (beatRows.length > 0) {
+    const quiet = beatRows.filter(([key]) => key.includes(' · QUIET'));
+    const count = (rows) => rows.reduce((sum, [, v]) => sum + (v.n ?? 0), 0);
+    L.push(`THE BEAT LAW — ${count(beatRows)} span(s) of a transient beat: QUIET ${count(quiet)}` +
+      (quiet.length > 0 ? ` (longest ${Math.round(quiet.reduce((m, [, v]) => Math.max(m, v.max ?? 0), 0))} ms; the bar is ${BEAT_LAW_QUIET_MS} ms)` : ''));
+    for (const [beat, n, max, tables] of beatLawBroken({owner})) {
+      L.push(`  BROKEN: «${beat}» stood ${max} ms with nothing in flight under it ×${n}  [${tables.join(', ')}]`);
+    }
+  }
   // THE ANSWER AT ITS LAST REACTIVE EDGE (stage 2 ③): would a cache derived from the function hold the truth?
   const edgeN = {agree: 0, latch: 0};
   for (const [shape, row] of Object.entries(owner.rows ?? {})) {
@@ -621,8 +632,45 @@ export function ownerLawBroken(report) {
 }
 
 /**
+ * THE BEAT LAW (FREEZE ZERO, stage 3 — «a pause inside a beat is a DECLARED wait»): a frame in a transient beat
+ * (`executing` · `completing` — its own phase, or the one its surface reports) with NOTHING IN FLIGHT under it is
+ * either a stall or a pause somebody wrote and nobody declared — a net's timer (`guarantee`), a controller's own
+ * clock — where the kernel has `span` and the wait graph a ceiling wait. Three of those stood on healthy tables when
+ * the BEAT track first read honestly (2026-11-23: the standard project's read of its terminal commit, the action
+ * commit's minimum beat, the Hydronetwork's result read — 0.3 – 1.2 s each); every door by level reads «nothing in
+ * flight» as «nobody is working», so an undeclared pause is exactly what a door would cut. The track reads every
+ * beat by painted frame (`outcomeController.measureStandingBeat` → `beat|<kind>:<beat> · QUIET{…}`), and since those
+ * three it reads ZERO quiet beats — the whole e2e suite, the gate's 1 214 walks, the box. The law holds it there.
+ *
+ * THE BAR is the doors' own (twelve frames ∧ 250 ms — `levelDoor.ts`): past a hand-off between two flights, never
+ * seconds. Read on the span's longest standing.
+ */
+export const BEAT_LAW_QUIET_MS = 250;
+
+/** The beats that stood quiet past the bar — `[beat, spans, longest ms, tables]`, the longest first. */
+export function beatLawBroken(report) {
+  const by = new Map();
+  for (const [key, span] of Object.entries(report.owner?.spans ?? {})) {
+    if (!key.startsWith('beat|') || !key.includes(' · QUIET') || (span.max ?? 0) < BEAT_LAW_QUIET_MS) {
+      continue;
+    }
+    const beat = key.slice('beat|'.length).split(' · ')[0];
+    const known = by.get(beat) ?? {n: 0, max: 0, tables: []};
+    known.n += span.n ?? 0;
+    known.max = Math.max(known.max, span.max ?? 0);
+    for (const table of span.tables ?? []) {
+      if (known.tables.length < 4 && !known.tables.includes(table)) {
+        known.tables.push(table);
+      }
+    }
+    by.set(beat, known);
+  }
+  return [...by.entries()].sort((a, b) => b[1].max - a[1].max).map(([beat, v]) => [beat, v.n, Math.round(v.max), v.tables]);
+}
+
+/**
  * Does the run pass the bar's gate: no episode left uncured, no defect class the earlier run did not have — and the
- * one-owner law at zero (where the walks carried its measure).
+ * one-owner law and the beat law at zero (where the walks carried their measure).
  */
 export function gateVerdict(report, diff) {
   const reasons = [];
@@ -634,6 +682,10 @@ export function gateVerdict(report, diff) {
   }
   for (const [verdict, n, what] of ownerLawBroken(report)) {
     reasons.push(`the one-owner law — ${verdict} ×${n}: ${what} (the report's «THE ONE FUNCTION» section names the tables)`);
+  }
+  for (const [beat, n, max, tables] of beatLawBroken(report)) {
+    reasons.push(`the beat law — «${beat}» stood ${max} ms with nothing in flight under it (×${n}): a stall, or a pause nobody declared — ` +
+      `write it as a \`span\` / a ceiling wait [${tables.join(', ')}]`);
   }
   return {pass: reasons.length === 0, reasons};
 }

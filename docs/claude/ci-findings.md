@@ -136,7 +136,11 @@ issues (needs `GH_TOKEN`, `issues: write`).
   cause class — the report's «new classes» never hold it — and its first red was filed as «nothing named» (#84). The
   finding names the verdict, the tables that walked it and the facts the function was asked with, and proves by the
   gate on the first table and the run's seed.
-- **Labels:** `ci-finding` · `src:<source>` · `kind:new-class | never-cured | failed | flaky | broken-run | owner-law` ·
+- **THE BEAT LAW HAS ONE TOO** (`beat-law`, key `<source>|beat-law|<kind>:<beat>` — `monkey-report.beatLawBroken`,
+  FREEZE ZERO stage 3): a frame in a transient beat stood with NOTHING IN FLIGHT under it for the doors' bar (250 ms)
+  — a stall, or a pause written as a net's timer / a controller's clock instead of a `span` or a ceiling wait. The
+  finding names the beat, the longest standing and the tables; it proves by the gate on the first table and the seed.
+- **Labels:** `ci-finding` · `src:<source>` · `kind:new-class | never-cured | failed | flaky | broken-run | owner-law | beat-law` ·
   `triage:needed` (no verdict yet).
 - **WHOSE MOVE IT IS, read from the labels of an OPEN issue** — never guessed:
 

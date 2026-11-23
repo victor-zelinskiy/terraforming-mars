@@ -12,7 +12,7 @@ type Rec = {cls: string, shape: string, tier: string, family: string, page: numb
 type File = {file: string, title: string, retry: number, status?: string, monkey?: {seed: string, presses: number}, records: Array<Rec>};
 type ClassRow = {tier: string, shape: string, tests: number, records: number, lines: number, outcomes: Record<string, number>, worstStoodS: number, first?: {file: string, title: string, seed?: string}};
 type Report = {
-  owner?: {verdicts: Record<string, number>},
+  owner?: {verdicts: Record<string, number>, spans?: Record<string, {n: number, ms: number, max: number, tables: Array<string>}>, walks?: number, looks?: number, rows?: object, open?: object, disagreements?: Array<never>},
   totals: {tests: number, walks: number, presses: number, records: number, defects: number, episodes: number, notCured: number, outcomes: Record<string, number>},
   classes: Record<string, ClassRow>,
   nets: Record<string, {tier: string, records: number, lines: number, tests: number, per1000Presses: number | null}>,
@@ -22,6 +22,9 @@ type Lib = {
   aggregateCauseFiles: (files: Array<File>) => Report,
   compareReports: (now: Report, before: Report | undefined) => Diff,
   gateVerdict: (report: Report, diff?: Diff) => {pass: boolean, reasons: Array<string>},
+  beatLawBroken: (report: Pick<Report, 'owner'>) => Array<[string, number, number, Array<string>]>,
+  BEAT_LAW_QUIET_MS: number,
+  renderOwner: (owner: Report['owner']) => string,
   renderReport: (report: Report, diff?: Diff) => string,
   shapeOfClass: (cls: string) => string,
 };
@@ -131,5 +134,46 @@ describe('the monkey\'s report — a run summed by cause class', () => {
     expect(broken.reasons.map((r) => r.split(':')[0])).to.deep.eq([
       'the one-owner law — bar-APART ×3', 'the one-owner law — flag-EXTRA ×1', 'the one-owner law — edge-LATCH ×2',
     ]);
+  });
+
+  /*
+   * THE BEAT LAW (FREEZE ZERO, stage 3): a transient beat with nothing in flight under it, past the doors' own bar, is
+   * a stall or a pause nobody declared — three stood on healthy tables when the track first read honestly. A beat that
+   * is BUSY however long, and a quiet hand-off of a few frames, are no breach.
+   */
+  it('THE GATE holds the BEAT LAW at zero: a beat that stood quiet past the bar fails it by name — a busy beat and a hand-off never do', async () => {
+    const {aggregateCauseFiles, gateVerdict, beatLawBroken, renderOwner, BEAT_LAW_QUIET_MS} = await load();
+    const clean = aggregateCauseFiles([walk('a', [])]);
+    const span = (n: number, max: number, tables: Array<string>) => ({n, ms: n * max, max, tables});
+    const measured = {verdicts: {agree: 40}, walks: 2, looks: 40, rows: {}, open: {}, disagreements: []};
+    const healthy = {...clean, owner: {...measured, spans: {
+      'beat|hand:executing · busy[hold:hold:played-hero] → moved': span(162, 1504, ['a']),
+      'beat|standard-projects:completing · busy[kernel:surface:std-projects-controller] → gone': span(72, 304, ['b']),
+      // A hand-off between two flights: one ends, the next rises a frame later.
+      'beat|hand:executing · QUIET{game·N} → moved': span(3, 32, ['a']),
+      // Another track's quiet is that track's own business.
+      'conclude|hand · dismiss · QUIET → left': span(4, 900, ['a']),
+    }}};
+    expect(beatLawBroken(healthy)).to.deep.eq([]);
+    expect(gateVerdict(healthy).pass).to.eq(true);
+    expect(renderOwner(healthy.owner)).to.contain('THE BEAT LAW — 237 span(s) of a transient beat: QUIET 3 (longest 32 ms; the bar is 250 ms)');
+    const broken = {...clean, owner: {...measured, spans: {
+      ...healthy.owner.spans,
+      'beat|standard-projects:completing · QUIET{game·N} → gone': span(72, 304, ['sp-greenery', 'sp-city']),
+      'beat|hydro:completing · reveal · QUIET{game·N} → gone': span(11, 1230, ['hydro']),
+      'beat|hydro:completing · QUIET{game·N · flow·N} → moved': span(2, 1070, ['hydro', 'hydro-two']),
+    }}};
+    expect(beatLawBroken(broken), 'by beat, the longest first, the tables named once').to.deep.eq([
+      ['hydro:completing', 13, 1230, ['hydro', 'hydro-two']],
+      ['standard-projects:completing', 72, 304, ['sp-greenery', 'sp-city']],
+    ]);
+    const verdict = gateVerdict(broken);
+    expect(verdict.pass).to.eq(false);
+    expect(verdict.reasons.map((r) => r.split(' with nothing')[0])).to.deep.eq([
+      'the beat law — «hydro:completing» stood 1230 ms', 'the beat law — «standard-projects:completing» stood 304 ms',
+    ]);
+    expect(renderOwner(broken.owner)).to.contain('  BROKEN: «hydro:completing» stood 1230 ms with nothing in flight under it ×13  [hydro, hydro-two]');
+    // The bar is the doors' own: past a hand-off, never seconds.
+    expect(BEAT_LAW_QUIET_MS).to.be.at.least(200).and.at.most(500);
   });
 });
