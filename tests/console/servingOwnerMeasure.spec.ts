@@ -368,17 +368,23 @@ describe('servingOwnerMeasure — an owed conclusion and a claim that is the onl
   it('the owner reads a debt every frame — the flights taken UNDER the debt\'s own nodes; nothing there acts', () => {
     const outcome = read('shell/outcomeController.ts');
     const look = outcome.slice(outcome.indexOf('function measureOwedConclusion(): void {'), outcome.indexOf('function measureStandingBeat(): void {'));
-    expect(look).to.contain('const flight = flightsInTheAir(Date.now(), [`conclusion:${owed.kind}`, `claim:${owed.kind}`, `surface:${owed.kind}`]);');
+    expect(look).to.contain('const flight = flightsInTheAir(Date.now(), [`conclusion:${owed.kind}`, `claim:${owed.kind}`, `surface:${owed.kind}`, OWED_CADENCE_FLIGHT]);');
+    // (The debt's own cadence is a kernel wait — a `sleep` — and reads as a flight by its owner's name: asked what
+    // moves UNDER the debt, it is the debt. The first reading without it said `busy[kernel:task:conclusion owed]` of
+    // every debt there is.)
+    expect(outcome).to.contain('const OWED_CADENCE_FLIGHT = \'kernel:task:conclusion owed\';');
+    expect(read('waitGraph/flightsInTheAir.ts')).to.match(/const name = `kernel:\$\{row\.owner\.replace\(\/#\[0-9\]\+\/g, ''\)\}`;[\s\S]{0,360}if \(!asked\.includes\(name\)\) \{\s+names\.push\(name\);/);
     expect(look).to.contain('shell.stuckWorkspaceIsGhost(owed.kind) ? \'ghost\' : \'vouched\'');
     expect(look, 'a measure: no verb of a conclusion in it').to.not.match(/concludeWorkspaceFlow|releaseWorkspaceOutcome|forceRecoverStuckWorkspace|withdrawConclusionOwe/);
     expect(outcome).to.match(/function lookAtConclusionDoor\(\): void \{\s+measureStandingBeat\(\);\s+measureOwedConclusion\(\);/);
   });
 
-  it('a candidate whose ONLY flight is its own claim is named — the claim\'s node is the question, never its answer', () => {
+  it('a candidate whose ONLY flights are its OWN waits — its claim, its debt — is named: they are the question, never its answer', () => {
     const outcome = read('shell/outcomeController.ts');
-    const measure = outcome.slice(outcome.indexOf('function measureConcludeDoor()'), outcome.indexOf('function measureOwedConclusion(): void {'));
-    expect(measure).to.contain('const underClaim = mine && flight !== \'\' && flightsInTheAir(Date.now(), `claim:${top.kind}`) === \'\';');
-    expect(measure).to.contain('`ONLY-ITS-CLAIM claim:${workspaceOutcomeState.stage}${workspaceOutcomeState.answerIn ? \'+answered\' : \'\'} `');
+    const measure = outcome.slice(outcome.indexOf('function measureConcludeDoor()'), outcome.indexOf('const OWED_CADENCE_FLIGHT = '));
+    expect(measure).to.contain('const own = [`claim:${top.kind}`, `conclusion:${top.kind}`, OWED_CADENCE_FLIGHT];');
+    expect(measure).to.contain('const underOwn = flight !== \'\' && flightsInTheAir(Date.now(), own) === \'\';');
+    expect(measure).to.contain('`ONLY-ITS-OWN[${flight}]${mine ? ` claim:${workspaceOutcomeState.stage}${workspaceOutcomeState.answerIn ? \'+answered\' : \'\'}` : \'\'} `');
     // The door itself is NOT widened by the measure: its `claimOnly` still asks the whole graph.
     expect(measure).to.match(/claimOnly: conclusion\.verdict === 'hold' && conclusion\.reason === 'live-outcome' && mine && rows\.length === 0 &&\s+currentRevealEvent\(\) === undefined && look === '' && flight === '',/);
   });

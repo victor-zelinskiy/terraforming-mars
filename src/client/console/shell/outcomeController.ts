@@ -567,11 +567,18 @@ export function createOutcomeController(shell: OutcomePort) {
     // seconds; the reaper lets such a claim go at eight. Over the free turn with the wire quiet the server has
     // ANSWERED: what stands UNDER the claim is the question. Stats only — how long a healthy table stands so decides
     // whether the door may read the claim's node as the question it is.
-    const underClaim = mine && flight !== '' && flightsInTheAir(Date.now(), `claim:${top.kind}`) === '';
-    const claimWord = !underClaim ? '' :
-      `ONLY-ITS-CLAIM claim:${workspaceOutcomeState.stage}${workspaceOutcomeState.answerIn ? '+answered' : ''} ` +
+    // …AND ITS DEBT. A conclusion that is OWED is a run with a cadence (`workspaceConclusionOwe.drive` — a `sleep`
+    // every half second), and a sleep is a row of the kernel's motion waits: while a debt stands the door's «nothing
+    // in flight» is never true, whatever else stands — so UNDER A DEBT NO DOOR OPENS, and the frames the reaper and
+    // the escalation still cure are exactly the ones that owe (the gate's first reading of the OWED track, run
+    // 45201563602: every debt of 1 212 walks read `busy[kernel:task:conclusion owed…]`). What stands under the
+    // frame's OWN waits — its claim, its debt — is named.
+    const own = [`claim:${top.kind}`, `conclusion:${top.kind}`, OWED_CADENCE_FLIGHT];
+    const underOwn = flight !== '' && flightsInTheAir(Date.now(), own) === '';
+    const ownWord = !underOwn ? '' :
+      `ONLY-ITS-OWN[${flight}]${mine ? ` claim:${workspaceOutcomeState.stage}${workspaceOutcomeState.answerIn ? '+answered' : ''}` : ''} ` +
       `rows[${rows.join('+')}]${currentRevealEvent() === undefined ? '' : ' reveal'}`;
-    noteConcludeSpan(`${top.kind} · ${verdict}${look} · ${flight === '' ? `QUIET${who}` : underClaim ? claimWord : `busy[${flight}]`}`, 'moved', Date.now());
+    noteConcludeSpan(`${top.kind} · ${verdict}${look} · ${flight === '' ? `QUIET${who}` : underOwn ? ownWord : `busy[${flight}]`}`, 'moved', Date.now());
     return {
       kind: top.kind,
       key: `${top.kind}|${shell.playerView.waitingFor?.promptId ?? ''}`,
@@ -604,6 +611,9 @@ export function createOutcomeController(shell: OutcomePort) {
    * what is in flight UNDER the debt's own nodes (its conclusion's, its claim's). Stats only: nothing here ends a
    * debt — the escalation (`workspaceConclusionOwe.drive`) keeps its clock until this track has been read.
    */
+  /** The name the owed run's own cadence reads by among the flights (`flightsInTheAir` — a kernel wait, by its owner). */
+  const OWED_CADENCE_FLIGHT = 'kernel:task:conclusion owed';
+
   function measureOwedConclusion(): void {
     const owed = owedConclusions()[0];
     if (owed === undefined) {
@@ -612,7 +622,7 @@ export function createOutcomeController(shell: OutcomePort) {
     }
     const held = conclusionRefusal.last?.kind === owed.kind ? conclusionRefusal.last.reason : 'unknown';
     const asks = shell.playerView.waitingFor === undefined ? 'nobody' : taskFor(shell.playerView)?.kind ?? 'other';
-    const flight = flightsInTheAir(Date.now(), [`conclusion:${owed.kind}`, `claim:${owed.kind}`, `surface:${owed.kind}`]);
+    const flight = flightsInTheAir(Date.now(), [`conclusion:${owed.kind}`, `claim:${owed.kind}`, `surface:${owed.kind}`, OWED_CADENCE_FLIGHT]);
     const look = document.querySelector(PLAYER_LOOK_SELECTOR) !== null ? ' · look' : '';
     noteOwedSpan(`${owed.kind} · q:${asks} · held:${held} · ${shell.stuckWorkspaceIsGhost(owed.kind) ? 'ghost' : 'vouched'}${look} · ` +
       `${flight === '' ? 'QUIET' : `busy[${flight}]`}`, 'moved', Date.now());

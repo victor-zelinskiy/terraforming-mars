@@ -39,7 +39,12 @@ export function flightsInTheAir(now: number = Date.now(), under?: string | Reado
   for (const row of waitTable()) {
     if (row.family === 'motion') {
       // (The owner's kind and name — `kernel:task:conclusion owed`, `kernel:session:game` — never the span's length.)
-      names.push(`kernel:${row.owner.replace(/#[0-9]+/g, '')}`);
+      const name = `kernel:${row.owner.replace(/#[0-9]+/g, '')}`;
+      // …and a kernel wait may be the question too, by its name (`kernel:task:conclusion owed` — the cadence of a debt
+      // is not a beat somebody plays: asked «what moves under this debt», it is the debt).
+      if (!asked.includes(name)) {
+        names.push(name);
+      }
     }
   }
   return [...new Set(names)].sort().slice(0, 5).join('+');
