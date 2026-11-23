@@ -1204,6 +1204,22 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
     (`consoleIntentHandlers.spec` — red before, green after); `console-campaign-endgame` now walks the focus on the
     results after the map has left.
   - the receiving stage's effect hooks (`provideReceivingEffectHooks` — two composers mount the stage): a stack too.
+  The setter-shaped registries (`register…(undefined)` at the leave — forty of them) were read the same way: three
+  have two setters, each pair exclusive by construction (the draft's tray and its workspace's shelf; the start's dock
+  layer and the carryover picker's; the campaign viewer's name) — nothing to cure there.
+  **PROVEN IN A BROWSER (CI run 45146062455 on `bcb453efbc`, ×3):** `console-campaign-endgame` walks the focus on
+  the results after the map has left — green; `console-sponsor-colony` — not one `played-hero:target` line, the
+  next prelude lands on the shelf.
+- **THE HONEST BEAT TRACK, READ WIDE (2026-11-23).** The bottle, `fz1`, ~590 of the 606 tables (five processes — one
+  runs out of heap past ~165): **two quiet beats on healthy tables, both pauses somebody wrote and nobody declared**
+  — the standard project's read (a span, `0be1b6082f`) and the action commit's minimum beat
+  (`card-actions:executing`, 720 ms: the source card's impulse, a GSAP episode behind a timer's backstop — a node
+  of the wait graph now, `action-commit:settle`, `b8be73721f`). The box, a real browser, the new head, `fz3` · duo
+  (the first 152 walks): defects 0, not one quiet beat, not one quiet `game > none`. The gate on `ce4a44eb63`
+  (45135036164) and on `a244fdb717` (45140399351): both seeds green. **The 1 Hz beat sampler is gone**
+  (`a244fdb717` — `observeBeatStall` / `tickBeatStall` had no caller since architecture v2: the beat is judged by
+  the frame's own bound and by the arbiter's `beatOwed`; what this journal called «the beat stall guard's door» is
+  therefore a door over the ARBITER's rung 25, to be decided on the whole suite's honest reading — run 45148414617).
   *`scene-transition/hold-bound/board-fit`* stood under three more green tests (`console-old-mining-colony` B,
   `console-medical-institute` A·B, `console-rail-value-badges`) and NOT ONCE in thirty on a repeat of two of them
   (45128453374) — a race, and its line named nothing. **The hold says what it was waiting for** (`d575cd2cd7` —
