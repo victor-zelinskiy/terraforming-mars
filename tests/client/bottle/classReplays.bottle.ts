@@ -443,6 +443,48 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(classes().filter((cls) => cls.startsWith('start-')), 'nothing of the start is filed').to.deep.equal([]);
   });
 
+  /*
+   * THE STRAND's DOOR ON ITS OWN CASE (`startServing.hostedStepServes` — «a strand dressed as a step», the field hang
+   * of 2026-10-28: a colony grid left standing after its build while the server asked the prelude's city). The scene
+   * reads `step`, the start DIRECTOR therefore reads «a step is on» and has no cure — the one case the opening's door
+   * does not own. The strand's own door does, by level: quiet for the bar → the heal; the scene's doors open nothing,
+   * so, quiet for the bar again → the yield, and the question reaches the shell's surfaces. Half a second, where the
+   * watchdog's two timers took five; each verb said once, the director silent. (Planted the way it stands: a step
+   * nested in the start that serves nothing of the live question, the start's own frame not serving it either.)
+   */
+  it('a hosted step left standing for a question it does not answer: the strand\'s door heals, then yields — by level, each once; the director has no word', async () => {
+    const table = await bottleServer().bootFixture('hydro-terminal-surge');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    await live.advance(4_000);
+    const stack = live.pageModules.consoleWorkspaceStack;
+    const start = live.pageModules.consoleStartState.consoleStartState;
+    const said = (marker: string) => live.lines().filter((line) => line.includes(marker));
+    expect(live.frames(), 'the start stands on the first action').to.deep.equal(['start:browse']);
+    expect([...said('[start-stranded]'), ...said('[start-shadow]')], 'a healthy opening').to.deep.equal([]);
+    // THE CLASS, PLANTED.
+    stack.workspaceStackState.frames[0].serves = [];
+    stack.pushWorkspaceFrame({kind: 'colonies', phase: 'committed', serves: [], anchor: {type: 'prompt'}} as unknown as Parameters<typeof stack.pushWorkspaceFrame>[0]);
+    await live.advance(100);
+    expect(live.frames()).to.deep.equal(['start:browse', 'colonies:committed']);
+    expect(start.serves, 'the scene says «a step is on»').to.equal('step');
+    expect(said('[start-stranded]'), 'inside the door\'s quiet nothing acts').to.deep.equal([]);
+    // The first bar: the heal — and it is the LEVEL's.
+    await live.advance(300);
+    expect(said('[start-stranded] confirmed').length, 'ONE heal').to.equal(1);
+    expect(said('[start-stranded] confirmed')[0]).to.contain('"by":"level"');
+    // The second bar: still a strand, still quiet — the yield.
+    await live.advance(400);
+    expect(said('[start-stranded] yielded to the shell').length, 'ONE yield').to.equal(1);
+    expect(said('[start-stranded] yielded to the shell')[0]).to.contain('"by":"level"');
+    expect(start.serves, 'the scene stands aside for the shell\'s surfaces').to.equal('yielded');
+    // Past where the watchdog's timers used to come (2.5 s + 2.5 s): each verb ran once, and the director — who reads
+    // «a step» there — never had a cure to say.
+    await live.advance(6_000);
+    expect(said('[start-stranded]').length, 'two lines, no more').to.equal(2);
+    expect(said('[start-shadow]'), 'not the opening\'s door\'s state').to.deep.equal([]);
+  });
+
   it('the hand opened from the wheel over a live placement: the bar is the hand\'s, nothing is filed, B is back at the cells', async () => {
     const table = await bottleServer().bootFixture('parliament-skyscrapers-enact');
     bottle = await bootBottle(table);
