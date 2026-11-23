@@ -1217,6 +1217,47 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
     the wait graph beside it now (`hydro-flow:result-read`). With the standard project's read and the action
     commit's minimum beat that is three, each a beat of stillness somebody wrote and nobody declared — and no quiet
     beat that is a stall.
+- **STAGE 2, THE TAIL — WHAT IS LEFT, AND HOW IT IS BEING CLOSED (2026-11-23 evening; the owner: «сначала закроем
+  этап 2 на 100 %»).** What the stage's exit still lacks is the retirement of the three nets behind the conclusion's
+  door: the stale free-turn reaper (`supervisorController.reapStaleFreeTurnFrame`, eight seconds), the ghost test and
+  the forced teardown (`workspaceConclusionOwe.drive` — eight seconds owed, two and a half read a ghost). (The
+  structural mirror «owed steps as children of their frame» is NOT planned — decided 2026-11-22, above; the legacy
+  witness conditions of step ③ are already gone from the tree; the strand's door is replayed on its own case —
+  `35657c6593`, red with the door off.)
+  - **READ AGAINST THE DOORS FIRST — they are NOT redundant yet, in three places.** ① The reaper lets a claim go
+    whatever its stage; the claim's door needs «nothing in flight», and a claim that still awaits its answer IS a node
+    that waits for the server (twenty seconds). ② The ghost test and the forced teardown act under ANY question; the
+    doors only over the free turn. ③ **Under a DEBT no door could hear «quiet» at all:** an owed conclusion is a run
+    with a cadence (a `sleep` every half second — a row of the kernel's motion waits), so while a debt stands
+    `flightsInTheAir` is never empty; the frames the reaper and the escalation still cure are exactly the ones that
+    owe. The BEAT track's blindness again — the measure counted its own subject (the gate's first reading of the new
+    track, run 45201563602: every debt of 1 212 walks read `busy[kernel:task:conclusion owed]`).
+  - **THE MEASURES (`266bcb860e`, `b459c8196b` — stats only):** the OWED track
+    (`owed|<kind> · q:<asked> · held:<reason> · ghost|vouched · QUIET|busy[…]`, the flights read UNDER the debt's own
+    waits — its conclusion's node, its claim's, its frame's, its cadence) and, on the conclude track, a candidate
+    whose only flights are its own (`ONLY-ITS-OWN[…]`). `flightsInTheAir(now, under)` takes several nodes, and a
+    kernel wait by its owner's name.
+  - **THE FIRST READING IN A REAL BROWSER FOUND A DEFECT THE PLAYER SAW (the whole suite, CI run 45201555664 —
+    1 497 passed, no flaky).** «Ghost» reads on healthy tables eight ways — seven of them under scenes that are
+    playing (≤ 644 ms; the escalation's two and a half seconds are what keeps it off them, and a level door that asks
+    «quiet under its own waits» would not act there at all) — and ONE with nothing in flight:
+    `owed|hand · q:choice · held:live-outcome · ghost`, 0.6 – 1.0 s, `console-project-eden` C · D. That is «WG
+    Project» → «Project Eden» → «which tile next» standing in the HAND's zone (P58 · FS): the claim holds the hand,
+    and nothing said the claim was SERVING that step — the ghost test read the hand a phantom for as long as the
+    player thought. Past the escalation **the workspace was torn down by force under the decision** («reported
+    finished but could not dismiss for 11s with nothing served — forcing teardown»), the step fell out of the hand
+    into a band of its own: three seconds of thought in a real play; the spec pressed inside one. **Cured
+    (`5306bfa1da`):** the chain's step in the claim host's zone is the claim's served prompt
+    (`workspaceOutcomePromptServed`) — replayed in the bottle (twenty seconds of thought: the hand stands; with the
+    term off the teardown comes in three), and the e2e now lets the page live thirteen seconds on the step.
+  - **NEXT, on the reading of run 45220695930 / the gate 45220700405 / the box's `fzy-*` passes (duo, net 400, cpu×4
+    on `35657c6593`):** with no «ghost · QUIET» left on a healthy table — ⓐ the escalation becomes the debt's LEVEL
+    DOOR (owed ∧ ghost ∧ quiet under its own waits, for the family's bar → the force path), its two clocks go;
+    ⓑ the conclusion's and the claim's doors read the flights UNDER the frame's own waits (so they open under a debt
+    and on a claim that only «awaits»), if no healthy `ONLY-ITS-OWN` span outlasts the bar; ⓒ the reaper is deleted
+    (its predicate, its clock, the `[workspace-stale]` lines and their shapes, the harness's guard); ⓓ the beat: no
+    net of its own is left to retire — the sampler is gone (`a244fdb717`), the frame's bound is the wait's own, and
+    rung 25 is the arbiter's, which stays by design (stage 7: «ONE arbiter»).
 - **THE READINGS OF THE AFTERNOON (2026-11-23).** The gate on `77f2c52edc` (45162258075) and on `43dc5a3260`
   (45171530623): both seeds green. The targeted suite on `43dc5a3260` (45164529687 — the Hydronetwork, the 4K boots,
   52 tests ×2): green, not one defect class; the two 4K tests carry no `board-fit` line, `hydro:completing` reads
