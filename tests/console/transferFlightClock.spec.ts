@@ -140,6 +140,8 @@ describe('a resource chip is born at its source — the flight starts on the ani
     // (A GUARANTEED release of the flow kernel: at the grace, or when the game screen leaves — the promise is never left pending.)
     expect(guard, 'a caught-up beat gets its own touchdown\'s grace, then resolves anyway — never a hang')
       .to.match(/disarmGrace = consoleSessionScope\(\)\.guarantee\(CATCH_UP_TOUCHDOWN_GRACE_MS, '[^\n]*', finish\);/);
+    expect(guard, '…and a catch-up that already resolved the beat arms no grace (a wait nobody stands behind reads as a flight)')
+      .to.match(/if \(!settled\) \{\s+disarmGrace = consoleSessionScope\(\)\.guarantee\(/);
     expect(guard, 'the safety itself is a guaranteed release at the beat\'s budget').to.include('owner.guarantee(budgetMs + 1200,');
     expect(guard, '…and silent when it comes due because the game screen left (not a ceiling)').to.include('if (owner.ended !== undefined) {');
     for (const name of ['runTransferFlight', 'runDetachedTransferFlight']) {
@@ -149,6 +151,14 @@ describe('a resource chip is born at its source — the flight starts on the ani
       expect(flight, `${name}: and names it in the report`).to.include("report.caughtUp = 'arc';");
     }
     expect(body('runTransferFlight'), 'a flight that never left its source is absorbed THERE').to.include("report.caughtUp = 'unflown';");
+    // …AND THE LAST BEAT OF A FLIGHT THAT LANDED: the settle is caught up like the arc (CI 2026-11-23 — the safety met
+    // the chip on its destination, a hundred milliseconds from its rest, and said a ceiling over a token that had arrived).
+    const flown = body('runTransferFlight');
+    expect(flown, 'the settle\'s timeline is kept for the safety').to.include('settling = tl;');
+    expect(flown, 'a settle still playing is rendered to its rest').to.match(/if \(settling !== undefined && settling\.progress\(\) < 1\) \{\s+report\.caughtUp = 'settle';\s+settling\.progress\(1\);\s+return true;/);
+    expect(flown.indexOf("report.caughtUp = 'arc';"), 'the arc first: a flight in the air has no settle yet').to.be.lessThan(flown.indexOf("report.caughtUp = 'settle';"));
+    // The ceiling's line still names what is NOT that road: an arc complete whose touchdown never ran.
+    expect(flown).to.include("return ' · its touchdown never ran';");
     // …and the ABSORB too: resolved while GSAP still lagged, the token's ends were released and its surface folded under
     // a chip still painted at the touchdown.
     const absorb = raw.slice(raw.indexOf('function absorbChip('), raw.indexOf('export function settleTransferChip('));

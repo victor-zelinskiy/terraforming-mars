@@ -135,9 +135,10 @@ export type TransferFlightReport = {
   /**
    * The flight fell behind the wall clock (a starved renderer — GSAP's lag smoothing) and its safety CAUGHT IT UP to
    * its end: `arc` — it was in the air and was rendered to its landing (the touchdown at the destination);
+   * `settle` — it had LANDED and its settle was still playing (rendered to its rest);
    * `unflown` — it had not left its source yet and was absorbed there.
    */
-  caughtUp?: 'arc' | 'unflown';
+  caughtUp?: 'arc' | 'settle' | 'unflown';
 };
 
 export type TransferFlightHandles = {
@@ -389,7 +390,11 @@ function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: ()
       }
       if (catchUp?.() === true) {
         // Caught up: its own touchdown now runs at the destination — a short grace for it, then resolved anyway.
-        disarmGrace = consoleSessionScope().guarantee(CATCH_UP_TOUCHDOWN_GRACE_MS, 'a caught-up token\'s own touchdown', finish);
+        // (A catch-up whose completion already resolved the beat — a settle rendered to its rest — arms nothing: a
+        // wait with nobody behind it would stand in the kernel's table for its whole grace, read as a flight.)
+        if (!settled) {
+          disarmGrace = consoleSessionScope().guarantee(CATCH_UP_TOUCHDOWN_GRACE_MS, 'a caught-up token\'s own touchdown', finish);
+        }
       } else {
         // The token never touched down inside its budget and nothing could catch it up — the safety ends its beat (said on
         // the wait graph's worklist; a flight CAUGHT UP on a starved renderer is the designed road, never a line).
@@ -653,6 +658,17 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     if (flight !== undefined && flight.progress() < 1) {
       report.caughtUp = 'arc';
       flight.progress(1);
+      return true;
+    }
+    // …AND A TOKEN THAT HAS LANDED, ITS SETTLE STILL PLAYING, IS THE SAME ROAD (read by `touchdownWord` on the whole
+    // e2e suite, CI 2026-11-23, run 45242383549: every «its timeline at 100 %» ceiling stood on a settle at 0 % — born
+    // in the very tick the safety came due — or at 43 %). The arc ran late on the same starved clock and the safety met
+    // the chip ON its destination, a hundred milliseconds from its rest; with no catch-up for that last beat the wait
+    // was said as a ceiling — a defect line over a token that had arrived. The settle is rendered to its rest; its own
+    // completion resolves the beat.
+    if (settling !== undefined && settling.progress() < 1) {
+      report.caughtUp = 'settle';
+      settling.progress(1);
       return true;
     }
     if (flight === undefined) {
