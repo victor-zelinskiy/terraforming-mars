@@ -231,6 +231,9 @@ const NATURAL_H_MAX = 620;
 /** Re-fit only on a meaningful drift (px of natural size / px of offset). */
 const CALIBRATE_SIZE_EPS = 3;
 const CALIBRATE_OFFSET_EPS = 2;
+/** An offset still to fold that the boot curtain does not wait for (screen px): a correction this small glides
+ *  unseen under an open curtain — three times the fold's own threshold, a five-hundredth of a 4K stage. */
+const CURTAIN_OFFSET_PX = 6;
 
 /**
  * Bounded convergence per FRAME (see `fitKey`) — a runaway guard, not a
@@ -1333,6 +1336,16 @@ function calibrate(): void {
     releaseFitSettleHold(); // the boot curtain may reveal a settled board
     armLateVerify(); // …unless the board was still composing
     return; // converged
+  }
+  // THE CURTAIN WAITS FOR A FRAMING THE PLAYER COULD SEE MOVE — never for the last two pixels. What is left to fold
+  // here is an offset alone, within a few pixels: the pass still folds it (the glide of a 2 px correction is nobody's
+  // «планета сдвигается»), and the curtain lifts. On a 4K software frame one pass costs three seconds — the tween
+  // guard needs painted frames at the target before the next measurement — so the SECOND pass, which found «off 2,-1»,
+  // ran the hold into its 6 s bound: six seconds of loading curtain over a board that had been framed for three
+  // (`scene-transition/hold-bound/board-fit` under two green 4K tests of the whole suite, CI run 45148414617 — the
+  // hold's own word: «passes 2 of 6 · trail +330 drift size -37,-14 off 84,-45 > … > +3654 drift size 0,0 off 2,-1»).
+  if (!sizeDrift && Math.abs(dx) <= CURTAIN_OFFSET_PX && Math.abs(dy) <= CURTAIN_OFFSET_PX) {
+    releaseFitSettleHold();
   }
   calibratePasses.value++;
   noteFitPass(`drift size ${Math.round(natW - naturalW.value)},${Math.round(natH - naturalH.value)} off ${Math.round(dx)},${Math.round(dy)}`);

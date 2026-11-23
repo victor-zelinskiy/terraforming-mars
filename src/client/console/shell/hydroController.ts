@@ -55,10 +55,11 @@ import {DeltaBlockadeDraft, DeltaBlockadePickRequest, blockadeExecutionState, ca
 import type {DeltaBlockadeInputModel} from '@/common/models/PlayerInputModel';
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {findHydroActionPath, optionResponseForPath, findPerformActionCard} from '@/client/console/turnIntents';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
 import {PromptSurface} from '@/client/console/consolePromptAdmission';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {whenPainted} from '@/client/console/session/sessionWaits';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {PendingPlayCard} from '@/client/console/shell/shellShared';
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
@@ -112,6 +113,30 @@ export function createHydroController(shell: HydroPort) {
    *  the timer itself is `flow`'s (`cancelHydroResult`). */
   const hydroResultTimer = ref(undefined as number | undefined);
   let cancelHydroResult: () => void = () => {};
+
+  /**
+   * THE RESULT's READ HOLD IS A FLIGHT, AND SAYS SO. The frame stands `completing` — its pad absorbed — while the
+   * result is read; the hold is a timer of this controller's scope, and a timer is not a flight: the BEAT track, the
+   * first day it could hear «quiet» in a real browser (the whole e2e suite, CI run 45148414617), read
+   * `hydro:completing` with NOTHING in flight under it for the whole hold, in eleven tests — the third beat of
+   * stillness somebody wrote and nobody declared (the standard project's read and the action commit's minimum beat
+   * were the bottle's). A node of the wait graph beside the timer: met when the hold has run, ended when it is
+   * cancelled (A / B skip it, a new phase re-arms it).
+   */
+  function armHydroResultRead(what: string, done: () => void): () => void {
+    const read = beginCeilingWait({
+      id: 'hydro-flow:result-read', owner: 'hydroController', what: 'the result of the hydronetwork read',
+      maxMs: motionCeilingMs(HYDRO_RESULT_HOLD_MS) + 1500, detail: what,
+    });
+    const cancel = flow.after(motionMs(HYDRO_RESULT_HOLD_MS), what, () => {
+      read.met();
+      done();
+    });
+    return () => {
+      cancel();
+      read.end();
+    };
+  }
   /** The Hydronetwork was opened BY a card's bonus offer (not by the
    *  player), so answering it hands the screen back. */
   const hydroBonusBorrowed = ref(false);
@@ -1515,7 +1540,7 @@ export function createHydroController(shell: HydroPort) {
     }
     if (c.phase === 'result' && hydroResultTimer.value === undefined) {
       hydroResultTimer.value = HYDRO_RESULT_ARMED;
-      cancelHydroResult = flow.after(motionMs(HYDRO_RESULT_HOLD_MS), 'the hydro result\'s read hold (re-armed by the stuck-flow witness)', () => {
+      cancelHydroResult = armHydroResultRead('the hydro result\'s read hold (re-armed by the stuck-flow witness)', () => {
         hydroResultTimer.value = undefined;
         finishHydroFlow();
       });
@@ -1541,7 +1566,7 @@ export function createHydroController(shell: HydroPort) {
     // still destroy the frame — the prompt's zone — with the claim alive).
     if (workspaceOutcomeState.host === 'hydro' && shell.workspaceOutcomeServingNow) {
       hydroResultTimer.value = HYDRO_RESULT_ARMED;
-      cancelHydroResult = flow.after(motionMs(HYDRO_RESULT_HOLD_MS), 'the hydro result\'s read hold (the claim still serves — a retry)', () => {
+      cancelHydroResult = armHydroResultRead('the hydro result\'s read hold (the claim still serves — a retry)', () => {
         hydroResultTimer.value = undefined;
         finishHydroFlow();
       });
@@ -1629,7 +1654,7 @@ export function createHydroController(shell: HydroPort) {
     }
     if (phase === 'result') {
       hydroResultTimer.value = HYDRO_RESULT_ARMED;
-      cancelHydroResult = flow.after(motionMs(HYDRO_RESULT_HOLD_MS), 'the hydro result\'s read hold', () => {
+      cancelHydroResult = armHydroResultRead('the hydro result\'s read hold', () => {
         hydroResultTimer.value = undefined;
         finishHydroFlow();
       });

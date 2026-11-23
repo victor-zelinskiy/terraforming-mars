@@ -1188,6 +1188,37 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
   the guard's own class — a claim whose stage can never arrive — stands `busy[claim:…]` (a wait for the server, by
   the graph's word) until the claim's own bound; the door has to read the beat the way the guard does (what MOVES:
   the wire, a blocking hold, a hand-off), which is the reading to take with it.
+- **THE SECOND SEAT's STRAND — ITS CAUSE, AND ITS CURE BY CONSTRUCTION (2026-11-23, noon).** The strand's own word
+  (`startStandsBy`, CI Monkey `fz3` · duo · `^parliament$` ×4 — run 45156087552, cured 4 of 4): `start:committed`,
+  serving nothing under the game's menu, **«stands by NOTHING»** — not one term of `startSceneServes` /
+  `startFrameLive` held it. The frame had simply not been closed: its leave was an EDGE (`startFrameLive` falling —
+  a row of the shell's table), and a frame of the start that comes onto the live stack AFTER that edge met none.
+  **The frame leaves by level** (`77f2c52edc` — `startController`: a start frame that APPEARS on the live stack while
+  the start is not live is closed at once, by the verb the edge runs; the edge keeps its place in the tick). The same
+  walk on the fix (run 45160934305): **4 of 4 green, `game > none` stands 25 ms and the start is gone — no cure
+  said.** What the player had there before the doors: three seconds of a dead opening over their first turn.
+- **A FLAKE OF THE SUITE, CLOSED IN THE HARNESS (`b5217ea088`).** `console-parliament-quest-plate` tv4k, flaky on
+  the whole suite of `a244fdb717` (run 45140395156 — otherwise 1 497 passed): `socket hang up (ECONNRESET)` on the
+  POST of a fixture — a keep-alive socket the server had just closed. Thirty-three specs carried a private retry and
+  the SEED doors had none (108 sites of `/api/creategame`, every fixture). Once, in the `request` fixture
+  (`tests/e2e/replaySafe.ts`): what is safe to send again — a GET, a POST to a seed door — is sent again when the
+  connection was reset, and only then; a player's input never (`e2eReplaySafe.spec`).
+- **THE WHOLE SUITE ON THE STACKS (`b8be73721f`, CI run 45148414617): 1 498 passed, no flaky, no net line; the gate
+  45148420812 green.** `played-hero:target` is gone from the suite. Two readings out of it:
+  - *`board-fit` said its case at last* — two green 4K tests (`console-flight-paint` A, `console-scientists-campaign`):
+    «passes 2 of 6 · trail +330 drift size -37,-14 off 84,-45 > +561 banned by a tween > +3654 drift size 0,0 off
+    2,-1». One calibration pass costs three seconds on a 4K software frame (the tween guard waits for painted frames
+    at the target); the second pass found two pixels of offset and ran the curtain into its bound. **The curtain waits
+    for a framing the player could see move, never for the last two pixels:** a residual OFFSET within 6 px lifts it
+    (the pass still folds it, under an open curtain) — `ConsoleBoardSection.calibrate`, `boardFitHold.spec`. (The
+    Moon's board is its own case, the frontier's: the tween guard never reads the transform at its target.)
+  - *the honest BEAT track in a real browser, the whole suite:* ONE quiet beat on healthy tables —
+    `hydro:completing`, 1.07 – 1.23 s, eleven tests: the result's read hold, a timer of the controller. A node of
+    the wait graph beside it now (`hydro-flow:result-read`). With the standard project's read and the action
+    commit's minimum beat that is three, each a beat of stillness somebody wrote and nobody declared — and no quiet
+    beat that is a stall.
+- **THE BOX's PERTURBED PASSES, CLOSED (the old head `649e500d8d`, 606 walks each):** cpu×4 — 0 defects; reload — 0;
+  net 400 — 0; duo — 2, both cured above (the strand; the hero's absorb inside a frame gap).
 - **THE NETS UNDER GREEN TESTS, AGAIN (the whole suite on `713e8d0c30`, CI run 45110190541 — 1 497 passed).**
   *`played-hero:target`* was not closed by taking the prewarm's word away: the FLIGHT's own wait then ran its whole
   budget after the prewarm had spent one — a card hanging 3.4 s over a place that was never coming (a play hosted by

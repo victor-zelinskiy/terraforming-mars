@@ -38,6 +38,21 @@ describe('the board-fit hold of the boot curtain — every end of the convergenc
     expect(calibrate).to.match(/if \(!sizeDrift && !offsetDrift\) \{\s+releaseFitSettleHold\(\);/);
   });
 
+  /*
+   * THE CURTAIN WAITS FOR A FRAMING THE PLAYER COULD SEE MOVE (2026-11-23 — the hold's own word, CI run 45148414617,
+   * two green 4K tests: «passes 2 of 6 · trail +330 drift size -37,-14 off 84,-45 > … > +3654 drift size 0,0 off 2,-1»).
+   * One pass costs three seconds on a 4K software frame; the second found two pixels of offset and ran the hold into
+   * its bound. A residual OFFSET of a few pixels is folded under an open curtain.
+   */
+  it('a residual offset of a few pixels does not keep the curtain — only a drift the player could see does', () => {
+    const calibrate = body('function calibrate(): void {', 'function cellEl(');
+    expect(calibrate).to.match(/if \(!sizeDrift && Math\.abs\(dx\) <= CURTAIN_OFFSET_PX && Math\.abs\(dy\) <= CURTAIN_OFFSET_PX\) \{\s+releaseFitSettleHold\(\);\s+\}\s+calibratePasses\.value\+\+;/);
+    const px = Number(/const CURTAIN_OFFSET_PX = (\d+);/.exec(section)?.[1]);
+    const eps = Number(/const CALIBRATE_OFFSET_EPS = (\d+);/.exec(section)?.[1]);
+    expect(px, 'past the fold\'s own threshold — or it would say nothing').to.be.greaterThan(eps);
+    expect(px, 'and never a jump: under one percent of the smallest stage').to.be.at.most(8);
+  });
+
   it('…and an unmounting stage never strands the curtain', () => {
     expect(section).to.match(/releaseFitSettleHold\(\); \/\/ never strand the curtain on an unmounting stage/);
   });
