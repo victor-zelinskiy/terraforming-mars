@@ -7,10 +7,14 @@
  * of 2026-10-28 (Strategic Base Planning → Triton) are one class.
  *
  * This module states the OTHER way to ask: the server asks a player exactly one thing at a time, so WHO must serve
- * the screen is a pure function of that one question (`expectedStartOwner`). Phase 0 is SHADOW MODE: the shell
- * computes it beside the latches, reads what the latches actually put on screen (`actualStartOwner`) and only LOGS
- * a sustained disagreement (`[start-shadow]`) — nothing on screen changes. Every finding is either a bug of the
- * latch machinery or a hole of this table; both are what the migration needs before a single latch is replaced.
+ * the screen is a pure function of that one question (`expectedStartOwner`). The shell computes it beside the
+ * latches, reads what the latches actually put on screen (`actualStartOwner`), and a disagreement is CURED through
+ * the doors that already exist (`startDirectorCure`) — BY LEVEL (`START_LEVEL_DOOR_QUIET_FRAMES`: the moment it
+ * stands with nothing in flight), with the liveness arbiter's rung behind it. The nets that stood between the two —
+ * the shadow's three-second confirm with its `[start-shadow]` finding, the start watchdog's two timers — are
+ * RETIRED (FREEZE ZERO, stage 2b → 7): every state they cured is cured sooner by a door (the opening's, the
+ * conclusion's, the strand's — `levelDoor.ts`). What they measured is still measured (`servingOwnerMeasure` — the
+ * opening's STAGE, DOOR and STRAND tracks).
  *
  * Pure: no Vue, no DOM — the server runner tests it (`tests/console/startDirector.spec.ts`).
  */
@@ -208,8 +212,10 @@ export function startShadowInScope(expected: StartOwner, actual: ActualStartOwne
 /**
  * THE VERDICT of one judged state. A prompt HELD behind an admission block is waiting for something on screen: while
  * the player has a surface to act on (a reveal to take — the server's next question legitimately waits for the take)
- * the hold is THEIRS and nothing is judged; only a hold over a screen with nothing to do (`none`, a beat) can become a
- * `held-long` finding — the field hang's shape (a city held behind a foreign landing over an empty scene).
+ * the hold is THEIRS and nothing is judged; a hold over a screen with nothing to do (`none`, a beat) reads `held` —
+ * the field hang's shape (a city held behind a foreign landing over an empty scene). It is no disagreement of the
+ * director's: the admission block is a node of the wait graph with its own bound, and a question nobody serves past
+ * the arbiter's grace is the liveness arbiter's (`holder: block:…`).
  */
 export function startShadowVerdict(expected: StartOwner, actual: ActualStartOwner, held: string | undefined): 'agree' | 'disagree' | 'held' {
   if (held !== undefined) {
@@ -232,19 +238,17 @@ export function startShadowVerdict(expected: StartOwner, actual: ActualStartOwne
  *               start ENDS through its own release beat (`releaseByDirector` → `runSceneRelease`, bounded by its
  *               own safety; the lifetime hold let go) — a yield there left the frame covering the board (2026-10-31
  *               22:15: the park's 30 s degrade, the hung lease);
- *   · `none`  — a HELD prompt is an admission block's ledgered debt (its own degrade); a disagreement the player can
- *               act on (a shell surface standing for a start question) is logged only.
+ *   · `none`  — a disagreement the player can act on (a shell surface standing for a start question): nothing to do.
+ *               (A HELD prompt is no disagreement at all — `startShadowVerdict` reads `held`: an admission block's
+ *               ledgered debt, with its own degrade and its own node of the wait graph.)
  *
- * Applied twice: by the shadow's own confirmation (3 s, once per finding) and by the liveness arbiter's rung
- * `start-director` (rank 15 — before the flows are released with force) whenever the screen stalls with a standing
- * disagreement. Idempotent: a cure that changes nothing reports nothing.
+ * Applied twice: by the LEVEL DOOR (below — the standing disagreement quiet for its frames, once per state) and by
+ * the liveness arbiter's rung `start-director` (rank 15 — before the flows are released with force) whenever the
+ * screen stalls with a standing disagreement. Idempotent: a cure that changes nothing reports nothing.
  */
 export type StartCure = 'heal' | 'yield' | 'release' | 'none';
 
 export function startDirectorCure(f: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>): StartCure {
-  if (f.kind === 'held-long') {
-    return 'none';
-  }
   const startStands = f.actual === 'none' || f.actual === 'wizard' || f.actual === 'queue' ||
     f.actual === 'firstAction' || f.actual === 'bonusAction';
   if (startOwnsOwner(f.expected)) {
@@ -273,8 +277,8 @@ export function startDirectorCure(f: Pick<StartShadowFinding, 'kind' | 'expected
  * WHY EIGHT: over every walk there is (the whole e2e suite, 1 502 tests; the gate's 606 walks in the bottle) a state
  * the director would cure stands QUIET for one frame at the most — the latches' own doors open in the tick the state
  * rises; the longest such state, quiet or not, stood 72 ms. Eight frames is past every hand-off the scene plays, so
- * on a healthy table the door never opens (the specs that are red on a `[start-shadow] cure` line hold exactly that);
- * it opens on a strand, a hundred milliseconds in instead of three seconds.
+ * on a healthy table the door never opens (EVERY e2e test is red on a `[start-shadow] cure … by level` line — the
+ * harness's `startStrandGuard` holds exactly that); it opens on a strand, a hundred milliseconds in.
  */
 export const START_LEVEL_DOOR_QUIET_FRAMES = 8;
 
@@ -299,45 +303,16 @@ export function startLevelDoorMay(f: Pick<StartShadowFinding, 'kind' | 'expected
   return !(f.expected === 'game' && f.actual === 'step');
 }
 
-/** A disagreement is a finding only once it has stood this long, unchanged, with the prompt admitted. */
-export const START_SHADOW_CONFIRM_MS = 3000;
-/** A prompt held behind an admission block for longer than this is a finding of its own (`held-long`). */
-export const START_SHADOW_HELD_MS = 10_000;
-
+/** What the director acts on: the server's owner beside the screen's (`startShadowNow`). */
 export type StartShadowFinding = {
-  kind: 'disagree' | 'held-long',
+  kind: 'disagree',
   expected: StartOwner,
   actual: ActualStartOwner,
-  /** The admission block that held the prompt (`held-long`), if any. */
-  block?: string,
-  prompt: string,
-  at: number,
 };
 
-/** The findings of this session (bounded) — read by `window.__conStartShadow()` and the field export. */
-/** `unpainted`: confirms that came due over a span the page did not paint through — no evidence, judged again. */
-export const startShadowLog: {findings: Array<StartShadowFinding>, judged: number, unpainted: number} = {findings: [], judged: 0, unpainted: 0};
-const MAX_FINDINGS = 50;
-
-/** The stable key of one finding — logged once per prompt, never once per frame. */
-export function startShadowKey(f: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual' | 'prompt' | 'block'>): string {
-  return `${f.kind}|${f.expected}|${f.actual}|${f.block ?? ''}|${f.prompt}`;
-}
-
-export function recordStartShadowFinding(f: StartShadowFinding): boolean {
-  const key = startShadowKey(f);
-  if (startShadowLog.findings.some((x) => startShadowKey(x) === key)) {
-    return false;
-  }
-  startShadowLog.findings.push(f);
-  if (startShadowLog.findings.length > MAX_FINDINGS) {
-    startShadowLog.findings.shift();
-  }
-  return true;
-}
+/** How many states the judge has read this session — `window.__conStartShadow()`, the field export. */
+export const startShadowLog: {judged: number} = {judged: 0};
 
 export function resetStartShadowLog(): void {
-  startShadowLog.findings.length = 0;
   startShadowLog.judged = 0;
-  startShadowLog.unpainted = 0;
 }

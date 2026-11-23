@@ -704,9 +704,9 @@ export function createWiringController(shell: WiringPort) {
     // THE START YIELDS ITS SCENE, NOT ITS FRAME (the reliability iteration): while it does, the board is on screen.
     registerBoardShownDespiteStack(() => shell.startSceneMounted && !shell.startSceneVisible &&
       workspaceStackState.frames.length === 1 && workspaceStackState.frames[0].kind === 'start');
-    // THE START SHADOW's reader (phase 0) — the findings so far and the judged state right now.
+    // THE START DIRECTOR's reader — how many states it has judged and the one it judges right now.
     (window as unknown as {__conStartShadow?: () => unknown}).__conStartShadow = () => ({
-      findings: [...startShadowLog.findings], judged: startShadowLog.judged, now: shell.startShadowNow,
+      judged: startShadowLog.judged, now: shell.startShadowNow,
     });
     // THE SCREEN SHADOW (`screenDirector.ts`, phase 0) — the leak detector's 1 Hz pass judges every question past the
     // opening; the shell supplies what only it knows (the start owns the opening; the admission block on the surface).

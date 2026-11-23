@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
 import {levelDoorInit, observeLevelDoor} from '@/client/console/levelDoor';
-import {START_STRAND_CONFIRM_MS, START_STRAND_DOOR_QUIET_FRAMES, START_STRAND_DOOR_QUIET_MS} from '@/client/console/startServing';
+import {START_STRAND_DOOR_QUIET_FRAMES, START_STRAND_DOOR_QUIET_MS} from '@/client/console/startServing';
 import {CONCLUSION_DOOR_QUIET_FRAMES, CONCLUSION_DOOR_QUIET_MS, conclusionDoorInit, observeConclusionDoor} from '@/client/console/supervisor/staleFreeTurnClock';
 
 /*
@@ -62,16 +62,16 @@ describe('levelDoor — quiet for the bar, once per standing state', () => {
 
 /*
  * THE STRAND's DOOR (stage 2b) — the watchdog's own cure, executed by level: the heal when the strand has stood quiet
- * for the bar, the yield when it STILL stands quiet for the bar again. The two timers stay behind it as a net and
- * call the same two verbs — each runs once per strand, whoever comes first.
+ * for the bar, the yield when it STILL stands quiet for the bar again. The door is the cure's ONE caller: the two
+ * timers that stood behind it (2.5 s + 2.5 s) are retired — each verb runs once per strand.
  */
 describe('the strand\'s level door — the watchdog\'s cure, by level (the wiring)', () => {
   const start = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/shell/startController.ts'), 'utf8').replace(/\r\n/g, '\n');
   const body = start.slice(start.indexOf('function whenStartStrandedNowChanges('), start.indexOf('THE START SHADOW\'s judge (phase 0)'));
 
-  it('the bar is far past the longest healthy quiet (one frame) and far short of the timer it stands in front of', () => {
+  it('the bar is far past the longest healthy quiet (one frame) and its two openings fit well inside a second', () => {
     expect(START_STRAND_DOOR_QUIET_FRAMES).to.be.at.least(8);
-    expect(START_STRAND_DOOR_QUIET_MS * 4, 'the door\'s heal AND yield come before the watchdog\'s first timer').to.be.lessThan(START_STRAND_CONFIRM_MS);
+    expect(START_STRAND_DOOR_QUIET_MS * 2, 'the heal AND the yield — where the timers took five seconds').to.be.at.most(1_000);
   });
 
   it('the door reads the strand by frame: quiet for the bar → the heal; healed and still quiet for the bar → the yield', () => {
@@ -83,10 +83,10 @@ describe('the strand\'s level door — the watchdog\'s cure, by level (the wirin
     expect(body).to.contain('const flight = flightsInTheAir();');
   });
 
-  it('ONE cure, two callers: each verb runs once per strand and only while the strand stands; the timers call the same verbs', () => {
-    expect(body).to.match(/const heal = \(by: 'level' \| 'watchdog'\): void => \{\s+if \(healedBy !== undefined \|\| !startStrandedNow\.value\) \{\s+return;/);
-    expect(body).to.match(/const yieldToShell = \(by: 'level' \| 'watchdog'\): void => \{\s+if \(yielded \|\| healedBy === undefined \|\| !startStrandedNow\.value\) \{\s+return;/);
-    expect(body).to.match(/cancelStartStrand = flow\.after\(START_STRAND_CONFIRM_MS, [^\n]+\{\s+heal\('watchdog'\);\s+cancelStartStrand = flow\.after\(START_STRAND_YIELD_MS, [^\n]+\(\) => yieldToShell\('watchdog'\)\);/);
+  it('ONE cure, ONE caller: each verb runs once per strand and only while the strand stands; no timer is left behind the door', () => {
+    expect(body).to.match(/const heal = \(by: 'level'\): void => \{\s+if \(healedBy !== undefined \|\| !startStrandedNow\.value\) \{\s+return;/);
+    expect(body).to.match(/const yieldToShell = \(by: 'level'\): void => \{\s+if \(yielded \|\| healedBy === undefined \|\| !startStrandedNow\.value\) \{\s+return;/);
+    expect(start, 'the watchdog\'s timers and the shadow\'s confirm are gone from the controller').to.not.match(/START_STRAND_CONFIRM_MS|START_STRAND_YIELD_MS|START_SHADOW_CONFIRM_MS|START_SHADOW_HELD_MS|cancelStartStrand|cancelStartShadow/);
     // The line says who acted (the same two shapes — every e2e test is red on either).
     expect(body).to.contain('report(\'confirmed\', {heal: healed, by});');
     expect(body).to.contain('report(\'yielded to the shell (the heal did not end it)\', {heal: healed, by});');

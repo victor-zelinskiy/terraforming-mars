@@ -325,11 +325,12 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
    * scene that plainly serves nothing the OPENING's door is the first — the start director reads «the first action,
    * nobody serving it» and heals; the scene's doors open nothing, so it yields, in the same opening — and the
    * STRAND's door (the watchdog's own predicate, a few frames behind it: it also reads a step left standing for a
-   * question it does not answer, which the director does not) finds the strand already cured, as the two timers
-   * behind both do. (The class is planted the way it arises: the scene's own answer reads `none` — its mirror,
-   * written by hand, with the stage the scene really has still standing under it.)
+   * question it does not answer, which the director does not) finds the strand already cured. The watchdog's two
+   * timers and the shadow's confirm that stood behind both are RETIRED (stage 2b → 7). (The class is planted the way
+   * it arises: the scene's own answer reads `none` — its mirror, written by hand, with the stage the scene really
+   * has still standing under it.)
    */
-  it('a start scene that serves nothing hands its question over BY LEVEL — a fraction of a second, never the watchdog\'s five; each net behind the door adds nothing', async () => {
+  it('a start scene that serves nothing hands its question over BY LEVEL — a fraction of a second, never the watchdog\'s five; ONE cure, said once, the defect\'s own line', async () => {
     const table = await bottleServer().bootFixture('hydro-terminal-surge');
     bottle = await bootBottle(table);
     const live = bottle;
@@ -346,13 +347,15 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     // Half a second in: the director's cure, by level — the heal found no door of the scene's to open, and yielded.
     expect(said('[start-shadow] cure').length, 'ONE cure').to.equal(1);
     expect(said('[start-shadow] cure')[0]).to.match(/\[start-shadow\] cure «heal» by level — expected «firstAction», on screen «none»: nothing-to-heal → yielded$/);
-    // Past the strand's own door (twelve quiet frames, twice) and both of the watchdog's timers (2.5 s + 2.5 s): the
-    // strand they watch was over before either came — neither says a word, and the director does not cure twice.
+    // Past the strand's own door (twelve quiet frames, twice) — and past where the watchdog's timers used to come
+    // (2.5 s + 2.5 s): the strand was over before the second door looked, and the director does not cure twice.
     // (What the plant leaves behind — a scene whose mirror lies about a stage that really stands — is the arbiter's
-    // to judge; this replay holds the DOORS: who acts first, how soon, and that the nets behind add nothing.)
+    // to judge; this replay holds the DOORS: who acts first, how soon, and that the cure is said once.)
     await live.advance(6_000);
     expect(said('[start-shadow] cure').length, 'no second cure').to.equal(1);
-    expect(said('[start-stranded]'), 'the strand was over before its door or its timers came').to.deep.equal([]);
+    expect(said('[start-shadow]').length, 'and no other word of the director — the confirm\'s finding is retired').to.equal(1);
+    expect(said('[start-stranded]'), 'the strand was over before its own door came').to.deep.equal([]);
+    expect(classes().filter((cls) => cls.startsWith('start-shadow/')), 'the cure by level is the planted defect\'s own line').to.deep.equal(['start-shadow/cure/heal/firstaction/none']);
   });
 
   /*

@@ -841,7 +841,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     return now !== undefined && now.kind !== 'start' ? `reopened the «${task.kind}» question in «${now.kind}»` : '';
   }
 
-  function runStartDirectorCure(finding: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>, by: 'shadow' | 'liveness' | 'level'): string {
+  function runStartDirectorCure(finding: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>, by: 'liveness' | 'level'): string {
     const cure = startDirectorCure(finding);
     if (cure === 'none' || !shell.startSceneMounted) {
       return '';

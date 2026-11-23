@@ -248,12 +248,14 @@ const POST_COMMIT_CHOICE = 'POST-COMMIT CHOICE';
  */
 const COVERED_PROMPT = 'COVERED PROMPT';
 /**
- * The START WATCHDOG's marker (`src/client/console/startServing.ts` + `ConsoleShell.startStrandedNow`, the reliability
+ * The STRAND's marker (`src/client/console/startServing.ts` + `startController.startStrandedNow`, the reliability
  * iteration of 2026-10-28): the game-start scene stood serving NOTHING — no press, no panel, no hosted step, nothing
- * moving — while the server asked the player something, past the watchdog's confirm. The field's «зависший экран
- * старта, лечится перезаходом»; every spec that walks the start is its tripwire.
+ * moving — while the server asked the player something, quiet for the frames of the strand's door. The field's
+ * «зависший экран старта, лечится перезаходом»; every spec that walks the start is its tripwire.
  */
 const START_STRANDED = '[start-stranded]';
+/** The START DIRECTOR's cure (`supervisorController.runStartDirectorCure` — `[start-shadow] cure «<cure>» by <level | liveness> — …`). */
+const START_DIRECTOR_CURE = '[start-shadow] cure';
 /**
  * The BEAT STALL GUARD's marker (`src/client/console/workspaceBeatStall.ts`, the owner's R&D Funding freeze of
  * 2026-10-31): a workspace stood in a TRANSIENT beat (`executing` / `completing` — the pad absorbed) with NOTHING in
@@ -298,10 +300,10 @@ export const EXPECTS_LIVENESS_STALL = 'expects-liveness-stall';
 const SESSION_REBUILD = '[session-rebuild] ';
 const SESSION_REBUILD_PAGE = '[session-rebuild] page';
 /**
- * The START SHADOW's marker (`src/client/console/startDirector.ts`, phase 0 of «правда сервера → одно состояние → один
- * владелец экрана», 2026-10-29): who the server's one question says must serve the screen disagreed, for a while, with
- * what the start's latches put there. DATA, never red — the harness files every finding under
- * `test-results/start-shadow/` and annotates the test; the migration reads the whole suite's findings.
+ * The START DIRECTOR's marker (`src/client/console/startDirector.ts`, «правда сервера → одно состояние → один
+ * владелец экрана», 2026-10-29): who the server's one question says must serve the screen disagreed with what the
+ * start's latches put there, and the director cured it. Every line is FILED under `test-results/start-shadow/` and
+ * annotates the test; a cure BY LEVEL is red besides (`startStrandGuard`).
  */
 const START_SHADOW = '[start-shadow]';
 /**
@@ -989,17 +991,21 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
   }, {auto: true}],
 
   /**
-   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: the game-start scene never stood EMPTY over a live question. The console's
-   * start watchdog names such a strand (`[start-stranded]` — with the prompt, the admission block and the scene's own
-   * stage machine) and heals it; the harness turns the report red, because a heal that had to run is a defect upstream
-   * of it.
+   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: the game-start scene never stood EMPTY over a live question, and never
+   * WRONG for its question. The console names such a state and cures it by LEVEL — a strand (`[start-stranded]` — with
+   * the prompt, the admission block and the scene's own stage machine: the strand's door), a standing disagreement of
+   * the start director (`[start-shadow] cure … by level`: the opening's door); the harness turns either report red,
+   * because a cure that had to run is a defect upstream of it.
    */
   startStrandGuard: [async ({context}, use) => {
     const strands: Array<string> = [];
     const watch = (page: Page) => {
       page.on('console', (message) => {
         const text = message.text();
-        if (text.includes(START_STRANDED)) {
+        // …and THE DIRECTOR's CURE BY LEVEL is the same report from the other door: a latch of the opening missed its
+        // edge and the screen was wrong until the door opened (`[start-shadow] cure «…» by level`). (By the arbiter's
+        // rung it is an episode's echo — that episode is red by its own guard.)
+        if (text.includes(START_STRANDED) || (text.includes(START_DIRECTOR_CURE) && text.includes(' by level '))) {
           strands.push(text.slice(0, 1200));
         }
       });

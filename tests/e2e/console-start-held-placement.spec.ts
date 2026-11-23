@@ -20,9 +20,9 @@ import {
  * Asserted along that road:
  *  · while the city is asked and its grid is not lit, the scene is never painted serving something else
  *    (`data-start-serves` ∈ yielded · beat), and the grid lights within a beat of the question;
- *  · the START DIRECTOR's shadow (`startDirector.ts`) found nothing: the server's one question and what stood on
- *    screen never disagreed past its confirm, and no question was held over an empty screen — and the harness's
- *    `startStrandGuard` fails the test on any confirmed `[start-stranded]` besides;
+ *  · the START DIRECTOR (`startDirector.ts`) cured nothing: the server's one question and what stood on screen never
+ *    disagreed for the frames of its door, and no strand stood for the frames of its own — the harness's
+ *    `startStrandGuard` fails the test on a `[start-shadow] cure … by level` and on any `[start-stranded]`;
  *  · the first-action stage stands at the end.
  */
 const PRESET = {viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -39,10 +39,6 @@ async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
-
-/** The START DIRECTOR's shadow findings of this page (`window.__conStartShadow`, phase 0). */
-const shadowFindings = (page: Page): Promise<Array<unknown>> =>
-  page.evaluate(() => (window as unknown as {__conStartShadow?: () => {findings: Array<unknown>}}).__conStartShadow?.().findings ?? []);
 
 test.use({viewport: PRESET.viewport, deviceScaleFactor: 1, screen: PRESET.viewport});
 
@@ -183,7 +179,6 @@ test('the owner\'s start: Strategic Base Planning → Triton → the city lands 
     }
     await page.locator('.con-start__firstact').waitFor({timeout: 10_000});
     await shoot(page, '04-first-action');
-    expect(await shadowFindings(page), 'the start director shadow found no disagreement and no question held over an empty screen').toEqual([]);
     expect(errors, 'no page errors').toEqual([]);
   } finally {
     stop = true;

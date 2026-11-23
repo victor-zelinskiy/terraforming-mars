@@ -37,14 +37,13 @@ import {consoleState} from '@/client/console/consoleRouter';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
-import {hostedStepServes, START_STRAND_CONFIRM_MS, START_STRAND_DOOR_QUIET_FRAMES, START_STRAND_DOOR_QUIET_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
+import {hostedStepServes, START_STRAND_DOOR_QUIET_FRAMES, START_STRAND_DOOR_QUIET_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
 import {levelDoorInit, observeLevelDoor} from '@/client/console/levelDoor';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
-import {ActualStartOwner, START_LEVEL_DOOR_QUIET_FRAMES, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, startLevelDoorMay, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
+import {ActualStartOwner, START_LEVEL_DOOR_QUIET_FRAMES, StartOwner, StartShadowFinding, startLevelDoorMay, actualStartOwner, expectedStartOwner, startDirectorCure, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
 import {noteOpeningLook, noteOpeningSpan} from '@/client/console/servingOwnerMeasure';
 import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
 import {flowTreeDigest, waitTable} from '@/client/console/kernel/flowScope';
-import {watchFrames} from '@/client/console/kernel/frameWitness';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
@@ -85,14 +84,10 @@ export function createStartController(shell: StartPort) {
   // shadow's timers with it.
   const flow = useFlowScope('start-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
-  /** THE START WATCHDOG (`startServing.ts`): a strand the heal could not end hands its question to the shell's own
-   *  surfaces (the scene yields) until the prompt changes; the two timers are the confirm and the heal's grace. */
+  /** THE YIELD (the strand's door, the director's cure): a question the scene's own doors could not serve goes to the
+   *  shell's surfaces (the scene stops painting) until the prompt changes. */
   const startStrandYield = ref(false);
-  let cancelStartStrand: () => void = () => {};
   const startStrandPrompt = ref(undefined as number | undefined);
-  /** THE START SHADOW (`startDirector.ts`, phase 0): the confirm timer of a disagreement / a long hold — a timer of
-   *  `flow` (it dies with the shell). */
-  let cancelStartShadow: () => void = () => {};
   /** The DOOR track's frame-by-frame look (the opening's measure — stats only). */
   let cancelDoorLook: () => void = () => {};
   /** …and the STRAND-DOOR track's (what stands in flight under a strand — stats only). */
@@ -100,7 +95,7 @@ export function createStartController(shell: StartPort) {
   /** The standing strand's run of quiet frames (the STRAND-FRAMES count — stats only). */
   const strandQuiet = {key: '', frames: 0, max: 0};
   /** The standing strand's cure (its two verbs, set while a strand stands — the door's look reads them here). */
-  const strandCure: {heal: (by: 'level' | 'watchdog') => void, yieldToShell: (by: 'level' | 'watchdog') => void, healed: () => boolean} =
+  const strandCure: {heal: (by: 'level') => void, yieldToShell: (by: 'level') => void, healed: () => boolean} =
     {heal: () => {}, yieldToShell: () => {}, healed: () => false};
   /** Stale-release token of the start excursion's quiet re-check (the
    *  release is confirmed one tick + one frame later, so a one-flush
@@ -786,11 +781,11 @@ export function createStartController(shell: StartPort) {
   }
 
   /**
-   * THE START WATCHDOG (the reliability iteration of 2026-10-28, `startServing.ts`): a scene serving NOTHING while
-   * the server asks is confirmed after `START_STRAND_CONFIRM_MS`, NAMED (`[start-stranded]` — the live prompt, the
-   * placement's admission block, the scene's own stage machine and blockers: the one line a field export needs) and
-   * HEALED by the scene's own phrases (`healStrand`); a strand that outlives the heal's grace hands the question to
-   * the shell's surfaces (`startStrandYield`) — the player is never left in front of an empty start.
+   * A STRAND (the reliability iteration of 2026-10-28, `startServing.ts`): a scene serving NOTHING while the server
+   * asks. It is NAMED (`[start-stranded]` — the live prompt, the placement's admission block, the scene's own stage
+   * machine and blockers: the one line a field export needs) and HEALED by the scene's own phrases (`healStrand`); a
+   * strand that still stands hands the question to the shell's surfaces (`startStrandYield`) — the player is never
+   * left in front of an empty start. Both by LEVEL (`whenStartStrandedNowChanges` — the strand's door).
    */
   /** What is painted ON TOP at five points of the screen — the nearest console surface of each (diagnosis only). */
   function paintedSurfaces(): Array<string> {
@@ -837,14 +832,12 @@ export function createStartController(shell: StartPort) {
   }
 
   function whenStartStrandedNowChanges(now: boolean): void {
-    cancelStartStrand();
     cancelStrandLook();
     cancelStrandLook = () => {};
     strandCure.heal = () => {};
     strandCure.yieldToShell = () => {};
     strandCure.healed = () => false;
-    // THE OPENING's MEASURE (stage 2b): a strand is a SPAN from its rise — the 2.5 s confirm below hides the ones that
-    // end by themselves. Stats only.
+    // THE OPENING's MEASURE (stage 2b): a strand is a SPAN from its rise. Stats only.
     noteOpeningSpan('strand', now ? strandKey() : '', 'cleared', Date.now());
     if (!now) {
       noteOpeningSpan('strand-door', '', 'cleared', Date.now());
@@ -926,12 +919,14 @@ export function createStartController(shell: StartPort) {
       }));
     };
     // THE CURE, IN ITS TWO VERBS — the scene's own doors (and the router's for a step nothing hosts any more: R15), then
-    // the yield. Each runs once per strand, by whoever comes first: the LEVEL DOOR (`startServing.START_STRAND_DOOR_*` —
-    // the strand quiet for its bar) or the net behind it (the watchdog's two timers, as before).
+    // the yield. Each runs once per strand, opened by the LEVEL DOOR (`startServing.START_STRAND_DOOR_*` — the strand
+    // quiet for its bar). The watchdog's two timers that stood behind it (2.5 s + 2.5 s) are RETIRED: the same
+    // predicate, the same cure, sooner — and what the door cannot reach (a strand that is never quiet) is bounded by
+    // the flights it waits out, with the liveness arbiter's rung `start-director` behind (stage 2b → 7).
     let healedBy: string | undefined;
     let healed = '';
     let yielded = false;
-    const heal = (by: 'level' | 'watchdog'): void => {
+    const heal = (by: 'level'): void => {
       if (healedBy !== undefined || !startStrandedNow.value) {
         return;
       }
@@ -942,7 +937,7 @@ export function createStartController(shell: StartPort) {
       report('confirmed', {heal: healed, by});
       noteOpeningSpan('strand', `${stood} · HEALED ${healed}`, 'confirmed', Date.now());
     };
-    const yieldToShell = (by: 'level' | 'watchdog'): void => {
+    const yieldToShell = (by: 'level'): void => {
       if (yielded || healedBy === undefined || !startStrandedNow.value) {
         return;
       }
@@ -955,16 +950,16 @@ export function createStartController(shell: StartPort) {
     strandCure.heal = heal;
     strandCure.yieldToShell = yieldToShell;
     strandCure.healed = () => healedBy !== undefined;
-    cancelStartStrand = flow.after(START_STRAND_CONFIRM_MS, 'the start strand\'s confirm', () => {
-      heal('watchdog');
-      cancelStartStrand = flow.after(START_STRAND_YIELD_MS, 'the strand heal\'s grace', () => yieldToShell('watchdog'));
-    });
   }
 
   /**
-   * THE START SHADOW's judge (phase 0): a disagreement between the server's one question and the latch machinery is
-   * a FINDING once it has stood `START_SHADOW_CONFIRM_MS` unchanged with the prompt admitted; a prompt held behind an
-   * admission block for `START_SHADOW_HELD_MS` is one too. Logged once per (kind, owners, prompt) — never acted on.
+   * THE START DIRECTOR's JUDGE — on every CHANGE of the judged state (`startShadowSig`): who must serve by the
+   * server's one question beside who does, measured, and handed to the LEVEL DOOR (`measureDoor`). The shadow's own
+   * confirm that used to follow — three seconds of a standing disagreement (ten of a held prompt), a `[start-shadow]`
+   * finding, the cure «by shadow» — was a net behind the door and is RETIRED with the watchdog's timers (stage 2b →
+   * 7): every state it cured is a door's now — the opening's (every cure, `game > shell` included), the conclusion's
+   * and the strand's for a step standing under the game's menu — and a HELD prompt is its admission block's own node
+   * of the wait graph. Behind the doors stands the liveness arbiter's rung `start-director`, unchanged.
    */
   /**
    * What stands, for the door's measure: the stack's frames, the kernel's own MOTION waits (a director's beat of
@@ -1012,8 +1007,7 @@ export function createStartController(shell: StartPort) {
     cancelDoorLook = flow.everyFrame('the opening\'s doors, by level', look);
   }
 
-  function whenStartShadowSigChanges(sig: string): void {
-    cancelStartShadow();
+  function whenStartShadowSigChanges(_sig: string): void {
     const s = startShadowNow.value;
     // The boot curtain is not the start: nothing is mounted under it yet (the field's «wizard → game» 5.5 s after
     // the page loaded, 2026-10-31 22:14).
@@ -1026,7 +1020,7 @@ export function createStartController(shell: StartPort) {
     startShadowLog.judged++;
     const verdict = startShadowVerdict(s.expected, s.actual, s.held);
     // THE OPENING's MEASURE (stage 2b — `servingOwnerMeasure.noteOpeningLook`): every judged state, and what the
-    // director would do about a disagreement AT ONCE — the spans the three-second confirm below hides. Stats only.
+    // director would do about a disagreement AT ONCE. Stats only.
     noteOpeningLook({
       question, expected: s.expected, actual: s.actual, verdict,
       cure: verdict === 'held' ? s.held ?? '' : verdict === 'disagree' ? startDirectorCure({kind: 'disagree', expected: s.expected, actual: s.actual}) : '',
@@ -1034,52 +1028,6 @@ export function createStartController(shell: StartPort) {
     const disagreement = {kind: 'disagree' as const, expected: s.expected, actual: s.actual};
     measureDoor(question, `${s.expected}>${s.actual}`, verdict === 'disagree' ? startDirectorCure(disagreement) : '', `${verdict}:${s.expected}>${s.actual}`,
       verdict === 'disagree' && startLevelDoorMay(disagreement) ? disagreement : undefined);
-    if (verdict === 'agree') {
-      return;
-    }
-    const held = verdict === 'held';
-    // THE CONFIRM RUNS ON THE PAINTED CLOCK (freeze zero, stage 1 — a bound on the clock of the thing it bounds). What
-    // the shadow times is a MOTION: a beat that holds the prompt, a step still leaving. On a page that is not painting
-    // — behind another window, a hidden tab — neither can end, and ten seconds of the wall are no seconds of theirs:
-    // the bottle's `hidden` pass (2026-11-18) named `held-long … played-hero` on `field-start-deploy-param` and
-    // `disagree queue/step` on `venus-trade`, both judged in the middle of a spell away — and a confirmed finding is
-    // CURED, so a healthy scene would have been taken down for the player to come back to. A span the page did not
-    // paint through is no evidence: the confirm starts again, and judges the screen the player is looking at.
-    const painted = watchFrames();
-    const disarm = flow.after(held ? START_SHADOW_HELD_MS : START_SHADOW_CONFIRM_MS, 'the start shadow\'s confirm', () => {
-      const starved = painted.starved();
-      painted.stop();
-      if (startShadowSig.value !== sig) {
-        return;
-      }
-      if (starved !== undefined) {
-        startShadowLog.unpainted++;
-        whenStartShadowSigChanges(sig);
-        return;
-      }
-      const finding: StartShadowFinding = {
-        kind: held ? 'held-long' : 'disagree', expected: s.expected, actual: s.actual, block: s.held,
-        prompt: s.prompt, at: Math.round(performance.now()),
-      };
-      if (!recordStartShadowFinding(finding)) {
-        return;
-      }
-      const diag = (window as unknown as {__conStartDiag?: () => unknown}).__conStartDiag?.();
-      console.warn(`[start-shadow] ${finding.kind} — expected «${s.expected}», on screen «${s.actual}»` +
-        `${held ? ` (held by «${s.held}»)` : ''} for «${s.prompt}»`, JSON.stringify({
-        ...finding,
-        serves: consoleStartState.serves ?? null,
-        firstAct: consoleStartState.firstAct.stage,
-        frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
-        diag: diag ?? null,
-      }));
-      // PHASE 1 — THE SHADOW ACTS: a confirmed finding is cured through the existing doors (`startDirectorCure`).
-      shell.runStartDirectorCure(finding, 'shadow');
-    });
-    cancelStartShadow = () => {
-      painted.stop();
-      disarm();
-    };
   }
 
   /** The question the strand was yielded for is answered (or replaced): the start takes its screen back. */

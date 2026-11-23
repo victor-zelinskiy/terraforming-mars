@@ -43,7 +43,6 @@ const DECLARED: Readonly<Record<string, ReadonlyArray<Declared>>> = {
   'src/client/console/shell/startController.ts': [
     {sample: '[start-stranded] confirmed — the start serves nothing while the server asks «card»', shape: 'start-stranded/confirmed', needle: '\'confirmed\''},
     {sample: '[start-stranded] yielded to the shell (the heal did not end it) — the start serves nothing while the server asks «card:corporation»', shape: 'start-stranded/yielded', needle: 'yielded to the shell (the heal did not end it)'},
-    {sample: '[start-shadow] disagree — expected «step», on screen «none» for «card#12» {}', shape: 'start-shadow/finding', needle: '[start-shadow] ${'},
   ],
   'src/client/console/consoleLeakDetector.ts': [
     {sample: '[screen-shadow] unserved — expected «hand», on screen «nothing» for «card#12» {}', shape: 'screen-shadow/finding', needle: '[screen-shadow] ${'},

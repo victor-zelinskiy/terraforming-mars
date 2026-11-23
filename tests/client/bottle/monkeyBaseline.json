@@ -33,17 +33,17 @@
       "first": "fz0:venus-trade",
       "why": "the bottle has no layout: the trade's drawn cards and the colony roster fly between MEASURED rects, so the card-arrival admission stands to its bound and the start's menu takes no A meanwhile. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
     },
-    "liveness/stall/presses-no-effect/deckselect/hand:committed/claim:hand:presenting": {
-      "tier": "defect",
-      "tables": 1,
-      "first": "fz0:soil-bacteria-wg",
-      "why": "the bottle has no layout: the played hero's flight has no target rect, so the claim's presentation and the mandatory lease behind it stand to their bounds and the deck pick takes no A meanwhile. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
-    },
     "liveness/stall/presses-no-effect/colony/colonies:committed/deaf": {
       "tier": "defect",
       "tables": 1,
       "first": "d20261121:venus-trade",
       "why": "the bottle has no layout: the trade's played hero has no measurable landing slot (the same walk names the bottle's own `wait-graph/ceiling/played-hero:target` and the baseline's `console-foreground-watchdog/expired/lease:mandatory-choice×n`), so the mandatory lease behind it stands with nothing rendered and the committed colony stage takes no B meanwhile. CLEAN in a real browser — CI's monkey, the same seed and table, six repeats, 2026-11-21 (run 44899996693): 0 records. CI finding #79"
+    },
+    "liveness/stall/presses-no-effect/deckselect/hand:committed/claim:hand:presenting": {
+      "tier": "defect",
+      "tables": 1,
+      "first": "fz0:soil-bacteria-wg",
+      "why": "the bottle has no layout: the played hero's flight has no target rect, so the claim's presentation and the mandatory lease behind it stand to their bounds and the deck pick takes no A meanwhile. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
     },
     "liveness/stall/presses-no-effect/externaldraw/parliament:committed/deaf": {
       "tier": "defect",
@@ -69,29 +69,11 @@
       "first": "fz0:floating-biodomes-maxo2",
       "why": "the bottle has no layout: the board beat's park lets go on the landing of a token between measured rects — its release edge comes at the story's due instead. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
     },
-    "start-shadow/finding/disagree/game/none": {
+    "start-shadow/cure/release/game/none": {
       "tier": "defect",
       "tables": 1,
       "first": "fz1:venus-trade-unity-bonus-2p",
-      "why": "the bottle has no layout: the corporation's first action performs a flight between MEASURED rects that never lands here, so the start serves nothing while the action menu is asked, and the start director's shadow says so. Cut down by the shrink to 11 steps; the same steps in a real browser (the laptop, 2026-11-15): not one line of any net"
-    },
-    "start-shadow/finding/disagree/game/shell": {
-      "tier": "defect",
-      "tables": 1,
-      "first": "fz1:venus-trade-unity-bonus-2p",
-      "why": "the same incident one step on — the strand's yield handed the menu to the shell while the start's frame (its first action still «performing» behind the unmeasurable flight) stood. the same steps in a real browser (the laptop, 2026-11-15): not one line of any net"
-    },
-    "start-stranded/confirmed/or": {
-      "tier": "defect",
-      "tables": 1,
-      "first": "fz0:venus-trade-unity-bonus-2p",
-      "why": "the bottle has no layout: the start's table answer waits for a card arrival's measured end, and the start serves nothing until that hold's bound. CLEAN in a real browser — the box monkey's spec on the laptop, the same seed, 2026-11-14: 0 records"
-    },
-    "start-stranded/yielded/or": {
-      "tier": "defect",
-      "tables": 1,
-      "first": "fz1:venus-trade-unity-bonus-2p",
-      "why": "the same incident: the strand watchdog's heal found nothing to heal (the first action's stage is waiting for a measured end) and yielded. the same steps in a real browser (the laptop, 2026-11-15): not one line of any net"
+      "why": "the bottle has no layout: the corporation's first action performs a flight between MEASURED rects that never lands here, so the start serves nothing while the action menu is asked — and the start director's LEVEL DOOR releases it, saying so (the door's cure is the defect's own line since the shadow's confirm and the start watchdog's timers were retired, 2026-11-23: this row stands for the four rows those nets had on this table — `start-shadow/finding/disagree/game/{none,shell}`, `start-stranded/{confirmed,yielded}/or`; on fz0 the table now names nothing). The same steps in a real browser (the laptop, 2026-11-15): not one line of any net"
     },
     "wait-graph/ceiling/board-card-bonus:hover": {
       "tier": "defect",

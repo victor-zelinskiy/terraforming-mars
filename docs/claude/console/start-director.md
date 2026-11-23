@@ -22,10 +22,18 @@ feel).
 | `actualStartOwner(signals)` | who the latches PUT there: the scene's own `data-start-serves`, the board, a prompt surface (`shell` / `step`), the player's park, a beat |
 | `startShadowVerdict` | `agree` · `disagree` · `held` — a beat / park is never judged; a step may be the start's or the shell's; a prompt HELD behind an admission block is judged only over a screen with nothing to do (a reveal to take is the player's own wait) |
 
-`ConsoleShell.startShadowNow` / `startShadowSig` + the `startShadowSig` watcher: a disagreement standing
-`START_SHADOW_CONFIRM_MS` (3 s) unchanged, or a hold over an empty screen for `START_SHADOW_HELD_MS` (10 s), is
-logged ONCE per (kind, owners, prompt) as `[start-shadow]` with the scene's `__conStartDiag`. **Nothing on screen
-changes.** `window.__conStartShadow()` reads the findings; the field export carries the warnings.
+`startController.startShadowNow` / `startShadowSig` + the `startShadowSig` watcher: every judged state is measured
+(`servingOwnerMeasure` — the opening's STAGE / DOOR / STRAND tracks) and handed to the LEVEL DOOR
+(`START_LEVEL_DOOR_QUIET_FRAMES` — a disagreement the director would cure, standing with nothing in flight for eight
+painted frames, is cured: `[start-shadow] cure «…» by level`, the defect's own line). `window.__conStartShadow()`
+reads how many states were judged and the one judged now.
+
+**RETIRED 2026-11-23 (FREEZE ZERO, stage 2b → 7):** the shadow's own confirm (a disagreement standing 3 s, a held
+prompt 10 s → a `[start-shadow] disagree | held-long` finding and the cure «by shadow») and the start watchdog's two
+timers (2.5 s → heal, 2.5 s → yield). Every state they cured is a door's by level now — the opening's (every cure
+of the director's, `game > shell` included), the conclusion's and the strand's for a step standing under the game's
+menu (`console/levelDoor.ts`; `docs/claude/console/freeze-zero/PLAN.md` § 8) — and a held prompt is its admission
+block's own node of the wait graph. The paragraphs below that speak of the confirm describe the road here.
 
 e2e: the harness's `startShadowHarvest` files every test's findings under `test-results/start-shadow/` and annotates
 the test — DATA, never red. `node scripts/start-shadow-report.mjs <task> [--detail]` groups a run's findings.

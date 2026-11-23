@@ -162,9 +162,10 @@ export function hostedStepServes(s: {
 /**
  * THE STRAND's LEVEL DOOR (FREEZE ZERO, stage 2b — `levelDoor.ts`). The watchdog's cure — the scene's own doors
  * (`healStrand`), then the router's (`reopenStartStep`), then the yield — is right as a function of what stands: a
- * strand (`startStranded`) with nothing in flight. It was executed on two timers, 2.5 s each, so a player sat five
- * seconds in front of an empty opening before the question reached a surface. By level it is two openings of one
- * door: the heal when the strand has stood quiet for the bar, the yield when it STILL stands quiet for the bar again.
+ * strand (`startStranded`) with nothing in flight. It was executed on two timers, 2.5 s each (the «start watchdog»,
+ * retired with stage 2b → 7), so a player sat five seconds in front of an empty opening before the question reached
+ * a surface. By level it is two openings of one door: the heal when the strand has stood quiet for the bar, the
+ * yield when it STILL stands quiet for the bar again.
  *
  * WHY TWELVE FRAMES AND A QUARTER OF A SECOND — the STRAND-DOOR track's readings (CI, 2026-11-23: the 81 specs that
  * walk the opening — run 45085737951 in milliseconds, 45088611068 in frames): every long strand of a healthy table is
@@ -174,8 +175,3 @@ export function hostedStepServes(s: {
  */
 export const START_STRAND_DOOR_QUIET_FRAMES = 12;
 export const START_STRAND_DOOR_QUIET_MS = 250;
-
-/** How long a strand must STAND before the watchdog names and heals it (a hand-off frame is never one). */
-export const START_STRAND_CONFIRM_MS = 2500;
-/** …and how long a heal gets before the watchdog hands the question to the shell's own surfaces (the yield). */
-export const START_STRAND_YIELD_MS = 2500;

@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
-  ActualStartSignals, StartTruth, actualStartOwner, expectedStartOwner, recordStartShadowFinding, resetStartShadowLog,
-  START_LEVEL_DOOR_QUIET_FRAMES, START_SHADOW_CONFIRM_MS, startDirectorCure, startLevelDoorMay, startOwnersAgree, startShadowInScope, startShadowLog,
+  ActualStartSignals, StartTruth, actualStartOwner, expectedStartOwner, resetStartShadowLog,
+  START_LEVEL_DOOR_QUIET_FRAMES, startDirectorCure, startLevelDoorMay, startOwnersAgree, startShadowInScope, startShadowLog,
   startShadowVerdict,
 } from '../../src/client/console/startDirector';
 
@@ -141,25 +141,23 @@ describe('startDirector — agreement and scope', () => {
     expect(startShadowVerdict('queue', 'queue', undefined)).eq('agree');
   });
 
-  it('a finding is logged ONCE per (kind, owners, prompt)', () => {
+  it('the judge counts the states it read — the field export\'s one number of it; a new session starts from nothing', () => {
     resetStartShadowLog();
-    const f = {kind: 'disagree' as const, expected: 'board' as const, actual: 'none' as const, prompt: 'space:#7', at: 1};
-    expect(recordStartShadowFinding(f)).is.true;
-    expect(recordStartShadowFinding({...f, at: 2})).is.false;
-    expect(recordStartShadowFinding({...f, prompt: 'space:#8'})).is.true;
-    expect(startShadowLog.findings).length(2);
+    startShadowLog.judged += 3;
+    expect(startShadowLog).to.deep.eq({judged: 3});
     resetStartShadowLog();
+    expect(startShadowLog).to.deep.eq({judged: 0});
   });
 });
 
 /**
- * PHASE 1 — THE SHADOW ACTS (the owner, 2026-10-31): a confirmed finding is cured through the doors that already
- * exist, by name. The cure is PURE here; the shell runs it (the scene's `healStrand`, the strand's yield) from the
- * shadow's confirmation and from the liveness ladder's rung `start-director` (rank 15).
+ * PHASE 1 — THE DIRECTOR ACTS (the owner, 2026-10-31): a standing disagreement is cured through the doors that
+ * already exist, by name. The cure is PURE here; the shell runs it (the scene's `healStrand`, the yield, the release)
+ * from the LEVEL DOOR and from the liveness ladder's rung `start-director` (rank 15).
  */
 describe('startDirector — phase 1, the cure of a confirmed finding', () => {
-  const cure = (expected: Parameters<typeof startDirectorCure>[0]['expected'], actual: Parameters<typeof startDirectorCure>[0]['actual'], kind: 'disagree' | 'held-long' = 'disagree') =>
-    startDirectorCure({kind, expected, actual});
+  const cure = (expected: Parameters<typeof startDirectorCure>[0]['expected'], actual: Parameters<typeof startDirectorCure>[0]['actual']) =>
+    startDirectorCure({kind: 'disagree', expected, actual});
 
   it('the START must serve and nobody does → HEAL through the scene\'s doors', () => {
     expect(cure('queue', 'none')).to.eq('heal');
@@ -182,9 +180,9 @@ describe('startDirector — phase 1, the cure of a confirmed finding', () => {
     expect(cure('game', 'board'), 'a live placement').to.eq('none');
   });
 
-  it('a HELD prompt is an admission block\'s own ledgered debt — never cured here', () => {
-    expect(cure('board', 'none', 'held-long')).to.eq('none');
-    expect(cure('queue', 'none', 'held-long')).to.eq('none');
+  it('a HELD prompt is no disagreement at all — its admission block\'s ledgered debt, never the director\'s to cure', () => {
+    expect(startShadowVerdict('board', 'none', 'remote-landing')).eq('held');
+    expect(startShadowVerdict('queue', 'beat', 'played-hero')).eq('held');
   });
 
   it('a disagreement the player can ACT on is logged only — the shell already serving a start question, the board under a placement', () => {
@@ -201,9 +199,8 @@ describe('startDirector — the level door', () => {
     expect(startLevelDoorMay({kind: 'disagree', expected: 'board', actual: 'none'}), 'yield: a placement under a standing start').is.true;
     expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'none'}), 'release: the game asks, the start stands empty').is.true;
     expect(startLevelDoorMay({kind: 'disagree', expected: 'game', actual: 'queue'}), 'release: the game asks, the start stands in a pose of its own').is.true;
-    // (No cure — no door: the shell serving a start question is a deliberate fallback; a held prompt is its block's debt.)
+    // (No cure — no door: the shell serving a start question is a deliberate fallback.)
     expect(startLevelDoorMay({kind: 'disagree', expected: 'queue', actual: 'shell'})).is.false;
-    expect(startLevelDoorMay({kind: 'held-long', expected: 'queue', actual: 'none'})).is.false;
   });
 
   it('stays shut in ONE state — a step standing under the menu of the game is another door\'s question; a yielded start is this one\'s', () => {
@@ -217,6 +214,6 @@ describe('startDirector — the level door', () => {
   it('waits past every hand-off the scene plays — and not a second', () => {
     // (The longest state the director would cure, over the whole e2e suite: 72 ms — five frames of a real browser.)
     expect(START_LEVEL_DOOR_QUIET_FRAMES).to.be.greaterThan(5);
-    expect(START_LEVEL_DOOR_QUIET_FRAMES * 17, 'far short of the shadow\'s confirm it stands in front of').to.be.lessThan(START_SHADOW_CONFIRM_MS / 10);
+    expect(START_LEVEL_DOOR_QUIET_FRAMES * 17, 'a hundred and some milliseconds on a healthy page — never seconds').to.be.lessThan(300);
   });
 });
