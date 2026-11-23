@@ -1223,6 +1223,15 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
   `busy[flow:ceiling:hydro-flow:result-read]`. The box, the new head `0be1b6082f`, `fz3` · duo, all 606 walks: one
   defect — the second seat's strand (cured one commit later) — and not one quiet beat. The strand is replayed in the
   bottle (`62564f1a37` — red with the reaction switched off, green with it).
+- **THE WHOLE SUITE ON `43dc5a3260` (CI run 45171525046): 1 497 passed, no flaky, no net line, NOT ONE QUIET BEAT**
+  (the honest track, the whole suite in a real browser — the three declared pauses read `busy`). The one net left
+  under a green test is the MOON's `board-fit`, and its word names the cause: «tween on, 0 stable · owed nothing ·
+  passes 1 of 6» — the tween guard (`scheduleBoardTweenCheck`) reads «painted at its target» as «THE `.board-cont`
+  stands at the stage's centre plus the folded offset», which is true of one board in the stage's flex and not of
+  two side by side (the calibration centres their UNION — «drift size 116 … off 73»): the guard never reads the
+  target, `boardTweening` stands for the whole game, and with it the calibration's ban and `boardGeometryCalm`. A row
+  of the day the Moon is adapted (the frontier — `expansion-adaptation-checklist.md`): the guard has to ask the
+  board where it SHOULD be painted, not assume the one-board layout.
 - **ONE FLAKE LEFT OPEN, WITH ITS TRACE (the whole suite on `77f2c52edc`, run 45162252640 — 1 497 passed).**
   `console-flight-paint` A · tv4k (the stand of «a token never paints under the surface it lands on»): the first
   attempt read token #3 `lit→under→lit · under hull 1× [aside.con-res]` — ONE sample under the rail; the retry
