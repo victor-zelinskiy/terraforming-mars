@@ -392,6 +392,36 @@ const fitRaf = ref<(() => void) | undefined>(undefined);
  *  a boot into a live placement (the focus fit is deterministic). Six seconds of curtain for a player who reloaded
  *  into a pending decision. */
 let fitSettleRelease: (() => void) | undefined;
+/** …and THE HOLD's OWN WORD (`deferSceneReveal`'s `standing`): what the convergence did while the curtain waited —
+ *  the passes that ran and what each found, written only while the hold is held. */
+const fitTrail: Array<string> = [];
+let fitHoldSince = 0;
+function noteFitPass(what: string): void {
+  if (fitSettleRelease === undefined) {
+    return;
+  }
+  fitTrail.push(`+${Math.round(performance.now() - fitHoldSince)} ${what}`);
+  if (fitTrail.length > 12) {
+    fitTrail.splice(0, fitTrail.length - 12);
+  }
+}
+function fitHoldStanding(): string {
+  const owed = [
+    fitRaf.value !== undefined ? 'fit' : '',
+    calibrateRaf.value !== undefined ? 'pass' : '',
+    lateVerifyTimer.value !== undefined ? 'late' : '',
+  ].filter((part) => part !== '').join('+');
+  return [
+    `stage ${stageKey() ?? 'away'}`,
+    `fitted for ${fitKey.value ?? 'nothing'} as ${fitMode.value}`,
+    `focus ${planetFocusState.phase}${planetFocusState.arcsReturning ? ' arcs returning' : ''}`,
+    `tween ${boardTweening.value ? `on, ${tweenStableFrames.value} stable` : 'off'}`,
+    `owed ${owed === '' ? 'nothing' : owed}`,
+    `passes ${calibratePasses.value} of ${CALIBRATE_MAX_PASSES}, late ${lateVerifyRuns.value} of ${LATE_VERIFY_MAX}`,
+    `lock ${calibrateLock.value === undefined ? 'none' : `${calibrateLock.value.w}x${calibrateLock.value.h}`}`,
+    `trail ${fitTrail.length === 0 ? 'no pass ran' : fitTrail.join(' > ')}`,
+  ].join(' · ');
+}
 /** The stage's calibrated centring vars, saved at focus enter so the
  *  exit restores the exact pre-focus framing (calibration folds its
  *  offsets cumulatively — overwriting them would lose the truth). */
@@ -1194,6 +1224,7 @@ function scheduleCalibrate(): void {
     return;
   }
   if (calibratePasses.value >= CALIBRATE_MAX_PASSES) {
+    noteFitPass('out of passes');
     // The convergence ran out of road — it did NOT finish. Looking again
     // once the board is quiet is the whole point of the ladder; without
     // this the framing simply froze wherever the budget happened to end,
@@ -1232,6 +1263,7 @@ function calibrate(): void {
     if (planetFocusState.phase !== 'idle') {
       releaseFitSettleHold();
     }
+    noteFitPass(boardTweening.value ? 'banned by a tween' : 'banned by the arcs returning');
     return;
   }
   if (calibrateLock.value !== undefined) {
@@ -1243,10 +1275,12 @@ function calibrate(): void {
   }
   const stageNow = stage.value ?? undefined;
   if (stageNow === undefined) {
+    noteFitPass('no stage');
     return;
   }
   const sr = stageNow.getBoundingClientRect();
   if (sr.width < 40 || sr.height < 40) {
+    noteFitPass('stage away');
     return;
   }
   let left = Infinity;
@@ -1264,6 +1298,7 @@ function calibrate(): void {
     bottom = Math.max(bottom, r.bottom);
   }
   if (!Number.isFinite(left) || right - left < 100 || bottom - top < 100) {
+    noteFitPass('nothing rendered');
     return; // nothing meaningful rendered yet
   }
   const scale = appliedScale.value;
@@ -1300,6 +1335,7 @@ function calibrate(): void {
     return; // converged
   }
   calibratePasses.value++;
+  noteFitPass(`drift size ${Math.round(natW - naturalW.value)},${Math.round(natH - naturalH.value)} off ${Math.round(dx)},${Math.round(dy)}`);
   if (offsetDrift) {
     // Written on the STAGE so the vars INHERIT to every board child —
     // GameBoardView is multi-root, so `firstElementChild` is its anchor
@@ -1991,7 +2027,8 @@ onMounted(() => {
   // release it; a hidden stage (a start scene owns the boot frame) has no
   // geometry to converge and releases at once. Bounded by the director.
   if (loadingScreenState.phase === 'covering') {
-    fitSettleRelease = deferSceneReveal('board-fit', 6000);
+    fitHoldSince = performance.now();
+    fitSettleRelease = deferSceneReveal('board-fit', 6000, fitHoldStanding);
   }
   fitBoard();
   if (stageKey() === undefined) {

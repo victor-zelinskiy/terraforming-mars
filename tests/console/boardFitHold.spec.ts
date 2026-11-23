@@ -17,7 +17,7 @@ describe('the board-fit hold of the boot curtain — every end of the convergenc
   const body = (from: string, to: string): string => section.slice(section.indexOf(from), section.indexOf(to, section.indexOf(from)));
 
   it('the hold is armed only under the boot curtain, bounded, and released at the mount by a hidden stage', () => {
-    expect(section).to.match(/if \(loadingScreenState\.phase === 'covering'\) \{\s+fitSettleRelease = deferSceneReveal\('board-fit', 6000\);/);
+    expect(section).to.match(/if \(loadingScreenState\.phase === 'covering'\) \{\s+fitHoldSince = performance\.now\(\);\s+fitSettleRelease = deferSceneReveal\('board-fit', 6000, fitHoldStanding\);/);
     expect(section).to.match(/fitBoard\(\);\s+if \(stageKey\(\) === undefined\) \{\s+releaseFitSettleHold\(\);/);
   });
 
@@ -33,7 +33,7 @@ describe('the board-fit hold of the boot curtain — every end of the convergenc
 
   it('a boot into a live placement releases it — the focus fit is deterministic; a transient ban keeps the hold', () => {
     const calibrate = body('function calibrate(): void {', 'function cellEl(');
-    expect(calibrate).to.match(/if \(planetFocusState\.phase !== 'idle'\) \{\s+releaseFitSettleHold\(\);\s+\}\s+return;/);
+    expect(calibrate).to.match(/if \(planetFocusState\.phase !== 'idle'\) \{\s+releaseFitSettleHold\(\);\s+\}\s+noteFitPass\([^\n]+\);\s+return;/);
     // …and the settled pass, as ever.
     expect(calibrate).to.match(/if \(!sizeDrift && !offsetDrift\) \{\s+releaseFitSettleHold\(\);/);
   });

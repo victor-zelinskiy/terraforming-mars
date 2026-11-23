@@ -393,8 +393,12 @@ export function armSceneDestination(): void {
  * Register a named readiness hold. Returns the release function. Every hold
  * is BOUNDED: past `maxMs` it force-releases with a dev warning — a curtain
  * that never lifts is strictly worse than one that lifts a beat early.
+ *
+ * `standing` is the hold's OWN WORD for the bound's line: what it was still waiting for when its time ran out. A
+ * bound that only says «hit its bound» names a symptom — the next reader has to rebuild the case from nothing
+ * (`board-fit` stood under green tests of the whole suite for two nights, and once in thirty on a repeat).
  */
-export function deferSceneReveal(name: string, maxMs: number = DEFAULT_HOLD_MAX_MS): () => void {
+export function deferSceneReveal(name: string, maxMs: number = DEFAULT_HOLD_MAX_MS, standing?: () => string): () => void {
   if (!loadingScreenState.active || loadingScreenState.phase !== 'covering') {
     return () => {};
   }
@@ -414,13 +418,26 @@ export function deferSceneReveal(name: string, maxMs: number = DEFAULT_HOLD_MAX_
   };
   const boundId = sched.later(() => {
     if (at === epoch && holds.has(key)) {
-      console.warn(`[scene-transition] hold "${key}" hit its ${maxMs}ms bound — force-released`);
+      console.warn(`[scene-transition] hold "${key}" hit its ${maxMs}ms bound — force-released${standingWord(standing)}`);
       holds.delete(key);
       maybeReveal();
     }
   }, maxMs);
   holds.set(key, boundId);
   return release;
+}
+
+/** The hold's own word, joined to its bound's line — never a throw out of a timer, never a bracket (a line's shape). */
+function standingWord(standing: (() => string) | undefined): string {
+  if (standing === undefined) {
+    return '';
+  }
+  try {
+    const word = standing().replace(/[()[\]"]/g, '');
+    return word === '' ? '' : ` · standing: ${word}`;
+  } catch (err) {
+    return ' · standing: its own word threw';
+  }
 }
 
 function readyNow(): boolean {
