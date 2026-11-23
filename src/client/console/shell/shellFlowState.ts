@@ -10,24 +10,15 @@ import {reactive} from 'vue';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 
 /**
- * THE WORKSPACE-STALL FORCE GRACE. A flow that reported FINISHED (its ending is
- * OWED — `workspaceConclusionOwe.ts`) and still cannot dismiss for this long, with
- * nothing the player could act on, is a ghost — the owed run force-tears it down.
- * Above every legitimate transient (the soft reconcile + re-ask window ≈ 5 s),
- * well below the board-beat park's 30 s cliff and the claim's 20 s backstop,
- * so the player never waits those out again. The universal net the four field
- * hangs earned — see `docs/claude/console/flow-close-gates.md` § THE STALL NET.
+ * THE WAIT GRAPH's BOUND OF AN OWED CONCLUSION THAT HOLDS ON A MOTION (`supervisorController` — the node
+ * `conclusion:<kind>`). A flow that reported FINISHED (its ending is OWED — `workspaceConclusionOwe.ts`) and still
+ * cannot dismiss is re-asked on its facts and on its cadence, and a ghost is torn down by the debt's own LEVEL door
+ * (a second of painted quiet); this number is only what the graph's judge holds the node to — past it the debt is
+ * `overdue` and the graph's own door re-asks. (It was the sum of the escalation's two clocks — eight seconds owed, two
+ * and a half read a ghost — until the escalation became a door, 2026-11-23; `docs/claude/console/flow-close-gates.md`
+ * § THE STALL NET.)
  */
-export const OWED_CONCLUSION_FORCE_MS = 8000;
-
-/**
- * …AND THE GHOST VERDICT ITSELF MUST HOLD THIS LONG, CONTINUOUSLY, before the force. The escalation clock above runs
- * from the FIRST owe — which can be a legitimate hold the player spent 16 s in (the Reds' discard album) — so a verdict
- * read once, in the very flush an answer lands, tore the workspace down under the payout that answer had just seeded
- * (field 2026-10-24 / 25: «card-actions … could not dismiss for 18s … signal: ||payout||», then the rail held 35 s).
- * A transient (a flush between the answer and its flyer) never survives this window; a real ghost always does.
- */
-export const OWED_CONCLUSION_GHOST_CONFIRM_MS = 2500;
+export const OWED_CONCLUSION_BOUND_MS = 10_500;
 
 /**
  * THE LAST REFUSED CONCLUSION — which workspace, and the NAMED hold that refused it (`workspaceConclusionFor`'s

@@ -7,10 +7,10 @@ import {
 } from '@/client/console/consoleWorkspaceStack';
 import {
   CONCLUSION_REASK_GRACE_MS, CONCLUSION_REASK_MS, conclusionOwed, ConclusionReask, oweConclusion, owedConclusionFactsKey,
+  OWED_GHOST_DOOR_QUIET_FRAMES, OWED_GHOST_DOOR_QUIET_MS,
   owedConclusions, reaskMovedConclusions, reaskOwedConclusion, registerConclusionOwePort, resetConclusionOwes,
   withdrawConclusionOwe,
 } from '@/client/console/workspaceConclusionOwe';
-import {OWED_CONCLUSION_FORCE_MS, OWED_CONCLUSION_GHOST_CONFIRM_MS} from '@/client/console/shell/shellFlowState';
 
 async function flush(): Promise<void> {
   for (let i = 0; i < 6; i++) {
@@ -35,6 +35,8 @@ describe('workspace conclusion · an owed ending is a run in its frame\'s scope'
   /** What the fake owner says: per kind, does the conclusion hold; is the workspace a ghost. */
   const holds = ref<Partial<Record<WorkspaceFrameKind, boolean>>>({});
   const ghost = ref<Partial<Record<WorkspaceFrameKind, boolean>>>({});
+  /** …and whether anything is in flight under the debt (the ghost's door waits for quiet). */
+  let quiet = true;
   let cadence = true;
   let asks: Array<string>;
   let forced: Array<string>;
@@ -76,6 +78,7 @@ describe('workspace conclusion · an owed ending is a run in its frame\'s scope'
       },
       cadenceApplies: () => cadence,
       ghost: (kind) => ghost.value[kind] === true,
+      quiet: () => quiet,
       force: (kind) => {
         forced.push(kind);
         closeWorkspaceRoot(kind);
@@ -122,6 +125,7 @@ describe('workspace conclusion · an owed ending is a run in its frame\'s scope'
       },
       cadenceApplies: () => false,
       ghost: () => false,
+      quiet: () => true,
       force: () => {},
     });
     enterWorkspace('colonies');
@@ -200,6 +204,7 @@ describe('workspace conclusion · an owed ending is a run in its frame\'s scope'
       },
       cadenceApplies: () => false,
       ghost: () => false,
+      quiet: () => true,
       force: () => {},
     });
     oweConclusion('hand', true);
@@ -237,6 +242,7 @@ describe('workspace conclusion · an owed ending is a run in its frame\'s scope'
         },
         cadenceApplies: () => false,
         ghost: () => false,
+        quiet: () => true,
         force: () => {},
       });
     };
@@ -315,33 +321,49 @@ describe('workspace conclusion · an owed ending is a run in its frame\'s scope'
     expect(warned.filter((line) => line.startsWith('[workspace-conclusion] «hand» concluded on the re-ask cadence'))).to.have.length(1);
   });
 
-  it('A GHOST IS TORN DOWN — after the escalation grace AND a continuous confirm, never on one read', async () => {
+  /*
+   * THE GHOST's DOOR, BY LEVEL (FREEZE ZERO, stage 2 — the tail). The escalation was two clocks: eight seconds owed,
+   * two and a half read a ghost — ten seconds of a dead workspace for a real ghost, and a teardown UNDER A PLAYING
+   * SCENE for any scene that played two and a half seconds with no vouching hold. The door asks the thing itself: a
+   * ghost with nothing in flight under the debt's own waits, for the door's bar of painted quiet.
+   */
+  it('A GHOST IS TORN DOWN BY LEVEL — quiet for the door\'s bar; never while anything is in flight, never on one read', async () => {
     enterWorkspace('hand');
     holds.value = {hand: true};
+    cadence = false;
     oweConclusion('hand', true);
     await flush();
     const step = async (ms: number) => {
-      for (let t = 0; t < ms; t += CONCLUSION_REASK_MS) {
-        clock.advance(CONCLUSION_REASK_MS);
-        await flush();
-      }
+      clock.advance(ms);
+      await flush();
     };
-    // Not a ghost for the whole escalation grace: the player is working in it.
-    await step(OWED_CONCLUSION_FORCE_MS + 1000);
+    // Not a ghost, however long it is owed: the player is working in it. (The old clock ran from the first owe.)
+    await step(20_000);
     expect(forced).to.deep.equal([]);
-    // It reads as a ghost now — but one read is not a verdict.
+    // It reads a ghost — UNDER A SCENE THAT IS PLAYING: the door does not look at it at all.
     ghost.value = {hand: true};
-    await step(OWED_CONCLUSION_GHOST_CONFIRM_MS - CONCLUSION_REASK_MS);
-    expect(forced, 'the confirm window has not run').to.deep.equal([]);
-    // …a blink of «not a ghost» restarts the confirm.
+    quiet = false;
+    await step(10_000);
+    expect(forced, 'a ghost reading under a flight is no ghost to tear down').to.deep.equal([]);
+    // Quiet now — but inside the bar nothing acts…
+    quiet = true;
+    await step(OWED_GHOST_DOOR_QUIET_MS - 200);
+    expect(forced, 'inside the door\'s quiet').to.deep.equal([]);
+    // …a blink of «not a ghost» starts the quiet again…
     ghost.value = {hand: false};
-    await step(CONCLUSION_REASK_MS);
+    await step(50);
     ghost.value = {hand: true};
-    await step(OWED_CONCLUSION_GHOST_CONFIRM_MS - CONCLUSION_REASK_MS);
-    expect(forced, 'the confirm restarted').to.deep.equal([]);
-    await step(2 * CONCLUSION_REASK_MS);
+    await step(OWED_GHOST_DOOR_QUIET_MS - 200);
+    expect(forced, 'the quiet restarted').to.deep.equal([]);
+    // …and a second of painted quiet opens it: once.
+    await step(400);
     expect(forced).to.deep.equal(['hand']);
     expect(conclusionOwed('hand')).to.equal(false);
+    await step(5_000);
+    expect(forced, 'ONE teardown').to.deep.equal(['hand']);
+    // The bar is a teardown's: frames AND a floor, longer than a conclusion's quarter of a second, never seconds.
+    expect(OWED_GHOST_DOOR_QUIET_FRAMES).to.be.at.least(30);
+    expect(OWED_GHOST_DOOR_QUIET_MS).to.be.at.least(1_000).and.at.most(2_000);
   });
 
   it('a flow handed to its own question owes nothing; a door that served asks again at once', async () => {

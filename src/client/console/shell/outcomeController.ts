@@ -594,12 +594,18 @@ export function createOutcomeController(shell: OutcomePort) {
     return {
       kind: top.kind,
       key: `${top.kind}|${shell.playerView.waitingFor?.promptId ?? ''}`,
-      quiet: conclusion.verdict === 'dismiss' && look === '' && flight === '',
+      // «NOTHING IS IN FLIGHT» IS ASKED UNDER THE FRAME's OWN WAITS (`underOwn`): its claim and its debt are the
+      // question the door answers, never a flight that keeps it shut. Asked of the whole graph, a door could not open
+      // under a debt at all (the debt's cadence is a kernel wait) nor on a claim that still «awaits» (a node that
+      // waits for the server, twenty seconds) — exactly the frames the reaper went on curing at eight.
+      quiet: conclusion.verdict === 'dismiss' && look === '' && (flight === '' || underOwn),
       // A CLAIM THAT ANSWERS FOR NOTHING (the reaper's other cure, by level — `lookAtConclusionDoor`): the frame is held
-      // by its own claim ALONE (no row of `FRAME_HOLDS`), no batch waits to be taken, nobody reads a look over it, and
-      // nothing is in flight.
+      // by its own claim ALONE (no row of `FRAME_HOLDS`), the claim SERVES nothing — no prompt, no batch (the server's
+      // own unconsumed reveals included), no verdict the player has not acknowledged, no ledger payout
+      // (`workspaceOutcomeServingNow`: the funnel's own probe; the reaper asked only «is a reveal on screen») — nobody
+      // reads a look over it, and nothing is in flight under its own waits.
       claimOnly: conclusion.verdict === 'hold' && conclusion.reason === 'live-outcome' && mine && rows.length === 0 &&
-        currentRevealEvent() === undefined && look === '' && flight === '',
+        !workspaceOutcomeServingNow.value && currentRevealEvent() === undefined && look === '' && (flight === '' || underOwn),
     };
   }
 
@@ -1672,6 +1678,9 @@ export function createOutcomeController(shell: OutcomePort) {
       cadenceApplies: (kind) => workspaceFrameKnown(kind) && !workspaceFrameHasNested(kind) && !workspaceFrameParked(kind) &&
         !workspaceOutcomeServingNow.value,
       ghost: (kind) => shell.stuckWorkspaceIsGhost(kind),
+      // (What the ghost's door waits out — the same reading the OWED track files, `measureOwedConclusion`.)
+      quiet: (kind) => document.querySelector(PLAYER_LOOK_SELECTOR) === null &&
+        flightsInTheAir(Date.now(), [`conclusion:${kind}`, `claim:${kind}`, `surface:${kind}`, OWED_CADENCE_FLIGHT]) === '',
       force: (kind, owedForMs) => shell.forceRecoverStuckWorkspace(kind, undefined, owedForMs),
     });
   });

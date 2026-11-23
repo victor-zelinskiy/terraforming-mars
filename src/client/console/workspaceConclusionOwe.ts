@@ -21,9 +21,13 @@
  *    refused with. A term cannot be missing from a list, because there is no second list — a fact the decision gains
  *    is a fact the wake has;
  *  · it is BOUNDED: what the facts cannot say reactively (a claim that became releasable with no write behind it) is
- *    re-asked on the run's own cadence — the old time net, now the debt's own beat — and past the escalation grace a
- *    workspace that still holds with nothing the player could act on is a ghost, torn down by the owner's force path
- *    (the same numbers as before).
+ *    re-asked on the run's own cadence — the old time net, now the debt's own beat — and a workspace that still holds
+ *    with nothing the player could act on is a ghost, torn down by the owner's force path — BY LEVEL (FREEZE ZERO,
+ *    stage 2 — the tail): the debt's own door, in the debt's own scope. It used to be two clocks (eight seconds owed,
+ *    two and a half read a ghost): a real ghost was ten seconds of a dead workspace, and what kept the test off a
+ *    scene that was merely PLAYING was only that no scene plays two and a half seconds without a hold. The door asks
+ *    the thing itself: a ghost, with NOTHING IN FLIGHT under the debt's own waits and no look of the player's over
+ *    it, for the door's bar — `OWED_GHOST_DOOR_*`, below.
  *
  * WHEN IN THE TICK IT ASKS IS THE SHELL'S: THE WAKE IS A ROW OF ITS WATCH TABLE (`owedConclusionFacts`), exactly where
  * the old signal's watcher stood. The facts of a conclusion routinely move in TWO steps inside one tick — an owed
@@ -45,12 +49,28 @@ import {shallowRef} from 'vue';
 import {flowClock} from '@/client/console/kernel/flowClock';
 import {FlowScope} from '@/client/console/kernel/flowScope';
 import {WorkspaceFrameKind, workspaceFrameScope} from '@/client/console/consoleWorkspaceStack';
-import {conclusionRefusal, OWED_CONCLUSION_FORCE_MS, OWED_CONCLUSION_GHOST_CONFIRM_MS} from '@/client/console/shell/shellFlowState';
+import {conclusionRefusal} from '@/client/console/shell/shellFlowState';
+import {levelDoorInit, observeLevelDoor} from '@/client/console/levelDoor';
 
 /** The cadence an owed conclusion is re-asked on when nothing it reads has moved (the old truth witness's beat). */
 export const CONCLUSION_REASK_MS = 500;
 /** …and how long a hold stands before that cadence starts (a transient refusal settles by itself well inside it). */
 export const CONCLUSION_REASK_GRACE_MS = 2500;
+
+/**
+ * THE GHOST's DOOR — a debt whose workspace reads a ghost and stands QUIET this long is torn down (`levelDoor.ts`).
+ *
+ * ITS BAR IS ITS OWN, AND LONGER THAN A CONCLUSION's: the cure is a teardown. What it stands on (the OWED track,
+ * 2026-11-23 — the whole e2e suite in a real browser, the gate's 1 212 walks, the box's two-seat pass): a healthy
+ * table reads «ghost» only UNDER A SCENE THAT IS PLAYING (seven ways, 644 ms at the longest — a hold or a ceiling
+ * wait stands under each, so the door, which asks for quiet, does not look at them at all), and «ghost and quiet»
+ * NOWHERE — the one such reading the suite had was a defect, a step the player was answering in the workspace's own
+ * zone that nothing vouched for (`outcomeController.workspaceOutcomePromptServed`, the prelude chain's term). A second
+ * of painted quiet is past every transient between an answer and what it starts, and a tenth of what the two clocks
+ * took.
+ */
+export const OWED_GHOST_DOOR_QUIET_FRAMES = 60;
+export const OWED_GHOST_DOOR_QUIET_MS = 1000;
 
 /** What a re-ask did: the flow is over (`done`), went on into its own question in place (`handed`), or still holds. */
 export type ConclusionReask = 'done' | 'handed' | 'held';
@@ -73,6 +93,12 @@ export type ConclusionOwePort = {
   cadenceApplies(kind: WorkspaceFrameKind): boolean,
   /** A workspace that keeps holding with NOTHING the player could act on. */
   ghost(kind: WorkspaceFrameKind): boolean,
+  /**
+   * NOTHING IS IN FLIGHT under the debt's own waits (its conclusion's node, its claim's, its frame's, its cadence) and
+   * no look of the player's stands over the workspace — what the ghost's door waits out. A debt is itself a wait: asked
+   * «does anything move under it», it is the question, never an answer.
+   */
+  quiet(kind: WorkspaceFrameKind): boolean,
   /** Tear a proven ghost down (the owner names what it tore). */
   force(kind: WorkspaceFrameKind, owedForMs: number): void,
 };
@@ -81,10 +107,8 @@ type OwedRun = {
   kind: WorkspaceFrameKind,
   frame: FlowScope,
   servedPromptHolds: boolean,
-  /** When the debt began (the escalation clock — a re-owe of the same frame keeps it). */
+  /** When the debt began (a re-owe of the same frame keeps it) — the cadence's grace, and what a teardown names. */
   since: number,
-  /** Since when it has read as a ghost, continuously (0 — not a ghost on the last read). */
-  ghostSince: number,
   withdrawn: boolean,
   /** The facts' key the conclusion was last asked (and refused) with. */
   askedWith: string,
@@ -132,7 +156,7 @@ export function oweConclusion(kind: WorkspaceFrameKind, servedPromptHolds: boole
     return;
   }
   const run: OwedRun = {
-    kind, frame, servedPromptHolds, since: flowClock().now(), ghostSince: 0, withdrawn: false, scope: undefined,
+    kind, frame, servedPromptHolds, since: flowClock().now(), withdrawn: false, scope: undefined,
     // The refusal that owes it was made with the facts as they stand in this very call.
     askedWith: port.facts(kind, servedPromptHolds),
   };
@@ -170,6 +194,27 @@ function ask(run: OwedRun): ConclusionReask {
  */
 async function drive(run: OwedRun, scope: FlowScope): Promise<void> {
   run.scope = scope;
+  // THE GHOST's DOOR, BY LEVEL — looked at every painted frame for the debt's whole life (a loop of this scope: it
+  // ends with the debt). ONE opening per standing ghost; a ghost that stops being one, or anything in flight under
+  // it, starts the quiet again.
+  let door = levelDoorInit();
+  scope.everyFrame('the ghost\'s door of an owed conclusion, by level', () => {
+    if (run.withdrawn || port === undefined) {
+      return false;
+    }
+    const now = flowClock().now();
+    const ghost = port.ghost(run.kind);
+    const seen = observeLevelDoor(door, {key: ghost ? run.kind : undefined, quiet: ghost && port.quiet(run.kind), now},
+      {frames: OWED_GHOST_DOOR_QUIET_FRAMES, ms: OWED_GHOST_DOOR_QUIET_MS});
+    door = seen.state;
+    if (!seen.open) {
+      return true;
+    }
+    const owner = port;
+    withdrawConclusionOwe(run.kind);
+    owner.force(run.kind, now - run.since);
+    return false;
+  });
   for (;;) {
     if (!(await scope.sleep(CONCLUSION_REASK_MS)) || run.withdrawn || port === undefined) {
       return;
@@ -188,22 +233,6 @@ async function drive(run: OwedRun, scope: FlowScope): Promise<void> {
       }
     }
     if (run.withdrawn || port === undefined) {
-      return;
-    }
-    // THE ESCALATION: a flow that reported finished and still cannot dismiss, with nothing the player could be acting
-    // on, read so CONTINUOUSLY for the confirm window (a verdict read once, in the flush an answer lands, tore a
-    // workspace down under the payout that answer had just seeded — 2026-10-24).
-    if (!port.ghost(run.kind)) {
-      run.ghostSince = 0;
-      continue;
-    }
-    if (run.ghostSince === 0) {
-      run.ghostSince = now;
-    }
-    if (now - run.since >= OWED_CONCLUSION_FORCE_MS && now - run.ghostSince >= OWED_CONCLUSION_GHOST_CONFIRM_MS) {
-      const owner = port;
-      withdrawConclusionOwe(run.kind);
-      owner.force(run.kind, now - run.since);
       return;
     }
   }

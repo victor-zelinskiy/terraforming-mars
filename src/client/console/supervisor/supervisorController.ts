@@ -61,7 +61,7 @@ import {releaseDiscardExchange} from '@/client/console/cardDiscard/discardExchan
 import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
 import {isSurfaceAwaitingHandoff, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
-import {conclusionRefusal, handoffPendingEntries, OWED_CONCLUSION_FORCE_MS, OWED_CONCLUSION_GHOST_CONFIRM_MS} from '@/client/console/shell/shellFlowState';
+import {conclusionRefusal, handoffPendingEntries, OWED_CONCLUSION_BOUND_MS} from '@/client/console/shell/shellFlowState';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {MandatoryBeat, isMandatoryBeatPresented, forceMandatoryBeacon, isMandatoryBeaconForced, registerAnnounceDoor} from '@/client/console/consoleMandatoryGate';
 import {ActualStartOwner, StartOwner, StartShadowFinding, startDirectorCure, startShadowInScope, startShadowVerdict} from '@/client/console/startDirector';
@@ -1071,7 +1071,7 @@ export function createSupervisorController(shell: SupervisorPort) {
         // flow) carries no clock of its own — the node it waits on does; only a motion edge is the conclusion's own
         // escalation. Bounded throughout, it read `overdue` behind a nested step the player was answering and behind a
         // minimized start nobody had restored yet (the monkey's wg2 pass: `red-lawyers-tr-first`, `pluto-settlements-2`).
-        ...(targets[0]?.kind === 'motion' ? {boundMs: OWED_CONCLUSION_FORCE_MS + OWED_CONCLUSION_GHOST_CONFIRM_MS} : {}),
+        ...(targets[0]?.kind === 'motion' ? {boundMs: OWED_CONCLUSION_BOUND_MS} : {}),
         recovery: 'workspace-conclusion', detail: reason,
       });
     }

@@ -385,7 +385,10 @@ describe('servingOwnerMeasure — an owed conclusion and a claim that is the onl
     expect(measure).to.contain('const own = [`claim:${top.kind}`, `conclusion:${top.kind}`, OWED_CADENCE_FLIGHT];');
     expect(measure).to.contain('const underOwn = flight !== \'\' && flightsInTheAir(Date.now(), own) === \'\';');
     expect(measure).to.contain('`ONLY-ITS-OWN[${flight}]${mine ? ` claim:${workspaceOutcomeState.stage}${workspaceOutcomeState.answerIn ? \'+answered\' : \'\'}` : \'\'} `');
-    // The door itself is NOT widened by the measure: its `claimOnly` still asks the whole graph.
-    expect(measure).to.match(/claimOnly: conclusion\.verdict === 'hold' && conclusion\.reason === 'live-outcome' && mine && rows\.length === 0 &&\s+currentRevealEvent\(\) === undefined && look === '' && flight === '',/);
+    // …and the DOORS read the same: quiet is asked under the frame's own waits (widened on the tracks' readings —
+    // the whole suite, the gate, the box: no healthy span of `ONLY-ITS-OWN`), and the claim's door only for a claim
+    // that SERVES nothing.
+    expect(measure).to.contain('quiet: conclusion.verdict === \'dismiss\' && look === \'\' && (flight === \'\' || underOwn),');
+    expect(measure).to.match(/claimOnly: conclusion\.verdict === 'hold' && conclusion\.reason === 'live-outcome' && mine && rows\.length === 0 &&\s+!workspaceOutcomeServingNow\.value && currentRevealEvent\(\) === undefined && look === '' && \(flight === '' \|\| underOwn\),/);
   });
 });
