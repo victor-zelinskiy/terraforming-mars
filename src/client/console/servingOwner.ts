@@ -67,6 +67,13 @@ export type QuestionFacts = {
   host: WorkspaceFrameKind | undefined;
   /** The workspaces whose frame STANDS on the live stack — admission is a door: one that is in is not held at it. */
   frames: ReadonlyArray<WorkspaceFrameKind>;
+  /**
+   * …and the owners whose surface STANDS BY ITS OWN LIFETIME OUTSIDE THE STACK — a resolution's draw embedded in the
+   * sitting's stage has no frame of its own: its presence is the published zone (`externalDrawEmbedTarget`). It was
+   * let in exactly as a frame is; a door that closes behind it (its own cards arriving — `followUp: card-arrival`)
+   * does not take it off the screen. Read at the ADMISSION step only: «set aside» is still the stack's to answer.
+   */
+  standing?: ReadonlyArray<ScreenOwner>;
   /** The workspaces whose ENTRY waits for the screen's hand-over (`handoffPendingEntries` — the sitting handing the
    *  screen to the draft): the surface on screen is the one that is leaving. */
   handoff: ReadonlyArray<WorkspaceFrameKind>;
@@ -257,7 +264,10 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   // ADMISSION IS A DOOR, NOT A PRESENCE: a workspace whose frame already stands on the stack was let in — a scene that
   // begins beside it does not take it off the screen (the first disagreement the measure named, 2026-11-19: the
   // Parliament standing under a `presentation` block of its own sitting). Only an owner still to ENTER is held.
-  if (owner.admission === undefined || f.frames.includes(owner.owner as WorkspaceFrameKind)) {
+  // …AND SO IS A SURFACE THAT STANDS BY ITS OWN LIFETIME (`standing`): the measure's last standing FALLBACK of the pad's
+  // band — «held: admission > externalDraw», the sitting's own draw held at a door behind which its cards were arriving
+  // (`console-parliament-sitting` · `-softgates`, the whole suite on CI, 2026-11-22).
+  if (owner.admission === undefined || f.frames.includes(owner.owner as WorkspaceFrameKind) || f.standing?.includes(owner.owner) === true) {
     return {asked: true, ...owner};
   }
   const own = holdOf(owner.admission, f);
@@ -278,6 +288,7 @@ export function questionFactsDigest(f: QuestionFacts): string {
     f.host !== undefined ? `host ${f.host}` : '',
     f.servingFrame !== undefined ? `serving ${f.servingFrame}` : '',
     f.handoff.length > 0 ? `handoff [${f.handoff.join(',')}]` : '',
+    f.standing !== undefined && f.standing.length > 0 ? `standing [${f.standing.join(',')}]` : '',
     blocks.length > 0 ? `blocks [${blocks.join(',')}]` : '',
     f.scene !== '' ? `scene ${f.scene}` : '',
     f.lateral !== '' ? `lateral ${f.lateral}` : '',

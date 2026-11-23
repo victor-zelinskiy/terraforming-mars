@@ -3,7 +3,7 @@ import {ConsoleTask, TaskKind} from '../../src/client/console/consoleTaskRouter'
 import {PromptSurface} from '../../src/client/console/consolePromptAdmission';
 import {WorkspaceFrameKind} from '../../src/client/console/consoleWorkspaceStack';
 import {ALL_WORKSPACE_KINDS, expectedScreenOwners, hostableStep, OWNER_SURFACES, ScreenOwner} from '../../src/client/console/screenDirector';
-import {Ownership, ownerServes, QuestionFacts, servingOwnerOf} from '../../src/client/console/servingOwner';
+import {Ownership, ownerServes, QuestionFacts, questionFactsDigest, servingOwnerOf} from '../../src/client/console/servingOwner';
 
 /*
  * WHO SERVES THE QUESTION — ONE TOTAL FUNCTION (FREEZE ZERO, stage 2 — docs/claude/console/freeze-zero/PLAN.md § 8).
@@ -269,6 +269,17 @@ describe('servingOwner — who serves the question: one total function', functio
     expect(servingOwnerOf({...QUIET, task: {kind: 'parliamentPhase', stage: 'close'}, blocks: {followUp: 'card-arrival'}, frames: ['parliament']})).to.not.have.property('hold');
     expect(servingOwnerOf({...QUIET, task: {kind: 'colony'}, blocks: {section: 'reveal', followUp: 'card-arrival'}}))
       .to.deep.include({hold: {kind: 'admission', by: 'reveal'}});
+    // …AND A SURFACE THAT STANDS BY ITS OWN LIFETIME OUTSIDE THE STACK IS PAST THE DOOR TOO (`standing`): a
+    // resolution's draw embedded in the sitting's stage has no frame — its cards arriving raise the door's block
+    // behind it and it keeps the screen (the band's last FALLBACK of the suite: «held: admission > externalDraw»).
+    const sittingDraw = {...QUIET, task: {kind: 'externalDraw'} as const, resolutionDraw: true, frames: ['parliament'] as const, blocks: {followUp: 'card-arrival'}};
+    expect(servingOwnerOf(sittingDraw), 'still to enter: held at the door').to.deep.include({owner: 'external-draw', host: 'parliament', hold: {kind: 'admission', by: 'card-arrival'}});
+    expect(servingOwnerOf({...sittingDraw, standing: ['external-draw']}), 'standing in the stage: let in').to.deep.include({owner: 'external-draw', host: 'parliament'}).and.not.have.property('hold');
+    // (It answers the ADMISSION step only: a question set aside is aside, whatever stands outside the stack.)
+    expect(servingOwnerOf({...sittingDraw, standing: ['external-draw'], aside: true})).to.deep.include({hold: {kind: 'aside', by: 'the player set it aside'}});
+    // (…and only for the owner it names.)
+    expect(servingOwnerOf({...QUIET, task: {kind: 'colony'}, blocks: {section: 'reveal'}, standing: ['external-draw']})).to.deep.include({hold: {kind: 'admission', by: 'reveal'}});
+    expect(questionFactsDigest({...sittingDraw, standing: ['external-draw']}), 'the fact is in the evidence a disagreement is read by').to.contain('standing [external-draw]');
     // THE PLAYER'S OWN LOOK OVER THE OPENING: the start is still the owner, and it waits for the player.
     expect(servingOwnerOf({...QUIET, task: ALL_SHAPES.find((t) => t.kind === 'startSequence'), startFlow: true, frames: ['start', 'colonies'], lateral: 'colonies'}))
       .to.deep.include({owner: 'start', hold: {kind: 'aside', by: 'lateral:colonies'}});

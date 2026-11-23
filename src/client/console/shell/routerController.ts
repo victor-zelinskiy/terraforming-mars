@@ -140,6 +140,7 @@ export type RouterPort = {
   /** WRITTEN here. */ pendingClientPayment: PendingClientPayment | undefined,
   readonly placementActive: boolean,
   readonly deckPickServing: boolean,
+  readonly externalDrawEmbedded: boolean,
   readonly startSceneMounted: boolean,
   readonly startSceneVisible: boolean,
   /** WRITTEN here. */ pendingClientPick: PendingClientPick | undefined,
@@ -1044,6 +1045,8 @@ export function createRouterController(shell: RouterPort) {
       servingFrame: task === undefined ? undefined : frameServing(task.kind)?.kind,
       host: workspaceHostForStep(),
       frames: workspaceStackState.frames.map((frame) => frame.kind),
+      // (A resolution's draw standing in the sitting's stage: its presence is the published zone, never a frame.)
+      standing: shell.externalDrawEmbedded ? ['external-draw'] : [],
       handoff: [...handoffPendingEntries],
       // (Set aside by the player — the plate, or the workspace that serves the question parked: the stack's own answer.)
       aside: questionSetAside(task?.kind),

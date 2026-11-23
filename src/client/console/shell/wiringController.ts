@@ -140,6 +140,8 @@ export type WiringPort = {
   consoleRevealMode: UnwrapRef<RevealController['consoleRevealMode']>,
   deckPickServing: UnwrapRef<RevealController['deckPickServing']>,
   deckPickOutgoing: UnwrapRef<RevealController['deckPickOutgoing']>,
+  seriesHeldVisit: UnwrapRef<RouterController['seriesHeldVisit']>,
+  seriesHeldDecision: UnwrapRef<RouterController['seriesHeldDecision']>,
   declareScreenControlDefect: UnwrapRef<SupervisorController['declareScreenControlDefect']>,
   draftFrameLive: UnwrapRef<DraftController['draftFrameLive']>,
   drainBoardBeats: UnwrapRef<PlacementController['drainBoardBeats']>,
@@ -779,6 +781,12 @@ export function createWiringController(shell: WiringPort) {
         // (The facts of the question for the ONE function's measure — stage 2; read by nothing else yet.)
         ...shadowFacts(),
         flags: promptFlags(),
+        // (What paints and serves nothing — the probe cannot tell a presence finishing from a surface that answers.)
+        presences: [
+          ...(shell.deckPickOutgoing ? ['deck-pick' as const] : []),
+          ...(shell.seriesHeldVisit !== undefined ? ['task' as const] : []),
+          ...(shell.seriesHeldDecision !== undefined ? ['decision' as const] : []),
+        ],
         edge: {...ownerEdge},
       };
     });

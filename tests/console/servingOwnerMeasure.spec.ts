@@ -1,4 +1,6 @@
 import {expect} from 'chai';
+import * as fs from 'fs';
+import * as path from 'path';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
   bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteOpeningLook, noteOpeningSpan, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
@@ -299,5 +301,46 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     expect(servingOwnerLog.spans['opening|STRAND space: · plan queue-returned → confirmed']).to.deep.eq({n: 1, ms: 2500, max: 2500});
     expect(servingOwnerLog.spans['opening|STRAND space: · plan queue-returned · HEALED queue-returned → cleared']).to.deep.eq({n: 1, ms: 100, max: 100});
     expect(servingOwnerLog.open).to.deep.eq([]);
+  });
+});
+
+/*
+ * THE MEASURE HOLDS THE FUNCTION TO WHAT A SCREEN CAN SAY (the whole suite's residue, CI run 45071347931 — nine
+ * `EXTRA:admission`, four `edge-LATCH`, two `band-fallback`: fifteen looks of 1 502 tests, not one of them the
+ * function being wrong about a surface that serves).
+ */
+describe('servingOwnerMeasure — the probe reads surfaces that SERVE, and the edge past the flush', () => {
+  const read = (file: string): string => fs.readFileSync(path.resolve(__dirname, '../../src/client/console', file), 'utf8').replace(/\r\n/g, '\n');
+
+  it('a presence that serves nothing is not «present»: the shell names it, the probe drops it — for the shadow and the measure alike', () => {
+    const detector = read('consoleLeakDetector.ts');
+    expect(detector).to.contain('const present = ctx.presences === undefined || ctx.presences.length === 0 ? probed.present : probed.present.filter((owner) => !ctx.presences?.includes(owner));');
+    // ONE `present` for both readers: the verdict of the shadow and the look of the measure take the filtered list.
+    expect(detector.indexOf('const present = ctx.presences'), 'before the shadow\'s verdict').to.be.lessThan(detector.lastIndexOf('const verdict = screenShadowVerdict({'));
+    expect(detector).to.not.contain('noteServingOwnerLook(shape, ownership, probed.present');
+    // …and the shell's word is the three it has: the deck pick's outgoing beat, a series' visit of either surface.
+    const wiring = read('shell/wiringController.ts');
+    expect(wiring).to.match(/presences: \[\s+\.\.\.\(shell\.deckPickOutgoing \? \['deck-pick' as const\] : \[\]\),\s+\.\.\.\(shell\.seriesHeldVisit !== undefined \? \['task' as const\] : \[\]\),\s+\.\.\.\(shell\.seriesHeldDecision !== undefined \? \['decision' as const\] : \[\]\),/);
+    // The pure half: under a hold, a surface the probe no longer lists reads as held — never EXTRA.
+    const held: Ownership = {asked: true, owner: 'deck-pick', basis: 'row', host: 'card-actions', hold: {kind: 'admission', by: 'played-hero'}} as Ownership;
+    expect(ownerLookVerdict(held, ['card-actions', 'deck-pick'], 'agree:table'), 'the outgoing beat read as a surface').to.eq('EXTRA:admission');
+    expect(ownerLookVerdict(held, ['card-actions'], 'held:admission'), 'the same look, the presence named').to.eq('held:admission');
+  });
+
+  it('the edge is read in a microtask of the look — behind the flush the fact\'s own move queued', () => {
+    const detector = read('consoleLeakDetector.ts');
+    const look = detector.slice(detector.indexOf('if (ctx.edge !== undefined) {'), detector.indexOf('if (ctx.flags !== undefined) {'));
+    expect(look).to.match(/void Promise\.resolve\(\)\.then\(\(\) => \{\s+const late = screenShadowContext\?\.\(\);/);
+    expect(look, 'the facts and the edge are BOTH read late — one moment').to.contain('noteOwnerEdgeLook(shape, late.edge, {answer: ownershipDigest(servingOwnerOf(lateFacts)), facts: questionFactsDigest(lateFacts)});');
+    expect(look, 'never the look\'s own, synchronous, edge').to.not.contain('noteOwnerEdgeLook(shape, ctx.edge');
+  });
+
+  it('a surface standing outside the stack is a FACT of the question: the sitting\'s embedded draw', () => {
+    const router = read('shell/routerController.ts');
+    expect(router).to.contain('standing: shell.externalDrawEmbedded ? [\'external-draw\'] : [],');
+    // (Its presence is the published zone — nothing of the function's answer: no cycle.)
+    const reveal = read('shell/revealController.ts');
+    const embedded = reveal.slice(reveal.indexOf('const externalDrawEmbedTarget = computed('), reveal.indexOf('const externalDrawWorkspaceMounted = computed('));
+    expect(embedded).to.not.match(/ownerServes|promptOwnership|servingOwnership/);
   });
 });

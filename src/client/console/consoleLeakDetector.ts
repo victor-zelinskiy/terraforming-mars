@@ -530,6 +530,15 @@ export type ScreenShadowContext = {
   question?: ConsoleTask,
   /** The prompt surfaces' own conditions that hold right now, by the pad's names (stage 2 ③ — the measure's, read by nothing else). */
   flags?: ReadonlyArray<string>,
+  /**
+   * THE SURFACES THAT PAINT AND SERVE NOTHING — a presence finishing or held, by the shell's own word: the deck
+   * pick's OUTGOING beat (`deckPickOutgoing` — the picks flying, the played card rising out of it), a series' VISIT
+   * kept standing between its questions (`seriesHeldVisit` · `seriesHeldDecision` — inert, the pad absorbed). The
+   * probe reads the DOM and cannot tell them from a surface that serves: read as «present» they were the measure's
+   * standing `EXTRA:admission` (nine looks of the whole suite, CI 2026-11-22 — `console-board-of-directors` ×5,
+   * `console-ecotec` ×4), and for the shadow an `agree` with a surface that was answering nothing.
+   */
+  presences?: ReadonlyArray<ScreenOwner>,
   /** The function's answer and its facts as they stood at the LAST reactive edge of those facts (stage 2 ③ — the measure's). */
   edge?: {answer: string, facts: string},
   /** The announce gate's beat: none · announced but not yet presented · PRESENTED (its plate / beacon owed on screen). */
@@ -739,7 +748,10 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
     return;
   }
   const hold = promptHeldReason(view, task, {anyHold: false});
-  const {present, beats} = screenProbe();
+  const probed = screenProbe();
+  const beats = probed.beats;
+  // (A presence that serves nothing is not «present» — the shell's word, `ScreenShadowContext.presences`.)
+  const present = ctx.presences === undefined || ctx.presences.length === 0 ? probed.present : probed.present.filter((owner) => !ctx.presences?.includes(owner));
   // A BLIND announce: the gate holds a decision it has already PRESENTED, and neither its plate nor the chip's beacon
   // paints — the question waits behind a door nobody can see (the Lagrange Observatory field lock, 2026-11-02).
   // …judged on the ANNOUNCE's own clock: a plate covered for less than the beacon's dwell is the announce changing
@@ -770,7 +782,19 @@ function runScreenShadow(view: PlayerViewModel | undefined, task: ConsoleTask | 
       const ownership = servingOwnerOf(facts);
       noteServingOwnerLook(shape, ownership, present, shadow, () => questionFactsDigest(facts));
       if (ctx.edge !== undefined) {
-        noteOwnerEdgeLook(shape, ctx.edge, {answer: ownershipDigest(ownership), facts: questionFactsDigest(facts)});
+        // READ PAST THE FLUSH. The edge's own watcher is flushed with the render; a look taken inside the very task in
+        // which a fact moved (a client pick opening under the pass) read the old edge beside the new answer and
+        // called it a latch — four of 4 253 looks of the whole suite, every one «+ scene hand-pick», none of them a
+        // latch (the once-a-second audit, which reads after the flush, never fired). A microtask queued here runs
+        // behind the flush already queued by that move: the measure then holds the cache to what a cache can know.
+        void Promise.resolve().then(() => {
+          const late = screenShadowContext?.();
+          if (late?.edge === undefined || late.facts === undefined) {
+            return;
+          }
+          const lateFacts = {task: late.question ?? task, ...late.facts};
+          noteOwnerEdgeLook(shape, late.edge, {answer: ownershipDigest(servingOwnerOf(lateFacts)), facts: questionFactsDigest(lateFacts)});
+        });
       }
       if (ctx.flags !== undefined) {
         // (The frames standing above the owner's own — the steps of its flow.)
