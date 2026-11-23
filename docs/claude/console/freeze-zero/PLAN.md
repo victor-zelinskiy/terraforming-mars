@@ -1217,6 +1217,22 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
     the wait graph beside it now (`hydro-flow:result-read`). With the standard project's read and the action
     commit's minimum beat that is three, each a beat of stillness somebody wrote and nobody declared — and no quiet
     beat that is a stall.
+- **THE READINGS OF THE AFTERNOON (2026-11-23).** The gate on `77f2c52edc` (45162258075) and on `43dc5a3260`
+  (45171530623): both seeds green. The targeted suite on `43dc5a3260` (45164529687 — the Hydronetwork, the 4K boots,
+  52 tests ×2): green, not one defect class; the two 4K tests carry no `board-fit` line, `hydro:completing` reads
+  `busy[flow:ceiling:hydro-flow:result-read]`. The box, the new head `0be1b6082f`, `fz3` · duo, all 606 walks: one
+  defect — the second seat's strand (cured one commit later) — and not one quiet beat. The strand is replayed in the
+  bottle (`62564f1a37` — red with the reaction switched off, green with it).
+- **ONE FLAKE LEFT OPEN, WITH ITS TRACE (the whole suite on `77f2c52edc`, run 45162252640 — 1 497 passed).**
+  `console-flight-paint` A · tv4k (the stand of «a token never paints under the surface it lands on»): the first
+  attempt read token #3 `lit→under→lit · under hull 1× [aside.con-res]` — ONE sample under the rail; the retry
+  passed, and so did the four whole runs before it today and a repeat of the spec ×8 on the next head (45176751359,
+  32 runs, no retry). A frame the player could see, once in about fourteen 4K runs on CI's software raster. By the
+  code the handover is decided in the very tick the token is moved (`transferTurnDue` in the flight's `onUpdate`),
+  against the cover measured at the birth (`.con-shade`'s box) — so the one way left is a cover that was not the
+  glass at that moment. **Not cured: not named yet.** The paint witness's report now says where and how each sample
+  under the hull stood (the moment, the point, the layer, the paint) — the next occurrence tells a late handover
+  (`under`) from a broken ladder (`lit`).
 - **THE BOX's PERTURBED PASSES, CLOSED (the old head `649e500d8d`, 606 walks each):** cpu×4 — 0 defects; reload — 0;
   net 400 — 0; duo — 2, both cured above (the strand; the hero's absorb inside a frame gap).
 - **THE NETS UNDER GREEN TESTS, AGAIN (the whole suite on `713e8d0c30`, CI run 45110190541 — 1 497 passed).**

@@ -126,5 +126,9 @@ export async function readPaintWitness(page: Page): Promise<PaintWitness> {
 export function paintReport(w: PaintWitness): string {
   return w.tokens.map((k) => `#${k.id} ${k.layers.join('→')} · birth ${k.birth.top} @(${k.birth.x},${k.birth.y}) ws=${k.birth.wsOpen} · ` +
     `touchdown ${k.touchdown.top} @(${k.touchdown.x},${k.touchdown.y}) · under hull ${k.underHull.length}× ` +
-    `${k.underHull.length > 0 ? `[${[...new Set(k.underHull.map((s) => s.top))].join(' | ')}]` : ''}`).join('\n');
+    // (WHERE and HOW each sample under the hull stood — the moment, the point, the layer the token was in and its paint:
+    // «under hull 1× [aside.con-res]» of a flaky 4K run, CI 45162252640, named the surface and nothing a reader could act
+    // on — a late handover reads `under`, a z ladder broken for the lit layer reads `lit`.)
+    `${k.underHull.length > 0 ? `[${[...new Set(k.underHull.map((s) => s.top))].join(' | ')}] ` +
+      k.underHull.slice(0, 6).map((s) => `${s.t}ms @(${s.x},${s.y}) ${s.layer} α${s.opacity}`).join(' · ') : ''}`).join('\n');
 }
