@@ -255,6 +255,115 @@ async function settledSurface(page: Page, what: string): Promise<Awaited<ReturnT
   return readSettled(page, () => surface(page), {message: what});
 }
 
+/**
+ * A LIVE TWO-SEAT TABLE WITH P1 SEATED AS HELION, WALKED TO ITS RESEARCH PURCHASE's PAYMENT: the pregame, generation 1,
+ * the draft's three picks, ONE card marked on the buy and RT — the server answers with a `payment` (Helion's heat) and
+ * withholds the bought card behind it. Returns the two seats; the page stands on the buy with the payment asked.
+ */
+async function helionToPayment(page: Page, request: APIRequestContext): Promise<{first: {id: string, name: string}, second: {id: string, name: string}}> {
+  const created = await request.post('/api/creategame', {data: newGameConfig({
+    // Custom corporations are dealt OFF THE TOP of the corp deck: P1's two
+    // options lead with Helion, and the wizard walk takes the focused
+    // (first) corporation. Verified after the deployment — the deal is the
+    // one thing a config cannot fully force.
+    customCorporationsList: ['Helion', 'Teractor', 'CrediCor', 'ThorGate'],
+  })});
+  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
+  const model = await created.json() as {players: Array<{id: string, name: string}>};
+  const first = model.players.find((p) => p.name === 'First')!;
+  const second = model.players.find((p) => p.name === 'Second')!;
+
+  // ── The pregame + generation 1, exactly as the main tour drives them.
+  await page.goto(`/player?id=${first.id}&console=1&consoleProfile=tv`);
+  await page.waitForSelector('.con-start__frame', {timeout: 45_000});
+  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
+  await walkToSummary(page, {
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        // TARGET Helion by name, never «the focused card»: testMode deals
+        // EIGHT corporations, and which seat the on-top custom list lands
+        // in is not reproducible — a blind Enter seated P2 as Helion on
+        // one run and the whole scenario silently degraded to a plain buy.
+        await waitStepDealSettled(p);
+        expect(await focusCard(p, 'Helion'),
+          'Helion must be in P1\'s corporation deal (customCorporationsList on top)').toBeTruthy();
+        await press(p, 'Enter', 600);
+      } else if (kind === 'project') {
+        await fillPicks(p, 0);
+      }
+    },
+  });
+  expect(await summaryVisible(page), 'the wizard walk must end on the summary').toBeTruthy();
+  await submitSummary(page);
+  for (let i = 0; i < 20; i++) {
+    const m2 = await modelOf(request, second.id);
+    if (m2.game.phase === 'drafting' || m2.waitingFor === undefined) {
+      break;
+    }
+    await sendPlayerInput(request, second.id, roadAnswer(m2.waitingFor) as never);
+  }
+  await page.waitForSelector('.con-start--ceremony', {timeout: 60_000});
+  const startRoot = page.locator('.con-start');
+  await pressUntil(page, 'Enter', async () => await startRoot.count() === 0, {tries: 25, settleMs: 1300});
+  await expect.poll(() => startRoot.count(), {message: 'the start workspace released after the deployment'}).toBe(0);
+  // The scenario is only real with Helion in P1's OWN seat (P2's public
+  // tableau also says «Helion», so a model-wide search is a false green) AND
+  // heat to spend at the buy (+3 heat production pays out as gen 1 ends).
+  const seated = await modelOf(request, first.id) as WireModel &
+    {thisPlayer?: {heat?: number, tableau?: Array<{name?: string}>}};
+  expect((seated.thisPlayer?.tableau ?? []).some((c) => c.name === 'Helion'),
+    `P1 must be seated as Helion, got: ${JSON.stringify((seated.thisPlayer?.tableau ?? []).map((c) => c.name))}`).toBeTruthy();
+  await passIntoDrafting(page, request, first.id, second.id);
+
+  // ── The draft: A opens the workspace off the plate; three interactive
+  //    pick rounds (the 4th card auto-passes by the rules).
+  expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-mandatory').count() > 0,
+    {tries: 45, settleMs: 1500}), 'the draft\'s plate presented').toBe(true);
+  await press(page, 'Enter', 900);
+  await page.waitForSelector('.con-draftws', {timeout: 45_000});
+  await cinematicBeat(page, 2200,
+    'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
+  await pickOnUi(page, request, first.id);
+  await secondPicksFirstCard(request, second.id);
+  await expect.poll(async () => (await surface(page)).packetSlots, {timeout: 30_000}).toBe(3);
+  await cinematicBeat(page, 2200,
+    'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
+  await pickOnUi(page, request, first.id);
+  await secondPicksFirstCard(request, second.id);
+  await expect.poll(async () => (await surface(page)).packetSlots, {timeout: 30_000}).toBe(2);
+  await cinematicBeat(page, 2200,
+    'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
+  await pickOnUi(page, request, first.id);
+  await secondPicksFirstCard(request, second.id);
+  await expect.poll(async () => (await surface(page)).buy, {timeout: 45_000}).toBeTruthy();
+  await settle(page, {timeoutMs: 25_000});
+
+  const heatNow = ((await modelOf(request, first.id)) as WireModel & {thisPlayer?: {heat?: number}}).thisPlayer?.heat ?? 0;
+  expect(heatNow, 'Helion must hold heat at the buy — that is what makes the server ask for payment').toBeGreaterThan(0);
+
+  // ── Buy ONE card; RT commits. The server's answer is the PAYMENT prompt
+  //    (never a granted hand): verify the commit on that fact — with Helion
+  //    `needsToResearch` stays true until the payment resolves, so the main
+  //    tour's flag would read «never committed» over a perfect commit.
+  const pickedCount = async () => page.locator('.con-draftws__stage--buy .con-cards__slot--picked').count();
+  await pressUntil(page, 'Enter', async () => await pickedCount() >= 1, {tries: 6, settleMs: 1000});
+  await expect.poll(pickedCount, {message: 'one card selected for purchase'}).toBe(1);
+  let paymentAsked = false;
+  for (const deadline = Date.now() + 90_000; !paymentAsked && Date.now() < deadline;) {
+    // Into the stage that commits only — a STATE, bounded per round.
+    const buyUp = await expect.poll(async () => (await surface(page)).buy, {timeout: 5_000}).toBe(true).then(() => true, () => false);
+    if (!buyUp) {
+      continue;
+    }
+    await press(page, 'Period', 1400);
+    const m = await modelOf(request, first.id);
+    paymentAsked = m.waitingFor?.type === 'payment';
+  }
+  expect(paymentAsked, 'the buy commit must be answered with a SelectPayment (Helion heat)').toBeTruthy();
+  await shoot(page, 'helion-01-payment-asked');
+  return {first, second};
+}
+
 test.describe('draft workspace · the between-generations flow', () => {
   test.use({viewport: {width: 3840, height: 2160}});
 
@@ -705,106 +814,7 @@ test.describe('draft workspace · the between-generations flow', () => {
         watchdogRecoveries.push(msg.text());
       }
     });
-    const created = await request.post('/api/creategame', {data: newGameConfig({
-      // Custom corporations are dealt OFF THE TOP of the corp deck: P1's two
-      // options lead with Helion, and the wizard walk takes the focused
-      // (first) corporation. Verified after the deployment — the deal is the
-      // one thing a config cannot fully force.
-      customCorporationsList: ['Helion', 'Teractor', 'CrediCor', 'ThorGate'],
-    })});
-    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-    const model = await created.json() as {players: Array<{id: string, name: string}>};
-    const first = model.players.find((p) => p.name === 'First')!;
-    const second = model.players.find((p) => p.name === 'Second')!;
-
-    // ── The pregame + generation 1, exactly as the main tour drives them.
-    await page.goto(`/player?id=${first.id}&console=1&consoleProfile=tv`);
-    await page.waitForSelector('.con-start__frame', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-    await walkToSummary(page, {
-      onStep: async (p, kind) => {
-        if (kind === 'corporation') {
-          // TARGET Helion by name, never «the focused card»: testMode deals
-          // EIGHT corporations, and which seat the on-top custom list lands
-          // in is not reproducible — a blind Enter seated P2 as Helion on
-          // one run and the whole scenario silently degraded to a plain buy.
-          await waitStepDealSettled(p);
-          expect(await focusCard(p, 'Helion'),
-            'Helion must be in P1\'s corporation deal (customCorporationsList on top)').toBeTruthy();
-          await press(p, 'Enter', 600);
-        } else if (kind === 'project') {
-          await fillPicks(p, 0);
-        }
-      },
-    });
-    expect(await summaryVisible(page), 'the wizard walk must end on the summary').toBeTruthy();
-    await submitSummary(page);
-    for (let i = 0; i < 20; i++) {
-      const m2 = await modelOf(request, second.id);
-      if (m2.game.phase === 'drafting' || m2.waitingFor === undefined) {
-        break;
-      }
-      await sendPlayerInput(request, second.id, roadAnswer(m2.waitingFor) as never);
-    }
-    await page.waitForSelector('.con-start--ceremony', {timeout: 60_000});
-    const startRoot = page.locator('.con-start');
-    await pressUntil(page, 'Enter', async () => await startRoot.count() === 0, {tries: 25, settleMs: 1300});
-    await expect.poll(() => startRoot.count(), {message: 'the start workspace released after the deployment'}).toBe(0);
-    // The scenario is only real with Helion in P1's OWN seat (P2's public
-    // tableau also says «Helion», so a model-wide search is a false green) AND
-    // heat to spend at the buy (+3 heat production pays out as gen 1 ends).
-    const seated = await modelOf(request, first.id) as WireModel &
-      {thisPlayer?: {heat?: number, tableau?: Array<{name?: string}>}};
-    expect((seated.thisPlayer?.tableau ?? []).some((c) => c.name === 'Helion'),
-      `P1 must be seated as Helion, got: ${JSON.stringify((seated.thisPlayer?.tableau ?? []).map((c) => c.name))}`).toBeTruthy();
-    await passIntoDrafting(page, request, first.id, second.id);
-
-    // ── The draft: A opens the workspace off the plate; three interactive
-    //    pick rounds (the 4th card auto-passes by the rules).
-    expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-mandatory').count() > 0,
-      {tries: 45, settleMs: 1500}), 'the draft\'s plate presented').toBe(true);
-    await press(page, 'Enter', 900);
-    await page.waitForSelector('.con-draftws', {timeout: 45_000});
-    await cinematicBeat(page, 2200,
-      'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
-    await pickOnUi(page, request, first.id);
-    await secondPicksFirstCard(request, second.id);
-    await expect.poll(async () => (await surface(page)).packetSlots, {timeout: 30_000}).toBe(3);
-    await cinematicBeat(page, 2200,
-      'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
-    await pickOnUi(page, request, first.id);
-    await secondPicksFirstCard(request, second.id);
-    await expect.poll(async () => (await surface(page)).packetSlots, {timeout: 30_000}).toBe(2);
-    await cinematicBeat(page, 2200,
-      'the packet-turn beat INSIDE the draft chain — the flip must PLAY before the next pick, and quiet arrives before it arms');
-    await pickOnUi(page, request, first.id);
-    await secondPicksFirstCard(request, second.id);
-    await expect.poll(async () => (await surface(page)).buy, {timeout: 45_000}).toBeTruthy();
-    await settle(page, {timeoutMs: 25_000});
-
-    const heatNow = ((await modelOf(request, first.id)) as WireModel & {thisPlayer?: {heat?: number}}).thisPlayer?.heat ?? 0;
-    expect(heatNow, 'Helion must hold heat at the buy — that is what makes the server ask for payment').toBeGreaterThan(0);
-
-    // ── Buy ONE card; RT commits. The server's answer is the PAYMENT prompt
-    //    (never a granted hand): verify the commit on that fact — with Helion
-    //    `needsToResearch` stays true until the payment resolves, so the main
-    //    tour's flag would read «never committed» over a perfect commit.
-    const pickedCount = async () => page.locator('.con-draftws__stage--buy .con-cards__slot--picked').count();
-    await pressUntil(page, 'Enter', async () => await pickedCount() >= 1, {tries: 6, settleMs: 1000});
-    await expect.poll(pickedCount, {message: 'one card selected for purchase'}).toBe(1);
-    let paymentAsked = false;
-    for (const deadline = Date.now() + 90_000; !paymentAsked && Date.now() < deadline;) {
-      // Into the stage that commits only — a STATE, bounded per round.
-      const buyUp = await expect.poll(async () => (await surface(page)).buy, {timeout: 5_000}).toBe(true).then(() => true, () => false);
-      if (!buyUp) {
-        continue;
-      }
-      await press(page, 'Period', 1400);
-      const m = await modelOf(request, first.id);
-      paymentAsked = m.waitingFor?.type === 'payment';
-    }
-    expect(paymentAsked, 'the buy commit must be answered with a SelectPayment (Helion heat)').toBeTruthy();
-    await shoot(page, 'helion-01-payment-asked');
+    const {first, second} = await helionToPayment(page, request);
 
     // ── THE FIXED CONTRACT. The payment panel rises INSIDE the workspace's
     //    pay slot, promptly — the refuted intake may not stand as a stale
@@ -854,5 +864,64 @@ test.describe('draft workspace · the between-generations flow', () => {
     await shoot(page, 'helion-03-released');
     // The whole flow ran; the watchdog had nothing to cure at any point.
     expect(watchdogRecoveries, 'the watchdog must stay silent through the whole Helion draft').toEqual([]);
+  });
+
+  /**
+   * «СВЕРНУТЬ» ON THE PAY STAGE, AND BACK — THE PURCHASE STILL ENDS (FREEZE ZERO, stage 6: the wedge the autopilot's
+   * first whole game found). A player who is asked to pay for the research with heat minimizes the workspace to read
+   * the board — the most ordinary press there is — and returns. «Свернуть» parks the stack and UNMOUNTS the surface;
+   * the instance that mounts on the way back knew nothing of the purchase already committed: after the payment the
+   * stage stood on the frozen buy row for ever (the terminal plate waited for an exit that had left with the first
+   * instance), the completion latch never fell, the frame never closed — and the research of every later generation
+   * opened in a workspace whose only verb was «Свернуть». The game was over for that seat until a reload.
+   * The contract: whatever instance stands when the payment is answered, the receipt reads and the workspace LEAVES.
+   */
+  test('Helion: «свернуть» on the pay stage and back — the payment still ends the purchase, the workspace leaves', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const {first, second} = await helionToPayment(page, request);
+    const payHost = async () => page.evaluate(() => {
+      const el = document.querySelector('.con-draftws [data-draft-pay-slot] .con-task-host');
+      return el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
+    });
+    await expect.poll(payHost, {timeout: 15_000, message: 'the payment stands embedded in the workspace'}).toBeTruthy();
+    await settledSurface(page, 'the embedded payment stage');
+
+    // ── B «СВЕРНУТЬ»: the workspace steps aside (the stack is parked), the board is the player's to read.
+    expect(await pressUntil(page, 'Escape', async () => !(await surface(page)).workspace, {tries: 4, settleMs: 1200}),
+      'B minimizes the workspace on its pay stage').toBe(true);
+    expect((await modelOf(request, first.id)).waitingFor?.type, 'minimizing answers nothing: the payment is still asked').toBe('payment');
+    await shoot(page, 'helion-min-01-minimized');
+
+    // ── …AND BACK: A on the board returns to the question — the SAME stage, the payment embedded again.
+    expect(await pressUntil(page, 'Enter', async () => (await surface(page)).workspace, {tries: 8, settleMs: 1300}),
+      'A returns to the minimized research').toBe(true);
+    await expect.poll(payHost, {timeout: 20_000, message: 'the returned workspace stands on its pay stage'}).toBeTruthy();
+    await settledSurface(page, 'the pay stage after the return');
+    await shoot(page, 'helion-min-02-returned');
+
+    // ── PAY on the real UI (act → verify on the SERVER → retry): the payment is gone from the wire.
+    const asksPayment = async () => (await modelOf(request, first.id)).waitingFor?.type === 'payment';
+    for (const deadline = Date.now() + 60_000; await asksPayment() && Date.now() < deadline;) {
+      await press(page, 'Enter', 1200);
+      if (await asksPayment()) {
+        await press(page, 'Period', 1200);
+      }
+    }
+    expect(await asksPayment(), 'the payment was made on the screen that came back').toBe(false);
+    // P2's buy resolves over the API — the research is over for the table.
+    const p2 = await modelOf(request, second.id);
+    if (p2.waitingFor?.type === 'card') {
+      await sendPlayerInput(request, second.id, {type: 'card', cards: []});
+    }
+
+    // ── THE CONTRACT: the purchase ENDS — the workspace leaves by itself and the board home is live. (Before the fix
+    //    the frame stood for ever: this poll is the wedge.)
+    await expect.poll(async () => (await surface(page)).workspace, {timeout: 60_000, message: 'the research leaves after its payment'}).toBeFalsy();
+    await expect.poll(async () => (await surface(page)).dock, {timeout: 20_000}).toBeTruthy();
+    // …and nothing of it is left behind the board: no frame of the draft on the stack, live or parked.
+    await expect.poll(async () => page.evaluate(() => ((window as unknown as {__conReady?: () => {wsFrames?: Array<string>}}).__conReady?.().wsFrames ?? [])
+      .filter((frame) => frame.startsWith('draft'))), {timeout: 15_000,
+      message: 'no draft frame is left on the stack'}).toEqual([]);
+    await shoot(page, 'helion-min-03-released');
   });
 });

@@ -173,15 +173,15 @@
             <span class="con-draftws__done-mark" aria-hidden="true"><i>✓</i></span>
             <span class="con-draftws__done-title">{{ $t('Draft complete') }}</span>
             <span class="con-draftws__done-amount">
-              <template v-if="completionBought > 0">
+              <template v-if="draftWorkspaceState.receipt.bought > 0">
                 <span>{{ boughtReadout }}</span>
-                <span class="con-draftws__done-spent">−{{ completionSpent }}<i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i></span>
+                <span class="con-draftws__done-spent">−{{ draftWorkspaceState.receipt.spent }}<i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i></span>
               </template>
               <template v-else>
                 <span>{{ $t('No cards were bought') }}</span>
               </template>
             </span>
-            <span v-if="completionBought > 0" class="con-draftws__done-sub">{{ doneReadout }}</span>
+            <span v-if="draftWorkspaceState.receipt.bought > 0" class="con-draftws__done-sub">{{ doneReadout }}</span>
           </div>
         </div>
         </transition>
@@ -347,6 +347,7 @@ import {
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {availabilityContextFor} from '@/client/console/cardAvailability';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {workspaceFrameScope} from '@/client/console/consoleWorkspaceStack';
 
 type CardEntry = {name: CardName, key: string, card: CardModel};
 
@@ -429,12 +430,19 @@ let cloneFlight: CloneFlightHandle | undefined;
 /** The collection has handed its cards to the purchase row (lift-off):
  *  the shelf dissolves and never returns for the rest of the flow. */
 const shelfRetired = ref(false);
-/** The purchase commit's receipt (the terminal plate's numbers). */
-const completionBought = ref(0);
-const completionSpent = ref(0);
-/** The unbought cards' exit has visually settled — the terminal plate
- *  may take the stage while the intake still flies to the dock. */
-const discardsSettled = ref(false);
+/**
+ * The unbought cards' exit has visually settled — the terminal plate may take the stage while the intake still flies
+ * to the dock.
+ *
+ * A WORKSPACE THAT MOUNTS INSIDE A COMPLETION HAS NO EXIT TO WAIT FOR (the wedge the autopilot's first whole game
+ * found — FREEZE ZERO, stage 6): the unbought cards left with the instance that committed the purchase. «Свернуть» on
+ * the pay stage (a player reading the board before paying with heat) unmounts that instance; the one that mounts on
+ * the way back used to start from `false`, with nobody left to settle it — after the payment the stage stood on the
+ * frozen buy row for ever, the terminal beat never armed, the completion latch never fell, and the research of every
+ * later generation opened in a workspace with no verb but «Свернуть». (The purchase's RECEIPT is module state for the
+ * same reason — `draftWorkspaceState.receipt`.)
+ */
+const discardsSettled = ref(draftWorkspaceState.completion !== 'none');
 let cancelDiscardSettle = (() => {}) as () => void;
 /** Guards the exit promise's settle against a torn-down frame. */
 const discardWaitNonce = ref(0);
@@ -700,7 +708,7 @@ const doneReadout = computed((): string => {
   return translateText('Purchased cards are in your hand');
 });
 const boughtReadout = computed((): string => {
-  return translateTextWithParams('Cards bought: ${0}', [String(completionBought.value)]);
+  return translateTextWithParams('Cards bought: ${0}', [String(draftWorkspaceState.receipt.bought)]);
 });
 const setComplete = computed((): boolean => {
   return draftTrayState.setComplete;
@@ -1276,11 +1284,9 @@ function confirmPurchase(): void {
   }
   const bought = [...picks.value];
   const rest = buyEntries.value.filter((e) => !bought.includes(e.name));
-  // The receipt the terminal plate reads («Куплено карт: N · −N M€»).
-  completionBought.value = bought.length;
-  completionSpent.value = bought.length * buyCostPerCard.value;
   discardsSettled.value = false;
-  beginDraftCompletion();
+  // (With the receipt the terminal plate reads — «Куплено карт: N · −N M€».)
+  beginDraftCompletion({bought: bought.length, spent: bought.length * buyCostPerCard.value});
   // The unbought cards drift out (the discard side), visibly secondary;
   // the terminal plate takes the stage the moment their exit has
   // ACTUALLY ENDED — the settle rides applyDiscardExit's own joined
@@ -1309,10 +1315,10 @@ function confirmPurchase(): void {
   if (bought.length === 0) {
     submitCards([]);
     // No intake flight to ride on this path — the gate is the discard
-    // exit's read window. Stored + cleared on unmount, so a torn-down
-    // frame can never receive the completion flip.
+    // exit's read window. A wait of the FRAME's scope, not of this instance's: the flip is the flow's (module state),
+    // and an instance unmounted inside the window («свернуть») must not take it along — the frame's end does.
     cancelCompletionFlights();
-    cancelCompletionFlights = flow.after(consoleMotionMs(720), 'the zero-buy discard exit reads', () => {
+    cancelCompletionFlights = (workspaceFrameScope('draft') ?? flow).after(consoleMotionMs(720), 'the zero-buy discard exit reads', () => {
       markDraftCompletionFlightsDone();
     });
     return;
@@ -1878,6 +1884,11 @@ onMounted(() => {
   registerTraySlotResolver((name) => resolveShelfSlot(name));
   useResizeObserver(stageWrap.value, () => fitStage());
   void nextTick(() => fitStage());
+  // MOUNTED STRAIGHT ONTO THE TERMINAL PLATE (a return from «свернуть» inside a completion): the zone's watcher sees
+  // CHANGES only — the beat that reads the plate and releases the frame is armed here.
+  if (zone.value === 'done') {
+    armDoneBeat();
+  }
 });
 onBeforeUnmount(() => {
   registerTraySlotResolver(undefined);

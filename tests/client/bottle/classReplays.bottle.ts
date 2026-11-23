@@ -1050,4 +1050,47 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
       }
     });
   }
+
+  /*
+   * THE RESEARCH WEDGED BY A SURFACE THAT LEFT INSIDE ITS COMPLETION (FREEZE ZERO, stage 6 — found by the autopilot's
+   * FIRST whole game, `ap0:1`, generation 11): a purchase is committed, its completion latch is up
+   * (`draftWorkspaceState.completion` — module state: the frame's lifetime), and the surface that plays the last beats
+   * out is UNMOUNTED under it — «свернуть» parks the stack (on the pay stage of a heat / titanium corporation, in the
+   * field). The latch's only finisher was that instance's own timer, armed by a flag of its own memory: the frame
+   * stood for ever, parked or brought back, and every later research opened in a workspace with no verb. The law: a
+   * completion holds the frame only while a workspace stands to play it out, and an instance that mounts inside one
+   * arms the terminal beat itself (`draftController.draftFrameLive`, `ConsoleDraftWorkspace` § `discardsSettled`).
+   * (Planted the way it arises: the stack parked inside the completion, then restored.)
+   */
+  it('a research surface that leaves inside its completion: the frame does not outlive the purchase — nothing stands, nothing is filed', async () => {
+    const table = await bottleServer().bootFixture('draft-showcase-solo-buy');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    await live.advance(3_000);
+    const stack = live.pageModules.consoleWorkspaceStack;
+    const draft = live.pageModules.consoleDraftFlow.draftWorkspaceState;
+    // A opens the research off its plate; RT buys — nothing marked: the purchase of zero cards, the shortest one.
+    for (let i = 0; i < 4 && live.frames().length === 0; i++) {
+      await live.press('Enter');
+      await live.advance(1_500);
+    }
+    expect(live.frames(), 'the research stands').to.deep.equal(['draft:browse']);
+    await live.press('Period');
+    await live.advance(300);
+    expect(bottleServer().seatTruth(live.seatId).waitingFor, 'the purchase is made: the server asks the turn').to.equal('or');
+    expect(draft.completion, 'the completion is up — the frame lives on it').to.not.equal('none');
+    // THE CLASS, PLANTED: the surface leaves inside the completion (the stack is parked — «свернуть»)…
+    stack.collapseWorkspaceStack();
+    await live.advance(400);
+    // …and the player comes back.
+    stack.restoreWorkspaceStack();
+    await live.advance(12_000);
+    expect(draft.completion, 'the completion has ended').to.equal('none');
+    expect(live.frames(), 'no frame of the research is left on the stack').to.deep.equal([]);
+    expect(live.ready().wsFrames, '…nor aside').to.deep.equal([]);
+    // The turn is the player's: the board's own bar, the arbiter content, nothing filed.
+    await live.advance(15_000);
+    expect(live.liveness().why, 'the player can act').to.deep.equal([]);
+    expect(classes()).to.deep.equal([]);
+  });
 });

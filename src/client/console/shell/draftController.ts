@@ -57,7 +57,12 @@ export function createDraftController(shell: DraftPort) {
    *  frame-lifetime predicate (the completion beats extend it past the
    *  research answer). */
   const draftFrameLive = computed((): boolean => {
-    return betweenGenResearchLive(shell.playerView) || draftCompletionHolding();
+    // THE COMPLETION HOLDS THE FRAME ONLY WHILE A WORKSPACE STANDS TO PLAY IT OUT (FREEZE ZERO, stage 6 — the first
+    // whole game the autopilot played): the latch is the module's, but its last beats — the receipt's read, the
+    // release — are played by the mounted workspace. A frame that is NOT on the live stack (parked) has nobody to end
+    // them, and a research that is over has nothing to come back to: the frame goes, its latches reset
+    // (`whenDraftFrameLiveChanges`). While a payment still stands the research itself is live — the first term.
+    return betweenGenResearchLive(shell.playerView) || (draftCompletionHolding() && workspaceFrameIndex('draft') !== -1);
   });
 
   /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */

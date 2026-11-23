@@ -425,6 +425,15 @@ export const draftWorkspaceState = reactive({
   /** The purchase commit's completion beats (frame-lifetime extension). */
   completion: 'none' as 'none' | 'flights' | 'done',
   /**
+   * The purchase commit's RECEIPT — what the terminal plate reads («Куплено карт: N · −N M€»).
+   *
+   * Module state for the same reason as `picks`: «свернуть» PARKS the stack and a fresh surface mounts on restore. A
+   * purchase with a payment after it (Helion's heat, Luna Trade Federation's titanium) stands in its pay stage for as
+   * long as the player thinks — and a player who minimized there to read the board came back to a plate that said
+   * «No cards were bought».
+   */
+  receipt: {bought: 0, spent: 0},
+  /**
    * The cards the player has MARKED (the purchase selection, a keep-2 pick).
    *
    * Module state, not component state, because «свернуть» PARKS the stack:
@@ -526,9 +535,10 @@ export function observeDraftWorkspace(prev: PlayerViewModel | undefined, next: P
   }
 }
 
-/** The purchase commit began — cards are physically leaving the workspace. */
-export function beginDraftCompletion(): void {
+/** The purchase commit began — cards are physically leaving the workspace. `receipt` — what the terminal plate will read. */
+export function beginDraftCompletion(receipt: {bought: number, spent: number} = {bought: 0, spent: 0}): void {
   draftWorkspaceState.completion = 'flights';
+  draftWorkspaceState.receipt = {bought: receipt.bought, spent: receipt.spent};
   draftWorkspaceState.inspecting = false;
 }
 
@@ -542,6 +552,7 @@ export function markDraftCompletionFlightsDone(): void {
 /** The terminal beat played out — the shell may release the frame. */
 export function finishDraftCompletion(): void {
   draftWorkspaceState.completion = 'none';
+  draftWorkspaceState.receipt = {bought: 0, spent: 0};
 }
 
 /** The completion beats extend the frame's lifetime past `needsToResearch`. */
@@ -558,6 +569,7 @@ export function resetDraftWorkspace(): void {
   draftWorkspaceState.sawResearchStart = false;
   draftWorkspaceState.inspecting = false;
   draftWorkspaceState.completion = 'none';
+  draftWorkspaceState.receipt = {bought: 0, spent: 0};
   draftWorkspaceState.picks = [];
   draftWorkspaceState.picksKey = '';
   presentedPackets.clear();

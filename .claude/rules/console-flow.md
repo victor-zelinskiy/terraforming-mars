@@ -238,6 +238,18 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
   painted frame (`outcomeController.measureStandingBeat` → `beat|<kind>:<beat> · QUIET{…} | busy[…]`), and the gate —
   the bottle's (`gate:freeze`) and the real-browser monkey's — FAILS on a beat that stood QUIET for the doors' bar
   (250 ms), naming the beat and its tables (CI finding kind `beat-law`).
+- **A LATCH THAT EXTENDS A FRAME's LIFE IS FINISHED BY SOMETHING THAT LIVES AS LONG AS THE FRAME.** «Свернуть» PARKS
+  the stack: the surface UNMOUNTS, and a fresh instance mounts on the way back. Module state a surface raised (a
+  completion, a receipt, a selection) survives that; whatever the instance kept in its OWN memory beside it — «the exit
+  has settled», a timer of its `useFlowScope` that would have lowered the latch — does not. So: ① a flow's state is the
+  MODULE's, whole (the draft's `completion` · `receipt` · `picks`); ② an instance that mounts INSIDE a flow resumes it
+  from the module's state — it never waits for an event only its predecessor could have heard; ③ a wait whose end
+  moves the flow's state is a wait of the FRAME's scope (`workspaceFrameScope(kind)`), never of the component's; ④ a
+  frame's lifetime predicate that reads such a latch also asks that a surface STANDS to play it out
+  (`draftController.draftFrameLive`). The wedge it closes (2026-11-23, the autopilot's first whole game): the research
+  minimized on its pay stage and brought back stood for ever after the payment, and every later research opened in a
+  workspace with no verb — replay «a research surface that leaves inside its completion», e2e
+  `console-draft-workspace` («свернуть» on the pay stage and back).
 - **A claim is bound to its host frame's scope** (`consoleWorkspaceOutcome.bindClaimHost`): never sample «is the host
   still somewhere». Its timers are `claimMachine` states — a new backstop is a state with an `after`, never a module
   `setTimeout`. `stage` / `beatDone` / `arrivalDone` of `workspaceOutcomeState` are mirrors: write them through the
