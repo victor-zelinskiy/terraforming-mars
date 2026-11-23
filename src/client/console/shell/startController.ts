@@ -812,6 +812,26 @@ export function createStartController(shell: StartPort) {
     return `STRAND ${wf?.type ?? ''}:${wf?.startGamePrompt?.kind ?? taskFor(shell.playerView)?.kind ?? ''} · plan ${plan.join('+') || 'nothing'}`;
   }
 
+  /** Why the scene serves nothing, read off its own probe (`__conStartDiag` — the measure adds no reach of its own). */
+  function strandWhy(): string {
+    type Diag = {
+      mode?: string, flow?: string, ceremonyRevealed?: boolean, serves?: string, flowStage?: string,
+      firstAct?: {stage?: string, entryDue?: boolean, nested?: boolean, panelShown?: boolean},
+      bonusAct?: {stage?: string, entryDue?: boolean},
+      seat?: {flight?: unknown, owner?: unknown},
+      blockers?: Record<string, unknown>,
+    };
+    const diag = (window as unknown as {__conStartDiag?: () => Diag}).__conStartDiag?.();
+    if (diag === undefined) {
+      return 'no scene';
+    }
+    const blocker = Object.entries(diag.blockers ?? {}).find(([, v]) => v === true || (typeof v === 'number' && v > 0) || (Array.isArray(v) && v.length > 0));
+    return `why ${diag.mode ?? ''}/${diag.flow ?? ''}/${diag.flowStage ?? ''}${diag.ceremonyRevealed === false ? ' unrevealed' : ''} · ` +
+      `first ${diag.firstAct?.stage ?? ''}${diag.firstAct?.entryDue === true ? ' due' : ''}${diag.firstAct?.nested === true ? ' nested' : ''} · ` +
+      `bonus ${diag.bonusAct?.stage ?? ''}${diag.bonusAct?.entryDue === true ? ' due' : ''} · seat ${String(diag.seat?.owner ?? 'free')}/${String(diag.seat?.flight ?? '')} · ` +
+      `blocked by ${blocker === undefined ? 'nothing' : blocker[0]}`;
+  }
+
   function whenStartStrandedNowChanges(now: boolean): void {
     cancelStartStrand();
     cancelStrandLook();
@@ -844,7 +864,10 @@ export function createStartController(shell: StartPort) {
       const flight = flightsInTheAir();
       strandQuiet.frames = flight === '' ? strandQuiet.frames + 1 : 0;
       strandQuiet.max = Math.max(strandQuiet.max, strandQuiet.frames);
-      noteOpeningSpan('strand-door', `${stood.replace(/^STRAND/, 'STRAND-DOOR')} · ${flight === '' ? `QUIET{${standingDigest()}}` : `busy[${flight}]`}`, 'moved', Date.now());
+      // (A QUIET strand says WHY the scene serves nothing, in the scene's own words — its probe: the stage machines and
+      // the first of the entry's blockers that holds. «Quiet for 184 ms under the first action's question, in nine
+      // tests» named a wait nobody declared and nothing to find it by.)
+      noteOpeningSpan('strand-door', `${stood.replace(/^STRAND/, 'STRAND-DOOR')} · ${flight === '' ? `QUIET{${strandWhy()} · ${standingDigest()}}` : `busy[${flight}]`}`, 'moved', Date.now());
     };
     look();
     cancelStrandLook = flow.everyFrame('the strand, measured by frame', look);

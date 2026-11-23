@@ -161,8 +161,13 @@ describe('ConsoleStartScene — the game start workspace', () => {
     resetStartModules();
   });
 
-  it('a fresh game opens on the corporation step: the deal armed, the bar\'s verb and the watchdog\'s verdict published with the first render', () => {
+  it('a fresh game opens on the corporation step: the deal armed, the bar\'s verb and the watchdog\'s verdict published with the first render', async () => {
     const wrapper = mountScene(wizardView('p-start-spec-open'));
+    // THE SCENE's OWN MOUNT IS A BEAT (`sceneUp`): its set-up answers `beat` — never «serves nothing» over a scene being
+    // born — and the moment it is in the DOM the MIRROR the shell reads carries the real answer; the root's attribute
+    // follows with the render the mount queued (one flush — before any frame is painted).
+    expect(consoleStartState.serves, 'the mirror, with the mount itself').to.eq('wizard');
+    await nextTick();
 
     // PREPARATION is full-bleed: the workspace band (`con-ws`) and the ceremony's bounds belong to the deployment.
     expect(wrapper.classes()).to.contain('con-start');

@@ -5219,7 +5219,21 @@ const footHints = computed((): Array<StartCommand> => {
  * scene's own facts only; a latch that merely REMEMBERS a past beat (`effectReturnPending`'s released room, a seat
  * owner) is deliberately NOT motion — a scene stuck on one serves nothing, and that is what the watchdog must see.
  */
+/**
+ * THE SCENE's OWN MOUNT IS A BEAT. Its set-up publishes what it serves before a single node of it is in the DOM — with
+ * nothing to focus yet that reads `none`, and for the length of the mount (a heavy one: 184 – 207 ms on CI, in nine
+ * tests that open on the first action's question) the shell read «the start serves nothing while the server asks»: a
+ * STRAND, standing with nothing in flight, on every healthy boot into the opening (FREEZE ZERO, stage 2b — the
+ * STRAND-DOOR track's first reading; the measure's own word for it, once it asked the scene why: «no scene»). The
+ * watchdog's 2.5 s confirm never saw it; a door that acts on a quiet strand would have «healed» a scene that was
+ * being born. Until the scene is mounted its answer is its entry — `beat`, «a stage's own entry / leave: a bounded
+ * beat, never a strand by itself».
+ */
+const sceneUp = ref(false);
 const servesNow = computed((): StartServes => {
+  if (!sceneUp.value) {
+    return props.yielded ? 'yielded' : 'beat';
+  }
   return startServesOf({
     mode: mode.value,
     yielded: props.yielded,
@@ -11254,6 +11268,10 @@ watch(() => firstActionSeatMissing.value, (now: boolean) => {
 });
 
 onMounted(() => {
+  // (The scene is in the DOM: from here on it answers for what it serves — `sceneUp` — and says so WITH its first
+  // render, never a flush later: the leak detector's look and the shell's strand read the mirror, not the computed.)
+  sceneUp.value = true;
+  consoleStartState.serves = servesNow.value;
   absorbOff = registerInputAbsorber(START_PRESS_ABSORBER, () => pressBlockedNow.value !== undefined);
   // Every button, the d-pad too (`handleIntent` returns on ANY intent while the director moves) — a deal in flight is the
   // skip's, not a swallow.
