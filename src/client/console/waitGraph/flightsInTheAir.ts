@@ -28,9 +28,10 @@ import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
  * track did exactly that from its first day to 2026-11-23: «not one quiet beat» over the suite, the gate, the bottle
  * and the box was the measure answering its own question.
  */
-export function flightsInTheAir(now: number = Date.now(), under?: string): string {
+export function flightsInTheAir(now: number = Date.now(), under?: string | ReadonlyArray<string>): string {
+  const asked = under === undefined ? [] : typeof under === 'string' ? [under] : under;
   const names = collectWaitNodes(now)
-    .filter((node) => node.id !== under && node.targets.some((target) => target.kind === 'motion' || target.kind === 'server'))
+    .filter((node) => !asked.includes(node.id) && node.targets.some((target) => target.kind === 'motion' || target.kind === 'server'))
     .map((node) => `${node.family}:${node.id.replace(/[0-9]+/g, 'N')}`);
   if (transportState.requestInProgress) {
     names.push('transport:request');

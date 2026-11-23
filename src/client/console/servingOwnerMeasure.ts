@@ -654,6 +654,35 @@ export function noteBeatSpan(key: string, ended: string, now: number): void {
   refreshOpenSpans();
 }
 
+/**
+ * AN OWED CONCLUSION, MEASURED BY FRAME (stage 2 — the last two of the conclusion's nets read against a door: the
+ * ghost test and the forced teardown, `workspaceConclusionOwe.ts` — a flow that reported its ending, was refused, and
+ * after eight seconds of «nothing the player could act on» is torn down by force). One span per state of `<kind> ·
+ * q:<what the server asks> · held:<the refusal's reason> · ghost | vouched · QUIET | busy[…]` while a debt stands
+ * (the flights are read UNDER the debt's own nodes). `key` `''` — nothing is owed. Stats only: how long a debt stands,
+ * whether it ever reads «ghost» on a healthy table, and for how many quiet frames — what a level door of the
+ * escalation would have to wait out.
+ */
+export function noteOwedSpan(key: string, ended: string, now: number): void {
+  const open = openingSpans.get('owed');
+  if (open !== undefined && open.key === key) {
+    return;
+  }
+  if (open !== undefined) {
+    const spanKey = `owed|${open.key} → ${ended}`;
+    const span = servingOwnerLog.spans[spanKey] ?? (servingOwnerLog.spans[spanKey] = {n: 0, ms: 0, max: 0});
+    const stood = Math.max(0, now - open.since);
+    span.n++;
+    span.ms += stood;
+    span.max = Math.max(span.max, stood);
+    openingSpans.delete('owed');
+  }
+  if (key !== '') {
+    openingSpans.set('owed', {key, since: now});
+  }
+  refreshOpenSpans();
+}
+
 /** One judged state of the opening (the STAGE track). */
 export function noteOpeningLook(look: OpeningLook, now: number): void {
   const row = servingOwnerLog.rows['opening'] ?? (servingOwnerLog.rows['opening'] = {});

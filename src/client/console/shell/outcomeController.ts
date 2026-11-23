@@ -8,7 +8,7 @@ import {computed, ref, onBeforeUnmount, onMounted} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {conclusionDoorInit, freeTurnConclusionCandidate, observeConclusionDoor} from '@/client/console/supervisor/staleFreeTurnClock';
-import {noteBeatSpan, noteConcludeSpan} from '@/client/console/servingOwnerMeasure';
+import {noteBeatSpan, noteConcludeSpan, noteOwedSpan} from '@/client/console/servingOwnerMeasure';
 import {isTransientBeat, transientSurfaceBeats} from '@/client/console/workspaceBeatStall';
 import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
 import {flowTreeDigest} from '@/client/console/kernel/flowScope';
@@ -61,7 +61,7 @@ import type {RevealController} from '@/client/console/shell/revealController';
 import type {SupervisorController} from '@/client/console/supervisor/supervisorController';
 import type {PlacementController} from '@/client/console/shell/placementController';
 import type {StdProjectsController} from '@/client/console/shell/stdProjectsController';
-import {ConclusionReask, oweConclusion, registerConclusionOwePort, withdrawConclusionOwe, owedConclusionFactsKey, reaskMovedConclusions} from '@/client/console/workspaceConclusionOwe';
+import {ConclusionReask, oweConclusion, owedConclusions, registerConclusionOwePort, withdrawConclusionOwe, owedConclusionFactsKey, reaskMovedConclusions} from '@/client/console/workspaceConclusionOwe';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {actionCommitRailState, flyActionCommitRail} from '@/client/console/consoleActionCommitRail';
 import {clearAwaitingHandoff, captureSurfaceDeparture, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
@@ -561,7 +561,17 @@ export function createOutcomeController(shell: OutcomePort) {
     const rows = FRAME_HOLDS.filter((hold) => hold.holds(top.kind)).map((hold) => hold.name);
     const who = !quietHeld ? '' : ` by ${[...(mine ? [`claim:${workspaceOutcomeState.stage}`] : []), ...rows].join('+') || 'nobody named'} ` +
       `{${flowTreeDigest(6).replace(/[0-9]+/g, 'N').slice(0, 200)}}`;
-    noteConcludeSpan(`${top.kind} · ${verdict}${look} · ${flight === '' ? `QUIET${who}` : `busy[${flight}]`}`, 'moved', Date.now());
+    // …AND A CANDIDATE HELD BY A CLAIM WHOSE OWN NODE IS THE ONLY FLIGHT (the reaper's other case, read against the
+    // claim's door): a claim that still «awaits its answer» is a node of the wait graph that waits for the server — so
+    // the door's «nothing in flight» is never true of it, and the door stays shut until the claim's own twenty
+    // seconds; the reaper lets such a claim go at eight. Over the free turn with the wire quiet the server has
+    // ANSWERED: what stands UNDER the claim is the question. Stats only — how long a healthy table stands so decides
+    // whether the door may read the claim's node as the question it is.
+    const underClaim = mine && flight !== '' && flightsInTheAir(Date.now(), `claim:${top.kind}`) === '';
+    const claimWord = !underClaim ? '' :
+      `ONLY-ITS-CLAIM claim:${workspaceOutcomeState.stage}${workspaceOutcomeState.answerIn ? '+answered' : ''} ` +
+      `rows[${rows.join('+')}]${currentRevealEvent() === undefined ? '' : ' reveal'}`;
+    noteConcludeSpan(`${top.kind} · ${verdict}${look} · ${flight === '' ? `QUIET${who}` : underClaim ? claimWord : `busy[${flight}]`}`, 'moved', Date.now());
     return {
       kind: top.kind,
       key: `${top.kind}|${shell.playerView.waitingFor?.promptId ?? ''}`,
@@ -588,6 +598,26 @@ export function createOutcomeController(shell: OutcomePort) {
    * own phase, or the one its surface reports (the arbiter's reading: `supervisorController.judgedTransientBeat`) —
    * with what is in flight under it. Stats only: nothing here ends a beat.
    */
+  /**
+   * AN OWED CONCLUSION, MEASURED BY FRAME (`servingOwnerMeasure.noteOwedSpan`): the first debt that stands — what the
+   * server asks, the reason it was last refused with, whether the owner's ghost test reads it a ghost right now, and
+   * what is in flight UNDER the debt's own nodes (its conclusion's, its claim's). Stats only: nothing here ends a
+   * debt — the escalation (`workspaceConclusionOwe.drive`) keeps its clock until this track has been read.
+   */
+  function measureOwedConclusion(): void {
+    const owed = owedConclusions()[0];
+    if (owed === undefined) {
+      noteOwedSpan('', 'gone', Date.now());
+      return;
+    }
+    const held = conclusionRefusal.last?.kind === owed.kind ? conclusionRefusal.last.reason : 'unknown';
+    const asks = shell.playerView.waitingFor === undefined ? 'nobody' : taskFor(shell.playerView)?.kind ?? 'other';
+    const flight = flightsInTheAir(Date.now(), [`conclusion:${owed.kind}`, `claim:${owed.kind}`, `surface:${owed.kind}`]);
+    const look = document.querySelector(PLAYER_LOOK_SELECTOR) !== null ? ' · look' : '';
+    noteOwedSpan(`${owed.kind} · q:${asks} · held:${held} · ${shell.stuckWorkspaceIsGhost(owed.kind) ? 'ghost' : 'vouched'}${look} · ` +
+      `${flight === '' ? 'QUIET' : `busy[${flight}]`}`, 'moved', Date.now());
+  }
+
   function measureStandingBeat(): void {
     const top = workspaceStackTop();
     const beat = top === undefined || workspaceStackCollapsed() || stackYieldedToBoard() || shell.placementActive ? undefined :
@@ -606,6 +636,7 @@ export function createOutcomeController(shell: OutcomePort) {
   const claimDoor = {state: conclusionDoorInit()};
   function lookAtConclusionDoor(): void {
     measureStandingBeat();
+    measureOwedConclusion();
     const seen = measureConcludeDoor();
     const now = Date.now();
     const before = conclusionDoor.state;
@@ -1627,7 +1658,10 @@ export function createOutcomeController(shell: OutcomePort) {
   onMounted(() => {
     flow.everyFrame('the conclusion\'s door, by level', lookAtConclusionDoor);
   });
-  onBeforeUnmount(() => noteConcludeSpan('', 'out', Date.now()));
+  onBeforeUnmount(() => {
+    noteConcludeSpan('', 'out', Date.now());
+    noteOwedSpan('', 'out', Date.now());
+  });
 
   /**
    * THE SERVER ANSWERED A COMMIT — the awaiting hand-off's resolve, the action commit's dismissal and its fold. The

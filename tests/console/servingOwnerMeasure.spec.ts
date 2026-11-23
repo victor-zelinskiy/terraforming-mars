@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {Ownership} from '../../src/client/console/servingOwner';
 import {
-  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteOpeningLook, noteOpeningSpan, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
+  bandRungVerdict, barRungNow, barRungVerdict, derivedBandRung, measurePadPress, noteBandFallback, noteOpeningLook, noteOpeningSpan, noteOwedSpan, noteOwnerEdgeLook, noteBarRung, notePadRung, notePromptFlagsLook, noteServingOwnerLook, ownerLookVerdict, padRungVerdict,
   promptFlagsVerdict, registerOwnerNowProbe, resetServingOwnerLog, servingOwnerLog,
 } from '../../src/client/console/servingOwnerMeasure';
 
@@ -342,5 +342,44 @@ describe('servingOwnerMeasure — the probe reads surfaces that SERVE, and the e
     const reveal = read('shell/revealController.ts');
     const embedded = reveal.slice(reveal.indexOf('const externalDrawEmbedTarget = computed('), reveal.indexOf('const externalDrawWorkspaceMounted = computed('));
     expect(embedded).to.not.match(/ownerServes|promptOwnership|servingOwnership/);
+  });
+});
+
+/*
+ * THE CONCLUSION's LAST NETS, READ AGAINST THE DOORS (FREEZE ZERO, stage 2 — the tail). The reaper lets a claim go
+ * whatever its stage; the claim's door needs «nothing in flight», and a claim that still awaits its answer IS a
+ * flight. The ghost test and the forced teardown act under any question; the doors only over the free turn. Two
+ * tracks read both cases by frame before a door is widened or a net deleted.
+ */
+describe('servingOwnerMeasure — an owed conclusion and a claim that is the only flight (the tracks)', () => {
+  const read = (file: string): string => fs.readFileSync(path.resolve(__dirname, '../../src/client/console', file), 'utf8').replace(/\r\n/g, '\n');
+  beforeEach(() => resetServingOwnerLog());
+  after(() => resetServingOwnerLog());
+
+  it('one span per state of a debt: how long it stood, and how it ended', () => {
+    noteOwedSpan('hand · q:actionMenu · held:live-outcome · vouched · busy[hold:hold:played-hero]', 'moved', 1_000);
+    noteOwedSpan('hand · q:actionMenu · held:live-outcome · vouched · busy[hold:hold:played-hero]', 'moved', 1_300);
+    noteOwedSpan('hand · q:actionMenu · held:live-outcome · ghost · QUIET', 'moved', 1_800);
+    noteOwedSpan('', 'gone', 2_400);
+    expect(servingOwnerLog.spans['owed|hand · q:actionMenu · held:live-outcome · vouched · busy[hold:hold:played-hero] → moved']).to.deep.eq({n: 1, ms: 800, max: 800});
+    expect(servingOwnerLog.spans['owed|hand · q:actionMenu · held:live-outcome · ghost · QUIET → gone']).to.deep.eq({n: 1, ms: 600, max: 600});
+  });
+
+  it('the owner reads a debt every frame — the flights taken UNDER the debt\'s own nodes; nothing there acts', () => {
+    const outcome = read('shell/outcomeController.ts');
+    const look = outcome.slice(outcome.indexOf('function measureOwedConclusion(): void {'), outcome.indexOf('function measureStandingBeat(): void {'));
+    expect(look).to.contain('const flight = flightsInTheAir(Date.now(), [`conclusion:${owed.kind}`, `claim:${owed.kind}`, `surface:${owed.kind}`]);');
+    expect(look).to.contain('shell.stuckWorkspaceIsGhost(owed.kind) ? \'ghost\' : \'vouched\'');
+    expect(look, 'a measure: no verb of a conclusion in it').to.not.match(/concludeWorkspaceFlow|releaseWorkspaceOutcome|forceRecoverStuckWorkspace|withdrawConclusionOwe/);
+    expect(outcome).to.match(/function lookAtConclusionDoor\(\): void \{\s+measureStandingBeat\(\);\s+measureOwedConclusion\(\);/);
+  });
+
+  it('a candidate whose ONLY flight is its own claim is named — the claim\'s node is the question, never its answer', () => {
+    const outcome = read('shell/outcomeController.ts');
+    const measure = outcome.slice(outcome.indexOf('function measureConcludeDoor()'), outcome.indexOf('function measureOwedConclusion(): void {'));
+    expect(measure).to.contain('const underClaim = mine && flight !== \'\' && flightsInTheAir(Date.now(), `claim:${top.kind}`) === \'\';');
+    expect(measure).to.contain('`ONLY-ITS-CLAIM claim:${workspaceOutcomeState.stage}${workspaceOutcomeState.answerIn ? \'+answered\' : \'\'} `');
+    // The door itself is NOT widened by the measure: its `claimOnly` still asks the whole graph.
+    expect(measure).to.match(/claimOnly: conclusion\.verdict === 'hold' && conclusion\.reason === 'live-outcome' && mine && rows\.length === 0 &&\s+currentRevealEvent\(\) === undefined && look === '' && flight === '',/);
   });
 });

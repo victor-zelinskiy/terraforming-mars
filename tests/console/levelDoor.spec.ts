@@ -111,8 +111,8 @@ describe('the BEAT track — what is in flight UNDER a beat (the wiring)', () =>
 
   it('the reader of flights leaves out the node it is asked about', () => {
     const flights = read('waitGraph/flightsInTheAir.ts');
-    expect(flights).to.contain('export function flightsInTheAir(now: number = Date.now(), under?: string): string {');
-    expect(flights).to.contain('.filter((node) => node.id !== under && node.targets.some((target) => target.kind === \'motion\' || target.kind === \'server\'))');
+    expect(flights).to.contain('export function flightsInTheAir(now: number = Date.now(), under?: string | ReadonlyArray<string>): string {');
+    expect(flights).to.contain('.filter((node) => !asked.includes(node.id) && node.targets.some((target) => target.kind === \'motion\' || target.kind === \'server\'))');
   });
 
   it('the beat\'s measure asks under the frame\'s own node — the id the supervisor declares it by', () => {
