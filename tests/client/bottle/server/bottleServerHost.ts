@@ -35,6 +35,10 @@ import {Request} from '../../../../src/server/Request';
 import {Response} from '../../../../src/server/Response';
 import {testGame} from '../../../TestGame';
 import {SeededRandom} from '../../../../src/common/utils/Random';
+import {Server} from '../../../../src/server/models/ServerModel';
+import {TestPlayer} from '../../../TestPlayer';
+import {fuzzConfig} from '../../../fuzz/engineFuzz';
+import {DEFAULT_KNOBS, NoLegalAnswer, randomAnswer} from '../../../fuzz/randomAnswer';
 
 /** What the client side reads of a booted table — plain data only (nothing of the engine crosses). */
 export type BottleTable = {
@@ -272,6 +276,73 @@ export async function otherSeatMoves(playerId: string): Promise<{did: string, an
     }
   }
   return {did: model.type, answer: await answerAs(playerId, plainestAnswer(model))};
+}
+
+/**
+ * A FRESH TABLE OF THE PRODUCT (FREEZE ZERO, stage 6 — the autopilot): the engine fuzz's own draw of a legal table
+ * (`fuzzConfig(seed)` — the in-scope expansions under the creator's dependencies, MarsBot in three games of four, one
+ * to three humans, every board), created the way the product creates one. The initial-cards question stands: a whole
+ * game begins at its first press.
+ */
+export function bootPilotTable(seed: number, idSuffix: string): BottleTable & {config: {humans: number, marsBot: boolean, options: Record<string, unknown>}} {
+  const config = fuzzConfig(seed);
+  const makers = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.YELLOW];
+  const humans = makers.slice(0, config.humans).map((maker, index) => maker.newPlayer({name: `pilot${index + 1}`, idSuffix}));
+  const options: Partial<GameOptions> = {...config.options, ...(config.options.automa !== undefined ? {automa: {...config.options.automa}} : {})};
+  const game = Game.newInstance(`game-id${idSuffix}` as GameId, humans, humans[0], `spectator-id${idSuffix}` as SpectatorId, options, config.gameSeed);
+  loader.games.set(game.id, game);
+  return {...tableOf(game), config: {humans: config.humans, marsBot: config.options.automa !== undefined, options: {...config.options}}};
+}
+
+/**
+ * THE QUESTION A SEAT STANDS ON, as the autopilot needs it: its type, its number, and whether it is the ACTION MENU
+ * (the one question that carries the pass — the option the engine itself marks, never a title).
+ */
+export async function seatQuestion(playerId: string): Promise<{type: string, promptId: number | undefined, menu: boolean} | undefined> {
+  const truth = seatTruth(playerId);
+  if (truth.waitingFor === undefined) {
+    return undefined;
+  }
+  let menu = false;
+  if (truth.waitingFor === 'or') {
+    const view = await request('GET', `/api/player?id=${playerId}`);
+    const model = (JSON.parse(view.body) as {waitingFor?: PlayerInputModel}).waitingFor;
+    menu = model?.type === 'or' && model.options.some((option) => option.type === 'option' && option.warnings?.includes('pass') === true);
+  }
+  return {type: truth.waitingFor, promptId: truth.promptId, menu};
+}
+
+/**
+ * A SEAT's RANDOM LEGAL ANSWER — the engine fuzz's generator (`tests/fuzz/randomAnswer.ts`), through the same door a
+ * page uses. `seed` is a float of the caller's own stream (one call, one generator: the call is a pure function of
+ * the table and the number). An answer the server refuses is drawn again, a few times; then the plainest one.
+ * `undefined` when the seat is asked nothing.
+ */
+export async function seatAnswersRandomly(playerId: string, seed: number, passChance = DEFAULT_KNOBS.pass): Promise<{did: string, tries: number, answer: BottleAnswer} | undefined> {
+  const rng = new SeededRandom(seed);
+  for (let tries = 1; tries <= 12; tries++) {
+    const player = [...loader.games.values()].flatMap((game) => game.players).find((candidate) => candidate.id === playerId);
+    const input = player?.getWaitingFor();
+    if (player === undefined || input === undefined) {
+      return undefined;
+    }
+    const model = Server.getWaitingFor(player, input);
+    let response: InputResponse;
+    try {
+      response = randomAnswer(model, {player, input, top: true, knobs: {...DEFAULT_KNOBS, pass: passChance}, visited: []}, rng);
+    } catch (err) {
+      if (!(err instanceof NoLegalAnswer)) {
+        throw err;
+      }
+      break;
+    }
+    const answer = await answerAs(playerId, response);
+    if (answer.status === 200) {
+      return {did: model.type, tries, answer};
+    }
+  }
+  const plain = await otherSeatMoves(playerId);
+  return plain === undefined ? undefined : {did: `${plain.did} (plain)`, tries: 13, answer: plain.answer};
 }
 
 /**

@@ -479,6 +479,19 @@ CI, nine on the box at the same commit). What it took is §4's rows of 2026-11-1
 the thing they bound, tiers decided by who OWNS the wait, a starved page as a state the judges know. «No GPU» is
 CI's own condition (its runners have none); the box's nine cells are the GPU's half.
 
+**STAGE 2 — EXIT REACHED 2026-11-23 20:13 UTC.** «Who serves the question» is ONE total function, the surfaces, the
+pad's ladder and the bar are derived from it, and the nets that judged a second opinion are gone or observers: the
+screen shadow observes, the start's two timers became the opening's and the strand's doors by level, and behind a
+finished frame stand its owner's doors by level and nothing of seconds — the stale free-turn reaper is deleted, the
+ghost's teardown is the debt's own door. CI's verdict on the head that carries the last of it (`af6a97cc9c`): **the
+whole e2e suite green — run 45242383549, 1 497 passed · 5 skipped · 0 flaky, twelve shards and the burn-in; not one
+line of `start-shadow` · `start-stranded` · `workspace-stall` (no ghost torn down anywhere), a debt reads «ghost» only
+under a scene that is playing (616 ms at the longest, every one `busy[…]`), not one quiet beat; the freeze gate green
+on both seeds (45242392823), and again one commit later with the beat law in it (45244613479).** The box's two-seat
+pass on the same code is walking (`fzz-fz3-duo` → net 400 → CPU ×4). What the stage's literal row promised and did NOT
+build, said plainly: «owed steps as children of their frame» — not planned (the decision of 2026-11-22): the ghost
+TEST stays a sampled predicate, asked by one door, under quiet.
+
 **STAGE 2, STEP 0 — the function exists, and nothing reads it yet (2026-11-19; the owner: «не простаивать, пока идут
 прогоны» — while stage 1's matrix runs by itself).** The stage has two halves, and only the first may land before
 stage 1 exits: the second changes what mounts, and the confirming pass must measure ONE code.
@@ -1531,6 +1544,57 @@ MarsBot's research step waking a seat's card) now holds every save until that se
 that window comes back at the save before the phase. It trades a silently wrong table for a few answers to give
 again — and it is the reason to drain such a reaction at once (the open half of «the research phase drains per
 seat»). Next: that drain, the batch route, shrinking.
+
+**STAGE 6, STEP 1 — THE AUTOPILOT: WHOLE GAMES THROUGH THE REAL CONSOLE, IN THE BOTTLE (2026-11-23).** The monkey
+walks sixty presses from a fixture and never ends a game; what a game does only as a WHOLE — a stack opened and closed
+two hundred times on one page, a research every generation, the finale after all of it — no pass had stood on.
+- **The instrument** (`tests/client/bottle/autopilot.ts`, `autopilot.bottle.ts` — opt-in, `TM_BOTTLE_AUTOPILOT=1`):
+  a table the engine fuzz draws from its number (`fuzzConfig(n)` — every in-scope expansion, MarsBot in three games of
+  four, one to three humans, every board), played from its first press to the final scoring on the manual clock. THE
+  VIEWER presses what the bar offers (the guided pick, with a pilot's weights — A and RT carry a flow on, a look is
+  opened seldom and closed by the next press) and passes the way a player does — the basic wheel's ↓ and its confirm;
+  THE OTHER SEATS answer by the fuzz's own generator through the server's door (`seatAnswersRandomly`); a question the
+  walk did not get through in its budget is answered the same way FOR the viewer and COUNTED by type, with what stood
+  on screen (`doors` — where the screen and a seeded thumb part). A game is filed as a walk is (`cause-classes/…` —
+  the journal by class, the one-owner measure, the coverage) plus its own numbers, so `monkey-report` sums a pass of
+  games and holds the same laws. By hand on CI: the workflow `Autopilot` (games dealt over shards; no schedule yet —
+  the first passes are read before a baseline is written).
+- **ITS FIRST GAME FOUND A WEDGE NO PASS HAD SEEN** (`ap0:1` — two humans, Vastitas Borealis Nova, generation 11).
+  The viewer's corporation pays for the research with a resource; the server answers the buy with a `payment`; the
+  player minimizes the workspace on that stage to read the board («Свернуть» — the most ordinary press there is) and
+  returns. «Свернуть» parks the stack and UNMOUNTS the surface; the instance that mounts on the way back knew nothing
+  of the purchase already committed: the terminal plate waited for a discard exit that had left with the first
+  instance (`discardsSettled`, a ref of the component), the terminal beat was never armed, the completion latch
+  (`draftWorkspaceState.completion` — module state, the frame's lifetime) never fell. **The research stood over the
+  player's turn for ever, and the research of every later generation opened in a workspace whose only verb was
+  «Свернуть» — the game was over for that seat until a reload.** No net could name it: a `browse` frame is the
+  player's own time, a phase root is the anchor rule's, and the anchor rule read the phase alive off the same latch.
+  - **The law** (`.claude/rules/console-flow.md`, the frame's section): a latch that extends a frame's life is finished
+    by something that lives as long as the frame. Here: the receipt is module state (`receipt`); an instance that
+    mounts inside a completion has no exit to wait for and arms the terminal beat itself; the zero-buy read is a wait
+    of the FRAME's scope; and `draftFrameLive` holds the frame on a completion only while it stands on the live stack.
+  - **Proved both ways, in both worlds:** the bottle's replay «a research surface that leaves inside its completion»
+    — RED with the fix off (`completion: flights` for good), green with it; the e2e
+    `console-draft-workspace` · «свернуть on the pay stage and back» on the box in a real browser — RED on a build
+    without the fix (the workspace stood the whole sixty seconds of the poll), green with it; the same game played
+    again: 12 passes by the wheel, none through the door.
+- **What the first games say of the instrument itself:** with jsdom's 0×0 layout a game names one class of its own,
+  `invariant/broken/start-flight:no-source` — a row of `LAYOUT_BLIND` now (a corporation carried from a measured
+  face; the whole e2e suite walks that start in a real browser and has never named it). With the SYNTHETIC layout the
+  board's framing probe never rests and everything behind it runs to a ceiling (`board-geometry:stable`, the remote
+  landings, the finale's hand-over at 45 s) — the layout's artifact, read once and not chased: the autopilot's border
+  is the gate's (`none`).
+- **Next:** a pass of games on CI (`Autopilot`, 24 games), read class by class; the baseline and its gate; the same
+  pilot in a real browser on the box (the stage's number is «100 whole games per map set, 0 episodes, 0 rebuilds»);
+  the soak.
+
+**THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
+45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
+the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a
+hundred milliseconds from its rest; the arc has a catch-up for exactly that, the settle had none, so the wait was said
+as a ceiling — once at defect tier — over a token that had arrived. The settle is caught up like the arc
+(`caughtUp: 'settle'`); the line stays for what is NOT that road (an arc complete whose touchdown never ran). What the
+player saw: a token late by the page's own stall, nothing else.
 
 **THE NIGHT RUNS, AND ONE QUEUE (the owner, 2026-11-17 — `docs/claude/ci-findings.md`).** CI is the main indicator and
 it now runs by itself: the freeze gate (23:30 UTC — `fz0 fz1 fz3` + the seed of the day), the whole e2e suite (00:30),

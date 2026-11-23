@@ -1,0 +1,103 @@
+name: Autopilot
+
+# WHOLE GAMES THROUGH THE REAL CONSOLE (docs/claude/console/freeze-zero/PLAN.md § 8, stage 6): the bottle — the real
+# shell against the real server in one process on a manual clock — plays a table from its first press to the final
+# scoring (tests/client/bottle/autopilot.ts). Each game is a table the engine fuzz draws from its number (every
+# in-scope expansion, MarsBot in three games of four, one to three humans, every board); the viewer's seat is played
+# through the console, the other seats by random legal answers. No browser, no box: a game is a function of its
+# number, so whatever a run names replays on a laptop —
+#   TM_BOTTLE_AUTOPILOT=1 TM_BOTTLE_AUTOPILOT_SEEDS=<n> npm run test:client:one -- tests/client/bottle/autopilot.bottle.ts
+#
+# BY HAND ONLY for now (no schedule): the first passes are READ, class by class, before a baseline is written and a
+# gate is held on it.
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'The first game (its number is its seed)'
+        required: false
+        default: '1'
+      games:
+        description: 'How many games'
+        required: false
+        default: '24'
+      shards:
+        description: 'Parallel jobs (a game is 5 – 15 minutes of one runner)'
+        required: false
+        default: '8'
+      name:
+        description: 'The pass''s name — the stream of presses is <name>:<n> (another name = other presses on the same tables)'
+        required: false
+        default: 'ap0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autopilot-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Shards
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.m.outputs.shards }}
+    steps:
+      - id: m
+        env:
+          FROM: ${{ inputs.from }}
+          GAMES: ${{ inputs.games }}
+          SHARDS: ${{ inputs.shards }}
+        run: |
+          # Game numbers dealt round-robin: shard k plays FROM+k, FROM+k+SHARDS, … — as comma lists the spec takes.
+          node -e '
+            const from = Number(process.env.FROM), games = Number(process.env.GAMES), shards = Math.max(1, Math.min(Number(process.env.SHARDS), games));
+            if (![from, games, shards].every(Number.isInteger) || games < 1 || games > 400) { console.error("bad inputs"); process.exit(1); }
+            const lists = Array.from({length: shards}, (_, k) => Array.from({length: games}, (_, i) => from + i).filter((_, i) => i % shards === k).join(","));
+            console.log("shards=" + JSON.stringify(lists));
+          ' >> "$GITHUB_OUTPUT"
+
+  play:
+    name: Games ${{ matrix.seeds }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        seeds: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run make:static
+      # The client's generated files the bottle bundles (card renders, the art manifest) — what `npm run build` makes first.
+      - run: npm run make:cards
+      - name: Whole games (${{ matrix.seeds }})
+        env:
+          TM_BOTTLE_AUTOPILOT: '1'
+          TM_BOTTLE_AUTOPILOT_SEEDS: ${{ matrix.seeds }}
+          TM_BOTTLE_AUTOPILOT_NAME: ${{ inputs.name }}
+          NODE_ENV: development
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: node scripts/client-tests.mts tests/client/bottle/autopilot.bottle.ts 2>&1 | tee autopilot.log | grep -E '· game |passing|failing|HARNESS' || true
+      # The pass summed as the monkey's passes are: by cause class, the one-owner law, the beat law, the coverage.
+      - name: The report
+        if: ${{ !cancelled() }}
+        run: node scripts/monkey-report.mjs .e2e-remote/bottle-autopilot --out autopilot-report.json | tee autopilot-report.txt | head -60
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: autopilot-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+          path: |
+            .e2e-remote/bottle-autopilot/cause-classes
+            autopilot-report.json
+            autopilot-report.txt
+            autopilot.log
+          if-no-files-found: warn
+          retention-days: 14

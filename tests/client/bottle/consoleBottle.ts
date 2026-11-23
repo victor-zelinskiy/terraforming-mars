@@ -96,6 +96,9 @@ export const LAYOUT_BLIND: ReadonlyArray<{cls: RegExp, why: string}> = [
   // (2026-11-17 — the wait is new on main since the e2e rework's phase 4: `ConsoleStartScene.startReactorFace`. The same
   // table, the same seed, in a real browser on the box: not there.)
   {cls: /^wait-graph\/ceiling\/start:reactor-face$/, why: '«the corporation\'s face standing in the start» is a face whose rect is VISIBLE (`transferEndVerdict`) — a 0×0 rect is no face'},
+  // (2026-11-23 — the autopilot's first whole games: the monkey's fixtures never stand on a fresh table's start, the
+  // autopilot always does. The whole e2e suite walks that start in a real browser and has never named it.)
+  {cls: /^invariant\/broken\/start-flight:no-source$/, why: '«the corporation is carried from its source» — the source is a measured face of the start (`transferEndVerdict`); a 0×0 rect is no source, the card is revealed in place'},
   {cls: /^wait-graph\/overdue\/admission:host:card-arrival$/, why: 'the arrival of a drawn card into the dock is a flight to a measured slot; the admission block that waits for it runs to its bound'},
 ];
 
