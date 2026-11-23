@@ -112,6 +112,8 @@ const HERO_RESULT_PAUSE_FOLLOWUP_MS = 220;
 const HERO_RESOLVED_BEAT_MS = 260;
 /** How long we wait for the table overlay to mount + register its measurer. */
 const TARGET_WAIT_BUDGET_MS = 1600;
+/** …and the least the FLIGHT still gives a place after a prewarm that spent that budget (a few frames of a mount). */
+const TARGET_FLIGHT_FLOOR_MS = 320;
 /** A guarded beat of the hero's director catches its motion up at its budget + this (`playedHeroDirector.guarded`). */
 const HERO_BEAT_GUARD_MS = 1200;
 /** The lift's source poll (`executeFlight`): at most 26 probe frames, each bounded at 50 ms. */
@@ -1006,8 +1008,12 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
  * drift is the final-approach retarget's business). The looped measurer
  * stays the fallback for a place the peek cannot read yet.
  */
-async function prewarmTargetRect(): Promise<HeroRect | undefined> {
+async function prewarmTargetRect(): Promise<{rect: HeroRect | undefined, deadline: number}> {
   const deadline = Date.now() + TARGET_WAIT_BUDGET_MS;
+  return {rect: await prewarmLook(deadline), deadline};
+}
+
+async function prewarmLook(deadline: number): Promise<HeroRect | undefined> {
   // The landing place mounts in the arm's own flush: after `nextTick` it is
   // registered and laid out (the rect read forces layout), and — this is the
   // point — the server cannot have answered yet, so the stage's ENTRY tween
@@ -1286,7 +1292,15 @@ async function executeFlight(): Promise<void> {
   prewarmedTarget = undefined;
   let targetSettled = false;
   const targetPromise = (hasProxy ?
-    (prewarmed !== undefined ? prewarmed.then((r) => r ?? awaitTargetRect()) : awaitTargetRect()) :
+    // ONE BUDGET FOR THE LANDING PLACE, COUNTED FROM THE ARM. A prewarm that found no place handed the flight a whole
+    // budget of its own: with no place to come at all (a play hosted by a step whose shelf is away — the start ⊃ hand ⊃
+    // colony chain, `console-sponsor-colony`), the lifted card hung in the air for the prewarm's 1.8 s AND the flight's
+    // 1.6 s before it dissolved in place — 3.4 s of a card that had nowhere to go, every run («no landing place
+    // registered … did not come in 1600 ms», CI run 45110190541). The flight takes what is LEFT of the arm's budget,
+    // and never less than a short floor (a place that registers on the answer's own flush still gets its frames).
+    (prewarmed !== undefined ?
+      prewarmed.then((aim) => aim.rect ?? awaitTargetRect(Math.max(TARGET_FLIGHT_FLOOR_MS, aim.deadline - Date.now()))) :
+      awaitTargetRect()) :
     Promise.resolve(undefined)).then((r) => {
     targetSettled = true;
     return r;
@@ -2434,7 +2448,7 @@ let landingFaceSpec: HeroLandingFaceSpec = {lightweight: true, model: 'tableau'}
 /** The authoritative answer the landing face is drawn from (set at run). */
 let landingView: PlayerViewModel | undefined;
 /** The aim taken during the round trip (workspace hosts — see the arm). */
-let prewarmedTarget: Promise<HeroRect | undefined> | undefined;
+let prewarmedTarget: Promise<{rect: HeroRect | undefined, deadline: number}> | undefined;
 /** The shared "slot is empty" cascade rule (cardExitDirector.HOLD_CLASS). */
 const HOLD_CLASS = 'con-deal-hold';
 
