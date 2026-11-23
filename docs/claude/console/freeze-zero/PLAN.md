@@ -1086,9 +1086,41 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
   how many frames of quiet the door waits and which holds a candidate stands behind → the door in the outcome
   controller (candidate ∧ `dismiss` ∧ no look ∧ quiet K frames → the ONE guarded conclusion) → the three nets (the
   ghost test, the forced teardown, the reaper) as counters for one cycle.
-- *The measure's residue:* `flag-EXTRA` — the deck pick standing by its own hold through the play that follows it
-  (`deckPickHolding`), a hand-off the function does not name; FALLBACK — an external draw at the Parliament held
-  behind the admission.
+- *The measure's residue — CLOSED 2026-11-23 (`25ccbedb5a`, `a3ab597429`).* Over the whole suite (run 45071347931)
+  the function parted from the screen on fifteen looks of 1 502 tests, each named: nine `EXTRA:admission` — a
+  PRESENCE THAT SERVES NOTHING (the deck pick's outgoing beat, a series' visit kept between its questions) read by
+  the probe as a surface: the shell names them (`ScreenShadowContext.presences`) and the probe drops them; four
+  `edge-LATCH` — the look read the watcher's edge inside the task in which a client pick opened: read past the flush
+  now; two `band-fallback` — a resolution's draw embedded in the sitting's stage has no frame, so «admission is a
+  door» did not reach it: a fact of the question (`QuestionFacts.standing`); one `MISS:held:optional` — the draft's
+  waiting banner takes the host's admission. The gate's own reading on `6725ceeb31` (1 212 walks): MISS 0 · EXTRA 0
+  · LATCH 0 · FALLBACK 2 (the pair just closed).
+- **THE THREE DOORS STAND (2026-11-23, `57778d53ef`) — ONE RULE, `console/levelDoor.ts`.**
+  *The conclusion's* (`6725ceeb31`) — read: the whole e2e suite (run 45083892683, 1 316 passed, all twelve shards
+  green) — it opened NOWHERE and no dismissible candidate stood quiet at all; the freeze gate's 1 212 walks — ONCE
+  (`fz1 · arwind-chairman-quest`: the Parliament left past its commit after the quest's answer, 256 ms, the player
+  on the board — the reaper's class, replayed step by step); the box monkey in a real browser, 304 walks (plain,
+  hidden) — nowhere. *The strand's* (`57778d53ef`): the watchdog's predicate and the watchdog's cure as two verbs,
+  the heal at twelve quiet frames and 250 ms, the yield at twelve more — where the timers took 2.5 s + 2.5 s. Its
+  bar comes from the STRAND-DOOR / STRAND-FRAMES tracks (runs 45085737951 · 45088611068): every long strand of a
+  healthy table is busy, a healthy one is quiet for ONE frame at the most. The reading found a real thing on the
+  way: **the scene's own mount was a strand** — its set-up published `none` before a node of it was in the DOM, 184 –
+  207 ms of «the start serves nothing» on every boot into the opening (the measure's word, once it asked the scene
+  why: «no scene»); the mount is a beat now (`ConsoleStartScene.sceneUp`, `54d394c4ac`). *The opening's* opens on
+  `game > shell` too; it stays shut in ONE state, `game > step`, which is the other two doors' by composition.
+  **Next (the retirement, stage 7's rule — by construction now, not by silence):** the reading of run 45093794154
+  (the whole suite on the three doors: no `[start-stranded]`, no `[start-shadow] cure`, no level-door line on a
+  healthy table) → delete the watchdog's two timers and the shadow's confirm; the director's cure line by LEVEL
+  becomes the defect's own line (it is `info` while the confirm's finding stands beside it) and the harness's
+  `startStrandGuard` reads it; the bottle's four baselined rows of these nets are re-read on their seeds. A replay
+  is owed for the strand's door on its OWN case (a hosted step left standing for a question it does not answer —
+  the plain strand is cured by the opening's door first: `classReplays.bottle.ts`). Then the conclusion's three nets
+  (the ghost test, the forced teardown, the reaper) as counters for one cycle.
+- *THE GATE WENT RED ON MY OWN WORD (run 45083901169, `6725ceeb31`):* `wait-graph/unshaped`, eleven records — the
+  detail the hero's target got that night carried brackets of its own, and the line's readers take the first `)` for
+  the end of the owner's part. A wait's word is said without brackets now (`ceilingWait.ts`, `waitGraph.ts`), as a
+  spec (`ceilingWait.spec`); issue #97, the gate re-run 45090714426. And the ratchet of bare ceiling waits is at
+  ZERO (`2b9b03e328` — the last twenty-seven named, a delegated pass read line by line).
 
 **STAGE 4, STEP 3 — WALKED OR DECLARED: 100 % OVER THE UNION (2026-11-22).** The corpus is the union of every pass
 there is: the whole e2e suite on CI (1 502 tests — the fixture files the kernel's coverage since step 2), the monkey
