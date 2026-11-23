@@ -974,7 +974,14 @@ export function createSupervisorController(shell: SupervisorPort) {
       // (`console-venus-orbital-survey`, «the purchase is EMBEDDED in the workspace»). The question waits on the CLAIM:
       // the claim's node carries the bound and the claim's own door.
       const claimHoldsQuestion = shell.taskHeldForWorkspace && workspaceOutcomeClaimed() ? `claim:${workspaceOutcomeState.host}` : undefined;
-      const held = announceId ?? deferredId ?? admission(task?.kind === 'space' ? 'placement' : 'host') ?? claimHoldsQuestion;
+      // …AND A FRAME's BEAT HOLDS THE QUESTION BEHIND IT. A frame that does not serve the question stands on top in a
+      // transient beat (the arbiter's reading — `judgedTransientBeat`): the pad is the beat's, and the question waits
+      // for the frame to finish it, not for a press. Read as «answer the question» it was a `dead-end` the length of
+      // the beat (the Hydronetwork's ceremony under the free turn — two green tests of the whole suite, CI run
+      // 45093794154: «the screen takes no press: held by beat»). The frame's own node carries the beat's bound.
+      const beatHoldsQuestion = top !== undefined && judgedTransientBeat() !== undefined &&
+        !(task !== undefined && frameServing(task.kind)?.kind === top.kind) ? `surface:${top.kind}` : undefined;
+      const held = announceId ?? deferredId ?? admission(task?.kind === 'space' ? 'placement' : 'host') ?? claimHoldsQuestion ?? beatHoldsQuestion;
       out.push({
         id: questionId, family: 'question', owner: 'server',
         targets: held !== undefined ? [{kind: 'node', id: held}] : [{kind: 'player', what: 'answer the question'}],

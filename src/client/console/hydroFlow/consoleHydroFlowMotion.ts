@@ -23,7 +23,8 @@ import {
   armDescendRect, descendCascade, descendRectOf, descendRelease, descendUnfold, guardedDescend,
   killDescendEpisode, takeDescendRect,
 } from '@/client/console/surfaceMotion/workspaceDescend';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionCeilingMs, motionMs} from '@/client/components/motion/motionTokens';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {playCeremonyBurst} from '@/client/console/ceremony/ceremonyFx';
 import type {CeremonyBurstHandle} from '@/client/console/ceremony/ceremonyFx';
@@ -230,11 +231,21 @@ export function runHydroCeremony(args: HydroCeremonyArgs): HydroCeremonyHandle {
   let burst: CeremonyBurstHandle | undefined;
   let doneFired = false;
   let disarmDwell: () => void = () => {};
+  // THE CEREMONY IS A WAIT OF THE GRAPH (FREEZE ZERO — the suite's worklist, CI run 45093794154). It is a timeline and
+  // a read of two seconds, and nothing told the wait graph: the Hydronetwork's frame stood in its beat with «nothing
+  // in flight», the free turn's question behind it read as a wait for a press no surface could take — a `dead-end`
+  // two or three seconds long under two green tests (`console-hydro-terminal-landing`, `console-card-reaction`).
+  // Its node says what plays; met at the ceremony's own end, a ceiling only where the timeline died and the net ended it.
+  const wait = beginCeilingWait({
+    id: 'hydro-flow:ceremony', owner: 'hydroFlowMotion', what: 'the finish ceremony played and read',
+    maxMs: motionCeilingMs(560 + CEREMONY_DWELL_MS) + 1500, detail: args.reduced ? 'reduced motion — the burst and the read' : 'the value rises into its seat, the burst, the read',
+  });
   const finish = (): void => {
     if (doneFired) {
       return;
     }
     doneFired = true;
+    wait.met();
     args.onDone();
   };
 
@@ -258,6 +269,8 @@ export function runHydroCeremony(args: HydroCeremonyArgs): HydroCeremonyHandle {
   // BOUNDED BACKSTOP beside it (the director-lock/`DEAL_START_SAFETY`
   // idiom), idempotent through `doneFired`, cleared by the normal finish.
   disarmDwell = consoleSessionScope().guarantee(motionMs(560 + CEREMONY_DWELL_MS) + 1500, 'the hydro ceremony\'s finish net', () => {
+    // (The timeline's own call never came — the net is the ceremony's ceiling, and says so.)
+    wait.ceiling();
     finish();
   });
   const clearNet = () => {

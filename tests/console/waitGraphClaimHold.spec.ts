@@ -44,8 +44,12 @@ describe('waitGraph — a question its workspace\'s claim holds waits on the cla
   it('② the shell\'s source: the question\'s holder chain ends with the claim that holds it for its stage', () => {
     expect(supervisor, 'the claim is the holder only while the router holds the question for its workspace AND a claim lives')
       .to.match(/const claimHoldsQuestion = shell\.taskHeldForWorkspace && workspaceOutcomeClaimed\(\) \? `claim:\$\{workspaceOutcomeState\.host\}` : undefined;/);
-    expect(supervisor, 'the plate, «set aside» and an admission block first — then the claim')
-      .to.match(/const held = announceId \?\? deferredId \?\? admission\([^\n]+\) \?\? claimHoldsQuestion;/);
+    expect(supervisor, 'the plate, «set aside» and an admission block first — then the claim, then a frame\'s beat the question stands behind')
+      .to.match(/const held = announceId \?\? deferredId \?\? admission\([^\n]+\) \?\? claimHoldsQuestion \?\? beatHoldsQuestion;/);
+    // THE BEAT: a frame that does not serve the question, on top, in a beat the arbiter judges — the question waits on
+    // the FRAME's node (which carries the beat's bound), never on a press no surface can take. A frame that serves the
+    // question is never its holder (the frame's own node points at the question: that would be a ring).
+    expect(supervisor).to.match(/const beatHoldsQuestion = top !== undefined && judgedTransientBeat\(\) !== undefined &&\s+!\(task !== undefined && frameServing\(task\.kind\)\?\.kind === top\.kind\) \? `surface:\$\{top\.kind\}` : undefined;/);
     expect(supervisor, 'a held question carries no door of its own').to.match(/\.\.\.\(held === undefined \? \{recovery: 'question-open'\} : \{\}\)/);
   });
 
