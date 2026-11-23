@@ -251,7 +251,6 @@
   "src/client/console/transport/pressUnwind.ts": 1,
   "src/client/console/transport/submitTicket.ts": 1,
   "src/client/console/waitGraph/waitGraph.ts": 9,
-  "src/client/console/workspaceBeatStall.ts": 1,
   "src/client/directives/i18n.ts": 3,
   "src/client/directives/vDirectives.ts": 2,
   "src/client/gamepad/buttonLayout.ts": 1,

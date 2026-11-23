@@ -4,9 +4,13 @@ Introduced 2026-10-31 after the owner's field freeze: the law «Финансир
 to repeat the action of «Защита от астероидов» (Asteroid Deflection System) froze the screen. The pad was absorbed and
 no prompt appeared. Only a reload got the player out, and the F12 export logged nothing.
 
-Code: `src/client/console/workspaceBeatStall.ts` (pure rule + surface reports) · `ConsoleShell.checkBeatStall` /
-`recoverStalledBeat` (1 Hz sampler + recovery) · `ConsoleCardActions` `'workspacePhase'` watcher (report).
-Guards: `tests/console/workspaceBeatStall.spec.ts` (the rule), the e2e harness fixture `beatStallGuard`
+Code (as it stands since architecture v2 — the 1 Hz sampler of the first version, `observeBeatStall` /
+`tickBeatStall`, had no caller left and was removed on 2026-11-23): `src/client/console/workspaceBeatStall.ts` (the
+beat's vocabulary — the transient phases, the bound, the surfaces' reports) · the FRAME's own machine and its bound
+(`consoleWorkspaceStack.registerFrameBeatExpired` → `[workspace-stall] beat «…» torn down at the frame's own bound`) ·
+the liveness arbiter's `beatOwed` term and its rung 25 (`supervisorController` — `judgedTransientBeat`, the same
+teardown, much sooner than the bound) · `ConsoleCardActions` `'workspacePhase'` watcher (report).
+Guards: `tests/console/workspaceBeatStall.spec.ts` (the vocabulary and who judges), the e2e harness fixture `beatStallGuard`
 (`tests/e2e/consoleTest.ts` — every spec is red on `[workspace-stall] beat`).
 
 ## 1. The freeze, root cause

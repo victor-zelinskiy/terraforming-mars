@@ -15,11 +15,19 @@
  * it holds is unacknowledged, and the owed-conclusion net only arms once the flow REPORTED finished. Only a reload
  * got the player out.
  *
- * THE RULE (`observeBeatStall`, pure). A beat is honest only while something is IN FLIGHT behind it: the transport's
- * request, a blocking animation hold (every cinematic registers one, each with its own named ceiling), the shell's
- * awaiting handoff, an owed fold. A beat that stands `WORKSPACE_BEAT_STALL_MS` with NOTHING in flight and the same
- * server prompt the whole time is not a beat — it is a stall, whatever its cause. The rule does not need to know the
- * cause, which is the point: the next mismatch of the same shape is caught by construction instead of by a reload.
+ * THE RULE. A beat is honest only while something is IN FLIGHT behind it: the transport's request, a blocking
+ * animation hold (every cinematic registers one, each with its own named ceiling), the shell's awaiting handoff, an
+ * owed fold. A beat that stands with NOTHING in flight is not a beat — it is a stall, whatever its cause. The rule
+ * does not need to know the cause, which is the point: the next mismatch of the same shape is caught by construction
+ * instead of by a reload.
+ *
+ * WHO JUDGES IT (since architecture v2): nobody samples it here any more. The beat is a state of the FRAME's own
+ * machine with its own bound (`WORKSPACE_BEAT_STALL_MS` — `consoleWorkspaceStack.registerFrameBeatExpired`, and the
+ * node `surface:<kind>` of the wait graph carries the same bound), and a beat that owes its end on a screen that
+ * accepts nothing is the liveness arbiter's (`consoleLiveness` — `beatOwed`; its rung 25 tears the frame down much
+ * sooner than the bound). The 1 Hz sampler that stood here (`observeBeatStall` / `tickBeatStall`) had no caller
+ * left and was removed on 2026-11-23: a rule nothing runs reads as a net that stands. This module keeps the beat's
+ * VOCABULARY — which phases are machine time, the bound, and the report of a surface that derives its phase itself.
  *
  * WHAT IT DOES NOT TOUCH. Only the TRANSIENT phases count: `committed` and `verdict` are stages the player ACTS on
  * and may legitimately stand for minutes; `browse` / `configure` are reversible. A surface that is not the deepest
@@ -50,8 +58,9 @@ export function isTransientBeat(phase: WorkspacePhase | undefined): boolean {
 /**
  * A surface whose phase is DERIVED inside the component (the card-actions workspace — its `workspacePhase` computed;
  * nothing writes it to the stack frame) reports it here. Keyed by the workspace kind the surface IS, so the shell can
- * judge it against the stack (is it the deepest live frame?). A plain Map, deliberately not reactive: the guard is a
- * 1 Hz sampler, never a cached computed — a latch here is impossible by construction (invariant 17).
+ * judge it against the stack (is it the deepest live frame?). A plain Map, deliberately not reactive: its readers are
+ * SAMPLERS (the supervisor's tick, a frame's look), never a cached computed — a latch here is impossible by
+ * construction (invariant 17).
  */
 const surfaceBeats = new Map<string, WorkspacePhase>();
 
@@ -69,88 +78,7 @@ export function transientSurfaceBeats(): Array<[string, WorkspacePhase]> {
   return [...surfaceBeats.entries()].filter(([, phase]) => isTransientBeat(phase));
 }
 
-// ── the rule ─────────────────────────────────────────────────────────────────
-
-export type BeatStallSample = {
-  now: number;
-  /** The beat being judged — `<kind>:<phase>` — or undefined when no judged surface stands in a transient beat. */
-  beat: string | undefined;
-  /** What legitimately keeps a beat standing right now (empty = nothing in flight). Named, for the diagnosis. */
-  inFlight: ReadonlyArray<string>;
-  /** The server prompt's identity (`promptIdentityKey` + promptId) — an answer moving it is progress. */
-  promptKey: string;
-};
-
-export type BeatStallState = {
-  beat: string | undefined;
-  /** When the current beat began. */
-  beatSince: number;
-  /** The last moment something was in flight (or the prompt moved). */
-  activeAt: number;
-  promptKey: string;
-  /** What was in flight the last time something was — the diagnosis names it. */
-  lastInFlight: ReadonlyArray<string>;
-};
-
-export function initialBeatStallState(): BeatStallState {
-  return {beat: undefined, beatSince: 0, activeAt: 0, promptKey: '', lastInFlight: []};
-}
-
-export type BeatStallVerdict =
-  | {stalled: false}
-  | {stalled: true, beat: string, stoodMs: number, quietMs: number, lastInFlight: ReadonlyArray<string>};
-
-/**
- * One 1 Hz observation. Pure: the next state + the verdict. A stall is reported ONCE per beat — after a verdict the
- * clock restarts, so a recovery that could not cure the state is reported again only a full window later, never
- * every tick.
- */
-export function observeBeatStall(state: BeatStallState, sample: BeatStallSample): {state: BeatStallState, verdict: BeatStallVerdict} {
-  if (sample.beat === undefined) {
-    return {state: {...initialBeatStallState(), promptKey: sample.promptKey}, verdict: {stalled: false}};
-  }
-  const fresh = sample.beat !== state.beat;
-  const next: BeatStallState = {
-    beat: sample.beat,
-    beatSince: fresh ? sample.now : state.beatSince,
-    activeAt: state.activeAt,
-    promptKey: sample.promptKey,
-    lastInFlight: state.lastInFlight,
-  };
-  if (fresh || sample.inFlight.length > 0 || sample.promptKey !== state.promptKey) {
-    next.activeAt = sample.now;
-    if (sample.inFlight.length > 0) {
-      next.lastInFlight = [...sample.inFlight];
-    }
-  }
-  const quietMs = sample.now - Math.max(next.beatSince, next.activeAt);
-  if (quietMs < WORKSPACE_BEAT_STALL_MS) {
-    return {state: next, verdict: {stalled: false}};
-  }
-  const verdict: BeatStallVerdict = {
-    stalled: true,
-    beat: sample.beat,
-    stoodMs: sample.now - next.beatSince,
-    quietMs,
-    lastInFlight: next.lastInFlight,
-  };
-  // Restart the window: one report per stall, never a warning per tick.
-  return {state: {...next, beatSince: sample.now, activeAt: sample.now}, verdict};
-}
-
-// ── the shell's sampler ──────────────────────────────────────────────────────
-
-let tickState: BeatStallState = initialBeatStallState();
-
-/** The shell's 1 Hz observation — the module keeps the state between ticks. */
-export function tickBeatStall(sample: BeatStallSample): BeatStallVerdict {
-  const result = observeBeatStall(tickState, sample);
-  tickState = result.state;
-  return result.verdict;
-}
-
 /** The shell unmounted / the game switched: nothing carries over. */
 export function resetBeatStall(): void {
-  tickState = initialBeatStallState();
   surfaceBeats.clear();
 }
