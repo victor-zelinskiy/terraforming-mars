@@ -413,6 +413,36 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
    * (`commandBarController.placementOwnsBar`), and the player's own reversible surface over a placement is a hold of
    * theirs (`ScreenShadowContext.lateral`) — B is one press back to the cells.
    */
+  /*
+   * `start-shadow/cure/release/game/none` — THE SECOND SEAT's STRAND (the box's duo pass on two heads, CI's `fz3` ·
+   * duo · `parliament` four walks of four — run 45156087552). A start frame stood past its commit over the game's
+   * menu, serving nothing, and the strand's own word said why: «stands by NOTHING» — not one term of
+   * `startSceneServes` / `startFrameLive` held it. Its leave was an EDGE only (`startFrameLive` falling closes the
+   * frame); a frame that comes onto the live stack AFTER that edge met none, and stood until the opening's door
+   * released it and named a defect (before the doors: the shadow's three seconds). The law: the frame leaves BY
+   * LEVEL — a start frame that APPEARS on the live stack while the start is not live is closed at once
+   * (`startController`). (The class is planted the way it stood: the frame put on the stack of a table whose opening
+   * is long over.)
+   */
+  it('a start frame that appears on the stack while the start is NOT live is closed at once — no door has anything to cure', async () => {
+    const table = await bottleServer().bootFixture('aerial-mappers');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    await live.advance(3_000);
+    expect(live.frames(), 'the board home of a game long past its opening').to.deep.equal([]);
+    const said = (marker: string) => live.lines().filter((line) => line.includes(marker));
+    // THE CLASS, PLANTED: the opening's frame on the live stack with nothing of the start live.
+    live.pageModules.consoleWorkspaceStack.enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+    expect(live.frames(), 'it stands for the flush it was put in').to.deep.equal(['start:browse']);
+    await live.advance(50);
+    expect(live.frames(), 'closed by the frame\'s own reaction — a frame, never the door\'s quarter of a second').to.deep.equal([]);
+    // Past the opening's door, the strand's door and where the shadow's confirm used to come: nobody had a strand.
+    await live.advance(4_000);
+    expect(live.frames()).to.deep.equal([]);
+    expect([...said('[start-shadow]'), ...said('[start-stranded]')], 'no cure, no finding').to.deep.equal([]);
+    expect(classes().filter((cls) => cls.startsWith('start-')), 'nothing of the start is filed').to.deep.equal([]);
+  });
+
   it('the hand opened from the wheel over a live placement: the bar is the hand\'s, nothing is filed, B is back at the cells', async () => {
     const table = await bottleServer().bootFixture('parliament-skyscrapers-enact');
     bottle = await bootBottle(table);
