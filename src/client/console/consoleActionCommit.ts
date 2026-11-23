@@ -23,6 +23,7 @@ import {reactive} from 'vue';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {motionGuarantee} from '@/client/console/session/sessionWaits';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import type {FlowScope} from '@/client/console/kernel/flowScope';
 import {motionCeilingMs} from '@/client/components/motion/motionTokens';
 import {CardName} from '@/common/cards/CardName';
@@ -198,10 +199,10 @@ const run = createFlowRun('action-commit', {
   },
   orphaned: () => releaseActionCommit('the game screen left'),
 });
-let disarmSettle: () => void = () => {};
+let disarmSettle: (settled: boolean) => void = () => {};
 
-function clearSettleTimer(): void {
-  disarmSettle();
+function clearSettleTimer(settled = false): void {
+  disarmSettle(settled);
   disarmSettle = () => {};
 }
 
@@ -213,13 +214,30 @@ export function armActionCommit(plan: ActionCommitPlan): void {
   run.begin(plan.sourceCard);
   actionCommitState.settled = false;
   actionCommitState.plan = plan;
-  disarmSettle = commitBeatBackstop(SETTLE_SAFETY_MS, 'the commit\'s minimum beat (the dismiss gate)', () => markActionCommitSettled(),
+  // THE MINIMUM BEAT IS A FLIGHT, AND SAYS SO: from the arm to its settle the source card's impulse is playing — a GSAP
+  // episode of ≈0.7 s the frame's beat stands for. Its backstop is a timer, and a timer is not a flight: the BEAT
+  // track, the first day it could hear «quiet» (2026-11-23), read `card-actions:executing` with NOTHING in flight
+  // under it for the whole episode of an action that moves no rail row. A node of the wait graph while it is owed —
+  // met by the settle (the motion's own end, or the backstop), ended silently when the commit is released first.
+  const beat = beginCeilingWait({
+    id: 'action-commit:settle', owner: 'actionCommit', what: 'the minimum beat of the commit settled',
+    maxMs: motionCeilingMs(SETTLE_SAFETY_MS) + COMMIT_BEAT_CEILING_MS, detail: plan.sourceCard,
+  });
+  const disarmBackstop = commitBeatBackstop(SETTLE_SAFETY_MS, 'the commit\'s minimum beat (the dismiss gate)', () => markActionCommitSettled(),
     run.scope ?? consoleSessionScope());
+  disarmSettle = (settled) => {
+    disarmBackstop();
+    if (settled) {
+      beat.met();
+    } else {
+      beat.end();
+    }
+  };
 }
 
 /** The visual beat finished (the motion's own completion, or the backstop). */
 export function markActionCommitSettled(): void {
-  clearSettleTimer();
+  clearSettleTimer(true);
   actionCommitState.settled = true;
 }
 
