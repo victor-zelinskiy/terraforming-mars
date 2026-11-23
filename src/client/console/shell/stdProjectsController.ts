@@ -37,6 +37,7 @@ import {PendingClientPayment, PendingClientPick} from '@/client/console/shell/sh
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {span} from '@/client/console/session/sessionWaits';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {questionScope} from '@/client/console/session/questionScope';
 import {scopedState} from '@/client/console/session/scopedState';
@@ -540,8 +541,13 @@ export function createStdProjectsController(shell: StdProjectsPort) {
     if (workspaceFrameMounted('standard-projects')) {
       setWorkspaceFramePhase('standard-projects', stdProjectsFramePhase('commit'));
     }
-    flow.after(Math.max(motionMs(STDP_HOLD_MS), 1), 'the committed standard project\'s read', () => {
-      if (stdProjectsFlow.state !== 'commit') {
+    // THE READ IS A BEAT OF STILLNESS — a `span` (a row of the kernel's wait table, family `motion`), never a bare
+    // timer: the frame stands `completing` with its pad absorbed while the gold is read, and a timer is not a flight
+    // — the BEAT track, the first day it could hear «quiet» (2026-11-23), read this beat standing with NOTHING in
+    // flight under it for the whole read, on every terminal commit. A pause somebody wrote on purpose says so.
+    void span(Math.max(motionMs(STDP_HOLD_MS), 1), flow).then(() => {
+      // (A span is over at once when its owner ends: a controller that left concludes nothing.)
+      if (flow.ended !== undefined || stdProjectsFlow.state !== 'commit') {
         return;
       }
       releaseStdProjectCommit();

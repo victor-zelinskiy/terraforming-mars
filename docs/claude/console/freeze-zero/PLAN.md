@@ -1163,6 +1163,22 @@ harness fails a test on any defect-tier line it did not expect (the gate the mon
     the wait's honest end, said `planned`; four frames a second is still a page that paints — the defect it was).
     And the bound itself was a duration (`motionMs`) where the law asks a ceiling: `motionCeilingMs`.
   The other two passes of the chain (`fz1` · reload, `fz3` · net 400) are still walking.
+- **THE BEAT TRACK WAS BLIND — «not one quiet beat» was the measure answering its own question (found
+  2026-11-23, reading the box's passes for the beat stall guard's door).** A frame in a transient beat is itself a
+  node of the wait graph that waits for a motion (`surface:<kind>` → `<kind>:executing`, the supervisor's), and
+  `flightsInTheAir` counted it: every beat read `busy[surface:…]`, whatever stood under it — over the suite, the
+  gate, the bottle, the box's cpu×4 and duo. **Withdrawn: the sentence above («the BEAT track read NOT ONE quiet
+  beat») proved nothing.** The reader takes the node it is asked about (`flightsInTheAir(now, under)`), and the
+  beat's measure asks UNDER its own frame. The first honest reading, the same hour (the bottle, `fz1`, 118 tables):
+  ONE quiet beat on healthy tables — `standard-projects:completing`, 304 ms, on every terminal commit: the read of
+  the committed gold was paced by a bare timer (`flow.after`), and a timer is not a flight. It is a `span` now (a
+  beat of stillness somebody wrote on purpose says so — the colony roster's dwell was the same class); re-walked:
+  `busy[kernel:surface:std-projects-controller]`. **The beat's door is built on the NEXT readings, not on the old
+  ones:** the whole suite and the gate on this head, then the box (a real browser lays out what the bottle cannot),
+  each quiet beat either a pause to declare or the stall the door is for. And its «quiet» is not the conclusion's:
+  the guard's own class — a claim whose stage can never arrive — stands `busy[claim:…]` (a wait for the server, by
+  the graph's word) until the claim's own bound; the door has to read the beat the way the guard does (what MOVES:
+  the wire, a blocking hold, a hand-off), which is the reading to take with it.
 - **THE NETS UNDER GREEN TESTS, AGAIN (the whole suite on `713e8d0c30`, CI run 45110190541 — 1 497 passed).**
   *`played-hero:target`* was not closed by taking the prewarm's word away: the FLIGHT's own wait then ran its whole
   budget after the prewarm had spent one — a card hanging 3.4 s over a place that was never coming (a play hosted by

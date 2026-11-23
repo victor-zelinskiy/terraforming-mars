@@ -98,3 +98,27 @@ describe('the strand\'s level door — the watchdog\'s cure, by level (the wirin
     expect(body).to.match(/cancelStrandLook = \(\) => \{\};\s+strandCure\.heal = \(\) => \{\};\s+strandCure\.yieldToShell = \(\) => \{\};\s+strandCure\.healed = \(\) => false;/);
   });
 });
+
+/**
+ * THE BEAT TRACK ASKS WHAT MOVES UNDER THE BEAT — never the beat itself (2026-11-23). A frame in a transient beat is
+ * a node of the wait graph that waits for a motion (`surface:<kind>` → `<kind>:executing`, the supervisor's): a
+ * measure that counted it as a flight read «busy» of every beat there is, and its «not one quiet beat» — over the
+ * suite, the gate, the bottle and the box — said nothing about the product. The beat stall guard's door is built on
+ * this track's reading; the reading has to be able to say «quiet».
+ */
+describe('the BEAT track — what is in flight UNDER a beat (the wiring)', () => {
+  const read = (file: string): string => fs.readFileSync(path.resolve(__dirname, '../../src/client/console', file), 'utf8').replace(/\r\n/g, '\n');
+
+  it('the reader of flights leaves out the node it is asked about', () => {
+    const flights = read('waitGraph/flightsInTheAir.ts');
+    expect(flights).to.contain('export function flightsInTheAir(now: number = Date.now(), under?: string): string {');
+    expect(flights).to.contain('.filter((node) => node.id !== under && node.targets.some((target) => target.kind === \'motion\' || target.kind === \'server\'))');
+  });
+
+  it('the beat\'s measure asks under the frame\'s own node — the id the supervisor declares it by', () => {
+    const outcome = read('shell/outcomeController.ts');
+    const measure = outcome.slice(outcome.indexOf('function measureStandingBeat(): void {'), outcome.indexOf('const conclusionDoor = '));
+    expect(measure).to.contain('const flight = flightsInTheAir(Date.now(), `surface:${top.kind}`);');
+    expect(read('supervisor/supervisorController.ts')).to.contain('id: `surface:${top.kind}`, family: \'surface\', owner: `workspace:${top.kind}`, targets, since: waitSurfacePhase.since,');
+  });
+});

@@ -19,10 +19,18 @@ import {waitTable} from '@/client/console/kernel/flowScope';
 import {transportState} from '@/client/console/transport/gameTransport';
 import {collectWaitNodes} from '@/client/console/waitGraph/waitGraph';
 
-/** The flights' names, ids folded (`#N`), sorted, bounded — `''` when nothing is in flight. */
-export function flightsInTheAir(now: number = Date.now()): string {
+/**
+ * The flights' names, ids folded (`#N`), sorted, bounded — `''` when nothing is in flight.
+ *
+ * `under` — the id of the node whose OWN wait is being asked about («what is in flight UNDER this beat»): a frame in
+ * a transient beat is itself a node that waits for a motion (`surface:<kind>` → `<kind>:executing`), so a reader that
+ * asks whether anything moves under the beat and counts the beat as a flight can never hear «nothing». The BEAT
+ * track did exactly that from its first day to 2026-11-23: «not one quiet beat» over the suite, the gate, the bottle
+ * and the box was the measure answering its own question.
+ */
+export function flightsInTheAir(now: number = Date.now(), under?: string): string {
   const names = collectWaitNodes(now)
-    .filter((node) => node.targets.some((target) => target.kind === 'motion' || target.kind === 'server'))
+    .filter((node) => node.id !== under && node.targets.some((target) => target.kind === 'motion' || target.kind === 'server'))
     .map((node) => `${node.family}:${node.id.replace(/[0-9]+/g, 'N')}`);
   if (transportState.requestInProgress) {
     names.push('transport:request');

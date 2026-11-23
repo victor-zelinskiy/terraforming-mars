@@ -596,7 +596,8 @@ export function createOutcomeController(shell: OutcomePort) {
       noteBeatSpan('', 'gone', Date.now());
       return;
     }
-    const flight = flightsInTheAir();
+    // (UNDER the beat: the frame's own node — «this beat waits for its motion» — is the question, never its answer.)
+    const flight = flightsInTheAir(Date.now(), `surface:${top.kind}`);
     const reveal = document.querySelector('.con-reveal') !== null ? ' · reveal' : '';
     noteBeatSpan(`${top.kind}:${beat}${reveal} · ${flight === '' ? `QUIET{${flowTreeDigest(6).replace(/[0-9]+/g, 'N').slice(0, 200)}}` : `busy[${flight}]`}`, 'moved', Date.now());
   }
