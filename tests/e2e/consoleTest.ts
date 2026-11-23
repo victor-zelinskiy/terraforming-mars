@@ -49,6 +49,7 @@ import {currentTimingBucket, formatTiming, noteTiming, resetTiming, snapshotTimi
 import {armReactionWitnessOn, describeReactionStory, reactionStory} from './reactionWitness';
 import {armHungPageWatch} from './hungPageWatch';
 import {armCauseHarvest, CauseRecord, fileCauseRecords} from './causeHarvest';
+import {replaySafeRequest} from './replaySafe';
 
 export * from '@playwright/test';
 
@@ -648,6 +649,12 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     context.on('page', (page) => void throttle(page));
     await use();
   }, {auto: true}],
+
+  // THE API CONTEXT DOES NOT FAIL ON A STALE SOCKET (`replaySafe.ts` — FLAKE ZERO, the «socket hang up» class): a
+  // request that is safe to send again is sent again when, and only when, the connection was reset.
+  request: async ({request}, use) => {
+    await use(replaySafeRequest(request));
+  },
 
   // `viewport` is a self-referencing option fixture; `screen` is not one (Playwright refuses the override) —
   // the raster is the viewport, `window.screen` only reports.
