@@ -5,7 +5,7 @@
  */
 import type {UnwrapRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
-import {computed, ref} from 'vue';
+import {computed, ref, watch} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {activeAnimationHoldLabels, blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
 import {conclusionRefusal} from '@/client/console/shell/shellFlowState';
@@ -14,7 +14,7 @@ import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
 import {neutralRallyFlow} from '@/client/console/parliament/neutralRally';
 import {HostedParliamentStepKind, hostedStepLiveIn, hostedStepOwedTo, startHostedStepToEnter, startPreludeGrantOf} from '@/client/console/parliament/hostedParliamentStep';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
-import {hostCarriesPlayersLook, workspaceHostYieldsScene, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, workspaceFrameHasNested, workspaceFrameMounted, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, workspaceStackState, stackServes} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, workspaceFrameIndex, hostCarriesPlayersLook, workspaceHostYieldsScene, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, workspaceFrameHasNested, workspaceFrameMounted, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, workspaceStackState, stackServes} from '@/client/console/consoleWorkspaceStack';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 import {Phase} from '@/common/Phase';
@@ -700,6 +700,22 @@ export function createStartController(shell: StartPort) {
       return true;
     }
     return task?.kind === 'projectCard' && task.mode === 'playFromHand';
+  });
+
+  /**
+   * THE START's FRAME LEAVES BY LEVEL, NOT ONLY ON ITS EDGE. `startFrameLive` falling closes the frame — a row of the
+   * shell's table, an EDGE (`whenStartFrameLiveChanges`). A frame of the start that comes onto the live stack AFTER
+   * that edge — back from aside or from a park, or stood up again by a door that carried it — met no edge at all: it
+   * stood past its commit with nothing holding it («stands by nothing», the strand's own word), serving nothing
+   * under the game's menu, until the opening's door released it and named a defect (the second seat of `fz3` · duo ·
+   * `parliament`: four walks of four on CI — run 45156087552 — and on the box on two heads). Whenever the frame
+   * APPEARS on the live stack while the start is not live, it is closed at once — the same verb the edge runs. (The
+   * edge keeps its own place in the tick; this reaction acts on the frame's appearance only.)
+   */
+  watch(() => workspaceFrameIndex('start') !== -1, (onStack) => {
+    if (onStack && !startFrameLive.value) {
+      closeWorkspaceRoot('start');
+    }
   });
 
   /**
