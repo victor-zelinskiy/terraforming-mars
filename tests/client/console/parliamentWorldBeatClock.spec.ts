@@ -92,6 +92,51 @@ describe('parliamentWorldBeat — the story wait counts from the story\'s progre
     expect(stackYieldedToBoard(), 'the budget ran out: the frame came back').is.false;
   });
 
+  /*
+   * WHOSE TIME THE CEILING WAS (FREEZE ZERO, the autopilot's game 3 — three humans, 2026-11-24): the frame stepped
+   * aside for the story while the player stood in the Colonies they had opened over the Parliament; the board stayed
+   * covered for as long as they chose, the wait ran to its ceiling by design — and was said as a defect. The cover's
+   * witness reads it (the law the foreign tile's wait already keeps): the player's own workspace → planned; a board
+   * in plain view for the story's whole budget → the story's own defect.
+   */
+  describe('the ceiling says whose time it was', () => {
+    const lines: Array<string> = [];
+    const realWarn = console.warn;
+    beforeEach(() => {
+      lines.splice(0);
+      console.warn = (...args: Array<unknown>) => {
+        lines.push(args.map(String).join(' '));
+      };
+    });
+    afterEach(() => {
+      console.warn = realWarn;
+    });
+    const ceilingLine = () => lines.find((line) => line.includes('ceiling parliament-world:story-quiet'));
+
+    it('the player keeps the board covered by a workspace of their own: planned — the sitting goes on', async () => {
+      remotePlacementState.waitingForBoard = true;
+      remotePlacementState.queued = 1;
+      const run = runWorldMoveBeat('3:1');
+      await microtasks();
+      // The player opens the Colonies over the Parliament that stepped aside.
+      enterWorkspace('colonies');
+      clock.advance(WORLD_STORY_MAX_MS + 500);
+      expect(await run).is.true;
+      expect(ceilingLine(), 'the ceiling is said').is.not.undefined;
+      expect(ceilingLine()).to.contain('(planned: the viewer kept the board covered by workspace — the sitting goes on without the board');
+    });
+
+    it('a board in plain view for the whole budget and a story that did not fall quiet: a defect, said with what stood', async () => {
+      remotePlacementState.active = true;
+      const run = runWorldMoveBeat('3:1');
+      clock.advance(WORLD_STORY_HARD_MAX_MS + 1000);
+      expect(await run).is.true;
+      expect(ceilingLine(), 'the ceiling is said').is.not.undefined;
+      expect(ceilingLine()).to.not.contain('planned');
+      expect(ceilingLine()).to.contain('in plain view for');
+    });
+  });
+
   it('a story that never ends is bounded by the hard ceiling', async () => {
     remotePlacementState.active = true;
     const run = runWorldMoveBeat('3:1');

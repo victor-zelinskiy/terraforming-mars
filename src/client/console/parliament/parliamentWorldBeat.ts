@@ -95,11 +95,12 @@ import {probeTick} from '@/client/console/probeTick';
 import {isColonyTrackRecord} from './colonyTrackModel';
 import {isTileRemovalRecord} from './tileRemovalModel';
 import {
-  boardCovered, isRemotePlacementActive, registerRemoteBoardWaitKeeper, remoteLandingOwed,
+  boardCovered, boardCoverTerms, isRemotePlacementActive, registerRemoteBoardWaitKeeper, remoteLandingOwed,
 } from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {consoleParliamentUi} from './consoleParliamentFlow';
 import {holdColonyTracks, releaseColonyTracks, requestColonyTrackWave} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {watchBoardCover} from '@/client/console/boardCoverWitness';
 
 /**
  * The wait for the board's own story, capped — the frame comes back either way. COUNTED FROM THE STORY'S LAST
@@ -310,6 +311,16 @@ function waitForStoryQuiet(): Promise<void> {
     const hard = started + Math.max(budget, motionCeilingMs(WORLD_STORY_HARD_MAX_MS));
     let deadline = started + budget;
     let wait: CeilingWait | undefined;
+    // WHOSE TIME THE WAIT WAS (`boardCoverWitness.ts` — the law the foreign tile's wait for the board already keeps):
+    // the frame steps aside for the story, and the PLAYER may be standing in a workspace of their own opened over it
+    // (the Colonies over the Parliament — the autopilot's game 3, 2026-11-24). The board is then covered for as long
+    // as they choose, the story is not told and this wait reaches its ceiling BY DESIGN — the sitting goes on, the
+    // scales stand moved. Said as a defect it named a wait nobody was stuck in; with the game's own scenes alone
+    // keeping the board it stays one, and the line names them.
+    const cover = watchBoardCover();
+    /** Since when NOTHING has covered the board (`undefined` — something does): the story's own time in plain view. */
+    let clearSince: number | undefined;
+    let everCovered = false;
     const tick = (): void => {
       // The drain is re-asked on every tick: the shell drives it on the
       // watchable rising edge, and this loop is the guard for the edge that
@@ -330,8 +341,17 @@ function waitForStoryQuiet(): Promise<void> {
       if (storyTelling()) {
         deadline = Math.min(hard, Math.max(deadline, now + budget));
       }
+      const covering = boardCoverTerms();
+      const held = cover.look(covering, now);
+      clearSince = covering.length === 0 ? (clearSince ?? now) : undefined;
+      everCovered ||= covering.length > 0;
       if (now >= deadline) {
-        wait?.ceiling();
+        const verdict = cover.verdict(now);
+        // A story on a board NOTHING EVER COVERED, or one that had its whole budget in PLAIN VIEW since the cover
+        // left, and still did not fall quiet is the story's own defect.
+        const inPlainView = clearSince !== undefined && (!everCovered || now - clearSince >= budget);
+        wait?.update(inPlainView ? `in plain view for ${Math.round((now - (clearSince ?? now)) / 1000)} s` : verdict.detail);
+        wait?.ceiling(inPlainView || verdict.planned === undefined ? undefined : `${verdict.planned} — the sitting goes on without the board's telling`);
         resolve();
         return;
       }
@@ -340,6 +360,7 @@ function waitForStoryQuiet(): Promise<void> {
         id: 'parliament-world:story-quiet', owner: 'parliamentWorldBeat', what: 'the board story quiet', maxMs: hard - started,
         detail: `${budget} ms past the story's last progress`,
       });
+      wait.update(held);
       probeTick(tick);
     };
     probeTick(tick);
