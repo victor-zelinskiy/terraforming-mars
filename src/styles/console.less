@@ -28084,10 +28084,11 @@ html.console-mode .notifications-layer {
     /* TR59 decision 7 — THE CORNER OF THE CENTRAL OPENING. The card stands in the top-right corner of the box the
        four hull members enclose, never over the strategy rail: «a modal never covers a bar» (the opening's law)
        holds for the toasts too — the card covered the rail's «ДОСТИЖЕНИЯ» column on every 4K frame. The live
-       edges are the ones `useWorkspaceBandGeometry` publishes on <html> (a `v-show`n rail measures 0 → the corner
-       moves to the screen's edge by itself); the fallbacks are the pre-mount tokens. */
+       edges are the ones `useWorkspaceBandGeometry` publishes (a `v-show`n rail measures 0 → the corner moves to the
+       screen's edge by itself — that LIVE right edge is written on this layer itself, `--con-stage-r-live`: `<html>`
+       no longer hears of a rail that leaves under a workspace); the fallbacks are the pre-mount tokens. */
     top: calc(var(--con-stage-t, calc(var(--con-hud-h, 2.7rem) + 1.3rem)) + .6rem);
-    right: calc(var(--con-stage-r, 11.3rem) + .6rem);
+    right: calc(var(--con-stage-r-live, var(--con-stage-r, 11.3rem)) + .6rem);
     /* The desktop layer is a FIXED 340px box; the console card (.con-notif)
        is rem-sized and — on the TV profile — scales past that, so a fixed
        box let the card overflow its right edge off-screen. Hug the card
@@ -28095,7 +28096,7 @@ html.console-mode .notifications-layer {
     width: max-content;
     /* FK — THE CARD LIVES IN ITS LANE: never wider than the opening it stands in (its left edge = the player rail's,
        published by the same geometry), so a narrow opening narrows the card instead of pushing it over a rail. */
-    max-width: calc(100vw - var(--con-stage-l, 1rem) - var(--con-stage-r, 1rem) - 1.2rem);
+    max-width: calc(100vw - var(--con-stage-l, 1rem) - var(--con-stage-r-live, var(--con-stage-r, 1rem)) - 1.2rem);
     align-items: flex-end;
 
     .con-notif,
@@ -39164,7 +39165,7 @@ html.con-profile-handheld {
        card (and the queue tail) over the strategy rail at 720p. Only the gap shrinks. */
     &.console-mode .notifications-layer {
         top: calc(var(--con-stage-t, 3.7rem) + .5rem);
-        right: calc(var(--con-stage-r, 9rem) + .5rem);
+        right: calc(var(--con-stage-r-live, var(--con-stage-r, 9rem)) + .5rem);
     }
     /* FL — the corner yield on the small profile too (the rule above out-ranks the base one by order). */
     &.console-mode .notifications-layer.notifications-layer--corner-yield {

@@ -98,6 +98,7 @@ import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnd
 import {ReactionCausePlate, causePlateOf} from '@/client/console/cardReaction/reactionCausePlate';
 import {buildCardReactionSummaryNotification} from '@/client/console/cardReaction/cardReactionSummary';
 import {pushTransient} from '@/client/components/notifications/notificationState';
+import {liveStageRightPx} from '@/client/console/composables/useWorkspaceBandGeometry';
 import {
   CARD_FACE_HOOKS, checkReactionIdentity, clearDeclaredReactors, declaredReactors, hookCardOf, noteReactionLetGo, noteReactorRising, noteReactorSettled,
 } from '@/client/console/cardReaction/reactionIdentity';
@@ -546,7 +547,8 @@ function openingRect(): RectLike {
   const t = read('--con-stage-t');
   const b = read('--con-stage-b');
   const l = read('--con-stage-l');
-  const r = read('--con-stage-r');
+  // (The edge AS IT IS NOW: `<html>` keeps the inset of a rail that left under a workspace — `liveStageRightPx`.)
+  const r = liveStageRightPx(read('--con-stage-r'));
   if ([t, b, l, r].some((v) => !Number.isFinite(v))) {
     return stage;
   }

@@ -24,6 +24,18 @@
  * pre-mount fallback. Measurement only, never layout: this writes custom
  * properties and nothing reads them back into JS.
  *
+ * THE RIGHT EDGE IS PUBLISHED IN TWO PLACES, AND `<html>` HEARS OF IT ONLY WHEN THE RAIL IS LAID OUT (FREEZE ZERO,
+ * stage 6 — the frame budget of a press, R16's second half). A custom property on `<html>` is inherited by every node
+ * of the page: a SECTION taking the rail away used to write `--con-stage-r: 0px` there, the whole tree was restyled
+ * on that open and on that close, and the first script that measured anything afterwards (the hand dock's poses)
+ * paid for it inside the press's own frame. But under a workspace the bands and the dim do not read the measured
+ * edge at all — the shell's policy class answers for them (`.con-stage-right()` — `right: 0`). So:
+ *   · `--con-stage-r` on `<html>` is the inset of a rail that is LAID OUT; while the rail is `v-show`n away under
+ *     the policy class it keeps its last value (nothing that reads it there can see a difference);
+ *   · `--con-stage-r-live` — the edge as it is right now, 0 with the rail away — is written ON its one family of
+ *     direct readers, the notifications' corner (`.notifications-layer`): one element restyled, not the page.
+ * (A rail away with NO policy class — no such state is known — still writes 0 on `<html>`, as before.)
+ *
  * ⚠️ It observes the RAILS as well as the column. A `v-show` flip changes no
  * box in `.con-main` (the rail simply stops taking part), so the column's own
  * observer never fires for the one event that moves the opening's edge the most.
@@ -34,6 +46,19 @@ import {RootElHolder, rootElOf} from '@/client/components/rootEl';
 
 /** The four properties this mirror owns — declared once so teardown is exact. */
 const STAGE_VARS = ['--con-stage-t', '--con-stage-b', '--con-stage-l', '--con-stage-r'] as const;
+/** The right edge AS IT IS NOW, on its direct readers (see the header). */
+const STAGE_RIGHT_LIVE = '--con-stage-r-live';
+const LIVE_RIGHT_READERS = '.notifications-layer';
+
+/**
+ * THE OPENING's RIGHT INSET AS IT IS NOW, for a script that needs it (`cardReactionDirector.openingRect`): the
+ * published inset while the right rail is laid out, 0 while it is `v-show`n away — what `--con-stage-r` itself said
+ * before `<html>` stopped hearing of a rail that left under a workspace.
+ */
+export function liveStageRightPx(publishedPx: number): number {
+  const rail = typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('.con-strat');
+  return rail !== null && rail.getClientRects().length === 0 ? 0 : publishedPx;
+}
 
 /**
  * A host this mirror can measure: a plain element or a COMPONENT (both rails are
@@ -97,7 +122,16 @@ export function useWorkspaceBandGeometry(
     style.setProperty('--con-stage-t', `${Math.round(rect.top)}px`);
     style.setProperty('--con-stage-b', `${Math.round(window.innerHeight - rect.bottom)}px`);
     style.setProperty('--con-stage-l', `${Math.round(left > 0 ? left + gap : 0)}px`);
-    style.setProperty('--con-stage-r', `${Math.round(right > 0 ? right + gap : 0)}px`);
+    const liveRight = `${Math.round(right > 0 ? right + gap : 0)}px`;
+    // (`<html>` hears of the right edge only when the rail is laid out — or when no policy class answers for a rail
+    // that is away; see the header.)
+    const policyAnswers = el.closest('.con-root')?.classList.contains('con-root--rail-replaced') === true;
+    if (right > 0 || !policyAnswers) {
+      style.setProperty('--con-stage-r', liveRight);
+    }
+    for (const reader of document.querySelectorAll<HTMLElement>(LIVE_RIGHT_READERS)) {
+      reader.style.setProperty(STAGE_RIGHT_LIVE, liveRight);
+    }
   };
 
   useResizeObserver(hosts.main, publish);
@@ -121,6 +155,9 @@ export function useWorkspaceBandGeometry(
     // Leave no stale geometry behind for the next shell (the tokens take over).
     for (const name of STAGE_VARS) {
       document.documentElement.style.removeProperty(name);
+    }
+    for (const reader of document.querySelectorAll<HTMLElement>(LIVE_RIGHT_READERS)) {
+      reader.style.removeProperty(STAGE_RIGHT_LIVE);
     }
   });
 }

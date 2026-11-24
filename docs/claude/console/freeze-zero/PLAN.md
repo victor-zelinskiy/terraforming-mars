@@ -1920,10 +1920,23 @@ Both got their instrument, and their first readings:
   the spells the browser's node count grows (5 078 · 8 118 · 14 535) while the attached elements at the same menu
   stand near 1 300: each spell now names the trees detached from the document and still held by a script, by root
   (`DOM.getDetachedDomNodes` — game 403, one-minute spells, reads them generation by generation).
-- **NEXT, in this order:** the same probe on a QUIET box (the lanes end first) — the budget's true numbers; R16's
-  second half (the shell still writes `--con-stage-r` on `<html>` when a SECTION takes the rail away — the
-  notifications' corner and the reaction's opening read it directly); the Parliament's mount as ONE measure and ONE
-  write; what the soak's census names — each step read by its instrument before and after.
+- **R16, ITS SECOND HALF — DONE.** A SECTION takes the rail away and the shell wrote `--con-stage-r: 0px` on `<html>`
+  — the page restyled on every open and close of the hand, the colonies, the Parliament. `<html>` now hears of the
+  right edge only when the rail is LAID OUT (under the policy class nothing of the bands' family reads it); the edge
+  as it is now rides `--con-stage-r-live` ON its one family of direct readers (the notifications' corner), and the
+  reaction's opening asks `liveStageRightPx`. Before · the first half · both, the same loaded box: **the hand
+  185 → 161 → 91 ms, the colonies 219 → 106 → 64, the Parliament 437 → 305 → 296** (its own mount is what is left).
+  The contract on the box: fourteen specs (the notifications' corner, the card reaction, the bands' geometry) — 37
+  passed.
+- **THE SOAK's CENSUS, READ** (game 403, thirteen generations, one-minute spells): the trees detached from the
+  document and still held grow from 3 nodes to 2 884 — `div.con-hand` ×4 (1 191) and `dialog.card-zoom-dialog` ×3
+  (475) GROW with use (a tree a visit — a leak by name), one instance each of `.con-composer` (336),
+  `.con-cardactions` (310), `.con-info` (268), `.con-stdp` (162), `.con-played-hero__proxy` (95) stands kept (a last
+  reference somebody holds). Small against a game's own growth (the heap 25 → 40 MB over thirteen generations, a
+  page a game) — and exact: the next step is WHO holds them (the retainers of a heap snapshot), then the cut.
+- **NEXT, in this order:** the same probe on a QUIET box (the lanes end first) — the budget's true numbers; the
+  Parliament's mount as ONE measure and ONE write (five read-after-write passes are what its 296 ms is made of); who
+  holds the hand and the viewer detached — each step read by its instrument before and after.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

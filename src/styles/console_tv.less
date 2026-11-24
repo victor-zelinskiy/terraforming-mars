@@ -2189,7 +2189,7 @@ html.con-profile-tv .boot-loader__progress {
 html.console-mode.con-profile-tv .notifications-layer {
     /* (top and right ride the CENTRAL OPENING's live edges from the base rule — TR59 decision 7: the card stands
        in the opening's corner, never over the strategy rail.) */
-    right: calc(var(--con-stage-r, 11.3rem) + .7rem);
+    right: calc(var(--con-stage-r-live, var(--con-stage-r, 11.3rem)) + .7rem);
 }
 html.con-profile-tv.console-mode .notifications-layer.notifications-layer--journal-open {
     right: calc(min(44rem, 40vw) + var(--con-edge-x, .7rem) + 0.8rem);
