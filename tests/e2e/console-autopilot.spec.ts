@@ -140,13 +140,33 @@ async function look(page: Page): Promise<Screen> {
   }, GLYPH_KEY);
 }
 
-function pilotPick(screen: Screen, g: () => number, last: string | undefined): string {
+/**
+ * `toTheQuestion` — THE PILOT IS ANSWERING (the second half of a question's budget, after its walk home): at the board
+ * home it takes the way the home offers (A — the plate's «Открыть», «Вернуться к заседанию»), and on the question's
+ * own screen it presses what carries a flow on (A, RT, the hot verb) and next to never what leaves or only reads. The
+ * box's whole games with the trail, 2026-11-24: at home the wandering pick chose the wheels four times of five, and the
+ * door answered questions whose way back stood on the bar the whole time.
+ */
+function pilotPick(screen: Screen, g: () => number, last: string | undefined, toTheQuestion: boolean = false): string {
   if (last !== undefined && LOOK_KEYS.has(last) && g() < 0.75) {
     return 'Escape';
   }
+  // A LOOK STANDS OPEN (the fullscreen viewer — it covers the bar, whose words under it are another screen's): a
+  // player reads it, turns a page or two, and CLOSES it. (The same games: X at the sitting's results, then eleven
+  // presses of A inside the viewer while the bar under it read «A К исследованию» — and the door answered.)
+  if (screen.zoom) {
+    return toTheQuestion || g() < 0.5 ? 'Escape' : ARROWS[Math.floor(g() * ARROWS.length)];
+  }
+  const offersA = screen.offered.some((o) => o.key === 'Enter');
+  if (toTheQuestion && offersA && screen.frames.length === 0 && !screen.quick) {
+    return 'Enter';
+  }
   const roll = g();
-  if (roll < 0.7 && screen.offered.length > 0) {
-    const weight = (o: {key: string, hot: boolean}): number => (LOOK_KEYS.has(o.key) ? 0.5 : (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : o.key === 'Escape' ? 0.5 : 2));
+  if (roll < (toTheQuestion ? 0.8 : 0.7) && screen.offered.length > 0) {
+    const carries = (o: {key: string, hot: boolean}): number => (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : 0);
+    const weight = (o: {key: string, hot: boolean}): number => (toTheQuestion ?
+      (carries(o) > 0 ? carries(o) + 4 : LOOK_KEYS.has(o.key) || o.key === 'Escape' || o.key === 'Comma' || o.key === 'KeyY' ? 0.1 : 1) :
+      (LOOK_KEYS.has(o.key) ? 0.5 : (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : o.key === 'Escape' ? 0.5 : 2)));
     let x = g() * screen.offered.reduce((sum, o) => sum + weight(o), 0);
     for (const o of screen.offered) {
       x -= weight(o);
@@ -327,8 +347,8 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await walkHome(false);
     }
     const seen = await look(page);
-    stood = `${seen.frames.join('>') || '-'}|${wf.type}#${wf.promptId ?? ''}|${seen.bar.slice(0, 80)}`;
-    await press(pilotPick(seen, g, lastKey), pause());
+    stood = `${seen.frames.join('>') || '-'}${seen.zoom ? '+ZOOM' : ''}${seen.quick ? '+WHEEL' : ''}|${wf.type}#${wf.promptId ?? ''}|${seen.bar.slice(0, 80)}`;
+    await press(pilotPick(seen, g, lastKey, !standing.menu && standing.presses >= Math.floor(standing.budget / 2)), pause());
   }
   if (played.phase === 'end') {
     // THE FINALE: the ceremony's screens are the page's own — pressed through like everything else.

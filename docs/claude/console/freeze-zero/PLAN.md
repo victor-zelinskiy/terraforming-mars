@@ -1818,6 +1818,48 @@ games 1 – 24 on `1e649acd2a`) did what it was built for: red BY NAME, six issu
   `parliament-world:story-quiet` «in plain view for 11 s» (a story the bottle cannot tell — to hold against the
   box's games before a baseline row); #108 — `band-no-cause`.
 
+**STAGE 6, STEP 6 — THE BOX's FORTY-FIVE WHOLE GAMES, READ (2026-11-24, later).** `fzp-ap`: 45 games in a real
+browser, 43 to the final scoring, 2 capped, **0 stuck, 0 rebuilds**, 55 557 presses; the door answered 15.7 % of the
+questions. What they named, and what was done:
+- **ⓗ CURED — A QUESTION OF A PHASE STOOD UNDER ANOTHER SEAT's CHAIN** (`1e4fefc03d`; #108 and game 113's
+  `correlation-ceiling`): a generation ending inside MarsBot's last turn asked the research buy and the draft pick in
+  that turn's event scope — the seat's payment recorded in the bot's turn, the bot's correlation open for as long as
+  the seats drafted. `Player.setPhaseQuestion`; the engine fuzz holds it (`C-phase`, with its control: 15 + 12 in 24
+  smoke games with the law off).
+- **ⓘ CURED — A RISE ARMED FOR A BUY THAT LEFT STOOD FOR THE REST OF THE GAME** (game 123 — three generations under
+  «Планетолог · A Пропустить»; the bar is in 12 games of 45, both capped ones among them). The draft → research rise is
+  armed by a VIEW and launched or finished by the screen that serves the buy as it mounts; a buy that left with no
+  such screen mounting (here: answered at the pilot's door) left nobody to finish it, nothing heals an engaged scene
+  and nothing re-arms over one — the bar read «A Пропустить» on every screen, the hand dock stayed hidden, the task
+  frames kept their chrome dissolved, the shelf stood frozen on cards long bought. **An armed rise lives only as long
+  as its buy prompt** (`observeDraftTransition`), and the bar says the rise's skip only on the screen that plays it
+  (the pad has no rung of the rise's — over a lateral workspace the bar promised a verb A does not have). The
+  real-player road to the standing form is narrow (the buy must leave without its screen); the transient one is
+  multiplayer — a buy arriving over a lateral workspace before its plate takes the screen.
+- **ⓙ CURED — A DRAIN STANDING AT ITS OWN GATE WAS CUT AT THE DUE** (game 143, on a build that has ⓖ: «watchable:
+  true, looks 8/112, drains 0, gated ×10 by scene-settling»): the player came back to the board two seconds before the
+  park's thirty ran out, a landing was still settling, and the due snapped three scales the drain was about to glide.
+  The same class as ⓖ, one step earlier — the telling's grace covers a drain at a gate that ENDS BY ITSELF over a
+  board in view (never a reveal standing for the player), the ledger keeps looking through the grace, and the gate now
+  names its scene (`settling:<scene>` — it could not say behind WHICH).
+- **THE PLATE's DOOR SAYS WHAT ITS FIRST PRESENTATION WAITED FOR** (`0612600dae`; game 127's `mandatory-gate/overdue/
+  draft:gen2` named no cause).
+- **THE BOTTLE's BASELINE, FOUR ROWS** (`8cc4675c3f`; #109 closed): `parliament-world:story-quiet`, the cell-resource
+  story and its stage, the park's overdue drain — flights between MEASURED cells; the box's games name none of them at
+  any tier.
+- **THE DOOR's PLACES, READ WITH THE TRAIL — THE PILOT's HABITS, NOT THE PRODUCT's** (`fzr-rep`: games 113 and 123
+  replayed on the new build — both to the final scoring, 0 defects; game 113's `dangling/deferred:n` and its
+  correlation ceiling did not come back). At the board home, with the plate's «A Открыть» on the bar, the wandering
+  pick chose the wheels four times of five; X at the sitting's results opened the viewer and eleven presses of A went
+  INTO it while the bar under the dialog read «A К исследованию». **The pilots WALK TO THE QUESTION** in the second
+  half of its budget (A at the home, what carries a flow on at the question's own screen, an open viewer closed) —
+  two bottle games: every question but the start wizard's answered on the screen (card 55 – 61, option 17), the door
+  5 – 8 → 1 – 2 → **0**. What the door answers from here on is a question the screen could not be walked to.
+- **#114** (`console-campaign-tenders` «RT to the summary», once on a loaded shard; the hunt ×20 on CI — 45362158937 —
+  none): the walk's window was four presses' worth of one machine — eight.
+- **OPEN:** game 127's overdue plate (its door now says what the presentation waited for — to read on the next
+  occurrence); the box's lanes move to the build of this step and the new pilot — stage 6's number is counted on them.
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a

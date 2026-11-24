@@ -433,7 +433,10 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     expect(await twins(), 'through every list, sheet and hand-over: no certificate was ever painted twice at once').toEqual([]);
 
     // ── To the summary: «Субсидия» left; the projects stay empty. ──
-    expect(await pressUntil(page, 'Period', async () => await page.locator('.con-start__summary').isVisible(), {tries: 4, settleMs: 1200}), 'RT to the summary').toBe(true);
+    // (The window is the WALK's, never four presses' worth of one machine: a step that answers RT a beat late on a
+    // loaded shard — the whole suite on CI, 2026-11-24, once; twenty repeats alone, none — is pressed again, and the
+    // summary's RT begins nothing, so a press too many is harmless.)
+    expect(await pressUntil(page, 'Period', async () => await page.locator('.con-start__summary').isVisible(), {tries: 8, settleMs: 1200}), 'RT to the summary').toBe(true);
     await expect(page.locator('[data-summary-tenders]')).toContainText('4/5');
 
     // ── THE TERMINAL WARNING: «Субсидия» is still open — the first A warns, the second begins. ──
