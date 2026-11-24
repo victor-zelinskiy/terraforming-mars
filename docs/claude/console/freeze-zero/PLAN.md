@@ -1782,6 +1782,42 @@ open ones and by the one-owner law.
   cardselect` (bottle: the opening answered through the door while the start stood — the pilot's own artifact, as
   it was in the browser before its opening was seeded).
 
+**STAGE 6, STEP 5 — THE FIRST GATED PASS, AND THE BOX (2026-11-24, the day).** The box came back; its eight workers
+play whole games in a real browser with a GPU all night (`tm-fz-tools/autopilot-lanes.mjs` — four detached lanes, two
+games at a time each, games 101 … 300; results `tm-fz-box/.e2e-remote/fzp-ap`, summed at any moment by
+`monkey-report.mjs … --against tests/e2e/autopilotBaseline.json --gate`). The first gated pass on CI (45334498030,
+games 1 – 24 on `1e649acd2a`) did what it was built for: red BY NAME, six issues filed (#108 – #113).
+- **ⓕ CURED — IN THE FINALE RT UNDER AN OPEN WHEEL FINISHED THE SEAT's GAME** (`61d50b6b92`; #113 — `bar-APART · quick
+  > section:board`, the one-owner law's reading of the bar against the pad). At the finale's cell choice RT is the
+  FINISH (a hold, irreversible) and its rung stands above the wheels; under the basic wheel opened over the pick —
+  whose strip says «RT — the other wheel» — RT began the finish. The rung is the board's own verb where the board's
+  bar stands, and never under an open wheel. Proof on the box (`console-final-greenery`, step ④): RED on the build
+  before — the seat's game was finished — GREEN with it.
+- **ⓖ CURED — A BOARD STORY BEING TOLD AT ITS DUE WAS CUT** (`10f0b3a5bc`; #112, and the box's games 107 · 108):
+  «degraded after 30 s — {watchable: true, draining: true, drains: 1}». The board came into view at the end of the
+  park's thirty seconds, the drain opened, and the due degraded it under its own motion — the scales snapping
+  mid-glide. `OwedStory.telling`: a story whose release has begun finishes within a bounded grace (10 s).
+- **THE LAW's LAST TWO ROWS OF THE PASS** — #110 / #111, the sitting's own tile behind its door to the board: the
+  door is the placement's block in the question's facts (`c9e0449258`).
+- **THE ENGINE FUZZ's NIGHT (#106 / #107), both closed in the engine (`1d2a5e4460`):** Solar Farm in the tableau with
+  its cell still being chosen and Robotic Workforce in the same hand — the farm's production box threw and THE SEAT's
+  WHOLE VIEW could not be built (a tile not on Mars yet produces nothing to copy); Psychrophiles' last microbe paid
+  for Soil Enrichment — a plain Error (a 500 and a report) for the rules saying no: a refusal (`InputError`).
+- **THE PILOTS GO HOME** (`1d2a5e4460`): at half a question's budget the pilot walks to the board, where the
+  question's plate or its way back stands — «where the door answered» had named a habit of the pilot (it browsed the
+  Parliament's delegate stage for four questions in a row), never a place of the product. Two bottle games: the door's
+  card answers 5 – 8 → 1 – 2.
+- **A HARNESS GAP THAT COST A GAME:** the API seeder answered «a production to lose» with zero of everything (game 103
+  never began) — it pays the steps where the seat has them (`97230c9052`).
+- **THE BOX SO FAR (build `c378f0de10`, the first 25 games): 25 of 25 to the final scoring, none stuck, no rebuild,
+  the one-owner law at two stray presses.** Batches started after 08:28 UTC run the build of `1d2a5e4460` with the
+  home-walking pilot (`fzp-ap/BUILD-CUT.txt`).
+- **OPEN:** `wait-graph/dangling/deferred:n` in a real browser on a build that has ⓓ (the box's game 113 — a sitting
+  parked, the question re-homed: another shape than the finale's, to read with a trace); `notifications/
+  correlation-ceiling` in the same game («correlation 385 stayed open for over 90 s»); #109 — the bottle's
+  `parliament-world:story-quiet` «in plain view for 11 s» (a story the bottle cannot tell — to hold against the
+  box's games before a baseline row); #108 — `band-no-cause`.
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a
