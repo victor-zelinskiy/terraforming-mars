@@ -341,7 +341,7 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     },
     {name: 'story-degraded-by', re: /^story «([^»]*)» degraded by (.*?) after /, tier: 'info', parts: [1], dims: {by: 2}, why: 'the echo of a rung / a door — the episode or the finding is the defect', echoOf: ['liveness/stall', ...WAIT_GRAPH_FINDINGS]},
     {name: 'witness-heal', re: /^witness «([^»]*)» healing — the lie outlived its grace/, tier: 'defect', parts: [1]},
-    {name: 'hook-threw', re: /^(degrade|ready\(\)|redrive|heal) of «([^»]*)» failed/, tier: 'defect', parts: [1, 2]},
+    {name: 'hook-threw', re: /^(degrade|ready\(\)|telling\(\)|redrive|heal) of «([^»]*)» failed/, tier: 'defect', parts: [1, 2]},
     {name: 'witness-threw', re: /^witness «([^»]*)» failed/, tier: 'defect', parts: [1]},
   ],
   'notifications': [

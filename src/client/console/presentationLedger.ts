@@ -40,6 +40,9 @@ export const LEDGER_TICK_MS = 250;
  *  the owner directly — the ledger is the net, not the metronome). */
 export const LEDGER_REDRIVE_MIN_GAP_MS = 500;
 
+/** How long past its due a story that is BEING TOLD may still finish (`OwedStory.telling`). */
+export const STORY_TELLING_GRACE_MS = 10_000;
+
 export type OwedStory = {
   /** Stable name — diagnostics speak it («board-beat-park», «remote-tile:05»). */
   id: string,
@@ -50,6 +53,15 @@ export type OwedStory = {
   redrive: () => void,
   /** Past this age the story degrades honestly (owner's snap) and retires. */
   dueMs: number,
+  /**
+   * IS THE STORY BEING TOLD RIGHT NOW (its release has begun — the park's drain is running)? A story that is being
+   * told when its due comes is not overdue: the degrade would CUT the telling it exists to protect (the scales
+   * snapping to their values mid-glide). It is given `STORY_TELLING_GRACE_MS` more, once, bounded — a telling that
+   * outlives that is degraded like any other. (The box's whole games, 2026-11-24 — game 107: the board came into
+   * view in the last second of the park's thirty, the drain opened, and the due degraded it under its own motion:
+   * «watchable: true, draining: true, drains: 1».)
+   */
+  telling?: () => boolean,
   /** The honest degrade. Optional — some owners keep their own bounded
    *  safety and only want the redrive net + diagnostics. */
   degrade?: () => void,
@@ -204,7 +216,9 @@ export function owePresentation(story: OwedStory): OwedStoryHandle {
   const owner = {};
   // A re-owe is the SAME story deferring again: it keeps its scope, as it keeps its clock — and the scope's own watch
   // of the frames the page painted since.
-  const {scope, painted} = existing !== undefined && existing.scope.ended === undefined ? existing : openStoryScope(story.id, story.dueMs);
+  const {scope, painted} = existing !== undefined && existing.scope.ended === undefined ? existing :
+    // (The scope's bound is the latest the story can end: its due, and the telling's grace where it has one.)
+    openStoryScope(story.id, story.dueMs + (story.telling !== undefined ? STORY_TELLING_GRACE_MS : 0));
   stories.set(story.id, {
     ...story,
     since: existing?.since ?? now(),
@@ -248,6 +262,18 @@ export function settlePresentationDue(): void {
   for (const story of stories.values()) {
     oldest = Math.max(oldest, t - story.since);
     if (t - story.since >= story.dueMs) {
+      // …UNLESS IT IS BEING TOLD (`telling`): the release has begun — it finishes, within its bounded grace.
+      if (story.telling !== undefined && t - story.since < story.dueMs + STORY_TELLING_GRACE_MS) {
+        let telling = false;
+        try {
+          telling = story.telling();
+        } catch (err) {
+          console.error(`[presentation-ledger] telling() of «${story.id}» failed`, err);
+        }
+        if (telling) {
+          continue;
+        }
+      }
       // PAST DUE — the honest degrade, NAMED. Never silent: this line is the
       // whole point («the safety fired» stops being invisible).
       // (Read BEFORE the story is retired — its scope takes the watch with it. No parenthesis inside the reason: the

@@ -14,7 +14,7 @@
  */
 import {expect} from 'chai';
 import {
-  LEDGER_TICK_MS,
+  LEDGER_TICK_MS, STORY_TELLING_GRACE_MS,
   owePresentation, presentationLedgerSnapshot, presentationLedgerStats,
   registerTruthWitness, resetPresentationLedger, settlePresentationDue,
 } from '../../src/client/console/presentationLedger';
@@ -236,6 +236,59 @@ describe('presentationLedger', function() {
       }
     });
   }
+
+  /*
+   * A STORY BEING TOLD AT ITS DUE IS NOT CUT (the box's whole games, 2026-11-24 — game 107): the board came into view
+   * in the last second of the park's thirty, the drain opened — and the due degraded the story under its own motion
+   * («watchable: true, draining: true, drains: 1»): the scales snapping mid-glide, filed as a defect. The telling
+   * finishes within a bounded grace; one that outlives the grace is degraded like any other.
+   */
+  it('a story being TOLD at its due finishes — within a bounded grace; past the grace it is degraded all the same', () => {
+    const realNow = Date.now;
+    let t = realNow();
+    Date.now = () => t;
+    const warn = console.warn;
+    const said: Array<string> = [];
+    console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
+    try {
+      let degraded = 0;
+      let telling = true;
+      const told = owePresentation({id: 'told', ready: () => false, redrive: () => {}, dueMs: 30_000, degrade: () => degraded++, telling: () => telling});
+      t += 30_500;
+      settlePresentationDue();
+      expect(degraded, 'told at its due: not cut').to.equal(0);
+      expect(said).to.deep.eq([]);
+      // …its owner settles it when the telling ends: no degrade ever comes.
+      told.settle();
+      t += 60_000;
+      settlePresentationDue();
+      expect(degraded).to.equal(0);
+
+      // A telling that STOPS without settling (the board covered again) is past its due: degraded at the next look.
+      owePresentation({id: 'stopped', ready: () => false, redrive: () => {}, dueMs: 30_000, degrade: () => degraded++, telling: () => telling});
+      t += 30_500;
+      settlePresentationDue();
+      expect(degraded).to.equal(0);
+      telling = false;
+      settlePresentationDue();
+      expect(degraded, 'no longer told: the honest degrade').to.equal(1);
+
+      // …and a telling that never ends is bounded by the grace.
+      telling = true;
+      owePresentation({id: 'endless', ready: () => false, redrive: () => {}, dueMs: 30_000, degrade: () => degraded++, telling: () => telling});
+      t += 30_000 + STORY_TELLING_GRACE_MS - 500;
+      settlePresentationDue();
+      expect(degraded, 'inside the grace').to.equal(1);
+      t += 1_000;
+      settlePresentationDue();
+      expect(degraded, 'past the grace').to.equal(2);
+      expect(said.filter((line) => line.includes('degraded after'))).to.have.length(2);
+    } finally {
+      Date.now = realNow;
+      console.warn = warn;
+      resetPresentationLedger();
+    }
+  });
 
   it('reset clears stories and witnesses', () => {
     owePresentation({id: 'story', ready: () => true, redrive: () => {}, dueMs: 60_000});

@@ -474,6 +474,8 @@ function armSafety(): void {
     },
     redrive: () => (redriveHook ?? drainBoardBeatsIfDue)(),
     dueMs: BOARD_BEAT_PARK_SAFETY_MS,
+    // A DRAIN RUNNING AT THE DUE IS THE STORY BEING TOLD — it finishes (bounded by the ledger's grace), never cut.
+    telling: () => boardBeatParkState.draining,
     degrade: () => releaseBoardBeatPark(),
     // The degrade names WHICH gate never opened: `watchable: false` is the
     // honest multiplayer wait (the viewer sat in a screen while an opponent
