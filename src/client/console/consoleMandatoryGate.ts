@@ -397,11 +397,16 @@ export function mandatoryBeatFor(input: MandatoryBeatInput): MandatoryBeat | und
 type LiveAnnounce = {key: string, scope: FlowScope<'announce'>, flow: FlowActor<typeof announceMachine>};
 let liveAnnounce: LiveAnnounce | undefined;
 let announceRoot: FlowScope<'chain'> | undefined;
-let announceDoor: ((key: string) => void) | undefined;
+let announceDoor: {run: (key: string) => void, whoseTime?: () => string} | undefined;
 
-/** The plate's DOOR — what is done for a beat whose first presentation is overdue (the shell: `yieldAnnounceInCycle`). */
-export function registerAnnounceDoor(door: ((key: string) => void) | undefined): void {
-  announceDoor = door;
+/**
+ * The plate's DOOR — what is done for a beat whose first presentation is overdue (the shell: `yieldAnnounceInCycle`).
+ * `whoseTime` — asked BEFORE the door runs: the reason when the presentation waited for nothing but what the PLAYER
+ * keeps open (the turn review they opened, a reveal that waits for their take), '' otherwise. The bound still runs
+ * the door (the beacon is lit — the player is told); whose time it was decides the line's tier, never its bound.
+ */
+export function registerAnnounceDoor(door: ((key: string) => void) | undefined, whoseTime?: () => string): void {
+  announceDoor = door === undefined ? undefined : {run: door, ...(whoseTime !== undefined ? {whoseTime} : {})};
 }
 
 function endAnnounceRun(reason: string): void {
@@ -422,9 +427,15 @@ function startAnnounceRun(key: string): void {
     if (liveAnnounce !== run) {
       return;
     }
-    console.warn(`[mandatory-gate] the first presentation of «${key}» did not come in its bound — the plate's door is run`);
+    let whose = '';
     try {
-      announceDoor?.(key);
+      whose = announceDoor?.whoseTime?.() ?? '';
+    } catch (error) {
+      console.warn('[mandatory-gate] the plate\'s door threw', error);
+    }
+    console.warn(`[mandatory-gate] the first presentation of «${key}» did not come in its bound — the plate's door is run${whose !== '' ? ` (planned: ${whose})` : ''}`);
+    try {
+      announceDoor?.run(key);
     } catch (error) {
       console.warn('[mandatory-gate] the plate\'s door threw', error);
     }

@@ -408,7 +408,12 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
     },
   ],
   'mandatory-gate': [
-    {name: 'overdue', re: /^the first presentation of «([^»]*)» did not come in its bound/, tier: 'defect', parts: [1]},
+    {
+      name: 'overdue', re: /^the first presentation of «([^»]*)» did not come in its bound/, tier: 'defect', parts: [1],
+      // WHOSE TIME the bound was is in the line (`registerAnnounceDoor` — `whoseTime`): a presentation that waited for
+      // nothing but a look the player keeps open is the player's.
+      read: (_m, body) => (/ \(planned: [^)]*\)$/.test(body) ? {tier: 'planned'} : {}),
+    },
     {name: 'door-threw', re: /^the plate's door threw/, tier: 'defect'},
     {name: 'door', re: /^the plate's door — /, tier: 'info', why: 'what the plate\'s door did — a line of its overdue', echoOf: ['mandatory-gate/overdue', ...WAIT_GRAPH_FINDINGS]},
   ],

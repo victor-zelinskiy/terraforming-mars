@@ -124,7 +124,7 @@ export type SupervisorPort = {
   readonly taskHeldForWorkspace: boolean,
   readonly taskHostRendered: boolean,
   readonly workspaceOutcomeServingNow: boolean,
-  yieldAnnounceInCycle(): string,
+  yieldAnnounceInCycle(ask?: 'whose-time'): string,
 };
 
 export function createSupervisorController(shell: SupervisorPort) {
@@ -1095,7 +1095,7 @@ export function createSupervisorController(shell: SupervisorPort) {
           if (did !== '') {
             console.warn(`[mandatory-gate] the plate's door — ${did}`);
           }
-        });
+        }, () => shell.yieldAnnounceInCycle('whose-time'));
         return () => registerAnnounceDoor(undefined);
       })(),
       registerWaitRecovery('workspace-conclusion', (node) => {

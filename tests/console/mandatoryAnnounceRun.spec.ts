@@ -6,6 +6,7 @@ import {
   acknowledgeMandatoryBeat, forceMandatoryBeacon, isMandatoryBeaconForced, isMandatoryBeatHeld, isMandatoryBeatPresented,
   mandatoryGateState, markMandatoryBeatPresented, noteMandatoryBeatIdentity, registerAnnounceDoor, resetMandatoryGate,
 } from '@/client/console/consoleMandatoryGate';
+import {causeOf} from '@/common/diagnostics/cause';
 
 const beat = (key: string) => ({key, taskKind: 'handSelect' as const});
 const runOf = (key: string) => dumpFlowTree().find((line) => line.includes(`announce:${key}#`));
@@ -70,6 +71,30 @@ describe('mandatory gate · the beat\'s run', () => {
     // The latches are untouched by the bound itself — what happens next is the door's doing (or the player's).
     expect(isMandatoryBeatPresented(beat('task:discard#7'))).to.eq(false);
     expect(isMandatoryBeatHeld(beat('task:discard#7'))).to.eq(true);
+  });
+
+  /*
+   * WHOSE TIME THE BOUND WAS (the gated pass of whole games on CI, 45370636119 — game 9: the pilot read the bot's
+   * turn review for fifteen seconds, the draft's plate could not be presented under it, and the bound's line was
+   * filed as a defect of the gate). The door is still run — the beacon is the player's notice — and the line says
+   * what the presentation waited for when that was the player's own; the classifier reads the tier off the line.
+   */
+  it('a presentation that waited for the player\'s own look: the door is run all the same, and the line says whose time it was', () => {
+    registerAnnounceDoor((key) => doors.push(key), () => 'the player keeps the turn review open');
+    noteMandatoryBeatIdentity('task:discard#7');
+    clock.advance(ANNOUNCE_PENDING_MAX_MS);
+    expect(doors, 'the door runs — the beacon is lit').to.deep.eq(['task:discard#7']);
+    const line = warned.find((l) => l.includes('did not come in its bound')) ?? '';
+    expect(line).to.match(/ \(planned: the player keeps the turn review open\)$/);
+    expect(causeOf(line, 'warn')?.tier).to.eq('planned');
+    // …and with nothing of the player's standing, the line is the defect it always was.
+    warned.length = 0;
+    registerAnnounceDoor((key) => doors.push(key), () => '');
+    noteMandatoryBeatIdentity('task:discard#8');
+    clock.advance(ANNOUNCE_PENDING_MAX_MS);
+    const bare = warned.find((l) => l.includes('did not come in its bound')) ?? '';
+    expect(bare).to.match(/the plate's door is run$/);
+    expect(causeOf(bare, 'warn')?.tier).to.eq('defect');
   });
 
   it('the door acknowledging in place ends the wait', () => {

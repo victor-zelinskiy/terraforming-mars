@@ -313,6 +313,12 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
   if (result.phase === 'end') {
     // THE FINALE: the ceremony's screens are the page's own — pressed through like everything else.
     for (let i = 0; i < finalePresses && result.presses < maxPresses + finalePresses; i++) {
+      // THE PAGE IS LEAVING (the loading curtain: «to the menu», a rematch — a full reload in a browser): the game's
+      // page ends here. The bottle has no navigation — its curtain would stand for good, absorb the presses that
+      // follow, and the arbiter would rightly call THAT a deaf screen (the gated pass on CI, 45370636119 — game 14).
+      if (sees('.con-load')) {
+        break;
+      }
       await press(pilotPick(bottle, g, lastKey), 700 + Math.round(g() * 1_300));
     }
     result.end = 'finished';

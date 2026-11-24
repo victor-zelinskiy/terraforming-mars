@@ -1891,6 +1891,22 @@ Both got their instrument, and their first readings:
     ② the Parliament's own mount: `fitCondition` (the mount's first layout, 54 ms), then five read-after-write passes
     — `fitReading`, `fitParliamentCards` / `railOf`, `publishMidOffsets` twice (each offset read after a variable
     written on the field) — ≈ 110 ms more; ③ the board's `stageKey` on the clock (20 ms).
+- **THE BOX ON THE BUILD OF STEP 6 (`d17564b913`, the pilot that walks to the question) — the first 22 games:**
+  22 of 22 to the final scoring, 0 capped, 0 stuck, 0 rebuilds; **the door answered 2 questions of 842 (0.2 % — it
+  was 13 – 16 %)**; the one-owner law, the band, the bar, the opening, the beat law, the edge — every APART / MISS /
+  LATCH at zero over 12 400 presses. And the pilot that reaches the questions met what the wandering one never did:
+  - **ⓚ CURED — THE ARBITER CALLED A HEALTHY DRAW «DEAF» AND TOOK THE PARLIAMENT HOME** (game 175 — the whole games'
+    first EPISODE: «stall (presses-no-effect): 5s, 8 presses; task: externalDraw; top: parliament:committed; holder:
+    deaf … stack-home»). The sitting stood on the «ПРИЁМКА» of one drawn card — «A Забрать карту · L3 Источник», no B
+    — and B was pressed ten times; on a frame past its commit the arbiter judges every B a handler took, and its
+    list of surfaces that own B knows a reveal by its shell's class — an embedded one has none. **B is owed only
+    where the BAR offers it** (the bar is the pad's own word; `ConsoleCommandBar` names each command's control). The
+    replay (`parliament-research-enact`): B ×10 on the last drawn card — nothing filed, the draw stands, A takes it;
+    RED with the rule off.
+  - **A COVER THAT ENDS AT ITS OWN BOUND** (game 181 — «held by the game's own scenes for the last 13 s:
+    sitting-rise», a sitting left behind its plate): the rise gives the board back at its own net (15 s); the foreign
+    tile's wait (20 s) came to its ceiling first and filed the rise as its own defect. `boardCoverWitness.
+    SELF_BOUNDED_COVERS`: alone and inside its bound — the designed end; beside another scene, or past it — a defect.
 - **NEXT, in this order:** the same probe on a QUIET box (the lanes end first) — the budget's true numbers; then R16
   for the stage's box (its consumers stop inheriting it from the root) and the Parliament's mount as ONE measure and
   ONE write, each step read by the probe before and after.

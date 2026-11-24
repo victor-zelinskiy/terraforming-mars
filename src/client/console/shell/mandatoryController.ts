@@ -725,6 +725,27 @@ export function createMandatoryController(shell: MandatoryPort) {
   }
 
   /** WHAT THE BEAT's FIRST PRESENTATION WAITS FOR right now — the terms of `mandatoryPresentationReady`, named. */
+  /**
+   * WHOSE TIME a first presentation's bound was: the reason when it waits for NOTHING but what the player keeps open —
+   * the turn review they opened (the theater: `isMandatoryPromptsHeldByScreen` with no blocking hold), a reveal that
+   * waits for their take — and '' when anything of the game's own stands beside it (a hold, a landing, a hero, the
+   * feed's card). (The gated pass of whole games on CI, 45370636119 — game 9: «the first presentation of
+   * draft:gen19 did not come in its bound», the pilot reading the bot's turn review for fifteen seconds — filed as a
+   * defect of the gate. No parenthesis in the words: the line prints them as `(planned: …)`.)
+   */
+  function presentationHeldByThePlayer(): string {
+    const holds = blockingAnimationHoldCount() > 0;
+    const review = isMandatoryPromptsHeldByScreen() && !holds;
+    const reveal = shell.consoleRevealMode !== undefined;
+    if (!review && !reveal) {
+      return '';
+    }
+    if (holds || !notificationFeedReadForDecision() || shell.rawDrawnRevealPending || shell.playedHeroHolds || shell.tilePlacementHolds || shell.nomadMoveHolds) {
+      return '';
+    }
+    return [review ? 'the player keeps the turn review open' : '', reveal ? 'a reveal waits for the player to take it' : ''].filter((word) => word !== '').join(' + ');
+  }
+
   function presentationWaitsFor(): string {
     const terms: Array<string> = [];
     if (!notificationFeedReadForDecision()) {
@@ -760,7 +781,10 @@ export function createMandatoryController(shell: MandatoryPort) {
    * the surface serves it in place; elsewhere the beacon is lit (the screen director's cure) and the press stays the
    * player's. Never the plate's A pressed on their behalf.
    */
-  function yieldAnnounceInCycle(): string {
+  function yieldAnnounceInCycle(ask?: 'whose-time'): string {
+    if (ask === 'whose-time') {
+      return presentationHeldByThePlayer();
+    }
     const beat = mandatoryBeat.value;
     const task = taskFor(shell.playerView);
     if (beat === undefined || !mandatoryGateHeld.value) {
