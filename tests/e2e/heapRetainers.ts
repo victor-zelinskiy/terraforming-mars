@@ -228,3 +228,109 @@ export async function retainersOf(cdp: CDPSession, wanted: RegExp, limit = 14, t
   }
   return [`THE RETAINERS — ${found} detached node(s) match ${String(wanted)}, ${unheld} of them held by nothing of the page's; ${lines.length} distinct chain(s) (the last ${tail} links each, the roots' side first):`, ...lines];
 }
+
+export type ReactiveCensus = {
+  /** Every reactive subscriber alive (an object with a `fn` and a list of what it depends on). */
+  computeds: number,
+  effects: number,
+  /** The computeds that hold dependencies while NOBODY subscribes to them — by where their getter was written. */
+  unwatched: Map<string, number>,
+  /** Every computed by where its getter was written. */
+  byGetter: Map<string, number>,
+};
+
+/**
+ * THE REACTIVE CENSUS — how many computeds and effects are ALIVE, read off a heap snapshot after a collection of
+ * garbage (FREEZE ZERO, stage 6 — the leak class of Vue 3.6: a computed evaluated by plain script, outside any effect
+ * and any running scope, links itself into its dependencies' subscriber lists and is never released; the fullscreen
+ * card viewer kept a whole dialog a visit that way).
+ *
+ * A subscriber is told by its SHAPE, never by a class name the bundler rewrites: an object with a `fn` (the getter /
+ * the effect's body) and `flags`; a computed carries a value beside them (`_value`). «Unwatched» is a computed that
+ * holds dependencies (`deps`) with no subscriber of its own (`subs` absent) — exactly the state a plain read leaves
+ * behind. Each is counted by WHERE ITS GETTER WAS WRITTEN (`#script:line:column`, the bundle's position — read back to
+ * a source line off the build's maps), so two censuses of the same screens taken some visits apart name the getters
+ * whose count GROWS with use.
+ */
+export async function reactiveCensus(cdp: CDPSession): Promise<ReactiveCensus> {
+  const chunks: Array<string> = [];
+  const onChunk = (event: {chunk: string}): void => {
+    chunks.push(event.chunk);
+  };
+  cdp.on('HeapProfiler.addHeapSnapshotChunk', onChunk);
+  await cdp.send('HeapProfiler.collectGarbage');
+  await cdp.send('HeapProfiler.takeHeapSnapshot', {reportProgress: false});
+  cdp.off('HeapProfiler.addHeapSnapshotChunk', onChunk);
+  const heap = JSON.parse(chunks.join('')) as Snapshot;
+  const meta = heap.snapshot.meta;
+  const nf = meta.node_fields.length;
+  const ef = meta.edge_fields.length;
+  const nType = meta.node_fields.indexOf('type');
+  const nEdges = meta.node_fields.indexOf('edge_count');
+  const eType = meta.edge_fields.indexOf('type');
+  const eName = meta.edge_fields.indexOf('name_or_index');
+  const eTo = meta.edge_fields.indexOf('to_node');
+  const nodeTypes = meta.node_types[nType] as Array<string>;
+  const edgeTypes = meta.edge_types[eType] as Array<string>;
+  const property = edgeTypes.indexOf('property');
+  const objectType = nodeTypes.indexOf('object');
+  const word = (name: string): number => heap.strings.indexOf(name);
+  const sFn = word('fn');
+  const sFlags = word('flags');
+  const sValue = word('_value');
+  const sDeps = word('deps');
+  const sSubs = word('subs');
+  const lf = meta.location_fields ?? ['object_index', 'script_id', 'line', 'column'];
+  const whereOf = new Map<number, string>();
+  const locations = heap.locations ?? [];
+  for (let l = 0; l < locations.length; l += lf.length) {
+    whereOf.set(locations[l + lf.indexOf('object_index')] / nf, `#${locations[l + lf.indexOf('script_id')]}:${locations[l + lf.indexOf('line')] + 1}:${locations[l + lf.indexOf('column')] + 1}`);
+  }
+  const census: ReactiveCensus = {computeds: 0, effects: 0, unwatched: new Map(), byGetter: new Map()};
+  const count = heap.nodes.length / nf;
+  for (let i = 0, at = 0; i < count; i++) {
+    const edges = heap.nodes[i * nf + nEdges];
+    const from = at;
+    at += edges * ef;
+    if (heap.nodes[i * nf + nType] !== objectType) {
+      continue;
+    }
+    let fn = -1;
+    let flags = false;
+    let value = false;
+    let deps = false;
+    let subs = false;
+    for (let e = from; e < at; e += ef) {
+      if (heap.edges[e + eType] !== property) {
+        continue;
+      }
+      const name = heap.edges[e + eName];
+      if (name === sFn) {
+        fn = heap.edges[e + eTo] / nf;
+      } else if (name === sFlags) {
+        flags = true;
+      } else if (name === sValue) {
+        value = true;
+      } else if (name === sDeps) {
+        // (A property that holds `undefined` points at the heap's own oddball — an object is a link of the list.)
+        deps = nodeTypes[heap.nodes[(heap.edges[e + eTo] / nf) * nf + nType]] === 'object';
+      } else if (name === sSubs) {
+        subs = nodeTypes[heap.nodes[(heap.edges[e + eTo] / nf) * nf + nType]] === 'object';
+      }
+    }
+    if (fn < 0 || !flags) {
+      continue;
+    }
+    if (!value) {
+      census.effects++;
+      continue;
+    }
+    census.computeds++;
+    const where = whereOf.get(fn) ?? '#?';
+    census.byGetter.set(where, (census.byGetter.get(where) ?? 0) + 1);
+    if (deps && !subs) {
+      census.unwatched.set(where, (census.unwatched.get(where) ?? 0) + 1);
+    }
+  }
+  return census;
+}

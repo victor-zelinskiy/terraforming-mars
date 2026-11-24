@@ -323,11 +323,16 @@ const eventsByCorrelation = computed((): Map<number, Array<GameEvent>> => {
   }
   return map;
 });
-/** Focusable = every node except the generation-divider rows. */
-const focusable = computed((): ReadonlyArray<boolean> => {
+/**
+ * Focusable = every node except the generation-divider rows. A FUNCTION, never a computed: only a PRESS reads it
+ * (plain script — no effect, no scope), and in Vue 3.6 a computed read that way stays subscribed to its dependencies
+ * for good — here the journal's module state, which kept every panel that was ever opened (the reactive census of
+ * 2026-11-24: `aside.con-journal` ×6 detached, 2 034 nodes — `tests/e2e/console-reactive-census.spec.ts`).
+ */
+function focusable(): ReadonlyArray<boolean> {
   return renderNodes.value.map((n) =>
     n.kind === 'group' || n.message.type !== LogMessageType.NEW_GENERATION);
-});
+}
 const focusedNode = computed((): RenderNode | undefined => {
   return renderNodes.value[focusIndex.value];
 });
@@ -580,7 +585,7 @@ function handleFilterIntent(intent: GamepadIntent): void {
   }
 }
 function moveFocus(step: number): void {
-  const focusableNow = focusable.value;
+  const focusableNow = focusable();
   // Walk to the next focusable row (dividers are skipped, no wrap).
   let i = focusIndex.value + step;
   while (i >= 0 && i < focusableNow.length) {
@@ -593,7 +598,7 @@ function moveFocus(step: number): void {
   }
 }
 function focusLast(): void {
-  const focusableNow = focusable.value;
+  const focusableNow = focusable();
   for (let i = focusableNow.length - 1; i >= 0; i--) {
     if (focusableNow[i]) {
       focusIndex.value = i;

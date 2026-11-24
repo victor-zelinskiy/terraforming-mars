@@ -1230,12 +1230,19 @@ const plan = computed((): HandAlbumPlan => {
     uiScale: conUiScale(),
   });
 });
-/** The ACTIVE page's row composition — navigation's vertical map. */
-const activePageRows = computed((): ReadonlyArray<number> => {
+/**
+ * The ACTIVE page's row composition — navigation's vertical map. A FUNCTION, never a computed: only a PRESS reads it
+ * (plain script — no effect running, no scope), and in Vue 3.6 a computed read that way links itself into its
+ * dependencies' subscriber lists for good. Its dependencies outlive the section (the album's layout, the display
+ * profile — module state), so every visit of the hand left its whole tree behind with its twelve cards: the reactive
+ * census of a tour of the console's screens, 2026-11-24 — `div.con-hand` ×5 detached, 2 795 nodes, after five visits
+ * (`tests/e2e/console-reactive-census.spec.ts`; the law's rows — `tests/console/vueReactivityContract.spec.ts`).
+ */
+function activePageRows(): ReadonlyArray<number> {
   const start = activePage.value * plan.value.perPage;
   const n = Math.min(props.entries.length - start, plan.value.perPage);
   return pageRowsFor(Math.max(0, n), albumSpecFor(layout.profile, albumLayout.layout));
-});
+}
 /** The page the cursor lives on — the album's viewport, BY DERIVATION.
  *  Focus and page can never disagree; restoring one restores the other. */
 const activePage = computed((): number => {
@@ -1426,7 +1433,7 @@ function move(dir: HandNavDir): void {
     return;
   }
   if (dir === 'up' && showFilters.value) {
-    const next = stepHandAlbum(props.index, dir, props.entries.length, {perPage: plan.value.perPage, rows: activePageRows.value});
+    const next = stepHandAlbum(props.index, dir, props.entries.length, {perPage: plan.value.perPage, rows: activePageRows()});
     if (next === props.index || props.entries.length === 0) {
       // ▲ from the top row of cards ENTERS the chip row, on the active chip.
       consoleState.filterFocus = Math.max(0, props.tagFilters.findIndex((o) => o.value === props.activeTag));
@@ -1435,7 +1442,7 @@ function move(dir: HandNavDir): void {
   }
   consoleState.handIndex = stepHandAlbum(props.index, dir, props.entries.length, {
     perPage: plan.value.perPage,
-    rows: activePageRows.value,
+    rows: activePageRows(),
   });
 }
 /** The explicit page turn (LB/RB, edge click, stick flick, wheel): same
