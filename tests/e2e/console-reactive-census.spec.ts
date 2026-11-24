@@ -1,7 +1,7 @@
 import {test, expect, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
-import {ReactiveCensus, detachedCensus, reactiveCensus} from './heapRetainers';
+import {ReactiveCensus, detachedCensus, reactiveCensus, scriptUrls, sourceReader} from './heapRetainers';
 
 /**
  * WHICH COMPUTEDS STAY ALIVE WITH USE — the reactive census of a tour of the console's screens (FREEZE ZERO, stage 6 —
@@ -20,13 +20,20 @@ import {ReactiveCensus, detachedCensus, reactiveCensus} from './heapRetainers';
  * a computed a visit leaves behind — the worklist, by bundle position (`#script:line:column`; `symbolize` it off the
  * build's maps).
  *
- * A measurement: it asserts nothing of the product and files what it read (`reactive-census.txt`, the same on stdout).
+ * A MEASUREMENT (`TM_E2E_REACTIVE_CENSUS=1`): it files what it read (`reactive-census.txt`, the same on stdout), each
+ * getter by its source line (the build's maps).
  *
- * OPT-IN: `TM_E2E_REACTIVE_CENSUS=1 npx playwright test tests/e2e/console-reactive-census.spec.ts` ·
- * `TM_E2E_REACTIVE_CENSUS_TOURS` (default 4).
+ * …AND A GATE (`TM_E2E_REACTIVE_CENSUS=gate` — the nightly `Reactive census` workflow): RED when a getter's unwatched
+ * computeds grow by at least one a tour — «left behind at EVERY visit», which a component mounted once for good, or a
+ * cache filled once, never is. The cut is always the same: a derived value only plain script reads is a FUNCTION,
+ * never a computed (`tests/console/vueReactivityContract.spec.ts` holds the framework's side of it).
+ *
+ * OPT-IN: `TM_E2E_REACTIVE_CENSUS=1|gate npx playwright test tests/e2e/console-reactive-census.spec.ts` ·
+ * `TM_E2E_REACTIVE_CENSUS_TOURS` (default 4; the gate's 2).
  */
-const ENABLED = process.env.TM_E2E_REACTIVE_CENSUS === '1';
-const TOURS = Number(process.env.TM_E2E_REACTIVE_CENSUS_TOURS ?? 4);
+const GATE = process.env.TM_E2E_REACTIVE_CENSUS === 'gate';
+const ENABLED = process.env.TM_E2E_REACTIVE_CENSUS === '1' || GATE;
+const TOURS = Number(process.env.TM_E2E_REACTIVE_CENSUS_TOURS ?? (GATE ? 2 : 4));
 
 type Wire = {
   game: {phase: string, generation: number},
@@ -90,12 +97,12 @@ const TOUR: ReadonlyArray<{stop: string, keys: ReadonlyArray<string>}> = [
   {stop: 'the cursor of the board and a cell inspected', keys: ['ArrowUp', 'ArrowRight', 'KeyV', 'Escape', 'KeyC', 'Escape']},
 ];
 
-function grew(before: Map<string, number>, after: Map<string, number>): Array<string> {
+function grew(before: Map<string, number>, after: Map<string, number>, named: (where: string) => string): Array<string> {
   return [...after]
     .map(([where, n]) => ({where, n, was: before.get(where) ?? 0}))
     .filter((row) => row.n > row.was)
     .sort((a, b) => (b.n - b.was) - (a.n - a.was))
-    .map((row) => `  +${row.n - row.was}  (${row.was} → ${row.n})  ${row.where}`);
+    .map((row) => `  +${row.n - row.was}  (${row.was} → ${row.n})  ${named(row.where)}`);
 }
 
 test.describe('WHICH COMPUTEDS STAY ALIVE WITH USE', () => {
@@ -158,6 +165,8 @@ test.describe('WHICH COMPUTEDS STAY ALIVE WITH USE', () => {
     const after = await read();
     const askedAfter = await asked();
     expect(askedAfter, 'the tour answers nothing — a tour that moved the game measures the game, not a leak').toBe(askedBefore);
+    const named = sourceReader(await scriptUrls(cdp));
+    const name = (where: string): string => (named(where) === where ? where : `${named(where)}  (${where})`);
     const detached = await detachedCensus(cdp);
 
     const report = [
@@ -169,16 +178,23 @@ test.describe('WHICH COMPUTEDS STAY ALIVE WITH USE', () => {
       'WHERE THE TOUR STOOD (the bar after every key of the first tour):',
       ...stops,
       'THE GETTERS WHOSE UNWATCHED COMPUTEDS GREW (a visit leaves them behind):',
-      ...grew(before.unwatched, after.unwatched),
+      ...grew(before.unwatched, after.unwatched, name),
       'THE GETTERS WHOSE COMPUTEDS GREW AT ALL:',
-      ...grew(before.byGetter, after.byGetter),
+      ...grew(before.byGetter, after.byGetter, name),
       'EVERY GETTER WITH AN UNWATCHED COMPUTED HOLDING DEPENDENCIES AT THE END (the standing ones — one per mounted owner is no leak):',
-      ...[...after.unwatched].sort((a, b) => b[1] - a[1]).map(([where, n]) => `  ${n}  ${where}`),
+      ...[...after.unwatched].sort((a, b) => b[1] - a[1]).map(([where, n]) => `  ${n}  ${name(where)}`),
     ];
     const text = report.join('\n');
     console.log(`[reactive-census]\n${text}`);
     fs.writeFileSync(test.info().outputPath('reactive-census.txt'), text);
     await cdp.detach();
     expect(page.isClosed(), 'the page survived the reading').toBe(false);
+    if (GATE) {
+      // LEFT BEHIND AT EVERY VISIT: one more of the getter's unwatched computeds a tour, every tour.
+      const left = [...after.unwatched]
+        .filter(([where, n]) => n - (before.unwatched.get(where) ?? 0) >= TOURS)
+        .map(([where, n]) => `${name(where)}: ${before.unwatched.get(where) ?? 0} → ${n} over ${TOURS} tour(s)`);
+      expect(left, 'a computed that only plain script reads is left behind at every visit (Vue 3.6 keeps it subscribed for good) — make it a function').toEqual([]);
+    }
   });
 });

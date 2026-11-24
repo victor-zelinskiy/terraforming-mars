@@ -2058,6 +2058,52 @@ stopped by a class that is closed now, and each record read with «what did the 
   protocol did not hold. The row is written (`FRAME_PROTOCOL.verdict` — `executing · committed`), and the move left
   the ledger of the unwalked.
 
+**STAGE 6, STEP 9 — THE NIGHT OF 2026-11-24: THE THIRD TAKE, THE CENSUS AS A GATE, AND STAGE 5's THREE RANGES.**
+
+- **TAKE TWO, READ TO ITS END (`24c42f454e`, 42 games — 42 to the final scoring, 0 stuck, 0 episodes):** red by the
+  record of game 618 (the feed's mixed case, step 8), by `bar-APART:start>fallback` (619) and by a third row —
+  `bar-APART:finale>section:board`, one press in game 627 and one in CI's browser game 71. The finale context without
+  a pick (a greenery landing, another seat deciding) shows its own two commands, and its rung takes exactly those and
+  A: every other press is the section's by the rung's own word («the player may look around inside the context»). A
+  d-pad step over the board under that bar is the pair the design makes — the announce's shape; the measure says so
+  (`fb65cd4284`).
+- **TAKE THREE — `fb65cd4284`, games 701 – 800 (`fze-count`): 16 games in, 16 to the final scoring, 0 defects, 0
+  episodes, the door 0 %, GATE: pass** — and then the box was taken for a game of the owner's: by the standing rule
+  the in-flight batches were stopped (717 – 724 are owed), the lanes wait for the box by themselves and go on. The
+  second soak (game 514, two hours in) went with them — it is owed too.
+- **…SO THE HUNDRED IS ALSO PLAYED ON CI:** Autopilot run 45471563686 — games 701 – 800 in a real browser, twenty
+  runners, on `b724622738`.
+- **«PER MAP SET», COUNTED.** The pilot's tables are spread over eleven boards; the box's passes so far hold 13 – 35
+  games a board (295 in all, on five builds). A hundred on EVERY board is ≈ 1 100 games — nights of the box, not one:
+  the number is reported per build and per board, and the gate must be green on the build that is released.
+- **THE CENSUS, WIDENED AND TURNED INTO A GATE.** After the first two cuts the same tour read zero (computeds 7 956 →
+  7 956, detached trees 4 where 15 stood). Walked one level DOWN — the play sheet of a card, a colony's stage, an
+  action's setup, a stage of the Parliament, the legends, a played card — it named three more:
+  `ConsoleParliamentVoteMode.sceneHandedOver` (`section.con-parl` ×5 detached — 9 612 nodes after five visits),
+  `ConsolePlayCardConfirm.navMaxIndex` and `ConsoleActionComposer.navMaxIndex` (the composers and the card actions'
+  section). Functions now (`d215dd97cf`); the widened tour reads computeds 8 266 → 8 266, 6 trees (579 nodes, not
+  growing). Its first widened walk had BOUGHT a power plant a tour (A on a standard project with no target is the
+  purchase) and measured the game's growth with the leak — that the tour answers nothing is asserted now. The census
+  names each getter by its source line (the build's maps, the page's scripts by id), and has a gate mode — red when a
+  getter's unwatched computeds grow by one a tour, every tour — run nightly by its own small workflow (`Reactive
+  census`, filed by the watcher). The scan's «hundred suspects» is retired as a worklist: five were real, found by
+  measuring; the rest are computeds a render or a watcher also reads.
+- **STAGE 5 — THREE NIGHTS' RANGES PLAYED AHEAD, A HUNDRED MINUTES EACH (≈ 7 200 games, 1.85 million answers):**
+  tonight's range and the one after tomorrow's — 0 classes; tomorrow's — ONE (finding #133): Ocean Farm (Ares) bought
+  with the last M€, and the one ocean beside a tile that charges 2 M€ for building next to it offered all the same —
+  the pick made the engine throw. Every land placement was filtered by what the player can pay; the covers of an
+  ocean were not (`MarsBoard.affordableTops` — Ocean City / Farm / Sanctuary, New Holland's ocean, the city over an
+  ocean; `b724622738`, the card's spec red without it, the seed among the closed finds). The range is being played
+  again on the fix (run 45469211894).
+- **STAGE 4 — THE LEDGER, RE-READ:** the union over the last green suite and the box's whole games walks
+  `scene:hold:gov-scale-focus` and the announce machine's `late → presented` (both off the ledger), and makes
+  `parliament: verdict → committed` (step 8 — a row of the protocol now). `surface:colony-controller` was declared
+  «rare — a gap worth a spec»; read again it is a FAILURE PATH: the remote colony bonus is walked by three tests of
+  every suite and arms neither of the scope's two nets (they wait only for evidence the server already sent and that
+  did not arrive). What is still unwalked and REAL: the Mars Nomads moved by another seat, Astra Mechanica's return,
+  a law that plays a card under a folding commit, the overlay-hosted hero, the rematch declined, the draft tray under
+  the research rise — each owed a spec on a quiet box.
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a

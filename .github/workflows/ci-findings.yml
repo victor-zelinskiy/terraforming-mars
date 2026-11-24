@@ -5,11 +5,13 @@ name: CI findings
 # regression when it was closed. The scheduled workflows (the freeze gate, the monkey, the e2e suite) file their own
 # findings from inside; this one is for the runs of a push, which have no filing step of their own.
 #
+# …and the nightly `Reactive census` (the leak class of Vue 3.6 — one job, red when a visit leaves a computed behind).
+#
 # It runs AFTER the run it watches has ended, so it can never delay it; a cancelled run (a newer push took its place)
 # is not a finding.
 on:
   workflow_run:
-    workflows: ['CI', 'Release Electron App']
+    workflows: ['CI', 'Release Electron App', 'Reactive census']
     types: [completed]
 
 permissions:
@@ -34,6 +36,8 @@ jobs:
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           SOURCE=ci
-          if [ "$WORKFLOW" != "CI" ]; then SOURCE=release; fi
+          if [ "$WORKFLOW" = "Release Electron App" ]; then SOURCE=release; fi
+          # (The nightly census has no filing step of its own: its red job IS the finding — the log names the getter.)
+          if [ "$WORKFLOW" = "Reactive census" ]; then SOURCE=reactive-census; fi
           node scripts/ci/findings.mjs red-run --source "$SOURCE" --workflow "$WORKFLOW" --run-id "$RUN_ID" --out ci-findings.json
           node scripts/ci/findings.mjs file ci-findings.json

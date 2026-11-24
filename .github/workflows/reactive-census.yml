@@ -1,0 +1,77 @@
+name: Reactive census
+
+# WHICH COMPUTEDS STAY ALIVE WITH USE (docs/claude/console/freeze-zero/PLAN.md § 8, stage 6 — time; the leak class of
+# Vue 3.6): a computed evaluated by plain script — a press handler, a timer: no effect running, no effect scope —
+# links itself into its dependencies' subscriber lists and nothing ever releases it; every dependency that outlives
+# the component then keeps the computed, its closure, the component and its whole tree. Five were found that way in
+# one evening (the hand, the journal, the Parliament's vote mode, the play sheet, an action's setup — up to 9 612
+# detached nodes after five visits), none of them by reading the code.
+#
+# THE GATE (tests/e2e/console-reactive-census.spec.ts, `TM_E2E_REACTIVE_CENSUS=gate`): a tour of the console's screens
+# is walked from the board home again and again — it opens and closes surfaces and answers nothing — and between two
+# heap snapshots every computed alive is counted by where its getter was written. RED when a getter's unwatched
+# computeds grow by one a tour, every tour; the failure names the source line. The cut is always the same: a derived
+# value only plain script reads is a function, never a computed.
+#
+# A red run is filed by the watcher (`CI findings` — one issue per failed job, touched when it is red again).
+on:
+  schedule:
+    # 01:41 UTC — after the freeze gate, between the e2e suite's start and the monkey; never on the hour or the half.
+    - cron: '41 1 * * *'
+  workflow_dispatch:
+    inputs:
+      tours:
+        description: 'Tours between the two readings (a leak is one more of a getter''s computeds at EVERY tour)'
+        required: false
+        default: '2'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reactive-census-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  census:
+    name: The census
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Build application
+        run: npm run build
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Chromium
+        run: |
+          for attempt in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "::warning::playwright install failed (attempt $attempt) — retrying in 60 s"
+            sleep 60
+            sudo apt-get update || true
+          done
+          exit 1
+      - name: A tour of the console's screens, walked again and again
+        env:
+          TM_E2E_REACTIVE_CENSUS: gate
+          TM_E2E_REACTIVE_CENSUS_TOURS: ${{ inputs.tours || '2' }}
+        run: npx playwright test tests/e2e/console-reactive-census.spec.ts --project=chromium --workers=1 --retries=0 --reporter=list,github
+      - name: Upload what the census read
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: reactive-census-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/reactive-census.txt
+            test-results/**/error-context.md
+          if-no-files-found: warn
+          retention-days: 14

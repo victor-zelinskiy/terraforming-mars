@@ -1,4 +1,7 @@
 import {CDPSession} from '@playwright/test';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import {originalPositionFor, TraceMap} from '@jridgewell/trace-mapping';
 
 /**
  * THE HEAP's OWN ANSWERS (`console-heap-retainers.spec.ts`, the soak) — a driver over the DevTools protocol: the trees
@@ -333,4 +336,58 @@ export async function reactiveCensus(cdp: CDPSession): Promise<ReactiveCensus> {
     }
   }
   return census;
+}
+
+/**
+ * THE PAGE's SCRIPTS BY ID — what the `#<script>` of a heap position is. (`Debugger.enable` replays every script the
+ * page has already parsed; nothing is paused and the domain is closed again at once.)
+ */
+export async function scriptUrls(cdp: CDPSession): Promise<Map<string, string>> {
+  const urls = new Map<string, string>();
+  const onParsed = (event: {scriptId: string, url: string}): void => {
+    if (event.url !== '') {
+      urls.set(event.scriptId, event.url);
+    }
+  };
+  cdp.on('Debugger.scriptParsed', onParsed);
+  await cdp.send('Debugger.enable');
+  await cdp.send('Debugger.disable');
+  cdp.off('Debugger.scriptParsed', onParsed);
+  return urls;
+}
+
+/**
+ * `#<script>:<line>:<column>` (the bundle's position) → `src/…/File.vue:<line>`, read off the maps of the build the
+ * page loaded (the `.js.map` beside each script under `<TM_E2E_ROOT>/build`). The position itself when no map answers — a reading aid, never a
+ * condition of the measure.
+ */
+export function sourceReader(urls: ReadonlyMap<string, string>, buildDir = path.resolve(process.env.TM_E2E_ROOT ?? '.', 'build')): (where: string) => string {
+  const maps = new Map<string, TraceMap | undefined>();
+  const mapOf = (script: string): TraceMap | undefined => {
+    if (!maps.has(script)) {
+      let map: TraceMap | undefined;
+      try {
+        const file = path.join(buildDir, decodeURIComponent(new URL(urls.get(script) ?? '').pathname)) + '.map';
+        map = fs.existsSync(file) ? new TraceMap(fs.readFileSync(file, 'utf8')) : undefined;
+      } catch {
+        map = undefined;
+      }
+      maps.set(script, map);
+    }
+    return maps.get(script);
+  };
+  return (where) => {
+    const at = /^#(\d+):(\d+):(\d+)$/.exec(where);
+    const map = at === null ? undefined : mapOf(at[1]);
+    if (at === null || map === undefined) {
+      return where;
+    }
+    for (const nudge of [0, -1, 1]) {
+      const pos = originalPositionFor(map, {line: Number(at[2]), column: Number(at[3]) - 1 + nudge});
+      if (pos.source !== null) {
+        return `${pos.source.replace(/^(\.\.\/)+/, '')}:${pos.line}`;
+      }
+    }
+    return where;
+  };
 }
