@@ -94,6 +94,9 @@ describe('diagnostics cause — the class is the line\'s structure, never its wo
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["workspace","sitting-rise"],"pending":true}')).to.eq('planned');
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["placement","sitting-rise"],"pending":true}'), 'a placement is no screen over the board').to.eq('defect');
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["workspace","planet-focus"],"pending":true}')).to.eq('defect');
+    // The camera in for a placement the player has not come to: their time beside a screen of their own, the game's alone.
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["section","workspace","placement-camera"],"pending":true}')).to.eq('planned');
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["placement-camera"],"pending":true}'), 'no screen of their own: the game holds the placement').to.eq('defect');
     // The board WAS watchable at some look of the window and the story still was not told: a defect.
     expect(story('{"watchable":false,"watchableSeen":true,"coveredBy":["workspace"],"pending":true}')).to.eq('defect');
     // SEEN, AND WHAT THE DRAIN DID WITH IT (the drain is the witness — never one look): the player CROSSED the board —

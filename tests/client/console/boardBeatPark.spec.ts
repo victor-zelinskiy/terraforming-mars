@@ -590,6 +590,11 @@ describe('boardBeatPark', function() {
       // …except while it serves a placement the player keeps live: the focus IS that placement's view.
       registerBoardCoverReasons(() => ['workspace', 'placement', 'planet-focus']);
       expect(boardStoryHeldByPlayer(), 'the camera of the player\'s own placement').to.contain('workspace + placement + planet-focus');
+      // …and in for a placement the player has not come to, beside the screen that keeps them from it.
+      registerBoardCoverReasons(() => ['section', 'workspace', 'placement-camera']);
+      expect(boardStoryHeldByPlayer(), 'the camera of a placement that waits for the player').to.contain('placement-camera');
+      registerBoardCoverReasons(() => ['placement-camera']);
+      expect(boardStoryHeldByPlayer(), 'no screen of their own: the game holds that placement').is.undefined;
       registerBoardCoverReasons(() => ['sitting-rise']);
       expect(boardStoryHeldByPlayer()).is.undefined;
       registerBoardCoverReasons(undefined);
@@ -609,6 +614,8 @@ describe('boardBeatPark', function() {
         `{"watchable":false,"watchableSeen":false,"looks":"0/118","drains":0,"coveredAgain":0,"coveredAgainBy":[],"gated":0,"gatedBy":[],"coveredBy":[${coveredBy}],"pending":true}`;
       expect(causeOf(degrade('"workspace","placement","planet-focus"'), 'warn')?.tier, 'the player in their placement the whole time').to.equal('planned');
       expect(causeOf(degrade('"workspace","planet-focus"'), 'warn')?.tier, 'the camera with no placement under it').to.equal('defect');
+      expect(causeOf(degrade('"section","workspace","placement-camera"'), 'warn')?.tier, 'the camera in for a placement the player has not come to').to.equal('planned');
+      expect(causeOf(degrade('"placement-camera"'), 'warn')?.tier, 'the same camera with no screen of their own over it').to.equal('defect');
       expect(causeOf(degrade('"planet-focus"'), 'warn')?.tier).to.equal('defect');
       expect(causeOf(degrade('"sitting-rise","placement"'), 'warn')?.tier, 'a sitting on its way up is the game\'s').to.equal('defect');
       // …and an owner WITH a detail still reads as before.

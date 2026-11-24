@@ -756,7 +756,20 @@ export function createPlacementController(shell: PlacementPort) {
    * park's degrade asks it, for its diagnose — `boardBeatPark.registerBoardCoverReasons`). The first four are what the
    * PLAYER looks at (another screen, a sheet, a workspace, their own aim); `sitting-rise` and `planet-focus` are the
    * game's own covers — a story degraded behind one of those is a defect, never an honest wait (`shapes.ts` story-due).
+   *
+   * THE CAMERA HAS TWO NAMES. It comes in for a placement as soon as the prompt stands (`planetFocusTarget` reads the
+   * RAW prompt, so the board is already focused when the player arrives) — and while the player has NOT come to that
+   * placement (a sitting's «К полю» not pressed, the information screen open over it) the camera is in and serves a
+   * pick that waits for them: `placement-camera`. Beside a screen of the player's own that is their time
+   * (`shapes.boardCoversAreThePlayers`). Leaving, or in for anything else, it stays `planet-focus` — the game's.
+   * (The counting pass of whole games on the box, 2026-11-24 — game 514: a sitting's tile owed behind «К полю», the
+   * player thirty seconds in «Информация», `section · workspace · planet-focus`, filed as a defect.)
    */
+  function cameraServesAnOwedPlacement(): boolean {
+    return !placementActive.value && placementSpaceModel.value !== undefined && planetFocusState.mode === 'placement' &&
+      (planetFocusState.phase === 'entering' || planetFocusState.phase === 'active');
+  }
+
   function boardCoverReasons(): ReadonlyArray<string> {
     const reasons: Array<string> = [];
     if (consoleState.section !== 'board') {
@@ -775,7 +788,7 @@ export function createPlacementController(shell: PlacementPort) {
       reasons.push('sitting-rise');
     }
     if (!planetFocusStoryReady()) {
-      reasons.push('planet-focus');
+      reasons.push(cameraServesAnOwedPlacement() ? 'placement-camera' : 'planet-focus');
     }
     return reasons;
   }

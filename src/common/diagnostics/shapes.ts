@@ -85,10 +85,19 @@ export const PLAYER_BOARD_COVERS: ReadonlySet<string> = new Set(['section', 'she
  * — its exit never finished, a story it holds — stays the game's own cover, and a bound reached under it a defect.
  * (The whole suite on CI, 2026-11-22: `console-start-held-placement` — an oxygen step parked for thirty seconds
  * behind `workspace · placement · planet-focus`, the player in their placement the whole time, filed as a defect.)
+ *
+ * …and the camera IN for a placement the player HAS NOT COME TO (`placement-camera` — the shell's own word for it:
+ * the prompt stands, the camera came in for it, the pick is not live) is the player's time only beside a SCREEN of
+ * their own that keeps them from it: a sitting whose «К полю» they have not pressed, the information screen. With no
+ * such screen the placement is held by the game (a reveal, flights) — the game's cover. (The counting pass on the
+ * box, 2026-11-24 — game 514: `section · workspace · planet-focus`, thirty seconds in «Информация» over a sitting's
+ * owed tile, filed as a defect.)
  */
 export function boardCoversAreThePlayers(names: ReadonlyArray<string>): boolean {
   const placing = names.includes('placement');
-  return names.length > 0 && names.every((name) => PLAYER_BOARD_COVERS.has(name) || (name === 'planet-focus' && placing));
+  const ownScreen = names.some((name) => name === 'workspace' || name === 'section' || name === 'sheet');
+  return names.length > 0 && names.every((name) => PLAYER_BOARD_COVERS.has(name) ||
+    (name === 'planet-focus' && placing) || (name === 'placement-camera' && ownScreen));
 }
 
 /**
