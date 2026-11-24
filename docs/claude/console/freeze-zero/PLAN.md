@@ -1966,7 +1966,31 @@ Both got their instrument, and their first readings:
   the action composer and the play confirm (a dozen each), the hydronetwork, the reveal, the start scene, the task
   host, the hand (`activePageRows`), the premium card (`fleetDockFace` — mounted by the hundred). A candidate is not
   a leak until its dependency outlives it: the probe decides, tree by tree.
-- **NEXT, in this order:** the same probe on a QUIET box (the lanes end first) — the budget's true numbers; the
+- **THE GATED PASS ON `6d4d7d549f` (CI 45388373269, games 25 – 48): the real browser 24 of 24, NO defect class, no
+  episode** (the overdue plate of the pass before now reads `planned` — the player's own review); the bottle one
+  class more of its blind family (a baseline row). And the law's last row, twice in the day's browser games:
+  - **ⓜ CURED — THE FALLBACK LATCH STOOD UNTIL THE NEXT PRESS** (`bar-APART:fallback>start`, #113 reopened).
+    `consoleState.fallbackActive` («a layer the console does not own stands») was written only where a press falls
+    through to the DOM scope resolver: the layer left by itself and the flag stood — the bar read the generic
+    «Выбрать · Назад», the board home was «not idle» (its plate withheld), the hand dock inert — until somebody
+    pressed something. A latched scope is looked at again until its root leaves; then the flag is the resolver's
+    word now. `console-fallback-latch.spec.ts`: RED on the build before («Ваш ход · A Выбрать · B Назад» for the whole
+    wait), GREEN with it — both on the box.
+- **THE FRAME BUDGET ON A QUIET BOX — THE TRUE NUMBERS** (the four lanes had ended; load 1.2 – 1.9 of twelve threads;
+  generation 7, 29 cards in hand, five repeats — the median · the worst of the longest animation frame a press made;
+  «—» is no frame over 50 ms at all). The build before the restyle → the head:
+  | the press | before | now |
+  | --- | --- | --- |
+  | the wheels, the pass confirm and its cancel, a cursor move | — | — |
+  | the journal, «Разыграно», the standard projects, the information screen | — · 50 – 80 | — · 55 – 97 |
+  | the card actions open | — · 79 | — · 52 |
+  | the hand opens | 83 · 117 ms (forced layout 58) | — · 90 (forced 0) |
+  | the colonies open | 80 · 87 ms (forced 51) | — · 63 (forced 0) |
+  | the Parliament opens | 232 · 321 ms (forced 179; 162 ms inside 175 reads) | 144 · 191 ms (forced 103; 65 ms inside the reads) |
+  One press of the everyday set is still a hitch a player can feel: the Parliament's mount, 144 ms (nine frames at
+  60 Hz) — its own layout and five read-after-write passes of its fits. Everything else stands under three frames.
+  (The 0.5 – 0.9 s frames the whole games named were this cost under twelve games played at once.)
+- **NEXT, in this order:** the Parliament's mount as ONE measure and ONE write (the last press over three frames); the
   candidates of the class above, the mounted-by-the-hundred first, and a ratchet over the scan; the
   Parliament's mount as ONE measure and ONE write (five read-after-write passes are what its 296 ms is made of); who
   holds the hand and the viewer detached — each step read by its instrument before and after.

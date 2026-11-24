@@ -84,7 +84,7 @@ import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel
 import {consoleJournalUi} from '@/client/console/consoleJournalState';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {activeGlyphSet} from '@/client/gamepad/glyphSets';
-import {resolveScope} from '@/client/gamepad/focusScopes';
+import {isElementVisible, resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable} from '@/client/console/consoleRouter';
 import {isSurfaceAwaitingHandoff, markWheelHandoff, retargetWheelEcho} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {WheelArmEvent, reduceWheel} from '@/client/console/quickWheel/wheelArmModel';
@@ -311,6 +311,47 @@ export type PadRouterPort = {
 };
 
 export function createPadRouterController(shell: PadRouterPort) {
+  /**
+   * THE FALLBACK LATCH LETS GO WITH ITS SCOPE. `consoleState.fallbackActive` is written where a press falls through
+   * to the scope resolver — and until now ONLY there: a press met a layer the console does not own (a native dialog,
+   * a detail modal, a rematch's modal), the layer left by itself, and the flag stood until the next press. All that
+   * time the bar read the generic «Выбрать · Назад» over whatever had come up, the board home was «not idle» — its
+   * plate withheld — and the hand dock inert. (The one-owner law's last row in a real browser, 2026-11-24 —
+   * `bar-APART:fallback>start`, the gated passes on CI and the box.) The latched scope's ROOT is watched — its own
+   * attributes (a dialog's `open`, a `v-show`), its parent's children (the root removed): when it no longer stands,
+   * the flag is what the resolver says NOW. An observer, never a clock: nothing runs while the layer stands.
+   */
+  let stopFallbackWatch: () => void = () => {};
+  function watchFallbackScope(root: HTMLElement): void {
+    stopFallbackWatch();
+    if (typeof MutationObserver === 'undefined') {
+      return;
+    }
+    const observer = new MutationObserver(() => {
+      if (consoleState.fallbackActive && root.isConnected && isElementVisible(root)) {
+        return;
+      }
+      stopFallbackWatch();
+      if (!consoleState.fallbackActive) {
+        return;
+      }
+      const now = resolveScope();
+      consoleState.fallbackActive = now !== undefined;
+      consoleState.fallbackScopeId = now?.def.id ?? '';
+      if (now !== undefined) {
+        watchFallbackScope(now.rootEl);
+      }
+    });
+    observer.observe(root, {attributes: true});
+    if (root.parentNode !== null) {
+      observer.observe(root.parentNode, {childList: true});
+    }
+    stopFallbackWatch = () => {
+      observer.disconnect();
+      stopFallbackWatch = () => {};
+    };
+  }
+
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** Re-entrancy guard: an X TAP being replayed past the toast's hold capture. */
   const notifTapReplay = ref(false);
@@ -731,10 +772,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     const fallback = scope !== undefined;
     consoleState.fallbackActive = fallback;
     consoleState.fallbackScopeId = scope?.def.id ?? '';
-    if (fallback) {
+    if (scope !== undefined) {
       notePadRung('fallback');
+      watchFallbackScope(scope.rootEl);
       return false;
     }
+    stopFallbackWatch();
     if (intent.kind === 'release' || intent.kind === 'navEnd' ||
         intent.kind === 'aim' || intent.kind === 'aimEnd') {
       // PRESS→RELEASE surfaces consume falling edges and the stick's AIM
