@@ -672,10 +672,84 @@ export function beatLawBroken(report) {
  * Does the run pass the bar's gate: no episode left uncured, no defect class the earlier run did not have — and the
  * one-owner law and the beat law at zero (where the walks carried their measure).
  */
+/**
+ * THE WHOLE GAMES (FREEZE ZERO, stage 6 — the autopilot: `tests/client/bottle/autopilot.ts`,
+ * `tests/e2e/console-autopilot.spec.ts`). A game writes how it ended beside its classes (`autopilot` in its file); the
+ * stage's number is read off these: N whole games, every one to its final scoring — or to the pilot's own cap, said —
+ * with no episode and no rebuild. `undefined` when the run played no whole game (a monkey's pass, the e2e suite).
+ *
+ * THE DOOR's SHARE is the honest side-number: a question the pilot could not answer on the screen within its budget
+ * is answered through the server's door, as a second device would — the game goes on, and the share says how much of
+ * the play the SCREEN served.
+ */
+export function aggregateAutopilot(files) {
+  const last = new Map();
+  for (const f of files) {
+    if (f.autopilot === undefined) {
+      continue;
+    }
+    const key = `${f.file}::${f.title}`;
+    const known = last.get(key);
+    if (known === undefined || (f.retry ?? 0) >= (known.retry ?? 0)) {
+      last.set(key, f);
+    }
+  }
+  if (last.size === 0) {
+    return undefined;
+  }
+  const sum = (row) => Object.values(row ?? {}).reduce((a, n) => a + Number(n ?? 0), 0);
+  const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0};
+  for (const f of [...last.values()].sort((a, b) => `${a.file}${a.title}`.localeCompare(`${b.file}${b.title}`))) {
+    const a = f.autopilot;
+    out.games++;
+    out.presses += Number(a.presses ?? 0);
+    out.rebuilds += Number(a.rebuilds ?? 0);
+    out.byUi += sum(a.byUi);
+    out.byApi += sum(a.byApi);
+    out.passes.ui += Number(a.passes?.ui ?? 0);
+    out.passes.api += Number(a.passes?.api ?? 0);
+    out.playMin += Math.round(Number(a.tookMs ?? 0) / 60_000);
+    const where = `${f.title}${f.monkey?.seed !== undefined ? ` (${f.monkey.seed})` : ''} — generation ${a.generation ?? '?'}, ${a.phase ?? '?'}, ${a.presses ?? '?'} presses`;
+    if (a.end === 'finished') {
+      out.finished++;
+    } else if (a.end === 'stuck') {
+      out.stuck.push(where);
+    } else {
+      out.capped.push(where);
+    }
+  }
+  return out;
+}
+
+export function renderAutopilot(a) {
+  if (a === undefined) {
+    return '';
+  }
+  const answered = a.byUi + a.byApi;
+  const L = ['', `── THE WHOLE GAMES — ${a.games} game(s): ${a.finished} to the final scoring · ${a.capped.length} capped · ${a.stuck.length} STUCK · rebuilds ${a.rebuilds} ──`];
+  L.push(`   ${a.presses} presses, ${a.playMin} min of play · answered on the screen ${a.byUi} · through the door ${a.byApi}` +
+    `${answered > 0 ? ` (${pct(a.byApi, answered)} % of the answers)` : ''} · passes ${a.passes.ui} by the wheel / ${a.passes.api} by the door`);
+  for (const game of a.stuck) {
+    L.push(`   STUCK   ${game}`);
+  }
+  for (const game of a.capped) {
+    L.push(`   capped  ${game}`);
+  }
+  return L.join('\n');
+}
+
 export function gateVerdict(report, diff) {
   const reasons = [];
   if (report.totals.notCured > 0) {
     reasons.push(`${report.totals.notCured} episode(s) were never cured`);
+  }
+  // THE WHOLE GAMES' OWN BAR (stage 6): a game nobody could move is the freeze itself; a rebuild is the last line
+  // taken — in a whole game played by the rules of the screen neither may happen once.
+  if (report.autopilot !== undefined && report.autopilot.stuck.length > 0) {
+    reasons.push(`${report.autopilot.stuck.length} whole game(s) STUCK: ${report.autopilot.stuck.join('; ')}`);
+  }
+  if (report.autopilot !== undefined && report.autopilot.rebuilds > 0) {
+    reasons.push(`${report.autopilot.rebuilds} rebuild(s) in whole games — the last line was taken`);
   }
   if (diff !== undefined && diff.newClasses.length > 0) {
     reasons.push(`${diff.newClasses.length} NEW defect class(es): ${diff.newClasses.join(', ')}`);
@@ -760,7 +834,9 @@ function main(argv) {
   }).filter((f) => f !== undefined);
   const coverage = aggregateCoverage(files, flowUniverse().flows);
   const owner = aggregateOwner(files);
-  const report = {at: new Date().toISOString(), dir: path.resolve(dir), ...aggregateCauseFiles(files), ...(coverage !== undefined ? {coverage} : {}), ...(owner !== undefined ? {owner} : {})};
+  const autopilot = aggregateAutopilot(files);
+  const report = {at: new Date().toISOString(), dir: path.resolve(dir), ...aggregateCauseFiles(files), ...(coverage !== undefined ? {coverage} : {}), ...(owner !== undefined ? {owner} : {}),
+    ...(autopilot !== undefined ? {autopilot} : {})};
   const against = flag('against');
   let diff;
   if (typeof against === 'string') {
@@ -774,6 +850,9 @@ function main(argv) {
   const out = typeof flag('out') === 'string' ? flag('out') : path.join(dir, 'monkey-report.json');
   fs.writeFileSync(out, JSON.stringify({...report, ...(diff !== undefined ? {diff} : {})}, null, 1));
   console.log(renderReport(report, diff));
+  if (autopilot !== undefined) {
+    console.log(renderAutopilot(autopilot));
+  }
   console.log(renderCoverage(coverage));
   console.log(renderOwner(owner));
   console.log(`\n→ ${out}`);

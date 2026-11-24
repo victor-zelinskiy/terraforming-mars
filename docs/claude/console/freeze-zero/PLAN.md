@@ -1669,6 +1669,79 @@ no rebuild inside a game, no table nobody moved.** What the pass named, read cla
   the eight shards of `fzz-fz3-duo` on `af6a97cc9c` are in: 186 walks, 0 defect rows, no ghost, no quiet beat). CI
   carries the verdicts meanwhile.
 
+**STAGE 6, STEP 3 — THE END OF THE GAME, AND TWO PROOFS THAT SAID «NOT YET» (2026-11-24, the night's second half).**
+Six more whole games in the bottle (25 – 30, local): all six finished, four named nothing. What the other two and
+the night's proof passes said:
+
+- **THE ARBITER's NEW TERM, REFINED BY THE GATE** (`7667667ab7`). The gate on `8e547fd8cc`, seed `fz0`, named
+  `liveness/stall/presses-no-effect/actionmenu/board/deaf` on `backroom-deal` (#105): three presses swallowed by the
+  fullscreen viewer's open and close flights — a third of a second each, honest gates — scattered over a quarter of
+  a minute of one unchanged board, summed into «three presses with no effect». A gate that never opens is, at every
+  look, a gate that is closed NOW: `quietAbsorbed` counts what was swallowed since the last look only while a gate
+  still STANDS, and the standing gates are part of the arbiter's picture (a gate opening is the screen changing
+  state). With the viewer's unwinding off the dead gate is still named — the term keeps what it was written for.
+- **ⓒ CURED — NOTHING IS ASKED AFTER THE END** (`7f65771514`; game 30, solo against the bot, Turmoil Redux). The
+  generation the bot's clock allows last ends, its sitting runs — and an ordinary sitting does not wait for its
+  confirmations (the soft gates), so the turn-over ended the game with «Закрыть заседание» standing in the slot of a
+  FINISHED game. On the console: the sitting's page over the final scoring, A throwing («game transport used before
+  startGameTransport» — the transport is over with the game), the frame on «Выполняется…» for good, a dead end the
+  graph had no door for. And the answer, had it reached the server, would have saved the finished game back as a
+  RUNNING one — a row the purge of unfinished games takes. The law is the server's: whatever a seat still owes the
+  generation the game ends behind is a BARRIER of it — the game's last sitting waits for its confirmations
+  (`sittingIsBarrier`: the final one, and the one MarsBot's clock ends the game behind —
+  `Game.endsBehindThisGeneration`, record field `endsGame`); a save standing at the END with a record drops it on
+  load. **The engine fuzz holds it — invariant `I2-end`** («a seat asked in a finished game», with its control): with
+  the barrier off the long run names it in 6 games of 400 (seed 70034, pinned), with it 400 games end clean. The
+  same game on the console, the same presses: A lands, the game ends behind it, nothing named.
+- **ⓓ CURED — A MINIMIZED FINALE ALWAYS OFFERS ITS WAY BACK** (`9351d30cb7`; game 29,
+  `wait-graph/dangling/deferred:n`). The final greeneries: a greenery lands, its bonus deals cards, the next
+  greenery is asked while the cards are still on their way — «B Свернуть» — and the board comes back with NO plate
+  for as long as the scene plays. The finale session keeps its own prompt from the gate while the player stands in
+  it; the minimize gives that prompt a beat, born by the press, and the beat waited for its first presentation like
+  an interruption from elsewhere — and, held, switched off the minimized finale's own restore plate. A beat of a
+  minimized finale is presented at birth (the player set the question aside themselves); the graph's set-aside node
+  of such a finale waits on that prompt's plate. Press 818 of the same game lands on «Поле · A Разместить
+  озеленение». Class replay (`two-player-finale-trigger`, a scene planted as still playing): **the first two cuts of
+  the replay were GREEN WITH THE LAW OFF** — the fixture's screen was quiet at the press, and then the prompt had
+  already been admitted (the deferred road serves it); only the state the game was in — asked, not yet admitted —
+  bites. A replay is proven by its red, never by its green.
+- **THE PLATE's COVER — THE PROOF PASS SAID «NOT CLOSED», AND WHY** (`50b715edc0`). `424e30baa2` made the announce
+  plate a cover of a flight's END; the proof (Monkey 45317014849 — the seed of the day on `venus-bonus-final-crowd`,
+  six repeats) named «token painted under span.con-mandatory__open at the birth — stock:rating» six walks of six.
+  The verdict judges an object source at its CENTRE; the token is born at the place the end names ON the object, and
+  the plate stood over that place and not over the centre. The birth frame now asks the birth POINT itself
+  (`birthPointCovered` — what the paint's sentinel asks a microtask later) in both flights. Proof: the same pass on
+  `9351d30cb7` (45324492006).
+- **CI ON `2c5819b8af`:** the whole e2e 45313799855 green — 1 498 passed, 0 flaky, no net line.
+- **THE SECOND PASS, READ WHOLE (Autopilot 45313803575 on `2c5819b8af` — before the three cures above): 45 games,
+  43 to the final scoring, 2 capped by the pilot's own bound, 0 stuck, 0 rebuilds; 53 787 presses, 625 minutes of
+  play; 15 % of the answers through the door.** In the REAL BROWSER 21 games of 24 named no class at all, and the
+  three that did named exactly ⓒ (two games — the bot's clock, in generation 18 with Prelude and 20 without) and ⓓ
+  (one): the browser's half stands on what this night closed. The two jobs red by the harness were those two games.
+
+**STAGE 6, STEP 4 — THE GATE OF WHOLE GAMES (2026-11-24).** The pass is one verdict now, the monkey's own report
+taught the whole games' bar (`scripts/monkey-report.mjs` — `aggregateAutopilot`, «THE WHOLE GAMES»): N games, how
+many reached the final scoring, which were capped and where, **a game STUCK and a rebuild each fail the gate by
+name**, with the laws the monkey's gate already holds (no episode never cured, the one-owner law, the beat law, no
+cause class the baseline does not hold). The workflow's `report` job sums each world against its own baseline —
+`tests/client/bottle/autopilotBaseline.json` (what the bottle cannot see: two rows, each with why, each written only
+because the browser's 24 games did not name it) and `tests/e2e/autopilotBaseline.json` (NONE: a real page sees
+everything) — and files what it finds into the one queue (source `autopilot`; a finding is repeated by its GAME).
+Run over the second pass it reads as it should: the browser red by the five classes of ⓒ / ⓓ, the bottle by three
+open ones and by the one-owner law.
+- **THE ONE-OWNER LAW OVER WHOLE GAMES IS NOT AT ZERO — two shapes the monkey's sixty presses never reached**
+  (beside ⓒ's own rows): ① `band-APART · own:externalDraw > section:parliament` — a resolution's draw inside the
+  Parliament, the function's band and the ladder's rung apart for a press (bottle game 18 AND browser game 19);
+  ② `MISS · held:sitting` / `pad-MISS · section:colonies` — the sitting's tile asked while the player stands in the
+  Colonies opened over the Parliament: the function says «board», the screen paints «colonies | parliament»
+  (bottle game 18). Both are the next to read.
+- **OPEN:** `wait-graph/ceiling/parliament-world:story-quiet` (bottle, three humans — the sitting's world step
+  waited its whole 30 s for the board's story; being read on its own game); `notifications/band-no-cause` (ANOTHER
+  seat's research purchase: its payment is recorded under an action root with no category, so the band «−3 M€» has
+  no cause to name — multi-human tables only, three games of the pass); `console-leak-detector/covered-prompt/
+  cardselect` (bottle: the opening answered through the door while the start stood — the pilot's own artifact, as
+  it was in the browser before its opening was seeded).
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a

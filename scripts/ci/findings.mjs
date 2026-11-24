@@ -225,8 +225,35 @@ function fromMonkey() {
         `- first: ${first.title ?? '?'}${first.seed === undefined ? '' : ` · seed \`${first.seed}\``}`,
         ...(first.line === undefined ? [] : ['', fence(first.line)]),
         ...startHere(cls),
-        ...(repro === '' ? [] : ['', '**Repeat it:**', fence(repro.replace(/<table>/g, String(first.title ?? '').replace(/^monkey · /, '')).replace(/<seed>/g, String(first.seed ?? '').split(':')[0]))]),
+        ...(repro === '' ? [] : ['', '**Repeat it:**', fence(repro.replace(/<table>/g, String(first.title ?? '').replace(/^monkey · /, '')).replace(/<seed>/g, String(first.seed ?? '').split(':')[0])
+          // (A WHOLE GAME is repeated by its number — `autopilot · game 12`, seed `ap0:12`.)
+          .replace(/<game>/g, /game (\d+)/.exec(String(first.title ?? ''))?.[1] ?? '<n>'))]),
       ].join('\n'),
+    });
+  }
+  // THE WHOLE GAMES' OWN FAILURES (stage 6 — `monkey-report.aggregateAutopilot`): a game nobody could move is the
+  // freeze itself, a rebuild is the last line taken. Neither is a cause class, so `newClasses` never held them.
+  for (const game of report.autopilot?.stuck ?? []) {
+    const name = String(game).split(' — ')[0];
+    findings.push({
+      key: `${source}|stuck|${name}`,
+      kind: 'failed',
+      title: `[${source}] a whole game STUCK: ${name}`.slice(0, 240),
+      body: [
+        `**A whole game stood where nobody could move it**${context === '' ? '' : ` (${context})`} — the pilot pressed, the door answered what it could, and the table did not go on.`,
+        '',
+        `- game: ${game}`,
+        ...(repro === '' ? [] : ['', '**Repeat it:**', fence(repro.replace(/<game>/g, /game (\d+)/.exec(String(game))?.[1] ?? '<n>'))]),
+      ].join('\n'),
+    });
+  }
+  if ((report.autopilot?.rebuilds ?? 0) > 0) {
+    findings.push({
+      key: `${source}|rebuilds`,
+      kind: 'failed',
+      title: `[${source}] the last line was taken in a whole game (${report.autopilot.rebuilds} rebuild(s))`,
+      body: `**${report.autopilot.rebuilds} rebuild(s) of the console session in whole games**${context === '' ? '' : ` (${context})`} — a stall the arbiter's ladder did not end. ` +
+        'Read the report: the `liveness/stall/…` classes of the pass name the screens, each game\'s file carries its presses (`walk`).',
     });
   }
   if ((report.totals?.notCured ?? 0) > 0) {

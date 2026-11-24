@@ -12,8 +12,11 @@ name: Autopilot
 # real time, the solo player against MarsBot from the first press to the final scoring. The bottle is minutes and is
 # blind wherever a rect or a CSS clock is needed; the browser is ten to twenty minutes a game and sees everything.
 #
-# BY HAND ONLY for now (no schedule): the first passes are READ, class by class, before a baseline is written and a
-# gate is held on it.
+# THE PASS IS ONE VERDICT (the `report` job): the games of each world summed as the monkey's passes are and held as a
+# GATE — no game STUCK, no rebuild, no episode never cured, the one-owner and the beat laws at zero, and no cause
+# class its baseline does not hold (tests/client/bottle/autopilotBaseline.json — what the bottle cannot see, each row
+# with why; tests/e2e/autopilotBaseline.json — the real browser's, which holds none). What it finds is filed into the
+# one queue (scripts/ci/findings.mjs, source `autopilot`). BY HAND for now (no schedule): a pass is hours of runners.
 on:
   workflow_dispatch:
     inputs:
@@ -172,3 +175,91 @@ jobs:
             autopilot-browser-report.txt
           if-no-files-found: warn
           retention-days: 14
+
+  # THE PASS, AS ONE VERDICT (stage 6's number: N whole games, every one to its final scoring or to the pilot's own
+  # cap, no game STUCK, no rebuild, no episode never cured, no cause class its baseline does not hold, the one-owner
+  # and the beat laws at zero) — per world, each against its own baseline: the bottle's holds what the bottle cannot
+  # see (a class is written there only after the same games in a real browser did not name it), the browser's holds
+  # nothing.
+  report:
+    name: Report · ${{ inputs.name }} · games ${{ inputs.from }}+${{ inputs.games }}
+    needs: [plan, play, browser]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - name: Download the bottle's games
+        uses: actions/download-artifact@v5
+        with:
+          pattern: autopilot-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: bottle-results
+      - name: Download the browser's games
+        uses: actions/download-artifact@v5
+        with:
+          pattern: autopilot-browser-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: browser-results
+      - name: The bottle's games, as a gate
+        id: bottle
+        if: ${{ inputs.where != 'browser' }}
+        run: |
+          node scripts/monkey-report.mjs bottle-results --against tests/client/bottle/autopilotBaseline.json --out autopilot-bottle.json --gate | tee autopilot-bottle.txt
+          exit ${PIPESTATUS[0]}
+      - name: The browser's games, as a gate
+        id: browser
+        if: ${{ !cancelled() && inputs.where != 'bottle' }}
+        run: |
+          node scripts/monkey-report.mjs browser-results --against tests/e2e/autopilotBaseline.json --out autopilot-browser.json --gate | tee autopilot-browser.txt
+          exit ${PIPESTATUS[0]}
+      # WHAT THE PASS FOUND, in the one shape every workflow speaks — and filed: one issue per cause class.
+      - name: Findings
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTEXT: ${{ inputs.name }} · games ${{ inputs.from }}+${{ inputs.games }}
+        run: |
+          for world in bottle browser; do
+            [ -f "autopilot-$world.json" ] || continue
+            RED=""
+            if [ "$world" = bottle ] && { [ "${{ steps.bottle.outcome }}" != "success" ] || [ "${{ needs.play.result }}" != "success" ]; }; then RED="--gate-red"; fi
+            if [ "$world" = browser ] && { [ "${{ steps.browser.outcome }}" != "success" ] || [ "${{ needs.browser.result }}" != "success" ]; }; then RED="--gate-red"; fi
+            node scripts/ci/findings.mjs from-monkey "autopilot-$world.json" --source autopilot --context "$world · $CONTEXT" $RED \
+              --repro "gh workflow run Autopilot -f from=<game> -f games=1 -f name=${{ inputs.name }} -f where=$world   # the bottle on a laptop: TM_BOTTLE_AUTOPILOT=1 TM_BOTTLE_AUTOPILOT_SEEDS=<game> TM_BOTTLE_AUTOPILOT_DEBUG=1 NODE_ENV=development node scripts/client-tests.mts tests/client/bottle/autopilot.bottle.ts" \
+              --out "ci-findings-$world.json"
+            node scripts/ci/findings.mjs file "ci-findings-$world.json"
+          done
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Autopilot · `${{ inputs.name }}` · games ${{ inputs.from }}+${{ inputs.games }}'
+            for world in bottle browser; do
+              [ -f "autopilot-$world.txt" ] || continue
+              echo "#### $world"
+              echo '```'
+              head -n 3 "autopilot-$world.txt"
+              grep -A 8 'THE WHOLE GAMES' "autopilot-$world.txt" || true
+              grep -A 12 'against the earlier run' "autopilot-$world.txt" || true
+              grep 'GATE:' "autopilot-$world.txt" || true
+              echo '```'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: autopilot-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            autopilot-bottle.json
+            autopilot-bottle.txt
+            autopilot-browser.json
+            autopilot-browser.txt
+            ci-findings-bottle.json
+            ci-findings-browser.json
+          if-no-files-found: warn
+          retention-days: 30

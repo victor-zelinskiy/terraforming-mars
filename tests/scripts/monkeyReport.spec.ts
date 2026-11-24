@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import * as fs from 'fs';
 import * as path from 'path';
 import {pathToFileURL} from 'url';
 
@@ -9,10 +10,11 @@ import {pathToFileURL} from 'url';
  */
 type Episode = {outcome: string, stoodS: number, cure: string, nets: Array<{cls: string, tier: string, n: number}>};
 type Rec = {cls: string, shape: string, tier: string, family: string, page: number, count: number, lines: number, atMs: number, title: string, dims: Record<string, string>, episode?: Episode};
-type File = {file: string, title: string, retry: number, status?: string, monkey?: {seed: string, presses: number}, records: Array<Rec>};
+type File = {file: string, title: string, retry: number, status?: string, monkey?: {seed: string, presses: number}, records: Array<Rec>, autopilot?: Pilot};
 type ClassRow = {tier: string, shape: string, tests: number, records: number, lines: number, outcomes: Record<string, number>, worstStoodS: number, first?: {file: string, title: string, seed?: string}};
 type Report = {
   owner?: {verdicts: Record<string, number>, spans?: Record<string, {n: number, ms: number, max: number, tables: Array<string>}>, walks?: number, looks?: number, rows?: object, open?: object, disagreements?: Array<never>},
+  autopilot?: Whole,
   totals: {tests: number, walks: number, presses: number, records: number, defects: number, episodes: number, notCured: number, outcomes: Record<string, number>},
   classes: Record<string, ClassRow>,
   nets: Record<string, {tier: string, records: number, lines: number, tests: number, per1000Presses: number | null}>,
@@ -27,7 +29,11 @@ type Lib = {
   renderOwner: (owner: Report['owner']) => string,
   renderReport: (report: Report, diff?: Diff) => string,
   shapeOfClass: (cls: string) => string,
+  aggregateAutopilot: (files: Array<File>) => Whole | undefined,
+  renderAutopilot: (whole: Whole | undefined) => string,
 };
+type Pilot = {end: string, generation: number, phase: string, presses: number, byUi: Record<string, number>, byApi: Record<string, number>, passes: {ui: number, api: number}, tookMs: number, rebuilds?: number};
+type Whole = {games: number, finished: number, capped: Array<string>, stuck: Array<string>, rebuilds: number, presses: number, byUi: number, byApi: number, passes: {ui: number, api: number}, playMin: number};
 
 const load = (): Promise<Lib> => import(pathToFileURL(path.join(__dirname, '..', '..', 'scripts', 'monkey-report.mjs')).href) as Promise<Lib>;
 
@@ -175,5 +181,47 @@ describe('the monkey\'s report — a run summed by cause class', () => {
     expect(renderOwner(broken.owner)).to.contain('  BROKEN: «hydro:completing» stood 1230 ms with nothing in flight under it ×13  [hydro, hydro-two]');
     // The bar is the doors' own: past a hand-off, never seconds.
     expect(BEAT_LAW_QUIET_MS).to.be.at.least(200).and.at.most(500);
+  });
+  it('the autopilot\'s baselines: the bottle\'s rows are defect classes that say WHY they may stand; the real browser\'s holds none', () => {
+    const read = (file: string) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', file), 'utf8')) as {classes: Record<string, {tier: string, why?: string}>};
+    const bottle = read('tests/client/bottle/autopilotBaseline.json');
+    for (const [cls, row] of Object.entries(bottle.classes)) {
+      expect(row.tier, cls).to.eq('defect');
+      expect(row.why ?? '', `${cls} says why — and that a real browser did not name it`).to.match(/browser/i);
+    }
+    expect(Object.keys(read('tests/e2e/autopilotBaseline.json').classes), 'a real page sees everything: a class named there is closed, never written down').to.deep.eq([]);
+  });
+
+  it('THE WHOLE GAMES (stage 6): a game to its final scoring, a capped one said, a STUCK one and a rebuild each fail the gate by name', async () => {
+    const {aggregateAutopilot, aggregateCauseFiles, gateVerdict, renderAutopilot} = await load();
+    const game = (n: number, pilot: Partial<Pilot>, retry = 0): File => ({
+      file: 'autopilot.bottle.ts', title: `autopilot · game ${n}`, retry, monkey: {seed: `ap0:${n}`, presses: pilot.presses ?? 900}, records: [],
+      autopilot: {end: 'finished', generation: 14, phase: 'end', presses: 900, byUi: {card: 20, option: 4}, byApi: {card: 2}, passes: {ui: 13, api: 0}, tookMs: 600_000, rebuilds: 0, ...pilot},
+    });
+    // (A run with no whole game has no such section — the monkey's pass, the e2e suite.)
+    expect(aggregateAutopilot([walk('a', [])])).to.eq(undefined);
+    expect(renderAutopilot(undefined)).to.eq('');
+
+    const clean = [game(1, {}), game(2, {}), game(3, {end: 'capped', generation: 44, phase: 'action', presses: 4000}), walk('a', [])];
+    const whole = aggregateAutopilot(clean) as Whole;
+    expect(whole).to.deep.include({games: 3, finished: 2, rebuilds: 0, presses: 5800, byUi: 72, byApi: 6, playMin: 30});
+    expect(whole.capped).to.deep.eq(['autopilot · game 3 (ap0:3) — generation 44, action, 4000 presses']);
+    expect(whole.stuck).to.deep.eq([]);
+    expect(renderAutopilot(whole)).to.contain('THE WHOLE GAMES — 3 game(s): 2 to the final scoring · 1 capped · 0 STUCK · rebuilds 0');
+    expect(renderAutopilot(whole), 'the share the screen did not serve is said').to.contain('through the door 6 (7.7 % of the answers)');
+    // A capped game is the pilot's own bound — said, never a failure.
+    expect(gateVerdict({...aggregateCauseFiles(clean), autopilot: whole}).pass).to.eq(true);
+
+    // A game counts by its LAST run; a stuck game and a rebuild are the freeze and the last line — each fails by name.
+    const bad = [game(1, {end: 'stuck', generation: 6, phase: 'action', presses: 410}, 0), game(1, {end: 'stuck', generation: 7, phase: 'research', presses: 480}, 1), game(2, {rebuilds: 2})];
+    const broken = aggregateAutopilot(bad) as Whole;
+    expect(broken).to.deep.include({games: 2, finished: 1, rebuilds: 2});
+    expect(broken.stuck).to.deep.eq(['autopilot · game 1 (ap0:1) — generation 7, research, 480 presses']);
+    const verdict = gateVerdict({...aggregateCauseFiles(bad), autopilot: broken});
+    expect(verdict.pass).to.eq(false);
+    expect(verdict.reasons).to.deep.eq([
+      '1 whole game(s) STUCK: autopilot · game 1 (ap0:1) — generation 7, research, 480 presses',
+      '2 rebuild(s) in whole games — the last line was taken',
+    ]);
   });
 });

@@ -1,0 +1,18 @@
+{
+  "what": "the DEFECT classes the AUTOPILOT IN THE BOTTLE is known to name over whole games (.github/workflows/autopilot.yml — the report's gate) — each with why it may stand. A row is written here only after a pass of whole games in a REAL BROWSER did not name the class (the workflow's browser half): the bottle is blind wherever a rect or a CSS clock is needed, and nowhere else.",
+  "at": "2026-11-24",
+  "classes": {
+    "wait-graph/ceiling/board-card-bonus:hover": {
+      "tier": "defect",
+      "games": 2,
+      "first": "ap0:12",
+      "why": "the lift of a card over a board bonus ends on its CSS animation's own end (61 frames of a keyframe rise): jsdom runs no CSS animation and fires no `animationend`, so the wait can only end on its ceiling. NOT THERE in a browser: 24 whole games of pass 45313803575 (2026-11-24) name it in none."
+    },
+    "presentation-ledger/story-due/board-beat-park": {
+      "tier": "defect",
+      "games": 2,
+      "first": "ap0:18",
+      "why": "the board's parked beats are flights between MEASURED cells: with no layout a drain cannot land, so a story the board did see («watchable») is never told and reads as a defect. In a browser every record of the class in the 24 whole games of pass 45313803575 is the player keeping the board covered — tier `planned`, never a defect."
+    }
+  }
+}

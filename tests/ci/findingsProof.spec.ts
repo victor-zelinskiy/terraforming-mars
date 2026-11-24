@@ -107,6 +107,34 @@ describe('ci findings: a finding names its proof', function() {
     expect(findings[1].body).to.include('TypeError: boom');
   });
 
+  /*
+   * THE WHOLE GAMES (FREEZE ZERO, stage 6 — the autopilot's pass speaks the monkey's report): a class is repeated by
+   * its GAME, and what fails a whole game without being a cause class — a table nobody could move, the last line
+   * taken — is filed by name.
+   */
+  it('a class of the autopilot is repeated by its game; a STUCK game and a rebuild are findings by name', () => {
+    const report = {
+      totals: {notCured: 0},
+      classes: {'wait-graph/ceiling/x': {tier: 'defect', tests: 1, records: 1, first: {title: 'autopilot · game 12', seed: 'ap0:12', line: 'a line'}}},
+      diff: {newClasses: ['wait-graph/ceiling/x']},
+      autopilot: {games: 3, finished: 2, capped: [], rebuilds: 2, stuck: ['autopilot · game 7 (ap0:7) — generation 6, research, 480 presses']},
+    };
+    const findings = findingsOf('from-monkey', report, '--source', 'autopilot', '--context', 'bottle · ap0 · games 1+24',
+      '--repro', 'gh workflow run Autopilot -f from=<game> -f games=1');
+    expect(findings.map((finding) => [finding.key, finding.kind])).to.deep.eq([
+      ['autopilot|class|wait-graph/ceiling/x', 'new-class'],
+      ['autopilot|stuck|autopilot · game 7 (ap0:7)', 'failed'],
+      ['autopilot|rebuilds', 'failed'],
+    ]);
+    expect(findings[0].proof, 'a game is no table of the monkey — no proof of another workflow is named').to.eq(undefined);
+    expect(findings[0].body).to.contain('gh workflow run Autopilot -f from=12 -f games=1');
+    expect(findings[1].body).to.contain('gh workflow run Autopilot -f from=7 -f games=1');
+    expect(findings[2].title).to.eq('[autopilot] the last line was taken in a whole game (2 rebuild(s))');
+    // …and a clean pass of whole games files nothing.
+    expect(findingsOf('from-monkey', {totals: {notCured: 0}, classes: {}, diff: {newClasses: []}, autopilot: {games: 3, finished: 3, capped: [], stuck: [], rebuilds: 0}},
+      '--source', 'autopilot')).to.deep.eq([]);
+  });
+
   it('a class of the monkey is proven by the monkey on its table, seed and perturbation', () => {
     const [finding] = findingsOf('from-monkey', monkeyReport, '--source', 'monkey', '--context', 'seed fz0', '--perturb', 'cpu4');
     expect(finding.proof).to.deep.eq({workflow: 'Monkey', inputs: {seed: 'fz0', only: '^hydro-terminal-surge$', shards: '1', perturb: 'cpu4'}});
