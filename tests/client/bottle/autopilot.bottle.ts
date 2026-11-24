@@ -131,7 +131,7 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
           trace: !DEBUG ? undefined : () => `${page.frames().join('>') || '-'}|${page.pageModules.consoleDraftFlow.draftWorkspaceState.completion}|g${bottleServer().seatTruth(viewer).generation}|${bottleServer().seatTruth(viewer).waitingFor ?? '-'}|D${page.liveness().defects.reduce((sum, d) => sum + d.count, 0)}|${page.bar().replace(/\s+/g, '').slice(0, 60)}`,
           // THE READING AID (`TM_BOTTLE_AUTOPILOT_DEBUG=1`): where the door had to answer, what stood — the server's
           // truth, the page's view, the stack, the arbiter's word, the kernel's tree, the screen's own words.
-          onDoor: !DEBUG ? undefined : (what) => {
+          onDoor: !DEBUG ? undefined : (what, lastPresses) => {
             if (dumps++ >= 4) {
               return;
             }
@@ -152,6 +152,14 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
                 return `${el === null ? 'none' : `take=${el.getAttribute('data-take')} table=${el.getAttribute('data-settlement-table')}/${el.getAttribute('data-settlement-turn')} cursor=${el.getAttribute('data-cursor-pending')} class=${el.className}`} · claim ${JSON.stringify({host: o.host, source: o.sourceCard, stage: o.stage, arrivalDone: o.arrivalDone, arrivalFlown: o.arrivalFlown, beatDone: o.beatDone})}`;
               })()}`,
               `      workspace: «${text('.con-draftws') || text('.con-hand') || text('.con-task') || text('.con-root')}»`,
+              `      start: ${JSON.stringify((globalThis as unknown as {window: {__conStartDiag?: () => unknown}}).window.__conStartDiag?.() ?? 'no scene').slice(0, 1400)}`,
+              `      the last presses: ${lastPresses.join('  ')}`,
+              `      start state: ${(() => {
+                const s = page.pageModules.consoleStartState.consoleStartState as unknown as Record<string, unknown>;
+                const w = page.pageModules.consoleWorkspaceStack;
+                const plain = Object.fromEntries(Object.entries(s).filter(([, v]) => v === null || ['string', 'number', 'boolean'].includes(typeof v) || (typeof v === 'object' && !(v instanceof Set) && JSON.stringify(v).length < 260)));
+                return `${JSON.stringify(plain).slice(0, 1800)} · frame known ${w.workspaceFrameKnown('start')} parked ${w.workspaceFrameParked('start')} index ${w.workspaceFrameIndex('start')} nested ${w.workspaceFrameHasNested('start')}`;
+              })()}`,
             ].join('\n'));
           },
         });

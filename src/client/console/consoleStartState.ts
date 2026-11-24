@@ -244,6 +244,20 @@ deriveFlowRun('start-first-act', () => consoleStartState.firstAct.stage !== 'idl
 deriveFlowRun('start-bonus-act', () => consoleStartState.bonusAct.stage !== 'idle');
 
 /**
+ * THE STAGES FOLD — both machines back to rest, with nothing played: the verb of whoever has decided that the stage
+ * is over and that NO SCENE stands to run its own leave (`startController` — «a stage nobody is there to run is over
+ * by the server's word»). The scene's leave (`runFirstActionLeave`) is the stage's ending while a scene stands; this
+ * is the ending of a stage whose scene is gone. Returns what stood, for the caller's line.
+ */
+export function foldStartActStages(): {first: string, bonus: string} {
+  const stood = {first: consoleStartState.firstAct.stage, bonus: consoleStartState.bonusAct.stage};
+  consoleStartState.firstAct = {stage: 'idle', corp: undefined, submitting: false};
+  clearFirstActSubmitSafety();
+  consoleStartState.bonusAct = {stage: 'idle', source: undefined, corpDone: false};
+  return stood;
+}
+
+/**
  * CAMPAIGN «ТЕНДЕРЫ»: a tender executed from the «НАСЛЕДИЕ» stage changes the DEAL — the server serves the same
  * selection again under a new identity, and `ensureStartWizard` would reset every pick. The scene ARMS this record
  * before the tender's answer goes out; the restore (`restoreStartPicksAfterRedeal`) re-applies every pick the new

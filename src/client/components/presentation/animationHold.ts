@@ -788,6 +788,33 @@ export function playerOwnedHolds(): string | undefined {
 }
 
 /**
+ * DOES THIS ONE STANDING HOLD WAIT ON THE PLAYER? Its reason — its own word (`heldForPlayer`) or its declaration
+ * (`waitsFor: 'player'`) — or `undefined`. The single-hold form of `playerOwnedHolds`, for a reader that judges the
+ * holds one by one (the feed's starvation: an old hold that waits for the player beside young scenes).
+ */
+export function holdWaitsForPlayer(label: string): string | undefined {
+  if (!playerCanAnswerNow()) {
+    return undefined;
+  }
+  const entry = suppliers.get(label);
+  if (entry !== undefined) {
+    let why: string | undefined;
+    try {
+      why = entry.heldForPlayer?.();
+    } catch {
+      why = undefined;
+    }
+    return (why ?? (entry.waitsFor === 'player' ? 'waits for the player' : undefined))?.replace(/[()]/g, '');
+  }
+  for (const hold of store.manual.values()) {
+    if (hold.label === label) {
+      return hold.waitsFor === 'player' ? 'waits for the player' : undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
  * WHAT EACH STANDING HOLD SAYS OF ITSELF (its owner's `diagnose`) — for a line that must name WHO holds and for what,
  * not only the hold's label (the feed's starvation line named «vp-shares» and sent its reader to reproduce it).
  */

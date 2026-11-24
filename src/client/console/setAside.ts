@@ -53,7 +53,9 @@ export type TakeUpWhy =
   /** The server asks something else. */
   | 'question-changed'
   /** A net ended it (the endgame's seal, a recovery door). */
-  | 'recovered';
+  | 'recovered'
+  /** The parked chain it stood for is gone — dropped by the anchor rule, its phase over: nothing is left to return to. */
+  | 'chain-gone';
 
 export type SetAsideRecord = {what: SetAsideWhat, since: number};
 

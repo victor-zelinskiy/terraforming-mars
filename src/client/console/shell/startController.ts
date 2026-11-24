@@ -14,14 +14,14 @@ import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
 import {neutralRallyFlow} from '@/client/console/parliament/neutralRally';
 import {HostedParliamentStepKind, hostedStepLiveIn, hostedStepOwedTo, startHostedStepToEnter, startPreludeGrantOf} from '@/client/console/parliament/hostedParliamentStep';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
-import {closeWorkspaceRoot, workspaceFrameIndex, hostCarriesPlayersLook, workspaceHostYieldsScene, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, workspaceFrameHasNested, workspaceFrameMounted, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, workspaceStackState, stackServes} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, workspaceFrameIndex, workspaceFrameParked, hostCarriesPlayersLook, workspaceHostYieldsScene, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameStage, workspaceFrameHasNested, workspaceFrameMounted, workspaceFrameHost, workspaceFrameKnown, workspaceHostForStep, workspaceStackState, stackServes} from '@/client/console/consoleWorkspaceStack';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 import {Phase} from '@/common/Phase';
 import {CardType} from '@/common/cards/CardType';
-import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startHeroPlaying, startSceneHeld} from '@/client/console/consoleStartState';
+import {consoleStartState, foldStartActStages, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startHeroPlaying, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, releaseBoardExcursion} from '@/client/console/boardExcursion';
-import {bonusActionInStartFlow, bonusActionOnBoard} from '@/client/console/bonusAction';
+import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionOwed} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {isInSurfaceResourceTransferActive, isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
@@ -719,6 +719,101 @@ export function createStartController(shell: StartPort) {
   });
 
   /**
+   * A STAGE NOBODY IS THERE TO RUN IS OVER BY THE SERVER's WORD. The opening's two stage machines (the corporation's
+   * first action, the bonus actions) are MODULE state — they survive the scene's unmount — but what ENDS them is the
+   * scene: its leave runs when the chain is quiet (`ConsoleStartScene.firstActionLeaveDue` — «the action menu is the
+   * honest END: … holding the stage for it would leave the workspace standing for the rest of the game»). A scene
+   * that is not mounted runs nothing. The start's minimize goes through the PARK: with its frame parked the scene is
+   * gone, and if the opening's remaining questions are then answered where this page cannot see them (the same seat
+   * on a second device or tab; a game the hub moved on) the stage stands at `performing` for good — and a stage that
+   * is not at rest keeps the start SERVING (`startSceneServes`), so its frame stays the phase's root for the rest of
+   * the game: every question after it stood stranded under «start:browse» until the arbiter parked the root again,
+   * the pass read «сначала завершите текущее действие» with nothing to finish, and the draft of every generation was
+   * opened by a cure. (The autopilot in the bottle, 2026-11-24 — game 50 of 49…72, run 45433101055: thirteen classes
+   * of one incident — `liveness/stall/unserved/cardselect/start:browse/stranded`, `stranded-prompt`, `covered-prompt`,
+   * `dead-end/surface:start`, the mandatory lease expired and quarantined, `band-APART` ×130 — issues #119…#132.)
+   *
+   * The rule, by LEVEL: a stage not at rest · the start's frame PARKED (a scene on the live stack runs its own leave,
+   * and a frame not known at all is the bonus turn's «let go completely» — it comes back for its ending) · the
+   * server's word that the opening is over for this seat (`openingOverByServer`) · no claim, no step of the start's
+   * · and nothing presenting that could still be the stage's (a reveal, a hold, a delivery, a submit on the wire).
+   * Then the stages fold (`foldStartActStages`), the start stops serving, its anchor is dead (`startAnchorDead`) and
+   * the parked frame is pruned by the stack's own rule — at once, so the pass is no longer refused for «a decision
+   * set aside» that nobody can return to. Confirmed off the flush — a tick and a frame — like every release of the
+   * opening.
+   */
+  /**
+   * THE SERVER's WORD THAT THE OPENING IS OVER FOR THIS SEAT — the scene's own «honest END», asked of the truth
+   * alone: it asks the ACTION MENU (the one title the menu's check may read — it is never rewritten) that is not the
+   * corporation's first action, with nothing of the opening on its ledgers (a first action, a bonus action, a
+   * placement order); or the generation is past the first. A prelude's own placement or pick mid-opening is NOT it.
+   */
+  const openingOverByServer = computed((): boolean => {
+    const view = shell.playerView;
+    if (firstActionOwed(view) || bonusActionOwed(view) || startPlacementOrderOf(view) !== undefined) {
+      return false;
+    }
+    if (view.game.generation > 1) {
+      return true;
+    }
+    const wf = view.waitingFor;
+    const title = wf?.title;
+    return wf !== undefined && wf.type === 'or' && wf.startGamePrompt === undefined &&
+      isActionMenuTitle(typeof title === 'string' ? title : title?.message);
+  });
+
+  /**
+   * THE START's ANCHOR IS DEAD (the stack's dead-anchor rule asks, through the shell's `deadPhaseAnchors`): the start
+   * no longer lives AND the server has said the opening is over. A frame of the start still off stage then — parked
+   * by the player's own minimize — has nothing left to come back to, and goes by the same rule as a parked draft or
+   * sitting of a phase that ended. (Never on `startFrameLive` alone: between two questions of the opening it may
+   * fall for a tick, and a parked root must survive that.)
+   */
+  const startAnchorDead = computed((): boolean => {
+    return !startFrameLive.value && openingOverByServer.value;
+  });
+
+  const startStagesOrphaned = computed((): boolean => {
+    if (consoleStartState.firstAct.stage === 'idle' && consoleStartState.bonusAct.stage === 'idle') {
+      return false;
+    }
+    if (!workspaceFrameParked('start') || !openingOverByServer.value) {
+      return false;
+    }
+    if ((workspaceOutcomeState.host === 'start' && workspaceOutcomeState.sourceCard !== '') ||
+        workspaceFrameHasNested('start') || hostedStepOwedTo('start') || hostedStepLiveIn('start')) {
+      return false;
+    }
+    return !consoleStartState.firstAct.submitting && !startSceneHeld() && !startHeroPlaying() &&
+      shell.admits('scene') && currentRevealEvent() === undefined && !isHandDeliveryActive() &&
+      blockingAnimationHoldCount() === 0;
+  });
+  let orphanFoldToken = 0;
+  watch(startStagesOrphaned, (orphaned) => {
+    if (!orphaned) {
+      return;
+    }
+    const token = ++orphanFoldToken;
+    void shell.$nextTick(() => {
+      const confirm = (): void => {
+        if (token !== orphanFoldToken || !startStagesOrphaned.value) {
+          return;
+        }
+        const stood = foldStartActStages();
+        console.warn(`[start-stage] the opening's stage (first action «${stood.first}», bonus «${stood.bonus}») folded by the server's word — ` +
+          `its frame stood parked with no scene to run its leave, and the server asks «${shell.playerView.waitingFor?.type ?? 'nothing'}» of the game ` +
+          `(generation ${shell.playerView.game.generation})`);
+      };
+      if (typeof requestAnimationFrame === 'function') {
+        // A RELEASE of the opening: the frame, or shortly when none comes, or the shell's own end.
+        void whenPainted(1, 50, flow).then(confirm);
+      } else {
+        confirm(); // server-runner / jsdom — no frame clock to wait on
+      }
+    });
+  }, {immediate: true});
+
+  /**
    * The MINIMIZED START's own copy — the start workspace is the one surface
    * that legitimately stands with NO live prompt (the table is still
    * confirming), so the shared task summary has nothing to say about it.
@@ -1163,6 +1258,7 @@ export function createStartController(shell: StartPort) {
     startDiscardStepDue,
     startSponsorEmbed,
     startFrameLive,
+    startAnchorDead,
     startDeferSummary,
     scheduleStartExcursionRelease,
     enterStartHostedStep,

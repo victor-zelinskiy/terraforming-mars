@@ -137,6 +137,13 @@ export function storyCoveredByPlayer(body: string): boolean {
   const namesOf = (list: string): Array<string> => list.split(',').map((s) => s.trim().replace(/^"|"$/g, '')).filter((s) => s !== '');
   const names = namesOf(covered[1]);
   const seen = /"watchableSeen":\s*true/.test(body);
+  // A BOARD NEVER IN VIEW WHOSE ONE COVER ENDS BY ITSELF, STILL INSIDE ITS BOUND (`"selfBounded"` — the park's own
+  // word, `boardBeatPark.boardGivenBackSoon`: a sitting on its way up): the story's thirty seconds were spent behind
+  // lawful covers and its due fell inside the last of them — the cover is about to give the board back, and has its
+  // own bound and its own line if it does not.
+  if (!seen && /"selfBounded":\s*"/.test(body)) {
+    return true;
+  }
   if (!boardCoversAreThePlayers(names) && !(!seen && riseBehindThePlayersScreen(names))) {
     return false;
   }
@@ -276,6 +283,12 @@ export const DIAG_SHAPES: Readonly<Record<string, ReadonlyArray<Row>>> = {
       // rung it is that episode's echo.
       name: 'cure', re: /^cure «([^»]*)» by (\S+) — expected «([^»]*)», on screen «([^»]*)»/, tier: 'defect', parts: [1, 3, 4], dims: {by: 2},
       read: (m) => (m[2] === 'liveness' ? {tier: 'info'} : {}), echoOf: ['liveness/stall'],
+    },
+  ],
+  'start-stage': [
+    {
+      name: 'folded', re: /^the opening's stage \(first action «([^»]*)», bonus «([^»]*)»\) folded by the server's word/, tier: 'planned', parts: [1, 2],
+      why: 'the opening was finished where this page could not see it (the same seat elsewhere) while its start stood parked: the stage has no scene to run its leave, the server already asks the game\'s own question — the stage folds by that word and the parked frame goes by the anchor rule',
     },
   ],
   'start-director': [

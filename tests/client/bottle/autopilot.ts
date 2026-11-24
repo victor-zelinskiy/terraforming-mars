@@ -37,7 +37,7 @@ export type AutopilotOptions = {
   /** Presses of the finale (the END phase: the ceremony's screens) before the last word. */
   finalePresses?: number,
   /** Called where the door is about to answer for the viewer — the screen still stands as the walk left it (a reading aid). */
-  onDoor?: (what: string) => void,
+  onDoor?: (what: string, lastPresses: ReadonlyArray<string>) => void,
   /**
    * THE SOAK's SAMPLE (stage 6 — «flat over a whole game»): called ONCE A GENERATION, at the same place every time —
    * the viewer's action menu with nothing on the stack (the board home) — so what it counts (DOM nodes, the kernel's
@@ -269,7 +269,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
         const stood = standsNow();
         const landed = await passByWheel(asked.promptId);
         if (!landed) {
-          options.onDoor?.(`pass · gen ${truth.generation}`);
+          options.onDoor?.(`pass · gen ${truth.generation}`, result.log.slice(-30));
         }
         if (landed) {
           result.passes.ui++;
@@ -287,7 +287,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
         }
       } else {
         result.doors.push(`${asked.type} · gen ${truth.generation} · ${standsNow()}`);
-        options.onDoor?.(`${asked.type} · gen ${truth.generation}`);
+        options.onDoor?.(`${asked.type} · gen ${truth.generation}`, result.log.slice(-30));
         // (A question that is not the menu is never «passed»: the answer the door gives is a move, as the screen's would be.)
         const moved = await server.seatAnswersRandomly(viewer, seatRng(), 0);
         await bottle.clock.drain();

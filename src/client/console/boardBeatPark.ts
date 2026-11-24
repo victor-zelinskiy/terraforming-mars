@@ -60,6 +60,7 @@ import {Color} from '@/common/Color';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {GameModel} from '@/common/models/GameModel';
 import {boardCoversAreThePlayers} from '@/common/diagnostics/shapes';
+import {SELF_BOUNDED_COVERS} from '@/client/console/boardCoverWitness';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionCeilingMs} from '@/client/components/motion/motionTokens';
@@ -335,6 +336,8 @@ const parkWindow = {
   drainAt: 0, drainStep: '',
   /** The gate's LAST word: when the guarded drain last stood behind it, and whether that gate ends by itself. */
   gatedAt: 0, gateEndsByItself: false,
+  /** The board's ONE cover while it is a self-bounded cover of the game's own, and since when (`boardGivenBackSoon`). */
+  soleCover: '', soleCoverSince: 0,
 };
 
 /** A gate's word older than this is no longer «now» (the ledger re-asks every `LEDGER_REDRIVE_MIN_GAP_MS`). */
@@ -359,8 +362,42 @@ export function noteBoardBeatDrainGated(reasons: ReadonlyArray<string>): void {
   parkWindow.gateEndsByItself = !reasons.includes('reveal-open') && !reasons.includes('reveal-pending');
 }
 
+/**
+ * THE BOARD IS ABOUT TO BE GIVEN BACK — its ONE cover is a cover of the game's own that ends by itself, and it is
+ * still inside its bound (`boardCoverWitness.SELF_BOUNDED_COVERS`: a sitting on its way up — fifteen seconds, then
+ * the board is handed back or the sitting stands and tells the scales itself). Since when, by the park's own looks.
+ *
+ * WHY THE STORY ASKS. A step parked under another seat's turn spends most of its thirty seconds behind that turn;
+ * the sitting then begins, covers the board for its rise — and the story's due falls inside the rise. Each cover was
+ * lawful and bounded; their SUM was not the story's to answer for, and the degrade snapped the scale seconds before
+ * the board came back to tell it (the autopilot's browser half on CI, 2026-11-24 — game 58, run 45433101055: «degraded
+ * after 30s … coveredBy: [sitting-rise] … held: [oceans]», the player on the board home beside the sitting's plate,
+ * filed as a defect). A story whose board is about to be given back WAITS for it — the ledger's bounded grace, the
+ * same one a telling in progress takes — and a due that still comes inside the cover's bound says so (`selfBounded`).
+ */
+function boardGivenBackSoon(): string | undefined {
+  const cover = parkWindow.soleCover;
+  if (cover === '') {
+    return undefined;
+  }
+  const stood = Date.now() - parkWindow.soleCoverSince;
+  return stood < (SELF_BOUNDED_COVERS.get(cover) ?? 0) ? `${cover} ${Math.round(stood / 1000)}s` : undefined;
+}
+
+/** One look of the window at WHO covers the board: a sole self-bounded cover of the game's is timed from its first look. */
+function noteSoleCover(): void {
+  const covers = coverReasonsProbe?.() ?? [];
+  const sole = covers.length === 1 && SELF_BOUNDED_COVERS.has(covers[0]) ? covers[0] : '';
+  if (sole !== parkWindow.soleCover) {
+    parkWindow.soleCover = sole;
+    parkWindow.soleCoverSince = Date.now();
+  }
+}
+
 function resetParkWindow(): void {
   watchableSeen = false;
+  parkWindow.soleCover = '';
+  parkWindow.soleCoverSince = 0;
   parkWindow.looks = 0;
   parkWindow.seen = 0;
   parkWindow.drains = 0;
@@ -484,6 +521,7 @@ function armSafety(): void {
       // Every look of the ledger's heartbeat is a sample of the window — the degrade reports whether ANY saw the board.
       const watchable = boardWatchable();
       parkWindow.looks++;
+      noteSoleCover();
       if (watchable) {
         watchableSeen = true;
         parkWindow.seen++;
@@ -497,7 +535,9 @@ function armSafety(): void {
     // window's last seconds, a landing was still settling on it, and the due snapped the scales the drain was about
     // to glide (the box's whole games, 2026-11-24 — game 143: «watchable: true, looks 8/112, drains 0, gated ×10 by
     // scene-settling»). The same bounded grace; a gate that outlives it is a wedge, degraded and named.
-    telling: () => boardBeatParkState.draining || drainStandsAtItsGate(),
+    // …AND SO IS A BOARD ABOUT TO BE GIVEN BACK (`boardGivenBackSoon` — a sitting on its way up, inside its bound):
+    // the story waits for the board it is owed on instead of snapping seconds before it.
+    telling: () => boardBeatParkState.draining || drainStandsAtItsGate() || boardGivenBackSoon() !== undefined,
     degrade: () => releaseBoardBeatPark(),
     // The degrade names WHICH gate never opened: `watchable: false` is the
     // honest multiplayer wait (the viewer sat in a screen while an opponent
@@ -518,6 +558,7 @@ function armSafety(): void {
       gated: parkWindow.gated,
       gatedBy: [...parkWindow.gatedBy],
       coveredBy: [...(coverReasonsProbe?.() ?? [])],
+      ...(boardGivenBackSoon() !== undefined ? {selfBounded: boardGivenBackSoon()} : {}),
       pending: boardBeatParkPending(),
       draining: boardBeatParkState.draining,
       sceneHeld: boardBeatParkState.sceneHeld,

@@ -170,6 +170,18 @@ describe('playerOwnedHolds — a hold that waits on the player says so', () => {
     ], now);
     expect(leak.succession).is.false;
     expect(leak.ages).to.eq('hand-delivery[notification-only] 12.0s, tile-flight[blocking] 0.3s');
+    // THE MIXED CASE: the hold that stood the bound waits for the PLAYER, a young scene stands beside it — planned.
+    const mixed = starvationHolds([
+      {label: 'vp-shares', scope: 'notification-only', since: now - QUEUE_STARVATION_MS - 1_200},
+      {label: 'parliament-sitting:enact/support', scope: 'blocking', since: now - 800},
+    ], now, (label) => (label === 'vp-shares' ? 'the tile of another seat waits for a board the viewer keeps covered' : undefined));
+    expect(mixed.succession).is.false;
+    expect(mixed.owned).to.eq('vp-shares: the tile of another seat waits for a board the viewer keeps covered');
+    // …and an old hold that waits for NOBODY keeps the line a leak, whoever else waits for the player.
+    expect(starvationHolds([
+      {label: 'vp-shares', scope: 'notification-only', since: now - QUEUE_STARVATION_MS - 1_200},
+      {label: 'tile-flight', scope: 'blocking', since: now - QUEUE_STARVATION_MS - 5},
+    ], now, (label) => (label === 'vp-shares' ? 'waits for the player' : undefined)).owned).to.eq(undefined);
     // No hold named at all (the block is somebody else's «animation»): never a succession — the old line.
     expect(starvationHolds([], now)).to.deep.eq({ages: '', succession: false});
     // …and the two lines, as the classifier reads them.
@@ -178,6 +190,8 @@ describe('playerOwnedHolds — a hold that waits on the player says so', () => {
     expect(causeOf(said, 'warn')).to.deep.include({cls: 'notifications/starvation-succession', tier: 'planned'});
     const leaked = `${head} — standing ${leak.ages} (leaked hold: hand-delivery[notification-only], tile-flight[blocking])`;
     expect(causeOf(leaked, 'warn')).to.deep.include({tier: 'defect'});
+    const owned = `${head} — vp-shares: remote-tiles · city:17 1 (the holds wait for the player: ${mixed.owned} — beside scenes younger than the bound; ${mixed.ages})`;
+    expect(causeOf(owned, 'warn')).to.deep.include({cls: 'notifications/starvation-owned/vp-shares', tier: 'planned'});
     expect(causeOf(leaked, 'warn')?.cls).to.match(/^notifications\/starvation\/hand-delivery/);
   });
 });

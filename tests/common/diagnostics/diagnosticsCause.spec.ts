@@ -89,6 +89,9 @@ describe('diagnostics cause — the class is the line\'s structure, never its wo
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["placement"],"pending":true}')).to.eq('planned');
     // The box's field case (2026-11-18): the player ON the board, no frame — the game's own cover held it: a defect.
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["sitting-rise"],"pending":true}')).to.eq('defect');
+    // …unless the park says the rise is still INSIDE ITS OWN BOUND: the board is about to be given back.
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["sitting-rise"],"selfBounded":"sitting-rise 9s","pending":true}')).to.eq('planned');
+    expect(story('{"watchable":true,"watchableSeen":true,"drains":0,"gated":0,"coveredBy":["sitting-rise"],"selfBounded":"sitting-rise 9s","pending":true}'), 'a board that WAS seen keeps its own reading').to.eq('defect');
     // …a sitting on its way up BESIDE a screen of the player's own rises behind that screen (bounded by its own net):
     // the board was the player's screen's the whole window.
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["workspace","sitting-rise"],"pending":true}')).to.eq('planned');

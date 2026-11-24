@@ -39,7 +39,7 @@ const ERROR: ReadonlyArray<string> = [
 const STALL: ReadonlyArray<string> = [
   'liveness', 'workspace-stall', 'workspace-anchor', 'workspace-outcome', 'workspace-conclusion',
   'workspace', 'ws-stack',
-  'start-stranded', 'start-shadow', 'start-director', 'screen-shadow', 'console-leak-detector',
+  'start-stranded', 'start-shadow', 'start-director', 'start-stage', 'screen-shadow', 'console-leak-detector',
   'console-foreground-watchdog', 'wait-graph', 'animation-hold', 'screen-handoff', 'presentation-ledger',
   'notifications', 'deferred-refresh', 'transport', 'flow', 'mandatory-gate', 'teleport', 'scene-transition',
   'cursor', 'realtime',

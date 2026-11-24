@@ -1311,4 +1311,63 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     await live.advance(6_000);
     expect(classes()).to.deep.equal([]);
   });
+  /*
+   * THE OPENING FINISHED WHERE THIS PAGE COULD NOT SEE IT — thirteen classes of one incident (the autopilot in the
+   * bottle, 2026-11-24 — game 50 of 49…72, CI run 45433101055; issues #119…#132: `liveness/stall/unserved/cardselect/
+   * start:browse/stranded`, `console-leak-detector/stranded-prompt`, `…/covered-prompt`, `wait-graph/dead-end/
+   * surface:start`, the mandatory lease expired and quarantined, `band-APART` ×130). The player minimizes the start on
+   * the corporation's first action («B Свернуть» — the frame is PARKED, the scene unmounted); the first action is then
+   * answered elsewhere (the same seat on another device; in the walk, the pilot's door) and the server asks the game's
+   * own menu. The first-action stage is module state and what ends it is the SCENE's leave — with no scene it stood
+   * for good, kept the start «serving», and its parked frame stayed the phase's root for the whole game: «Вернуться к
+   * решению» over a decision that no longer existed, the pass refused with «сначала завершите текущее действие», every
+   * draft after it opened by a cure. The law: a stage nobody is there to run is over by the server's word
+   * (`startController` — the fold, the dead anchor; the set-aside record ends with its chain).
+   */
+  it('the start minimized on the first action, the action answered elsewhere: the stage folds by the word of the server — no start left parked, the pass is not refused, nothing is filed', async () => {
+    const table = await bottleServer().bootFixture('hydro-terminal-surge');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    const start = live.pageModules.consoleStartState.consoleStartState;
+    const stack = live.pageModules.consoleWorkspaceStack;
+    await live.advance(4_000);
+    expect(live.frames(), 'the start workspace stands on the first action').to.deep.equal(['start:browse']);
+    expect(start.firstAct.stage, 'the first-action stage runs').to.not.equal('idle');
+    expect(await live.press('Escape')).to.equal('consumed');
+    await live.advance(2_000);
+    expect(stack.workspaceFrameParked('start'), 'the minimize parked the start').to.equal(true);
+    expect(live.bar(), 'the way back is on screen').to.match(/Return to the decision/);
+
+    // THE CLASS: the opening is finished ELSEWHERE — the seat's own questions answered at the server, the page told
+    // as of any answer it did not give (the wake, or its poll), until the server asks the game's own menu.
+    const openingOver = (): boolean => {
+      const view = live.view();
+      return view !== undefined && (view.pendingInitialActions ?? []).length === 0 &&
+        view.waitingFor?.type === 'or' && view.waitingFor.startGamePrompt === undefined;
+    };
+    for (let i = 0; i < 12 && !openingOver(); i++) {
+      await bottleServer().seatAnswersRandomly(live.seatId, 50 + i, 0);
+      await live.advance(2_000);
+    }
+    expect(openingOver(), `the server asks the game's menu (it asks «${live.view()?.waitingFor?.type}», owed ${JSON.stringify(live.view()?.pendingInitialActions ?? [])})`).to.equal(true);
+
+    // WHAT THAT ANSWER DREW IS THE PAGE's TO SHOW (the corporation's cards, in the reveal): the stage does not fold
+    // under a presentation that could still be its own — the player takes the cards first.
+    expect(start.firstAct.stage, 'held while the draw is shown').to.not.equal('idle');
+    for (let i = 0; i < 8 && /Take card|Take all/.test(live.bar()); i++) {
+      await live.press('Enter');
+      await live.advance(2_500);
+    }
+    expect(live.bar(), 'the draw is taken').to.not.match(/Take card|Take all/);
+
+    // Past the fold's own confirmation, the shadow's and the arbiter's graces: whoever judges the screen has judged it.
+    await live.advance(15_000);
+    expect(start.firstAct.stage, 'the stage is at rest — no scene stood to run its leave').to.equal('idle');
+    expect(stack.workspaceFrameKnown('start'), 'no start is left parked').to.equal(false);
+    expect(live.frames()).to.deep.equal([]);
+    expect(live.bar(), 'nothing is «set aside»: the bar of the board home stands').to.not.match(/Return to the decision/);
+    expect(live.liveness().why, 'the player can act').to.deep.equal([]);
+    expect(live.lines().filter((line) => line.includes('[start-stage]')), 'the fold is said once').to.have.length(1);
+    expect(classes(), 'a planned ending — nothing is filed').to.deep.equal([]);
+  });
 });

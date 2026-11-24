@@ -222,7 +222,6 @@
   "src/client/console/scoreExplorerMotion.ts": 1,
   "src/client/console/session/consoleSession.ts": 1,
   "src/client/console/session/questionScope.ts": 1,
-  "src/client/console/setAside.ts": 1,
   "src/client/console/shell/colonyController.ts": 1,
   "src/client/console/shell/handSelectController.ts": 1,
   "src/client/console/shell/maController.ts": 1,

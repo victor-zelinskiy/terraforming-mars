@@ -770,10 +770,16 @@ export function createPadRouterController(shell: PadRouterPort) {
     // below and land in handleSectionIntent.)
     const scope = resolveScope();
     const fallback = scope !== undefined;
+    // THE PRESS THAT MEETS THE LAYER is how the shell LEARNS of it (nothing reactive says a layer of the focus engine
+    // came up): for the shell that press is the layer's opening — `fallback:open`, a look the bar could not have stood
+    // on yet — and every press after it finds the bar on the layer's own commands (`fallback`). (The counting pass of
+    // whole games, 2026-11-24 — game 619: the page's first press met the loading curtain over the initial draft, and
+    // the one-owner law read the pair as `bar-APART:start>fallback`.)
+    const met = fallback && !consoleState.fallbackActive;
     consoleState.fallbackActive = fallback;
     consoleState.fallbackScopeId = scope?.def.id ?? '';
     if (scope !== undefined) {
-      notePadRung('fallback');
+      notePadRung(met ? 'fallback:open' : 'fallback');
       watchFallbackScope(scope.rootEl);
       return false;
     }

@@ -18,7 +18,7 @@ import {
   onForegroundFreed,
   registerFlowHoldSupplier,
 } from '@/client/components/presentation/presentationFlow';
-import {activeAnimationHoldDetails, activeAnimationHoldLabels, activeAnimationHoldWaits, playerOwnedHolds} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldDetails, activeAnimationHoldLabels, activeAnimationHoldWaits, holdWaitsForPlayer, playerOwnedHolds} from '@/client/components/presentation/animationHold';
 import {FrameWatch, watchFrames} from '@/client/console/kernel/frameWitness';
 import {PendingQueueSummary, pendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {ackBotTurn} from '@/client/components/marsbot/botTurnAck';
@@ -236,11 +236,26 @@ function clearQueueBlocked(): void {
  * none of them has itself stood the escape's bound. The bound is one animation's lifetime; a chain of scenes each
  * within its own is no leak of the one that happens to stand at the twelfth second.
  */
-export function starvationHolds(waits: ReadonlyArray<{label: string, scope: string, since: number}>, now: number): {ages: string, succession: boolean} {
+export function starvationHolds(
+  waits: ReadonlyArray<{label: string, scope: string, since: number}>, now: number,
+  waitsForPlayer?: (label: string) => string | undefined,
+): {ages: string, succession: boolean, owned?: string} {
   const oldest = waits.reduce((most, w) => Math.max(most, now - w.since), 0);
+  // …AND THE MIXED CASE: the holds that DID stand the bound all wait for the player, and whatever stands beside them
+  // is a scene younger than the bound. Neither rule alone covered it — «every hold waits for the player» was refused
+  // by the young scene, «a succession» by the old hold — and the line called both «leaked» (the counting pass of
+  // whole games, 2026-11-24 — game 618: a score share thirteen seconds behind a tile that waited for a board the
+  // player kept covered by the sitting, beside the sitting's own beat 0.8 s old).
+  const old = waits.filter((w) => now - w.since >= QUEUE_STARVATION_MS);
+  const reasons = old.map((w) => {
+    const why = waitsForPlayer?.(w.label);
+    return why === undefined ? undefined : `${w.label}: ${why}`;
+  });
+  const owned = old.length > 0 && reasons.every((reason) => reason !== undefined) ? reasons.join(' · ') : undefined;
   return {
     ages: waits.map((w) => `${w.label}[${w.scope}] ${(Math.max(0, now - w.since) / 1000).toFixed(1)}s`).join(', '),
     succession: waits.length > 0 && oldest < QUEUE_STARVATION_MS,
+    ...(owned !== undefined ? {owned} : {}),
   };
 }
 
@@ -318,8 +333,13 @@ export function promoteFromQueue(): void {
         // bounded lifetime it is always a leak» is a statement about ONE animation's lifetime: when no standing hold
         // has itself stood the bound, nothing leaked — the delivery at the bound is the designed mode over a long
         // chain of honest scenes, and each hold keeps its OWN ceiling as its leak line. Every hold says its age.
-        const {ages, succession} = starvationHolds(activeAnimationHoldWaits(), now);
-        if (succession) {
+        const {ages, succession, owned: oldOwned} = starvationHolds(activeAnimationHoldWaits(), now, holdWaitsForPlayer);
+        if (oldOwned !== undefined) {
+          console.warn(
+            `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
+            `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} (the holds wait for the player: ${oldOwned} — ` +
+            `beside scenes younger than the bound; ${ages})`);
+        } else if (succession) {
           console.warn(
             `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
             `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway${holdsSay()} (planned: a succession of scenes — ` +

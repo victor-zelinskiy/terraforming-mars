@@ -147,6 +147,9 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     // A view the press opened (or one with a strip of its own) · a beat that absorbed under a standing bar.
     expect(barRungVerdict('section:hand', 'zoom')).to.eq('bar-look:zoom');
     expect(barRungVerdict('start', 'info:open')).to.eq('bar-look:info:open');
+    // A layer of the focus engine is LEARNED by the press that meets it: that press is its opening; a later one is not.
+    expect(barRungVerdict('start', 'fallback:open')).to.eq('bar-look:fallback:open');
+    expect(barRungVerdict('start', 'fallback')).to.eq('bar-APART:start>fallback');
     // …but a view STANDING with the bar on somebody else's commands is the two copies apart.
     expect(barRungVerdict('externalDraw', 'info')).to.eq('bar-APART:externalDraw>info');
     expect(padRungVerdict(serves('task'), 'info:open')).to.eq('pad-look:info:open');

@@ -43,6 +43,12 @@
       "games": 1,
       "first": "ap0:31",
       "why": "the same stage of the same story — a cell's resource flown off a MEASURED cell (see `presentation-ledger/story-due/cell-resource`): with no layout the stage never stands, its hold never ends, and the feed's cards wait behind it past their bound. NOT THERE in a browser: CI's passes 45370636119 and 45388373269 (24 whole games each, 2026-11-24) and the box's whole games of the same day (builds d17564b913 … 6d4d7d549f) name it at no tier."
+    },
+    "invariant/broken/console-start:summary-tiles-unmeasured": {
+      "tier": "defect",
+      "games": 1,
+      "first": "ap0:63",
+      "why": "the start's summary MEASURES every tile before its convoy carries the picks into them (`startDockMotion.measureTargets` — the resting rect of each tile): with no layout every tile reads 0×0, so a walk that reaches the summary BY THE SCREEN names it (most walks answer `initialCards` through the door, which is why it took 63 games to see). NOT THERE in a browser, where every game walks the start by the screen: the box's whole games of 2026-11-24 (250 on d17564b913 … 0e904fa3e9, 40 on 0e904fa3e9, 22 on 24c42f454e), the browser half of CI's pass 45433101055 and the whole e2e suite (45402975198) name it at no tier."
     }
   }
 }

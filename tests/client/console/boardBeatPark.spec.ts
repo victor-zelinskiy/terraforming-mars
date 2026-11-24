@@ -531,6 +531,81 @@ describe('boardBeatPark', function() {
   });
 
   /*
+   * A BOARD ABOUT TO BE GIVEN BACK (the autopilot's browser half on CI, 2026-11-24 — game 58: a bot's ocean parked
+   * under its turn, then the sitting began and covered the board for its rise; the story's thirty seconds ran out
+   * inside the rise — «coveredBy: [sitting-rise]» — and the scale snapped seconds before the board came back).
+   */
+  it('a story whose ONE cover is a sitting on its way up waits for the board it is about to get — told there; a due inside the rise is the park saying so', () => {
+    const realNow = Date.now;
+    let t = realNow();
+    Date.now = () => t;
+    const warn = console.warn;
+    const said: Array<string> = [];
+    console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
+    try {
+      let covers: Array<string> = ['section'];
+      registerBoardCoverReasons(() => (watchable ? [] : covers));
+      let drained = 0;
+      registerBoardBeatRedrive(() => {
+        drained++;
+      });
+      watchable = false;
+      noteBoardScaleAdvance(gameWith({oceans: 0}), gameWith({oceans: 1}));
+      // Twenty-four seconds behind the player's own screen, then the sitting begins: the rise is the ONE cover.
+      t += BOARD_BEAT_PARK_SAFETY_MS - 6_000;
+      settlePresentationDue();
+      covers = ['sitting-rise'];
+      settlePresentationDue();
+      t += 6_200; // the due comes six seconds into the rise
+      settlePresentationDue();
+      expect(boardBeatParkState.heldParams, 'the board is about to be given back: not cut').to.deep.equal({oceans: 0});
+      expect(said.filter((line) => line.includes('degraded after'))).to.deep.eq([]);
+      // The rise gives the board back (its net, or the sitting standing aside): the story is told on it.
+      t += 3_000;
+      watchable = true;
+      settlePresentationDue();
+      expect(drained, 'the drain is driven on the board that came back').to.be.greaterThan(0);
+      expect(said.filter((line) => line.includes('degraded after'))).to.deep.eq([]);
+
+      // …and a rise that began as the due came outlives the ledger's grace: the degrade says the cover was inside its
+      // own bound, and the line is the PLANNED ending (the cover has its own bound and its own line).
+      releaseBoardBeatPark();
+      said.length = 0;
+      watchable = false;
+      covers = ['section'];
+      noteBoardScaleAdvance(gameWith({oceans: 1}), gameWith({oceans: 2}));
+      t += BOARD_BEAT_PARK_SAFETY_MS - 500;
+      settlePresentationDue();
+      covers = ['sitting-rise'];
+      settlePresentationDue();
+      t += 600;
+      settlePresentationDue();
+      expect(said.filter((line) => line.includes('degraded after')), 'inside the grace').to.deep.eq([]);
+      t += STORY_TELLING_GRACE_MS;
+      settlePresentationDue();
+      const line = said.find((entry) => entry.includes('degraded after')) ?? '';
+      expect(line, 'the park names the cover and how long it stood').to.match(/"selfBounded":"sitting-rise 1\ds"/);
+      // (Its tier is the shape's row — `diagnosticsCause.spec`: `selfBounded` on a board never seen reads PLANNED.)
+
+      // A cover of the game's that has NO bound of its own gets no grace.
+      said.length = 0;
+      covers = ['section'];
+      noteBoardScaleAdvance(gameWith({oceans: 2}), gameWith({oceans: 3}));
+      t += BOARD_BEAT_PARK_SAFETY_MS - 500;
+      settlePresentationDue();
+      covers = ['planet-focus'];
+      settlePresentationDue();
+      t += 600;
+      settlePresentationDue();
+      expect(said.filter((line) => line.includes('degraded after')), 'the camera alone: the honest degrade at the due').to.have.length(1);
+      expect(said.find((entry) => entry.includes('degraded after')) ?? '', 'and the park does not call it self-bounded').to.not.contain('selfBounded');
+    } finally {
+      Date.now = realNow;
+      console.warn = warn;
+    }
+  });
+
+  /*
    * WHO KEEPS THE SCALES FROM SPEAKING, for a wait's ceiling (`wait-graph/unshaped` — `quiet:city-payout:scales` under
    * a green `console-arabia-terra`, the whole suite on CI, 2026-11-22): the cities' answer waited fifteen seconds for
    * the scales' story while the player answered «on which card» in a workspace of their own — and the line had no

@@ -29,6 +29,7 @@ import ConsoleHandSection from '@/client/components/console/ConsoleHandSection.v
 import {endFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
 import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, workspaceFrameSelector, workspaceLastVerb, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {setAsideRecord, takeUpQuestion} from '@/client/console/setAside';
 import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
 import {installFlowCoverageProbe} from '@/client/console/flowCoverageProbe';
 import {resetStdProjectsFlow, stdProjectsFlow} from '@/client/console/consoleStdProjects';
@@ -219,6 +220,7 @@ export type WiringPort = {
   showNotice: UnwrapRef<NoticeController['showNotice']>,
   startExcursionHolds: UnwrapRef<StartController['startExcursionHolds']>,
   startFrameLive: UnwrapRef<StartController['startFrameLive']>,
+  startAnchorDead: UnwrapRef<StartController['startAnchorDead']>,
   startPromptSurfaceStands: UnwrapRef<StartController['startPromptSurfaceStands']>,
   startSceneMounted: UnwrapRef<StartController['startSceneMounted']>,
   startSceneOwnsPad: UnwrapRef<StartController['startSceneOwnsPad']>,
@@ -270,6 +272,11 @@ export function createWiringController(shell: WiringPort) {
     }
     if (!shell.endgameFrameLive) {
       dead.push('end');
+    }
+    // …and the OPENING, once the server has said it is over (`startController.startAnchorDead` — a start parked by
+    // the player's own minimize and finished where this page could not see it has nothing to come back to).
+    if (shell.startAnchorDead) {
+      dead.push('start');
     }
     return dead;
   });
@@ -741,6 +748,14 @@ export function createWiringController(shell: WiringPort) {
     registerFrameBeatExpired((kind, phase) => shell.forceRecoverStuckWorkspace(kind, `[workspace-stall] beat «${kind}:${phase}» torn down at the frame's own bound`));
     registerAnchorDropListener(({home, kinds}) => {
       console.warn(`[workspace-anchor] dropped ${kinds.join(', ')} (${home}) — its phase is over; it does not come back`);
+      // «PARKED ⇒ SET ASIDE» HAS ANOTHER HALF: a record that stood for a parked CHAIN ends with the chain. The park's
+      // drop left it standing under the game's own question — «a decision set aside» with no restore card and nothing
+      // to restore: the pass and every action refused with «сначала завершите текущее действие» until the wait graph
+      // un-set it four seconds later (`dangling deferred:n … waits on surface:restore-card — not there`; the bottle's
+      // game 50, 2026-11-24 — the opening parked, finished elsewhere, its frame dropped by this very rule).
+      if (home === 'parked' && !workspaceStackCollapsed() && setAsideRecord()?.what === 'chain') {
+        takeUpQuestion('chain-gone');
+      }
     });
     // THE CURE STAND'S SEAM (`?screenControl=1` only): a latch bug put in on purpose — the stack dropped, or a foreign
     // workspace stood up, behind the product's back.
