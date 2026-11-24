@@ -43,7 +43,7 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import ConsoleRevealOverlay from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
-import {enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, workspaceFrameIndex, workspaceFramePhase, workspaceStackBack, workspaceStackBackVerb, workspaceFrameHost, workspaceFrameIsOverlay, workspaceStackTopAxis} from '@/client/console/consoleWorkspaceStack';
+import {enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, workspaceFrameIndex, workspaceFramePhase, workspaceStackBack, workspaceStackBackVerb, workspaceFrameHost, workspaceFrameIsOverlay, workspaceLateralBackTarget, workspaceStackTopAxis} from '@/client/console/consoleWorkspaceStack';
 import {acceptsInput, isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {requestStdProjectCancel, stdProjectsFlowLive} from '@/client/console/consoleStdProjects';
 import {handStageTransitioning} from '@/client/console/consoleHandStageMotion';
@@ -2353,6 +2353,17 @@ export function createPadRouterController(shell: PadRouterPort) {
           requestStdProjectCancel();
         }
         shell.submit(cancelResponse());
+        return;
+      }
+      // A LATERAL SCREEN OVER THE FLOW THAT ASKS (`workspaceLateralBackTarget` — the Colonies opened over a sitting):
+      // B is ONE level, back to the frame that answers the question. Minimizing here parked both frames, and the way
+      // back restored both — the lateral screen on top again, the answer's own page out of reach of every press.
+      if (workspaceLateralBackTarget(shell.shellTask?.kind) !== undefined) {
+        if (consoleState.section === 'hand') {
+          void shell.closeHandWithReveal();
+        } else {
+          workspaceStackBack();
+        }
         return;
       }
       shell.collapseWorkspace();

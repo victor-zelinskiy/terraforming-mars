@@ -1734,11 +1734,31 @@ open ones and by the one-owner law.
   Parliament, the function's band and the ladder's rung apart for a press (bottle game 18 AND browser game 19);
   ② `MISS · held:sitting` / `pad-MISS · section:colonies` — the sitting's tile asked while the player stands in the
   Colonies opened over the Parliament: the function says «board», the screen paints «colonies | parliament»
-  (bottle game 18). Both are the next to read.
+  (bottle game 18).
+- **ⓔ CURED — ② READ PRESS BY PRESS WAS A LOOP NO PRESS LEFT** (the same game, replayed with its trace). The
+  sitting steps aside for the board's story; the player opens the quick wheel and walks into the Colonies; the
+  sitting comes back UNDER them (a phase root survives a lateral move) and asks — its tile, then its confirmation.
+  The bar's title read «ПАРЛАМЕНТ» over the Colonies' commands and B read «На поле»; a shell task being live, the
+  pad took that B for «minimize the workspace» wherever the player stood: BOTH frames parked, and «A Вернуться к
+  заседанию» restored both — the Colonies on top again. The sitting's own page could not be reached; on a real
+  table the seat, and with the sitting's tile the whole table, waits for good. **No net named it**: the door
+  answered for the seat (the pilot's budget), and only the one-owner measure said that something was apart.
+  «Back is one logical level», asked once — `workspaceLateralBackTarget`: on a lateral screen at its browse layer
+  over another frame, B lands on that frame (the pad), says «Назад» (the bar — the same function), and such a
+  screen names itself. Class replay (`parliament-aquifer-adjourn`): red with the function off, green with it.
+  ① stays open (one press in the embedded draw's mount gap — to read on its own game).
+- **WHAT THIS SAYS OF THE INSTRUMENT:** the pilot's DOOR hides exactly this kind of defect — a question the screen
+  cannot be walked to is answered for the seat, and the game «finishes». The door's every answer is a row to read
+  (`autopilot.doors` — where the seat stood, what the bar offered), and the one-owner law over whole games is the
+  gate that does not let it pass in silence.
 - **OPEN:** `wait-graph/ceiling/parliament-world:story-quiet` (bottle, three humans — the sitting's world step
-  waited its whole 30 s for the board's story; being read on its own game); `notifications/band-no-cause` (ANOTHER
-  seat's research purchase: its payment is recorded under an action root with no category, so the band «−3 M€» has
-  no cause to name — multi-human tables only, three games of the pass); `console-leak-detector/covered-prompt/
+  waited its whole 30 s for the board's story; being read on its own game); `notifications/band-no-cause` (the
+  research purchase's payment is an ORPHAN event — `resource-changed`, source `payment`, no root and no category
+  (probed on the engine: each seat's buy is a chain of one) — so a card that tells it has a band «−3 M€» and no cause
+  to name; the page meets it only as an EXTERNAL event, i.e. the seat's own buy answered through the door / on a
+  second device — three multi-human games of the pass. The cure is the producer's: the buy opens a root of its own
+  with a category the journal and the cause line can name — a change of the journal's vocabulary, to do with its
+  guards, not in passing); `console-leak-detector/covered-prompt/
   cardselect` (bottle: the opening answered through the door while the start stood — the pilot's own artifact, as
   it was in the browser before its opening was seeded).
 

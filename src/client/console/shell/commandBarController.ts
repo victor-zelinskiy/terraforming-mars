@@ -17,7 +17,7 @@ import {multiPickConfirmCommand} from '@/client/components/console/consoleHandSe
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {consoleSystemAlertState} from '@/client/console/consoleSystemAlertState';
 import {FINALE_KICKER, finalGreeneryFinishCommand} from '@/client/console/finalGreenery/finalGreeneryModel';
-import {workspaceHostYieldsScene, workspaceFrameIndex, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameHost, workspaceFrameRoot, workspaceStackTopAxis} from '@/client/console/consoleWorkspaceStack';
+import {workspaceHostYieldsScene, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameHost, workspaceFrameRoot, workspaceLateralBackTarget, workspaceStackTopAxis} from '@/client/console/consoleWorkspaceStack';
 import {acceptsInput} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardTransaction} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
@@ -542,10 +542,12 @@ export function createCommandBarController(shell: CommandBarPort) {
     // saying «ТОРГОВЛЯ» beside a breadcrumb that says otherwise is the one
     // place the two voices could contradict each other. (The crumb still
     // carries the full path; the bar carries only where the player IS.)
-    const sectionHost = consoleState.section === 'colonies' ? workspaceFrameHost('colonies') :
-      consoleState.section === 'hand' ? workspaceFrameHost('hand') :
-        consoleState.section === 'hydro' ? workspaceFrameHost('hydro') :
-          consoleState.section === 'parliament' ? workspaceFrameHost('parliament') : undefined;
+    // (A STEP, never a LATERAL screen: a section the player walked into over a surviving phase root — the Colonies
+    // over a sitting — stands OVER that root and names ITSELF. Read as its «host», the bar said «ПАРЛАМЕНТ» under the
+    // Colonies' own commands — the autopilot's game 18.)
+    const sectionKind = consoleState.section === 'colonies' || consoleState.section === 'hand' || consoleState.section === 'hydro' ||
+      consoleState.section === 'parliament' ? consoleState.section : undefined;
+    const sectionHost = sectionKind === undefined || workspaceFrameIsOverlay(sectionKind) ? undefined : workspaceFrameHost(sectionKind);
     if (sectionHost !== undefined) {
       // …and a step hosted by a workspace that is itself a scene guest (the
       // Reds' discard inside the action workspace inside the Parliament)
@@ -1661,6 +1663,22 @@ export function createCommandBarController(shell: CommandBarPort) {
     return home;
   });
 
+  /**
+   * B ON A LATERAL SCREEN SAYS WHERE IT GOES (`workspaceLateralBackTarget` — the pad's own B reads the same function):
+   * a section the player walked into over a surviving phase root (the Colonies over a sitting, over the opening)
+   * closes ONE level, back to that root — «Назад», never «На поле» over a board the press does not reach, and never
+   * «Свернуть» of a question that screen does not serve.
+   */
+  const barCommands = computed((): Array<ConsoleCommand> => {
+    const standing = commands.value;
+    const asked = shell.shellTaskActive ? taskFor(shell.playerView)?.kind : undefined;
+    if (workspaceLateralBackTarget(asked) === undefined) {
+      return standing;
+    }
+    return standing.map((command) => command.control === 'back' && (command.label === 'To the board' || command.label === 'Minimize') ?
+      {...command, label: 'Back'} : command);
+  });
+
   /** Rules blocks the availability panel restates in full (server keys). */
   /** The viewer's ARMED one-play effects (TR49 class) — the dock's chip beside its count. */
   const dockArmedEffects = computed((): ReadonlyArray<PresentedArmedEffect> => {
@@ -1706,7 +1724,7 @@ export function createCommandBarController(shell: CommandBarPort) {
     sheetTitle,
     sheetRows,
     commandContext,
-    commands,
+    commands: barCommands,
     dockArmedEffects,
     activeTaskSummary,
   };

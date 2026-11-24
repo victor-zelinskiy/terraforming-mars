@@ -1173,6 +1173,34 @@ export function workspaceStackBackVerb(): WorkspaceBackVerb | undefined {
 }
 
 /**
+ * A LATERAL SCREEN OVER ANOTHER FRAME — B THERE IS ONE LEVEL BACK, to the frame under it.
+ *
+ * A lateral move unwinds the stack, but a PHASE-ANCHORED root survives it (the opening, the Parliament's sitting, the
+ * draft): the screen the player walked into then stands OVER that root (`overlay`). At its own browse layer B closes
+ * it — one logical level — and what comes back is the root, never the board. Returns the kind of the frame the
+ * player lands on; `undefined` when the top is no such screen (no frame under it, a hosted step, past its commit),
+ * or when `asked` — the kind of the question standing un-set-aside — is served by the TOP itself (then B is that
+ * question's own «свернуть», the whole stack's).
+ *
+ * WHY IT IS ASKED HERE, ONCE (the autopilot's game 18, 2026-11-24): the pad took B on such a screen for «a shell
+ * task is live → minimize the whole workspace» wherever the player stood. In the Colonies opened over a sitting
+ * that asked its confirmation, B («На поле») parked BOTH frames, «A Вернуться к заседанию» restored both — the
+ * Colonies on top again — and the sitting's own page, where the answer is, could not be reached by any press. The
+ * pad's B and the bar's label both read this function: the button cannot say one thing and do another.
+ */
+export function workspaceLateralBackTarget(asked?: TaskKind): WorkspaceFrameKind | undefined {
+  const frames = workspaceStackState.frames;
+  const top = frames[frames.length - 1];
+  if (top === undefined || frames.length < 2 || !top.overlay || backVerbFor(top.phase) !== 'close') {
+    return undefined;
+  }
+  if (asked !== undefined && top.serves.includes(asked)) {
+    return undefined;
+  }
+  return frames[frames.length - 2].kind;
+}
+
+/**
  * PERFORM B. One function, so the button can never do one thing and say
  * another: the command bar labels itself from `workspaceStackBackVerb` and this
  * executes exactly that verb.

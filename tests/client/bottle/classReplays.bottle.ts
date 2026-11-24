@@ -1185,4 +1185,49 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(live.bar(), 'the finale is back').to.match(/Minimize/);
     expect(classes()).to.deep.equal([]);
   });
+
+  /*
+   * THE AUTOPILOT, game 18 (stage 6, 2026-11-24) — a loop no press left, named by no net (the door answered for the
+   * seat, and the one-owner measure said only «the function says the Parliament, the Colonies paint»). The sitting
+   * stepped aside for the board's story; the player opened the quick wheel and walked into the Colonies; the sitting
+   * came back UNDER them and asked its confirmation. B in the Colonies read «На поле» and, a shell task being live,
+   * minimized the WHOLE stack; «A Вернуться к заседанию» restored it whole — the Colonies on top again. The sitting's
+   * own page, where the answer is, could not be reached; the bar's title said «ПАРЛАМЕНТ» over the Colonies' commands.
+   * B on a lateral screen is ONE level back to the frame under it (`workspaceLateralBackTarget` — the pad and the
+   * bar's label read it), and such a screen names itself.
+   */
+  it('a lateral screen over a sitting that asks: B is one level back to the sitting — its answer is one press away, nothing is filed', async () => {
+    const table = await bottleServer().bootFixture('parliament-aquifer-adjourn');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    const stack = live.pageModules.consoleWorkspaceStack;
+    const kinds = (): Array<string> => live.frames().map((frame) => frame.split(':')[0]);
+    await live.advance(4_000);
+    // The plate's A opens the sitting: its page asks the confirmation.
+    for (let i = 0; i < 6 && kinds().length === 0; i++) {
+      await live.press('Enter');
+      await live.advance(1_500);
+    }
+    expect(kinds(), 'the sitting stands').to.deep.equal(['parliament']);
+    expect(bottleServer().seatTruth(live.seatId).waitingFor, '…and asks its confirmation').to.equal('option');
+    const asked = bottleServer().seatTruth(live.seatId).promptId;
+    // THE CLASS, PLANTED: a lateral move over the sitting (the quick wheel's «Колонии»).
+    stack.enterWorkspace('colonies');
+    await live.advance(1_500);
+    expect(kinds()).to.deep.equal(['parliament', 'colonies']);
+    expect(live.bar(), 'the screen names ITSELF').to.match(/^Trading/);
+    expect(live.bar(), 'B says where it goes — one level').to.match(/Back/);
+    expect(live.bar()).to.not.match(/To the board|Minimize/);
+    await live.press('Escape');
+    await live.advance(1_500);
+    expect(kinds(), 'one level: the sitting stands, nothing is parked').to.deep.equal(['parliament']);
+    expect(live.bar(), 'the sitting names itself again').to.match(/^Parliament/);
+    // …and the answer is ONE press away: A closes the sitting, the server goes on.
+    await live.press('Enter');
+    await live.advance(2_500);
+    expect(bottleServer().seatTruth(live.seatId).promptId, 'the confirmation was answered').to.not.equal(asked);
+    await live.advance(6_000);
+    expect(live.liveness().why, 'the player can act').to.deep.equal([]);
+    expect(classes()).to.deep.equal([]);
+  });
 });

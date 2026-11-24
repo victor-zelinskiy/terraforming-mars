@@ -33,6 +33,7 @@ import {
   reconcileWorkspaceStack,
   resetWorkspaceStack,
   restoreWorkspaceStack,
+  workspaceLateralBackTarget,
   serializeWorkspaceStack,
   setWorkspaceFramePhase,
   setWorkspaceFrameServes,
@@ -331,6 +332,36 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(workspaceStackCollapsed(), 'globally: something is parked').to.eq(true);
     expect(workspaceFrameParked('hand'), 'and it is the hand').to.eq(true);
     expect(workspaceFrameParked('colonies'), 'the colonies are on screen').to.eq(false);
+  });
+
+  /*
+   * B ON A LATERAL SCREEN IS ONE LEVEL (the autopilot's game 18, 2026-11-24): the Colonies opened over a sitting that
+   * asked its confirmation minimized the WHOLE stack on B, and the way back restored both — the lateral screen on top
+   * again. The pad's B and the bar's label read one function.
+   */
+  it('a lateral screen over a surviving root: B goes one level back to the root — unless that screen itself serves what is asked', () => {
+    pushWorkspaceFrame({
+      kind: 'parliament', subject: '', stage: 'Sitting', phase: 'committed',
+      serves: ['parliamentPhase', 'party', 'chairmanQuest'], anchor: {type: 'phase', phase: 'parliament'},
+    });
+    expect(workspaceLateralBackTarget('parliamentPhase'), 'the root alone: nothing lateral').to.eq(undefined);
+    // The player walks into the Colonies: the phase root survives the unwind, the screen stands OVER it.
+    enterWorkspace('colonies');
+    expect(workspaceStackState.frames.map((frame) => frame.kind)).to.deep.eq(['parliament', 'colonies']);
+    expect(workspaceLateralBackTarget('parliamentPhase'), 'the sitting asks: B lands on the sitting').to.eq('parliament');
+    expect(workspaceLateralBackTarget(), 'nothing asked: one level all the same').to.eq('parliament');
+    expect(workspaceLateralBackTarget('colony'), 'the lateral screen serves the question itself: its own minimize').to.eq(undefined);
+    // Past its commit the lateral screen is a flow of its own — its B is the flow's.
+    setWorkspaceFramePhase('colonies', 'committed');
+    expect(workspaceLateralBackTarget('parliamentPhase')).to.eq(undefined);
+    setWorkspaceFramePhase('colonies', 'browse');
+    // The function's word is what B does: one frame leaves, the root stands, nothing is parked.
+    popWorkspaceFrame();
+    expect(workspaceStackState.frames.map((frame) => frame.kind)).to.deep.eq(['parliament']);
+    expect(workspaceStackCollapsed()).to.eq(false);
+    // …and a HOSTED step (a flow's own nesting) is never «lateral».
+    pushWorkspaceFrame({kind: 'colonies', subject: '', stage: 'Colonies', phase: 'browse', serves: ['colony'], anchor: {type: 'always'}});
+    expect(workspaceLateralBackTarget('parliamentPhase')).to.eq(undefined);
   });
 
   it('a collapsed stack still SERVES — a deferred decision is never stranded', () => {
