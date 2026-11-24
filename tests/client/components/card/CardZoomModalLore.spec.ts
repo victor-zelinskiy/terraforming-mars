@@ -88,7 +88,7 @@ describe('CardZoomModal — archive entry', () => {
       const bonus = bonusZoomEntry('B01' as any, {} as any);
       const wrapper = mountViewer({lore: true, card: bonus as ZoomCard});
       expect(wrapper.findComponent(CardLoreAside).exists()).to.eq(false);
-      expect((wrapper.vm as any).loreVisible).to.eq(false);
+      expect((wrapper.vm as any).loreVisible()).to.eq(false);
     });
   });
 
@@ -99,7 +99,7 @@ describe('CardZoomModal — archive entry', () => {
       const wrapper = mountViewer({lore: true, card: partyEffectZoomEntry(PartyName.UNITY) as ZoomCard});
       const aside = wrapper.findComponent(CardLoreAside);
       expect(aside.exists()).to.eq(true);
-      expect((wrapper.vm as any).loreVisible).to.eq(true);
+      expect((wrapper.vm as any).loreVisible()).to.eq(true);
       const model = loreModelOf(wrapper);
       expect(model.source).to.eq(PARTY_LORE[PartyName.UNITY]);
       expect(model.text).to.eq(RU_LORE[PARTY_LORE[PartyName.UNITY]]);
@@ -115,7 +115,7 @@ describe('CardZoomModal — archive entry', () => {
       // block would collide with it, so the viewer offers no model at all.
       const wrapper = mountViewer({lore: true, card: resolutionZoomEntry('aquifer-contest') as ZoomCard});
       expect(wrapper.findComponent(CardLoreAside).exists()).to.eq(false);
-      expect((wrapper.vm as any).loreVisible).to.eq(false);
+      expect((wrapper.vm as any).loreVisible()).to.eq(false);
       expect((wrapper.vm as any).loreModel).to.eq(undefined);
     });
 

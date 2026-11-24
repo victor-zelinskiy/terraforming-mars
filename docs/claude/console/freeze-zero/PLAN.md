@@ -1946,7 +1946,28 @@ Both got their instrument, and their first readings:
 - **THE SOAK, FIVE SPELLS IN** (game 402, 2.5 h of a page left alone in all): 0 – 2 layouts and 0 – 19 style
   recalculations a spell, 13 – 14 s of script in thirty minutes, the heap's change inside a spell between −1.7 and
   +0.4 MB, no long frame, no warning.
+- **WHO HOLDS THE DETACHED TREES — READ, AND THE FIRST ONE CUT** (`console-heap-retainers.spec.ts` + `heapRetainers.ts`:
+  a heap snapshot walked over strong edges from the roots to every detached node of a named tree, the chain printed
+  link by link, each closure with its source line). The instrument corrected the census first — `DOM.
+  getDetachedDomNodes` PINS what it reports, so a census taken spell after spell grows by its own hand (the snapshot
+  is taken first; the growth of the browser's node count in game 402, which has no census, is real all the same).
+  Then the chain: each kept `<dialog class="card-zoom-dialog">` hangs on `loreModel` (CardZoomModal.vue, a computed),
+  subscribed to by `loreVisible`, which nobody subscribes to.
+  **THE CAUSE IS THE CORE's — Vue 3.6, measured on rc.15:** every evaluation links a computed into its dependencies'
+  subscriber lists, and only its last subscriber leaving takes it out — an effect, or the effect SCOPE active at the
+  read. A computed whose reads are all plain script outside any effect and any active scope (a handler, a timer, a
+  method a parent calls) is NEVER released; a dependency that outlives the component keeps its closure — the whole
+  `setup` — and every element in it. (3.5 did not subscribe an unwatched computed.) **THE RULE: a derived value only
+  plain script reads is a FUNCTION; an entry point that can arrive after the unmount returns at once on a component
+  that is gone** — pinned in `vueReactivityContract.spec.ts` (three rows). The viewer: `loreVisible` a function, the
+  fit deaf once gone — **688 detached nodes after four visits → 19, the dialogs 3 → 0**.
+  THE CLASS IS THE CODEBASE's: a heuristic scan (a computed absent from the template, from every other computed,
+  from every `watch` source, and read as `.value` in the script) names ≈ 100 computeds in 44 components of 461 —
+  the action composer and the play confirm (a dozen each), the hydronetwork, the reveal, the start scene, the task
+  host, the hand (`activePageRows`), the premium card (`fleetDockFace` — mounted by the hundred). A candidate is not
+  a leak until its dependency outlives it: the probe decides, tree by tree.
 - **NEXT, in this order:** the same probe on a QUIET box (the lanes end first) — the budget's true numbers; the
+  candidates of the class above, the mounted-by-the-hundred first, and a ratchet over the scan; the
   Parliament's mount as ONE measure and ONE write (five read-after-write passes are what its 296 ms is made of); who
   holds the hand and the viewer detached — each step read by its instrument before and after.
 

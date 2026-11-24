@@ -522,10 +522,21 @@ const loreModel = computed((): LoreModel | undefined => {
   }
   return buildCardLoreModel(card.name as CardName, translateLore);
 });
-/** The archive entry is on stage — the fit reserves its column. */
-const loreVisible = computed((): boolean => {
+/**
+ * The archive entry is on stage — the fit reserves its column.
+ *
+ * A PLAIN READ OF `loreModel`, NEVER A COMPUTED OF ITS OWN (FREEZE ZERO, stage 6 — the soak's census and the heap's
+ * retainers): this stood as `computed(() => loreModel.value !== undefined)`, and with a rules panel beside the card
+ * its only readers were the fit below — plain script, outside every effect and outside the component's scope
+ * (`hasFlank` short-circuits before it). On Vue 3.6 a computed whose reads are all of that kind is NEVER released:
+ * it stays in its dependency's list of subscribers after the component is gone, keeps `loreModel` subscribed in its
+ * turn, and through `loreModel`'s closure the whole viewer — its `<dialog>` and every node under it — a tree a visit
+ * (`tests/console/vueReactivityContract.spec.ts` pins the rule). `loreModel` itself is read by the template: its
+ * subscription ends with the render effect.
+ */
+function loreVisible(): boolean {
   return loreModel.value !== undefined;
-});
+}
 /*
  * The midrow carries a flanking block (archive entry and/or rules panel).
  * It then switches from the centred FLEX row (which centres the card+panel
@@ -534,7 +545,7 @@ const loreVisible = computed((): boolean => {
  * The fit engine reserves the gutters symmetrically to match.
  */
 const hasFlank = computed((): boolean => {
-  return hasSide.value || hasAside.value || loreVisible.value;
+  return hasSide.value || hasAside.value || loreVisible();
 });
 
 function show() {
@@ -955,6 +966,11 @@ function onResize() {
  * off-screen preload clones).
  */
 function fitCardToViewport(cardRoot?: HTMLElement): void {
+  // A VIEWER THAT IS GONE FITS NOTHING — and reads nothing: a fit that arrives late (a slide's end, a host's call, a
+  // tick queued before the close) would read the viewer's computeds outside any scope and subscribe them for good.
+  if (gone) {
+    return;
+  }
   const dialogNow = dialog.value ?? undefined;
   const cardEl = (cardRoot !== undefined ?
     cardRoot.querySelector(CARD_EL_SELECTOR) :
@@ -1021,7 +1037,7 @@ function fitCardToViewport(cardRoot?: HTMLElement): void {
   // the card. The root font-size already carries the TV scale, so the
   // resolved values are DEVICE px — never multiplied by `s` again.
   // (Desktop instances render no flanks: both stay 0, byte-identical.)
-  const rootVars = (hasSide.value || hasAside.value || loreVisible.value) ? getComputedStyle(document.documentElement) : undefined;
+  const rootVars = (hasSide.value || hasAside.value || loreVisible()) ? getComputedStyle(document.documentElement) : undefined;
   const remPx = cssLengthPx('1rem', 20);
   // The rules panel on the right and the party column on the left ride
   // the SAME width token, so the symmetric reservation is one number for
@@ -1034,7 +1050,7 @@ function fitCardToViewport(cardRoot?: HTMLElement): void {
   // edge. ⚠️ The `520` fallback is `--con-lore-w`'s clamp CAP in px (the
   // base profiles declare a clamp(), which cssLengthPx cannot evaluate) —
   // it must move with that token (console.less).
-  const loreReserve = loreVisible.value && rootVars !== undefined ?
+  const loreReserve = loreVisible() && rootVars !== undefined ?
     cssLengthPx(rootVars.getPropertyValue('--con-lore-w'), 520 * s) + 3.9 * remPx : 0;
   const flankReserve = 2 * Math.max(sideReserve, loreReserve);
   // The ACTIONS BAND: the console instance pins it to a FIXED height per scene (console.less —

@@ -315,3 +315,80 @@ describe('ONE MUTATION — ONE REACTION (the guard)', function() {
     ].join('\n')).to.deep.equal([]);
   });
 });
+
+/*
+ * ── A COMPUTED NOBODY WATCHES (3.6 — not as 3.5) ─────────────────────────────────────────────────────────────────────
+ *
+ * On 3.5 a computed with no subscriber did not subscribe to anything. On 3.6 (alien-signals) EVERY evaluation links the
+ * computed into its dependencies' lists of subscribers, and what takes it out again is its own last subscriber
+ * leaving — an effect that read it, or the EFFECT SCOPE that was active when it was read. A computed whose reads are
+ * all plain script OUTSIDE any effect and outside an active scope — an event handler, a timer, a promise's callback,
+ * a method a parent calls through a ref — has no such subscriber: it is NEVER released. A dependency that outlives
+ * the component (module state, a parent's computed, a prop) then keeps the computed, its closure — the whole
+ * `setup` — and every element that closure holds: one detached tree a mount.
+ *
+ * Found by the soak's census and the heap's retainers (FREEZE ZERO, stage 6, 2026-11-24): the card viewer's
+ * `<dialog>` kept a tree a visit — its `loreVisible`, read only by the fit, stayed subscribed to `loreModel`.
+ *
+ * THE RULE: a derived value that only plain script reads is a FUNCTION, not a computed; and an entry point that can
+ * arrive after the unmount (a late fit, a queued event) returns at once on a component that is gone. This file pins
+ * the BEHAVIOUR (white-box: a dependency's `subs` list) — a Vue that changes it says so here by name.
+ */
+describe('Vue 3.6 — a computed nobody watches stays subscribed (the leak of a derived value only plain script reads)', () => {
+  /** How many subscribers a ref's dependency holds (the core's own linked list — `subs` → `nextSub`). */
+  const subscribersOf = (source: unknown): number => {
+    let n = 0;
+    for (let link = (source as {subs?: {nextSub?: unknown}}).subs; link !== undefined; link = (link as {nextSub?: {nextSub?: unknown}}).nextSub) {
+      n++;
+    }
+    return n;
+  };
+
+  it('read only OUTSIDE its scope (a handler): still subscribed after the scope stops — the closure is kept by the dependency', () => {
+    const long = ref(1);
+    const scope = effectScope();
+    let derived = computed(() => long.value);
+    scope.run(() => {
+      derived = computed(() => long.value + 1);
+    });
+    expect(derived.value, 'a handler reads it — no effect, no active scope').to.equal(2);
+    scope.stop();
+    expect(subscribersOf(long), 'the dead scope\'s computed is still in the dependency\'s list').to.equal(1);
+  });
+
+  it('read by an effect of its scope, or inside the scope\'s own run: released when the scope stops', () => {
+    const long = ref(1);
+    const watched = effectScope();
+    watched.run(() => {
+      const derived = computed(() => long.value + 1);
+      watch(derived, () => undefined, {flush: 'sync'});
+    });
+    expect(subscribersOf(long)).to.equal(1);
+    watched.stop();
+    expect(subscribersOf(long), 'an effect read it: the stop releases the line').to.equal(0);
+
+    const inScope = effectScope();
+    let derived = computed(() => long.value);
+    inScope.run(() => {
+      derived = computed(() => long.value + 1);
+      expect(derived.value).to.equal(2);
+    });
+    expect(derived.value, '…and later reads from plain script change nothing').to.equal(2);
+    inScope.stop();
+    expect(subscribersOf(long), 'read once with its scope active: the scope is its subscriber, and lets it go').to.equal(0);
+  });
+
+  it('a read AFTER the stop subscribes it again, for good — what a late entry point must not do', () => {
+    const long = ref(1);
+    const scope = effectScope();
+    let derived = computed(() => long.value);
+    scope.run(() => {
+      derived = computed(() => long.value + 1);
+      watch(derived, () => undefined, {flush: 'sync'});
+    });
+    scope.stop();
+    expect(subscribersOf(long)).to.equal(0);
+    expect(derived.value).to.equal(2);
+    expect(subscribersOf(long), 'a late read re-links the dead computed').to.equal(1);
+  });
+});
