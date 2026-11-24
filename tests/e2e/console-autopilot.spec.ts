@@ -177,8 +177,13 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     into[key] = (into[key] ?? 0) + 1;
   };
   let lastKey: string | undefined;
+  // WHAT STOOD when the press was chosen — the frames, the server's question, the bar — written into the walk where it
+  // CHANGED (a finding of the box is read press by press, as the bottle's are).
+  let stood = '';
+  let saidStood = '';
   const press = async (key: string, pauseMs: number): Promise<void> => {
-    log.push(`${Date.now() % 1_000_000}:${key}`);
+    log.push(`${Date.now() % 1_000_000}:${key}${stood !== saidStood ? `{${stood}}` : ''}`);
+    saidStood = stood;
     await page.keyboard.press(key);
     lastKey = key;
     played.presses++;
@@ -321,7 +326,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     if (!standing.menu && standing.presses === Math.floor(standing.budget / 2)) {
       await walkHome(false);
     }
-    await press(pilotPick(await look(page), g, lastKey), pause());
+    const seen = await look(page);
+    stood = `${seen.frames.join('>') || '-'}|${wf.type}#${wf.promptId ?? ''}|${seen.bar.slice(0, 80)}`;
+    await press(pilotPick(seen, g, lastKey), pause());
   }
   if (played.phase === 'end') {
     // THE FINALE: the ceremony's screens are the page's own — pressed through like everything else.
