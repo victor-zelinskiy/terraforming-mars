@@ -89,6 +89,10 @@ describe('diagnostics cause — the class is the line\'s structure, never its wo
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["placement"],"pending":true}')).to.eq('planned');
     // The box's field case (2026-11-18): the player ON the board, no frame — the game's own cover held it: a defect.
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["sitting-rise"],"pending":true}')).to.eq('defect');
+    // …a sitting on its way up BESIDE a screen of the player's own rises behind that screen (bounded by its own net):
+    // the board was the player's screen's the whole window.
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["workspace","sitting-rise"],"pending":true}')).to.eq('planned');
+    expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["placement","sitting-rise"],"pending":true}'), 'a placement is no screen over the board').to.eq('defect');
     expect(story('{"watchable":false,"watchableSeen":false,"coveredBy":["workspace","planet-focus"],"pending":true}')).to.eq('defect');
     // The board WAS watchable at some look of the window and the story still was not told: a defect.
     expect(story('{"watchable":false,"watchableSeen":true,"coveredBy":["workspace"],"pending":true}')).to.eq('defect');

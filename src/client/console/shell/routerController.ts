@@ -1064,10 +1064,17 @@ export function createRouterController(shell: RouterPort) {
       // bill, a table's answer). One OR over the four held a deck pick behind the HOST's wait for the sitting's field
       // (the derivation's witness, the bottle — `soil-bacteria-wg`: the pick taken down for a flush). The CLIENT's
       // own question is the host's (`questionFactsNow`).
-      claimHeld: task?.kind === 'deckSelect' ? shell.deckPickHeldForWorkspace :
-        task?.kind === 'venusBonus' ? venusBonusHeldForWorkspace.value :
-          rawEffectDecisionVm.value !== undefined ? effectDecisionHeldForWorkspace.value :
-            taskHeldForWorkspace.value,
+      // …and A RESOLUTION's DRAW waits for the sitting's stage: the take is a STEP of the Parliament and renders
+      // NOWHERE until the stage's zone is published (`externalDrawEmbedTarget` — the embed contract, rule 4: the field
+      // stands once the payout that came with the draw has flown). Until then the sitting walks its beats and the
+      // press is the sitting's. The function said «the draw serves» for all of that walk — thirty-three presses of
+      // one whole game on the Parliament's rung under `own:externalDraw`, and `MISS · held:sitting` on the look (the
+      // autopilot's second and third passes, bottle and browser alike, 2026-11-24).
+      claimHeld: task?.kind === 'externalDraw' ? (wf !== undefined && externalDrawResolutionOf(externalDrawTakeOf(wf)) !== undefined && !shell.externalDrawEmbedded) :
+        task?.kind === 'deckSelect' ? shell.deckPickHeldForWorkspace :
+          task?.kind === 'venusBonus' ? venusBonusHeldForWorkspace.value :
+            rawEffectDecisionVm.value !== undefined ? effectDecisionHeldForWorkspace.value :
+              taskHeldForWorkspace.value,
       blocks,
     };
   }

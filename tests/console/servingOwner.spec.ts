@@ -3,7 +3,7 @@ import {ConsoleTask, TaskKind} from '../../src/client/console/consoleTaskRouter'
 import {PromptSurface} from '../../src/client/console/consolePromptAdmission';
 import {WorkspaceFrameKind} from '../../src/client/console/consoleWorkspaceStack';
 import {ALL_WORKSPACE_KINDS, expectedScreenOwners, hostableStep, OWNER_SURFACES, ScreenOwner} from '../../src/client/console/screenDirector';
-import {Ownership, ownerServes, QuestionFacts, questionFactsDigest, servingOwnerOf} from '../../src/client/console/servingOwner';
+import {bandRungOf, Ownership, ownerServes, QuestionFacts, questionFactsDigest, servingOwnerOf} from '../../src/client/console/servingOwner';
 
 /*
  * WHO SERVES THE QUESTION — ONE TOTAL FUNCTION (FREEZE ZERO, stage 2 — docs/claude/console/freeze-zero/PLAN.md § 8).
@@ -280,6 +280,15 @@ describe('servingOwner — who serves the question: one total function', functio
     // (…and only for the owner it names.)
     expect(servingOwnerOf({...QUIET, task: {kind: 'colony'}, blocks: {section: 'reveal'}, standing: ['external-draw']})).to.deep.include({hold: {kind: 'admission', by: 'reveal'}});
     expect(questionFactsDigest({...sittingDraw, standing: ['external-draw']}), 'the fact is in the evidence a disagreement is read by').to.contain('standing [external-draw]');
+    // …AND BEFORE THE STAGE's ZONE IS PUBLISHED THE DRAW IS HELD BY ITS HOST's CLAIM (the embed contract, rule 4 — it
+    // renders nowhere; the sitting walks its beats and the press is the sitting's). The shell's fact is `claimHeld`
+    // (`routerController.questionFacts` — a resolution's draw with no embed target yet). Without it the function said
+    // «the draw serves» for the whole walk: thirty-three presses of one whole game under `own:externalDraw` on the
+    // Parliament's rung (the autopilot's passes, bottle and browser alike, 2026-11-24).
+    const walking = {...QUIET, task: {kind: 'externalDraw'} as const, resolutionDraw: true, frames: ['parliament'] as const, claimHeld: true};
+    expect(servingOwnerOf(walking)).to.deep.include({owner: 'external-draw', host: 'parliament', hold: {kind: 'claim', by: 'parliament'}});
+    expect(bandRungOf(servingOwnerOf(walking)), 'the press is the player\'s — the sitting\'s section takes it').to.eq('held:claim');
+    expect(bandRungOf(servingOwnerOf({...walking, claimHeld: false, standing: ['external-draw']})), 'the zone stands: the draw\'s own rung').to.eq('own:externalDraw');
     // THE DRAFT's WAITING BANNER (no draft frame) is a surface of the host's family: under the announce's gate it waits.
     expect(servingOwnerOf({...QUIET, task: {kind: 'draftWait'}})).to.deep.include({owner: 'draft-wait'}).and.not.have.property('hold');
     expect(servingOwnerOf({...QUIET, task: {kind: 'draftWait'}, blocks: {host: 'announce-gate'}})).to.deep.include({owner: 'draft-wait', hold: {kind: 'admission', by: 'announce-gate'}});

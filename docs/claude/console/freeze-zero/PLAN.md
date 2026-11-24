@@ -1713,6 +1713,11 @@ the night's proof passes said:
   (`birthPointCovered` — what the paint's sentinel asks a microtask later) in both flights. Proof: the same pass on
   `9351d30cb7` (45324492006).
 - **CI ON `2c5819b8af`:** the whole e2e 45313799855 green — 1 498 passed, 0 flaky, no net line.
+- **CI ON `9351d30cb7`** (ⓒ, ⓓ and the birth point): the whole e2e 45324483668 green — 1 498 passed, 0 flaky, no
+  net line; the freeze gate 45324487629 green on `fz0` and `fz1`; the Monkey proof 45324492006 — the plate's table
+  ×6: records 0, gate pass (#103 / #104 closed). The queue of `ci-finding` is EMPTY: #100 was the «socket hang up»
+  class closed in the harness before (`b5217ea088`), #101 / #102 did not reproduce in a hunt of twenty repeats each
+  (45328817117 on `077cb67f98`).
 - **THE SECOND PASS, READ WHOLE (Autopilot 45313803575 on `2c5819b8af` — before the three cures above): 45 games,
   43 to the final scoring, 2 capped by the pilot's own bound, 0 stuck, 0 rebuilds; 53 787 presses, 625 minutes of
   play; 15 % of the answers through the door.** In the REAL BROWSER 21 games of 24 named no class at all, and the
@@ -1746,7 +1751,22 @@ open ones and by the one-owner law.
   «Back is one logical level», asked once — `workspaceLateralBackTarget`: on a lateral screen at its browse layer
   over another frame, B lands on that frame (the pad), says «Назад» (the bar — the same function), and such a
   screen names itself. Class replay (`parliament-aquifer-adjourn`): red with the function off, green with it.
-  ① stays open (one press in the embedded draw's mount gap — to read on its own game).
+- **THE THIRD PASS (Autopilot 45324765001 — games 25 – 48 on `9351d30cb7`, twenty-four NEW tables), held to the
+  gate by hand:** the bottle 24 of 24 to the final scoring, the browser 20 of 21 read (one capped), none stuck, no
+  rebuild — and the classes of ⓒ and ⓓ GONE from both worlds. What it named: ① again, and not as «one press» —
+  thirty-three presses of one browser game. **① CURED AS A FACT OF THE FUNCTION:** a resolution's draw is a step of
+  the sitting and renders nowhere until the stage's zone is published; until then the sitting walks its beats and
+  the press is the sitting's — the draw is HELD BY ITS HOST's CLAIM (`claimHeld`, the band's word `held:claim`);
+  the function had said «the draw serves» for the whole walk. The bottle's monkey over the twelve tables of the
+  Parliament's draws: gate pass, the law at zero. And `story-due/board-beat-park` read at DEFECT tier in a browser
+  (game 35 — three scale steps parked behind `workspace · sitting-rise`): a sitting on its way up beside a screen
+  of the player's own rises behind that screen, bounded by its own net — the window was the player's; alone the
+  rise stays the game's cover (`shapes.boardCoversAreThePlayers`).
+- **STILL OPEN OF THE LAW:** `bar-APART · govSupport > played` (the World Government's choice under «Разыграно»: the
+  bar stands on the prompt's commands, the press is the table's — one press of one game); the sitting's own tile
+  under a lateral screen (the function says «board» where the sitting holds the tile behind «К полю»); in the
+  bottle — `story-due/cell-resource`, `ceiling/cell-resource:stage`, `overdue/park:board-beat` (measured stages:
+  to hold against the browser's games of the same pass before a baseline row is written).
 - **WHAT THIS SAYS OF THE INSTRUMENT:** the pilot's DOOR hides exactly this kind of defect — a question the screen
   cannot be walked to is answered for the seat, and the game «finishes». The door's every answer is a row to read
   (`autopilot.doors` — where the seat stood, what the bar offered), and the one-owner law over whole games is the
