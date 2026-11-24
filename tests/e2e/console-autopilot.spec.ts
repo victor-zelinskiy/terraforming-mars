@@ -28,6 +28,15 @@ import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, seedGameOver
  * blind wherever a rect or a CSS clock is needed; this one is the real page, in real time: a game is ten to twenty
  * minutes of a runner.
  *
+ * THE SOAK (`TM_E2E_AUTOPILOT_IDLE_MIN=<minutes>` — the stage's «hours of one page»): the same game, and at every
+ * generation's sample point — the viewer's action menu with nothing on the stack — THE PAGE IS LEFT ALONE for that
+ * long, the console on a TV nobody is pressing. Around each such spell the browser itself is asked (CDP, after a
+ * collection of garbage): the heap, the DOM's nodes, the listeners; and over the spell: the layouts and the style
+ * recalculations the idle page did, its seconds of script, the long frames it named and every warning it raised.
+ * A page that leaks grows from spell to spell with nobody touching it; a page that is not at rest keeps laying out.
+ * A game enters and leaves by a full reload (`App.vue` — «a fresh page guarantees clean per-game module state»), so
+ * one page's hours ARE one game's.
+ *
  * OPT-IN: `TM_E2E_AUTOPILOT=1 npx playwright test tests/e2e/console-autopilot.spec.ts` · `TM_E2E_AUTOPILOT_GAMES`
  * (`<from>-<to>` or a list; default `1-2`) · `TM_E2E_AUTOPILOT_NAME` (the stream's name, default `ap0`) ·
  * `TM_E2E_AUTOPILOT_PRESSES` (the cap, default 2000 — twenty games of the first pass ended inside 1 250).
@@ -38,6 +47,8 @@ if (ENABLED) {
 }
 const NAME = process.env.TM_E2E_AUTOPILOT_NAME ?? 'ap0';
 const PRESSES = Number(process.env.TM_E2E_AUTOPILOT_PRESSES ?? 2000);
+/** THE SOAK: minutes the page is left alone at each generation's sample point (0 — a plain game). */
+const IDLE_MIN = Number(process.env.TM_E2E_AUTOPILOT_IDLE_MIN ?? 0);
 
 function gamesOf(spec: string): Array<number> {
   const range = /^(\d+)-(\d+)$/.exec(spec);
@@ -187,12 +198,20 @@ type Played = {
    * stack): the DOM's nodes, the kernel's scopes and waits, the heap. A page that leaks grows from generation to generation.
    */
   soak: Array<Record<string, number>>,
+  /** THE SOAK's SPELLS (`TM_E2E_AUTOPILOT_IDLE_MIN`): what the page did with each stretch of nobody pressing. */
+  spells: Array<Record<string, number>>,
 };
 
-async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>): Promise<Played> {
+/** What the BROWSER says of the page (CDP `Performance.getMetrics`, after a collection of garbage). */
+type PageMetrics = {heapMb: number, nodes: number, listeners: number, layouts: number, styles: number, scriptS: number, taskS: number};
+
+/** The soak's ears on the page's console: the long frames and the warnings of a spell are counted by the test. */
+type SoakEars = {longFrames: number, warnings: number, lastWarnings: Array<string>};
+
+async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>, ears?: SoakEars): Promise<Played> {
   const g = rng(`${seed}:pilot`);
   const started = Date.now();
-  const played: Played = {end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, doors: [], tookMs: 0, soak: []};
+  const played: Played = {end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, doors: [], tookMs: 0, soak: [], spells: []};
   const bump = (into: Record<string, number>, key: string): void => {
     into[key] = (into[key] ?? 0) + 1;
   };
@@ -294,6 +313,42 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       if (sample !== undefined) {
         sampledGeneration = model.game.generation;
         played.soak.push({gen: model.game.generation, ...sample});
+        if (IDLE_MIN > 0 && ears !== undefined) {
+          // THE SPELL: nobody presses. What the page does with the time is its own.
+          const cdp = await page.context().newCDPSession(page);
+          const ask = async (): Promise<PageMetrics> => {
+            await cdp.send('Performance.enable');
+            await cdp.send('HeapProfiler.collectGarbage');
+            const {metrics} = await cdp.send('Performance.getMetrics');
+            const of = (name: string): number => metrics.find((m) => m.name === name)?.value ?? -1;
+            return {
+              heapMb: Math.round(of('JSHeapUsedSize') / 1e4) / 100, nodes: of('Nodes'), listeners: of('JSEventListeners'),
+              layouts: of('LayoutCount'), styles: of('RecalcStyleCount'), scriptS: Math.round(of('ScriptDuration') * 100) / 100, taskS: Math.round(of('TaskDuration') * 100) / 100,
+            };
+          };
+          const before = await ask();
+          const heard = {longFrames: ears.longFrames, warnings: ears.warnings};
+          const spellStarted = Date.now();
+          for (let minute = 0; minute < IDLE_MIN; minute++) {
+            await cinematicBeat(page, 60_000, 'the soak — the page is left alone at its action menu, a console nobody is pressing');
+          }
+          const after = await ask();
+          await cdp.detach();
+          const spell = {
+            gen: model.game.generation, minutes: Math.round((Date.now() - spellStarted) / 6_000) / 10,
+            heapMb: after.heapMb, heapDeltaMb: Math.round((after.heapMb - before.heapMb) * 100) / 100,
+            nodes: after.nodes, nodesDelta: after.nodes - before.nodes,
+            listeners: after.listeners, listenersDelta: after.listeners - before.listeners,
+            layouts: after.layouts - before.layouts, styles: after.styles - before.styles,
+            scriptS: Math.round((after.scriptS - before.scriptS) * 100) / 100, taskS: Math.round((after.taskS - before.taskS) * 100) / 100,
+            longFrames: ears.longFrames - heard.longFrames, warnings: ears.warnings - heard.warnings,
+          };
+          played.spells.push(spell);
+          // (Said as it happens: a soak is hours, and its numbers are read while it runs.)
+          console.log(`[autopilot-soak] ${seed} ${JSON.stringify(spell)}${spell.warnings > 0 ? ` — the warnings of the spell: ${ears.lastWarnings.slice(-Math.min(4, spell.warnings)).join(' ¦ ')}` : ''}`);
+          // The table did not move by itself: the question that stood still stands (the spell is not a stall of the game).
+          moved = {age: moved.age, at: Date.now()};
+        }
       }
     }
     if (standing.presses >= standing.budget) {
@@ -366,7 +421,7 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
 
   for (const n of GAMES) {
     test(`autopilot · game ${n}`, async ({page, request, causeHarvest}) => {
-      test.setTimeout(75 * 60_000);
+      test.setTimeout((75 + IDLE_MIN * 30) * 60_000);
       const seed = `${NAME}:${n}`;
       const table = tableOf(n);
       test.info().annotations.push({type: 'autopilot-table', description: `${seed} — ${table.word}`});
@@ -378,16 +433,28 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       await seedGameOverApi(request, viewer, {buy: 4});
       const log: Array<string> = [];
       const consoleTail: Array<string> = [];
+      const ears: SoakEars = {longFrames: 0, warnings: 0, lastWarnings: []};
       page.on('console', (message) => {
         consoleTail.push(`${Date.now() % 1_000_000} ${message.type()} ${message.text().slice(0, 600)}`);
         if (consoleTail.length > 600) {
           consoleTail.shift();
         }
+        if (message.type() === 'warning' || message.type() === 'error') {
+          const text = message.text();
+          if (text.includes('[long-frame]')) {
+            ears.longFrames++;
+          }
+          ears.warnings++;
+          ears.lastWarnings.push(text.slice(0, 240));
+          if (ears.lastWarnings.length > 8) {
+            ears.lastWarnings.shift();
+          }
+        }
       });
       await openConsole(page, viewer);
       let played: Played | undefined;
       try {
-        played = await playGame(page, request, viewer, seed, log);
+        played = await playGame(page, request, viewer, seed, log, ears);
         // THE LAST WORD: past the arbiter's grace and the loop's twenty looks — the screen the game left is judged whole.
         await cinematicBeat(page, 25_000, 'the last word — a quiet spell past the liveness grace, so the screen the game left is judged');
       } finally {
