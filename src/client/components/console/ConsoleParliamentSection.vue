@@ -306,7 +306,7 @@ import {influenceReadingOf} from '@/client/console/parliament/influenceReading';
 import {sittingRiseStood} from '@/client/console/parliament/sittingRise';
 import {
   armDelegatePickFlow, armGrantVoteFlow, rememberGrantCursor, rememberedGrantCursor, armSupportPickFlow, armBannerPickFlow, parliamentBannerUp, parliamentDelegateUp, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, WALK_SEAT_STAGE_KEY, ParliamentStage,
-  parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
+  parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentVoteInFlight, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
   setParliamentRootEl, sittingSessionKnown, sittingStagePlayed,
 } from '@/client/console/parliament/consoleParliamentFlow';
 import {
@@ -2846,6 +2846,16 @@ function endSitting(): void {
  *    the transport seeded while the section was away — the walk goes on
  *    from there (the tile's RECEIPT is read first when one is owed).
  */
+/** The sitting takes the stage from the browse layer (the phase's rising edge, or a stage folded back under it). */
+function raiseSittingFromBrowse(position: SittingPosition): void {
+  if (parliamentFlow.stage !== 'browse') {
+    return;
+  }
+  parliamentFlow.zone = 'government';
+  planOpening(position);
+  openStage('sitting');
+  setWorkspaceFramePhase('parliament', sittingWorkspacePhase(sittingStage.value, false));
+}
 function planOpening(position: SittingPosition): void {
   const key = sittingKey.value;
   const played = (stage: SittingStage) => sittingStagePlayed(key, stage);
@@ -3594,13 +3604,18 @@ watch(() => tableReceiptOwed.value, (on: boolean, was: boolean): void => {
  * the workspace leaves. Never a title, never a client memory — the
  * server's phase record is the only witness.
  */
-watch(() => sitting.value, (position: SittingPosition | undefined): void => {
+watch(() => sitting.value, (position: SittingPosition | undefined, was: SittingPosition | undefined): void => {
   if (position !== undefined) {
-    if (parliamentFlow.stage === 'browse') {
-      parliamentFlow.zone = 'government';
-      planOpening(position);
-      openStage('sitting');
+    // THE VOTE THE PLAYER MERELY HAD OPEN IS OVER WITH THE PHASE'S START (the box's whole games in a real browser,
+    // 2026-11-24 — game 232, and the bottle on `eden-alliance-enact-remote`): the last pass of the generation found
+    // the player on the vote stage of a Parliament they had walked into — the stage stayed, «A Отправить делегата»
+    // for a vote the server had closed, the sitting asking under it and standing nowhere; B, B led to a board whose
+    // restore card came two seconds late, by a net's cure. A vote that is not in the air folds, and the sitting
+    // takes the stage it folds to.
+    if (was === undefined && parliamentFlow.stage === 'vote' && !parliamentVoteInFlight()) {
+      closeStage();
     }
+    raiseSittingFromBrowse(position);
     if (parliamentFlow.stage === 'sitting') {
       setWorkspaceFramePhase('parliament', sittingWorkspacePhase(sittingStage.value, false));
     }
@@ -3608,6 +3623,18 @@ watch(() => sitting.value, (position: SittingPosition | undefined): void => {
     endSitting();
   }
 }, {immediate: true});
+/**
+ * …AND WHENEVER THE SECTION COMES BACK TO ITS BROWSE LAYER UNDER A SITTING THAT STANDS (a stage the phase's start did
+ * not fold — a party's effects being read, a seat inspected — closed by the player's B later): the browse layer of a
+ * Parliament in session is the sitting's, at once — never an overview that offers «Открыть голосование» while the
+ * sitting asks. ONE reaction for the one fact «a sitting stands and the stage is browse», whichever edge brought it.
+ */
+watch(() => parliamentFlow.stage, (stage: ParliamentStage, was: ParliamentStage): void => {
+  const position = sitting.value;
+  if (stage === 'browse' && was !== 'browse' && was !== 'sitting' && position !== undefined) {
+    raiseSittingFromBrowse(position);
+  }
+});
 /** A new server step re-seats the walk: from its first unplayed page (a gate this seat already answered: its wait pose). */
 watch(() => sittingStepKey.value, (_now: string, was: string): void => {
   if (was === '' || !parliamentSittingUp()) {

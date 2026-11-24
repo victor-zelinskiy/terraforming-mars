@@ -1934,6 +1934,18 @@ Both got their instrument, and their first readings:
   `.con-cardactions` (310), `.con-info` (268), `.con-stdp` (162), `.con-played-hero__proxy` (95) stands kept (a last
   reference somebody holds). Small against a game's own growth (the heap 25 → 40 MB over thirteen generations, a
   page a game) — and exact: the next step is WHO holds them (the retainers of a heap snapshot), then the cut.
+- **THE BOX ON `6d4d7d549f` (the arbiter's rule in): 18 of 18 to the final scoring, EPISODES 0, the door 4 of 858
+  (0.5 %), every law at zero** — and one class left, twice in the day's games (113, 232), now read with the trail:
+  - **ⓛ CURED — A VOTE THE PLAYER MERELY HAD OPEN STOOD OVER A SITTING THAT STOOD NOWHERE** (`wait-graph/dangling/
+    deferred:n`). The last pass found the player on the VOTE stage of a Parliament they had walked into; the
+    sitting's rise is taken from the browse layer only, so the stage stayed — «A Отправить делегата» for a vote the
+    server had closed, the sitting asking under it; B folded to an overview that offered «Открыть голосование», B
+    again led to a board whose restore card came two seconds late, by the net's cure. A vote that is not in the air
+    folds at the phase's start, and the browse layer of a Parliament in session is the sitting's whichever edge
+    brings it (`raiseSittingFromBrowse`). Replay on `eden-alliance-enact-remote`, RED with the fold off.
+- **THE SOAK, FIVE SPELLS IN** (game 402, 2.5 h of a page left alone in all): 0 – 2 layouts and 0 – 19 style
+  recalculations a spell, 13 – 14 s of script in thirty minutes, the heap's change inside a spell between −1.7 and
+  +0.4 MB, no long frame, no warning.
 - **NEXT, in this order:** the same probe on a QUIET box (the lanes end first) — the budget's true numbers; the
   Parliament's mount as ONE measure and ONE write (five read-after-write passes are what its 296 ms is made of); who
   holds the hand and the viewer detached — each step read by its instrument before and after.

@@ -162,6 +162,43 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   });
 
   /*
+   * …AND ONE LEVEL DEEPER — `wait-graph/dangling/deferred:n` in a real browser (the box's whole games, 2026-11-24 —
+   * games 113 and 232; the pilot that walks to the question): the last pass found the player on the VOTE stage of a
+   * Parliament they had walked into («A Отправить делегата»). The sitting's rise is taken from the browse layer
+   * only — so the vote stage stayed, offering a delegate for a vote the server had closed, the sitting asking under
+   * it and standing nowhere; B folded to an overview that offered «Открыть голосование», B again led to the board,
+   * where the restore card came two seconds late, by the net's cure. The law: a vote that is not in the air ends with
+   * the phase's start, and the browse layer of a Parliament in session is the sitting's — whichever edge brings it.
+   */
+  it('the sitting begins while the player stands on the VOTE stage of a Parliament they walked into: the stage folds, the sitting stands - no dead vote, nothing for a net to cure', async () => {
+    const table = await bottleServer().bootFixture('eden-alliance-enact-remote');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    await live.advance(3_000);
+    await live.press('Period');
+    await live.advance(600);
+    await live.press('ArrowDown');
+    const opened = await live.until(() => live.frames().some((f) => f.startsWith('parliament:')), 20_000);
+    expect(opened, `the Parliament opened as a view (frames: ${live.frames().join(' ')})`).to.equal(true);
+    await live.advance(1_500);
+    // A on the overview: the vote stage - a delegate may be sent while the generation runs.
+    await live.press('Enter');
+    await live.advance(1_500);
+    expect(live.frames(), 'the vote stage stands').to.deep.equal(['parliament:configure']);
+    expect(live.bar()).to.match(/Send the delegate/);
+    expect(await live.otherSeatMoves(1), 'the other seat passes - the last pass of the generation').to.equal('pass');
+    const sitting = await live.until(() => document.querySelectorAll('.con-parl[data-sitting-stage]').length === 1, 60_000);
+    expect(sitting, `the vote stage folds and the sitting takes the stage (frames: ${live.frames().join(' ')} · bar «${live.bar()}»)`).to.equal(true);
+    // Past the graph's confirmation and the arbiter's grace: whatever would have judged the screen has.
+    await live.advance(20_000);
+    expect(live.bar(), 'no verb of a vote that is over').to.not.match(/Send the delegate|Open the vote/);
+    expect(document.querySelectorAll('.con-mandatory').length, 'no plate was owed to a player who stands inside').to.equal(0);
+    expect(live.lines().filter((line) => /\[wait-graph\] (cycle|cure|dangling)/.test(line)), 'the net had nothing to break').to.deep.equal([]);
+    expect(classes().filter((cls) => !cls.startsWith('wait-graph/ceiling/') && !cls.startsWith('animation-hold/ceiling/')),
+      'no cycle, no stranded question, no stall').to.deep.equal([]);
+  });
+
+  /*
    * `animation-hold/ceiling/parliament-chairman-quest` — the monkey's baseline, seed `fz0` ·
    * `parliament-chairman-quest-last-action`. The plate's A opens the Parliament on the chairman's quest and the answer
    * rides that press; the walk pressed A AGAIN 0.9 s later — «дожать» with the answer still on the wire. The hurry
