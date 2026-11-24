@@ -23,7 +23,7 @@ import {startPreludeGrantOf} from '@/client/console/parliament/hostedParliamentS
 import {buildEffectDecision, declineModelOf, EffectDecisionAction, EffectDecisionSource, EffectDecisionViewModel, nextStageKeyOf} from '@/client/console/effectDecision/effectDecisionModel';
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import {decisionPromptStamp, effectDecisionState, markDecisionPickAnswered, resetDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
-import {enterWorkspace, FrameAnchor, frameServing, goBoardHome, hostCarriesPlayersLook, pushWorkspaceFrame, questionSetAside, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, stackYieldedToBoard, workspaceFrameHost, WorkspaceFrameKind, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceHostForStep, workspaceStackState, workspaceStackTop, yieldedStackCards, yieldedStackServes} from '@/client/console/consoleWorkspaceStack';
+import {enterWorkspace, FrameAnchor, frameServing, goBoardHome, hostCarriesPlayersLook, pushWorkspaceFrame, pushWouldNestInItself, questionSetAside, setWorkspaceFramePhase, setWorkspaceFrameStage, setWorkspaceFrameSubject, stackYieldedToBoard, workspaceFrameHost, WorkspaceFrameKind, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameSubject, workspaceHostForStep, workspaceStackState, workspaceStackTop, yieldedStackCards, yieldedStackServes} from '@/client/console/consoleWorkspaceStack';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardTransaction} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {colonyBonusCollectOf, colonyBonusDiscardOf} from '@/client/console/colonyTrade/colonyResolution';
@@ -1489,6 +1489,12 @@ export function createRouterController(shell: RouterPort) {
         if (host !== undefined && host !== 'parliament') {
           if (workspaceFrameHost('parliament') === host) {
             return; // already standing where it is answered (idempotent)
+          }
+          // THE HOST STANDS INSIDE THE PARLIAMENT's OWN SURFACE (a sitting's colony step, embedded in the sitting's
+          // stage): the question is the SITTING's own next step, never a Parliament inside itself — it is served by
+          // the Parliament below once the step on top has left (`consoleWorkspaceStack.pushWouldNestInItself`).
+          if (pushWouldNestInItself('parliament')) {
+            return;
           }
           setWorkspaceFramePhase(host, 'committed');
           pushWorkspaceFrame({

@@ -18,7 +18,7 @@ import {displayNameForColor, participantDisplayName} from '@/client/components/m
 import ConsoleColoniesSection from '@/client/components/console/ConsoleColoniesSection.vue';
 import {ConsoleColonyPick} from '@/client/components/console/consoleColoniesSectionTypes';
 import {consoleParliamentUi, parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
-import {workspaceStackRootKind, resumeStackFromBoard, yieldedStackCards, enterWorkspace, goBoardHome, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameServes, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameIndex, workspaceFrameMounted, workspaceFramePhase, workspaceStackTop, workspaceFrameSubject, workspaceFrameAnchor, workspaceFrameHost, workspaceStepSourceCard, workspaceFrameKnown, workspaceFrameTarget, workspaceHostForStep, FrameAnchor, WorkspaceFrameKind, workspaceFrameSelector} from '@/client/console/consoleWorkspaceStack';
+import {workspaceStackRootKind, resumeStackFromBoard, yieldedStackCards, enterWorkspace, goBoardHome, leaveWorkspace, pushWorkspaceFrame, pushWouldNestInItself, setWorkspaceFramePhase, setWorkspaceFrameServes, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameIndex, workspaceFrameMounted, workspaceFramePhase, workspaceStackTop, workspaceFrameSubject, workspaceFrameAnchor, workspaceFrameHost, workspaceStepSourceCard, workspaceFrameKnown, workspaceFrameTarget, workspaceHostForStep, FrameAnchor, WorkspaceFrameKind, workspaceFrameSelector} from '@/client/console/consoleWorkspaceStack';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {COLONY_RESOLUTION_SERVES, COLONY_BONUS_ENTRY_WAIT_MS, ColonyResolutionSignals, armColonyBonusEntry, clearColonyBonusEntry, colonyBonusCollectOf, colonyBonusDiscardOf, colonyBonusCardPickOf, COLONY_BONUS_CYCLE_WAIT_MS, colonyBonusEntry, colonyBonusSequence, clearColonyBonusSequence, colonyResolutionColony, colonyRevealSourceOf, colonyResolutionEvidenceFor, colonyResolutionFocusIntent, colonyResolutionLiveFor, colonyResolutionUi, discardStageStrandedFor, noteColonyBonusCycleWaitOver, noteColonyBonusEntryWaitOver, noticeColonyBonusSequence, remoteColonyBonusPendingFor, resetColonyResolutionUi, setColonyDiscardStage} from '@/client/console/colonyTrade/colonyResolution';
@@ -383,12 +383,27 @@ export function createColonyController(shell: ColonyPort) {
     }
   });
 
+  /**
+   * THE GRANT IS THE PARLIAMENT's OWN, BELOW — these colonies stand INSIDE the Parliament's surface (the winner's free
+   * colony of a sitting, embedded in the sitting's stage), so the Parliament's vote step cannot stand inside THEM: one
+   * component cannot be teleported into a node inside itself (`consoleWorkspaceStack.pushWouldNestInItself`). The
+   * grant is then not a step of the colony flow at all: the build lands, the frame leaves, and the sitting below
+   * gives its stage to the vote (`ConsoleParliamentSection` — «the sitting yields to a question it does not host»).
+   *
+   * (The autopilot in a real browser, CI run 45464328216 — game 55, 2026-11-24: Colony Contest's colony built on the
+   * Redux Venus. The door nested a Parliament in the colonies — `HierarchyRequestError`, the section gone; and with
+   * the door shut this flow waited for a step that could never stand, the question on no surface: #134 · #135 · #136.)
+   */
+  const grantServedBelow = (): boolean => {
+    return workspaceFrameHost('parliament') !== 'colonies' && pushWouldNestInItself('parliament');
+  };
+
   /** The delegate grant the built tile's bonus raised (the Redux Venus), by the server's structural markers. */
   const colonyBuildGrantPrompt = computed((): boolean => {
     const wf = shell.playerView.waitingFor;
     const source = wf?.choiceContext?.source;
     return wf !== undefined && wf.type === 'party' && wf.votePrompt?.source === 'grant' &&
-      source?.kind === 'colony' && source.name === colonyBuildState.receipt?.colony;
+      source?.kind === 'colony' && source.name === colonyBuildState.receipt?.colony && !grantServedBelow();
   });
 
   /**
@@ -850,7 +865,8 @@ export function createColonyController(shell: ColonyPort) {
    */
   const colonyGrantStepLive = computed((): boolean => {
     const wf = shell.playerView.waitingFor;
-    return wf?.votePrompt?.source === 'grant' && wf.choiceContext?.source.kind === 'colony';
+    // (…unless the colonies stand inside the Parliament's own surface: the grant is the sitting's then — `grantServedBelow`.)
+    return wf?.votePrompt?.source === 'grant' && wf.choiceContext?.source.kind === 'colony' && !grantServedBelow();
   });
 
   /** The colony the standing delegate grant NAMES (the crumb's carried object while the vote is its step; '' = none). */

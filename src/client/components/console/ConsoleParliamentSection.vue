@@ -481,6 +481,9 @@ const port: ParliamentSectionPort = {
   get sittingUp() {
     return sittingUp.value;
   },
+  get sittingHostsQuestion() {
+    return !sittingForeignQuestion.value;
+  },
   get questGate() {
     return questGate.value;
   },
@@ -914,6 +917,39 @@ const stepFrameNested = computed((): boolean => {
 const rewardPageLeavable = computed((): boolean => {
   const position = sitting.value;
   return sittingUp.value && position !== undefined && sittingStage.value === 'reward' && mayLeave('reward', position);
+});
+/**
+ * A QUESTION THE SITTING DOES NOT HOST stands under it: a door's prompt of this section — a live delegate grant, a
+ * support / banner / delegate pick — while the sitting's position reads NO ask of this seat (the resolution's own
+ * questions are its hosted steps and its door placements; this one came from somewhere else).
+ *
+ * The case that found it (the autopilot in a real browser, CI run 45464328216 — game 55, 2026-11-24): Colony
+ * Contest's free colony built on the Redux Venus. The tile pays «add 2 delegates to a resolution» — the Parliament's
+ * own VOTE step, whose source is the COLONY, not the resolution. The colonies stand inside this very sitting, so the
+ * step cannot be nested in them (a Parliament inside itself), and the sitting read «получено» with the question on
+ * no surface. ONE section, one stage at a time: the sitting gives its stage to the question's mode and takes it back
+ * when the answer has landed (`yieldSittingToQuestion`).
+ */
+const sittingForeignQuestion = computed((): boolean => {
+  const p = sitting.value;
+  if (p === undefined || !sittingUp.value || props.embedded || props.warm || props.leaving) {
+    return false;
+  }
+  if (SITTING_HOSTED_STEPS.has(p.rewardStep) || p.rewardStep === 'placement') {
+    return false;
+  }
+  const b = bridge.value;
+  return (b.grant !== undefined && b.grant.staged !== true) || (b.supportPick !== undefined && b.supportPick.staged !== true) ||
+    b.bannerPick !== undefined || (b.delegatePick !== undefined && b.delegatePick.staged !== true);
+});
+/**
+ * …AND ITS DOOR: the page is QUIET — the wave landed, no receipt being read, nothing hosted in the zone (the colonies
+ * that raised the question have LEFT: a host never drops its zone under a step standing in it), no card standing for
+ * a take. One press, several effects — the surfaces go in turn.
+ */
+const sittingQuestionDoor = computed((): boolean => {
+  return sittingForeignQuestion.value && !rewardPending.value && !parliamentRewardState.receiptShowing && !ledgerReadOwed.value &&
+    !stepFrameNested.value && !sittingStepOpen.value && !tableReceiptOwed.value && !parliamentDrawStanding();
 });
 /** The stage's FIELD pose stands (the overview receded, the card on the hero slot, the zone open). */
 const sittingField = computed((): boolean => {
@@ -3124,6 +3160,14 @@ async function runWalk(): Promise<void> {
       // here, so the walk stops: the board-beat park tells the planet's
       // story, the module puts the stack back, and the section's own mount
       // re-queues the walk on the reward page with the receipt owed.
+      // (A QUESTION THE SITTING DOES NOT HOST comes first — the walk stops for it on whatever page it stands, and
+      // once that page is quiet the sitting gives its stage to the question's own mode: `yieldSittingToQuestion`.)
+      if (sittingForeignQuestion.value) {
+        if (sittingQuestionDoor.value) {
+          yieldSittingToQuestion();
+        }
+        break;
+      }
       if (stage === 'reward' && worldMoveOwed(key) && mayYieldForWorld(position)) {
         if (trackMoveOwed(key)) {
           // THE COLONY TABLE MOVES ON THE COLONIES SCREEN (Unity Budget), so the sitting HOSTS that screen
@@ -3177,6 +3221,32 @@ async function runWalk(): Promise<void> {
   if (walkOwed.value) {
     walkOwed.value = false;
     queueWalk();
+  }
+}
+/**
+ * THE SITTING YIELDS ITS STAGE TO A QUESTION IT DOES NOT HOST (`sittingForeignQuestion`) — called by the WALK, between
+ * beats, with the page quiet. The stage folds to the overview and the overview's own doors are asked in the same
+ * tick (`reconcileStandingPrompts` — the grant opens its vote, a pick its mode): the overview never paints, one
+ * stage hands over to the next. The sitting is NOT over — the phase stands, its position stands; when the answer has
+ * landed and the mode folds back to the overview, the stage watcher raises the sitting again («a sitting stands and
+ * the stage is browse») and the walk goes on from the page it held: «получено», the renewal, the results.
+ *
+ * ONCE PER SERVER POSITION: a door that did not open is not asked in a loop — the sitting takes its stage back and
+ * the question stays OWED (`standingQuestionServed` says so), for the nets to name.
+ */
+let sittingYieldedAt = '';
+function yieldSittingToQuestion(): void {
+  const key = answerKey.value;
+  if (sittingYieldedAt === key) {
+    return;
+  }
+  sittingYieldedAt = key;
+  closeStage();
+  reconciledKey.value = '';
+  reconcileStandingPrompts();
+  const position = sitting.value;
+  if (parliamentFlow.stage === 'browse' && position !== undefined) {
+    raiseSittingFromBrowse(position);
   }
 }
 /**
@@ -3733,6 +3803,12 @@ watch(() => rewardPageLeavable.value, (on: boolean, was: boolean): void => {
 });
 watch(() => stepFrameNested.value, (on: boolean, was: boolean): void => {
   if (!on && was && parliamentFlow.stage === 'sitting') {
+    queueWalk();
+  }
+});
+/** The door of a question the sitting does not host has opened (its page went quiet): the walk hands the stage over. */
+watch(() => sittingQuestionDoor.value, (on: boolean, was: boolean): void => {
+  if (on && !was && parliamentFlow.stage === 'sitting') {
     queueWalk();
   }
 });

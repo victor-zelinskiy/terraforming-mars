@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  boardTakeableFromStack, enterWorkspace, hostCarriesPlayersLook, pushWorkspaceFrame, resetWorkspaceStack, setWorkspaceFramePhase,
+  boardTakeableFromStack, enterWorkspace, hostCarriesPlayersLook, pushWorkspaceFrame, pushWouldNestInItself, resetWorkspaceStack, setWorkspaceFramePhase,
 } from '@/client/console/consoleWorkspaceStack';
 
 /*
@@ -73,5 +73,41 @@ describe('hostCarriesPlayersLook', () => {
     enterWorkspace('colonies');
     setWorkspaceFramePhase('colonies', 'configure');
     expect(hostCarriesPlayersLook('start')).is.false;
+  });
+});
+
+/*
+ * A SURFACE NEVER STANDS INSIDE ITSELF (the autopilot in a real browser, 2026-11-24 — game 55: a sitting's colony
+ * step embedded in the sitting's own stage, and the law's next question opened as a Parliament step of those
+ * colonies — the one Parliament component teleported into a node inside itself, `HierarchyRequestError`).
+ */
+describe('pushWouldNestInItself', () => {
+  afterEach(() => resetWorkspaceStack());
+  const step = (kind: 'colonies' | 'card-actions' | 'parliament' | 'hand') =>
+    pushWorkspaceFrame({kind, subject: '', stage: '', phase: 'committed', serves: [], anchor: {type: 'always'}});
+
+  it('an empty stack, or a stack without the kind — nothing to stand inside', () => {
+    expect(pushWouldNestInItself('parliament')).is.false;
+    enterWorkspace('colonies');
+    expect(pushWouldNestInItself('parliament')).is.false;
+  });
+
+  it('a step EMBEDDED in the Parliament: a Parliament pushed on it would stand inside itself', () => {
+    enterWorkspace('parliament', {anchor: {type: 'always'}});
+    step('colonies');
+    expect(pushWouldNestInItself('parliament')).is.true;
+    expect(pushWouldNestInItself('hand'), 'another kind nests freely').is.false;
+  });
+
+  it('a frame that took the SCENE stands over its host — the chain ends there (the Unity door\'s trade)', () => {
+    enterWorkspace('parliament', {anchor: {type: 'always'}});
+    pushWorkspaceFrame({kind: 'card-actions', subject: '', stage: '', phase: 'committed', serves: [], anchor: {type: 'always'}, overlay: true});
+    step('colonies');
+    expect(pushWouldNestInItself('parliament')).is.false;
+  });
+
+  it('the kind on top of the stack is itself the answer — a push there is a re-entry, asked elsewhere', () => {
+    enterWorkspace('parliament', {anchor: {type: 'always'}});
+    expect(pushWouldNestInItself('parliament')).is.true;
   });
 });

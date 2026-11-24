@@ -5717,6 +5717,31 @@ const colonyContestTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
 });
 parliamentFixture('parliament-colony-assembly', colonyContestTable('pass'));
 
+// ── RX09 × VENUS (Redux) — the winner's free colony built ON VENUS: the tile's placement bonus is «add 2 delegates to
+//    a resolution», a question of the PARLIAMENT asked while the colonies stand as a step INSIDE the sitting's own
+//    stage. The first whole game that chose Venus there (the autopilot in a real browser, 2026-11-24 — game 55)
+//    opened that question as a Parliament step of those colonies: the Parliament inside itself. The same table as
+//    `parliament-colony-assembly` with Venus on it (open, nobody settled) beside Luna and red's Callisto. ──
+parliamentFixture('parliament-colony-venus-assembly', {
+  ...colonyContestTable('pass'),
+  options: {venusNextExtension: true},
+  arrange: ({game, p2}) => {
+    const venus = new VenusRedux();
+    venus.isActive = true;
+    const luna = new Luna();
+    luna.isActive = true;
+    const callisto = new Callisto();
+    callisto.isActive = true;
+    callisto.colonies = [p2.id];
+    game.colonies = [venus, luna, callisto];
+  },
+  expect: ({game, p1}) => {
+    if (game.colonies[0].name !== ColonyName.VENUS_REDUX || game.colonies.some((c) => c.colonies.includes(p1.id))) {
+      throw new Error(`the parliament-colony-venus-assembly fixture expected Venus open on the table and blue on no tile — got ${game.colonies.map((c) => c.name).join(', ')}`);
+    }
+  },
+});
+
 // ── RX10 · DEVELOPMENT CRAZE (Mars First) — the first LIVE PASSIVE, ENACTED: the sitting is over, red (the seat
 //    that opens generation 2 — the seat the loader opens) won it with the free delegate and holds 30 M€, enough for a
 //    standard-project GREENERY on a cell with a printed bonus: the placement's bonuses are paid TWICE (the second

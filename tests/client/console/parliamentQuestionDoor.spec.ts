@@ -46,6 +46,7 @@ function section(over: Record<string, unknown> = {}): Stub {
     leaving: false,
     embedded: false,
     sittingUp: false,
+    sittingHostsQuestion: true,
     questGate: undefined,
     bridge: {},
     reconciledKey: 'k',
@@ -201,6 +202,41 @@ describe('ConsoleParliamentSection — wait graph R1 / W2: the question door say
     expect(stub.calls).deep.eq(['closeVote']);
     stub.ticks.splice(0).forEach((fn) => fn());
     expect(parliamentFlow.stage).eq('quest');
+  });
+});
+
+/*
+ * «A SITTING SERVES EVERY DOOR» WAS FALSE OF A QUESTION IT DOES NOT HOST (the autopilot in a real browser, CI run
+ * 45464328216 — game 55, 2026-11-24: Colony Contest's free colony built on the Redux Venus; the tile's delegates are
+ * the Parliament's own vote step, sourced by the COLONY — the sitting read «получено» with the question on no surface).
+ */
+describe('ConsoleParliamentSection — a standing sitting serves the doors it HOSTS, and only those', () => {
+  beforeEach(resetAll);
+  afterEach(resetAll);
+  const grant = {staged: false, count: 2};
+
+  it('the sitting hosts the ask (a step of the resolution in its own field): served — the shell may drop its owe', () => {
+    parliamentFlow.stage = 'sitting';
+    const stub = section({sittingUp: true, sittingHostsQuestion: true, bridge: {grant}});
+    expect(standingQuestionServed(stub)).is.true;
+    expect(serveStandingQuestion(stub)).is.true;
+    expect(stub.calls, 'nothing touched: the sitting is at work for it').deep.eq([]);
+  });
+
+  it('a live grant the sitting does NOT host: owed, never «served» — and the door cuts nothing of the sitting', () => {
+    parliamentFlow.stage = 'sitting';
+    const stub = section({sittingUp: true, sittingHostsQuestion: false, bridge: {grant}});
+    expect(standingDoorOwed(stub)).is.true;
+    expect(standingQuestionServed(stub), 'the question stands on no stage of the section').is.false;
+    expect(serveStandingQuestion(stub), 'the conclusion stays owed (the sitting yields by its own walk)').is.false;
+    expect(parliamentFlow.stage, 'the sitting stands').eq('sitting');
+    expect(stub.calls).deep.eq([]);
+  });
+
+  it('…and once the sitting has yielded its stage to the vote, the vote serves it', () => {
+    parliamentFlow.stage = 'vote';
+    const stub = section({sittingUp: false, sittingHostsQuestion: false, bridge: {grant}});
+    expect(standingQuestionServed(stub)).is.true;
   });
 });
 

@@ -1318,6 +1318,38 @@ export function workspaceFrameEpoch(kind: WorkspaceFrameKind): number {
   return frameEpochs[kind] ?? 0;
 }
 
+/**
+ * WOULD A FRAME OF `kind` PUSHED ON TOP NOW STAND INSIDE ITS OWN SURFACE? A hostable surface is ONE component, and a
+ * frame embedded in a host is that component TELEPORTED into the host's zone. So a chain of EMBEDDED frames from the
+ * top down to a frame of the same kind means the surface would be moved into a node inside itself — the DOM refuses
+ * («the new child element contains the parent»), the teleport throws, and the surface is on screen nowhere.
+ *
+ * The chain is broken by an OVERLAY: a frame that takes the scene stands over its host, outside the host's surface
+ * (`parliament ⊃ card-actions(scene) ⊃ colonies` — the Unity door's trade — may nest a Parliament step in the
+ * colonies; `parliament ⊃ colonies(embedded in the sitting's stage)` may not).
+ *
+ * (The autopilot in a real browser, CI run 45464328216 — game 55, 2026-11-24: a sitting's law built a colony inside
+ * the sitting's own stage, A «Построить» and then B inside the answer's flight; the next question — the law's
+ * delegate — was opened as a Parliament step of those colonies. `HierarchyRequestError`, the section gone, the
+ * question stranded with no verb on the bar: issues #134 · #135 · #136.)
+ */
+export function pushWouldNestInItself(kind: WorkspaceFrameKind): boolean {
+  const frames = workspaceStackState.frames;
+  // (The pushed frame itself may be handed the scene by the top — then it stands over it, inside nothing.)
+  if (hostHandsOverTheScene(frames.length, kind)) {
+    return false;
+  }
+  for (let depth = frames.length - 1; depth >= 0; depth--) {
+    if (frames[depth].kind === kind) {
+      return true;
+    }
+    if (depth === 0 || frames[depth].overlay) {
+      return false;
+    }
+  }
+  return false;
+}
+
 /** Does the frame BELOW `depth` hand the whole scene to THIS guest? */
 function hostHandsOverTheScene(depth: number, guest: WorkspaceFrameKind): boolean {
   const host = depth > 0 ? workspaceStackState.frames[depth - 1] : undefined;

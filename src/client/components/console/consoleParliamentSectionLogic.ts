@@ -31,6 +31,8 @@ export type ParliamentSectionPort = {
   readonly embedded: boolean,
   // ── computeds the bodies read
   readonly sittingUp: boolean,
+  /** The standing sitting HOSTS the question in its own field (the position reads an ask of this seat) — or nothing is asked. */
+  readonly sittingHostsQuestion: boolean,
   readonly questGate: {generation: number} | undefined,
   readonly bridge: Pick<ParliamentPromptBridge, 'seat' | 'grant' | 'supportPick' | 'bannerPick' | 'delegatePick'>,
   // ── state the bodies WRITE
@@ -132,15 +134,21 @@ export function serveStandingQuestion(self: ParliamentSectionPort): boolean {
  * DOES A STAGE OF THIS SECTION SERVE THE STANDING QUESTION NOW? Per door, the stage that answers it: the quest's own
  * flow (its stage, its seat pick, its submit) for the gate; the seat pick for a stand-alone seat; the vote mode (its
  * pick, its payment, its submit) for a live grant; the support / banner / delegate mode — not yet `done` — for its
- * live pick. A SITTING standing serves every door: the phase's asks are hosted in its own field, and its end folds
+ * live pick. A SITTING standing serves every door IT HOSTS: the phase's asks stand in its own field, and its end folds
  * back to the overview by its own hand (`endSitting` → `closeStage`, the overview's doors asked on the way back).
+ *
+ * …and NOT a question it does not host (`sittingHostsQuestion` — the position reads no ask of this seat while a
+ * door's prompt stands: the delegates of the Redux Venus, paid by the winner's free colony of Colony Contest). «The
+ * sitting serves every door» was said of it too, and it was false: the sitting stood on «получено» with the question
+ * on no surface (the autopilot in a real browser, 2026-11-24 — game 55). The sitting YIELDS its stage to that door
+ * (`ConsoleParliamentSection.yieldSittingToQuestion`), and until it has, the question is owed, never served.
  */
 export function standingQuestionServed(self: ParliamentSectionPort): boolean {
   const f = parliamentFlow;
   const b = self.bridge;
   const kind = parliamentStageKind();
   if (self.sittingUp && kind === 'sitting') {
-    return true;
+    return self.sittingHostsQuestion;
   }
   const questUp = chairmanQuestFlow.live && chairmanQuestFlow.beat !== 'done';
   if (self.questGate !== undefined && questUp && (kind === 'quest' || kind === 'seat')) {

@@ -2110,6 +2110,34 @@ stopped by a class that is closed now, and each record read with «what did the 
   pack. With no table open the packet now rises from the card that brought it back
   (`playedReturnModel.returnDeparture`); red without it, green with it, read off a burst of frames. The rule the
   walk teaches: an unwalked «rare» flow is not presumed healthy — the first walk of this one found it dead.
+- **THE CLASS BEHIND IT, COUNTED (`7e81c18852`).** «A card that reaches the hand with no place to lift from» is said by
+  two observers now — `net-ended/ended/hand-intake:no-source` (the dock's director: a delivery whose cards have no
+  source on screen) and `played-return:no-departure` — at info tier, so the next passes name every other road that
+  makes a card appear in the pack instead of travelling there.
+- **THE SECOND, WALKED — HEALTHY (`1b57f8fa2b`).** Mars Nomads moved by ANOTHER seat
+  (`console-nomads-remote-move.spec.ts`, fixture `nomads-remote-move` — two human seats, the card on the other one):
+  on the viewer's board the camp leaves its cell, is carried and lands — one object, never on two cells, never gone
+  with nothing in the air. `scene:nomad-move-remote` and its hold leave the ledger.
+- **CI's BROWSER GAME 55 — A REAL FREEZE, CLOSED (run 45464328216 on `fb65cd4284`; findings #134 · #135 · #136).** A
+  sitting enacted Colony Contest; the winner's free colony was built on the REDUX VENUS, whose tile pays «add 2
+  delegates to a resolution». A colony's grant is the Parliament's vote step hosted INSIDE the colonies that paid it —
+  and here those colonies stood inside the Parliament's own surface (the sitting's stage). The Parliament is ONE
+  component: the door asked the DOM to move it into a node inside itself — `HierarchyRequestError: the new child
+  element contains the parent`, the section stopped updating, the question on no surface, no verb on the bar. Three
+  parts, each wrong on its own: (1) the stack let a frame be pushed where it would stand inside itself
+  (`pushWouldNestInItself` — a chain of EMBEDDED frames down to the same kind; an overlay breaks the chain, which is
+  why the Unity door's trade may nest); (2) the colony flow called the grant its own step and waited for a frame that
+  could never stand (`grantServedBelow`); (3) the section's question door said «a standing sitting serves every door»
+  — true only of the asks the sitting HOSTS (`sittingHostsQuestion`). The sitting now YIELDS its stage: the build
+  lands, the colonies leave, the walk — between beats, the page quiet — folds the sitting and the overview's own door
+  opens the vote in the same tick («ПАРЛАМЕНТ › ГОЛОСОВАНИЕ», B = «Свернуть», the same question on return); the
+  answer landed, the stage watcher raises the sitting again and it walks on to its results. Reproduced on a fixture
+  (`parliament-colony-venus-assembly`), `console-parliament-colony-venus.spec.ts` red on the build without the fix
+  (the very `HierarchyRequestError`), green with it.
+  *Left for the owner, a rule not a freeze:* the delegates are placed AFTER the vote was decided, on a resolution the
+  renewal discards a moment later — they go home, and the vote stage's forecast («побеждает», «эффект ваш») reads as
+  if the vote were still open. The server asks by the rules as written (a placement can still feed a quest or a card's
+  reaction), so nothing was changed there.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
