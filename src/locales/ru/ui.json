@@ -1309,6 +1309,7 @@
     "The rematch is ready!": "Реванш готов!",
     "A new game was created with the same settings.": "Создана новая партия с теми же настройками.",
     "declined the rematch.": "отказался от реванша.",
+    "${0} declined the rematch": "${0}: отказ от реванша",
     "Planetary event": "Планетарное событие",
     "Erosions appear on the surface when the 3rd ocean is placed.": "Когда размещён 3-й океан, на поверхности появляются эрозии.",
     "Dust storms recede when the 6th ocean is placed.": "Когда размещён 6-й океан, пылевые бури отступают.",

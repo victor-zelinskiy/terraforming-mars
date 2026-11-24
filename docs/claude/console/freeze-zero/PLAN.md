@@ -2148,6 +2148,21 @@ stopped by a class that is closed now, and each record read with «what did the 
   screen — red on the build without the fix, green with it. Three more flows off the ledger (30 on it). The standard
   project's and the Hydronetwork's popovers still place by constants (theirs fit — a fixed width, a short text); they
   are the same class and want the same walk.
+- **THE FOURTH, WALKED — A SILENT LOSS.** The rematch of two HUMAN seats, offered and DECLINED
+  (`console-rematch-declined.spec.ts` on `finale-rich-2p`; no spec of the suite had touched the rematch at all — the
+  pilot's games are solo or against the bot, where an offer creates the new game at once). The console's rematch
+  layer is headless and the «declined the rematch» toast is the desktop's: the offerer's «Отменить · 1/2» turned back
+  into «Предложить реванш» with no word of why — another player's answer, lost in silence. The action now says who
+  declined («Предложить реванш · <name>: отказ от реванша», the server's own `declinedBy`); the spec walks offer →
+  decline → offer → accept → the way into the new game by the server's model at every step, red with the note off.
+  `surface:rematch-layer` is off the ledger (29 flows on it).
+- **WHAT THE FOUR WALKS SAY, TOGETHER.** Of four «rare» flows walked for the first time in one night, ONE was healthy
+  (the nomads moved by another seat); one did not exist where the card is played (Astra's return), one stood in the
+  wrong place (the journal's previews), one lost another player's answer (the rematch). «Declared with a reason» meets
+  the stage's letter and not its purpose: a flow nobody ever ran is unknown, not rare. Still unwalked and real: a
+  law's card played under a folding commit, the overlay-hosted hero (the road unproven), the draft tray under the
+  research rise (the overlap unproven), the tenders' bidding reveal, the annotations layer of the per-component
+  viewer.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

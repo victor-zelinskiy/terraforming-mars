@@ -29,8 +29,7 @@
   "surface:played-cards-pick": "DEAD — `enterPlayedCardsPick` has no caller. A deletion candidate (its `owedAnswer` with it).",
   "surface:played-controller": "RARE (the road unproven) — the played-card hero with its host `overlay`: a play confirmed while «Разыграно» stands open, or with no descent of the hand workspace. 3 421 walks never made it — the `host: overlay` branch may be unreachable.",
   "surface:played-overlay": "RARE (the road unproven) — the same overlay-hosted hero scene as `surface:played-controller`.",
-  "surface:player-cube-playground": "DEV ONLY — the player-cube playground (a deep link / the dev hub).",
-  "surface:rematch-layer": "RARE — after a game of two HUMAN seats ends, a rematch offered and DECLINED by the other seat. To walk: a duo table to its end, offer, decline."
+  "surface:player-cube-playground": "DEV ONLY — the player-cube playground (a deep link / the dev hub)."
  },
  "frames": {},
  "moves": {

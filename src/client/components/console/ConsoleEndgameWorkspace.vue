@@ -269,6 +269,7 @@
             <div v-if="ui.actionsOn" class="con-eg__actions" role="menu">
               <div v-for="(a, i) in actions" :key="a.id"
                    class="con-eg__action" role="menuitem"
+                   :data-eg-action="a.id"
                    :class="{
                      'con-eg__action--focused': i === ui.actionsFocus,
                      'con-eg__action--disabled': a.enabled === false,
@@ -968,10 +969,18 @@ const actions = computed((): Array<PostGameAction> => {
         run: () => { /* disabled */ },
       });
     } else {
+      // THE OFFER WAS DECLINED — said on the very action it sends the players back to. The console's rematch layer is
+      // HEADLESS (its «declined the rematch» toast is the desktop's), so the offerer's «Отменить · 1/2» used to turn
+      // back into «Предложить реванш» with no word of why: another seat's answer, lost in silence (the first walk of
+      // a declined rematch — FREEZE ZERO, stage 4, 2026-11-25). The seat that declined is told nothing it does not
+      // know; the note stands until the next offer replaces the state it describes.
+      const declinedBy = rematch.status === 'declined' && rematch.declinedBy !== rematch.viewerColor ?
+        rematch.votes.find((vote) => vote.color === rematch.declinedBy)?.name : undefined;
       out.push({
         id: 'rematch-offer',
         label: soloHumans ? 'Rematch' : 'Offer rematch',
         enabled: !busy,
+        ...(declinedBy !== undefined ? {note: translateTextWithParams('${0} declined the rematch', [declinedBy])} : {}),
         run: () => void submitRematch(viewerId, 'offer'),
       });
     }
