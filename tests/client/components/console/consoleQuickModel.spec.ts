@@ -212,6 +212,36 @@ describe('consoleQuickModel (P27)', () => {
       }
     });
 
+    /*
+     * …EXCEPT THE PASS THAT ANSWERS THE PARKED QUESTION ITSELF. The corporation's first action is the seat's to take or
+     * to pass over (the server's menu is «the first action | pass»); its plate offers only the action, so the pass
+     * lives on the wheel. A player who opened the plate and minimized it found the pass withheld — the one legal
+     * answer left was the one they had just declined to give (the autopilot's whole games, 2026-11-25 — game 780).
+     */
+    it('the pass that ANSWERS the parked question is not withheld by it — every verb around it still is', () => {
+      const entries = buildLtQuickEntries(ctx({
+        blockedReason: 'Finish your current action first',
+        stdAvailable: true,
+        passAvailable: true,
+        passAnswersParked: true,
+        convertHeatAvailable: true,
+      }));
+      const pass = entries.find((e) => e.id === 'pass');
+      expect(pass?.available, 'the pass goes THROUGH the parked question').to.eq(true);
+      expect(pass?.reason).to.eq('');
+      for (const e of entries.filter((entry) => entry.id !== 'pass')) {
+        expect(e.available, `'${e.id}' would go around the parked question`).to.eq(false);
+        expect(e.reason, `'${e.id}' names the real blocker`).to.eq('Finish your current action first');
+      }
+    });
+
+    it('…and only while the server really offers it: a marker with no pass in the menu opens nothing', () => {
+      const pass = buildLtQuickEntries(ctx({blockedReason: 'Finish your current action first', passAvailable: false, passAnswersParked: true}))
+        .find((e) => e.id === 'pass');
+      expect(pass?.available).to.eq(false);
+      expect(pass?.reason).to.eq('Finish your current action first');
+    });
+
     it('…and says nothing extra once there is nothing set aside', () => {
       const entries = buildLtQuickEntries(ctx({blockedReason: ''}));
       const std = entries.find((e) => e.id === 'standardProjects');

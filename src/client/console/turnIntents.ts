@@ -185,6 +185,17 @@ export function findPassPath(wf: PlayerInputModel | undefined): ReadonlyArray<nu
   return findOptionPathByTitle(wf, 'Pass for this generation');
 }
 
+/**
+ * THE PASS ANSWERS THE STANDING QUESTION ITSELF: the corporation's first action, which the seat may take or pass over
+ * (the server's menu is «the first action | pass» — its own marker, never a title). A parked decision withholds every
+ * verb that would go AROUND it; this pass goes THROUGH it, so neither the wheel's tile nor its press is withheld by the
+ * plate the player minimized (`LtQuickContext.passAnswersParked` — ONE predicate for the gate and for the press: the
+ * tile was opened first and the press still refused, because each asked its own question).
+ */
+export function passAnswersParkedQuestion(wf: PlayerInputModel | undefined): boolean {
+  return wf?.startGamePrompt?.kind === 'corporationInitialAction' && findPassPath(wf) !== undefined;
+}
+
 export function findEndTurnPath(wf: PlayerInputModel | undefined): ReadonlyArray<number> | undefined {
   return findOptionPathByTitle(wf, 'End Turn');
 }

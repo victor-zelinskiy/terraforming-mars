@@ -2082,6 +2082,15 @@ stopped by a class that is closed now, and each record read with «what did the 
   the pilot answered 23 questions THROUGH THE DOOR (0.5 %): thirteen places where it did not walk the screen — the
   largest two are an information panel left open over the draft (5 games) and the «production to lose» layout (5
   games, `A −1 · X Принять убыток` on the bar). Each is the pilot's reach or the screen's: they are the next reading.
+  **READ (the same night).** The «production to lose» layout has no driver in the pilot (a random walk of 45 presses
+  does not lay out a loss) and the information panel is the pilot's own look left open — the pilot's reach, both. ONE
+  was the product's: game 780, generation 14, «the pass by the wheel did not land three times» under a first action
+  still owed. The server's menu there is «the first action | pass»; the plate offers only the action, the pass lives
+  on the wheel — and the wheel withheld it from a player who had OPENED the plate and minimized it («a parked decision
+  blocks every basic action»), though this pass is an answer to that very decision. Exempted by the server's marker
+  (`passAnswersParked`); fixture `first-action-owed-late`, `console-first-action-pass.spec.ts` red without it. The
+  rule the reading teaches: a green gate's «door» lines are read like a red's — the pilot going around a screen is
+  either its own habit or a place where the screen would not let a player through.
 - **«PER MAP SET», COUNTED.** The pilot's tables are spread over eleven boards; the box's passes so far hold 13 – 35
   games a board (295 in all, on five builds). A hundred on EVERY board is ≈ 1 100 games — nights of the box, not one:
   the number is reported per build and per board, and the gate must be green on the build that is released.

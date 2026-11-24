@@ -908,6 +908,30 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   write('journal-chips', game);
 }
 
+// ── first-action-owed-late: A FIRST ACTION STILL OWED IN A LATER GENERATION. The corporation's first action is the
+//    seat's to take OR to pass over — the server's menu is «the first action | pass» for as long as it is owed, on
+//    every turn of every generation (the autopilot's whole games pass over it all the time; game 780 of the counting
+//    pass stood on «Первое действие» in generation 14 and its pass by the wheel did not land three times). A solo
+//    action phase in generation 3 with Inventrix's «draw 3 cards» never taken. ──
+{
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.INVENTRIX], startingCorporations: 1});
+  const corp = player.playedCards.corporations()[0];
+  if (corp === undefined || corp.initialAction === undefined) {
+    throw new Error(`the first-action-owed-late fixture expected a corporation with a first action — got ${corp?.name}`);
+  }
+  player.megaCredits = 40;
+  game.generation = 3;
+  player.pendingInitialActions = [corp];
+  player.popWaitingFor();
+  player.takeAction();
+  runAllActions(game);
+  const menu = player.getWaitingFor();
+  if (!(menu instanceof OrOptions) || menu.options.length !== 2) {
+    throw new Error(`the first-action-owed-late fixture expected the menu «first action | pass» — got ${menu?.constructor.name} with ${menu instanceof OrOptions ? menu.options.map((o) => String(o.title)).join(' | ') : ''}`);
+  }
+  write('first-action-owed-late', game);
+}
+
 // ── rail-reward-action: a solo action phase with TWO plain resource-paying
 //    blue actions in the tableau — Electro Catapult (spend 1 plant / 1 steel
 //    → +7 M€: a STOCK reward with a choice) and Space Mirrors (7 M€ → +1

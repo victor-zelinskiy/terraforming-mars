@@ -23,7 +23,7 @@ import {consoleState, ConsoleQuickId} from '@/client/console/consoleRouter';
 import {WheelArmEvent, WheelInputState, initialWheelInput} from '@/client/console/quickWheel/wheelArmModel';
 import {ensureActionPreviews} from '@/client/console/actionPreviewStore';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {findEndTurnPath, findPassPath} from '@/client/console/turnIntents';
+import {findEndTurnPath, findPassPath, passAnswersParkedQuestion} from '@/client/console/turnIntents';
 import type {SeatController} from '@/client/console/shell/seatController';
 
 /**
@@ -115,6 +115,9 @@ export function createWheelController(shell: WheelPort) {
         stdAvailable: shell.standardProjectsAction !== undefined,
         endTurnAvailable: findEndTurnPath(wf) !== undefined,
         passAvailable: findPassPath(wf) !== undefined,
+        // (The first action the seat may pass over — the server's own marker, never a title: the pass ANSWERS that
+        // question, so a minimized plate does not withhold it.)
+        passAnswersParked: passAnswersParkedQuestion(wf),
         // A card-granted bonus action withholds BOTH turn-control verbs, and
         // says why — the server does not offer them, so without this the
         // wheel would fall back to «сейчас недоступно» over a live menu.

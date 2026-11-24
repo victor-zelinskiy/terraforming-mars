@@ -99,7 +99,7 @@ import {isDeltaEspionagePickActive} from '@/client/console/hydroFlow/deltaEspion
 import {isBlockadeExecutionActive, isDeltaBlockadePickActive} from '@/client/console/hydroFlow/deltaBlockadeEntry';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {findConvertHeatOption, findConvertPlantsOption, findEndTurnPath, optionResponseForPath} from '@/client/console/turnIntents';
+import {findConvertHeatOption, findConvertPlantsOption, findEndTurnPath, optionResponseForPath, passAnswersParkedQuestion} from '@/client/console/turnIntents';
 import {infoModeState, cyclePlayer} from '@/client/console/infoModeState';
 import {extrasExplorerUi, selectExtrasType} from '@/client/console/consoleExtrasExplorer';
 import {effectsExplorerLayer} from '@/client/console/consoleEffectsExplorer';
@@ -1709,7 +1709,8 @@ export function createPadRouterController(shell: PadRouterPort) {
       break;
     }
     case 'pass':
-      if (guardBusy()) {
+      // (A pass that ANSWERS the parked question is not «busy» with it — the same predicate the tile's gate reads.)
+      if (!passAnswersParkedQuestion(wf) && guardBusy()) {
         return;
       }
       // Pass ALWAYS confirms (warnings carried over from the desktop).

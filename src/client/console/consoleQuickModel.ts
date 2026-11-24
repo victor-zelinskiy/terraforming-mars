@@ -199,6 +199,17 @@ export type LtQuickContext = {
   /** «Pass for this generation» is offered right now. */
   passAvailable: boolean,
   /**
+   * THE PASS ANSWERS THE VERY QUESTION THAT WAS SET ASIDE — it is not a way around it. The corporation's first action
+   * is the seat's to take OR to pass over: the server's menu is «the first action | pass» for as long as it is owed
+   * (any turn, any generation — a seat that passed over it meets the same plate next generation). The plate itself
+   * offers only the action, so the pass lives on this wheel — and a player who OPENED the plate to read it and
+   * minimized it found the pass withheld by «сначала завершите текущее действие»: the one legal answer left was the
+   * one they had just declined to give (the autopilot's whole games, 2026-11-25 — game 780: the pass by the wheel
+   * refused three times in generation 14; reproduced on `first-action-owed-late`). A parked decision still blocks
+   * every verb that would go AROUND it; this one goes through it.
+   */
+  passAnswersParked?: boolean,
+  /**
    * The TURN-CONTROL verbs («Пропустить ход» / «Пас») are withheld for a
    * reason of their OWN, which outranks their generic ones but — unlike
    * `blockedReason` — leaves every other verb alone.
@@ -290,7 +301,7 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
     },
     {
       id: 'pass', slot: 'down', label: 'Pass', barIcon: 'pass',
-      ...turnControlGate(ctx.passAvailable, 'Unavailable right now'),
+      ...(ctx.passAnswersParked === true && ctx.passAvailable ? {available: true, reason: ''} : turnControlGate(ctx.passAvailable, 'Unavailable right now')),
     },
     {
       id: 'convertPlants', slot: 'left', label: 'Plant conversion',
