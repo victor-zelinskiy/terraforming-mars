@@ -19,6 +19,7 @@ import {
   descendWorkspaceFrame,
   enterWorkspace,
   resetWorkspaceStack,
+  setWorkspaceFrameSlot,
 } from '@/client/console/consoleWorkspaceStack';
 import {CardName} from '@/common/cards/CardName';
 import type {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
@@ -145,6 +146,27 @@ describe('consoleOutcomeAdoption — the net under the claim system', () => {
     it('a non-hostable top frame adopts nothing (its outcome zone never mounts for a foreign batch)', () => {
       enterWorkspace('card-actions');
       descendWorkspaceFrame('card-actions', CardName.AI_CENTRAL as string, 'configure');
+      expect(outcomeAdoptionHost()).to.eq(undefined);
+    });
+
+    /*
+     * THE HYDRONETWORK ADOPTS ONLY WHILE ITS ZONE STANDS (FREEZE ZERO, stage 6 — the ninth game of the autopilot's
+     * first pass). Its zone lives in the COMMIT scene alone; a frame «inside a flow» by its phase with no commit scene
+     * — a reward choice standing as a step of a play from the hand, a result being read — was promised a node that
+     * does not exist: the claim stood `awaiting` with no zone and the result could not conclude under it — «A
+     * Продолжить» and nothing behind it, until the arbiter's ladder.
+     */
+    it('the Hydronetwork adopts only while its commit scene publishes the zone — a reward step of a play, a result being read, adopt nothing', () => {
+      enterWorkspace('hand');
+      descendWorkspaceFrame('hand', CardName.AI_CENTRAL as string, 'configure');
+      enterWorkspace('hydro');
+      descendWorkspaceFrame('hydro', 'stage', 'configure');
+      expect(outcomeAdoptionHost(), 'inside a flow by its phase — and no zone to present in').to.eq(undefined);
+      // The commit scene stands: the section publishes its zone on the frame…
+      setWorkspaceFrameSlot('hydro', '[data-embed-slot="hydro"]');
+      expect(outcomeAdoptionHost()).to.eq('hydro');
+      // …and retracts it when the scene leaves (the result): nothing more is adopted.
+      setWorkspaceFrameSlot('hydro', '');
       expect(outcomeAdoptionHost()).to.eq(undefined);
     });
 

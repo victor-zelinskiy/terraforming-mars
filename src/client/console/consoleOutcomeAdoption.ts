@@ -58,6 +58,7 @@ import {
 } from '@/client/console/consoleWorkspaceOutcome';
 import {
   workspaceFrameDescended,
+  workspaceFrameSlot,
   workspaceStackTop,
 } from '@/client/console/consoleWorkspaceStack';
 
@@ -97,6 +98,19 @@ export function outcomeAdoptionHost(): WorkspaceOutcomeHost | undefined {
   const kind = top.kind as WorkspaceOutcomeHost;
   if (kind === 'start') {
     return 'start';
+  }
+  // …AND ONLY A HOST WHOSE ZONE STANDS. The Hydronetwork's zone lives in its COMMIT scene alone — published while that
+  // scene is on screen, retracted when it leaves (`ConsoleHydroSection.publishEmbedZone`) — and the table above is its
+  // only other publication: so a batch adopted by a hydro frame that is «inside a flow» by its PHASE but has no commit
+  // scene (a reward choice standing as a step of a play from the hand; a result being read) was promised a node that
+  // does not exist. The claim then stood `awaiting` with no zone, the hydro flow — which rightly did not count a batch
+  // that is not its own — walked on to its result, and the result could not conclude under a claim it «hosted»: «A
+  // Продолжить» on the bar and nothing behind it, ten seconds, until the arbiter's ladder (FREEZE ZERO, stage 6 — the
+  // ninth game of the autopilot's first pass: a card played from the hand that moves the Hydronetwork while a
+  // corporation's draw is pending). The same reason the card actions' composer is not in the table at all: a host
+  // adopts only what it can present. With no host the batch keeps its standalone presenter — at once, never a wait.
+  if (kind === 'hydro' && workspaceFrameSlot('hydro') === '') {
+    return undefined;
   }
   return workspaceFrameDescended(kind) ? kind : undefined;
 }

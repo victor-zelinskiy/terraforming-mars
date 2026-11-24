@@ -38,6 +38,12 @@ export type AutopilotOptions = {
   finalePresses?: number,
   /** Called where the door is about to answer for the viewer — the screen still stands as the walk left it (a reading aid). */
   onDoor?: (what: string) => void,
+  /**
+   * THE SOAK's SAMPLE (stage 6 — «flat over a whole game»): called ONCE A GENERATION, at the same place every time —
+   * the viewer's action menu with nothing on the stack (the board home) — so what it counts (DOM nodes, the kernel's
+   * scopes and waits, armed timers, the heap) is comparable from generation to generation. A page that leaks grows.
+   */
+  sample?: () => Record<string, number>,
   /** A word about the page appended to every press of the log (a reading aid: what stood AFTER the press and its pause). */
   trace?: () => string,
 };
@@ -58,6 +64,8 @@ export type AutopilotResult = {
   seatMoves: number,
   /** The clock the game took (ms of the bottle's time). */
   tookMs: number,
+  /** The soak's samples, one a generation (`AutopilotOptions.sample`): `{gen, …counts}`. */
+  soak: Array<Record<string, number>>,
   /** WHERE THE SCREEN STOOD each time the door answered for the viewer: the question, the frames, the bar — what the walk parted from. */
   doors: Array<string>,
   log: Array<string>,
@@ -114,7 +122,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
   const others = seats.map((seat) => seat.id).filter((id) => id !== viewer);
   const startedAt = bottle.clock.now();
   const result: AutopilotResult = {
-    end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, seatMoves: 0, tookMs: 0, doors: [], log: [],
+    end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, seatMoves: 0, tookMs: 0, soak: [], doors: [], log: [],
   };
   const bump = (into: Record<string, number>, key: string): void => {
     into[key] = (into[key] ?? 0) + 1;
@@ -137,6 +145,7 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
   let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean} | undefined;
   let quietSince = bottle.clock.now();
   let lastAge = -1;
+  let sampledGeneration = 0;
 
   const othersMove = async (): Promise<void> => {
     for (const seat of others) {
@@ -212,6 +221,10 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       continue;
     }
     quietSince = bottle.clock.now();
+    if (options.sample !== undefined && asked.menu && sampledGeneration !== truth.generation && bottle.frames().length === 0) {
+      sampledGeneration = truth.generation;
+      result.soak.push({gen: truth.generation, ...options.sample()});
+    }
     if (standing === undefined || standing.promptId !== asked.promptId) {
       if (standing !== undefined) {
         bump(standing.byApi ? result.byApi : result.byUi, standing.menu ? 'or:menu' : standing.type);

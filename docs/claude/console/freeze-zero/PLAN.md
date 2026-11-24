@@ -1627,14 +1627,28 @@ no rebuild inside a game, no table nobody moved.** What the pass named, read cla
   to twenty minutes a game and sees everything. The solo player against MarsBot (three games of four) from the first
   press to the final scoring, a table the creator's own payload makes, judged by the harness's guards and filed by
   cause class like a walk. This is the instrument the stage's number is read on.
-- **OPEN, each with its evidence — to be read on the browser's pass, never cured on a guess:** ⓐ a card played
-  from the hand whose play moves the Hydronetwork onto a stage with a choice WHILE the corporation draws (Point
-  Luna): the draw's claim is adopted by the nested `hydro` frame, the reveal finds no zone, `hydro:completing`
-  stands until the arbiter's ladder (game 9 of the first pass, press ≈ 412: `claim:hydro … zone unmounted`,
-  `UNREGISTERED ZONE [data-embed-slot="hydro"]`); ⓑ a sitting's `option` under its walk in the bottle (games 2 · 22
-  — `stranded-prompt/parliamentphase` once each; the Parliament is the bottle's most layout-bound surface); ⓒ the
-  draft's plate «did not come in its bound» behind a start that still stood (games 6 · 7 · 23 — the take turn's
-  consequence; re-read on the next pass).
+- **ⓐ CURED — A HOST ADOPTS ONLY WHAT IT CAN PRESENT (the ninth game, replayed at its own commit).** A card played
+  from the hand whose play moves the Hydronetwork onto a stage with a choice, WHILE a draw is pending for the viewer:
+  the reward choice stands as a step of the play (`hand:configure > hydro:configure`), «inside a flow» by its phase —
+  and the adoption net (`consoleOutcomeAdoption`: «a batch belongs to the workspace the player stands in») gave the
+  batch to `hydro`. The Hydronetwork's zone lives in its COMMIT scene alone; the claim stood `awaiting` with no zone,
+  the hydro flow — which rightly does not count a batch that is not its own — walked on to its result, and the result
+  could not conclude under a claim it «hosted»: **«A Продолжить» on the bar and nothing behind it, ten seconds,
+  until the arbiter's ladder** (the probe at the standing beat: `claim {host: hydro, stage: awaiting, zone: ''}`, the
+  section on its `--result` layer, no `[data-embed-slot="hydro"]` in the document). Not the bottle's blindness —
+  nothing of it is measured. The law is the table's own («the card actions' composer is not in it: its zone never
+  mounts for a foreign batch»), written for the Hydronetwork too: `outcomeAdoptionHost` gives `hydro` only while the
+  frame's zone is published. With no host the batch keeps its standalone presenter, at once. The same game at the
+  same commit with the fix: the play ends, «Карты · A Взять» stands over the board, the game names nothing.
+- **OPEN, each with its evidence — to be read on the browser's pass, never cured on a guess:** ⓑ a sitting's
+  `option` under its walk in the bottle (games 2 · 22 — `stranded-prompt/parliamentphase` once each; the Parliament
+  is the bottle's most layout-bound surface); ⓒ the draft's plate «did not come in its bound» behind a start that
+  still stood (games 6 · 7 · 23 — the take turn's consequence; re-read on the next pass).
+- **THE SOAK's FIRST NUMBERS** (`AutopilotOptions.sample` — once a generation, at the same place: the viewer's action
+  menu with nothing on the stack): a sixteen-generation game against the bot grows from 1 158 DOM nodes to 2 309 and
+  from 24 kernel scopes to 50 — read by kind, all of it the BOARD filling (a tile's ownership cube is forty SVG nodes:
+  19 cubes by the end) and the scales' markers; waits and armed timers stand flat (12 – 22, no slope). No leak named
+  by one game; the series rides every game's file now, so a pass says it of all of them.
 - **THE BOX is unreachable since the night** (the chain of `fzz-*` passes died with the session's machine; four of
   the eight shards of `fzz-fz3-duo` on `af6a97cc9c` are in: 186 walks, 0 defect rows, no ghost, no quiet beat). CI
   carries the verdicts meanwhile.

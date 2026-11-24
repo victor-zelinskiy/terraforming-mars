@@ -158,12 +158,17 @@ function pilotPick(screen: Screen, g: () => number, last: string | undefined): s
 type Played = {
   end: 'finished' | 'capped' | 'stuck', presses: number, generation: number, phase: string,
   byUi: Record<string, number>, byApi: Record<string, number>, passes: {ui: number, api: number}, doors: Array<string>, tookMs: number,
+  /**
+   * THE SOAK's SAMPLES — once a generation, at the same place every time (the viewer's action menu with nothing on the
+   * stack): the DOM's nodes, the kernel's scopes and waits, the heap. A page that leaks grows from generation to generation.
+   */
+  soak: Array<Record<string, number>>,
 };
 
 async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>): Promise<Played> {
   const g = rng(`${seed}:pilot`);
   const started = Date.now();
-  const played: Played = {end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, doors: [], tookMs: 0};
+  const played: Played = {end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, doors: [], tookMs: 0, soak: []};
   const bump = (into: Record<string, number>, key: string): void => {
     into[key] = (into[key] ?? 0) + 1;
   };
@@ -195,6 +200,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
 
   let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean} | undefined;
   let moved = {age: -1, at: Date.now()};
+  let sampledGeneration = 0;
   while (played.presses < PRESSES && !page.isClosed()) {
     const model = await truth();
     played.generation = model.game.generation;
@@ -226,6 +232,25 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       }
       const menu = wf.type === 'or' && (wf.options ?? []).some((o) => o.type === 'option' && o.warnings?.includes('pass') === true);
       standing = {promptId: wf.promptId, type: wf.type, menu, presses: 0, budget: menu ? (g() < 0.18 ? 0 : 4 + Math.floor(g() * 23)) : 45, byApi: false};
+    }
+    if (standing.menu && sampledGeneration !== model.game.generation) {
+      const sample = await page.evaluate(() => {
+        const w = window as unknown as {__conReady?: () => {wsFrames?: Array<string>, holds?: Array<string>}, __conFlow?: () => {scopes?: number, waits?: Array<unknown>}};
+        if ((w.__conReady?.().wsFrames ?? []).length > 0) {
+          return undefined;
+        }
+        const flow = w.__conFlow?.();
+        return {
+          nodes: document.querySelectorAll('*').length,
+          scopes: flow?.scopes ?? -1,
+          waits: flow?.waits?.length ?? -1,
+          heapMb: Math.round(((performance as unknown as {memory?: {usedJSHeapSize: number}}).memory?.usedJSHeapSize ?? 0) / 1e6),
+        };
+      });
+      if (sample !== undefined) {
+        sampledGeneration = model.game.generation;
+        played.soak.push({gen: model.game.generation, ...sample});
+      }
     }
     if (standing.presses >= standing.budget) {
       if (standing.menu) {

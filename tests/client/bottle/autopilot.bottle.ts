@@ -97,6 +97,37 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
         let dumps = 0;
         played = await autopilotGame(bottle, table.seats, seed, {
           maxPresses: PRESSES,
+          // THE SOAK: what a page that leaks would grow by, counted at the board home once a generation.
+          sample: () => {
+            (globalThis as unknown as {gc?: () => void}).gc?.();
+            const flow = page.flow();
+            if (DEBUG) {
+              // WHAT STANDS, by kind: the scopes of the tree and the DOM's classes — two samples apart say what grew.
+              const count = (names: Array<string>): string => Object.entries(names.reduce((acc: Record<string, number>, name) => ({...acc, [name]: (acc[name] ?? 0) + 1}), {}))
+                .filter(([, n]) => n > 1).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([name, n]) => `${name}×${n}`).join(' ');
+              type Node = {className: unknown, tagName: string, parentElement: Node | null};
+              const els = [...(globalThis as unknown as {window: {document: {querySelectorAll(q: string): Iterable<Node>}}}).window.document.querySelectorAll('*')];
+              const named = (el: Node): string => {
+                if (typeof el.className === 'string') {
+                  return el.className.split(' ')[0];
+                }
+                // (An SVG node: its tag, and the first HTML ancestor that has a class — whose picture it is.)
+                let host: Node | null = el.parentElement;
+                while (host !== null && typeof host.className !== 'string') {
+                  host = host.parentElement;
+                }
+                return `${el.tagName.toLowerCase()}<${host === null ? '?' : String(host.className).split(' ')[0]}`;
+              };
+              console.log(`      ── SOAK gen ${bottleServer().seatTruth(viewer).generation} — scopes: ${count(flow.tree.map((line) => line.trim().split('#')[0]))} · nodes: ${count(els.map(named))}`);
+            }
+            return {
+              nodes: (globalThis as unknown as {window: {document: {querySelectorAll(q: string): {length: number}}}}).window.document.querySelectorAll('*').length,
+              scopes: flow.tree.length,
+              waits: flow.waits,
+              timers: page.clock.pending(),
+              heapMb: Math.round((nodeProcess() as unknown as {memoryUsage(): {heapUsed: number}}).memoryUsage().heapUsed / 1e6),
+            };
+          },
           trace: !DEBUG ? undefined : () => `${page.frames().join('>') || '-'}|${page.pageModules.consoleDraftFlow.draftWorkspaceState.completion}|g${bottleServer().seatTruth(viewer).generation}|${bottleServer().seatTruth(viewer).waitingFor ?? '-'}|D${page.liveness().defects.reduce((sum, d) => sum + d.count, 0)}|${page.bar().replace(/\s+/g, '').slice(0, 60)}`,
           // THE READING AID (`TM_BOTTLE_AUTOPILOT_DEBUG=1`): where the door had to answer, what stood — the server's
           // truth, the page's view, the stack, the arbiter's word, the kernel's tree, the screen's own words.
@@ -191,7 +222,7 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
         monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', layout: LAYOUT, landing: 'boot', duo: false, reload: false, hidden: false, faults: [], presses: played?.presses ?? 0, perturb: {netMs: 0, cpu: 0, motion: ''}, bottle: true, why},
         autopilot: played === undefined ? undefined : {
           end: played.end, generation: played.generation, phase: played.phase, presses: played.presses, byUi: played.byUi, byApi: played.byApi,
-          passes: played.passes, seatMoves: played.seatMoves, tookMs: played.tookMs, rebuilds, table: table?.config, doors: played.doors,
+          passes: played.passes, seatMoves: played.seatMoves, tookMs: played.tookMs, rebuilds, table: table?.config, doors: played.doors, soak: played.soak,
         },
         walk: played?.log.join(' ') ?? '',
       }, null, 1));
