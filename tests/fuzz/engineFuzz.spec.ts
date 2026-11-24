@@ -158,6 +158,16 @@ describe('engineFuzz — random legal games on the real engine', () => {
       expect(invariants).to.include('I2-none');
     });
 
+    it('I2-end — a question left standing in a finished game', () => {
+      const {result, invariants} = invariantsOf((game, step) => {
+        if (step === 4) {
+          game.phase = Phase.END;
+        }
+      });
+      expect(invariants).to.include('I2-end');
+      expect(result.end).to.eq('ended');
+    });
+
     it('I3 — work left queued under a question that does not continue it', () => {
       // (Planted in the ACTION phase: in the research phase a seat's own queue is OWED on its way out, not left.)
       let planted = 0;
@@ -266,9 +276,13 @@ describe('engineFuzz — random legal games on the real engine', () => {
    *    again: «discard 1 card of 0» — a question nobody could answer, refused by the engine. The inspection was
    *    still in the hand while the action was judged; a copier on its way out of the hand is not a card the action
    *    will find (`ProjectInspection.spec` holds the card itself).
+   * …and THE AUTOPILOT's (stage 6, 2026-11-24 — its whole game 30 found it on the console, `I2-end` names it here):
+   *  · 70034 — MarsBot won by the clock behind a sitting whose confirmation nobody had answered yet: «Закрыть
+   *    заседание» stood in a finished game — 6 of 400 games with the law off. The game's last sitting is a barrier
+   *    (`SittingAcks` — `endsGame`; `ParliamentPhase.spec` holds the sitting itself).
    */
   it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take) · 50926 (an ocean with no cell) · 50072 · 51755 (the research phase drains per seat) · 2078000753 (an action judged on a hand it will not have)', () => {
-    for (const seed of [55496, 50337, 51456, 50926, 50072, 51755, 2078000753]) {
+    for (const seed of [55496, 50337, 51456, 50926, 50072, 51755, 2078000753, 70034]) {
       const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}));
       expect(result.end, `seed ${seed}`).to.eq('ended');
       expect(result.violations.map((violation) => violation.key), `seed ${seed}`).to.deep.eq([]);

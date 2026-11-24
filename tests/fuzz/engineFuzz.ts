@@ -846,6 +846,12 @@ export function runFuzzGame(config: FuzzConfig, hooks: FuzzHooks = {}): FuzzResu
           violate('I2', [input.type, titleOf(input.title), subject], `a seat holds a question nobody can answer — ${why}`,
             {seat: seat.color, promptType: input.type, title: titleOf(input.title), source: subject, answer});
         }
+        // I2-end — NOTHING IS ASKED AFTER THE END: no page serves a finished game (the transport is over with it), and
+        // the answer's save would write the game back as a running one (`markFinished` is the last word on its rows).
+        if (over) {
+          violate('I2-end', [input.type, titleOf(input.title)], `a seat is asked a question in a finished game — ${input.type} «${titleOf(input.title)}»`,
+            {seat: seat.color, promptType: input.type, title: titleOf(input.title), source: subject, answer});
+        }
         if (seat.isMarsBot && !over) {
           violate('I2-bot', [input.type, titleOf(input.title), subject], 'MarsBot is asked a question — no page will ever answer it',
             {seat: seat.color, promptType: input.type, title: titleOf(input.title), source: subject, answer});

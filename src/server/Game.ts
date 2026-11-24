@@ -64,7 +64,7 @@ import {OCEAN_TILES, TileType} from '../common/TileType';
 import {Turmoil} from './turmoil/Turmoil';
 import {Parliament} from './parliament/Parliament';
 import {ParliamentHandler} from './parliament/ParliamentHandler';
-import {SittingAcks} from './parliament/SittingAcks';
+import {SittingAcks, sittingIsBarrier} from './parliament/SittingAcks';
 import {caughtAtNet} from './parliament/resolutions/DivertedTerraforming';
 import {ParliamentPhase} from './parliament/ParliamentPhase';
 import {PlaceDelegatesOnResolution} from './parliament/PlaceDelegatesOnResolution';
@@ -1461,6 +1461,21 @@ export class Game implements IGame, Logger {
     });
   }
 
+  /** MarsBot's clock (the official solo deadline): is `generation` one the game may not enter? */
+  private automaClockRunsOutAt(generation: number): boolean {
+    return this.automa !== undefined && this.gameOptions.automa?.mode !== 'multiplayer' &&
+      generation >= getAutomaMaxGeneration(this.gameOptions.preludeExtension, botPaceOffset(this.gameOptions.boardName));
+  }
+
+  /**
+   * NOTHING IS ASKED AFTER THE END. Does the game end the moment this generation turns over — with no final
+   * greeneries, by MarsBot's clock? Whatever a seat still owes this generation is then a BARRIER of it (the sitting's
+   * confirmation — `SittingAcks`), never a prompt left standing in a finished game.
+   */
+  public endsBehindThisGeneration(): boolean {
+    return this.automaClockRunsOutAt(this.generation + 1);
+  }
+
   private startGeneration() {
     this.phase = Phase.INTERGENERATION;
     this.updatePlayerVPForTheGeneration();
@@ -1476,8 +1491,7 @@ export class Game implements IGame, Logger {
     // multiplayer house-rule mode the game ends by ordinary terraforming
     // (docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md §12 Q3).
     // …and a map with longer parameters runs that clock later (Amazonis Planitia — `botPaceOffset`).
-    if (this.automa !== undefined && this.gameOptions.automa?.mode !== 'multiplayer' &&
-        this.generation >= getAutomaMaxGeneration(this.gameOptions.preludeExtension, botPaceOffset(this.gameOptions.boardName))) {
+    if (this.automa !== undefined && this.automaClockRunsOutAt(this.generation)) {
       this.automa.instantWin = true;
       this.log('${0} instantly wins — the game entered generation ${1}',
         (b) => b.player(marsBotOf(this)).number(this.generation));
@@ -3682,6 +3696,11 @@ export class Game implements IGame, Logger {
     // no waitingFor (both chips read «ГОТОВ»). Guard on human corp-pickers only.
     // THE SOFT GATES: a seat that has not closed the last sitting is asked its confirmation FIRST — before the draft,
     // the research or the World Government's step is restored, each of which leaves that seat to its answer.
+    if (game.phase === Phase.END && game.parliament !== undefined) {
+      // NOTHING IS ASKED AFTER THE END: a save from before the barrier (`SittingAcks` — the sitting MarsBot's clock
+      // ends the game behind) kept a confirmation the finished game can no longer take.
+      game.parliament.sittingAcks = undefined;
+    }
     if (game.parliament?.phase === undefined) {
       SittingAcks.issuePending(game);
     }
@@ -3690,8 +3709,8 @@ export class Game implements IGame, Logger {
       // resolution asked a player something): pick the phase up at its
       // persisted step — nothing is paid twice, nothing is re-randomized.
       ParliamentHandler.resumePhase(game, (final) => game.continueAfterParliamentPhase(final));
-    } else if (game.phase === Phase.PARLIAMENT && game.parliament?.sittingAcks?.final === true) {
-      // The FINAL sitting's barrier: its confirmations stand (re-issued above); the last one moves on.
+    } else if (game.phase === Phase.PARLIAMENT && sittingIsBarrier(game.parliament?.sittingAcks)) {
+      // The barrier of the game's LAST sitting: its confirmations stand (re-issued above); the last one moves on.
     } else if (game.phase === Phase.SOLAR && game.parliament?.sittingAcks?.owedWorldStep === true) {
       // The World Government's step is owed to the first player's confirmation — or asked, if it already came.
       game.admitToGeneration(game.first);

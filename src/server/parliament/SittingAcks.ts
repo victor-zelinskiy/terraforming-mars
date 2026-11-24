@@ -15,8 +15,12 @@
  * state, so a reload re-issues the confirmations FIRST and admits on the
  * answer exactly as live (`Game.deserialize`).
  *
- * The final sitting is the one barrier left: the final greeneries follow it
- * and they ask the seats in turn — its last confirmation moves the game on.
+ * The game's LAST sitting is the one barrier left — its last confirmation
+ * moves the game on: the FINAL sitting (the final greeneries follow it and
+ * ask the seats in turn), and the sitting MarsBot's clock ends the game
+ * behind (`endsGame`: NOTHING IS ASKED AFTER THE END — a confirmation left
+ * standing in a finished game is a question no screen can answer, and its
+ * save would write the finished game back as a running one).
  *
  * THE EARLY CLOSE: while the chain waits on ANOTHER seat's question, a seat
  * nothing is asked of may close its sitting at once (`offerEarly` — the same
@@ -46,7 +50,7 @@ export class SittingAcks {
    * Returns whether anybody owes it.
    */
   public static open(game: IGame, parliament: Parliament, summary: SerializedPhaseSummary | undefined, final: boolean,
-    closedEarly: ReadonlyArray<PlayerId> = []): boolean {
+    closedEarly: ReadonlyArray<PlayerId> = [], endsGame: boolean = false): boolean {
     const pending = parliament.participants(game, 'prompts').map((seat) => seat.id).filter((id) => !closedEarly.includes(id));
     if (summary === undefined || pending.length === 0) {
       parliament.sittingAcks = undefined;
@@ -56,6 +60,7 @@ export class SittingAcks {
       generation: summary.generation,
       seq: summary.seq ?? 0,
       final,
+      ...(endsGame ? {endsGame: true} : {}),
       ...(summary.correlationId === undefined ? {} : {correlationId: summary.correlationId}),
       pending,
     };
@@ -113,10 +118,11 @@ export class SittingAcks {
       game.log('${0} closed the sitting', (b) => b.player(player));
     });
     SittingAcks.settle(parliament);
-    if (acks.final) {
-      // THE FINAL BARRIER: the final greeneries ask the seats in turn — they follow the LAST confirmation.
+    if (sittingIsBarrier(acks)) {
+      // THE BARRIER OF THE LAST SITTING: what follows it (the final greeneries, asked seat by seat; the game's end)
+      // follows the LAST confirmation.
       if (parliament.sittingAcks === undefined) {
-        game.continueAfterParliamentPhase(true);
+        game.continueAfterParliamentPhase(acks.final);
       } else {
         game.save();
       }
@@ -189,6 +195,11 @@ export class SittingAcks {
       parliament.sittingAcks = undefined;
     }
   }
+}
+
+/** Is the record a BARRIER — the game's last sitting, whose last confirmation moves the game on? */
+export function sittingIsBarrier(acks: SerializedSittingAcks | undefined): boolean {
+  return acks?.final === true || acks?.endsGame === true;
 }
 
 /** Is `input` the EARLY close of a sitting still running — superseded silently by any question the seat is asked? */

@@ -1071,6 +1071,48 @@ describe('ParliamentPhase', () => {
       expect(bot.getWaitingFor()).is.undefined;
     });
 
+    it('MarsBot wins by the clock BEHIND a sitting: that sitting is a barrier — the end waits for the confirmation, and nothing is asked after the end', () => {
+      // The autopilot, game 30 (FREEZE ZERO stage 6): the sitting of the last generation the bot allows returned at
+      // once, the turn-over ended the game, and «Закрыть заседание» stood in the slot of a finished game — a question
+      // no screen can answer (the transport is over with the game), whose save would write the game back as running.
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
+      const parliament = game.parliament!;
+      game.playerIsFinishedWithResearchPhase(human);
+      while (!game.endsBehindThisGeneration()) {
+        game.generation++;
+      }
+      seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID); // asks nothing: M€ production, never a choice
+      parliament.placeVote(human, parliament.slots[0], 'lobby');
+      human.popWaitingFor();
+      game.playerHasPassed(human);
+      game.playerIsFinishedTakingActions();
+      expect(parliament.phase).is.undefined;
+      expect(parliament.sittingAcks).deep.include({final: false, endsGame: true});
+      expect(parliament.sittingAcks?.pending).deep.eq([human.id]);
+      expect(game.phase, 'the end waits for the confirmation').eq(Phase.PARLIAMENT);
+      expect(marker(human)).deep.include({stage: 'close', final: false});
+      expect(bot.getWaitingFor()).is.undefined;
+
+      const live = reload(game);
+      const seat = live.getPlayerById(human.id);
+      expect(live.phase, 'a reload keeps the barrier').eq(Phase.PARLIAMENT);
+      expect(marker(seat)?.stage).eq('close');
+      answerGate(seat);
+      expect(live.phase, 'the last confirmation ends the game').eq(Phase.END);
+      expect(live.automa!.instantWin).is.true;
+      expect(live.parliament!.sittingAcks).is.undefined;
+      for (const player of live.players) {
+        expect(player.getWaitingFor(), player.color + ' is asked nothing in a finished game').is.undefined;
+      }
+
+      // A save from BEFORE the barrier kept the record past the end: a load drops it — nothing is asked.
+      live.parliament!.sittingAcks = {generation: live.generation - 1, seq: live.parliament!.lastPhase?.seq ?? 0, final: false, pending: [human.id]};
+      const old = reload(live);
+      expect(old.phase).eq(Phase.END);
+      expect(old.parliament!.sittingAcks).is.undefined;
+      expect(old.getPlayerById(human.id).getWaitingFor()).is.undefined;
+    });
+
     it('the Agenda still moves BEFORE the support, the enactment and the rewards — one chain (the rules are untouched by the soft gates)', () => {
       const [game, p1, , parliament] = reduxGame();
       seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID); // pays M€ production by influence — the Agenda step must be counted first

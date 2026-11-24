@@ -23,6 +23,8 @@ paths:
 ## The soft gates — a sitting's close is a prompt of the SEAT (Turmoil Redux, 2026-10-24)
 A publisher of a seat's first prompt of the new generation (the draft pick, the research buy, the World Government's step — and any new one) asks `Parliament.holdsSittingAck` and leaves the prompt to the seat's admission (`IGame.admitToGeneration`); no prompt is ever written over a standing one (the specs throw: `TM_STRICT_PROMPTS`). Contract: `docs/claude/console/parliament-soft-gates.md`.
 
+**NOTHING IS ASKED AFTER THE END.** No path may reach `Phase.END` with a prompt standing in a seat's slot: no page can answer it (the transport is over with the game) and its answer's `save()` would write a finished game back as `running` (a row the purge of unfinished games takes). Whatever a seat still owes the generation the game ends behind is a BARRIER of that generation — the game's last sitting waits for its confirmations (`sittingIsBarrier`: the final one, and the one MarsBot's clock ends the game behind — `Game.endsBehindThisGeneration`). The engine fuzz holds it: invariant `I2-end`.
+
 ## UI markers — the client must never guess
 The client is forbidden from detecting a prompt by its (translatable) title. So a prompt whose UI needs context carries an explicit marker on `BaseInputModel`, serialized centrally in `ServerModel.getWaitingFor`: `startGamePrompt`, `choiceContext` (`markChoiceContext`), `placementContext` (`markPlacementContext` — cancellable vs committed), `awardFundingPrompt`, `reveal` (`RevealLogMeta`), option metadata (`optionMetadata.ts` factories) + `disabled` candidates with an English i18n `reason` key.
 **Adding a new prompt shape → add a marker + a spec; never rely on text.**

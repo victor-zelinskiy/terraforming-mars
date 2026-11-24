@@ -339,6 +339,8 @@ export interface IGame extends Logger {
    * owes, its draft pick, its research buy), or nothing when there is none yet.
    */
   admitToGeneration(player: IPlayer): void;
+  /** Does the game end the moment this generation turns over, with no final greeneries (MarsBot's clock)? */
+  endsBehindThisGeneration(): boolean;
   /** Where the game goes once the Mars Parliament has resolved (the final greeneries, or the next generation). */
   continueAfterParliamentPhase(final: boolean): void;
   save(): void;

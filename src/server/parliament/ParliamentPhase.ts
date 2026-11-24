@@ -1240,10 +1240,12 @@ export class ParliamentPhase {
     this.parliament.assertLedger(this.game);
     // The early closes still standing go: the record is written now, and a seat that closed early owes it nothing.
     SittingAcks.withdrawEarly(this.game);
-    const owed = SittingAcks.open(this.game, this.parliament, summary, final, closedEarly);
+    // The game's LAST sitting is a barrier: the final one, and the one MarsBot's clock ends the game behind.
+    const endsGame = !final && this.game.endsBehindThisGeneration();
+    const owed = SittingAcks.open(this.game, this.parliament, summary, final, closedEarly, endsGame);
     SittingAcks.issuePending(this.game);
     this.game.save();
-    return owed && final ? undefined : {final};
+    return owed && (final || endsGame) ? undefined : {final};
   }
 }
 

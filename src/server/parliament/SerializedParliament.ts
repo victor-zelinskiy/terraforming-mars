@@ -584,6 +584,11 @@ export type SerializedSittingAcks = {
   seq: number;
   /** The FINAL sitting: the confirmation is a barrier (the final greeneries wait for every seat). */
   final: boolean;
+  /**
+   * The game ENDS behind this sitting with no final greeneries (MarsBot's clock): a barrier too — the end waits for
+   * every seat, because nothing is asked after it. Absent on every other sitting and on older saves.
+   */
+  endsGame?: boolean;
   /** The sitting's journal root — the confirmation's answer joins it. */
   correlationId?: number;
   pending: Array<PlayerId>;
