@@ -95,6 +95,16 @@ const SCENES: ReadonlyArray<Scene> = [
   {name: 'B — the journal closes', lead: ['KeyR'], key: 'Escape', home: []},
   {name: 'A on the basic wheel — the standard projects open', lead: ['Comma'], key: 'Enter', home: ['Escape', 'Escape']},
   {name: '→ on the board — the cursor moves a cell', lead: [], key: 'ArrowRight', home: []},
+  // THE WORKSPACES, by the wheels' slots (what each slot opens is the wheel's own — the reading's bar says which
+  // screen it was): a workspace that MOUNTS is the heaviest press there is.
+  {name: '↑ on the basic wheel', lead: ['Comma'], key: 'ArrowUp', home: ['Escape', 'Escape', 'Escape']},
+  {name: '← on the basic wheel', lead: ['Comma'], key: 'ArrowLeft', home: ['Escape', 'Escape', 'Escape']},
+  {name: '→ on the basic wheel', lead: ['Comma'], key: 'ArrowRight', home: ['Escape', 'Escape', 'Escape']},
+  {name: 'A on the action wheel', lead: ['Period'], key: 'Enter', home: ['Escape', 'Escape', 'Escape']},
+  {name: '↑ on the action wheel', lead: ['Period'], key: 'ArrowUp', home: ['Escape', 'Escape', 'Escape']},
+  {name: '↓ on the action wheel', lead: ['Period'], key: 'ArrowDown', home: ['Escape', 'Escape', 'Escape']},
+  {name: '← on the action wheel', lead: ['Period'], key: 'ArrowLeft', home: ['Escape', 'Escape', 'Escape']},
+  {name: '→ on the action wheel', lead: ['Period'], key: 'ArrowRight', home: ['Escape', 'Escape', 'Escape']},
 ];
 
 test.describe('THE FRAME BUDGET OF A PRESS', () => {
@@ -123,6 +133,16 @@ test.describe('THE FRAME BUDGET OF A PRESS', () => {
       await cinematicBeat(page, 1_300, 'the scene the press opened comes to rest — its frames are what is read');
     };
     const table: Array<{scene: string, readings: Array<PressReading>}> = [];
+    const say = (name: string, readings: Array<PressReading>): void => {
+      table.push({scene: name, readings});
+      const sorted = (pick: (r: PressReading) => number): Array<number> => readings.map(pick).sort((a, b) => a - b);
+      const mid = (values: Array<number>): number => values[Math.floor(values.length / 2)];
+      const frames = sorted((r) => r.frameMs);
+      const slowest = readings.flatMap((r) => r.slow).sort((a, b) => b.took - a.took)[0];
+      console.log(`[frame-budget] ${name}: frame ${mid(frames)} ms (max ${frames[frames.length - 1]}) · script ${mid(sorted((r) => r.scriptMs))} · forced layout ${mid(sorted((r) => r.forcedMs))} · ` +
+        `reads ${mid(sorted((r) => r.reads))} in ${mid(sorted((r) => r.readMs))} ms · roots [${[...new Set(readings.flatMap((r) => r.roots))].join(' ¦ ')}] · bar «${readings[0]?.bar ?? ''}»` +
+        (slowest !== undefined ? ` · slowest read ${slowest.name} ${slowest.took} ms on ${slowest.on} ← ${slowest.stack.slice(0, 5).join(' ← ')}` : ''));
+    };
     for (const scene of SCENES) {
       const readings: Array<PressReading> = [];
       for (let i = 0; i < REPEATS; i++) {
@@ -136,15 +156,22 @@ test.describe('THE FRAME BUDGET OF A PRESS', () => {
           await tap(key);
         }
       }
-      table.push({scene: scene.name, readings});
-      const sorted = (pick: (r: PressReading) => number): Array<number> => readings.map(pick).sort((a, b) => a - b);
-      const mid = (values: Array<number>): number => values[Math.floor(values.length / 2)];
-      const frames = sorted((r) => r.frameMs);
-      const slowest = readings.flatMap((r) => r.slow).sort((a, b) => b.took - a.took)[0];
-      console.log(`[frame-budget] ${scene.name}: frame ${mid(frames)} ms (max ${frames[frames.length - 1]}) · script ${mid(sorted((r) => r.scriptMs))} · forced layout ${mid(sorted((r) => r.forcedMs))} · ` +
-        `reads ${mid(sorted((r) => r.reads))} in ${mid(sorted((r) => r.readMs))} ms · roots [${[...new Set(readings.flatMap((r) => r.roots))].join(' ¦ ')}] · bar «${readings[0]?.bar ?? ''}»` +
-        (slowest !== undefined ? ` · slowest read ${slowest.name} ${slowest.took} ms on ${slowest.on} ← ${slowest.stack.slice(0, 5).join(' ← ')}` : ''));
+      say(scene.name, readings);
     }
+    // A PRESS WHILE MARSBOT PLAYS (the whole games' commonest long frame: ↓ pressed under the bot's turn — the press
+    // that hurries a scene through, or simply meets the frame in which the turn's view is applied): the seat passes,
+    // and every press of the next seconds is read on its own.
+    await tap('Comma');
+    await tap('ArrowDown');
+    await page.keyboard.press('Enter');
+    const under: Array<PressReading> = [];
+    for (let i = 0; i < 10; i++) {
+      await markFrameReading(page);
+      await page.keyboard.press('ArrowDown');
+      await cinematicBeat(page, 700, 'the frame the press met comes to its end — it is what is read');
+      under.push(await frameReading(page));
+    }
+    say('↓ pressed while MarsBot plays (ten presses after the pass)', under);
     fs.writeFileSync(test.info().outputPath('frame-budget.json'), JSON.stringify(table, null, 1));
     expect(page.isClosed(), 'the page survived the walk').toBe(false);
   });
