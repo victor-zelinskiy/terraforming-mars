@@ -27,6 +27,17 @@ export const PLAYER_COVER_TERMS: ReadonlySet<string> = new Set(['workspace', 're
 /** The game's own scenes alone kept the board for this long at the ceiling: no player is being waited for. */
 export const GAME_ONLY_TAIL_MS = 5000;
 
+/**
+ * A COVER THAT ENDS AT A BOUND OF ITS OWN, and the bound: a sitting on its way up keeps the board until its frame
+ * stands — or, left behind its plate, until its own net gives the board back (`sittingRise.SITTING_RISE_NET_MS`; the
+ * spec holds the two numbers equal). While that cover ALONE has stood for less than its bound nothing leaks: the
+ * scene is inside its designed life, and a wait whose ceiling comes first ends as designed — the tile revealed without
+ * its flight. (The box's whole games in a real browser, 2026-11-24 — game 181: «held by the game's own scenes for
+ * the last 13 s: sitting-rise», a sitting waiting behind its plate, filed as a defect of the landing's wait.) Past
+ * its bound the cover no longer exists; beside any other scene of the game's the tail is judged as before.
+ */
+export const SELF_BOUNDED_COVERS: ReadonlyMap<string, number> = new Map([['sitting-rise', 15_000]]);
+
 export type BoardCoverWitness = {
   /** One look of the wait: the terms that cover the board right now. Returns the wait's detail (what holds it). */
   look: (terms: ReadonlyArray<string>, now: number) => string,
@@ -61,10 +72,13 @@ export function watchBoardCover(): BoardCoverWitness {
     verdict: (now) => {
       const tailMs = gameOnlySince === undefined ? 0 : now - gameOnlySince;
       if (tailMs >= GAME_ONLY_TAIL_MS) {
-        return {
-          planned: undefined,
-          detail: `held by the game's own scenes for the last ${Math.round(tailMs / 1000)} s: ${[...gameTerms].join(' + ')}`,
-        };
+        const held = [...gameTerms];
+        const detail = `held by the game's own scenes for the last ${Math.round(tailMs / 1000)} s: ${held.join(' + ')}`;
+        const bound = held.length === 1 ? SELF_BOUNDED_COVERS.get(held[0]) : undefined;
+        if (bound !== undefined && tailMs < bound) {
+          return {planned: `${held[0]} kept the board inside its own bound of ${Math.round(bound / 1000)} s`, detail};
+        }
+        return {planned: undefined, detail};
       }
       const by = [...playerTerms].join(' + ') || last.join(' + ');
       return {planned: `the viewer kept the board covered by ${by}`, detail: `covered by ${last.join(' + ') || 'nothing'}`};

@@ -1,5 +1,6 @@
 import {expect} from 'chai';
-import {GAME_ONLY_TAIL_MS, watchBoardCover} from '@/client/console/boardCoverWitness';
+import {GAME_ONLY_TAIL_MS, SELF_BOUNDED_COVERS, watchBoardCover} from '@/client/console/boardCoverWitness';
+import {SITTING_RISE_NET_MS} from '@/client/console/parliament/sittingRise';
 
 /*
  * WHO KEPT THE BOARD COVERED (the tier audit of 2026-11-18, row 3). A wait for «a board the player can see» ends on
@@ -70,5 +71,36 @@ describe('boardCoverWitness — whose time a covered board was', () => {
       handoff.look(['transfer'], t);
     }
     expect(handoff.verdict(t).planned, 'a second of the game\'s own after nineteen of the viewer\'s').to.eq('the viewer kept the board covered by workspace');
+  });
+  /*
+   * A COVER THAT ENDS AT ITS OWN BOUND (the box's whole games in a real browser, 2026-11-24 — game 181): a sitting on
+   * its way up, waiting behind its plate, kept the board for the last thirteen seconds of a foreign tile's wait — and
+   * gives it back at fifteen by its own net. Inside that bound nothing leaks; beside another scene, or past it, the
+   * tail is the game's own as before.
+   */
+  it('a sitting on its way up, alone and inside its own net — the designed end; beside a wave, or past the net, a defect', () => {
+    expect(SELF_BOUNDED_COVERS.get('sitting-rise'), 'the witness knows the rise by its own net').to.eq(SITTING_RISE_NET_MS);
+    const rise = watchBoardCover();
+    for (let t = 0; t <= 7_000; t += 140) {
+      rise.look(['workspace'], t);
+    }
+    for (let t = 7_140; t <= 20_000; t += 140) {
+      rise.look(['sitting-rise'], t);
+    }
+    const inside = rise.verdict(20_000);
+    expect(inside.planned).to.eq('sitting-rise kept the board inside its own bound of 15 s');
+    expect(inside.detail).to.contain('sitting-rise');
+
+    const beside = watchBoardCover();
+    for (let t = 0; t <= 20_000; t += 140) {
+      beside.look(t > 10_000 ? ['sitting-rise', 'transfer'] : ['workspace'], t);
+    }
+    expect(beside.verdict(20_000).planned, 'a wave beside it is not the rise').to.eq(undefined);
+
+    const past = watchBoardCover();
+    for (let t = 0; t <= 20_000; t += 140) {
+      past.look(['sitting-rise'], t);
+    }
+    expect(past.verdict(20_000).planned, 'a rise that outlived its own net is a leak').to.eq(undefined);
   });
 });
