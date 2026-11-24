@@ -163,20 +163,25 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
 
   /** THE PASS, AS A PLAYER MAKES IT: the board home, the basic wheel (LT), its ↓ slot, the confirm. */
   const sees = (selector: string): boolean => (globalThis as unknown as {window: {document: {querySelector(q: string): unknown}}}).window.document.querySelector(selector) !== null;
+  /**
+   * THE BOARD HOME — every level between it and the pilot is left the way a player leaves it: B where the bar offers B
+   * (a workspace, a look, a wheel), Y where the bar closes only by Y (the information screen's top). The home is the
+   * screen whose bar offers the basic wheel and no way back (`orPass` — the pass slot in sight is home enough).
+   */
+  const walkHome = async (orPass: boolean): Promise<void> => {
+    for (let i = 0; i < 10; i++) {
+      const offered = bottle.offered();
+      const offers = (key: BottleKey): boolean => offered.some((o) => o.key === key);
+      if ((orPass && sees('.con-quick [data-quick-id="pass"]')) ||
+          (bottle.frames().length === 0 && !sees('dialog.con-zoom[open]') && !sees('.con-quick') && offers('Comma') && !offers('Escape'))) {
+        break;
+      }
+      await press(offers('Escape') || !offers('KeyY') ? 'Escape' : 'KeyY', 600);
+    }
+  };
   const passByWheel = async (promptId: number | undefined): Promise<boolean> => {
     for (let attempt = 0; attempt < 3; attempt++) {
-      // THE BOARD HOME FIRST — every level between it and the pilot is left the way a player leaves it: B where the bar
-      // offers B (a workspace, a look, a wheel), Y where the bar closes only by Y (the information screen's top). The
-      // home is the screen whose bar offers the basic wheel and no way back.
-      for (let i = 0; i < 10; i++) {
-        const offered = bottle.offered();
-        const offers = (key: BottleKey): boolean => offered.some((o) => o.key === key);
-        if (sees('.con-quick [data-quick-id="pass"]') ||
-            (bottle.frames().length === 0 && !sees('dialog.con-zoom[open]') && !sees('.con-quick') && offers('Comma') && !offers('Escape'))) {
-          break;
-        }
-        await press(offers('Escape') || !offers('KeyY') ? 'Escape' : 'KeyY', 600);
-      }
+      await walkHome(true);
       if (!sees('.con-quick [data-quick-id="pass"]')) {
         await press('Comma', 400);
         await bottle.until(() => sees('.con-quick [data-quick-id="pass"]'), 1_500, 100);
@@ -276,6 +281,14 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       continue;
     }
     standing.presses++;
+    // HALF THE QUESTION's BUDGET SPENT AND IT STILL STANDS: a player asked something the screen in front of them does
+    // not answer GOES HOME — the board, where the question's plate or its way back stands. (The passes of
+    // 2026-11-24: the pilot browsed the Parliament's delegate stage for four questions in a row, and the door
+    // answered each — a row of «where the door answered» that named a habit of the pilot, never a place of the
+    // product. What the door answers after this walk is a question the HOME could not serve either.)
+    if (!standing.menu && standing.presses === Math.floor(standing.budget / 2)) {
+      await walkHome(false);
+    }
     await press(pilotPick(bottle, g, lastKey), pause());
   }
 

@@ -190,6 +190,21 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
   };
   const truth = async (): Promise<Wire> => await fetchPlayerModel(request, viewer) as unknown as Wire;
   const stands = (s: Screen): string => `frames ${s.frames.join('>') || 'none'} · bar «${s.bar}»`;
+  /**
+   * THE BOARD HOME — every level between it and the pilot is left the way a player leaves it: B where the bar offers B
+   * (a workspace, a look, a wheel), Y where the bar closes only by Y (the information screen's top). The home is the
+   * screen whose bar offers the basic wheel and no way back (`orPass` — the pass slot in sight is home enough).
+   */
+  const walkHome = async (orPass: boolean): Promise<void> => {
+    for (let i = 0; i < 10; i++) {
+      const s = await look(page);
+      const offers = (key: string): boolean => s.offered.some((o) => o.key === key);
+      if ((orPass && s.pass) || (s.frames.length === 0 && !s.zoom && !s.quick && offers('Comma') && !offers('Escape'))) {
+        break;
+      }
+      await press(offers('Escape') || !offers('KeyY') ? 'Escape' : 'KeyY', 600);
+    }
+  };
   /** An answer over the API, as another device of the seat would give it. `false` — the drivers' answerer has none, or the server refused it. */
   const byDoor = async (wf: NonNullable<Wire['waitingFor']>): Promise<boolean> => {
     try {
@@ -262,17 +277,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         let landed = false;
         const before = stands(await look(page));
         for (let attempt = 0; attempt < 3 && !landed; attempt++) {
-          // THE BOARD HOME FIRST — every level between it and the pilot is left the way a player leaves it: B where the
-          // bar offers B (a workspace, a look, a wheel), Y where the bar closes only by Y (the information screen's top).
-          // The home is the screen whose bar offers the basic wheel and no way back.
-          for (let i = 0; i < 10; i++) {
-            const s = await look(page);
-            const offers = (key: string): boolean => s.offered.some((o) => o.key === key);
-            if (s.pass || (s.frames.length === 0 && !s.zoom && !s.quick && offers('Comma') && !offers('Escape'))) {
-              break;
-            }
-            await press(offers('Escape') || !offers('KeyY') ? 'Escape' : 'KeyY', 600);
-          }
+          await walkHome(true);
           if (!(await look(page)).pass) {
             await press('Comma', 500);
           }
@@ -308,6 +313,14 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       continue;
     }
     standing.presses++;
+    // HALF THE QUESTION's BUDGET SPENT AND IT STILL STANDS: a player asked something the screen in front of them does
+    // not answer GOES HOME — the board, where the question's plate or its way back stands. (The passes of
+    // 2026-11-24: the pilot browsed the Parliament's delegate stage for four questions in a row, and the door
+    // answered each — a habit of the pilot, never a place of the product. What the door answers after this walk is
+    // a question the HOME could not serve either.)
+    if (!standing.menu && standing.presses === Math.floor(standing.budget / 2)) {
+      await walkHome(false);
+    }
     await press(pilotPick(await look(page), g, lastKey), pause());
   }
   if (played.phase === 'end') {
