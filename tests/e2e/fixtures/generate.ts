@@ -829,6 +829,42 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   write('astra-mechanica-return', game);
 }
 
+// ── nomads-remote-move: THE CAMP MOVED BY ANOTHER SEAT (X59 Mars Nomads — «move the nomads to an adjacent area and
+//    collect the placement bonus»). The remote leg of the nomads' scene (`scene:nomad-move-remote` and its hold — the
+//    ledger of the unwalked, FREEZE ZERO stage 4) needs a table of two HUMAN seats with the card on the OTHER one:
+//    blue (the viewer) has passed the move to red, red holds the card with its action open and 30 M€, and the camp
+//    stands on a plain land cell with room around it. The spec moves the camp as red over the API; blue watches. ──
+{
+  // (Teractor and CrediCor — no first action, nothing that answers a move of the camp, no claim on its cells.)
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, promoCardsOption: true, customCorporationsList: [CardName.TERACTOR, CardName.CREDICOR], startingCorporations: 1,
+  });
+  answerStartFlow(game, [blue, red]);
+  blue.pendingInitialActions = [];
+  red.pendingInitialActions = [];
+  red.megaCredits = 30;
+  moveToDeckTop(game, CardName.MARS_NOMADS);
+  const nomads = game.projectDeck.drawPile.pop() as IProjectCard;
+  red.playedCards.push(nomads);
+  const camp = game.board.getNonReservedLandSpaces().find((space) => space.tile === undefined && space.bonus.length === 0 &&
+    game.board.getAdjacentSpaces(space).filter((near) => near.spaceType === SpaceType.LAND && near.tile === undefined).length >= 4);
+  if (camp === undefined) {
+    throw new Error('the nomads-remote-move fixture found no plain land cell with room around it');
+  }
+  game.nomadSpace = camp.id;
+  blue.clearWaitingFor();
+  game.playerIsFinishedTakingActions();
+  runAllActions(game);
+  const menu = red.getWaitingFor();
+  if (game.activePlayer.id !== red.id || !(menu instanceof OrOptions) || !isIActionCard(nomads) || !nomads.canAct(red)) {
+    throw new Error(`the nomads-remote-move fixture expected red on the move with the camp's action open — got active=${game.activePlayer.color} menu=${menu?.constructor.name}`);
+  }
+  for (const [i, seat] of game.players.entries()) {
+    seat.name = `seat${i + 1}`;
+  }
+  write('nomads-remote-move', game);
+}
+
 // ── rail-reward-action: a solo action phase with TWO plain resource-paying
 //    blue actions in the tableau — Electro Catapult (spend 1 plant / 1 steel
 //    → +7 M€: a STOCK reward with a choice) and Space Mirrors (7 M€ → +1
