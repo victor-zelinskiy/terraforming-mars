@@ -1,6 +1,6 @@
-import {test, expect} from './consoleTest';
+import {test, expect, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
-import {cinematicBeat, openConsole, seedGameOverApi, soloGameConfig} from './consoleStart';
+import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
 import {frameReading, installFrameEars, markFrameReading, PressReading} from './frameBudgetEars';
 
 /**
@@ -24,11 +24,59 @@ import {frameReading, installFrameEars, markFrameReading, PressReading} from './
  * It asserts nothing of a duration — a number of one machine is not a law (tests.md) — and files what it read
  * (`frame-budget.json`, one line per scene on stdout): the budget is read on a QUIET box, the stacks on any.
  *
+ * THE MIDDLE OF A GAME (`TM_E2E_FRAME_BUDGET_GENERATIONS=<n>`): a press of the first turn is cheap — the same walk
+ * read there on a loaded box made no frame over 118 ms — and the games named theirs ten minutes in: the cost is the
+ * page's SIZE (the hand that grew, the board that filled). So the seat is first played `n` generations over the API —
+ * every research bought whole, every turn passed, MarsBot filling the board — and the walk is read on that page.
+ *
  * OPT-IN: `TM_E2E_FRAME_BUDGET=1 npx playwright test tests/e2e/console-frame-budget.spec.ts` · `TM_E2E_FRAME_BUDGET_REPEATS`
- * (default 4).
+ * (default 4) · `TM_E2E_FRAME_BUDGET_GENERATIONS` (default 0 — the first turn).
  */
 const ENABLED = process.env.TM_E2E_FRAME_BUDGET === '1';
 const REPEATS = Number(process.env.TM_E2E_FRAME_BUDGET_REPEATS ?? 4);
+const GENERATIONS = Number(process.env.TM_E2E_FRAME_BUDGET_GENERATIONS ?? 0);
+
+type Wire = {
+  game: {phase: string, generation: number},
+  waitingFor?: {type: string, promptId?: number, buyMode?: boolean, cards?: Array<{name: string}>, options?: Array<{type: string, warnings?: Array<string>}>},
+};
+
+/**
+ * PLAY THE SEAT `n` GENERATIONS OVER THE API, as another device of the seat would: a research is bought WHOLE (the hand
+ * grows — refused for want of money, it is answered with the prompt's own minimum), a turn is passed, everything else
+ * takes the drivers' own answer. Ends at the action menu of generation `n + 1`, or at the game's end.
+ */
+async function playGenerationsOverApi(request: APIRequestContext, viewer: string, n: number): Promise<{generation: number, hand: number}> {
+  for (let round = 0; round < n * 40 + 40; round++) {
+    const model = await fetchPlayerModel(request, viewer) as unknown as Wire & {cardsInHand?: Array<unknown>};
+    const wf = model.waitingFor;
+    const menu = wf?.type === 'or' && (wf.options ?? []).some((o) => o.type === 'option' && o.warnings?.includes('pass') === true);
+    if (model.game.phase === 'end' || (model.game.generation > n && menu)) {
+      return {generation: model.game.generation, hand: model.cardsInHand?.length ?? -1};
+    }
+    if (wf === undefined) {
+      // (MarsBot's turn — the table comes back to the seat by itself.)
+      await expect.poll(async () => {
+        const next = await fetchPlayerModel(request, viewer) as unknown as Wire;
+        return next.waitingFor !== undefined || next.game.phase === 'end';
+      }, {timeout: 120_000, message: 'the table comes back to the seat'}).toBe(true);
+      continue;
+    }
+    if (menu) {
+      const pass = (wf.options ?? []).findIndex((o) => o.type === 'option' && o.warnings?.includes('pass') === true);
+      await sendPlayerInput(request, viewer, {type: 'or', index: pass, response: {type: 'option'}, promptId: wf.promptId} as never);
+      continue;
+    }
+    if (wf.type === 'card' && wf.buyMode === true) {
+      const whole = await request.post(`/player/input?id=${viewer}`, {data: {type: 'card', cards: (wf.cards ?? []).map((c) => c.name), promptId: wf.promptId}});
+      if (whole.ok()) {
+        continue;
+      }
+    }
+    await sendPlayerInput(request, viewer, {...answerPrompt(wf as never, {}), promptId: wf.promptId} as never);
+  }
+  throw new Error(`the seat did not reach generation ${n + 1} over the API`);
+}
 
 /** A scene: the presses that lead to it (not read), the press that IS it, and the presses that take the page home. */
 type Scene = {name: string, lead: ReadonlyArray<string>, key: string, home: ReadonlyArray<string>};
@@ -62,6 +110,10 @@ test.describe('THE FRAME BUDGET OF A PRESS', () => {
     const {players} = await created.json() as {players: Array<{id: string, name: string}>};
     const viewer = (players.find((p) => !/marsbot/i.test(p.name)) ?? players[0]).id;
     await seedGameOverApi(request, viewer, {buy: 4});
+    if (GENERATIONS > 0) {
+      const at = await playGenerationsOverApi(request, viewer, GENERATIONS);
+      console.log(`[frame-budget] the page is read in generation ${at.generation}, ${at.hand} card(s) in hand`);
+    }
     await openConsole(page, viewer);
     await cinematicBeat(page, 6_000, 'the first turn settles — its arrival is not a press of the board home');
     await installFrameEars(page);
