@@ -2103,6 +2103,13 @@ stopped by a class that is closed now, and each record read with «what did the 
   did not arrive). What is still unwalked and REAL: the Mars Nomads moved by another seat, Astra Mechanica's return,
   a law that plays a card under a folding commit, the overlay-hosted hero, the rematch declined, the draft tray under
   the research rise — each owed a spec on a quiet box.
+- **…AND THE FIRST OF THEM, WALKED — IT WAS BROKEN (`5d25c00a6d`).** Astra Mechanica's cards-return beat
+  (`console-astra-mechanica.spec.ts`, fixture `astra-mechanica-return`): the hero went through «returning» and NOT
+  ONE card rose. The beat lifts its packet from the events pile of the «Разыграно» table, and a play hosted by a
+  workspace — the hand, every play since the workspace migration — opens no table: two events simply appeared in the
+  pack. With no table open the packet now rises from the card that brought it back
+  (`playedReturnModel.returnDeparture`); red without it, green with it, read off a burst of frames. The rule the
+  walk teaches: an unwalked «rare» flow is not presumed healthy — the first walk of this one found it dead.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

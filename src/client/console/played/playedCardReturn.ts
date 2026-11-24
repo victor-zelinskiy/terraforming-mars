@@ -53,6 +53,7 @@ import {
 } from '@/client/console/played/playedReturnModel';
 import {span} from '@/client/console/session/sessionWaits';
 import {createFlowRun} from '@/client/console/session/flowRun';
+import {netEnded} from '@/client/diagnostics/netEnded';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /** The premium face's natural box (320×460) — the flight scale reference. */
@@ -216,6 +217,10 @@ async function deliver(cards: ReadonlyArray<ReturnedCard>, landed: RectLike | un
   // skip the presentation, keep the acquisition.
   const from = returnDeparture(cards, pileRect, landed);
   if (from === undefined) {
+    // (Said when the packet WAS a face-down one and nothing stood to lift it from — the presentation lost, counted.)
+    if (cards.every((card) => card.faceDown)) {
+      netEnded('played-return:no-departure', `${cards.length} returned card(s) had no pile and no landed card to rise from — the plain carry`);
+    }
     await plainCarry(cards);
     return;
   }

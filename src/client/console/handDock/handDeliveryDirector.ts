@@ -52,6 +52,7 @@
  */
 
 import {nextTick, reactive} from 'vue';
+import {netEnded} from '@/client/diagnostics/netEnded';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -627,6 +628,16 @@ async function runHandIntakeInner(entries: ReadonlyArray<HandIntakeEntry>, opts?
     runCommit();
     opts?.onStaged?.();
     return;
+  }
+
+  // A CARD WITH NO PLACE TO LIFT FROM, on a page that animates and has a dock: it will simply appear in the pack. That
+  // is the designed fallback of a source that left before its card could be measured — and it is also exactly what a
+  // scene that silently lost its departure looks like (the cards-return beat played from the hand, 2026-11-24: two
+  // events «returned» out of nowhere until the first walk that ever played the card read it). Counted, in the
+  // waiting room (`netEnded`): the walks say how often each caller comes here, and each is then read.
+  const sourceless = entries.filter((_e, i) => snapshots[i] === undefined).length;
+  if (sourceless > 0) {
+    netEnded('hand-intake:no-source', `${sourceless} of ${entries.length} card(s) reached the hand with no place to lift from — they appear in the pack`);
   }
 
   runs.active++;
