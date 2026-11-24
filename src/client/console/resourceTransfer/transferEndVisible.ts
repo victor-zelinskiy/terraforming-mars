@@ -55,7 +55,18 @@ export const FULLSCREEN_OVERLAYS = '.con-zoom-veil, .con-sys, .card-zoom-contain
  * UNDER its veil). The viewer and the system menu stand above the flight layer by contract; an end under them is not
  * painted for the eye, so the flight degrades to its counter's tick instead of a token nobody can see.
  */
-const COVERING_SURFACES = `.con-ws, ${FULLSCREEN_OVERLAYS}`;
+/**
+ * …AND THE ANNOUNCE PLATE (`.con-mandatory` — «у вас есть решение»): a small plate, not a scene, but it stands ABOVE the
+ * flight layer by the z map (11962 over 11715 — «a nose above the banner chips») for as long as the question waits. An
+ * end under it is not painted for the eye either, and a token born there pops under the plate and flies out from
+ * behind it: the real-browser monkey's seed of the day, 2026-11-23 (`d20261123:venus-bonus-final-crowd`, issues
+ * #103 / #104) — «[transfer] token painted under span.con-mandatory__open at the birth — stock:rating». The end's
+ * verdict did not know the plate (a band surface or a full-screen scene were its only covers), so the flight was born
+ * and the paint's own sentinel named it. Covered by the plate, a flight degrades as under any cover: to its counter's
+ * tick, or to the next place of its ladder.
+ */
+const PLATES_OVER_THE_FLIGHT = '.con-mandatory';
+const COVERING_SURFACES = `.con-ws, ${PLATES_OVER_THE_FLIGHT}, ${FULLSCREEN_OVERLAYS}`;
 
 /**
  * A BARE POINT under a full-screen overlay (the card viewer's veil, the system menu) — the one cover a point can be
@@ -67,7 +78,9 @@ export function fullscreenCoverAt(p: {x: number, y: number}): string | undefined
     return undefined;
   }
   const top = document.elementsFromPoint(p.x, p.y).find((e) => e.closest('.con-transfer') === null);
-  const overlay = top?.closest(FULLSCREEN_OVERLAYS);
+  // (…and the announce plate over the point: a bare point cannot say whose it is, but what stands above the flight
+  // layer over it covers it whatever it is — `PLATES_OVER_THE_FLIGHT`.)
+  const overlay = top?.closest(`${FULLSCREEN_OVERLAYS}, ${PLATES_OVER_THE_FLIGHT}`);
   return overlay === null || overlay === undefined ? undefined : surfaceName(overlay);
 }
 

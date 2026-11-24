@@ -160,6 +160,33 @@ describe('transferEndVerdict — a place a token may be born on or land on', () 
     expect(transferEndVerdict(row)).to.deep.eq({visible: true});
   });
 
+  /*
+   * THE ANNOUNCE PLATE COVERS TOO (the real-browser monkey's seed of the day, 2026-11-23 — issues #103 / #104:
+   * «[transfer] token painted under span.con-mandatory__open at the birth — stock:rating»). A small plate, not a
+   * scene — but it stands above the flight layer by the z map for as long as the question waits, and the end's
+   * verdict did not know it: the token was born under the plate and flew out from behind it.
+   */
+  it('the ANNOUNCE PLATE stands over the flight layer: an end under it is covered, a bare point under it is covered — beside it, painted', () => {
+    const plate = document.createElement('div');
+    plate.className = 'con-mandatory';
+    const open = document.createElement('span');
+    open.className = 'con-mandatory__open';
+    plate.appendChild(open);
+    const cell = document.createElement('div');
+    cell.className = 'board-space';
+    root.append(plate, cell);
+    for (const el of [plate, open, cell]) {
+      box(el, {left: 200, top: 200, width: 100, height: 60});
+    }
+    stack(open, plate, cell);
+    expect(transferEndVerdict(cell), 'a source under the plate is no place to be born').to.deep.eq({visible: false, why: 'covered', by: 'con-mandatory'});
+    expect(fullscreenCoverAt({x: 250, y: 230}), 'a bare point under the plate').eq('con-mandatory');
+    // The plate gone (the question opened, or answered): the cell is painted again.
+    stack(cell);
+    expect(transferEndVerdict(cell)).to.deep.eq({visible: true});
+    expect(fullscreenCoverAt({x: 250, y: 230})).eq(undefined);
+  });
+
   it('COVERED BY PAINT: a foreign .con-ws over the centre refuses; the element\'s own .con-ws, the board, a transfer chip do not', () => {
     const composer = document.createElement('div');
     composer.className = 'con-ws con-cardactions';
