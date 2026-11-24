@@ -13,6 +13,30 @@
       "games": 2,
       "first": "ap0:18",
       "why": "the board's parked beats are flights between MEASURED cells: with no layout a drain cannot land, so a story the board did see («watchable») is never told and reads as a defect. In a browser every record of the class in the 24 whole games of pass 45313803575 is the player keeping the board covered — tier `planned`, never a defect."
+    },
+    "wait-graph/ceiling/parliament-world:story-quiet": {
+      "tier": "defect",
+      "games": 2,
+      "first": "ap0:3",
+      "why": "«in plain view for N s»: the sitting steps aside and the board's story is to be told — a drain of the park, a landing of another seat — by flights between MEASURED cells; with no layout nothing lands, the story never falls quiet and the wait ends on its ceiling. (The player's own cover of the board is read as planned since 077cb67f98 — this row is the board in plain view only.) NOT THERE in a browser on a build that reads whose time the ceiling was: the box's 48 whole games of 2026-11-24 name it at no tier (one browser game of CI's pass 45324765001, on a build BEFORE that reading, named the ceiling)."
+    },
+    "presentation-ledger/story-due/cell-resource": {
+      "tier": "defect",
+      "games": 1,
+      "first": "ap0:25",
+      "why": "a cell's resource story is a token flown off the MEASURED cell onto a measured card: with no layout its stage never stands, the story comes due. NOT THERE in a browser: the box's 48 whole games of 2026-11-24 (builds c378f0de10 … 0612600dae) and CI's passes 45313803575 / 45324765001 / 45334498030 name it at no tier."
+    },
+    "wait-graph/ceiling/cell-resource:stage": {
+      "tier": "defect",
+      "games": 1,
+      "first": "ap0:25",
+      "why": "the same stage of the same story — a rect the bottle cannot give (see `presentation-ledger/story-due/cell-resource`). NOT THERE in a browser: the box's 48 whole games of 2026-11-24 (builds c378f0de10 … 0612600dae) and CI's passes 45313803575 / 45324765001 / 45334498030 name it at no tier."
+    },
+    "wait-graph/overdue/park:board-beat": {
+      "tier": "defect",
+      "games": 1,
+      "first": "ap0:25",
+      "why": "the park's drain waits for flights between measured cells; with no layout it is still owed past its bound (see `presentation-ledger/story-due/board-beat-park`). NOT THERE in a browser: the box's 48 whole games of 2026-11-24 (builds c378f0de10 … 0612600dae) and CI's passes 45313803575 / 45324765001 / 45334498030 name it at no tier."
     }
   }
 }
