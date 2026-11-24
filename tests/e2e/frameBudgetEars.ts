@@ -7,9 +7,11 @@ import {Page} from './consoleTest';
  * ends it. A driver, not a check: nothing here reads a geometry of the product — it times the product's own reads.
  */
 export type SlowRead = {name: string, took: number, on: string, stack: Array<string>};
+/** A CALL SITE's share of a press's reads: how many it made, how long they took in all, and its stack (the first read's). */
+export type ReadSite = {n: number, ms: number, name: string, on: string, stack: Array<string>};
 export type PressReading = {
   frameMs: number, scriptMs: number, forcedMs: number, frames: number,
-  reads: number, readMs: number, slow: Array<SlowRead>, roots: Array<string>, bar: string,
+  reads: number, readMs: number, slow: Array<SlowRead>, sites: Array<ReadSite>, roots: Array<string>, bar: string,
 };
 
 /** Install the page's ears: the frames, the layout-forcing reads, the writes onto the roots. Idempotent. */
@@ -19,7 +21,10 @@ export async function installFrameEars(page: Page): Promise<void> {
     if (w.__fb !== undefined) {
       return;
     }
-    const fb = {frames: [] as Array<Record<string, unknown>>, reads: 0, readMs: 0, slow: [] as Array<Record<string, unknown>>, roots: [] as Array<string>};
+    const fb = {
+      frames: [] as Array<Record<string, unknown>>, reads: 0, readMs: 0, slow: [] as Array<Record<string, unknown>>, roots: [] as Array<string>,
+      sites: new Map<string, {n: number, ms: number, name: string, on: string, stack: Array<string>}>(),
+    };
     w.__fb = fb;
     new PerformanceObserver((list) => {
       for (const raw of list.getEntries()) {
@@ -39,8 +44,19 @@ export async function installFrameEars(page: Page): Promise<void> {
     const note = (name: string, took: number, el: unknown): void => {
       fb.reads++;
       fb.readMs += took;
+      // EVERY read is counted to its call site (the three frames above the wrapper): a hundred cheap reads of one loop
+      // are a layout thrash no single read shows.
+      const stack = (new Error().stack ?? '').split('\n').slice(3, 11).map((line) => line.trim());
+      const key = stack.slice(0, 3).join('|');
+      const site = fb.sites.get(key);
+      if (site === undefined) {
+        fb.sites.set(key, {n: 1, ms: took, name, on: describe(el), stack});
+      } else {
+        site.n++;
+        site.ms += took;
+      }
       if (took >= 3) {
-        fb.slow.push({name, took, on: describe(el), stack: (new Error().stack ?? '').split('\n').slice(3, 11).map((line) => line.trim())});
+        fb.slow.push({name, took, on: describe(el), stack});
       }
     };
     const wrapMethod = (proto: object, name: string): void => {
@@ -98,24 +114,26 @@ export async function installFrameEars(page: Page): Promise<void> {
 /** Start a reading: what the page heard before this moment is not this press's. */
 export async function markFrameReading(page: Page): Promise<number> {
   return page.evaluate(() => {
-    const fb = (window as unknown as {__fb: {frames: Array<unknown>, reads: number, readMs: number, slow: Array<unknown>, roots: Array<string>}}).__fb;
+    const fb = (window as unknown as {__fb: {frames: Array<unknown>, reads: number, readMs: number, slow: Array<unknown>, roots: Array<string>, sites: Map<string, unknown>}}).__fb;
     fb.frames.length = 0;
     fb.reads = 0;
     fb.readMs = 0;
     fb.slow.length = 0;
     fb.roots.length = 0;
+    fb.sites.clear();
     return performance.now();
   });
 }
 
 export async function frameReading(page: Page): Promise<PressReading> {
   return page.evaluate(() => {
-    const fb = (window as unknown as {__fb: {frames: Array<{dur: number, script: number, forced: number}>, reads: number, readMs: number, slow: Array<{name: string, took: number, on: string, stack: Array<string>}>, roots: Array<string>}}).__fb;
+    const fb = (window as unknown as {__fb: {frames: Array<{dur: number, script: number, forced: number}>, reads: number, readMs: number, slow: Array<{name: string, took: number, on: string, stack: Array<string>}>, roots: Array<string>, sites: Map<string, {n: number, ms: number, name: string, on: string, stack: Array<string>}>}}).__fb;
     const worst = [...fb.frames].sort((a, b) => b.dur - a.dur)[0];
     return {
       frameMs: Math.round(worst?.dur ?? 0), scriptMs: Math.round(worst?.script ?? 0), forcedMs: Math.round(worst?.forced ?? 0), frames: fb.frames.length,
       reads: fb.reads, readMs: Math.round(fb.readMs),
       slow: [...fb.slow].sort((a, b) => b.took - a.took).slice(0, 4).map((s) => ({...s, took: Math.round(s.took)})),
+      sites: [...fb.sites.values()].sort((a, b) => b.ms - a.ms).slice(0, 14).map((s) => ({...s, ms: Math.round(s.ms * 10) / 10})),
       roots: [...new Set(fb.roots)].slice(0, 12),
       bar: (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 90),
     };
