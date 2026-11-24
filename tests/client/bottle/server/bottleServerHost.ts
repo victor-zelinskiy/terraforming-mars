@@ -283,15 +283,30 @@ export async function otherSeatMoves(playerId: string): Promise<{did: string, an
  * (`fuzzConfig(seed)` — the in-scope expansions under the creator's dependencies, MarsBot in three games of four, one
  * to three humans, every board), created the way the product creates one. The initial-cards question stands: a whole
  * game begins at its first press.
+ *
+ * …NARROWED TO WHAT THE PRODUCT's OWN CREATOR CAN MAKE (`create/premium/buildCreateGamePayload.ts`): the fuzz draws the
+ * ENGINE's legal tables, and three of its rolls have no door in the console — the pre-game INITIAL DRAFT and the
+ * prelude draft (no screen sets them: the payload's `initialDraft` / `preludeDraftVariant` are the defaults, false),
+ * and a Solar Phase of its own (the creator sends it WITH Venus and without the bot, never apart). The first pass
+ * of whole games (CI run 45258986188) said why it matters: three of twenty-four tables drafted before the game, the
+ * console has no surface for that question at all («expected draft, on screen nothing» — a stranded prompt the
+ * arbiter cured every few seconds), and every class they named was a class of a table no player can sit at.
  */
 export function bootPilotTable(seed: number, idSuffix: string): BottleTable & {config: {humans: number, marsBot: boolean, options: Record<string, unknown>}} {
   const config = fuzzConfig(seed);
   const makers = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.YELLOW];
   const humans = makers.slice(0, config.humans).map((maker, index) => maker.newPlayer({name: `pilot${index + 1}`, idSuffix}));
-  const options: Partial<GameOptions> = {...config.options, ...(config.options.automa !== undefined ? {automa: {...config.options.automa}} : {})};
-  const game = Game.newInstance(`game-id${idSuffix}` as GameId, humans, humans[0], `spectator-id${idSuffix}` as SpectatorId, options, config.gameSeed);
+  const marsBot = config.options.automa !== undefined;
+  const options: Partial<GameOptions> = {
+    ...config.options,
+    ...(marsBot ? {automa: {...config.options.automa as NonNullable<typeof config.options.automa>}} : {}),
+    initialDraftVariant: false,
+    preludeDraftVariant: false,
+    solarPhaseOption: config.options.venusNextExtension === true && !marsBot,
+  };
+  const game = Game.newInstance(`game-id${idSuffix}` as GameId, humans, humans[0], `spectator-id${idSuffix}` as SpectatorId, {...options}, config.gameSeed);
   loader.games.set(game.id, game);
-  return {...tableOf(game), config: {humans: config.humans, marsBot: config.options.automa !== undefined, options: {...config.options}}};
+  return {...tableOf(game), config: {humans: config.humans, marsBot, options: {...options}}};
 }
 
 /**

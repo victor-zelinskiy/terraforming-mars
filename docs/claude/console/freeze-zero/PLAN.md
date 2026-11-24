@@ -1588,6 +1588,57 @@ two hundred times on one page, a research every generation, the finale after all
   pilot in a real browser on the box (the stage's number is «100 whole games per map set, 0 episodes, 0 rebuilds»);
   the soak.
 
+**STAGE 6, STEP 2 — THE FIRST PASS OF WHOLE GAMES, AND «A GATE THAT NEVER OPENS» (2026-11-24).** CI's verdict on
+`c1531646fb` first: the whole e2e suite green (45258973293), the freeze gate green (45258980832), and the autopilot's
+first pass — **24 whole games in the bottle (run 45258986188): 23 played to the final scoring, one stood at its cap;
+no rebuild inside a game, no table nobody moved.** What the pass named, read class by class:
+- **THE TABLES WERE NOT ALL THE PRODUCT's.** The fuzz draws the ENGINE's legal tables; three of twenty-four drafted
+  BEFORE the game (`initialDraftVariant`), and the console has no surface for that question at all («expected draft,
+  on screen nothing» — a stranded prompt, the arbiter curing it every few seconds). No screen of the creator sets it
+  (`buildCreateGamePayload`: `initialDraft` is the default, false — as is the prelude draft, and Solar Phase goes
+  with Venus and without the bot, never apart). The pilot's tables are narrowed to what the creator can make
+  (`bootPilotTable`); the pre-game draft is FRONTIER, said here so nobody reads it as covered.
+- **A GATE THAT NEVER OPENS — the deaf screen's third shape, and the arbiter could not see it.** Game 6 stood on
+  «Добор карт» for six generations: «A Взять» on the bar, every press swallowed by `reveal-busy`. The surface's
+  handler TOOK each press, nothing was dropped, the screen read `accepting` — the arbiter content, for good. Two
+  things, both built:
+  - **the arbiter counts an A / B a deliberate gate swallowed OVER NOTHING** (`inputEcho.verbAbsorbed` — counted at
+    the router by the dispatch's own bracket; `supervisorController.quietAbsorbed` — only at a look where the graph
+    names nothing in flight: `flightsInTheAir`, the doors' own reader). A gate over a declared flight is doing its
+    work however long the flight takes; a gate over nothing will not open by itself — three presses, five seconds,
+    `presses-no-effect`. (Counted bare, it named the bottle's `nobel-prize` falsely — a claim's arrival waiting for
+    its surface, a declared state of the claim machine — within the hour: the reason the term reads the graph.)
+  - **the gates it named, cured where they are.** ① The reveal's TAKE TURN ended only on the `animationend` of the
+    slot's CSS turn — an event that does not come when the slot is re-made under the turn, the animation is
+    cancelled, or the renderer has no CSS clock (the bottle: jsdom runs none — it stood there for good and said
+    nothing). The turn's end is a declared ceiling wait now (`reveal:take-turn`, the sheet's 560 ms + a net, on the
+    motion's ceiling clock): the event still ends it, a turn whose event never came commits at its ceiling and says
+    so (a row of `LAYOUT_BLIND` in the bottle, where it always does). ② The fullscreen VIEWER's `zoom-flight` — named
+    by the new term the hour it was written (the bottle's `fz1:aerospace-family`): «X → A Разыграть» flies the card
+    into the composer and raises `zoomClosing`, whose only unwinder was the dialog's QUEUED 'close' event; late, the
+    composer's «A Подтвердить» is swallowed for a task — never, the screen is deaf for good, B included. The plain
+    close had learned this twice (CI 42223555435; the monkey's two-seat walk) and unwinds in a `finally`; the
+    hand-off and the depart did not. Every flight that takes the viewer away unwinds it itself now
+    (`unwindZoomFlight`, fenced by the open token). Replayed in the bottle — RED with the unwinding off.
+  - With both: game 6 plays through its draws by itself (7 generations in 420 presses, no pass through the door).
+- **THE SAME PILOT IN A REAL BROWSER** (`tests/e2e/console-autopilot.spec.ts`, `TM_E2E_AUTOPILOT=1`; the workflow
+  `Autopilot`, `where: browser | both`): the bottle is minutes a game and is blind wherever a rect or a CSS clock is
+  needed — half of what the first pass named cannot be told from that blindness by reading alone; the browser is ten
+  to twenty minutes a game and sees everything. The solo player against MarsBot (three games of four) from the first
+  press to the final scoring, a table the creator's own payload makes, judged by the harness's guards and filed by
+  cause class like a walk. This is the instrument the stage's number is read on.
+- **OPEN, each with its evidence — to be read on the browser's pass, never cured on a guess:** ⓐ a card played
+  from the hand whose play moves the Hydronetwork onto a stage with a choice WHILE the corporation draws (Point
+  Luna): the draw's claim is adopted by the nested `hydro` frame, the reveal finds no zone, `hydro:completing`
+  stands until the arbiter's ladder (game 9 of the first pass, press ≈ 412: `claim:hydro … zone unmounted`,
+  `UNREGISTERED ZONE [data-embed-slot="hydro"]`); ⓑ a sitting's `option` under its walk in the bottle (games 2 · 22
+  — `stranded-prompt/parliamentphase` once each; the Parliament is the bottle's most layout-bound surface); ⓒ the
+  draft's plate «did not come in its bound» behind a start that still stood (games 6 · 7 · 23 — the take turn's
+  consequence; re-read on the next pass).
+- **THE BOX is unreachable since the night** (the chain of `fzz-*` passes died with the session's machine; four of
+  the eight shards of `fzz-fz3-duo` on `af6a97cc9c` are in: 186 walks, 0 defect rows, no ghost, no quiet beat). CI
+  carries the verdicts meanwhile.
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a

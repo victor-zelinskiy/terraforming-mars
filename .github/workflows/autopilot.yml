@@ -8,6 +8,10 @@ name: Autopilot
 # number, so whatever a run names replays on a laptop —
 #   TM_BOTTLE_AUTOPILOT=1 TM_BOTTLE_AUTOPILOT_SEEDS=<n> npm run test:client:one -- tests/client/bottle/autopilot.bottle.ts
 #
+# …AND THE SAME PILOT IN A REAL BROWSER (tests/e2e/console-autopilot.spec.ts — `where: browser | both`): the real page in
+# real time, the solo player against MarsBot from the first press to the final scoring. The bottle is minutes and is
+# blind wherever a rect or a CSS clock is needed; the browser is ten to twenty minutes a game and sees everything.
+#
 # BY HAND ONLY for now (no schedule): the first passes are READ, class by class, before a baseline is written and a
 # gate is held on it.
 on:
@@ -29,6 +33,12 @@ on:
         description: 'The pass''s name — the stream of presses is <name>:<n> (another name = other presses on the same tables)'
         required: false
         default: 'ap0'
+      where:
+        description: 'bottle (the manual clock, minutes) · browser (a real Chromium, real time) · both'
+        required: false
+        type: choice
+        options: [both, bottle, browser]
+        default: both
 
 permissions:
   contents: read
@@ -59,8 +69,9 @@ jobs:
           ' >> "$GITHUB_OUTPUT"
 
   play:
-    name: Games ${{ matrix.seeds }}
+    name: Bottle · games ${{ matrix.seeds }}
     needs: plan
+    if: ${{ inputs.where != 'browser' }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
     strategy:
@@ -99,5 +110,65 @@ jobs:
             autopilot-report.json
             autopilot-report.txt
             autopilot.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  browser:
+    name: Browser · games ${{ matrix.seeds }}
+    needs: plan
+    if: ${{ inputs.where != 'bottle' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        seeds: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Build application
+        run: npm run build
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Chromium
+        run: |
+          for attempt in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "::warning::playwright install failed (attempt $attempt) — retrying in 60 s"
+            sleep 60
+            sudo apt-get update || true
+          done
+          exit 1
+      # A game that names a class still PASSES (the class is filed — the report is read); what fails a game is the
+      # harness's own guards (a stall nobody cured, a Vue error, a page that died) and a table nobody moves.
+      - name: Whole games in a real browser (${{ matrix.seeds }})
+        env:
+          TM_E2E_AUTOPILOT: '1'
+          TM_E2E_AUTOPILOT_GAMES: ${{ matrix.seeds }}
+          TM_E2E_AUTOPILOT_NAME: ${{ inputs.name }}
+          TM_E2E_COVERAGE: '1'
+        run: npx playwright test tests/e2e/console-autopilot.spec.ts --project=chromium --workers=1 --retries=0 --reporter=list,github
+      - name: The report
+        if: ${{ !cancelled() }}
+        run: node scripts/monkey-report.mjs test-results --out autopilot-browser-report.json | tee autopilot-browser-report.txt | head -60
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: autopilot-browser-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+          path: |
+            test-results/cause-classes
+            test-results/**/autopilot-walk.txt
+            test-results/**/*.png
+            test-results/**/error-context.md
+            autopilot-browser-report.json
+            autopilot-browser-report.txt
           if-no-files-found: warn
           retention-days: 14

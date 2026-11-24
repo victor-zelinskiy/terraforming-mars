@@ -97,7 +97,7 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
         let dumps = 0;
         played = await autopilotGame(bottle, table.seats, seed, {
           maxPresses: PRESSES,
-          trace: !DEBUG ? undefined : () => `${page.frames().join('>') || '-'}|${page.pageModules.consoleDraftFlow.draftWorkspaceState.completion}|g${bottleServer().seatTruth(viewer).generation}|${bottleServer().seatTruth(viewer).waitingFor ?? '-'}`,
+          trace: !DEBUG ? undefined : () => `${page.frames().join('>') || '-'}|${page.pageModules.consoleDraftFlow.draftWorkspaceState.completion}|g${bottleServer().seatTruth(viewer).generation}|${bottleServer().seatTruth(viewer).waitingFor ?? '-'}|D${page.liveness().defects.reduce((sum, d) => sum + d.count, 0)}|${page.bar().replace(/\s+/g, '').slice(0, 60)}`,
           // THE READING AID (`TM_BOTTLE_AUTOPILOT_DEBUG=1`): where the door had to answer, what stood — the server's
           // truth, the page's view, the stack, the arbiter's word, the kernel's tree, the screen's own words.
           onDoor: !DEBUG ? undefined : (what) => {
@@ -115,10 +115,50 @@ describe('THE AUTOPILOT IN THE BOTTLE — whole games through the real console, 
               `      readiness: frames ${page.ready().wsFrames.join(' > ')} · yielded ${page.ready().wsYielded} · holds ${page.ready().holds.join(',') || 'none'} · absorbers ${page.ready().absorbers.join(',') || 'none'}`,
               `      tree: ${page.flow().tree.slice(0, 14).join(' ¦ ')}`,
               `      draft: ${JSON.stringify({...page.pageModules.consoleDraftFlow.draftWorkspaceState, picks: undefined, meta: undefined})} · view phase ${page.view()?.game.phase} · needsToResearch ${String(page.view()?.thisPlayer.needsToResearch)} · stages ${[...((globalThis as unknown as {window: {document: {querySelectorAll(q: string): Iterable<{className: string, style: {display: string}}>}}}).window.document.querySelectorAll('.con-draftws__stage'))].map((el) => `${el.className.replace('con-draftws__stage ', '').replace('con-draftws__stage--', '')}${el.style.display === 'none' ? '(hidden)' : ''}`).join(',')}`,
+              `      reveal: ${(() => {
+                const el = (globalThis as unknown as {window: {document: {querySelector(q: string): {className: string, getAttribute(n: string): string | null} | null}}}).window.document.querySelector('.con-reveal');
+                const o = page.pageModules.consoleWorkspaceOutcome.workspaceOutcomeState;
+                return `${el === null ? 'none' : `take=${el.getAttribute('data-take')} table=${el.getAttribute('data-settlement-table')}/${el.getAttribute('data-settlement-turn')} cursor=${el.getAttribute('data-cursor-pending')} class=${el.className}`} · claim ${JSON.stringify({host: o.host, source: o.sourceCard, stage: o.stage, arrivalDone: o.arrivalDone, arrivalFlown: o.arrivalFlown, beatDone: o.beatDone})}`;
+              })()}`,
               `      workspace: «${text('.con-draftws') || text('.con-hand') || text('.con-task') || text('.con-root')}»`,
             ].join('\n'));
           },
         });
+        // THE READING AID, the probe (`TM_BOTTLE_AUTOPILOT_PROBE=<selector>;<selector>…`, with the cap of presses as the
+        // moment): where the game stands when the walk stops — each selector's elements, their chain of ancestors.
+        if (DEBUG && env.TM_BOTTLE_AUTOPILOT_PROBE !== undefined) {
+          type El = {className: unknown, isConnected: boolean, parentElement: El | null, getAttribute(n: string): string | null, style: {display: string}, tagName: string, children: {length: number}};
+          const doc = (globalThis as unknown as {window: {document: {querySelectorAll(q: string): Iterable<El>}}}).window.document;
+          const o = page.pageModules.consoleWorkspaceOutcome;
+          console.log(`      ── THE PROBE at press ${played.presses} — frames ${page.frames().join(' > ')} · ready ${page.ready().wsFrames.join(' > ')} · bar «${page.bar().replace(/\s+/g, ' ').slice(0, 120)}» · ` +
+            `claim ${JSON.stringify({host: o.workspaceOutcomeState.host, source: o.workspaceOutcomeState.sourceCard, stage: o.workspaceOutcomeState.stage, slot: o.workspaceOutcomeState.embedSlot, zone: o.workspaceOutcomeZone()})} · holds ${page.ready().holds.join(',')}`);
+          for (const selector of env.TM_BOTTLE_AUTOPILOT_PROBE.split(';')) {
+            const found = [...doc.querySelectorAll(selector)];
+            console.log(`      ${selector}: ${found.length}`);
+            for (const el of found.slice(0, 4)) {
+              const chain: Array<string> = [];
+              for (let n: El | null = el; n !== null && chain.length < 9; n = n.parentElement) {
+                chain.push(`${n.tagName.toLowerCase()}.${String(n.className).split(' ').slice(0, 3).join('.')}${n.style.display === 'none' ? '[hidden]' : ''}${n.getAttribute('data-embed-slot') !== null ? `[slot=${n.getAttribute('data-embed-slot')}]` : ''}`);
+              }
+              console.log(`        connected ${el.isConnected} · children ${el.children.length} · ${chain.join(' < ')}`);
+            }
+          }
+          console.log(`      tree: ${page.flow().tree.slice(0, 40).join(' ¦ ').slice(0, 3000)}`);
+        }
+        // THE READING AID, second half: every warn / error line of the page in order, with the dozen before each
+        // line a class was named by — what led to it.
+        if (DEBUG) {
+          const all = bottle.lines();
+          const named = /\[(liveness|wait-graph|workspace-outcome|workspace-stall|console-leak-detector|console-foreground-watchdog|screen-shadow|mandatory-gate|screen-handoff|notifications|animation-hold|start-stranded|start-shadow|invariant)\]/;
+          let from = 0;
+          all.forEach((line, at) => {
+            if (named.test(line) && at >= from) {
+              console.log([`      ── LINES ${Math.max(from, at - 12)}…${at} ──`,
+                ...all.slice(Math.max(from, at - 12), at + 1).map((l) => `        ${l.replace(/\s+/g, ' ').slice(0, 700)}`)].join('\n'));
+              from = at + 1;
+            }
+          });
+        }
         // THE LAST WORD: whatever the game left on screen — the finale's last screen, or where a capped game stood.
         await bottle.advance(IDLE_MS);
         const live = bottle.liveness();

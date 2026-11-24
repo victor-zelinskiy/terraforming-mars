@@ -1,0 +1,334 @@
+import {test, expect, Page, APIRequestContext} from './consoleTest';
+import * as fs from 'node:fs';
+import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, sendPlayerInput, soloGameConfig} from './consoleStart';
+
+/**
+ * THE AUTOPILOT — A WHOLE GAME THROUGH THE REAL CONSOLE, IN A REAL BROWSER (FREEZE ZERO, stage 6 — «whole games and
+ * time»; docs/claude/console/freeze-zero/PLAN.md § 8).
+ *
+ * The monkey walks sixty presses from a fixture and never ends a game. This plays one: a table the product's own
+ * creator makes (`/api/creategame` — the solo player against MarsBot, the fork's main mode; one game in four without
+ * the bot), from the first press of the start to the final scoring, the viewer's seat THROUGH THE PAD:
+ *   · it presses what the command bar OFFERS (the hot verb first, A and RT before B, a look seldom and closed by the
+ *     next press), some cursor moves, a few presses of anything;
+ *   · on its action menu it plays for a seeded while and then PASSES as a player does — the basic wheel's ↓ and its
+ *     confirm; MarsBot plays on the server's own clock;
+ *   · a question the walk did not get through in its budget of presses is answered over the API, as another device of
+ *     the same seat would (`answerPrompt` — the drivers' own answerer), and COUNTED with what stood on screen: where
+ *     the screen and a seeded thumb part. A statistic of the walk, never a defect by itself.
+ * What judges the page is what judges every e2e test: the harness's guards (a stall nobody cured, a heal that had to
+ * run, a Vue error, a page that died) and the cause classes the page named, filed beside the game's own numbers
+ * (`cause-classes/…json` — `scripts/monkey-report.mjs` sums a pass of games as it sums a pass of walks).
+ *
+ * The same pilot plays in the bottle on a manual clock (`tests/client/bottle/autopilot.ts`) — minutes of a laptop, and
+ * blind wherever a rect or a CSS clock is needed; this one is the real page, in real time: a game is ten to twenty
+ * minutes of a runner.
+ *
+ * OPT-IN: `TM_E2E_AUTOPILOT=1 npx playwright test tests/e2e/console-autopilot.spec.ts` · `TM_E2E_AUTOPILOT_GAMES`
+ * (`<from>-<to>` or a list; default `1-2`) · `TM_E2E_AUTOPILOT_NAME` (the stream's name, default `ap0`) ·
+ * `TM_E2E_AUTOPILOT_PRESSES` (the cap, default 1400).
+ */
+const ENABLED = process.env.TM_E2E_AUTOPILOT === '1';
+if (ENABLED) {
+  process.env.TM_E2E_COVERAGE ??= '1';
+}
+const NAME = process.env.TM_E2E_AUTOPILOT_NAME ?? 'ap0';
+const PRESSES = Number(process.env.TM_E2E_AUTOPILOT_PRESSES ?? 1400);
+
+function gamesOf(spec: string): Array<number> {
+  const range = /^(\d+)-(\d+)$/.exec(spec);
+  if (range !== null) {
+    const from = Number(range[1]);
+    return Array.from({length: Math.max(0, Number(range[2]) - from + 1)}, (_, i) => from + i);
+  }
+  return spec.split(',').map((part) => Number(part.trim())).filter((n) => Number.isFinite(n));
+}
+const GAMES = gamesOf(process.env.TM_E2E_AUTOPILOT_GAMES ?? '1-2');
+
+/** mulberry32 — the monkey's generator (`console-monkey.spec.ts`): the same game on every machine for one seed. */
+function rng(seed: string): () => number {
+  let h = 1779033703 ^ seed.length;
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(h ^ seed.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** The boards MarsBot plays on (`common/automa/automaCompatibility.ts`), by the names the creator sends. */
+const BOARDS = ['tharsis', 'hellas', 'elysium', 'utopia planitia', 'terra cimmeria nova', 'vastitas borealis nova', 'vastitas borealis',
+  'amazonis p.', 't. cimmeria', 'arabia terra', 'Hollandia'] as const;
+
+/**
+ * THE TABLE OF GAME `n` — what the creator's payload can say (`create/premium/buildCreateGamePayload.ts`): the
+ * in-scope expansions under their dependencies (Redux needs Colonies, Prelude 2 needs Prelude), Solar Phase with Venus
+ * and without the bot, no pre-game draft. Not `testMode`: a real game's economy and its real length.
+ */
+function tableOf(n: number): {config: Record<string, unknown>, word: string} {
+  const r = rng(`${NAME}:${n}:table`);
+  const flip = (p: number) => r() < p;
+  const bot = flip(0.75);
+  const prelude = flip(0.6);
+  const venus = flip(0.5);
+  const redux = flip(0.4);
+  const colonies = redux || flip(0.5);
+  const expansions = {
+    promo: flip(0.5), venus, colonies, prelude, prelude2: prelude && flip(0.5), ares: flip(0.35), deltaProject: flip(0.4), turmoilRedux: redux,
+  };
+  const board = BOARDS[Math.floor(r() * BOARDS.length)];
+  const draft = flip(0.5);
+  const config = soloGameConfig({
+    expansions, board, seed: r(), testMode: false, draftVariant: draft, solarPhaseOption: venus && !bot, altVenusBoard: venus && flip(0.4),
+    ...(bot ? {automa: {difficulty: (['easy', 'normal', 'hard'] as const)[Math.floor(r() * 3)], secondShift: flip(0.6), extraCorporations: flip(0.5)}} : {}),
+  });
+  const on = Object.entries(expansions).filter(([, v]) => v).map(([k]) => k);
+  return {config, word: `${bot ? 'vs MarsBot' : 'solo'} · ${board} · ${on.join('+') || 'base'}${draft ? ' · draft' : ''}`};
+}
+
+type Wire = {
+  game: {phase: string, generation: number, gameAge: number},
+  waitingFor?: {type: string, promptId?: number, options?: Array<{type: string, warnings?: Array<string>}>},
+};
+
+/** The keys of the pad as the key bridge maps them — by the glyph the bar prints. */
+const GLYPH_KEY: Readonly<Record<string, string>> = {
+  'A': 'Enter', 'B': 'Escape', 'X': 'KeyX', 'Y': 'KeyY', 'LB': 'KeyQ', 'RB': 'KeyE', 'LT': 'Comma', 'RT': 'Period', 'L3': 'KeyC', 'R3': 'KeyV', '⧉': 'KeyR',
+};
+const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'] as const;
+const ANY = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Enter', 'Enter', 'Escape', 'KeyX', 'KeyY', 'KeyQ', 'KeyE', 'Comma', 'Period', 'KeyC', 'KeyV', 'KeyR'] as const;
+/** The keys that open a LOOK — a player reads it and closes it; a pilot that is going somewhere seldom opens one. */
+const LOOK_KEYS: ReadonlySet<string> = new Set(['KeyX', 'KeyR', 'KeyC', 'KeyV']);
+
+/** What stands on screen as the pilot reads it: the verbs the bar offers, the stack, the bar's words. */
+type Screen = {offered: Array<{key: string, hot: boolean}>, frames: Array<string>, bar: string, zoom: boolean, quick: boolean, pass: boolean, confirm: boolean};
+
+async function look(page: Page): Promise<Screen> {
+  return page.evaluate((glyphs) => {
+    const offered: Array<{key: string, hot: boolean}> = [];
+    for (const cmd of document.querySelectorAll('.con-cmdbar__cmd')) {
+      if (cmd.classList.contains('con-cmdbar__cmd--disabled')) {
+        continue;
+      }
+      for (const glyph of cmd.querySelectorAll('.gp-glyph')) {
+        const key = glyphs[(glyph.textContent ?? '').trim()];
+        if (key !== undefined) {
+          offered.push({key, hot: cmd.classList.contains('con-cmdbar__cmd--hot')});
+        }
+      }
+    }
+    const ready = (window as unknown as {__conReady?: () => {wsFrames?: Array<string>}}).__conReady?.();
+    return {
+      offered,
+      frames: ready?.wsFrames ?? [],
+      bar: (document.querySelector('.con-cmdbar')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 160),
+      zoom: document.querySelector('dialog.con-zoom[open]') !== null,
+      quick: document.querySelector('.con-quick') !== null,
+      pass: document.querySelector('.con-quick [data-quick-id="pass"]') !== null,
+      confirm: document.querySelector('.con-confirm') !== null,
+    };
+  }, GLYPH_KEY);
+}
+
+function pilotPick(screen: Screen, g: () => number, last: string | undefined): string {
+  if (last !== undefined && LOOK_KEYS.has(last) && g() < 0.75) {
+    return 'Escape';
+  }
+  const roll = g();
+  if (roll < 0.7 && screen.offered.length > 0) {
+    const weight = (o: {key: string, hot: boolean}): number => (LOOK_KEYS.has(o.key) ? 0.5 : (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : o.key === 'Escape' ? 0.5 : 2));
+    let x = g() * screen.offered.reduce((sum, o) => sum + weight(o), 0);
+    for (const o of screen.offered) {
+      x -= weight(o);
+      if (x < 0) {
+        return o.key;
+      }
+    }
+    return screen.offered[0].key;
+  }
+  return roll < 0.93 ? ARROWS[Math.floor(g() * ARROWS.length)] : ANY[Math.floor(g() * ANY.length)];
+}
+
+type Played = {
+  end: 'finished' | 'capped' | 'stuck', presses: number, generation: number, phase: string,
+  byUi: Record<string, number>, byApi: Record<string, number>, passes: {ui: number, api: number}, doors: Array<string>, tookMs: number,
+};
+
+async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>): Promise<Played> {
+  const g = rng(`${seed}:pilot`);
+  const started = Date.now();
+  const played: Played = {end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, doors: [], tookMs: 0};
+  const bump = (into: Record<string, number>, key: string): void => {
+    into[key] = (into[key] ?? 0) + 1;
+  };
+  let lastKey: string | undefined;
+  const press = async (key: string, pauseMs: number): Promise<void> => {
+    log.push(`${Date.now() % 1_000_000}:${key}`);
+    await page.keyboard.press(key);
+    lastKey = key;
+    played.presses++;
+    await cinematicBeat(page, pauseMs, 'the rhythm of the pilot — a player pauses between presses, by design');
+  };
+  const pause = (): number => {
+    const roll = g();
+    return Math.round(roll < 0.75 ? 150 + g() * 350 : roll < 0.97 ? 600 + g() * 1200 : 2500 + g() * 3000);
+  };
+  const truth = async (): Promise<Wire> => await fetchPlayerModel(request, viewer) as unknown as Wire;
+  const stands = (s: Screen): string => `frames ${s.frames.join('>') || 'none'} · bar «${s.bar}»`;
+  /** An answer over the API, as another device of the seat would give it. `false` — the drivers' answerer has none, or the server refused it. */
+  const byDoor = async (wf: NonNullable<Wire['waitingFor']>): Promise<boolean> => {
+    try {
+      const pass = wf.type === 'or' ? (wf.options ?? []).findIndex((o) => o.type === 'option' && o.warnings?.includes('pass') === true) : -1;
+      const response = pass >= 0 ? {type: 'or', index: pass, response: {type: 'option'}} : answerPrompt(wf as never, {});
+      await sendPlayerInput(request, viewer, {...response, promptId: wf.promptId} as never);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  let standing: {promptId: number | undefined, type: string, menu: boolean, presses: number, budget: number, byApi: boolean} | undefined;
+  let moved = {age: -1, at: Date.now()};
+  while (played.presses < PRESSES && !page.isClosed()) {
+    const model = await truth();
+    played.generation = model.game.generation;
+    played.phase = model.game.phase;
+    if (model.game.phase === 'end') {
+      break;
+    }
+    if (model.game.gameAge !== moved.age) {
+      moved = {age: model.game.gameAge, at: Date.now()};
+    }
+    const wf = model.waitingFor;
+    if (wf === undefined) {
+      // NOBODY ASKS THE VIEWER: the bot's turn, a scene of the page's own. A press may be owed all the same (a
+      // reveal's take, a plate, a result's acknowledge) — the pilot looks on. Ten minutes of a table nobody moves is stuck.
+      if (standing !== undefined) {
+        bump(standing.byApi ? played.byApi : played.byUi, standing.menu ? 'or:menu' : standing.type);
+        standing = undefined;
+      }
+      if (Date.now() - moved.at > 10 * 60_000) {
+        played.end = 'stuck';
+        break;
+      }
+      await press(g() < 0.5 ? pilotPick(await look(page), g, lastKey) : 'ArrowDown', 500 + Math.round(g() * 700));
+      continue;
+    }
+    if (standing === undefined || standing.promptId !== wf.promptId) {
+      if (standing !== undefined) {
+        bump(standing.byApi ? played.byApi : played.byUi, standing.menu ? 'or:menu' : standing.type);
+      }
+      const menu = wf.type === 'or' && (wf.options ?? []).some((o) => o.type === 'option' && o.warnings?.includes('pass') === true);
+      standing = {promptId: wf.promptId, type: wf.type, menu, presses: 0, budget: menu ? (g() < 0.18 ? 0 : 4 + Math.floor(g() * 23)) : 45, byApi: false};
+    }
+    if (standing.presses >= standing.budget) {
+      if (standing.menu) {
+        // THE TURN ENDS, by the wheel: the board home (B, one level a press), LT, ↓, the confirm — verified on the SERVER.
+        let landed = false;
+        const before = stands(await look(page));
+        for (let attempt = 0; attempt < 3 && !landed; attempt++) {
+          for (let i = 0; i < 8; i++) {
+            const s = await look(page);
+            if (s.frames.length === 0 && !s.zoom) {
+              break;
+            }
+            await press('Escape', 600);
+          }
+          if (!(await look(page)).quick) {
+            await press('Comma', 500);
+          }
+          await expect.poll(async () => (await look(page)).pass, {timeout: 3_000}).toBe(true).catch(() => undefined);
+          await press('ArrowDown', 500);
+          await expect.poll(async () => (await look(page)).confirm, {timeout: 3_000}).toBe(true).catch(() => undefined);
+          await press('Enter', 800);
+          landed = await expect.poll(async () => (await truth()).waitingFor?.promptId !== wf.promptId, {timeout: 8_000}).toBe(true).then(() => true, () => false);
+        }
+        if (landed) {
+          played.passes.ui++;
+          log.push('[PASS]');
+        } else {
+          played.doors.push(`pass · gen ${model.game.generation} · ${before} → after the gesture: ${stands(await look(page))}`);
+          await byDoor(wf);
+          played.passes.api++;
+          log.push('[PASS-BY-DOOR]');
+        }
+        standing = undefined;
+      } else {
+        played.doors.push(`${wf.type} · gen ${model.game.generation} · ${stands(await look(page))}`);
+        const answered = await byDoor(wf);
+        log.push(`[BY-DOOR ${wf.type}${answered ? '' : ' REFUSED'}]`);
+        if (answered) {
+          standing.byApi = true;
+        } else {
+          // (No answer the door knows: the walk goes on pressing — a fresh budget, never a loop on the same refusal.)
+          standing.presses = 0;
+          standing.budget = 90;
+        }
+      }
+      await cinematicBeat(page, 1_500, 'the page hears an answer given elsewhere by the socket or its poll — the pilot lets it');
+      continue;
+    }
+    standing.presses++;
+    await press(pilotPick(await look(page), g, lastKey), pause());
+  }
+  if (played.phase === 'end') {
+    // THE FINALE: the ceremony's screens are the page's own — pressed through like everything else.
+    for (let i = 0; i < 40 && !page.isClosed(); i++) {
+      await press(pilotPick(await look(page), g, lastKey), 700 + Math.round(g() * 1_300));
+    }
+    played.end = 'finished';
+  }
+  played.tookMs = Date.now() - started;
+  return played;
+}
+
+test.describe('THE AUTOPILOT — whole games through the real console', () => {
+  test.skip(!ENABLED, 'opt-in: TM_E2E_AUTOPILOT=1 (ten to twenty minutes of a runner per game)');
+
+  for (const n of GAMES) {
+    test(`autopilot · game ${n}`, async ({page, request, causeHarvest}) => {
+      test.setTimeout(55 * 60_000);
+      const seed = `${NAME}:${n}`;
+      const table = tableOf(n);
+      test.info().annotations.push({type: 'autopilot-table', description: `${seed} — ${table.word}`});
+      const created = await request.post('/api/creategame', {data: table.config});
+      expect(created.ok(), `create-game refused the table (${table.word}): ${created.status()}`).toBeTruthy();
+      const {players} = await created.json() as {players: Array<{id: string, name: string}>};
+      const viewer = (players.find((p) => !/marsbot/i.test(p.name)) ?? players[0]).id;
+      const log: Array<string> = [];
+      const consoleTail: Array<string> = [];
+      page.on('console', (message) => {
+        consoleTail.push(`${Date.now() % 1_000_000} ${message.type()} ${message.text().slice(0, 600)}`);
+        if (consoleTail.length > 600) {
+          consoleTail.shift();
+        }
+      });
+      await openConsole(page, viewer);
+      let played: Played | undefined;
+      try {
+        played = await playGame(page, request, viewer, seed, log);
+        // THE LAST WORD: past the arbiter's grace and the loop's twenty looks — the screen the game left is judged whole.
+        await cinematicBeat(page, 25_000, 'the last word — a quiet spell past the liveness grace, so the screen the game left is judged');
+      } finally {
+        causeHarvest.note({
+          monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', landing: 'boot', duo: false, reload: false, hidden: false, presses: played?.presses ?? log.filter((l) => !l.startsWith('[')).length,
+            perturb: {netMs: 0, cpu: Number(process.env.TM_E2E_CPU_THROTTLE ?? 0), motion: process.env.TM_E2E_MOTION ?? ''}},
+          autopilot: {...played, table: table.word},
+        });
+        fs.writeFileSync(test.info().outputPath('autopilot-walk.txt'),
+          `seed=${seed} table=${table.word}\n${JSON.stringify(played, null, 1)}\n\n${log.join(' ')}\n\n── console (last ${consoleTail.length}) ──\n${consoleTail.join('\n')}\n`);
+      }
+      const sum = (row: Record<string, number>): string => Object.entries(row).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ') || '—';
+      console.log(`[autopilot] game ${n} [${table.word}]: ${played.end} in generation ${played.generation} (${played.phase}) · ${played.presses} presses, ${Math.round(played.tookMs / 60_000)} min · ` +
+        `by the screen: ${sum(played.byUi)} · by the door: ${sum(played.byApi)} · passes ${played.passes.ui} by the wheel / ${played.passes.api} by the door`);
+      expect(page.isClosed(), 'the page survived the game').toBe(false);
+      expect(played.end, 'a table nobody moves for ten minutes is stuck — the game did not go on').not.toBe('stuck');
+    });
+  }
+});
