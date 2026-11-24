@@ -1860,6 +1860,41 @@ questions. What they named, and what was done:
 - **OPEN:** game 127's overdue plate (its door now says what the presentation waited for — to read on the next
   occurrence); the box's lanes move to the build of this step and the new pilot — stage 6's number is counted on them.
 
+**STAGE 6, STEP 7 — TIME: THE SOAK AND THE FRAME BUDGET OF A PRESS (2026-11-24).** The stage's second number is «an
+8-hour soak with flat memory and no long-frame growth», its row names «frame budgets of the key scenes on the box».
+Both got their instrument, and their first readings:
+- **THE SOAK** (`TM_E2E_AUTOPILOT_IDLE_MIN` — `console-autopilot.spec.ts`). A game enters and leaves by a full reload
+  (`App.vue`), so one page's hours ARE one game's: the same whole game, and at every generation's sample point (the
+  viewer's action menu, nothing on the stack) the page is LEFT ALONE; around each spell the browser itself is asked
+  (CDP, after a collection of garbage) — the heap, the nodes, the listeners, the layouts and style recalculations the
+  idle page did, its seconds of script, its long frames and warnings. The trial (1-minute spells) and the first spell
+  of the real one (game 402, thirty minutes a generation — the box's lane `fzs-soak`, ≈ 8 h): **heap +0.36 MB in
+  thirty minutes, +2 nodes, 0 listeners, 0 layouts, 1 style recalculation, 13 s of script (0.7 % of a core), no long
+  frame, no warning.** A page at rest is at rest. The verdict is the whole series (`[autopilot-soak]` lines of
+  `fzs-soak/batch-402.run.log`, `autopilot.spells` of the game's file).
+- **THE LONG FRAMES OF THE WHOLE GAMES, READ**: 65 `[long-frame]` lines in 35 games of 70 — 0.5 – 0.94 s, «a press
+  waited in it», four fifths of each a FORCED LAYOUT inside the press's own script. (The box played twelve games at
+  once — every duration below is a loaded machine's, ×2 – 4 of a quiet one; the SHARES and the call sites are not.)
+- **THE FRAME BUDGET's PROBE** (`console-frame-budget.spec.ts` + `frameBudgetEars.ts`, opt-in; the middle of a game by
+  `TM_E2E_FRAME_BUDGET_GENERATIONS`): every everyday press of the board home, several times — the longest animation
+  frame it made, the layout its scripts forced, EVERY layout-forcing read counted to its call site (stacks symbolized
+  off the build's maps — `tm-fz-tools/symbolize_sites.mjs`), the writes onto the roots. Generation 7, 29 cards in hand:
+  - the wheels, the pass confirm, the journal, «Разыграно», the information screen, a cursor move: **0 – 126 ms** —
+    cheap at any size of the page;
+  - **a SECTION that mounts is the heavy press: the hand 142 – 185 ms, the colonies 166 – 219, the Parliament
+    388 – 437 ms (forced layout 312 – 348, 175 reads)**;
+  - who: ① the shell publishes the stage's box as four custom properties ON `<html>` (`useWorkspaceBandGeometry` — the
+    right rail leaves under a section, `--con-stage-r` changes) — an inherited property on the root restyles the WHOLE
+    tree, and the next reader pays for it: the hand dock's `applyDockedPoses` (76 ms a Parliament open — for a dock
+    that stands behind the workspace). Measured by experiment (the vars written once, on the box's worktree only):
+    the colonies 166 → 100 ms, the hand 142 → 109, the Parliament 388 → 302. This is R16, with its number.
+    ② the Parliament's own mount: `fitCondition` (the mount's first layout, 54 ms), then five read-after-write passes
+    — `fitReading`, `fitParliamentCards` / `railOf`, `publishMidOffsets` twice (each offset read after a variable
+    written on the field) — ≈ 110 ms more; ③ the board's `stageKey` on the clock (20 ms).
+- **NEXT, in this order:** the same probe on a QUIET box (the lanes end first) — the budget's true numbers; then R16
+  for the stage's box (its consumers stop inheriting it from the root) and the Parliament's mount as ONE measure and
+  ONE write, each step read by the probe before and after.
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a
