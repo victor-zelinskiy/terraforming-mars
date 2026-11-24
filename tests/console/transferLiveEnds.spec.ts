@@ -79,6 +79,18 @@ describe('a flight end is an object — the director and the run (source guard)'
     expect(flight, 'a moved source re-plans the arc from where it is').to.include('plan = planFrom(at);');
   });
 
+  it('the birth POINT itself is asked what stands above the flight layer — in both flights, before the token is born', () => {
+    // The object's verdict judges its CENTRE; the token is born at the place the end names ON it. A plate over that
+    // place and not over the centre let the token pop under the plate (the monkey's proof pass, 2026-11-24: 6 of 6).
+    expect(body(director, 'birthPointCovered')).to.include('fullscreenCoverAt(at) !== undefined');
+    for (const name of ['runTransferFlight', 'runDetachedTransferFlight']) {
+      const flight = body(director, name);
+      const asked = flight.indexOf('if (at === undefined || birthPointCovered(at)) {');
+      expect(asked, `«${name}» asks the birth point`).greaterThan(-1);
+      expect(flight.indexOf(`report.born = 'painted';`, asked), `…before «${name}» calls the token born`).greaterThan(asked);
+    }
+  });
+
   it('the DESTINATION is re-read on the final approach (ramped in, no jerk) and once more at the touchdown (a glide)', () => {
     const flight = body(director, 'runTransferFlight');
     expect(flight).to.include('prog.q >= TRANSFER_RETARGET_AT && opts.liveTo !== undefined');

@@ -117,6 +117,20 @@ export type TransferFlightOpts = {
 };
 
 /** What happened to a flight's two ends — filled as the flight goes (the run's trail and its degradations read it). */
+/**
+ * THE BIRTH POINT ITSELF, asked what stands ABOVE THE FLIGHT LAYER over it (a full-screen scene, the announce plate —
+ * `fullscreenCoverAt`). An object source is judged by its own verdict at its CENTRE; the token is born at the place
+ * the end names ON it (a printed icon's own fraction of the box, a rung of the home ladder) — and a plate that stands
+ * over that place and not over the centre let the token pop under the plate and fly out from behind it: the
+ * real-browser monkey's seed of the day, 2026-11-23, six walks of six on the proof pass after the plate had been
+ * made a cover of the END («token painted under span.con-mandatory__open at the birth — stock:rating»). The paint's
+ * sentinel asks this very point a microtask later; the birth frame asks it first, and such a flight is not born —
+ * it degrades as under any cover (its counter's tick, the next place of its ladder).
+ */
+function birthPointCovered(at: TransferPoint): boolean {
+  return fullscreenCoverAt(at) !== undefined;
+}
+
 export type TransferFlightReport = {
   /** `painted` — born on its live source; `unpainted` — the source was gone at the birth: never born. */
   born?: 'painted' | 'unpainted';
@@ -633,7 +647,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
       return true;
     }
     const at = opts.liveFrom();
-    if (at === undefined) {
+    if (at === undefined || birthPointCovered(at)) {
       report.born = 'unpainted';
       unborn = true;
       done();
@@ -897,7 +911,7 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
       return true;
     }
     const at = opts.liveFrom();
-    if (at === undefined) {
+    if (at === undefined || birthPointCovered(at)) {
       report.born = 'unpainted';
       unborn = true;
       done();
