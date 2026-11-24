@@ -18,7 +18,7 @@
  *    is gone, the context with it, and the chip reads «ЗАВЕРШЕНО».
  */
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {cinematicBeat, openConsole, press} from './consoleStart';
+import {cinematicBeat, openConsole, press, pressUntil, pressUntilGone} from './consoleStart';
 import {
   FINALE_BLOCK, armFinaleWitness, armPriceProbe, disarmFinaleWitness, finaleStage, fixtureTable, forceFrame, getModel, holdFinishFinale,
   openFinaleOnBoard, placeFinaleGreenery, postInput, readFinaleWitness, readPriceProbe, shoot, storyboard, terraformAnswer, titleOf, waitWithFrames, WireModel,
@@ -205,7 +205,17 @@ for (const profile of PROFILES) {
       await press(page, 'Enter', 900);
       await waitWithFrames(page, () => onBoardPick(page), 15_000, 'A on the plate returns to the finale');
 
-      // ── ④ a TAP of RT finishes nothing; a HOLD finishes the seat's game ──
+      // ── ④ UNDER AN OPEN WHEEL RT IS THE WHEEL's (its strip says «the other wheel») — never the finish: the basic
+      //    wheel opened over the pick, RT held for the finish's whole gesture, and the server still asks. (The first
+      //    gated pass of whole games, 2026-11-24: the finish's rung stood above the wheel and took RT under it.) ──
+      expect(await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {tries: 4, settleMs: 900}),
+        'the basic wheel opens over the pick').toBe(true);
+      await holdFinishFinale(page);
+      expect((await getModel(request, ids[0])).waitingFor?.finalGreeneryPrompt, 'RT under an open wheel finished nothing').toBeDefined();
+      expect(await pressUntilGone(page, 'Escape', '.con-quick', {tries: 4, settleMs: 400}), 'B closes the wheel').toBe(true);
+      await waitWithFrames(page, () => onBoardPick(page), 15_000, 'the wheel closed: the pick of the finale stands');
+
+      // ── ⑤ a TAP of RT finishes nothing; a HOLD finishes the seat's game ──
       await press(page, 'Period', 900);
       expect(await onBoardPick(page), 'a tap is not the irreversible stop').toBe(true);
       expect((await getModel(request, ids[0])).waitingFor?.finalGreeneryPrompt, 'the server still asks').toBeDefined();

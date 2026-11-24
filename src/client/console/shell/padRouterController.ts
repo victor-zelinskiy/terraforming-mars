@@ -611,7 +611,11 @@ export function createPadRouterController(shell: PadRouterPort) {
     // screen's, and RT was the finish all the same — a verb nobody was shown (the real browser's reading of the bar
     // against the pad, 2026-11-21: three presses under an open sheet). It is the board section's own verb, standing
     // high in the ladder only to precede the wheel.
-    if (shell.finalGreeneryPickPending && shell.placementActive && !infoModeState.open &&
+    // …and never UNDER AN OPEN WHEEL: the basic wheel (LT) opened over the pick shows its own strip — «RT — the other
+    // wheel» — and RT there began the FINISH's hold instead: the irreversible verb under a bar that promised a switch
+    // (the first gated pass of whole games in a real browser, 2026-11-24 — nine presses of one game, `bar-APART ·
+    // quick > section:board`). It precedes the wheel's OPENING, never a wheel that stands.
+    if (shell.finalGreeneryPickPending && shell.placementActive && !infoModeState.open && consoleState.quick === undefined &&
         consoleState.section === 'board' && consoleState.sheet === undefined && intent.kind === 'press' && intent.button === 'triggerR') {
       notePadRung('section:board');
       if (placementFlowState.phase === 'navigate') {
