@@ -1230,4 +1230,48 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(live.liveness().why, 'the player can act').to.deep.equal([]);
     expect(classes()).to.deep.equal([]);
   });
+
+  /*
+   * `liveness/stall/presses-no-effect/externaldraw/parliament:committed/deaf` — THE AUTOPILOT IN A REAL BROWSER, the
+   * box's game 175 (stage 6, 2026-11-24; the first episode of the pilot that WALKS TO the question): «stall
+   * (presses-no-effect): 5s without progress, 8 presses; task: externalDraw; top: parliament:committed; holder: deaf …
+   * stack-home: home from parliament». The sitting stood on the «ПРИЁМКА» of ONE drawn card — «A Забрать карту ·
+   * L3 Источник», no B on the bar — and B was pressed ten times; the arbiter judged every B a handler took on a
+   * frame past its commit («it must have collapsed something»), called the screen deaf and took the Parliament home
+   * under a draw that A was taking. A watchdog that folds a healthy screen is a freeze the watchdog made
+   * (2026-10-31 — the same law, for X and a list's wall). B is owed only where the BAR offers it: the bar is the
+   * pad's own word.
+   */
+  it('B hammered on a step whose bar offers no B — the one drawn card of a sitting: nothing is filed, the draw stands, A takes it', async () => {
+    const table = await bottleServer().bootFixture('parliament-research-enact');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    const truth = () => bottleServer().seatTruth(live.seatId);
+    const oneCardLeft = (): boolean => truth().waitingFor === 'card' && /Collect the card/.test(live.bar()) && !/Collect all/.test(live.bar());
+    await live.advance(4_000);
+    // The plate's A opens the sitting on its draw; A takes the cards one by one until ONE is left.
+    for (let i = 0; i < 8 && !oneCardLeft(); i++) {
+      await live.press('Enter');
+      await live.advance(2_500);
+    }
+    expect(oneCardLeft(), `the last drawn card stands (bar «${live.bar()}»)`).to.equal(true);
+    expect(live.bar(), 'its bar offers no way out — the card is taken with A').to.not.match(/Minimize|Back|To the board/);
+    expect(live.frames()).to.deep.equal(['parliament:committed']);
+    const asked = truth().promptId;
+    // THE CLASS: B, ten times, on a screen that never offered it.
+    for (let i = 0; i < 10; i++) {
+      await live.press('Escape');
+      await live.advance(700);
+    }
+    await live.advance(8_000);
+    expect(live.frames(), 'the sitting stands where it stood').to.deep.equal(['parliament:committed']);
+    expect(truth().promptId, 'the draw still asks').to.equal(asked);
+    expect(classes(), 'no stall is called over a healthy screen').to.deep.equal([]);
+    // …and A takes the card.
+    await live.press('Enter');
+    await live.advance(2_500);
+    expect(truth().promptId, 'the card was taken').to.not.equal(asked);
+    await live.advance(6_000);
+    expect(classes()).to.deep.equal([]);
+  });
 });

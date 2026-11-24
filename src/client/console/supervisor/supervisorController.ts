@@ -719,7 +719,21 @@ export function createSupervisorController(shell: SupervisorPort) {
     // A surface of its OWN standing over the frame takes B by its own contract (a reveal is taken with A, the
     // announce plate is answered, the viewer / journal / system menu / information screen own the pad): there B may
     // honestly do nothing — `consoleLiveness.PAD_OWNING_OVERLAYS`, each with its reason.
-    return document.querySelector(PAD_OWNING_OVERLAY_SELECTOR) === null;
+    if (document.querySelector(PAD_OWNING_OVERLAY_SELECTOR) !== null) {
+      return false;
+    }
+    // …AND B IS OWED ONLY WHERE THE BAR OFFERS IT. A step that stands INSIDE the committed frame and must be answered
+    // (the sitting's «ПРИЁМКА» of one drawn card: «A Забрать карту · L3 Источник» — no B) says so on the bar, and the
+    // bar is the pad's own word (stage 2 — one function); a B pressed there is the player trying a door the screen
+    // never offered, and eight of them are no deaf screen. (The box's whole games in a real browser, 2026-11-24 —
+    // game 175: «stall (presses-no-effect): 5s without progress, 8 presses … task: externalDraw; top:
+    // parliament:committed; holder: deaf» — and the ladder took the Parliament home under a draw that A was taking.)
+    return barOffersBack();
+  }
+
+  /** Does the command bar offer B right now (`ConsoleCommandBar` — `data-cmd`, the command's semantic control)? */
+  function barOffersBack(): boolean {
+    return document.querySelector('.con-cmdbar__cmd[data-cmd="back"]:not(.con-cmdbar__cmd--disabled)') !== null;
   }
 
   /** The transient beat the arbiter judges (`workspaceBeatStall.ts`): the stack's TOP frame's (`<kind>:<phase>`), or

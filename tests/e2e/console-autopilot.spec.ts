@@ -176,7 +176,7 @@ function pilotPick(screen: Screen, g: () => number, last: string | undefined, to
   if (roll < (toTheQuestion ? 0.8 : 0.7) && screen.offered.length > 0) {
     const carries = (o: {key: string, hot: boolean}): number => (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : 0);
     const weight = (o: {key: string, hot: boolean}): number => (toTheQuestion ?
-      (carries(o) > 0 ? carries(o) + 4 : LOOK_KEYS.has(o.key) || o.key === 'Escape' || o.key === 'Comma' || o.key === 'KeyY' ? 0.1 : 1) :
+      (carries(o) > 0 ? carries(o) + 4 : o.key === 'KeyX' ? 2 : LOOK_KEYS.has(o.key) || o.key === 'Escape' || o.key === 'Comma' || o.key === 'KeyY' ? 0.1 : 1) :
       (LOOK_KEYS.has(o.key) ? 0.5 : (o.hot ? 8 : 0) + (o.key === 'Enter' ? 6 : o.key === 'Period' ? 4 : o.key === 'Escape' ? 0.5 : 2)));
     let x = g() * screen.offered.reduce((sum, o) => sum + weight(o), 0);
     for (const o of screen.offered) {
