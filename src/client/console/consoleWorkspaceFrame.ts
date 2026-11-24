@@ -81,7 +81,12 @@ export function isBeatPhase(phase: WorkspacePhase): boolean {
  *   committed  → browse · configure · executing · verdict · completing
  *                                                                   (a reversible fold; the next stage of ONE flow;
  *                                                                    the next commit; the result leaving)
- *   verdict    → executing                                          (its «ОК» — the verdict has one door)
+ *   verdict    → executing · committed                              (its «ОК» — the verdict has one door; and
+ *                                                                    a SITTING collapsed past its results and
+ *                                                                    restored re-seats its walk on the page it
+ *                                                                    still owes — the box's whole games in a real
+ *                                                                    browser, 2026-11-24: six of 280, each said
+ *                                                                    «off the frame's protocol» until this row)
  *   completing → committed                                          (NO move of its own: a completing frame LEAVES
  *                                                                    — the conclusion pops it. The one exit that is
  *                                                                    a move is its bound's, and the recovery's)
@@ -96,7 +101,7 @@ export const FRAME_PROTOCOL: Readonly<Record<WorkspacePhase, ReadonlyArray<Works
   configure: ['browse', 'executing', 'committed'],
   executing: ['browse', 'configure', 'committed', 'verdict', 'completing'],
   committed: ['browse', 'configure', 'executing', 'verdict', 'completing'],
-  verdict: ['executing'],
+  verdict: ['executing', 'committed'],
   completing: ['committed'],
 };
 

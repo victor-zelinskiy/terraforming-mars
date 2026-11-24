@@ -1995,6 +1995,69 @@ Both got their instrument, and their first readings:
   Parliament's mount as ONE measure and ONE write (five read-after-write passes are what its 296 ms is made of); who
   holds the hand and the viewer detached — each step read by its instrument before and after.
 
+**STAGE 6, STEP 8 — THE COUNTING PASS, AND WHAT IT AND THE NEXT TWENTY-FOUR GAMES NAMED (2026-11-24, the evening).**
+The stage's first number is «100 whole games on ONE build, the gate green». Two takes so far, neither clean — each
+stopped by a class that is closed now, and each record read with «what did the player see?»:
+
+- **TAKE ONE — `0e904fa3e9`, games 501 – 540 on the box (40 of 40 to the final scoring, 0 stuck, 0 rebuilds, the
+  door 0.3 %): ONE defect-tier record.** Game 514, «board-beat-park degraded after 30 s —
+  coveredBy: [section, workspace, planet-focus]». The player: a sitting owed a tile behind its «К полю», and for
+  thirty seconds the pilot walked «Информация» instead. The scales' step waited for a board the player kept covered —
+  the honest wait; the THIRD name made it a defect: the camera comes in for a placement as soon as its prompt stands,
+  and a camera with no LIVE placement read as the game's own cover. **The camera has two names** (`24c42f454e`): in
+  for a placement the player has not come to it is `placement-camera` — their time beside a screen of their own,
+  the game's alone; leaving, or in for anything else, it stays `planet-focus`.
+- **THE AUTOPILOT's NEXT TWENTY-FOUR (games 49 – 72 on CI, run 45433101055 on `0e904fa3e9`) — the bottle named
+  THIRTEEN classes of ONE incident** (issues #119 … #132, the law's rows #110 #111 #113 reopened): game 50, replayed
+  on a laptop the same evening. **The opening finished where the page could not see it.** The pilot minimized the
+  start on the corporation's first action (the frame PARKED, the scene unmounted), and its door then answered the
+  opening's remaining questions at the server — to the page, exactly what the same seat on a second device does. The
+  first-action stage is module state, and what ENDS it is the scene's leave; with no scene it stood at `performing`
+  for good, kept the start «serving», and its parked frame stayed the phase's root for the whole game. What a player
+  would have had: «Вернуться к решению» over a decision that no longer exists, the pass refused with «сначала
+  завершите текущее действие», and every draft after it opened only by the arbiter's cure. **The law: a stage nobody
+  is there to run is over by the server's word** (`startController.startStagesOrphaned` → `foldStartActStages`; the
+  start's anchor is dead by the same word — `startAnchorDead` in the shell's `deadPhaseAnchors` — so the parked frame
+  is pruned at once; and «parked ⇒ set aside» has its other half — a record that stood for a parked CHAIN ends with
+  the chain, `takeUpQuestion('chain-gone')`). The replay («the start minimized on the first action, the action
+  answered elsewhere…») is RED with the fold off and GREEN with it; games 50 and 72 walk clean — every draft by the
+  screen, every pass by the wheel. Game 63's `console-start:summary-tiles-unmeasured` is the bottle's own blindness
+  (every summary tile reads 0×0 with no layout; no browser pass names it) — a row of the bottle's baseline, with why.
+- **…and its browser half named two.** Game 58: «degraded after 30 s — coveredBy: [sitting-rise]», an ocean of the
+  bot's parked under its turn, then under the sitting's rise; the player stood on the board home beside the
+  sitting's plate and the ocean's marker snapped seconds before the board came back. Each cover was lawful and
+  bounded — their SUM was not the story's to answer for. **A board about to be given back is waited for**
+  (`boardBeatPark.boardGivenBackSoon`: the one cover is a self-bounded cover of the game's, inside its bound — the
+  ledger's own grace, the one a telling in progress takes; a due that still comes inside the bound says so,
+  `selfBounded`, and reads PLANNED). Game 71: `bar-APART:finale>section:board` ×1 — open.
+- **TAKE TWO — `24c42f454e`, games 601 – 700 (running): at 24 games 24 to the final scoring, 0 stuck, the gate
+  red by ONE record and one row of the law.** Game 618: the feed delivered at its twelve seconds «(leaked hold:
+  vp-shares, parliament-sitting:enact/support)» — a score share thirteen seconds behind a bot's city that waited for
+  a board the player kept covered by the sitting, beside the sitting's own beat 0.8 s old. «Every hold waits for the
+  player» was refused by the young scene, «a succession of scenes» by the old hold: **the mixed case is said** — the
+  holds that stood the bound all wait for the player, beside scenes younger than it (`starvationHolds(…,
+  holdWaitsForPlayer)`), PLANNED. Game 619: `bar-APART:start>fallback` ×1 — the page's FIRST press met the loading
+  curtain; a layer of the focus engine is learned by the press that meets it, so that press is its opening
+  (`fallback:open`, a look), and a later one finds the bar on the layer's own commands.
+- **THE LEAK CLASS OF VUE 3.6, MEASURED INSTEAD OF GUESSED** (`tests/e2e/console-reactive-census.spec.ts`,
+  `heapRetainers.reactiveCensus`). The mechanism, read off the framework's own getter (`ComputedRefImpl.get value`,
+  the same in rc.16): with a reader the computed is linked to it; under a STOPPED scope it unlinks itself; with
+  NEITHER — a press handler, a timer — it returns its value and stays in its dependencies' subscriber lists for
+  good. The scan had a hundred suspects in 44 components; the census says which of them a visit leaves behind. A
+  tour of thirteen stops walked four times between two heap snapshots: computeds 8 638 → 10 630, and exactly TWO
+  getters whose unwatched computeds grew by one a tour — `ConsoleHandSection.activePageRows` (read by the album's
+  navigation: `div.con-hand` ×5 detached, 2 795 nodes, with its twelve cards of thirty computeds each) and
+  `ConsoleJournalPanel.focusable` (`aside.con-journal` ×6, 2 034 nodes). Both are functions now. The tour does not
+  yet stand on the composers, the reveal, the draft and the colonies' stages — its next stops.
+- **THE SOAK, SECOND RUN** — game 514 with forty idle minutes a generation (thirteen generations: 8.7 h of one
+  page) started on the box beside take two (`fzd-soak`).
+- **STAGE 4's UNION, RE-READ** over the last green whole suite (45402975198) and every pass of the box: flows 245 of
+  285 opened, frames 13 of 13 — and ONE move made off the frame machine's universe: `parliament: verdict →
+  committed`, five games of 250 and one of take two. Read off game 618's trail: a sitting collapsed past its
+  results and RESTORED («Вернуться к заседанию») re-seats its walk on the page it still owes — a lawful move the
+  protocol did not hold. The row is written (`FRAME_PROTOCOL.verdict` — `executing · committed`), and the move left
+  the ledger of the unwalked.
+
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick
 the safety came due) or at 43 %. The arc ran late on a starved clock and the safety met the chip ON its destination, a

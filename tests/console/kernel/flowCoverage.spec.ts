@@ -105,6 +105,7 @@ describe('flow coverage — what the registered machines can do', () => {
       expect(frameMoveOnProtocol('executing', 'configure'), 'a press that did not land goes back where it came from').to.eq(true);
       expect(frameMoveOnProtocol('committed', 'completing')).to.eq(true);
       expect(frameMoveOnProtocol('verdict', 'executing'), 'the verdict has one door — its «ОК»').to.eq(true);
+      expect(frameMoveOnProtocol('verdict', 'committed'), 'a sitting restored past its results re-seats its walk (the box, 2026-11-24)').to.eq(true);
       // (A phase written again is no move.)
       for (const phase of PHASES) {
         expect(frameMoveOnProtocol(phase, phase), phase).to.eq(true);
@@ -115,8 +116,8 @@ describe('flow coverage — what the registered machines can do', () => {
       expect(frameMoveOnProtocol('browse', 'completing')).to.eq(false);
       expect(frameMoveOnProtocol('completing', 'browse'), 'a completing frame LEAVES — it never folds back by a move').to.eq(false);
       expect(frameMoveOnProtocol('completing', 'committed'), 'its bound, and the recovery that follows').to.eq(true);
-      // (Nineteen moves by phase, of thirty pairs.)
-      expect(PHASES.reduce((sum, phase) => sum + FRAME_PROTOCOL[phase].length, 0)).to.eq(19);
+      // (Twenty moves by phase, of thirty pairs.)
+      expect(PHASES.reduce((sum, phase) => sum + FRAME_PROTOCOL[phase].length, 0)).to.eq(20);
     });
 
     it('the same law over the machine\'s state values, as the trace prints them', () => {
