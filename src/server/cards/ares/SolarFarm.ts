@@ -64,7 +64,12 @@ export class SolarFarm extends Card implements IProjectCard {
   public productionBox(player: IPlayer) {
     const space = player.game.board.getSpaceByTileCard(this.name);
     if (space === undefined) {
-      throw new Error('Solar Farm space not found');
+      // THE TILE IS NOT ON MARS YET — the card is in the tableau and its cell is still being chosen: it produces
+      // nothing to copy. This is asked by OTHER cards while the placement stands (Robotic Workforce in the same
+      // hand: its playability is read for every view of the seat), and a throw here left the seat with no view at
+      // all — the placement's own question could not reach the page (the engine fuzz, seed 2078100784: «the seat's
+      // view could not be built»). The play itself reads the box after the tile has landed.
+      return Units.EMPTY;
     }
     return Units.of({energy: this.energyFor(space)});
   }

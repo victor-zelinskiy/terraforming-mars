@@ -19,6 +19,7 @@ import {IAward} from './awards/IAward';
 import {ICard, isIActionCard, IActionCard} from './cards/ICard';
 import {IMilestone} from './milestones/IMilestone';
 import {IProjectCard} from './cards/IProjectCard';
+import {InputError} from './inputs/InputError';
 import {OrOptions} from './inputs/OrOptions';
 import {clearBatchTail} from './inputs/deferredInputBatch';
 import {PartyHooks} from './turmoil/parties/PartyHooks';
@@ -1565,11 +1566,16 @@ export class Player implements IPlayer {
       throw new Error('You do not have that many resources to spend');
     }
 
+    // THE CARD's OWN PRICE IN A RESOURCE IT IS BEING PAID WITH (Stratospheric Birds' floater, Soil Enrichment's
+    // microbe): spending the last of it on the cost leaves nothing for the card's effect. This is the RULES saying no
+    // to a payment the wire model cannot refuse by itself — a refusal (`InputError`: the route answers 400 with these
+    // words, the seat keeps its question), never a failure of the server (a plain `Error` was a 500 and a report —
+    // the engine fuzz, seed 2078100179: «an answer made the engine throw»).
     if (payment.floaters > 0) {
       if (selectedCard.name === CardName.STRATOSPHERIC_BIRDS && payment.floaters === this.getSpendable('floaters')) {
         const cardsWithFloater = this.getCardsWithResources(CardResource.FLOATER);
         if (cardsWithFloater.length === 1) {
-          throw new Error('Cannot spend all floaters to play Stratospheric Birds');
+          throw new InputError('Cannot spend all floaters to play Stratospheric Birds');
         }
       }
     }
@@ -1578,7 +1584,7 @@ export class Player implements IPlayer {
       if (selectedCard.name === CardName.SOIL_ENRICHMENT && payment.microbes === this.getSpendable('microbes')) {
         const cardsWithMicrobe = this.getCardsWithResources(CardResource.MICROBE);
         if (cardsWithMicrobe.length === 1) {
-          throw new Error('Cannot spend all microbes to play Soil Enrichment');
+          throw new InputError('Cannot spend all microbes to play Soil Enrichment');
         }
       }
     }

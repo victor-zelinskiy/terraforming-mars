@@ -8,6 +8,10 @@ import {SearchForLife} from '../../../src/server/cards/base/SearchForLife';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {NitriteReducingBacteria} from '../../../src/server/cards/base/NitriteReducingBacteria';
+import {Psychrophiles} from '../../../src/server/cards/prelude/Psychrophiles';
+import {SelectProjectCardToPlay} from '../../../src/server/inputs/SelectProjectCardToPlay';
+import {InputError} from '../../../src/server/inputs/InputError';
+import {Payment} from '../../../src/common/inputs/Payment';
 
 describe('SoilEnrichment', () => {
   let card: SoilEnrichment;
@@ -53,6 +57,19 @@ describe('SoilEnrichment', () => {
 
     expect(tardigrades.resourceCount).eq(0);
     expect(player.plants).eq(5);
+  });
+
+  it('paying with the LAST microbe is refused by the rules (an InputError, the seat keeps its question) — never a server failure', () => {
+    // The engine fuzz, seed 2078100179: Psychrophiles' one microbe offered as payment for a plant card whose own
+    // effect spends a microbe — the engine threw a plain Error (a 500 and a report) for what is the rules saying no.
+    const psychrophiles = new Psychrophiles();
+    player.playedCards.push(psychrophiles);
+    player.addResourceTo(psychrophiles, 1);
+    player.megaCredits = 10;
+    const pay = () => new SelectProjectCardToPlay(player).payAndPlay(card, {...Payment.EMPTY, megacredits: 4, microbes: 1});
+    expect(pay).to.throw(InputError, 'Cannot spend all microbes to play Soil Enrichment');
+    expect(psychrophiles.resourceCount, 'nothing was spent').eq(1);
+    expect(player.megaCredits).eq(10);
   });
 
   it('play with only one eligible card', () => {

@@ -280,9 +280,16 @@ describe('engineFuzz — random legal games on the real engine', () => {
    *  · 70034 — MarsBot won by the clock behind a sitting whose confirmation nobody had answered yet: «Закрыть
    *    заседание» stood in a finished game — 6 of 400 games with the law off. The game's last sitting is a barrier
    *    (`SittingAcks` — `endsGame`; `ParliamentPhase.spec` holds the sitting itself).
+   * …and THE NIGHT OF 2026-11-24 (findings #106 / #107):
+   *  · 2078100784 — Solar Farm in the tableau with its cell still being chosen, Robotic Workforce in the same hand:
+   *    its playability read the farm's production box, the box threw «space not found» — the seat's whole view could
+   *    not be built. A tile not on Mars yet produces nothing to copy (`SolarFarm.spec` holds the card itself);
+   *  · 2078100179 — Psychrophiles' last microbe offered as payment for Soil Enrichment, whose own effect spends a
+   *    microbe: the engine threw a plain Error (a 500 and a report) for what is the rules saying no. A refusal
+   *    (`InputError`), with Stratospheric Birds' floater beside it (`SoilEnrichment.spec`).
    */
   it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take) · 50926 (an ocean with no cell) · 50072 · 51755 (the research phase drains per seat) · 2078000753 (an action judged on a hand it will not have)', () => {
-    for (const seed of [55496, 50337, 51456, 50926, 50072, 51755, 2078000753, 70034]) {
+    for (const seed of [55496, 50337, 51456, 50926, 50072, 51755, 2078000753, 70034, 2078100784, 2078100179]) {
       const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}));
       expect(result.end, `seed ${seed}`).to.eq('ended');
       expect(result.violations.map((violation) => violation.key), `seed ${seed}`).to.deep.eq([]);

@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {InputError} from '../../../src/server/inputs/InputError';
 import {IndenturedWorkers} from '../../../src/server/cards/base/IndenturedWorkers';
 import {DeuteriumExport} from '../../../src/server/cards/venusNext/DeuteriumExport';
 import {Dirigibles} from '../../../src/server/cards/venusNext/Dirigibles';
@@ -126,7 +127,7 @@ describe('StratosphericBirds', () => {
     expect(() => {
       const selectProjectCardToPlay = new SelectProjectCardToPlay(player);
       selectProjectCardToPlay.payAndPlay(card, {...Payment.EMPTY, megacredits: 9, floaters: 1});
-    }).to.throw('Cannot spend all floaters to play Stratospheric Birds');
+    }).to.throw(InputError, 'Cannot spend all floaters to play Stratospheric Birds');
 
     // Pay with MC only: Can play
     const selectProjectCardToPlay = new SelectProjectCardToPlay(player);

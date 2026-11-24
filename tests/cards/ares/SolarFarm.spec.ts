@@ -10,6 +10,9 @@ import {TestPlayer} from '../../TestPlayer';
 import {runAllActions} from '../../TestingUtils';
 import {testGame} from '../../TestGame';
 import {cast} from '../../../src/common/utils/utils';
+import {RoboticWorkforce} from '../../../src/server/cards/base/RoboticWorkforce';
+import {Server} from '../../../src/server/models/ServerModel';
+import {Units} from '../../../src/common/Units';
 
 describe('SolarFarm', () => {
   let card: SolarFarm;
@@ -51,6 +54,20 @@ describe('SolarFarm', () => {
       bonus: [SpaceBonus.ENERGY, SpaceBonus.ENERGY],
     });
     expect(player.production.energy).eq(7);
+  });
+
+  it('while its cell is still being chosen it produces nothing — and the seat with Robotic Workforce in hand still has a view', () => {
+    // The engine fuzz, seed 2078100784: the card stands in the tableau, its placement is asked, Robotic Workforce in
+    // the hand reads every building's production box for its own playability — and the box threw «space not found»:
+    // the seat's whole view could not be built, so the placement's question never reached the page.
+    player.cardsInHand.push(new RoboticWorkforce());
+    player.megaCredits = 50;
+    player.playedCards.push(card);
+    cast(card.play(player), undefined);
+    runAllActions(game);
+    expect(player.getWaitingFor(), 'the cell is asked').instanceOf(SelectSpace);
+    expect(card.productionBox(player)).deep.eq(Units.EMPTY);
+    expect(() => Server.getPlayerModel(player), 'the seat has a view while it chooses the cell').to.not.throw();
   });
 
   for (const run of [
