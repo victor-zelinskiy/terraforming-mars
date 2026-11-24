@@ -15,7 +15,9 @@ import {
   AGENDA_BEAT_GAP_MS, AGENDA_SEGMENT_MS, AGENDA_WALK_HOLD_BASE_MS, AGENDA_WALK_HOLD_STEP_MS, AgendaWalkBeatScheduler, AgendaWalkLeg, agendaWalkBudgetMs,
   agendaWalkHoldMs, agendaWalkPlan, runAgendaWalk,
 } from '@/client/console/parliament/agendaWalkDirector';
-import {finishParliamentFlights, scheduleHurriedParliamentBeat, setParliamentFlightsHurried} from '@/client/console/parliament/parliamentFlights';
+import {
+  finishParliamentFlights, hurriedParliamentWait, killParliamentFlights, scheduleHurriedParliamentBeat, setParliamentFlightsHurried,
+} from '@/client/console/parliament/parliamentFlights';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {
   agendaCardInPlayersHands, agendaCardOwed, markAgendaCardLifted, parliamentAgendaBonusHeld, parliamentParksReveal, parliamentRewardState, queueAgendaBonuses, RATING_RAIL_KEY,
@@ -578,6 +580,57 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       expect(trail).deep.eq(['pending', 'armed']);
       setParliamentFlightsHurried(false);
       pending.kill();
+    });
+  });
+
+  /*
+   * A WAIT ON THE HURRIED CLOCK ALWAYS ENDS (`hurriedParliamentWait`). A hurried beat is dropped UNFIRED by a silent
+   * teardown of the flights — right for a callback, fatal for a promise a scene awaits: the sitting's receipt stood in
+   * «present» for the card-receive hold's whole 35 s (the autopilot in a real browser, game 56 — finding #137).
+   */
+  describe('a WAIT on the hurried clock always ends — the clock, «ДОЖАТЬ», or its own net', () => {
+    const settled = (wait: Promise<void>): {done: boolean} => {
+      const state = {done: false};
+      void wait.then(() => {
+        state.done = true;
+      });
+      return state;
+    };
+    const tick = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+    afterEach(() => setParliamentFlightsHurried(false));
+
+    it('an armed hurry ends it at once', async () => {
+      setParliamentFlightsHurried(true);
+      const wait = settled(hurriedParliamentWait(60_000));
+      await tick(0);
+      expect(wait.done).is.true;
+    });
+
+    it('«ДОЖАТЬ» pressed mid-wait ends it with the flights', async () => {
+      const wait = settled(hurriedParliamentWait(60_000));
+      await tick(0);
+      expect(wait.done, 'still waiting').is.false;
+      finishParliamentFlights();
+      await tick(0);
+      expect(wait.done).is.true;
+    });
+
+    it('THE SILENT TEARDOWN drops the beat unfired — and the wait still ends, by its own net', async () => {
+      const wait = settled(hurriedParliamentWait(5, 20));
+      killParliamentFlights();
+      await tick(0);
+      expect(wait.done, 'the beat was dropped: nothing has ended it yet').is.false;
+      await tick(250);
+      expect(wait.done, 'the net ended the wait the teardown orphaned').is.true;
+    });
+
+    it('…while a bare hurried beat awaited as a promise never ends after the same teardown (what the receipt did)', async () => {
+      const wait = settled(new Promise<void>((resolve) => {
+        scheduleHurriedParliamentBeat(5, resolve);
+      }));
+      killParliamentFlights();
+      await tick(250);
+      expect(wait.done, 'nobody resolves it — the hold stood to its ceiling').is.false;
     });
   });
 

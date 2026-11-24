@@ -95,7 +95,7 @@ import {
 import {
   CUBE_FLIGHT_MS, DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered,
   flyCardOffTable, flyDelegate, killParliamentFlights, LEAVE_CARRY_MS, LEAVE_TURN_LEAD_MS, nextFlightId, placeFigureRect, pushCardFlight, rectOf,
-  registerFlightHandle, RESHUFFLE_MS, riseToken, runReshuffle, scheduleHurriedParliamentBeat, setParliamentFlightsHurried, TOKEN_RISE_MS,
+  hurriedParliamentWait, registerFlightHandle, RESHUFFLE_MS, riseToken, runReshuffle, scheduleHurriedParliamentBeat, setParliamentFlightsHurried, TOKEN_RISE_MS,
 } from './parliamentFlights';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cardResourceIconKey} from './influenceYieldModel';
@@ -1575,7 +1575,9 @@ function beatReceipt(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
       alive: () => !runState.finished && root.isConnected,
       present: async () => {
         tableReceiptState.phase = 'present';
-        await new Promise<void>((resolve) => scheduleHurriedParliamentBeat(RECEIPT_LIFT_MS * k, resolve));
+        // (A wait that always ends — `hurriedParliamentWait`: a teardown of the flights inside this lift used to leave
+        // the scene in «present» for the receive hold's whole 35 s.)
+        await hurriedParliamentWait(RECEIPT_LIFT_MS * k);
         return root.querySelector('[data-sit-receipt] [data-receipt-card]') !== null;
       },
       pay: async () => {
@@ -1595,7 +1597,7 @@ function beatReceipt(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
       },
       ret: async () => {
         tableReceiptState.phase = 'return';
-        await new Promise<void>((resolve) => scheduleHurriedParliamentBeat(RECEIPT_LIFT_MS * k, resolve));
+        await hurriedParliamentWait(RECEIPT_LIFT_MS * k);
       },
       // Every way out (done, degraded, aborted, reduced): what is still held ticks now — never lost.
       release: () => receipt.specs.forEach((spec) => markReceiptSpecLanded(spec)),

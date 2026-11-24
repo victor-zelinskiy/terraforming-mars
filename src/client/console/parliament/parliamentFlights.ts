@@ -201,6 +201,45 @@ function scheduleLaunch(id: string, delayMs: number, fire: () => void): void {
 
 let hurriedBeatSerial = 0;
 
+/** How long past its own length a hurried WAIT's net stands (`hurriedParliamentWait`). */
+export const HURRIED_WAIT_NET_SLACK_MS = 400;
+
+/**
+ * A WAIT ON THE HURRIED CLOCK THAT ALWAYS ENDS — for a scene that AWAITS the beat instead of being called by it.
+ *
+ * A hurried beat (`scheduleHurriedParliamentBeat`) is dropped UNFIRED by a kill, and `killParliamentFlights` — the
+ * silent teardown: a stage's ceiling recovering its poses, the section's unmount — drops every pending one. That is
+ * right for a callback that would start a motion on a table that is gone, and fatal for a PROMISE: nobody resolves it.
+ * The sitting's receipt scene awaited two such beats (its lift and its return); the teardown fell inside one, the
+ * card-receive scene stood in «present» for the hold registry's whole 35 s, the notifications waited behind it and the
+ * receipt's counters ticked half a minute late (the autopilot in a real browser, CI run 45494668264 — game 56,
+ * finding #137: «"card-receive" held for over 35000ms — force-released by the safety ceiling (leaked hold?)»).
+ *
+ * So the wait ends by whichever comes first: the clock, «ДОЖАТЬ» (at once when armed; with the flights when pressed
+ * mid-wait), or its own NET on the plain beat clock, which no teardown of the flights touches. What the caller does
+ * next is its own question — it asks whether its stage is still alive, as it does after every await.
+ */
+export function hurriedParliamentWait(delayMs: number, netSlackMs: number = HURRIED_WAIT_NET_SLACK_MS): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let over = false;
+    let net: ParliamentBeat = {kill: () => undefined};
+    const done = (): void => {
+      if (over) {
+        return;
+      }
+      over = true;
+      net.kill();
+      resolve();
+    };
+    net = scheduleParliamentBeat(delayMs + netSlackMs, done);
+    scheduleHurriedParliamentBeat(delayMs, done);
+    if (over) {
+      // (An armed hurry fired it synchronously — before the net's handle was the one `done` could reach.)
+      net.kill();
+    }
+  });
+}
+
 /**
  * A BEAT «ДОЖАТЬ» FIRES AT ONCE — the same class as a flight's stagger: a wait
  * between one physical act and the next that the player's press may cut (the

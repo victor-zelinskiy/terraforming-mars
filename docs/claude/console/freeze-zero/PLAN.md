@@ -2091,6 +2091,19 @@ stopped by a class that is closed now, and each record read with «what did the 
   (`passAnswersParked`); fixture `first-action-owed-late`, `console-first-action-pass.spec.ts` red without it. The
   rule the reading teaches: a green gate's «door» lines are read like a red's — the pilot going around a screen is
   either its own habit or a place where the screen would not let a player through.
+- **THE RE-RUN OF GAMES 49 – 72 ON THE VENUS FIX (`b92ac87a5e`, run 45494668264): game 55 plays to its end in both
+  worlds — #134 · #135 · #136 closed; the bottle's gate green; the browser's red by three OTHER games.** With it and
+  the hundred, seventeen older findings were closed as not seen since their fixes (#110 – #112, #119 – #132). The
+  three: **#137, game 56 — «"card-receive" held for over 35000ms»: CLOSED IN CODE.** The sitting's receipt scene
+  awaited two beats of the hurried clock as bare promises; a hurried beat is dropped UNFIRED by the silent teardown
+  of the flights (a stage's ceiling recovering its poses, an unmount) — nobody resolved the promise, the scene stood
+  in «present» for the hold's whole 35 s, the notifications behind it, the receipt's counters half a minute late.
+  `hurriedParliamentWait` ends by the clock, by «ДОЖАТЬ» or by its own net; a guard
+  (`hurriedBeatPromiseGuard.spec.ts`) holds that no promise awaits a bare hurried beat — the class had exactly those
+  two members. **#138, game 64 — the one-owner law, EXTRA:** a Parliament frame live while the stack that stepped
+  aside for the board still held one serving the same question, for about a second under an open wheel; it resolved
+  by itself, nothing was doubled on screen; which door stood the live frame up is NOT yet named — open. **#113,
+  game 71 — a new pair, `bar-APART:quick>finale`** (one press with the wheel open over the finale's context) — open.
 - **«PER MAP SET», COUNTED.** The pilot's tables are spread over eleven boards; the box's passes so far hold 13 – 35
   games a board (295 in all, on five builds). A hundred on EVERY board is ≈ 1 100 games — nights of the box, not one:
   the number is reported per build and per board, and the gate must be green on the build that is released.
