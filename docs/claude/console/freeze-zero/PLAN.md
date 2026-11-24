@@ -2156,13 +2156,16 @@ stopped by a class that is closed now, and each record read with «what did the 
   declined («Предложить реванш · <name>: отказ от реванша», the server's own `declinedBy`); the spec walks offer →
   decline → offer → accept → the way into the new game by the server's model at every step, red with the note off.
   `surface:rematch-layer` is off the ledger (29 flows on it).
-- **WHAT THE FOUR WALKS SAY, TOGETHER.** Of four «rare» flows walked for the first time in one night, ONE was healthy
+- **WHAT THE FIRST FOUR WALKS SAY, TOGETHER.** Of four «rare» flows walked for the first time in one night, ONE was healthy
   (the nomads moved by another seat); one did not exist where the card is played (Astra's return), one stood in the
   wrong place (the journal's previews), one lost another player's answer (the rematch). «Declared with a reason» meets
   the stage's letter and not its purpose: a flow nobody ever ran is unknown, not rare. Still unwalked and real: a
   law's card played under a folding commit, the overlay-hosted hero (the road unproven), the draft tray under the
-  research rise (the overlap unproven), the tenders' bidding reveal, the annotations layer of the per-component
-  viewer.
+  research rise (the overlap unproven), the tenders' bidding reveal.
+- **THE FIFTH, WALKED — HEALTHY.** The rule blocks around a full-screen card (`surface:card-annotations-layer` — the
+  one viewer that does not suppress the layer, opened by a click on a chip of the journal; the chips' spec goes on
+  from its click): every block inside the screen, none over the card, a rule under the pointer lights the card's own
+  element, and a window narrowed and restored under it lays them out again. 28 flows on the ledger.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

@@ -58,6 +58,32 @@ async function beside(page: Page, chip: string, box: string, label: string): Pro
   }, {chipSel: chip, boxSel: box}), {message: `${label}: the chip and its preview`});
 }
 
+type Gutters = {blocks: number, outside: Array<string>, overCard: Array<string>, card: boolean};
+
+/**
+ * The full-screen card's RULE BLOCKS (`CardAnnotationsLayer` — one floating block per rule, tethered to the element of
+ * the card it explains), read at rest: how many stand, which lie outside the screen, which lie over the card itself.
+ */
+async function ruleBlocks(page: Page, label: string): Promise<Gutters> {
+  return readSettled(page, () => page.evaluate((zoom) => {
+    const card = document.querySelector(`${zoom} .card-zoom-stage .pcard`)?.getBoundingClientRect();
+    const outside: Array<string> = [];
+    const overCard: Array<string> = [];
+    const blocks = Array.from(document.querySelectorAll<HTMLElement>(`${zoom} .caanno`));
+    for (const [i, el] of blocks.entries()) {
+      const r = el.getBoundingClientRect();
+      const name = `#${i} ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}×${Math.round(r.height)}`;
+      if (r.left < -1 || r.top < -1 || r.right > window.innerWidth + 1 || r.bottom > window.innerHeight + 1) {
+        outside.push(name);
+      }
+      if (card !== undefined && r.right > card.left + 1 && r.left < card.right - 1 && r.bottom > card.top + 1 && r.top < card.bottom - 1) {
+        overCard.push(name);
+      }
+    }
+    return {blocks: blocks.length, outside, overCard, card: card !== undefined};
+  }, ZOOM), {message: `${label}: the rule blocks around the full-screen card`});
+}
+
 /** Rest the pointer on the chip until its preview stands (a hover is an act: verified, repeated only without its effect). */
 async function hoverUntilPreview(page: Page, chip: Locator, preview: string, label: string): Promise<void> {
   await chip.scrollIntoViewIfNeeded();
@@ -130,6 +156,37 @@ test.describe('the journal — a card, a colony and an award named in a line, un
     await expect(page.locator(ZOOM), 'the click opens the card full screen').toHaveCount(1, {timeout: 15_000});
     await expect(page.locator(CARD_PREVIEW), 'the preview never stands under the full-screen card').toHaveCount(0, {timeout: 15_000});
     await expect(page.locator(`${ZOOM} .pcard`).first(), 'the full-screen view holds the card').toBeVisible({timeout: 15_000});
+
+    // ── ITS RULES STAND AROUND IT (`surface:card-annotations-layer` — the one viewer that does not suppress the layer):
+    //    each rule a block of its own in the gutters, inside the screen, never over the card it explains.
+    const blocks = page.locator(`${ZOOM} .caanno`);
+    await expect.poll(() => blocks.count(), {timeout: 20_000, message: 'the card\'s rules never came up around it'}).toBeGreaterThan(0);
+    await expect(page.locator(`${ZOOM} .card-annotations--measuring`), 'the layer is past its measuring pass').toHaveCount(0, {timeout: 20_000});
+    await expect(blocks.first(), 'a rule block is drawn').toBeVisible({timeout: 20_000});
+    const stood = await ruleBlocks(page, 'opened');
+    expect(stood.card, 'the card is on its stage').toBe(true);
+    expect(stood.outside, 'every rule block lies inside the screen').toEqual([]);
+    expect(stood.overCard, 'no rule block lies over the card').toEqual([]);
+    // The pointer on a rule lights the element of the card it explains (block ↔ card, the same id).
+    await expect.poll(async () => {
+      await page.mouse.move(2, 2);
+      await blocks.first().hover();
+      return await page.locator(`${ZOOM} .caanno--focus`).count();
+    }, {timeout: 20_000, message: 'a rule under the pointer never took the focus'}).toBe(1);
+    await expect(page.locator(`${ZOOM} .caanno-target--focus`), 'the card\'s own element answers the rule under the pointer').toHaveCount(1, {timeout: 15_000});
+    await page.mouse.move(2, 2);
+    // …AND A WINDOW RESIZED UNDER IT (the desktop's window, a display change): the blocks are laid out again for the
+    // new room — the same claims, at rest.
+    const view = page.viewportSize() ?? {width: 1280, height: 720};
+    await page.setViewportSize({width: Math.round(view.width * 0.84), height: view.height});
+    const narrowed = await ruleBlocks(page, 'narrowed');
+    expect(narrowed.blocks, 'the rules still stand after the resize').toBe(stood.blocks);
+    expect(narrowed.outside, 'after the resize every rule block lies inside the screen').toEqual([]);
+    expect(narrowed.overCard, 'after the resize no rule block lies over the card').toEqual([]);
+    await page.setViewportSize(view);
+    const restored = await ruleBlocks(page, 'restored');
+    expect(restored.outside, 'back at its size every rule block lies inside the screen').toEqual([]);
+    expect(restored.overCard, 'back at its size no rule block lies over the card').toEqual([]);
 
     // ── …AND CLOSED OVER A RESTING POINTER, the preview does not come back by itself (recorded from before the close).
     const after = await armWitness<{preview: boolean, zoom: boolean}, {preview: string, zoom: string}>(page, 'journal-chip-close', ({preview, zoom}) => ({
