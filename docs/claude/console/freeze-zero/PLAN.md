@@ -2073,6 +2073,15 @@ stopped by a class that is closed now, and each record read with «what did the 
   second soak (game 514, two hours in) went with them — it is owed too.
 - **…SO THE HUNDRED IS ALSO PLAYED ON CI:** Autopilot run 45471563686 — games 701 – 800 in a real browser, twenty
   runners, on `b724622738`.
+  **IT CAME BACK WHOLE (2026-11-25, 00:40): 100 games — 100 to the final scoring, 0 capped, 0 STUCK, 0 rebuilds; 0
+  defects, 0 episodes, 0 new classes; 97 941 presses, 1 230 minutes of play; GATE: pass.** The first hundred whole
+  games on ONE build with nothing to name — the count the stage's exit asks for, once, on CI's browser. What it is
+  NOT yet: «per map set» (a hundred on every board), and not the build that will be released (three fixes landed
+  after `b724622738` — the Venus sitting was found by ANOTHER range, games 49 – 72, on the very next build). The 56
+  records are four planned classes (a foreign placement watched to its ceiling, the board-beat park's due story). And
+  the pilot answered 23 questions THROUGH THE DOOR (0.5 %): thirteen places where it did not walk the screen — the
+  largest two are an information panel left open over the draft (5 games) and the «production to lose» layout (5
+  games, `A −1 · X Принять убыток` on the bar). Each is the pilot's reach or the screen's: they are the next reading.
 - **«PER MAP SET», COUNTED.** The pilot's tables are spread over eleven boards; the box's passes so far hold 13 – 35
   games a board (295 in all, on five builds). A hundred on EVERY board is ≈ 1 100 games — nights of the box, not one:
   the number is reported per build and per board, and the gate must be green on the build that is released.
