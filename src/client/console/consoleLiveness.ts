@@ -123,6 +123,15 @@ export type LivenessSample = {
   backTaken?: number;
   backJudged?: boolean;
   /**
+   * A / B presses a DELIBERATE INPUT GATE swallowed (`inputEcho.verbAbsorbed`). Counted toward «presses with no effect»
+   * on an accepting screen too: the handler «took» the press and the gate answered with nothing — honest while the
+   * gate's own motion plays (the picture moves, something is in flight: the count resets every look), and the deaf
+   * screen's THIRD shape when it does not: a gate standing over a still picture never opens. The reveal's take turn
+   * stood so for six generations of the autopilot's sixth game — «A Взять» on the bar, every press swallowed by
+   * `reveal-busy`, `accepting: true`, nothing dropped, the arbiter content.
+   */
+  absorbed?: number;
+  /**
    * A TRANSIENT BEAT stands on screen (`executing` / `completing` — the pad absorbed by contract). It OWES the player
    * its end whether or not the server asks them anything: the two-campaign rally of 2026-11-07 (ledger HC) stood
    * `parliament:executing` for a minute during the OTHER seat's turn — no prompt, so `unserved` never fired, and the
@@ -158,6 +167,8 @@ export type LivenessState = {
   lastPresses: number;
   lastDropped: number;
   lastBackTaken: number;
+  /** `absorbed` at the last look (the A / B a deliberate gate swallowed). */
+  lastAbsorbed: number;
   lastInFlight: ReadonlyArray<string>;
   /** The ladder: the next rung to run (0 = none run yet for this stall) and when the last one ran. */
   rung: number;
@@ -167,7 +178,7 @@ export type LivenessState = {
 };
 
 export function initialLivenessState(now = 0): LivenessState {
-  return {signature: '', progressAt: now, pressesSinceProgress: 0, lastPresses: 0, lastDropped: 0, lastBackTaken: 0, lastInFlight: [], rung: 0, rungAt: 0, reported: false};
+  return {signature: '', progressAt: now, pressesSinceProgress: 0, lastPresses: 0, lastDropped: 0, lastBackTaken: 0, lastAbsorbed: 0, lastInFlight: [], rung: 0, rungAt: 0, reported: false};
 }
 
 export type LivenessVerdict =
@@ -201,12 +212,17 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
   // An ACCEPTING screen is judged by the presses nobody took; an absorbed one by every A / B (see `LivenessSample`).
   // …and, on a frame past its commit, every B a handler took (it must have collapsed something — see `backJudged`).
   const backTaken = sample.backTaken ?? 0;
+  // …and, on any screen, every A / B a deliberate gate swallowed (see `absorbed`): on a screen that is not accepting
+  // they are among `presses` already.
+  const absorbed = sample.absorbed ?? 0;
   const newPresses = accepting ?
-    Math.max(0, dropped - state.lastDropped) + (sample.backJudged === true ? Math.max(0, backTaken - state.lastBackTaken) : 0) :
+    Math.max(0, dropped - state.lastDropped) + (sample.backJudged === true ? Math.max(0, backTaken - state.lastBackTaken) : 0) +
+      Math.max(0, absorbed - state.lastAbsorbed) :
     Math.max(0, sample.presses - state.lastPresses);
   next.lastPresses = sample.presses;
   next.lastDropped = dropped;
   next.lastBackTaken = backTaken;
+  next.lastAbsorbed = absorbed;
   const moved = sample.signature !== state.signature;
   next.signature = sample.signature;
   next.pressesSinceProgress = state.pressesSinceProgress + newPresses;

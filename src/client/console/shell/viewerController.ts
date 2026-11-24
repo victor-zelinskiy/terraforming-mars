@@ -885,12 +885,36 @@ export function createViewerController(shell: ViewerPort) {
       }
       zoomFlight.value = true;
       zoomClosing.value = true;
-      void playZoomDepart(zoom?.rootEl ?? undefined, card.name as CardName, () => r.takeAt(idx), () => zoom?.close());
+      void playZoomDepart(zoom?.rootEl ?? undefined, card.name as CardName, () => r.takeAt(idx), () => zoom?.close())
+        .finally(unwindZoomFlight());
       return;
     }
     // MULTI-CARD: close back to the strip slot first, then the reveal modal's
     // own premium take (the hand intake) lifts the card off the slot.
     void closeZoomViewer().then(() => r.takeAt(idx));
+  }
+
+  /**
+   * A FLIGHT THAT TOOK THE VIEWER AWAY UNWINDS THE VIEWER ITSELF — every one of them, not the plain close alone.
+   *
+   * `zoomClosing` swallows every press (`zoom-flight`), and its usual unwinder is the dialog's 'close' event — a QUEUED
+   * task, and one that never comes when the dialog was not open or the viewer left under the flight. `closeZoomViewer`
+   * learned that twice (a B meant for the surface beneath swallowed on a starved frame — CI 42223555435; a viewer
+   * unmounted under the close beat left the flag standing — the monkey's two-seat walk) and unwinds in a `finally`.
+   * The HAND-OFF («X → A Разыграть»: the card flies into the composer, and the very next press is the composer's
+   * «A Подтвердить») and the DEPART (a revealed card into the hand) raised the same flag and trusted the event alone:
+   * a press swallowed for a task at best, a deaf screen for good at worst — named the hour the arbiter learned to
+   * count a press a gate swallows (FREEZE ZERO, stage 6: the bottle's walk of `aerospace-family`, every press after
+   * the hand-off absorbed). Returned as the `finally` of the flight's own promise; fenced by the open token, so a
+   * viewer opened again since is never unwound by the flight of the one before it.
+   */
+  function unwindZoomFlight(): () => void {
+    const token = zoomOpenToken.value;
+    return () => {
+      if (zoomOpenToken.value === token && zoomClosing.value) {
+        onCardZoomClosed();
+      }
+    };
   }
 
   /** P17: the viewer's A hands the card to the context action. Two paths:
@@ -915,7 +939,8 @@ export function createViewerController(shell: ViewerPort) {
       zoomFlight.value = true;
       zoomClosing.value = true;
       void playZoomHandoff(zoom.rootEl ?? undefined, () => document.querySelector<HTMLElement>(handoffSel))
-        .then(() => zoom.close());
+        .then(() => zoom.close())
+        .finally(unwindZoomFlight());
       return;
     }
     void closeZoomViewer().then(() => action.execute(card.name as CardName));

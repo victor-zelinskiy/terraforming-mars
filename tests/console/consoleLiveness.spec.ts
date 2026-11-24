@@ -138,6 +138,86 @@ describe('consoleLiveness', () => {
   });
 
   /*
+   * A GATE THAT NEVER OPENS (FREEZE ZERO, stage 6 — the autopilot's sixth whole game). «Добор карт» stood with
+   * «A Взять» on the bar and its take turn waiting for an `animationend` that did not come: `reveal-busy` swallowed
+   * every press, the surface's handler had TAKEN each of them, nothing was dropped — `accepting: true`, the arbiter
+   * content, for six generations. A deliberate gate is a transient by nature (it stands over something in flight); a
+   * gate that swallows A / B over a still picture with nothing in flight is the deaf screen's third shape.
+   */
+  it('…and an A / B a DELIBERATE GATE swallowed over a still picture is the deaf screen too — a gate that never opens', () => {
+    const gated = walk(seconds(LIVENESS_PRESSED_GRACE_MS / 1000, (t) => {
+      const n = Math.min(3, Math.floor(t / 1000));
+      return {promptLive: true, accepting: true, presses: n, dropped: 0, absorbed: n};
+    }));
+    const last = gated[gated.length - 1];
+    expect(last.stalled && last.reason).to.equal('presses-no-effect');
+    expect(gated.slice(0, -1).some((x) => x.stalled), 'never before the pressed grace').is.false;
+    // THE GATE'S OWN MOTION KEEPS IT HONEST: while what it stands over is in flight, or the picture moves under it,
+    // however many presses it swallows (a batch landing, a take's turn, the settle window of a decision).
+    const flying = walk(seconds(30, (t) => {
+      const n = Math.floor(t / 1000);
+      return {promptLive: true, accepting: true, presses: n, absorbed: n, inFlight: ['hold:deck-draw']};
+    }));
+    expect(flying.some((x) => x.stalled), 'a gate over a flight').is.false;
+    const moving = walk(seconds(30, (t) => {
+      const n = Math.floor(t / 1000);
+      return {promptLive: true, accepting: true, presses: n, absorbed: n, signature: `s${n}`};
+    }));
+    expect(moving.some((x) => x.stalled), 'a gate over a picture that moves').is.false;
+    // …a press or two swallowed by a gate that then opens is nothing (below the threshold)…
+    const brief = walk(seconds(30, () => ({promptLive: true, accepting: true, presses: 2, absorbed: LIVENESS_PRESSES_NO_EFFECT - 1})));
+    expect(brief.some((x) => x.stalled), 'fewer than the threshold').is.false;
+    // THE WIRING: counted at the router by the dispatch's own bracket, carried by the supervisor's sample.
+    const wiring = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/supervisor/supervisorController.ts'), 'utf8');
+    expect(wiring, 'the sample carries the count').to.contain('absorbed: quietAbsorbed(),');
+    // …OF THE PRESSES SWALLOWED OVER NOTHING: a gate over a declared flight is doing its work, however long the
+    // flight takes — only a look at which the graph names nothing in flight counts what was swallowed since the last.
+    expect(wiring).to.match(/function quietAbsorbed\(\): number \{\s+const now = inputEchoSnapshot\(\)\.verbAbsorbed;\s+if \(now > absorbedSeen && flightsInTheAir\(\) === ''\) \{\s+absorbedOverNothing \+= now - absorbedSeen;\s+\}\s+absorbedSeen = now;\s+return absorbedOverNothing;/);
+    const router = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/consoleRouter.ts'), 'utf8');
+    expect(router, 'counted at the router, by the dispatch\'s own bracket — every device, every gate')
+      .to.match(/if \(absorbedBy\.length > 0 && intent\.kind === 'press' && \(intent\.button === 'confirm' \|\| intent\.button === 'back'\)\) \{\s+recordVerbAbsorbed\(\);/);
+  });
+
+  /*
+   * THE FIRST GATE THE NEW TERM NAMED (the bottle's walk of `aerospace-family`, the hour it was written): the
+   * fullscreen viewer's `zoom-flight`. «X → A Разыграть» flies the card into the composer and raises `zoomClosing`;
+   * its only unwinder was the dialog's queued 'close' event — every press after it swallowed, B included. The plain
+   * close had learned to unwind in a `finally` (two CI findings); the hand-off and the depart had not.
+   */
+  it('every flight that takes the viewer away unwinds it itself — the flag that swallows the pad never waits for an event alone', () => {
+    const viewer = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/shell/viewerController.ts'), 'utf8').replace(/\r\n/g, '\n');
+    const raised = viewer.split('zoomClosing.value = true;').length - 1;
+    expect(raised, 'the places that raise the flag (the depart, the hand-off, the plain close) — a new one is read here').to.equal(3);
+    expect(viewer, 'the depart').to.match(/void playZoomDepart\([^\n]*\)\n\s+\.finally\(unwindZoomFlight\(\)\);/);
+    expect(viewer, 'the hand-off').to.match(/void playZoomHandoff\([^\n]*\)\n\s+\.then\(\(\) => zoom\.close\(\)\)\n\s+\.finally\(unwindZoomFlight\(\)\);/);
+    const close = viewer.slice(viewer.indexOf('async function closeZoomViewer('), viewer.indexOf('function whenConsoleCardZoomCardChanges('));
+    expect(close, 'the plain close').to.match(/\} finally \{[\s\S]*if \(zoomClosing\.value\) \{\s+onCardZoomClosed\(\);/);
+    // …fenced by the open token: the flight of one viewer never unwinds the next.
+    expect(viewer).to.match(/function unwindZoomFlight\(\): \(\) => void \{\s+const token = zoomOpenToken\.value;\s+return \(\) => \{\s+if \(zoomOpenToken\.value === token && zoomClosing\.value\) \{\s+onCardZoomClosed\(\);/);
+  });
+
+  /*
+   * …AND THE GATE THAT STOOD SO HAS ITS OWN BOUND (the cause, cured where it is): the reveal's take-in-place turn ends
+   * on its `animationend` — and the wait for that event is a declared ceiling wait, so an event that never comes (a
+   * slot re-made under the turn, an animation cancelled, a renderer with no CSS clock) commits the take at its
+   * ceiling and says so, instead of swallowing the pad for good.
+   */
+  it('the reveal\'s take turn is a DECLARED, BOUNDED wait — an `animationend` that never comes cannot hold the pad', () => {
+    const reveal = fs.readFileSync(path.resolve(__dirname, '../../src/client/components/console/ConsoleRevealOverlay.vue'), 'utf8').replace(/\r\n/g, '\n');
+    const take = reveal.slice(reveal.indexOf('function takeInPlace('), reveal.indexOf('function onTakeFlipEnd('));
+    expect(take).to.contain('takingIdx.value = entry.index;');
+    expect(take, 'declared on the wait graph').to.match(/beginCeilingWait\(\{id: 'reveal:take-turn', owner: 'revealOverlay'/);
+    expect(take, 'bounded on the motion\'s ceiling clock, by this instance\'s scope')
+      .to.match(/cancelTakeTurnCeiling = flow\.after\(motionCeilingMs\(TAKE_TURN_MS \+ TAKE_TURN_NET_MS\), '[^\n]*', \(\) => \{\s+if \(takingIdx\.value === index\) \{\s+wait\.ceiling\(\);\s+commitTakeInPlace\(index\);/);
+    const commit = reveal.slice(reveal.indexOf('function commitTakeInPlace('), reveal.indexOf('function commitTakeInPlace(') + 500);
+    expect(commit, 'the commit — by the event or at the ceiling — ends the wait').to.match(/cancelTakeTurnCeiling\(\);\s+takeTurnWait\?\.met\(\);/);
+    // The sheet's own number is the bound's base (a turn made longer there must move this one).
+    const less = fs.readFileSync(path.resolve(__dirname, '../../src/styles/console.less'), 'utf8');
+    expect(less).to.match(/animation: con-take-turn calc\(560ms \* var\(--motion-scale, 1\)\)/);
+    expect(reveal).to.contain('const TAKE_TURN_MS = 560;');
+  });
+
+  /*
    * THE PLAYER'S TIME IS NOBODY'S STALL (the monkey's seed of the day on CI, 2026-11-22 - `d20261122:red-lawyers`,
    * issues #88 / #89 / #91 / #92): the Parliament's walk stood on its card step, the player read the information screen
    * over it, and ten seconds of reading were «stall (unserved) ... holder: beat» - the reveal's claims expired, the

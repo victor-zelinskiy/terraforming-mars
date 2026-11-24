@@ -54,6 +54,14 @@ export type InputEchoSnapshot = {
    * only on such a frame (`LivenessSample.backJudged`).
    */
   backTaken: number;
+  /**
+   * …and the A / B presses a DELIBERATE GATE swallowed (`inputAbsorb.ts` — the router's own bracket says which). A gate
+   * is a transient by its nature: it stands over something in flight (a batch landing, a take's turn, a settle
+   * window). The arbiter counts these toward «presses with no effect» on ANY screen: while the gate's motion plays the
+   * picture moves and the count resets; a gate that swallows over a still picture is a gate that will never open (the
+   * reveal's take turn waiting for an `animationend` that did not come — stage 6, the autopilot's sixth game).
+   */
+  verbAbsorbed: number;
   consumed: number;
   system: number;
   unconsumed: number;
@@ -73,6 +81,7 @@ const state: InputEchoSnapshot = {
   verbPresses: 0,
   verbDropped: 0,
   backTaken: 0,
+  verbAbsorbed: 0,
   consumed: 0,
   system: 0,
   unconsumed: 0,
@@ -126,6 +135,11 @@ export function recordVerbPress(taken: boolean, back = false): void {
   } else if (back) {
     state.backTaken++;
   }
+}
+
+/** A / B was swallowed by a deliberate gate (the router's bracket named it) — see `verbAbsorbed`. */
+export function recordVerbAbsorbed(): void {
+  state.verbAbsorbed++;
 }
 
 /**

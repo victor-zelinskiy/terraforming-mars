@@ -695,6 +695,9 @@ const SEAL_TOUCHDOWN_WAIT_MS = 2_400;
 
 /** …and how long its break may take to report its own end. */
 const SEAL_BREAK_NET_MS = 900;
+/** The in-slot take turn (`con-take-turn`, console.less — 560 ms on the motion scale) and its report's net. */
+const TAKE_TURN_MS = 560;
+const TAKE_TURN_NET_MS = 900;
 
 /**
  * THE PLACE IS STANDING — painted (`checkVisibility` with opacity: a place inside the receded / returning stage is
@@ -795,6 +798,9 @@ const props = defineProps({
 const emit = defineEmits(['dismiss-result', 'discard-pick', 'drawn-complete', 'result-detached']);
 
 const flow = useFlowScope('reveal-overlay');
+/** The take turn's declared wait and its ceiling (`takeInPlace`). */
+let takeTurnWait: CeilingWait | undefined;
+let cancelTakeTurnCeiling = (() => {}) as () => void;
 const rootEl = useTemplateRef<HTMLElement>('rootEl');
 const resultProxy = useTemplateRef<HTMLElement>('resultProxy');
 const resultFlip = useTemplateRef<HTMLElement>('resultFlip');
@@ -3098,6 +3104,26 @@ function takeInPlace(): void {
     return;
   }
   takingIdx.value = entry.index;
+  // THE TURN ENDS ON ITS OWN EVENT — AND THE WAIT FOR IT IS DECLARED AND BOUNDED (FREEZE ZERO, stage 6 — the
+  // autopilot's sixth game stood on this stage for six generations). `takingIdx` absorbs EVERY verb of the reveal
+  // (`reveal-busy`), and the only thing that lowered it was `animationend` of the slot's turn: an event that does not
+  // come — the slot re-made under the turn, the animation cancelled, a sheet that turns animations off, a renderer
+  // with no CSS clock — left «A Взять» on the bar and every press swallowed, for good, with nothing in flight for
+  // any judge to see. The event is still the turn's end; a turn whose event never came commits at its ceiling, and
+  // says so (`wait-graph/ceiling/reveal:take-turn`). A wait of this instance: unmounted mid-turn, the take was not
+  // made (the next instance offers the card again) — never a commit into a surface that is gone.
+  const index = entry.index;
+  takeTurnWait?.end();
+  const wait = beginCeilingWait({id: 'reveal:take-turn', owner: 'revealOverlay', what: 'the end of a card\'s take turn',
+    maxMs: motionCeilingMs(TAKE_TURN_MS + TAKE_TURN_NET_MS), detail: `card ${index} of «${e.source ?? ''}»`});
+  takeTurnWait = wait;
+  cancelTakeTurnCeiling();
+  cancelTakeTurnCeiling = flow.after(motionCeilingMs(TAKE_TURN_MS + TAKE_TURN_NET_MS), 'the take turn\'s ceiling', () => {
+    if (takingIdx.value === index) {
+      wait.ceiling();
+      commitTakeInPlace(index);
+    }
+  });
 }
 /** The in-slot turn finished — commit the taken state + advance focus. */
 function onTakeFlipEnd(index: number, ev: AnimationEvent): void {
@@ -3112,6 +3138,10 @@ function onTakeFlipEnd(index: number, ev: AnimationEvent): void {
 function commitTakeInPlace(index: number): void {
   const e = drawnEvent.value;
   takingIdx.value = undefined;
+  // (The turn's wait is over — met by its event, or already said at its ceiling.)
+  cancelTakeTurnCeiling();
+  takeTurnWait?.met();
+  takeTurnWait = undefined;
   if (e === undefined || e.takenIndices.has(index)) {
     return;
   }
@@ -3488,6 +3518,9 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   absorbOff?.();
+  // A take turn in the air leaves with the instance: its wait ends (the timer is the scope's), the take was not made.
+  takeTurnWait?.end();
+  takeTurnWait = undefined;
   claimNotificationCorner('reveal', false);
   closeRevealSourcePeek();
   if (discardPileLease.value !== '') {

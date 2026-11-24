@@ -69,6 +69,7 @@ import {stagedPlayState} from '@/client/console/stagedPlay';
 import {owedConclusions, reaskOwedConclusion, withdrawConclusionOwe} from '@/client/console/workspaceConclusionOwe';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {takeUpQuestion} from '@/client/console/setAside';
+import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
 
 /** How long an owed commit fold counts as «in flight» for the liveness arbiter (its tokens' 9 s fold ceiling + a beat). */
 const COMMIT_FOLD_OWED_GRACE_MS = 12_000;
@@ -127,6 +128,25 @@ export type SupervisorPort = {
 
 export function createSupervisorController(shell: SupervisorPort) {
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
+  /**
+   * THE VERBS A GATE SWALLOWED OVER NOTHING (`LivenessSample.absorbed`). A deliberate gate stands over a flight — a
+   * batch landing, a take's turn, a card's way home — and every such flight is a wait the graph knows (stage 3: every
+   * wait declared). So a press a gate swallowed is evidence only when the graph says NOTHING IS IN FLIGHT at this look
+   * (`flightsInTheAir` — the level doors' own reader: the graph's motion and server waits, the wire, the kernel's
+   * beats): then the gate stands over nothing, and it will not open by itself. A press swallowed under a declared
+   * flight is the gate doing its work, however long the flight takes (a claim's arrival waiting for its surface, five
+   * seconds at its bound — the bottle's `nobel-prize`, the first table the bare count named falsely).
+   */
+  let absorbedSeen = 0;
+  let absorbedOverNothing = 0;
+  function quietAbsorbed(): number {
+    const now = inputEchoSnapshot().verbAbsorbed;
+    if (now > absorbedSeen && flightsInTheAir() === '') {
+      absorbedOverNothing += now - absorbedSeen;
+    }
+    absorbedSeen = now;
+    return absorbedOverNothing;
+  }
   /** The LIVENESS ARBITER's 1 Hz sampler (`consoleLiveness.ts`; the beat stall guard is one of its witnesses). */
   /** The sampler's stop — the tick is an owned tick of the SESSION (it cannot go on sampling a game screen that left). */
   const beatStallTimer = ref(undefined as (() => void) | undefined);
@@ -592,6 +612,8 @@ export function createSupervisorController(shell: SupervisorPort) {
       // collapses such a frame by contract (`backVerbFor('committed')`), so a taken B that moved nothing is a handler
       // swallowing the verb over a wedged flow (the chairman quest's leaked beat, the owner's field lock of 2026-11-07).
       backTaken: inputEchoSnapshot().backTaken,
+      // …and an A / B a DELIBERATE GATE swallowed WITH NOTHING DECLARED IN FLIGHT (`quietAbsorbed`).
+      absorbed: quietAbsorbed(),
       backJudged: backOwedOnStandingFrame(),
       // …and a transient beat owes its end even when nobody is asked (the two-campaign rally, ledger HC).
       beatOwed: beat !== undefined,

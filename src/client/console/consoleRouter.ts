@@ -19,7 +19,7 @@ import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {AlbumFilter, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {loadingScreenState, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
-import {recordInputTrail, recordVerbPress, takeUnreceivedPress} from '@/client/console/inputEcho';
+import {recordInputTrail, recordVerbAbsorbed, recordVerbPress, takeUnreceivedPress} from '@/client/console/inputEcho';
 import {beginInputDispatch, endInputDispatch, noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {
   registerWorkspaceTaskSetAside,
@@ -289,6 +289,11 @@ export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
     return outcome.taken;
   } finally {
     const absorbedBy = endInputDispatch();
+    // A VERB A GATE SWALLOWED is the arbiter's to count (`inputEcho.verbAbsorbed`): «taken» by the surface's own
+    // handler, and answered with nothing — by contract, for as long as the gate's motion plays; for ever, if it never ends.
+    if (absorbedBy.length > 0 && intent.kind === 'press' && (intent.button === 'confirm' || intent.button === 'back')) {
+      recordVerbAbsorbed();
+    }
     // THE TRAIL (`inputEcho.ts`): every press edge and direction of any device, with what became of it — what a
     // defect's evidence prints as «the presses that led here». (A held direction's repeats are one press.)
     if (intent.kind === 'press' || (intent.kind === 'nav' && !intent.repeat)) {

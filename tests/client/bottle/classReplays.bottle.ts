@@ -1052,6 +1052,36 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
   }
 
   /*
+   * `liveness/stall/presses-no-effect/<task>/hand:configure/deaf` — A GATE THAT NEVER OPENS (FREEZE ZERO, stage 6; the
+   * bottle's walk `fz1:aerospace-family`, named the hour the arbiter learned to count a press a deliberate gate
+   * swallows over nothing). «X → A Разыграть» in the fullscreen viewer flies the card into the composer and raises
+   * `zoomClosing`, which swallows EVERY press (`zoom-flight`); its only unwinder was the dialog's queued 'close'
+   * event. The event late, or never (a dialog that was not open, a viewer that left under the flight): the composer
+   * stands with «A Подтвердить» on the bar and takes nothing — B included. The law: every flight that takes the
+   * viewer away unwinds it itself (`viewerController.unwindZoomFlight`), as the plain close always did.
+   */
+  it('a card handed off from the viewer into the composer: the pad is back the moment the card lands — no press is swallowed for good, nothing is filed', async () => {
+    const seed = 'fz1:aerospace-family';
+    const restoreRandom = bottleServer().seedProcessRandom(monkeyRng(`${seed}:world`)());
+    try {
+      const table = await bottleServer().bootFixture('aerospace-family');
+      bottle = await bootBottle(table, {query: 'coverage=1'});
+      await bottle.advance(3_000);
+      const walked = await monkeyWalk(bottle, table.seats.length, seed, 60);
+      bottle = walked.bottle;
+      // The walk does go through the viewer's flight (the gate is said on the echo while it plays)…
+      expect(walked.log.some((line) => line.endsWith(':absorbed:zoom-flight')), 'the walk meets the flight of the viewer').to.equal(true);
+      // …and the flight ENDS: the walk's last presses are taken by a surface, never by the gate.
+      expect(walked.log.filter((line) => !line.startsWith('[')).slice(-12).filter((line) => line.endsWith(':absorbed:zoom-flight')), 'the gate opened again').to.deep.equal([]);
+      await bottle.advance(25_000);
+      expect(classes()).to.deep.equal([]);
+      expect(bottle.liveness().why, 'the player can act').to.deep.equal([]);
+    } finally {
+      restoreRandom();
+    }
+  });
+
+  /*
    * THE RESEARCH WEDGED BY A SURFACE THAT LEFT INSIDE ITS COMPLETION (FREEZE ZERO, stage 6 — found by the autopilot's
    * FIRST whole game, `ap0:1`, generation 11): a purchase is committed, its completion latch is up
    * (`draftWorkspaceState.completion` — module state: the frame's lifetime), and the surface that plays the last beats
