@@ -2,7 +2,6 @@
  "note": "THE KERNEL'S STATE SPACE THAT NO PASS WALKS — each key with the reason it may stand unwalked ('' = nobody has said yet). Rewritten by `node scripts/kernel-walked.mjs <passes…> --write`: a key the passes walked leaves, the reasons are kept. FREEZE ZERO, stage 4.",
  "flows": {
   "scene:hold:colony-track-raise": "DEAD AS A HOLD — its supplier reads `owed && !live`, and the seed and the play are ONE synchronous call (`colonyController`): no flush ever sees it true. The run itself (`scene:colony-track-raise`) is walked.",
-  "scene:hold:gov-scale-focus": "RARE — the World Government's terraforming answered with temperature / oxygen / Venus (the Solar Phase option, a generation's end). To walk: a Solar Phase table to the end of a generation.",
   "scene:hold:nomad-move-remote": "RARE — ANOTHER seat moves the Mars Nomads camp (two seats, the promo card owned by the other one). To walk: a duo table, the other seat moves the camp while the viewer watches.",
   "scene:hold:tender-bidding-reveal": "RARE — the campaign's «Тендеры»: the first mount of an unfinished bidding deal after a mission ends, with motion on. To walk: finish a campaign mission in the tenders mode.",
   "scene:nomad-move-remote": "RARE — the same remote move of the Mars Nomads camp as `scene:hold:nomad-move-remote`.",
@@ -86,8 +85,7 @@
    "live/stage: presentingOwed → awaiting": "RARE — a release REFUSED while the claim presents (2 walks reach `presentingOwed`), then the same claim retained for the next outcome before the bound re-asks."
   },
   "announce": {
-   "late → acknowledged": "RARE — an announce past its bound (9 walks reach `late`) that the player then acknowledges; the walks move on or end first. To walk: stand on an announced question past the bound, then press.",
-   "late → presented": "RARE — an announce past its bound whose surface presents afterwards; the same span as `late → acknowledged`."
+   "late → acknowledged": "RARE — an announce past its bound (9 walks reach `late`) that the player then acknowledges; the walks move on or end first. To walk: stand on an announced question past the bound, then press."
   }
  }
 }

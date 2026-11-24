@@ -66,23 +66,27 @@ async function playGenerationsOverApi(request: APIRequestContext, viewer: string
 }
 
 /**
- * THE TOUR — every stop a surface opened from the board home and closed again; nothing on it answers the server
- * (a wheel's centre and its four directions open workspaces; A is pressed on a wheel only).
+ * THE TOUR — every stop a surface opened from the board home and closed again; nothing on it answers the server: A is
+ * pressed ONCE on a wheel's centre or on a browse grid (it opens a stage — a composer, a focus, a legend, a vote —
+ * whose own confirm would be a SECOND A), never on a confirmation. The report holds the proof: the server's question
+ * has the same number before the first tour and after the last.
  */
 const TOUR: ReadonlyArray<{stop: string, keys: ReadonlyArray<string>}> = [
-  {stop: 'the action wheel\'s centre (the hand) + a card inspected', keys: ['Period', 'Enter', 'KeyX', 'Escape', 'ArrowRight', 'ArrowLeft']},
-  {stop: 'the action wheel · right', keys: ['Period', 'ArrowRight', 'ArrowDown', 'ArrowUp']},
+  {stop: 'the hand + a card inspected', keys: ['Period', 'Enter', 'KeyX', 'Escape', 'ArrowRight', 'ArrowLeft']},
+  {stop: 'the hand → the play sheet of a card', keys: ['Period', 'Enter', 'Enter', 'ArrowDown', 'Escape']},
+  {stop: 'the action wheel · right (the colonies) → the stage of a colony', keys: ['Period', 'ArrowRight', 'Enter', 'ArrowDown', 'Escape']},
   {stop: 'the action wheel · left', keys: ['Period', 'ArrowLeft', 'ArrowDown', 'ArrowUp']},
-  {stop: 'the action wheel · up', keys: ['Period', 'ArrowUp', 'ArrowRight', 'ArrowLeft']},
-  {stop: 'the action wheel · down', keys: ['Period', 'ArrowDown', 'ArrowRight', 'ArrowLeft']},
-  {stop: 'the basic wheel\'s centre (standard projects)', keys: ['Comma', 'Enter', 'ArrowDown', 'ArrowUp']},
-  {stop: 'the basic wheel · right', keys: ['Comma', 'ArrowRight', 'ArrowDown', 'ArrowUp']},
-  {stop: 'the basic wheel · left', keys: ['Comma', 'ArrowLeft', 'ArrowDown', 'ArrowUp']},
+  {stop: 'the action wheel · up (the card actions) → the setup of an action', keys: ['Period', 'ArrowUp', 'Enter', 'ArrowDown', 'Escape']},
+  {stop: 'the action wheel · down (the Parliament) → a stage of it', keys: ['Period', 'ArrowDown', 'Enter', 'ArrowRight', 'Escape']},
+  {stop: 'the standard projects → the step of a project', keys: ['Comma', 'Enter', 'ArrowDown', 'Enter', 'ArrowDown', 'Escape']},
   {stop: 'the basic wheel · up', keys: ['Comma', 'ArrowUp', 'ArrowRight', 'ArrowLeft']},
-  {stop: 'the basic wheel · down', keys: ['Comma', 'ArrowDown', 'ArrowRight', 'ArrowLeft']},
-  {stop: 'the information screen', keys: ['KeyY', 'KeyE', 'KeyE', 'KeyQ']},
-  {stop: 'the journal', keys: ['KeyR', 'ArrowDown', 'ArrowUp']},
-  {stop: 'the played cards', keys: ['KeyX', 'ArrowRight', 'KeyX', 'Escape']},
+  {stop: 'the basic wheel · down (the confirmation of the pass — B)', keys: ['Comma', 'ArrowDown', 'ArrowRight', 'ArrowLeft']},
+  {stop: 'the milestones → a legend', keys: ['KeyQ', 'Enter', 'ArrowDown', 'Escape']},
+  {stop: 'the awards → a legend', keys: ['KeyE', 'Enter', 'ArrowDown', 'Escape']},
+  {stop: 'the information screen, tab by tab', keys: ['KeyY', 'KeyE', 'KeyE', 'KeyE', 'KeyQ', 'Enter', 'Escape']},
+  {stop: 'the journal', keys: ['KeyR', 'ArrowDown', 'ArrowDown', 'KeyX', 'Escape', 'ArrowUp']},
+  {stop: 'the played cards → a card', keys: ['KeyX', 'ArrowRight', 'Enter', 'KeyX', 'Escape', 'Escape']},
+  {stop: 'the cursor of the board and a cell inspected', keys: ['ArrowUp', 'ArrowRight', 'KeyV', 'Escape', 'KeyC', 'Escape']},
 ];
 
 function grew(before: Map<string, number>, after: Map<string, number>): Array<string> {
@@ -110,19 +114,29 @@ test.describe('WHICH COMPUTEDS STAY ALIVE WITH USE', () => {
     await openConsole(page, viewer);
     await cinematicBeat(page, 6_000, 'the turn settles — its arrival is no stop of the tour');
 
-    const bar = async (): Promise<string> => ((await page.locator('.con-cmdbar').textContent()) ?? '').replace(/\s+/g, ' ').trim();
+    // (Every bar on the page: a stage that carries a strip of its own stands beside the shell's.)
+    const bar = async (): Promise<string> => (await page.locator('.con-cmdbar').allTextContents()).map((text) => text.replace(/\s+/g, ' ').trim()).join(' ‖ ');
     const tap = async (key: string): Promise<void> => {
       await page.keyboard.press(key);
       await cinematicBeat(page, 1_200, 'the surface the press opened, moved or closed comes to rest');
     };
     const stops: Array<string> = [];
+    const asked = async (): Promise<string> => {
+      const wf = (await fetchPlayerModel(request, viewer) as unknown as Wire).waitingFor;
+      return `${wf?.type ?? 'nothing'} #${wf?.promptId ?? '-'}`;
+    };
+    const askedBefore = await asked();
     const tour = async (record: boolean): Promise<void> => {
       for (const {stop, keys} of TOUR) {
+        const trace: Array<string> = [];
         for (const key of keys) {
           await tap(key);
+          if (record) {
+            trace.push(`${key} → «${(await bar()).slice(0, 70)}»`);
+          }
         }
         if (record) {
-          stops.push(`  ${stop}: «${(await bar()).slice(0, 90)}»`);
+          stops.push(`  ${stop}: ${trace.join('  ·  ')}`);
         }
         // HOME AGAIN: B until the board home's bar stands (a stop is closed by as many B as it is deep).
         for (let back = 0; back < 5 && !/Базовые/.test(await bar()); back++) {
@@ -148,7 +162,8 @@ test.describe('WHICH COMPUTEDS STAY ALIVE WITH USE', () => {
       `computeds ${before.computeds} → ${after.computeds} (${after.computeds - before.computeds >= 0 ? '+' : ''}${after.computeds - before.computeds}) · effects ${before.effects} → ${after.effects} (${after.effects - before.effects >= 0 ? '+' : ''}${after.effects - before.effects})`,
       `unwatched computeds holding dependencies: ${[...before.unwatched.values()].reduce((a, b) => a + b, 0)} → ${[...after.unwatched.values()].reduce((a, b) => a + b, 0)} in ${after.unwatched.size} getter(s)`,
       `detached trees at the end: ${detached.roots} tree(s), ${detached.nodes} node(s): ${detached.top}`,
-      'WHERE THE TOUR STOOD (the bar at each stop of the first tour):',
+      `THE TOUR ANSWERED NOTHING: the server asked «${askedBefore}» before the first tour and asks «${await asked()}» after the last`,
+      'WHERE THE TOUR STOOD (the bar after every key of the first tour):',
       ...stops,
       'THE GETTERS WHOSE UNWATCHED COMPUTEDS GREW (a visit leaves them behind):',
       ...grew(before.unwatched, after.unwatched),
