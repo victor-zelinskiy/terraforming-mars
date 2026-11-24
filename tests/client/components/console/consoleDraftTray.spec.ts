@@ -99,6 +99,43 @@ describe('consoleDraftTray', () => {
     expect(isTraySlotHeld(D)).to.eq(true);
   });
 
+  /*
+   * AN ARMED RISE LIVES ONLY AS LONG AS ITS BUY PROMPT (the box's whole games in a real browser, 2026-11-24 — game
+   * 123): the buy was answered with no screen of its own ever mounting, nobody finished the arming, and it stood for
+   * three generations — the bar «A Пропустить» on every screen, the hand dock hidden, the frames' chrome dissolved,
+   * the shelf frozen on cards long bought; and no later draft could arm its own rise over it.
+   */
+  it('an armed rise whose buy prompt left with no screen to launch it is finished — and the next draft arms its own', () => {
+    const buy = (cards: Array<CardName>) => view({phase: Phase.RESEARCH, wf: {type: 'card', buyMode: true, cards: cards.map((name) => ({name}))}});
+    const armed = buy([A, B, C, D]);
+    observeDraftTransition(view({phase: Phase.DRAFTING, drafted: [A, B, C]}), armed);
+    expect(draftTrayState.scenePending).to.eq(true);
+    // The same prompt still asked (a poll, another seat's move): the arming stands.
+    observeDraftTransition(armed, buy([A, B, C, D]));
+    expect(draftTrayState.scenePending, 'its prompt is still asked').to.eq(true);
+
+    // The buy is gone — answered elsewhere; the action phase asks its menu.
+    const action = view({phase: Phase.ACTION, wf: {type: 'or'}});
+    observeDraftTransition(armed, action);
+    expect(riseSceneEngaged(), 'nobody is left to launch it').to.eq(false);
+    expect(draftTrayState.tableView).to.eq(false);
+    expect(draftTrayState.held).to.deep.eq([]);
+    expect(trayDisplayCards([]), 'the shelf is no longer frozen on the bought set').to.deep.eq([]);
+
+    // …and the next generation's draft arms its OWN rise.
+    observeDraftTransition(view({phase: Phase.DRAFTING, drafted: [B, C]}), buy([B, C, D]));
+    expect(draftTrayState.scenePending).to.eq(true);
+    expect(draftTrayState.sceneCards).to.deep.eq([B, C, D]);
+  });
+
+  it('a rise already RUNNING is finished by its own screen — a view without the buy does not take it away', () => {
+    draftTrayState.sceneCards = [A, B];
+    draftTrayState.sceneActive = true;
+    observeDraftTransition(view({phase: Phase.RESEARCH}), view({phase: Phase.ACTION, wf: {type: 'or'}}));
+    expect(riseSceneEngaged()).to.eq(true);
+    expect(draftTrayState.sceneCards).to.deep.eq([A, B]);
+  });
+
   it('does NOT arm outside the draft → research shape', () => {
     // A generic target pick in the action phase must never trigger the scene.
     observeDraftTransition(

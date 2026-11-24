@@ -334,6 +334,12 @@ function names(cards: ReadonlyArray<{name: CardName}> | undefined): Array<CardNa
   return (cards ?? []).map((c) => c.name);
 }
 
+/** Does this view ask the research BUY (the prompt the rise is armed for)? */
+function asksTheResearchBuy(view: PlayerViewModel): boolean {
+  const wf = view.waitingFor;
+  return view.game.phase === Phase.RESEARCH && wf?.type === 'card' && (wf as {buyMode?: boolean}).buyMode === true;
+}
+
 /**
  * Called from the shell's playerView watcher (pre-flush — BEFORE the new
  * frame renders, so the buy frame mounts already knowing about the scene).
@@ -353,6 +359,18 @@ export function observeDraftTransition(prev: PlayerViewModel | undefined, next: 
     }
   }
 
+  // AN ARMED RISE LIVES ONLY AS LONG AS ITS BUY PROMPT. It is armed HERE, by a view — and launched or finished by the
+  // screen that serves the buy as it mounts. A buy that LEFT with no such screen ever mounting (answered at another
+  // door, the phase moved on) leaves nobody to finish it, and the arming stood for the rest of the game — nothing
+  // below heals an engaged scene, and nothing re-arms over one: the bar read «A Пропустить» on EVERY screen, the hand
+  // dock stayed hidden, the task frames kept their chrome dissolved, the shelf showed the cards of a generation long
+  // bought. (The box's whole games in a real browser, 2026-11-24 — game 123: three generations under «Планетолог ·
+  // A Пропустить», the seat's every draft pick answered at the door; twelve games of forty-five carry the bar.)
+  // A scene already RUNNING is its screen's to finish (that screen is mounted, and finishes it as it leaves).
+  if (draftTrayState.scenePending && !asksTheResearchBuy(next)) {
+    finishRiseScene();
+  }
+
   // The draft → research transition: the buy prompt arrives while the tray
   // still holds the just-drafted pile (the server cleared draftedCards in
   // runResearchPhase — the tray keeps the frozen snapshot instead).
@@ -363,9 +381,7 @@ export function observeDraftTransition(prev: PlayerViewModel | undefined, next: 
   if (
     !riseSceneEngaged() &&
     wasDrafting &&
-    next.game.phase === Phase.RESEARCH &&
-    wf?.type === 'card' &&
-    (wf as {buyMode?: boolean}).buyMode === true &&
+    asksTheResearchBuy(next) &&
     tableCards.length > 0
   ) {
     const buyNames = names((wf as {cards?: ReadonlyArray<{name: CardName}>}).cards);

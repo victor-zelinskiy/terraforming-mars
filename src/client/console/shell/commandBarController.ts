@@ -680,7 +680,11 @@ export function createCommandBarController(shell: CommandBarPort) {
     }
     // A draft beat (hero landing / the research rise) owns the moment —
     // the bar advertises only the skip (any button skips).
-    if (draftPickBeatActive() || riseSceneEngaged()) {
+    // …THE RISE ONLY ON THE SCREEN THAT PLAYS IT: the skip is that screen's own press (the draft workspace, the task
+    // frame of the pre-game buy) — the pad has no rung of the rise's. A rise armed while the player stands elsewhere
+    // (a buy that arrived over a lateral workspace, before its plate took the screen) promised «Пропустить» over a
+    // screen whose A does something else.
+    if (draftPickBeatActive() || (riseSceneEngaged() && (shell.draftWorkspaceOwnsPad || (shell.shellTaskActive && shell.shellTaskOnSurface)))) {
       noteBarRung('cinematic');
       return [{control: 'confirm', label: 'Skip'}];
     }
