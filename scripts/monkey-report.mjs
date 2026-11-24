@@ -698,7 +698,12 @@ export function aggregateAutopilot(files) {
     return undefined;
   }
   const sum = (row) => Object.values(row ?? {}).reduce((a, n) => a + Number(n ?? 0), 0);
-  const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0};
+  const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0, doors: []};
+  // WHERE THE DOOR ANSWERED — the seat's question, the frames that stood, the bar it was offered (the generation
+  // taken out: the same place in two games is one row). A question the screen cannot be WALKED TO is answered here
+  // for the seat, and the game «finishes»: the rows are the worklist the pilot's own budget hides (the Colonies
+  // opened over a sitting — a loop no press left, named by no net, 2026-11-24).
+  const doors = new Map();
   for (const f of [...last.values()].sort((a, b) => `${a.file}${a.title}`.localeCompare(`${b.file}${b.title}`))) {
     const a = f.autopilot;
     out.games++;
@@ -709,6 +714,13 @@ export function aggregateAutopilot(files) {
     out.passes.ui += Number(a.passes?.ui ?? 0);
     out.passes.api += Number(a.passes?.api ?? 0);
     out.playMin += Math.round(Number(a.tookMs ?? 0) / 60_000);
+    for (const door of a.doors ?? []) {
+      const where = String(door).replace(/ · gen \d+/, '');
+      const row = doors.get(where) ?? {where, n: 0, games: new Set()};
+      row.n++;
+      row.games.add(f.title);
+      doors.set(where, row);
+    }
     const where = `${f.title}${f.monkey?.seed !== undefined ? ` (${f.monkey.seed})` : ''} — generation ${a.generation ?? '?'}, ${a.phase ?? '?'}, ${a.presses ?? '?'} presses`;
     if (a.end === 'finished') {
       out.finished++;
@@ -718,6 +730,7 @@ export function aggregateAutopilot(files) {
       out.capped.push(where);
     }
   }
+  out.doors = [...doors.values()].sort((x, y) => y.n - x.n || x.where.localeCompare(y.where)).map((row) => ({where: row.where, n: row.n, games: row.games.size}));
   return out;
 }
 
@@ -734,6 +747,12 @@ export function renderAutopilot(a) {
   }
   for (const game of a.capped) {
     L.push(`   capped  ${game}`);
+  }
+  if ((a.doors ?? []).length > 0) {
+    L.push(`   THE DOOR ANSWERED — where the seat stood (${a.doors.length} place(s); a question the screen cannot be walked to hides here):`);
+    for (const door of a.doors.slice(0, 16)) {
+      L.push(`   ${String(door.n).padStart(4)}× in ${String(door.games).padStart(2)} game(s)  ${door.where}`);
+    }
   }
   return L.join('\n');
 }

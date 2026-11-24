@@ -32,8 +32,8 @@ type Lib = {
   aggregateAutopilot: (files: Array<File>) => Whole | undefined,
   renderAutopilot: (whole: Whole | undefined) => string,
 };
-type Pilot = {end: string, generation: number, phase: string, presses: number, byUi: Record<string, number>, byApi: Record<string, number>, passes: {ui: number, api: number}, tookMs: number, rebuilds?: number};
-type Whole = {games: number, finished: number, capped: Array<string>, stuck: Array<string>, rebuilds: number, presses: number, byUi: number, byApi: number, passes: {ui: number, api: number}, playMin: number};
+type Pilot = {end: string, generation: number, phase: string, presses: number, byUi: Record<string, number>, byApi: Record<string, number>, passes: {ui: number, api: number}, tookMs: number, rebuilds?: number, doors?: Array<string>};
+type Whole = {games: number, finished: number, capped: Array<string>, stuck: Array<string>, rebuilds: number, presses: number, byUi: number, byApi: number, passes: {ui: number, api: number}, playMin: number, doors: Array<{where: string, n: number, games: number}>};
 
 const load = (): Promise<Lib> => import(pathToFileURL(path.join(__dirname, '..', '..', 'scripts', 'monkey-report.mjs')).href) as Promise<Lib>;
 
@@ -202,13 +202,24 @@ describe('the monkey\'s report — a run summed by cause class', () => {
     expect(aggregateAutopilot([walk('a', [])])).to.eq(undefined);
     expect(renderAutopilot(undefined)).to.eq('');
 
-    const clean = [game(1, {}), game(2, {}), game(3, {end: 'capped', generation: 44, phase: 'action', presses: 4000}), walk('a', [])];
+    const sitting = 'option · gen 10 · frames parliament:committed>colonies:browse · bar «Trading A Select B To the board»';
+    const clean = [
+      game(1, {doors: [sitting, 'card · gen 4 · frames none · bar «RT Actions B Close»']}),
+      game(2, {doors: [sitting.replace('gen 10', 'gen 12')]}),
+      game(3, {end: 'capped', generation: 44, phase: 'action', presses: 4000}), walk('a', []),
+    ];
     const whole = aggregateAutopilot(clean) as Whole;
     expect(whole).to.deep.include({games: 3, finished: 2, rebuilds: 0, presses: 5800, byUi: 72, byApi: 6, playMin: 30});
     expect(whole.capped).to.deep.eq(['autopilot · game 3 (ap0:3) — generation 44, action, 4000 presses']);
     expect(whole.stuck).to.deep.eq([]);
     expect(renderAutopilot(whole)).to.contain('THE WHOLE GAMES — 3 game(s): 2 to the final scoring · 1 capped · 0 STUCK · rebuilds 0');
     expect(renderAutopilot(whole), 'the share the screen did not serve is said').to.contain('through the door 6 (7.7 % of the answers)');
+    // WHERE the door answered — by place, the generation taken out: the same place in two games is ONE row, the worst first.
+    expect(whole.doors).to.deep.eq([
+      {where: 'option · frames parliament:committed>colonies:browse · bar «Trading A Select B To the board»', n: 2, games: 2},
+      {where: 'card · frames none · bar «RT Actions B Close»', n: 1, games: 1},
+    ]);
+    expect(renderAutopilot(whole)).to.contain('   2× in  2 game(s)  option · frames parliament:committed>colonies:browse');
     // A capped game is the pilot's own bound — said, never a failure.
     expect(gateVerdict({...aggregateCauseFiles(clean), autopilot: whole}).pass).to.eq(true);
 
