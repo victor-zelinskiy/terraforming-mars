@@ -172,7 +172,12 @@ describe('consoleLiveness', () => {
     expect(wiring, 'the sample carries the count').to.contain('absorbed: quietAbsorbed(),');
     // …OF THE PRESSES SWALLOWED OVER NOTHING: a gate over a declared flight is doing its work, however long the
     // flight takes — only a look at which the graph names nothing in flight counts what was swallowed since the last.
-    expect(wiring).to.match(/function quietAbsorbed\(\): number \{\s+const now = inputEchoSnapshot\(\)\.verbAbsorbed;\s+if \(now > absorbedSeen && flightsInTheAir\(\) === ''\) \{\s+absorbedOverNothing \+= now - absorbedSeen;\s+\}\s+absorbedSeen = now;\s+return absorbedOverNothing;/);
+    expect(wiring).to.contain('if (now > absorbedSeen && inputAbsorbSnapshot().active.length > 0 && flightsInTheAir() === \'\') {');
+    // …and ONLY WHILE A GATE STILL STANDS: a gate that never opens is closed at every look; a press swallowed by a gate
+    // that has opened since is the gate having done its work. The standing gates are part of the picture's signature —
+    // a gate closing or opening is the screen changing state.
+    const signature = wiring.slice(wiring.indexOf('const signature = ['), wiring.indexOf('].join(\'|\');', wiring.indexOf('const signature = [')));
+    expect(signature, 'the picture names the gates standing over the pad').to.contain('inputAbsorbSnapshot().active.join(\',\'),');
     const router = fs.readFileSync(path.resolve(__dirname, '../../src/client/console/consoleRouter.ts'), 'utf8');
     expect(router, 'counted at the router, by the dispatch\'s own bracket — every device, every gate')
       .to.match(/if \(absorbedBy\.length > 0 && intent\.kind === 'press' && \(intent\.button === 'confirm' \|\| intent\.button === 'back'\)\) \{\s+recordVerbAbsorbed\(\);/);

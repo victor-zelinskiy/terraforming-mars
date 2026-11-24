@@ -70,6 +70,7 @@ import {owedConclusions, reaskOwedConclusion, withdrawConclusionOwe} from '@/cli
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {takeUpQuestion} from '@/client/console/setAside';
 import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
+import {inputAbsorbSnapshot} from '@/client/console/inputAbsorb';
 
 /** How long an owed commit fold counts as «in flight» for the liveness arbiter (its tokens' 9 s fold ceiling + a beat). */
 const COMMIT_FOLD_OWED_GRACE_MS = 12_000;
@@ -136,12 +137,18 @@ export function createSupervisorController(shell: SupervisorPort) {
    * beats): then the gate stands over nothing, and it will not open by itself. A press swallowed under a declared
    * flight is the gate doing its work, however long the flight takes (a claim's arrival waiting for its surface, five
    * seconds at its bound — the bottle's `nobel-prize`, the first table the bare count named falsely).
+   *
+   * …AND ONLY WHILE A GATE STILL STANDS. A gate that never opens is, at every look, a gate that is closed NOW: a press
+   * swallowed by a gate that has opened since is the gate having done its work (the viewer's open and close flights —
+   * a third of a second each, with no node of their own in the graph: three of them over a quarter of a minute of one
+   * unchanged board were «three presses with no effect» on the gate's seed `fz0`, `backroom-deal`). The standing
+   * gates are part of the PICTURE too (`signature`): a gate closing or opening is the screen changing state.
    */
   let absorbedSeen = 0;
   let absorbedOverNothing = 0;
   function quietAbsorbed(): number {
     const now = inputEchoSnapshot().verbAbsorbed;
-    if (now > absorbedSeen && flightsInTheAir() === '') {
+    if (now > absorbedSeen && inputAbsorbSnapshot().active.length > 0 && flightsInTheAir() === '') {
       absorbedOverNothing += now - absorbedSeen;
     }
     absorbedSeen = now;
@@ -517,6 +524,9 @@ export function createSupervisorController(shell: SupervisorPort) {
       (document.querySelector('.con-cmdbar, .con-bar, [data-command-bar]')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
       focused === null ? '' : `${focused.className.toString().slice(0, 40)}:${(focused.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)}`,
       String(transport?.requestInProgress ?? false),
+      // …and the deliberate gates standing over the pad right now (`inputAbsorb.ts`): a gate that closes or opens is
+      // the screen changing state, whatever is painted (`quietAbsorbed` — a gate that never opens stands in every look).
+      inputAbsorbSnapshot().active.join(','),
     ].join('|');
     // …and a screen standing on a frame of a phase that is OVER serves nothing, whatever its own handlers take (the
     // Parliament field lock of 2026-11-06 read `accepting: true` for three minutes over the next action menu).
