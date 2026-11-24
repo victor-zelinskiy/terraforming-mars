@@ -144,6 +144,9 @@ describe('servingOwnerMeasure — the pad\'s rung against the function, counted'
     // The announce's bar is the section's bar plus ONE command.
     expect(barRungVerdict('announce', 'announce')).to.eq('bar-agree');
     expect(barRungVerdict('announce', 'section:board')).to.eq('bar-agree');
+    // The finale context without a pick: its bar is its own two commands, every other press is the section's.
+    expect(barRungVerdict('finale', 'section:board')).to.eq('bar-agree');
+    expect(barRungVerdict('finale', 'taskHost'), 'a prompt surface under the bar of the finale is still two copies apart').to.eq('bar-APART:finale>taskHost');
     // A view the press opened (or one with a strip of its own) · a beat that absorbed under a standing bar.
     expect(barRungVerdict('section:hand', 'zoom')).to.eq('bar-look:zoom');
     expect(barRungVerdict('start', 'info:open')).to.eq('bar-look:info:open');

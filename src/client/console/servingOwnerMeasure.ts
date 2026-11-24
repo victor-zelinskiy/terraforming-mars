@@ -271,7 +271,12 @@ export function barRungNow(): string {
 export function barRungVerdict(bar: string, pad: string): OwnerLookVerdict {
   // (THE ANNOUNCE's bar is the section's own bar plus ONE command — A opens the announced question; every other press
   // is the section's, as the bar says.)
-  if (bar === pad || (bar === 'announce' && pad.startsWith('section:'))) {
+  // (…and THE FINALE CONTEXT WITHOUT A PICK is the same shape — a greenery landing, another seat deciding: its bar
+  // is the context's own two commands, the finish and «Свернуть», and its rung takes exactly those and A; every
+  // other press is the section's by the rung's own word — «the player may look around inside the context»
+  // (`padRouterController`, PL-303). A d-pad step over the board under that bar is the pair the design makes: one
+  // press a pass of whole games read it as APART — CI's browser game 71 and the box's game 627, 2026-11-24.)
+  if (bar === pad || ((bar === 'announce' || bar === 'finale') && pad.startsWith('section:'))) {
     return 'bar-agree';
   }
   if (pad.endsWith(':open') || OWN_STRIP_RUNGS.has(pad)) {
