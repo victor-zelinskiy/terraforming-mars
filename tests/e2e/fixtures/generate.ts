@@ -805,6 +805,30 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   write('solo-actions', game);
 }
 
+// ── astra-mechanica-return: THE CARDS-RETURN BEAT (X51 Astra Mechanica — «return up to 2 of your played event
+//    cards to your hand»). The one scene of the played hero no walk had ever made (`scene:played-card-return`, the
+//    ledger of the unwalked — FREEZE ZERO, stage 4): a solo action phase, Teractor (no first action, nothing that
+//    answers a play), the card in hand with 60 M€ and TWO plain events on the table — Release of Inert Gases and
+//    Mining Expedition, neither a special tile nor one of the card's own three refusals. The engine's reading is
+//    asserted here: the card is playable and offers exactly those two. ──
+{
+  const {game, player} = soloActionPhase({promoCardsOption: true, customCorporationsList: [CardName.TERACTOR], startingCorporations: 1});
+  player.megaCredits = 60;
+  for (const name of [CardName.RELEASE_OF_INERT_GASES, CardName.MINING_EXPEDITION]) {
+    moveToDeckTop(game, name);
+    player.playedCards.push(game.projectDeck.drawPile.pop() as IProjectCard);
+  }
+  moveToDeckTop(game, CardName.ASTRA_MECHANICA);
+  const astra = game.projectDeck.drawPile.pop() as IProjectCard;
+  player.cardsInHand.push(astra);
+  runAllActions(game);
+  const events = player.playedCards.projects().filter((card) => card.type === CardType.EVENT).map(toName);
+  if (!player.canPlay(astra) || events.length !== 2) {
+    throw new Error(`the astra-mechanica-return fixture expected Astra Mechanica playable with two events on the table — got playable=${Boolean(player.canPlay(astra))} events=${events.join(',')}`);
+  }
+  write('astra-mechanica-return', game);
+}
+
 // ── rail-reward-action: a solo action phase with TWO plain resource-paying
 //    blue actions in the tableau — Electro Catapult (spend 1 plant / 1 steel
 //    → +7 M€: a STOCK reward with a choice) and Space Mirrors (7 M€ → +1

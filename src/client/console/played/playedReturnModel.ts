@@ -139,3 +139,23 @@ export function returnPoseRect(
   const height = naturalH * pose.scale;
   return {left: pose.x - width / 2, top: pose.y - height / 2, width, height};
 }
+
+/**
+ * WHERE THE RETURNED PACKET LIFTS FROM (pure). The rise + turn is the presentation of a packet that lay FACE-DOWN
+ * together — so it needs every returned card face-down and ONE departure:
+ *  · `pile`   — the events pile of the table, where the table stands open (the overlay host);
+ *  · `landed` — otherwise, the place of the card that brought them back, standing where its flight put it. A play
+ *    hosted by a WORKSPACE (the hand — every play since the workspace migration) opens no table at all: there is no
+ *    pile on screen, and with nothing to lift from the beat fell to the plain carry, whose cards have no source
+ *    either and simply appeared in the pack. The effect's result is born on the card that produced it — the same
+ *    causality as a reward wave rising off the card's own icons.
+ * `undefined` — a face-up card came back, or nothing stands to lift from: the plain carry.
+ * (Found by the first walk this beat ever had — `tests/e2e/console-astra-mechanica.spec.ts`, 2026-11-24: the hero
+ * went through «returning» and not one card rose.)
+ */
+export function returnDeparture<R>(cards: ReadonlyArray<ReturnedCard>, pile: R | undefined, landed: R | undefined): R | undefined {
+  if (cards.length === 0 || !cards.every((card) => card.faceDown)) {
+    return undefined;
+  }
+  return pile ?? landed;
+}

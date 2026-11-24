@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {
-  detectReturnedToHand, returnPoseSlots, returnPoseRect, ReturnDiffView,
+  detectReturnedToHand, returnDeparture, returnPoseSlots, returnPoseRect, ReturnDiffView,
 } from '@/client/console/played/playedReturnModel';
 import {
   stagePlayedCardReturns, abortPlayedCardReturns, resetPlayedCardReturns, hasPendingPlayedReturns,
@@ -69,6 +69,23 @@ describe('playedReturnModel · which cards came back', () => {
   it('nothing to diff (first response / spectator view) → no beat', () => {
     expect(detectReturnedToHand(undefined, view([], []), isEvent)).to.be.empty;
     expect(detectReturnedToHand({}, {}, isEvent)).to.be.empty;
+  });
+});
+
+describe('playedReturnModel · where the packet lifts from', () => {
+  const events = [{name: CardName.ASTEROID, faceDown: true}, {name: CardName.BIG_ASTEROID, faceDown: true}];
+  it('the events pile of an open table, when one stands', () => {
+    expect(returnDeparture(events, 'pile', 'landed')).to.eq('pile');
+  });
+  it('a play hosted by a workspace opens no table: the packet rises from the card that brought it back', () => {
+    expect(returnDeparture(events, undefined, 'landed')).to.eq('landed');
+  });
+  it('a face-up card among them has nothing to turn — the plain carry, wherever it lay', () => {
+    expect(returnDeparture([...events, {name: CardName.TREES, faceDown: false}], 'pile', 'landed')).to.eq(undefined);
+  });
+  it('nothing on screen to lift from, or nothing returned — no presentation', () => {
+    expect(returnDeparture(events, undefined, undefined)).to.eq(undefined);
+    expect(returnDeparture([], 'pile', 'landed')).to.eq(undefined);
   });
 });
 

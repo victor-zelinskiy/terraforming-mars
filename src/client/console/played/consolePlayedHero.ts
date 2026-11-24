@@ -2078,7 +2078,9 @@ export async function endPlayedHero(): Promise<void> {
     // dock. It runs INSIDE the still-open table (one continuous scene) and
     // the transaction finishes only after they have landed.
     playedHeroState.phase = 'returning';
-    await runPlayedCardReturns();
+    // (Where the played card stands NOW — the packet lifts from it when the play's host opened no table.)
+    const landed = peekTargetRect();
+    await runPlayedCardReturns(landed !== undefined ? {left: landed.x, top: landed.y, width: landed.w, height: landed.h} : undefined);
     if (!playedHeroState.active) {
       return;
     }

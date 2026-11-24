@@ -5,8 +5,6 @@
   "scene:hold:nomad-move-remote": "RARE — ANOTHER seat moves the Mars Nomads camp (two seats, the promo card owned by the other one). To walk: a duo table, the other seat moves the camp while the viewer watches.",
   "scene:hold:tender-bidding-reveal": "RARE — the campaign's «Тендеры»: the first mount of an unfinished bidding deal after a mission ends, with motion on. To walk: finish a campaign mission in the tenders mode.",
   "scene:nomad-move-remote": "RARE — the same remote move of the Mars Nomads camp as `scene:hold:nomad-move-remote`.",
-  "scene:played-card-return": "RARE — the viewer's own play returns tableau cards to the hand (Astra Mechanica returning played events). To walk: play Astra Mechanica with events on the table.",
-  "scene:played-card-return:flights": "RARE — the same return as `scene:played-card-return`, every returned card a face-down event with the events pile measured, motion on.",
   "scene:start-setup-reveal": "DEAD — `primeStartSetupReveal` has no caller left (the desktop start reveal). A deletion candidate.",
   "step:colony-resolution-release-owed": "FAILURE PATH — raised only when the release of a colony resolution's outcome is REFUSED at the resolution's end (`releaseWorkspaceOutcome('resolution-end')`).",
   "step:law-play-fold": "RARE — an action commit folds while a LAW's card is still landing (Turmoil Redux: a law that plays a project card from «Действия карт»). To walk: enact such a law and let the commit fold under the landing.",

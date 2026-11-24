@@ -48,7 +48,7 @@ import {
   runBonusFanOut, runBonusSingleFlight, BonusSceneHandle,
 } from '@/client/console/boardCardBonus/boardCardBonusDirector';
 import {
-  detectReturnedToHand, returnPoseSlots, returnPoseRect, ReturnedCard, ReturnDiffView,
+  detectReturnedToHand, returnDeparture, returnPoseSlots, returnPoseRect, ReturnedCard, ReturnDiffView,
   RETURN_READ_MS, RETURN_SAFETY_MS,
 } from '@/client/console/played/playedReturnModel';
 import {span} from '@/client/console/session/sessionWaits';
@@ -182,15 +182,17 @@ export function capturePlayedCardReturnSource(): void {
  * The beat itself (post-commit, inside the open table). Resolves when the
  * cards have LANDED in the dock — the hero closes the table after it.
  * NEVER rejects: every degradation still delivers the cards to the pack.
+ * `landed` — where the card that brought them back stands now (the hero's own landing place): the packet's departure
+ * when no table stands open to lift it from (`playedReturnModel.returnDeparture`).
  */
-export async function runPlayedCardReturns(): Promise<void> {
+export async function runPlayedCardReturns(landed?: RectLike): Promise<void> {
   const cards = pending;
   pending = [];
   if (cards.length === 0) {
     return;
   }
   try {
-    await withSafety(deliver(cards));
+    await withSafety(deliver(cards, landed));
   } finally {
     finishBeat();
   }
@@ -203,16 +205,16 @@ function plainCarry(cards: ReadonlyArray<ReturnedCard>): Promise<void> {
   return intake(cards, cards.map((c) => sources.get(c.name)));
 }
 
-async function deliver(cards: ReadonlyArray<ReturnedCard>): Promise<void> {
+async function deliver(cards: ReadonlyArray<ReturnedCard>, landed: RectLike | undefined): Promise<void> {
   // Reduced motion is its own axis: the intake degrades to an instant
   // release, so the cards simply appear in the pack.
   if (consoleReducedMotionActive()) {
     await plainCarry(cards);
     return;
   }
-  // No measurable pile (the table never opened / a face-up card came back):
+  // Nothing to lift the packet from (a face-up card came back; no pile and no landed card on screen):
   // skip the presentation, keep the acquisition.
-  const from = pileRect;
+  const from = returnDeparture(cards, pileRect, landed);
   if (from === undefined) {
     await plainCarry(cards);
     return;
