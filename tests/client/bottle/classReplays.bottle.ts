@@ -1123,4 +1123,66 @@ describe('THE CLASSES, REPLAYED — each cause class of the worklist, in the bot
     expect(live.liveness().why, 'the player can act').to.deep.equal([]);
     expect(classes()).to.deep.equal([]);
   });
+
+  /*
+   * THE AUTOPILOT, game 29 (stage 6, 2026-11-24) — `wait-graph/dangling/deferred:n`. The finale session keeps its own
+   * prompt from the gate while the player stands in it, so after a landing the NEXT greenery prompt has no beat — and
+   * «B Свернуть» gives it one, born by the press. That beat waited for the screen to fall quiet like an interruption
+   * from elsewhere (the camera landing back, a delivery into the hand, the feed's read) and, held, it took the minimized
+   * finale's own way back with it: a board with no plate at all, until the graph named the set-aside question dangling.
+   * A minimized finale's prompt is presented at birth — the plate is back with the press.
+   */
+  it('a finale minimized under its own prompt, after a landing: the plate is back with the press — nothing waits for the screen to fall quiet, nothing is filed', async () => {
+    const table = await bottleServer().bootFixture('two-player-finale-trigger');
+    bottle = await bootBottle(table);
+    const live = bottle;
+    const other = table.seats[1].id;
+    await live.advance(4_000);
+    const asked = () => bottleServer().seatTruth(live.seatId).waitingFor;
+    // The plate's A enters the finale: the pick is out on the board.
+    for (let i = 0; i < 6 && !/Select cell|Confirm placement/.test(live.bar()); i++) {
+      await live.press('Enter');
+      await live.advance(1_200);
+    }
+    expect(live.bar(), 'the finale stands: the pick is out').to.match(/Select cell/);
+    const first = bottleServer().seatTruth(live.seatId).promptId;
+    // A greenery: the cell under the cursor, confirmed — it lands, and the session takes the NEXT prompt by itself.
+    await live.press('Enter');
+    await live.advance(500);
+    expect(live.bar()).to.match(/Confirm placement/);
+    await live.press('Enter');
+    // THE CLASS's GROUND, PLANTED: a scene still plays when the next greenery is asked — in the game it was the bonus
+    // cards on their way into the hand. The session stands with the prompt asked and its pick NOT out yet.
+    const playing = live.pageModules.animationHold.beginAnimationHold('replay:a scene still playing', {maxHoldMs: 20_000, waitsFor: 'server'});
+    for (let i = 0; i < 8 && (asked() !== 'or' || bottleServer().seatTruth(live.seatId).promptId === first || !/Minimize/.test(live.bar())); i++) {
+      await live.advance(1_000);
+      // (Philares, the other seat, is handed a pick when the greenery lands beside its own — answered plainly.)
+      if (bottleServer().seatTruth(other).waitingFor !== undefined) {
+        await bottleServer().otherSeatMoves(other);
+      }
+    }
+    expect(asked(), 'the next greenery is asked').to.equal('or');
+    expect(bottleServer().seatTruth(live.seatId).promptId, '…a new prompt').to.not.equal(first);
+    expect(live.bar(), 'the session stands without its pick — B minimizes').to.match(/Finish your game.*Minimize/);
+    const plates = (): number => (globalThis as unknown as {window: {document: {querySelectorAll(q: string): {length: number}}}}).window.document.querySelectorAll('.con-mandatory').length;
+    // THE CLASS: B under the session's own prompt, on a screen that is not quiet.
+    await live.press('Escape');
+    await live.advance(400);
+    expect(live.bar(), 'the session is minimized').to.not.match(/Minimize/);
+    expect(plates(), 'the plate is on the board with the press — it does not wait for the scene').to.equal(1);
+    expect(live.bar(), '…and the bar offers its A').to.match(/Place a greenery/);
+    await live.advance(2_500);
+    expect(plates()).to.equal(1);
+    playing.release();
+    // …and it stands: nothing dangling, the arbiter content, nothing filed.
+    await live.advance(6_000);
+    expect(live.bar()).to.match(/Place a greenery/);
+    expect(live.liveness().why, 'the player can act').to.deep.equal([]);
+    expect(classes()).to.deep.equal([]);
+    // A on the plate: the session is back as it stood.
+    await live.press('Enter');
+    await live.advance(1_500);
+    expect(live.bar(), 'the finale is back').to.match(/Minimize/);
+    expect(classes()).to.deep.equal([]);
+  });
 });

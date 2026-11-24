@@ -380,8 +380,20 @@ export function createMandatoryController(shell: MandatoryPort) {
    * the final greenery). Deliberately NOT gated on the player's location:
    * the presentation moment is one; WHERE the player stands only decides
    * the FORM (the plate on the board home, the chip beacon elsewhere).
+   *
+   * A MINIMIZED FINALE's OWN PROMPT IS PRESENTED AT BIRTH. The session keeps its prompt from the gate while the
+   * player stands in it (`taskFor` above), so the beat of that prompt is born the moment the player presses «B
+   * Свернуть» — or when the prompt comes back to a session already minimized. Either way the player KNOWS it (they
+   * set it aside themselves — deferral is a presented state), and the minimized finale's plate is its only way back:
+   * a beat waiting here for the screen's quiet took the plate away for as long as the camera landed, the hand's
+   * delivery ran and the feed was read (FREEZE ZERO, the autopilot's game 29: a board with no «A Разместить
+   * озеленение» after B, the wait graph's `dangling/deferred` two seconds later). The plate still yields to the
+   * viewer's own full-bleed cinematics — `mandatoryAnnounceVisible`.
    */
   const mandatoryPresentationReady = computed((): boolean => {
+    if (mandatoryGateHeld.value && !isMandatoryBeatPresented(mandatoryBeat.value) && shell.finaleCollapsed) {
+      return true;
+    }
     return mandatoryGateHeld.value &&
       !isMandatoryBeatPresented(mandatoryBeat.value) &&
       notificationFeedReadForDecision() &&

@@ -68,7 +68,7 @@ import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/co
 import {stagedPlayState} from '@/client/console/stagedPlay';
 import {owedConclusions, reaskOwedConclusion, withdrawConclusionOwe} from '@/client/console/workspaceConclusionOwe';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
-import {takeUpQuestion} from '@/client/console/setAside';
+import {setAsideRecord, takeUpQuestion} from '@/client/console/setAside';
 import {flightsInTheAir} from '@/client/console/waitGraph/flightsInTheAir';
 import {inputAbsorbSnapshot} from '@/client/console/inputAbsorb';
 
@@ -952,12 +952,18 @@ export function createSupervisorController(shell: SupervisorPort) {
       });
     }
     // «SET ASIDE» — its way back is the restore card; with no card the wait points at nothing (dangling, A2).
+    // …or, for A MINIMIZED FINALE WHOSE OWN PROMPT IS ASKED, the plate of that prompt: the beat is born by the minimize
+    // itself (the session kept the prompt from the gate while the player stood in it), the plate carries the prompt's
+    // own words, and its A is the way back into the session (`openMandatoryAnnounce`) — the announce node above is
+    // where that wait stands. (The record says WHAT was set aside — no other deferral has a beat of its own question.)
     if (deferredId !== undefined) {
+      const finalePlate = !shell.mandatoryDeferredActive && announceId !== undefined && setAsideRecord()?.what === 'finale';
       out.push({
         id: deferredId, family: 'surface', owner: 'shell:deferred',
-        targets: shell.mandatoryDeferredActive ? [{kind: 'player', what: 'the restore card'}] : [{kind: 'node', id: 'surface:restore-card'}],
+        targets: shell.mandatoryDeferredActive ? [{kind: 'player', what: 'the restore card'}] :
+          finalePlate ? [{kind: 'node', id: announceId}] : [{kind: 'node', id: 'surface:restore-card'}],
         // No restore card (inventory A2) — the set-aside question has no way back: its door un-defers it and opens its surface.
-        ...(shell.mandatoryDeferredActive ? {} : {recovery: 'deferred-restore'}),
+        ...(shell.mandatoryDeferredActive || finalePlate ? {} : {recovery: 'deferred-restore'}),
       });
     }
     // THE STANDING FRAME — past its commit it waits for its ending, a transient beat for its motion; a reversible

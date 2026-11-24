@@ -37,13 +37,14 @@ import * as consoleWorkspaceStack from '@/client/console/consoleWorkspaceStack';
 import * as consoleStartState from '@/client/console/consoleStartState';
 import * as consoleWorkspaceOutcome from '@/client/console/consoleWorkspaceOutcome';
 import * as consoleDraftFlow from '@/client/console/draft/consoleDraftFlow';
+import * as animationHold from '@/client/components/presentation/animationHold';
 
 /**
  * The PAGE's own instances of the modules a replay reaches into (`classReplays.bottle.ts`). A bottle's page is a
  * fresh evaluation of its own bundle (`consoleBottle.ts` § a pristine page), so what a spec imports itself is the
  * SUITE's instance — never the one the page runs on. A replay that needs one more module names it here.
  */
-export const PAGE_MODULES = {vue, realtimeService, consoleTradeFleet, deferredViewRefresh, consoleWorkspaceStack, consoleStartState, consoleWorkspaceOutcome, consoleDraftFlow};
+export const PAGE_MODULES = {vue, realtimeService, consoleTradeFleet, deferredViewRefresh, consoleWorkspaceStack, consoleStartState, consoleWorkspaceOutcome, consoleDraftFlow, animationHold};
 
 export type PageBeat = {accepting: boolean, inFlight: ReadonlyArray<string>, frames: ReadonlyArray<string>, section: string, quietS: number, graph?: string};
 
