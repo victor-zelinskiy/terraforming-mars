@@ -285,6 +285,12 @@ describe('servingOwner — who serves the question: one total function', functio
     // (`routerController.questionFacts` — a resolution's draw with no embed target yet). Without it the function said
     // «the draw serves» for the whole walk: thirty-three presses of one whole game under `own:externalDraw` on the
     // Parliament's rung (the autopilot's passes, bottle and browser alike, 2026-11-24).
+    // …AND THE SITTING's OWN TILE waits behind its door to the board («К полю» — `parliamentPlacementDoorClosed`, the
+    // placement's second hold): the shell names it as the placement's block, and the board is held as said — whatever
+    // screen of the player's own stands over the sitting.
+    const behindTheDoor = servingOwnerOf({...QUIET, task: {kind: 'space'}, frames: ['parliament', 'colonies'], blocks: {placement: 'sitting-door'}});
+    expect(behindTheDoor).to.deep.include({owner: 'board', hold: {kind: 'admission', by: 'sitting-door'}});
+    expect(bandRungOf(behindTheDoor), 'the press is the player\'s, where they stand').to.eq('held:admission');
     const walking = {...QUIET, task: {kind: 'externalDraw'} as const, resolutionDraw: true, frames: ['parliament'] as const, claimHeld: true};
     expect(servingOwnerOf(walking)).to.deep.include({owner: 'external-draw', host: 'parliament', hold: {kind: 'claim', by: 'parliament'}});
     expect(bandRungOf(servingOwnerOf(walking)), 'the press is the player\'s — the sitting\'s section takes it').to.eq('held:claim');

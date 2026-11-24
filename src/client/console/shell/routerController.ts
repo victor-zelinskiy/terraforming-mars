@@ -154,6 +154,7 @@ export type RouterPort = {
   rollbackStdProjectFlow: UnwrapRef<StdProjectsController['rollbackStdProjectFlow']>,
   scaleBonusOwesStory: UnwrapRef<PlacementController['scaleBonusOwesStory']>,
   seatAwardFundingSurface(): void,
+  parliamentPlacementDoorClosed: UnwrapRef<ParliamentController['parliamentPlacementDoorClosed']>,
   sittingHostsVenusBonus: UnwrapRef<ParliamentController['sittingHostsVenusBonus']>,
   sittingRiseGatesPrompt: UnwrapRef<ParliamentController['sittingRiseGatesPrompt']>,
   startSceneServes: UnwrapRef<StartController['startSceneServes']>,
@@ -1036,6 +1037,14 @@ export function createRouterController(shell: RouterPort) {
       if (blocks.scaleBonus === '' && (blocks.host ?? '') !== '') {
         blocks.scaleBonus = blocks.host;
       }
+    }
+    // THE SITTING's DOOR TO THE BOARD (`parliamentPlacementDoorClosed` — the placement's OWN second hold, beside its
+    // admission: `placementController.placementHeld`): the law's tile of this seat waits behind the reward stage's
+    // «К полю» — the hexes dark, the stack standing. The function knew the admission's blocks alone and said «the
+    // board serves» of a tile nobody could place yet (`MISS · held:sitting`, the whole games of 2026-11-24 — the
+    // player in a screen of their own over the sitting, nineteen looks of one game).
+    if (task?.kind === 'space' && (blocks.placement ?? '') === '' && shell.parliamentPlacementDoorClosed) {
+      blocks.placement = 'sitting-door';
     }
     return {
       effectDecision: rawEffectDecisionVm.value !== undefined,
