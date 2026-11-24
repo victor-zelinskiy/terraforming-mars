@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {
-  boardTakeableFromStack, enterWorkspace, hostCarriesPlayersLook, pushWorkspaceFrame, pushWouldNestInItself, resetWorkspaceStack, setWorkspaceFramePhase,
+  boardTakeableFromStack, collapseWorkspaceStack, enterWorkspace, hostCarriesPlayersLook, pushWorkspaceFrame, pushWouldNestInItself, resetWorkspaceStack,
+  resumeStackFromBoard, setWorkspaceFramePhase, workspaceReturnsFromBoard, yieldStackToBoard,
 } from '@/client/console/consoleWorkspaceStack';
 
 /*
@@ -109,5 +110,29 @@ describe('pushWouldNestInItself', () => {
   it('the kind on top of the stack is itself the answer — a push there is a re-entry, asked elsewhere', () => {
     enterWorkspace('parliament', {anchor: {type: 'always'}});
     expect(pushWouldNestInItself('parliament')).is.true;
+  });
+});
+
+/*
+ * THE LATERAL DOOR's QUESTION (the one-owner law's EXTRA — finding #138, 2026-11-25): a workspace standing ASIDE FOR THE
+ * BOARD is the same workspace mid-step — entering its kind again stands a second instance beside the one coming back.
+ */
+describe('workspaceReturnsFromBoard', () => {
+  afterEach(() => resetWorkspaceStack());
+
+  it('a sitting aside for the board returns by itself — its kind is not to be entered again; back on stage, the question is over', () => {
+    enterWorkspace('parliament', {anchor: {type: 'always'}});
+    expect(workspaceReturnsFromBoard('parliament'), 'on stage: nothing is coming back').is.false;
+    expect(yieldStackToBoard(), 'the Parliament steps aside for the board').is.true;
+    expect(workspaceReturnsFromBoard('parliament')).is.true;
+    expect(workspaceReturnsFromBoard('colonies'), 'another kind is free to open').is.false;
+    expect(resumeStackFromBoard()).is.true;
+    expect(workspaceReturnsFromBoard('parliament')).is.false;
+  });
+
+  it('a PARKED workspace is not this: a fresh instance beside the park is the wheel\'s own law', () => {
+    enterWorkspace('card-actions');
+    collapseWorkspaceStack();
+    expect(workspaceReturnsFromBoard('card-actions')).is.false;
   });
 });

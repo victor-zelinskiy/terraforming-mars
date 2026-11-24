@@ -2102,7 +2102,11 @@ stopped by a class that is closed now, and each record read with «what did the 
   (`hurriedBeatPromiseGuard.spec.ts`) holds that no promise awaits a bare hurried beat — the class had exactly those
   two members. **#138, game 64 — the one-owner law, EXTRA:** a Parliament frame live while the stack that stepped
   aside for the board still held one serving the same question, for about a second under an open wheel; it resolved
-  by itself, nothing was doubled on screen; which door stood the live frame up is NOT yet named — open. **#113,
+  by itself, nothing was doubled on screen. ONE door that makes that very state was found by reading and walked:
+  «Парламент» on the RT wheel while the sitting stands aside for the winner's tile — `enterOrRestoreWorkspace` asked
+  the plate and the park and not the third home (`boardYielded`), and stood a SECOND sitting up over the placement
+  (`console-parliament-aside-door.spec.ts` on `parliament-aquifer-enact`, red without the fix). Game 64 itself pressed
+  no direction on the wheel — its door is NOT yet named, the finding stays open for it. **#113,
   game 71 — a new pair, `bar-APART:quick>finale`** (one press with the wheel open over the finale's context) — open.
 - **«PER MAP SET», COUNTED.** The pilot's tables are spread over eleven boards; the box's passes so far hold 13 – 35
   games a board (295 in all, on five builds). A hundred on EVERY board is ≈ 1 100 games — nights of the box, not one:

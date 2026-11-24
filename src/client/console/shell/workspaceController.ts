@@ -11,7 +11,7 @@ import {consoleCardActionsUi, resetCardActionsFilter} from '@/client/console/con
 import {terraformedSceneState} from '@/client/console/terraformedScene/terraformedScene';
 import {ConsoleSheetRow} from '@/client/components/console/consoleSheetTypes';
 import {maFocusState} from '@/client/console/consoleMaFocus';
-import {collapseWorkspaceStack, workspaceKindSpec, enterWorkspace, leaveWorkspace, pushWorkspaceFrame, workspaceFrameIndex, workspaceFrameRenders, workspaceFrameKnown, workspaceFrameParked, workspaceStackCollapsed, workspaceStackState, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {collapseWorkspaceStack, workspaceKindSpec, enterWorkspace, leaveWorkspace, pushWorkspaceFrame, workspaceFrameIndex, workspaceFrameRenders, workspaceFrameKnown, workspaceFrameParked, workspaceReturnsFromBoard, workspaceStackCollapsed, workspaceStackState, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {resetStdProjectsFlow} from '@/client/console/consoleStdProjects';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
 import {isHandRevealEpisodeRunning} from '@/client/console/handDock/handRevealDirector';
@@ -327,6 +327,19 @@ export function createWorkspaceController(shell: WorkspacePort) {
       return false;
     }
     if (workspaceKindSpec(kind).parkOwnsFlow === true && restoreParkedWorkspace(kind)) {
+      return false;
+    }
+    // …AND THE THIRD HOME: the workspace stands ASIDE FOR THE BOARD (`yieldStackToBoard` — a sitting whose tile is
+    // being placed, or whose landing is being told). It is the same workspace, mid-step, and it comes back by itself
+    // at the same depth when the board's business ends; the door asked the plate and the park and not this store, so
+    // «Парламент» from the wheel stood a SECOND sitting up beside the one that was coming back — a live frame and a
+    // frame aside serving one question (the one-owner law's EXTRA, the autopilot's game 64 — finding #138; walked on
+    // `parliament-aquifer-enact`: RT → «Парламент» over the winner's ocean). You cannot be inside the same workspace
+    // twice: the press says the one reason the game will not move from here, and nothing is stood up.
+    if (workspaceReturnsFromBoard(kind)) {
+      if (shell.actionBlockedReason !== '') {
+        shell.showNotice(shell.actionBlockedReason);
+      }
       return false;
     }
     shell.deferShellTask(kind);

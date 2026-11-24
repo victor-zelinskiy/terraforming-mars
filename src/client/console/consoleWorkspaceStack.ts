@@ -1995,6 +1995,17 @@ export function questionSetAside(kind: TaskKind | undefined): boolean {
     parked.serves.includes(kind) && !workspaceStackState.frames.some((live) => live.kind === parked.kind));
 }
 
+/**
+ * THE LATERAL DOOR's question — would entering a workspace of this kind stand a SECOND instance beside one that is
+ * coming back? A frame ASIDE FOR THE BOARD (`yieldStackToBoard`) is the same workspace mid-step: it returns by itself,
+ * at the same depth, when the board's business ends. The wheel's door asked the flow's plate and the park and not this
+ * home, and «Парламент» stood a second sitting up over the winner's tile (the one-owner law's EXTRA — finding #138).
+ * (A PARKED frame is not this: a fresh instance beside the park is the wheel's own law — «посмотреть».)
+ */
+export function workspaceReturnsFromBoard(kind: WorkspaceFrameKind): boolean {
+  return workspaceFrameYielded(kind);
+}
+
 /** Its frame stands on the live stack and nothing hides it — the rising edge is the frame's RETURN. */
 export function workspaceSceneOnStage(kind: WorkspaceFrameKind): boolean {
   return workspaceFrameIndex(kind) !== -1 && !workspaceSceneHidden(kind);
