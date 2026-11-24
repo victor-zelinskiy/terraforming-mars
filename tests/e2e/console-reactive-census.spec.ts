@@ -68,8 +68,9 @@ async function playGenerationsOverApi(request: APIRequestContext, viewer: string
 /**
  * THE TOUR — every stop a surface opened from the board home and closed again; nothing on it answers the server: A is
  * pressed ONCE on a wheel's centre or on a browse grid (it opens a stage — a composer, a focus, a legend, a vote —
- * whose own confirm would be a SECOND A), never on a confirmation. The report holds the proof: the server's question
- * has the same number before the first tour and after the last.
+ * whose own confirm would be a SECOND A), never on a confirmation — and never on a standard project (one with no
+ * target is BOUGHT by its A). The proof is asserted: the server's question has the same number before the first tour
+ * and after the last; a tour that moved the game measured the game's growth, not a leak.
  */
 const TOUR: ReadonlyArray<{stop: string, keys: ReadonlyArray<string>}> = [
   {stop: 'the hand + a card inspected', keys: ['Period', 'Enter', 'KeyX', 'Escape', 'ArrowRight', 'ArrowLeft']},
@@ -78,7 +79,7 @@ const TOUR: ReadonlyArray<{stop: string, keys: ReadonlyArray<string>}> = [
   {stop: 'the action wheel · left', keys: ['Period', 'ArrowLeft', 'ArrowDown', 'ArrowUp']},
   {stop: 'the action wheel · up (the card actions) → the setup of an action', keys: ['Period', 'ArrowUp', 'Enter', 'ArrowDown', 'Escape']},
   {stop: 'the action wheel · down (the Parliament) → a stage of it', keys: ['Period', 'ArrowDown', 'Enter', 'ArrowRight', 'Escape']},
-  {stop: 'the standard projects → the step of a project', keys: ['Comma', 'Enter', 'ArrowDown', 'Enter', 'ArrowDown', 'Escape']},
+  {stop: 'the standard projects → the step of a project', keys: ['Comma', 'Enter', 'ArrowDown', 'ArrowDown', 'ArrowUp', 'Escape']},
   {stop: 'the basic wheel · up', keys: ['Comma', 'ArrowUp', 'ArrowRight', 'ArrowLeft']},
   {stop: 'the basic wheel · down (the confirmation of the pass — B)', keys: ['Comma', 'ArrowDown', 'ArrowRight', 'ArrowLeft']},
   {stop: 'the milestones → a legend', keys: ['KeyQ', 'Enter', 'ArrowDown', 'Escape']},
@@ -155,6 +156,8 @@ test.describe('WHICH COMPUTEDS STAY ALIVE WITH USE', () => {
       await tour(false);
     }
     const after = await read();
+    const askedAfter = await asked();
+    expect(askedAfter, 'the tour answers nothing — a tour that moved the game measures the game, not a leak').toBe(askedBefore);
     const detached = await detachedCensus(cdp);
 
     const report = [
@@ -162,7 +165,7 @@ test.describe('WHICH COMPUTEDS STAY ALIVE WITH USE', () => {
       `computeds ${before.computeds} → ${after.computeds} (${after.computeds - before.computeds >= 0 ? '+' : ''}${after.computeds - before.computeds}) · effects ${before.effects} → ${after.effects} (${after.effects - before.effects >= 0 ? '+' : ''}${after.effects - before.effects})`,
       `unwatched computeds holding dependencies: ${[...before.unwatched.values()].reduce((a, b) => a + b, 0)} → ${[...after.unwatched.values()].reduce((a, b) => a + b, 0)} in ${after.unwatched.size} getter(s)`,
       `detached trees at the end: ${detached.roots} tree(s), ${detached.nodes} node(s): ${detached.top}`,
-      `THE TOUR ANSWERED NOTHING: the server asked «${askedBefore}» before the first tour and asks «${await asked()}» after the last`,
+      `THE TOUR ANSWERED NOTHING: the server asked «${askedBefore}» before the first tour and asks «${askedAfter}» after the last`,
       'WHERE THE TOUR STOOD (the bar after every key of the first tour):',
       ...stops,
       'THE GETTERS WHOSE UNWATCHED COMPUTEDS GREW (a visit leaves them behind):',

@@ -511,10 +511,17 @@ const voteInFlight = computed((): boolean => {
 const supportInFlight = computed((): boolean => {
   return parliamentSupportInFlight();
 });
-/** A nested frame (the action workspace) took the scene — this screen yields and waits. */
-const sceneHandedOver = computed((): boolean => {
+/**
+ * A nested frame (the action workspace) took the scene — this screen yields and waits.
+ * A FUNCTION, never a computed: only a PRESS reads it (plain script — no effect, no scope), and in Vue 3.6 a computed
+ * read that way stays subscribed to its dependencies for good — every visit left its whole tree behind (the reactive
+ * census of 2026-11-24, `tests/e2e/console-reactive-census.spec.ts`).
+ * Here: the workspace stack's module state kept every vote mode that was ever opened, and with it the whole
+ * Parliament section — `section.con-parl` ×5 detached, 9 612 nodes after five visits.
+ */
+function sceneHandedOver(): boolean {
   return workspaceFrameHasNested('parliament');
-});
+}
 /**
  * THE DELEGATES THIS PRESS SENDS: one for the vote; a GRANT's count while
  * its prompt stands, and — past the submit, when that prompt is gone — the
@@ -1057,7 +1064,7 @@ function closeVote(): void {
   confirmOwed.value = undefined;
   foldWorkspaceFrame();
   setWorkspaceFramePhase('parliament', 'browse');
-  if (root === undefined || sceneHandedOver.value) {
+  if (root === undefined || sceneHandedOver()) {
     f.stage = 'browse';
     restoreParliamentBody(root);
     return;
@@ -1925,7 +1932,7 @@ function accessReturn(): void {
       accessFly();
     }
   };
-  if (root === undefined || sceneHandedOver.value) {
+  if (root === undefined || sceneHandedOver()) {
     f.stage = 'access';
     restoreParliamentBody(root);
     void nextTick(fly);

@@ -2221,12 +2221,18 @@ const ctaPressMeaningful = computed((): boolean => {
   return commitReady.value || payExpanded.value ||
     (primaryActionState.value.kind === 'blocked-payment' && payEditorAvailable.value);
 });
-/** The last cursor stop — the commit row drops out only when a real ROW is
- *  waiting for the player (the gate's `incomplete` / `stale`). */
-const navMaxIndex = computed((): number => {
+/**
+ * The last cursor stop — the commit row drops out only when a real ROW is waiting for the player (the gate's
+ * `incomplete` / `stale`).
+ * A FUNCTION, never a computed: only a PRESS reads it (plain script — no effect, no scope), and in Vue 3.6 a computed
+ * read that way stays subscribed to its dependencies for good — every visit left its whole tree behind (the reactive
+ * census of 2026-11-24, `tests/e2e/console-reactive-census.spec.ts`).
+ * Here: `div.con-composer` detached at every play sheet opened.
+ */
+function navMaxIndex(): number {
   const last = rows.value.length - 1;
   return commitAcceptsCursor(commitGate.value) ? last : Math.max(0, Math.min(last, ctaIndex.value - 1));
-});
+}
 const ctaFocused = computed((): boolean => {
   return focusedRow.value?.kind === 'cta';
 });
@@ -4173,7 +4179,7 @@ function onNav(dir: NavDirection): void {
     focusIdx: focusIdx.value,
     variantIdx: variantRows.value.map((r) => r.i),
     returnIdx: variantReturnIdx.value,
-    navMaxIndex: navMaxIndex.value,
+    navMaxIndex: navMaxIndex(),
     rows: variantGridRows.value,
   });
   if (grouped !== undefined) {
@@ -4192,10 +4198,10 @@ function onNav(dir: NavDirection): void {
     // A table question WAITING for the one above it is no stop (nothing to do there yet) — the walk steps over it.
     const step = dir === 'down' ? 1 : -1;
     let next = focusIdx.value + step;
-    while (next >= 0 && next <= navMaxIndex.value && !rowFocusable(rows.value[next])) {
+    while (next >= 0 && next <= navMaxIndex() && !rowFocusable(rows.value[next])) {
       next += step;
     }
-    if (next >= 0 && next <= navMaxIndex.value) {
+    if (next >= 0 && next <= navMaxIndex()) {
       focusIdx.value = next;
     }
     scrollFocused();

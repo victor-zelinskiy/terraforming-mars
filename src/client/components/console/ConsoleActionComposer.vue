@@ -3605,12 +3605,17 @@ const deltaEntryOffer = computed((): DeltaAdvanceOffer | undefined => {
 const ctaIndex = computed((): number => {
   return navItems.value.length;
 });
-/** The last cursor stop. The commit row DROPS OUT of the ring while a
- *  requirement is waiting — that is what keeps focus off a row whose A
- *  would do nothing. */
-const navMaxIndex = computed((): number => {
+/**
+ * The last cursor stop. The commit row DROPS OUT of the ring while a requirement is waiting — that is what keeps
+ * focus off a row whose A would do nothing.
+ * A FUNCTION, never a computed: only a PRESS reads it (plain script — no effect, no scope), and in Vue 3.6 a computed
+ * read that way stays subscribed to its dependencies for good — every visit left its whole tree behind (the reactive
+ * census of 2026-11-24, `tests/e2e/console-reactive-census.spec.ts`).
+ * Here: the composer and the card actions' section detached at every setup opened.
+ */
+function navMaxIndex(): number {
   return commitAcceptsCursor(commitGate.value) ? ctaIndex.value : Math.max(0, ctaIndex.value - 1);
-});
+}
 const ctaFocused = computed((): boolean => {
   return sub.value === undefined && focusIdx.value >= ctaIndex.value;
 });
@@ -4797,7 +4802,7 @@ function onNav(dir: NavDirection): void {
   }
   const inGroup = variantGroupNav({
     dir, axis: branchAxis.value, focusIdx: focusIdx.value, variantIdx: branchNavIndices.value,
-    returnIdx: branchReturnIdx.value, navMaxIndex: navMaxIndex.value, rows: branchGridRows.value,
+    returnIdx: branchReturnIdx.value, navMaxIndex: navMaxIndex(), rows: branchGridRows.value,
   });
   if (inGroup !== undefined) {
     focusIdx.value = inGroup;
@@ -4807,7 +4812,7 @@ function onNav(dir: NavDirection): void {
   if (dir === 'up' || dir === 'down') {
     // The walk ends at the COMMIT row only while the commit can actually
     // run — a row that would refuse A is not a place the cursor may stop.
-    focusIdx.value = Math.min(navMaxIndex.value, Math.max(0, focusIdx.value + (dir === 'up' ? -1 : 1)));
+    focusIdx.value = Math.min(navMaxIndex(), Math.max(0, focusIdx.value + (dir === 'up' ? -1 : 1)));
     scrollFocused();
     return;
   }
