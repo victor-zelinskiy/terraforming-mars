@@ -2401,6 +2401,8 @@ type WirePrompt = {
   coloniesModel?: Array<{name: string}>,
   parties?: Array<string>,
   include?: Array<string>,
+  /** A production to lose (`SelectProductionToLoseModel`): how many steps, and what the seat produces. */
+  payProduction?: {cost: number, units: Record<string, number>},
   startGamePrompt?: {kind: string},
 };
 
@@ -2686,8 +2688,21 @@ export function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
     return {type: 'resource', resource: (prompt.include ?? ['megacredits'])[0]};
   case 'resources':
     return {type: 'resources', units: {megacredits: prompt.count ?? 0, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0}};
-  case 'productionToLose':
-    return {type: 'productionToLose', units: {megacredits: 0, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0}};
+  case 'productionToLose': {
+    // THE STEPS ASKED, taken where the seat has them (M€ production may fall to −5 — `Production.canAdjust`): an
+    // all-zero answer is refused whenever a step is owed («Select 1 steps of production» — the whole game 103 of
+    // the box's autopilot never began: a prelude of its opening asked for one).
+    const units: Record<string, number> = {megacredits: 0, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0};
+    const have = prompt.payProduction?.units ?? {};
+    let owed = prompt.payProduction?.cost ?? 0;
+    for (const key of ['megacredits', 'heat', 'energy', 'plants', 'steel', 'titanium']) {
+      const take = Math.max(0, Math.min(owed, (have[key] ?? 0) + (key === 'megacredits' ? 5 : 0)));
+      units[key] = take;
+      owed -= take;
+    }
+    expect(owed, `a production loss the seat cannot pay: ${describePrompt(prompt)}`).toBe(0);
+    return {type: 'productionToLose', units};
+  }
   default:
     // NAME what it could not answer. A seeder that silently guesses is worse
     // than one that stops: the spec would fail somewhere else entirely.
