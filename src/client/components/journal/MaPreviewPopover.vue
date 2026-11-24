@@ -3,6 +3,7 @@
     <Transition name="journal-preview">
       <div
         v-if="visible && name !== ''"
+        ref="box"
         class="journal-ma-preview"
         :class="'journal-ma-preview--' + kind"
         :style="positionStyle"
@@ -27,8 +28,9 @@
 </template>
 
 <script setup vapor lang="ts">
-import {computed, PropType} from 'vue';
+import {computed, PropType, useTemplateRef} from 'vue';
 import {MilestoneName} from '@/common/ma/MilestoneName';
+import {useMeasuredPreviewStyle} from '@/client/components/journal/previewPlacement';
 import {AwardName} from '@/common/ma/AwardName';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
@@ -39,12 +41,12 @@ import {vI18n} from '@/client/directives/vDirectives';
  * Hover preview for a MILESTONE / AWARD token (journal feed / notifications) —
  * the name + its rule description (the same text the Milestones / Awards overlay
  * floating tooltip shows), pulled from the static manifest. Teleported,
- * `pointer-events: none`, mirrors the card/colony preview positioning.
+ * `pointer-events: none`; placed beside its token by its MEASURED box (`previewPlacement.ts` — the width is this
+ * popover's own, the height is whatever the rule's text takes).
  */
 const PREVIEW_WIDTH = 300;
-const APPROX_HEIGHT = 132;
-const GAP = 14;
-const VIEWPORT_MARGIN = 8;
+/** The guess of the one unpainted pass before the measure. */
+const GUESS = {width: PREVIEW_WIDTH, height: 132};
 
 defineOptions({name: 'MaPreviewPopover'});
 const props = defineProps({
@@ -86,20 +88,9 @@ const art = computed((): string => {
   }
   return maArtUrl(props.name as string);
 });
+const box = useTemplateRef<HTMLElement>('box');
+const placed = useMeasuredPreviewStyle(box, () => props.visible && props.name !== '', () => props.anchor, GUESS);
 const positionStyle = computed((): Record<string, string> => {
-  const a = props.anchor;
-  if (a === undefined) {
-    return {display: 'none'};
-  }
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  let left = a.left - GAP - PREVIEW_WIDTH;
-  if (left < VIEWPORT_MARGIN) {
-    left = a.right + GAP;
-  }
-  left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
-  let top = a.top + a.height / 2 - APPROX_HEIGHT / 2;
-  top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - APPROX_HEIGHT - VIEWPORT_MARGIN));
-  return {left: `${Math.round(left)}px`, top: `${Math.round(top)}px`, width: `${PREVIEW_WIDTH}px`};
+  return placed.value.display === 'none' ? placed.value : {...placed.value, width: `${PREVIEW_WIDTH}px`};
 });
 </script>

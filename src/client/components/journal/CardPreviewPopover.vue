@@ -7,7 +7,7 @@
         :style="positionStyle"
         role="tooltip"
         aria-hidden="true">
-        <div class="journal-card-preview__inner">
+        <div ref="box" class="journal-card-preview__inner">
           <Card :card="resolvedCard" />
         </div>
       </div>
@@ -16,8 +16,9 @@
 </template>
 
 <script setup vapor lang="ts">
-import {computed, PropType} from 'vue';
+import {computed, PropType, useTemplateRef} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {useMeasuredPreviewStyle} from '@/client/components/journal/previewPlacement';
 import {CardModel} from '@/common/models/CardModel';
 import Card from '@/client/components/card/CardFace.vue';
 import {withLiveResources} from '@/client/components/card/liveCardResources';
@@ -42,12 +43,9 @@ import {withLiveResources} from '@/client/components/card/liveCardResources';
  * and other static-name callers can omit `card` and rely on `name` alone.
  */
 
-// Approximate rendered size of the scaled-down preview card. Used only
-// for positioning math; the real card sizes itself.
-const PREVIEW_WIDTH = 240;
-const PREVIEW_HEIGHT = 336;
-const GAP = 14;
-const VIEWPORT_MARGIN = 8;
+// The guess of the one unpainted pass before the measure: the preview is placed by the box its scaled-down card
+// REALLY has (`previewPlacement.ts` — the inner node's on-screen rect, its scale included).
+const GUESS = {width: 240, height: 336};
 
 defineOptions({name: 'CardPreviewPopover'});
 const props = defineProps({
@@ -78,30 +76,6 @@ const resolvedCard = computed((): CardModel => {
   // journal builds {name}); a caller-supplied live card keeps its own value.
   return withLiveResources(props.card ?? ({name: props.name} as CardModel));
 });
-const positionStyle = computed((): Record<string, string> => {
-  const a = props.anchor;
-  if (a === undefined) {
-    return {display: 'none'};
-  }
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
-  // Horizontal: prefer left of the token.
-  let left = a.left - GAP - PREVIEW_WIDTH;
-  if (left < VIEWPORT_MARGIN) {
-    // Not enough room on the left — flip to the right of the token.
-    left = a.right + GAP;
-  }
-  // Final clamp so we never spill off either edge.
-  left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
-
-  // Vertical: centre on the token, then clamp into the viewport.
-  let top = a.top + a.height / 2 - PREVIEW_HEIGHT / 2;
-  top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - PREVIEW_HEIGHT - VIEWPORT_MARGIN));
-
-  return {
-    left: `${Math.round(left)}px`,
-    top: `${Math.round(top)}px`,
-  };
-});
+const box = useTemplateRef<HTMLElement>('box');
+const positionStyle = useMeasuredPreviewStyle(box, () => props.visible, () => props.anchor, GUESS);
 </script>

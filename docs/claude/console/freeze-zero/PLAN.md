@@ -2138,6 +2138,16 @@ stopped by a class that is closed now, and each record read with «what did the 
   renewal discards a moment later — they go home, and the vote stage's forecast («побеждает», «эффект ваш») reads as
   if the vote were still open. The server asks by the rules as written (a placement can still feed a quest or a card's
   reaction), so nothing was changed there.
+- **THE THIRD, WALKED — ALIVE AND IN THE WRONG PLACE.** The journal's three chips under a POINTER (a played card, a
+  colony, an award — armed by a hover or a click, which the pad never makes: `console-journal-chips.spec.ts`, fixture
+  `journal-chips`). The flows ran; the colony's preview stood a hundred and fifty pixels ABOVE the name it explained,
+  over an unrelated line, and a card's three gaps from its name: every popover placed itself by «the approximate
+  rendered size», two constants its content had outgrown (286 × 360 for a tile that renders 155 × 118). The size is
+  measured now (`components/journal/previewPlacement.ts` — laid out once hidden, measured in the same flush, shown
+  where its own box says); the spec reads the place at rest — a gap from its chip, centred on its line, inside the
+  screen — red on the build without the fix, green with it. Three more flows off the ledger (30 on it). The standard
+  project's and the Hydronetwork's popovers still place by constants (theirs fit — a fixed width, a short text); they
+  are the same class and want the same walk.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

@@ -865,6 +865,49 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   write('nomads-remote-move', game);
 }
 
+// ── journal-chips: THE JOURNAL's THREE NAMED-OBJECT CHIPS UNDER A POINTER (`JournalCardChip` · `JournalColonyChip` ·
+//    `JournalMaChip` — `surface:journal-card-chip` / `-colony-chip` / `-ma-chip`, the ledger of the unwalked, FREEZE
+//    ZERO stage 4: armed by a pointer hover or a click, which the pad never makes — so no walk of the monkey, no whole
+//    game of the autopilot and no spec had ever run them). A table of two human seats (the awards are real) with the
+//    colonies: blue has PLAYED a card, BUILT a colony and FUNDED an award through the engine's own calls, so the
+//    journal of generation 1 holds a line with each chip; blue stands on its action menu. ──
+{
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, customCorporationsList: [CardName.TERACTOR, CardName.CREDICOR], startingCorporations: 1,
+  });
+  answerStartFlow(game, [blue, red]);
+  blue.pendingInitialActions = [];
+  red.pendingInitialActions = [];
+  blue.megaCredits = 80;
+  if (game.activePlayer.id !== blue.id) {
+    throw new Error('the journal-chips fixture expected blue to open the generation');
+  }
+  moveToDeckTop(game, CardName.MINE);
+  blue.playCard(game.projectDeck.drawPile.pop() as IProjectCard);
+  runAllActions(game);
+  const open = game.colonies.find((colony) => colony.isActive && colony.colonies.length === 0);
+  if (open === undefined) {
+    throw new Error('the journal-chips fixture found no open colony tile');
+  }
+  open.addColony(blue);
+  runAllActions(game);
+  game.fundAward(blue, game.awards[0]);
+  runAllActions(game);
+  // The menu standing was built before any of it: build it again, on the table as it is now.
+  blue.popWaitingFor();
+  blue.takeAction();
+  runAllActions(game);
+  const said = game.gameLog.map((line) => line.message).join(' | ');
+  const menu = blue.getWaitingFor();
+  if (!(menu instanceof OrOptions) || !/built a colony on/.test(said) || !/funded \$\{1\} award/.test(said) || !/played/.test(said)) {
+    throw new Error(`the journal-chips fixture expected blue on its menu and a journal with a played card, a colony and an award — got menu=${menu?.constructor.name} log=${said.slice(-400)}`);
+  }
+  for (const [i, seat] of game.players.entries()) {
+    seat.name = `seat${i + 1}`;
+  }
+  write('journal-chips', game);
+}
+
 // ── rail-reward-action: a solo action phase with TWO plain resource-paying
 //    blue actions in the tableau — Electro Catapult (spend 1 plant / 1 steel
 //    → +7 M€: a STOCK reward with a choice) and Space Mirrors (7 M€ → +1

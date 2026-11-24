@@ -3,6 +3,7 @@
     <Transition name="journal-preview">
       <div
         v-if="visible && name !== undefined"
+        ref="box"
         class="journal-colony-preview"
         :style="positionStyle"
         role="tooltip"
@@ -14,8 +15,9 @@
 </template>
 
 <script setup vapor lang="ts">
-import {computed, PropType} from 'vue';
+import {computed, PropType, useTemplateRef} from 'vue';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {useMeasuredPreviewStyle} from '@/client/components/journal/previewPlacement';
 import {ColonyModel, simpleColonyModel} from '@/common/models/ColonyModel';
 import ColonyTile from '@/client/components/colonies/ColonyTile.vue';
 
@@ -25,12 +27,11 @@ import ColonyTile from '@/client/components/colonies/ColonyTile.vue';
  * trade / build / colony bonuses), reusing the overlay's `ColonyTile`. Teleported
  * to body (floats above the feed clipping), `pointer-events: none` (never steals
  * hover from the token), and the tile's SELECT footer is hidden via CSS so it
- * reads as a pure preview. Mirrors `CardPreviewPopover`'s smart positioning.
+ * reads as a pure preview. Placed beside its token by its MEASURED box (`previewPlacement.ts` — the tile sizes to
+ * its content, and the constants that once assumed 286 × 360 put it 150 px above the name it explained).
  */
-const PREVIEW_WIDTH = 286;
-const PREVIEW_HEIGHT = 360;
-const GAP = 14;
-const VIEWPORT_MARGIN = 8;
+/** The guess of the one unpainted pass before the measure. */
+const GUESS = {width: 180, height: 140};
 
 defineOptions({name: 'ColonyPreviewPopover'});
 const props = defineProps({
@@ -52,20 +53,6 @@ const colonyModel = computed((): ColonyModel => {
   // A static preview: the colony at track position 0, no fleet / owners.
   return simpleColonyModel(props.name as ColonyName);
 });
-const positionStyle = computed((): Record<string, string> => {
-  const a = props.anchor;
-  if (a === undefined) {
-    return {display: 'none'};
-  }
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  let left = a.left - GAP - PREVIEW_WIDTH;
-  if (left < VIEWPORT_MARGIN) {
-    left = a.right + GAP;
-  }
-  left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
-  let top = a.top + a.height / 2 - PREVIEW_HEIGHT / 2;
-  top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - PREVIEW_HEIGHT - VIEWPORT_MARGIN));
-  return {left: `${Math.round(left)}px`, top: `${Math.round(top)}px`};
-});
+const box = useTemplateRef<HTMLElement>('box');
+const positionStyle = useMeasuredPreviewStyle(box, () => props.visible && props.name !== undefined, () => props.anchor, GUESS);
 </script>
