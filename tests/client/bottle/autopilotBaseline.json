@@ -37,6 +37,12 @@
       "games": 1,
       "first": "ap0:25",
       "why": "the park's drain waits for flights between measured cells; with no layout it is still owed past its bound (see `presentation-ledger/story-due/board-beat-park`). NOT THERE in a browser: the box's 48 whole games of 2026-11-24 (builds c378f0de10 … 0612600dae) and CI's passes 45313803575 / 45324765001 / 45334498030 name it at no tier."
+    },
+    "notifications/starvation/cell-resourcenotification-only": {
+      "tier": "defect",
+      "games": 1,
+      "first": "ap0:31",
+      "why": "the same stage of the same story — a cell's resource flown off a MEASURED cell (see `presentation-ledger/story-due/cell-resource`): with no layout the stage never stands, its hold never ends, and the feed's cards wait behind it past their bound. NOT THERE in a browser: CI's passes 45370636119 and 45388373269 (24 whole games each, 2026-11-24) and the box's whole games of the same day (builds d17564b913 … 6d4d7d549f) name it at no tier."
     }
   }
 }
