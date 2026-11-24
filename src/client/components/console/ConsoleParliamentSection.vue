@@ -1882,10 +1882,15 @@ function publishMidOffsets(): void {
       el = el.offsetParent as HTMLElement | null;
     }
     if (el === field) {
+      // ONE MEASURE, THEN THE WRITES (the frame budget of a press — the Parliament's mount): the width used to be read
+      // after the left / top were written and the height after the width — a property written on the field restyles
+      // the whole section, so each of those two reads paid for a layout of its own, twice a mount.
+      const w = pal.offsetWidth;
+      const h = pal.offsetHeight;
       field.style.setProperty('--con-parl-pal-l', `${Math.round(x)}px`);
       field.style.setProperty('--con-parl-pal-t', `${Math.round(y)}px`);
-      field.style.setProperty('--con-parl-pal-w', `${Math.round(pal.offsetWidth)}px`);
-      field.style.setProperty('--con-parl-pal-h', `${Math.round(pal.offsetHeight)}px`);
+      field.style.setProperty('--con-parl-pal-w', `${Math.round(w)}px`);
+      field.style.setProperty('--con-parl-pal-h', `${Math.round(h)}px`);
     }
   }
 }
