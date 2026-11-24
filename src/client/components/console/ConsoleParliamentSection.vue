@@ -387,7 +387,8 @@ import {
   workspaceFrameHasNested, workspaceFrameHost, workspaceFrameRenders, workspaceFrameStage, workspaceHostYieldsScene, workspaceStackCrumb,
   workspaceSceneHidden,
 } from '@/client/console/consoleWorkspaceStack';
-import {AGENDA_WALK_STEP_STAGE, DELEGATE_GRANT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE} from '@/client/console/consoleTaskRouter';
+import {AGENDA_WALK_STEP_STAGE, DELEGATE_GRANT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, taskFor} from '@/client/console/consoleTaskRouter';
+import {frameServing} from '@/client/console/consoleWorkspaceStack';
 import {grantSeriesCountText, grantSeriesShown} from '@/client/console/parliament/grantSeries';
 import {$t, translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
@@ -1514,11 +1515,21 @@ const frameCrumb = computed((): {subject: string, stage: string} => {
 const crumbCommitted = computed((): boolean => {
   return parliamentCrumbCommitted(chairmanQuestFlow.live);
 });
+/**
+ * THE SERVER ASKS A QUESTION WHOSE HOME IS THIS SCREEN (the stack's own registry — `frameServing`): the overview's B
+ * then sets it aside («Свернуть») instead of leaving it behind (`ParliamentCommandsInput.questionOwed`).
+ */
+const questionOwedHere = computed((): boolean => {
+  const wf = props.playerView.waitingFor;
+  const task = taskFor(props.playerView);
+  return wf !== undefined && wf.optional !== true && task !== undefined && frameServing(task.kind)?.kind === 'parliament';
+});
 /** THE ONE COMMAND CONTRACT — published to the shell's bar. */
 const commands = computed((): Array<ConsoleCommand> => {
   return parliamentCommandsOf({
     view: view.value,
     canVoteNow: canVoteNow.value,
+    questionOwed: questionOwedHere.value,
     partyActionStates: partyActionStates.value,
     resolutionAction: resolutionActionState.value,
     sitting: {

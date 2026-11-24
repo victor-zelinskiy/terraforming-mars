@@ -31,7 +31,7 @@ import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
 import {SittingInvitationFacts, sittingInvitationFacts} from '@/client/console/parliament/sittingInvitation';
-import {closePhaseRoot, phaseRootAnywhere, enterWorkspace, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameServes, setWorkspaceFrameStage, workspaceFrameDescended, workspaceFrameIndex, workspaceFrameMounted, workspaceFrameRenders, workspaceFrameSlot, workspaceStackTop, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameTarget, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closePhaseRoot, phaseRootAnywhere, enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, setWorkspaceFrameServes, setWorkspaceFrameStage, workspaceFrameDescended, workspaceFrameIndex, workspaceFrameMounted, workspaceFrameRenders, workspaceFrameSlot, workspaceStackTop, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameTarget, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {draftMandatoryFlowBeat} from '@/client/console/draft/consoleDraftFlow';
 import {Phase} from '@/common/Phase';
 import {armPlayedHero, isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
@@ -643,6 +643,19 @@ export function createParliamentController(shell: ParliamentPort) {
    * — the parliament root declares `yieldsToBoard`, so the stack steps aside
    * and comes back to the reward stage after the landing. Never automatic.
    */
+  /**
+   * B ON THE OVERVIEW — THE PARLIAMENT LEAVES FOR THE BOARD, AND A QUESTION IT WAS SERVING IS SET ASIDE, never left
+   * behind (the sheets' rule, `padRouterController`: `deferShellTask('board')` before the leave). The overview serves a
+   * sitting's question IN PLACE when the player already stands on it as the sitting begins — the gate acknowledges a
+   * beat whose home stands, so its plate is never shown — and a plain leave then put the player on a board that said
+   * nothing of the sitting: no plate, no «Вернуться к заседанию», the stranded guard three seconds later and the
+   * arbiter after it. With nothing asked of this screen the call is a no-op and the leave is the plain close it was.
+   */
+  function onParliamentClose(): void {
+    shell.deferShellTask('board');
+    leaveWorkspace();
+  }
+
   function openParliamentBoardDoor(): void {
     if (shell.playerView.waitingFor?.type !== 'space') {
       return;
@@ -1461,6 +1474,7 @@ export function createParliamentController(shell: ParliamentPort) {
     openParliamentPartyAction,
     openParliamentResolutionAction,
     openParliamentBoardDoor,
+    onParliamentClose,
     handSittingToDraft,
     onParliamentAfterLeave,
     onParliamentLeaveCancelled,

@@ -404,6 +404,45 @@ describe('consoleParliamentModel — the enacted resolution\'s ACTION (Turmoil R
     parliamentFlow.zone = 'ruler';
     expect(parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(action(), true)}).some((c) => c.control === 'inspect'), 'the ruler: no Y either').to.eq(false);
   });
+
+  /*
+   * THE SITTING's QUESTION LEFT BEHIND ON THE OVERVIEW (FREEZE ZERO, stage 6 — the autopilot, in the bottle and in a
+   * real browser: `console-leak-detector/stranded-prompt/parliamentphase`). The player stands on the overview — opened
+   * by themselves, to read — when the sitting begins. The overview serves the sitting's question IN PLACE, so the gate
+   * acknowledges the beat and its plate is never shown; B then said «На поле» and LEFT: a board with no plate and no
+   * way back, the stranded guard three seconds later, the arbiter after it. The law (the sheets' own): leaving a
+   * screen that serves the live question SETS THE QUESTION ASIDE — the bar says so, the board offers the way back.
+   */
+  it('B on the overview under a question this screen serves is «Свернуть» — on every zone; with nothing asked it is the plain leave', () => {
+    for (const zone of ['ruler', 'parties', 'voting', 'engine', 'agenda'] as const) {
+      parliamentFlow.stage = 'browse';
+      parliamentFlow.zone = zone;
+      const backOf = (questionOwed: boolean | undefined) =>
+        parliamentCommandsOf({view: emptyParliamentView(), canVoteNow: false, partyActionStates: [], questionOwed}).find((c) => c.control === 'back')?.label;
+      expect(backOf(true), `${zone}: a question of this screen stands`).to.eq('Minimize');
+      expect(backOf(false), `${zone}: nothing asked of this screen`).to.eq('To the board');
+      expect(backOf(undefined), `${zone}: by default`).to.eq('To the board');
+    }
+  });
+});
+
+describe('the Parliament leaves for the board — the wiring of «set aside»', () => {
+  const read = (...parts: Array<string>): string => {
+    const fs = (globalThis as unknown as {process: {getBuiltinModule(id: string): unknown}}).process.getBuiltinModule('node:fs') as {readFileSync(p: string, enc: string): string};
+    const path = (globalThis as unknown as {process: {getBuiltinModule(id: string): unknown, cwd(): string}}).process.getBuiltinModule('node:path') as {join(...p: Array<string>): string};
+    return fs.readFileSync(path.join((globalThis as unknown as {process: {cwd(): string}}).process.cwd(), 'src', 'client', ...parts), 'utf8').replace(/\r\n/g, '\n');
+  };
+
+  it('the section\'s close goes through the shell\'s deferral BEFORE the leave, and the section says when a question of its own stands', () => {
+    const controller = read('console', 'shell', 'parliamentController.ts');
+    expect(controller).to.match(/function onParliamentClose\(\): void \{\s+shell\.deferShellTask\('board'\);\s+leaveWorkspace\(\);\s+\}/);
+    const shellSfc = read('components', 'console', 'ConsoleShell.vue');
+    expect(shellSfc, 'the Parliament\'s close is the controller\'s — never a bare leave').to.contain('@close="onParliamentClose()" />');
+    const section = read('components', 'console', 'ConsoleParliamentSection.vue');
+    expect(section, 'by the stack\'s own registry — never a list of kinds kept by hand')
+      .to.match(/const questionOwedHere = computed\(\(\): boolean => \{\s+const wf = props\.playerView\.waitingFor;\s+const task = taskFor\(props\.playerView\);\s+return wf !== undefined && wf\.optional !== true && task !== undefined && frameServing\(task\.kind\)\?\.kind === 'parliament';/);
+    expect(section).to.contain('questionOwed: questionOwedHere.value,');
+  });
 });
 
 describe('consoleParliamentModel — the DELEGATE GRANT bridge (Turmoil Redux — the Venus tile)', () => {

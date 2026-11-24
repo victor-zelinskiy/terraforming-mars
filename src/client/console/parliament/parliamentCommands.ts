@@ -11,6 +11,15 @@ import {PartyActionStateVm, ParliamentViewVm} from './consoleParliamentModel';
 export type ParliamentCommandsInput = {
   view: ParliamentViewVm;
   canVoteNow: boolean;
+  /**
+   * THE SERVER ASKS A QUESTION THIS SCREEN SERVES (a sitting's step, a delegate to send, the chairmanship) while the
+   * player stands on the overview: B does not «leave for the board» — it SETS THE QUESTION ASIDE, and says so
+   * («Свернуть»; the board then offers the way back). The overview serves that question IN PLACE — its plate was
+   * never shown (the gate acknowledges a beat whose home stands) — so a plain leave left the board with nothing: no
+   * plate, no way back, the stranded guard three seconds later (FREEZE ZERO, stage 6 — the autopilot, in the bottle
+   * and in a real browser).
+   */
+  questionOwed?: boolean;
   partyActionStates: ReadonlyArray<PartyActionStateVm>;
   /**
    * THE ENACTED RESOLUTION'S ACTION (Open IP Trade) — the party action's twin, on its own verb (Y) from every
@@ -174,7 +183,7 @@ function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): A
 }
 
 export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<ConsoleCommand> {
-  const back: ConsoleCommand = {control: 'back', label: parliamentFlow.stage === 'browse' ? 'To the board' : 'Back'};
+  const back: ConsoleCommand = {control: 'back', label: parliamentFlow.stage !== 'browse' ? 'Back' : input.questionOwed === true ? 'Minimize' : 'To the board'};
   if (input.dossier === true) {
     return [{control: 'back', label: 'Close'}];
   }

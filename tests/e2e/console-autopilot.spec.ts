@@ -1,6 +1,6 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
-import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, sendPlayerInput, soloGameConfig} from './consoleStart';
+import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
 
 /**
  * THE AUTOPILOT — A WHOLE GAME THROUGH THE REAL CONSOLE, IN A REAL BROWSER (FREEZE ZERO, stage 6 — «whole games and
@@ -8,7 +8,11 @@ import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, sendPlayerIn
  *
  * The monkey walks sixty presses from a fixture and never ends a game. This plays one: a table the product's own
  * creator makes (`/api/creategame` — the solo player against MarsBot, the fork's main mode; one game in four without
- * the bot), from the first press of the start to the final scoring, the viewer's seat THROUGH THE PAD:
+ * the bot), from the first turn to the final scoring, the viewer's seat THROUGH THE PAD. (The OPENING is answered over
+ * the API before the page opens — `seedGameOverApi`, the drivers' own seeder: a pilot that answers the start's
+ * questions through another door while the scene stands makes states only a second device makes, and the start
+ * director's cure of them is red by contract — two of the first sixteen games. The opening has its own specs, and the
+ * bottle's pilot walks it.) The game itself:
  *   · it presses what the command bar OFFERS (the hot verb first, A and RT before B, a look seldom and closed by the
  *     next press), some cursor moves, a few presses of anything;
  *   · on its action menu it plays for a seeded while and then PASSES as a player does — the basic wheel's ↓ and its
@@ -26,14 +30,14 @@ import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, sendPlayerIn
  *
  * OPT-IN: `TM_E2E_AUTOPILOT=1 npx playwright test tests/e2e/console-autopilot.spec.ts` · `TM_E2E_AUTOPILOT_GAMES`
  * (`<from>-<to>` or a list; default `1-2`) · `TM_E2E_AUTOPILOT_NAME` (the stream's name, default `ap0`) ·
- * `TM_E2E_AUTOPILOT_PRESSES` (the cap, default 1400).
+ * `TM_E2E_AUTOPILOT_PRESSES` (the cap, default 2000 — twenty games of the first pass ended inside 1 250).
  */
 const ENABLED = process.env.TM_E2E_AUTOPILOT === '1';
 if (ENABLED) {
   process.env.TM_E2E_COVERAGE ??= '1';
 }
 const NAME = process.env.TM_E2E_AUTOPILOT_NAME ?? 'ap0';
-const PRESSES = Number(process.env.TM_E2E_AUTOPILOT_PRESSES ?? 1400);
+const PRESSES = Number(process.env.TM_E2E_AUTOPILOT_PRESSES ?? 2000);
 
 function gamesOf(spec: string): Array<number> {
   const range = /^(\d+)-(\d+)$/.exec(spec);
@@ -258,14 +262,18 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
         let landed = false;
         const before = stands(await look(page));
         for (let attempt = 0; attempt < 3 && !landed; attempt++) {
-          for (let i = 0; i < 8; i++) {
+          // THE BOARD HOME FIRST — every level between it and the pilot is left the way a player leaves it: B where the
+          // bar offers B (a workspace, a look, a wheel), Y where the bar closes only by Y (the information screen's top).
+          // The home is the screen whose bar offers the basic wheel and no way back.
+          for (let i = 0; i < 10; i++) {
             const s = await look(page);
-            if (s.frames.length === 0 && !s.zoom) {
+            const offers = (key: string): boolean => s.offered.some((o) => o.key === key);
+            if (s.pass || (s.frames.length === 0 && !s.zoom && !s.quick && offers('Comma') && !offers('Escape'))) {
               break;
             }
-            await press('Escape', 600);
+            await press(offers('Escape') || !offers('KeyY') ? 'Escape' : 'KeyY', 600);
           }
-          if (!(await look(page)).quick) {
+          if (!(await look(page)).pass) {
             await press('Comma', 500);
           }
           await expect.poll(async () => (await look(page)).pass, {timeout: 3_000}).toBe(true).catch(() => undefined);
@@ -318,7 +326,7 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
 
   for (const n of GAMES) {
     test(`autopilot · game ${n}`, async ({page, request, causeHarvest}) => {
-      test.setTimeout(55 * 60_000);
+      test.setTimeout(75 * 60_000);
       const seed = `${NAME}:${n}`;
       const table = tableOf(n);
       test.info().annotations.push({type: 'autopilot-table', description: `${seed} — ${table.word}`});
@@ -326,6 +334,8 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       expect(created.ok(), `create-game refused the table (${table.word}): ${created.status()}`).toBeTruthy();
       const {players} = await created.json() as {players: Array<{id: string, name: string}>};
       const viewer = (players.find((p) => !/marsbot/i.test(p.name)) ?? players[0]).id;
+      // THE OPENING, over the API (see the header): the corporation, the preludes, the first action — to the first turn.
+      await seedGameOverApi(request, viewer, {buy: 4});
       const log: Array<string> = [];
       const consoleTail: Array<string> = [];
       page.on('console', (message) => {

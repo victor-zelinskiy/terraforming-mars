@@ -165,11 +165,19 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
   const sees = (selector: string): boolean => (globalThis as unknown as {window: {document: {querySelector(q: string): unknown}}}).window.document.querySelector(selector) !== null;
   const passByWheel = async (promptId: number | undefined): Promise<boolean> => {
     for (let attempt = 0; attempt < 3; attempt++) {
-      // The board home first: a workspace, a fullscreen look — B is the player's way out of each, one level a press.
-      for (let i = 0; i < 8 && (bottle.frames().length > 0 || sees('dialog.con-zoom[open]')); i++) {
-        await press('Escape', 600);
+      // THE BOARD HOME FIRST — every level between it and the pilot is left the way a player leaves it: B where the bar
+      // offers B (a workspace, a look, a wheel), Y where the bar closes only by Y (the information screen's top). The
+      // home is the screen whose bar offers the basic wheel and no way back.
+      for (let i = 0; i < 10; i++) {
+        const offered = bottle.offered();
+        const offers = (key: BottleKey): boolean => offered.some((o) => o.key === key);
+        if (sees('.con-quick [data-quick-id="pass"]') ||
+            (bottle.frames().length === 0 && !sees('dialog.con-zoom[open]') && !sees('.con-quick') && offers('Comma') && !offers('Escape'))) {
+          break;
+        }
+        await press(offers('Escape') || !offers('KeyY') ? 'Escape' : 'KeyY', 600);
       }
-      if (!sees('.con-quick')) {
+      if (!sees('.con-quick [data-quick-id="pass"]')) {
         await press('Comma', 400);
         await bottle.until(() => sees('.con-quick [data-quick-id="pass"]'), 1_500, 100);
       }

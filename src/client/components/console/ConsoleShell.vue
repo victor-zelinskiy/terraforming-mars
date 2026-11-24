@@ -398,7 +398,7 @@
                                   @flow-complete="onParliamentFlowComplete($event)"
                                   @to-board="openParliamentBoardDoor()"
                                   @collapse="collapseWorkspace()"
-                                  @close="leaveWorkspace()" />
+                                  @close="onParliamentClose()" />
       </transition>
       </ConsoleTeleport>
 
@@ -1769,7 +1769,7 @@ const {
   hydroBlockadeExecution, hydroBlockadeOffer, hydroBonusOfferLive, hydroBonusOfferRaw, hydroCacheKey, hydroCardOffer,
   hydroEspionageOffer, hydroFollowUpLive, hydroInstrumentOut, hydroRevealEmbedded, hydroRewardOffer, infoModeState,
   inspectFleetDock, inspectParliament, inspectParliamentSource, journalPanelVisible, leakDetectorState,
-  leaveWorkspace, maAwardSponsors, maBillNames, maFocusAvailable, maFocusBlockReason, maFocusInspect, maFocusView,
+  maAwardSponsors, maBillNames, maFocusAvailable, maFocusBlockReason, maFocusInspect, maFocusView,
   mandatoryAnnounceView, mandatoryAnnounceVisible, mandatoryChipAttention, maPayFocusUnit, maPayView, maScreenItems,
   maScreenKind, maScreenPriceWaiver, myTurn, notice, onAuxCellPressed, onCardActionsClose, onCardActionsCollapse,
   onCardActionsColonyStep, onCardActionsDeltaStep, onCardActionsFlowComplete, onCardActionsRevealAck,
@@ -1779,7 +1779,8 @@ const {
   onCorpFirstActionDefer, onDismissRevealResult, onDockPage, onDraftDefer, onDraftSubmit, onEmbeddedDrawnComplete,
   onExternalDrawSubmit, onFleetDockConfirm, onFleetDockFlowComplete, onGovSupportLeafConfirm, onHandDockOpen,
   onHydroBlockadePicked, onHydroClose, onHydroEspionagePicked, onHydroRewardPicked, onInfoModeLeaveSettled,
-  onMaCeremonyDone, onMaPick, onParliamentAfterLeave, onParliamentFlowComplete, onParliamentLeaveCancelled,
+  onMaCeremonyDone, onMaPick, onParliamentAfterLeave, onParliamentClose, onParliamentFlowComplete,
+  onParliamentLeaveCancelled,
   onPlayCardCancel, onPlayCardConfirmNative, onRepeatPickClose, onRepeatPickEntered, onRevealDiscardPick,
   onStagedPlaySpacePicked, onTaskDefer, onTaskHandPick, onTaskSpacePick, onTaskSpacePicked, onTaskSubmit,
   onTaskSubmitBatch, onWorkspaceResultDetached, openHydroRepeatPick, openJournalColonyInspect,
