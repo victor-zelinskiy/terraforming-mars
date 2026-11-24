@@ -290,6 +290,29 @@ describe('presentationLedger', function() {
     }
   });
 
+  /*
+   * THE HEARTBEAT KEEPS LOOKING THROUGH THE GRACE: a story that is «being told» because it stands at its own gate (the
+   * park's drain behind a landing still settling) is re-asked there — the look is what opens it when the gate falls.
+   */
+  it('a story inside its grace is still re-driven when it may play', () => {
+    const realNow = Date.now;
+    let t = realNow();
+    Date.now = () => t;
+    try {
+      let redrives = 0;
+      let degraded = 0;
+      owePresentation({id: 'at-its-gate', ready: () => true, redrive: () => redrives++, dueMs: 30_000, degrade: () => degraded++, telling: () => true});
+      const before = redrives;
+      t += 30_500;
+      settlePresentationDue();
+      expect(degraded).to.equal(0);
+      expect(redrives, 're-driven past its due, inside the grace').to.equal(before + 1);
+    } finally {
+      Date.now = realNow;
+      resetPresentationLedger();
+    }
+  });
+
   it('reset clears stories and witnesses', () => {
     owePresentation({id: 'story', ready: () => true, redrive: () => {}, dueMs: 60_000});
     registerTruthWitness({id: 'liar', lying: () => true, graceMs: 0, heal: () => {}});

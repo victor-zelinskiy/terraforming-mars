@@ -17,7 +17,7 @@ import {expect} from 'chai';
 import {GameModel} from '@/common/models/GameModel';
 import {Color} from '@/common/Color';
 import {
-  BOARD_BEAT_SCALE_MS, BOARD_BEAT_SETTLE_MS,
+  BOARD_BEAT_PARK_SAFETY_MS, BOARD_BEAT_SCALE_MS, BOARD_BEAT_SETTLE_MS,
   boardBeatDisplayClaims, boardBeatDisplayParams, boardBeatParkPending,
   boardBeatParkState, boardBeatParksReveal, boardBeatStoryPending, boardStoryHeldByPlayer, boardStoryWaitsUnderACover,
   changedGlobalParams, drainBoardBeatsIfDue,
@@ -26,7 +26,7 @@ import {
   resetBoardBeatPark,
 } from '@/client/console/boardBeatPark';
 import {
-  presentationLedgerSnapshot, resetPresentationLedger, settlePresentationDue,
+  presentationLedgerSnapshot, resetPresentationLedger, settlePresentationDue, STORY_TELLING_GRACE_MS,
 } from '@/client/console/presentationLedger';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {claimWorkspaceOutcome, resetWorkspaceOutcome} from '@/client/console/consoleWorkspaceOutcome';
@@ -466,6 +466,68 @@ describe('boardBeatPark', function() {
     const scene = tierOfTheDegrade();
     expect(scene.why).to.deep.include({drains: 1, coveredAgain: 1});
     expect(scene.tier).to.equal('defect');
+  });
+
+  /*
+   * A DRAIN STANDING AT ITS OWN GATE WHEN THE DUE COMES IS ABOUT TO BE TOLD (the box's whole games in a real browser,
+   * 2026-11-24 — game 143: «watchable: true, looks 8/112, drains 0, gated ×10 by scene-settling»): the player came back
+   * to the board two seconds before the park's thirty ran out, a landing was still settling on it, and the due snapped
+   * the three scales the drain was about to glide. The gate ends by itself — the story gets the telling's bounded
+   * grace; a reveal standing for the player is no such gate, and a gate that outlives the grace is degraded and named.
+   */
+  it('a drain at its own gate over a board in view is not cut at the due — within the grace, and only behind a gate that ends by itself', () => {
+    const realNow = Date.now;
+    let t = realNow();
+    Date.now = () => t;
+    const warn = console.warn;
+    const said: Array<string> = [];
+    console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
+    try {
+      registerBoardCoverReasons(() => (watchable ? [] : ['workspace']));
+      let gate = ['scene-settling', 'settling:remote-placement'];
+      registerBoardBeatRedrive(() => noteBoardBeatDrainGated(gate));
+      const parkAndComeBackLate = (from: number) => {
+        watchable = false;
+        noteBoardScaleAdvance(gameWith({oceans: from}), gameWith({oceans: from + 1}));
+        t += BOARD_BEAT_PARK_SAFETY_MS - 1_000;
+        watchable = true;
+        settlePresentationDue(); // the ledger's look: the board is in view, the guarded drain stands at its gate
+        t += 1_200; // …and the due comes
+        settlePresentationDue();
+      };
+
+      parkAndComeBackLate(0);
+      expect(boardBeatParkState.heldParams, 'at its gate when the due came: not cut').to.deep.equal({oceans: 0});
+      expect(said.filter((line) => line.includes('degraded after'))).to.deep.eq([]);
+      // The grace is BOUNDED: a gate that never opens is a wedge — degraded, and the line names the scene behind it.
+      t += STORY_TELLING_GRACE_MS;
+      settlePresentationDue();
+      expect(boardBeatParkState.heldParams, 'past the grace').to.equal(undefined);
+      expect(said.filter((line) => line.includes('degraded after')).join('\n')).to.contain('settling:remote-placement');
+
+      // A reveal standing for the player ends at no bound of the game's: no grace.
+      said.length = 0;
+      gate = ['reveal-open'];
+      parkAndComeBackLate(1);
+      expect(boardBeatParkState.heldParams, 'behind the player\'s own reveal: the honest degrade at the due').to.equal(undefined);
+      expect(said.filter((line) => line.includes('degraded after'))).to.have.length(1);
+
+      // …and a gate's word that is no longer «now» (the board was covered again) gives none either.
+      said.length = 0;
+      gate = ['scene-settling'];
+      watchable = false;
+      noteBoardScaleAdvance(gameWith({oceans: 2}), gameWith({oceans: 3}));
+      t += BOARD_BEAT_PARK_SAFETY_MS - 1_000;
+      watchable = true;
+      settlePresentationDue();
+      watchable = false;
+      t += 1_200;
+      settlePresentationDue();
+      expect(boardBeatParkState.heldParams, 'covered again before the due').to.equal(undefined);
+    } finally {
+      Date.now = realNow;
+      console.warn = warn;
+    }
   });
 
   /*

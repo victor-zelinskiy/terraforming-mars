@@ -24,7 +24,7 @@ import {buildFinalGreenery, FINALE_KICKER, FinalGreeneryViewModel} from '@/clien
 import {collapseFinaleSession, enterFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
 import {TileType} from '@/common/TileType';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
-import {boardStoryProgress, scaleStorySceneSettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
+import {boardStoryProgress, scaleStorySceneSettling, scaleStorySceneSettlingBy, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {yieldStackToBoard, yieldStackForStagedPlay, discardYieldedStack, stackYieldedToBoard, boardTakeableFromStack, yieldedStackCards, goBoardHome, setWorkspaceFrameStage, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {requestStdProjectCancel, stdProjectsFlowLive} from '@/client/console/consoleStdProjects';
 import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -894,7 +894,8 @@ export function createPlacementController(shell: PlacementPort) {
     // (THE GATE SAYS WHY to the park's window: a board that was seen and opened no drain is read by it — `shapes.ts`.)
     const signals = shell.rawAdmissionSignals;
     noteBoardBeatDrainGated([
-      ...(scaleStorySceneSettling() ? ['scene-settling'] : []), ...(signals.revealOpen ? ['reveal-open'] : []),
+      ...(scaleStorySceneSettling() ? ['scene-settling', ...scaleStorySceneSettlingBy().map((scene) => `settling:${scene}`)] : []),
+      ...(signals.revealOpen ? ['reveal-open'] : []),
       ...(signals.revealPending ? ['reveal-pending'] : []), ...(signals.cardArrival ? ['card-arrival'] : []),
       ...(signals.cardDiscard ? ['card-discard'] : []),
     ]);

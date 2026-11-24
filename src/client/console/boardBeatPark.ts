@@ -333,7 +333,21 @@ const parkWindow = {
   looks: 0, seen: 0, drains: 0, coveredAgain: 0, coveredAgainBy: new Set<string>(), gated: 0, gatedBy: new Set<string>(),
   /** When the drain that runs now began, and where it stands (its last step — for the line of whoever waits for it). */
   drainAt: 0, drainStep: '',
+  /** The gate's LAST word: when the guarded drain last stood behind it, and whether that gate ends by itself. */
+  gatedAt: 0, gateEndsByItself: false,
 };
+
+/** A gate's word older than this is no longer «now» (the ledger re-asks every `LEDGER_REDRIVE_MIN_GAP_MS`). */
+const DRAIN_GATE_FRESH_MS = 1500;
+
+/**
+ * THE DRAIN STANDS AT ITS OWN GATE over a board in view, and that gate ENDS BY ITSELF (the board's scene settling,
+ * cards in transit — each bounded by its own net): the story is about to be told. A reveal standing for the player
+ * is not such a gate — it ends on the player's take, at no bound of the game's.
+ */
+function drainStandsAtItsGate(): boolean {
+  return parkWindow.gateEndsByItself && Date.now() - parkWindow.gatedAt <= DRAIN_GATE_FRESH_MS && boardWatchable();
+}
 
 /** The shell's guarded drain found the board watchable and did NOT open — held by its own gate (`reasons`, never empty). */
 export function noteBoardBeatDrainGated(reasons: ReadonlyArray<string>): void {
@@ -341,6 +355,8 @@ export function noteBoardBeatDrainGated(reasons: ReadonlyArray<string>): void {
   for (const reason of reasons) {
     parkWindow.gatedBy.add(reason);
   }
+  parkWindow.gatedAt = Date.now();
+  parkWindow.gateEndsByItself = !reasons.includes('reveal-open') && !reasons.includes('reveal-pending');
 }
 
 function resetParkWindow(): void {
@@ -352,6 +368,8 @@ function resetParkWindow(): void {
   parkWindow.coveredAgainBy.clear();
   parkWindow.gated = 0;
   parkWindow.gatedBy.clear();
+  parkWindow.gatedAt = 0;
+  parkWindow.gateEndsByItself = false;
 }
 
 /** Is the park LIVE — a shell registered its watchable verdict? Without one the module is inert (desktop / tests). */
@@ -475,7 +493,11 @@ function armSafety(): void {
     redrive: () => (redriveHook ?? drainBoardBeatsIfDue)(),
     dueMs: BOARD_BEAT_PARK_SAFETY_MS,
     // A DRAIN RUNNING AT THE DUE IS THE STORY BEING TOLD — it finishes (bounded by the ledger's grace), never cut.
-    telling: () => boardBeatParkState.draining,
+    // …AND SO IS A DRAIN STANDING AT ITS OWN GATE OVER A BOARD IN VIEW: the player came back to the board in the
+    // window's last seconds, a landing was still settling on it, and the due snapped the scales the drain was about
+    // to glide (the box's whole games, 2026-11-24 — game 143: «watchable: true, looks 8/112, drains 0, gated ×10 by
+    // scene-settling»). The same bounded grace; a gate that outlives it is a wedge, degraded and named.
+    telling: () => boardBeatParkState.draining || drainStandsAtItsGate(),
     degrade: () => releaseBoardBeatPark(),
     // The degrade names WHICH gate never opened: `watchable: false` is the
     // honest multiplayer wait (the viewer sat in a screen while an opponent

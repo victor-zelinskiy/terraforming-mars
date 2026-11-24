@@ -251,6 +251,28 @@ export function registerTruthWitness(witness: TruthWitness): () => void {
   };
 }
 
+/** One look at one story: may it play right now (`ready`)? Then it is re-driven — no more often than the gap. */
+function redriveIfReady(story: StoryEntry, t: number): void {
+  if (t - story.lastRedriveAt < LEDGER_REDRIVE_MIN_GAP_MS) {
+    return;
+  }
+  let ready = false;
+  try {
+    ready = story.ready();
+  } catch (err) {
+    console.error(`[presentation-ledger] ready() of «${story.id}» failed`, err);
+  }
+  if (ready) {
+    story.lastRedriveAt = t;
+    presentationLedgerStats.redrives++;
+    try {
+      story.redrive();
+    } catch (err) {
+      console.error(`[presentation-ledger] redrive of «${story.id}» failed`, err);
+    }
+  }
+}
+
 /**
  * ONE PASS over the book — the heartbeat body, also callable from an EDGE
  * (the shell's «board became watchable» watcher calls it directly so a story
@@ -271,6 +293,8 @@ export function settlePresentationDue(): void {
           console.error(`[presentation-ledger] telling() of «${story.id}» failed`, err);
         }
         if (telling) {
+          // (The heartbeat keeps LOOKING through the grace: a story that stands at its own gate is re-asked there.)
+          redriveIfReady(story, t);
           continue;
         }
       }
@@ -290,24 +314,7 @@ export function settlePresentationDue(): void {
       }
       continue;
     }
-    if (t - story.lastRedriveAt < LEDGER_REDRIVE_MIN_GAP_MS) {
-      continue;
-    }
-    let ready = false;
-    try {
-      ready = story.ready();
-    } catch (err) {
-      console.error(`[presentation-ledger] ready() of «${story.id}» failed`, err);
-    }
-    if (ready) {
-      story.lastRedriveAt = t;
-      presentationLedgerStats.redrives++;
-      try {
-        story.redrive();
-      } catch (err) {
-        console.error(`[presentation-ledger] redrive of «${story.id}» failed`, err);
-      }
-    }
+    redriveIfReady(story, t);
   }
   for (const witness of witnesses.values()) {
     let lying = false;

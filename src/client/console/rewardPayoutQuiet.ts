@@ -119,6 +119,25 @@ export function scaleStorySceneSettling(): boolean {
   return fieldScenesSettling() || (planetFocusSettling() && !planetFocusStoryReady());
 }
 
+/**
+ * WHICH of the scale story's scenes is settling — the gate's word for the park's window (`gatedBy`): a drain that
+ * stood behind «scene-settling» for a whole window could not say behind WHICH scene (the box's whole games,
+ * 2026-11-24 — game 143). Empty when `scaleStorySceneSettling()` is false.
+ */
+export function scaleStorySceneSettlingBy(): Array<string> {
+  return [
+    ...(tilePlacementHolding() ? ['tile-placement'] : []),
+    ...(nomadMoveHolding() ? ['nomad-move'] : []),
+    ...(isResourceTransferActive() ? ['resource-transfer'] : []),
+    ...(tilePlacementRewardsSettling() ? ['tile-rewards'] : []),
+    ...(isRemotePlacementActive() ? ['remote-placement'] : []),
+    ...(isRemoteNomadMoveActive() ? ['remote-nomad'] : []),
+    ...(isBoardCardBonusActive() ? ['card-bonus'] : []),
+    ...(boardSceneMemberBusy() ? ['scene-member'] : []),
+    ...(planetFocusSettling() && !planetFocusStoryReady() ? ['camera'] : []),
+  ];
+}
+
 /** What plays ON the field (the payouts, the landings, the bonus lift, the registered members) — the camera apart. */
 function fieldScenesSettling(): boolean {
   return rewardPayoutSettling() ||
