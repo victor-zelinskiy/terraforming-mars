@@ -1914,7 +1914,13 @@ export async function endPlayedHero(): Promise<void> {
     // addressable once it holds its card (the start dock's `[data-start-front]`
     // is the ARMED slot only).
     if (!consoleReducedMotionActive()) {
-      const rest = peekTargetRect() ?? await awaitTargetRect(120);
+      // …AND IT IS A CONTROL OF A PLACE THAT STANDS. With no landing place registered any more (the surface that held
+      // the slot left between the touchdown and the commit) and no seat of the arm's own, there is nothing to have
+      // moved: the card is where its flight put it, and a wait for «a measurable landing slot» there can only end on
+      // its ceiling — filed as a defect of a card that had already landed (the monkey's seed of the day on CI,
+      // 2026-11-24 — `frontier-town-locked`, issue #118: «workspace:committing · no landing place registered»).
+      const controllable = targetSelectorOverride !== undefined || frontTarget() !== undefined;
+      const rest = peekTargetRect() ?? (controllable ? await awaitTargetRect(120) : undefined);
       const cur = currentProxyRect(els);
       if (!mine()) {
         return;
