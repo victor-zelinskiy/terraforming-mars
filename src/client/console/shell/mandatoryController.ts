@@ -10,7 +10,7 @@ import {CardName} from '@/common/cards/CardName';
 import {DiscardPromptMeta} from '@/common/models/PlayerInputModel';
 import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
 import {isMandatoryPromptsHeldByScreen} from '@/client/components/presentation/presentationFlow';
-import {blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
+import {blockingAnimationHoldCount, blockingHoldsPlaying} from '@/client/components/presentation/animationHold';
 import {isTransientBeat} from '@/client/console/workspaceBeatStall';
 import {notificationFeedReadForDecision, acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {maFocusState} from '@/client/console/consoleMaFocus';
@@ -724,6 +724,36 @@ export function createMandatoryController(shell: MandatoryPort) {
     // once the gate releases — nothing else to open here.
   }
 
+  /** WHAT THE BEAT's FIRST PRESENTATION WAITS FOR right now — the terms of `mandatoryPresentationReady`, named. */
+  function presentationWaitsFor(): string {
+    const terms: Array<string> = [];
+    if (!notificationFeedReadForDecision()) {
+      terms.push('the card of the feed being read');
+    }
+    if (isMandatoryPromptsHeldByScreen()) {
+      terms.push('a presentation that holds prompts');
+    }
+    if (blockingAnimationHoldCount() > 0) {
+      terms.push(`holds ${blockingHoldsPlaying().join(',') || 'handing over'}`);
+    }
+    if (shell.consoleRevealMode !== undefined) {
+      terms.push(`a reveal ${shell.consoleRevealMode}`);
+    }
+    if (shell.rawDrawnRevealPending) {
+      terms.push('a drawn reveal pending');
+    }
+    if (shell.playedHeroHolds) {
+      terms.push('the played hero');
+    }
+    if (shell.tilePlacementHolds) {
+      terms.push('a tile landing');
+    }
+    if (shell.nomadMoveHolds) {
+      terms.push('a nomad move');
+    }
+    return terms.length > 0 ? terms.join(' + ') : 'nothing that stands now';
+  }
+
   /**
    * THE PLATE YIELDS (Э3, the chairman quest's field shape generalized): a held plate in a cycle names a question
    * whose OWN surface already stands on screen — the player is where it is answered, so the beat is acknowledged and
@@ -743,7 +773,9 @@ export function createMandatoryController(shell: MandatoryPort) {
     }
     if (!isMandatoryBeaconForced(beat)) {
       forceMandatoryBeacon(beat.key);
-      return `lit the beacon of ${beat.key}`;
+      // (WHAT the first presentation waited for rides the door's own word: «did not come in its bound» alone cannot
+      // tell a generation's long scene from a latch nobody lowers — the box's whole games, 2026-11-24, game 127.)
+      return `lit the beacon of ${beat.key} — its first presentation waited for ${presentationWaitsFor()}`;
     }
     return '';
   }
