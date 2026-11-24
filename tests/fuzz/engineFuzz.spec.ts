@@ -305,9 +305,14 @@ describe('engineFuzz — random legal games on the real engine', () => {
    *  · 2078100179 — Psychrophiles' last microbe offered as payment for Soil Enrichment, whose own effect spends a
    *    microbe: the engine threw a plain Error (a 500 and a report) for what is the rules saying no. A refusal
    *    (`InputError`), with Stratospheric Birds' floater beside it (`SoilEnrichment.spec`).
+   * …and THE LONG PASS OVER THE NEXT NIGHT's RANGE (2026-11-24, finding #133):
+   *  · 2078201324 — Ocean Farm (Ares) bought with the last M€, and the one ocean beside a tile that charges 2 M€ for
+   *    building next to it offered all the same: the pick made the engine throw «Placing here costs 2 M€». A cover
+   *    of an ocean is offered only where the player can pay to place it, like every land placement
+   *    (`MarsBoard.affordableTops`; `OceanFarm.spec` holds the card itself).
    */
   it('the second run\'s finds stay closed — seeds 55496 (a bill nobody can pay) · 50337 (a question over the sitting\'s confirmation) · 51456 (a bonus action nobody can take) · 50926 (an ocean with no cell) · 50072 · 51755 (the research phase drains per seat) · 2078000753 (an action judged on a hand it will not have)', () => {
-    for (const seed of [55496, 50337, 51456, 50926, 50072, 51755, 2078000753, 70034, 2078100784, 2078100179]) {
+    for (const seed of [55496, 50337, 51456, 50926, 50072, 51755, 2078000753, 70034, 2078100784, 2078100179, 2078201324]) {
       const result = runFuzzGame(fuzzConfig(seed, {maxSteps: 4000}));
       expect(result.end, `seed ${seed}`).to.eq('ended');
       expect(result.violations.map((violation) => violation.key), `seed ${seed}`).to.deep.eq([]);

@@ -90,4 +90,41 @@ describe('OceanFarm', () => {
     expect(oceanSpace.tile!.tileType).to.eq(TileType.OCEAN_FARM);
     expect(player.plants).eq(1);
   });
+
+  /*
+   * THE ENGINE FUZZ, seed 2078201324 (finding #133): the last M€ went on the card, the one ocean beside a tile that
+   * charges 2 M€ for building next to it was offered all the same, and the pick made the engine THROW («Placing here
+   * costs 2 M€») — every land placement is filtered by what the player can pay, the covers of an ocean were not.
+   */
+  it('an ocean the player cannot pay to build on is never offered; paid for, it is; with no other the card is not playable', () => {
+    // (Two oceans far apart: the first and the last of the board's ocean cells.)
+    const cells = game.board.getAvailableSpacesForOcean(player);
+    const charged = cells[0];
+    const free = cells[cells.length - 1];
+    game.addOcean(player, charged);
+    game.addOcean(player, free);
+    const neighbour = game.board.getAdjacentSpaces(charged).find((space) => space.spaceType === SpaceType.LAND && space.tile === undefined)!;
+    neighbour.tile = {tileType: TileType.NUCLEAR_ZONE};
+    neighbour.adjacency = {bonus: [], cost: 2};
+    expect(game.board.getAdjacentSpaces(free).includes(neighbour), 'the other ocean stands away from it').to.eq(false);
+
+    player.megaCredits = 0;
+    expect(game.board.getAvailableSpacesForType(player, 'upgradeable-ocean').map((space) => space.id)).to.deep.eq([free.id]);
+    player.megaCredits = 2;
+    expect(game.board.getAvailableSpacesForType(player, 'upgradeable-ocean').map((space) => space.id).sort()).to.deep.eq([charged.id, free.id].sort());
+
+    // The question the card raises reads the same list — with the money the card left.
+    player.megaCredits = 1;
+    card.play(player);
+    runAllActions(game);
+    const action = cast(player.popWaitingFor(), SelectSpace);
+    expect(action.spaces.map((space) => space.id)).to.deep.eq([free.id]);
+
+    // …and with the card's own price counted in, the only ocean being the charged one, there is nothing to play it for.
+    game.removeTile(free.id);
+    player.megaCredits = 16;
+    expect(game.board.getAvailableSpacesForType(player, 'upgradeable-ocean', {cost: 15}).map((space) => space.id), '15 for the card + 2 to place').to.deep.eq([]);
+    player.megaCredits = 17;
+    expect(game.board.getAvailableSpacesForType(player, 'upgradeable-ocean', {cost: 15}).map((space) => space.id)).to.deep.eq([charged.id]);
+  });
 });

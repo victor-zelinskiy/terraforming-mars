@@ -187,13 +187,19 @@ export class MarsBoard extends Board {
     // A COVER lands ON TOP of a plain ocean with nothing on it: a cell already
     // carrying a composite (Ocean City) or a city over its ocean (TR44) is
     // occupied, however much it still counts as an ocean.
-    case 'upgradeable-ocean': return this.getPlainOceanTops();
+    //
+    // …AND ONLY WHERE THE PLAYER CAN PAY TO PLACE IT (Ares — the M€ a neighbour's adjacency charges, a hazard's
+    // production): every land type is filtered by `canAfford`, and the covers were not — an ocean beside a tile that
+    // charges 2 M€ was offered to a player who had just spent their last M€ on the card, and the pick made the engine
+    // THROW («Placing here costs 2 M€») instead of never being a pick (the engine fuzz, seed 2078201324 — Ocean Farm;
+    // finding #133). With no cell the player can pay for, the card is not playable (`canAffordOptions` carries its cost).
+    case 'upgradeable-ocean': return this.affordableTops(player, canAffordOptions);
     // A REMOVAL picks a plain ocean tile to take OFF the board — the very
     // filter `RemoveOceanTile` reads (an upgraded ocean is never removed; the
     // ocean UNDER a TR44 city is — only the ocean leaves, `Game.removeTile`).
     case 'ocean-removal': return this.getOceanSpaces({upgradedOceans: false});
     case 'upgradeable-ocean-new-holland': {
-      const oceanSpaces = this.getPlainOceanTops();
+      const oceanSpaces = this.affordableTops(player, canAffordOptions);
       const filtered = this.getAvailableSpacesForCity(player, undefined, oceanSpaces);
       return filtered;
     }
@@ -202,7 +208,7 @@ export class MarsBoard extends Board {
     // reserve or on land — «ignoring other placement restrictions» (a city
     // beside is no bar). The cell keeps both pieces (`Game.addTile` with
     // `overOcean`).
-    case 'city-over-ocean': return this.getPlainOceanTops();
+    case 'city-over-ocean': return this.affordableTops(player, canAffordOptions);
     case 'city-tier': return this.getAvailableSpacesForCityTier(player);
     // A CITY MOVE (TR14): every cell SOME city of the player's may travel to.
     case 'city-move': return tileMoveDestinations(cityMoveOffer(player, canAffordOptions));
@@ -219,6 +225,11 @@ export class MarsBoard extends Board {
    */
   public getPlainOceanTops(): ReadonlyArray<Space> {
     return this.spaces.filter((space) => space.spaceType !== SpaceType.COLONY && Board.isPlainOceanTop(space));
+  }
+
+  /** …of them, the ones this player can pay to build on (`Board.canAfford` — the check every land placement passes). */
+  private affordableTops(player: IPlayer, canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
+    return this.getPlainOceanTops().filter((space) => this.canAfford(player, space, canAffordOptions));
   }
 
   /*
