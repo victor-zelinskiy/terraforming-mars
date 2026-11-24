@@ -456,7 +456,9 @@ different questions:
   that moves the opening's edge most.
 - **Is the rail being replaced** — policy, and a policy is a state of the SHELL,
   not a rect. `ConsoleShell.conRootClasses` raises
-  **`.con-root--rail-replaced`**, which sets `--con-stage-r-eff: 0px` and hides
+  **`.con-root--rail-replaced`**, under which every consumer of the right edge reads `right: 0px` (a RULE on the
+  consumers — the mixin `.con-stage-right()`; never a custom property flipped on the root: an inherited property
+  there restyles the whole tree on every open and close — FREEZE ZERO, the frame budget of a press) and hides
   `.con-strat`. It is derived from the WORKSPACE STACK (`workspaceStackShown`)
   plus the two workspace-shaped overlays that are not stack frames
   (`playedOpen`, `infoWorkspaceUp`) and the two drawers (`journalPanelVisible`,
@@ -517,7 +519,7 @@ keeps the rail measurable as a flight anchor.)
 | Consumer | Spends | Note |
 | --- | --- | --- |
 | `.con-modal-band()` | all four stage insets | **THE** band (dialogs). `.con-ws-band()` is now literally this plus the `con-ws` marker contract. |
-| `.con-ws-sides()` | `--con-stage-l` + `--con-stage-r-eff` | The two sides for a DIALOG that owns its own top/bottom. |
+| `.con-ws-sides()` | `--con-stage-l` + `.con-stage-right()` | The two sides for a DIALOG that owns its own top/bottom. |
 | `.con-ws-stage-band()` / `.con-ws-stage-sides()` | `--con-stage-l` + **`right: 0`** | The SCREEN variants: `.con-draftws` · `.con-ma` · `.con-stdp` (fixed) and `.con-cardactions` · `.con-info` · `.con-played` · `.con-start--bounded` (own top/bottom). **A screen declares its edge, never the policy token** — `right: 0` cannot disagree with «am I on screen», while the token flips the frame the stack empties, i.e. the frame the surface starts FADING: the grid would re-fit inside a 468px-narrower box (at 4K) mid-dissolve. |
 | `.con-shade` | all four | The ONE shared dim — for EVERY owner (the reveal's full-bleed carve-out ended with TR57). |
 | own `__backdrop` | `position: absolute; inset: 0` | `.con-sheet` · `.con-ma` · `.con-info` · `.con-played-cat` — bounded by their own band. A `fixed; inset: 0` dim greys all four members and only *looked* right because two of them out-stacked it; the side rails never did. |

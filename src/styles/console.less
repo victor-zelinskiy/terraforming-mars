@@ -417,7 +417,7 @@ html.console-native {
     top: var(--con-stage-t, var(--con-band-top, 4.5rem));
     bottom: var(--con-stage-b, var(--con-band-bottom, 4.5rem));
     left: var(--con-stage-l, var(--con-ws-left, 11.3rem));
-    right: var(--con-stage-r-eff, var(--con-ws-right, 11.3rem));
+    .con-stage-right();
     z-index: 11460;
     pointer-events: none;
     .con-backdrop-dim();
@@ -703,9 +703,27 @@ html.console-native {
            a right-edge DRAWER («Журнал», the board dossier) does the same at
            that one edge. A compact DIALOG does neither — it stands inside the
            opening and the rail stays lit beside it.
-       Everything that must respect the opening spends THIS token, so the two
-       halves of the answer can never be combined differently twice. */
-    --con-stage-r-eff: var(--con-stage-r, var(--con-ws-right, 11.3rem));
+       Everything that must respect the opening spends the ONE mixin below
+       (`.con-stage-right()`), so the two halves of the answer can never be
+       combined differently twice. */
+}
+
+/* THE OPENING'S EFFECTIVE RIGHT EDGE, spent — the rail's measured inset, and 0
+   where the shell says the rail is being replaced.
+   A RULE ON THE CONSUMER, never a custom property on the root (FREEZE ZERO,
+   stage 6 — the frame budget of a press, R16): the policy used to be a token
+   (`--con-stage-r-eff`) that `.con-root--rail-replaced` flipped ON THE ROOT, and
+   a custom property is INHERITED — every open and every close of every
+   workspace, sheet and drawer restyled the whole tree (seven thousand nodes
+   mid-game), and the first script that measured anything afterwards paid for
+   it inside the press's own frame. A descendant rule restyles the two families
+   that spend it and nothing else. */
+.con-stage-right() {
+    right: var(--con-stage-r, var(--con-ws-right, 11.3rem));
+
+    .con-root--rail-replaced & {
+        right: 0px;
+    }
 }
 
 /* A WORKSPACE SCREEN (or a right-edge drawer) REPLACES the right rail: the rail
@@ -716,8 +734,6 @@ html.console-native {
    (plus the two workspace-shaped overlays that are not stack frames), so there
    is no second list of surface names to rot. */
 .con-root--rail-replaced {
-    --con-stage-r-eff: 0px;
-
     .con-strat {
         visibility: hidden;
     }
@@ -733,7 +749,7 @@ html.console-native {
    edge collapses to 0 by itself wherever the strategy rail is being REPLACED. */
 .con-ws-sides() {
     left: var(--con-stage-l, var(--con-ws-left, 11.3rem));
-    right: var(--con-stage-r-eff, var(--con-ws-right, 11.3rem));
+    .con-stage-right();
 }
 
 /* …and the SCREEN variant: a workspace screen IS the central stage, so it takes
@@ -742,7 +758,7 @@ html.console-native {
    screen's own `--con-hud-pad-x` padding).
    IT IS DECLARED BY THE SURFACE, NOT BY THE POLICY TOKEN, and that is the whole
    point: `right: 0` cannot disagree with «am I on screen». Spending
-   `--con-stage-r-eff` here instead would re-lay the screen out on every frame
+   `.con-stage-right()` here instead would re-lay the screen out on every frame
    where the flag and the surface's presence differ — a LEAVE most of all (the
    stack empties as the surface starts fading, so a 4K screen would re-fit its
    grid inside a 468px-narrower box while dissolving). The token stays for the
@@ -803,7 +819,7 @@ html.console-native {
        Milestones/Awards HUD off screen for the whole life of every prompt. The
        opposite cut — bounding EVERYTHING at the rail — left a workspace screen
        ending on an invisible line with the rail's zone unused beside it. So:
-       `--con-stage-r-eff` is the rail's inset by default and 0 under
+       `.con-stage-right()` is the rail's inset by default and 0 under
        `.con-root--rail-replaced`, which the shell raises for a screen (and for
        the two right-edge drawers). A SCREEN does not spend that token at all —
        it declares `.con-ws-stage-sides()` and owns its edge outright. CONTENT

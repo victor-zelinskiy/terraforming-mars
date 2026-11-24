@@ -1907,9 +1907,23 @@ Both got their instrument, and their first readings:
     sitting-rise», a sitting left behind its plate): the rise gives the board back at its own net (15 s); the foreign
     tile's wait (20 s) came to its ceiling first and filed the rise as its own defect. `boardCoverWitness.
     SELF_BOUNDED_COVERS`: alone and inside its bound — the designed end; beside another scene, or past it — a defect.
-- **NEXT, in this order:** the same probe on a QUIET box (the lanes end first) — the budget's true numbers; then R16
-  for the stage's box (its consumers stop inheriting it from the root) and the Parliament's mount as ONE measure and
-  ONE write, each step read by the probe before and after.
+- **R16, ITS FIRST HALF — DONE, WITH ITS NUMBER.** Read off the stylesheet: `.con-root--rail-replaced` — raised and
+  lowered by EVERY workspace, sheet and drawer — set the policy token `--con-stage-r-eff: 0px` on the root, and a
+  custom property is inherited: the whole tree restyled on every open and close, for a value two families read.
+  `.con-stage-right()`: the rail's inset, and `.con-root--rail-replaced & { right: 0px }` — a rule on the twenty-one
+  consumers (the compiled sheet read rule by rule). The same loaded box, before → after (the frame · the time inside
+  layout-forcing reads): the Parliament 437 · 279 → 305 · 187 ms, the colonies 219 · 56 → 106 · 18, the hand
+  185 · 132 → 161 · 92, the card actions 82 · 41 → 73 · 10, the journal's open and close 62 · 100 → under 50 ms
+  both. The contract on the box: eight geometry specs, 18 passed.
+- **THE SOAK's SERIES SO FAR** (game 402, thirty minutes a generation): three spells — 0 – 2 layouts and 1 – 19 style
+  recalculations in thirty minutes, the heap's change inside a spell ≤ +0.4 MB, no long frame, no warning. BETWEEN
+  the spells the browser's node count grows (5 078 · 8 118 · 14 535) while the attached elements at the same menu
+  stand near 1 300: each spell now names the trees detached from the document and still held by a script, by root
+  (`DOM.getDetachedDomNodes` — game 403, one-minute spells, reads them generation by generation).
+- **NEXT, in this order:** the same probe on a QUIET box (the lanes end first) — the budget's true numbers; R16's
+  second half (the shell still writes `--con-stage-r` on `<html>` when a SECTION takes the rail away — the
+  notifications' corner and the reaction's opening read it directly); the Parliament's mount as ONE measure and ONE
+  write; what the soak's census names — each step read by its instrument before and after.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

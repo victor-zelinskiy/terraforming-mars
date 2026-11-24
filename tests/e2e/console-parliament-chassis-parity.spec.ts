@@ -59,7 +59,12 @@ async function chassisOf(page: Page, headSelector: string): Promise<Chassis> {
         return `${c.className.toString().split(' ').slice(0, 2).join('.')} h${Math.round(b.height)} top${Math.round(b.top)} [${kids.join(' ')}]`;
       }),
       headH: head === null ? -1 : Math.round(head.getBoundingClientRect().height),
-      stage: cs === undefined ? '' : ['--con-stage-t', '--con-stage-b', '--con-stage-l', '--con-stage-r-eff'].map((p) => cs.getPropertyValue(p).trim()).join(' '),
+      // (The right edge is the rail's measured inset, and 0 where the shell replaces the rail — the policy is a RULE on
+      // the consumers since the frame budget's restyle, `.con-stage-right()`; the same two halves are read here.)
+      stage: cs === undefined || root === null ? '' : [
+        ...['--con-stage-t', '--con-stage-b', '--con-stage-l'].map((p) => cs.getPropertyValue(p).trim()),
+        root.classList.contains('con-root--rail-replaced') ? '0px' : cs.getPropertyValue('--con-stage-r').trim(),
+      ].join(' '),
     };
   }, headSelector);
 }

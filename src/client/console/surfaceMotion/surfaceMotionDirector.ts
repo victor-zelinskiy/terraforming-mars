@@ -959,7 +959,7 @@ function settledRects(nodes: ReadonlyArray<HTMLElement>, done: () => void): void
  * live geometry (`--con-stage-*`, plus the shell's `.con-root--rail-replaced`
  * policy). And the very press that dismisses it is what opens the workspace
  * that takes the strategy rail's zone — a SHEET screen raises the policy class
- * (`--con-stage-r-eff: 0`), a SECTION workspace `v-show`s the rail away so the
+ * (`.con-stage-right()` — `right: 0`), a SECTION workspace `v-show`s the rail away so the
  * geometry mirror measures 0×0 and publishes the collapsed inset. Both land in
  * the SAME Vue flush as the wheel's leave, so the departing cross re-solves in
  * the now-wider opening and slides half a rail sideways on the first painted

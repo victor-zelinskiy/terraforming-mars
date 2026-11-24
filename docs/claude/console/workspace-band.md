@@ -14,7 +14,7 @@ ResizeObserver на `.con-main` И на ОБОИХ rail'ах) публикует
 2026-08-17 это была только вертикаль, `--con-ws-top`/`--con-ws-bottom`), а
 `.con-modal-band()` читает их с токенами как pre-mount fallback. Правый край
 зависит от семьи: компактный ДИАЛОГ останавливается у rail'а достижений
-(`--con-stage-r-eff`), workspace-ЭКРАН доходит до физического края и rail
+(`.con-stage-right()`), workspace-ЭКРАН доходит до физического края и rail
 скрывается (`.con-root--rail-replaced`) — см. `hud-frame.md` § THE CENTRAL
 OPENING. Экраны-workspace несут `.con-ws-fill()` (ширина 100%, `max-width:
 none`) — их рамка начинается на шве рельсы, как у `.con-info`; НИКАКИХ
@@ -37,7 +37,7 @@ x/y. Направленный толчок wheel-handoff'а и «подъём» 
   `--con-ws-right`) как pre-mount fallback. Профили переопределяют ТОКЕНЫ на
   `.con-root` (handheld 0.7vw/7.3rem/.4rem, tv safe-x/9.8rem), никогда —
   per-surface константы. Правый край проёма тратится через
-  `--con-stage-r-eff`, который обнуляет ПОЛИТИКА шелла
+  `.con-stage-right()` — правый край, который обнуляет ПОЛИТИКА шелла
   (`.con-root--rail-replaced`): workspace-ЭКРАН и два правых ящика забирают зону
   правого rail'а и он перестаёт рисоваться, компактный ДИАЛОГ стоит внутри
   проёма рядом с горящим rail'ом. Полный контракт (включая «затемнение = тот же
