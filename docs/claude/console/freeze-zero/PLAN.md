@@ -1640,10 +1640,26 @@ no rebuild inside a game, no table nobody moved.** What the pass named, read cla
   mounts for a foreign batch»), written for the Hydronetwork too: `outcomeAdoptionHost` gives `hydro` only while the
   frame's zone is published. With no host the batch keeps its standalone presenter, at once. The same game at the
   same commit with the fix: the play ends, «Карты · A Взять» stands over the board, the game names nothing.
-- **OPEN, each with its evidence — to be read on the browser's pass, never cured on a guess:** ⓑ a sitting's
-  `option` under its walk in the bottle (games 2 · 22 — `stranded-prompt/parliamentphase` once each; the Parliament
-  is the bottle's most layout-bound surface); ⓒ the draft's plate «did not come in its bound» behind a start that
-  still stood (games 6 · 7 · 23 — the take turn's consequence; re-read on the next pass).
+- **THE SECOND PASS — BOTH WORLDS (CI run 45302846679, on `bdf3b9839e`).** *The bottle, sixteen games of the
+  product's own tables:* **16 of 16 played to the final scoring**, and what they name fell from twenty-six classes to
+  four (`board-card-bonus:hover` ×2 and `notifications/band-no-cause` — measured ends, to be confirmed blind;
+  `stranded-prompt/parliamentphase`; one `covered-prompt/cardselect`). *The real browser, its first ten games:* six
+  played the solo player against MarsBot to the final scoring (thirteen to twenty minutes each; 900 – 1 250
+  presses), four stood at the cap of 1 400 in generations 13 – 17 — and five of the ten named NOTHING AT ALL. What the
+  rest named: the same `stranded-prompt/parliamentphase` (so it is no blindness of the bottle), one
+  `remote-placement:watchable-board` ceiling, one `board-beat-park` story — and two of the start director's cures,
+  red by the harness's contract, which were the PILOT's: it answered the opening's questions over the API while the
+  scene stood (states only a second device makes). The browser's pilot seeds the opening before the page opens now.
+- **ⓑ CURED — THE SITTING's QUESTION LEFT BEHIND ON THE OVERVIEW.** The player stands on the Parliament's overview,
+  opened by themselves to read, when the generation ends. The overview serves the sitting's question in place («A
+  Открыть голосование»), so the gate acknowledges the beat — its home stands — and the plate is never shown; B said
+  «На поле» and left: a board with no plate and no way back, the stranded guard three seconds later. The sheets'
+  own law (`deferShellTask('board')` before a leave) was missing on the Parliament's close alone. Now B sets the
+  question aside and says so («Свернуть» — `ParliamentCommandsInput.questionOwed`, by the stack's registry), and the
+  board offers «Вернуться к заседанию». The same game, the same presses: nothing named.
+- **OPEN, to be read on the next pass:** ⓒ the draft's plate «did not come in its bound» behind a start that still
+  stood (the take turn's consequence — gone from the second pass); the two measured-end classes above; the one
+  `covered-prompt/cardselect` (bottle game 8).
 - **THE SOAK's FIRST NUMBERS** (`AutopilotOptions.sample` — once a generation, at the same place: the viewer's action
   menu with nothing on the stack): a sixteen-generation game against the bot grows from 1 158 DOM nodes to 2 309 and
   from 24 kernel scopes to 50 — read by kind, all of it the BOARD filling (a tile's ownership cube is forty SVG nodes:

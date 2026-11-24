@@ -265,7 +265,8 @@ export async function autopilotGame(bottle: ConsoleBottle, seats: ReadonlyArray<
       } else {
         result.doors.push(`${asked.type} · gen ${truth.generation} · ${standsNow()}`);
         options.onDoor?.(`${asked.type} · gen ${truth.generation}`);
-        const moved = await server.seatAnswersRandomly(viewer, seatRng(), 0.5);
+        // (A question that is not the menu is never «passed»: the answer the door gives is a move, as the screen's would be.)
+        const moved = await server.seatAnswersRandomly(viewer, seatRng(), 0);
         await bottle.clock.drain();
         standing.byApi = true;
         result.log.push(`[BY-DOOR ${asked.type}${moved === undefined ? ' nothing' : ''}]`);

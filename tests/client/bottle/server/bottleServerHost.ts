@@ -322,7 +322,11 @@ export async function seatQuestion(playerId: string): Promise<{type: string, pro
   if (truth.waitingFor === 'or') {
     const view = await request('GET', `/api/player?id=${playerId}`);
     const model = (JSON.parse(view.body) as {waitingFor?: PlayerInputModel}).waitingFor;
-    menu = model?.type === 'or' && model.options.some((option) => option.type === 'option' && option.warnings?.includes('pass') === true);
+    // …AND NOT THE OPENING's: while the corporation's first action is owed the menu carries a pass the SCREEN does not
+    // offer (the start stands on «Выполнить первое действие» and the wheel refuses the pass) — a pilot that took it
+    // through the door skipped a step no player can skip, and the start it left behind covered the next question.
+    menu = model?.type === 'or' && model.startGamePrompt?.kind !== 'corporationInitialAction' &&
+      model.options.some((option) => option.type === 'option' && option.warnings?.includes('pass') === true);
   }
   return {type: truth.waitingFor, promptId: truth.promptId, menu};
 }
