@@ -88,15 +88,21 @@ export const PLAYER_BOARD_COVERS: ReadonlySet<string> = new Set(['section', 'she
  */
 export function boardCoversAreThePlayers(names: ReadonlyArray<string>): boolean {
   const placing = names.includes('placement');
-  // …and A SITTING ON ITS WAY UP beside a SCREEN of the player's own: the sitting rises behind that screen, bounded by
-  // its own net (`sittingRise.SITTING_RISE_NET_MS` — it gives the board back by itself), so that it stands at the
-  // moment a story's bound runs out says nothing of a leak — the board was the player's screen's the whole window.
-  // Alone it stays the game's own cover (a sitting that keeps the board with nothing of the player's over it).
-  // (The autopilot's third pass in a real browser, 2026-11-24 — game 35: three scale steps parked thirty seconds
-  // behind `workspace · sitting-rise`, the board never in view, filed as a defect.)
+  return names.length > 0 && names.every((name) => PLAYER_BOARD_COVERS.has(name) || (name === 'planet-focus' && placing));
+}
+
+/**
+ * A BOARD NEVER IN VIEW, and A SITTING ON ITS WAY UP beside a SCREEN of the player's own (the story's reading ONLY —
+ * never the park's own `boardCoversAreThePlayers`, and never a board the player SAW: a drain the rise covered again is
+ * the game taking the board away). The sitting rises behind that screen, bounded by its own net
+ * (`sittingRise.SITTING_RISE_NET_MS` — it gives the board back by itself): that it stands at the moment a story's
+ * bound runs out says nothing of a leak — the window was the player's screen's. Alone the rise stays the game's cover.
+ * (The autopilot's third pass in a real browser, 2026-11-24 — game 35: three scale steps parked thirty seconds behind
+ * `workspace · sitting-rise`, the board not seen in one look of 119, filed as a defect.)
+ */
+function riseBehindThePlayersScreen(names: ReadonlyArray<string>): boolean {
   const ownScreen = names.some((name) => name === 'workspace' || name === 'section' || name === 'sheet');
-  return names.length > 0 && names.every((name) => PLAYER_BOARD_COVERS.has(name) || (name === 'planet-focus' && placing) ||
-    (name === 'sitting-rise' && ownScreen));
+  return ownScreen && boardCoversAreThePlayers(names.filter((name) => name !== 'sitting-rise'));
 }
 
 /**
@@ -121,10 +127,11 @@ export function storyCoveredByPlayer(body: string): boolean {
   }
   const namesOf = (list: string): Array<string> => list.split(',').map((s) => s.trim().replace(/^"|"$/g, '')).filter((s) => s !== '');
   const names = namesOf(covered[1]);
-  if (!boardCoversAreThePlayers(names)) {
+  const seen = /"watchableSeen":\s*true/.test(body);
+  if (!boardCoversAreThePlayers(names) && !(!seen && riseBehindThePlayersScreen(names))) {
     return false;
   }
-  if (!/"watchableSeen":\s*true/.test(body)) {
+  if (!seen) {
     return true;
   }
   const drains = Number(/"drains":\s*(\d+)/.exec(body)?.[1] ?? Number.NaN);
