@@ -218,7 +218,9 @@ export abstract class Draft {
       takingFrom: this.takingFrom(player).color,
       total: player.draftedCards.length + player.draftHand.length,
     });
-    player.setWaitingFor(selectCard
+    // (A question of the PHASE — `setPhaseQuestion`: a pick asked inside the action that ended the generation kept that
+    // action's journal chain open for the whole draft.)
+    player.setPhaseQuestion(selectCard
       .andThen((selected) => {
         if (repick) {
           const startIndex = player.draftedCards.length - cardsToKeep;

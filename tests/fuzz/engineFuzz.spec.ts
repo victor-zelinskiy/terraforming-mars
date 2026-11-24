@@ -168,6 +168,24 @@ describe('engineFuzz — random legal games on the real engine', () => {
       expect(result.end).to.eq('ended');
     });
 
+    it('C-phase — a question of a phase standing under another seat’s chain', () => {
+      // Planted: the first research buy / draft pick a seat holds is given the chain of an action of ANOTHER seat.
+      let planted = 0;
+      const result = runFuzzGame(fuzzConfig(3, {maxSteps: 200}), {afterAnswer: (game) => {
+        for (const seat of game.players) {
+          const input = seat.getWaitingFor() as unknown as {deckPickPrompt?: {mode?: string}, draftPrompt?: unknown} | undefined;
+          const asked = input !== undefined && (input.draftPrompt !== undefined || (game.phase === Phase.RESEARCH && input.deckPickPrompt?.mode === 'buy'));
+          const foreign = game.events.events.find((event) => event.type === 'action' && event.player !== undefined && event.player !== seat.color);
+          if (asked && foreign !== undefined && planted === 0 && !seat.isMarsBot) {
+            planted++;
+            (seat as unknown as {waitingForContext: {rootId: number}}).waitingForContext = {rootId: foreign.id};
+          }
+        }
+      }});
+      expect(planted, 'the control reached a question of a phase').to.eq(1);
+      expect(result.violations.map((violation) => violation.invariant)).to.include('C-phase');
+    }).timeout(30_000);
+
     it('I3 — work left queued under a question that does not continue it', () => {
       // (Planted in the ACTION phase: in the research phase a seat's own queue is OWED on its way out, not left.)
       let planted = 0;

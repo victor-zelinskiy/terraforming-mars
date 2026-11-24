@@ -1391,13 +1391,13 @@ export class Player implements IPlayer {
         }
         // Drawing from the top to maintain seeds.
         cards.push(...this.game.projectDeck.drawN(this.game, 2, 'top'));
-        this.setWaitingFor(chooseCardsToBuy());
+        this.setPhaseQuestion(chooseCardsToBuy());
 
         return undefined;
       }));
-      this.setWaitingFor(options);
+      this.setPhaseQuestion(options);
     } else {
-      this.setWaitingFor(chooseCardsToBuy());
+      this.setPhaseQuestion(chooseCardsToBuy());
     }
   }
 
@@ -3674,6 +3674,30 @@ export class Player implements IPlayer {
    */
   public openWaitingForCorrelation(): number | undefined {
     return this.waitingFor === undefined ? undefined : this.waitingForContext?.rootId;
+  }
+
+  /**
+   * A QUESTION OF A PHASE — the research buy, a draft pick. It STARTS A NEW CHAIN: it is asked by the phase, never by
+   * the action that happened to end the phase before it.
+   *
+   * A generation that ends inside somebody's action (MarsBot passing last — its whole turn is one journal chain) runs
+   * the production and asks the next phase's questions INSIDE that action's event scope, and a prompt captures the
+   * scope it is asked in (`waitingForContext`): the seat's answer then ran under it. So the research purchase's
+   * payment was recorded IN MARSBOT's TURN (the journal's group, the stats, a notification's «вам −3 M€» with the
+   * bot's turn for its cause), and that turn's correlation stayed OPEN for as long as the seats drafted and bought —
+   * every notification of the chain held in «preparing» until the 90 s ceiling let it go («correlation N stayed open
+   * … held by unknown» — the box's whole games, 2026-11-24; an engine probe over forty games: 77 research buys and 72
+   * draft picks standing under `automa-turn` of another seat). The action menu is the same law for the action phase
+   * (`takeAction` — «this prompt starts a new chain»).
+   */
+  public setPhaseQuestion(input: PlayerInput, cb: () => void = () => {}): void {
+    this.waitingForContextOverride = null;
+    try {
+      this.setWaitingFor(input, cb);
+    } finally {
+      // (One-shot whatever happened: a question refused before it was written must not leave the next one chainless.)
+      this.waitingForContextOverride = undefined;
+    }
   }
 
   public setWaitingFor(input: PlayerInput, cb: () => void = () => {}): void {

@@ -856,6 +856,19 @@ export function runFuzzGame(config: FuzzConfig, hooks: FuzzHooks = {}): FuzzResu
           violate('I2-bot', [input.type, titleOf(input.title), subject], 'MarsBot is asked a question — no page will ever answer it',
             {seat: seat.color, promptType: input.type, title: titleOf(input.title), source: subject, answer});
         }
+        // C — A QUESTION OF A PHASE STANDS UNDER NO CHAIN OF ANOTHER SEAT (`Player.setPhaseQuestion`): the research buy
+        // and a draft pick are asked by the PHASE. Asked inside the action that ended the generation before them
+        // (MarsBot's last turn draining its tail), they captured that action's journal chain: the seat's payment was
+        // recorded in the bot's turn, and the turn's correlation stayed open for the whole draft.
+        const phaseQuestion = (table.phase === Phase.RESEARCH && (input as {deckPickPrompt?: {mode?: string}}).deckPickPrompt?.mode === 'buy') ||
+          (input as {draftPrompt?: unknown}).draftPrompt !== undefined;
+        const chain = phaseQuestion ? seat.openWaitingForCorrelation() : undefined;
+        const chainOf = chain === undefined ? undefined : table.events.events.find((event) => event.id === chain);
+        if (chainOf !== undefined && chainOf.player !== undefined && chainOf.player !== seat.color) {
+          violate('C-phase', [input.type, table.phase, chainOf.category ?? chainOf.type], `a question of the ${table.phase} phase stands under another seat's chain — ` +
+            `${chainOf.category ?? chainOf.type} of ${chainOf.player}: its answer would be recorded there, and that chain stays open meanwhile`,
+          {seat: seat.color, promptType: input.type, title: titleOf(input.title), source: subject, answer});
+        }
       }
       // I3 — nothing is queued unless a standing question is the queue's own (its answer resumes the drain).
       // (THE RESEARCH PHASE DRAINS PER SEAT — `Game.playerIsFinishedWithResearchPhase` → `runAllFor`: a seat still

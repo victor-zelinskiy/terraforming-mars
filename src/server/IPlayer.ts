@@ -838,6 +838,8 @@ export interface IPlayer {
   /** Correlation root of the chain the pending prompt belongs to (may still grow). */
   openWaitingForCorrelation(): number | undefined;
   setWaitingFor(input: PlayerInput, cb?: () => void): void;
+  /** A question of a PHASE (the research buy, a draft pick): it starts a new journal chain — never the continuation of the action that ended the phase before it. */
+  setPhaseQuestion(input: PlayerInput, cb?: () => void): void;
   setWaitingForSafely(input: PlayerInput, cb?: () => void): void;
   clearWaitingFor(): void;
   serialize(): SerializedPlayer;
