@@ -326,6 +326,36 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
               layouts: of('LayoutCount'), styles: of('RecalcStyleCount'), scriptS: Math.round(of('ScriptDuration') * 100) / 100, taskS: Math.round(of('TaskDuration') * 100) / 100,
             };
           };
+          // …AND WHAT IS KEPT ALIVE OFF THE DOCUMENT (the first soak's reading: the browser's node count grew from
+          // generation to generation — 5 078 · 8 118 · 14 535 — while the ATTACHED elements at the same menu stood at
+          // ≈ 1 300): the trees detached from the document and still referenced by a script, by the root's tag and
+          // first class — who keeps them is read off the name. (`DOM.getDetachedDomNodes`; a browser without it says
+          // nothing here.)
+          type DetachedNode = {nodeName?: string, attributes?: Array<string>, children?: Array<DetachedNode>};
+          const detachedNow = async (): Promise<{roots: number, nodes: number, top: string} | undefined> => {
+            try {
+              await cdp.send('DOM.enable');
+              const {detachedNodes} = await (cdp as unknown as {send(method: string): Promise<{detachedNodes: Array<{treeNode: DetachedNode}>}>}).send('DOM.getDetachedDomNodes');
+              const size = (node: DetachedNode): number => 1 + (node.children ?? []).reduce((sum, child) => sum + size(child), 0);
+              const by = new Map<string, {roots: number, nodes: number}>();
+              let nodes = 0;
+              for (const {treeNode} of detachedNodes) {
+                const at = (treeNode.attributes ?? []).indexOf('class');
+                const cls = at >= 0 ? (treeNode.attributes?.[at + 1] ?? '').trim().split(/\s+/)[0] : '';
+                const label = `${(treeNode.nodeName ?? '?').toLowerCase()}${cls !== '' ? `.${cls}` : ''}`;
+                const n = size(treeNode);
+                nodes += n;
+                const row = by.get(label) ?? {roots: 0, nodes: 0};
+                row.roots++;
+                row.nodes += n;
+                by.set(label, row);
+              }
+              const top = [...by].sort((a, b) => b[1].nodes - a[1].nodes).slice(0, 8).map(([label, row]) => `${label}×${row.roots}=${row.nodes}`).join(' ');
+              return {roots: detachedNodes.length, nodes, top};
+            } catch {
+              return undefined;
+            }
+          };
           const before = await ask();
           const heard = {longFrames: ears.longFrames, warnings: ears.warnings};
           const spellStarted = Date.now();
@@ -333,6 +363,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
             await cinematicBeat(page, 60_000, 'the soak — the page is left alone at its action menu, a console nobody is pressing');
           }
           const after = await ask();
+          const detached = await detachedNow();
           await cdp.detach();
           const spell = {
             gen: model.game.generation, minutes: Math.round((Date.now() - spellStarted) / 6_000) / 10,
@@ -342,10 +373,12 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
             layouts: after.layouts - before.layouts, styles: after.styles - before.styles,
             scriptS: Math.round((after.scriptS - before.scriptS) * 100) / 100, taskS: Math.round((after.taskS - before.taskS) * 100) / 100,
             longFrames: ears.longFrames - heard.longFrames, warnings: ears.warnings - heard.warnings,
+            ...(detached !== undefined ? {detachedTrees: detached.roots, detachedNodes: detached.nodes} : {}),
           };
           played.spells.push(spell);
           // (Said as it happens: a soak is hours, and its numbers are read while it runs.)
-          console.log(`[autopilot-soak] ${seed} ${JSON.stringify(spell)}${spell.warnings > 0 ? ` — the warnings of the spell: ${ears.lastWarnings.slice(-Math.min(4, spell.warnings)).join(' ¦ ')}` : ''}`);
+          console.log(`[autopilot-soak] ${seed} ${JSON.stringify(spell)}${spell.warnings > 0 ? ` — the warnings of the spell: ${ears.lastWarnings.slice(-Math.min(4, spell.warnings)).join(' ¦ ')}` : ''}` +
+            (detached !== undefined ? ` — detached and kept: ${detached.roots} tree(s), ${detached.nodes} node(s): ${detached.top}` : ''));
           // The table did not move by itself: the question that stood still stands (the spell is not a stall of the game).
           moved = {age: moved.age, at: Date.now()};
         }
