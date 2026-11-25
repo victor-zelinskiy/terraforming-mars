@@ -177,7 +177,7 @@
   "src/client/console/nomads/consoleNomadMove.ts": 5,
   "src/client/console/parliament/agendaReaction.ts": 1,
   "src/client/console/parliament/agendaWalkDirector.ts": 1,
-  "src/client/console/parliament/allianceImpulse.ts": 2,
+  "src/client/console/parliament/allianceImpulse.ts": 1,
   "src/client/console/parliament/bannerCubeStage.ts": 1,
   "src/client/console/parliament/consoleParliamentFlow.ts": 2,
   "src/client/console/parliament/consoleResolutionPayout.ts": 1,

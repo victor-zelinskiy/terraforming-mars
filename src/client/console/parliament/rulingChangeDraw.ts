@@ -8,7 +8,7 @@ import {drawnCardsState, DrawnCardEntry} from '@/client/components/drawnCards/dr
 import {playerOwnedHolds, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {beginPanelRewardHold, declareHeldAnswers, noteTransferTrail, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReactionDirector';
 import {rectOf} from './parliamentFlights';
 import {allianceImpulseState} from './allianceImpulse';
@@ -386,6 +386,15 @@ function waitAllianceImpulseLanded(): Promise<void> {
       const now = clock.now();
       const flying = allianceImpulseState.flying > 0;
       if (allianceImpulseState.pending.size === 0 && !flying) {
+        wait?.met();
+        resolve();
+        return;
+      }
+      // …AND NOTHING TO WAIT FOR: no spark in the air and the chamber KNOWS it cannot show one now (covered by a viewer
+      // or a panel, or not on screen at all) — the impulse stays owed to the next time the seals are seen, and the
+      // card goes on at once (the box's game 1439 waited 1.6 s for a start that could not come, and said a ceiling).
+      if (!flying && (allianceImpulseState.prospect === 'covered' || allianceImpulseState.prospect === 'unmounted')) {
+        noteTransferTrail('ruling-change:impulse-owed', {prospect: allianceImpulseState.prospect, pending: [...allianceImpulseState.pending]});
         wait?.met();
         resolve();
         return;

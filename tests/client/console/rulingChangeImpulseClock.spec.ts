@@ -38,6 +38,8 @@ describe('rulingChangeDraw — the tail waits for the alliance\'s impulse to LAN
     // The change of power drew a card the tail owes the draw stage.
     reconcileDrawnCards([{id: 31, source: ruling, segments: [{source: ruling, count: 1}], cards: [{name: CardName.FISH} as CardModel]}]);
     allianceImpulseState.pending = new Set([PartyName.MARS]);
+    // The chamber stands at rest with both seals seen — the spark is a tick away (its prospect is the chamber's word).
+    allianceImpulseState.prospect = 'arming';
   });
 
   afterEach(async () => {
@@ -76,6 +78,28 @@ describe('rulingChangeDraw — the tail waits for the alliance\'s impulse to LAN
     await microtasks();
     expect(rulingChangeDrawState.handedOver, 'the chamber never showed it — it stays owed to the next look').is.true;
   });
+
+  /*
+   * A CHAMBER THAT CANNOT SHOW IT IS WAITED FOR BY NOBODY (the box's game 1439: the fullscreen viewer covered the seals;
+   * the tail waited 1.6 s for a start that could not come, and said a ceiling). Covered or not on screen at all: the
+   * impulse stays owed to the next look, and the card goes on at once.
+   */
+  for (const prospect of ['covered', 'unmounted'] as const) {
+    it(`the chamber ${prospect === 'covered' ? 'COVERED (a viewer over the seals)' : 'NOT ON SCREEN'}: the card goes on at once — no wait, no ceiling`, async () => {
+      allianceImpulseState.prospect = prospect;
+      const said: Array<string> = [];
+      const warn = console.warn;
+      console.warn = (...args: Array<unknown>) => said.push(args.map(String).join(' '));
+      try {
+        tail = deliverRulingChangeDraws();
+        await microtasks();
+        expect(rulingChangeDrawState.handedOver, 'handed over without a tick of the clock').is.true;
+        expect(said.filter((line) => line.includes('alliance-impulse')), 'nothing said').to.deep.equal([]);
+      } finally {
+        console.warn = warn;
+      }
+    });
+  }
 
   it('a spark that never lands is bounded by the hard ceiling', async () => {
     allianceImpulseState.flying = 1;

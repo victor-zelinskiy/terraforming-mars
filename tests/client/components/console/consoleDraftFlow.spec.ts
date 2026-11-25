@@ -13,6 +13,8 @@ import {
 } from '@/client/console/draft/consoleDraftFlow';
 import type {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {draftCommands} from '@/client/console/draft/consoleDraftUi';
+import {phaseWorkspaceConcluding} from '@/client/console/draft/phaseWorkspaceConcluding';
+import {pushWorkspaceFrame, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 
 /** A minimal PlayerViewModel for the pure flow derivations. */
 function view(overrides: {
@@ -358,6 +360,28 @@ describe('consoleDraftFlow', () => {
   it('hydration: a first view already mid-draft never claims a live entry', () => {
     observeDraftWorkspace(undefined, view({waitingFor: pickPrompt([CardName.FISH])}));
     expect(draftWorkspaceState.sawDraftStart).is.false;
+  });
+
+  /*
+   * THE CLOSING BEAT HOLDS THE SCREEN — ONE answer for the one function and the board's announcement (CI #153 · #154):
+   * the research's frame on the stack, its completion beats running, its phase over. Each condition alone is not it.
+   */
+  it('a phase workspace telling its conclusion: the draft frame, its closing beats, its phase over — nothing less', () => {
+    const after = view({phase: Phase.ACTION, needsToResearch: false});
+    try {
+      expect(phaseWorkspaceConcluding(after), 'no frame, no beat').eq('');
+      beginDraftCompletion({bought: 0, spent: 0});
+      expect(phaseWorkspaceConcluding(after), 'the beat with no frame on the stack').eq('');
+      pushWorkspaceFrame({kind: 'draft', subject: '', stage: '', phase: 'browse', serves: [], anchor: {type: 'phase', phase: 'drafting'}});
+      expect(phaseWorkspaceConcluding(after), 'the frame, its flights, the phase over').eq('draft');
+      markDraftCompletionFlightsDone();
+      expect(phaseWorkspaceConcluding(after), '…and its «ГОТОВО»').eq('draft');
+      expect(phaseWorkspaceConcluding(view({phase: Phase.RESEARCH, needsToResearch: true})), 'the research still live is the draft\'s own question').eq('');
+      finishDraftCompletion();
+      expect(phaseWorkspaceConcluding(after), 'the beat over — the screen is the next question\'s').eq('');
+    } finally {
+      resetWorkspaceStack();
+    }
   });
 
   it('completion beats extend the frame lifetime', () => {

@@ -899,11 +899,10 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       // guarded by the epoch — a cut in the settle (a reset, a second press) owns the phase from then on; a stale
       // continuation that wrote `receding` after it left the `card-reaction` hold standing for good.
       await pacedWait(tempoFor(groups.length).settleMs);
-      if (epoch !== myEpoch) {
+      if (!setReactionPhase(myEpoch, 'receding')) {
         attachedLive = Math.max(0, attachedLive - 1);
         return;
       }
-      cardReactionState.phase = 'receding';
       await Promise.all(faces.map((r, i) => new Promise<void>((resolve) => {
         motionGuarantee(motionMs(60 * i) / paceNow(), 'a reactor\'s face recedes in its turn', () => {
           void recede(r).then(resolve);
@@ -911,7 +910,7 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       })));
       attachedLive = Math.max(0, attachedLive - 1);
       if (epoch === myEpoch && cardReactionState.phase === 'receding' && !standaloneRunning) {
-        cardReactionState.phase = 'idle';
+        setReactionPhase(myEpoch, 'idle');
         hurried = false;
         cardReactionState.hurried = false;
         dropWarmReactors();
@@ -948,7 +947,10 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       });
       prepared = true;
       attachedLive++;
-      cardReactionState.phase = 'rising';
+      if (!setReactionPhase(myEpoch, 'rising')) {
+        attachedLive = Math.max(0, attachedLive - 1);
+        return;
+      }
       cardReactionState.chain = {cards: groups.map((g) => g.card), landed: 0, summarized: overflow.map((g) => g.card), seats: slots.length, pace: 1};
       overflow.forEach((g) => noteReactionLetGo(g.card, g.record.seq, 'no-slot'));
       // Every claimed reactor comes forward together, a beat apart — the answer's own stagger then orders the births.
@@ -961,10 +963,9 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       const out = await Promise.all(rises);
       risen.push(...out);
       out.filter((r) => r.face === undefined).forEach((r) => noteDegrade(`${r.group.card}: no face to be born on`));
-      if (epoch !== myEpoch) {
+      if (!setReactionPhase(myEpoch, 'paying')) {
         return; // cut while rising — the cut owns the phase
       }
-      cardReactionState.phase = 'paying';
       // The eye reads WHICH card and WHY before anything leaves it (the read beat of the rise — the effect row is lit).
       await pacedWait(t.holdMs);
     },
@@ -1120,7 +1121,7 @@ async function runStandalone(): Promise<void> {
   standaloneRunning = true;
   const myEpoch = epoch;
   try {
-    cardReactionState.phase = 'waiting';
+    setReactionPhase(myEpoch, 'waiting');
     cardReactionState.waitingOnOther = false;
     cardReactionState.waitingOnPlayer = '';
     // The board's own story first (a tile's landing, its cell's payout) — a reaction never cuts into the cause's scene;
@@ -1170,7 +1171,9 @@ async function runStandalone(): Promise<void> {
         pushTransient(card);
       }
     }
-    cardReactionState.phase = 'rising';
+    if (!setReactionPhase(myEpoch, 'rising')) {
+      return;
+    }
     // THE STEPS GO BY EVENT (iteration 3): the next group rises once the previous group's last token has LEFT its
     // face and the overlap's share of the flight has passed (never at a time computed at the plan's start — a slow
     // device stretches the chain, it never bunches the rises), and never before its own slot has receded.
@@ -1211,11 +1214,26 @@ async function runStandalone(): Promise<void> {
 }
 
 /** The chain is over: idle, the hurry forgotten, the warm faces nobody rose dropped. */
+/**
+ * THE ONE WRITER OF THE CHAIN's PHASE — owned by its run (FREEZE ZERO, the box's game 1431: a second «hurry» cut a rival
+ * reaction inside its read beat — the cut set the phase `idle` and moved the epoch — and the old continuation, past its
+ * last await, still wrote `paying`: nothing ever wrote it again, the hold (`phase !== 'idle'`) stood with nothing on
+ * screen until the foreground watchdog expired it, and the draft's question waited behind it). A run that is not the
+ * current one writes NOTHING (said to the trail); the caller returns. Only the cut writes past it (`cutCardReactions`).
+ */
+function setReactionPhase(run: number, phase: typeof cardReactionState.phase): boolean {
+  if (run !== epoch) {
+    noteTransferTrail('reaction:stale-phase', {run, epoch, phase});
+    return false;
+  }
+  cardReactionState.phase = phase;
+  return true;
+}
+
 function endChain(myEpoch: number): void {
-  if (epoch !== myEpoch) {
+  if (!setReactionPhase(myEpoch, 'idle')) {
     return;
   }
-  cardReactionState.phase = 'idle';
   hurried = false;
   cardReactionState.hurried = false;
   dropWarmReactors();
@@ -1240,10 +1258,9 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
       // The read beat is measured from a PAINTED frame of the risen face (a stall before it never eats the read).
       await nextPaintedFrame();
       await pacedWait(t.holdMs, planPace);
-      if (epoch !== myEpoch) {
+      if (!setReactionPhase(myEpoch, 'paying')) {
         return;
       }
-      cardReactionState.phase = 'paying';
       // A REFUSED unit (P57 — the skipped rating step): the printed struck icon is marked once and the rating cell wears
       // the cause — no token is born, nothing ticks (invariant 16: a rating that will not come never flies).
       if (entry.group.skips.length > 0) {
@@ -1657,7 +1674,9 @@ async function playRivals(myEpoch: number): Promise<void> {
       return;
     }
     const t = tempoFor(1);
-    cardReactionState.phase = 'rising';
+    if (!setReactionPhase(myEpoch, 'rising')) {
+      return;
+    }
     cardReactionState.chain = {cards: [entry.group.card], landed: 0, summarized: [], seats: 1, pace: 1};
     // The plaque reads STOCK (its items are a resource and a count); a production step lands on the chip's dot itself,
     // its token wearing the production frame — never a plaque that would print a step as money.
@@ -1680,7 +1699,10 @@ async function playRivals(myEpoch: number): Promise<void> {
     }
     await nextPaintedFrame();
     await pacedWait(t.holdMs);
-    cardReactionState.phase = 'paying';
+    // (The read beat is an await: a cut inside it owns the phase — this continuation writes nothing and leaves.)
+    if (!setReactionPhase(myEpoch, 'paying')) {
+      return;
+    }
     const tokens = entry.specs.flatMap((spec) => reactionTokensOf(spec));
     const origins = birthEnds(risen, tokens);
     if (risen.face === undefined) {

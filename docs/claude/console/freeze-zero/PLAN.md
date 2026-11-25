@@ -2402,6 +2402,40 @@ stage's last rows after. What «clean» means is now an instrument, not a readin
     closed by `zoneAwaited` (`1ed577938c`) — to be confirmed by a CI pass.
 - **THE BOX RULE CHANGED (the owner, 2026-11-25):** Enshrouded running on the box no longer stops a run — it selects
   the gentle mode (≤ 3 workers in all, no timing, builds on the laptop). The iteration needs the box's findings.
+  `scripts/e2e-remote.mjs` enforces it (`BUDGET_OWNER_PLAYS` — three tokens on the box in all, a timing run refused);
+  the night lanes (`autopilot-lanes.mjs`) no longer wait for the game either.
+- **THE SIXTH HUNDRED's first 48 games (`fzj-count`, build `08dfdff600` + the duo pilot) and what they named:** 40 to
+  the final scoring; the stuck one and the capped duo drafts were the PILOT (a rival seat that never answered its
+  `deltaProject` / its draft — the pilot now walks the second human, `943b14c7b9`). The product's lines, each closed:
+  - a LEAVING Parliament answered (game 1401 — «К драфту» on the frozen verdict posted thirteen times against the live
+    card pick, 400 «Error with input»): a surface reading its frozen view absorbs the press (`943b14c7b9`);
+  - a ruling change's parked card outlived its enactment, then its sitting (game 1401 — `net-ended/untold-enactment`):
+    the park lets go at the enactment and at the phase's end (`943b14c7b9` · `c481eabe7b`); a hosted hand step lives
+    for ITS question; a deferred entry lives as long as its phase;
+  - a card's reaction wrote its phase for a run already cut (game 1431 — the foreground watchdog's «busy with NOTHING
+    rendered» + a starved feed): ONE writer of the phase refuses a stale run (`setReactionPhase`; static guard
+    `cardReactionPhaseWriter`);
+  - the alliance impulse waited 1.6 s for a chamber that could not show it (game 1439 — the viewer over the seals):
+    the chamber says its PROSPECT (`unmounted · idle · resting · arming · covered`), and a spark that cannot start is
+    owed to the next look — the card goes on at once;
+  - CI #151 (re-settlement): the order of a move is STAMPED on the board (`data-vacated-seq` < `data-landed-seq`), the
+    check stays strict;
+  - **CI #153 · #154 — THE SURFACES GO IN TURN AT A PHASE's END:** the research's closing «ГОТОВО» with the server
+    already asking the corporation's first action — the one function served it over the leaving research
+    (`bar-APART:draft>corpFirst`, `pad-MISS:colonies`), and the board's announcement stood over it offering «A
+    Открыть» for a door the screen did not open. ONE answer for both readers: `phaseWorkspaceConcluding` — the fact
+    `concluding` of the one function (every other owner's question HELD by the scene) and the plate's first
+    presentation and visibility. Spec `console-parliament-into-draft` «the research's closing beat keeps the screen»:
+    RED with the fix off (`corp-first held admission:announce-gate | .con-mandatory | frames [draft]`), green with it.
+- **THE BOOT's LONG FRAME, MEASURED (not re-read as noise):** `[long-frame]` 0.5 – 0.8 s at the page's start in one game
+  of six on the box (six browsers at once) and on CI's starved runner (523 – 577 ms). The probe R16 now traces the
+  boot (`KEY_TRACE_BOOT=1` — the reload under a Chromium trace + the CPU profile, every forced pass of the mount task in
+  order with its stack): alone on the box the mount task is 170 – 190 ms; under ×4 CPU 887 ms — the console shell's
+  setup ≈ 390 ms (the board's subtree a third of it), the `onMounted` hooks' FORCED layouts ≈ 220 ms (the scale
+  markers' first anchors read the whole freshly built document, then the board's fit and the boot curtain's
+  `fonts.ready` restyle ≈ 800 elements each, after root custom properties written in between). The cure is two
+  steps: no geometry read inside the mount task (the first measurement where layout is already clean), and the mount
+  itself spread over frames behind the curtain.
 
 **THE TOUCHDOWN's CEILING, READ AND CURED (2026-11-23).** `touchdownWord` answered on its first whole suite (run
 45242383549): every «its timeline at 100 %» stood on a SETTLE — at 0 % and not yet rendered (born in the very tick

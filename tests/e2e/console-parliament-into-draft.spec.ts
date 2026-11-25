@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, press, pressUntil, reloadConsole} from './consoleStart';
-import {closeSitting, enterSittingByPass, parliament, parliamentWire, turnTo} from './parliamentDrive';
+import {answerPrompt, bootFixtureSeats, cinematicBeat, fetchPlayerModel, openConsole, press, pressUntil, reloadConsole, sendPlayerInput} from './consoleStart';
+import {awaitSittingUp, closeSitting, enterSittingByPass, parliament, parliamentWire, turnTo} from './parliamentDrive';
 import {armWitness, pageNow, witnessOf} from './witness';
 
 /**
@@ -257,6 +257,68 @@ test.describe(`the Parliament → draft handover · ${TV.id}`, () => {
     await expect.poll(async () => page.locator('.con-draftws .con-draftws__slot:not(.con-deal-hold)').count(), {timeout: 20_000}).toBeGreaterThan(0);
     expect((await samplesOf(page)).some((s) => s.layer), 'no deal layer after a reload').toBe(false);
     await shoot(page, '05-reload-instant');
+  });
+
+  /*
+   * THE SURFACES GO IN TURN — a phase workspace telling its conclusion keeps the screen until it leaves (CI #153 · #154,
+   * the monkey's `*-adjourn` tables). The table stands in the research of generation 2 with red's corporation first
+   * action still owed (Aridor): red's buy ends the phase, the research workspace reads its closing «ГОТОВО», and the
+   * server already asks red's first action. The one function served it over the leaving research — the bar stood on
+   * the research's commands while A went to the first action (`bar-APART:draft>corpFirst`), and its colony pick under
+   * it (`pad-MISS`). The function now names the hold (`concluding: draft`): while the research stands, the first
+   * action is HELD and announces nothing; once it has left, the first action stands as the board's announcement, and
+   * A opens it. Nothing parted on the way (the page's own owner measure).
+   */
+  test('the research\'s closing beat keeps the screen — the corporation\'s first action stands only after it has left', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const {seats} = await bootFixtureSeats(page, request, 'parliament-budget-adjourn', {query: TV.query, landing: 'prompt'});
+    const colorOf = async (seat: string): Promise<string> => ((await fetchPlayerModel(request, seat)) as unknown as {thisPlayer: {color: string}}).thisPlayer.color;
+    const red = (await Promise.all(seats.map(async (seat) => ({seat, color: await colorOf(seat)})))).find((s) => s.color === 'red')?.seat ?? '';
+    const blue = seats.find((seat) => seat !== red) ?? '';
+    // Blue closes its sitting and buys over the API (another seat): red's own buy is the one that ends the research phase.
+    for (let i = 0; i < 4; i++) {
+      const asked = (await parliamentWire(request, blue)).waitingFor;
+      if (asked === undefined) {
+        break;
+      }
+      await sendPlayerInput(request, blue, {...answerPrompt(asked as never, {}), promptId: asked.promptId} as never);
+    }
+    // Red's own sitting (its soft gate): the plate, the walk to its results, the close — into the research.
+    await openConsole(page, red, TV.query);
+    await awaitSittingUp(page);
+    expect(await turnTo(page, 'results', 120_000), 'the walk reaches the results by itself').toBe(true);
+    await closeSitting(page, request, red);
+    await expect(page.locator('.con-draftws'), 'red stands in its research workspace').toHaveCount(1, {timeout: 30_000});
+    // THE RECORD, armed before the buy: every frame the research still stands, what else stands with it and whom the
+    // one function names. The first action served (not held) over a standing research is the defect.
+    // (A research already LEAVING — its leave hook's `data-motion-leaving` — has let the screen go: a departing surface
+    // paints through its leave, the decision is the next one's.)
+    const together = await armWitness<string>(page, 'research-concluding-overlap', () => {
+      const research = document.querySelector('.con-draftws');
+      if (research === null || research.closest('[data-motion-leaving]') !== null) {
+        return '';
+      }
+      const [answer, facts] = ((window as unknown as {__conOwnerNow?: () => string}).__conOwnerNow?.() ?? '').split('\n');
+      const served = /^(corp-first|colonies)/.test(answer) && !answer.includes(' held ');
+      const surfaces = ['.con-mandatory', '.con-composer--corpfirst'].filter((sel) => document.querySelector(sel) !== null);
+      return served || surfaces.length > 0 ? `${answer} | ${surfaces.join(',')} | ${/frames \[[^\]]*\]/.exec(facts ?? '')?.[0] ?? ''}` : '';
+    }, {settled: true});
+    // RT commits the buy (none taken) — retried on the SERVER's word, never on a timer.
+    expect(await pressUntil(page, 'Period', async () => (await parliamentWire(request, red)).game?.phase === 'action', {tries: 6, settleMs: 1500}),
+      'the buy ends the research phase').toBe(true);
+    await expect(page.locator('.con-draftws'), 'the research leaves after its closing beat').toHaveCount(0, {timeout: 30_000});
+    await expect(page.locator('.con-mandatory'), 'then the corporation\'s first action stands as the board\'s announcement').toHaveCount(1, {timeout: 30_000});
+    await expect.poll(async () => await page.evaluate(() =>
+      ((window as unknown as {__conOwnerNow?: () => string}).__conOwnerNow?.() ?? '').split('\n')[0]), {timeout: 15_000, message: 'the one function names it, held only by its own announcement (no longer by the research)'})
+      .toBe('corp-first held admission:announce-gate');
+    // A opens it — retried on the page's word (the composer standing), never on a timer.
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-composer--corpfirst').count() > 0, {tries: 4, settleMs: 1500}),
+      'A opens the first action').toBe(true);
+    const overlaps = (await together.stop()).filter((s) => s.v !== '').map((s) => s.v);
+    expect([...new Set(overlaps)], 'nothing of the first action was served over the leaving research').toEqual([]);
+    const parted = ((await page.evaluate(() => (window as unknown as {__conServingOwner: () => {disagreements: Array<{verdict: string, shape: string}>}}).__conServingOwner()))
+      .disagreements).filter((d) => d.verdict.startsWith('bar-APART') || d.verdict.startsWith('pad-MISS')).map((d) => `${d.shape} ${d.verdict}`);
+    expect(parted, 'the bar and the pad never parted on the way').toEqual([]);
   });
 
   test('«К исследованию» (no draft): the counter flips as a beat and the four research cards come off the deck', async ({page, request}) => {

@@ -29,6 +29,7 @@ import {cardDiscardTransaction} from '@/client/console/cardDiscard/consoleCardDi
 import {colonyBonusCollectOf, colonyBonusDiscardOf} from '@/client/console/colonyTrade/colonyResolution';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {draftPaymentPending} from '@/client/console/draft/consoleDraftFlow';
+import {phaseWorkspaceConcluding} from '@/client/console/draft/phaseWorkspaceConcluding';
 import {externalDrawResolutionOf, externalDrawTakeOf} from '@/client/console/externalDraw/consoleExternalDraw';
 import {Phase} from '@/common/Phase';
 import {colonyFocusState} from '@/client/console/consoleColoniesModel';
@@ -1131,6 +1132,9 @@ export function createRouterController(shell: RouterPort) {
       startBehind: startReturnBehindOutcome() ?? '',
       // THE STEP ON TOP WAITS FOR ITS ZONE (`workspaceStackAwaitsZone` — the same answer the pad and the bar ask).
       zoneAwaited: workspaceStackAwaitsZone() ?? '',
+      // A PHASE WORKSPACE STILL TELLS ITS CONCLUSION (`phaseWorkspaceConcluding` — the same answer the board's
+      // announcement reads: its plate never offers a door the closing beat holds).
+      concluding: phaseWorkspaceConcluding(shell.playerView),
     };
   }
 

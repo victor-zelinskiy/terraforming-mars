@@ -289,6 +289,8 @@ function playOwedAllianceImpulses(): void {
     }
     const atRest = chamberAtRest();
     const seen = atRest && sealSeen(partner) && sealSeen(party);
+    // (Said every tick: the enactment's tail waits on this prospect — a chamber that cannot show it is waited for by nobody.)
+    allianceImpulseState.prospect = !atRest ? 'resting' : seen ? 'arming' : 'covered';
     const rects = seen ? [sealRect(partner), sealRect(party)].map((r) => r === undefined ? '-' : `${Math.round(r.left)},${Math.round(r.top)}`).join('|') : '';
     const still = seen && rects === lastRects;
     lastRects = rects;
@@ -302,6 +304,7 @@ function playOwedAllianceImpulses(): void {
       } else {
         // Never seen in the window (the chamber stayed covered): still owed — the next mount or change plays it.
         impulseRunning.value = false;
+        allianceImpulseState.prospect = 'covered';
       }
       return;
     }
@@ -422,11 +425,13 @@ watch(() => usedKey.value, (now: string, was: string): void => {
 accessKeyShown.value = accessKey.value;
 
 onMounted(() => {
+  allianceImpulseState.prospect = 'idle';
   // An activation that happened where the chamber was not on screen (the card played from the hand, the vote panel
   // over the benches) is OWED to the first time the seals are seen.
   playOwedAllianceImpulses();
 });
 onBeforeUnmount(() => {
   impulseAlive.value = false;
+  allianceImpulseState.prospect = 'unmounted';
 });
 </script>

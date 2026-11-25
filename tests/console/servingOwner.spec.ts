@@ -321,6 +321,14 @@ describe('servingOwner — who serves the question: one total function', functio
     expect(servingOwnerOf({...QUIET, task: {kind: 'colony'}, servingFrame: 'colonies', host: 'colonies', frames: ['parliament', 'colonies'], zoneAwaited: 'colonies'}))
       .to.deep.include({owner: 'colonies', hold: {kind: 'claim', by: 'zone of colonies'}});
     expect(servingOwnerOf({...QUIET, task: {kind: 'colony'}, servingFrame: 'colonies', host: 'colonies', frames: ['parliament', 'colonies']})).to.not.have.property('hold');
+    // A PHASE WORKSPACE STILL TELLING ITS CONCLUSION (CI #153 · #154 — the draft's closing beat over the next generation's
+    // first questions): another owner's question waits for it to leave; its own step is its own.
+    const receipt = {...QUIET, draftFrame: true, frames: ['draft'] as Array<WorkspaceFrameKind>, concluding: 'draft'};
+    expect(servingOwnerOf({...receipt, task: {kind: 'corpFirstAction'}})).to.deep.include({owner: 'corp-first', hold: {kind: 'scene', by: 'concluding:draft'}});
+    expect(bandRungOf(servingOwnerOf({...receipt, task: {kind: 'corpFirstAction'}})), 'the pad goes to the screen that stands').to.eq('held:scene');
+    expect(servingOwnerOf({...receipt, task: {kind: 'colony'}})).to.deep.include({owner: 'colonies', hold: {kind: 'scene', by: 'concluding:draft'}});
+    expect(servingOwnerOf({...receipt, task: {kind: 'cardSelect', mode: 'buy'}, draftClaims: true}), 'the draft\'s own question').to.not.have.property('hold');
+    expect(questionFactsDigest({...receipt, task: {kind: 'colony'}})).to.contain('concluding draft');
     // A PHASE ROOT is never a step in somebody's zone.
     expect(owner({kind: 'cardSelect', mode: 'buy'}, {draftClaims: true, host: 'parliament'})).to.eq('draft');
     expect(owner({kind: 'cardSelect', mode: 'draft'}, {host: 'hand'})).to.eq('draft');

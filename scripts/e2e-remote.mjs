@@ -13,8 +13,9 @@
  *
  * WHAT IT DOES, in order:
  *   1. preflight — the host answers; no DO_NOT_DISTURB marker
- *      (`~/tm-e2e/DO_NOT_DISTURB`) and the owner is not playing there
- *      (Enshrouded running → exit 4); Mars itself running is noted, never a refusal
+ *      (`~/tm-e2e/DO_NOT_DISTURB`); the owner playing there (Enshrouded) selects
+ *      the GENTLE mode — at most 3 worker tokens on the box in all, no timing
+ *      run (the owner, 2026-11-25); Mars itself running is noted, never a refusal
  *      (the owner, 2026-10-23 — the run goes beside it);
  *   2. sync — a MANIFEST diff (size + mtime) of the laptop's tree against the
  *      mirror, then a tar of only what changed. TWO destinations, because the
@@ -134,11 +135,19 @@ const twoPasses = !pwArgs.some((a) => a === '--project' || a.startsWith('--proje
  */
 const BUDGET_WITH_GAME = 6;
 const BUDGET_FREE = 8;
+/**
+ * THE OWNER PLAYS ON THE BOX — the GENTLE mode (the owner, 2026-11-25: «гонять можно даже если запущен enshrouded,
+ * просто более щадяще, чем когда он не запущен»). It replaces the refusal of 2026-11-14: at most THREE tokens on the
+ * box in all (the token pool is numbered, so a run started now takes only the first three; a run that already holds a
+ * higher token keeps it to its end — the lanes shrink as their batches end), and no timing run beside the game.
+ */
+const BUDGET_OWNER_PLAYS = 3;
 let BUDGET = BUDGET_FREE;
 let NEED = 1;
-function decideBudget(gameRunning) {
+function decideBudget(gameRunning, ownerPlays = false) {
   const env = Number(process.env.TM_E2E_BUDGET);
-  BUDGET = env > 0 ? env : exclusive || !gameRunning ? BUDGET_FREE : BUDGET_WITH_GAME;
+  BUDGET = ownerPlays ? Math.min(env > 0 ? env : BUDGET_OWNER_PLAYS, BUDGET_OWNER_PLAYS) :
+    env > 0 ? env : exclusive || !gameRunning ? BUDGET_FREE : BUDGET_WITH_GAME;
   const workersAsked = (() => {
     for (let i = 0; i < pwArgs.length; i++) {
       const a = pwArgs[i];
@@ -193,18 +202,20 @@ if (flags.has('DND')) {
   log(`${HOST} carries ${REMOTE_HOME}/DO_NOT_DISTURB — the owner asked for quiet; ask before running`);
   process.exit(4);
 }
-// THE OWNER IS PLAYING ON THE BOX (the owner, 2026-11-14: «не запускать e2e на боксе, когда там запущена игра
-// Enshrouded») — a refusal, by construction: up to eight workers and the GPU beside it spoil the game, and a run taken
-// there is measured on a box at load 15 – 20 (three reds of one pass that stood green an hour earlier). Exit 4 like the
-// marker above: the run did not happen — wait, or ask the owner to run CI after the push.
-if (flags.has('OWNER-PLAYS')) {
-  log(`the owner is playing on ${HOST} (Enshrouded is running) — no e2e beside it; wait for the box, or ask the owner to run CI after the push`);
+// THE OWNER IS PLAYING ON THE BOX — the GENTLE mode (see `BUDGET_OWNER_PLAYS`): the run goes beside the game with at
+// most three tokens on the box in all; a TIMING run (exclusive — it takes the whole box) does not run beside it, exit 4.
+const ownerPlays = flags.has('OWNER-PLAYS');
+if (ownerPlays && exclusive) {
+  log(`the owner is playing on ${HOST} (Enshrouded is running) — a TIMING run takes the whole box and does not run beside the game; wait for the box`);
   process.exit(4);
 }
 // A running game is NOT a refusal (the owner, 2026-10-23: «можно гонять e2e на steam machine даже когда игра
 // запущена»): the run goes beside it. It shares the GPU with the game, so whoever reports a TIMING taken now
 // must say so beside its numbers; the owner's one opt-out is the DO_NOT_DISTURB marker above.
-decideBudget(flags.has('GAME-RUNNING'));
+decideBudget(flags.has('GAME-RUNNING'), ownerPlays);
+if (ownerPlays) {
+  log(`the owner is playing on ${HOST} (Enshrouded is running) — the GENTLE mode: at most ${BUDGET} worker tokens on the box in all (this run takes ${NEED}); timing numbers taken now share the GPU`);
+}
 if (flags.has('GAME-RUNNING')) {
   log(`the game is RUNNING on ${HOST} — running beside it${exclusive ? '; this TIMING shares the GPU with the game — say so with its numbers' : ''}`);
 }

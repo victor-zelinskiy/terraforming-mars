@@ -65,6 +65,14 @@ export type QuestionFacts = {
    * a frame that does not render serves nobody yet.
    */
   zoneAwaited?: string;
+  /**
+   * A PHASE WORKSPACE STILL TELLS ITS CONCLUSION ('' — none; else its kind): its flow is over (the research is bought,
+   * the draft packet taken) and its closing beat still reads on screen (the draft's «ГОТОВО» — `draftCompletionHolding`).
+   * A question of ANOTHER owner waits for it to leave: the surfaces go in turn (invariant 16) — the corporation's first
+   * action rose over the draft's receipt plate, its colony pick under it (CI #153 · #154, the monkey's `*-adjourn`
+   * tables: the bar parted, the pad pressed into the leaving draft). Its own step (the post-buy payment) is its own.
+   */
+  concluding?: string;
   /** `buildEffectDecision` builds a decision for this prompt (a contextual choice with its marker). */
   effectDecision: boolean;
   /** The draft workspace's frame is known to the stack. */
@@ -278,6 +286,11 @@ export function servingOwnerOf(f: QuestionFacts): Ownership {
   if (f.handoff.includes(owner.owner as WorkspaceFrameKind)) {
     return {asked: true, ...owner, hold: {kind: 'scene', by: 'handoff'}};
   }
+  // …AND THE SURFACE STILL TELLING ITS CONCLUSION: a question of another owner waits for it to leave (it absorbs the
+  // press meanwhile — the draft's closing beat is the screen's).
+  if ((f.concluding ?? '') !== '' && owner.owner !== f.concluding && owner.host !== f.concluding) {
+    return {asked: true, ...owner, hold: {kind: 'scene', by: `concluding:${f.concluding}`}};
+  }
   if (f.claimHeld) {
     return {asked: true, ...owner, hold: {kind: 'claim', by: owner.host ?? 'the claiming workspace'}};
   }
@@ -320,6 +333,7 @@ export function questionFactsDigest(f: QuestionFacts): string {
     f.lateral !== '' ? `lateral ${f.lateral}` : '',
     (f.startBehind ?? '') !== '' ? `startBehind ${f.startBehind}` : '',
     (f.zoneAwaited ?? '') !== '' ? `zoneAwaited ${f.zoneAwaited}` : '',
+    (f.concluding ?? '') !== '' ? `concluding ${f.concluding}` : '',
     ...(['client', 'startFlow', 'startYielded', 'effectDecision', 'draftFrame', 'draftClaims', 'resolutionDraw', 'aside', 'boardBranch', 'claimHeld'] as const).filter((k) => f[k]),
   ].filter((part) => part !== '').join(' · ');
 }

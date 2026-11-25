@@ -10,6 +10,7 @@ import {CardName} from '@/common/cards/CardName';
 import {DiscardPromptMeta} from '@/common/models/PlayerInputModel';
 import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
 import {isMandatoryPromptsHeldByScreen} from '@/client/components/presentation/presentationFlow';
+import {phaseWorkspaceConcluding} from '@/client/console/draft/phaseWorkspaceConcluding';
 import {blockingAnimationHoldCount, blockingHoldsPlaying} from '@/client/components/presentation/animationHold';
 import {isTransientBeat} from '@/client/console/workspaceBeatStall';
 import {notificationFeedReadForDecision, acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
@@ -406,7 +407,8 @@ export function createMandatoryController(shell: MandatoryPort) {
       !shell.rawDrawnRevealPending &&
       !shell.playedHeroHolds &&
       !shell.tilePlacementHolds &&
-      !shell.nomadMoveHolds;
+      !shell.nomadMoveHolds &&
+      phaseWorkspaceConcluding(shell.playerView) === '';
   });
 
   /**
@@ -433,13 +435,18 @@ export function createMandatoryController(shell: MandatoryPort) {
     // or replay its entrance. The plate still yields to the player's own
     // location (boardHomeIdle — the chip carries it elsewhere) and to the
     // viewer's own full-bleed cinematics (a reveal / hero owns the screen).
+    // …and never over A PHASE WORKSPACE STILL TELLING ITS CONCLUSION (`phaseWorkspaceConcluding` — the one function
+    // holds every other owner's question by that scene, the press is the closing beat's): a plate there offered «A
+    // Открыть» for a door the screen does not open (CI #153 · #154 — the corporation's first action over the research's
+    // «ГОТОВО»). Its first presentation waits for the same edge (`mandatoryPresentationReady`).
     return mandatoryActionPresented.value &&
       boardHomeIdle.value &&
       shell.consoleRevealMode === undefined &&
       !shell.rawDrawnRevealPending &&
       !shell.playedHeroHolds &&
       !shell.tilePlacementHolds &&
-      !shell.nomadMoveHolds;
+      !shell.nomadMoveHolds &&
+      phaseWorkspaceConcluding(shell.playerView) === '';
   });
 
   /**

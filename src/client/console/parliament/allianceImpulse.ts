@@ -19,11 +19,25 @@ import {accessRoadOf} from './consoleParliamentModel';
 
 let seen: Set<ReduxParty> | undefined;
 
+/**
+ * WHERE THE OWED IMPULSE STANDS — what the chamber knows each tick about whether it COULD show it (the box's game 1439:
+ * the fullscreen viewer covered the seals, the chamber knew every tick it could not launch, and the enactment's tail
+ * still waited 1.6 s for a start that could not come and said a ceiling):
+ *  · `unmounted` — no chamber on screen to show it;
+ *  · `idle`      — the chamber stands, its attempt has not begun (an access change is about to start it);
+ *  · `resting`   — a sitting's beat still plays — the attempt waits for the chamber's rest;
+ *  · `arming`    — at rest, both seals seen, the stillness check pending — the spark is a tick away;
+ *  · `covered`   — at rest and the seals are NOT seen (a viewer, a panel over them) — or the attempt's window ended so.
+ */
+export type AllianceImpulseProspect = 'unmounted' | 'idle' | 'resting' | 'arming' | 'covered';
+
 export const allianceImpulseState = {
   /** Impulses owed to the chamber right now (computed by the chamber when it reads the viewer's access). */
   pending: new Set<ReduxParty>(),
   /** An impulse in the air. */
   flying: 0,
+  /** What the chamber knows of the owed impulse's chances right now (written by the chamber's attempt, every tick). */
+  prospect: 'unmounted' as AllianceImpulseProspect,
 };
 
 /** The parties a seat holds BY THE ALLIANCE road (the one helper reads the road). */
@@ -88,4 +102,5 @@ export function resetAllianceImpulse(): void {
   seen = undefined;
   allianceImpulseState.pending = new Set();
   allianceImpulseState.flying = 0;
+  allianceImpulseState.prospect = 'unmounted';
 }
