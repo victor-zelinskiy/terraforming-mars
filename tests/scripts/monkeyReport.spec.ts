@@ -23,7 +23,7 @@ type Diff = {newClasses: Array<string>, goneClasses: Array<string>, kept: Array<
 type Lib = {
   aggregateCauseFiles: (files: Array<File>) => Report,
   compareReports: (now: Report, before: Report | undefined) => Diff,
-  gateVerdict: (report: Report, diff?: Diff) => {pass: boolean, reasons: Array<string>},
+  gateVerdict: (report: Report, diff?: Diff, opts?: {zero?: boolean}) => {pass: boolean, reasons: Array<string>},
   beatLawBroken: (report: Pick<Report, 'owner'>) => Array<[string, number, number, Array<string>]>,
   BEAT_LAW_QUIET_MS: number,
   renderOwner: (owner: Report['owner']) => string,
@@ -234,5 +234,45 @@ describe('the monkey\'s report — a run summed by cause class', () => {
       '1 whole game(s) STUCK: autopilot · game 1 (ap0:1) — generation 7, research, 480 presses',
       '2 rebuild(s) in whole games — the last line was taken',
     ]);
+  });
+
+  /*
+   * THE ZERO BAR (`--zero` — the owner, 2026-11-25: «0 % ошибок, зависаний и даже ворнингов — чтобы лог был чист … на
+   * ЛЮБЫХ запусках автопилота»). The gate lets a «planned» fire of a net and a door's answer through; the zero bar
+   * lets NOTHING through — and a game's LOG (every class of line its page said) is part of the report.
+   */
+  it('THE ZERO BAR: a planned record, a door, a line of the log and a routed press each fail it by name — a clean pass passes', async () => {
+    const {aggregateAutopilot, aggregateCauseFiles, gateVerdict, renderAutopilot} = await load();
+    const game = (n: number, pilot: Record<string, unknown>, records: Array<Rec> = []): File => ({
+      file: 'console-autopilot.spec.ts', title: `autopilot · game ${n}`, retry: 0, monkey: {seed: `ap0:${n}`, presses: 900}, records,
+      autopilot: {end: 'finished', generation: 14, phase: 'end', presses: 900, byUi: {card: 20}, byApi: {}, passes: {ui: 13, api: 0}, tookMs: 600_000, rebuilds: 0, ...pilot},
+    } as File);
+    const clean = [game(1, {}), game(2, {})];
+    const cleanReport = {...aggregateCauseFiles(clean), autopilot: aggregateAutopilot(clean) as Whole};
+    expect(gateVerdict(cleanReport, undefined, {zero: true}), 'nothing said, nothing through the door').to.deep.eq({pass: true, reasons: []});
+
+    const line = (key: string, n: number) => ({key, type: 'warning', n, atMs: 61_000, stood: 'hand:browse|card#5|…'});
+    const dirty = [
+      game(1, {byApi: {card: 1}, doors: ['card 1..1 of 4 «Select a card» · gen 3 · frames hand:browse · bar «…» · owner «draft»'],
+        log: [line('warning [console play] no computable preview for Insulation — showing fallback result', 2), line('http N GET /assets/x.png', 5)]}),
+      game(2, {log: [line('http N GET /assets/x.png', 1)]}),
+    ];
+    const whole = aggregateAutopilot(dirty) as Whole & {log: Array<{key: string, n: number, games: number, first: string}>};
+    // The log is summed by class: how often, in how many games, the first game that said it — the widest first.
+    expect(whole.log.map((row) => [row.key, row.n, row.games])).to.deep.eq([
+      ['http N GET /assets/x.png', 6, 2],
+      ['warning [console play] no computable preview for Insulation — showing fallback result', 2, 1],
+    ]);
+    expect(whole.log[0].first).to.eq('autopilot · game 1 at 61 s · hand:browse|card#5|…');
+    expect(renderAutopilot(whole)).to.contain('THE LOG — 2 class(es) of line the pages said');
+    const report = {...aggregateCauseFiles(dirty), autopilot: whole, owner: {verdicts: {}, rows: {'band:actionMenu': {'band-agree': 40, 'band-fallback:free>deckPick': 2}}}};
+    // The plain gate has nothing against any of it…
+    expect(gateVerdict(report).pass).to.eq(true);
+    // …the zero bar names each.
+    const verdict = gateVerdict(report, undefined, {zero: true});
+    expect(verdict.pass).to.eq(false);
+    expect(verdict.reasons.join(' | ')).to.match(/1 answer\(s\) and 0 pass\(es\) went through the door/);
+    expect(verdict.reasons.join(' | ')).to.match(/the log is not clean — 2 class\(es\)/);
+    expect(verdict.reasons.join(' | ')).to.match(/band:actionMenu band-fallback:free>deckPick ×2/);
   });
 });

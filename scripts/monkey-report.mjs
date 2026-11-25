@@ -22,6 +22,12 @@
  * `--gate` makes it a release gate: exit 3 when the run has an episode that was never cured, or a DEFECT class the
  * earlier report did not have. Without `--gate` it always exits 0 (a report is data).
  *
+ * `--zero` is THE ZERO BAR of the whole games (the owner, 2026-11-25: «0 % ошибок, зависаний и даже ворнингов —
+ * чтобы лог был чист … на ЛЮБЫХ запусках автопилота»): beside everything `--gate` refuses, exit 3 on ANY record of
+ * ANY tier (a «planned» fire of a net and an «info» line are debt, not a norm), on any answer through the door, on
+ * any press the ladder's own order routed, on any judged state of the opening that parted — and on any line of the
+ * games' LOG: a warning, an error, a page error, an HTTP answer of 400 and above.
+ *
  * Writes `<test-results dir>/monkey-report.json` (or `--out`) and prints the text.
  */
 import * as fs from 'fs';
@@ -698,7 +704,10 @@ export function aggregateAutopilot(files) {
     return undefined;
   }
   const sum = (row) => Object.values(row ?? {}).reduce((a, n) => a + Number(n ?? 0), 0);
-  const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0, doors: []};
+  const out = {games: 0, finished: 0, capped: [], stuck: [], rebuilds: 0, presses: 0, byUi: 0, byApi: 0, passes: {ui: 0, api: 0}, playMin: 0, doors: [], log: []};
+  // THE LOG OF THE GAMES — every class of line a page said in a whole game (a warning, an error, a page error, an
+  // HTTP answer ≥ 400), summed: how often, in how many games, and the first game that said it.
+  const book = new Map();
   // WHERE THE DOOR ANSWERED — the seat's question, the frames that stood, the bar it was offered (the generation
   // taken out: the same place in two games is one row). A question the screen cannot be WALKED TO is answered here
   // for the seat, and the game «finishes»: the rows are the worklist the pilot's own budget hides (the Colonies
@@ -714,6 +723,12 @@ export function aggregateAutopilot(files) {
     out.passes.ui += Number(a.passes?.ui ?? 0);
     out.passes.api += Number(a.passes?.api ?? 0);
     out.playMin += Math.round(Number(a.tookMs ?? 0) / 60_000);
+    for (const line of a.log ?? []) {
+      const row = book.get(line.key) ?? {key: line.key, type: line.type, n: 0, games: new Set(), first: `${f.title} at ${Math.round(Number(line.atMs ?? 0) / 1000)} s · ${line.stood ?? ''}`};
+      row.n += Number(line.n ?? 0);
+      row.games.add(f.title);
+      book.set(line.key, row);
+    }
     for (const door of a.doors ?? []) {
       const where = String(door).replace(/ · gen \d+/, '');
       const row = doors.get(where) ?? {where, n: 0, games: new Set()};
@@ -731,6 +746,8 @@ export function aggregateAutopilot(files) {
     }
   }
   out.doors = [...doors.values()].sort((x, y) => y.n - x.n || x.where.localeCompare(y.where)).map((row) => ({where: row.where, n: row.n, games: row.games.size}));
+  out.log = [...book.values()].sort((x, y) => y.games.size - x.games.size || y.n - x.n || x.key.localeCompare(y.key))
+    .map((row) => ({key: row.key, type: row.type, n: row.n, games: row.games.size, first: row.first}));
   return out;
 }
 
@@ -750,15 +767,47 @@ export function renderAutopilot(a) {
   }
   if ((a.doors ?? []).length > 0) {
     L.push(`   THE DOOR ANSWERED — where the seat stood (${a.doors.length} place(s); a question the screen cannot be walked to hides here):`);
-    for (const door of a.doors.slice(0, 16)) {
+    for (const door of a.doors.slice(0, 24)) {
       L.push(`   ${String(door.n).padStart(4)}× in ${String(door.games).padStart(2)} game(s)  ${door.where}`);
+    }
+  }
+  if ((a.log ?? []).length > 0) {
+    L.push(`   THE LOG — ${a.log.length} class(es) of line the pages said (a clean game says none):`);
+    for (const line of a.log.slice(0, 40)) {
+      L.push(`   ${String(line.n).padStart(5)}× in ${String(line.games).padStart(3)} game(s)  ${line.key}`);
+      L.push(`          first: ${line.first}`);
     }
   }
   return L.join('\n');
 }
 
-export function gateVerdict(report, diff) {
+export function gateVerdict(report, diff, opts = {}) {
   const reasons = [];
+  // THE ZERO BAR (`--zero`): nothing at all — no record of any tier, no door, no routed press, no line in the log.
+  if (opts.zero === true) {
+    const classes = Object.entries(report.classes ?? {});
+    if (classes.length > 0) {
+      reasons.push(`ZERO: ${report.totals.records} record(s) of ${classes.length} class(es) — ` +
+        classes.sort((a, b) => b[1].records - a[1].records).slice(0, 12).map(([cls, c]) => `${cls} ×${c.records} (${c.tier})`).join(', '));
+    }
+    const a = report.autopilot;
+    if (a !== undefined) {
+      if (a.byApi > 0 || a.passes.api > 0) {
+        reasons.push(`ZERO: ${a.byApi} answer(s) and ${a.passes.api} pass(es) went through the door (${(a.doors ?? []).length} place(s))`);
+      }
+      if (a.capped.length > 0) {
+        reasons.push(`ZERO: ${a.capped.length} game(s) ended on the pilot's cap, not on the final scoring`);
+      }
+      if ((a.log ?? []).length > 0) {
+        reasons.push(`ZERO: the log is not clean — ${a.log.length} class(es) of line: ` + a.log.slice(0, 10).map((line) => `«${line.key}» ×${line.n}`).join(', '));
+      }
+    }
+    const rows = report.owner?.rows ?? {};
+    const routed = Object.entries(rows).flatMap(([row, verdicts]) => Object.entries(verdicts).filter(([verdict]) => /fallback|APART|MISS|EXTRA|disagree/.test(verdict)).map(([verdict, n]) => `${row} ${verdict} ×${n}`));
+    if (routed.length > 0) {
+      reasons.push(`ZERO: the one-owner measure is not at zero — ${routed.slice(0, 10).join(', ')}`);
+    }
+  }
   if (report.totals.notCured > 0) {
     reasons.push(`${report.totals.notCured} episode(s) were never cured`);
   }
@@ -839,9 +888,10 @@ function main(argv) {
   };
   // (A flag's value is not a positional.)
   const values = new Set(['against', 'out'].map((n) => flag(n)).filter((v) => typeof v === 'string'));
+  const zero = argv.includes('--zero');
   const dir = positional.find((p) => !values.has(p));
   if (dir === undefined || !fs.existsSync(dir)) {
-    console.error('usage: node scripts/monkey-report.mjs <test-results dir> [--against <monkey-report.json>] [--out <file>] [--gate]');
+    console.error('usage: node scripts/monkey-report.mjs <test-results dir> [--against <monkey-report.json>] [--out <file>] [--gate] [--zero]');
     return 2;
   }
   const files = findCauseFiles(dir).map((f) => {
@@ -875,8 +925,8 @@ function main(argv) {
   console.log(renderCoverage(coverage));
   console.log(renderOwner(owner));
   console.log(`\n→ ${out}`);
-  if (flag('gate') === true) {
-    const verdict = gateVerdict(report, diff);
+  if (flag('gate') === true || zero) {
+    const verdict = gateVerdict(report, diff, {zero});
     console.log(verdict.pass ? '\nGATE: pass' : `\nGATE: FAIL — ${verdict.reasons.join('; ')}`);
     return verdict.pass ? 0 : 3;
   }

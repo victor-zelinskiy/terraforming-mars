@@ -814,6 +814,10 @@ export function createWiringController(shell: WiringPort) {
     })) as unknown;
     // THE ONE FUNCTION's measure (stage 2): how often `servingOwnerOf` agrees with what paints — stats only.
     (window as unknown as {__conServingOwner?: () => unknown}).__conServingOwner = () => JSON.parse(JSON.stringify(servingOwnerLog)) as unknown;
+    // …and THE ANSWER RIGHT NOW, in a line (the one below remembers it at every reactive edge): who serves the question
+    // and by which facts — what a whole game's pilot files beside a question it could not walk to (`console-autopilot`).
+    (window as unknown as {__conOwnerNow?: () => string}).__conOwnerNow = () => `${ownerEdge.answer}
+${ownerEdge.facts}`;
     // …and THE ANSWER AT ITS LAST REACTIVE EDGE (stage 2 ③ — `noteOwnerEdgeLook`): a watcher of the function's own
     // answer, flushed with the render like the caches that are to read it. It only remembers.
     offOwnerEdge.value = watch(() => {

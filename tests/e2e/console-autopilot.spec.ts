@@ -50,6 +50,14 @@ import {answerPrompt, cinematicBeat, fetchPlayerModel, openConsole, seedGameOver
  *   · THE LAYOUT OF A LOSS HAS ITS HANDS: «A −1 · X Принять убыток» is walked as a player lays it out.
  * The door's answers and the kernel's «never opened» are the measure of it, pass against pass.
  *
+ * PILOT 3 (the default since 2026-11-25; `2` keeps the one before for a pass that must be compared). Pilot 2's first
+ * twenty games answered 1 201 questions on the screen and four through the door — and every one of the four was a
+ * layout the pilot had no hands for, never a place of the product:
+ *   · THE DISTRIBUTION OF RESOURCES («A Добавить / Снять · X Забрать»): a unit onto the focused row, the next row,
+ *     and the take — as a player lays it out (three of the four doors);
+ *   · A PICK OF CARDS THAT COMMITS BY RT («A Выбрать / снять · RT Сбросить N»): a card, the commit, the next card —
+ *     a thumb that toggled the same card on and off never reached the count.
+ *
  * OPT-IN: `TM_E2E_AUTOPILOT=1 npx playwright test tests/e2e/console-autopilot.spec.ts` · `TM_E2E_AUTOPILOT_GAMES`
  * (`<from>-<to>` or a list; default `1-2`) · `TM_E2E_AUTOPILOT_NAME` (the stream's name, default `ap0`) ·
  * `TM_E2E_AUTOPILOT_PRESSES` (the cap, default 2000 — twenty games of the first pass ended inside 1 250).
@@ -60,8 +68,8 @@ if (ENABLED) {
 }
 const NAME = process.env.TM_E2E_AUTOPILOT_NAME ?? 'ap0';
 const PRESSES = Number(process.env.TM_E2E_AUTOPILOT_PRESSES ?? 2000);
-/** WHICH PILOT walks (`2` — the one that goes somewhere; `1` — the first, a thumb on the bar). */
-const PILOT = Number(process.env.TM_E2E_AUTOPILOT_PILOT ?? 2);
+/** WHICH PILOT walks (`3` — with hands for every layout met so far; `2` — the one that goes somewhere; `1` — the first, a thumb on the bar). */
+const PILOT = Number(process.env.TM_E2E_AUTOPILOT_PILOT ?? 3);
 /** THE SOAK: minutes the page is left alone at each generation's sample point (0 — a plain game). */
 const IDLE_MIN = Number(process.env.TM_E2E_AUTOPILOT_IDLE_MIN ?? 0);
 
@@ -124,7 +132,10 @@ function tableOf(n: number): {config: Record<string, unknown>, word: string} {
 
 type Wire = {
   game: {phase: string, generation: number, gameAge: number},
-  waitingFor?: {type: string, promptId?: number, bonusActionPrompt?: unknown, options?: Array<{type: string, warnings?: Array<string>}>},
+  waitingFor?: {
+    type: string, promptId?: number, bonusActionPrompt?: unknown, title?: unknown, min?: number, max?: number, cards?: Array<unknown>,
+    options?: Array<{type: string, warnings?: Array<string>}>,
+  } & Record<string, unknown>,
 };
 
 /** The keys of the pad as the key bridge maps them — by the glyph the bar prints. */
@@ -254,7 +265,37 @@ type PageMetrics = {heapMb: number, nodes: number, listeners: number, layouts: n
 /** The soak's ears on the page's console: the long frames and the warnings of a spell are counted by the test. */
 type SoakEars = {longFrames: number, warnings: number, lastWarnings: Array<string>};
 
-async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>, ears?: SoakEars): Promise<Played> {
+/**
+ * THE QUESTION, AS A DOOR's RECORD NAMES IT — its type, its title's key, the markers the server put on it (a draft, a
+ * deck pick, a start prompt, a choice's context…) and its count: «card» alone said nothing about which of a dozen
+ * card questions the screen could not be walked to (the 82 doors of the fourth hundred).
+ */
+function questionWord(wf: NonNullable<Wire['waitingFor']>): string {
+  const title = typeof wf.title === 'string' ? wf.title : String((wf.title as {message?: string} | undefined)?.message ?? '');
+  const markers = Object.keys(wf).filter((key) => /(Prompt|Context|reveal)$/i.test(key) && wf[key] !== undefined && wf[key] !== null)
+    .map((key) => {
+      const kind = (wf[key] as {kind?: unknown, mode?: unknown, source?: {kind?: unknown}} | undefined);
+      const of = kind?.kind ?? kind?.mode ?? kind?.source?.kind;
+      return typeof of === 'string' ? `${key}:${of}` : key;
+    });
+  const count = wf.type === 'card' ? ` ${wf.min ?? '?'}..${wf.max ?? '?'} of ${(wf.cards ?? []).length}` : '';
+  return `${wf.type}${count} «${title.slice(0, 48)}»${markers.length > 0 ? ` [${markers.join(',')}]` : ''}`;
+}
+
+/**
+ * THE LOG OF A WHOLE GAME (the owner's bar, 2026-11-25: «чтобы лог был чист» — no error, no freeze, not a warning, on
+ * ANY run). Every warning and error of the page's console, every page error, every HTTP answer of 400 and above — the
+ * whole game, never its last lines — folded by what it says (the numbers taken out), each kept with its first
+ * occurrence: when, where the pilot stood, the console lines before it. The walk carries a mark where each was said
+ * (`[!…]`), the game's record carries the book, and the report's ZERO gate reads it.
+ */
+type LogBook = Map<string, {type: string, n: number, first: string, atMs: number, stood: string, before: Array<string>}>;
+const LOG_KEY_MAX = 96;
+function logKey(type: string, text: string): string {
+  return `${type} ${text.replace(/https?:\/\/[^/\s]+/g, '').replace(/#?\b[0-9a-f]{6,}\b/gi, '#').replace(/\d+/g, 'N').replace(/\s+/g, ' ').trim().slice(0, LOG_KEY_MAX)}`;
+}
+
+async function playGame(page: Page, request: APIRequestContext, viewer: string, seed: string, log: Array<string>, ears?: SoakEars, where?: {stood: string}): Promise<Played> {
   const g = rng(`${seed}:pilot`);
   const started = Date.now();
   const played: Played = {end: 'capped', presses: 0, generation: 0, phase: '', byUi: {}, byApi: {}, passes: {ui: 0, api: 0}, doors: [], tookMs: 0, soak: [], spells: []};
@@ -269,6 +310,9 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
   const press = async (key: string, pauseMs: number): Promise<void> => {
     log.push(`${Date.now() % 1_000_000}:${key}${stood !== saidStood ? `{${stood}}` : ''}`);
     saidStood = stood;
+    if (where !== undefined) {
+      where.stood = stood;
+    }
     await page.keyboard.press(key);
     lastKey = key;
     played.presses++;
@@ -307,7 +351,12 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
     }
   };
 
-  let standing: {promptId: number | undefined, type: string, menu: boolean, bonus: boolean, presses: number, budget: number, byApi: boolean, intent: Array<string>, intentful: boolean} | undefined;
+  /** WHO THE PAGE SAYS SERVES THE QUESTION right now (`__conOwnerNow` — the one function's answer and its facts). */
+  const ownerNow = (): Promise<string> =>
+    page.evaluate(() => (window as unknown as {__conOwnerNow?: () => string}).__conOwnerNow?.() ?? '').catch(() => '');
+  let standing: {promptId: number | undefined, type: string, menu: boolean, bonus: boolean, presses: number, budget: number, byApi: boolean, intent: Array<string>, intentful: boolean,
+    /** Presses in a row that changed nothing of what stands (pilot 3 — a player who gets no answer goes home). */
+    still: number, lastStood: string} | undefined;
   /** The menus of the game so far — the intents' rotation (seeded by the game's own number, so two games start apart). */
   let menus = Math.floor(g() * INTENTS.length);
   let moved = {age: -1, at: Date.now()};
@@ -352,7 +401,7 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       const intentful = PILOT >= 2 && (bonus || (menu && g() < 0.75));
       const intent = intentful ? [...INTENTS[menus++ % INTENTS.length].keys] : [];
       const budget = bonus ? 60 : menu ? (g() < (intentful ? 0.05 : 0.18) ? 0 : (intentful ? 9 : 4) + Math.floor(g() * 23)) : 45;
-      standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0};
+      standing = {promptId: wf.promptId, type: wf.type, menu, bonus, presses: 0, budget, byApi: false, intent: budget > 0 ? intent : [], intentful: intentful && budget > 0, still: 0, lastStood: ''};
       if (standing.intent.length > 0) {
         log.push(`[INTENT ${INTENTS[(menus - 1) % INTENTS.length].name}]`);
       }
@@ -465,14 +514,14 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
           played.passes.ui++;
           log.push('[PASS]');
         } else {
-          played.doors.push(`pass · gen ${model.game.generation} · ${before} → after the gesture: ${stands(await look(page))}`);
+          played.doors.push(`pass · gen ${model.game.generation} · ${before} → after the gesture: ${stands(await look(page))} · owner «${(await ownerNow()).split('\n')[0]}»`);
           await byDoor(wf);
           played.passes.api++;
           log.push('[PASS-BY-DOOR]');
         }
         standing = undefined;
       } else {
-        played.doors.push(`${wf.type} · gen ${model.game.generation} · ${stands(await look(page))}`);
+        played.doors.push(`${questionWord(wf)} · gen ${model.game.generation} · ${stands(await look(page))} · owner «${(await ownerNow()).replace('\n', ' — ').slice(0, 260)}»`);
         const answered = await byDoor(wf);
         log.push(`[BY-DOOR ${wf.type}${answered ? '' : ' REFUSED'}]`);
         if (answered) {
@@ -517,6 +566,37 @@ async function playGame(page: Page, request: APIRequestContext, viewer: string, 
       await press((['Enter', 'Enter', 'ArrowDown', 'KeyX'] as const)[standing.presses % 4], pause());
       continue;
     }
+    // A QUESTION THE SCREEN IN FRONT OF THE PILOT DOES NOT ANSWER (pilot 3). A player who presses and gets nothing
+    // does not keep pressing: six presses in a row that changed nothing of what stands, inside a workspace → HOME,
+    // where the question's plate or its way back stands. And AT home, with the question standing and no «A» on the
+    // bar, a player WAITS — a nudge of the stick, never a wheel into another section (that walk away from a question
+    // was most of the fourth hundred's doors: the pilot's habit, hiding the few places of the product).
+    if (PILOT >= 3 && !standing.menu && !standing.bonus && seen.look === '' && !seen.zoom) {
+      standing.still = stood === standing.lastStood ? standing.still + 1 : 0;
+      standing.lastStood = stood;
+      if (standing.still >= 6 && (seen.frames.length > 0 || seen.quick)) {
+        standing.still = 0;
+        log.push('[HOME]');
+        await walkHome(false);
+        continue;
+      }
+      if (seen.frames.length === 0 && !seen.quick && !seen.offered.some((o) => o.key === 'Enter') && standing.presses >= Math.floor(standing.budget / 2)) {
+        await press(ARROWS[Math.floor(g() * ARROWS.length)], pause());
+        continue;
+      }
+    }
+    // THE DISTRIBUTION OF RESOURCES (pilot 3): a unit onto the focused row, the next row, another — and the take.
+    if (PILOT >= 3 && wf.type === 'resources' && seen.bar.startsWith('Распределение ресурсов') && seen.look === '' && !seen.zoom) {
+      await press((['Enter', 'ArrowDown', 'Enter', 'KeyX'] as const)[standing.presses % 4], pause());
+      continue;
+    }
+    // A PICK OF CARDS THAT COMMITS BY RT (pilot 3): once the question has stood a third of its budget — a card, the
+    // commit, the next card (never the same card on and off).
+    if (PILOT >= 3 && wf.type === 'card' && !standing.menu && standing.presses >= Math.floor(standing.budget / 3) && seen.look === '' && !seen.zoom && !seen.quick &&
+        seen.offered.some((o) => o.key === 'Enter') && seen.offered.some((o) => o.key === 'Period')) {
+      await press((['Enter', 'Period', 'ArrowRight'] as const)[standing.presses % 3], pause());
+      continue;
+    }
     await press(pilotPick(seen, g, lastKey, standing.menu || standing.bonus ? standing.intentful : standing.presses >= Math.floor(standing.budget / 2)), pause());
   }
   if (played.phase === 'end') {
@@ -548,6 +628,25 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       const log: Array<string> = [];
       const consoleTail: Array<string> = [];
       const ears: SoakEars = {longFrames: 0, warnings: 0, lastWarnings: []};
+      const book: LogBook = new Map();
+      const where = {stood: ''};
+      const t0 = Date.now();
+      const said = (type: string, text: string): void => {
+        const key = logKey(type, text);
+        const known = book.get(key);
+        if (known !== undefined) {
+          known.n++;
+          return;
+        }
+        book.set(key, {type, n: 1, first: text.slice(0, 1200), atMs: Date.now() - t0, stood: where.stood, before: consoleTail.slice(-12)});
+        log.push(`[!${key.slice(0, 70)}]`);
+      };
+      page.on('pageerror', (error) => said('pageerror', String(error?.message ?? error)));
+      page.on('response', (response) => {
+        if (response.status() >= 400) {
+          said('http', `${response.status()} ${response.request().method()} ${response.url().replace(/^https?:\/\/[^/]+/, '').replace(/\?.*$/, '')}`);
+        }
+      });
       page.on('console', (message) => {
         consoleTail.push(`${Date.now() % 1_000_000} ${message.type()} ${message.text().slice(0, 600)}`);
         if (consoleTail.length > 600) {
@@ -555,6 +654,10 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
         }
         if (message.type() === 'warning' || message.type() === 'error') {
           const text = message.text();
+          // (A failed resource is named by its URL through the response's own ear above — the console's line has none.)
+          if (!text.startsWith('Failed to load resource')) {
+            said(message.type(), text);
+          }
           if (text.includes('[long-frame]')) {
             ears.longFrames++;
           }
@@ -568,15 +671,21 @@ test.describe('THE AUTOPILOT — whole games through the real console', () => {
       await openConsole(page, viewer);
       let played: Played | undefined;
       try {
-        played = await playGame(page, request, viewer, seed, log, ears);
+        played = await playGame(page, request, viewer, seed, log, ears, where);
         // THE LAST WORD: past the arbiter's grace and the loop's twenty looks — the screen the game left is judged whole.
         await cinematicBeat(page, 25_000, 'the last word — a quiet spell past the liveness grace, so the screen the game left is judged');
       } finally {
         causeHarvest.note({
           monkey: {seed, fixture: `game-${n}`, mode: 'autopilot', landing: 'boot', duo: false, reload: false, hidden: false, presses: played?.presses ?? log.filter((l) => !l.startsWith('[')).length,
             perturb: {netMs: 0, cpu: Number(process.env.TM_E2E_CPU_THROTTLE ?? 0), motion: process.env.TM_E2E_MOTION ?? ''}},
-          autopilot: {...played, table: table.word},
+          autopilot: {
+            ...played, table: table.word, pilot: PILOT,
+            // THE LOG's BOOK: every class of line the page said in the whole game (the count, the first occurrence).
+            log: [...book.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 80).map(([key, row]) => ({key, type: row.type, n: row.n, atMs: row.atMs, stood: row.stood.slice(0, 160)})),
+          },
         });
+        fs.writeFileSync(test.info().outputPath('autopilot-log.txt'), [...book.entries()].sort((a, b) => a[1].atMs - b[1].atMs).map(([key, row]) =>
+          `── ${row.n}× ${key}\n   at ${Math.round(row.atMs / 1000)} s · the pilot stood: ${row.stood}\n   ${row.first}\n   before it:\n${row.before.map((line) => `     ${line.slice(0, 300)}`).join('\n')}\n`).join('\n'));
         fs.writeFileSync(test.info().outputPath('autopilot-walk.txt'),
           `seed=${seed} table=${table.word}\n${JSON.stringify(played, null, 1)}\n\n${log.join(' ')}\n\n── console (last ${consoleTail.length}) ──\n${consoleTail.join('\n')}\n`);
       }
