@@ -194,6 +194,18 @@ function victoryPointSection(vp: PlayCardResultMeta['victoryPoints'], projection
 }
 
 /**
+ * DOES THE SHEET STATE WHAT HAPPENS AFTER THE CONFIRM — a placement note, the repeat slot, a warning that names a
+ * skipped effect, or A QUESTION THE SHEET ITSELF ASKS. The last was missing: a card whose whole play is an in-sheet
+ * decision (Insulation's «how much heat production», Sabotage's and Hired Raiders' target, Strategic Shift's pick)
+ * shows its outcome ON that row — and the block under it still said «The card effect will be applied after
+ * confirming», the fallback of a sheet that knows nothing, while the audit below filed the card as a preview gap in
+ * every game it was played (FREEZE ZERO, the zero bar: «no computable preview for Insulation», 2026-11-25).
+ */
+export function playHasFollowUp(sheet: {notes: number, repeat: boolean, warnings: number, decisions: number}): boolean {
+  return sheet.notes > 0 || sheet.repeat || sheet.warnings > 0 || sheet.decisions > 0;
+}
+
+/**
  * A dev signal: TRUE when the whole result would be empty (no immediate, no
  * follow-up, and only the fallback derived). The component `console.warn`s this
  * so a genuine preview gap can be found and closed, per the audit contract.

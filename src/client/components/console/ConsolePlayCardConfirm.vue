@@ -999,7 +999,7 @@ import ConsolePlayedReceivingStage from '@/client/components/console/played/Cons
 //  `consolePlayedTargetPreview`. Two hosts render this selector now, and a
 //  builder written twice explains the same mechanic two ways the first time a
 //  step shape changes.)
-import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
+import {derivePlayResultSections, isFallbackOnlyResult, playHasFollowUp, PlayResultSection} from '@/client/console/consolePlayCardResult';
 import {PassLine, PassWarnings} from '@/client/console/passWarnings';
 // The VP projection's formula — the score explorer's ONE formatter (`formulaTagIcon` · `formulaOperandsText` · `shortfallText`).
 import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfallText} from '@/client/console/scoreExplorerModel';
@@ -2346,7 +2346,12 @@ const hasImmediateResult = computed((): boolean => {
  *  placement notes, the repeat slot, and the warnings that name a skipped
  *  effect. All three make the "applied after confirming" fallback a lie. */
 const hasFollowUpResult = computed((): boolean => {
-  return followUpNotes.value.length > 0 || repeatChoice.value !== undefined || warningSteps.value.length > 0;
+  return playHasFollowUp({
+    notes: followUpNotes.value.length, repeat: repeatChoice.value !== undefined, warnings: warningSteps.value.length,
+    // A QUESTION THE SHEET ITSELF ASKS (an amount, a target, a tabbed pick) states its own outcome on its row —
+    // «current → resulting», the stepper's live conversion.
+    decisions: decisionRows.value.length,
+  });
 });
 // Skipped-effect warnings: WHICH effect is lost (title + muted chip) and why.
 // Derived by the SAME shared helper the desktop modal uses, then translated —

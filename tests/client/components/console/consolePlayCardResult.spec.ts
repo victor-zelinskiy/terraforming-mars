@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {derivePlayResultSections, isFallbackOnlyResult, PlayCardResultMeta, PlayResultContext} from '@/client/console/consolePlayCardResult';
+import {derivePlayResultSections, isFallbackOnlyResult, playHasFollowUp, PlayCardResultMeta, PlayResultContext} from '@/client/console/consolePlayCardResult';
 import {Tag} from '@/common/cards/Tag';
 import {CardVictoryPointsDetail} from '@/common/game/VictoryPointsBreakdown';
 
@@ -124,6 +124,25 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
     expect(sections).to.have.length(1);
     expect(sections[0].kind).to.equal('fallback');
     expect(isFallbackOnlyResult(sections, noImmediate)).to.be.true;
+  });
+
+  /*
+   * A QUESTION THE SHEET ITSELF ASKS IS A STATED RESULT (the zero bar, 2026-11-25). Insulation — no tag, no chip, one
+   * amount row with its live conversion — read «The card effect will be applied after confirming» under that row, and
+   * the audit filed it as a preview gap in every game («no computable preview for Insulation»; Sabotage, Hired
+   * Raiders and Strategic Shift with their target rows the same).
+   */
+  it('a sheet whose whole play is an in-sheet decision states its result on that row: no fallback line, no audit line', () => {
+    const quiet = {notes: 0, repeat: false, warnings: 0, decisions: 0};
+    expect(playHasFollowUp(quiet), 'a sheet that states nothing').to.eq(false);
+    expect(playHasFollowUp({...quiet, decisions: 1}), 'the amount / target row').to.eq(true);
+    expect(playHasFollowUp({...quiet, warnings: 1}), 'a skipped effect, named').to.eq(true);
+    expect(playHasFollowUp({...quiet, notes: 1})).to.eq(true);
+    expect(playHasFollowUp({...quiet, repeat: true})).to.eq(true);
+    const ctx: PlayResultContext = {hasImmediate: false, hasFollowUp: playHasFollowUp({...quiet, decisions: 1})};
+    const sections = derivePlayResultSections(meta(), ctx);
+    expect(sections.map((s) => s.kind), 'no «applied after confirming» beside the row that says what is applied').to.deep.eq([]);
+    expect(isFallbackOnlyResult(sections, ctx)).to.eq(false);
   });
 
   it('an immediate-effect card needs no fallback (the chips carry the result)', () => {

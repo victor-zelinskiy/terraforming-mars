@@ -481,6 +481,19 @@ function currentView(): PlayerViewModel {
   return theRoot().playerView as PlayerViewModel;
 }
 
+/**
+ * THE VIEW, FOR WHOEVER READS IT LATER — `undefined` once the transport has stopped (the game screen left; the game is
+ * over). A scene handed a GETTER of the view reads it after its own beats, long after the block that armed it: the
+ * generation's income flies for seconds and then asks «where does the scene rise?» — and after the LAST production
+ * of a game the answer that carried it also ended the game, the binder left, the transport stopped. `currentView()`
+ * throws there (it is the transport's own word inside a live commit); handed out as a getter it threw inside a
+ * detached scene — «unhandled rejection: game transport used before startGameTransport», eleven games of eighty-four
+ * (FREEZE ZERO, the zero bar: the first error of a whole game's log). A getter that leaves this module is this one.
+ */
+function standingView(): PlayerViewModel | undefined {
+  return root?.playerView as PlayerViewModel | undefined;
+}
+
 function currentWaitingFor(): PlayerInputModel | undefined {
   return currentView().waitingFor;
 }
@@ -1220,7 +1233,7 @@ async function presentAnswer(submit: LiveSubmit, newView: PlayerViewModel, wgtSu
       if (generationScene !== undefined) {
         // The staged path has no pre-commit beat: the strip flips off the commit, the income flies after it.
         void nextTick(() => {
-          void runGenerationIncomeFlights(() => currentView());
+          void runGenerationIncomeFlights(standingView);
         });
       }
     },
@@ -1560,7 +1573,7 @@ async function presentAnswer(submit: LiveSubmit, newView: PlayerViewModel, wgtSu
     // Beat 3 — the income FLIES after the commit (the real values stand under the held rows), then the scene
     // concludes (beat 4: the research rises). After the conversion's own end, in the same tick order.
     void nextTick(() => {
-      void runGenerationIncomeFlights(() => currentView());
+      void runGenerationIncomeFlights(standingView);
     });
   }
   if (tradeFleetEvent !== undefined) {
